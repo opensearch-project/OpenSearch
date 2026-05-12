@@ -31,7 +31,6 @@ pub mod project_row_id_optimizer;
 pub mod query_executor;
 pub mod query_tracker;
 pub mod shard_table_provider;
-pub mod row_id_benchmark;
 pub mod runtime_manager;
 pub mod session_context;
 pub mod statistics_cache;

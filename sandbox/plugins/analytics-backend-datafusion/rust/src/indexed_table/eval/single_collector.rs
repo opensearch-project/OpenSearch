@@ -64,9 +64,7 @@ struct SingleCollectorState {
 /// extension) and has been removed; an OR-between-Collector-and-predicates
 /// shape routes to the multi-filter tree path today.
 pub struct SingleCollectorEvaluator {
-    /// The index-backed collector. `None` for predicate-only queries —
-    /// candidates default to the universe (all rows in RG pass candidate stage).
-    collector: Option<Arc<dyn RowGroupDocsCollector>>,
+    collector: Arc<dyn RowGroupDocsCollector>,
     page_pruner: Arc<PagePruner>,
     /// Residual pruning predicate: the non-Collector portion of the
     /// top-level AND, translated to a `PruningPredicate`. `None` means
@@ -110,56 +108,12 @@ impl SingleCollectorEvaluator {
         call_strategy: CollectorCallStrategy,
     ) -> Self {
         Self {
-            collector: Some(collector),
+            collector,
             page_pruner,
             pruning_predicate,
             residual_expr,
             page_prune_metrics,
             ffm_collector_calls,
-            call_strategy,
-        }
-    }
-
-    /// Evaluate a residual predicate against a batch, returning a BooleanArray mask.
-    fn evaluate_residual(
-        residual: &Arc<dyn datafusion::physical_expr::PhysicalExpr>,
-        batch: &RecordBatch,
-        batch_len: usize,
-    ) -> Result<BooleanArray, String> {
-        let remapped = remap_expr_to_batch(residual, batch)
-            .map_err(|e| format!("SingleCollectorEvaluator: remap residual: {}", e))?;
-        let value = remapped
-            .evaluate(batch)
-            .map_err(|e| format!("SingleCollectorEvaluator: residual.evaluate: {}", e))?;
-        let array = value
-            .into_array(batch_len)
-            .map_err(|e| format!("SingleCollectorEvaluator: residual into_array: {}", e))?;
-        array
-            .as_any()
-            .downcast_ref::<BooleanArray>()
-            .ok_or_else(|| {
-                "SingleCollectorEvaluator: residual did not produce BooleanArray".to_string()
-            })
-            .cloned()
-    }
-
-    /// Create evaluator without a Collector — predicate-only filtering.
-    /// Candidates default to the page-pruned universe; `on_batch_mask`
-    /// applies only the residual predicate (no collector bitmap AND).
-    pub fn predicate_only(
-        page_pruner: Arc<PagePruner>,
-        pruning_predicate: Option<Arc<PruningPredicate>>,
-        residual_expr: Option<Arc<dyn datafusion::physical_expr::PhysicalExpr>>,
-        page_prune_metrics: Option<PagePruneMetrics>,
-        call_strategy: CollectorCallStrategy,
-    ) -> Self {
-        Self {
-            collector: None,
-            page_pruner,
-            pruning_predicate,
-            residual_expr,
-            page_prune_metrics,
-            ffm_collector_calls: None,
             call_strategy,
         }
     }
@@ -195,8 +149,9 @@ impl RowGroupBitsetSource for SingleCollectorEvaluator {
                 })
         });
 
-        // Build candidate bitmap: from collector (if present) or page-pruned universe.
-        let mut candidates = if let Some(ref collector) = self.collector {
+        // Build candidate bitmap from collector.
+        let candidates = {
+            let collector = &self.collector;
             // Dispatch collector call strategy.
             let call_ranges: Vec<(i32, i32)> = match self.call_strategy {
                 CollectorCallStrategy::FullRange => vec![(min_doc, max_doc)],
@@ -253,25 +208,6 @@ impl RowGroupBitsetSource for SingleCollectorEvaluator {
                 }
             }
             candidates
-        } else {
-            // No collector — candidates are page-pruned universe
-            match &page_ranges {
-                Some(r) if r.is_empty() => return Ok(None),
-                Some(r) => {
-                    let mut bm = RoaringBitmap::new();
-                    for (r_min, r_max) in r {
-                        let lo = (*r_min as i64 - rg.first_row) as u32;
-                        let hi = (*r_max as i64 - rg.first_row) as u32;
-                        bm.insert_range(lo..hi);
-                    }
-                    bm
-                }
-                None => {
-                    let mut bm = RoaringBitmap::new();
-                    bm.insert_range(0..rg.num_rows as u32);
-                    bm
-                }
-            }
         };
 
         if candidates.is_empty() {
@@ -312,12 +248,6 @@ impl RowGroupBitsetSource for SingleCollectorEvaluator {
         let Some(ref residual) = self.residual_expr else {
             return Ok(None);
         };
-
-        // No collector: just evaluate the residual predicate directly.
-        // No bitmap AND needed — all rows in the batch are candidates.
-        if self.collector.is_none() {
-            return Ok(Some(Self::evaluate_residual(residual, batch, batch_len)?));
-        }
 
         let state = rg_state
             .downcast_ref::<SingleCollectorState>()
@@ -374,7 +304,7 @@ impl RowGroupBitsetSource for SingleCollectorEvaluator {
         };
 
         // Evaluate residual against the batch.
-        let residual_mask = Self::evaluate_residual(residual, batch, batch_len)?;
+        let residual_mask = super::eval_helpers::evaluate_residual(residual, batch, batch_len)?;
 
         // AND with kleene semantics (NULL → exclude).
         let combined = datafusion::arrow::compute::kernels::boolean::and_kleene(
@@ -580,7 +510,7 @@ mod tests {
 }
 
 /// Remap Column indices in a PhysicalExpr to match the batch schema by name.
-fn remap_expr_to_batch(
+pub fn remap_expr_to_batch(
     expr: &Arc<dyn datafusion::physical_expr::PhysicalExpr>,
     batch: &RecordBatch,
 ) -> Result<Arc<dyn datafusion::physical_expr::PhysicalExpr>, String> {

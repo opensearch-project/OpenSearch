@@ -521,12 +521,11 @@ pub async unsafe fn execute_indexed_with_context(
                             Arc::clone(&segment.metadata),
                         ));
                         let eval: Arc<dyn RowGroupBitsetSource> =
-                            Arc::new(SingleCollectorEvaluator::predicate_only(
+                            Arc::new(crate::indexed_table::eval::predicate_evaluator::PredicateOnlyEvaluator::new(
                                 pruner,
                                 residual_pruning_predicate.clone(),
                                 residual_expr.clone(),
                                 Some(PagePruneMetrics::from_stream_metrics(stream_metrics)),
-                                call_strategy,
                             ));
                         Ok(eval)
                     },
