@@ -23,8 +23,12 @@ import java.util.Set;
  * registered via {@link BlockCacheFoyerPlugin#getSettings()}. They are not visible
  * to server-side components.
  *
- * <p>{@code block_cache.size} is owned here because the Foyer plugin is responsible
- * for reporting its requested capacity to core via
+ * <p>All settings are namespaced under {@code block_cache.foyer.*} to distinguish
+ * them from settings that might be registered by other {@code BlockCacheProvider}
+ * plugins (e.g. {@code block_cache.caffeine.*}).
+ *
+ * <p>{@code block_cache.foyer.size} is owned here because the Foyer plugin is
+ * responsible for reporting its requested capacity to core via
  * {@link BlockCacheFoyerPlugin#requestedCapacityBytes(org.opensearch.common.settings.Settings, long)}.
  *
  * @opensearch.experimental
@@ -40,30 +44,30 @@ public final class FoyerBlockCacheSettings {
      * byte allocation scales automatically with the instance's SSD capacity.
      *
      * <p>Example: 1&nbsp;TB SSD, {@code node.search.cache.size=80%} (800&nbsp;GB budget),
-     * {@code block_cache.size=25%} → Foyer gets 200&nbsp;GB, FileCache gets 600&nbsp;GB.
+     * {@code block_cache.foyer.size=25%} → Foyer gets 200&nbsp;GB, FileCache gets 600&nbsp;GB.
      *
      * <p>Default: {@code 25%}. Set to {@code 0%} to disable the block cache.
      * Accepts a percentage (e.g. {@code 25%}) or a ratio (e.g. {@code 0.25}).
      *
      * <p>Configure in {@code opensearch.yml}:
      * <pre>{@code
-     * block_cache.size: 25%
+     * block_cache.foyer.size: 25%
      * }</pre>
      */
     public static final Setting<String> CACHE_SIZE_SETTING = new Setting<>(
-        "block_cache.size",
+        "block_cache.foyer.size",
         "25%",
         value -> {
             try {
                 RatioValue ratio = RatioValue.parseRatioValue(value);
                 if (ratio.getAsRatio() < 0 || ratio.getAsRatio() >= 1.0) {
                     throw new IllegalArgumentException(
-                        "[block_cache.size] must be in [0%, 100%); got: " + value);
+                        "[block_cache.foyer.size] must be in [0%, 100%); got: " + value);
                 }
                 return value;
             } catch (Exception e) {
                 throw new IllegalArgumentException(
-                    "[block_cache.size] must be a percentage (e.g. 25%) or ratio (e.g. 0.25); got: " + value, e);
+                    "[block_cache.foyer.size] must be a percentage (e.g. 25%) or ratio (e.g. 0.25); got: " + value, e);
             }
         },
         Setting.Property.NodeScope
@@ -82,11 +86,11 @@ public final class FoyerBlockCacheSettings {
      *
      * <p>Configure in {@code opensearch.yml}:
      * <pre>{@code
-     * block_cache.block_size: 64mb
+     * block_cache.foyer.block_size: 64mb
      * }</pre>
      */
     public static final Setting<ByteSizeValue> BLOCK_SIZE_SETTING = Setting.byteSizeSetting(
-        "block_cache.block_size",
+        "block_cache.foyer.block_size",
         new ByteSizeValue(64, ByteSizeUnit.MB),
         new ByteSizeValue(1, ByteSizeUnit.MB),
         new ByteSizeValue(256, ByteSizeUnit.MB),
@@ -108,12 +112,12 @@ public final class FoyerBlockCacheSettings {
      *
      * <p>Configure in {@code opensearch.yml}:
      * <pre>{@code
-     * block_cache.io_engine: auto
+     * block_cache.foyer.io_engine: auto
      * }</pre>
      */
-    public static final Setting<String> IO_ENGINE_SETTING = new Setting<>("block_cache.io_engine", "auto", value -> {
+    public static final Setting<String> IO_ENGINE_SETTING = new Setting<>("block_cache.foyer.io_engine", "auto", value -> {
         if (!Set.of("auto", "io_uring", "psync").contains(value)) {
-            throw new IllegalArgumentException("[block_cache.io_engine] must be one of: auto, io_uring, psync; got: " + value);
+            throw new IllegalArgumentException("[block_cache.foyer.io_engine] must be one of: auto, io_uring, psync; got: " + value);
         }
         return value;
     }, Setting.Property.NodeScope);
@@ -129,11 +133,11 @@ public final class FoyerBlockCacheSettings {
      *
      * <p>Configure in {@code opensearch.yml}:
      * <pre>{@code
-     * block_cache.data_to_cache_ratio: 5.0
+     * block_cache.foyer.data_to_cache_ratio: 5.0
      * }</pre>
      */
     public static final Setting<Double> DATA_TO_CACHE_RATIO_SETTING = Setting.doubleSetting(
-        "block_cache.data_to_cache_ratio",
+        "block_cache.foyer.data_to_cache_ratio",
         5.0,
         1.0,
         Setting.Property.NodeScope
