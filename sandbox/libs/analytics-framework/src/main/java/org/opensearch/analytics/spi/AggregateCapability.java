@@ -8,8 +8,6 @@
 
 package org.opensearch.analytics.spi;
 
-import org.opensearch.common.Nullable;
-
 import java.util.Set;
 
 /**
@@ -21,32 +19,19 @@ import java.util.Set;
  * validate the function type at construction and make backend declarations
  * self-documenting.
  *
- * <p>{@link #decomposition()} is null for most functions — the planner applies
- * Calcite's standard decomposition (AVG → SUM/COUNT, STDDEV → SUM(x²)+SUM(x)+COUNT).
- * Backends with non-standard partial state (e.g. HLL sketches, Welford STDDEV)
- * provide a custom {@link AggregateDecomposition}.
- *
- * <p>TODO (plan forking): during resolution of a plan alternative, after a single
- * backend is chosen for an aggregate operator, apply decomposition as a paired
- * rewrite of PARTIAL output schema + FINAL input schema:
- * <ol>
- *   <li>If decomposition == null: apply Calcite's AggregateReduceFunctionsRule
- *       to the PARTIAL+FINAL pair.</li>
- *   <li>If decomposition != null: use decomposition.partialCalls() to rewrite
- *       PARTIAL's aggCalls and output row type, then use decomposition.finalExpression()
- *       to rewrite FINAL's aggCalls. Both must be updated together — the exchange
- *       row type between them must be consistent.</li>
- * </ol>
+ * <p>Decomposition of partial/final aggregate pairs is handled uniformly, outside
+ * this record:
+ * <ul>
+ *   <li>Multi-field primitive decomposition (AVG / STDDEV / VAR) runs in HEP via
+ *       {@code OpenSearchAggregateReduceRule}.</li>
+ *   <li>Single-field pass-through / function-swap / engine-native reductions run in
+ *       {@code AggregateDecompositionResolver} using
+ *       {@link AggregateFunction#intermediateFields()} as the sole source of truth.</li>
+ * </ul>
  *
  * @opensearch.internal
  */
-public record AggregateCapability(AggregateFunction function, Set<FieldType> fieldTypes, Set<String> formats,
-    @Nullable AggregateDecomposition decomposition) {
-
-    /** Convenience constructor with no custom decomposition (uses Calcite's standard). */
-    public AggregateCapability(AggregateFunction function, Set<FieldType> fieldTypes, Set<String> formats) {
-        this(function, fieldTypes, formats, null);
-    }
+public record AggregateCapability(AggregateFunction function, Set<FieldType> fieldTypes, Set<String> formats) {
 
     public static AggregateCapability simple(AggregateFunction function, Set<FieldType> fieldTypes, Set<String> formats) {
         assert function.getType() == AggregateFunction.Type.SIMPLE;

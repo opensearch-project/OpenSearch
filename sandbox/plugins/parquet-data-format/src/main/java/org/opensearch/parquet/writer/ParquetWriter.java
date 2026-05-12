@@ -78,7 +78,8 @@ public class ParquetWriter implements Writer<ParquetDocumentInput> {
             schema,
             bufferPool,
             ParquetSettings.MAX_ROWS_PER_VSR.get(indexSettings.getSettings()),
-            threadPool
+            threadPool,
+            writerGeneration
         );
     }
 

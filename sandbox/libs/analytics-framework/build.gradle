@@ -12,13 +12,27 @@
  * Plugins depend on this; the /modules SPI layer does NOT.
  */
 
-def calciteVersion = '1.41.0'
-
+// Patched Calcite coordinate. Carries CALCITE-3745 (TCCL-chained classloader
+// for Janino parent CL); API surface is identical to upstream. The OpenSearch
+// Snapshots repo and the resolutionStrategy.force for this coordinate are
+// declared centrally in sandbox/build.gradle's subprojects block.
 java { sourceCompatibility = JavaVersion.toVersion(25); targetCompatibility = JavaVersion.toVersion(25) }
 
 configurations {
   calciteCompile
   compileClasspath { exclude group: 'com.google.guava' }
+  testRuntimeClasspath {
+    resolutionStrategy {
+      force "com.google.flatbuffers:flatbuffers-java:${versions.flatbuffers}"
+      force "com.fasterxml.jackson:jackson-bom:${versions.jackson}"
+      force "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
+      force "com.fasterxml.jackson.core:jackson-databind:${versions.jackson_databind}"
+      force "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson_annotations}"
+      force "com.fasterxml.jackson.datatype:jackson-datatype-jsr310:${versions.jackson}"
+      force "org.slf4j:slf4j-api:${versions.slf4j}"
+      force "commons-codec:commons-codec:${versions.commonscodec}"
+    }
+  }
 }
 sourceSets.main.compileClasspath += configurations.calciteCompile
 sourceSets.test.compileClasspath += configurations.calciteCompile
@@ -35,9 +49,9 @@ dependencies {
   // interfaces declares its own runtime arrow dep (see analytics-backend-datafusion).
   compileOnly "org.apache.arrow:arrow-vector:${versions.arrow}"
   compileOnly "org.apache.arrow:arrow-memory-core:${versions.arrow}"
-  api "org.apache.calcite:calcite-core:${calciteVersion}"
+  api "org.apache.calcite:calcite-core:${patchedCalciteVersion}"
   // Calcite's expression tree and Enumerable runtime — required by calcite-core API
-  api "org.apache.calcite:calcite-linq4j:${calciteVersion}"
+  api "org.apache.calcite:calcite-linq4j:${patchedCalciteVersion}"
   // Calcite's JDBC abstraction layer — required by calcite-core internals
   runtimeOnly 'org.apache.calcite.avatica:avatica-core:1.27.0'
   // Guava — required by Calcite internally, forbidden on compile classpaths by OpenSearch policy
@@ -62,6 +76,13 @@ dependencies {
     exclude group: 'org.opensearch', module: 'opensearch-core'
     exclude group: 'org.opensearch', module: 'opensearch-common'
   }
+  testRuntimeOnly "org.apache.arrow:arrow-vector:${versions.arrow}"
+  testRuntimeOnly "org.apache.arrow:arrow-memory-core:${versions.arrow}"
+  testRuntimeOnly "com.google.flatbuffers:flatbuffers-java:${versions.flatbuffers}"
+  testRuntimeOnly "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
+  testRuntimeOnly "com.fasterxml.jackson.core:jackson-databind:${versions.jackson_databind}"
+  testRuntimeOnly "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson_annotations}"
+  testRuntimeOnly "com.fasterxml.jackson.datatype:jackson-datatype-jsr310:${versions.jackson}"
   runtimeOnly 'com.jayway.jsonpath:json-path:2.9.0'
   runtimeOnly "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
   runtimeOnly "com.fasterxml.jackson.core:jackson-databind:${versions.jackson_databind}"

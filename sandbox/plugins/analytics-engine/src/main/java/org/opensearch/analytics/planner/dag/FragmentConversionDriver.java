@@ -134,13 +134,7 @@ public class FragmentConversionDriver {
             } else {
                 factory.createShardScanNode().ifPresent(instructions::add);
             }
-            if (plan.resolvedFragment() instanceof OpenSearchAggregate agg && agg.getMode() == AggregateMode.PARTIAL) {
-                factory.createPartialAggregateNode().ifPresent(instructions::add);
-            }
-        } else if (leaf instanceof OpenSearchStageInputScan) {
-            factory.createFinalAggregateNode().ifPresent(instructions::add);
         }
-
         return instructions;
     }
 

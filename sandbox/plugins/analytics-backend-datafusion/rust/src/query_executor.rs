@@ -18,7 +18,7 @@ use datafusion::{
     prelude::*,
 };
 use datafusion::datasource::file_format::parquet::ParquetFormat;
-use datafusion::execution::cache::cache_manager::CacheManagerConfig;
+use datafusion::execution::cache::cache_manager::{CacheManagerConfig, CachedFileList};
 use datafusion::execution::cache::{CacheAccessor, DefaultListFilesCache};
 use datafusion_substrait::logical_plan::consumer::from_substrait_plan;
 use log::error;
@@ -58,7 +58,7 @@ pub async fn execute_query(
         table: None,
         path: table_path.prefix().clone(),
     };
-    list_file_cache.put(&table_scoped_path, object_metas);
+    list_file_cache.put(&table_scoped_path, CachedFileList::new(object_metas.as_ref().clone()));
 
     // Build a per-query RuntimeEnv sharing the global memory pool + caches,
     // but with a fresh list-files cache for this query's shard files.

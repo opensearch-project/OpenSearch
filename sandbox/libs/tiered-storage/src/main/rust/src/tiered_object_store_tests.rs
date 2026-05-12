@@ -1,7 +1,7 @@
 use super::*;
 use futures::StreamExt;
 use object_store::memory::InMemory;
-use object_store::PutPayload;
+use object_store::{CopyOptions, ObjectStoreExt, PutPayload};
 use std::sync::atomic::{AtomicUsize, Ordering as AtomicOrdering};
 
 /// Helper: create a registry + tiered store backed by in-memory stores.
@@ -514,10 +514,6 @@ impl ObjectStore for CallCountingStore {
         self.inner.get_opts(location, options).await
     }
 
-    async fn head(&self, location: &Path) -> OsResult<ObjectMeta> {
-        self.inner.head(location).await
-    }
-
     async fn put_opts(
         &self,
         location: &Path,
@@ -535,8 +531,11 @@ impl ObjectStore for CallCountingStore {
         self.inner.put_multipart_opts(location, opts).await
     }
 
-    async fn delete(&self, location: &Path) -> OsResult<()> {
-        self.inner.delete(location).await
+    fn delete_stream(
+        &self,
+        locations: BoxStream<'static, OsResult<Path>>,
+    ) -> BoxStream<'static, OsResult<Path>> {
+        self.inner.delete_stream(locations)
     }
 
     fn list(&self, prefix: Option<&Path>) -> BoxStream<'static, OsResult<ObjectMeta>> {
@@ -547,16 +546,8 @@ impl ObjectStore for CallCountingStore {
         self.inner.list_with_delimiter(prefix).await
     }
 
-    async fn copy(&self, from: &Path, to: &Path) -> OsResult<()> {
-        self.inner.copy(from, to).await
-    }
-
-    async fn copy_if_not_exists(&self, from: &Path, to: &Path) -> OsResult<()> {
-        self.inner.copy_if_not_exists(from, to).await
-    }
-
-    async fn rename_if_not_exists(&self, from: &Path, to: &Path) -> OsResult<()> {
-        self.inner.rename_if_not_exists(from, to).await
+    async fn copy_opts(&self, from: &Path, to: &Path, options: CopyOptions) -> OsResult<()> {
+        self.inner.copy_opts(from, to, options).await
     }
 }
 
@@ -617,13 +608,6 @@ impl ObjectStore for ErrorStore {
         })
     }
 
-    async fn head(&self, _location: &Path) -> OsResult<ObjectMeta> {
-        Err(object_store::Error::Generic {
-            store: "ErrorStore",
-            source: "simulated error".into(),
-        })
-    }
-
     async fn put_opts(
         &self,
         _location: &Path,
@@ -647,11 +631,14 @@ impl ObjectStore for ErrorStore {
         })
     }
 
-    async fn delete(&self, _location: &Path) -> OsResult<()> {
-        Err(object_store::Error::Generic {
+    fn delete_stream(
+        &self,
+        locations: BoxStream<'static, OsResult<Path>>,
+    ) -> BoxStream<'static, OsResult<Path>> {
+        Box::pin(locations.map(|_| Err(object_store::Error::Generic {
             store: "ErrorStore",
             source: "simulated error".into(),
-        })
+        })))
     }
 
     fn list(&self, _prefix: Option<&Path>) -> BoxStream<'static, OsResult<ObjectMeta>> {
@@ -665,19 +652,7 @@ impl ObjectStore for ErrorStore {
         })
     }
 
-    async fn copy(&self, _from: &Path, _to: &Path) -> OsResult<()> {
-        Err(object_store::Error::NotSupported {
-            source: "not supported".into(),
-        })
-    }
-
-    async fn copy_if_not_exists(&self, _from: &Path, _to: &Path) -> OsResult<()> {
-        Err(object_store::Error::NotSupported {
-            source: "not supported".into(),
-        })
-    }
-
-    async fn rename_if_not_exists(&self, _from: &Path, _to: &Path) -> OsResult<()> {
+    async fn copy_opts(&self, _from: &Path, _to: &Path, _options: CopyOptions) -> OsResult<()> {
         Err(object_store::Error::NotSupported {
             source: "not supported".into(),
         })
