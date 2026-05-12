@@ -270,7 +270,7 @@ public final class DatafusionSettings {
             .singleCollectorStrategy(strategyToWireValue(INDEXED_SINGLE_COLLECTOR_STRATEGY.get(settings)))
             .treeCollectorStrategy(strategyToWireValue(INDEXED_TREE_COLLECTOR_STRATEGY.get(settings)))
             .maxCollectorParallelism(INDEXED_MAX_COLLECTOR_PARALLELISM.get(settings))
-            .fetchStrategy(INDEXED_FETCH_STRATEGY.get(settings))
+            .fetchStrategy(fetchStrategyToWireValue(INDEXED_FETCH_STRATEGY.get(settings)))
             .build();
 
         registerListeners(clusterSettings);
@@ -293,7 +293,7 @@ public final class DatafusionSettings {
             .singleCollectorStrategy(strategyToWireValue(INDEXED_SINGLE_COLLECTOR_STRATEGY.get(settings)))
             .treeCollectorStrategy(strategyToWireValue(INDEXED_TREE_COLLECTOR_STRATEGY.get(settings)))
             .maxCollectorParallelism(INDEXED_MAX_COLLECTOR_PARALLELISM.get(settings))
-            .fetchStrategy(INDEXED_FETCH_STRATEGY.get(settings))
+            .fetchStrategy(fetchStrategyToWireValue(INDEXED_FETCH_STRATEGY.get(settings)))
             .build();
     }
 
@@ -327,7 +327,7 @@ public final class DatafusionSettings {
         });
 
         clusterSettings.addSettingsUpdateConsumer(INDEXED_FETCH_STRATEGY, newValue -> {
-            snapshot = WireConfigSnapshot.builder(snapshot).fetchStrategy(newValue).build();
+            snapshot = WireConfigSnapshot.builder(snapshot).fetchStrategy(fetchStrategyToWireValue(newValue)).build();
         });
 
         clusterSettings.addSettingsUpdateConsumer(SearchService.CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_SETTING, newValue -> {
@@ -368,6 +368,19 @@ public final class DatafusionSettings {
                 return 2;
             default:
                 throw new IllegalArgumentException("Unknown strategy: " + strategy);
+        }
+    }
+
+    static int fetchStrategyToWireValue(String strategy) {
+        switch (strategy) {
+            case FETCH_STRATEGY_NONE:
+                return 0;
+            case FETCH_STRATEGY_LISTING_TABLE:
+                return 1;
+            case FETCH_STRATEGY_INDEXED:
+                return 2;
+            default:
+                throw new IllegalArgumentException("Unknown fetch strategy: " + strategy);
         }
     }
 

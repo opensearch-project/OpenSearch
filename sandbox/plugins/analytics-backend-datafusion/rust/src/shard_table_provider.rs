@@ -110,18 +110,26 @@ impl TableProvider for ShardTableProvider {
         )
         .with_file_groups(file_groups);
 
-        if let Some(proj) = projection {
-            // Always include the row_base partition column (index = num_file_cols)
-            // so ProjectRowIdOptimizer can compute __row_id__ + row_base.
-            let row_base_idx = num_file_cols;
-            let mut proj_with_row_base = proj.clone();
-            if !proj_with_row_base.contains(&row_base_idx) {
-                proj_with_row_base.push(row_base_idx);
+        // Always include the row_base partition column (index = num_file_cols)
+        // so ProjectRowIdOptimizer can compute __row_id__ + row_base.
+        let row_base_idx = num_file_cols;
+        let proj_with_row_base = match projection {
+            Some(proj) => {
+                let mut p = proj.clone();
+                if !p.contains(&row_base_idx) {
+                    p.push(row_base_idx);
+                }
+                p
             }
-            builder = builder
-                .with_projection_indices(Some(proj_with_row_base))
-                .map_err(|e| datafusion::error::DataFusionError::Internal(format!("{}", e)))?;
-        }
+            None => {
+                let mut p: Vec<usize> = (0..num_file_cols).collect();
+                p.push(row_base_idx);
+                p
+            }
+        };
+        builder = builder
+            .with_projection_indices(Some(proj_with_row_base))
+            .map_err(|e| datafusion::error::DataFusionError::Internal(format!("{}", e)))?;
 
         let file_scan_config = builder.build();
         Ok(DataSourceExec::from_data_source(file_scan_config))

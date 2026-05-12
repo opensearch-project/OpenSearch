@@ -9,7 +9,7 @@
 //! End-to-end correctness tests for row ID emission across all three strategies.
 //!
 //! These tests create real parquet files with known `___row_id` values and verify
-//! that all three `RowIdStrategy` variants produce identical shard-global row IDs.
+//! that all three `FetchStrategy` variants produce identical shard-global row IDs.
 
 #[cfg(test)]
 mod tests {
@@ -26,7 +26,7 @@ mod tests {
     use tempfile::TempDir;
 
     use crate::api::{build_shard_files, FileRowMetadata};
-    use crate::datafusion_query_config::RowIdStrategy;
+    use crate::datafusion_query_config::FetchStrategy;
     use crate::project_row_id_optimizer::ProjectRowIdOptimizer;
 
     /// Create a test parquet file with `___row_id` column containing positional indices.
@@ -284,9 +284,9 @@ mod tests {
     }
 
     #[test]
-    fn test_row_id_strategy_default_is_none() {
+    fn test_fetch_strategy_default_is_none() {
         let config = crate::datafusion_query_config::DatafusionQueryConfig::test_default();
-        assert_eq!(config.row_id_strategy, RowIdStrategy::None);
+        assert_eq!(config.fetch_strategy, FetchStrategy::None);
     }
 
 

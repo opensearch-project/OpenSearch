@@ -256,8 +256,10 @@ pub async fn execute_with_context(
 
     // If ListingTable strategy: replace the default ListingTable with ShardTableProvider
     // that adds row_base partition column for ProjectRowIdOptimizer.
+    // Also register the ProjectRowIdAnalyzer to ensure __row_id__ survives logical optimization.
     if fetch_strategy == FetchStrategy::ListingTable {
         use crate::shard_table_provider::{ShardTableConfig, ShardFileInfo as ShardFile, ShardTableProvider};
+
 
         handle.ctx.deregister_table(&handle.table_name)?;
 
@@ -304,6 +306,10 @@ pub async fn execute_with_context(
             format!("{}://{}", parsed.scheme(), parsed.authority()),
         )?;
 
+        native_bridge_common::log_info!(
+            "[query_executor] ShardTableProvider: {} files, row_bases={:?}",
+            files.len(), files.iter().map(|f| f.row_base).collect::<Vec<_>>()
+        );
         let provider = Arc::new(ShardTableProvider::new(ShardTableConfig {
             file_schema: resolved_schema,
             files,
@@ -321,17 +327,15 @@ pub async fn execute_with_context(
     let requests_row_ids = crate::indexed_table::substrait_to_tree::plan_requests_row_ids(&logical_plan);
 
     let dataframe = handle.ctx.execute_logical_plan(logical_plan).await?;
+    // create_physical_plan runs all registered physical optimizer rules including
+    // ProjectRowIdOptimizer (registered in session_context when strategy=ListingTable).
     let physical_plan = dataframe.create_physical_plan().await?;
 
-    // Apply row ID optimizer if needed
+    // No post-hoc optimizer needed — ProjectRowIdOptimizer runs inside create_physical_plan.
     let physical_plan = if requests_row_ids {
         match fetch_strategy {
             FetchStrategy::None => physical_plan,
-            FetchStrategy::ListingTable => {
-                let optimizer = crate::project_row_id_optimizer::ProjectRowIdOptimizer;
-                let config = ConfigOptions::default();
-                optimizer.optimize(physical_plan, &config)?
-            }
+            FetchStrategy::ListingTable => physical_plan,
             FetchStrategy::IndexedPredicateOnly => physical_plan,
         }
     } else {

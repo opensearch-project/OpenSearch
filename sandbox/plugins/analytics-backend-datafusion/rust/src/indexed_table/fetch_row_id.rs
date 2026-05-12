@@ -70,16 +70,18 @@ pub fn inject_row_ids(
     // Build output columns: data columns from filtered batch + row_id at correct position.
     let mut columns: Vec<Arc<dyn Array>> = Vec::with_capacity(schema.fields().len());
     let batch_schema = output.schema();
-    let mut data_col = 0usize;
     for (i, field) in schema.fields().iter().enumerate() {
         if i == row_id_idx {
             columns.push(Arc::clone(&row_id_array));
         } else if let Ok(idx) = batch_schema.index_of(field.name()) {
             columns.push(Arc::clone(output.column(idx)));
-            data_col += 1;
         } else {
-            columns.push(Arc::clone(output.column(data_col.min(output.num_columns() - 1))));
-            data_col += 1;
+            // Field not found in batch — shouldn't happen in normal operation.
+            // Create a null array as a safety fallback.
+            columns.push(datafusion::arrow::array::new_null_array(
+                field.data_type(),
+                num_surviving,
+            ));
         }
     }
 

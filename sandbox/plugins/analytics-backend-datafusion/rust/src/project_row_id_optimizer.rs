@@ -6,27 +6,31 @@
  * compatible open source license.
  */
 
-//! Physical optimizer rule for Approach 1 (ListingTable + ProjectRowIdOptimizer).
+//! Physical optimizer rule for the ListingTable QTF path.
 //!
-//! Walks the physical plan tree looking for `DataSourceExec` nodes whose file
-//! schema contains `___row_id`. When found, inserts a `ProjectionExec` above
-//! that computes `___row_id + row_base` and aliases it as `___row_id`.
+//! Walks the physical plan tree looking for `DataSourceExec` nodes that have
+//! both `__row_id__` and `row_base` in their output schema. When found, wraps
+//! with a `ProjectionExec` that computes `__row_id__ + row_base` and drops `row_base`.
 //!
-//! This optimizer is registered on the session only when `FetchStrategy::ListingTable`
-//! is active and the plan requests row IDs.
+//! `schema_check() -> false` is critical — tells DataFusion to skip schema
+//! validation after this rule runs (output schema changes from input).
 
 use std::sync::Arc;
 
 use datafusion::common::config::ConfigOptions;
-use datafusion::common::tree_node::{Transformed, TreeNode};
+use datafusion::common::tree_node::{Transformed, TreeNode, TreeNodeRecursion};
 use datafusion::common::Result;
+use datafusion::datasource::source::DataSourceExec;
+use datafusion::logical_expr::Operator;
+use datafusion::physical_expr::expressions::{BinaryExpr, Column};
+use datafusion::physical_expr::PhysicalExpr;
 use datafusion::physical_optimizer::PhysicalOptimizerRule;
+use datafusion::physical_plan::projection::ProjectionExec;
 use datafusion::physical_plan::ExecutionPlan;
 
-/// Physical optimizer that rewrites `DataSourceExec` plans to compute
-/// `___row_id + row_base` when the file schema contains `___row_id`.
-///
-/// This is a no-op when `___row_id` is not present in the schema.
+pub const ROW_ID_FIELD_NAME: &str = "__row_id__";
+pub const ROW_BASE_FIELD_NAME: &str = "row_base";
+
 #[derive(Debug)]
 pub struct ProjectRowIdOptimizer;
 
@@ -36,67 +40,47 @@ impl PhysicalOptimizerRule for ProjectRowIdOptimizer {
         plan: Arc<dyn ExecutionPlan>,
         _config: &ConfigOptions,
     ) -> Result<Arc<dyn ExecutionPlan>> {
-        // Walk the plan tree bottom-up, looking for DataSourceExec nodes
-        // with ___row_id in their output schema.
-        plan.transform_up(|node| {
+        let rewritten = plan.transform_up(|node| {
             let schema = node.schema();
-            let has_row_id = schema.column_with_name("__row_id__").is_some();
-            let has_row_base = schema.column_with_name("row_base").is_some();
+            let has_row_id = schema.column_with_name(ROW_ID_FIELD_NAME).is_some();
+            let has_row_base = schema.column_with_name(ROW_BASE_FIELD_NAME).is_some();
 
-            if has_row_id && has_row_base {
-                let row_id_idx = schema.index_of("__row_id__").unwrap();
-                let row_base_idx = schema.index_of("row_base").unwrap();
-
-                // Build projection expressions: all columns except row_base,
-                // with ___row_id replaced by (___row_id + row_base).
-                let mut exprs: Vec<(
-                    Arc<dyn datafusion::physical_expr::PhysicalExpr>,
-                    String,
-                )> = Vec::new();
-
-                for (i, field) in schema.fields().iter().enumerate() {
-                    if i == row_base_idx {
-                        // Skip row_base from output
-                        continue;
-                    }
-                    if i == row_id_idx {
-                        // Replace ___row_id with ___row_id + row_base
-                        let row_id_col: Arc<dyn datafusion::physical_expr::PhysicalExpr> =
-                            Arc::new(datafusion::physical_expr::expressions::Column::new(
-                                "__row_id__",
-                                row_id_idx,
-                            ));
-                        let row_base_col: Arc<dyn datafusion::physical_expr::PhysicalExpr> =
-                            Arc::new(datafusion::physical_expr::expressions::Column::new(
-                                "row_base",
-                                row_base_idx,
-                            ));
-                        let add_expr: Arc<dyn datafusion::physical_expr::PhysicalExpr> =
-                            Arc::new(datafusion::physical_expr::expressions::BinaryExpr::new(
-                                row_id_col,
-                                datafusion::logical_expr::Operator::Plus,
-                                row_base_col,
-                            ));
-                        exprs.push((add_expr, "__row_id__".to_string()));
-                    } else {
-                        let col: Arc<dyn datafusion::physical_expr::PhysicalExpr> =
-                            Arc::new(datafusion::physical_expr::expressions::Column::new(
-                                field.name(),
-                                i,
-                            ));
-                        exprs.push((col, field.name().clone()));
-                    }
-                }
-
-                let projection = datafusion::physical_plan::projection::ProjectionExec::try_new(
-                    exprs, node,
-                )?;
-                Ok(Transformed::yes(Arc::new(projection) as Arc<dyn ExecutionPlan>))
-            } else {
-                Ok(Transformed::no(node))
+            if !has_row_id || !has_row_base {
+                return Ok(Transformed::no(node));
             }
-        })
-        .map(|t| t.data)
+
+            let row_id_idx = schema.index_of(ROW_ID_FIELD_NAME).unwrap();
+            let row_base_idx = schema.index_of(ROW_BASE_FIELD_NAME).unwrap();
+
+            let sum_expr: Arc<dyn PhysicalExpr> = Arc::new(BinaryExpr::new(
+                Arc::new(Column::new(ROW_ID_FIELD_NAME, row_id_idx)),
+                Operator::Plus,
+                Arc::new(Column::new(ROW_BASE_FIELD_NAME, row_base_idx)),
+            ));
+
+            let mut projection_exprs: Vec<(Arc<dyn PhysicalExpr>, String)> = Vec::new();
+            for (i, field) in schema.fields().iter().enumerate() {
+                if field.name() == ROW_ID_FIELD_NAME {
+                    projection_exprs.push((sum_expr.clone(), ROW_ID_FIELD_NAME.to_string()));
+                } else if field.name() == ROW_BASE_FIELD_NAME {
+                    continue;
+                } else {
+                    projection_exprs.push((
+                        Arc::new(Column::new(field.name(), i)),
+                        field.name().clone(),
+                    ));
+                }
+            }
+
+            let projection = ProjectionExec::try_new(projection_exprs, node)?;
+            Ok(Transformed::new(
+                Arc::new(projection) as Arc<dyn ExecutionPlan>,
+                true,
+                TreeNodeRecursion::Continue,
+            ))
+        })?;
+
+        Ok(rewritten.data)
     }
 
     fn name(&self) -> &str {
@@ -104,14 +88,13 @@ impl PhysicalOptimizerRule for ProjectRowIdOptimizer {
     }
 
     fn schema_check(&self) -> bool {
-        true
+        false
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use datafusion::arrow::datatypes::{DataType, Field, Schema};
 
     #[test]
     fn optimizer_name() {
@@ -120,8 +103,8 @@ mod tests {
     }
 
     #[test]
-    fn optimizer_schema_check() {
+    fn optimizer_schema_check_disabled() {
         let opt = ProjectRowIdOptimizer;
-        assert!(opt.schema_check());
+        assert!(!opt.schema_check());
     }
 }
