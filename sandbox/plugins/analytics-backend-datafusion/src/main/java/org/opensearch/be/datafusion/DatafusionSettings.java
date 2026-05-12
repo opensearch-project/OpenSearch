@@ -171,7 +171,7 @@ public final class DatafusionSettings {
      */
     public static final Setting<Integer> INDEXED_FETCH_STRATEGY = Setting.intSetting(
         "datafusion.indexed.fetch_strategy",
-        0,
+        2,
         0,
         2,
         Setting.Property.NodeScope,

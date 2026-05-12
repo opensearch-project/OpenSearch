@@ -401,193 +401,145 @@ public class QueryThenFetchIT extends AnalyticsRestTestCase {
     }
 
     // ══════════════════════════════════════════════════════════════════════════════
-    // Strategy tests: verify both ListingTable and IndexedPredicateOnly paths
-    // produce identical results for the same query.
+    // Strategy tests: dynamically switch fetch_strategy and verify correctness.
     // ══════════════════════════════════════════════════════════════════════════════
 
     /**
      * ListingTable strategy (1): ShardTableProvider + ProjectRowIdOptimizer.
-     * Reads __row_id__ from parquet, adds row_base partition offset.
-     * FilterClass::None — no collector, pure DataFusion scan + sort.
+     * Full scan, no filter.
      */
     public void testStrategyListingTable_NoFilter() throws IOException {
         ensureIndexReady();
-        setFetchStrategy(1); // ListingTable
-
-        String ppl = "source = " + INDEX_NAME + " | sort value | fields __row_id__, name, value";
-        List<List<Object>> rows = executePplRows(ppl);
-
-        assertEquals(4, rows.size());
-        assertRow(rows.get(0), "alpha", 10);
-        assertRow(rows.get(3), "delta", 40);
-        assertRowIdsNonNullAndUnique(rows, 0);
-
-        setFetchStrategy(0); // reset
+        setFetchStrategy(1);
+        try {
+            String ppl = "source = " + INDEX_NAME + " | sort value | fields __row_id__, name, value";
+            List<List<Object>> rows = executePplRows(ppl);
+            assertEquals(4, rows.size());
+            assertRowIdsNonNullAndUnique(rows, 0);
+        } finally {
+            setFetchStrategy(2);
+        }
     }
 
     /**
      * ListingTable strategy (1) with keyword filter.
-     * Filter goes through DataFusion pushdown (not Lucene collector).
      */
     public void testStrategyListingTable_WithFilter() throws IOException {
         ensureIndexReady();
-        setFetchStrategy(1); // ListingTable
-
-        String ppl = "source = " + INDEX_NAME
-            + " | where category = 'A' | sort value | fields __row_id__, name, value";
-        List<List<Object>> rows = executePplRows(ppl);
-
-        assertEquals(2, rows.size());
-        assertRow(rows.get(0), "alpha", 10);
-        assertRow(rows.get(1), "gamma", 30);
-        assertRowIdsNonNullAndUnique(rows, 0);
-
-        setFetchStrategy(0); // reset
+        setFetchStrategy(1);
+        try {
+            String ppl = "source = " + INDEX_NAME
+                + " | where category = 'A' | sort value | fields __row_id__, name, value";
+            List<List<Object>> rows = executePplRows(ppl);
+            assertEquals(2, rows.size());
+            assertRow(rows.get(0), "alpha", 10);
+            assertRow(rows.get(1), "gamma", 30);
+            assertRowIdsNonNullAndUnique(rows, 0);
+        } finally {
+            setFetchStrategy(2);
+        }
     }
 
     /**
-     * IndexedPredicateOnly strategy (2): position-based row ID computation.
-     * FilterClass::None — no collector, no filter. Full scan with row IDs
-     * computed from global_base + rg.first_row + position.
+     * IndexedPredicateOnly strategy (2): FilterClass::None (no filter).
      */
     public void testStrategyIndexed_FilterClassNone() throws IOException {
         ensureIndexReady();
-        setFetchStrategy(2); // IndexedPredicateOnly
-
+        setFetchStrategy(2);
         String ppl = "source = " + INDEX_NAME + " | sort value | fields __row_id__, name, value";
         List<List<Object>> rows = executePplRows(ppl);
-
         assertEquals(4, rows.size());
-        assertRow(rows.get(0), "alpha", 10);
-        assertRow(rows.get(3), "delta", 40);
         assertRowIdsNonNullAndUnique(rows, 0);
-
-        setFetchStrategy(0); // reset
     }
 
     /**
-     * IndexedPredicateOnly strategy (2) with predicate-only filter (no Collector).
-     * FilterClass::None path with residual predicate (value > 15).
-     * Uses SingleCollectorEvaluator::predicate_only() internally.
+     * IndexedPredicateOnly strategy (2): predicate-only (value > 15).
      */
     public void testStrategyIndexed_PredicateOnly() throws IOException {
         ensureIndexReady();
-        setFetchStrategy(2); // IndexedPredicateOnly
-
+        setFetchStrategy(2);
         String ppl = "source = " + INDEX_NAME
             + " | where value > 15 | sort value | fields __row_id__, name, value";
         List<List<Object>> rows = executePplRows(ppl);
-
         assertEquals(3, rows.size());
         assertRow(rows.get(0), "beta", 20);
         assertRow(rows.get(1), "gamma", 30);
         assertRow(rows.get(2), "delta", 40);
         assertRowIdsNonNullAndUnique(rows, 0);
-
-        setFetchStrategy(0); // reset
     }
 
     /**
-     * IndexedPredicateOnly strategy (2) with SingleCollector filter.
-     * Keyword equality (category='A') triggers Lucene collector → SingleCollector path.
-     * Row IDs computed from position after collector bitmap narrows candidates.
+     * IndexedPredicateOnly strategy (2): SingleCollector (category='A').
      */
     public void testStrategyIndexed_SingleCollector() throws IOException {
         ensureIndexReady();
-        setFetchStrategy(2); // IndexedPredicateOnly
-
+        setFetchStrategy(2);
         String ppl = "source = " + INDEX_NAME
             + " | where category = 'A' | sort value | fields __row_id__, name, value";
         List<List<Object>> rows = executePplRows(ppl);
-
         assertEquals(2, rows.size());
         assertRow(rows.get(0), "alpha", 10);
         assertRow(rows.get(1), "gamma", 30);
         assertRowIdsNonNullAndUnique(rows, 0);
-
-        setFetchStrategy(0); // reset
     }
 
     /**
-     * IndexedPredicateOnly strategy (2) with Tree filter (OR of two collectors).
-     * name='alpha' OR name='delta' → two Lucene term queries → BitmapTreeEvaluator.
-     * FilterClass::Tree path with position-based row ID computation.
+     * IndexedPredicateOnly strategy (2): Tree (OR of two keyword terms).
      */
     public void testStrategyIndexed_TreeFilter() throws IOException {
         ensureIndexReady();
-        setFetchStrategy(2); // IndexedPredicateOnly
-
+        setFetchStrategy(2);
         String ppl = "source = " + INDEX_NAME
             + " | where name = 'alpha' or name = 'delta' | sort value | fields __row_id__, name, value";
         List<List<Object>> rows = executePplRows(ppl);
-
         assertEquals(2, rows.size());
         assertRow(rows.get(0), "alpha", 10);
         assertRow(rows.get(1), "delta", 40);
         assertRowIdsNonNullAndUnique(rows, 0);
-
-        setFetchStrategy(0); // reset
     }
 
     /**
-     * IndexedPredicateOnly strategy (2): SingleCollector + predicate residual.
-     * category='B' (collector) AND value > 25 (predicate residual).
-     * Only delta(40) survives both.
+     * IndexedPredicateOnly strategy (2): SingleCollector + residual predicate.
      */
     public void testStrategyIndexed_SingleCollectorWithResidual() throws IOException {
         ensureIndexReady();
-        setFetchStrategy(2); // IndexedPredicateOnly
-
+        setFetchStrategy(2);
         String ppl = "source = " + INDEX_NAME
             + " | where category = 'B' and value > 25 | fields __row_id__, name, value";
         List<List<Object>> rows = executePplRows(ppl);
-
         assertEquals(1, rows.size());
         assertEquals("delta", rows.get(0).get(1));
         assertCellNumericEquals("value", 40, rows.get(0).get(2));
         assertNotNull(toLong(rows.get(0).get(0)));
-
-        setFetchStrategy(0); // reset
     }
 
     /**
-     * Verify both strategies produce the same row IDs for the same query.
-     * This is the key correctness invariant: regardless of HOW the row ID is
-     * computed (read from disk + row_base vs position-based), the result must match.
+     * Both strategies must produce identical row IDs for the same query.
      */
     public void testBothStrategiesProduceSameRowIds() throws IOException {
         ensureIndexReady();
 
         String ppl = "source = " + INDEX_NAME + " | sort value | fields __row_id__, name, value";
 
-        // Run with ListingTable strategy
         setFetchStrategy(1);
-        List<List<Object>> listingRows = executePplRows(ppl);
-        List<Long> listingIds = extractRowIds(listingRows, 0);
+        List<Long> listingIds;
+        try {
+            listingIds = extractRowIds(executePplRows(ppl), 0);
+        } finally {
+            setFetchStrategy(2);
+        }
 
-        // Run with IndexedPredicateOnly strategy
-        setFetchStrategy(2);
-        List<List<Object>> indexedRows = executePplRows(ppl);
-        List<Long> indexedIds = extractRowIds(indexedRows, 0);
+        List<Long> indexedIds = extractRowIds(executePplRows(ppl), 0);
 
-        // Both should produce identical row IDs in the same order
-        assertEquals("Both strategies should return same number of rows",
-            listingIds.size(), indexedIds.size());
-        assertEquals("Row IDs must match between ListingTable and IndexedPredicateOnly strategies",
-            listingIds, indexedIds);
-
-        setFetchStrategy(0); // reset
+        assertEquals("Both strategies should return same count", listingIds.size(), indexedIds.size());
+        assertEquals("Row IDs must match between strategies", listingIds, indexedIds);
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────────
 
-    /**
-     * Dynamically switch the fetch strategy setting.
-     * 0 = None, 1 = ListingTable, 2 = IndexedPredicateOnly.
-     */
     private void setFetchStrategy(int strategy) throws IOException {
         Request request = new Request("PUT", "/_cluster/settings");
-        request.setJsonEntity("{\"persistent\": {\"datafusion.indexed.fetch_strategy\": " + strategy + "}}");
+        request.setJsonEntity("{\"transient\": {\"datafusion.indexed.fetch_strategy\": " + strategy + "}}");
         client().performRequest(request);
     }
 

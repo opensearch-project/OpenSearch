@@ -65,14 +65,6 @@ pub struct RowGroupInfo {
     pub num_rows: i64,
 }
 
-/// Schema for row-ID-only output mode.
-pub fn row_id_schema() -> SchemaRef {
-    Arc::new(Schema::new(vec![Field::new(
-        "_row_id",
-        DataType::UInt64,
-        false,
-    )]))
-}
 
 /// Test-only override for the per-RG `min_skip_run` selectivity heuristic.
 /// `IndexedStream` normally picks `min_skip_run` from candidate
@@ -591,13 +583,13 @@ impl IndexedStream {
         }
 
         // Capture position info BEFORE mask is consumed (needed for row ID computation).
-        let row_id_pre = if self.row_id_output_index.is_some() {
-            Some((
-                self.batch_offset,
-                self.current_position_map.as_ref().cloned(),
-                self.global_base + self.current_rg_first_row as u64,
-                eval_mask.clone(),
-            ))
+        let row_id_ctx = if self.row_id_output_index.is_some() {
+            Some(super::fetch_row_id::RowIdContext {
+                batch_offset: self.batch_offset,
+                position_map: self.current_position_map.as_ref().cloned(),
+                base: self.global_base + self.current_rg_first_row as u64,
+                eval_mask: eval_mask.clone(),
+            })
         } else {
             None
         };
@@ -641,92 +633,20 @@ impl IndexedStream {
             }
         };
 
-        // Strip extra predicate columns and inject computed ___row_id.
+        // Strip extra predicate columns and inject computed __row_id__.
         let t_proj = Instant::now();
         let output = if let Some(row_id_idx) = self.row_id_output_index {
-            // Compute row IDs for surviving rows in this batch.
-            let (batch_start_delivered, pm, base, pre_mask) = row_id_pre.unwrap();
-            let num_surviving = output.num_rows();
-            let row_ids: Vec<u64> = if num_surviving == 0 {
-                vec![]
-            } else {
-                match &pre_mask {
-                    Some(mask) => {
-                        (0..batch_len)
-                            .filter(|&i| mask.is_valid(i) && mask.value(i))
-                            .map(|i| {
-                                let delivered_idx = batch_start_delivered + i;
-                                let rg_pos = match &pm {
-                                    Some(p) => p.rg_position(delivered_idx).unwrap_or(delivered_idx),
-                                    None => delivered_idx,
-                                };
-                                base + rg_pos as u64
-                            })
-                            .collect()
-                    }
-                    None => match &self.current_mask {
-                        Some(candidate_mask) => {
-                            let mask_start = self.mask_offset.saturating_sub(batch_len);
-                            (0..batch_len)
-                                .filter(|&i| {
-                                    let mi = mask_start + i;
-                                    mi < candidate_mask.len()
-                                        && candidate_mask.is_valid(mi)
-                                        && candidate_mask.value(mi)
-                                })
-                                .map(|i| {
-                                    let delivered_idx = batch_start_delivered + i;
-                                    let rg_pos = match &pm {
-                                        Some(p) => p.rg_position(delivered_idx).unwrap_or(delivered_idx),
-                                        None => delivered_idx,
-                                    };
-                                    base + rg_pos as u64
-                                })
-                                .collect()
-                        }
-                        None => (0..batch_len)
-                            .map(|i| {
-                                let delivered_idx = batch_start_delivered + i;
-                                let rg_pos = match &pm {
-                                    Some(p) => p.rg_position(delivered_idx).unwrap_or(delivered_idx),
-                                    None => delivered_idx,
-                                };
-                                base + rg_pos as u64
-                            })
-                            .collect(),
-                    },
-                }
-            };
-
-            let row_id_array: Arc<dyn Array> = Arc::new(UInt64Array::from(row_ids));
-
-            // Build output columns: take data columns from filtered batch,
-            // insert row_id_array at the correct position.
-            let mut columns: Vec<Arc<dyn Array>> = Vec::with_capacity(self.schema.fields().len());
-            let batch_schema = output.schema();
-            let mut data_col = 0usize;
-            for (i, field) in self.schema.fields().iter().enumerate() {
-                if i == row_id_idx {
-                    columns.push(Arc::clone(&row_id_array));
-                } else if let Ok(idx) = batch_schema.index_of(field.name()) {
-                    columns.push(Arc::clone(output.column(idx)));
-                    data_col += 1;
-                } else {
-                    columns.push(Arc::clone(output.column(data_col.min(output.num_columns() - 1))));
-                    data_col += 1;
-                }
-            }
-
-            if num_surviving == 0 {
-                RecordBatch::try_new_with_options(
-                    self.schema.clone(),
-                    columns,
-                    &datafusion::arrow::record_batch::RecordBatchOptions::new()
-                        .with_row_count(Some(0)),
-                )?
-            } else {
-                RecordBatch::try_new(self.schema.clone(), columns)?
-            }
+            let ctx = row_id_ctx.unwrap();
+            let mask_offset_before = self.mask_offset.saturating_sub(batch_len);
+            super::fetch_row_id::inject_row_ids(
+                &output,
+                &ctx,
+                batch_len,
+                self.current_mask.as_ref(),
+                mask_offset_before,
+                row_id_idx,
+                &self.schema,
+            )?
         } else if output.num_columns() > self.schema.fields().len() {
             let n = self.schema.fields().len();
             if n == 0 {
