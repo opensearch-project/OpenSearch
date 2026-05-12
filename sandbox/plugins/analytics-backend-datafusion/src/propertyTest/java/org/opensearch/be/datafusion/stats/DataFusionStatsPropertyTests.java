@@ -97,33 +97,39 @@ public class DataFusionStatsPropertyTests {
                 );
             }
             return rt;
-        }), taskMonitorStats(), taskMonitorStats(), taskMonitorStats(), taskMonitorStats()).as((io, cpu, cr, qe, sn, ps) -> {
+        }), taskMonitorStats(), taskMonitorStats(), taskMonitorStats(), taskMonitorStats(), taskMonitorStats(), taskMonitorStats(), taskMonitorStats()).as((io, cpu, qe, sn, fp, cc, ppp, pfp, sts) -> {
             Map<String, TaskMonitorStats> monitors = new LinkedHashMap<>();
-            monitors.put("coordinator_reduce", cr);
             monitors.put("query_execution", qe);
             monitors.put("stream_next", sn);
-            monitors.put("plan_setup", ps);
-            return new DataFusionStats(new NativeExecutorsStats(io, cpu, monitors));
+            monitors.put("fetch_phase", fp);
+            monitors.put("create_context", cc);
+            monitors.put("prepare_partial_plan", ppp);
+            monitors.put("prepare_final_plan", pfp);
+            monitors.put("sql_to_substrait", sts);
+            return new DataFusionStats(new NativeExecutorsStats(io, cpu, monitors), null);
         });
     }
 
     /** DataFusionStats with CPU runtime absent (null). */
     @Provide
     Arbitrary<DataFusionStats> dataFusionStatsCpuAbsent() {
-        return Combinators.combine(runtimeMetrics(), taskMonitorStats(), taskMonitorStats(), taskMonitorStats(), taskMonitorStats())
-            .as((io, cr, qe, sn, ps) -> {
+        return Combinators.combine(runtimeMetrics(), taskMonitorStats(), taskMonitorStats(), taskMonitorStats(), taskMonitorStats(), taskMonitorStats(), taskMonitorStats(), taskMonitorStats())
+            .as((io, qe, sn, fp, cc, ppp, pfp, sts) -> {
                 Map<String, TaskMonitorStats> monitors = new LinkedHashMap<>();
-                monitors.put("coordinator_reduce", cr);
                 monitors.put("query_execution", qe);
                 monitors.put("stream_next", sn);
-                monitors.put("plan_setup", ps);
-                return new DataFusionStats(new NativeExecutorsStats(io, null, monitors));
+                monitors.put("fetch_phase", fp);
+                monitors.put("create_context", cc);
+                monitors.put("prepare_partial_plan", ppp);
+                monitors.put("prepare_final_plan", pfp);
+                monitors.put("sql_to_substrait", sts);
+                return new DataFusionStats(new NativeExecutorsStats(io, null, monitors), null);
             });
     }
 
     @Provide
     Arbitrary<DataFusionStats> dataFusionStatsNullExecutors() {
-        return Arbitraries.just(new DataFusionStats((NativeExecutorsStats) null));
+        return Arbitraries.just(new DataFusionStats(null, null));
     }
 
     // ---- Property 1: Writeable round-trip preserves all field values ----

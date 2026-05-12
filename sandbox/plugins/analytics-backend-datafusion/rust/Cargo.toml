@@ -85,6 +85,7 @@ crc32fast = { workspace = true }
 criterion = { workspace = true }
 tempfile = { workspace = true }
 rand = "=0.8.6"
+proptest = "1"
 
 [[bench]]
 name = "query_bench"

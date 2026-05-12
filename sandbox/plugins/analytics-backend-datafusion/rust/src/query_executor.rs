@@ -188,6 +188,11 @@ pub async fn execute_with_context(
     let physical_plan = dataframe.create_physical_plan().await?;
     log_debug!("DataFusion physical plan:\n{}", displayable(physical_plan.as_ref()).indent(true));
 
+    // Acquire concurrency gate permit BEFORE execute_stream spawns partition tasks.
+    let partition_weight = handle.ctx.state().config().target_partitions().max(1) as u32;
+    let gate = cpu_executor.concurrency_gate();
+    let permit = gate.acquire_many(partition_weight.min(gate.max_permits())).await;
+
     let df_stream = execute_stream(physical_plan, handle.ctx.task_ctx()).map_err(|e| {
         error!("execute_with_context: failed to create stream: {}", e);
         e
@@ -199,6 +204,6 @@ pub async fn execute_with_context(
         cross_rt_stream,
     );
 
-    let stream_handle = crate::api::QueryStreamHandle::with_session_context(wrapped, handle.query_context, handle.ctx);
+    let stream_handle = crate::api::QueryStreamHandle::with_session_context(wrapped, handle.query_context, handle.ctx, Some(permit));
     Ok(Box::into_raw(Box::new(stream_handle)) as i64)
 }
