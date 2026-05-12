@@ -50,7 +50,6 @@ import java.util.Optional;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executor;
-import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * Per-generation Lucene writer that creates segments in an isolated temporary directory.
@@ -190,6 +189,14 @@ public class LuceneWriter implements Writer<LuceneDocumentInput> {
             return FileInfos.empty();
         }
 
+        long flushStartNanos = System.nanoTime();
+        logger.info(
+            "flush: START generation={}, docCount={}, hasRowIdMapping={}",
+            writerGeneration,
+            docCount,
+            flushInput.hasRowIdMapping()
+        );
+
         // If sort permutation is provided, configure the reorder merge policy
         if (flushInput.hasRowIdMapping()) {
             RowIdMapping mapping = flushInput.rowIdMapping();
@@ -208,8 +215,20 @@ public class LuceneWriter implements Writer<LuceneDocumentInput> {
         }
 
         // Common path: forceMerge to 1 segment, commit, build FileInfos
+        long forceMergeStartNanos = System.nanoTime();
         indexWriter.forceMerge(1, true);
+        long forceMergeDurationMs = (System.nanoTime() - forceMergeStartNanos) / 1_000_000;
+        logger.info(
+            "flush: forceMerge complete: generation={}, docCount={}, duration={}ms",
+            writerGeneration,
+            docCount,
+            forceMergeDurationMs
+        );
+
+        long commitStartNanos = System.nanoTime();
         indexWriter.commit();
+        long commitDurationMs = (System.nanoTime() - commitStartNanos) / 1_000_000;
+        logger.info("flush: commit complete: generation={}, duration={}ms", writerGeneration, commitDurationMs);
 
         // Close the IndexWriter before rewriting segment metadata.
         // This prevents IndexFileDeleter from removing our rewritten segments_N
@@ -228,6 +247,7 @@ public class LuceneWriter implements Writer<LuceneDocumentInput> {
         // The segment is always sorted by __row_id__ — either naturally (docs
         // written sequentially) or via OneMerge.reorder() + row ID rewrite.
         if (segmentInfo.info.getIndexSort() == null) {
+            logger.debug("Overriding segment info manually");
             rewriteSegmentInfoWithSort(segmentInfos, segmentInfo);
         }
 
@@ -244,6 +264,15 @@ public class LuceneWriter implements Writer<LuceneDocumentInput> {
             }
         }
 
+        long totalFlushDurationMs = (System.nanoTime() - flushStartNanos) / 1_000_000;
+        logger.info(
+            "flush: DONE generation={}, totalRows={}, forceMerge={}ms, commit={}ms, total={}ms",
+            writerGeneration,
+            docCount,
+            forceMergeDurationMs,
+            commitDurationMs,
+            totalFlushDurationMs
+        );
 
         return FileInfos.builder().putWriterFileSet(dataFormat, wfsBuilder.build()).build();
     }
