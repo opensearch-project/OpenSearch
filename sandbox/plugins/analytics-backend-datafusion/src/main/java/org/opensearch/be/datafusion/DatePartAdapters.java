@@ -44,6 +44,17 @@ import java.util.Locale;
  * parses ISO-8601 datetime strings; malformed inputs surface as a runtime
  * Arrow cast error from the engine.
  *
+ * <p>TIME operand handling: isthmus emits Calcite's TIME as Substrait
+ * {@code precision_time<P>?}, which binds to no {@code date_part} sig in our
+ * yaml (declaring that sig directly triggers a runtime
+ * {@code ParameterizedTypeThrowsVisitor} error on every call). For TIME literals
+ * we synthesize a TIMESTAMP literal pinned to 1970-01-01 via
+ * {@link DatetimeLiteralHelper#unwrapTimeLiteralToTimestamp} (matching reference
+ * PPL semantics: bare TIME = LocalDateTime.of(epoch, time)). Non-literal TIME
+ * falls back to {@code CAST(time AS VARCHAR)}, which the recursive
+ * {@code DatetimeOperandCoercer} then re-casts to TIMESTAMP, landing on the
+ * yaml's {@code precision_timestamp<P>} sig.
+ *
  * @opensearch.internal
  */
 final class DatePartAdapters extends AbstractNameMappingAdapter {
@@ -57,13 +68,17 @@ final class DatePartAdapters extends AbstractNameMappingAdapter {
 
     @Override
     public RexNode adapt(RexCall original, List<FieldStorageInfo> fieldStorage, RelOptCluster cluster) {
-        if (original.getOperands().stream().noneMatch(DatePartAdapters::isCharacterOperand)) {
+        boolean hasTimeOperand = original.getOperands().stream().anyMatch(DatePartAdapters::isTimeOperand);
+        boolean hasCharacterOperand = original.getOperands().stream().anyMatch(DatePartAdapters::isCharacterOperand);
+        if (!hasTimeOperand && !hasCharacterOperand) {
             return super.adapt(original, fieldStorage, cluster);
         }
         RexBuilder rexBuilder = cluster.getRexBuilder();
         List<RexNode> coerced = new ArrayList<>(original.getOperands().size());
         for (RexNode operand : original.getOperands()) {
-            if (isCharacterOperand(operand)) {
+            if (isTimeOperand(operand)) {
+                coerced.add(coerceTimeOperandToTimestamp(operand, cluster));
+            } else if (isCharacterOperand(operand)) {
                 validateDatetimeLiteral(operand);
                 coerced.add(castToTimestamp(operand, cluster));
             } else {
@@ -81,6 +96,10 @@ final class DatePartAdapters extends AbstractNameMappingAdapter {
         return SqlTypeFamily.CHARACTER.contains(operand.getType());
     }
 
+    private static boolean isTimeOperand(RexNode operand) {
+        return operand.getType().getSqlTypeName() == SqlTypeName.TIME;
+    }
+
     private static RexNode castToTimestamp(RexNode operand, RelOptCluster cluster) {
         RelDataTypeFactory factory = cluster.getTypeFactory();
         RelDataType timestampType = factory.createTypeWithNullability(
@@ -91,13 +110,39 @@ final class DatePartAdapters extends AbstractNameMappingAdapter {
     }
 
     /**
+     * For TIME operands, synthesize a 1970-01-01-pinned TIMESTAMP literal when the
+     * operand reduces to a VARCHAR literal (matches reference PPL semantics for
+     * bare TIME values). Falls back to {@code CAST(time AS VARCHAR)} so the
+     * recursive {@code DatetimeOperandCoercer} re-casts to TIMESTAMP, avoiding
+     * the simplifier-folded {@code CAST('HH:MM:SS' AS TIMESTAMP)} path that Arrow
+     * rejects (sub-10-char string).
+     */
+    private static RexNode coerceTimeOperandToTimestamp(RexNode operand, RelOptCluster cluster) {
+        RexBuilder rexBuilder = cluster.getRexBuilder();
+        RexNode synthesized = DatetimeLiteralHelper.unwrapTimeLiteralToTimestamp(operand, rexBuilder);
+        if (synthesized != null) {
+            return synthesized;
+        }
+        RelDataTypeFactory factory = cluster.getTypeFactory();
+        RelDataType nullableVarchar = factory.createTypeWithNullability(
+            factory.createSqlType(SqlTypeName.VARCHAR),
+            operand.getType().isNullable()
+        );
+        return rexBuilder.makeCast(nullableVarchar, operand);
+    }
+
+    /**
      * Shared coercion helper for sibling adapters ({@link DayOfWeekAdapter}, {@link SecondAdapter})
      * that build {@code date_part('<unit>', operand)} calls directly. Wraps a character-family
-     * operand in {@code CAST(_ AS TIMESTAMP)}; non-character operands are returned unchanged.
+     * operand in {@code CAST(_ AS TIMESTAMP)}; TIME operands are synthesized via
+     * {@link DatetimeLiteralHelper}; non-character/non-TIME operands are returned unchanged.
      * String {@link RexLiteral} operands are eagerly validated to surface the legacy
      * {@code "unsupported format"} error at plan time (see {@link #validateDatetimeLiteral}).
      */
     static RexNode coerceCharacterOperandToTimestamp(RexNode operand, RelOptCluster cluster) {
+        if (isTimeOperand(operand)) {
+            return coerceTimeOperandToTimestamp(operand, cluster);
+        }
         if (!isCharacterOperand(operand)) {
             return operand;
         }
