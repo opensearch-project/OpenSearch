@@ -52,6 +52,7 @@ use datafusion::execution::{SessionState, SessionStateBuilder};
 use datafusion::physical_plan::stream::RecordBatchStreamAdapter;
 use datafusion::prelude::SessionConfig;
 use futures::TryStreamExt;
+use object_store::ObjectStoreExt;
 
 use crate::cancellation;
 use crate::cross_rt_stream::CrossRtStream;
@@ -132,6 +133,17 @@ pub struct DataFusionRuntime {
     pub runtime_env: datafusion::execution::runtime_env::RuntimeEnv,
     pub custom_cache_manager: Option<CustomCacheManager>,
     pub(crate) dynamic_limit_handle: DynamicLimitHandle,
+}
+
+impl DataFusionRuntime {
+    pub fn new_for_bench(runtime_env: datafusion::execution::runtime_env::RuntimeEnv) -> Self {
+        let (_pool, handle) = DynamicLimitPool::new(0);
+        Self {
+            runtime_env,
+            custom_cache_manager: None,
+            dynamic_limit_handle: handle,
+        }
+    }
 }
 
 /// Opaque shard view handle returned to the caller.
@@ -313,14 +325,13 @@ pub async unsafe fn execute_query(
     // Register cancellation token.
     let token = query_tracker::get_cancellation_token(context_id);
 
-    let query_future = async {
+    let query_future = async move {
         if is_indexed {
             let qc = Arc::new(query_config);
             crate::indexed_executor::execute_indexed_query(
                 plan_bytes.to_vec(),
                 table_name.to_string(),
                 shard_view,
-                qc.target_partitions.max(1),
                 runtime,
                 cpu_executor,
                 query_memory_pool,
@@ -444,7 +455,7 @@ pub unsafe fn sql_to_substrait(
 ) -> Result<Vec<u8>, DataFusionError> {
     use datafusion::datasource::file_format::parquet::ParquetFormat;
     use datafusion::datasource::listing::{ListingOptions, ListingTable, ListingTableConfig};
-    use datafusion::execution::cache::cache_manager::CacheManagerConfig;
+    use datafusion::execution::cache::cache_manager::{CacheManagerConfig, CachedFileList};
     use datafusion::execution::cache::{CacheAccessor, DefaultListFilesCache};
     use datafusion_substrait::logical_plan::producer::to_substrait_plan;
     use prost::Message;
@@ -462,7 +473,7 @@ pub unsafe fn sql_to_substrait(
                 table: None,
                 path: table_path.prefix().clone(),
             },
-            object_metas,
+            CachedFileList::new(object_metas.as_ref().clone()),
         );
         let runtime_env = RuntimeEnvBuilder::from_runtime_env(&runtime.runtime_env)
             .with_cache_manager(

@@ -1347,7 +1347,7 @@ public class Node implements Closeable {
             if (FeatureFlags.isEnabled(STREAM_TRANSPORT) && streamTransportSupplier == null) {
                 throw new IllegalStateException(STREAM_TRANSPORT + " is enabled but no stream transport supplier is provided");
             }
-            final Transport streamTransport = (streamTransportSupplier != null ? streamTransportSupplier.get() : null);
+            final Transport streamTransport = wrapStreamTransport(streamTransportSupplier != null ? streamTransportSupplier.get() : null);
 
             Set<String> taskHeaders = Stream.concat(
                 pluginsService.filterPlugins(ActionPlugin.class).stream().flatMap(p -> p.getTaskHeaders().stream()),
@@ -1830,6 +1830,18 @@ public class Node implements Closeable {
             taskHeaders,
             tracer
         );
+    }
+
+    /**
+     * Hook to wrap the stream transport before it is shared between the
+     * regular {@link TransportService} and {@link StreamTransportService}.
+     * Default returns its input unchanged. Test-framework subclasses (e.g.
+     * {@code MockNode}) override to install a stubbable wrapper so
+     * test-only request-handler interception works on the streaming path
+     * too.
+     */
+    protected Transport wrapStreamTransport(@Nullable Transport streamTransport) {
+        return streamTransport;
     }
 
     /**

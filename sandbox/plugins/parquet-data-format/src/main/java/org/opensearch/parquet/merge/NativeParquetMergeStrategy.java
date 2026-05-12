@@ -15,8 +15,10 @@ import org.opensearch.common.TriConsumer;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.MergeInput;
 import org.opensearch.index.engine.dataformat.MergeResult;
+import org.opensearch.index.engine.dataformat.RowIdMapping;
 import org.opensearch.index.engine.exec.WriterFileSet;
 import org.opensearch.index.shard.ShardPath;
+import org.opensearch.parquet.bridge.MergeFilesResult;
 import org.opensearch.parquet.bridge.ParquetFileMetadata;
 import org.opensearch.parquet.bridge.RustBridge;
 import org.opensearch.parquet.engine.ParquetIndexingEngine;
@@ -77,7 +79,10 @@ public class NativeParquetMergeStrategy implements ParquetMergeStrategy {
 
         try {
             // Merge files in Rust
-            ParquetFileMetadata mergeMetadata = RustBridge.mergeParquetFilesInRust(filePaths, mergedFilePath.toString(), indexName);
+            MergeFilesResult merged = RustBridge.mergeParquetFilesInRust(filePaths, mergedFilePath.toString(), indexName);
+            ParquetFileMetadata mergeMetadata = merged.metadata();
+            RowIdMapping rowIdMapping = merged.rowIdMapping();
+
             assert mergeMetadata.numRows() > 0 : "Merged file should contain at least one row";
 
             long expectedRows = files.stream().mapToLong(WriterFileSet::numRows).sum();
@@ -97,7 +102,7 @@ public class NativeParquetMergeStrategy implements ParquetMergeStrategy {
             checksumUpdater.apply(mergedFileName, mergeMetadata.crc32(), mergeInput.newWriterGeneration());
             Map<DataFormat, WriterFileSet> mergedWriterFileSetMap = Collections.singletonMap(dataFormat, mergedWriterFileSet);
 
-            return new MergeResult(mergedWriterFileSetMap);
+            return new MergeResult(mergedWriterFileSetMap, rowIdMapping);
 
         } catch (Exception exception) {
             logger.error(() -> new ParameterizedMessage("Merge failed while creating merged file [{}]", mergedFilePath), exception);

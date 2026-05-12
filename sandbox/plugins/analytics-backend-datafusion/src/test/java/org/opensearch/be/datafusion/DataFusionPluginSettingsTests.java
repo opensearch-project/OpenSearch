@@ -12,6 +12,8 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Verifies the settings declared by {@link DataFusionPlugin} — in particular that
@@ -56,6 +58,40 @@ public class DataFusionPluginSettingsTests extends OpenSearchTestCase {
         try (DataFusionPlugin plugin = new DataFusionPlugin()) {
             // Service field is null — should be a no-op, not an NPE.
             plugin.updateMemoryPoolLimit(64L * 1024 * 1024);
+        } catch (Exception e) {
+            throw new AssertionError(e);
+        }
+    }
+
+    public void testGetSettingsReturnsAllIndexedSettings() {
+        try (DataFusionPlugin plugin = new DataFusionPlugin()) {
+            List<Setting<?>> settings = plugin.getSettings();
+            Set<String> settingKeys = settings.stream().map(Setting::getKey).collect(Collectors.toSet());
+
+            assertTrue(settingKeys.contains("datafusion.indexed.batch_size"));
+            assertTrue(settingKeys.contains("datafusion.indexed.parquet_pushdown_filters"));
+            assertTrue(settingKeys.contains("datafusion.indexed.min_skip_run_default"));
+            assertTrue(settingKeys.contains("datafusion.indexed.min_skip_run_selectivity_threshold"));
+            assertTrue(settingKeys.contains("datafusion.indexed.single_collector_strategy"));
+            assertTrue(settingKeys.contains("datafusion.indexed.tree_collector_strategy"));
+            assertTrue(settingKeys.contains("datafusion.indexed.max_collector_parallelism"));
+        } catch (Exception e) {
+            throw new AssertionError(e);
+        }
+    }
+
+    public void testGetSettingsReturnsTotalExpectedCount() {
+        try (DataFusionPlugin plugin = new DataFusionPlugin()) {
+            List<Setting<?>> settings = plugin.getSettings();
+            assertEquals(16, settings.size());
+        } catch (Exception e) {
+            throw new AssertionError(e);
+        }
+    }
+
+    public void testDatafusionSettingsIsNullBeforeCreateComponents() {
+        try (DataFusionPlugin plugin = new DataFusionPlugin()) {
+            assertNull(plugin.getDatafusionSettings());
         } catch (Exception e) {
             throw new AssertionError(e);
         }

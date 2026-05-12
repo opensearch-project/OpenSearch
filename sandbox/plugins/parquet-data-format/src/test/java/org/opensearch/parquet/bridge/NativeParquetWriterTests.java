@@ -148,7 +148,8 @@ public class NativeParquetWriterTests extends OpenSearchTestCase {
                     "/nonexistent/dir/file.parquet",
                     "test-index",
                     export.getSchemaAddress(),
-                    ParquetSortConfig.empty()
+                    ParquetSortConfig.empty(),
+                    0L
                 );
             }
         });
@@ -156,7 +157,7 @@ public class NativeParquetWriterTests extends OpenSearchTestCase {
 
     public void testCreateWriterWithInvalidSchemaAddress() {
         String filePath = createTempDir().resolve("bad-schema.parquet").toString();
-        expectThrows(Exception.class, () -> new NativeParquetWriter(filePath, "test-index", 0L, ParquetSortConfig.empty()));
+        expectThrows(Exception.class, () -> new NativeParquetWriter(filePath, "test-index", 0L, ParquetSortConfig.empty(), 0L));
     }
 
     public void testWriteWithSchemaMismatch() throws Exception {
@@ -240,7 +241,7 @@ public class NativeParquetWriterTests extends OpenSearchTestCase {
 
     private NativeParquetWriter createWriter(String filePath) throws Exception {
         try (ArrowExport export = exportSchema()) {
-            return new NativeParquetWriter(filePath, "test-index", export.getSchemaAddress(), ParquetSortConfig.empty());
+            return new NativeParquetWriter(filePath, "test-index", export.getSchemaAddress(), ParquetSortConfig.empty(), 0L);
         }
     }
 

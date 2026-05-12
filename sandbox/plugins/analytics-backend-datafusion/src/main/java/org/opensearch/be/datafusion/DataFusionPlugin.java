@@ -12,7 +12,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
 import org.opensearch.be.datafusion.action.DataFusionStatsAction;
-import org.opensearch.be.datafusion.cache.CacheSettings;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.service.ClusterService;
@@ -109,6 +108,7 @@ public class DataFusionPlugin extends Plugin implements SearchBackEndPlugin<Data
     private volatile DataFormatRegistry dataFormatRegistry;
     private volatile SimpleExtension.ExtensionCollection substraitExtensions;
     private volatile ClusterService clusterService;
+    private volatile DatafusionSettings datafusionSettings;
 
     /**
      * Creates the DataFusion plugin.
@@ -150,6 +150,8 @@ public class DataFusionPlugin extends Plugin implements SearchBackEndPlugin<Data
         // cluster settings API take effect without restarting the node.
         clusterService.getClusterSettings().addSettingsUpdateConsumer(DATAFUSION_MEMORY_POOL_LIMIT, this::updateMemoryPoolLimit);
 
+        this.datafusionSettings = new DatafusionSettings(clusterService);
+
         this.substraitExtensions = loadSubstraitExtensions();
 
         return Collections.singletonList(dataFusionService);
@@ -169,7 +171,12 @@ public class DataFusionPlugin extends Plugin implements SearchBackEndPlugin<Data
             t.setContextClassLoader(DataFusionPlugin.class.getClassLoader());
             SimpleExtension.ExtensionCollection delegationExtensions = SimpleExtension.load(List.of("/delegation_functions.yaml"));
             SimpleExtension.ExtensionCollection scalarExtensions = SimpleExtension.load(List.of("/opensearch_scalar_functions.yaml"));
-            return DefaultExtensionCatalog.DEFAULT_COLLECTION.merge(delegationExtensions).merge(scalarExtensions);
+            SimpleExtension.ExtensionCollection arrayExtensions = SimpleExtension.load(List.of("/opensearch_array_functions.yaml"));
+            SimpleExtension.ExtensionCollection aggregateExtensions = SimpleExtension.load(List.of("/opensearch_aggregate_functions.yaml"));
+            return DefaultExtensionCatalog.DEFAULT_COLLECTION.merge(delegationExtensions)
+                .merge(scalarExtensions)
+                .merge(arrayExtensions)
+                .merge(aggregateExtensions);
         } finally {
             t.setContextClassLoader(previous);
         }
@@ -191,19 +198,13 @@ public class DataFusionPlugin extends Plugin implements SearchBackEndPlugin<Data
         return clusterService;
     }
 
+    DatafusionSettings getDatafusionSettings() {
+        return datafusionSettings;
+    }
+
     @Override
     public List<Setting<?>> getSettings() {
-        return List.of(
-            DATAFUSION_MEMORY_POOL_LIMIT,
-            DATAFUSION_SPILL_MEMORY_LIMIT,
-            DATAFUSION_REDUCE_INPUT_MODE,
-            CacheSettings.METADATA_CACHE_SIZE_LIMIT,
-            CacheSettings.STATISTICS_CACHE_SIZE_LIMIT,
-            CacheSettings.METADATA_CACHE_EVICTION_TYPE,
-            CacheSettings.STATISTICS_CACHE_EVICTION_TYPE,
-            CacheSettings.METADATA_CACHE_ENABLED,
-            CacheSettings.STATISTICS_CACHE_ENABLED
-        );
+        return DatafusionSettings.ALL_SETTINGS;
     }
 
     /**

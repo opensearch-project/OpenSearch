@@ -8,8 +8,6 @@
 
 package org.opensearch.be.datafusion.stats;
 
-import org.opensearch.be.datafusion.stats.NativeExecutorsStats.RuntimeMetrics;
-import org.opensearch.be.datafusion.stats.NativeExecutorsStats.TaskMonitorStats;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -22,7 +20,7 @@ import java.util.Map;
 /**
  * Unit tests for {@link DataFusionStats} constructed via direct constructors.
  *
- * <p>Layout: IO RuntimeMetrics (8 fields), optional CPU RuntimeMetrics (8 fields),
+ * <p>Layout: IO RuntimeMetrics (9 fields), optional CPU RuntimeMetrics (9 fields),
  * 4 TaskMonitorStats (3 fields each).
  */
 public class DataFusionStatsTests extends OpenSearchTestCase {
@@ -123,7 +121,11 @@ public class DataFusionStatsTests extends OpenSearchTestCase {
         String json = toJsonString(stats);
         assertFalse("cpu_runtime should be omitted when null", json.contains("cpu_runtime"));
         assertTrue("io_runtime should still be present", json.contains("io_runtime"));
-        assertTrue("task_monitors should still be present", json.contains("task_monitors"));
+        // Task monitors are at top level (flat structure, no "task_monitors" wrapper)
+        assertTrue("query_execution should still be present", json.contains("query_execution"));
+        assertTrue("stream_next should still be present", json.contains("stream_next"));
+        assertTrue("fetch_phase should still be present", json.contains("fetch_phase"));
+        assertTrue("segment_stats should still be present", json.contains("segment_stats"));
     }
 
     // ---- Test: non-null CPU runtime → cpuRuntime present in JSON ----
@@ -155,11 +157,13 @@ public class DataFusionStatsTests extends OpenSearchTestCase {
         DataFusionStats stats = sequentialStats();
         String json = toJsonString(stats);
 
-        assertTrue(json.contains("\"native_executors\""));
+        // Flat structure: no "native_executors" or "task_monitors" wrappers
+        assertFalse(json.contains("\"native_executors\""));
         assertTrue(json.contains("\"io_runtime\""));
         assertTrue(json.contains("\"cpu_runtime\""));
-        assertTrue(json.contains("\"task_monitors\""));
+        assertFalse(json.contains("\"task_monitors\""));
 
+        // Task monitors at top level
         assertTrue(json.contains("\"query_execution\""));
         assertTrue(json.contains("\"stream_next\""));
         assertTrue(json.contains("\"fetch_phase\""));
@@ -171,7 +175,7 @@ public class DataFusionStatsTests extends OpenSearchTestCase {
         }
 
         // IO runtime: workers_count = 1
-        assertTrue(json.contains("\"workers_count\":1,"));
+        assertTrue(json.contains("\"workers_count\":1"));
         // query_execution: total_poll_duration_ms = 17
         assertTrue(json.contains("\"total_poll_duration_ms\":17"));
     }
@@ -191,7 +195,9 @@ public class DataFusionStatsTests extends OpenSearchTestCase {
 
         assertTrue(json.contains("\"io_runtime\""));
         assertFalse("cpu_runtime should not appear", json.contains("\"cpu_runtime\""));
-        assertTrue(json.contains("\"task_monitors\""));
+        // Task monitors at top level (no wrapper)
+        assertTrue(json.contains("\"query_execution\""));
+        assertTrue(json.contains("\"segment_stats\""));
     }
 
     // ---- Test: exactly 4 task monitor keys ----
