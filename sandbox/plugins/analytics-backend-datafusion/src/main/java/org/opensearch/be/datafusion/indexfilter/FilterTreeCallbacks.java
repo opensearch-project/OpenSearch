@@ -11,8 +11,8 @@ package org.opensearch.be.datafusion.indexfilter;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.opensearch.analytics.spi.DelegationThreadTracker;
 import org.opensearch.analytics.spi.FilterDelegationHandle;
-import org.opensearch.tasks.TaskResourceTrackingService;
 
 import java.lang.foreign.MemorySegment;
 import java.util.concurrent.atomic.AtomicReference;
@@ -36,8 +36,7 @@ public final class FilterTreeCallbacks {
     private static final Logger LOGGER = LogManager.getLogger(FilterTreeCallbacks.class);
 
     private static final AtomicReference<FilterDelegationHandle> HANDLE = new AtomicReference<>();
-    private static final AtomicReference<TaskResourceTrackingService> TRACKING_SERVICE = new AtomicReference<>();
-    private static long currentTaskId = -1;
+    private static final AtomicReference<DelegationThreadTracker> TRACKER = new AtomicReference<>();
 
     private FilterTreeCallbacks() {}
 
@@ -51,25 +50,21 @@ public final class FilterTreeCallbacks {
     }
 
     /**
-     * Configure task resource tracking. All subsequent callbacks will attribute
-     * CPU/heap to the given task until cleared.
+     * Install or clear the thread tracker for resource attribution.
      */
-    public static void setTaskTracking(TaskResourceTrackingService trackingService, long taskId) {
-        TRACKING_SERVICE.set(trackingService);
-        currentTaskId = taskId;
+    public static void setThreadTracker(DelegationThreadTracker tracker) {
+        TRACKER.set(tracker);
     }
 
     private static long trackStart() {
-        TaskResourceTrackingService tracker = TRACKING_SERVICE.get();
-        if (tracker == null || currentTaskId < 0) return -1;
-        long threadId = Thread.currentThread().threadId();
-        tracker.taskExecutionStartedOnThread(currentTaskId, threadId);
-        return threadId;
+        DelegationThreadTracker t = TRACKER.get();
+        return (t != null) ? t.trackStart() : -1;
     }
 
     private static void trackEnd(long threadId) {
         if (threadId < 0) return;
-        TRACKING_SERVICE.get().taskExecutionFinishedOnThread(currentTaskId, threadId);
+        DelegationThreadTracker t = TRACKER.get();
+        if (t != null) t.trackEnd(threadId);
     }
 
     // ── Provider lifecycle (cold path, once per query) ────────────────

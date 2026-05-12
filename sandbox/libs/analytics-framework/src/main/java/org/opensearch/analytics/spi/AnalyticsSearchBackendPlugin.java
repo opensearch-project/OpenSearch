@@ -115,14 +115,8 @@ public interface AnalyticsSearchBackendPlugin {
     }
 
     /**
-     * Configure task-level resource tracking for delegation callbacks executing on foreign threads.
-     * Called after {@link #configureFilterDelegation}. Backends should wrap their callback dispatch
-     * with start/finish tracking calls for the given task.
+     * Install a thread tracker for attribution of delegation callbacks executing on foreign threads.
+     * Called after {@link #configureFilterDelegation}. Pass {@code null} to clear.
      */
-    default void configureTaskTracking(org.opensearch.tasks.TaskResourceTrackingService trackingService, long taskId) {}
-
-    /**
-     * Clear task tracking state after fragment execution completes.
-     */
-    default void clearTaskTracking() {}
+    default void setDelegationThreadTracker(DelegationThreadTracker tracker) {}
 }

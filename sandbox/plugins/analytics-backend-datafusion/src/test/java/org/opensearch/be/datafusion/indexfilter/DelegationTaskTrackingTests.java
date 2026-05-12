@@ -9,6 +9,7 @@
 package org.opensearch.be.datafusion.indexfilter;
 
 import org.opensearch.analytics.exec.task.AnalyticsShardTask;
+import org.opensearch.analytics.spi.DelegationThreadTracker;
 import org.opensearch.analytics.spi.FilterDelegationHandle;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
@@ -50,19 +51,19 @@ public class DelegationTaskTrackingTests extends OpenSearchTestCase {
         );
         trackingService.setTaskResourceTrackingEnabled(true);
         FilterTreeCallbacks.setHandle(null);
-        FilterTreeCallbacks.setTaskTracking(null, -1);
+        FilterTreeCallbacks.setThreadTracker(null);
     }
 
     @Override
     public void tearDown() throws Exception {
-        FilterTreeCallbacks.setTaskTracking(null, -1);
+        FilterTreeCallbacks.setThreadTracker(null);
         FilterTreeCallbacks.setHandle(null);
         terminate(threadPool);
         super.tearDown();
     }
 
     /**
-     * Tests the full production wiring: configureTaskTracking via SPI, then
+     * Tests the full production wiring: setDelegationThreadTracker via SPI, then
      * all three callback methods (createProvider, createCollector, collectDocs)
      * on a foreign thread. Verifies the thread is tracked against the task.
      */
@@ -70,7 +71,7 @@ public class DelegationTaskTrackingTests extends OpenSearchTestCase {
         AnalyticsShardTask task = createAndTrackTask(1);
 
         var backendPlugin = new org.opensearch.be.datafusion.DataFusionAnalyticsBackendPlugin(null);
-        backendPlugin.configureTaskTracking(trackingService, task.getId());
+        backendPlugin.setDelegationThreadTracker(createTracker(task.getId()));
         FilterTreeCallbacks.setHandle(new MockHandle(new long[] { 0xCAFEL }));
 
         CountDownLatch done = new CountDownLatch(1);
@@ -88,7 +89,7 @@ public class DelegationTaskTrackingTests extends OpenSearchTestCase {
         foreignThread.start();
         assertTrue(done.await(5, TimeUnit.SECONDS));
 
-        backendPlugin.clearTaskTracking();
+        backendPlugin.setDelegationThreadTracker(null);
         trackingService.stopTracking(task);
 
         Map<Long, List<ThreadResourceInfo>> stats = task.getResourceStats();
@@ -96,17 +97,17 @@ public class DelegationTaskTrackingTests extends OpenSearchTestCase {
     }
 
     /**
-     * Tests that clearTaskTracking stops attribution. After clearing,
+     * Tests that clearing the thread tracker stops attribution. After clearing,
      * callbacks on a new thread should NOT be attributed to the old task.
      */
     public void testClearTaskTrackingStopsAttribution() throws Exception {
         AnalyticsShardTask task = createAndTrackTask(2);
 
-        FilterTreeCallbacks.setTaskTracking(trackingService, task.getId());
+        FilterTreeCallbacks.setThreadTracker(createTracker(task.getId()));
         FilterTreeCallbacks.setHandle(new MockHandle(new long[] { 1L }));
 
         // Clear tracking BEFORE running callbacks
-        FilterTreeCallbacks.setTaskTracking(null, -1);
+        FilterTreeCallbacks.setThreadTracker(null);
 
         CountDownLatch done = new CountDownLatch(1);
         Thread foreignThread = new Thread(() -> {
@@ -126,7 +127,7 @@ public class DelegationTaskTrackingTests extends OpenSearchTestCase {
         trackingService.stopTracking(task);
 
         Map<Long, List<ThreadResourceInfo>> stats = task.getResourceStats();
-        assertFalse("Thread after clearTaskTracking should NOT be tracked", stats.containsKey(foreignThread.threadId()));
+        assertFalse("Thread after clearing tracker should NOT be tracked", stats.containsKey(foreignThread.threadId()));
     }
 
     /**
@@ -135,7 +136,7 @@ public class DelegationTaskTrackingTests extends OpenSearchTestCase {
     public void testConcurrentThreadsAllTracked() throws Exception {
         AnalyticsShardTask task = createAndTrackTask(3);
 
-        FilterTreeCallbacks.setTaskTracking(trackingService, task.getId());
+        FilterTreeCallbacks.setThreadTracker(createTracker(task.getId()));
         FilterTreeCallbacks.setHandle(new MockHandle(new long[] { 0xFFL }));
 
         int threadCount = 4;
@@ -165,13 +166,30 @@ public class DelegationTaskTrackingTests extends OpenSearchTestCase {
         }
         assertTrue(done.await(10, TimeUnit.SECONDS));
 
-        FilterTreeCallbacks.setTaskTracking(null, -1);
+        FilterTreeCallbacks.setThreadTracker(null);
         trackingService.stopTracking(task);
 
         Map<Long, List<ThreadResourceInfo>> stats = task.getResourceStats();
         for (Thread t : threads) {
             assertTrue("Thread " + t.getName() + " (id=" + t.threadId() + ") should be tracked", stats.containsKey(t.threadId()));
         }
+    }
+
+    private DelegationThreadTracker createTracker(long taskId) {
+        TaskResourceTrackingService service = trackingService;
+        return new DelegationThreadTracker() {
+            @Override
+            public long trackStart() {
+                long threadId = Thread.currentThread().threadId();
+                service.taskExecutionStartedOnThread(taskId, threadId);
+                return threadId;
+            }
+
+            @Override
+            public void trackEnd(long threadId) {
+                service.taskExecutionFinishedOnThread(taskId, threadId);
+            }
+        };
     }
 
     private AnalyticsShardTask createAndTrackTask(long id) {

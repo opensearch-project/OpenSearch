@@ -18,6 +18,7 @@ import org.opensearch.analytics.exec.task.AnalyticsShardTask;
 import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
 import org.opensearch.analytics.spi.BackendExecutionContext;
 import org.opensearch.analytics.spi.DelegationDescriptor;
+import org.opensearch.analytics.spi.DelegationThreadTracker;
 import org.opensearch.analytics.spi.FilterDelegationHandle;
 import org.opensearch.analytics.spi.FragmentInstructionHandler;
 import org.opensearch.analytics.spi.FragmentInstructionHandlerFactory;
@@ -99,8 +100,6 @@ public class AnalyticsSearchService implements AutoCloseable {
         } catch (Exception e) {
             listener.onFragmentFailure(resolved.queryId, resolved.stageId, resolved.shardIdStr, e);
             throw new RuntimeException("Failed to start streaming fragment on " + shard.shardId(), e);
-        } finally {
-            backends.get(resolved.plan.getBackendId()).clearTaskTracking();
         }
     }
 
@@ -110,6 +109,7 @@ public class AnalyticsSearchService implements AutoCloseable {
         SearchExecEngine<ShardScanExecutionContext, EngineResultStream> engine = null;
         EngineResultStream stream = null;
         BackendExecutionContext backendContext = null;
+        Runnable trackerCleanup = null;
         try {
             ShardScanExecutionContext ctx = buildContext(request, gatedReader.get(), resolved.plan, shard, task);
             AnalyticsSearchBackendPlugin backend = backends.get(resolved.plan.getBackendId());
@@ -135,16 +135,31 @@ public class AnalyticsSearchService implements AutoCloseable {
                 backend.configureFilterDelegation(handle, backendContext);
 
                 if (task != null && taskResourceTrackingService != null) {
-                    backend.configureTaskTracking(taskResourceTrackingService, task.getId());
+                    long taskId = task.getId();
+                    TaskResourceTrackingService service = taskResourceTrackingService;
+                    backend.setDelegationThreadTracker(new DelegationThreadTracker() {
+                        @Override
+                        public long trackStart() {
+                            long threadId = Thread.currentThread().threadId();
+                            service.taskExecutionStartedOnThread(taskId, threadId);
+                            return threadId;
+                        }
+
+                        @Override
+                        public void trackEnd(long threadId) {
+                            service.taskExecutionFinishedOnThread(taskId, threadId);
+                        }
+                    });
+                    trackerCleanup = () -> backend.setDelegationThreadTracker(null);
                 }
             }
 
             engine = backend.getSearchExecEngineProvider().createSearchExecEngine(ctx, backendContext);
             stream = engine.execute(ctx);
-            return new FragmentResources(gatedReader, engine, stream);
+            return new FragmentResources(gatedReader, engine, stream, trackerCleanup);
         } catch (Exception e) {
             try {
-                new FragmentResources(gatedReader, engine, stream).close();
+                new FragmentResources(gatedReader, engine, stream, trackerCleanup).close();
             } catch (Exception suppressed) {
                 e.addSuppressed(suppressed);
             }

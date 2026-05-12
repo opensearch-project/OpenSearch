@@ -575,12 +575,7 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
     }
 
     @Override
-    public void configureTaskTracking(org.opensearch.tasks.TaskResourceTrackingService trackingService, long taskId) {
-        FilterTreeCallbacks.setTaskTracking(trackingService, taskId);
-    }
-
-    @Override
-    public void clearTaskTracking() {
-        FilterTreeCallbacks.setTaskTracking(null, -1);
+    public void setDelegationThreadTracker(org.opensearch.analytics.spi.DelegationThreadTracker tracker) {
+        FilterTreeCallbacks.setThreadTracker(tracker);
     }
 }
