@@ -8,7 +8,6 @@
 
 package org.opensearch.analytics.qa;
 
-import org.apache.lucene.tests.util.LuceneTestCase.AwaitsFix;
 import org.opensearch.client.Request;
 import org.opensearch.client.Response;
 import org.opensearch.client.ResponseException;
@@ -131,7 +130,6 @@ public class MultisearchCommandIT extends AnalyticsRestTestCase {
 
     // ── CASE with implicit ELSE NULL — `count(eval(predicate))` shape ──────────
 
-    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/pull/21457")
     public void testMultisearchCountEvalConditionalCount() throws IOException {
         // Mirror of the v2-side `CalciteMultisearchCommandIT.testMultisearchSuccessRatePattern`:
         // `count(eval(predicate))` is PPL's conditional-count idiom. Calcite lowers it to

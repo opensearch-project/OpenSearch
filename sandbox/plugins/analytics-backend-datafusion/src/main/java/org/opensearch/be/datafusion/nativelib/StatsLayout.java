@@ -8,7 +8,8 @@
 
 package org.opensearch.be.datafusion.nativelib;
 
-import org.opensearch.be.datafusion.stats.NativeExecutorsStats;
+import org.opensearch.be.datafusion.stats.RuntimeMetrics;
+import org.opensearch.be.datafusion.stats.TaskMonitorStats;
 
 import java.lang.foreign.MemoryLayout;
 import java.lang.foreign.MemoryLayout.PathElement;
@@ -120,9 +121,9 @@ public final class StatsLayout {
      * @param group "io_runtime" or "cpu_runtime"
      * @return a populated RuntimeMetrics instance
      */
-    public static NativeExecutorsStats.RuntimeMetrics readRuntimeMetrics(MemorySegment seg, String group) {
+    public static RuntimeMetrics readRuntimeMetrics(MemorySegment seg, String group) {
         VarHandle[] handles = runtimeHandles(group);
-        return new NativeExecutorsStats.RuntimeMetrics(
+        return new RuntimeMetrics(
             (long) handles[0].get(seg, 0L),
             (long) handles[1].get(seg, 0L),
             (long) handles[2].get(seg, 0L),
@@ -142,13 +143,9 @@ public final class StatsLayout {
      * @param group "query_execution", "stream_next", "fetch_phase", or "segment_stats"
      * @return a populated TaskMonitorStats instance
      */
-    public static NativeExecutorsStats.TaskMonitorStats readTaskMonitor(MemorySegment seg, String group) {
+    public static TaskMonitorStats readTaskMonitor(MemorySegment seg, String group) {
         VarHandle[] handles = taskMonitorHandles(group);
-        return new NativeExecutorsStats.TaskMonitorStats(
-            (long) handles[0].get(seg, 0L),
-            (long) handles[1].get(seg, 0L),
-            (long) handles[2].get(seg, 0L)
-        );
+        return new TaskMonitorStats((long) handles[0].get(seg, 0L), (long) handles[1].get(seg, 0L), (long) handles[2].get(seg, 0L));
     }
 
     // ---- Private helpers ----
