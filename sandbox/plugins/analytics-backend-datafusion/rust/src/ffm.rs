@@ -731,11 +731,20 @@ pub unsafe extern "C" fn df_execute_with_context(
     } else {
         mgr.io_runtime
             .block_on(async move {
+                // Acquire concurrency gate BEFORE spawning on CPU runtime.
+                // This blocks the IO runtime thread (and thus the Java search thread),
+                // creating backpressure at the Java threadpool level when the gate is full.
+                let partition_weight = session_handle.ctx.state().config().target_partitions().max(1) as u32;
+                let gate = mgr_for_spawn.cpu_executor().concurrency_gate().clone();
+                let max_p = gate.max_permits();
+                let permit = gate.acquire_many(partition_weight.min(max_p)).await;
+
                 let inner_fut = crate::task_monitors::query_execution_monitor().instrument(async move {
                     crate::query_executor::execute_with_context(
                         session_handle,
                         &plan_vec,
                         cpu_for_cross,
+                        permit,
                     )
                     .await
                 });

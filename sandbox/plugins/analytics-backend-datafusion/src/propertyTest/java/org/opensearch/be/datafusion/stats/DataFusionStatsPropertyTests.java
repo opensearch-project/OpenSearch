@@ -82,7 +82,7 @@ public class DataFusionStatsPropertyTests {
     /** DataFusionStats with CPU runtime present (workersCount > 0). */
     @Provide
     Arbitrary<DataFusionStats> dataFusionStatsCpuPresent() {
-        return Combinators.combine(runtimeMetrics(), runtimeMetrics().map(rt -> {
+        Arbitrary<RuntimeMetrics> cpuRuntime = runtimeMetrics().map(rt -> {
             if (rt.workersCount == 0) {
                 return new RuntimeMetrics(
                     1,
@@ -97,17 +97,22 @@ public class DataFusionStatsPropertyTests {
                 );
             }
             return rt;
-        }), taskMonitorStats(), taskMonitorStats(), taskMonitorStats(), taskMonitorStats(), taskMonitorStats(), taskMonitorStats(), taskMonitorStats()).as((io, cpu, qe, sn, fp, cc, ppp, pfp, sts) -> {
-            Map<String, TaskMonitorStats> monitors = new LinkedHashMap<>();
-            monitors.put("query_execution", qe);
-            monitors.put("stream_next", sn);
-            monitors.put("fetch_phase", fp);
-            monitors.put("create_context", cc);
-            monitors.put("prepare_partial_plan", ppp);
-            monitors.put("prepare_final_plan", pfp);
-            monitors.put("sql_to_substrait", sts);
-            return new DataFusionStats(new NativeExecutorsStats(io, cpu, monitors), null);
         });
+        return Combinators.combine(runtimeMetrics(), cpuRuntime, taskMonitorStats(), taskMonitorStats(), taskMonitorStats(), taskMonitorStats(), taskMonitorStats(), taskMonitorStats())
+            .as((io, cpu, qe, sn, fp, cc, ppp, pfp) -> new Object[]{io, cpu, qe, sn, fp, cc, ppp, pfp})
+            .flatMap(arr -> taskMonitorStats().map(sts -> {
+                RuntimeMetrics io = (RuntimeMetrics) arr[0];
+                RuntimeMetrics cpu = (RuntimeMetrics) arr[1];
+                Map<String, TaskMonitorStats> monitors = new LinkedHashMap<>();
+                monitors.put("query_execution", (TaskMonitorStats) arr[2]);
+                monitors.put("stream_next", (TaskMonitorStats) arr[3]);
+                monitors.put("fetch_phase", (TaskMonitorStats) arr[4]);
+                monitors.put("create_context", (TaskMonitorStats) arr[5]);
+                monitors.put("prepare_partial_plan", (TaskMonitorStats) arr[6]);
+                monitors.put("prepare_final_plan", (TaskMonitorStats) arr[7]);
+                monitors.put("sql_to_substrait", sts);
+                return new DataFusionStats(new NativeExecutorsStats(io, cpu, monitors), null);
+            }));
     }
 
     /** DataFusionStats with CPU runtime absent (null). */
