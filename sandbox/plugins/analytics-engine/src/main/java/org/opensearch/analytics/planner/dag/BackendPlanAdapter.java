@@ -21,6 +21,7 @@ import org.opensearch.analytics.planner.rel.OpenSearchFilter;
 import org.opensearch.analytics.planner.rel.OpenSearchProject;
 import org.opensearch.analytics.planner.rel.OpenSearchRelNode;
 import org.opensearch.analytics.planner.rel.OperatorAnnotation;
+import org.opensearch.analytics.planner.rules.DatetimeOperandCoercer;
 import org.opensearch.analytics.spi.FieldStorageInfo;
 import org.opensearch.analytics.spi.ScalarFunction;
 import org.opensearch.analytics.spi.ScalarFunctionAdapter;
@@ -187,7 +188,15 @@ public class BackendPlanAdapter {
         if (function != null) {
             ScalarFunctionAdapter adapter = adapters.get(function);
             if (adapter != null) {
-                return adapter.adapt(current, fieldStorage, cluster);
+                RexNode adapted = adapter.adapt(current, fieldStorage, cluster);
+                // Adapters (e.g. DatePartAdapters, DatetimeAdapter) rewrite calls to internal
+                // Substrait-bound names like date_part / to_timestamp with VARCHAR literal
+                // operands. Coerce those literals to TIMESTAMP so the Substrait signature
+                // resolves. Post-adapter is the only site that sees these internal names.
+                if (adapted instanceof RexCall adaptedCall) {
+                    return DatetimeOperandCoercer.coerce(adaptedCall, cluster.getRexBuilder(), cluster.getTypeFactory());
+                }
+                return adapted;
             }
         }
 

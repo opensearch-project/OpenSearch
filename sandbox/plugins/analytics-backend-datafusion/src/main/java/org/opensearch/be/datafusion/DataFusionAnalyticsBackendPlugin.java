@@ -211,11 +211,12 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         ScalarFunction.TIME,
         ScalarFunction.DATE,
         // PPL `datetime(expr)` — parse/cast into a TIMESTAMP. Routes to DF's
-        // builtin `to_timestamp` via DatetimeAdapter. The single-arg
-        // `timestamp(expr)` form shares these semantics but its ScalarFunction
-        // slot is already bound to TimestampFunctionAdapter for VARCHAR literal
-        // folding, so it stays on the legacy engine.
+        // builtin `to_timestamp` via DatetimeAdapter.
         ScalarFunction.DATETIME,
+        // PPL `timestamp(varchar_literal)` — folds a string literal into a TIMESTAMP literal
+        // via TimestampFunctionAdapter (see scalarFunctionAdapters()). Routed through
+        // analytics-engine because force_route=true leaves no legacy Calcite fallback.
+        ScalarFunction.TIMESTAMP,
         // PPL extract / make* / format / from_unixtime are implemented as Rust UDFs
         // to preserve MySQL semantics that DataFusion builtins don't match: EXTRACT
         // supports 10 composite units (DAY_SECOND → ddHHmmss etc.) that are not a

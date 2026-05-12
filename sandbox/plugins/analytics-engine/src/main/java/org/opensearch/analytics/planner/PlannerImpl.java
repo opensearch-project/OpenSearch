@@ -27,6 +27,7 @@ import org.apache.calcite.tools.RelBuilder;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.analytics.planner.rel.OpenSearchDistributionTraitDef;
+import org.opensearch.analytics.planner.rules.DatetimeOperandCoerceShuttle;
 import org.opensearch.analytics.planner.rules.OpenSearchAggregateReduceRule;
 import org.opensearch.analytics.planner.rules.OpenSearchAggregateRule;
 import org.opensearch.analytics.planner.rules.OpenSearchAggregateSplitRule;
@@ -73,6 +74,10 @@ public class PlannerImpl {
     public static RelNode markAndOptimize(RelNode rawRelNode, PlannerContext context) {
         LOGGER.info("Input RelNode:\n{}", RelOptUtil.toString(rawRelNode));
 
+        // Phase 1a0: VARCHAR→TIMESTAMP operand coercion for datetime scalars. Must precede
+        // ReduceExpressionsRule so constant folding sees post-CAST types.
+        RelNode coerced = rawRelNode.accept(DatetimeOperandCoerceShuttle.INSTANCE);
+
         // Phase 1a: Pre-marking logical optimizations (constant expression reduction)
         HepProgramBuilder preBuilder = new HepProgramBuilder();
         preBuilder.addMatchOrder(HepMatchOrder.ARBITRARY);
@@ -83,7 +88,7 @@ public class PlannerImpl {
             )
         );
         HepPlanner prePlanner = new HepPlanner(preBuilder.build());
-        prePlanner.setRoot(rawRelNode);
+        prePlanner.setRoot(coerced);
         RelNode afterPre = prePlanner.findBestExp();
 
         // Phase 1b: Aggregate-reduction — decompose AVG / STDDEV / VAR into primitive SUM/COUNT
