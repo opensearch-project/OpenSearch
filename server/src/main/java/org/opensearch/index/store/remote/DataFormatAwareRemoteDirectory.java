@@ -375,7 +375,7 @@ public class DataFormatAwareRemoteDirectory extends RemoteDirectory {
         long expectedChecksum;
         DataFormatAwareStoreDirectory dfasd = DataFormatAwareStoreDirectory.unwrap(from);
         if (dfasd != null) {
-            expectedChecksum = dfasd.calculateChecksum(src);
+            expectedChecksum = dfasd.calculateTransferChecksum(src);
         } else {
             expectedChecksum = calculateChecksumOfChecksum(from, src);
         }

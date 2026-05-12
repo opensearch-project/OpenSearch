@@ -655,6 +655,70 @@ public class DataFormatAwareStoreDirectoryTests extends OpenSearchTestCase {
     }
 
     // ═══════════════════════════════════════════════════════════════
+    // calculateTransferChecksum: full-file CRC32 for S3 transfer validation
+    // ═══════════════════════════════════════════════════════════════
+
+    public void testCalculateTransferChecksum_lucene_matchesFullFileCRC32() throws IOException {
+        String fileName = "_transfer_cksum.si";
+        try (IndexOutput out = dataFormatAwareStoreDirectory.createOutput(fileName, IOContext.DEFAULT)) {
+            CodecUtil.writeHeader(out, "TransferTest", 1);
+            out.writeString("transfer checksum lucene data");
+            CodecUtil.writeFooter(out);
+        }
+
+        long transferChecksum = dataFormatAwareStoreDirectory.calculateTransferChecksum(fileName);
+
+        // Verify it equals CRC32 of the entire file bytes (what S3 computes server-side).
+        CRC32 expected = new CRC32();
+        try (IndexInput in = dataFormatAwareStoreDirectory.openInput(fileName, IOContext.READONCE)) {
+            long length = in.length();
+            byte[] buf = new byte[(int) length];
+            in.readBytes(buf, 0, (int) length);
+            expected.update(buf);
+        }
+        assertEquals("Transfer checksum must equal CRC32 of full file bytes", expected.getValue(), transferChecksum);
+    }
+
+    public void testCalculateTransferChecksum_lucene_differsFromMetadataChecksum() throws IOException {
+        // Metadata checksum (for replication) == CodecUtil.retrieveChecksum() which covers
+        // bytes [0, length-8). Transfer checksum (for S3) == CRC32 of full file. They must
+        // be different values for a typical Lucene file so the two paths never alias.
+        String fileName = "_transfer_vs_metadata.si";
+        try (IndexOutput out = dataFormatAwareStoreDirectory.createOutput(fileName, IOContext.DEFAULT)) {
+            CodecUtil.writeHeader(out, "DivergenceTest", 1);
+            out.writeString("some payload that produces a non-zero checksum");
+            CodecUtil.writeFooter(out);
+        }
+
+        long metadataChecksum = dataFormatAwareStoreDirectory.calculateChecksum(fileName);
+        long transferChecksum = dataFormatAwareStoreDirectory.calculateTransferChecksum(fileName);
+
+        assertNotEquals(
+            "Metadata checksum and transfer checksum must not coincide for Lucene files",
+            metadataChecksum,
+            transferChecksum
+        );
+    }
+
+    public void testCalculateTransferChecksum_nonLucene_delegatesToStrategy() throws IOException {
+        // For non-Lucene formats (e.g., parquet via GenericCRC32ChecksumHandler), the strategy
+        // already computes CRC32 over the full file, so transfer checksum == metadata checksum.
+        String fileIdentifier = "parquet/transfer_cksum.parquet";
+        try (IndexOutput out = dataFormatAwareStoreDirectory.createOutput(fileIdentifier, IOContext.DEFAULT)) {
+            out.writeBytes("parquet payload bytes".getBytes(StandardCharsets.UTF_8), 21);
+        }
+
+        long metadataChecksum = dataFormatAwareStoreDirectory.calculateChecksum(fileIdentifier);
+        long transferChecksum = dataFormatAwareStoreDirectory.calculateTransferChecksum(fileIdentifier);
+
+        assertEquals(
+            "For non-Lucene formats the transfer checksum equals the metadata checksum (full-file CRC32)",
+            metadataChecksum,
+            transferChecksum
+        );
+    }
+
+    // ═══════════════════════════════════════════════════════════════
     // FileMetadata → "/" identifier → SubdirectoryAwareDirectory
     // Path mapping & storage location tests
     // ═══════════════════════════════════════════════════════════════
