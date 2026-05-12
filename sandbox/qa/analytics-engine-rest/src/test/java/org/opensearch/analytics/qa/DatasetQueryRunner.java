@@ -95,60 +95,6 @@ public final class DatasetQueryRunner {
     }
 
     /**
-     * Run the given query numbers against the cluster using the supplied executor.
-     * Collects failures and returns them as a list — does not fail-fast so all queries are attempted.
-     *
-     * @param client       the REST client
-     * @param dataset      the dataset descriptor
-     * @param language     the query language directory (e.g. "dsl", "ppl")
-     * @param extension    the query file extension (e.g. "json", "ppl")
-     * @param queryNumbers the query numbers to run
-     * @param executor     the executor that sends the query to the cluster
-     * @return list of failure messages (empty if all queries succeeded)
-     */
-    public static List<String> runQueries(
-        RestClient client,
-        Dataset dataset,
-        String language,
-        String extension,
-        List<Integer> queryNumbers,
-        QueryExecutor executor
-    ) {
-        return runQueries(client, dataset, language, extension, queryNumbers, executor,
-            ExpectedResponseStrategy.PASS_ON_MISSING);
-    }
-
-    /**
-     * Run the given query numbers against the cluster using the supplied executor.
-     * Collects failures and returns them as a list — does not fail-fast so all queries are attempted.
-     *
-     * @param client            the REST client
-     * @param dataset           the dataset descriptor
-     * @param language          the query language directory (e.g. "dsl", "ppl")
-     * @param extension         the query file extension (e.g. "json", "ppl")
-     * @param queryNumbers      the query numbers to run
-     * @param executor          the executor that sends the query to the cluster
-     * @param validateExpected  whether to validate against expected responses if they exist.
-     * @return list of failure messages (empty if all queries succeeded)
-     * @deprecated Use {@link #runQueries(RestClient, Dataset, String, String, List, QueryExecutor, ExpectedResponseStrategy)} instead
-     */
-    @Deprecated
-    public static List<String> runQueries(
-        RestClient client,
-        Dataset dataset,
-        String language,
-        String extension,
-        List<Integer> queryNumbers,
-        QueryExecutor executor,
-        boolean validateExpected
-    ) {
-        ExpectedResponseStrategy strategy = validateExpected
-            ? ExpectedResponseStrategy.PASS_ON_MISSING
-            : ExpectedResponseStrategy.SKIP_VALIDATION;
-        return runQueries(client, dataset, language, extension, queryNumbers, executor, strategy);
-    }
-
-    /**
      * Run queries against the cluster using the supplied executor.
      * If queryNumbers is null or empty, auto-discovers all queries from the dataset directory.
      * Collects failures and returns them as a list — does not fail-fast so all queries are attempted.

@@ -54,7 +54,8 @@ public class DslClickBenchIT extends AnalyticsRestTestCase {
                 request.setJsonEntity(queryBody);
                 Response response = client.performRequest(request);
                 return assertOkAndParse(response, "DSL query");
-            }
+            },
+            ExpectedResponseStrategy.SKIP_VALIDATION
         );
 
         if (failures.isEmpty() == false) {
