@@ -281,10 +281,7 @@ public class PlanWalker {
                             // Arrow's allocator and FFI close paths throw IllegalStateException
                             // on leak / double-release. Don't let a close failure replace the
                             // primary stage failure en route to the completion listener.
-                            logger.warn(
-                                new ParameterizedMessage("[PlanWalker] terminal sink close failed on {}", to),
-                                e
-                            );
+                            logger.warn(new ParameterizedMessage("[PlanWalker] terminal sink close failed on {}", to), e);
                         }
                     }
                     Exception failure = rootExec.getFailure();

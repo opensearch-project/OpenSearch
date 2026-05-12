@@ -21,8 +21,8 @@ import org.opensearch.common.settings.ClusterSettings;
 
 import java.io.IOException;
 import java.util.Collection;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -99,9 +99,7 @@ public class DataFusionService extends AbstractLifecycleComponent {
         NativeBridge.initTokioRuntimeManager(cpuThreads);
         logger.debug("Tokio runtime manager initialized with {} CPU threads", cpuThreads);
 
-        this.drainExecutor = Executors.newThreadPerTaskExecutor(
-            Thread.ofVirtual().name("analytics-reduce-drain-", 0).factory()
-        );
+        this.drainExecutor = Executors.newThreadPerTaskExecutor(Thread.ofVirtual().name("analytics-reduce-drain-", 0).factory());
 
         long cacheManagerPtr = 0L;
         if (clusterSettings != null) {

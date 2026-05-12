@@ -360,7 +360,7 @@ public final class DatafusionReduceSink extends AbstractDatafusionReduceSink imp
             }
         }
         // 2. Wait for drain to drain remaining output and exit on EOF. drainLoop catches
-        //    every Throwable internally, so get() never surfaces an ExecutionException.
+        // every Throwable internally, so get() never surfaces an ExecutionException.
         try {
             drainTask.get();
         } catch (InterruptedException e) {

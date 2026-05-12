@@ -55,7 +55,11 @@ public class PlanWalkerTests extends OpenSearchTestCase {
         builder.registerScheduler(StageExecutionType.LOCAL_PASSTHROUGH, (stage, s, cfg) -> root);
 
         AtomicReference<Exception> onFailure = new AtomicReference<>();
-        PlanWalker walker = new PlanWalker(queryCtx(rootStage), builder, ActionListener.wrap(r -> fail("unexpected success"), onFailure::set));
+        PlanWalker walker = new PlanWalker(
+            queryCtx(rootStage),
+            builder,
+            ActionListener.wrap(r -> fail("unexpected success"), onFailure::set)
+        );
         walker.build();
         walker.wireCompletion();
 
@@ -84,7 +88,11 @@ public class PlanWalkerTests extends OpenSearchTestCase {
         builder.registerScheduler(StageExecutionType.LOCAL_PASSTHROUGH, (stage, s, cfg) -> root);
 
         AtomicReference<Exception> onFailure = new AtomicReference<>();
-        PlanWalker walker = new PlanWalker(queryCtx(rootStage), builder, ActionListener.wrap(r -> fail("unexpected success"), onFailure::set));
+        PlanWalker walker = new PlanWalker(
+            queryCtx(rootStage),
+            builder,
+            ActionListener.wrap(r -> fail("unexpected success"), onFailure::set)
+        );
         walker.build();
         walker.wireCompletion();
 
@@ -101,18 +109,18 @@ public class PlanWalkerTests extends OpenSearchTestCase {
         builder.registerScheduler(StageExecutionType.LOCAL_PASSTHROUGH, (stage, s, cfg) -> root);
 
         AtomicReference<Exception> onFailure = new AtomicReference<>();
-        PlanWalker walker = new PlanWalker(queryCtx(rootStage), builder, ActionListener.wrap(r -> fail("unexpected success"), onFailure::set));
+        PlanWalker walker = new PlanWalker(
+            queryCtx(rootStage),
+            builder,
+            ActionListener.wrap(r -> fail("unexpected success"), onFailure::set)
+        );
         walker.build();
         walker.wireCompletion();
 
         RuntimeException rootCause = new RuntimeException("original failure");
         root.failWith(rootCause);
 
-        assertSame(
-            "original stage failure must reach the listener even when terminal sink close throws",
-            rootCause,
-            onFailure.get()
-        );
+        assertSame("original stage failure must reach the listener even when terminal sink close throws", rootCause, onFailure.get());
     }
 
     // ── helpers ─────────────────────────────────────────────────────────
