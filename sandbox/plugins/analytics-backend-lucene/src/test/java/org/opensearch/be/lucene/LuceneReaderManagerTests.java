@@ -167,18 +167,18 @@ public class LuceneReaderManagerTests extends OpenSearchTestCase {
             }
 
             @Override
-            public org.apache.lucene.util.Version getFormatVersionForFile(String file) {
-                return org.apache.lucene.util.Version.LATEST;
+            public String getFormatVersionForFile(String file) {
+                return "";
             }
 
             @Override
-            public org.apache.lucene.util.Version getMinSegmentFormatVersion() {
-                return null;
+            public String getMinSegmentFormatVersion() {
+                return "";
             }
 
             @Override
-            public org.apache.lucene.util.Version getCommitDataFormatVersion() {
-                return org.apache.lucene.util.Version.LATEST;
+            public String getCommitDataFormatVersion() {
+                return "";
             }
 
             @Override

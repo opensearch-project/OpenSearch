@@ -18,6 +18,7 @@ import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.util.CancellableThreads;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
+import org.opensearch.index.engine.exec.coord.LuceneVersionConverter;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardState;
 import org.opensearch.index.store.RemoteSegmentStoreDirectory;
@@ -72,7 +73,7 @@ public class RemoteStoreReplicationSource implements SegmentReplicationSource {
         try {
             final Version version;
             try (GatedCloseable<CatalogSnapshot> catalogSnapshotRef = indexShard.getCatalogSnapshot()) {
-                version = catalogSnapshotRef.get().getCommitDataFormatVersion();
+                version = LuceneVersionConverter.toLuceneOrLatest(catalogSnapshotRef.get().getCommitDataFormatVersion());
             }
             final RemoteSegmentMetadata mdFile = getRemoteSegmentMetadata();
 

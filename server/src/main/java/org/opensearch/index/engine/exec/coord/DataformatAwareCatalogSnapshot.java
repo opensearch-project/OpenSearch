@@ -9,7 +9,6 @@
 package org.opensearch.index.engine.exec.coord;
 
 import org.apache.lucene.index.SegmentInfos;
-import org.apache.lucene.util.Version;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.core.common.bytes.BytesReference;
@@ -46,6 +45,8 @@ public class DataformatAwareCatalogSnapshot extends CatalogSnapshot {
     private final long lastWriterGeneration;
     private final long numDocs;
     private Map<String, String> userData;
+    // Lazily built; racy construction is safe (idempotent result).
+    private volatile Map<String, String> fileToFormatVersion;
     private final AtomicBoolean closed = new AtomicBoolean(false);
     private String lastCommitFileName;
     private long lastCommitGeneration = -1;
@@ -238,20 +239,36 @@ public class DataformatAwareCatalogSnapshot extends CatalogSnapshot {
     }
 
     @Override
-    public Version getFormatVersionForFile(String file) {
-        // TODO: return the per-file format version once per-segment tracking is available.
-        return Version.LATEST;
+    public String getFormatVersionForFile(String file) {
+        Map<String, String> map = fileToFormatVersion;
+        if (map == null) {
+            map = buildFileToFormatVersionMap();
+            fileToFormatVersion = map;
+        }
+        String v = map.get(file);
+        return v == null ? "" : v;
+    }
+
+    private Map<String, String> buildFileToFormatVersionMap() {
+        Map<String, String> m = new HashMap<>();
+        for (Segment s : segments) {
+            for (WriterFileSet wfs : s.dfGroupedSearchableFiles().values()) {
+                for (String f : wfs.files()) {
+                    m.put(f, wfs.formatVersion());
+                }
+            }
+        }
+        return Map.copyOf(m);
     }
 
     @Override
-    public Version getMinSegmentFormatVersion() {
-        return null;
+    public String getMinSegmentFormatVersion() {
+        return "";  // cross-format min is semantically meaningless
     }
 
     @Override
-    public Version getCommitDataFormatVersion() {
-        // Todo: update this api once proper versioning is implemented.
-        return Version.LATEST;
+    public String getCommitDataFormatVersion() {
+        return "";  // same rationale
     }
 
     /**
@@ -299,7 +316,6 @@ public class DataformatAwareCatalogSnapshot extends CatalogSnapshot {
         this.lastCommitFileName = commitFileName;
         this.lastCommitGeneration = commitGeneration;
     }
-
 
     @Override
     public SegmentInfos getSegmentInfos() {

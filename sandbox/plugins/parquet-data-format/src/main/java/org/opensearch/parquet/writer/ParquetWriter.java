@@ -15,6 +15,7 @@ import org.opensearch.index.engine.dataformat.WriteResult;
 import org.opensearch.index.engine.dataformat.Writer;
 import org.opensearch.index.engine.exec.WriterFileSet;
 import org.opensearch.index.store.FormatChecksumStrategy;
+import org.opensearch.parquet.ParquetDataFormatPlugin;
 import org.opensearch.parquet.ParquetSettings;
 import org.opensearch.parquet.bridge.ParquetFileMetadata;
 import org.opensearch.parquet.engine.ParquetDataFormat;
@@ -114,6 +115,7 @@ public class ParquetWriter implements Writer<ParquetDocumentInput> {
             .writerGeneration(writerGeneration)
             .addFile(fileName)
             .addNumRows(metadata.numRows())
+            .formatVersion(ParquetDataFormatPlugin.PARQUET_FORMAT_VERSION)
             .build();
         return FileInfos.builder().putWriterFileSet(dataFormat, writerFileSet).build();
     }
