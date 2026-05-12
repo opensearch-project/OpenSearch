@@ -87,6 +87,37 @@ public class QueryScheduler implements Scheduler {
         walker.start(graph);
     }
 
+    /**
+     * Variant of {@link #execute} that returns the {@link PlanWalker} it built so callers
+     * can observe the {@link ExecutionGraph} after terminal. The profile API needs this —
+     * by the time its outer listener fires, {@code walkerPool} has already removed the
+     * entry in {@link #createWalker}'s callback, so {@code walkerFor(queryId)} returns
+     * null. Holding the ref from the caller side survives that removal.
+     */
+    public PlanWalker executeAndReturnWalker(QueryContext config, ActionListener<Iterable<VectorSchemaRoot>> listener) {
+        final String queryId = config.queryId();
+        final long queryStartNanos = System.nanoTime();
+        final AnalyticsOperationListener.CompositeListener opListener = new AnalyticsOperationListener.CompositeListener(
+            config.operationListeners()
+        );
+
+        PlanWalker walker = createWalker(config, listener, queryId, queryStartNanos, opListener);
+        walkerPool.put(queryId, walker);
+
+        final AnalyticsQueryTask queryTask = config.parentTask();
+        queryTask.setOnCancelCallback(() -> {
+            String reason = "task cancelled: " + (queryTask.getReasonCancelled() != null ? queryTask.getReasonCancelled() : "unknown");
+            logger.info("[QueryScheduler] AnalyticsQueryTask.onCancelled fired, reason={}", reason);
+            walker.cancelAll(reason);
+        });
+
+        ExecutionGraph graph = walker.build();
+        opListener.onQueryStart(queryId, graph.stageCount());
+        logger.info("[QueryScheduler] ExecutionGraph built:\n{}", graph.explain());
+        walker.start(graph);
+        return walker;
+    }
+
     private PlanWalker createWalker(
         QueryContext config,
         ActionListener<Iterable<VectorSchemaRoot>> listener,
@@ -104,6 +135,18 @@ public class QueryScheduler implements Scheduler {
             listener.onFailure(e);
         });
         return new PlanWalker(config, stageExecutionBuilder, wrapped);
+    }
+
+    /**
+     * Returns the underlying {@link StageExecutionBuilder} so callers can register a
+     * custom {@link org.opensearch.analytics.exec.stage.StageScheduler} for a stage
+     * type (e.g. fault-injecting scheduler in resilience tests). Resolving via the
+     * singleton scheduler avoids a Guice JIT lookup that would re-instantiate
+     * {@link AnalyticsSearchTransportService} (whose ctor registers transport
+     * handlers, only legal once per node).
+     */
+    public StageExecutionBuilder getStageExecutionBuilder() {
+        return stageExecutionBuilder;
     }
 
     /** Pool-level lookup for observability / metrics. */

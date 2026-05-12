@@ -22,10 +22,10 @@ import org.opensearch.analytics.planner.dag.Stage;
 import org.opensearch.analytics.spi.ExchangeSink;
 import org.opensearch.cluster.service.ClusterService;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 
 /**
@@ -39,8 +39,6 @@ import java.util.function.Function;
  * @opensearch.internal
  */
 final class ShardFragmentStageExecution extends AbstractStageExecution implements DataProducer {
-
-    private final AtomicInteger inFlight = new AtomicInteger(0);
 
     private final QueryContext config;
     private final ExchangeSink outputSink;
@@ -72,20 +70,33 @@ final class ShardFragmentStageExecution extends AbstractStageExecution implement
             transitionTo(StageExecution.State.SUCCEEDED);
             return;
         }
+        if (transitionTo(StageExecution.State.SCHEDULING) == false) return;
+        // Materialise one StageTask per target and register with the per-query
+        // TaskTracker before any transport call — so if a dispatch fails mid-loop the
+        // tracker still carries every task we're about to kick off. The profile
+        // builder later reads per-partition state and timing from here.
+        TaskTracker tracker = config.taskTracker();
+        List<StageTask> tasks = new ArrayList<>(resolved.size());
+        for (int i = 0; i < resolved.size(); i++) {
+            StageTask t = new StageTask(new StageTaskId(stage.getStageId(), i), resolved.get(i));
+            tasks.add(t);
+            tracker.register(t);
+        }
         if (transitionTo(StageExecution.State.RUNNING) == false) return;
-        inFlight.set(resolved.size());
-        for (ExecutionTarget target : resolved) {
-            dispatchShardTask((ShardExecutionTarget) target);
+        for (StageTask task : tasks) {
+            task.transitionTo(StageTaskState.RUNNING);
+            dispatchShardTask(task);
         }
     }
 
-    private void dispatchShardTask(ShardExecutionTarget target) {
+    private void dispatchShardTask(StageTask task) {
+        ShardExecutionTarget target = (ShardExecutionTarget) task.target();
         FragmentExecutionRequest request = requestBuilder.apply(target);
         PendingExecutions pending = pendingFor(target);
-        dispatcher.dispatchFragmentStreaming(request, target.node(), responseListener(), config.parentTask(), pending);
+        dispatcher.dispatchFragmentStreaming(request, target.node(), responseListener(task), config.parentTask(), pending);
     }
 
-    private StreamingResponseListener<FragmentExecutionArrowResponse> responseListener() {
+    private StreamingResponseListener<FragmentExecutionArrowResponse> responseListener(StageTask task) {
         return new StreamingResponseListener<>() {
             // Runs inline on the per-stream virtual thread driving handleStreamResponse.
             // Must NOT offload to a thread pool: reordering across batches would let the
@@ -106,17 +117,17 @@ final class ShardFragmentStageExecution extends AbstractStageExecution implement
                     outputSink.feed(vsr);
                 } catch (Exception e) {
                     // Without this guard the exception only surfaces on the stream's virtual
-                    // thread; inFlight never decrements and the stage hangs to QUERY_TIMEOUT.
+                    // thread; the task never terminates and the stage hangs to QUERY_TIMEOUT.
                     captureFailure(new RuntimeException("Stage " + stage.getStageId() + " sink feed failed", e));
                     metrics.incrementTasksFailed();
-                    onShardTerminated();
+                    onTaskTerminated(task, StageTaskState.FAILED);
                     return;
                 }
                 metrics.addRowsProcessed(vsr.getRowCount());
 
                 if (isLast) {
                     metrics.incrementTasksCompleted();
-                    onShardTerminated();
+                    onTaskTerminated(task, StageTaskState.FINISHED);
                 }
             }
 
@@ -124,13 +135,19 @@ final class ShardFragmentStageExecution extends AbstractStageExecution implement
             public void onFailure(Exception e) {
                 captureFailure(new RuntimeException("Stage " + stage.getStageId() + " failed", e));
                 metrics.incrementTasksFailed();
-                onShardTerminated();
+                onTaskTerminated(task, StageTaskState.FAILED);
             }
         };
     }
 
-    private void onShardTerminated() {
-        if (inFlight.decrementAndGet() == 0) {
+    private void onTaskTerminated(StageTask task, StageTaskState terminalState) {
+        // transitionTo no-ops if the task is already terminal — safe to call twice if
+        // the transport fires a late onFailure after a successful isLast=true.
+        task.transitionTo(terminalState);
+        // Stage terminal derives from TaskTracker instead of a local in-flight counter.
+        // Concurrent terminal-firing tasks may both see "all terminal" and both attempt
+        // the stage transition — transitionTo is CAS-guarded so only one wins.
+        if (config.taskTracker().allTasksTerminalForStage(stage.getStageId())) {
             Exception captured = getFailure();
             transitionTo(captured != null ? StageExecution.State.FAILED : StageExecution.State.SUCCEEDED);
         }

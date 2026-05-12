@@ -87,6 +87,12 @@ public interface StageExecution {
     enum State {
         /** Initial state before {@link #start()} has been invoked. */
         CREATED,
+        /**
+         * {@link #start()} has been called; tasks are being materialised and registered
+         * with the {@link TaskTracker}, but none have been dispatched to the transport
+         * layer yet. Brief — flips to {@link #RUNNING} as soon as dispatch begins.
+         */
+        SCHEDULING,
         /** Dispatch has begun; the stage is actively executing. */
         RUNNING,
         /** Terminal success — all work completed, output delivered to the sink. */
