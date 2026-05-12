@@ -40,6 +40,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 
+import static org.mockito.Mockito.mock;
+
 /**
  * Tests for {@link CatalogSnapshotManager}.
  */
@@ -232,7 +234,7 @@ public class CatalogSnapshotManagerTests extends OpenSearchTestCase {
                 Map.of(),
                 List.of(),
                 null,
-                null
+                mock(CommitFileManager.class)
             );
             try (GatedCloseable<CatalogSnapshot> ref = manager.acquireSnapshot()) {
                 CatalogSnapshot acquired = ref.get();
@@ -305,10 +307,10 @@ public class CatalogSnapshotManagerTests extends OpenSearchTestCase {
 
     public void testApplyMergeResultsReplacesSegments() throws Exception {
         DataFormat format = new MockDataFormat();
-        WriterFileSet wfs1 = new WriterFileSet("/tmp/dir", 1L, Set.of("a.cfs"), 100);
-        WriterFileSet wfs2 = new WriterFileSet("/tmp/dir", 2L, Set.of("b.cfs"), 200);
-        WriterFileSet wfs3 = new WriterFileSet("/tmp/dir", 3L, Set.of("c.cfs"), 300);
-        WriterFileSet mergedWfs = new WriterFileSet("/tmp/dir", 4L, Set.of("merged.cfs"), 300);
+        WriterFileSet wfs1 = new WriterFileSet("/tmp/dir", 1L, Set.of("a.cfs"), 100, "");
+        WriterFileSet wfs2 = new WriterFileSet("/tmp/dir", 2L, Set.of("b.cfs"), 200, "");
+        WriterFileSet wfs3 = new WriterFileSet("/tmp/dir", 3L, Set.of("c.cfs"), 300, "");
+        WriterFileSet mergedWfs = new WriterFileSet("/tmp/dir", 4L, Set.of("merged.cfs"), 300, "");
 
         Segment seg1 = new Segment(1L, Map.of(format.name(), wfs1));
         Segment seg2 = new Segment(2L, Map.of(format.name(), wfs2));
@@ -321,7 +323,7 @@ public class CatalogSnapshotManagerTests extends OpenSearchTestCase {
             Map.of(),
             List.of(),
             null,
-            null
+            mock(CommitFileManager.class)
         );
         try {
             MergeResult mergeResult = new MergeResult(Map.of(format, mergedWfs));
@@ -345,9 +347,9 @@ public class CatalogSnapshotManagerTests extends OpenSearchTestCase {
 
     public void testApplyMergeResultsWhenAllMergedSegmentsRemoved() throws Exception {
         DataFormat format = new MockDataFormat();
-        WriterFileSet wfs1 = new WriterFileSet("/tmp/dir", 1L, Set.of("a.cfs"), 100);
-        WriterFileSet wfs2 = new WriterFileSet("/tmp/dir", 2L, Set.of("b.cfs"), 200);
-        WriterFileSet mergedWfs = new WriterFileSet("/tmp/dir", 3L, Set.of("merged.cfs"), 300);
+        WriterFileSet wfs1 = new WriterFileSet("/tmp/dir", 1L, Set.of("a.cfs"), 100, "");
+        WriterFileSet wfs2 = new WriterFileSet("/tmp/dir", 2L, Set.of("b.cfs"), 200, "");
+        WriterFileSet mergedWfs = new WriterFileSet("/tmp/dir", 3L, Set.of("merged.cfs"), 300, "");
 
         Segment seg1 = new Segment(1L, Map.of(format.name(), wfs1));
         Segment seg2 = new Segment(2L, Map.of(format.name(), wfs2));
@@ -360,7 +362,7 @@ public class CatalogSnapshotManagerTests extends OpenSearchTestCase {
             Map.of(),
             List.of(),
             null,
-            null
+            mock(CommitFileManager.class)
         );
         try {
             MergeResult mergeResult = new MergeResult(Map.of(format, mergedWfs));
@@ -383,7 +385,7 @@ public class CatalogSnapshotManagerTests extends OpenSearchTestCase {
 
     public void testApplyMergeResultsWithEmptyWriterFileSetMapThrows() throws Exception {
         DataFormat format = new MockDataFormat();
-        WriterFileSet wfs1 = new WriterFileSet("/tmp/dir", 1L, Set.of("a.cfs"), 100);
+        WriterFileSet wfs1 = new WriterFileSet("/tmp/dir", 1L, Set.of("a.cfs"), 100, "");
         Segment seg1 = new Segment(1L, Map.of(format.name(), wfs1));
 
         CatalogSnapshotManager manager = new CatalogSnapshotManager(
@@ -393,7 +395,7 @@ public class CatalogSnapshotManagerTests extends OpenSearchTestCase {
             Map.of(),
             List.of(),
             null,
-            null
+            mock(CommitFileManager.class)
         );
         try {
             MergeResult mergeResult = new MergeResult(Map.of());
@@ -416,7 +418,7 @@ public class CatalogSnapshotManagerTests extends OpenSearchTestCase {
     }
 
     private static Segment segment(long gen, String format, String... files) {
-        WriterFileSet wfs = new WriterFileSet("/data", gen, Set.of(files), files.length);
+        WriterFileSet wfs = new WriterFileSet("/data", gen, Set.of(files), files.length, "");
         return new Segment(gen, Map.of(format, wfs));
     }
 
@@ -449,7 +451,7 @@ public class CatalogSnapshotManagerTests extends OpenSearchTestCase {
             Map.of(),
             List.of(),
             null,
-            null
+            mock(CommitFileManager.class)
         );
 
         // Refresh: CS2 adds segment _2, keeps _0 and _1
@@ -502,7 +504,7 @@ public class CatalogSnapshotManagerTests extends OpenSearchTestCase {
             Map.of(),
             List.of(),
             null,
-            null
+            mock(CommitFileManager.class)
         );
 
         // Refresh: merge _0+_1 into _2, add new _3
@@ -557,7 +559,7 @@ public class CatalogSnapshotManagerTests extends OpenSearchTestCase {
             Map.of(),
             List.of(),
             null,
-            null
+            mock(CommitFileManager.class)
         );
 
         // Flush CS1 so it's a proper commit
@@ -623,7 +625,7 @@ public class CatalogSnapshotManagerTests extends OpenSearchTestCase {
             Map.of(),
             List.of(),
             null,
-            null
+            mock(CommitFileManager.class)
         );
 
         // Reader acquires CS1
@@ -684,7 +686,7 @@ public class CatalogSnapshotManagerTests extends OpenSearchTestCase {
             Map.of(),
             List.of(),
             null,
-            null
+            mock(CommitFileManager.class)
         );
 
         // Refresh CS2: keeps _shared, replaces _0 with _2
@@ -728,7 +730,7 @@ public class CatalogSnapshotManagerTests extends OpenSearchTestCase {
         for (int i = 0; i < fileCount; i++) {
             files.add(randomAlphaOfLength(6) + "." + randomFrom(extensions));
         }
-        return new WriterFileSet(directory, randomNonNegativeLong(), files, randomIntBetween(1, 10000));
+        return new WriterFileSet(directory, randomNonNegativeLong(), files, randomIntBetween(1, 10000), "");
     }
 
     private Segment randomSegment() {
@@ -757,7 +759,7 @@ public class CatalogSnapshotManagerTests extends OpenSearchTestCase {
     }
 
     public void testCreateForReplicaProducesEmptySnapshot() throws Exception {
-        try (CatalogSnapshotManager manager = replicaManager(null, List.of(), Map.of(), null)) {
+        try (CatalogSnapshotManager manager = replicaManager(null, List.of(), Map.of(), mock(CommitFileManager.class))) {
             try (GatedCloseable<CatalogSnapshot> ref = manager.acquireSnapshot()) {
                 CatalogSnapshot snapshot = ref.get();
                 assertEquals(0L, snapshot.getId());
@@ -769,7 +771,7 @@ public class CatalogSnapshotManagerTests extends OpenSearchTestCase {
     }
 
     public void testApplyReplicationSnapshotReplacesAndReleasesPrevious() throws Exception {
-        CatalogSnapshotManager manager = replicaManager(null, List.of(), Map.of(), null);
+        CatalogSnapshotManager manager = replicaManager(null, List.of(), Map.of(), mock(CommitFileManager.class));
         CatalogSnapshot previous;
         try (GatedCloseable<CatalogSnapshot> ref = manager.acquireSnapshot()) {
             previous = ref.get();
@@ -793,7 +795,7 @@ public class CatalogSnapshotManagerTests extends OpenSearchTestCase {
     }
 
     public void testApplyReplicationSnapshotOnClosedManagerThrows() throws Exception {
-        CatalogSnapshotManager manager = replicaManager(null, List.of(), Map.of(), null);
+        CatalogSnapshotManager manager = replicaManager(null, List.of(), Map.of(), mock(CommitFileManager.class));
         manager.close();
         DataformatAwareCatalogSnapshot incoming = new DataformatAwareCatalogSnapshot(1L, 1L, 1L, randomSegments(), 1L, Map.of());
         expectThrows(IllegalStateException.class, () -> manager.applyReplicationSnapshot(incoming));
@@ -821,7 +823,7 @@ public class CatalogSnapshotManagerTests extends OpenSearchTestCase {
         }
 
         // Build a snapshot that references only `known.si` under the lucene format.
-        WriterFileSet wfs = new WriterFileSet(indexDir.toString(), 1L, Set.of("known.si"), 0);
+        WriterFileSet wfs = new WriterFileSet(indexDir.toString(), 1L, Set.of("known.si"), 0, "");
         Segment seg = new Segment(1L, Map.of("lucene", wfs));
         DataformatAwareCatalogSnapshot initial = new DataformatAwareCatalogSnapshot(1L, 1L, 1L, List.of(seg), 1L, Map.of());
 
@@ -870,7 +872,9 @@ public class CatalogSnapshotManagerTests extends OpenSearchTestCase {
 
         FileDeleter unused = filesByFormat -> Map.of();
 
-        try (CatalogSnapshotManager manager = replicaManager(shardPath, List.of(), Map.of("lucene", unused), null)) {
+        try (
+            CatalogSnapshotManager manager = replicaManager(shardPath, List.of(), Map.of("lucene", unused), mock(CommitFileManager.class))
+        ) {
             try (GatedCloseable<CatalogSnapshot> ref = manager.acquireSnapshot()) {
                 CatalogSnapshot seed = ref.get();
                 assertEquals("seed must be the empty synthetic snapshot", 0L, seed.getId());
@@ -900,6 +904,6 @@ public class CatalogSnapshotManagerTests extends OpenSearchTestCase {
         FileDeleter fileDeleter
     ) throws IOException {
         DataformatAwareCatalogSnapshot snapshot = new DataformatAwareCatalogSnapshot(1L, 1L, 0L, segments, 1L, userData);
-        return new CatalogSnapshotManager(List.of(snapshot), policy, fileDeleter, Map.of(), List.of(), null, null);
+        return new CatalogSnapshotManager(List.of(snapshot), policy, fileDeleter, Map.of(), List.of(), null, mock(CommitFileManager.class));
     }
 }

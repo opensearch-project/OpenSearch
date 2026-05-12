@@ -157,7 +157,12 @@ public class SegmentInfosCatalogSnapshot extends CatalogSnapshot {
      * file itself, or to the .si file's version for other unmapped files.
      */
     @Override
-    public Version getFormatVersionForFile(String file) {
+    public String getFormatVersionForFile(String file) {
+        Version v = getLuceneVersionForFile(file);
+        return v == null ? "" : v.toString();
+    }
+
+    private Version getLuceneVersionForFile(String file) {
         Version version = segmentFileVersionMap.get(file);
         if (version != null) {
             return version;
@@ -174,13 +179,15 @@ public class SegmentInfosCatalogSnapshot extends CatalogSnapshot {
     }
 
     @Override
-    public Version getMinSegmentFormatVersion() {
-        return segmentInfos.getMinSegmentLuceneVersion();
+    public String getMinSegmentFormatVersion() {
+        Version v = segmentInfos.getMinSegmentLuceneVersion();
+        return v == null ? "" : v.toString();
     }
 
     @Override
-    public org.apache.lucene.util.Version getCommitDataFormatVersion() {
-        return segmentInfos.getCommitLuceneVersion();
+    public String getCommitDataFormatVersion() {
+        Version v = segmentInfos.getCommitLuceneVersion();
+        return v == null ? "" : v.toString();
     }
 
     @Override

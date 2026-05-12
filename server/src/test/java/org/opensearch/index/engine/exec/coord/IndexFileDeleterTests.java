@@ -47,7 +47,7 @@ public class IndexFileDeleterTests extends OpenSearchTestCase {
     }
 
     private static Segment segment(long gen, String format, String... files) {
-        WriterFileSet wfs = new WriterFileSet("/data", gen, Set.of(files), files.length);
+        WriterFileSet wfs = new WriterFileSet("/data", gen, Set.of(files), files.length, "");
         return new Segment(gen, Map.of(format, wfs));
     }
 
@@ -252,9 +252,9 @@ public class IndexFileDeleterTests extends OpenSearchTestCase {
             0,
             Map.of(
                 "parquet",
-                new WriterFileSet("/data", 0, Set.of("data.parquet"), 1),
+                new WriterFileSet("/data", 0, Set.of("data.parquet"), 1, ""),
                 "lucene",
-                new WriterFileSet("/data", 0, Set.of("_0.cfs"), 1)
+                new WriterFileSet("/data", 0, Set.of("_0.cfs"), 1, "")
             )
         );
         CatalogSnapshot cs1 = snapshot(1, List.of(seg), commitUserData(100, 100, "uuid"));
@@ -275,9 +275,9 @@ public class IndexFileDeleterTests extends OpenSearchTestCase {
             1,
             Map.of(
                 "parquet",
-                new WriterFileSet("/data", 1, Set.of("data2.parquet"), 1),
+                new WriterFileSet("/data", 1, Set.of("data2.parquet"), 1, ""),
                 "lucene",
-                new WriterFileSet("/data", 1, Set.of("_1.cfs"), 1)
+                new WriterFileSet("/data", 1, Set.of("_1.cfs"), 1, "")
             )
         );
         CatalogSnapshot cs2 = snapshot(2, List.of(seg2), commitUserData(200, 200, "uuid"));

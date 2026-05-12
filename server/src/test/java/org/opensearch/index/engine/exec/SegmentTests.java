@@ -68,7 +68,7 @@ public class SegmentTests extends OpenSearchTestCase {
         for (int i = 0; i < fileCount; i++) {
             files.add(randomAlphaOfLength(6) + "." + randomFrom(extensions));
         }
-        return new WriterFileSet(TEST_DIRECTORY, randomNonNegativeLong(), files, randomIntBetween(0, 10000));
+        return new WriterFileSet(TEST_DIRECTORY, randomNonNegativeLong(), files, randomIntBetween(0, 10000), "");
     }
 
     private Segment randomSegment() {

@@ -23,17 +23,24 @@ import java.util.Set;
  * Groups files by directory and writer generation, tracking metadata such as row count and total size.
  */
 @ExperimentalApi
-public record WriterFileSet(String directory, long writerGeneration, Set<String> files, long numRows) implements Writeable {
+public record WriterFileSet(String directory, long writerGeneration, Set<String> files, long numRows, String formatVersion)
+    implements
+        Writeable {
 
     public WriterFileSet {
         files = Set.copyOf(files);
+        formatVersion = formatVersion == null ? "" : formatVersion;
     }
 
     /**
      * Constructs a WriterFileSet by deserializing from a {@link StreamInput}.
+     * <p>
+     * The DFA subsystem is {@link ExperimentalApi} and gated behind
+     * {@code FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG}; it first ships in 3.7.
+     * No pre-3.7 wire format exists, so no version gate is needed here.
      */
     public WriterFileSet(StreamInput in, String directory) throws IOException {
-        this(directory, in.readLong(), new HashSet<>(in.readStringList()), in.readLong());
+        this(directory, in.readLong(), new HashSet<>(in.readStringList()), in.readLong(), in.readString());
     }
 
     public long getTotalSize() {
@@ -48,7 +55,16 @@ public record WriterFileSet(String directory, long writerGeneration, Set<String>
 
     @Override
     public String toString() {
-        return "WriterFileSet{" + "directory=" + directory + ", writerGeneration=" + writerGeneration + ", files=" + files + '}';
+        return "WriterFileSet{"
+            + "directory="
+            + directory
+            + ", writerGeneration="
+            + writerGeneration
+            + ", files="
+            + files
+            + ", formatVersion="
+            + formatVersion
+            + '}';
     }
 
     /**
@@ -58,6 +74,7 @@ public record WriterFileSet(String directory, long writerGeneration, Set<String>
         out.writeLong(writerGeneration);
         out.writeStringCollection(files);
         out.writeLong(numRows);
+        out.writeString(formatVersion);
     }
 
     /**
@@ -77,6 +94,7 @@ public record WriterFileSet(String directory, long writerGeneration, Set<String>
         private Path directory;
         private Long writerGeneration;
         private long numRows;
+        private String formatVersion = "";
         private final Set<String> files = new HashSet<>();
 
         public Builder directory(Path directory) {
@@ -104,6 +122,11 @@ public record WriterFileSet(String directory, long writerGeneration, Set<String>
             return this;
         }
 
+        public Builder formatVersion(String formatVersion) {
+            this.formatVersion = formatVersion == null ? "" : formatVersion;
+            return this;
+        }
+
         public WriterFileSet build() {
             if (directory == null) {
                 throw new IllegalStateException("directory must be set");
@@ -113,7 +136,7 @@ public record WriterFileSet(String directory, long writerGeneration, Set<String>
                 throw new IllegalStateException("writerGeneration must be set");
             }
 
-            return new WriterFileSet(directory.toString(), writerGeneration, files, numRows);
+            return new WriterFileSet(directory.toString(), writerGeneration, files, numRows, formatVersion);
         }
     }
 }

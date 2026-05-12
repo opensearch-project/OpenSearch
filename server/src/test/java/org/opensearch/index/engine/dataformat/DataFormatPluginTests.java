@@ -21,6 +21,7 @@ import org.opensearch.index.engine.dataformat.stub.MockIndexingExecutionEngine;
 import org.opensearch.index.engine.dataformat.stub.MockReader;
 import org.opensearch.index.engine.dataformat.stub.MockReaderManager;
 import org.opensearch.index.engine.exec.CatalogSnapshotDeletionPolicy;
+import org.opensearch.index.engine.exec.CommitFileManager;
 import org.opensearch.index.engine.exec.Segment;
 import org.opensearch.index.engine.exec.WriterFileSet;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
@@ -241,8 +242,8 @@ public class DataFormatPluginTests extends OpenSearchTestCase {
         assertTrue(empty.existingSegments().isEmpty());
 
         Path dir = createTempDir();
-        WriterFileSet fs1 = new WriterFileSet(dir.toString(), 1L, Set.of(), 10);
-        WriterFileSet fs2 = new WriterFileSet(dir.toString(), 2L, Set.of(), 20);
+        WriterFileSet fs1 = new WriterFileSet(dir.toString(), 1L, Set.of(), 10, "");
+        WriterFileSet fs2 = new WriterFileSet(dir.toString(), 2L, Set.of(), 20, "");
         Segment seg = new Segment(0L, Map.of());
 
         RefreshInput input = RefreshInput.builder()
@@ -283,7 +284,7 @@ public class DataFormatPluginTests extends OpenSearchTestCase {
             Map.of(),
             List.of(),
             null,
-            null
+            mock(CommitFileManager.class)
         );
 
         MockReaderManager readerManager = new MockReaderManager(format.name());
@@ -383,7 +384,7 @@ public class DataFormatPluginTests extends OpenSearchTestCase {
             Map.of(),
             List.of(),
             null,
-            null
+            mock(CommitFileManager.class)
         );
 
         try (GatedCloseable<CatalogSnapshot> ref = manager.acquireSnapshot()) {
