@@ -12,7 +12,7 @@
 //! schema contains `___row_id`. When found, inserts a `ProjectionExec` above
 //! that computes `___row_id + row_base` and aliases it as `___row_id`.
 //!
-//! This optimizer is registered on the session only when `RowIdStrategy::ListingTable`
+//! This optimizer is registered on the session only when `FetchStrategy::ListingTable`
 //! is active and the plan requests row IDs.
 
 use std::sync::Arc;

@@ -675,9 +675,9 @@ pub unsafe extern "C" fn df_execute_with_context(
     // Route based on whether the session was configured for indexed execution
     // or if the plan projects __row_id__ (QTF query phase).
     let has_row_id = plan_bytes.windows(b"__row_id__".len()).any(|w| w == b"__row_id__");
-    let row_id_strategy = session_handle.query_config.row_id_strategy;
+    let fetch_strategy = session_handle.query_config.fetch_strategy;
     let use_indexed = session_handle.indexed_config.is_some()
-        || (has_row_id && row_id_strategy != crate::datafusion_query_config::RowIdStrategy::ListingTable);
+        || (has_row_id && fetch_strategy != crate::datafusion_query_config::FetchStrategy::ListingTable);
     if use_indexed {
         let ptr = Box::into_raw(Box::new(session_handle)) as i64;
         mgr.io_runtime

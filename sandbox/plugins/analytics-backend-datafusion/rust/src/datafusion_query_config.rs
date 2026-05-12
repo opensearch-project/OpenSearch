@@ -13,7 +13,7 @@ use crate::indexed_table::stream::FilterStrategy;
 /// Selects which execution path computes shard-global row IDs.
 /// `None` = no row ID computation (baseline — reads ___row_id as a regular column).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum RowIdStrategy {
+pub enum FetchStrategy {
     /// No row ID optimizer applied. ___row_id is read as a regular column
     /// without any row_base addition. Returns local (per-file) row IDs only.
     None,
@@ -69,7 +69,7 @@ pub struct DatafusionQueryConfig {
     /// Strategy for row ID emission on the vanilla path.
     /// Only consulted when the plan requests row IDs (contains _global_row_id() UDF
     /// or projects ___row_id).
-    pub row_id_strategy: RowIdStrategy,
+    pub fetch_strategy: FetchStrategy,
 }
 
 /// FFM wire format. Must stay in lockstep with the Java `MemoryLayout`.
@@ -100,7 +100,7 @@ pub struct WireDatafusionQueryConfig {
     /// 0 = FullRange, 1 = TightenOuterBounds, 2 = PageRangeSplit
     pub tree_collector_strategy: i32,
     /// 0 = None (baseline), 1 = ListingTable, 2 = IndexedPredicateOnly
-    pub row_id_strategy: i32,
+    pub fetch_strategy: i32,
 }
 
 impl DatafusionQueryConfig {
@@ -123,7 +123,7 @@ impl DatafusionQueryConfig {
             max_collector_parallelism: 1,
             single_collector_strategy: CollectorCallStrategy::PageRangeSplit,
             tree_collector_strategy: CollectorCallStrategy::TightenOuterBounds,
-            row_id_strategy: RowIdStrategy::None,
+            fetch_strategy: FetchStrategy::None,
         }
     }
 
@@ -189,10 +189,10 @@ impl DatafusionQueryConfig {
                 2 => CollectorCallStrategy::PageRangeSplit,
                 _ => CollectorCallStrategy::TightenOuterBounds,
             },
-            row_id_strategy: match w.row_id_strategy {
-                1 => RowIdStrategy::ListingTable,
-                2 => RowIdStrategy::IndexedPredicateOnly,
-                _ => RowIdStrategy::None,
+            fetch_strategy: match w.fetch_strategy {
+                1 => FetchStrategy::ListingTable,
+                2 => FetchStrategy::IndexedPredicateOnly,
+                _ => FetchStrategy::None,
             },
         }
     }
@@ -304,7 +304,7 @@ mod tests {
             max_collector_parallelism: 4,
             single_collector_strategy: 2,
             tree_collector_strategy: 1,
-            row_id_strategy: 1,
+            fetch_strategy: 1,
         };
         let ptr = &wire as *const _ as i64;
         let c = unsafe { DatafusionQueryConfig::from_ffm_ptr(ptr) };
@@ -318,7 +318,7 @@ mod tests {
         assert_eq!(c.force_pushdown, Some(false));
         assert_eq!(c.cost_predicate, 3);
         assert_eq!(c.cost_collector, 17);
-        assert_eq!(c.row_id_strategy, RowIdStrategy::ListingTable);
+        assert_eq!(c.fetch_strategy, FetchStrategy::ListingTable);
     }
 
     #[test]
@@ -337,12 +337,12 @@ mod tests {
             max_collector_parallelism: 2,
             single_collector_strategy: 2,
             tree_collector_strategy: 1,
-            row_id_strategy: 0,
+            fetch_strategy: 0,
         };
         let ptr = &wire as *const _ as i64;
         let c = unsafe { DatafusionQueryConfig::from_ffm_ptr(ptr) };
         assert_eq!(c.force_strategy, None);
         assert_eq!(c.force_pushdown, None);
-        assert_eq!(c.row_id_strategy, RowIdStrategy::None);
+        assert_eq!(c.fetch_strategy, FetchStrategy::None);
     }
 }

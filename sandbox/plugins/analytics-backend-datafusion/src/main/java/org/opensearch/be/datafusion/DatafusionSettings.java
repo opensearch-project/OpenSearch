@@ -162,18 +162,44 @@ public final class DatafusionSettings {
         Setting.Property.Dynamic
     );
 
+    // Fetch strategy constants
+    public static final String FETCH_STRATEGY_NONE = "none";
+    public static final String FETCH_STRATEGY_LISTING_TABLE = "listing_table";
+    public static final String FETCH_STRATEGY_INDEXED = "indexed";
+
     /**
-     * Fetch strategy for query-then-fetch (QTF).
+     * Fetch strategy for query-then-fetch (QTF) row ID computation.
      * <p>
-     * 0 = None (no row ID computation, baseline — reads __row_id__ as a regular column).
-     * 1 = ListingTable (ShardTableProvider + ProjectRowIdOptimizer, computes global row ID from __row_id__ + row_base).
-     * 2 = IndexedPredicateOnly (position-based computation via indexed pipeline, zero I/O for row ID).
+     * Controls how shard-global row IDs are computed when the query projects {@code __row_id__}.
+     * <ul>
+     *   <li>{@code none} — No global row ID computation. Reads {@code __row_id__} as a regular
+     *       column from parquet (per-file 0-based values, NOT shard-global). Useful for debugging.</li>
+     *   <li>{@code listing_table} — Uses ShardTableProvider with a {@code row_base} partition column.
+     *       Reads {@code __row_id__} from parquet and adds the file's cumulative row offset via
+     *       ProjectRowIdOptimizer ({@code __row_id__ + row_base = global_id}). Works with standard
+     *       DataFusion ListingTable scan path.</li>
+     *   <li>{@code indexed} — Uses the indexed pipeline (segment partitioning, PositionMap).
+     *       Computes row IDs from position ({@code global_base + rg.first_row + position_in_rg}).
+     *       Zero I/O for the row ID column. Fastest path when the indexed executor is available.</li>
+     * </ul>
+     * Default: {@code indexed}.
      */
-    public static final Setting<Integer> INDEXED_FETCH_STRATEGY = Setting.intSetting(
+    public static final Setting<String> INDEXED_FETCH_STRATEGY = Setting.simpleString(
         "datafusion.indexed.fetch_strategy",
-        2,
-        0,
-        2,
+        FETCH_STRATEGY_INDEXED,
+        value -> {
+            switch (value) {
+                case FETCH_STRATEGY_NONE:
+                case FETCH_STRATEGY_LISTING_TABLE:
+                case FETCH_STRATEGY_INDEXED:
+                    break;
+                default:
+                    throw new IllegalArgumentException(
+                        "datafusion.indexed.fetch_strategy must be one of "
+                            + "[none, listing_table, indexed], got: " + value
+                    );
+            }
+        },
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
@@ -244,7 +270,7 @@ public final class DatafusionSettings {
             .singleCollectorStrategy(strategyToWireValue(INDEXED_SINGLE_COLLECTOR_STRATEGY.get(settings)))
             .treeCollectorStrategy(strategyToWireValue(INDEXED_TREE_COLLECTOR_STRATEGY.get(settings)))
             .maxCollectorParallelism(INDEXED_MAX_COLLECTOR_PARALLELISM.get(settings))
-            .rowIdStrategy(INDEXED_FETCH_STRATEGY.get(settings))
+            .fetchStrategy(INDEXED_FETCH_STRATEGY.get(settings))
             .build();
 
         registerListeners(clusterSettings);
@@ -267,7 +293,7 @@ public final class DatafusionSettings {
             .singleCollectorStrategy(strategyToWireValue(INDEXED_SINGLE_COLLECTOR_STRATEGY.get(settings)))
             .treeCollectorStrategy(strategyToWireValue(INDEXED_TREE_COLLECTOR_STRATEGY.get(settings)))
             .maxCollectorParallelism(INDEXED_MAX_COLLECTOR_PARALLELISM.get(settings))
-            .rowIdStrategy(INDEXED_FETCH_STRATEGY.get(settings))
+            .fetchStrategy(INDEXED_FETCH_STRATEGY.get(settings))
             .build();
     }
 
@@ -301,7 +327,7 @@ public final class DatafusionSettings {
         });
 
         clusterSettings.addSettingsUpdateConsumer(INDEXED_FETCH_STRATEGY, newValue -> {
-            snapshot = WireConfigSnapshot.builder(snapshot).rowIdStrategy(newValue).build();
+            snapshot = WireConfigSnapshot.builder(snapshot).fetchStrategy(newValue).build();
         });
 
         clusterSettings.addSettingsUpdateConsumer(SearchService.CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_SETTING, newValue -> {

@@ -103,9 +103,9 @@ pub async fn execute_query(
     crate::udf::register_all(&ctx);
 
     // Register table provider based on strategy
-    use crate::datafusion_query_config::RowIdStrategy;
-    match query_config.row_id_strategy {
-        RowIdStrategy::IndexedPredicateOnly => {
+    use crate::datafusion_query_config::FetchStrategy;
+    match query_config.fetch_strategy {
+        FetchStrategy::IndexedPredicateOnly => {
             return Err(DataFusionError::Execution(
                 "IndexedPredicateOnly strategy requires the indexed executor path \
                  (execute_indexed_with_context). It cannot be used via execute_query \
@@ -113,7 +113,7 @@ pub async fn execute_query(
                  row ID computation.".into(),
             ));
         }
-        RowIdStrategy::ListingTable => {
+        FetchStrategy::ListingTable => {
             // Use ShardTableProvider with row_base partition column
             use crate::shard_table_provider::{ShardTableConfig, ShardFileInfo, ShardTableProvider};
 
@@ -199,18 +199,18 @@ pub async fn execute_query(
 
     // Apply row ID optimizer based on strategy if configured
     use datafusion::physical_optimizer::PhysicalOptimizerRule;
-    let physical_plan = match query_config.row_id_strategy {
-        RowIdStrategy::None => {
+    let physical_plan = match query_config.fetch_strategy {
+        FetchStrategy::None => {
             // Baseline: no optimizer, ___row_id read as regular column (local IDs)
             physical_plan
         }
-        RowIdStrategy::ListingTable => {
+        FetchStrategy::ListingTable => {
             // Apply ProjectRowIdOptimizer: rewrites ___row_id to ___row_id + row_base
             let optimizer = crate::project_row_id_optimizer::ProjectRowIdOptimizer;
             let config = datafusion::common::config::ConfigOptions::default();
             optimizer.optimize(physical_plan, &config)?
         }
-        RowIdStrategy::IndexedPredicateOnly => {
+        FetchStrategy::IndexedPredicateOnly => {
             // Unreachable — we return an error above before reaching here
             unreachable!()
         }
@@ -239,7 +239,7 @@ pub async fn execute_query(
 /// by the time this function is reached the pointer is already invalidated from
 /// Java's perspective and cleanup is pure RAII.
 ///
-/// When the plan requests row IDs and a `RowIdStrategy` is configured, this
+/// When the plan requests row IDs and a `FetchStrategy` is configured, this
 /// function routes to the appropriate execution path:
 /// - `ListingTable`: applies `ProjectRowIdOptimizer` to the physical plan
 /// - `IndexedPredicateOnly`: delegates to the indexed executor with `emit_row_ids=true`
@@ -248,15 +248,15 @@ pub async fn execute_with_context(
     plan_bytes: &[u8],
     cpu_executor: DedicatedExecutor,
 ) -> Result<i64, DataFusionError> {
-    use crate::datafusion_query_config::RowIdStrategy;
+    use crate::datafusion_query_config::FetchStrategy;
     use datafusion::common::config::ConfigOptions;
     use datafusion::physical_optimizer::PhysicalOptimizerRule;
 
-    let row_id_strategy = handle.query_config.row_id_strategy;
+    let fetch_strategy = handle.query_config.fetch_strategy;
 
     // If ListingTable strategy: replace the default ListingTable with ShardTableProvider
     // that adds row_base partition column for ProjectRowIdOptimizer.
-    if row_id_strategy == RowIdStrategy::ListingTable {
+    if fetch_strategy == FetchStrategy::ListingTable {
         use crate::shard_table_provider::{ShardTableConfig, ShardFileInfo as ShardFile, ShardTableProvider};
 
         handle.ctx.deregister_table(&handle.table_name)?;
@@ -325,14 +325,14 @@ pub async fn execute_with_context(
 
     // Apply row ID optimizer if needed
     let physical_plan = if requests_row_ids {
-        match row_id_strategy {
-            RowIdStrategy::None => physical_plan,
-            RowIdStrategy::ListingTable => {
+        match fetch_strategy {
+            FetchStrategy::None => physical_plan,
+            FetchStrategy::ListingTable => {
                 let optimizer = crate::project_row_id_optimizer::ProjectRowIdOptimizer;
                 let config = ConfigOptions::default();
                 optimizer.optimize(physical_plan, &config)?
             }
-            RowIdStrategy::IndexedPredicateOnly => physical_plan,
+            FetchStrategy::IndexedPredicateOnly => physical_plan,
         }
     } else {
         physical_plan

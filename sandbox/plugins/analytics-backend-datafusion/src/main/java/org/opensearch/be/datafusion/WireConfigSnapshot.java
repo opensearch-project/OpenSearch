@@ -36,7 +36,7 @@ public final class WireConfigSnapshot {
     private final int maxCollectorParallelism;
     private final int singleCollectorStrategy;
     private final int treeCollectorStrategy;
-    private final int rowIdStrategy;
+    private final int fetchStrategy;
 
     private WireConfigSnapshot(Builder builder) {
         this.batchSize = builder.batchSize;
@@ -47,7 +47,7 @@ public final class WireConfigSnapshot {
         this.maxCollectorParallelism = builder.maxCollectorParallelism;
         this.singleCollectorStrategy = builder.singleCollectorStrategy;
         this.treeCollectorStrategy = builder.treeCollectorStrategy;
-        this.rowIdStrategy = builder.rowIdStrategy;
+        this.fetchStrategy = builder.fetchStrategy;
     }
 
     public static Builder builder() {
@@ -67,7 +67,7 @@ public final class WireConfigSnapshot {
             .maxCollectorParallelism(current.maxCollectorParallelism)
             .singleCollectorStrategy(current.singleCollectorStrategy)
             .treeCollectorStrategy(current.treeCollectorStrategy)
-            .rowIdStrategy(current.rowIdStrategy);
+            .fetchStrategy(current.fetchStrategy);
     }
 
     public int batchSize() {
@@ -102,8 +102,8 @@ public final class WireConfigSnapshot {
         return treeCollectorStrategy;
     }
 
-    public int rowIdStrategy() {
-        return rowIdStrategy;
+    public int fetchStrategy() {
+        return fetchStrategy;
     }
 
     /**
@@ -129,7 +129,7 @@ public final class WireConfigSnapshot {
      * 56      4     max_collector_parallelism            i32      from snapshot
      * 60      4     single_collector_strategy            i32      from snapshot
      * 64      4     tree_collector_strategy              i32      from snapshot
-     * 68      4     row_id_strategy                      i32      from snapshot (0/1/2)
+     * 68      4     fetch_strategy                      i32      from snapshot (0/1/2)
      * ──────  ────
      * Total: 72 bytes
      * </pre>
@@ -163,8 +163,8 @@ public final class WireConfigSnapshot {
         segment.set(ValueLayout.JAVA_INT, 60, singleCollectorStrategy);
         // Offset 64: tree_collector_strategy (i32)
         segment.set(ValueLayout.JAVA_INT, 64, treeCollectorStrategy);
-        // Offset 68: row_id_strategy (i32) — 0 = None, 1 = ListingTable, 2 = IndexedPredicateOnly
-        segment.set(ValueLayout.JAVA_INT, 68, rowIdStrategy);
+        // Offset 68: fetch_strategy (i32) — 0 = None, 1 = ListingTable, 2 = IndexedPredicateOnly
+        segment.set(ValueLayout.JAVA_INT, 68, fetchStrategy);
     }
 
     /**
@@ -180,7 +180,7 @@ public final class WireConfigSnapshot {
         private int maxCollectorParallelism = 1;
         private int singleCollectorStrategy = 2; // PageRangeSplit
         private int treeCollectorStrategy = 1;   // TightenOuterBounds
-        private int rowIdStrategy = 1;           // ListingTable (ShardTableProvider + ProjectRowIdOptimizer)
+        private int fetchStrategy = 1;           // ListingTable (ShardTableProvider + ProjectRowIdOptimizer)
 
         private Builder() {}
 
@@ -224,8 +224,8 @@ public final class WireConfigSnapshot {
             return this;
         }
 
-        public Builder rowIdStrategy(int rowIdStrategy) {
-            this.rowIdStrategy = rowIdStrategy;
+        public Builder fetchStrategy(int fetchStrategy) {
+            this.fetchStrategy = fetchStrategy;
             return this;
         }
 
