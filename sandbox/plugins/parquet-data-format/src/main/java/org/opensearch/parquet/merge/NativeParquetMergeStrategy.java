@@ -99,7 +99,7 @@ public class NativeParquetMergeStrategy implements ParquetMergeStrategy {
                 .addNumRows(mergeMetadata.numRows())
                 .build();
 
-            checksumUpdater.apply(mergedFileName, mergeMetadata.crc32(), mergeInput.newWriterGeneration());
+            checksumUpdater.apply(dataFormat.name() + "/" + mergedFileName, mergeMetadata.crc32(), mergeInput.newWriterGeneration());
             Map<DataFormat, WriterFileSet> mergedWriterFileSetMap = Collections.singletonMap(dataFormat, mergedWriterFileSet);
 
             return new MergeResult(mergedWriterFileSetMap, rowIdMapping);
