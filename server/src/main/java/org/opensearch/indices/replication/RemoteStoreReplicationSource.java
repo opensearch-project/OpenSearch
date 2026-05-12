@@ -21,6 +21,7 @@ import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 import org.opensearch.index.engine.exec.coord.LuceneVersionConverter;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardState;
+import org.opensearch.index.store.DataFormatAwareStoreDirectory;
 import org.opensearch.index.store.RemoteSegmentStoreDirectory;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreFileMetadata;
@@ -32,6 +33,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
@@ -153,7 +155,21 @@ public class RemoteStoreReplicationSource implements SegmentReplicationSource {
                         remoteDirectory,
                         new ReplicationStatsDirectoryWrapper(storeDirectory, fileProgressTracker),
                         toDownloadSegmentNames,
-                        ActionListener.map(listener, r -> new GetSegmentFilesResponse(filesToFetch))
+                        ActionListener.map(listener, r -> {
+                            // Seed the precomputed checksum cache with downloaded files' checksums
+                            // from remote metadata so subsequent lookups hit O(1).
+                            DataFormatAwareStoreDirectory dfasd = DataFormatAwareStoreDirectory.unwrap(storeDirectory);
+                            if (dfasd != null) {
+                                Map<String, String> fileToChecksum = new HashMap<>();
+                                remoteDirectory.getSegmentsUploadedToRemoteStore().forEach((name, meta) -> {
+                                    if (toDownloadSegmentNames.contains(name)) {
+                                        fileToChecksum.put(name, meta.getChecksum());
+                                    }
+                                });
+                                dfasd.registerDownloadedChecksums(fileToChecksum);
+                            }
+                            return new GetSegmentFilesResponse(filesToFetch);
+                        })
                     );
             } else {
                 listener.onResponse(new GetSegmentFilesResponse(filesToFetch));

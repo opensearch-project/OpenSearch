@@ -331,6 +331,39 @@ public class DataFormatAwareStoreDirectory extends FilterDirectory implements Re
     }
 
     /**
+     * Registers a checksum for a file downloaded from remote store (recovery or segment
+     * replication). Delegates to the format's {@link FormatChecksumStrategy#registerChecksum};
+     * strategies that don't support caching (default no-op) silently ignore it. Uses
+     * generation {@code 0} so later write-path registrations overwrite.
+     */
+    public void registerDownloadedChecksum(String fileName, String checksumStr) {
+        if (fileName == null || checksumStr == null) {
+            return;
+        }
+        final long checksum;
+        try {
+            checksum = Long.parseLong(checksumStr);
+        } catch (NumberFormatException e) {
+            return;
+        }
+        FileMetadata fm = toFileMetadata(fileName);
+        FormatChecksumStrategy strategy = checksumStrategies.get(fm.dataFormat());
+        if (strategy != null) {
+            strategy.registerChecksum(toFileIdentifier(fm), checksum, 0L);
+        }
+    }
+
+    /** Bulk variant of {@link #registerDownloadedChecksum}. */
+    public void registerDownloadedChecksums(Map<String, String> fileToChecksum) {
+        if (fileToChecksum == null || fileToChecksum.isEmpty()) {
+            return;
+        }
+        for (Map.Entry<String, String> e : fileToChecksum.entrySet()) {
+            registerDownloadedChecksum(e.getKey(), e.getValue());
+        }
+    }
+
+    /**
      * Creates a {@link VerifyingIndexOutput} appropriate for the given file's format.
      * Delegates to the format's {@link FormatChecksumStrategy#createVerifyingOutput} so that
      * each format can use its own checksum algorithm (e.g., CRC32C for Parquet, codec footer for Lucene).

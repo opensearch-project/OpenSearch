@@ -244,6 +244,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -5965,6 +5966,18 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             if (toDownloadSegments.isEmpty() == false) {
                 try {
                     fileDownloader.download(sourceRemoteDirectory, storeDirectory, targetRemoteDirectory, toDownloadSegments, onFileSync);
+                    // Seed the precomputed checksum cache with downloaded files' checksums.
+                    DataFormatAwareStoreDirectory dfasd = DataFormatAwareStoreDirectory.unwrap(storeDirectory);
+                    if (dfasd != null) {
+                        Map<String, String> fileToChecksum = new HashMap<>();
+                        for (String file : toDownloadSegments) {
+                            UploadedSegmentMetadata meta = uploadedSegments.get(file);
+                            if (meta != null) {
+                                fileToChecksum.put(file, meta.getChecksum());
+                            }
+                        }
+                        dfasd.registerDownloadedChecksums(fileToChecksum);
+                    }
                 } catch (Exception e) {
                     throw new IOException("Error occurred when downloading segments from remote store", e);
                 }
