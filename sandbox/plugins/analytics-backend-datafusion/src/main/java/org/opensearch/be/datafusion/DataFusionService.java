@@ -18,10 +18,12 @@ import org.opensearch.be.datafusion.nativelib.NativeBridge;
 import org.opensearch.be.datafusion.stats.DataFusionStats;
 import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
 import org.opensearch.common.settings.ClusterSettings;
-import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executor;
+import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
@@ -42,7 +44,15 @@ public class DataFusionService extends AbstractLifecycleComponent {
     private final String spillDirectory;
     private final int cpuThreads;
     private final ClusterSettings clusterSettings;
-    private final ThreadPool threadPool;
+
+    /**
+     * Virtual-thread-per-task executor used for {@link DatafusionReduceSink}'s drain
+     * loop. Drain tasks park on {@code streamNext().join()} while the native side
+     * produces the next batch; on a virtual thread the park unmounts from its carrier
+     * so concurrent queries don't consume fixed platform-pool slots for the full
+     * query lifetime.
+     */
+    private volatile ExecutorService drainExecutor;
 
     /** Handle to the native DataFusion global runtime (memory pool + cache). */
     private volatile NativeRuntimeHandle runtimeHandle;
@@ -62,16 +72,20 @@ public class DataFusionService extends AbstractLifecycleComponent {
         this.spillDirectory = builder.spillDirectory;
         this.cpuThreads = builder.cpuThreads;
         this.clusterSettings = builder.clusterSettings;
-        this.threadPool = builder.threadPool;
     }
 
     /**
-     * Returns the node-level {@link ThreadPool}. The coordinator-reduce sink uses this
-     * to dispatch its drain task on the {@link ThreadPool.Names#SEARCH} pool — no
-     * separate executor pool is needed.
+     * Returns the virtual-thread-per-task executor the coordinator-reduce sink uses for
+     * its drain loop. Tasks spawned here park on native futures; virtual threads unmount
+     * from their carriers during the park so concurrent queries don't consume fixed
+     * platform-pool slots for the query's full lifetime.
      */
-    public ThreadPool getThreadPool() {
-        return threadPool;
+    public Executor getDrainExecutor() {
+        ExecutorService exec = drainExecutor;
+        if (exec == null) {
+            throw new IllegalStateException("DataFusionService has not been started");
+        }
+        return exec;
     }
 
     /** Creates a new builder. */
@@ -84,6 +98,10 @@ public class DataFusionService extends AbstractLifecycleComponent {
         logger.debug("Starting DataFusion service");
         NativeBridge.initTokioRuntimeManager(cpuThreads);
         logger.debug("Tokio runtime manager initialized with {} CPU threads", cpuThreads);
+
+        this.drainExecutor = Executors.newThreadPerTaskExecutor(
+            Thread.ofVirtual().name("analytics-reduce-drain-", 0).factory()
+        );
 
         long cacheManagerPtr = 0L;
         if (clusterSettings != null) {
@@ -113,7 +131,15 @@ public class DataFusionService extends AbstractLifecycleComponent {
                     rootAllocator = null;
                 }
             } finally {
-                NativeBridge.shutdownTokioRuntimeManager();
+                try {
+                    ExecutorService exec = drainExecutor;
+                    if (exec != null) {
+                        exec.shutdown();
+                        drainExecutor = null;
+                    }
+                } finally {
+                    NativeBridge.shutdownTokioRuntimeManager();
+                }
             }
         }
         logger.debug("DataFusion service stopped");
@@ -242,7 +268,6 @@ public class DataFusionService extends AbstractLifecycleComponent {
         private String spillDirectory = System.getProperty("java.io.tmpdir");
         private int cpuThreads = Runtime.getRuntime().availableProcessors();
         private ClusterSettings clusterSettings;
-        private ThreadPool threadPool;
 
         private Builder() {}
 
@@ -288,15 +313,6 @@ public class DataFusionService extends AbstractLifecycleComponent {
          */
         public Builder clusterSettings(ClusterSettings clusterSettings) {
             this.clusterSettings = clusterSettings;
-            return this;
-        }
-
-        /**
-         * Sets the node-level thread pool. Required: the coordinator-reduce sink
-         * dispatches its drain task on {@link ThreadPool.Names#SEARCH}.
-         */
-        public Builder threadPool(ThreadPool threadPool) {
-            this.threadPool = threadPool;
             return this;
         }
 

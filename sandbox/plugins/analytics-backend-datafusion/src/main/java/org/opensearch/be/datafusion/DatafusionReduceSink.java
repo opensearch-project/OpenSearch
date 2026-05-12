@@ -144,6 +144,11 @@ public final class DatafusionReduceSink extends AbstractDatafusionReduceSink imp
     }
 
     private void drainLoop() {
+        // The drain parks on streamNext().join() — must run on a virtual thread so
+        // the park unmounts from its carrier. On a platform thread this would hold
+        // a platform-pool slot for the whole query's lifetime, capping concurrent
+        // analytics queries at pool size.
+        assert Thread.currentThread().isVirtual() : "drain must run on a virtual thread, got " + Thread.currentThread();
         try {
             drainOutputIntoDownstream(outStream);
         } catch (Throwable t) {
