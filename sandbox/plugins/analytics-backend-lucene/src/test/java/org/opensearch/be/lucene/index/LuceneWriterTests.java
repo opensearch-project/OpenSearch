@@ -13,7 +13,7 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.NumericDocValues;
+import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
@@ -64,7 +64,7 @@ public class LuceneWriterTests extends OpenSearchTestCase {
 
     public void testAddDocAndFlushProducesSingleSegment() throws IOException {
         Path baseDir = createTempDir();
-        try (LuceneWriter writer = new LuceneWriter(1L, dataFormat, baseDir, null, Codec.getDefault())) {
+        try (LuceneWriter writer = new LuceneWriter(1L, dataFormat, baseDir, null, Codec.getDefault(), null)) {
             int numDocs = randomIntBetween(5, 20);
             MappedFieldType textField = mockTextField("content");
             for (int i = 0; i < numDocs; i++) {
@@ -95,7 +95,7 @@ public class LuceneWriterTests extends OpenSearchTestCase {
         Path baseDir = createTempDir();
         int numDocs = randomIntBetween(10, 50);
         MappedFieldType textField = mockTextField("content");
-        try (LuceneWriter writer = new LuceneWriter(1L, dataFormat, baseDir, null, Codec.getDefault())) {
+        try (LuceneWriter writer = new LuceneWriter(1L, dataFormat, baseDir, null, Codec.getDefault(), null)) {
             for (int i = 0; i < numDocs; i++) {
                 LuceneDocumentInput input = new LuceneDocumentInput();
                 input.addField(textField, "doc " + i);
@@ -109,11 +109,11 @@ public class LuceneWriterTests extends OpenSearchTestCase {
             try (NIOFSDirectory dir = new NIOFSDirectory(Path.of(wfs.directory())); IndexReader reader = DirectoryReader.open(dir)) {
                 for (LeafReaderContext ctx : reader.leaves()) {
                     LeafReader leafReader = ctx.reader();
-                    NumericDocValues rowIdValues = leafReader.getNumericDocValues(LuceneDocumentInput.ROW_ID_FIELD);
+                    SortedNumericDocValues rowIdValues = leafReader.getSortedNumericDocValues(LuceneDocumentInput.ROW_ID_FIELD);
                     assertNotNull("row_id doc values should exist", rowIdValues);
                     for (int docId = 0; docId < leafReader.maxDoc(); docId++) {
                         assertTrue(rowIdValues.advanceExact(docId));
-                        assertThat("row ID should equal Lucene doc ID", rowIdValues.longValue(), equalTo((long) docId));
+                        assertThat("row ID should equal Lucene doc ID", rowIdValues.nextValue(), equalTo((long) docId));
                     }
                 }
             }
@@ -122,7 +122,7 @@ public class LuceneWriterTests extends OpenSearchTestCase {
 
     public void testFlushWithNoDocsReturnsEmpty() throws IOException {
         Path baseDir = createTempDir();
-        try (LuceneWriter writer = new LuceneWriter(1L, dataFormat, baseDir, null, Codec.getDefault())) {
+        try (LuceneWriter writer = new LuceneWriter(1L, dataFormat, baseDir, null, Codec.getDefault(), null)) {
             FileInfos fileInfos = writer.flush();
             assertTrue(fileInfos.writerFilesMap().isEmpty());
         }
@@ -132,7 +132,7 @@ public class LuceneWriterTests extends OpenSearchTestCase {
         Path baseDir = createTempDir();
         long gen = randomLongBetween(1, 100);
         MappedFieldType textField = mockTextField("content");
-        try (LuceneWriter writer = new LuceneWriter(gen, dataFormat, baseDir, null, Codec.getDefault())) {
+        try (LuceneWriter writer = new LuceneWriter(gen, dataFormat, baseDir, null, Codec.getDefault(), null)) {
             assertThat(writer.generation(), equalTo(gen));
 
             LuceneDocumentInput input = new LuceneDocumentInput();
@@ -149,7 +149,7 @@ public class LuceneWriterTests extends OpenSearchTestCase {
     public void testKeywordFieldsAreIndexed() throws IOException {
         Path baseDir = createTempDir();
         MappedFieldType keywordField = mockKeywordField("status");
-        try (LuceneWriter writer = new LuceneWriter(1L, dataFormat, baseDir, null, Codec.getDefault())) {
+        try (LuceneWriter writer = new LuceneWriter(1L, dataFormat, baseDir, null, Codec.getDefault(), null)) {
             LuceneDocumentInput input = new LuceneDocumentInput();
             input.addField(keywordField, "active");
             input.setRowId(LuceneDocumentInput.ROW_ID_FIELD, 0);
@@ -171,7 +171,7 @@ public class LuceneWriterTests extends OpenSearchTestCase {
         when(numericField.typeName()).thenReturn("integer");
         when(numericField.name()).thenReturn("count");
 
-        try (LuceneWriter writer = new LuceneWriter(1L, dataFormat, baseDir, null, Codec.getDefault())) {
+        try (LuceneWriter writer = new LuceneWriter(1L, dataFormat, baseDir, null, Codec.getDefault(), null)) {
             LuceneDocumentInput input = new LuceneDocumentInput();
             // Should not throw — unsupported types are silently skipped (handled by other formats)
             input.addField(numericField, 42);
@@ -185,7 +185,7 @@ public class LuceneWriterTests extends OpenSearchTestCase {
         MappedFieldType textField = mockTextField("title");
         MappedFieldType keywordField = mockKeywordField("category");
 
-        try (LuceneWriter writer = new LuceneWriter(1L, dataFormat, baseDir, null, Codec.getDefault())) {
+        try (LuceneWriter writer = new LuceneWriter(1L, dataFormat, baseDir, null, Codec.getDefault(), null)) {
             int numDocs = randomIntBetween(5, 15);
             for (int i = 0; i < numDocs; i++) {
                 LuceneDocumentInput input = new LuceneDocumentInput();
@@ -206,23 +206,13 @@ public class LuceneWriterTests extends OpenSearchTestCase {
         }
     }
 
-    public void testLockUnlock() throws IOException {
-        Path baseDir = createTempDir();
-        try (LuceneWriter writer = new LuceneWriter(1L, dataFormat, baseDir, null, Codec.getDefault())) {
-            assertTrue(writer.tryLock());
-            writer.unlock();
-            writer.lock();
-            writer.unlock();
-        }
-    }
-
     public void testWriteAndFlushEndToEndWithTextAndKeyword() throws IOException {
         Path baseDir = createTempDir();
         MappedFieldType textField = mockTextField("body");
         MappedFieldType keywordField = mockKeywordField("status");
         int numDocs = randomIntBetween(5, 20);
 
-        try (LuceneWriter writer = new LuceneWriter(1L, dataFormat, baseDir, null, Codec.getDefault())) {
+        try (LuceneWriter writer = new LuceneWriter(1L, dataFormat, baseDir, null, Codec.getDefault(), null)) {
             for (int i = 0; i < numDocs; i++) {
                 LuceneDocumentInput input = new LuceneDocumentInput();
                 input.addField(textField, "hello world " + i);
@@ -242,11 +232,11 @@ public class LuceneWriterTests extends OpenSearchTestCase {
 
                 // Verify row IDs match doc IDs
                 LeafReader leafReader = reader.leaves().get(0).reader();
-                NumericDocValues rowIdValues = leafReader.getNumericDocValues(LuceneDocumentInput.ROW_ID_FIELD);
+                SortedNumericDocValues rowIdValues = leafReader.getSortedNumericDocValues(LuceneDocumentInput.ROW_ID_FIELD);
                 assertNotNull(rowIdValues);
                 for (int docId = 0; docId < numDocs; docId++) {
                     assertTrue(rowIdValues.advanceExact(docId));
-                    assertThat(rowIdValues.longValue(), equalTo((long) docId));
+                    assertThat(rowIdValues.nextValue(), equalTo((long) docId));
                 }
 
                 // Verify text field is searchable via TermQuery
@@ -273,8 +263,8 @@ public class LuceneWriterTests extends OpenSearchTestCase {
 
         // Create both writers without closing them until after verification,
         // because close() deletes the temp directory.
-        LuceneWriter writer1 = new LuceneWriter(gen1, dataFormat, baseDir, null, Codec.getDefault());
-        LuceneWriter writer2 = new LuceneWriter(gen2, dataFormat, baseDir, null, Codec.getDefault());
+        LuceneWriter writer1 = new LuceneWriter(gen1, dataFormat, baseDir, null, Codec.getDefault(), null);
+        LuceneWriter writer2 = new LuceneWriter(gen2, dataFormat, baseDir, null, Codec.getDefault(), null);
         try {
             for (int i = 0; i < numDocs1; i++) {
                 LuceneDocumentInput input = new LuceneDocumentInput();

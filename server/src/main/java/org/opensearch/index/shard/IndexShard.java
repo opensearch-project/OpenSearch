@@ -4448,7 +4448,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         // After each internal refresh, update the LuceneFieldTracker with merged FieldInfos from
         // the reader. This lets DocumentParser enforce the per-shard Lucene field-count limit for
         // dynamic_properties without requiring access to the IndexWriter directly.
-        if (mapperService != null) {
+        if (mapperService != null && indexSettings.isPluggableDataFormatEnabled() == false) {
             internalRefreshListener.add(new ReferenceManager.RefreshListener() {
                 @Override
                 public void beforeRefresh() {}
@@ -5393,8 +5393,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         assert globalCheckpoint == getLastSyncedGlobalCheckpoint();
         synchronized (engineMutex) {
             verifyNotClosed();
-            // we must create both new read-only engine and new read-write engine under engineMutex to ensure snapshotStoreMetadata,
-            // acquireXXXCommit and close works.
+            // we must create both new read-only engine and new read-write engine under
+            // engineMutex to ensure snapshotStoreMetadata, acquireXXXCommit and close works.
+            // Delegates intentionally do NOT synchronize on engineMutex: doing so would
+            // deadlock because close holds engineMutex and waits for writeLock, while
+            // recoverFromTranslog holds readLock and a refresh listener calls a delegate.
+            // SetOnce is backed by AtomicReference so get() provides happens-before visibility.
             final Engine readOnlyEngine = new ReadOnlyEngine(
                 newEngineConfig(replicationTracker),
                 seqNoStats,
@@ -5405,33 +5409,27 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             ) {
                 @Override
                 public GatedCloseable<IndexCommit> acquireLastIndexCommit(boolean flushFirst) {
-                    synchronized (engineMutex) {
-                        if (newEngineReference.get() == null) {
-                            throw new AlreadyClosedException("engine was closed");
-                        }
-                        // ignore flushFirst since we flushed above and we do not want to interfere with ongoing translog replay
-                        return applyOnEngine(newEngineReference.get(), engine -> engine.acquireLastIndexCommit(false));
+                    if (newEngineReference.get() == null) {
+                        throw new AlreadyClosedException("engine was closed");
                     }
+                    // ignore flushFirst since we flushed above and we do not want to interfere with ongoing translog replay
+                    return applyOnEngine(newEngineReference.get(), engine -> engine.acquireLastIndexCommit(false));
                 }
 
                 @Override
                 public GatedCloseable<IndexCommit> acquireSafeIndexCommit() {
-                    synchronized (engineMutex) {
-                        if (newEngineReference.get() == null) {
-                            throw new AlreadyClosedException("engine was closed");
-                        }
-                        return applyOnEngine(newEngineReference.get(), Engine::acquireSafeIndexCommit);
+                    if (newEngineReference.get() == null) {
+                        throw new AlreadyClosedException("engine was closed");
                     }
+                    return applyOnEngine(newEngineReference.get(), Engine::acquireSafeIndexCommit);
                 }
 
                 @Override
                 public GatedCloseable<SegmentInfos> getSegmentInfosSnapshot() {
-                    synchronized (engineMutex) {
-                        if (newEngineReference.get() == null) {
-                            throw new AlreadyClosedException("engine was closed");
-                        }
-                        return applyOnEngine(newEngineReference.get(), Engine::getSegmentInfosSnapshot);
+                    if (newEngineReference.get() == null) {
+                        throw new AlreadyClosedException("engine was closed");
                     }
+                    return applyOnEngine(newEngineReference.get(), Engine::getSegmentInfosSnapshot);
                 }
 
                 @Override
@@ -6171,6 +6169,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     // Visible for testing
     ConcurrentHashMap<DirectoryReader, NonClosingReaderWrapper> nonClosingReaderWrapperCache() {
         return nonClosingReaderWrapperCache;
+    }
+
+    // Visible for testing
+    Object getEngineMutex() {
+        return engineMutex;
     }
 
     // Below methods exists for bwc only. We should never make indexshard aware of DataFormatAwareEngine directy.

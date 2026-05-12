@@ -11,16 +11,28 @@ package org.opensearch.analytics.planner;
 import org.opensearch.analytics.spi.AggregateCapability;
 import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
 import org.opensearch.analytics.spi.BackendCapabilityProvider;
+import org.opensearch.analytics.spi.DelegatedExpression;
 import org.opensearch.analytics.spi.DelegatedPredicateSerializer;
 import org.opensearch.analytics.spi.DelegationType;
 import org.opensearch.analytics.spi.EngineCapability;
 import org.opensearch.analytics.spi.FilterCapability;
+import org.opensearch.analytics.spi.FilterDelegationInstructionNode;
+import org.opensearch.analytics.spi.FilterTreeShape;
+import org.opensearch.analytics.spi.FinalAggregateInstructionNode;
+import org.opensearch.analytics.spi.FragmentInstructionHandler;
+import org.opensearch.analytics.spi.FragmentInstructionHandlerFactory;
+import org.opensearch.analytics.spi.InstructionNode;
+import org.opensearch.analytics.spi.PartialAggregateInstructionNode;
 import org.opensearch.analytics.spi.ProjectCapability;
 import org.opensearch.analytics.spi.ScalarFunction;
 import org.opensearch.analytics.spi.ScalarFunctionAdapter;
 import org.opensearch.analytics.spi.ScanCapability;
+import org.opensearch.analytics.spi.ShardScanInstructionNode;
+import org.opensearch.analytics.spi.ShardScanWithDelegationInstructionNode;
 
+import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 /**
@@ -118,5 +130,44 @@ abstract class MockBackend implements AnalyticsSearchBackendPlugin {
 
     protected Map<ScalarFunction, DelegatedPredicateSerializer> delegatedPredicateSerializers() {
         return Map.of();
+    }
+
+    @Override
+    public FragmentInstructionHandlerFactory getInstructionHandlerFactory() {
+        return new FragmentInstructionHandlerFactory() {
+            @Override
+            public Optional<InstructionNode> createShardScanNode() {
+                return Optional.of(new ShardScanInstructionNode());
+            }
+
+            @Override
+            public Optional<InstructionNode> createFilterDelegationNode(
+                FilterTreeShape treeShape,
+                int delegatedPredicateCount,
+                List<DelegatedExpression> delegatedExpressions
+            ) {
+                return Optional.of(new FilterDelegationInstructionNode(treeShape, delegatedPredicateCount, delegatedExpressions));
+            }
+
+            @Override
+            public Optional<InstructionNode> createShardScanWithDelegationNode(FilterTreeShape treeShape, int delegatedPredicateCount) {
+                return Optional.of(new ShardScanWithDelegationInstructionNode(treeShape, delegatedPredicateCount));
+            }
+
+            @Override
+            public Optional<InstructionNode> createPartialAggregateNode() {
+                return Optional.of(new PartialAggregateInstructionNode());
+            }
+
+            @Override
+            public Optional<InstructionNode> createFinalAggregateNode() {
+                return Optional.of(new FinalAggregateInstructionNode());
+            }
+
+            @Override
+            public FragmentInstructionHandler<?> createHandler(InstructionNode node) {
+                throw new UnsupportedOperationException("Mock backend does not execute instructions");
+            }
+        };
     }
 }

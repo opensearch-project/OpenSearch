@@ -170,6 +170,7 @@ import org.opensearch.index.recovery.RemoteStoreRestoreService;
 import org.opensearch.index.remote.RemoteIndexPathUploader;
 import org.opensearch.index.remote.RemoteStoreStatsTrackerFactory;
 import org.opensearch.index.store.DefaultCompositeDirectoryFactory;
+import org.opensearch.index.store.DefaultDataFormatAwareStoreDirectoryFactory;
 import org.opensearch.index.store.IndexStoreListener;
 import org.opensearch.index.store.RemoteSegmentStoreDirectoryFactory;
 import org.opensearch.index.store.remote.filecache.FileCache;
@@ -270,6 +271,11 @@ import org.opensearch.snapshots.RestoreService;
 import org.opensearch.snapshots.SnapshotShardsService;
 import org.opensearch.snapshots.SnapshotsInfoService;
 import org.opensearch.snapshots.SnapshotsService;
+import org.opensearch.storage.common.tiering.TieringUtils;
+import org.opensearch.storage.directory.TieredDataFormatAwareStoreDirectoryFactory;
+import org.opensearch.storage.directory.TieredDirectoryFactory;
+import org.opensearch.storage.metrics.TierActionMetrics;
+import org.opensearch.storage.prefetch.TieredStoragePrefetchSettings;
 import org.opensearch.storage.tiering.HotToWarmTieringService;
 import org.opensearch.storage.tiering.WarmToHotTieringService;
 import org.opensearch.task.commons.clients.TaskManagerClient;
@@ -900,6 +906,17 @@ public class Node implements Closeable {
             pluginsService.filterPlugins(IngestionConsumerPlugin.class)
                 .forEach(plugin -> ingestionConsumerFactories.putAll(plugin.getIngestionConsumerFactories()));
 
+            // Initialize tiered storage prefetch settings
+            final TieredStoragePrefetchSettings tieredStoragePrefetchSettings;
+            final Supplier<TieredStoragePrefetchSettings> tieredStoragePrefetchSettingsSupplier;
+            if (FeatureFlags.isEnabled(FeatureFlags.WRITABLE_WARM_INDEX_EXPERIMENTAL_FLAG)) {
+                tieredStoragePrefetchSettings = new TieredStoragePrefetchSettings(clusterService.getClusterSettings());
+                tieredStoragePrefetchSettingsSupplier = () -> tieredStoragePrefetchSettings;
+            } else {
+                tieredStoragePrefetchSettings = null;
+                tieredStoragePrefetchSettingsSupplier = () -> null;
+            }
+
             final Map<String, IndexStorePlugin.DirectoryFactory> builtInDirectoryFactories = IndexModule.createBuiltInDirectoryFactories(
                 repositoriesServiceReference::get,
                 threadPool,
@@ -936,13 +953,24 @@ public class Node implements Closeable {
                     compositeDirectoryFactories.put(k, v);
                 });
             compositeDirectoryFactories.put("default", new DefaultCompositeDirectoryFactory());
+
+            // Register tiered storage directory factories
+            if (FeatureFlags.isEnabled(FeatureFlags.WRITABLE_WARM_INDEX_EXPERIMENTAL_FLAG)) {
+                compositeDirectoryFactories.put(
+                    TieringUtils.TIERED_COMPOSITE_INDEX_TYPE,
+                    new TieredDirectoryFactory(tieredStoragePrefetchSettingsSupplier)
+                );
+            }
             final Map<String, org.opensearch.index.store.DataFormatAwareStoreDirectoryFactory> dataFormatAwareStoreDirectoryFactories =
                 new HashMap<>();
 
             // Register default factory
+            dataFormatAwareStoreDirectoryFactories.put("default", new DefaultDataFormatAwareStoreDirectoryFactory());
+
+            // Register tiered factory for warm+format indices
             dataFormatAwareStoreDirectoryFactories.put(
-                "default",
-                new org.opensearch.index.store.DefaultDataFormatAwareStoreDirectoryFactory()
+                TieredDataFormatAwareStoreDirectoryFactory.FACTORY_KEY,
+                new TieredDataFormatAwareStoreDirectoryFactory(tieredStoragePrefetchSettingsSupplier)
             );
 
             final Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories = pluginsService.filterPlugins(
@@ -992,6 +1020,7 @@ public class Node implements Closeable {
             remoteStoreStatsTrackerFactory = new RemoteStoreStatsTrackerFactory(clusterService, settings);
             CacheModule cacheModule = new CacheModule(pluginsService.filterPlugins(CachePlugin.class), settings);
             CacheService cacheService = cacheModule.getCacheService();
+
             final SegmentReplicator segmentReplicator = new SegmentReplicator(threadPool);
             final IndicesService indicesService = new IndicesService(
                 settings,
@@ -1318,7 +1347,7 @@ public class Node implements Closeable {
             if (FeatureFlags.isEnabled(STREAM_TRANSPORT) && streamTransportSupplier == null) {
                 throw new IllegalStateException(STREAM_TRANSPORT + " is enabled but no stream transport supplier is provided");
             }
-            final Transport streamTransport = (streamTransportSupplier != null ? streamTransportSupplier.get() : null);
+            final Transport streamTransport = wrapStreamTransport(streamTransportSupplier != null ? streamTransportSupplier.get() : null);
 
             Set<String> taskHeaders = Stream.concat(
                 pluginsService.filterPlugins(ActionPlugin.class).stream().flatMap(p -> p.getTaskHeaders().stream()),
@@ -1729,6 +1758,7 @@ public class Node implements Closeable {
                 if (FeatureFlags.isEnabled(FeatureFlags.WRITABLE_WARM_INDEX_EXPERIMENTAL_FLAG)) {
                     b.bind(HotToWarmTieringService.class).asEagerSingleton();
                     b.bind(WarmToHotTieringService.class).asEagerSingleton();
+                    b.bind(TierActionMetrics.class).toInstance(new TierActionMetrics(metricsRegistry));
                 }
             });
             injector = modules.createInjector();
@@ -1800,6 +1830,18 @@ public class Node implements Closeable {
             taskHeaders,
             tracer
         );
+    }
+
+    /**
+     * Hook to wrap the stream transport before it is shared between the
+     * regular {@link TransportService} and {@link StreamTransportService}.
+     * Default returns its input unchanged. Test-framework subclasses (e.g.
+     * {@code MockNode}) override to install a stubbable wrapper so
+     * test-only request-handler interception works on the streaming path
+     * too.
+     */
+    protected Transport wrapStreamTransport(@Nullable Transport streamTransport) {
+        return streamTransport;
     }
 
     /**

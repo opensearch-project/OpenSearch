@@ -27,12 +27,14 @@ import org.apache.calcite.tools.RelBuilder;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.analytics.planner.rel.OpenSearchDistributionTraitDef;
+import org.opensearch.analytics.planner.rules.OpenSearchAggregateReduceRule;
 import org.opensearch.analytics.planner.rules.OpenSearchAggregateRule;
 import org.opensearch.analytics.planner.rules.OpenSearchAggregateSplitRule;
 import org.opensearch.analytics.planner.rules.OpenSearchFilterRule;
 import org.opensearch.analytics.planner.rules.OpenSearchProjectRule;
 import org.opensearch.analytics.planner.rules.OpenSearchSortRule;
 import org.opensearch.analytics.planner.rules.OpenSearchTableScanRule;
+import org.opensearch.analytics.planner.rules.OpenSearchUnionRule;
 
 import java.util.List;
 
@@ -71,41 +73,52 @@ public class PlannerImpl {
     public static RelNode markAndOptimize(RelNode rawRelNode, PlannerContext context) {
         LOGGER.info("Input RelNode:\n{}", RelOptUtil.toString(rawRelNode));
 
-        // Phase 1: RBO — pre-marking logical optimizations then marking rules, single HepPlanner
-        HepProgramBuilder hepBuilder = new HepProgramBuilder();
-
-        // Pre-marking: reduce constant expressions before marking rules fire.
-        // TODO: establish a FrontEnd API contract specifying which standard Calcite optimizations
-        // frontends apply themselves before submitting a RelNode. Rules already applied by the
-        // frontend should not be re-added here — re-applying them increases overall planning time.
-        hepBuilder.addMatchOrder(HepMatchOrder.ARBITRARY);
-        hepBuilder.addRuleCollection(
+        // Phase 1a: Pre-marking logical optimizations (constant expression reduction)
+        HepProgramBuilder preBuilder = new HepProgramBuilder();
+        preBuilder.addMatchOrder(HepMatchOrder.ARBITRARY);
+        preBuilder.addRuleCollection(
             List.of(
                 new ReduceExpressionsRule.FilterReduceExpressionsRule(Filter.class, RelBuilder.proto(Contexts.empty())),
                 new ReduceExpressionsRule.ProjectReduceExpressionsRule(Project.class, RelBuilder.proto(Contexts.empty()))
             )
         );
+        HepPlanner prePlanner = new HepPlanner(preBuilder.build());
+        prePlanner.setRoot(rawRelNode);
+        RelNode afterPre = prePlanner.findBestExp();
 
-        // Marking: convert LogicalXxx → OpenSearchXxx bottom-up
+        // Phase 1b: Aggregate-reduction — decompose AVG / STDDEV / VAR into primitive SUM/COUNT
+        // (+ SUM_SQ for variance) plus a scalar LogicalProject computing the quotient. Runs as
+        // its own HEP pass on plain LogicalAggregate so Calcite's type inference is clean —
+        // no AGG_CALL_ANNOTATION wrappers in aggCall.rexList to propagate AVG's DOUBLE return
+        // type to the derived primitive calls. Downstream the marking phase, the Volcano split
+        // rule, and the AggregateDecompositionResolver see correctly-typed primitives.
+        HepProgramBuilder reduceBuilder = new HepProgramBuilder();
+        reduceBuilder.addMatchOrder(HepMatchOrder.BOTTOM_UP);
+        reduceBuilder.addRuleInstance(new OpenSearchAggregateReduceRule());
+        HepPlanner reducePlanner = new HepPlanner(reduceBuilder.build());
+        reducePlanner.setRoot(afterPre);
+        RelNode afterReduce = reducePlanner.findBestExp();
+
+        // Phase 1c: Marking — convert LogicalXxx → OpenSearchXxx bottom-up
         // TODO: migrate rules from deprecated RelOptRule to RelRule<Config> once the planner
         // moves to its own Gradle module. The OpenSearch monorepo injects -proc:none globally,
         // blocking the Immutables annotation processor required by RelRule.Config sub-interfaces.
         // TODO: add SortPushdown rule here — pushes Sort below Exchange to data nodes for top-K
-        // optimization. When Sort is pushed to data nodes above a partial aggregate, FragmentConversionDriver
-        // must call convertShardScanFragment → attachPartialAggOnTop → attachFragmentOnTop(Sort) in sequence.
-        hepBuilder.addMatchOrder(HepMatchOrder.BOTTOM_UP);
-        hepBuilder.addRuleCollection(
+        // optimization.
+        HepProgramBuilder markBuilder = new HepProgramBuilder();
+        markBuilder.addMatchOrder(HepMatchOrder.BOTTOM_UP);
+        markBuilder.addRuleCollection(
             List.of(
                 new OpenSearchTableScanRule(context),
                 new OpenSearchFilterRule(context),
                 new OpenSearchProjectRule(context),
                 new OpenSearchAggregateRule(context),
-                new OpenSearchSortRule(context)
+                new OpenSearchSortRule(context),
+                new OpenSearchUnionRule(context)
             )
         );
-
-        HepPlanner markingPlanner = new HepPlanner(hepBuilder.build());
-        markingPlanner.setRoot(rawRelNode);
+        HepPlanner markingPlanner = new HepPlanner(markBuilder.build());
+        markingPlanner.setRoot(afterReduce);
         RelNode marked = markingPlanner.findBestExp();
 
         LOGGER.info("After marking:\n{}", RelOptUtil.toString(marked));

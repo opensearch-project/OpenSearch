@@ -17,6 +17,7 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
+import org.apache.lucene.search.Sort;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.MMapDirectory;
 import org.opensearch.be.lucene.LuceneDataFormat;
@@ -31,7 +32,6 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
-import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * Per-generation Lucene writer that creates segments in an isolated temporary directory.
@@ -72,7 +72,6 @@ public class LuceneWriter implements Writer<LuceneDocumentInput> {
     private final Path tempDirectory;
     private final Directory directory;
     private final IndexWriter indexWriter;
-    private final ReentrantLock lock;
     private volatile long docCount;
 
     /**
@@ -82,13 +81,20 @@ public class LuceneWriter implements Writer<LuceneDocumentInput> {
      * @param dataFormat       the Lucene data format descriptor
      * @param baseDirectory    the base directory under which to create the temp directory
      * @param analyzer         the analyzer to use for tokenized fields, or null for default
+     * @param codec            the codec to use, or null for default
+     * @param indexSort        the index sort to apply to segments, or null for no sort
      * @throws IOException if directory creation or IndexWriter opening fails
      */
-    public LuceneWriter(long writerGeneration, LuceneDataFormat dataFormat, Path baseDirectory, Analyzer analyzer, Codec codec)
-        throws IOException {
+    public LuceneWriter(
+        long writerGeneration,
+        LuceneDataFormat dataFormat,
+        Path baseDirectory,
+        Analyzer analyzer,
+        Codec codec,
+        Sort indexSort
+    ) throws IOException {
         this.writerGeneration = writerGeneration;
         this.dataFormat = dataFormat;
-        this.lock = new ReentrantLock();
         this.docCount = 0;
 
         // Create an isolated temp directory for this writer's segment
@@ -100,6 +106,9 @@ public class LuceneWriter implements Writer<LuceneDocumentInput> {
         IndexWriterConfig iwc = analyzer != null ? new IndexWriterConfig(analyzer) : new IndexWriterConfig();
         iwc.setOpenMode(IndexWriterConfig.OpenMode.CREATE);
         iwc.setRAMBufferSizeMB(RAM_BUFFER_SIZE_MB);
+        if (indexSort != null) {
+            iwc.setIndexSort(indexSort);
+        }
 
         iwc.setCodec(new LuceneWriterCodec(codec, writerGeneration));
         this.indexWriter = new IndexWriter(directory, iwc);
@@ -172,9 +181,8 @@ public class LuceneWriter implements Writer<LuceneDocumentInput> {
             }
         }
 
-        // Since flush is once only, we can close the write post this.
+        // Since flush is once only, close the IndexWriter but keep directory open for close()
         indexWriter.close();
-        directory.close();
 
         return FileInfos.builder().putWriterFileSet(dataFormat, wfsBuilder.build()).build();
     }
@@ -194,24 +202,6 @@ public class LuceneWriter implements Writer<LuceneDocumentInput> {
     @Override
     public long generation() {
         return writerGeneration;
-    }
-
-    /** Acquires the writer's reentrant lock. Used by the writer pool to serialize access. */
-    @Override
-    public void lock() {
-        lock.lock();
-    }
-
-    /** Attempts to acquire the writer's reentrant lock without blocking. */
-    @Override
-    public boolean tryLock() {
-        return lock.tryLock();
-    }
-
-    /** Releases the writer's reentrant lock. */
-    @Override
-    public void unlock() {
-        lock.unlock();
     }
 
     /**

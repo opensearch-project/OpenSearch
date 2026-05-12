@@ -67,6 +67,7 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
 
     private final List<AnalyticsSearchBackendPlugin> backEnds = new ArrayList<>();
     private SqlOperatorTable operatorTable;
+    private AnalyticsSearchService searchService;
 
     @SuppressWarnings("rawtypes")
     @Override
@@ -96,7 +97,7 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
         for (AnalyticsSearchBackendPlugin be : backEnds) {
             backEndsByName.put(be.name(), be);
         }
-        AnalyticsSearchService searchService = new AnalyticsSearchService(backEndsByName);
+        searchService = new AnalyticsSearchService(backEndsByName, namedWriteableRegistry);
 
         // Returned as components so Guice can inject them into DefaultPlanExecutor
         // (a HandledTransportAction registered via getActions() — constructed by Guice
@@ -118,6 +119,13 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
         return List.of(new ActionHandler<>(AnalyticsQueryAction.INSTANCE, DefaultPlanExecutor.class));
+    }
+
+    @Override
+    public void close() {
+        if (searchService != null) {
+            searchService.close();
+        }
     }
 
     private SqlOperatorTable aggregateOperatorTables() {

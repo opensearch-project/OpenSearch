@@ -11,6 +11,9 @@ package org.opensearch.analytics.exec.action;
 import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.analytics.exec.task.AnalyticsShardTask;
+import org.opensearch.analytics.spi.DelegationDescriptor;
+import org.opensearch.analytics.spi.InstructionNode;
+import org.opensearch.analytics.spi.InstructionType;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.index.shard.ShardId;
@@ -97,28 +100,61 @@ public class FragmentExecutionRequest extends ActionRequest {
     }
 
     /**
-     * A single plan alternative: a backend ID paired with its serialized fragment bytes.
+     * A single plan alternative: a backend ID paired with its serialized fragment bytes
+     * and ordered instruction nodes for data-node execution.
      * Produced by {@code FragmentConversionDriver.convertAll()} using the backend's
      * {@code FragmentConvertor}.
      */
     public static class PlanAlternative {
         private final String backendId;
         private final byte[] fragmentBytes;
+        private final List<InstructionNode> instructions;
+        private final DelegationDescriptor delegationDescriptor;
 
-        public PlanAlternative(String backendId, byte[] fragmentBytes) {
+        public PlanAlternative(String backendId, byte[] fragmentBytes, List<InstructionNode> instructions) {
+            this(backendId, fragmentBytes, instructions, null);
+        }
+
+        public PlanAlternative(
+            String backendId,
+            byte[] fragmentBytes,
+            List<InstructionNode> instructions,
+            DelegationDescriptor delegationDescriptor
+        ) {
             this.backendId = backendId;
             this.fragmentBytes = fragmentBytes;
+            this.instructions = instructions;
+            this.delegationDescriptor = delegationDescriptor;
         }
 
         public PlanAlternative(StreamInput in) throws IOException {
             this.backendId = in.readString();
             byte[] bytes = in.readByteArray();
             this.fragmentBytes = (bytes.length == 0) ? null : bytes;
+            int instructionCount = in.readVInt();
+            List<InstructionNode> nodes = new ArrayList<>(instructionCount);
+            for (int i = 0; i < instructionCount; i++) {
+                InstructionType type = in.readEnum(InstructionType.class);
+                nodes.add(type.readNode(in));
+            }
+            this.instructions = nodes;
+            this.delegationDescriptor = in.readBoolean() ? new DelegationDescriptor(in) : null;
         }
 
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(backendId);
             out.writeByteArray(fragmentBytes != null ? fragmentBytes : new byte[0]);
+            out.writeVInt(instructions.size());
+            for (InstructionNode node : instructions) {
+                out.writeEnum(node.type());
+                node.writeTo(out);
+            }
+            if (delegationDescriptor != null) {
+                out.writeBoolean(true);
+                delegationDescriptor.writeTo(out);
+            } else {
+                out.writeBoolean(false);
+            }
         }
 
         public String getBackendId() {
@@ -127,6 +163,14 @@ public class FragmentExecutionRequest extends ActionRequest {
 
         public byte[] getFragmentBytes() {
             return fragmentBytes;
+        }
+
+        public List<InstructionNode> getInstructions() {
+            return instructions;
+        }
+
+        public DelegationDescriptor getDelegationDescriptor() {
+            return delegationDescriptor;
         }
     }
 }

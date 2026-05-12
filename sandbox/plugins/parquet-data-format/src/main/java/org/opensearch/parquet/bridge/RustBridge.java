@@ -8,6 +8,8 @@
 
 package org.opensearch.parquet.bridge;
 
+import org.opensearch.index.engine.dataformat.PackedRowIdMapping;
+import org.opensearch.index.engine.dataformat.RowIdMapping;
 import org.opensearch.nativebridge.spi.NativeCall;
 import org.opensearch.nativebridge.spi.NativeLibraryLoader;
 
@@ -15,13 +17,19 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.lang.foreign.FunctionDescriptor;
 import java.lang.foreign.Linker;
+import java.lang.foreign.MemorySegment;
 import java.lang.foreign.SymbolLookup;
 import java.lang.foreign.ValueLayout;
 import java.lang.invoke.MethodHandle;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
+/**
+ * FFM bridge to the native Rust parquet writer library.
+ */
 public class RustBridge {
 
     private static final MethodHandle CREATE_WRITER;
@@ -33,6 +41,7 @@ public class RustBridge {
     private static final MethodHandle ON_SETTINGS_UPDATE;
     private static final MethodHandle REMOVE_SETTINGS;
     private static final MethodHandle MERGE_FILES;
+    private static final MethodHandle FREE_MERGE_RESULT;
     private static final MethodHandle READ_AS_JSON;
 
     static {
@@ -53,7 +62,8 @@ public class RustBridge {
                 ValueLayout.ADDRESS,
                 ValueLayout.JAVA_LONG,   // reverse_sorts (vals, count)
                 ValueLayout.ADDRESS,
-                ValueLayout.JAVA_LONG    // nulls_first (vals, count)
+                ValueLayout.JAVA_LONG,   // nulls_first (vals, count)
+                ValueLayout.JAVA_LONG    // writer_generation
             )
         );
         WRITE = linker.downcallHandle(
@@ -134,11 +144,34 @@ public class RustBridge {
                 ValueLayout.JAVA_LONG,
                 ValueLayout.ADDRESS,
                 ValueLayout.ADDRESS,
-                ValueLayout.JAVA_LONG, // input files (ptrs, lens, count)
+                ValueLayout.JAVA_LONG,  // input files (ptrs, lens, count)
                 ValueLayout.ADDRESS,
-                ValueLayout.JAVA_LONG,                      // output file
+                ValueLayout.JAVA_LONG,  // output file
                 ValueLayout.ADDRESS,
-                ValueLayout.JAVA_LONG                       // index_name
+                ValueLayout.JAVA_LONG,  // index_name
+                ValueLayout.ADDRESS,    // version_out
+                ValueLayout.ADDRESS,    // num_rows_out
+                ValueLayout.ADDRESS,    // created_by_buf
+                ValueLayout.JAVA_LONG,  // created_by_buf_len
+                ValueLayout.ADDRESS,    // created_by_len_out
+                ValueLayout.ADDRESS,    // crc32_out
+                ValueLayout.ADDRESS,    // out_mapping_ptr
+                ValueLayout.ADDRESS,    // out_mapping_len
+                ValueLayout.ADDRESS,    // out_gen_keys_ptr
+                ValueLayout.ADDRESS,    // out_gen_offsets_ptr
+                ValueLayout.ADDRESS,    // out_gen_sizes_ptr
+                ValueLayout.ADDRESS     // out_gen_count
+            )
+        );
+        FREE_MERGE_RESULT = linker.downcallHandle(
+            lib.find("parquet_free_merge_result").orElseThrow(),
+            FunctionDescriptor.ofVoid(
+                ValueLayout.JAVA_LONG,  // mapping_ptr
+                ValueLayout.JAVA_LONG,  // mapping_len
+                ValueLayout.JAVA_LONG,  // gen_keys_ptr
+                ValueLayout.JAVA_LONG,  // gen_offsets_ptr
+                ValueLayout.JAVA_LONG,  // gen_sizes_ptr
+                ValueLayout.JAVA_LONG   // gen_count
             )
         );
         READ_AS_JSON = linker.downcallHandle(
@@ -156,7 +189,8 @@ public class RustBridge {
 
     public static void initLogger() {}
 
-    static void createWriter(String file, String indexName, long schemaAddress, ParquetSortConfig sortConfig) throws IOException {
+    static void createWriter(String file, String indexName, long schemaAddress, ParquetSortConfig sortConfig, long writerGeneration)
+        throws IOException {
         try (var call = new NativeCall()) {
             var f = call.str(file);
             var idx = call.str(indexName);
@@ -176,7 +210,8 @@ public class RustBridge {
                 reverseArray,
                 (long) sortConfig.reverseSorts().size(),
                 nullsFirstArray,
-                (long) sortConfig.nullsFirst().size()
+                (long) sortConfig.nullsFirst().size(),
+                writerGeneration
             );
         }
     }
@@ -286,15 +321,117 @@ public class RustBridge {
         }
     }
 
-    public static void mergeParquetFilesInRust(List<Path> inputFiles, String outputFile, String indexName) {
+    public static MergeFilesResult mergeParquetFilesInRust(List<Path> inputFiles, String outputFile, String indexName) {
         String[] paths = inputFiles.stream().map(Path::toString).toArray(String[]::new);
         try (var call = new NativeCall()) {
             var inputs = call.strArray(paths);
             var out = call.str(outputFile);
             var idx = call.str(indexName);
-            call.invokeIO(MERGE_FILES, inputs.ptrs(), inputs.lens(), inputs.count(), out.segment(), out.len(), idx.segment(), idx.len());
+
+            // Out-pointers for Parquet file metadata
+            var versionOut = call.intOut();
+            var numRowsOut = call.longOut();
+            var crc32Out = call.longOut();
+            var createdByOut = call.outBuffer(1024);
+
+            // Out-pointers for Rust-allocated mapping data
+            var outMappingPtr = call.longOut();
+            var outMappingLen = call.longOut();
+            var outGenKeysPtr = call.longOut();
+            var outGenOffsetsPtr = call.longOut();
+            var outGenSizesPtr = call.longOut();
+            var outGenCount = call.longOut();
+
+            call.invokeIO(
+                MERGE_FILES,
+                inputs.ptrs(),
+                inputs.lens(),
+                inputs.count(),
+                out.segment(),
+                out.len(),
+                idx.segment(),
+                idx.len(),
+                versionOut,
+                numRowsOut,
+                createdByOut.data(),
+                (long) createdByOut.capacity(),
+                createdByOut.lenOut(),
+                crc32Out,
+                outMappingPtr,
+                outMappingLen,
+                outGenKeysPtr,
+                outGenOffsetsPtr,
+                outGenSizesPtr,
+                outGenCount
+            );
+
+            int createdByLen = (int) createdByOut.lenOut().get(ValueLayout.JAVA_LONG, 0);
+            ParquetFileMetadata metadata = new ParquetFileMetadata(
+                versionOut.get(ValueLayout.JAVA_INT, 0),
+                numRowsOut.get(ValueLayout.JAVA_LONG, 0),
+                createdByLen >= 0
+                    ? new String(createdByOut.data().asSlice(0, createdByLen).toArray(ValueLayout.JAVA_BYTE), StandardCharsets.UTF_8)
+                    : null,
+                crc32Out.get(ValueLayout.JAVA_LONG, 0)
+            );
+
+            RowIdMapping rowIdMapping = readAndFreeMergeResult(
+                outMappingPtr,
+                outMappingLen,
+                outGenKeysPtr,
+                outGenOffsetsPtr,
+                outGenSizesPtr,
+                outGenCount
+            );
+
+            return new MergeFilesResult(rowIdMapping, metadata);
         } catch (IOException e) {
             throw new UncheckedIOException("Native merge failed", e);
+        }
+    }
+
+    private static RowIdMapping readAndFreeMergeResult(
+        MemorySegment outMappingPtr,
+        MemorySegment outMappingLen,
+        MemorySegment outGenKeysPtr,
+        MemorySegment outGenOffsetsPtr,
+        MemorySegment outGenSizesPtr,
+        MemorySegment outGenCount
+    ) {
+        long mappingAddr = outMappingPtr.get(ValueLayout.JAVA_LONG, 0);
+        long mappingLen = outMappingLen.get(ValueLayout.JAVA_LONG, 0);
+        long genKeysAddr = outGenKeysPtr.get(ValueLayout.JAVA_LONG, 0);
+        long genOffsetsAddr = outGenOffsetsPtr.get(ValueLayout.JAVA_LONG, 0);
+        long genSizesAddr = outGenSizesPtr.get(ValueLayout.JAVA_LONG, 0);
+        long genCount = outGenCount.get(ValueLayout.JAVA_LONG, 0);
+
+        try {
+            // Read mapping array (i64[])
+            long[] mappingArray = MemorySegment.ofAddress(mappingAddr)
+                .reinterpret(mappingLen * ValueLayout.JAVA_LONG.byteSize())
+                .toArray(ValueLayout.JAVA_LONG);
+
+            // Read generation keys (i64[]), offsets (i32[]), sizes (i32[])
+            long[] genKeys = MemorySegment.ofAddress(genKeysAddr)
+                .reinterpret(genCount * ValueLayout.JAVA_LONG.byteSize())
+                .toArray(ValueLayout.JAVA_LONG);
+            int[] genOffsets = MemorySegment.ofAddress(genOffsetsAddr)
+                .reinterpret(genCount * ValueLayout.JAVA_INT.byteSize())
+                .toArray(ValueLayout.JAVA_INT);
+            int[] genSizes = MemorySegment.ofAddress(genSizesAddr)
+                .reinterpret(genCount * ValueLayout.JAVA_INT.byteSize())
+                .toArray(ValueLayout.JAVA_INT);
+
+            Map<Long, Integer> offsetMap = new HashMap<>((int) genCount);
+            Map<Long, Integer> sizeMap = new HashMap<>((int) genCount);
+            for (int i = 0; i < (int) genCount; i++) {
+                offsetMap.put(genKeys[i], genOffsets[i]);
+                sizeMap.put(genKeys[i], genSizes[i]);
+            }
+
+            return new PackedRowIdMapping(mappingArray, offsetMap, sizeMap);
+        } finally {
+            NativeCall.invokeVoid(FREE_MERGE_RESULT, mappingAddr, mappingLen, genKeysAddr, genOffsetsAddr, genSizesAddr, genCount);
         }
     }
 

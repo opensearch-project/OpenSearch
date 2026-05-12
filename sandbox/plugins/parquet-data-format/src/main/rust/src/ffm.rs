@@ -14,7 +14,7 @@
 use std::slice;
 use std::str;
 
-use native_bridge_common::ffm_safe;
+use native_bridge_common::{ffm_safe, log_debug};
 
 use crate::native_settings::NativeSettings;
 use crate::merge;
@@ -84,6 +84,7 @@ pub unsafe extern "C" fn parquet_create_writer(
     reverse_count: i64,
     nulls_first_vals: *const i64,
     nulls_first_count: i64,
+    writer_generation: i64,
 ) -> i64 {
     let filename = str_from_raw(file_ptr, file_len)
         .map_err(|e| format!("parquet_create_writer file: {}", e))?.to_string();
@@ -94,7 +95,7 @@ pub unsafe extern "C" fn parquet_create_writer(
     let reverse_sorts = bool_array_from_raw(reverse_vals, reverse_count);
     let nulls_first = bool_array_from_raw(nulls_first_vals, nulls_first_count);
 
-    NativeParquetWriter::create_writer(filename, index_name, schema_address, sort_columns, reverse_sorts, nulls_first)
+    NativeParquetWriter::create_writer(filename, index_name, schema_address, sort_columns, reverse_sorts, nulls_first, writer_generation)
         .map(|_| 0)
         .map_err(|e| e.to_string())
 }
@@ -290,6 +291,18 @@ pub unsafe extern "C" fn parquet_merge_files(
     output_len: i64,
     index_name_ptr: *const u8,
     index_name_len: i64,
+    version_out: *mut i32,
+    num_rows_out: *mut i64,
+    created_by_buf: *mut u8,
+    created_by_buf_len: i64,
+    created_by_len_out: *mut i64,
+    crc32_out: *mut i64,
+    out_mapping_ptr: *mut i64,
+    out_mapping_len: *mut i64,
+    out_gen_keys_ptr: *mut i64,
+    out_gen_offsets_ptr: *mut i64,
+    out_gen_sizes_ptr: *mut i64,
+    out_gen_count: *mut i64,
 ) -> i64 {
     let input_files = str_array_from_raw(input_ptrs, input_lens, input_count)
         .map_err(|e| format!("parquet_merge_files inputs: {}", e))?;
@@ -317,7 +330,7 @@ pub unsafe extern "C" fn parquet_merge_files(
         }
     };
 
-    if sort_cols.is_empty() {
+    let result = if sort_cols.is_empty() {
         merge::merge_unsorted(&input_files, output_path, index_name)
     } else {
         merge::merge_sorted(
@@ -329,8 +342,65 @@ pub unsafe extern "C" fn parquet_merge_files(
             &nulls_first_flags,
         )
     }
-    .map(|_| 0)
-    .map_err(|e| format!("{}", e))
+    .map_err(|e| format!("{}", e))?;
+
+    // Write Parquet file metadata to out-pointers.
+    let fm = result.metadata.file_metadata();
+    if !version_out.is_null() { *version_out = fm.version(); }
+    if !num_rows_out.is_null() { *num_rows_out = fm.num_rows(); }
+    if let Some(cb) = fm.created_by() {
+        if !created_by_buf.is_null() && created_by_buf_len > 0 {
+            let bytes = cb.as_bytes();
+            let n = bytes.len().min(created_by_buf_len as usize);
+            std::ptr::copy_nonoverlapping(bytes.as_ptr(), created_by_buf, n);
+            if !created_by_len_out.is_null() { *created_by_len_out = n as i64; }
+        }
+    } else if !created_by_len_out.is_null() {
+        *created_by_len_out = -1;
+    }
+    if !crc32_out.is_null() { *crc32_out = result.crc32 as i64; }
+
+    // Write row-ID mapping into out-pointers as heap-allocated arrays.
+    // Java reads them and then calls parquet_free_merge_result to deallocate.
+    let mapping = result.mapping.into_boxed_slice();
+    *out_mapping_len = mapping.len() as i64;
+    *out_mapping_ptr = Box::into_raw(mapping) as *mut i64 as i64;
+
+    let count = result.gen_keys.len();
+    let keys = result.gen_keys.into_boxed_slice();
+    let offsets = result.gen_offsets.into_boxed_slice();
+    let sizes = result.gen_sizes.into_boxed_slice();
+    *out_gen_count = count as i64;
+    *out_gen_keys_ptr = Box::into_raw(keys) as *mut i64 as i64;
+    *out_gen_offsets_ptr = Box::into_raw(offsets) as *mut i32 as i64;
+    *out_gen_sizes_ptr = Box::into_raw(sizes) as *mut i32 as i64;
+
+    Ok(0)
+}
+
+/// Frees the heap-allocated arrays returned by `parquet_merge_files`.
+#[no_mangle]
+pub unsafe extern "C" fn parquet_free_merge_result(
+    mapping_ptr: i64,
+    mapping_len: i64,
+    gen_keys_ptr: i64,
+    gen_offsets_ptr: i64,
+    gen_sizes_ptr: i64,
+    gen_count: i64,
+) {
+    if mapping_ptr != 0 && mapping_len > 0 {
+        let _ = Box::from_raw(slice::from_raw_parts_mut(mapping_ptr as *mut i64, mapping_len as usize));
+    }
+    let n = gen_count as usize;
+    if gen_keys_ptr != 0 && n > 0 {
+        let _ = Box::from_raw(slice::from_raw_parts_mut(gen_keys_ptr as *mut i64, n));
+    }
+    if gen_offsets_ptr != 0 && n > 0 {
+        let _ = Box::from_raw(slice::from_raw_parts_mut(gen_offsets_ptr as *mut i32, n));
+    }
+    if gen_sizes_ptr != 0 && n > 0 {
+        let _ = Box::from_raw(slice::from_raw_parts_mut(gen_sizes_ptr as *mut i32, n));
+    }
 }
 
 // ---------------------------------------------------------------------------

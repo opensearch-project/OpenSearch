@@ -9,6 +9,7 @@
 package org.opensearch.cluster.metadata;
 
 import org.opensearch.common.UUIDs;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.xcontent.ToXContent;
@@ -18,7 +19,6 @@ import org.opensearch.test.AbstractSerializingTestCase;
 import org.opensearch.wlm.MutableWorkloadGroupFragment;
 import org.opensearch.wlm.MutableWorkloadGroupFragment.ResiliencyMode;
 import org.opensearch.wlm.ResourceType;
-import org.opensearch.wlm.WorkloadGroupSearchSettings.WlmSearchSetting;
 import org.joda.time.Instant;
 
 import java.io.IOException;
@@ -31,7 +31,7 @@ import java.util.Map;
 public class WorkloadGroupTests extends AbstractSerializingTestCase<WorkloadGroup> {
 
     private static final List<ResiliencyMode> allowedModes = List.of(ResiliencyMode.SOFT, ResiliencyMode.ENFORCED, ResiliencyMode.MONITOR);
-    public static final Map<String, String> TEST_WLM_SEARCH_SETTINGS = Map.of(WlmSearchSetting.TIMEOUT.getSettingName(), "30s");
+    public static final Settings TEST_WLM_SEARCH_SETTINGS = Settings.builder().put("search.default_search_timeout", "30s").build();
 
     static WorkloadGroup createRandomWorkloadGroup(String _id) {
         String name = randomAlphaOfLength(10);
@@ -139,8 +139,8 @@ public class WorkloadGroupTests extends AbstractSerializingTestCase<WorkloadGrou
         assertEquals(1, workloadGroup.getResourceLimits().size());
         assertTrue(allowedModes.contains(workloadGroup.getResiliencyMode()));
         assertTrue(workloadGroup.getUpdatedAtInMillis() != 0);
-        assertNotNull(workloadGroup.getSearchSettings());
-        assertEquals(TEST_WLM_SEARCH_SETTINGS, workloadGroup.getSearchSettings());
+        assertNotNull(workloadGroup.getSettings());
+        assertEquals(TEST_WLM_SEARCH_SETTINGS, workloadGroup.getSettings());
     }
 
     public void testIllegalWorkloadGroupName() {
@@ -242,11 +242,21 @@ public class WorkloadGroupTests extends AbstractSerializingTestCase<WorkloadGrou
             Locale.ROOT,
             "{\"_id\":\"%s\",\"name\":\"TestWorkloadGroup\",\"resiliency_mode\":\"enforced\","
                 + "\"resource_limits\":{\"cpu\":0.3,\"memory\":0.4},"
-                + "\"search_settings\":{\"timeout\":\"30s\"},"
+                + "\"settings\":{\"search.default_search_timeout\":\"30s\"},"
                 + "\"updated_at\":%d}",
             workloadGroupId,
             currentTimeInMillis
         );
         assertEquals(expected, builder.toString());
+    }
+
+    public void testLegacySearchSettingsFieldRejected() throws IOException {
+        String json = "{\"_id\":\"test_id\",\"name\":\"test\",\"resiliency_mode\":\"enforced\","
+            + "\"resource_limits\":{\"memory\":0.5},"
+            + "\"search_settings\":{\"timeout\":\"30s\"},"
+            + "\"updated_at\":1720047207}";
+        XContentParser parser = createParser(JsonXContent.jsonXContent, json);
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> WorkloadGroup.fromXContent(parser));
+        assertTrue(exception.getMessage().contains("search_settings"));
     }
 }

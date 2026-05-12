@@ -10,6 +10,7 @@ package org.opensearch.analytics.planner.dag;
 
 import org.apache.calcite.rel.RelNode;
 import org.opensearch.analytics.spi.ExchangeSinkProvider;
+import org.opensearch.analytics.spi.FragmentInstructionHandlerFactory;
 import org.opensearch.common.Nullable;
 
 import java.util.List;
@@ -45,6 +46,7 @@ public class Stage {
     private final TargetResolver targetResolver;
     private final StageExecutionType executionType;
     private List<StagePlan> planAlternatives;
+    private FragmentInstructionHandlerFactory instructionHandlerFactory;
 
     public Stage(
         int stageId,
@@ -116,6 +118,14 @@ public class Stage {
 
     public void setPlanAlternatives(List<StagePlan> planAlternatives) {
         this.planAlternatives = planAlternatives;
+    }
+
+    public FragmentInstructionHandlerFactory getInstructionHandlerFactory() {
+        return instructionHandlerFactory;
+    }
+
+    public void setInstructionHandlerFactory(FragmentInstructionHandlerFactory instructionHandlerFactory) {
+        this.instructionHandlerFactory = instructionHandlerFactory;
     }
 
     private StageExecutionType setStageExecutionType(ExchangeSinkProvider exchangeSinkProvider, TargetResolver targetResolver) {

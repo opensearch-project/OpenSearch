@@ -20,6 +20,7 @@ import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.Schema;
 import org.opensearch.analytics.backend.EngineResultBatch;
 import org.opensearch.analytics.backend.EngineResultStream;
+import org.opensearch.analytics.exec.ArrowValues;
 import org.opensearch.be.datafusion.nativelib.NativeBridge;
 import org.opensearch.be.datafusion.nativelib.StreamHandle;
 import org.opensearch.common.annotation.ExperimentalApi;
@@ -29,7 +30,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.concurrent.CompletableFuture;
-import java.util.stream.Collectors;
 
 import static org.apache.arrow.c.Data.importField;
 
@@ -49,11 +49,7 @@ public class DatafusionResultStream implements EngineResultStream {
     private final CDataDictionaryProvider dictionaryProvider;
     private volatile BatchIterator iteratorInstance;
 
-    /**
-     * Creates a result stream.
-     * @param streamHandle the native stream handle
-     * @param allocator the Arrow buffer allocator for this stream (caller transfers ownership)
-     */
+    // Allocator is caller-owned; this stream imports into it but never closes it.
     public DatafusionResultStream(StreamHandle streamHandle, BufferAllocator allocator) {
         this.streamHandle = streamHandle;
         this.allocator = allocator;
@@ -71,35 +67,30 @@ public class DatafusionResultStream implements EngineResultStream {
     @Override
     public void close() {
         try {
-            if (iteratorInstance != null && iteratorInstance.vectorSchemaRoot != null) {
-                iteratorInstance.vectorSchemaRoot.close();
+            if (iteratorInstance != null) {
+                iteratorInstance.closeLastBatch();
             }
         } finally {
             try {
                 streamHandle.close();
             } finally {
-                try {
-                    dictionaryProvider.close();
-                } finally {
-                    allocator.close();
-                }
+                dictionaryProvider.close();
             }
         }
     }
 
-    /**
-     * Iterator that pulls Arrow record batches from the native stream via async JNI.
-     * Uses one-ahead buffering: the next batch is pre-loaded so hasNext() is side-effect-free.
-     */
+    // Fresh VSR per batch so each can be handed off independently
+    // Close-on-advance releases the previous VSR (no-op if transport already transferred it).
     static class BatchIterator implements Iterator<EngineResultBatch> {
 
         private final StreamHandle streamHandle;
         private final BufferAllocator allocator;
         private final CDataDictionaryProvider dictionaryProvider;
-        VectorSchemaRoot vectorSchemaRoot;
+        private Schema schema;
+        private VectorSchemaRoot nextBatch;
         private Boolean nextAvailable;
-        /** Incremented each time {@link #next()} is called. Used by {@link ArrowResultBatch} to detect stale access. */
-        long generation;
+        private boolean batchEmitted;
+        private boolean nativeStreamExhausted;
 
         BatchIterator(StreamHandle streamHandle, BufferAllocator allocator, CDataDictionaryProvider dictionaryProvider) {
             this.streamHandle = streamHandle;
@@ -108,27 +99,41 @@ public class DatafusionResultStream implements EngineResultStream {
         }
 
         private void ensureSchema() {
-            if (vectorSchemaRoot != null) return;
+            if (schema != null) return;
             long schemaAddr = callNativeFn(listener -> NativeBridge.streamGetSchema(streamHandle.getPointer(), listener));
             try (ArrowSchema arrowSchema = ArrowSchema.wrap(schemaAddr)) {
                 Field structField = importField(allocator, arrowSchema, dictionaryProvider);
                 if (structField.getType().getTypeID() != ArrowType.ArrowTypeID.Struct) {
                     throw new IllegalStateException("ArrowSchema describes non-struct type");
                 }
-                Schema schema = new Schema(structField.getChildren(), structField.getMetadata());
-                vectorSchemaRoot = VectorSchemaRoot.create(schema, allocator);
+                schema = new Schema(structField.getChildren(), structField.getMetadata());
             }
         }
 
         private boolean loadNextBatch() {
             ensureSchema();
+            if (nativeStreamExhausted) return false;
             long arrayAddr = callNativeFn(
                 listener -> NativeBridge.streamNext(streamHandle.getRuntimeHandle().get(), streamHandle.getPointer(), listener)
             );
-            if (arrayAddr == 0) return false;
-            try (ArrowArray arrowArray = ArrowArray.wrap(arrayAddr)) {
-                Data.importIntoVectorSchemaRoot(allocator, arrowArray, vectorSchemaRoot, dictionaryProvider);
+            if (arrayAddr == 0) {
+                nativeStreamExhausted = true;
+                // Streaming Flight requires ≥1 schema-bearing frame before completeStream;
+                // synthesise a zero-row batch carrying the schema for empty native streams.
+                if (!batchEmitted) {
+                    nextBatch = VectorSchemaRoot.create(schema, allocator);
+                    nextBatch.setRowCount(0);
+                    batchEmitted = true;
+                    return true;
+                }
+                return false;
             }
+            VectorSchemaRoot freshRoot = VectorSchemaRoot.create(schema, allocator);
+            try (ArrowArray arrowArray = ArrowArray.wrap(arrayAddr)) {
+                Data.importIntoVectorSchemaRoot(allocator, arrowArray, freshRoot, dictionaryProvider);
+            }
+            nextBatch = freshRoot;
+            batchEmitted = true;
             return true;
         }
 
@@ -146,8 +151,22 @@ public class DatafusionResultStream implements EngineResultStream {
                 throw new NoSuchElementException();
             }
             nextAvailable = null;
-            generation++;
-            return new ArrowResultBatch(vectorSchemaRoot, generation, this);
+            VectorSchemaRoot batch = nextBatch;
+            nextBatch = null;
+            batchEmitted = true;
+            // Caller owns the returned VSR's lifecycle. Streaming handler transfers it to Flight
+            // (Flight closes after wire write); row-path collector closes after reading.
+            return new ArrowResultBatch(batch);
+        }
+
+        void closeLastBatch() {
+            // Only close batches that were loaded but never handed to the caller. Caller
+            // owns any batch returned by next(); closing it here would double-close after
+            // Flight's transferTo or after row-path reads.
+            if (nextBatch != null) {
+                nextBatch.close();
+                nextBatch = null;
+            }
         }
 
         private static long callNativeFn(java.util.function.Consumer<ActionListener<Long>> fn) {
@@ -167,56 +186,38 @@ public class DatafusionResultStream implements EngineResultStream {
         }
     }
 
-    /**
-     * Adapts an Arrow {@link VectorSchemaRoot} to the engine-agnostic {@link EngineResultBatch}.
-     * <p>
-     * Because the underlying {@code VectorSchemaRoot} is reused across batches,
-     * this view is only valid until the next call to {@link Iterator#next()} on
-     * the parent iterator. A generation counter detects stale access at runtime.
-     */
     static class ArrowResultBatch implements EngineResultBatch {
 
         private final VectorSchemaRoot root;
         private final List<String> fieldNames;
-        private final long createdAtGeneration;
-        private final BatchIterator owner;
 
-        ArrowResultBatch(VectorSchemaRoot root, long generation, BatchIterator owner) {
+        ArrowResultBatch(VectorSchemaRoot root) {
             this.root = root;
-            this.fieldNames = root.getSchema().getFields().stream().map(Field::getName).collect(Collectors.toUnmodifiableList());
-            this.createdAtGeneration = generation;
-            this.owner = owner;
+            this.fieldNames = root.getSchema().getFields().stream().map(Field::getName).toList();
         }
 
-        private void checkValid() {
-            if (owner.generation != createdAtGeneration) {
-                throw new IllegalStateException(
-                    "Batch is no longer valid — the iterator has advanced past this batch. "
-                        + "Extract all needed values before calling next()."
-                );
-            }
+        @Override
+        public VectorSchemaRoot getArrowRoot() {
+            return root;
         }
 
         @Override
         public List<String> getFieldNames() {
-            checkValid();
             return fieldNames;
         }
 
         @Override
         public int getRowCount() {
-            checkValid();
             return root.getRowCount();
         }
 
         @Override
         public Object getFieldValue(String fieldName, int rowIndex) {
-            checkValid();
             FieldVector vector = root.getVector(fieldName);
             if (vector == null) {
                 throw new IllegalArgumentException("Unknown field: " + fieldName);
             }
-            return vector.getObject(rowIndex);
+            return ArrowValues.toJavaValue(vector, rowIndex);
         }
     }
 }

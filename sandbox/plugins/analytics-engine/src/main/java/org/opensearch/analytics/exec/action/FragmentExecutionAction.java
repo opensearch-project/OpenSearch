@@ -13,9 +13,9 @@ import org.opensearch.action.ActionType;
 /**
  * {@link ActionType} singleton for the analytics shard-level fragment
  * execution action. Pairs the action name with the
- * {@link FragmentExecutionResponse} deserializer.
+ * {@link FragmentExecutionArrowResponse} deserializer.
  */
-public class FragmentExecutionAction extends ActionType<FragmentExecutionResponse> {
+public class FragmentExecutionAction extends ActionType<FragmentExecutionArrowResponse> {
 
     /** Action name registered with the transport layer. */
     public static final String NAME = "indices:data/read/analytics/fragment";
@@ -24,6 +24,6 @@ public class FragmentExecutionAction extends ActionType<FragmentExecutionRespons
     public static final FragmentExecutionAction INSTANCE = new FragmentExecutionAction();
 
     private FragmentExecutionAction() {
-        super(NAME, FragmentExecutionResponse::new);
+        super(NAME, FragmentExecutionArrowResponse::new);
     }
 }

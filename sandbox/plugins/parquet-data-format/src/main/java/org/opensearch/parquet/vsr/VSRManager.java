@@ -33,6 +33,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.atomic.LongAdder;
 
 /**
  * Top-level orchestrator for the Arrow batching → Parquet file generation pipeline.
@@ -64,9 +65,11 @@ public class VSRManager implements AutoCloseable {
     private final VSRPool vsrPool;
     private final ThreadPool threadPool;
     private final String vsrRotationThread;
+    private final long writerGeneration;
     private volatile Future<?> pendingWrite;
     private NativeParquetWriter writer;
     private final int ROTATION_TIMEOUT = 120;
+    private LongAdder rowCount = new LongAdder();
 
     /**
      * Creates a new VSRManager with asynchronous background writes (production default).
@@ -77,9 +80,10 @@ public class VSRManager implements AutoCloseable {
         Schema schema,
         ArrowBufferPool bufferPool,
         int maxRowsPerVSR,
-        ThreadPool threadPool
+        ThreadPool threadPool,
+        long writerGeneration
     ) {
-        this(fileName, indexSettings, schema, bufferPool, maxRowsPerVSR, threadPool, true);
+        this(fileName, indexSettings, schema, bufferPool, maxRowsPerVSR, threadPool, true, writerGeneration);
     }
 
     /**
@@ -93,6 +97,7 @@ public class VSRManager implements AutoCloseable {
      * @param threadPool the thread pool for background native writes
      * @param runAsync if true, frozen VSR writes run on the background thread pool;
      *                 if false, they run on the calling thread (for benchmarks/tests)
+     * @param writerGeneration the writer generation to store in file metadata
      */
     public VSRManager(
         String fileName,
@@ -101,10 +106,12 @@ public class VSRManager implements AutoCloseable {
         ArrowBufferPool bufferPool,
         int maxRowsPerVSR,
         ThreadPool threadPool,
-        boolean runAsync
+        boolean runAsync,
+        long writerGeneration
     ) {
         this.fileName = fileName;
         this.indexSettings = indexSettings;
+        this.writerGeneration = writerGeneration;
         this.vsrPool = new VSRPool("pool-" + fileName, schema, bufferPool, maxRowsPerVSR);
         this.threadPool = threadPool;
         this.vsrRotationThread = runAsync ? ParquetDataFormatPlugin.PARQUET_THREAD_POOL_NAME : ThreadPool.Names.SAME;
@@ -155,6 +162,7 @@ public class VSRManager implements AutoCloseable {
             logger.debug("Writing frozen VSR {} ({} rows) for {}", frozenVSR.getId(), frozenVSR.getRowCount(), fileName);
             Runnable writeTask = () -> {
                 try (ArrowExport export = frozenVSR.exportToArrow()) {
+                    rowCount.add(frozenVSR.getRowCount());
                     writer.write(export.getArrayAddress(), export.getSchemaAddress());
                 } catch (IOException e) {
                     throw new RuntimeException(e);
@@ -184,12 +192,14 @@ public class VSRManager implements AutoCloseable {
             logger.info("Flushing {} rows for {}", currentVSR.getRowCount(), fileName);
             currentVSR.moveToFrozen();
             try (ArrowExport export = currentVSR.exportToArrow()) {
+                rowCount.add(currentVSR.getRowCount());
                 writer.write(export.getArrayAddress(), export.getSchemaAddress());
             }
             vsrPool.completeVSR(currentVSR);
             managedVSR.set(null);
         }
         ParquetFileMetadata metadata = writer.flush();
+        assert metadata.numRows() == rowCount.sum() : "Row count mismatch between Java managed VSR and Rust writer";
         logger.debug("Flush completed for {} with metadata: {}", fileName, metadata);
         return metadata;
     }
@@ -223,7 +233,7 @@ public class VSRManager implements AutoCloseable {
 
         ArrowSchema arrowSchema = managedVSR.get().exportSchema();
         try {
-            writer = new NativeParquetWriter(fileName, indexName, arrowSchema.memoryAddress(), sortConfig);
+            writer = new NativeParquetWriter(fileName, indexName, arrowSchema.memoryAddress(), sortConfig, writerGeneration);
         } catch (Exception e) {
             throw new RuntimeException("Failed to initialize Parquet writer: " + e.getMessage(), e);
         } finally {

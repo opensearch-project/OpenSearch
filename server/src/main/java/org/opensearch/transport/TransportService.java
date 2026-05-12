@@ -1842,6 +1842,11 @@ public class TransportService extends AbstractLifecycleComponent
                     }
 
                     @Override
+                    public boolean skipsDeserialization() {
+                        return handler.skipsDeserialization();
+                    }
+
+                    @Override
                     public String toString() {
                         return getClass().getName() + "/[" + action + "]:" + handler.toString();
                     }
