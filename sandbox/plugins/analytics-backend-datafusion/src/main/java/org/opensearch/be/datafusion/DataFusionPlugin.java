@@ -64,8 +64,15 @@ public class DataFusionPlugin extends Plugin implements SearchBackEndPlugin<Data
 
     private static final Logger logger = LogManager.getLogger(DataFusionPlugin.class);
 
-    /** Default value for {@link #DATAFUSION_MEMORY_POOL_LIMIT}. */
-    public static final String DEFAULT_MEMORY_POOL_LIMIT = "25%";
+    /**
+     * Default value for {@link #DATAFUSION_MEMORY_POOL_LIMIT}. {@code 15%} of non-heap memory
+     * comes from the OFAT sweep on r7g.2xlarge documented in
+     * <a href="https://quip-amazon.com/baxtAdGoq6S9/Mustang-Memory-Tuning-Recommended-Defaults">
+     * Mustang Memory Tuning - Recommended Defaults</a>: doubling 4&nbsp;GiB → 8&nbsp;GiB buys
+     * ~15% lower p95 ClickBench latency, but 8&nbsp;GiB → 16&nbsp;GiB only ~5%. 15% is the
+     * inflection point that scales cleanly across instance sizes.
+     */
+    public static final String DEFAULT_MEMORY_POOL_LIMIT = "15%";
 
     /** Default floor for {@link #DATAFUSION_MEMORY_POOL_LIMIT_MIN}. */
     public static final ByteSizeValue DEFAULT_MEMORY_POOL_LIMIT_MIN = new ByteSizeValue(512, ByteSizeUnit.MB);
@@ -78,7 +85,7 @@ public class DataFusionPlugin extends Plugin implements SearchBackEndPlugin<Data
 
     /**
      * Memory pool limit for the DataFusion runtime. Accepts a percentage of non-heap memory
-     * ({@code totalPhysicalMemory - configuredMaxHeap}, e.g. {@code "25%"}) or an absolute byte
+     * ({@code totalPhysicalMemory - configuredMaxHeap}, e.g. {@code "15%"}) or an absolute byte
      * size (e.g. {@code "10gb"}). When a percentage is supplied, the resolved value is floored
      * by {@link #DATAFUSION_MEMORY_POOL_LIMIT_MIN}.
      * <p>

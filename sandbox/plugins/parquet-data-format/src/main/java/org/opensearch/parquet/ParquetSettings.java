@@ -40,9 +40,14 @@ public final class ParquetSettings {
 
     /**
      * Default per-VSR child allocator cap. Bounds memory a single in-flight VectorSchemaRoot can
-     * hold so one writer cannot monopolize the root allocator.
+     * hold so one writer cannot monopolize the root allocator. {@code 512mb} comes from the OFAT
+     * sweep documented in
+     * <a href="https://quip-amazon.com/baxtAdGoq6S9/Mustang-Memory-Tuning-Recommended-Defaults">
+     * Mustang Memory Tuning - Recommended Defaults</a>: 256mb / 512mb / 1gb / 2gb all delivered
+     * comparable ClickBench p95 latency at the 907k-doc corpus, so the smallest value with no
+     * measurable cost wins — leaves more headroom for the DataFusion pool and OS page cache.
      */
-    public static final ByteSizeValue DEFAULT_CHILD_ALLOCATION = new ByteSizeValue(256, ByteSizeUnit.MB);
+    public static final ByteSizeValue DEFAULT_CHILD_ALLOCATION = new ByteSizeValue(512, ByteSizeUnit.MB);
 
     /** Group setting prefix for all Parquet settings. */
     public static final Setting<Settings> PARQUET_SETTINGS = Setting.groupSetting("index.parquet.", Setting.Property.IndexScope);
