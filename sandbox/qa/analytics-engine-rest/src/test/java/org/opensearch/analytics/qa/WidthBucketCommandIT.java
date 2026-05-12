@@ -24,24 +24,20 @@ import java.util.Map;
  * {@code width_bucket} UDF (via
  * {@code org.opensearch.sql.calcite.utils.binning.handlers.CountBinHandler}).
  *
- * <p><b>Blocked on empty-partition window aggregate pushdown.</b>
- * {@code CountBinHandler} wraps the {@code data_range} and {@code
- * max_value} arguments in {@code MIN(field) OVER ()} and {@code
- * MAX(field) OVER ()} empty-partition window aggregates. The DataFusion
- * analytics-engine backend does not yet declare or implement empty-
- * partition window aggregate pushdown, so the PPL {@code bin bins=N}
- * command cannot currently route through the {@code width_bucket} Rust
- * UDF end-to-end — the planner either rejects pushdown or falls back to
- * coordinator-side eval where the UDF is never exercised.
+ * <p>{@code CountBinHandler} wraps {@code data_range} and {@code max_value} in
+ * {@code MIN(field) OVER ()} / {@code MAX(field) OVER ()} empty-partition
+ * window aggregates. #21668 added {@code OpenSearchWindow} + {@code WindowCapability}
+ * for standalone {@code LogicalWindow} operators, but PPL's {@code bin} emits
+ * the window aggregates nested inside the {@code Project} that wraps the
+ * {@code width_bucket} call. DataFusion's substrait consumer accepts the
+ * resulting logical plan but its physical planner errors with "Physical plan
+ * does not support logical expression WindowFunction(...)" because the windows
+ * are still embedded in the project.
  *
- * <p>The {@code width_bucket} UDF, YAML signature, enum entry, adapter,
- * and {@code scalarFunctionAdapters} registration all ship in this PR so
- * that when empty-partition window aggregate pushdown lands in a future
- * PR this IT will start exercising the full path by simply removing the
- * class-level {@link AwaitsFix} annotation. The 16 Rust unit tests in
- * {@code rust/src/udf/width_bucket.rs} provide algorithm-correctness
- * coverage in the meantime; the 2 {@code WidthBucketAdapterTests} cases
- * provide adapter-rewrite-shape coverage.
+ * <p>Unblocking needs Calcite's {@code ProjectToWindowRule} registered in
+ * {@code PlannerImpl}'s rule set so RexOvers are hoisted into a separate
+ * {@code LogicalWindow} (which {@code OpenSearchWindowRule} can then mark)
+ * before substrait emission. Tracked separately.
  *
  * <p>Not the ISO-SQL {@code width_bucket}. This is PPL's VARCHAR-label
  * variant (returns e.g. {@code "0-100"}) via the OpenSearch nice-number
@@ -49,20 +45,15 @@ import java.util.Map;
  * {@link org.opensearch.be.datafusion.WidthBucketAdapter}'s Javadoc.
  */
 @AwaitsFix(
-    bugUrl = "Pending window aggregate pushdown in the analytics-engine planner. "
-        + "PPL `bin <f> bins=N` (CountBinHandler) lowers to `width_bucket(f, N, MAX(f) OVER () - "
-        + "MIN(f) OVER (), MAX(f) OVER ())`. The empty-partition RexOver wrapping MIN/MAX "
-        + "(SqlKind.MIN / SqlKind.MAX inside a RexOver) is not recognized anywhere in "
-        + "sandbox/plugins/analytics-engine: OpenSearchProjectRule.annotateExpr descends into "
-        + "RexCall operands via ScalarFunction.fromSqlKind, which returns null for aggregate "
-        + "SqlKinds inside a RexOver; there is no OpenSearchWindow RelNode, no WindowRule in "
-        + "PlannerImpl, and no windowAggregate capability entry in CapabilityRegistry. "
-        + "Follow-up PR must: (1) add OpenSearchWindow RelNode + OpenSearchWindowRule registered "
-        + "in PlannerImpl, (2) add a WindowAggregate capability track in CapabilityRegistry "
-        + "separate from scalar/aggregate, (3) extend DataFusionFragmentConvertor and "
-        + "opensearch_scalar.yaml (or a new extension) with substrait window-function wiring, "
-        + "(4) declare MIN/MAX OVER () as a pushdownable capability in the DataFusion backend. "
-        + "Delete this annotation once those land."
+    bugUrl = "PPL `bin <f> bins=N` (CountBinHandler) emits `width_bucket(f, N, MAX(f) OVER () - "
+        + "MIN(f) OVER (), MAX(f) OVER ())` with the window aggregates nested inside the Project. "
+        + "#21668 added OpenSearchWindow + WindowCapability for standalone LogicalWindow operators, "
+        + "but Calcite's ProjectToWindowRule is not registered in PlannerImpl, so RexOvers stay "
+        + "embedded in the Project and DataFusion's substrait consumer fails with 'Physical plan "
+        + "does not support logical expression WindowFunction(...)'. Follow-up: register "
+        + "CoreRules.PROJECT_TO_LOGICAL_PROJECT_AND_WINDOW (or equivalent) in PlannerImpl so "
+        + "windows are hoisted into a LogicalWindow node, then OpenSearchWindowRule marks it and "
+        + "substrait emits a clean Window rel."
 )
 public class WidthBucketCommandIT extends AnalyticsRestTestCase {
 

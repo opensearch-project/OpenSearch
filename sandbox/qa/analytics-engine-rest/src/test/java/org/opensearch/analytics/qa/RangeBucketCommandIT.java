@@ -36,13 +36,9 @@ import java.util.Map;
  * correctness coverage until window pushdown lands.
  */
 @AwaitsFix(
-    bugUrl = "Pending window aggregate pushdown in the analytics-engine planner. "
-        + "PPL `bin <f> start=X end=Y` (RangeBinHandler) lowers to `range_bucket(f, "
-        + "MIN(f) OVER (), MAX(f) OVER (), X, Y)`. Same root cause as WidthBucketCommandIT: "
-        + "OpenSearchProjectRule.annotateExpr does not handle RexOver operators carrying "
-        + "SqlKind.MIN / SqlKind.MAX aggregates, and there is no OpenSearchWindow RelNode / "
-        + "WindowRule / windowAggregate capability. See WidthBucketCommandIT for the full "
-        + "follow-up-PR checklist; delete this annotation once that window-pushdown track lands."
+    bugUrl = "PPL `bin <f> start=X end=Y` (RangeBinHandler) emits `range_bucket(f, MIN(f) OVER (), "
+        + "MAX(f) OVER (), X, Y)` with windows nested in the Project. Same root cause as "
+        + "WidthBucketCommandIT — see its bugUrl for the ProjectToWindowRule follow-up."
 )
 public class RangeBucketCommandIT extends AnalyticsRestTestCase {
 

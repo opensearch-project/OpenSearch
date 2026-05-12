@@ -26,7 +26,7 @@ import java.util.List;
  * {@link DataFusionFragmentConvertor#ADDITIONAL_SCALAR_SIGS} and resolves to
  * the {@code minspan_bucket} Rust UDF (see
  * {@code rust/src/udf/minspan_bucket.rs} and the YAML signature in
- * {@code extensions/opensearch_scalar.yaml}).
+ * {@code src/main/resources/opensearch_scalar_functions.yaml}).
  *
  * <p>Same adapter-pattern as {@link SpanBucketAdapter} and
  * {@link WidthBucketAdapter}: pure rename, preserves operand order and the

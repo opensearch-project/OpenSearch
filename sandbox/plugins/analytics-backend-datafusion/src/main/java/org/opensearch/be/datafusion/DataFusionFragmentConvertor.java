@@ -88,7 +88,7 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
      *   <li>{@link DelegatedPredicateFunction} → {@code delegated_predicate} (delegation to a peer backend).</li>
      *   <li>{@link SqlLibraryOperators#ILIKE} → {@code ilike} (case-insensitive LIKE; resolved by
      *       DataFusion's substrait consumer to a case-insensitive {@code LikeExpr}).</li>
-     *   <li>{@link SqlLibraryOperators#DATE_PART} → {@code date_part} (target of YearAdapter's rewrite).</li>
+     *   <li>{@link SqlLibraryOperators#DATE_PART} → {@code date_part} (target of DatePartAdapters' rewrite).</li>
      *   <li>{@link ConvertTzAdapter#LOCAL_CONVERT_TZ_OP} → {@code convert_tz} (Rust UDF).</li>
      *   <li>{@link UnixTimestampAdapter#LOCAL_TO_UNIXTIME_OP} → {@code to_unixtime} (DF native).</li>
      *   <li>{@link JsonFunctionAdapters.JsonAppendAdapter#LOCAL_JSON_APPEND_OP} →
@@ -226,7 +226,6 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         FunctionMappings.s(SpanBucketAdapter.LOCAL_SPAN_BUCKET_OP, "span_bucket"),
         FunctionMappings.s(WidthBucketAdapter.LOCAL_WIDTH_BUCKET_OP, "width_bucket"),
         FunctionMappings.s(MinspanBucketAdapter.LOCAL_MINSPAN_BUCKET_OP, "minspan_bucket"),
-        FunctionMappings.s(SpanAdapter.LOCAL_SPAN_OP, "span"),
         FunctionMappings.s(RangeBucketAdapter.LOCAL_RANGE_BUCKET_OP, "range_bucket")
     );
 

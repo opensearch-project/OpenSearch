@@ -24,7 +24,7 @@ import java.util.List;
  * {@link io.substrait.isthmus.expression.FunctionMappings.Sig} lives in
  * {@link DataFusionFragmentConvertor#ADDITIONAL_SCALAR_SIGS} and resolves to
  * the {@code span_bucket} Rust UDF (see {@code rust/src/udf/span_bucket.rs}
- * and the YAML signature in {@code extensions/opensearch_scalar.yaml}).
+ * and the YAML signature in {@code src/main/resources/opensearch_scalar_functions.yaml}).
  *
  * <p><b>Why a locally-declared operator?</b> PPL's {@code SPAN_BUCKET} is a
  * bespoke {@code SqlUserDefinedFunction} defined in {@code sql/core}'s

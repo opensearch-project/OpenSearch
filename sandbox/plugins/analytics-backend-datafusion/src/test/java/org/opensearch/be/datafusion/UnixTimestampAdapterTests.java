@@ -71,7 +71,7 @@ public class UnixTimestampAdapterTests extends OpenSearchTestCase {
     }
 
     /**
-     * Regression guard mirroring {@code YearAdapterTests.testAdaptedCallPreservesOriginalReturnType}.
+     * Regression guard for adapter return-type preservation.
      * PPL's {@code UNIX_TIMESTAMP} is typed {@code DOUBLE_FORCE_NULLABLE}; DF's
      * {@code to_unixtime} is typed {@code Int64}. The adapter must preserve the
      * original DOUBLE type so the enclosing Project / Filter's cached rowType

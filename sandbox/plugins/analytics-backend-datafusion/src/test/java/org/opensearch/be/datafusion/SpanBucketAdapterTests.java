@@ -83,7 +83,7 @@ public class SpanBucketAdapterTests extends OpenSearchTestCase {
      * enclosing Project caches its rowType from the pre-adaptation expression;
      * any Calcite-inferred-type drift breaks {@code Project.isValid}'s
      * compatibleTypes assertion during fragment conversion. Regression guard
-     * carried from the PR10 audit lesson that motivated {@code YearAdapterTests
+     * carried from the PR10 audit lesson that motivated {@code UnixTimestampAdapterTests
      * .testAdaptedCallPreservesOriginalReturnType}.
      */
     public void testAdaptedCallPreservesOriginalReturnType() {

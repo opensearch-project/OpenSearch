@@ -26,7 +26,7 @@ import java.util.List;
  * {@link DataFusionFragmentConvertor#ADDITIONAL_SCALAR_SIGS} and resolves to
  * the {@code width_bucket} Rust UDF (see
  * {@code rust/src/udf/width_bucket.rs} and the YAML signature in
- * {@code extensions/opensearch_scalar.yaml}).
+ * {@code src/main/resources/opensearch_scalar_functions.yaml}).
  *
  * <p><b>Name collision:</b> PPL's {@code WIDTH_BUCKET} is NOT the ISO-SQL
  * {@code WIDTH_BUCKET(value, min, max, count) → INT}; it's a bespoke
