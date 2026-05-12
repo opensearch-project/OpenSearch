@@ -96,12 +96,11 @@ public class StatsEndpointRefactorPropertyTests {
                 );
             }
             return rt;
-        }), taskMonitorStats(), taskMonitorStats(), taskMonitorStats(), taskMonitorStats()).as((io, cpu, qe, sn, fp, ss) -> {
+        }), taskMonitorStats(), taskMonitorStats(), taskMonitorStats()).as((io, cpu, qe, sn, fp) -> {
             Map<String, TaskMonitorStats> monitors = new LinkedHashMap<>();
             monitors.put("query_execution", qe);
             monitors.put("stream_next", sn);
             monitors.put("fetch_phase", fp);
-            monitors.put("segment_stats", ss);
             return new NativeExecutorsStats(io, cpu, monitors);
         });
     }
@@ -109,15 +108,13 @@ public class StatsEndpointRefactorPropertyTests {
     /** NativeExecutorsStats with CPU runtime absent (null). */
     @Provide
     Arbitrary<NativeExecutorsStats> nativeExecutorsStatsCpuAbsent() {
-        return Combinators.combine(runtimeMetrics(), taskMonitorStats(), taskMonitorStats(), taskMonitorStats(), taskMonitorStats())
-            .as((io, qe, sn, fp, ss) -> {
-                Map<String, TaskMonitorStats> monitors = new LinkedHashMap<>();
-                monitors.put("query_execution", qe);
-                monitors.put("stream_next", sn);
-                monitors.put("fetch_phase", fp);
-                monitors.put("segment_stats", ss);
-                return new NativeExecutorsStats(io, null, monitors);
-            });
+        return Combinators.combine(runtimeMetrics(), taskMonitorStats(), taskMonitorStats(), taskMonitorStats()).as((io, qe, sn, fp) -> {
+            Map<String, TaskMonitorStats> monitors = new LinkedHashMap<>();
+            monitors.put("query_execution", qe);
+            monitors.put("stream_next", sn);
+            monitors.put("fetch_phase", fp);
+            return new NativeExecutorsStats(io, null, monitors);
+        });
     }
 
     /** DataFusionStats with non-null NativeExecutorsStats (CPU present or absent). */

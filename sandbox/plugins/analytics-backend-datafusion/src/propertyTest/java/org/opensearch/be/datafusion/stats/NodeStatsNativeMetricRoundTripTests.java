@@ -31,8 +31,8 @@ import static org.junit.jupiter.api.Assertions.assertNull;
  * Property-based tests verifying that {@link NativeExecutorsStats} with native metrics
  * can round-trip through {@link org.opensearch.core.common.io.stream.Writeable} serialization.
  *
- * <p>Constructs {@code NativeExecutorsStats} with the 4-monitor layout
- * (query_execution, stream_next, fetch_phase, segment_stats — each 3 fields)
+ * <p>Constructs {@code NativeExecutorsStats} with the 3-monitor layout
+ * (query_execution, stream_next, fetch_phase — each 3 fields)
  * and verifies the full StreamOutput → StreamInput round-trip preserves all fields.
  */
 public class NodeStatsNativeMetricRoundTripTests {
@@ -71,27 +71,24 @@ public class NodeStatsNativeMetricRoundTripTests {
                 );
             }
             return rt;
-        }), taskMonitorValues(), taskMonitorValues(), taskMonitorValues(), taskMonitorValues()).as((io, cpu, qe, sn, fp, ss) -> {
+        }), taskMonitorValues(), taskMonitorValues(), taskMonitorValues()).as((io, cpu, qe, sn, fp) -> {
             Map<String, TaskMonitorStats> monitors = new LinkedHashMap<>();
             monitors.put("query_execution", qe);
             monitors.put("stream_next", sn);
             monitors.put("fetch_phase", fp);
-            monitors.put("segment_stats", ss);
             return new NativeExecutorsStats(io, cpu, monitors);
         });
     }
 
     @Provide
     Arbitrary<NativeExecutorsStats> nativeExecutorsStatsNoCpu() {
-        return Combinators.combine(runtimeMetrics(), taskMonitorValues(), taskMonitorValues(), taskMonitorValues(), taskMonitorValues())
-            .as((io, qe, sn, fp, ss) -> {
-                Map<String, TaskMonitorStats> monitors = new LinkedHashMap<>();
-                monitors.put("query_execution", qe);
-                monitors.put("stream_next", sn);
-                monitors.put("fetch_phase", fp);
-                monitors.put("segment_stats", ss);
-                return new NativeExecutorsStats(io, null, monitors);
-            });
+        return Combinators.combine(runtimeMetrics(), taskMonitorValues(), taskMonitorValues(), taskMonitorValues()).as((io, qe, sn, fp) -> {
+            Map<String, TaskMonitorStats> monitors = new LinkedHashMap<>();
+            monitors.put("query_execution", qe);
+            monitors.put("stream_next", sn);
+            monitors.put("fetch_phase", fp);
+            return new NativeExecutorsStats(io, null, monitors);
+        });
     }
 
     // ---- Round-trip property tests ----

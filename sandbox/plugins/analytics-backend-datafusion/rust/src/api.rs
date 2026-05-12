@@ -480,7 +480,7 @@ pub unsafe fn sql_to_substrait(
     let object_metas = shard_view.object_metas.clone();
     let table_name = table_name.to_string();
 
-    manager.io_runtime.block_on(async {
+    manager.io_runtime.block_on(crate::task_monitors::sql_to_substrait_monitor().instrument(async {
         let list_file_cache = Arc::new(DefaultListFilesCache::default());
         list_file_cache.put(
             &datafusion::execution::cache::TableScopedPath {
@@ -529,7 +529,7 @@ pub unsafe fn sql_to_substrait(
             .encode(&mut buf)
             .map_err(|e| DataFusionError::Execution(format!("Substrait encode failed: {}", e)))?;
         Ok(buf)
-    })
+    }))
 }
 
 /// Lowers a partial-aggregate Substrait plan against a throwaway session and

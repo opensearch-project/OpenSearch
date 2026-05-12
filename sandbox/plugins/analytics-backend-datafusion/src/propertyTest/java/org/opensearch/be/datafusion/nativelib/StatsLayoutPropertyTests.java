@@ -45,7 +45,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
  */
 public class StatsLayoutPropertyTests {
 
-    private static final int FIELD_COUNT = 30;
+    private static final int FIELD_COUNT = 39;
     private static final int BUFFER_SIZE = FIELD_COUNT * Long.BYTES;
 
     // ---- Generators ----
@@ -88,7 +88,7 @@ public class StatsLayoutPropertyTests {
 
     @Provide
     Arbitrary<NativeExecutorsStats> nativeExecutorsStatsWithCpu() {
-        return Combinators.combine(runtimeMetrics(), runtimeMetrics().map(rt -> {
+        Arbitrary<RuntimeMetrics> cpuArb = runtimeMetrics().map(rt -> {
             if (rt.workersCount == 0) {
                 return new RuntimeMetrics(
                     1,
@@ -103,27 +103,52 @@ public class StatsLayoutPropertyTests {
                 );
             }
             return rt;
-        }), taskMonitorValues(), taskMonitorValues(), taskMonitorValues(), taskMonitorValues()).as((io, cpu, qe, sn, fp, ss) -> {
+        });
+        // jqwik combine supports up to 8 arbitraries; use flatMap to chain the 9th
+        return Combinators.combine(
+            runtimeMetrics(),
+            cpuArb,
+            taskMonitorValues(),
+            taskMonitorValues(),
+            taskMonitorValues(),
+            taskMonitorValues(),
+            taskMonitorValues(),
+            taskMonitorValues()
+        ).flatAs((io, cpu, qe, sn, fp, cc, ppp, pfp) -> taskMonitorValues().map(sts -> {
             Map<String, TaskMonitorStats> monitors = new LinkedHashMap<>();
             monitors.put("query_execution", qe);
             monitors.put("stream_next", sn);
             monitors.put("fetch_phase", fp);
-            monitors.put("segment_stats", ss);
+            monitors.put("create_context", cc);
+            monitors.put("prepare_partial_plan", ppp);
+            monitors.put("prepare_final_plan", pfp);
+            monitors.put("sql_to_substrait", sts);
             return new NativeExecutorsStats(io, cpu, monitors);
-        });
+        }));
     }
 
     @Provide
     Arbitrary<NativeExecutorsStats> nativeExecutorsStatsNoCpu() {
-        return Combinators.combine(runtimeMetrics(), taskMonitorValues(), taskMonitorValues(), taskMonitorValues(), taskMonitorValues())
-            .as((io, qe, sn, fp, ss) -> {
-                Map<String, TaskMonitorStats> monitors = new LinkedHashMap<>();
-                monitors.put("query_execution", qe);
-                monitors.put("stream_next", sn);
-                monitors.put("fetch_phase", fp);
-                monitors.put("segment_stats", ss);
-                return new NativeExecutorsStats(io, null, monitors);
-            });
+        return Combinators.combine(
+            runtimeMetrics(),
+            taskMonitorValues(),
+            taskMonitorValues(),
+            taskMonitorValues(),
+            taskMonitorValues(),
+            taskMonitorValues(),
+            taskMonitorValues(),
+            taskMonitorValues()
+        ).as((io, qe, sn, fp, cc, ppp, pfp, sts) -> {
+            Map<String, TaskMonitorStats> monitors = new LinkedHashMap<>();
+            monitors.put("query_execution", qe);
+            monitors.put("stream_next", sn);
+            monitors.put("fetch_phase", fp);
+            monitors.put("create_context", cc);
+            monitors.put("prepare_partial_plan", ppp);
+            monitors.put("prepare_final_plan", pfp);
+            monitors.put("sql_to_substrait", sts);
+            return new NativeExecutorsStats(io, null, monitors);
+        });
     }
 
     // ---- Property 1: Pack-then-decode round-trip (cpu workers > 0) ----
@@ -167,8 +192,15 @@ public class StatsLayoutPropertyTests {
             assertEquals(values[16], cpuRuntime.spawnedTasksCount);
             assertEquals(values[17], cpuRuntime.totalLocalQueueDepth);
 
-            String[] tmGroups = { "query_execution", "stream_next", "fetch_phase", "segment_stats" };
-            for (int g = 0; g < 4; g++) {
+            String[] tmGroups = {
+                "query_execution",
+                "stream_next",
+                "fetch_phase",
+                "create_context",
+                "prepare_partial_plan",
+                "prepare_final_plan",
+                "sql_to_substrait" };
+            for (int g = 0; g < 7; g++) {
                 var tm = StatsLayout.readTaskMonitor(seg, tmGroups[g]);
                 int base = 18 + g * 3;
                 assertEquals(values[base], tm.totalPollDurationMs, tmGroups[g] + ".total_poll_duration_ms");
@@ -227,7 +259,10 @@ public class StatsLayoutPropertyTests {
             var qe = StatsLayout.readTaskMonitor(original, "query_execution");
             var sn = StatsLayout.readTaskMonitor(original, "stream_next");
             var fp = StatsLayout.readTaskMonitor(original, "fetch_phase");
-            var ss = StatsLayout.readTaskMonitor(original, "segment_stats");
+            var cc = StatsLayout.readTaskMonitor(original, "create_context");
+            var ppp = StatsLayout.readTaskMonitor(original, "prepare_partial_plan");
+            var pfp = StatsLayout.readTaskMonitor(original, "prepare_final_plan");
+            var sts = StatsLayout.readTaskMonitor(original, "sql_to_substrait");
 
             // Re-encode into new buffer
             var reencoded = arena.allocate(StatsLayout.LAYOUT);
@@ -259,9 +294,18 @@ public class StatsLayoutPropertyTests {
                 fp.totalPollDurationMs,
                 fp.totalScheduledDurationMs,
                 fp.totalIdleDurationMs,
-                ss.totalPollDurationMs,
-                ss.totalScheduledDurationMs,
-                ss.totalIdleDurationMs };
+                cc.totalPollDurationMs,
+                cc.totalScheduledDurationMs,
+                cc.totalIdleDurationMs,
+                ppp.totalPollDurationMs,
+                ppp.totalScheduledDurationMs,
+                ppp.totalIdleDurationMs,
+                pfp.totalPollDurationMs,
+                pfp.totalScheduledDurationMs,
+                pfp.totalIdleDurationMs,
+                sts.totalPollDurationMs,
+                sts.totalScheduledDurationMs,
+                sts.totalIdleDurationMs };
             for (int i = 0; i < FIELD_COUNT; i++) {
                 reencoded.setAtIndex(ValueLayout.JAVA_LONG, i, decoded[i]);
             }
