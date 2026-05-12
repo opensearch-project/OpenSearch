@@ -203,6 +203,8 @@ public class DataFusionPlugin extends Plugin
             .memoryPoolLimit(memoryPoolLimit)
             .spillMemoryLimit(spillMemoryLimit)
             .spillDirectory(spillDir)
+            .datanodeMultiplier(DatafusionSettings.CONCURRENCY_DATANODE_MULTIPLIER.get(settings))
+            .coordinatorMultiplier(DatafusionSettings.CONCURRENCY_COORDINATOR_MULTIPLIER.get(settings))
             .clusterSettings(clusterService.getClusterSettings())
             .build();
         dataFusionService.start();

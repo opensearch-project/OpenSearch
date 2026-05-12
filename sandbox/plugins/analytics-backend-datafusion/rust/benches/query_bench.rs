@@ -1,12 +1,9 @@
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
 use datafusion::datasource::listing::ListingTableUrl;
-use datafusion::execution::disk_manager::DiskManagerBuilder;
-use datafusion::execution::memory_pool::GreedyMemoryPool;
-use datafusion::execution::runtime_env::RuntimeEnvBuilder;
 use futures::TryStreamExt;
 use object_store::local::LocalFileSystem;
 use object_store::ObjectStore;
-use opensearch_datafusion::api::DataFusionRuntime;
+use opensearch_datafusion::api::{create_global_runtime, DataFusionRuntime};
 use opensearch_datafusion::query_executor;
 use opensearch_datafusion::runtime_manager::RuntimeManager;
 use std::sync::Arc;
@@ -39,19 +36,17 @@ fn create_test_parquet(dir: &std::path::Path, rows: usize) {
     writer.close().unwrap();
 }
 
-fn setup() -> (RuntimeManager, DataFusionRuntime, tempfile::TempDir) {
+fn setup() -> (RuntimeManager, Box<DataFusionRuntime>, tempfile::TempDir) {
     let mgr = RuntimeManager::new(4);
-    let runtime_env = RuntimeEnvBuilder::new()
-        .with_memory_pool(Arc::new(GreedyMemoryPool::new(256 * 1024 * 1024)))
-        .with_disk_manager_builder(DiskManagerBuilder::default())
-        .build()
-        .unwrap();
-    let df_runtime = DataFusionRuntime::new_for_bench(runtime_env);
     let tmp = tempfile::tempdir().unwrap();
+    let spill_dir = tmp.path().to_str().unwrap();
+    let ptr = create_global_runtime(256 * 1024 * 1024, 0, spill_dir, 0).expect("build runtime");
+    // SAFETY: `create_global_runtime` returns `Box::into_raw(Box::new(DataFusionRuntime))`.
+    let df_runtime: Box<DataFusionRuntime> = unsafe { Box::from_raw(ptr as *mut DataFusionRuntime) };
     (mgr, df_runtime, tmp)
 }
 
-fn get_substrait(mgr: &RuntimeManager, df: &DataFusionRuntime, dir: &str, sql: &str) -> Vec<u8> {
+fn get_substrait(mgr: &RuntimeManager, _df: &DataFusionRuntime, dir: &str, sql: &str) -> Vec<u8> {
     use datafusion::datasource::file_format::parquet::ParquetFormat;
     use datafusion::datasource::listing::{ListingOptions, ListingTable, ListingTableConfig};
     use datafusion_substrait::logical_plan::producer::to_substrait_plan;
