@@ -87,6 +87,7 @@ import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.indices.store.TransportNodesListShardStoreMetadataHelper.StoreFilesMetadata;
+import org.opensearch.plugins.IndexStorePlugin;
 import org.opensearch.test.DummyShardLock;
 import org.opensearch.test.IndexSettingsModule;
 import org.opensearch.test.OpenSearchTestCase;
@@ -1345,5 +1346,197 @@ public class StoreTests extends OpenSearchTestCase {
         doc.add(new SortedDocValuesField("dv", new BytesRef(TestUtil.randomRealisticUnicodeString(random()))));
         writer.addDocument(doc);
         return writer;
+    }
+
+    /**
+     * Creates a proper shard directory structure for testing: .../indices/{indexUUID}/{shardId}/index
+     */
+    private Path createShardIndexDir(ShardId shardId) throws IOException {
+        Path base = createTempDir();
+        Path shardDir = base.resolve("indices").resolve(shardId.getIndex().getUUID()).resolve(Integer.toString(shardId.id()));
+        Path indexDir = shardDir.resolve("index");
+        java.nio.file.Files.createDirectories(indexDir);
+        return indexDir;
+    }
+
+    /**
+     * Tests that readMetadataSnapshot with a custom DirectoryFactory uses the factory to create the directory.
+     */
+    public void testReadMetadataSnapshotWithCustomDirectoryFactory() throws IOException {
+        final ShardId shardId = new ShardId("index", "_na_", 1);
+        Path indexDir = createShardIndexDir(shardId);
+
+        // Write an index into the indexDir
+        try (Directory dir = new NIOFSDirectory(indexDir)) {
+            IndexWriter writer = new IndexWriter(dir, newIndexWriterConfig());
+            Document doc = new Document();
+            doc.add(new StringField("id", "1", Field.Store.YES));
+            writer.addDocument(doc);
+            writer.commit();
+            writer.close();
+        }
+
+        // Create a tracking DirectoryFactory to verify it's called
+        AtomicInteger factoryCalls = new AtomicInteger(0);
+        IndexStorePlugin.DirectoryFactory trackingFactory = new IndexStorePlugin.DirectoryFactory() {
+            @Override
+            public Directory newDirectory(IndexSettings indexSettings, ShardPath shardPath) throws IOException {
+                factoryCalls.incrementAndGet();
+                return new NIOFSDirectory(shardPath.resolveIndex());
+            }
+
+            @Override
+            public Directory newFSDirectory(Path location, org.apache.lucene.store.LockFactory lockFactory, IndexSettings indexSettings)
+                throws IOException {
+                return new NIOFSDirectory(location, lockFactory);
+            }
+        };
+
+        Store.MetadataSnapshot snapshot = Store.readMetadataSnapshot(
+            indexDir,
+            shardId,
+            (id, l, d) -> new DummyShardLock(id),
+            logger,
+            trackingFactory,
+            INDEX_SETTINGS
+        );
+
+        assertEquals("DirectoryFactory should have been called once", 1, factoryCalls.get());
+        assertNotEquals("Snapshot should not be empty", Store.MetadataSnapshot.EMPTY, snapshot);
+    }
+
+    /**
+     * Tests that readMetadataSnapshot with null DirectoryFactory falls back to NIOFSDirectory (backward compat).
+     */
+    public void testReadMetadataSnapshotWithNullDirectoryFactory() throws IOException {
+        final ShardId shardId = new ShardId("index", "_na_", 1);
+        Path tempDir = createTempDir();
+        // Write an index
+        try (Directory dir = new NIOFSDirectory(tempDir)) {
+            IndexWriter writer = new IndexWriter(dir, newIndexWriterConfig());
+            Document doc = new Document();
+            doc.add(new StringField("id", "1", Field.Store.YES));
+            writer.addDocument(doc);
+            writer.commit();
+            writer.close();
+        }
+
+        // null factory should fall back to NIOFSDirectory and still work
+        Store.MetadataSnapshot snapshot = Store.readMetadataSnapshot(
+            tempDir,
+            shardId,
+            (id, l, d) -> new DummyShardLock(id),
+            logger,
+            null,
+            null
+        );
+
+        assertNotEquals("Snapshot should not be empty with null factory", Store.MetadataSnapshot.EMPTY, snapshot);
+    }
+
+    /**
+     * Tests that tryOpenIndex with a custom DirectoryFactory uses the factory.
+     */
+    public void testTryOpenIndexWithCustomDirectoryFactory() throws Exception {
+        final ShardId shardId = new ShardId("index", "_na_", 1);
+        Path indexDir = createShardIndexDir(shardId);
+
+        // Write an index
+        try (Directory dir = new NIOFSDirectory(indexDir)) {
+            IndexWriter writer = new IndexWriter(dir, newIndexWriterConfig());
+            Document doc = new Document();
+            doc.add(new StringField("id", "1", Field.Store.YES));
+            writer.addDocument(doc);
+            writer.commit();
+            writer.close();
+        }
+
+        AtomicInteger factoryCalls = new AtomicInteger(0);
+        IndexStorePlugin.DirectoryFactory trackingFactory = new IndexStorePlugin.DirectoryFactory() {
+            @Override
+            public Directory newDirectory(IndexSettings indexSettings, ShardPath shardPath) throws IOException {
+                factoryCalls.incrementAndGet();
+                return new NIOFSDirectory(shardPath.resolveIndex());
+            }
+
+            @Override
+            public Directory newFSDirectory(Path location, org.apache.lucene.store.LockFactory lockFactory, IndexSettings indexSettings)
+                throws IOException {
+                return new NIOFSDirectory(location, lockFactory);
+            }
+        };
+
+        // Should not throw — index is valid
+        Store.tryOpenIndex(indexDir, shardId, (id, l, d) -> new DummyShardLock(id), logger, trackingFactory, INDEX_SETTINGS);
+
+        assertEquals("DirectoryFactory should have been called once", 1, factoryCalls.get());
+    }
+
+    /**
+     * Tests that tryOpenIndex with null DirectoryFactory falls back to NIOFSDirectory.
+     */
+    public void testTryOpenIndexWithNullDirectoryFactory() throws Exception {
+        final ShardId shardId = new ShardId("index", "_na_", 1);
+        Path tempDir = createTempDir();
+
+        // Write an index
+        try (Directory dir = new NIOFSDirectory(tempDir)) {
+            IndexWriter writer = new IndexWriter(dir, newIndexWriterConfig());
+            Document doc = new Document();
+            doc.add(new StringField("id", "1", Field.Store.YES));
+            writer.addDocument(doc);
+            writer.commit();
+            writer.close();
+        }
+
+        // Should not throw with null factory
+        Store.tryOpenIndex(tempDir, shardId, (id, l, d) -> new DummyShardLock(id), logger, null, null);
+    }
+
+    /**
+     * Tests that readMetadataSnapshot with a DirectoryFactory that wraps content still reads metadata correctly.
+     * This simulates a plugin that transforms I/O (like encryption).
+     */
+    public void testReadMetadataSnapshotWithWrappingDirectoryFactory() throws IOException {
+        final ShardId shardId = new ShardId("index", "_na_", 1);
+        Path indexDir = createShardIndexDir(shardId);
+
+        // Write an index
+        try (Directory dir = new NIOFSDirectory(indexDir)) {
+            IndexWriter writer = new IndexWriter(dir, newIndexWriterConfig());
+            Document doc = new Document();
+            doc.add(new StringField("id", "1", Field.Store.YES));
+            writer.addDocument(doc);
+            writer.commit();
+            writer.close();
+        }
+
+        // Factory that wraps with FilterDirectory (simulates a plugin adding a layer)
+        IndexStorePlugin.DirectoryFactory wrappingFactory = new IndexStorePlugin.DirectoryFactory() {
+            @Override
+            public Directory newDirectory(IndexSettings indexSettings, ShardPath shardPath) throws IOException {
+                Directory inner = new NIOFSDirectory(shardPath.resolveIndex());
+                return new FilterDirectory(inner) {
+                };
+            }
+
+            @Override
+            public Directory newFSDirectory(Path location, org.apache.lucene.store.LockFactory lockFactory, IndexSettings indexSettings)
+                throws IOException {
+                return new NIOFSDirectory(location, lockFactory);
+            }
+        };
+
+        Store.MetadataSnapshot snapshot = Store.readMetadataSnapshot(
+            indexDir,
+            shardId,
+            (id, l, d) -> new DummyShardLock(id),
+            logger,
+            wrappingFactory,
+            INDEX_SETTINGS
+        );
+
+        assertNotEquals("Snapshot should not be empty with wrapping factory", Store.MetadataSnapshot.EMPTY, snapshot);
+        assertTrue("Snapshot should contain segment files", snapshot.size() > 0);
     }
 }

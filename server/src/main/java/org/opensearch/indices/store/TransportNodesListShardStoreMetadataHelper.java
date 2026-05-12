@@ -21,6 +21,7 @@ import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.env.NodeEnvironment;
+import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.seqno.ReplicationTracker;
@@ -30,6 +31,7 @@ import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.indices.IndicesService;
+import org.opensearch.plugins.IndexStorePlugin;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -108,11 +110,20 @@ public class TransportNodesListShardStoreMetadataHelper {
             // 1) a shard is being constructed, which means the cluster-manager will not use a copy of this replica
             // 2) A shard is shutting down and has not cleared it's content within lock timeout. In this case the cluster-manager may not
             // reuse local resources.
+            final IndexStorePlugin.DirectoryFactory directoryFactory = resolveDirectoryFactory(
+                shardId,
+                indicesService,
+                settings,
+                clusterService
+            );
+            final IndexSettings indexSettings = resolveIndexSettings(shardId, indicesService, settings, clusterService);
             final Store.MetadataSnapshot metadataSnapshot = Store.readMetadataSnapshot(
                 shardPath.resolveIndex(),
                 shardId,
                 nodeEnv::shardLock,
-                logger
+                logger,
+                directoryFactory,
+                indexSettings
             );
             // We use peer recovery retention leases from the primary for allocating replicas. We should always have retention leases when
             // we refresh shard info after the primary has started. Hence, we can ignore retention leases if there is no active shard.
@@ -125,6 +136,47 @@ public class TransportNodesListShardStoreMetadataHelper {
                 logger.trace("{} didn't find any store meta data to load (took [{}])", shardId, took);
             }
         }
+    }
+
+    /**
+     * Resolves the {@link IndexStorePlugin.DirectoryFactory} for the given shard's index.
+     * Returns null if the index uses the default store type.
+     */
+    private static IndexStorePlugin.DirectoryFactory resolveDirectoryFactory(
+        ShardId shardId,
+        IndicesService indicesService,
+        Settings settings,
+        ClusterService clusterService
+    ) {
+        IndexSettings indexSettings = resolveIndexSettings(shardId, indicesService, settings, clusterService);
+        if (indexSettings == null) {
+            return null;
+        }
+        String storeType = IndexModule.INDEX_STORE_TYPE_SETTING.get(indexSettings.getSettings());
+        if (storeType.isEmpty()) {
+            return null;
+        }
+        return indicesService.getDirectoryFactories().get(storeType);
+    }
+
+    /**
+     * Resolves the {@link IndexSettings} for the given shard's index.
+     */
+    private static IndexSettings resolveIndexSettings(
+        ShardId shardId,
+        IndicesService indicesService,
+        Settings settings,
+        ClusterService clusterService
+    ) {
+        IndexService indexService = indicesService.indexService(shardId.getIndex());
+        if (indexService != null) {
+            return indexService.getIndexSettings();
+        }
+        IndexMetadata metadata = clusterService.state().metadata().index(shardId.getIndex());
+        if (metadata != null) {
+            return new IndexSettings(metadata, settings);
+        }
+        return null;
     }
 
     /**
