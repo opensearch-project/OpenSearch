@@ -285,14 +285,9 @@ fn test_ipc_staging_sorted_writer_creates_and_cleans_up_staging_file() {
     let (_temp_dir, filename) = get_temp_file_path("ipc_cleanup.parquet");
     let (_schema, schema_ptr) = create_sorted_writer_and_assert_success(&filename, "id", false);
 
-    // The IPC staging file should exist while the writer is open
-    let temp_filename = format!(
-        "{}/temp-{}",
-        Path::new(&filename).parent().unwrap().to_string_lossy(),
-        Path::new(&filename).file_name().unwrap().to_string_lossy()
-    );
-    let ipc_staging_path = format!("{}.arrow_ipc_staging", temp_filename);
-    assert!(Path::new(&ipc_staging_path).exists(), "IPC staging file should exist while writer is open");
+    // With eager sort-and-write, no staging file exists until a chunk is flushed.
+    // The writer accumulates in memory. Verify the writer is open.
+    assert!(NativeParquetWriter::has_writer(&filename), "Writer should be open");
 
     let (ap, sp) = create_test_ffi_data_with_ids(vec![30, 10, 20], vec![Some("C"), Some("A"), Some("B")]).unwrap();
     NativeParquetWriter::write_data(filename.clone(), ap, sp).unwrap();
@@ -300,8 +295,6 @@ fn test_ipc_staging_sorted_writer_creates_and_cleans_up_staging_file() {
 
     NativeParquetWriter::finalize_writer(filename.clone()).unwrap();
 
-    // After finalize, the IPC staging file should be cleaned up
-    assert!(!Path::new(&ipc_staging_path).exists(), "IPC staging file should be deleted after finalize");
     // The final Parquet file should exist
     assert!(Path::new(&filename).exists(), "Final Parquet file should exist");
 

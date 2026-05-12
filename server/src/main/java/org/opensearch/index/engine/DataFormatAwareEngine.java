@@ -25,8 +25,11 @@ import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.queue.DefaultLockableHolder;
 import org.opensearch.common.queue.LockablePool;
+import org.opensearch.common.settings.Setting;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.common.util.concurrent.ReleasableLock;
+import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.index.AppendOnlyIndexOperationRetryException;
@@ -102,6 +105,10 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -194,6 +201,47 @@ public class DataFormatAwareEngine implements Indexer {
      * TODO: Remove this flag once merge implementations are complete for all data formats.
      */
     static final String MERGE_ENABLED_PROPERTY = "opensearch.pluggable.dataformat.merge.enabled";
+
+    /**
+     * Maximum number of threads used to flush writers in parallel during refresh.
+     * Defaults to half the available processors (min 1). Dynamically updatable.
+     */
+    public static final Setting<Integer> WRITER_FLUSH_THREADS_SETTING = Setting.intSetting(
+        "index.dataformat.writer_flush_threads",
+        Math.max(1, Runtime.getRuntime().availableProcessors() / 2),
+        1,
+        Setting.Property.IndexScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
+     * Node-level shared thread pool for parallel writer flush during refresh.
+     * Shared across all indices/shards on this node to avoid thread bloat.
+     */
+    private static volatile ExecutorService writerFlushExecutor;
+    private static final Object FLUSH_EXECUTOR_LOCK = new Object();
+
+    private static ExecutorService getOrCreateFlushExecutor(int maxThreads, ThreadContext threadContext) {
+        ExecutorService executor = writerFlushExecutor;
+        if (executor == null || executor.isShutdown()) {
+            synchronized (FLUSH_EXECUTOR_LOCK) {
+                executor = writerFlushExecutor;
+                if (executor == null || executor.isShutdown()) {
+                    executor = OpenSearchExecutors.newScaling(
+                        "opensearch[writer_flush]",
+                        1,
+                        maxThreads,
+                        60L,
+                        TimeUnit.SECONDS,
+                        OpenSearchExecutors.daemonThreadFactory("opensearch[writer_flush]"),
+                        threadContext
+                    );
+                    writerFlushExecutor = executor;
+                }
+            }
+        }
+        return executor;
+    }
 
     @Nullable
     private final String historyUUID;
@@ -534,7 +582,7 @@ public class DataFormatAwareEngine implements Indexer {
                     assert index.seqNo() >= 0 : "ops should have an assigned seq no.; origin: " + index.origin();
 
                     if (plan.executeOpOnEngine) {
-                        logger.debug(
+                        logger.trace(
                             "Indexing doc id=[{}] seqNo=[{}] primaryTerm=[{}] — writing to engine",
                             index.id(),
                             index.seqNo(),
@@ -744,6 +792,7 @@ public class DataFormatAwareEngine implements Indexer {
      */
     @Override
     public void refresh(String source) throws EngineException {
+        final long refreshStartNanos = System.nanoTime();
         final long localCheckpointBeforeRefresh = localCheckpointTracker.getProcessedCheckpoint();
         boolean refreshed = false;
         List<Closeable> toClose = new ArrayList<>();
@@ -757,9 +806,39 @@ public class DataFormatAwareEngine implements Indexer {
                         List<Segment> existingSegments = catalogSnapshot.get().getSegments();
                         List<Segment> newSegments = new ArrayList<>();
 
+                        final long flushAllStartNanos = System.nanoTime();
+                        int writerCount = writers.size();
+
+                        // Flush all writers in parallel — each writer's composite flush is independent
+                        // and I/O-bound, so parallelizing reduces total wall-clock time.
+                        int flushThreads = WRITER_FLUSH_THREADS_SETTING.get(engineConfig.getIndexSettings().getSettings());
+                        ExecutorService flushExecutor = getOrCreateFlushExecutor(
+                            flushThreads, engineConfig.getThreadPool().getThreadContext()
+                        );
+                        List<Future<ChildWriterFlushResult>> flushFutures = new ArrayList<>(writerCount);
                         for (var lockable : writers) {
                             Writer<?> writer = lockable.get();
-                            FileInfos fileInfos = writer.flush(FlushInput.EMPTY);
+                            flushFutures.add(flushExecutor.submit(() -> {
+                                final long writerFlushStartNanos = System.nanoTime();
+                                FileInfos fileInfos = writer.flush(FlushInput.EMPTY);
+                                final long writerFlushElapsedMs = TimeValue.nsecToMSec(System.nanoTime() - writerFlushStartNanos);
+                                return new ChildWriterFlushResult(writer, fileInfos, writerFlushElapsedMs);
+                            }));
+                        }
+
+                        // Wait for all flush tasks to complete and collect results.
+                        for (Future<ChildWriterFlushResult> future : flushFutures) {
+                            ChildWriterFlushResult childWriterFlushResult;
+                            try {
+                                childWriterFlushResult = future.get();
+                            } catch (ExecutionException e) {
+                                throw new IOException("Writer flush failed", e.getCause());
+                            } catch (InterruptedException e) {
+                                Thread.currentThread().interrupt();
+                                throw new IOException("Writer flush interrupted", e);
+                            }
+                            Writer<?> writer = childWriterFlushResult.writer;
+                            FileInfos fileInfos = childWriterFlushResult.fileInfos;
                             Segment.Builder segmentBuilder = Segment.builder(writer.generation());
                             boolean hasFiles = false;
                             for (Map.Entry<DataFormat, WriterFileSet> entry : fileInfos.writerFilesMap().entrySet()) {
@@ -772,13 +851,27 @@ public class DataFormatAwareEngine implements Indexer {
                                 segmentBuilder.addSearchableFiles(entry.getKey(), entry.getValue());
                                 hasFiles = true;
                             }
+                            logger.debug(
+                                "refresh[{}]: writer gen={} flush took [{}ms] hasFiles={}",
+                                source,
+                                writer.generation(),
+                                childWriterFlushResult.elapsedMs,
+                                hasFiles
+                            );
                             toClose.add(writer);
                             if (hasFiles) {
                                 newSegments.add(segmentBuilder.build());
                             }
                             refreshed |= hasFiles;
                         }
-                        logger.debug("Produced {} new segments from flush", newSegments.size());
+                        final long flushAllElapsedMs = TimeValue.nsecToMSec(System.nanoTime() - flushAllStartNanos);
+                        logger.debug(
+                            "refresh[{}]: flushed {} writers producing {} new segments in [{}ms]",
+                            source,
+                            writerCount,
+                            newSegments.size(),
+                            flushAllElapsedMs
+                        );
                         // Every new segment must contain files from at least one data format
                         assert newSegments.stream().allMatch(s -> s.dfGroupedSearchableFiles().isEmpty() == false)
                             : "new segments must have at least one format's files";
@@ -795,8 +888,19 @@ public class DataFormatAwareEngine implements Indexer {
                         // refresh only if new segments have been created or force param is true
                         notifyRefreshListenersBefore();
                         if (refreshed) {
+                            final long engineRefreshStartNanos = System.nanoTime();
                             RefreshInput refreshInput = new RefreshInput(existingSegments, newSegments);
                             RefreshResult result = indexingExecutionEngine.refresh(refreshInput);
+                            final long engineRefreshElapsedMs = TimeValue.nsecToMSec(System.nanoTime() - engineRefreshStartNanos);
+                            logger.debug(
+                                "refresh[{}]: indexingExecutionEngine.refresh took [{}ms] "
+                                    + "existingSegments={} newSegments={} resultSegments={}",
+                                source,
+                                engineRefreshElapsedMs,
+                                existingSegments.size(),
+                                newSegments.size(),
+                                result.refreshedSegments().size()
+                            );
                             // Refresh result must contain at least as many segments as existed before (existing + new)
                             assert result.refreshedSegments().size() >= existingSegments.size()
                                 : "refresh must not lose existing segments; had "
@@ -804,7 +908,10 @@ public class DataFormatAwareEngine implements Indexer {
                                     + " but got "
                                     + result.refreshedSegments().size();
 
+                            final long commitStartNanos = System.nanoTime();
                             catalogSnapshotManager.commitNewSnapshot(result.refreshedSegments());
+                            final long commitElapsedMs = TimeValue.nsecToMSec(System.nanoTime() - commitStartNanos);
+                            logger.debug("refresh[{}]: catalogSnapshot commit took [{}ms]", source, commitElapsedMs);
                         }
                         notifyRefreshListenersAfter(refreshed);
                     } finally {
@@ -830,6 +937,8 @@ public class DataFormatAwareEngine implements Indexer {
             }
             throw new RefreshFailedEngineException(shardId, ex);
         }
+        final long totalRefreshElapsedMs = TimeValue.nsecToMSec(System.nanoTime() - refreshStartNanos);
+        logger.info("refresh[{}]: total time to make documents searchable [{}ms] refreshed={}", source, totalRefreshElapsedMs, refreshed);
     }
 
     private void notifyRefreshListenersBefore() throws IOException {
@@ -1500,6 +1609,21 @@ public class DataFormatAwareEngine implements Indexer {
 
     private long currentMappingVersion() {
         return engineConfig.getMapperService().getIndexSettings().getIndexMetadata().getMappingVersion();
+    }
+
+    /**
+     * Holds the result of a parallel writer flush operation.
+     */
+    private static final class ChildWriterFlushResult {
+        final Writer<?> writer;
+        final FileInfos fileInfos;
+        final long elapsedMs;
+
+        ChildWriterFlushResult(Writer<?> writer, FileInfos fileInfos, long elapsedMs) {
+            this.writer = writer;
+            this.fileInfos = fileInfos;
+            this.elapsedMs = elapsedMs;
+        }
     }
 
     private boolean failOnTragicEvent(AlreadyClosedException ex) {

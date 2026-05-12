@@ -23,7 +23,7 @@ public final class ParquetSettings {
     private ParquetSettings() {}
 
     public static final String DEFAULT_MAX_NATIVE_ALLOCATION = "10%";
-    public static final int DEFAULT_MAX_ROWS_PER_VSR = 50000;
+    public static final int DEFAULT_MAX_ROWS_PER_VSR = 65536;
 
     /** Group setting prefix for all Parquet settings. */
     public static final Setting<Settings> PARQUET_SETTINGS = Setting.groupSetting("index.parquet.", Setting.Property.IndexScope);
