@@ -70,6 +70,21 @@ final class RustUdfDateTimeAdapters {
         }
     }
 
+    // DAYNAME(x) → date_format(x, '%W'). %W renders full weekday name (e.g. "Monday")
+    // via mysql_format::weekday_full — matches legacy PPL DAYNAME semantics.
+    static final class DaynameAdapter extends AbstractNameMappingAdapter {
+        DaynameAdapter() {
+            super(LOCAL_DATE_FORMAT_OP, List.of(), List.of("%W"));
+        }
+    }
+
+    // MONTHNAME(x) → date_format(x, '%M'). %M renders full month name (e.g. "September").
+    static final class MonthnameAdapter extends AbstractNameMappingAdapter {
+        MonthnameAdapter() {
+            super(LOCAL_DATE_FORMAT_OP, List.of(), List.of("%M"));
+        }
+    }
+
     static final class TimeFormatAdapter extends AbstractNameMappingAdapter {
         TimeFormatAdapter() {
             super(LOCAL_TIME_FORMAT_OP, List.of(), List.of());

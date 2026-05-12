@@ -184,6 +184,12 @@ public enum ScalarFunction {
     DATE_FORMAT(Category.SCALAR, SqlKind.OTHER_FUNCTION),
     TIME_FORMAT(Category.SCALAR, SqlKind.OTHER_FUNCTION),
     STR_TO_DATE(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    UTC_DATE(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    UTC_TIME(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    UTC_TIMESTAMP(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    DAYNAME(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    MONTHNAME(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    MINUTE_OF_DAY(Category.SCALAR, SqlKind.OTHER_FUNCTION),
 
     // ── JSON ────────────────────────────────────────────────────────
     JSON_APPEND(Category.SCALAR, SqlKind.OTHER_FUNCTION),
