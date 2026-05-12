@@ -271,7 +271,7 @@ pub async fn execute_with_context(
             .infer_schema(&handle.ctx.state(), &handle.table_path)
             .await?;
 
-        // Build ShardFileInfo with cumulative row_base
+        // Build ShardFileInfo with cumulative row_base from parquet metadata.
         let mut files: Vec<ShardFile> = Vec::new();
         let mut cumulative_rows: i64 = 0;
         for meta in handle.object_metas.iter() {
@@ -281,16 +281,17 @@ pub async fn execute_with_context(
             let builder = datafusion::parquet::arrow::ParquetRecordBatchStreamBuilder::new(reader)
                 .await
                 .map_err(|e| DataFusionError::Execution(format!("parquet metadata: {}", e)))?;
-            let num_rows: i64 = (0..builder.metadata().num_row_groups())
-                .map(|i| builder.metadata().row_group(i).num_rows())
+            let pq_meta = builder.metadata().clone();
+            let num_rows: i64 = (0..pq_meta.num_row_groups())
+                .map(|i| pq_meta.row_group(i).num_rows())
                 .sum();
 
             files.push(ShardFile {
                 object_meta: meta.clone(),
                 row_base: cumulative_rows,
                 num_rows: num_rows as u64,
-                row_group_row_counts: (0..builder.metadata().num_row_groups())
-                    .map(|i| builder.metadata().row_group(i).num_rows() as u64)
+                row_group_row_counts: (0..pq_meta.num_row_groups())
+                    .map(|i| pq_meta.row_group(i).num_rows() as u64)
                     .collect(),
             });
             cumulative_rows += num_rows;
