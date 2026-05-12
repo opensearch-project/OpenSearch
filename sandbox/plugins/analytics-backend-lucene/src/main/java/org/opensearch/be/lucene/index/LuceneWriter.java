@@ -17,6 +17,7 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
+import org.apache.lucene.search.Sort;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.MMapDirectory;
 import org.opensearch.be.lucene.LuceneDataFormat;
@@ -80,10 +81,18 @@ public class LuceneWriter implements Writer<LuceneDocumentInput> {
      * @param dataFormat       the Lucene data format descriptor
      * @param baseDirectory    the base directory under which to create the temp directory
      * @param analyzer         the analyzer to use for tokenized fields, or null for default
+     * @param codec            the codec to use, or null for default
+     * @param indexSort        the index sort to apply to segments, or null for no sort
      * @throws IOException if directory creation or IndexWriter opening fails
      */
-    public LuceneWriter(long writerGeneration, LuceneDataFormat dataFormat, Path baseDirectory, Analyzer analyzer, Codec codec)
-        throws IOException {
+    public LuceneWriter(
+        long writerGeneration,
+        LuceneDataFormat dataFormat,
+        Path baseDirectory,
+        Analyzer analyzer,
+        Codec codec,
+        Sort indexSort
+    ) throws IOException {
         this.writerGeneration = writerGeneration;
         this.dataFormat = dataFormat;
         this.docCount = 0;
@@ -97,6 +106,9 @@ public class LuceneWriter implements Writer<LuceneDocumentInput> {
         IndexWriterConfig iwc = analyzer != null ? new IndexWriterConfig(analyzer) : new IndexWriterConfig();
         iwc.setOpenMode(IndexWriterConfig.OpenMode.CREATE);
         iwc.setRAMBufferSizeMB(RAM_BUFFER_SIZE_MB);
+        if (indexSort != null) {
+            iwc.setIndexSort(indexSort);
+        }
 
         iwc.setCodec(new LuceneWriterCodec(codec, writerGeneration));
         this.indexWriter = new IndexWriter(directory, iwc);

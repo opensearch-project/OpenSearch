@@ -20,6 +20,7 @@ import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.Schema;
 import org.opensearch.analytics.backend.EngineResultBatch;
 import org.opensearch.analytics.backend.EngineResultStream;
+import org.opensearch.analytics.exec.ArrowValues;
 import org.opensearch.be.datafusion.nativelib.NativeBridge;
 import org.opensearch.be.datafusion.nativelib.StreamHandle;
 import org.opensearch.common.annotation.ExperimentalApi;
@@ -88,6 +89,15 @@ public class DatafusionResultStream implements EngineResultStream {
         private Schema schema;
         private VectorSchemaRoot nextBatch;
         private Boolean nextAvailable;
+        // True once we've returned at least one batch (real or synthesized). Prevents the
+        // "zero batches produced" rescue below from re-firing on subsequent polls.
+        private boolean batchEmitted;
+        // True once the native stream has yielded EOS (arrayAddr == 0). Combined with
+        // batchEmitted, it lets us synthesize exactly one schema-carrying empty batch when
+        // the native side produced nothing — so downstream Arrow Flight (or any other
+        // transport that relies on the first data frame to deliver the schema) still sees
+        // the column layout.
+        private boolean nativeStreamExhausted;
 
         BatchIterator(StreamHandle streamHandle, BufferAllocator allocator, CDataDictionaryProvider dictionaryProvider) {
             this.streamHandle = streamHandle;
@@ -109,15 +119,36 @@ public class DatafusionResultStream implements EngineResultStream {
 
         private boolean loadNextBatch() {
             ensureSchema();
+            // Once the native stream has reported EOS, never poll again and never
+            // re-synthesize an empty batch. See the synthesize branch below.
+            if (nativeStreamExhausted) return false;
+
             long arrayAddr = callNativeFn(
                 listener -> NativeBridge.streamNext(streamHandle.getRuntimeHandle().get(), streamHandle.getPointer(), listener)
             );
-            if (arrayAddr == 0) return false;
+
+            if (arrayAddr == 0) {
+                nativeStreamExhausted = true;
+                // Native source had zero batches — synthesize one zero-row batch so the
+                // schema rides on the first (and only) Flight data frame. Without this the
+                // wire stream is schema-less and any downstream that relies on the schema
+                // (coordinator StreamingTableExec, row-path schema introspection) fails
+                // with cryptic errors such as "project index 0 out of bounds, max field 0".
+                if (!batchEmitted) {
+                    nextBatch = VectorSchemaRoot.create(schema, allocator);
+                    nextBatch.setRowCount(0);
+                    batchEmitted = true;
+                    return true;
+                }
+                return false;
+            }
+
             VectorSchemaRoot freshRoot = VectorSchemaRoot.create(schema, allocator);
             try (ArrowArray arrowArray = ArrowArray.wrap(arrayAddr)) {
                 Data.importIntoVectorSchemaRoot(allocator, arrowArray, freshRoot, dictionaryProvider);
             }
             nextBatch = freshRoot;
+            batchEmitted = true;
             return true;
         }
 
@@ -200,7 +231,7 @@ public class DatafusionResultStream implements EngineResultStream {
             if (vector == null) {
                 throw new IllegalArgumentException("Unknown field: " + fieldName);
             }
-            return vector.getObject(rowIndex);
+            return ArrowValues.toJavaValue(vector, rowIndex);
         }
     }
 }

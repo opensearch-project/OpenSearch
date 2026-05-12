@@ -18,6 +18,9 @@ import org.opensearch.be.datafusion.nativelib.NativeBridge;
 import org.opensearch.be.datafusion.nativelib.SessionContextHandle;
 import org.opensearch.index.engine.dataformat.DataFormatRegistry;
 
+import java.lang.foreign.Arena;
+import java.lang.foreign.MemorySegment;
+
 /**
  * Handles ShardScanWithDelegation instruction: creates a SessionContext via FFM
  * configured for indexed execution — registers the delegated_predicate UDF and
@@ -57,17 +60,20 @@ public class ShardScanWithDelegationHandler implements FragmentInstructionHandle
         FilterTreeShape treeShape = node.getTreeShape();
         int delegatedPredicateCount = node.getDelegatedPredicateCount();
 
-        // Single FFM call: creates SessionContext + registers delegated_predicate UDF +
-        // configures IndexedTableProvider with treeShape and delegatedPredicateCount
-        SessionContextHandle sessionCtxHandle = NativeBridge.createSessionContextForIndexedExecution(
-            readerPtr,
-            runtimePtr,
-            context.getTableName(),
-            contextId,
-            treeShape.ordinal(),
-            delegatedPredicateCount
-        );
-
-        return new DataFusionSessionState(sessionCtxHandle);
+        WireConfigSnapshot snapshot = plugin.getDatafusionSettings().getSnapshot();
+        try (Arena arena = Arena.ofConfined()) {
+            MemorySegment segment = arena.allocate(WireConfigSnapshot.BYTE_SIZE);
+            snapshot.writeTo(segment);
+            SessionContextHandle sessionCtxHandle = NativeBridge.createSessionContextForIndexedExecution(
+                readerPtr,
+                runtimePtr,
+                context.getTableName(),
+                contextId,
+                treeShape.ordinal(),
+                delegatedPredicateCount,
+                segment.address()
+            );
+            return new DataFusionSessionState(sessionCtxHandle);
+        }
     }
 }

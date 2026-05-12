@@ -357,12 +357,18 @@ async fn assert_engine_matches_reference_null(name: &str, tree: NT) {
                 max_collector_parallelism: 1,
                 pruning_predicates: std::sync::Arc::new(std::collections::HashMap::new()),
                 page_prune_metrics: None,
-                    collector_strategy: crate::indexed_table::eval::CollectorCallStrategy::TightenOuterBounds,
+                collector_strategy:
+                    crate::indexed_table::eval::CollectorCallStrategy::TightenOuterBounds,
             });
             Ok(eval)
         })
     };
 
+    let qc = crate::datafusion_query_config::DatafusionQueryConfig::builder()
+        .target_partitions(1)
+        .force_strategy(Some(FilterStrategy::BooleanMask))
+        .force_pushdown(Some(false))
+        .build();
     let provider = Arc::new(IndexedTableProvider::new(IndexedTableConfig {
         schema: schema.clone(),
         segments: vec![segment],
@@ -370,13 +376,8 @@ async fn assert_engine_matches_reference_null(name: &str, tree: NT) {
             as Arc<dyn object_store::ObjectStore>,
         store_url: datafusion::execution::object_store::ObjectStoreUrl::local_filesystem(),
         evaluator_factory: factory,
-        target_partitions: 1,
-        force_strategy: Some(FilterStrategy::BooleanMask),
-        force_pushdown: Some(false),
         pushdown_predicate: None,
-        query_config: std::sync::Arc::new(
-            crate::datafusion_query_config::DatafusionQueryConfig::default(),
-        ),
+        query_config: std::sync::Arc::new(qc),
         predicate_columns: vec![],
     }));
     let ctx = SessionContext::new();

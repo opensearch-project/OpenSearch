@@ -120,6 +120,11 @@ async fn run_missing_col_tree(tree_bool: BoolNode) -> usize {
             Ok(eval)
         })
     };
+    let qc = crate::datafusion_query_config::DatafusionQueryConfig::builder()
+        .target_partitions(1)
+        .force_strategy(Some(FilterStrategy::BooleanMask))
+        .force_pushdown(Some(false))
+        .build();
     let provider = Arc::new(IndexedTableProvider::new(IndexedTableConfig {
         schema: schema.clone(),
         segments: vec![segment],
@@ -127,13 +132,8 @@ async fn run_missing_col_tree(tree_bool: BoolNode) -> usize {
             as Arc<dyn object_store::ObjectStore>,
         store_url: datafusion::execution::object_store::ObjectStoreUrl::local_filesystem(),
         evaluator_factory: factory,
-        target_partitions: 1,
-        force_strategy: Some(FilterStrategy::BooleanMask),
-        force_pushdown: Some(false),
         pushdown_predicate: None,
-        query_config: std::sync::Arc::new(
-            crate::datafusion_query_config::DatafusionQueryConfig::default(),
-        ),
+        query_config: std::sync::Arc::new(qc),
         predicate_columns: vec![],
     }));
     let ctx = SessionContext::new();

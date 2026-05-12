@@ -21,6 +21,8 @@ import org.opensearch.be.datafusion.nativelib.StreamHandle;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.test.OpenSearchTestCase;
 
+import java.lang.foreign.Arena;
+import java.lang.foreign.MemorySegment;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -38,6 +40,8 @@ public class DataFusionQueryExecutionTests extends OpenSearchTestCase {
 
     private NativeRuntimeHandle runtimeHandle;
     private ReaderHandle readerHandle;
+    private Arena configArena;
+    private long queryConfigPtr;
 
     @Override
     public void setUp() throws Exception {
@@ -52,10 +56,16 @@ public class DataFusionQueryExecutionTests extends OpenSearchTestCase {
         Path testParquet = Path.of(getClass().getClassLoader().getResource("test.parquet").toURI());
         Files.copy(testParquet, dataDir.resolve("test.parquet"));
         readerHandle = new ReaderHandle(dataDir.toString(), new String[] { "test.parquet" });
+
+        configArena = Arena.ofConfined();
+        MemorySegment configSegment = configArena.allocate(WireConfigSnapshot.BYTE_SIZE);
+        WireConfigSnapshot.builder().build().writeTo(configSegment);
+        queryConfigPtr = configSegment.address();
     }
 
     @Override
     public void tearDown() throws Exception {
+        configArena.close();
         readerHandle.close();
         runtimeHandle.close();
         super.tearDown();
@@ -103,7 +113,7 @@ public class DataFusionQueryExecutionTests extends OpenSearchTestCase {
                 substraitBytes,
                 runtimeHandle.get(),
                 0L,
-                0L,
+                queryConfigPtr,
                 listener
             )
         );

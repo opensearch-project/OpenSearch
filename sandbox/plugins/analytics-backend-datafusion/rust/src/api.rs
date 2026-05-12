@@ -134,6 +134,17 @@ pub struct DataFusionRuntime {
     pub(crate) dynamic_limit_handle: DynamicLimitHandle,
 }
 
+impl DataFusionRuntime {
+    pub fn new_for_bench(runtime_env: datafusion::execution::runtime_env::RuntimeEnv) -> Self {
+        let (_pool, handle) = DynamicLimitPool::new(0);
+        Self {
+            runtime_env,
+            custom_cache_manager: None,
+            dynamic_limit_handle: handle,
+        }
+    }
+}
+
 /// Opaque shard view handle returned to the caller.
 pub struct ShardView {
     pub table_path: ListingTableUrl,
@@ -313,14 +324,13 @@ pub async unsafe fn execute_query(
     // Register cancellation token.
     let token = query_tracker::get_cancellation_token(context_id);
 
-    let query_future = async {
+    let query_future = async move {
         if is_indexed {
             let qc = Arc::new(query_config);
             crate::indexed_executor::execute_indexed_query(
                 plan_bytes.to_vec(),
                 table_name.to_string(),
                 shard_view,
-                qc.target_partitions.max(1),
                 runtime,
                 cpu_executor,
                 query_memory_pool,

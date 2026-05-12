@@ -18,6 +18,7 @@ members = [
 # Arrow / Parquet
 arrow = { version = "57.3.0", features = ["ffi"] }
 arrow-array = "57.3.0"
+arrow-ipc = "57.3.0"
 arrow-schema = "57.3.0"
 arrow-buffer = "57.3.0"
 parquet = "57.3.0"
@@ -70,6 +71,7 @@ thiserror = "1.0"
 async-trait = "0.1"
 bytes = "1"
 criterion = { version = "0.5", features = ["async_tokio"] }
+tokio-metrics = { version = "0.5", features = ["rt"] }
 
 # Internal
 native-bridge-common = { path = "common" }

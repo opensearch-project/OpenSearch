@@ -16,6 +16,8 @@ import org.opensearch.be.datafusion.nativelib.ReaderHandle;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.test.OpenSearchTestCase;
 
+import java.lang.foreign.Arena;
+import java.lang.foreign.MemorySegment;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Iterator;
@@ -31,6 +33,8 @@ public class DatafusionResultStreamTests extends OpenSearchTestCase {
     private ReaderHandle readerHandle;
     private NativeRuntimeHandle runtimeHandle;
     private RootAllocator testRootAllocator;
+    private Arena configArena;
+    private long queryConfigPtr;
     private final java.util.List<BufferAllocator> allocatorsToClose = new java.util.ArrayList<>();
 
     @Override
@@ -46,10 +50,16 @@ public class DatafusionResultStreamTests extends OpenSearchTestCase {
         Path testParquet = Path.of(getClass().getClassLoader().getResource("test.parquet").toURI());
         Files.copy(testParquet, dataDir.resolve("test.parquet"));
         readerHandle = new ReaderHandle(dataDir.toString(), new String[] { "test.parquet" });
+
+        configArena = Arena.ofConfined();
+        MemorySegment configSegment = configArena.allocate(WireConfigSnapshot.BYTE_SIZE);
+        WireConfigSnapshot.builder().build().writeTo(configSegment);
+        queryConfigPtr = configSegment.address();
     }
 
     @Override
     public void tearDown() throws Exception {
+        configArena.close();
         readerHandle.close();
         runtimeHandle.close();
         // Caller owns child allocators now (see DatafusionResultStream.close javadoc).
@@ -116,7 +126,17 @@ public class DatafusionResultStreamTests extends OpenSearchTestCase {
     public void testNextOnExhaustedStreamThrows() throws Exception {
         try (DatafusionResultStream stream = createStream("SELECT message FROM test_table WHERE message > 999")) {
             Iterator<EngineResultBatch> it = stream.iterator();
-            assertFalse(it.hasNext());
+            // Empty results still emit one zero-row batch carrying the declared schema so
+            // downstream transports (Flight, row-path) see the column layout on the first
+            // data frame. Consume it, then the iterator is genuinely exhausted.
+            assertTrue("empty result emits a schema-carrying zero-row batch", it.hasNext());
+            EngineResultBatch schemaOnly = it.next();
+            try {
+                assertEquals("synthesized batch has zero rows", 0, schemaOnly.getRowCount());
+            } finally {
+                schemaOnly.getArrowRoot().close();
+            }
+            assertFalse("no further batches after the schema-only emit", it.hasNext());
             expectThrows(NoSuchElementException.class, it::next);
         }
     }
@@ -171,7 +191,7 @@ public class DatafusionResultStreamTests extends OpenSearchTestCase {
             new byte[] { 0, 1, 2 },
             runtimeHandle.get(),
             0L,
-            0L,
+            queryConfigPtr,
             new ActionListener<>() {
                 @Override
                 public void onResponse(Long ptr) {
@@ -214,7 +234,7 @@ public class DatafusionResultStreamTests extends OpenSearchTestCase {
             substrait,
             tempRuntime.get(),
             0L,
-            0L,
+            queryConfigPtr,
             new ActionListener<>() {
                 @Override
                 public void onResponse(Long p) {
@@ -267,7 +287,7 @@ public class DatafusionResultStreamTests extends OpenSearchTestCase {
             substrait,
             runtimeHandle.get(),
             0L,
-            0L,
+            queryConfigPtr,
             new ActionListener<>() {
                 @Override
                 public void onResponse(Long ptr) {
