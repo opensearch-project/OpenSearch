@@ -330,7 +330,14 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         ScalarFunction.SPAN_BUCKET,
         ScalarFunction.WIDTH_BUCKET,
         ScalarFunction.MINSPAN_BUCKET,
-        ScalarFunction.RANGE_BUCKET
+        ScalarFunction.RANGE_BUCKET,
+        // PPL `TIMESTAMPDIFF(unit, t1, t2)` / `TIMESTAMPADD(unit, n, t)` — lowering target for
+        // timechart's `per_*` aggregations (per_second / per_minute / per_hour / per_day),
+        // which expand to {@code DIVIDE(agg * scale, TIMESTAMPDIFF('MILLISECOND', @timestamp,
+        // TIMESTAMPADD('MINUTE', 1, @timestamp)))}. Both PPL UDFs are unknown to isthmus's
+        // default catalog, so adapters rewrite to DF-native interval arithmetic.
+        ScalarFunction.TIMESTAMPDIFF,
+        ScalarFunction.TIMESTAMPADD
     );
 
     /**
