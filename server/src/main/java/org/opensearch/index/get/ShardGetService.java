@@ -236,8 +236,8 @@ public final class ShardGetService extends AbstractIndexShardComponent {
             if (get == null || get.exists() == false) {
                 return new GetResult(shardId.getIndexName(), id, UNASSIGNED_SEQ_NO, UNASSIGNED_PRIMARY_TERM, -1, false, null, null, null);
             }
-            if (get instanceof Engine.PreMaterializedGetResult) {
-                return buildFromLookup(((Engine.PreMaterializedGetResult) get).lookup(), fetchSourceContext);
+            if (get instanceof DocumentLookupResult.PreMaterialized) {
+                return buildFromLookup(((DocumentLookupResult.PreMaterialized) get).lookup(), fetchSourceContext);
             }
             // break between having loaded it from translog (so we only have _source), and having a document to load
             return innerGetLoadFromStoredFields(id, gFields, fetchSourceContext, get, mapperService);

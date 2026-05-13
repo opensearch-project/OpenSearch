@@ -1545,23 +1545,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
         try {
             DocumentLookupResult lookup = indexer.getById(get);
-            return adaptToEngineGetResult(lookup);
+            if (lookup == null || lookup.exists() == false) {
+                return GetResult.NOT_EXISTS;
+            }
+            return lookup.toGetResult();
         } catch (IOException e) {
             throw new OpenSearchException("get-by-id via pluggable path failed for id [" + get.id() + "]", e);
         }
-    }
-
-    /**
-     * Adapts a {@link DocumentLookupResult} to an {@link Engine.GetResult} for the non-Lucene
-     * get-by-id path. {@link ShardGetService} detects the {@link Engine.PreMaterializedGetResult}
-     * shape and reads source/fields from the wrapped {@code DocumentLookupResult} instead of
-     * from stored fields.
-     */
-    private static Engine.GetResult adaptToEngineGetResult(DocumentLookupResult lookup) {
-        if (lookup == null || lookup.exists() == false) {
-            return GetResult.NOT_EXISTS;
-        }
-        return new Engine.PreMaterializedGetResult(lookup);
     }
 
     /**

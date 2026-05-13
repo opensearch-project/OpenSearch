@@ -12,7 +12,9 @@ import org.opensearch.common.Nullable;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.document.DocumentField;
 import org.opensearch.common.lucene.uid.Versions;
+import org.opensearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndVersion;
 import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.index.engine.Engine;
 
 import java.util.Map;
 import java.util.Objects;
@@ -95,6 +97,55 @@ public final class DocumentLookupResult {
 
     public Map<String, DocumentField> metadataFields() {
         return metadataFields;
+    }
+
+    /**
+     * Wraps this lookup as an {@link Engine.GetResult} so {@link ShardGetService} can
+     * resolve a non-Lucene get-by-id through the same {@code IndexShard.get(Engine.Get)}
+     * return type as the stored-fields path. {@link ShardGetService} detects the
+     * {@link PreMaterialized} shape and skips the Lucene stored-fields load.
+     *
+     * <p>The synthesized {@link DocIdAndVersion} carries the lookup's version / seqNo /
+     * primaryTerm; its {@code reader} and {@code docId} are {@code null}/{@code -1} and
+     * must not be dereferenced — {@code ShardGetService} only reads them on the
+     * stored-fields path, which is skipped for the pre-materialized case.
+     */
+    public Engine.GetResult toGetResult() {
+        return new PreMaterialized(this);
+    }
+
+    /**
+     * Marker {@link Engine.GetResult} carrying a {@link DocumentLookupResult}. Constructed
+     * via {@link DocumentLookupResult#toGetResult()}; detected in {@link ShardGetService}
+     * via {@code instanceof} so the pluggable get-by-id path can materialize source/fields
+     * from the lookup instead of the Lucene stored-fields visitor.
+     */
+    public static final class PreMaterialized extends Engine.GetResult {
+        private final DocumentLookupResult lookup;
+
+        private PreMaterialized(DocumentLookupResult lookup) {
+            super(null, new DocIdAndVersion(-1, lookup.version, lookup.seqNo, lookup.primaryTerm, null, 0), false);
+            this.lookup = lookup;
+        }
+
+        public DocumentLookupResult lookup() {
+            return lookup;
+        }
+
+        @Override
+        public boolean exists() {
+            return lookup.exists;
+        }
+
+        @Override
+        public long version() {
+            return lookup.version;
+        }
+
+        @Override
+        public void close() {
+            // no searcher to release
+        }
     }
 
     @Override
