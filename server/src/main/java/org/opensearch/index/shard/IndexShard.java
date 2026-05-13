@@ -154,6 +154,7 @@ import org.opensearch.index.engine.exec.coord.SegmentInfosCatalogSnapshot;
 import org.opensearch.index.fielddata.FieldDataStats;
 import org.opensearch.index.fielddata.ShardFieldData;
 import org.opensearch.index.flush.FlushStats;
+import org.opensearch.index.get.DocumentLookupResult;
 import org.opensearch.index.get.GetStats;
 import org.opensearch.index.get.ShardGetService;
 import org.opensearch.index.mapper.DocumentMapper;
@@ -1538,7 +1539,29 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         if (mapper == null) {
             return GetResult.NOT_EXISTS;
         }
-        return applyOnEngine(getIndexer(), engine -> engine.get(get, this::acquireSearcher));
+        Indexer indexer = getIndexer();
+        if (indexer instanceof EngineBackedIndexer) {
+            return applyOnEngine(indexer, engine -> engine.get(get, this::acquireSearcher));
+        }
+        try {
+            DocumentLookupResult lookup = indexer.getById(get);
+            return adaptToEngineGetResult(lookup);
+        } catch (IOException e) {
+            throw new OpenSearchException("get-by-id via pluggable path failed for id [" + get.id() + "]", e);
+        }
+    }
+
+    /**
+     * Adapts a {@link DocumentLookupResult} to an {@link Engine.GetResult} for the non-Lucene
+     * get-by-id path. {@link ShardGetService} detects the {@link Engine.PreMaterializedGetResult}
+     * shape and reads source/fields from the wrapped {@code DocumentLookupResult} instead of
+     * from stored fields.
+     */
+    private static Engine.GetResult adaptToEngineGetResult(DocumentLookupResult lookup) {
+        if (lookup == null || lookup.exists() == false) {
+            return GetResult.NOT_EXISTS;
+        }
+        return new Engine.PreMaterializedGetResult(lookup);
     }
 
     /**

@@ -98,6 +98,7 @@ import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.TranslogDeletionPolicy;
 import org.opensearch.index.translog.TranslogManager;
 import org.opensearch.indices.pollingingest.PollingIngestStats;
+import org.opensearch.plugins.DocumentLookupProvider;
 import org.opensearch.search.suggest.completion.CompletionStats;
 
 import java.io.Closeable;
@@ -2069,6 +2070,54 @@ public abstract class Engine implements LifecycleAware, Closeable {
         @Override
         public void close() {
             Releasables.close(searcher);
+        }
+    }
+
+    /**
+     * Searcher-less GetResult produced by non-Lucene get-by-id paths
+     * (see {@link DocumentLookupProvider}). Wraps a
+     * {@link org.opensearch.index.get.DocumentLookupResult} so downstream
+     * consumers can materialize source/fields without a Lucene reader.
+     *
+     * @opensearch.experimental
+     */
+    @PublicApi(since = "3.0.0")
+    public static class PreMaterializedGetResult extends GetResult {
+        private final org.opensearch.index.get.DocumentLookupResult lookup;
+
+        public PreMaterializedGetResult(org.opensearch.index.get.DocumentLookupResult lookup) {
+            super(lookup != null && lookup.exists(), lookup == null ? Versions.NOT_FOUND : lookup.version(), null, null, false);
+            this.lookup = lookup;
+        }
+
+        public org.opensearch.index.get.DocumentLookupResult lookup() {
+            return lookup;
+        }
+
+        @Override
+        public boolean exists() {
+            return lookup != null && lookup.exists();
+        }
+
+        @Override
+        public long version() {
+            return lookup == null ? Versions.NOT_FOUND : lookup.version();
+        }
+
+        @Override
+        public Engine.Searcher searcher() {
+            return null;
+        }
+
+        @Override
+        public DocIdAndVersion docIdAndVersion() {
+            return null;
+        }
+
+        @Override
+        public void close() {
+            // searcher is always null; parent's Releasables.close(null) is safe, but
+            // we override to make the no-op explicit against future parent changes.
         }
     }
 

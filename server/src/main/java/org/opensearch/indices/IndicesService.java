@@ -172,6 +172,7 @@ import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.ingest.IngestService;
 import org.opensearch.node.Node;
 import org.opensearch.node.remotestore.RemoteStoreNodeAttribute;
+import org.opensearch.plugins.DocumentLookupProvider;
 import org.opensearch.plugins.IndexStorePlugin;
 import org.opensearch.plugins.PluginsService;
 import org.opensearch.repositories.RepositoriesService;
@@ -1246,10 +1247,23 @@ public class IndicesService extends AbstractLifecycleComponent
 
     private IndexerFactory getIndexerFactory(final IndexSettings idxSettings) {
         if (idxSettings.isPluggableDataFormatEnabled()) {
-            return new DataFormatAwareIndexerFactory();
+            DataFormatAwareIndexerFactory factory = new DataFormatAwareIndexerFactory();
+            factory.setGetByIdPlugin(resolveGetByIdPlugin());
+            return factory;
         } else {
             return new EngineBackedIndexerFactory(getEngineFactory(idxSettings));
         }
+    }
+
+    private DocumentLookupProvider resolveGetByIdPlugin() {
+        List<DocumentLookupProvider> plugins = pluginsService.filterPlugins(DocumentLookupProvider.class);
+        if (plugins.isEmpty()) {
+            return null;
+        }
+        if (plugins.size() > 1) {
+            throw new IllegalStateException("multiple DocumentLookupProvider implementations registered: " + plugins);
+        }
+        return plugins.getFirst();
     }
 
     private EngineFactory getEngineFactory(final IndexSettings idxSettings) {

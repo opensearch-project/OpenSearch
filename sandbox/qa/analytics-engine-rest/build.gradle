@@ -32,6 +32,15 @@ dependencies {
     testImplementation project(':sandbox:plugins:test-ppl-frontend')
 }
 
+// Align transitive commons-text with the sandbox plugins' force: without this,
+// IntelliJ (which ignores Gradle's force for runtime classpath aggregation in some
+// paths) ends up with both 1.10.0 and 1.11.0 on the test classpath and JarHell fails.
+configurations.all {
+  resolutionStrategy {
+    force "org.apache.commons:commons-text:1.11.0"
+  }
+}
+
 // ── Shared cluster configuration closure ─────────────────────────────────────
 // All test clusters share the same plugin set and JVM flags; only node count
 // and feature-specific settings differ per task.

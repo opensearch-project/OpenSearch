@@ -236,9 +236,64 @@ public final class ShardGetService extends AbstractIndexShardComponent {
             if (get == null || get.exists() == false) {
                 return new GetResult(shardId.getIndexName(), id, UNASSIGNED_SEQ_NO, UNASSIGNED_PRIMARY_TERM, -1, false, null, null, null);
             }
+            if (get instanceof Engine.PreMaterializedGetResult) {
+                return buildFromLookup(((Engine.PreMaterializedGetResult) get).lookup(), fetchSourceContext);
+            }
             // break between having loaded it from translog (so we only have _source), and having a document to load
             return innerGetLoadFromStoredFields(id, gFields, fetchSourceContext, get, mapperService);
         }
+    }
+
+    /**
+     * Builds a {@link GetResult} from a pre-materialized {@link DocumentLookupResult}, applying
+     * the request-level {@link FetchSourceContext} filters (fetchSource / includes / excludes).
+     * Used by the non-Lucene get-by-id path where the source is produced by a pluggable lookup
+     * rather than a Lucene stored-fields visitor.
+     */
+    private GetResult buildFromLookup(DocumentLookupResult lookup, FetchSourceContext fetchSourceContext) {
+        BytesReference source = lookup.source();
+        if (fetchSourceContext.fetchSource() == false) {
+            source = null;
+        } else {
+            source = applySourceFilter(source, fetchSourceContext);
+        }
+        return new GetResult(
+            shardId.getIndexName(),
+            lookup.id(),
+            lookup.seqNo(),
+            lookup.primaryTerm(),
+            lookup.version(),
+            lookup.exists(),
+            source,
+            lookup.documentFields(),
+            lookup.metadataFields()
+        );
+    }
+
+    /**
+     * Applies request-level {@code includes}/{@code excludes} source filtering via
+     * {@link XContentMapValues#filter}. Returns the source unchanged when no filters
+     * are set, and {@code null} when the input is {@code null}.
+     */
+    private static BytesReference applySourceFilter(BytesReference source, FetchSourceContext fetchSourceContext) {
+        if (source == null) {
+            return null;
+        }
+        if (fetchSourceContext.includes().length > 0 || fetchSourceContext.excludes().length > 0) {
+            Tuple<XContentType, Map<String, Object>> typeMapTuple = XContentHelper.convertToMap(source, true);
+            XContentType sourceContentType = typeMapTuple.v1();
+            Map<String, Object> sourceAsMap = XContentMapValues.filter(
+                typeMapTuple.v2(),
+                fetchSourceContext.includes(),
+                fetchSourceContext.excludes()
+            );
+            try {
+                return BytesReference.bytes(MediaTypeRegistry.contentBuilder(sourceContentType).map(sourceAsMap));
+            } catch (IOException e) {
+                throw new OpenSearchException("Failed to apply source includes/excludes filter", e);
+            }
+        }
+        return source;
     }
 
     private GetResult innerGetLoadFromStoredFields(
@@ -369,28 +424,10 @@ public final class ShardGetService extends AbstractIndexShardComponent {
             }
         }
 
-        if (source != null) {
-            // apply request-level source filtering
-            if (fetchSourceContext.fetchSource() == false) {
-                source = null;
-            } else if (fetchSourceContext.includes().length > 0 || fetchSourceContext.excludes().length > 0) {
-                Map<String, Object> sourceAsMap;
-                // TODO: The source might be parsed and available in the sourceLookup but that one uses unordered maps so different.
-                // Do we care?
-                Tuple<XContentType, Map<String, Object>> typeMapTuple = XContentHelper.convertToMap(source, true);
-                XContentType sourceContentType = typeMapTuple.v1();
-                sourceAsMap = typeMapTuple.v2();
-                sourceAsMap = XContentMapValues.filter(sourceAsMap, fetchSourceContext.includes(), fetchSourceContext.excludes());
-                try {
-                    source = BytesReference.bytes(MediaTypeRegistry.contentBuilder(sourceContentType).map(sourceAsMap));
-                } catch (IOException e) {
-                    throw new OpenSearchException("Failed to get id [" + id + "] with includes/excludes set", e);
-                }
-            }
-        }
-
-        if (!fetchSourceContext.fetchSource()) {
+        if (fetchSourceContext.fetchSource() == false) {
             source = null;
+        } else {
+            source = applySourceFilter(source, fetchSourceContext);
         }
 
         if (source != null && get.isFromTranslog()) {
@@ -402,19 +439,8 @@ public final class ShardGetService extends AbstractIndexShardComponent {
             }
         }
 
-        if (source != null && (fetchSourceContext.includes().length > 0 || fetchSourceContext.excludes().length > 0)) {
-            Map<String, Object> sourceAsMap;
-            // TODO: The source might parsed and available in the sourceLookup but that one uses unordered maps so different. Do we care?
-            Tuple<XContentType, Map<String, Object>> typeMapTuple = XContentHelper.convertToMap(source, true);
-            XContentType sourceContentType = typeMapTuple.v1();
-            sourceAsMap = typeMapTuple.v2();
-            sourceAsMap = XContentMapValues.filter(sourceAsMap, fetchSourceContext.includes(), fetchSourceContext.excludes());
-            try {
-                source = BytesReference.bytes(MediaTypeRegistry.contentBuilder(sourceContentType).map(sourceAsMap));
-            } catch (IOException e) {
-                throw new OpenSearchException("Failed to get id [" + id + "] with includes/excludes set", e);
-            }
-        }
+        // Re-apply includes/excludes after translog reapply (which may have re-added excluded fields).
+        source = applySourceFilter(source, fetchSourceContext);
 
         return new GetResult(
             shardId.getIndexName(),

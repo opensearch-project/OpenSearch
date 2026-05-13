@@ -38,6 +38,7 @@ import org.opensearch.index.engine.exec.IndexReaderProvider;
 import org.opensearch.index.engine.exec.WriterFileSet;
 import org.opensearch.index.engine.exec.commit.CommitterFactory;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
+import org.opensearch.index.get.DocumentLookupResult;
 import org.opensearch.index.mapper.IdFieldMapper;
 import org.opensearch.index.mapper.ParsedDocument;
 import org.opensearch.index.mapper.SeqNoFieldMapper;
@@ -49,6 +50,7 @@ import org.opensearch.index.store.FsDirectoryFactory;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.TranslogConfig;
+import org.opensearch.plugins.DocumentLookupProvider;
 import org.opensearch.plugins.PluginsService;
 import org.opensearch.plugins.SearchBackEndPlugin;
 import org.opensearch.test.DummyShardLock;
@@ -77,7 +79,11 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
@@ -164,11 +170,15 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
     }
 
     private DataFormatAwareEngine createDFAEngine(Store store, Path translogPath) throws IOException {
+        return createDFAEngine(store, translogPath, null);
+    }
+
+    private DataFormatAwareEngine createDFAEngine(Store store, Path translogPath, DocumentLookupProvider documentLookupProvider) throws IOException {
         // Create the initial translog files and get the UUID
         String uuid = Translog.createEmptyTranslog(translogPath, SequenceNumbers.NO_OPS_PERFORMED, shardId, primaryTerm.get());
         // Bootstrap the store's Lucene commit with matching translog UUID
         bootstrapStoreWithMetadata(store, uuid);
-        return new DataFormatAwareEngine(buildDFAEngineConfig(store, translogPath));
+        return new DataFormatAwareEngine(buildDFAEngineConfig(store, translogPath), documentLookupProvider);
     }
 
     private EngineConfig buildDFAEngineConfig(Store store, Path translogPath) {
@@ -1738,6 +1748,36 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
                     greaterThan(genBeforeFinalRefresh)
                 );
             }
+        }
+    }
+
+    public void testGetByIdDelegatesToPluginWithAcquiredReader() throws IOException {
+        DocumentLookupProvider plugin = mock(DocumentLookupProvider.class);
+        DocumentLookupResult canned = new DocumentLookupResult(
+            "doc-1",
+            7L,
+            true,
+            null,
+            5L,
+            1L,
+            java.util.Map.of(),
+            java.util.Map.of()
+        );
+        when(plugin.getById(any(Engine.Get.class), any(IndexReaderProvider.Reader.class), any(String.class))).thenReturn(canned);
+
+        try (DataFormatAwareEngine engine = createDFAEngine(store, createTempDir(), plugin)) {
+            Engine.Get get = new Engine.Get(true, false, "doc-1", new Term(IdFieldMapper.NAME, Uid.encodeId("doc-1")));
+            DocumentLookupResult result = engine.getById(get);
+
+            assertThat(result, equalTo(canned));
+            verify(plugin, times(1)).getById(eq(get), any(IndexReaderProvider.Reader.class), eq(engine.config().getShardId().getIndexName()));
+        }
+    }
+
+    public void testGetByIdThrowsWhenNoPluginWired() throws IOException {
+        try (DataFormatAwareEngine engine = createDFAEngine(store, createTempDir())) {
+            Engine.Get get = new Engine.Get(true, false, "doc-1", new Term(IdFieldMapper.NAME, Uid.encodeId("doc-1")));
+            expectThrows(UnsupportedOperationException.class, () -> engine.getById(get));
         }
     }
 }
