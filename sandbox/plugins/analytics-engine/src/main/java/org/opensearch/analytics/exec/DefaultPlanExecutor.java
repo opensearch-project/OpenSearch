@@ -24,7 +24,6 @@ import org.opensearch.analytics.exec.task.AnalyticsQueryTask;
 import org.opensearch.analytics.planner.CapabilityRegistry;
 import org.opensearch.analytics.planner.PlannerContext;
 import org.opensearch.analytics.planner.PlannerImpl;
-import org.opensearch.analytics.planner.dag.AggregateDecompositionResolver;
 import org.opensearch.analytics.planner.dag.BackendPlanAdapter;
 import org.opensearch.analytics.planner.dag.DAGBuilder;
 import org.opensearch.analytics.planner.dag.FragmentConversionDriver;
@@ -133,7 +132,6 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
         QueryDAG dag = DAGBuilder.build(plan, capabilityRegistry, clusterService);
         PlanForker.forkAll(dag, capabilityRegistry);
         BackendPlanAdapter.adaptAll(dag, capabilityRegistry);
-        AggregateDecompositionResolver.resolveAll(dag, capabilityRegistry);
         FragmentConversionDriver.convertAll(dag, capabilityRegistry);
         logger.debug("[DefaultPlanExecutor] QueryDAG:\n{}", dag);
 
