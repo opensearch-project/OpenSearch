@@ -1,0 +1,10 @@
+{"index":{}}
+{"status":"active","timestamp":"2024-01-01T00:00:00Z","size":100,"price":9.99}
+{"index":{}}
+{"status":"active","timestamp":"2024-01-02T00:00:00Z","size":200,"price":19.99}
+{"index":{}}
+{"status":"inactive","timestamp":"2024-01-03T00:00:00Z","size":150,"price":14.99}
+{"index":{}}
+{"status":"active","timestamp":"2024-01-04T00:00:00Z","size":300,"price":29.99}
+{"index":{}}
+{"status":"inactive","timestamp":"2024-01-05T00:00:00Z","size":250,"price":24.99}

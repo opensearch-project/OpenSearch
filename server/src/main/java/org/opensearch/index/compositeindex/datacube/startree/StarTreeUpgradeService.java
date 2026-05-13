@@ -30,6 +30,7 @@ import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
+import org.apache.lucene.util.Bits;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.Lock;
 import org.opensearch.common.annotation.ExperimentalApi;
@@ -158,6 +159,14 @@ public class StarTreeUpgradeService {
                 skippedCount++;
                 continue;
             }
+            // Skip segments with no live docs (all documents deleted)
+            int liveDocs = commitInfo.info.maxDoc() - commitInfo.getDelCount() - commitInfo.getSoftDelCount();
+            if (liveDocs <= 0) {
+                logger.debug("Skipping segment [{}] — no live docs (maxDoc={}, delCount={}, softDelCount={})",
+                    commitInfo.info.name, commitInfo.info.maxDoc(), commitInfo.getDelCount(), commitInfo.getSoftDelCount());
+                skippedCount++;
+                continue;
+            }
             try {
                 logger.debug("Building star tree data for segment [{}] with codec [{}]", commitInfo.info.name, codecName);
                 buildStarTreeData(directory, commitInfo, starTreeField, mapperService);
@@ -245,6 +254,25 @@ public class StarTreeUpgradeService {
                 throw new IOException("No DocValuesProducer available for segment [" + segmentName + "]");
             }
 
+            // Filter out soft-deleted documents so the star tree only contains live doc values.
+            // Without this, the star tree would include deleted document data and produce
+            // incorrect aggregation results.
+            //
+            // We can't rely on segmentReader.getLiveDocs() because DirectoryReader.open() wraps
+            // segments in SoftDeletesDirectoryReaderWrapper which handles soft deletes at the
+            // DirectoryReader level — getLiveDocs() on the inner SegmentReader returns null.
+            // Instead, build the live docs bitset manually from hard deletes (.liv) and soft
+            // deletes (__soft_deletes doc values field).
+            Bits liveDocs = buildLiveDocsBitset(segmentReader, commitInfo);
+            int numLiveDocs = liveDocs != null
+                ? ((org.apache.lucene.util.FixedBitSet) liveDocs).cardinality()
+                : segmentReader.maxDoc();
+            if (liveDocs != null) {
+                docValuesProducer = new LiveDocsFilteredDocValuesProducer(
+                    docValuesProducer, liveDocs, segmentReader.maxDoc()
+                );
+            }
+
             // Build fieldProducerMap for all dimensions and metrics
             Map<String, DocValuesProducer> fieldProducerMap = new HashMap<>();
             for (Dimension dimension : starTreeField.getDimensionsOrder()) {
@@ -263,7 +291,9 @@ public class StarTreeUpgradeService {
                 }
             });
 
-            // Create SegmentWriteState with the segment's actual maxDoc
+            // Create SegmentWriteState with the segment's live doc count
+            // Use numLiveDocs (not maxDoc) so the star tree reflects only live documents.
+            // For segments without deletes, numLiveDocs == maxDoc.
             // Use the raw directory (not compound) for writing star tree files
             FieldInfos fieldInfos = segmentReader.getFieldInfos();
             SegmentInfo segInfo = commitInfo.info;
@@ -272,7 +302,7 @@ public class StarTreeUpgradeService {
                 segInfo.getVersion(),
                 segInfo.getMinVersion(),
                 segInfo.name,
-                segInfo.maxDoc(),
+                numLiveDocs,
                 false, // useCompoundFile = false for writing
                 segInfo.getHasBlocks(),
                 segInfo.getCodec(),
@@ -413,6 +443,60 @@ public class StarTreeUpgradeService {
      * @param upgradedSegmentNames  the set of segment names that were successfully upgraded in Phase 1
      * @throws IOException          if an I/O error occurs during the SegmentInfos rewrite
      */
+
+    /**
+     * Builds a live docs bitset for a segment by combining hard deletes (.liv file) and
+     * soft deletes (__soft_deletes doc values field). Returns null if all docs are live.
+     */
+    private static Bits buildLiveDocsBitset(SegmentReader segmentReader, SegmentCommitInfo commitInfo) throws IOException {
+        int maxDoc = segmentReader.maxDoc();
+        int hardDeleteCount = commitInfo.getDelCount();
+        int softDeleteCount = commitInfo.getSoftDelCount();
+
+        logger.info("[STARTREE DEBUG] buildLiveDocsBitset: segment={} hardDel={} softDel={} maxDoc={}",
+            commitInfo.info.name, hardDeleteCount, softDeleteCount, maxDoc);
+
+        if (hardDeleteCount == 0 && softDeleteCount == 0) {
+            return null;
+        }
+
+        org.apache.lucene.util.FixedBitSet liveBits = new org.apache.lucene.util.FixedBitSet(maxDoc);
+        liveBits.set(0, maxDoc);
+
+        // Apply hard deletes from .liv file
+        Bits hardLiveDocs = segmentReader.getLiveDocs();
+        if (hardLiveDocs != null) {
+            for (int i = 0; i < maxDoc; i++) {
+                if (hardLiveDocs.get(i) == false) {
+                    liveBits.clear(i);
+                }
+            }
+        }
+
+        // Apply soft deletes — use segmentReader.getNumericDocValues() which goes through
+        // SegmentDocValuesProducer and correctly routes to the update file (_0_2_Lucene90_0.dvd).
+        // The raw getDocValuesReader() only returns the base producer which doesn't have __soft_deletes.
+        String softDeleteField = org.opensearch.common.lucene.Lucene.SOFT_DELETES_FIELD;
+        if (softDeleteCount > 0) {
+            NumericDocValues softDeleteValues = segmentReader.getNumericDocValues(softDeleteField);
+            if (softDeleteValues != null) {
+                int docId;
+                while ((docId = softDeleteValues.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
+                    if (softDeleteValues.longValue() == 1) {
+                        liveBits.clear(docId);
+                    }
+                }
+                logger.info("[STARTREE DEBUG] buildLiveDocsBitset: segment={} liveBits.cardinality={}",
+                    commitInfo.info.name, liveBits.cardinality());
+            } else {
+                logger.warn("[STARTREE DEBUG] buildLiveDocsBitset: segment={} __soft_deletes field returned NULL from getNumericDocValues",
+                    commitInfo.info.name);
+            }
+        }
+
+        return liveBits;
+    }
+
     public static void rewriteSegmentInfos(Directory directory, Set<String> upgradedSegmentNames) throws IOException {
         Lock writeLock = directory.obtainLock(IndexWriter.WRITE_LOCK_NAME);
         try {
@@ -438,6 +522,27 @@ public class StarTreeUpgradeService {
                         commitInfo.getDocValuesGen(),
                         commitInfo.info.getCodec().getName()
                     );
+                    // Add star tree files to the segment's file set so IndexWriter doesn't GC them,
+                    // even though we're not switching the codec. The StarTreeDirectReader will read
+                    // these files at query time via the direct reader cache.
+                    SegmentInfo oldInfo = commitInfo.info;
+                    Set<String> files = new HashSet<>(oldInfo.files());
+                    String segName = oldInfo.name;
+                    files.add(IndexFileNames.segmentFileName(segName, "", Composite912DocValuesFormat.DATA_EXTENSION));
+                    files.add(IndexFileNames.segmentFileName(segName, "", Composite912DocValuesFormat.META_EXTENSION));
+                    files.add(IndexFileNames.segmentFileName(segName, "", Composite912DocValuesFormat.DATA_DOC_VALUES_EXTENSION));
+                    files.add(IndexFileNames.segmentFileName(segName, "", Composite912DocValuesFormat.META_DOC_VALUES_EXTENSION));
+                    oldInfo.setFiles(files);
+
+                    // Rewrite the .si file to persist the expanded file set on disk.
+                    // Without this, the .si file on disk still has the old file set,
+                    // and when the engine reopens, SegmentInfos reads the old .si which
+                    // doesn't include the star tree files — causing populateStarTreeDirectReaderCache()
+                    // to not find them.
+                    String siFileName = IndexFileNames.segmentFileName(segName, "", "si");
+                    directory.deleteFile(siFileName);
+                    oldInfo.getCodec().segmentInfoFormat().write(directory, oldInfo, IOContext.DEFAULT);
+
                     newSegmentInfos.add(commitInfo);
                     continue;
                 }

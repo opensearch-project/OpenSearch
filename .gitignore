@@ -68,3 +68,5 @@ testfixtures_shared/
 
 # build files generated
 doc-tools/missing-doclet/bin/
+ReferenceTesting/_bench.ndjson
+ReferenceTesting/_no_st.ndjson

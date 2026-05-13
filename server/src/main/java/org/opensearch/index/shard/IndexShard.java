@@ -128,6 +128,9 @@ import org.opensearch.index.cache.IndexCache;
 import org.opensearch.index.cache.bitset.ShardBitsetFilterCache;
 import org.opensearch.index.cache.request.ShardRequestCache;
 import org.opensearch.index.codec.CodecService;
+import org.opensearch.index.codec.composite.composite912.Composite912Codec;
+import org.opensearch.index.codec.composite.composite912.Composite912DocValuesFormat;
+import org.opensearch.index.compositeindex.datacube.startree.StarTreeDirectReader;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeField;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeUpgradeService;
 import org.opensearch.index.engine.CommitStats;
@@ -243,6 +246,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletionService;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorCompletionService;
 import java.util.concurrent.Future;
@@ -988,6 +992,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final AtomicBoolean primaryReplicaResyncInProgress = new AtomicBoolean();
 
     private final AtomicBoolean starTreeUpgradeInProgress = new AtomicBoolean();
+
+    /**
+     * Cache of StarTreeDirectReader instances for segments where the codec was not switched
+     * (soft-delete segments with docValuesGen != -1). Keyed by segment name.
+     * Star tree files are in the segment's file set, so IndexWriter won't GC them.
+     * Entries are evicted when the segment is merged away (detected on next cache access).
+     */
+    private final ConcurrentHashMap<String, StarTreeDirectReader> starTreeDirectReaderCache = new ConcurrentHashMap<>();
 
     /**
      * Completes the relocation. Operations are blocked and current operations are drained before changing state to
@@ -2402,6 +2414,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         currentEngineReference.set(newEngine);
                         IOUtils.close(roEngine);
                     }
+                    // Skip translog recovery — we flushed all data before the engine swap,
+                    // so the translog is empty. Without this, pendingTranslogRecovery stays true
+                    // and all subsequent flush/forcemerge calls fail with
+                    // "flushes are disabled - pending translog recovery".
+                    newEngine.translogManager().skipTranslogRecovery();
                 } catch (Exception e) {
                     logger.error("Failed to open new InternalEngine after upgrade, attempting recovery", e);
                     try {
@@ -2414,6 +2431,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                             currentEngineReference.set(newEngine);
                             IOUtils.close(roEngine);
                         }
+                        newEngine.translogManager().skipTranslogRecovery();
                     } catch (Exception fatal) {
                         logger.error("Recovery engine also failed — shard is unusable", fatal);
                         failShard("star tree upgrade engine recovery failed", fatal);
@@ -2427,6 +2445,23 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     logger.warn("Post-upgrade refresh failed, will retry on next cycle", e);
                 }
                 active.set(true);
+
+                // Populate direct reader cache for segments where codec was not switched
+                // (soft-delete segments with docValuesGen != -1). These segments have star tree
+                // files in their file set but use the original Lucene912Codec.
+                logger.info("[STARTREE DEBUG] upgradeToStarTree: about to call populateStarTreeDirectReaderCache");
+                populateStarTreeDirectReaderCache();
+                logger.info("[STARTREE DEBUG] upgradeToStarTree: populateStarTreeDirectReaderCache returned, cacheSize={}",
+                    starTreeDirectReaderCache.size());
+
+                // Wire merge cleanup callback to evict stale direct reader cache entries
+                Engine currentEngine = currentEngineReference.get();
+                if (currentEngine instanceof InternalEngine) {
+                    ((InternalEngine) currentEngine).setDirectReaderMergeCleanupCallback(
+                        this::performDirectReaderCleanup
+                    );
+                }
+
                 // NOTE: codecServiceOverride is NOT cleared here — kept for resetEngineToGlobalCheckpoint().
                 // It will be nulled after the first post-upgrade engine reset confirms the persistent
                 // index.composite_index=true setting took effect.
@@ -2441,6 +2476,91 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     public MergedSegmentTransferTracker mergedSegmentTransferTracker() {
         return mergedSegmentTransferTracker;
+    }
+
+    /**
+     * Returns the cache of StarTreeDirectReader instances for segments where the codec
+     * was not switched (soft-delete segments). Used by StarTreeQueryHelper as a fallback
+     * when the segment's DocValuesReader is not a CompositeIndexReader.
+     */
+    public ConcurrentHashMap<String, StarTreeDirectReader> getStarTreeDirectReaderCache() {
+        return starTreeDirectReaderCache;
+    }
+
+    /**
+     * Populates the direct reader cache for segments that have star tree files but whose
+     * codec was not switched to Composite912Codec (soft-delete segments with docValuesGen != -1).
+     * Reads SegmentInfos to find segments with star tree files in their file set but not using
+     * Composite912Codec.
+     */
+    private void populateStarTreeDirectReaderCache() {
+        try {
+            SegmentInfos segmentInfos = SegmentInfos.readLatestCommit(store().directory());
+            for (SegmentCommitInfo commitInfo : segmentInfos) {
+                String segName = commitInfo.info.name;
+                // Skip segments already using Composite912Codec (native path handles them)
+                if (Composite912Codec.COMPOSITE_INDEX_CODEC_NAME.equals(commitInfo.info.getCodec().getName())) {
+                    continue;
+                }
+                // Check if this segment has star tree files in its file set
+                String cimFile = IndexFileNames.segmentFileName(segName, "", Composite912DocValuesFormat.META_EXTENSION);
+                boolean hasStarTreeFiles = false;
+                try {
+                    for (String file : commitInfo.files()) {
+                        if (file.equals(cimFile)) {
+                            hasStarTreeFiles = true;
+                            break;
+                        }
+                    }
+                } catch (IOException e) {
+                    logger.warn("Failed to check files for segment {}", segName, e);
+                    continue;
+                }
+                if (hasStarTreeFiles && starTreeDirectReaderCache.containsKey(segName) == false) {
+                    try {
+                        StarTreeDirectReader reader = new StarTreeDirectReader(store().directory(), commitInfo.info);
+                        starTreeDirectReaderCache.put(segName, reader);
+                        logger.info("[STARTREE DEBUG] populateCache: segment={} docValuesGen={} codec={} files={}",
+                            segName, commitInfo.getDocValuesGen(), commitInfo.info.getCodec().getName(),
+                            commitInfo.info.files());
+                    } catch (Exception e) {
+                        logger.warn("Failed to create StarTreeDirectReader for segment {}", segName, e);
+                    }
+                }
+            }
+        } catch (Exception e) {
+            logger.warn("Failed to populate star tree direct reader cache", e);
+        }
+    }
+
+    /**
+     * Cleans up stale StarTreeDirectReader cache entries after a merge.
+     * Compares the cache against current SegmentInfos and removes entries
+     * for segments that no longer exist (merged away).
+     */
+    private void performDirectReaderCleanup() {
+        try {
+            SegmentInfos segmentInfos = SegmentInfos.readLatestCommit(store().directory());
+            java.util.Set<String> currentSegmentNames = new java.util.HashSet<>();
+            for (SegmentCommitInfo commitInfo : segmentInfos) {
+                currentSegmentNames.add(commitInfo.info.name);
+            }
+            for (String cachedSegName : starTreeDirectReaderCache.keySet()) {
+                if (currentSegmentNames.contains(cachedSegName) == false) {
+                    StarTreeDirectReader reader = starTreeDirectReaderCache.remove(cachedSegName);
+                    if (reader != null) {
+                        try {
+                            reader.close();
+                            logger.debug("Closed and evicted direct reader for merged-away segment {}", cachedSegName);
+                        } catch (Exception e) {
+                            logger.warn("Failed to close StarTreeDirectReader for segment {}", cachedSegName, e);
+                        }
+                    }
+                }
+            }
+        } catch (Exception e) {
+            logger.warn("Failed to perform direct reader cleanup after merge", e);
+        }
     }
 
     /**

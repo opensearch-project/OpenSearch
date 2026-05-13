@@ -379,10 +379,59 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         CompositeIndexFieldInfo starTree,
         StarTreeBucketCollector parent
     ) throws IOException {
-        StarTreeValues starTreeValues = StarTreeQueryHelper.getStarTreeValues(ctx, starTree);
+        StarTreeValues starTreeValues = StarTreeQueryHelper.getStarTreeValues(ctx, starTree, context);
         if (starTreeValues == null) {
             return null; // segment doesn't have star tree data
         }
+
+        // Debug: dump ordinal spaces for keyword dimensions
+        if (true) { // TEMPORARY: hardcoded for debugging
+            try {
+                org.apache.lucene.index.SegmentReader segReader = org.opensearch.common.lucene.Lucene.segmentReader(ctx.reader());
+                String segName = segReader.getSegmentName();
+                org.apache.logging.log4j.Logger debugLogger = org.apache.logging.log4j.LogManager.getLogger(
+                    GlobalOrdinalsStringTermsAggregator.class);
+
+                // Get star tree's dimension iterator for this field
+                org.opensearch.index.compositeindex.datacube.startree.utils.iterator.SortedSetStarTreeValuesIterator starTreeIter =
+                    (org.opensearch.index.compositeindex.datacube.startree.utils.iterator.SortedSetStarTreeValuesIterator)
+                    starTreeValues.getDimensionValuesIterator(fieldName);
+                // Get segment's SortedSet ordinals for this field
+                SortedSetDocValues segOrdinals = ctx.reader().getSortedSetDocValues(fieldName);
+
+                debugLogger.info("=== ORDINAL DUMP: segment={} field={} ===", segName, fieldName);
+                if (starTreeIter != null) {
+                    debugLogger.info("  starTree valueCount={}", starTreeIter.getValueCount());
+                    for (long i = 0; i < Math.min(starTreeIter.getValueCount(), 20); i++) {
+                        debugLogger.info("    starOrd={} term={}", i, starTreeIter.lookupOrd(i).utf8ToString());
+                    }
+                } else {
+                    debugLogger.info("  starTree iterator: NULL");
+                }
+                if (segOrdinals != null) {
+                    debugLogger.info("  segment valueCount={}", segOrdinals.getValueCount());
+                    for (long i = 0; i < Math.min(segOrdinals.getValueCount(), 20); i++) {
+                        debugLogger.info("    segOrd={} term={}", i, segOrdinals.lookupOrd(i).utf8ToString());
+                    }
+                } else {
+                    debugLogger.info("  segment ordinals: NULL");
+                }
+                // Translation check
+                if (starTreeIter != null && segOrdinals != null) {
+                    debugLogger.info("  --- Translation (starOrd → segOrd) ---");
+                    for (long i = 0; i < Math.min(starTreeIter.getValueCount(), 20); i++) {
+                        org.apache.lucene.util.BytesRef term = starTreeIter.lookupOrd(i);
+                        long segOrd = segOrdinals.lookupTerm(term);
+                        debugLogger.info("    starOrd={} term={} → segOrd={} {}",
+                            i, term.utf8ToString(), segOrd, segOrd < 0 ? "*** MISSING ***" : "OK");
+                    }
+                }
+            } catch (Exception e) {
+                org.apache.logging.log4j.LogManager.getLogger(GlobalOrdinalsStringTermsAggregator.class)
+                    .warn("[STARTREE DEBUG] Failed to dump ordinals", e);
+            }
+        }
+
         SortedSetStarTreeValuesIterator valuesIterator = (SortedSetStarTreeValuesIterator) starTreeValues.getDimensionValuesIterator(
             fieldName
         );
@@ -394,9 +443,14 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         if (parent != null && !(collectionStrategy instanceof RemapGlobalOrdsStarTree)) {
             collectionStrategy.close();
             collectionStrategy = new RemapGlobalOrdsStarTree(this.cardinalityUpperBound);
-            SortedSetDocValues globalOrds = valuesSource.globalOrdinalsValues(ctx);
-            collectionStrategy.globalOrdsReady(globalOrds);
         }
+
+        // Always initialize globalOrds for the collection strategy — the star tree precompute
+        // path skips getLeafCollector() which normally calls globalOrdsReady().
+        // Without this, DenseGlobalOrds / RemapGlobalOrds has uninitialized internal state,
+        // causing bucket ordinals to be wrong and doc counts to land in incorrect buckets.
+        SortedSetDocValues globalOrds = valuesSource.globalOrdinalsValues(ctx);
+        collectionStrategy.globalOrdsReady(globalOrds);
 
         LongUnaryOperator globalOperator = valuesSource.globalOrdinalsMapping(ctx);
         return new StarTreeBucketCollector(

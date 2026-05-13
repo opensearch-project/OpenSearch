@@ -410,7 +410,7 @@ public class RangeAggregator extends BucketsAggregator implements StarTreePreCom
         CompositeIndexFieldInfo starTree,
         StarTreeBucketCollector parentCollector
     ) throws IOException {
-        StarTreeValues starTreeValues = StarTreeQueryHelper.getStarTreeValues(ctx, starTree);
+        StarTreeValues starTreeValues = StarTreeQueryHelper.getStarTreeValues(ctx, starTree, context);
         if (starTreeValues == null) {
             return null; // segment doesn't have star tree data
         }

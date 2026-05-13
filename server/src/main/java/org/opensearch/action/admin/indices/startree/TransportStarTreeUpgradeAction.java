@@ -11,6 +11,7 @@ package org.opensearch.action.admin.indices.startree;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.action.PrimaryMissingActionException;
+import org.opensearch.action.admin.indices.flush.FlushRequest;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.broadcast.node.TransportBroadcastByNodeAction;
 import org.opensearch.cluster.AckedClusterStateTaskListener;
@@ -181,6 +182,12 @@ public class TransportStarTreeUpgradeAction extends TransportBroadcastByNodeActi
         } catch (java.util.concurrent.TimeoutException e) {
             throw new IOException("star tree upgrade timed out on shard [" + shardRouting.shardId() + "]", e);
         }
+
+        // Post-upgrade flush to clear the pending translog recovery state left by the engine swap
+        // (InternalEngine → ReadOnlyEngine → InternalEngine). Without this, subsequent _forcemerge
+        // calls fail with "flushes are disabled - pending translog recovery".
+        indexShard.flush(new FlushRequest().force(false).waitIfOngoing(true));
+
         return new ShardStarTreeUpgradeResult(shardRouting.shardId(), shardRouting.primary());
     }
 

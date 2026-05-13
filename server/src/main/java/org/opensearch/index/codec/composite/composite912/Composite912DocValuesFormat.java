@@ -14,6 +14,7 @@ import org.apache.lucene.codecs.DocValuesProducer;
 import org.apache.lucene.codecs.lucene90.Lucene90DocValuesFormat;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
+import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
 import org.opensearch.common.annotation.ExperimentalApi;
@@ -97,8 +98,13 @@ public class Composite912DocValuesFormat extends DocValuesFormat {
         // and then retroactively upgraded to Composite912Codec. In that case, the doc values files
         // use per-field naming (e.g., _0_Lucene90_0.dvd) instead of direct naming (_0.dvd).
         // The FieldInfos attributes tell us the original format name and suffix.
+        //
+        // IMPORTANT: Merged segments produced by Composite912Codec write doc values with empty
+        // suffix (_2.dvd), but their FieldInfos may still carry PerFieldDocValuesFormat attributes
+        // inherited from source segments. We must verify the suffixed file actually exists before
+        // using it; otherwise fall back to empty suffix (native Composite912 segment).
         String perFieldSuffix = getPerFieldDocValuesSuffix(state.fieldInfos);
-        if (perFieldSuffix != null) {
+        if (perFieldSuffix != null && perFieldSuffixedFileExists(state, perFieldSuffix)) {
             // Fix Error 4: For upgraded segments, read the ORIGINAL field infos from the .cfs
             // compound file. The base .dvm file was written with original field numbers, but
             // state.fieldInfos may have different numbers due to soft delete updates adding
@@ -117,7 +123,7 @@ public class Composite912DocValuesFormat extends DocValuesFormat {
             );
             regularProducer = delegate.fieldsProducer(suffixedState);
         } else {
-            // Native Composite912 segment: use direct naming
+            // Native Composite912 segment (or merged segment): use direct naming
             regularProducer = delegate.fieldsProducer(state);
         }
 
@@ -139,5 +145,29 @@ public class Composite912DocValuesFormat extends DocValuesFormat {
             }
         }
         return null;
+    }
+
+    /**
+     * Checks if the per-field suffixed doc values metadata file actually exists on disk.
+     * Merged segments produced by Composite912Codec write doc values with empty suffix,
+     * but their FieldInfos may still carry PerFieldDocValuesFormat attributes inherited
+     * from source segments. This method prevents using a stale suffix that would cause
+     * NoSuchFileException when opening the merged segment.
+     */
+    private static boolean perFieldSuffixedFileExists(SegmentReadState state, String perFieldSuffix) {
+        String suffixedMetaFile = IndexFileNames.segmentFileName(
+            state.segmentInfo.name,
+            perFieldSuffix,
+            "dvm"
+        );
+        try {
+            state.directory.openInput(suffixedMetaFile, state.context).close();
+            return true;
+        } catch (java.io.FileNotFoundException | java.nio.file.NoSuchFileException e) {
+            return false;
+        } catch (java.io.IOException e) {
+            // If we can't determine, assume it doesn't exist and fall back to empty suffix
+            return false;
+        }
     }
 }

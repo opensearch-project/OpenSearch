@@ -8,6 +8,8 @@
 
 package org.opensearch.search.startree;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.search.DocIdSetIterator;
@@ -17,6 +19,7 @@ import org.opensearch.index.codec.composite.CompositeIndexFieldInfo;
 import org.opensearch.index.codec.composite.CompositeIndexReader;
 import org.opensearch.index.compositeindex.datacube.Dimension;
 import org.opensearch.index.compositeindex.datacube.MetricStat;
+import org.opensearch.index.compositeindex.datacube.startree.StarTreeDirectReader;
 import org.opensearch.index.compositeindex.datacube.startree.index.StarTreeValues;
 import org.opensearch.index.compositeindex.datacube.startree.utils.StarTreeUtils;
 import org.opensearch.index.compositeindex.datacube.startree.utils.iterator.SortedNumericStarTreeValuesIterator;
@@ -47,6 +50,9 @@ import java.util.function.Consumer;
  */
 public class StarTreeQueryHelper {
 
+    private static final Logger logger = LogManager.getLogger(StarTreeQueryHelper.class);
+    private static final boolean STAR_TREE_DEBUG = true; // TEMPORARY: hardcoded for debugging
+
     /**
      * Checks if the search context can be supported by star-tree
      */
@@ -60,11 +66,71 @@ public class StarTreeQueryHelper {
     }
 
     public static StarTreeValues getStarTreeValues(LeafReaderContext context, CompositeIndexFieldInfo starTree) throws IOException {
+        return getStarTreeValues(context, starTree, null);
+    }
+
+    /**
+     * Gets star tree values for a leaf reader context, checking both the native codec path
+     * and the direct reader cache for segments where the codec was not switched.
+     */
+    public static StarTreeValues getStarTreeValues(
+        LeafReaderContext context,
+        CompositeIndexFieldInfo starTree,
+        SearchContext searchContext
+    ) throws IOException {
         SegmentReader reader = Lucene.segmentReader(context.reader());
-        if (!(reader.getDocValuesReader() instanceof CompositeIndexReader starTreeDocValuesReader)) {
-            return null;
+        String segmentName = reader.getSegmentName();
+
+        // Path 1: Native codec path — segment uses Composite912Codec
+        if (reader.getDocValuesReader() instanceof CompositeIndexReader starTreeDocValuesReader) {
+            StarTreeValues values = (StarTreeValues) starTreeDocValuesReader.getCompositeIndexValues(starTree);
+            if (STAR_TREE_DEBUG) {
+                logger.info("[STARTREE DEBUG] segment={} path=NATIVE values={}",
+                    segmentName, values == null ? "NULL" : "FOUND");
+            }
+            return values;
         }
-        return (StarTreeValues) starTreeDocValuesReader.getCompositeIndexValues(starTree);
+
+        if (STAR_TREE_DEBUG) {
+            logger.info("[STARTREE DEBUG] segment={} path=DIRECT_READER_CHECK dvReaderType={}",
+                segmentName, reader.getDocValuesReader() != null ? reader.getDocValuesReader().getClass().getSimpleName() : "null");
+        }
+
+        // Path 2: Direct reader cache — segment has star tree files but codec was not switched
+        if (searchContext != null) {
+            java.util.concurrent.ConcurrentHashMap<String, StarTreeDirectReader> cache =
+                searchContext.indexShard().getStarTreeDirectReaderCache();
+            StarTreeDirectReader directReader = cache.get(segmentName);
+
+            if (STAR_TREE_DEBUG) {
+                logger.info("[STARTREE DEBUG] segment={} cacheKeys={} cacheHit={}",
+                    segmentName, cache.keySet(), directReader != null);
+            }
+
+            if (directReader != null) {
+                // Find matching composite field
+                CompositeIndexFieldInfo matchingField = null;
+                for (CompositeIndexFieldInfo field : directReader.getCompositeIndexFields()) {
+                    if (field.getField().equals(starTree.getField())) {
+                        matchingField = field;
+                        break;
+                    }
+                }
+                if (matchingField != null) {
+                    StarTreeValues values = (StarTreeValues) directReader.getCompositeIndexValues(matchingField);
+                    if (STAR_TREE_DEBUG) {
+                        logger.info("[STARTREE DEBUG] segment={} path=DIRECT values={}",
+                            segmentName, values == null ? "NULL" : "FOUND");
+                    }
+                    return values;
+                }
+            }
+        }
+
+        if (STAR_TREE_DEBUG) {
+            logger.info("[STARTREE DEBUG] segment={} path=FALLBACK", segmentName);
+        }
+        return null;
     }
 
     /**
@@ -80,7 +146,7 @@ public class StarTreeQueryHelper {
         Consumer<Long> valueConsumer,
         Runnable finalConsumer
     ) throws IOException {
-        StarTreeValues starTreeValues = getStarTreeValues(ctx, starTree);
+        StarTreeValues starTreeValues = getStarTreeValues(ctx, starTree, context);
         if (starTreeValues == null) {
             return false; // segment doesn't have star tree data, caller should fall back
         }

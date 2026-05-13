@@ -196,7 +196,7 @@ class AvgAggregator extends NumericMetricsAggregator.SingleValue implements Star
     }
 
     private boolean precomputeLeafUsingStarTree(LeafReaderContext ctx, CompositeIndexFieldInfo starTree) throws IOException {
-        StarTreeValues starTreeValues = StarTreeQueryHelper.getStarTreeValues(ctx, starTree);
+        StarTreeValues starTreeValues = StarTreeQueryHelper.getStarTreeValues(ctx, starTree, context);
         if (starTreeValues == null) {
             return false; // segment doesn't have star tree data, caller should fall back
         }
