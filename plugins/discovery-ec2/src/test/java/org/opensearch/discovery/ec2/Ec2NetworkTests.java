@@ -86,6 +86,17 @@ public class Ec2NetworkTests extends AbstractEc2DiscoveryTestCase {
         registerContext.accept("/latest/meta-data/public-hostname", "165.168.10.3");
         registerContext.accept("/latest/meta-data/local-hostname", "10.10.10.5");
 
+        // IMDSv2: drain PUT body, echo TTL header, return a token
+        httpServer.createContext("/latest/api/token", exchange -> {
+            exchange.getRequestBody().readAllBytes();
+            final String ttl = exchange.getRequestHeaders().getFirst("x-aws-ec2-metadata-token-ttl-seconds");
+            final byte[] token = "test-token".getBytes(UTF_8);
+            exchange.getResponseHeaders().set("x-aws-ec2-metadata-token-ttl-seconds", ttl != null ? ttl : "21600");
+            exchange.sendResponseHeaders(RestStatus.OK.getStatus(), token.length);
+            exchange.getResponseBody().write(token);
+            exchange.getResponseBody().close();
+        });
+
         httpServer.start();
     }
 
@@ -127,10 +138,7 @@ public class Ec2NetworkTests extends AbstractEc2DiscoveryTestCase {
         try {
             resolveEc2("_ec2_", (InetAddress[]) null);
         } catch (IOException e) {
-            assertThat(
-                e.getMessage(),
-                equalTo("IOException caught when fetching InetAddress from [http://127.0.0.1//latest/meta-data/local-ipv4]")
-            );
+            assertThat(e.getMessage(), equalTo("IOException caught when fetching InetAddress for [ec2]"));
         }
     }
 

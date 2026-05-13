@@ -51,4 +51,9 @@ grant {
   permission java.util.PropertyPermission "opensearch.path.conf", "read,write";
 
   permission java.io.FilePermission "config", "read";
+
+  // Ec2MetadataClient (IMDSv2) reads AWS config/credentials files via the profiles library
+  permission java.io.FilePermission "${user.home}/.aws/config", "read";
+  permission java.io.FilePermission "${user.home}/.aws/credentials", "read";
+  permission java.util.PropertyPermission "user.home", "read";
 };

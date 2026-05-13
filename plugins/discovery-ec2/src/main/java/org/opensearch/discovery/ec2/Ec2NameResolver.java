@@ -32,24 +32,17 @@
 
 package org.opensearch.discovery.ec2;
 
-import software.amazon.awssdk.core.SdkSystemSetting;
+import software.amazon.awssdk.http.apache.ApacheHttpClient;
+import software.amazon.awssdk.imds.Ec2MetadataClient;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.network.NetworkService.CustomNameResolver;
-import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.secure_sm.AccessController;
 
-import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
 import java.net.InetAddress;
-import java.net.URL;
-import java.net.URLConnection;
-import java.nio.charset.StandardCharsets;
-import java.util.Optional;
+import java.time.Duration;
 
 /**
  * Resolves certain ec2 related 'meta' hostnames into an actual hostname
@@ -103,35 +96,38 @@ class Ec2NameResolver implements CustomNameResolver {
      * @return the appropriate host resolved from ec2 meta-data, or null if it cannot be obtained.
      * @see CustomNameResolver#resolveIfPossible(String)
      */
-    @SuppressForbidden(reason = "We call getInputStream in doPrivileged and provide SocketPermission")
     public InetAddress[] resolve(Ec2HostnameType type) throws IOException {
-        InputStream in = null;
-        Optional<String> ec2MetadataServiceEndpoint = SdkSystemSetting.AWS_EC2_METADATA_SERVICE_ENDPOINT.getStringValue();
-        if (ec2MetadataServiceEndpoint.isPresent()) {
-            String metadataUrl = ec2MetadataServiceEndpoint.get() + "/latest/meta-data/" + type.ec2Name;
-            try {
-                URL url = new URL(metadataUrl);
-                logger.debug("obtaining ec2 hostname from ec2 meta-data url {}", url);
-                URLConnection urlConnection = AccessController.doPrivilegedChecked(() -> url.openConnection());
-                urlConnection.setConnectTimeout(2000);
-                in = AccessController.doPrivilegedChecked(urlConnection::getInputStream);
-                BufferedReader urlReader = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8));
-
-                String metadataResult = urlReader.readLine();
-                if (metadataResult == null || metadataResult.length() == 0) {
-                    throw new IOException("no ec2 metadata returned from [" + url + "] for [" + type.configName + "]");
-                }
-                logger.debug("obtained ec2 hostname from ec2 meta-data url {}: {}", url, metadataResult);
-                // only one address: because we explicitly ask for only one via the Ec2HostnameType
-                return new InetAddress[] { InetAddress.getByName(metadataResult) };
-            } catch (IOException e) {
-                throw new IOException("IOException caught when fetching InetAddress from [" + metadataUrl + "]", e);
-            } finally {
-                IOUtils.closeWhileHandlingException(in);
-            }
-        } else {
-            throw new IOException("Missing ec2 meta-data url (AWS_EC2_METADATA_SERVICE_ENDPOINT)");
+        try (
+            Ec2MetadataClient client = AccessController.doPrivilegedChecked(
+                () -> Ec2MetadataClient.builder()
+                    .httpClient(ApacheHttpClient.builder().connectionTimeout(Duration.ofSeconds(2)).socketTimeout(Duration.ofSeconds(2)))
+                    .build()
+            )
+        ) {
+            return resolve(type, client);
+        } catch (IOException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new IOException("failed to fetch ec2 metadata for [" + type.configName + "]", e);
         }
+    }
+
+    // pkg private for testing
+    InetAddress[] resolve(Ec2HostnameType type, Ec2MetadataClient client) throws IOException {
+        final String path = "/latest/meta-data/" + type.ec2Name;
+        logger.debug("obtaining ec2 hostname from IMDS path {}", path);
+        final String result;
+        try {
+            result = AccessController.doPrivilegedChecked(() -> client.get(path).asString());
+        } catch (Exception e) {
+            throw new IOException("IOException caught when fetching InetAddress for [" + type.configName + "]", e);
+        }
+        if (result == null || result.isEmpty()) {
+            throw new IOException("no ec2 metadata returned from IMDS for [" + type.configName + "]");
+        }
+        logger.debug("obtained ec2 hostname from IMDS for {}: {}", type.configName, result);
+        // only one address: because we explicitly ask for only one via the Ec2HostnameType
+        return new InetAddress[] { InetAddress.getByName(result) };
     }
 
     @Override
