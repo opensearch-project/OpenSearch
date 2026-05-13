@@ -15,6 +15,7 @@ import org.opensearch.index.engine.dataformat.MergeResult;
 import org.opensearch.index.engine.dataformat.merge.OneMerge;
 import org.opensearch.index.engine.dataformat.stub.MockDataFormat;
 import org.opensearch.index.engine.exec.CatalogSnapshotDeletionPolicy;
+import org.opensearch.index.engine.exec.CatalogSnapshotLifecycleListener;
 import org.opensearch.index.engine.exec.CombinedCatalogSnapshotDeletionPolicy;
 import org.opensearch.index.engine.exec.FileDeleter;
 import org.opensearch.index.engine.exec.Segment;
@@ -685,6 +686,78 @@ public class CatalogSnapshotManagerTests extends OpenSearchTestCase {
 
         // Now _shared should be deleted (CS2 commit deleted by policy)
         assertTrue("_shared should be deleted after CS2 commit removed", tracker.deletedFiles.contains("_shared.parquet"));
+
+        manager.close();
+    }
+
+    /**
+     * Verifies that when IndexFileDeleter.onCommit() triggers deletion of an old committed
+     * snapshot (refcount drops to 0 inside the file deleter), the
+     * CatalogSnapshotLifecycleListener.onDeleted() is correctly invoked via the
+     * onSnapshotDeletedCallback, ensuring readers are closed and resources are released.
+     */
+    public void testOnDeletedListenerCalledWhenCommitPolicyDeletesSnapshot() throws Exception {
+        IndexFileDeleterTests.TrackingFileDeleter tracker = new IndexFileDeleterTests.TrackingFileDeleter();
+        AtomicLong globalCP = new AtomicLong(100);
+        String translogUUID = "test-uuid";
+
+        CombinedCatalogSnapshotDeletionPolicy policy = new CombinedCatalogSnapshotDeletionPolicy(
+            logger,
+            new DefaultTranslogDeletionPolicy(-1, -1, 0),
+            globalCP::get
+        );
+
+        // Tracking listener that records onDeleted calls
+        List<CatalogSnapshot> deletedSnapshots = new ArrayList<>();
+        CatalogSnapshotLifecycleListener trackingListener = new CatalogSnapshotLifecycleListener() {
+            @Override
+            public void beforeRefresh() {}
+
+            @Override
+            public void afterRefresh(boolean didRefresh, CatalogSnapshot catalogSnapshot) {}
+
+            @Override
+            public void onDeleted(CatalogSnapshot catalogSnapshot) {
+                deletedSnapshots.add(catalogSnapshot);
+            }
+        };
+
+        // Step 1: CS1 is the initial committed snapshot — refcount=2 (manager latest + commit ref)
+        List<Segment> cs1Segments = List.of(segment(0, "parquet", "_0_data.parquet"));
+        Map<String, String> userData = commitUserData(100, 100, translogUUID);
+        DataformatAwareCatalogSnapshot cs1 = new DataformatAwareCatalogSnapshot(1L, 1L, 0L, cs1Segments, 1L, userData);
+
+        CatalogSnapshotManager manager = new CatalogSnapshotManager(
+            List.of(cs1),
+            policy,
+            tracker,
+            Map.of(),
+            List.of(trackingListener),
+            null,
+            null
+        );
+
+        // CS1 refcount = 2 (manager "latest" + commit ref from IndexFileDeleter)
+        assertEquals(2, cs1.refCount());
+
+        // Step 2: Refresh creates CS2 — CS1 refcount drops to 1 (only commit ref remains)
+        List<Segment> cs2Segments = List.of(segment(1, "parquet", "_1_data.parquet"));
+        manager.commitNewSnapshot(cs2Segments);
+        assertEquals(1, cs1.refCount());
+
+        // Step 3: Flush CS2 → indexFileDeleter.onCommit(CS2) → policy deletes CS1 → CS1.decRef() → 0
+        globalCP.set(200);
+        try (GatedConditionalCloseable<CatalogSnapshot> commitRef = manager.acquireSnapshotForCommit()) {
+            commitRef.get().setUserData(commitUserData(200, 200, translogUUID), true);
+            commitRef.markSuccess();
+        }
+
+        // CS1 refcount should be 0 — the commit ref was the last one and policy deleted it
+        assertEquals(0, cs1.refCount());
+
+        // Step 4: Verify onDeleted was called for CS1
+        assertEquals("onDeleted should be called exactly once for CS1", 1, deletedSnapshots.size());
+        assertSame("onDeleted should be called with CS1", cs1, deletedSnapshots.get(0));
 
         manager.close();
     }

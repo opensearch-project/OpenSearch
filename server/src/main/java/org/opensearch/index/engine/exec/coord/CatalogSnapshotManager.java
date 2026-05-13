@@ -116,7 +116,8 @@ public class CatalogSnapshotManager implements Closeable {
             filesListeners,
             committedSnapshots,
             shardPath,
-            commitFileManager
+            commitFileManager,
+            this::onSnapshotDeleted
         );
 
         // Notify listeners about the committed snapshot so reader managers
@@ -397,29 +398,32 @@ public class CatalogSnapshotManager implements Closeable {
 
     // ---- Internal ----
 
+    /**
+     * Called when a CatalogSnapshot's refCount reaches 0 — either from this class
+     * (via {@link #decRefAndMaybeDelete}) or from {@link IndexFileDeleter} when the
+     * deletion policy triggers removal of a committed snapshot.
+     * <p>
+     * Removes the snapshot from the tracking map and notifies lifecycle listeners
+     * (e.g., to close readers).
+     */
+    private void onSnapshotDeleted(CatalogSnapshot snapshot) {
+        catalogSnapshotMap.remove(snapshot.getGeneration());
+        for (CatalogSnapshotLifecycleListener listener : snapshotListeners) {
+            try {
+                listener.onDeleted(snapshot);
+            } catch (IOException e) {
+                throw new RuntimeException("Failed to notify listener of snapshot deletion [gen=" + snapshot.getGeneration() + "]", e);
+            }
+        }
+    }
+
     private void decRefAndMaybeDelete(CatalogSnapshot snapshot) {
-        final long gen = snapshot.getGeneration();
         if (snapshot.decRef()) {
-            catalogSnapshotMap.remove(gen);
-            Exception firstException = null;
+            onSnapshotDeleted(snapshot);
             try {
                 indexFileDeleter.removeFileReferences(snapshot);
             } catch (IOException e) {
-                firstException = e;
-            }
-            for (CatalogSnapshotLifecycleListener listener : snapshotListeners) {
-                try {
-                    listener.onDeleted(snapshot);
-                } catch (IOException e) {
-                    if (firstException == null) {
-                        firstException = e;
-                    } else {
-                        firstException.addSuppressed(e);
-                    }
-                }
-            }
-            if (firstException != null) {
-                throw new RuntimeException("Failed to clean up snapshot [gen=" + gen + "]", firstException);
+                throw new RuntimeException("Failed to clean up snapshot [gen=" + snapshot.getGeneration() + "]", e);
             }
         }
     }
