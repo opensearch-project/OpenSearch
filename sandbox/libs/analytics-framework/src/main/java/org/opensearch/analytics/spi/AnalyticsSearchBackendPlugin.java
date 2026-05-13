@@ -121,6 +121,10 @@ public interface AnalyticsSearchBackendPlugin {
      * backend side. Implementations MUST return a non-null map (empty when nothing is tracked)
      * and SHOULD make it unmodifiable so callers cannot mutate backend state.
      *
+     * <p>Implementations MAY cap the result to a top-N subset by current memory usage to bound
+     * the FFI cost (the DataFusion backend caps at the heaviest 10 live queries). Callers that
+     * need a complete enumeration should not rely on this method.
+     *
      * <p>Default implementation returns an empty map so backends that do not track per-query
      * metrics don't have to opt in.
      */

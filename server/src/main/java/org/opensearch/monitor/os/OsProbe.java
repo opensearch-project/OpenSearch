@@ -38,6 +38,7 @@ import org.apache.lucene.util.Constants;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.io.PathUtils;
 import org.opensearch.monitor.Probes;
+import org.opensearch.monitor.jvm.JvmStats;
 
 import java.io.IOException;
 import java.lang.management.ManagementFactory;
@@ -374,6 +375,41 @@ public class OsProbe {
         // Pre-4.5 kernels don't expose RssAnon; signal "unsupported" rather than fabricating 0.
         return -1L;
     }
+
+    /**
+     * Estimates the process's native (off-heap) anonymous memory footprint in bytes —
+     * {@link #getProcessRssAnonBytes()} minus the JVM heap maximum, clamped at zero.
+     *
+     * <p>{@code RssAnon} on Linux includes both committed JVM heap pages and native
+     * allocator pages (malloc, Rust allocator, direct buffers, metaspace). Subtracting
+     * {@code -Xmx} gives a rough "everything outside the heap" view that's useful for
+     * detecting native-side pressure without watching mmapped index files.
+     *
+     * <p>The result is approximate by construction:
+     * <ul>
+     *   <li>Early in a process's life, RssAnon can be lower than {@code -Xmx} because
+     *       not every heap page has been touched / committed yet — the clamp avoids a
+     *       negative reading.</li>
+     *   <li>Heap pages that have been swapped out or unmapped also depress the
+     *       reading, biasing the estimate low.</li>
+     * </ul>
+     *
+     * <p>On non-Linux platforms or older kernels where {@code RssAnon} isn't exposed,
+     * returns {@code -1} so callers can detect unsupported environments rather than
+     * treating the absence as zero pressure.
+     *
+     * @return estimated native (off-heap anonymous) bytes, or {@code -1} if the
+     *         underlying RssAnon signal is unavailable on this platform / kernel
+     */
+    public long getProcessNativeMemoryBytes() {
+        long rssAnon = getProcessRssAnonBytes();
+        if (rssAnon < 0L) {
+            return -1L;
+        }
+        long jvmHeapMax = JvmStats.jvmStats().getMem().getHeapMax().getBytes();
+        return Math.max(0L, rssAnon - jvmHeapMax);
+    }
+
 
     public short getSystemCpuPercent() {
         return Probes.getLoadAndScaleToPercent(getSystemCpuLoad, osMxBean);

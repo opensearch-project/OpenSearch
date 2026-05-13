@@ -92,10 +92,7 @@ public class SearchBackpressureService extends AbstractLifecycleComponent implem
         TaskResourceUsageTrackerType.NATIVE_MEMORY_USAGE_TRACKER,
         (nodeDuressTrackers) -> isNativeTrackingSupported() && nodeDuressTrackers.isNativeMemoryInDuress()
     );
-    private static final Set<TaskResourceUsageTrackerType> NATIVE_MEMORY_DURESS_TRACKERS = EnumSet.of(
-        TaskResourceUsageTrackerType.NATIVE_MEMORY_USAGE_TRACKER,
-        TaskResourceUsageTrackerType.ELAPSED_TIME_TRACKER
-    );
+
     private volatile Scheduler.Cancellable scheduledFuture;
 
     private final SearchBackpressureSettings settings;
@@ -135,48 +132,22 @@ public class SearchBackpressureService extends AbstractLifecycleComponent implem
                     )
                 );
                 put(ResourceType.NATIVE_MEMORY, new NodeDuressTracker(() -> {
-                    // POC native-memory duress probe. We want a "native-only" view — the
-                    // off-heap footprint owned by DataFusion's pool + direct buffers +
-                    // metaspace, without the JVM heap contribution. RssAnon on Linux is the
-                    // private-anonymous portion of the process RSS, which includes BOTH the
-                    // JVM heap pages AND the native allocator pages. Subtracting the
-                    // configured heap-max gives an approximation of the non-heap anonymous
-                    // footprint; clamp to zero because early-lifecycle RssAnon can be below
-                    // heap-max (pages not yet touched / committed).
-                    //
-                    //   nativeBytes  = max(0, rssAnon - jvmHeapMax)
-                    //   usedFraction = nativeBytes / 10 GiB
-                    //
-                    // The denominator is a fixed 10 GiB budget for off-heap growth — a POC
-                    // knob that makes the short-circuit path easy to exercise end-to-end.
-                    // Replace with a real denominator (total physical memory, cgroup limit,
-                    // etc.) before shipping.
-                    //
-                    // getProcessRssAnonBytes() returns -1 on non-Linux or older kernels where
-                    // RssAnon isn't exposed; in that case we stay out of duress so we don't
-                    // flip the cluster into cancellation on platforms where the signal isn't
-                    // reliable.
-                    OsProbe osProbe = OsProbe.getInstance();
-                    long rssAnon = osProbe.getProcessRssAnonBytes();
-                    if (rssAnon < 0L) {
-                        logger.info(
-                            "[nativemem-bp] duress-probe: RssAnon signal unavailable (rssAnon={}B, platform or older kernel)",
-                            rssAnon
-                        );
+                    // Native-memory duress probe. OsProbe.getProcessNativeMemoryFraction()
+                    // returns nativeBytes / NATIVE_MEMORY_DENOMINATOR_BYTES on Linux, or -1.0
+                    // when the underlying RssAnon signal is unavailable (non-Linux or
+                    // kernels < 4.5). The denominator is a POC constant in OsProbe — replace
+                    // with total physical memory or a cgroup limit before shipping.
+                    double used = OsProbe.getInstance().getProcessNativeMemoryBytes();
+                    double totalNative = settings.getSearchTaskSettings().getTotalNativeMemoryBytesThreshold();
+                    double usedFraction = used / totalNative;
+                    if (usedFraction < 0.0d) {
+                        logger.info("[nativemem-bp] duress-probe: native memory signal unavailable");
                         return false;
                     }
-                    long jvmHeapMax = JvmStats.jvmStats().getMem().getHeapMax().getBytes();
-                    long nativeBytes = Math.max(0L, rssAnon - jvmHeapMax);
-                    final long nativeDenomBytes = 10L * 1024L * 1024L * 1024L; // 10 GiB
-                    double usedFraction = (double) nativeBytes / (double) nativeDenomBytes;
                     double threshold = settings.getNodeDuressSettings().getNativeMemoryThreshold();
                     boolean breached = usedFraction >= threshold;
                     logger.info(
-                        "[nativemem-bp] duress-probe: rssAnon={}B, jvmHeapMax={}B, nativeBytes={}B / denom=10GiB "
-                            + "(usedFraction={}, threshold={}, breached={})",
-                        rssAnon,
-                        jvmHeapMax,
-                        nativeBytes,
+                        "[nativemem-bp] duress-probe: usedFraction={}, threshold={}, breached={}",
                         String.format(java.util.Locale.ROOT, "%.4f", usedFraction),
                         String.format(java.util.Locale.ROOT, "%.4f", threshold),
                         breached
@@ -191,7 +162,7 @@ public class SearchBackpressureService extends AbstractLifecycleComponent implem
                 settings.getSearchTaskSettings()::getHeapPercentThreshold,
                 settings.getSearchTaskSettings().getHeapMovingAverageWindowSize(),
                 settings.getSearchTaskSettings()::getElapsedTimeNanosThreshold,
-                settings.getSearchTaskSettings()::getNativeMemoryBytesThreshold,
+                settings.getSearchTaskSettings()::getNativeMemoryPercentThreshold,
                 settings.getClusterSettings(),
                 SearchTaskSettings.SETTING_HEAP_MOVING_AVERAGE_WINDOW_SIZE
             ),
@@ -201,7 +172,7 @@ public class SearchBackpressureService extends AbstractLifecycleComponent implem
                 settings.getSearchShardTaskSettings()::getHeapPercentThreshold,
                 settings.getSearchShardTaskSettings().getHeapMovingAverageWindowSize(),
                 settings.getSearchShardTaskSettings()::getElapsedTimeNanosThreshold,
-                settings.getSearchShardTaskSettings()::getNativeMemoryBytesThreshold,
+                settings.getSearchShardTaskSettings()::getNativeMemoryPercentThreshold,
                 settings.getClusterSettings(),
                 SearchShardTaskSettings.SETTING_HEAP_MOVING_AVERAGE_WINDOW_SIZE
             ),
@@ -286,10 +257,8 @@ public class SearchBackpressureService extends AbstractLifecycleComponent implem
             );
         }
 
-        final Map<Class<? extends SearchBackpressureTask>, List<CancellableTask>> cancellableTasks;
-        if (inNativeMemoryDuress) {
-            cancellableTasks = Map.of(SearchTask.class, searchTasks, SearchShardTask.class, searchShardTasks);
-        } else {
+         Map<Class<? extends SearchBackpressureTask>, List<CancellableTask>> cancellableTasks;
+
             boolean isHeapUsageDominatedBySearchTasks = isHeapUsageDominatedBySearch(
                 searchTasks,
                 getSettings().getSearchTaskSettings().getTotalHeapPercentThreshold()
@@ -304,6 +273,15 @@ public class SearchBackpressureService extends AbstractLifecycleComponent implem
                 SearchShardTask.class,
                 isHeapUsageDominatedBySearchShardTasks ? searchShardTasks : Collections.emptyList()
             );
+
+        if (inNativeMemoryDuress) {
+             cancellableTasks = Map.of(SearchTask.class, searchTasks, SearchShardTask.class, searchShardTasks);
+            if (shouldApply(TaskResourceUsageTrackerType.NATIVE_MEMORY_USAGE_TRACKER)) {
+                logger.info("[nativemem-bp] doRun: refreshing tracker [{}]", TaskResourceUsageTrackerType.NATIVE_MEMORY_USAGE_TRACKER.getName());
+                for (TaskResourceUsageTrackers trackers : taskTrackers.values()) {
+                    trackers.getTracker(TaskResourceUsageTrackerType.NATIVE_MEMORY_USAGE_TRACKER).ifPresent(TaskResourceUsageTracker::refresh);
+                }
+            }
         }
 
         // Force-refresh usage stats of these tasks before making a cancellation decision.
@@ -311,25 +289,7 @@ public class SearchBackpressureService extends AbstractLifecycleComponent implem
         taskResourceTrackingService.refreshResourceStats(searchShardTasks.toArray(new Task[0]));
 
         List<TaskCancellation> taskCancellations = new ArrayList<>();
-
-        // When native-memory duress is active, run ONLY the native-memory + elapsed-time
-        // trackers. Otherwise defer to the per-tracker duress conditions above.
-        Set<TaskResourceUsageTrackerType> activeTrackers = inNativeMemoryDuress
-            ? NATIVE_MEMORY_DURESS_TRACKERS
-            : EnumSet.allOf(TaskResourceUsageTrackerType.class);
-        // Refresh trackers that batch expensive cross-boundary reads (e.g. the
-        // native-memory tracker pulling a DataFusion snapshot via FFM). One refresh
-        // per active tracker per tick amortises the cost across every candidate task.
-        for (TaskResourceUsageTrackerType trackerType : activeTrackers) {
-            if (shouldApply(trackerType) == false) {
-                continue;
-            }
-            logger.info("[nativemem-bp] doRun: refreshing tracker [{}]", trackerType.getName());
-            for (TaskResourceUsageTrackers trackers : taskTrackers.values()) {
-                trackers.getTracker(trackerType).ifPresent(TaskResourceUsageTracker::refresh);
-            }
-        }
-        for (TaskResourceUsageTrackerType trackerType : activeTrackers) {
+        for (TaskResourceUsageTrackerType trackerType : TaskResourceUsageTrackerType.values()) {
             if (shouldApply(trackerType)) {
                 addResourceTrackerBasedCancellations(trackerType, taskCancellations, cancellableTasks);
             }
@@ -486,7 +446,7 @@ public class SearchBackpressureService extends AbstractLifecycleComponent implem
         DoubleSupplier heapPercentThresholdSupplier,
         int heapMovingAverageWindowSize,
         LongSupplier ElapsedTimeNanosSupplier,
-        LongSupplier nativeMemoryBytesThresholdSupplier,
+        DoubleSupplier nativeMemoryPercentThresholdSupplier,
         ClusterSettings clusterSettings,
         Setting<Integer> heapWindowSizeSetting
     ) {
@@ -519,7 +479,7 @@ public class SearchBackpressureService extends AbstractLifecycleComponent implem
         // where the duress probe and total-physical-memory readings are meaningful.
         if (isNativeTrackingSupported()) {
             trackers.addTracker(
-                new NativeMemoryUsageTracker(nativeMemoryBytesThresholdSupplier),
+                new NativeMemoryUsageTracker(nativeMemoryPercentThresholdSupplier),
                 TaskResourceUsageTrackerType.NATIVE_MEMORY_USAGE_TRACKER
             );
         } else {

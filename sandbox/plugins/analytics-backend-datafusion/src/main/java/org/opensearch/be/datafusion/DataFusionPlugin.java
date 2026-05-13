@@ -14,8 +14,7 @@ import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
 import org.opensearch.analytics.spi.QueryExecutionMetrics;
 import org.opensearch.be.datafusion.action.DataFusionStatsAction;
 import org.opensearch.be.datafusion.cache.CacheSettings;
-import org.opensearch.be.datafusion.nativelib.QueryMemoryRegistry;
-import org.opensearch.be.datafusion.nativelib.QueryMemoryUsage;
+import org.opensearch.be.datafusion.nativelib.NativeBridge;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.service.ClusterService;
@@ -48,7 +47,6 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
@@ -113,6 +111,14 @@ public class DataFusionPlugin extends Plugin implements SearchBackEndPlugin<Data
 
     private static final String SUPPORTED_FORMAT = "parquet";
 
+    /**
+     * Cap on entries returned by {@link #getActiveQueryMetrics()}. Equal to the per-tick
+     * cancellation budget on {@code SearchBackpressureService} ({@code cancellation_burst}
+     * default), so the heaviest queries are always represented and SBP never sees fewer
+     * candidates than it can act on in a tick.
+     */
+    private static final int ACTIVE_QUERY_METRICS_TOP_N = 10;
+
     private volatile DataFusionService dataFusionService;
     private volatile DataFormatRegistry dataFormatRegistry;
     private volatile SimpleExtension.ExtensionCollection substraitExtensions;
@@ -170,7 +176,10 @@ public class DataFusionPlugin extends Plugin implements SearchBackEndPlugin<Data
         // (see ShardScanInstructionHandler / DatafusionSearchExecEngine), so the map is
         // already keyed by Task#getId on the consumer side.
         logger.info("[nativemem-bp] plugin: installing native-memory snapshot supplier for backpressure tracker");
-        NativeMemoryUsageTracker.setSnapshotSupplier(this::snapshotNativeMemoryByTaskId);
+        NativeMemoryUsageTracker.setSnapshotSupplier(this::currentBytesByTaskId);
+        NativeMemoryUsageTracker.setNativeMemoryBudgetSupplier(
+            () -> DATAFUSION_MEMORY_POOL_LIMIT.get(clusterService.getSettings())
+        );
 
         this.substraitExtensions = loadSubstraitExtensions();
 
@@ -179,10 +188,12 @@ public class DataFusionPlugin extends Plugin implements SearchBackEndPlugin<Data
 
     /**
      * Project the active-query metrics map down to {@code taskId -> currentBytes} for the
-     * backpressure native-memory tracker. One FFM snapshot per call. Returns an empty map
-     * when the service isn't running, so startup/shutdown races don't surface bad data.
+     * backpressure native-memory tracker. One FFM snapshot per call, capped at
+     * {@link #ACTIVE_QUERY_METRICS_TOP_N} entries (the heaviest live queries).
+     * Returns an empty map when the service isn't running, so startup/shutdown races
+     * don't surface bad data.
      */
-    private Map<Long, Long> snapshotNativeMemoryByTaskId() {
+    private Map<Long, Long> currentBytesByTaskId() {
         if (dataFusionService == null) {
             logger.info("[nativemem-bp] plugin.snapshot: service not running, returning empty map");
             return Collections.emptyMap();
@@ -333,28 +344,21 @@ public class DataFusionPlugin extends Plugin implements SearchBackEndPlugin<Data
      *
      * <p>Each entry mirrors one {@code QueryTracker} on the Rust side — current and peak memory
      * reservation, wall time, and whether the query has completed but not yet been drained.
-     * Ordering follows {@link QueryMemoryRegistry#snapshot()} (insertion-agnostic); a
-     * {@link LinkedHashMap} preserves that ordering for callers that want deterministic iteration
-     * in tests or logs.
+     * The map contains at most {@link #ACTIVE_QUERY_METRICS_TOP_N} entries — the heaviest live
+     * queries by {@code current_bytes}, selected on the Rust side. Iteration order matches the
+     * order Rust drained the bounded min-heap (unspecified but stable per snapshot).
      */
     @Override
     public Map<Long, QueryExecutionMetrics> getActiveQueryMetrics() {
         if (dataFusionService == null) {
             return Collections.emptyMap();
         }
-        List<QueryMemoryUsage> usages = QueryMemoryRegistry.snapshot();
-        if (usages.isEmpty()) {
+        Map<Long, QueryExecutionMetrics> result = NativeBridge.queryRegistryTopN(ACTIVE_QUERY_METRICS_TOP_N);
+        if (result.isEmpty()) {
             logger.info("[nativemem-bp] plugin.getActiveQueryMetrics: native registry empty");
-            return Collections.emptyMap();
+        } else {
+            logger.info("[nativemem-bp] plugin.getActiveQueryMetrics: decoded {} entries from native registry", result.size());
         }
-        Map<Long, QueryExecutionMetrics> result = new LinkedHashMap<>(usages.size());
-        for (QueryMemoryUsage u : usages) {
-            // DashMap keys are unique, but defensively keep the first snapshot — a duplicate
-            // would only occur if context ids were reused, which QueryTrackingContext::new
-            // already treats as a caller bug.
-            result.putIfAbsent(u.contextId(), new QueryExecutionMetrics(u.currentBytes(), u.peakBytes(), u.wallNanos(), u.completed()));
-        }
-        logger.info("[nativemem-bp] plugin.getActiveQueryMetrics: decoded {} entries from native registry", result.size());
-        return Collections.unmodifiableMap(result);
+        return result;
     }
 }

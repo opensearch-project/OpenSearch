@@ -9,6 +9,7 @@
 package org.opensearch.be.datafusion.nativelib;
 
 import org.opensearch.analytics.backend.jni.NativeHandle;
+import org.opensearch.analytics.spi.QueryExecutionMetrics;
 import org.opensearch.be.datafusion.stats.DataFusionStats;
 import org.opensearch.be.datafusion.stats.NativeExecutorsStats;
 import org.opensearch.be.datafusion.stats.TaskMonitorStats;
@@ -19,11 +20,12 @@ import org.opensearch.plugins.NativeStoreHandle;
 
 import java.lang.foreign.FunctionDescriptor;
 import java.lang.foreign.Linker;
-import java.lang.foreign.MemorySegment;
 import java.lang.foreign.SymbolLookup;
 import java.lang.foreign.ValueLayout;
 import java.lang.invoke.MethodHandle;
+import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.Map;
 
 /**
  * FFM bridge to native DataFusion library.
@@ -84,6 +86,7 @@ public final class NativeBridge {
     private static final MethodHandle EXECUTE_WITH_CONTEXT;
     private static final MethodHandle CANCEL_QUERY;
     private static final MethodHandle STATS;
+    private static final MethodHandle QUERY_REGISTRY_TOP_N_BY_CURRENT;
     private static final MethodHandle PREPARE_PARTIAL_PLAN;
     private static final MethodHandle PREPARE_FINAL_PLAN;
     private static final MethodHandle EXECUTE_LOCAL_PREPARED_PLAN;
@@ -398,6 +401,9 @@ public final class NativeBridge {
             FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG)
         );
 
+        // i64 df_query_registry_top_n_by_current(out_ptr, cap_entries)
+        QUERY_REGISTRY_TOP_N_BY_CURRENT = linker.downcallHandle(
+            lib.find("df_query_registry_top_n_by_current").orElseThrow(),
         // ── Distributed aggregate: prepare partial/final plans ──
         // i64 df_prepare_partial_plan(handle_ptr, bytes_ptr, bytes_len)
         PREPARE_PARTIAL_PLAN = linker.downcallHandle(
@@ -705,43 +711,58 @@ public final class NativeBridge {
         }
     }
 
-    // ---- Per-query registry snapshot (two-phase) ----
+    // ---- Per-query registry top-N snapshot ----
 
     /**
-     * Phase 1: return the current size of the per-query registry on the native side.
+     * Snapshot the {@code n} heaviest live queries by {@code current_bytes}.
      *
-     * <p>The value is a sizing hint only — it can go stale the moment it's returned
-     * because queries may register or drain concurrently. {@link #queryRegistrySnapshot}
-     * handles both over- and under-sized buffers safely.
+     * <p>One FFM call: Java allocates an {@code n × ENTRY_BYTES} segment, Rust
+     * runs a bounded min-heap of size {@code n} over its registry and writes
+     * the survivors as {@link QueryRegistryLayout} entries. Completed and
+     * zero-byte trackers are filtered on the Rust side. Order within the
+     * buffer is unspecified.
+     *
+     * <p>Mirrors the {@link #stats()} pattern: the layout class decodes
+     * directly into the caller's final type ({@link QueryExecutionMetrics})
+     * with no transport-only intermediate.
+     *
+     * @param n maximum entries to return; must be non-negative. Zero short-circuits
+     *          without crossing the FFM boundary.
+     * @return a non-null map of {@code contextId → metrics}, possibly empty,
+     *         with at most {@code n} entries.
+     * @throws IllegalArgumentException if {@code n} is negative or implies a
+     *         buffer larger than {@link Integer#MAX_VALUE} bytes
      */
-    public static int queryRegistryLen() {
-        try {
-            long result = NativeLibraryLoader.checkResult((long) QUERY_REGISTRY_LEN.invokeExact());
-            if (result > Integer.MAX_VALUE) {
-                throw new IllegalStateException("Native registry length exceeds Integer.MAX_VALUE: " + result);
-            }
-            return (int) result;
-        } catch (Throwable t) {
-            throw t instanceof RuntimeException re ? re : new RuntimeException(t);
+    public static Map<Long, QueryExecutionMetrics> queryRegistryTopN(int n) {
+        if (n < 0) {
+            throw new IllegalArgumentException("n must be non-negative: " + n);
         }
-    }
-
-    /**
-     * Phase 2: copy up to {@code capacity} entries from the native registry into the
-     * given segment and return the number of entries actually written.
-     *
-     * <p>{@code out} must be 8-byte aligned and large enough to hold
-     * {@code capacity * QueryRegistryLayout.ENTRY_BYTES} bytes. If the native
-     * registry is larger than {@code capacity}, the extra entries are silently
-     * truncated; if smaller, the unused tail of the buffer is left untouched.
-     */
-    public static int queryRegistrySnapshot(MemorySegment out, int capacity) {
-        if (capacity < 0) {
-            throw new IllegalArgumentException("capacity must be non-negative: " + capacity);
+        if (n == 0) {
+            return Collections.emptyMap();
+        }
+        long bytes = (long) n * QueryRegistryLayout.ENTRY_BYTES;
+        if (bytes > Integer.MAX_VALUE) {
+            throw new IllegalArgumentException("n too large for a single snapshot: " + n);
         }
         try (var call = new NativeCall()) {
-            long written = call.invoke(QUERY_REGISTRY_SNAPSHOT, out, (long) capacity);
-            return (int) written;
+            var seg = call.buf((int) bytes);
+            long written = call.invoke(QUERY_REGISTRY_TOP_N_BY_CURRENT, seg, (long) n);
+            if (written == 0L) {
+                return Collections.emptyMap();
+            }
+            // Defensive: Rust contract is `written <= cap_entries`. A higher value
+            // would mean the buffer was overrun, so refuse to decode past `n`.
+            int rows = (int) Math.min(written, (long) n);
+            // LinkedHashMap preserves the heap-drain order Rust used so logs and
+            // tests see stable iteration; values are O(1) regardless.
+            Map<Long, QueryExecutionMetrics> out = new LinkedHashMap<>(rows);
+            for (int i = 0; i < rows; i++) {
+                long ctxId = QueryRegistryLayout.readContextId(seg, i);
+                // putIfAbsent guards against context_id reuse, which is a Rust-side
+                // caller bug but cheap to defend against here.
+                out.putIfAbsent(ctxId, QueryRegistryLayout.readMetrics(seg, i));
+            }
+            return Collections.unmodifiableMap(out);
         }
     }
 

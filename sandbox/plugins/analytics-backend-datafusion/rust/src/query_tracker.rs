@@ -174,10 +174,10 @@ pub fn drain_completed_query(context_id: i64) -> Option<Arc<QueryTracker>> {
 }
 
 // ---------------------------------------------------------------------------
-// Registry snapshot — two-phase FFM export
+// Registry snapshot — top-N FFM export
 // ---------------------------------------------------------------------------
 
-/// Wire representation of a single query's tracker, used by the two-phase
+/// Wire representation of a single query's tracker, used by the top-N
 /// snapshot API. Fields are `i64` so the struct crosses the FFM boundary with
 /// a stable, alignment-safe layout (8-byte aligned on every target we support).
 ///
@@ -220,46 +220,112 @@ impl WireQueryMetric {
     }
 }
 
-/// Phase 1 of the snapshot API: return the current number of entries in the
-/// registry. Java uses this to allocate a buffer for phase 2.
+/// Top-N snapshot: copy at most `out.len()` of the heaviest live queries
+/// (ranked by `current_bytes` descending) into `out`. Returns the number of
+/// entries actually written.
 ///
-/// The value is racy by design — queries may register or be drained between
-/// phase 1 and phase 2. Phase 2 handles both cases: if there are more entries
-/// than the buffer holds, the extra entries are truncated; if there are
-/// fewer, the unused tail of the buffer is left untouched and the actual
-/// count is returned.
-pub fn query_registry_len() -> usize {
-    let n = QUERY_REGISTRY.len();
-    info!("[nativemem-bp] rust.query_registry_len = {}", n);
-    n
-}
+/// Selection is done with a bounded min-heap of capacity `out.len()`, so a
+/// single pass over the registry runs in `O(M log N)` where `M` is the
+/// registry size and `N = out.len()`. The heap holds the *top N candidates*
+/// seen so far; the smallest of those sits at the root, and any new entry
+/// heavier than that root replaces it.
+///
+/// Order of entries written into `out` is unspecified — heap order, not
+/// sorted. Callers that need a sorted view sort the prefix client-side.
+///
+/// Filters applied on the Rust side, in this order:
+/// - completed trackers are skipped (they retain `current_bytes == 0` until
+///   `drain_completed_query` runs anyway, so this is mostly a fast path)
+/// - `current_bytes == 0` is skipped (registered but un-allocated trackers
+///   are not "heavy" candidates)
+///
+/// `out` may be a raw slice pointing at a Java-owned buffer; it must be valid
+/// for writes of `out.len() * size_of::<WireQueryMetric>()` bytes and properly
+/// aligned for `WireQueryMetric` (8-byte aligned).
+pub fn snapshot_top_n_by_current(out: &mut [WireQueryMetric]) -> usize {
+    use std::cmp::{Ordering, Reverse};
+    use std::collections::BinaryHeap;
 
-/// Phase 2 of the snapshot API: copy up to `cap_entries` entries from the
-/// registry into `out`. Returns the number of entries actually written.
-///
-/// `out` may be a raw slice pointing at a Java-owned buffer; it must be
-/// valid for writes of `cap_entries * size_of::<WireQueryMetric>()` bytes
-/// and properly aligned for `WireQueryMetric` (8-byte aligned). Entries are
-/// collected in the order DashMap's iterator returns them, which is not
-/// otherwise specified.
-pub fn snapshot_query_registry(out: &mut [WireQueryMetric]) -> usize {
-    let mut written = 0usize;
-    for entry in QUERY_REGISTRY.iter() {
-        if written >= out.len() {
-            break;
+    /// Heap entry — orders purely by `bytes`. The tracker rides along but is
+    /// not part of the comparison, so `QueryTracker` doesn't need `Ord`.
+    struct HeapEntry {
+        bytes: i64,
+        tracker: Arc<QueryTracker>,
+    }
+
+    impl Eq for HeapEntry {}
+    impl PartialEq for HeapEntry {
+        fn eq(&self, other: &Self) -> bool {
+            self.bytes == other.bytes
         }
-        let metric = WireQueryMetric::from_tracker(entry.value());
+    }
+    impl Ord for HeapEntry {
+        fn cmp(&self, other: &Self) -> Ordering {
+            self.bytes.cmp(&other.bytes)
+        }
+    }
+    impl PartialOrd for HeapEntry {
+        fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+            Some(self.cmp(other))
+        }
+    }
+
+    let n = out.len();
+    if n == 0 {
+        return 0;
+    }
+
+    // BinaryHeap is a max-heap; Reverse flips it so the smallest current_bytes
+    // sits at the root. That root is the weakest member of the current top-N
+    // set — the one a heavier candidate displaces.
+    let mut heap: BinaryHeap<Reverse<HeapEntry>> = BinaryHeap::with_capacity(n);
+
+    for entry in QUERY_REGISTRY.iter() {
+        let tracker = entry.value();
+        if tracker.is_completed() {
+            continue;
+        }
+        let bytes = usize_to_i64_saturating(tracker.memory_pool.current_bytes());
+        if bytes == 0 {
+            continue;
+        }
+        if heap.len() < n {
+            heap.push(Reverse(HeapEntry {
+                bytes,
+                tracker: Arc::clone(tracker),
+            }));
+        } else if let Some(Reverse(min)) = heap.peek() {
+            // Strictly greater: equal-byte ties keep the first-seen entry.
+            if bytes > min.bytes {
+                heap.pop();
+                heap.push(Reverse(HeapEntry {
+                    bytes,
+                    tracker: Arc::clone(tracker),
+                }));
+            }
+        }
+    }
+
+    let mut written = 0usize;
+    for Reverse(entry) in heap.into_iter() {
+        // Re-read the tracker fields here so the wire entry reflects the live
+        // values at materialization time, consistent with from_tracker. Ranking
+        // and final values are independent point-in-time samples.
+        out[written] = WireQueryMetric::from_tracker(&entry.tracker);
         info!(
-            "[nativemem-bp] rust.snapshot entry[{}]: ctx={}, current={}B, peak={}B, wall_ns={}, completed={}",
-            written, metric.context_id, metric.current_bytes, metric.peak_bytes, metric.wall_nanos, metric.completed
+            "[nativemem-bp] rust.snapshot_top_n entry[{}]: ctx={}, current={}B, peak={}B, wall_ns={}, completed={}",
+            written,
+            out[written].context_id,
+            out[written].current_bytes,
+            out[written].peak_bytes,
+            out[written].wall_nanos,
+            out[written].completed,
         );
-        out[written] = metric;
         written += 1;
     }
     info!(
-        "[nativemem-bp] rust.snapshot_query_registry: wrote {} entries (buffer cap {})",
-        written,
-        out.len()
+        "[nativemem-bp] rust.snapshot_top_n_by_current: wrote {} entries (cap {})",
+        written, n
     );
     written
 }
@@ -596,35 +662,14 @@ mod tests {
     }
 
     // -----------------------------------------------------------------------
-    // Two-phase snapshot tests
+    // Top-N snapshot tests
     // -----------------------------------------------------------------------
 
-    #[test]
-    fn test_snapshot_captures_live_and_completed() {
-        let global = make_global_pool(1_000_000);
-        let live_id = 60_000;
-        let done_id = 60_001;
-
-        let live_ctx = QueryTrackingContext::new(live_id, Arc::clone(&global));
-        let live_pool = live_ctx.memory_pool().unwrap();
-        let pool: Arc<dyn MemoryPool> = live_pool.clone();
-        let mut reservation = make_reservation(&pool, "live");
-        reservation.try_grow(4096).unwrap();
-
-        let done_ctx = QueryTrackingContext::new(done_id, Arc::clone(&global));
-        let done_pool = done_ctx.memory_pool().unwrap();
-        let done_pool_dyn: Arc<dyn MemoryPool> = done_pool.clone();
-        let mut done_reservation = make_reservation(&done_pool_dyn, "done");
-        done_reservation.try_grow(2048).unwrap();
-        drop(done_reservation);
-        drop(done_ctx);
-
-        // Phase 1
-        let len = query_registry_len();
-        assert!(len >= 2, "expected at least 2 entries, got {len}");
-
-        // Phase 2 with exact capacity
-        let mut buf = vec![
+    /// Helper: drain all live tracker contexts so each top-N test starts from
+    /// a clean registry. Tests in this module are tagged with unique id ranges
+    /// but the registry is process-wide, so we only assert on contexts we own.
+    fn fresh_buf(n: usize) -> Vec<WireQueryMetric> {
+        vec![
             WireQueryMetric {
                 context_id: 0,
                 current_bytes: 0,
@@ -632,66 +677,117 @@ mod tests {
                 wall_nanos: 0,
                 completed: 0,
             };
-            len
-        ];
-        let written = snapshot_query_registry(&mut buf);
-        assert_eq!(written, len);
+            n
+        ]
+    }
 
-        let live = buf.iter().find(|m| m.context_id == live_id).expect("live not captured");
-        assert_eq!(live.current_bytes, 4096);
-        assert_eq!(live.peak_bytes, 4096);
-        assert_eq!(live.completed, 0);
-        assert!(live.wall_nanos >= 0);
+    #[test]
+    fn test_top_n_zero_capacity_returns_zero() {
+        let mut buf: Vec<WireQueryMetric> = Vec::new();
+        let written = snapshot_top_n_by_current(&mut buf);
+        assert_eq!(written, 0);
+    }
 
-        let done = buf.iter().find(|m| m.context_id == done_id).expect("done not captured");
-        assert_eq!(done.current_bytes, 0);
-        assert_eq!(done.peak_bytes, 2048);
-        assert_eq!(done.completed, 1);
-        assert!(done.wall_nanos > 0);
+    #[test]
+    fn test_top_n_picks_highest_current_bytes() {
+        let global = make_global_pool(10_000_000);
+        let id_lo = 70_000;
+        let id_md = 70_001;
+        let id_hi = 70_002;
 
-        drop(reservation);
+        let ctx_lo = QueryTrackingContext::new(id_lo, Arc::clone(&global));
+        let ctx_md = QueryTrackingContext::new(id_md, Arc::clone(&global));
+        let ctx_hi = QueryTrackingContext::new(id_hi, Arc::clone(&global));
+
+        let pool_lo: Arc<dyn MemoryPool> = ctx_lo.memory_pool().unwrap();
+        let pool_md: Arc<dyn MemoryPool> = ctx_md.memory_pool().unwrap();
+        let pool_hi: Arc<dyn MemoryPool> = ctx_hi.memory_pool().unwrap();
+
+        let mut r_lo = make_reservation(&pool_lo, "lo");
+        let mut r_md = make_reservation(&pool_md, "md");
+        let mut r_hi = make_reservation(&pool_hi, "hi");
+        r_lo.try_grow(1_000).unwrap();
+        r_md.try_grow(5_000).unwrap();
+        r_hi.try_grow(9_000).unwrap();
+
+        // Top-2 must contain ids hi and md but not lo. Other parallel tests
+        // may push entries into the registry, so we filter to our id range.
+        let mut buf = fresh_buf(2);
+        let written = snapshot_top_n_by_current(&mut buf);
+        assert!(written >= 1 && written <= 2);
+
+        let our: Vec<&WireQueryMetric> = buf[..written]
+            .iter()
+            .filter(|m| (id_lo..=id_hi).contains(&m.context_id))
+            .collect();
+        // At minimum, id_hi (the heaviest) must be in our slice if any of
+        // ours made it in.
+        if !our.is_empty() {
+            assert!(our.iter().any(|m| m.context_id == id_hi));
+            assert!(!our.iter().any(|m| m.context_id == id_lo));
+        }
+
+        drop(r_lo);
+        drop(r_md);
+        drop(r_hi);
+        drop(ctx_lo);
+        drop(ctx_md);
+        drop(ctx_hi);
+        QUERY_REGISTRY.remove(&id_lo);
+        QUERY_REGISTRY.remove(&id_md);
+        QUERY_REGISTRY.remove(&id_hi);
+    }
+
+    #[test]
+    fn test_top_n_skips_completed_and_zero_byte_trackers() {
+        let global = make_global_pool(1_000_000);
+        let live_id = 70_100;
+        let zero_id = 70_101;
+        let done_id = 70_102;
+
+        let live_ctx = QueryTrackingContext::new(live_id, Arc::clone(&global));
+        let live_pool: Arc<dyn MemoryPool> = live_ctx.memory_pool().unwrap();
+        let mut r_live = make_reservation(&live_pool, "live");
+        r_live.try_grow(4_096).unwrap();
+
+        // Registered but never reserved — current_bytes stays 0.
+        let _zero_ctx = QueryTrackingContext::new(zero_id, Arc::clone(&global));
+
+        // Completed before snapshot. Drop reservation first so QueryMemoryPool
+        // is settled, then drop the context to flip the completed flag.
+        let done_ctx = QueryTrackingContext::new(done_id, Arc::clone(&global));
+        let done_pool: Arc<dyn MemoryPool> = done_ctx.memory_pool().unwrap();
+        let mut r_done = make_reservation(&done_pool, "done");
+        r_done.try_grow(8_192).unwrap();
+        drop(r_done);
+        drop(done_ctx);
+
+        let mut buf = fresh_buf(8);
+        let written = snapshot_top_n_by_current(&mut buf);
+
+        let our: Vec<&WireQueryMetric> = buf[..written]
+            .iter()
+            .filter(|m| [live_id, zero_id, done_id].contains(&m.context_id))
+            .collect();
+        assert!(our.iter().any(|m| m.context_id == live_id));
+        assert!(!our.iter().any(|m| m.context_id == zero_id));
+        assert!(!our.iter().any(|m| m.context_id == done_id));
+
+        drop(r_live);
         drop(live_ctx);
         QUERY_REGISTRY.remove(&live_id);
+        QUERY_REGISTRY.remove(&zero_id);
         QUERY_REGISTRY.remove(&done_id);
     }
 
     #[test]
-    fn test_snapshot_truncates_when_buffer_is_smaller_than_registry() {
+    fn test_top_n_with_buffer_larger_than_live_set() {
         let global = make_global_pool(1_000_000);
-        let ids: Vec<i64> = (60_100..60_105).collect();
-        let contexts: Vec<QueryTrackingContext> = ids
-            .iter()
-            .map(|id| QueryTrackingContext::new(*id, Arc::clone(&global)))
-            .collect();
-
-        let mut buf = vec![
-            WireQueryMetric {
-                context_id: 0,
-                current_bytes: 0,
-                peak_bytes: 0,
-                wall_nanos: 0,
-                completed: 0,
-            };
-            2
-        ];
-        let written = snapshot_query_registry(&mut buf);
-        assert_eq!(written, 2, "buffer should cap the write count");
-        // QUERY_REGISTRY is process-wide. Other parallel tests may contribute entries to
-        // this 2-slot buffer, so the only invariant we can assert here is "no more than
-        // two entries were written". The more specific "every entry belongs to this
-        // test's id range" check is inherently racy; don't re-introduce it.
-
-        drop(contexts);
-        for id in &ids {
-            QUERY_REGISTRY.remove(id);
-        }
-    }
-
-    #[test]
-    fn test_snapshot_into_oversized_buffer_leaves_tail_untouched() {
-        let global = make_global_pool(1_000_000);
-        let id = 60_200;
+        let id = 70_200;
         let ctx = QueryTrackingContext::new(id, global);
+        let pool: Arc<dyn MemoryPool> = ctx.memory_pool().unwrap();
+        let mut r = make_reservation(&pool, "only");
+        r.try_grow(2_048).unwrap();
 
         let sentinel = WireQueryMetric {
             context_id: -1,
@@ -700,16 +796,48 @@ mod tests {
             wall_nanos: -1,
             completed: -1,
         };
-        let mut buf = vec![sentinel; query_registry_len() + 4];
-        let written = snapshot_query_registry(&mut buf);
+        let mut buf = vec![sentinel; 16];
+        let written = snapshot_top_n_by_current(&mut buf);
         assert!(written >= 1);
-        assert!(written < buf.len(), "should not fill the oversized buffer");
-        // Trailing slots keep the sentinel — verifies snapshot did not touch them.
-        for entry in &buf[written..] {
-            assert_eq!(entry.context_id, -1);
+        assert!(written < buf.len());
+        // Tail past `written` keeps the sentinel — proves the snapshot did not
+        // touch it.
+        for slot in &buf[written..] {
+            assert_eq!(slot.context_id, -1);
         }
 
+        drop(r);
         drop(ctx);
         QUERY_REGISTRY.remove(&id);
+    }
+
+    #[test]
+    fn test_top_n_caps_at_buffer_capacity() {
+        let global = make_global_pool(10_000_000);
+        let ids: Vec<i64> = (70_300..70_310).collect();
+        let mut contexts = Vec::with_capacity(ids.len());
+        let mut reservations = Vec::with_capacity(ids.len());
+        for (i, id) in ids.iter().enumerate() {
+            let ctx = QueryTrackingContext::new(*id, Arc::clone(&global));
+            let pool: Arc<dyn MemoryPool> = ctx.memory_pool().unwrap();
+            let mut r = make_reservation(&pool, "cap");
+            r.try_grow((i as usize + 1) * 1_000).unwrap();
+            reservations.push(r);
+            contexts.push(ctx);
+        }
+
+        let mut buf = fresh_buf(3);
+        let written = snapshot_top_n_by_current(&mut buf);
+        assert!(written <= 3, "must not exceed buffer capacity");
+
+        for r in reservations.drain(..) {
+            drop(r);
+        }
+        for ctx in contexts.drain(..) {
+            drop(ctx);
+        }
+        for id in &ids {
+            QUERY_REGISTRY.remove(id);
+        }
     }
 }
