@@ -23,8 +23,14 @@ import static org.opensearch.rest.RestRequest.Method.POST;
  * REST handler for PPL queries: {@code POST /_analytics/ppl}.
  * Parses {@code {"query": "<ppl>"}} from the request body and
  * delegates to the transport action.
+ *
+ * <p>Also handles {@code POST /_analytics/ppl/_explain} which executes
+ * the query and returns profiling information (stage timings) alongside results.
  */
 public class RestPPLQueryAction extends BaseRestHandler {
+
+    private static final String QUERY_ENDPOINT = "/_analytics/ppl";
+    private static final String EXPLAIN_ENDPOINT = "/_analytics/ppl/_explain";
 
     @Override
     public String getName() {
@@ -33,7 +39,7 @@ public class RestPPLQueryAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(POST, "/_analytics/ppl"));
+        return List.of(new Route(POST, QUERY_ENDPOINT), new Route(POST, EXPLAIN_ENDPOINT));
     }
 
     @Override
@@ -42,7 +48,8 @@ public class RestPPLQueryAction extends BaseRestHandler {
         try (XContentParser parser = request.contentParser()) {
             queryText = parseQueryText(parser);
         }
-        PPLRequest pplRequest = new PPLRequest(queryText);
+        boolean explain = request.path().endsWith("/_explain");
+        PPLRequest pplRequest = new PPLRequest(queryText, explain);
         return channel -> client.execute(UnifiedPPLExecuteAction.INSTANCE, pplRequest, new RestToXContentListener<>(channel));
     }
 
