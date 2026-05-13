@@ -1190,6 +1190,67 @@ public class DataFormatAwareStoreDirectoryTests extends OpenSearchTestCase {
         // No exception, nothing to assert on directory state.
     }
 
+    public void testEvictStaleChecksums_retainsOnlyActiveFiles() throws IOException {
+        PrecomputedChecksumStrategy parquetStrategy = new PrecomputedChecksumStrategy();
+        try (
+            DataFormatAwareStoreDirectory dfasd = new DataFormatAwareStoreDirectory(
+                FSDirectory.open(indexPath.resolveSibling("evict-idx")),
+                shardPath,
+                Map.of("parquet", parquetStrategy)
+            )
+        ) {
+            // Seed three parquet checksums.
+            dfasd.registerDownloadedChecksum("parquet/a.parquet", "10");
+            dfasd.registerDownloadedChecksum("parquet/b.parquet", "20");
+            dfasd.registerDownloadedChecksum("parquet/c.parquet", "30");
+
+            // Active snapshot references only {a, c} — b was merged away.
+            dfasd.evictStaleChecksums(List.of("parquet/a.parquet", "parquet/c.parquet"));
+
+            // Sanity-write files so computeChecksum can fall back if cache misses.
+            for (String f : List.of("parquet/a.parquet", "parquet/b.parquet", "parquet/c.parquet")) {
+                try (IndexOutput out = dfasd.createOutput(f, IOContext.DEFAULT)) {
+                    out.writeBytes(new byte[] { 1, 2, 3 }, 3);
+                }
+            }
+
+            // a and c remain cached at their registered values.
+            assertEquals(10L, parquetStrategy.computeChecksum(dfasd, "parquet/a.parquet"));
+            assertEquals(30L, parquetStrategy.computeChecksum(dfasd, "parquet/c.parquet"));
+
+            // b was evicted — computeChecksum falls back to scanning the file (CRC32 of {1,2,3}).
+            CRC32 expected = new CRC32();
+            expected.update(new byte[] { 1, 2, 3 });
+            assertEquals(expected.getValue(), parquetStrategy.computeChecksum(dfasd, "parquet/b.parquet"));
+        }
+    }
+
+    public void testEvictStaleChecksums_emptyActiveSetClearsAll() throws IOException {
+        PrecomputedChecksumStrategy parquetStrategy = new PrecomputedChecksumStrategy();
+        try (
+            DataFormatAwareStoreDirectory dfasd = new DataFormatAwareStoreDirectory(
+                FSDirectory.open(indexPath.resolveSibling("evict-empty-idx")),
+                shardPath,
+                Map.of("parquet", parquetStrategy)
+            )
+        ) {
+            dfasd.registerDownloadedChecksum("parquet/only.parquet", "42");
+            // Empty active set => every entry should be evicted.
+            dfasd.evictStaleChecksums(List.of());
+
+            try (IndexOutput out = dfasd.createOutput("parquet/only.parquet", IOContext.DEFAULT)) {
+                out.writeBytes(new byte[] { 9, 9 }, 2);
+            }
+            CRC32 expected = new CRC32();
+            expected.update(new byte[] { 9, 9 });
+            assertEquals(
+                "cache cleared; computeChecksum must fall back to scan",
+                expected.getValue(),
+                parquetStrategy.computeChecksum(dfasd, "parquet/only.parquet")
+            );
+        }
+    }
+
     /**
      * Helper interface for mocking a Directory that also implements RemoteSyncListener.
      */

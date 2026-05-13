@@ -1,0 +1,662 @@
+commit ec2ae547060aca351dbcb672e180f1bf1d7f3229
+Author:     Mohit Godwani <mgodwan@amazon.com>
+AuthorDate: Mon May 11 21:16:21 2026 +0530
+Commit:     Mohit Godwani <mgodwan@amazon.com>
+CommitDate: Mon May 11 21:16:21 2026 +0530
+
+    Build commit from lucene si and parquet files
+    
+    Signed-off-by: Mohit Godwani <mgodwan@amazon.com>
+
+diff --git a/sandbox/plugins/analytics-backend-lucene/src/main/java/org/opensearch/be/lucene/LuceneReaderManager.java b/sandbox/plugins/analytics-backend-lucene/src/main/java/org/opensearch/be/lucene/LuceneReaderManager.java
+index 69f3f5d4f15..6e2a80e7d5f 100644
+--- a/sandbox/plugins/analytics-backend-lucene/src/main/java/org/opensearch/be/lucene/LuceneReaderManager.java
++++ b/sandbox/plugins/analytics-backend-lucene/src/main/java/org/opensearch/be/lucene/LuceneReaderManager.java
+@@ -35,7 +35,7 @@ import java.util.Objects;
+ public class LuceneReaderManager implements EngineReaderManager<DirectoryReader> {
+ 
+     private final DataFormat dataFormat;
+-    private final Map<CatalogSnapshot, DirectoryReader> readers = new HashMap<>();
++    private final Map<CatalogSnapshot, DirectoryReader> readers;
+     private volatile DirectoryReader currentReader;
+ 
+     /**
+@@ -45,10 +45,11 @@ public class LuceneReaderManager implements EngineReaderManager<DirectoryReader>
+      * @param initialReader the initial DirectoryReader, must not be null
+      * @throws NullPointerException if initialReader is null
+      */
+-    public LuceneReaderManager(DataFormat dataFormat, DirectoryReader initialReader) {
++    public LuceneReaderManager(DataFormat dataFormat, DirectoryReader initialReader, Map<CatalogSnapshot, DirectoryReader> readers) {
+         this.dataFormat = dataFormat;
+         Objects.requireNonNull(initialReader, "initialReader must not be null");
+         this.currentReader = initialReader;
++        this.readers = readers;
+     }
+ 
+     @Override
+diff --git a/sandbox/plugins/analytics-backend-lucene/src/main/java/org/opensearch/be/lucene/LuceneSearchBackEnd.java b/sandbox/plugins/analytics-backend-lucene/src/main/java/org/opensearch/be/lucene/LuceneSearchBackEnd.java
+index 388f8d25072..f9b3cc28f60 100644
+--- a/sandbox/plugins/analytics-backend-lucene/src/main/java/org/opensearch/be/lucene/LuceneSearchBackEnd.java
++++ b/sandbox/plugins/analytics-backend-lucene/src/main/java/org/opensearch/be/lucene/LuceneSearchBackEnd.java
+@@ -17,8 +17,11 @@ import org.opensearch.common.annotation.ExperimentalApi;
+ import org.opensearch.index.engine.dataformat.ReaderManagerConfig;
+ import org.opensearch.index.engine.exec.EngineReaderManager;
+ import org.opensearch.index.engine.exec.commit.IndexStoreProvider;
++import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
+ 
+ import java.io.IOException;
++import java.util.Map;
++import java.util.concurrent.ConcurrentHashMap;
+ 
+ /**
+  * Static helpers for creating Lucene-based {@link EngineReaderManager} instances.
+@@ -51,12 +54,14 @@ final class LuceneSearchBackEnd {
+         IndexStoreProvider provider = settings.indexStoreProvider()
+             .orElseThrow(() -> new IllegalStateException("IndexStoreProvider is required to create LuceneReaderManager"));
+         DirectoryReader directoryReader;
++        Map<CatalogSnapshot, DirectoryReader> readers = new ConcurrentHashMap<>();
+         if (provider.getStore(settings.format()) instanceof LuceneIndexingExecutionEngine.LuceneFormatStore luceneProvider) {
+             directoryReader = DirectoryReader.open(luceneProvider.writer());
++            readers = luceneProvider.readers();
+         } else {
+             logger.warn("Initialising it with a DirectorReader instead of a writer");
+             directoryReader = StandardDirectoryReader.open(provider.getStore(settings.format()).store().directory());
+         }
+-        return new LuceneReaderManager(settings.format(), directoryReader);
++        return new LuceneReaderManager(settings.format(), directoryReader, readers);
+     }
+ }
+diff --git a/sandbox/plugins/analytics-backend-lucene/src/main/java/org/opensearch/be/lucene/index/LuceneCommitter.java b/sandbox/plugins/analytics-backend-lucene/src/main/java/org/opensearch/be/lucene/index/LuceneCommitter.java
+index f5df78f7e2c..48c58ac1b18 100644
+--- a/sandbox/plugins/analytics-backend-lucene/src/main/java/org/opensearch/be/lucene/index/LuceneCommitter.java
++++ b/sandbox/plugins/analytics-backend-lucene/src/main/java/org/opensearch/be/lucene/index/LuceneCommitter.java
+@@ -17,6 +17,9 @@ import org.apache.lucene.index.IndexWriter;
+ import org.apache.lucene.index.IndexWriterConfig;
+ import org.apache.lucene.index.NoMergePolicy;
+ import org.apache.lucene.index.SegmentInfos;
++import org.apache.lucene.index.StandardDirectoryReader;
++import org.apache.lucene.store.ByteBuffersDataOutput;
++import org.apache.lucene.store.ByteBuffersIndexOutput;
+ import org.opensearch.common.annotation.ExperimentalApi;
+ import org.opensearch.index.engine.CommitStats;
+ import org.opensearch.index.engine.EngineConfig;
+@@ -37,6 +40,7 @@ import java.util.LinkedHashMap;
+ import java.util.List;
+ import java.util.Map;
+ import java.util.Objects;
++import java.util.concurrent.ConcurrentHashMap;
+ import java.util.concurrent.atomic.AtomicBoolean;
+ import java.util.function.Function;
+ import java.util.stream.Collectors;
+@@ -70,6 +74,7 @@ public class LuceneCommitter extends SafeBootstrapCommitter {
+     private final IndexWriter indexWriter;
+     private final LuceneCommitDeletionPolicy deletionPolicy;
+     private final AtomicBoolean isClosed = new AtomicBoolean();
++    private final Map<CatalogSnapshot, DirectoryReader> readers = new ConcurrentHashMap<>();
+ 
+     /**
+      * Creates a new LuceneCommitter. Trims unsafe commits (via {@link SafeBootstrapCommitter}),
+@@ -221,6 +226,11 @@ public class LuceneCommitter extends SafeBootstrapCommitter {
+         return indexWriter;
+     }
+ 
++    Map<CatalogSnapshot, DirectoryReader> readers() {
++        ensureOpen();
++        return readers;
++    }
++
+     // --- Internal ---
+ 
+     private IndexWriterConfig createIndexWriterConfig(EngineConfig engineConfig) {
+@@ -254,6 +264,8 @@ public class LuceneCommitter extends SafeBootstrapCommitter {
+         }
+     }
+ 
++
++
+     // --- SafeBootstrapCommitter abstract method ---
+ 
+     @Override
+@@ -292,6 +304,20 @@ public class LuceneCommitter extends SafeBootstrapCommitter {
+         }
+     }
+ 
++    @Override
++    public byte[] serializeToCommitFormat(CatalogSnapshot catalogSnapshot) throws IOException {
++        ByteBuffersDataOutput out = new ByteBuffersDataOutput();
++        SegmentInfos sis = ((StandardDirectoryReader) readers.get(catalogSnapshot)).getSegmentInfos().clone();
++        // assert that sis and catalogsnapshot have same lucene files.
++        Map<String, String> userData = new HashMap<>(catalogSnapshot.getUserData());
++        userData.put(CatalogSnapshot.CATALOG_SNAPSHOT_KEY, catalogSnapshot.serializeToString());
++        sis.setUserData(userData, false);
++        sis.setNextWriteGeneration(catalogSnapshot.getLastCommitGeneration());
++        // assert before cast
++        sis.write(new ByteBuffersIndexOutput(out, "DFA upload SegmentInfos", "DFA upload SegmentInfos"));
++        return out.toArrayCopy();
++    }
++
+     /**
+      * Loads committed CatalogSnapshots from Lucene IndexCommits in the given store.
+      * Returns a {@link Map} preserving commit order (oldest → newest).
+diff --git a/sandbox/plugins/analytics-backend-lucene/src/main/java/org/opensearch/be/lucene/index/LuceneIndexingExecutionEngine.java b/sandbox/plugins/analytics-backend-lucene/src/main/java/org/opensearch/be/lucene/index/LuceneIndexingExecutionEngine.java
+index 29464b78661..6f61a005ac7 100644
+--- a/sandbox/plugins/analytics-backend-lucene/src/main/java/org/opensearch/be/lucene/index/LuceneIndexingExecutionEngine.java
++++ b/sandbox/plugins/analytics-backend-lucene/src/main/java/org/opensearch/be/lucene/index/LuceneIndexingExecutionEngine.java
+@@ -34,6 +34,7 @@ import org.opensearch.index.engine.dataformat.Writer;
+ import org.opensearch.index.engine.exec.Segment;
+ import org.opensearch.index.engine.exec.WriterFileSet;
+ import org.opensearch.index.engine.exec.commit.IndexStoreProvider;
++import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
+ import org.opensearch.index.mapper.MapperService;
+ import org.opensearch.index.store.Store;
+ 
+@@ -47,6 +48,7 @@ import java.util.HashSet;
+ import java.util.List;
+ import java.util.Map;
+ import java.util.Set;
++import java.util.concurrent.ConcurrentHashMap;
+ 
+ /**
+  * Lucene-specific {@link IndexingExecutionEngine} that manages per-writer Lucene segments
+@@ -80,6 +82,7 @@ public class LuceneIndexingExecutionEngine implements IndexingExecutionEngine<Lu
+     private final Analyzer analyzer;
+     private final Codec codec;
+     private final LuceneFieldFactoryRegistry fieldFactoryRegistry;
++    private final Map<CatalogSnapshot, DirectoryReader> readers;
+ 
+     /**
+      * Creates a new LuceneIndexingExecutionEngine with a specific analyzer.
+@@ -99,6 +102,7 @@ public class LuceneIndexingExecutionEngine implements IndexingExecutionEngine<Lu
+         }
+         this.dataFormat = dataFormat;
+         this.sharedWriter = luceneCommitter.getIndexWriter();
++        this.readers = luceneCommitter.readers();
+         this.store = store;
+         this.baseDirectory = store.shardPath().resolve(LuceneDataFormat.LUCENE_FORMAT_NAME);
+         this.analyzer = sharedWriter.getAnalyzer();
+@@ -138,7 +142,7 @@ public class LuceneIndexingExecutionEngine implements IndexingExecutionEngine<Lu
+      */
+     @Override
+     public FormatStore getStore(DataFormat dataFormat) {
+-        return new LuceneFormatStore(store, sharedWriter);
++        return new LuceneFormatStore(store, sharedWriter, readers);
+     }
+ 
+     /**
+@@ -351,6 +355,6 @@ public class LuceneIndexingExecutionEngine implements IndexingExecutionEngine<Lu
+      * @param store  the shard store
+      * @param writer the shared index writer
+      */
+-    public static record LuceneFormatStore(Store store, IndexWriter writer) implements FormatStore {
++    public static record LuceneFormatStore(Store store, IndexWriter writer, Map<CatalogSnapshot, DirectoryReader> readers) implements FormatStore {
+     }
+ }
+diff --git a/server/src/main/java/org/opensearch/index/engine/DataFormatAwareEngine.java b/server/src/main/java/org/opensearch/index/engine/DataFormatAwareEngine.java
+index 95aab93747c..a07a2019cf5 100644
+--- a/server/src/main/java/org/opensearch/index/engine/DataFormatAwareEngine.java
++++ b/server/src/main/java/org/opensearch/index/engine/DataFormatAwareEngine.java
+@@ -1399,6 +1399,10 @@ public class DataFormatAwareEngine implements Indexer {
+         }
+     }
+ 
++    public byte[] serializeSnapshotToRemoteMetadata(CatalogSnapshot catalogSnapshot) throws IOException {
++        return catalogSnapshotManager.serializeToCommitFormat(catalogSnapshot);
++    }
++
+     /**
+      * Closes the engine, releasing all resources including the indexing execution engine,
+      * translog manager, reader managers, and store reference.
+diff --git a/server/src/main/java/org/opensearch/index/engine/DataFormatAwareNRTReplicationEngine.java b/server/src/main/java/org/opensearch/index/engine/DataFormatAwareNRTReplicationEngine.java
+index 2463de317fe..284348d52b5 100644
+--- a/server/src/main/java/org/opensearch/index/engine/DataFormatAwareNRTReplicationEngine.java
++++ b/server/src/main/java/org/opensearch/index/engine/DataFormatAwareNRTReplicationEngine.java
+@@ -70,6 +70,7 @@ import org.opensearch.search.suggest.completion.CompletionStats;
+ 
+ import java.io.Closeable;
+ import java.io.IOException;
++import java.io.UnsupportedEncodingException;
+ import java.nio.file.Files;
+ import java.nio.file.NoSuchFileException;
+ import java.nio.file.Path;
+@@ -931,6 +932,11 @@ public class DataFormatAwareNRTReplicationEngine implements Indexer {
+         }
+     }
+ 
++    @Override
++    public byte[] serializeSnapshotToRemoteMetadata(CatalogSnapshot catalogSnapshot) throws IOException {
++        throw new UnsupportedEncodingException();
++    }
++
+     private void awaitPendingClose() {
+         try {
+             closedLatch.await();
+diff --git a/server/src/main/java/org/opensearch/index/engine/EngineBackedIndexer.java b/server/src/main/java/org/opensearch/index/engine/EngineBackedIndexer.java
+index e1696adf58e..4e2b83f3619 100644
+--- a/server/src/main/java/org/opensearch/index/engine/EngineBackedIndexer.java
++++ b/server/src/main/java/org/opensearch/index/engine/EngineBackedIndexer.java
+@@ -10,6 +10,8 @@ package org.opensearch.index.engine;
+ 
+ import org.apache.lucene.index.IndexCommit;
+ import org.apache.lucene.index.SegmentInfos;
++import org.apache.lucene.store.ByteBuffersDataOutput;
++import org.apache.lucene.store.ByteBuffersIndexOutput;
+ import org.opensearch.common.annotation.ExperimentalApi;
+ import org.opensearch.common.concurrent.GatedCloseable;
+ import org.opensearch.common.unit.TimeValue;
+@@ -412,6 +414,16 @@ public class EngineBackedIndexer implements Indexer {
+         return new GatedCloseable<>(snapshot, segmentInfosRef::close);
+     }
+ 
++    @Override
++    public byte[] serializeSnapshotToRemoteMetadata(CatalogSnapshot catalogSnapshot) throws IOException {
++        if (catalogSnapshot instanceof SegmentInfosCatalogSnapshot sicSnapshot) {
++            ByteBuffersDataOutput out = new ByteBuffersDataOutput();
++            sicSnapshot.getSegmentInfos().write(new ByteBuffersIndexOutput(out, "DFA upload SegmentInfos", "DFA upload SegmentInfos"));
++            return out.toArrayCopy();
++        }
++        throw new IllegalStateException("Snapshot should be an instance of :" + SegmentInfosCatalogSnapshot.class + ", but was: " + catalogSnapshot.getClass());
++    }
++
+     @Override
+     public GatedCloseable<Reader> acquireReader() throws IOException {
+         // TODO: Replace with a reader backed by segment infos catalog snapshot and Lucene's Directory reader.
+diff --git a/server/src/main/java/org/opensearch/index/engine/exec/CommitFileManager.java b/server/src/main/java/org/opensearch/index/engine/exec/CommitFileManager.java
+index 13ec17ca6c8..5fbb52b6b80 100644
+--- a/server/src/main/java/org/opensearch/index/engine/exec/CommitFileManager.java
++++ b/server/src/main/java/org/opensearch/index/engine/exec/CommitFileManager.java
+@@ -41,4 +41,6 @@ public interface CommitFileManager {
+      * @param fileName the file name to check
+      */
+     boolean isCommitManagedFile(String fileName);
++
++    default byte[] serializeToCommitFormat(CatalogSnapshot catalogSnapshot)  throws IOException {return new byte[0];}
+ }
+diff --git a/server/src/main/java/org/opensearch/index/engine/exec/Indexer.java b/server/src/main/java/org/opensearch/index/engine/exec/Indexer.java
+index d88efa656e2..76e4910e1d4 100644
+--- a/server/src/main/java/org/opensearch/index/engine/exec/Indexer.java
++++ b/server/src/main/java/org/opensearch/index/engine/exec/Indexer.java
+@@ -144,6 +144,8 @@ public interface Indexer
+      */
+     GatedCloseable<CatalogSnapshot> acquireSnapshot();
+ 
++    byte[] serializeSnapshotToRemoteMetadata(CatalogSnapshot catalogSnapshot) throws IOException;
++
+     /**
+      * Acquires a safe index commit for snapshot or recovery operations.
+      * The commit is guaranteed to be consistent and will not be deleted while held.
+diff --git a/server/src/main/java/org/opensearch/index/engine/exec/coord/CatalogSnapshotManager.java b/server/src/main/java/org/opensearch/index/engine/exec/coord/CatalogSnapshotManager.java
+index c76c1b42e41..8edadf7cbe6 100644
+--- a/server/src/main/java/org/opensearch/index/engine/exec/coord/CatalogSnapshotManager.java
++++ b/server/src/main/java/org/opensearch/index/engine/exec/coord/CatalogSnapshotManager.java
+@@ -10,6 +10,7 @@ package org.opensearch.index.engine.exec.coord;
+ 
+ import org.apache.logging.log4j.LogManager;
+ import org.apache.logging.log4j.Logger;
++import org.opensearch.common.CheckedFunction;
+ import org.opensearch.common.annotation.ExperimentalApi;
+ import org.opensearch.common.concurrent.GatedCloseable;
+ import org.opensearch.common.concurrent.GatedConditionalCloseable;
+@@ -34,6 +35,7 @@ import java.util.Map;
+ import java.util.Set;
+ import java.util.concurrent.ConcurrentHashMap;
+ import java.util.concurrent.atomic.AtomicBoolean;
++import java.util.function.Function;
+ 
+ /**
+  * Manages the lifecycle of {@link CatalogSnapshot} instances for the composite multi-format engine
+@@ -57,6 +59,7 @@ public class CatalogSnapshotManager implements Closeable {
+     private final IndexFileDeleter indexFileDeleter;
+     private final CatalogSnapshotDeletionPolicy deletionPolicy;
+     private final List<CatalogSnapshotLifecycleListener> snapshotListeners;
++    private final CheckedFunction<CatalogSnapshot, byte[], IOException> snapshotSerializer;
+ 
+     /**
+      * Creates a new {@link DataformatAwareCatalogSnapshot} for use in tests.
+@@ -118,6 +121,7 @@ public class CatalogSnapshotManager implements Closeable {
+             shardPath,
+             commitFileManager
+         );
++        this.snapshotSerializer = commitFileManager::serializeToCommitFormat;
+     }
+ 
+     /**
+@@ -347,6 +351,10 @@ public class CatalogSnapshotManager implements Closeable {
+         decRefAndMaybeDelete(oldSnapshot);
+     }
+ 
++    public byte[] serializeToCommitFormat(CatalogSnapshot catalogSnapshot) throws IOException {
++        return snapshotSerializer.apply(catalogSnapshot);
++    }
++
+     /**
+      * Replaces the current snapshot with one received from the primary via segment replication.
+      * The incoming snapshot is registered with the file deleter (ref counts for its files), then
+diff --git a/server/src/main/java/org/opensearch/index/engine/exec/coord/DataformatAwareCatalogSnapshot.java b/server/src/main/java/org/opensearch/index/engine/exec/coord/DataformatAwareCatalogSnapshot.java
+index f97272f424a..9cf755d07ab 100644
+--- a/server/src/main/java/org/opensearch/index/engine/exec/coord/DataformatAwareCatalogSnapshot.java
++++ b/server/src/main/java/org/opensearch/index/engine/exec/coord/DataformatAwareCatalogSnapshot.java
+@@ -10,6 +10,7 @@ package org.opensearch.index.engine.exec.coord;
+ 
+ import org.apache.lucene.index.SegmentInfos;
+ import org.apache.lucene.util.Version;
++import org.opensearch.common.CheckedFunction;
+ import org.opensearch.common.annotation.ExperimentalApi;
+ import org.opensearch.common.io.stream.BytesStreamOutput;
+ import org.opensearch.core.common.bytes.BytesReference;
+@@ -49,53 +50,12 @@ public class DataformatAwareCatalogSnapshot extends CatalogSnapshot {
+     private final AtomicBoolean closed = new AtomicBoolean(false);
+     private String lastCommitFileName;
+     private long lastCommitGeneration = -1;
++    private final CheckedFunction<CatalogSnapshot, byte[], IOException> serializer;
+ 
+-    /**
+-     * Lucene recovery-coordinator state bytes captured atomically at the same instant as
+-     * {@link #segments} during the refresh that produced this snapshot. Read by the Lucene
+-     * recovery coordinator at upload time so the state shipped to replicas/remote-store is
+-     * strictly consistent with {@link #segments}.
+-     *
+-     * <p>Bytes are in the coordinator's opaque state layout (generation prefix + SegmentInfos
+-     * with footer checksum, all written through a single IndexOutput). Must be passed through
+-     * verbatim — do not re-wrap or slice, as that would invalidate the footer checksum.
+-     *
+-     * <p>{@code null} when no Lucene engine participated in the refresh (parquet-only DFA) or
+-     * when the snapshot was reloaded from a commit on startup (fallback to
+-     * {@code committer.captureInMemorySegmentInfos()} is safe there — the {@code IndexWriter}
+-     * matches the on-disk commit).
+-     *
+-     * <p>Not serialized — this is an in-memory field that exists only for the lifetime of a
+-     * refresh cycle. {@link #writeTo} and {@link #deserialize} ignore it.
+-     */
+-    private final byte[] luceneSegmentInfosBytes;
+ 
+-    /**
+-     * Constructs a new DataformatAwareCatalogSnapshot.
+-     *
+-     * @param id the unique snapshot identifier
+-     * @param generation the monotonically increasing generation number
+-     * @param version the schema version for serialization compatibility
+-     * @param segments the list of segments in this snapshot
+-     * @param lastWriterGeneration the generation of the last writer that contributed to this snapshot
+-     * @param userData user-defined metadata key-value pairs
+-     */
+-    DataformatAwareCatalogSnapshot(
+-        long id,
+-        long generation,
+-        long version,
+-        List<Segment> segments,
+-        long lastWriterGeneration,
+-        Map<String, String> userData
+-    ) {
+-        this(id, generation, version, segments, lastWriterGeneration, userData, null, -1, null);
+-    }
+ 
+     /**
+-     * Constructs a new DataformatAwareCatalogSnapshot carrying forward the last committed segments file name.
+-     * <p>
+-     * This constructor ensures that the {@code segmentsFileName} from a prior flush is preserved
+-     * across refreshes and merges, which would otherwise create new snapshots without it.
++     * Constructs a new DataformatAwareCatalogSnapshot.
+      *
+      * @param id the unique snapshot identifier
+      * @param generation the monotonically increasing generation number
+@@ -103,8 +63,6 @@ public class DataformatAwareCatalogSnapshot extends CatalogSnapshot {
+      * @param segments the list of segments in this snapshot
+      * @param lastWriterGeneration the generation of the last writer that contributed to this snapshot
+      * @param userData user-defined metadata key-value pairs
+-     * @param lastCommittedFileName the segments_N file name from the most recent flush, or null
+-     * @param lastCommitGeneration the Lucene generation of the most recent commit, or -1
+      */
+     DataformatAwareCatalogSnapshot(
+         long id,
+@@ -113,12 +71,13 @@ public class DataformatAwareCatalogSnapshot extends CatalogSnapshot {
+         List<Segment> segments,
+         long lastWriterGeneration,
+         Map<String, String> userData,
+-        String lastCommittedFileName,
+-        long lastCommitGeneration
++        CheckedFunction<CatalogSnapshot, byte[], IOException> serializer
+     ) {
+-        this(id, generation, version, segments, lastWriterGeneration, userData, lastCommittedFileName, lastCommitGeneration, null);
++        this(id, generation, version, segments, lastWriterGeneration, userData, null, -1, null, serializer);
+     }
+ 
++
++
+     /**
+      * Full constructor accepting the atomically captured Lucene coordinator state bytes.
+      * Pass {@code null} for parquet-only refreshes or when reloading from disk.
+@@ -132,7 +91,7 @@ public class DataformatAwareCatalogSnapshot extends CatalogSnapshot {
+         Map<String, String> userData,
+         String lastCommittedFileName,
+         long lastCommitGeneration,
+-        byte[] luceneSegmentInfosBytes
++        CheckedFunction<CatalogSnapshot, byte[], IOException> serializer
+     ) {
+         super("dataformat_aware_catalog_snapshot", generation, version);
+         this.id = id;
+@@ -142,7 +101,7 @@ public class DataformatAwareCatalogSnapshot extends CatalogSnapshot {
+         this.userData = Map.copyOf(userData);
+         this.lastCommitFileName = lastCommittedFileName;
+         this.lastCommitGeneration = lastCommitGeneration;
+-        this.luceneSegmentInfosBytes = luceneSegmentInfosBytes;
++        this.serializer = serializer;
+     }
+ 
+     /**
+@@ -167,7 +126,7 @@ public class DataformatAwareCatalogSnapshot extends CatalogSnapshot {
+         }
+         this.segments = Collections.unmodifiableList(segmentList);
+         this.numDocs = computeNumDocs(this.segments);
+-        this.luceneSegmentInfosBytes = null;  // not serialized; populated only on live refresh path
++        this.serializer = null;  // not serialized; populated only on live refresh path
+     }
+ 
+     @Override
+diff --git a/server/src/main/java/org/opensearch/index/engine/exec/coord/SyntheticSegmentInfos.java b/server/src/main/java/org/opensearch/index/engine/exec/coord/SyntheticSegmentInfos.java
+index 9a9f8c2d326..546ab49a610 100644
+--- a/server/src/main/java/org/opensearch/index/engine/exec/coord/SyntheticSegmentInfos.java
++++ b/server/src/main/java/org/opensearch/index/engine/exec/coord/SyntheticSegmentInfos.java
+@@ -42,6 +42,9 @@ final class SyntheticSegmentInfos {
+         segmentInfos.setUserData(userData, false);
+         segmentInfos.setNextWriteGeneration(snapshot.getLastCommitGeneration());
+ 
++        for (String format: snapshot.getDataFormats()) {
++
++        }
+         ByteBuffersDataOutput out = new ByteBuffersDataOutput();
+         segmentInfos.write(new ByteBuffersIndexOutput(out, "DFA upload SegmentInfos", "DFA upload SegmentInfos"));
+         return out.toArrayCopy();
+diff --git a/server/src/main/java/org/opensearch/index/shard/IndexShard.java b/server/src/main/java/org/opensearch/index/shard/IndexShard.java
+index de819034709..4766a930b0d 100644
+--- a/server/src/main/java/org/opensearch/index/shard/IndexShard.java
++++ b/server/src/main/java/org/opensearch/index/shard/IndexShard.java
+@@ -6210,6 +6210,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
+         return getIndexer().acquireSnapshot();
+     }
+ 
++    public CheckedFunction<CatalogSnapshot, byte[], IOException> catalogSnapshotToRemoteMetadataSerializer() {
++        return cs -> getIndexer().serializeSnapshotToRemoteMetadata(cs);
++    }
++
++    public GatedCloseable<IndexReaderProvider.Reader> acquireReader() throws IOException {
++        return getIndexer().acquireReader();
++    }
++
+     private TimeValue getRemoteTranslogUploadBufferInterval(Supplier<TimeValue> clusterRemoteTranslogBufferIntervalSupplier) {
+         assert Objects.nonNull(clusterRemoteTranslogBufferIntervalSupplier) : "remote translog buffer interval supplier is null";
+         if (indexSettings().isRemoteTranslogBufferIntervalExplicit()) {
+diff --git a/server/src/main/java/org/opensearch/index/shard/RemoteStoreRefreshListener.java b/server/src/main/java/org/opensearch/index/shard/RemoteStoreRefreshListener.java
+index 1eedc4c4142..0686ad0a947 100644
+--- a/server/src/main/java/org/opensearch/index/shard/RemoteStoreRefreshListener.java
++++ b/server/src/main/java/org/opensearch/index/shard/RemoteStoreRefreshListener.java
+@@ -488,11 +488,6 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
+         userData.put(SequenceNumbers.MAX_SEQ_NO, Long.toString(maxSeqNo));
+         catalogSnapshotCloned.setUserData(userData, false);
+ 
+-        // Ask each registered FormatRecoveryCoordinator for its format-specific state.
+-        // Collected into RemoteSegmentMetadata.formatStates; coordinators own per-format
+-        // recovery validation (e.g. Lucene SegmentInfos roundtrip, parquet footer check).
+-        Map<String, byte[]> formatStates = collectFormatStates(catalogSnapshotCloned);
+-
+         Translog.TranslogGeneration translogGeneration = indexShard.getIndexer().translogManager().getTranslogGeneration();
+         if (translogGeneration == null) {
+             throw new UnsupportedOperationException("Encountered null TranslogGeneration while uploading metadata to remote segment store");
+@@ -505,48 +500,11 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
+                 translogFileGeneration,
+                 replicationCheckpoint,
+                 indexShard.getNodeId(),
+-                formatStates
++                indexShard.catalogSnapshotToRemoteMetadataSerializer()
+             );
+         }
+     }
+ 
+-    /**
+-     * Invokes each registered {@link org.opensearch.index.engine.exec.recovery.FormatRecoveryCoordinator}
+-     * for formats present in the snapshot and returns a map of their captured state bytes. Coordinators
+-     * returning {@code null} (no contribution) are skipped. A coordinator throwing fails the upload.
+-     */
+-    private Map<String, byte[]> collectFormatStates(CatalogSnapshot catalogSnapshot) throws IOException {
+-        // Coordinator protocol is DFA-only. Non-DFA indices (SegmentInfosCatalogSnapshot) skip.
+-        if (catalogSnapshot instanceof org.opensearch.index.engine.exec.coord.DataformatAwareCatalogSnapshot == false) {
+-            return Map.of();
+-        }
+-        org.opensearch.index.engine.exec.recovery.FormatRecoveryRegistry registry = indexShard.getFormatRecoveryRegistry();
+-        if (registry.all().isEmpty()) {
+-            return Map.of();
+-        }
+-        org.opensearch.index.engine.exec.commit.Committer committer = null;
+-        if (indexShard.getIndexer() instanceof DataFormatAwareEngine dfa) {
+-            committer = dfa.getCommitter();
+-        }
+-        Map<String, byte[]> out = new HashMap<>();
+-        for (org.opensearch.index.engine.exec.recovery.FormatRecoveryCoordinator c : registry.all()) {
+-            if (catalogSnapshot.getDataFormats().contains(c.formatName()) == false) {
+-                continue;
+-            }
+-            org.opensearch.index.engine.exec.recovery.UploadContext ctx = new org.opensearch.index.engine.exec.recovery.UploadContext(
+-                catalogSnapshot,
+-                storeDirectory,
+-                c.formatName(),
+-                committer
+-            );
+-            byte[] state = c.captureForUpload(ctx);
+-            if (state != null) {
+-                out.put(c.formatName(), state);
+-            }
+-        }
+-        return out.isEmpty() ? Map.of() : Map.copyOf(out);
+-    }
+-
+     boolean isLowPriorityUpload() {
+         return isLocalOrSnapshotRecoveryOrSeeding();
+     }
+diff --git a/server/src/main/java/org/opensearch/index/store/RemoteSegmentStoreDirectory.java b/server/src/main/java/org/opensearch/index/store/RemoteSegmentStoreDirectory.java
+index ee566e8935a..a65e5a9d73c 100644
+--- a/server/src/main/java/org/opensearch/index/store/RemoteSegmentStoreDirectory.java
++++ b/server/src/main/java/org/opensearch/index/store/RemoteSegmentStoreDirectory.java
+@@ -25,6 +25,7 @@ import org.apache.lucene.store.IndexInput;
+ import org.apache.lucene.store.IndexOutput;
+ import org.apache.lucene.util.Version;
+ import org.opensearch.cluster.metadata.CryptoMetadata;
++import org.opensearch.common.CheckedFunction;
+ import org.opensearch.common.Nullable;
+ import org.opensearch.common.UUIDs;
+ import org.opensearch.common.annotation.InternalApi;
+@@ -44,7 +45,6 @@ import org.opensearch.index.store.lockmanager.RemoteStoreCommitLevelLockManager;
+ import org.opensearch.index.store.lockmanager.RemoteStoreLockManager;
+ import org.opensearch.index.store.lockmanager.RemoteStoreMetadataLockManager;
+ import org.opensearch.index.store.remote.FormatBlobRouter;
+-import org.opensearch.index.store.remote.metadata.DfaRecoveryPayload;
+ import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadata;
+ import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadataHandlerFactory;
+ import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
+@@ -857,7 +857,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
+         long translogGeneration,
+         ReplicationCheckpoint replicationCheckpoint,
+         String nodeId,
+-        Map<String, byte[]> formatStates
++        CheckedFunction<CatalogSnapshot, byte[], IOException> catalogSnapshotToCommitSerializer
+     ) throws IOException {
+         synchronized (this) {
+             String metadataFilename = MetadataFilenameUtils.getMetadataFilename(
+@@ -883,27 +883,13 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
+                         }
+                     }
+ 
+-                    final byte[] segmentInfoBytes;
+-                    final DfaRecoveryPayload dfaPayload;
+-                    if (catalogSnapshot instanceof DataformatAwareCatalogSnapshot dfa) {
+-                        segmentInfoBytes = dfa.serialize();            // Lucene envelope (for segrep)
+-                        dfaPayload = new DfaRecoveryPayload(
+-                            dfa.serializeCatalogBytes(),               // raw catalog bytes
+-                            dfa.getLastCommitGeneration(),
+-                            formatStates == null ? Map.of() : formatStates
+-                        );
+-                    } else {
+-                        segmentInfoBytes = catalogSnapshot.serialize();
+-                        dfaPayload = null;
+-                    }
+-
++                    final byte[] segmentInfoBytes = catalogSnapshotToCommitSerializer.apply(catalogSnapshot);
+                     metadataStreamWrapper.writeStream(
+                         indexOutput,
+                         new RemoteSegmentMetadata(
+                             RemoteSegmentMetadata.fromMapOfStrings(uploadedSegments),
+                             segmentInfoBytes,
+-                            replicationCheckpoint,
+-                            dfaPayload
++                            replicationCheckpoint
+                         )
+                     );
+                 }
+@@ -924,7 +910,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
+         ReplicationCheckpoint replicationCheckpoint,
+         String nodeId
+     ) throws IOException {
+-        uploadMetadata(segmentFiles, catalogSnapshot, storeDirectory, translogGeneration, replicationCheckpoint, nodeId, Map.of());
++        uploadMetadata(segmentFiles, catalogSnapshot, storeDirectory, translogGeneration, replicationCheckpoint, nodeId, a -> new byte[0]);
+     }
+ 
+     // TODO: When RemoteStoreRefreshListener is migrated to use CatalogSnapshot-based uploadMetadata,
+diff --git a/server/src/main/java/org/opensearch/index/store/remote/metadata/RemoteSegmentMetadata.java b/server/src/main/java/org/opensearch/index/store/remote/metadata/RemoteSegmentMetadata.java
+index 2a51854986f..c6620be9dfd 100644
+--- a/server/src/main/java/org/opensearch/index/store/remote/metadata/RemoteSegmentMetadata.java
++++ b/server/src/main/java/org/opensearch/index/store/remote/metadata/RemoteSegmentMetadata.java
+@@ -61,11 +61,6 @@ public class RemoteSegmentMetadata {
+ 
+     private final ReplicationCheckpoint replicationCheckpoint;
+ 
+-    /**
+-     * Typed DFA payload carrying serialized catalog + per-format recovery state. {@code null}
+-     * for non-DFA indices and for v1/v2 legacy metadata.
+-     */
+-    private final DfaRecoveryPayload dfaPayload;
+ 
+     /**
+      * Backwards-compatible constructor — produces metadata with no DFA payload (i.e. a non-DFA
+@@ -75,24 +70,10 @@ public class RemoteSegmentMetadata {
+         Map<String, RemoteSegmentStoreDirectory.UploadedSegmentMetadata> metadata,
+         byte[] segmentInfosBytes,
+         ReplicationCheckpoint replicationCheckpoint
+-    ) {
+-        this(metadata, segmentInfosBytes, replicationCheckpoint, null);
+-    }
+-
+-    /**
+-     * Full constructor. Pass a non-null {@code dfaPayload} for DataFormat-aware uploads.
+-     * For DFA, callers should pass empty {@code segmentInfosBytes}.
+-     */
+-    public RemoteSegmentMetadata(
+-        Map<String, RemoteSegmentStoreDirectory.UploadedSegmentMetadata> metadata,
+-        byte[] segmentInfosBytes,
+-        ReplicationCheckpoint replicationCheckpoint,
+-        DfaRecoveryPayload dfaPayload
+     ) {
+         this.metadata = metadata;
+         this.segmentInfosBytes = segmentInfosBytes;
+         this.replicationCheckpoint = replicationCheckpoint;
+-        this.dfaPayload = dfaPayload;
+     }
+ 
+     /**

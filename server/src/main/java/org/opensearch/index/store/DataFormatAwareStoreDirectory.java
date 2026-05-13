@@ -349,7 +349,8 @@ public class DataFormatAwareStoreDirectory extends FilterDirectory implements Re
         FileMetadata fm = toFileMetadata(fileName);
         FormatChecksumStrategy strategy = checksumStrategies.get(fm.dataFormat());
         if (strategy != null) {
-            strategy.registerChecksum(toFileIdentifier(fm), checksum, 0L);
+            // Pass FileMetadata; the strategy owns key derivation.
+            strategy.registerChecksum(fm, checksum, 0L);
         }
     }
 

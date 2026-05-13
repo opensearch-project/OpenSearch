@@ -45,6 +45,7 @@ import org.opensearch.index.engine.exec.WriterFileSet;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshotManager;
 import org.opensearch.index.engine.exec.coord.DataformatAwareCatalogSnapshot;
+import org.opensearch.index.engine.exec.coord.LuceneVersionConverter;
 import org.opensearch.index.mapper.DocumentMapperForType;
 import org.opensearch.index.mapper.IdFieldMapper;
 import org.opensearch.index.mapper.ParsedDocument;
@@ -127,6 +128,12 @@ public class DataFormatAwareNRTReplicationEngine implements Indexer {
         @Override
         public boolean isCommitManagedFile(String fileName) {
             return fileName.startsWith(IndexFileNames.SEGMENTS) || IndexWriter.WRITE_LOCK_NAME.equals(fileName);
+        }
+
+        @Override
+        public byte[] serializeToCommitFormat(CatalogSnapshot snapshot) {
+            // Replicas never produce upload metadata bytes — the primary owns remote uploads.
+            throw new UnsupportedOperationException("replica CommitFileManager does not serialize commits");
         }
     };
 
@@ -391,7 +398,10 @@ public class DataFormatAwareNRTReplicationEngine implements Indexer {
             store.commitSegmentInfos(syntheticInfos, localCheckpointTracker.getMaxSeqNo(), localCheckpointTracker.getProcessedCheckpoint());
 
             if (snapshot instanceof DataformatAwareCatalogSnapshot dfaSnapshot) {
-                dfaSnapshot.setLastCommitInfo(syntheticInfos.getSegmentsFileName(), syntheticInfos.getGeneration());
+                // Synthetic SegmentInfos on a replica is assembled from the primary's upload;
+                // stamp it with the commit's Lucene version (long-encoded).
+                long version = LuceneVersionConverter.encode(syntheticInfos.getCommitLuceneVersion());
+                dfaSnapshot.setLastCommitInfo(syntheticInfos.getSegmentsFileName(), syntheticInfos.getGeneration(), version);
             }
 
             synchronized (lastCommittedSnapshotMutex) {
@@ -636,6 +646,15 @@ public class DataFormatAwareNRTReplicationEngine implements Indexer {
     }
 
     @Override
+    public GatedCloseable<CatalogSnapshot> acquireLastCommittedSnapshot(boolean flushFirst) throws EngineException {
+        ensureOpen();
+        if (flushFirst) {
+            flush(false, true);
+        }
+        return catalogSnapshotManager.acquireSnapshot();
+    }
+
+    @Override
     public SafeCommitInfo getSafeCommitInfo() {
         ensureOpen();
         // TODO: Return actual doc count when CatalogSnapshot tracks document counts.
@@ -820,6 +839,12 @@ public class DataFormatAwareNRTReplicationEngine implements Indexer {
         return engineConfig;
     }
 
+    /** NRT replica engine — receives segments via replication. */
+    @Override
+    public boolean isReplicaIndexer() {
+        return true;
+    }
+
     @Override
     public CommitStats commitStats() {
         ensureOpen();
@@ -837,12 +862,16 @@ public class DataFormatAwareNRTReplicationEngine implements Indexer {
     @Override
     public DocsStats docStats() {
         try (GatedCloseable<CatalogSnapshot> snapshot = catalogSnapshotManager.acquireSnapshot()) {
+            // Row count: ONE format per segment (findFirst) — every format for the same
+            // segment holds the same numRows, so flatMap-summing would double-count multi-format segments.
             long count = snapshot.get()
                 .getSegments()
                 .stream()
-                .flatMap(segment -> segment.dfGroupedSearchableFiles().values().stream())
-                .mapToLong(WriterFileSet::numRows)
+                .mapToLong(
+                    segment -> segment.dfGroupedSearchableFiles().values().stream().findFirst().map(WriterFileSet::numRows).orElse(0L)
+                )
                 .sum();
+            // Total size: sum across all format files — each format contributes distinct bytes on disk.
             long totalSize = snapshot.get()
                 .getSegments()
                 .stream()

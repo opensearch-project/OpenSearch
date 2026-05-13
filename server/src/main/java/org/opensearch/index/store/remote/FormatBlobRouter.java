@@ -33,6 +33,16 @@ import java.util.concurrent.ConcurrentHashMap;
  * "base path" formats (lucene, metadata) share the root blob container. All other
  * formats get a sub-path container (e.g., {@code basePath/parquet/}).
  *
+ * <p><b>Remote store blob layout (namespacing):</b>
+ * <pre>
+ *   &lt;repo-base&gt;/&lt;index-uuid&gt;/&lt;shard&gt;/segments/data/       ← basePath (Lucene data files)
+ *   &lt;repo-base&gt;/&lt;index-uuid&gt;/&lt;shard&gt;/segments/parquet/    ← sibling of data/, keyed by format
+ *   &lt;repo-base&gt;/&lt;index-uuid&gt;/&lt;shard&gt;/segments/&lt;other&gt;/    ← one sibling per non-Lucene format
+ * </pre>
+ * Lucene files keep their historical {@code segments/data/} location so non-DFA code paths
+ * stay untouched; each extra format gets its own namespace under {@code segments/} so blob
+ * keys never collide across formats.
+ *
  * <p>Blob containers are created lazily on first access via {@link #containerFor(String)},
  * so new formats can be added without restarting the directory.
  *
@@ -241,6 +251,11 @@ public class FormatBlobRouter {
     }
 
     private BlobContainer createFormatContainer(String format) {
+        // basePath ends in "segments/data" (Lucene data namespace). We strip "data" via
+        // parent() and re-append the format so non-Lucene formats sit as SIBLINGS of data/:
+        // basePath = <repo>/<indexUUID>/<shard>/segments/data
+        // parent = <repo>/<indexUUID>/<shard>/segments
+        // formatPath = <repo>/<indexUUID>/<shard>/segments/<format>
         BlobPath formatPath = Objects.requireNonNull(basePath.parent()).add(format.toLowerCase(Locale.ROOT));
         return blobStore.blobContainer(formatPath);
     }

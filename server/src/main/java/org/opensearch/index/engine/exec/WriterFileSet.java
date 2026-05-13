@@ -20,7 +20,12 @@ import java.util.Set;
 
 /**
  * Represents a set of files produced by a writer during indexing operations.
- * Groups files by directory and writer generation, tracking metadata such as row count.
+ * Groups files by directory and writer generation, tracking metadata such as row count and total size.
+ *
+ * <p>{@code formatVersion} is stored as a long-encoded value produced by the format plugin
+ * (see {@code LuceneVersionConverter} for the Lucene encoding). {@code 0} means
+ * "unknown / pre-versioning". Storing a number here removes the need for string parsing
+ * downstream and keeps {@code CatalogSnapshot} decoupled from Lucene version types.
  * <p>
  * This is a sealed hierarchy:
  * <ul>
@@ -36,14 +41,14 @@ public sealed class WriterFileSet implements Writeable permits MonoFileWriterSet
     private final long writerGeneration;
     private final Set<String> files;
     private final long numRows;
-    private final String formatVersion;
+    private final long formatVersion;
 
-    public WriterFileSet(String directory, long writerGeneration, Set<String> files, long numRows, String formatVersion) {
+    public WriterFileSet(String directory, long writerGeneration, Set<String> files, long numRows, long formatVersion) {
         this.directory = directory;
         this.writerGeneration = writerGeneration;
         this.files = Set.copyOf(files);
         this.numRows = numRows;
-        this.formatVersion = formatVersion == null ? "" : formatVersion;
+        this.formatVersion = formatVersion;
     }
 
     /**
@@ -58,7 +63,7 @@ public sealed class WriterFileSet implements Writeable permits MonoFileWriterSet
         this.writerGeneration = in.readLong();
         this.files = new HashSet<>(in.readStringList());
         this.numRows = in.readLong();
-        this.formatVersion = in.readString();
+        this.formatVersion = in.readLong();
     }
 
     public String directory() {
@@ -77,7 +82,7 @@ public sealed class WriterFileSet implements Writeable permits MonoFileWriterSet
         return numRows;
     }
 
-    public String formatVersion() {
+    public long formatVersion() {
         return formatVersion;
     }
 
@@ -109,7 +114,7 @@ public sealed class WriterFileSet implements Writeable permits MonoFileWriterSet
         out.writeLong(writerGeneration);
         out.writeStringCollection(files);
         out.writeLong(numRows);
-        out.writeString(formatVersion);
+        out.writeLong(formatVersion);
     }
 
     @Override
@@ -148,7 +153,7 @@ public sealed class WriterFileSet implements Writeable permits MonoFileWriterSet
         private Path directory;
         private Long writerGeneration;
         private long numRows;
-        private String formatVersion = "";
+        private long formatVersion = 0L;
         private final Set<String> files = new HashSet<>();
 
         public Builder directory(Path directory) {
@@ -176,8 +181,8 @@ public sealed class WriterFileSet implements Writeable permits MonoFileWriterSet
             return this;
         }
 
-        public Builder formatVersion(String formatVersion) {
-            this.formatVersion = formatVersion == null ? "" : formatVersion;
+        public Builder formatVersion(long formatVersion) {
+            this.formatVersion = formatVersion;
             return this;
         }
 

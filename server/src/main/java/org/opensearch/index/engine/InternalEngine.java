@@ -1822,6 +1822,29 @@ public class InternalEngine extends Engine {
         }
     }
 
+    @Override
+    public GatedCloseable<CatalogSnapshot> acquireLastCommittedSnapshot(boolean flushFirst) throws EngineException {
+        if (flushFirst) {
+            logger.trace("start flush for snapshot");
+            flush(false, true);
+            logger.trace("finish flush for snapshot");
+        }
+        // Pin the last (most recent) Lucene commit, wrap its SegmentInfos.
+        final IndexCommit lastCommit = combinedDeletionPolicy.acquireIndexCommit(false);
+        try {
+            final SegmentInfos infos = Lucene.readSegmentInfos(lastCommit);
+            final CatalogSnapshot snapshot = new SegmentInfosCatalogSnapshot(infos);
+            return new GatedCloseable<>(snapshot, () -> releaseIndexCommit(lastCommit));
+        } catch (IOException e) {
+            try {
+                releaseIndexCommit(lastCommit);
+            } catch (IOException closeEx) {
+                e.addSuppressed(closeEx);
+            }
+            throw new EngineException(shardId, "Failed to materialize last committed CatalogSnapshot", e);
+        }
+    }
+
     private void releaseIndexCommit(IndexCommit snapshot) throws IOException {
         // Revisit the deletion policy if we can clean up the snapshotting commit.
         if (combinedDeletionPolicy.releaseCommit(snapshot)) {

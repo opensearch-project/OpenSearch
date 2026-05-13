@@ -17,7 +17,6 @@ import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.engine.dataformat.ReaderManagerConfig;
 import org.opensearch.index.engine.exec.EngineReaderManager;
 import org.opensearch.index.engine.exec.commit.IndexStoreProvider;
-import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 
 import java.io.IOException;
 import java.util.Map;
@@ -54,7 +53,7 @@ final class LuceneSearchBackEnd {
         IndexStoreProvider provider = settings.indexStoreProvider()
             .orElseThrow(() -> new IllegalStateException("IndexStoreProvider is required to create LuceneReaderManager"));
         DirectoryReader directoryReader;
-        Map<CatalogSnapshot, DirectoryReader> readers = new ConcurrentHashMap<>();
+        Map<Long, DirectoryReader> readers = new ConcurrentHashMap<>();
         if (provider.getStore(settings.format()) instanceof LuceneIndexingExecutionEngine.LuceneFormatStore luceneProvider) {
             directoryReader = DirectoryReader.open(luceneProvider.writer());
             readers = luceneProvider.readers();

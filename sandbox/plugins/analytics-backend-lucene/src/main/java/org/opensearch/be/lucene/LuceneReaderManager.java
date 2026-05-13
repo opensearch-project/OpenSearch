@@ -68,7 +68,7 @@ public class LuceneReaderManager implements EngineReaderManager<LuceneReader> {
     public LuceneReader getReader(CatalogSnapshot catalogSnapshot) throws IOException {
         LuceneReader reader = readers.get(catalogSnapshot);
         if (reader == null) {
-            throw new IllegalStateException("No reader available for catalog snapshot [gen=" + catalogSnapshot.getGeneration() + "]");
+            throw new IllegalStateException("No reader available for catalog snapshot [version=" + catalogSnapshot.getVersion() + "]");
         }
         return reader;
     }
@@ -80,7 +80,7 @@ public class LuceneReaderManager implements EngineReaderManager<LuceneReader> {
 
     @Override
     public void afterRefresh(boolean didRefresh, CatalogSnapshot catalogSnapshot) throws IOException {
-        if (didRefresh == false || readers.containsKey(catalogSnapshot)) {
+        if (didRefresh == false || readers.containsKey(catalogSnapshot.getVersion())) {
             return;
         }
         DirectoryReader refreshed = DirectoryReader.openIfChanged(currentReader);

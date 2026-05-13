@@ -1,0 +1,1443 @@
+diff --git a/sandbox/plugins/analytics-backend-lucene/src/test/java/org/opensearch/be/lucene/LuceneReaderManagerTests.java b/sandbox/plugins/analytics-backend-lucene/src/test/java/org/opensearch/be/lucene/LuceneReaderManagerTests.java
+index 76ab33e16cf..8f069bcb9ee 100644
+--- a/sandbox/plugins/analytics-backend-lucene/src/test/java/org/opensearch/be/lucene/LuceneReaderManagerTests.java
++++ b/sandbox/plugins/analytics-backend-lucene/src/test/java/org/opensearch/be/lucene/LuceneReaderManagerTests.java
+@@ -167,18 +167,18 @@ public class LuceneReaderManagerTests extends OpenSearchTestCase {
+             }
+ 
+             @Override
+-            public org.apache.lucene.util.Version getFormatVersionForFile(String file) {
+-                return org.apache.lucene.util.Version.LATEST;
++            public String getFormatVersionForFile(String file) {
++                return "";
+             }
+ 
+             @Override
+-            public org.apache.lucene.util.Version getMinSegmentFormatVersion() {
+-                return null;
++            public String getMinSegmentFormatVersion() {
++                return "";
+             }
+ 
+             @Override
+-            public org.apache.lucene.util.Version getCommitDataFormatVersion() {
+-                return org.apache.lucene.util.Version.LATEST;
++            public String getCommitDataFormatVersion() {
++                return "";
+             }
+ 
+             @Override
+diff --git a/sandbox/plugins/analytics-backend-lucene/src/test/java/org/opensearch/be/lucene/index/LuceneCommitterCSManagerIntegrationTests.java b/sandbox/plugins/analytics-backend-lucene/src/test/java/org/opensearch/be/lucene/index/LuceneCommitterCSManagerIntegrationTests.java
+index 316396fbbb5..9858c634fdb 100644
+--- a/sandbox/plugins/analytics-backend-lucene/src/test/java/org/opensearch/be/lucene/index/LuceneCommitterCSManagerIntegrationTests.java
++++ b/sandbox/plugins/analytics-backend-lucene/src/test/java/org/opensearch/be/lucene/index/LuceneCommitterCSManagerIntegrationTests.java
+@@ -162,8 +162,8 @@ public class LuceneCommitterCSManagerIntegrationTests extends OpenSearchTestCase
+     /** Builds a multi-format Segment from ingested lucene and parquet files. */
+     private Segment buildSegment(long gen, Set<String> luceneFiles, Path indexDir, Set<String> parquetFiles, Path parquetDir) {
+         long numRows = 100;
+-        WriterFileSet luceneWfs = new WriterFileSet(indexDir.toString(), gen, luceneFiles, numRows);
+-        WriterFileSet parquetWfs = new WriterFileSet(parquetDir.toString(), gen, parquetFiles, numRows);
++        WriterFileSet luceneWfs = new WriterFileSet(indexDir.toString(), gen, luceneFiles, numRows, "");
++        WriterFileSet parquetWfs = new WriterFileSet(parquetDir.toString(), gen, parquetFiles, numRows, "");
+         return new Segment(gen, Map.of(LUCENE_FORMAT, luceneWfs, PARQUET_FORMAT, parquetWfs));
+     }
+ 
+diff --git a/sandbox/plugins/composite-engine/src/test/java/org/opensearch/composite/merge/CompositeMergerTests.java b/sandbox/plugins/composite-engine/src/test/java/org/opensearch/composite/merge/CompositeMergerTests.java
+index 2c3988954fc..e2ebf8ceec3 100644
+--- a/sandbox/plugins/composite-engine/src/test/java/org/opensearch/composite/merge/CompositeMergerTests.java
++++ b/sandbox/plugins/composite-engine/src/test/java/org/opensearch/composite/merge/CompositeMergerTests.java
+@@ -625,7 +625,7 @@ public class CompositeMergerTests extends OpenSearchTestCase {
+     }
+ 
+     private static WriterFileSet wfs(Path dir, long gen, Set<String> files, long numRows) {
+-        return new WriterFileSet(dir.toString(), gen, files, numRows);
++        return new WriterFileSet(dir.toString(), gen, files, numRows, "");
+     }
+ 
+     private static Segment buildSegment(long generation, DataFormat fmt1, WriterFileSet wfs1, DataFormat fmt2, WriterFileSet wfs2) {
+diff --git a/sandbox/plugins/parquet-data-format/src/main/java/org/opensearch/parquet/ParquetDataFormatPlugin.java b/sandbox/plugins/parquet-data-format/src/main/java/org/opensearch/parquet/ParquetDataFormatPlugin.java
+index e2c103bcadc..e5df1ab9835 100644
+--- a/sandbox/plugins/parquet-data-format/src/main/java/org/opensearch/parquet/ParquetDataFormatPlugin.java
++++ b/sandbox/plugins/parquet-data-format/src/main/java/org/opensearch/parquet/ParquetDataFormatPlugin.java
+@@ -61,6 +61,9 @@ import java.util.function.Supplier;
+  */
+ public class ParquetDataFormatPlugin extends Plugin implements DataFormatPlugin {
+ 
++    /** Current parquet writer format version. Plugin-defined namespace — not comparable to Lucene versions. */
++    public static final String PARQUET_FORMAT_VERSION = "1.0.0.0";
++
+     /** Thread pool name for background native Parquet writes during VSR rotation. */
+     public static final String PARQUET_THREAD_POOL_NAME = "parquet_native_write";
+     private static final ParquetDataFormat dataFormat = new ParquetDataFormat();
+@@ -114,7 +117,20 @@ public class ParquetDataFormatPlugin extends Plugin implements DataFormatPlugin
+     public Map<String, Supplier<DataFormatDescriptor>> getFormatDescriptors(IndexSettings indexSettings, DataFormatRegistry registry) {
+         return Map.of(
+             ParquetDataFormat.PARQUET_DATA_FORMAT_NAME,
+-            () -> new DataFormatDescriptor(ParquetDataFormat.PARQUET_DATA_FORMAT_NAME, new PrecomputedChecksumStrategy())
++            () -> new DataFormatDescriptor(ParquetDataFormat.PARQUET_DATA_FORMAT_NAME, new PrecomputedChecksumStrategy()) {
++                @Override
++                public String currentVersion() {
++                    return PARQUET_FORMAT_VERSION;
++                }
++
++                @Override
++                public boolean canRead(String producedAt) {
++                    if (producedAt == null || producedAt.isEmpty()) {
++                        return true;  // pre-versioning / BWC
++                    }
++                    return parseMajor(producedAt) == parseMajor(PARQUET_FORMAT_VERSION);
++                }
++            }
+         );
+     }
+ 
+@@ -144,4 +160,13 @@ public class ParquetDataFormatPlugin extends Plugin implements DataFormatPlugin
+             )
+         );
+     }
++
++    private static int parseMajor(String version) {
++        int dot = version.indexOf('.');
++        try {
++            return Integer.parseInt(dot < 0 ? version : version.substring(0, dot));
++        } catch (NumberFormatException e) {
++            return -1;  // unparseable → never matches a real major
++        }
++    }
+ }
+diff --git a/sandbox/plugins/parquet-data-format/src/main/java/org/opensearch/parquet/writer/ParquetWriter.java b/sandbox/plugins/parquet-data-format/src/main/java/org/opensearch/parquet/writer/ParquetWriter.java
+index 245ae88053b..59df8e7e17c 100644
+--- a/sandbox/plugins/parquet-data-format/src/main/java/org/opensearch/parquet/writer/ParquetWriter.java
++++ b/sandbox/plugins/parquet-data-format/src/main/java/org/opensearch/parquet/writer/ParquetWriter.java
+@@ -15,6 +15,7 @@ import org.opensearch.index.engine.dataformat.WriteResult;
+ import org.opensearch.index.engine.dataformat.Writer;
+ import org.opensearch.index.engine.exec.WriterFileSet;
+ import org.opensearch.index.store.FormatChecksumStrategy;
++import org.opensearch.parquet.ParquetDataFormatPlugin;
+ import org.opensearch.parquet.ParquetSettings;
+ import org.opensearch.parquet.bridge.ParquetFileMetadata;
+ import org.opensearch.parquet.engine.ParquetDataFormat;
+@@ -110,6 +111,7 @@ public class ParquetWriter implements Writer<ParquetDocumentInput> {
+             .writerGeneration(writerGeneration)
+             .addFile(fileName)
+             .addNumRows(metadata.numRows())
++            .formatVersion(ParquetDataFormatPlugin.PARQUET_FORMAT_VERSION)
+             .build();
+         return FileInfos.builder().putWriterFileSet(dataFormat, writerFileSet).build();
+     }
+diff --git a/server/src/main/java/org/opensearch/index/engine/DataFormatAwareNRTReplicationEngine.java b/server/src/main/java/org/opensearch/index/engine/DataFormatAwareNRTReplicationEngine.java
+index 8eb49600e28..c00ea310325 100644
+--- a/server/src/main/java/org/opensearch/index/engine/DataFormatAwareNRTReplicationEngine.java
++++ b/server/src/main/java/org/opensearch/index/engine/DataFormatAwareNRTReplicationEngine.java
+@@ -36,6 +36,7 @@ import org.opensearch.index.engine.dataformat.DataFormat;
+ import org.opensearch.index.engine.dataformat.DataFormatDescriptor;
+ import org.opensearch.index.engine.dataformat.DataFormatRegistry;
+ import org.opensearch.index.engine.dataformat.ReaderManagerConfig;
++import org.opensearch.index.engine.dataformat.UnreadableFormatVersionException;
+ import org.opensearch.index.engine.exec.CatalogSnapshotDeletionPolicy;
+ import org.opensearch.index.engine.exec.CommitFileManager;
+ import org.opensearch.index.engine.exec.EngineReaderManager;
+@@ -87,6 +88,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
+ import java.util.concurrent.locks.Lock;
+ import java.util.concurrent.locks.ReentrantLock;
+ import java.util.concurrent.locks.ReentrantReadWriteLock;
++import java.util.function.Function;
+ import java.util.function.Supplier;
+ 
+ import static org.opensearch.index.engine.exec.coord.CatalogSnapshotManager.createInitialSnapshot;
+@@ -136,6 +138,7 @@ public class DataFormatAwareNRTReplicationEngine implements Indexer {
+     private final ShardId shardId;
+     private final Store store;
+     private final CatalogSnapshotManager catalogSnapshotManager;
++    private final Function<String, DataFormatDescriptor> descriptorByFormatName;
+     @Nullable
+     private volatile String historyUUID;
+     private volatile long lastWriteNanos = System.nanoTime();
+@@ -227,6 +230,13 @@ public class DataFormatAwareNRTReplicationEngine implements Indexer {
+             }
+ 
+             DataFormatRegistry registry = engineConfig.getDataFormatRegistry();
++
++            // Cache descriptor lookup for format version validation during replication.
++            Map<String, Supplier<DataFormatDescriptor>> allDescriptors = registry.getFormatDescriptors(engineConfig.getIndexSettings());
++            this.descriptorByFormatName = formatName -> {
++                Supplier<DataFormatDescriptor> supplier = allDescriptors.get(formatName);
++                return supplier == null ? null : supplier.get();
++            };
+             Map<DataFormat, EngineReaderManager<?>> aggregated = new HashMap<>();
+             Map<String, Supplier<DataFormatDescriptor>> descriptors = registry.getFormatDescriptors(engineConfig.getIndexSettings());
+             for (String formatName : descriptors.keySet()) {
+@@ -295,6 +305,7 @@ public class DataFormatAwareNRTReplicationEngine implements Indexer {
+ 
+     /** Updates the catalog snapshot with a new snapshot received from the primary via replication. */
+     public void updateCatalogSnapshot(CatalogSnapshot incoming) throws IOException {
++        validateFormatVersions(incoming);
+         try (ReleasableLock lock = writeLock.acquire()) {
+             ensureOpen();
+             final long maxSeqNo = Long.parseLong(incoming.getUserData().get(SequenceNumbers.MAX_SEQ_NO));
+@@ -957,6 +968,16 @@ public class DataFormatAwareNRTReplicationEngine implements Indexer {
+         }
+     }
+ 
++    /**
++     * Validates that every format present in the incoming catalog snapshot is readable by this node.
++     * Runs on every snapshot acquisition (initial load, replication rounds, post-promotion).
++     * Throws {@link UnreadableFormatVersionException} if a format's plugin is missing or the
++     * descriptor's canRead returns false.
++     */
++    void validateFormatVersions(CatalogSnapshot snapshot) throws UnreadableFormatVersionException {
++        DataFormatVersionValidator.validate(snapshot, descriptorByFormatName);
++    }
++
+     /**
+      * Builds filesystem-level {@link FileDeleter}s for every registered data format so that
+      * {@link org.opensearch.index.engine.exec.coord.IndexFileDeleter}'s construction-time orphan
+diff --git a/server/src/main/java/org/opensearch/index/engine/dataformat/DataFormatDescriptor.java b/server/src/main/java/org/opensearch/index/engine/dataformat/DataFormatDescriptor.java
+index b88be065674..6b51e2f7606 100644
+--- a/server/src/main/java/org/opensearch/index/engine/dataformat/DataFormatDescriptor.java
++++ b/server/src/main/java/org/opensearch/index/engine/dataformat/DataFormatDescriptor.java
+@@ -57,4 +57,22 @@ public class DataFormatDescriptor {
+     public FormatChecksumStrategy getChecksumStrategy() {
+         return checksumStrategy;
+     }
++
++    /**
++     * The current version string this format writer produces. Empty string means pre-versioning
++     * (legacy data). Override in plugin subclasses. Version format is plugin-defined — it is NOT
++     * compared cross-format.
++     */
++    public String currentVersion() {
++        return "";
++    }
++
++    /**
++     * Whether this reader can read a file produced at the given format version string.
++     * Default permissive: accepts null, empty, and any string. Override in plugin subclasses
++     * to enforce compatibility (e.g., major-version match).
++     */
++    public boolean canRead(String producedAt) {
++        return true;
++    }
+ }
+diff --git a/server/src/main/java/org/opensearch/index/engine/exec/WriterFileSet.java b/server/src/main/java/org/opensearch/index/engine/exec/WriterFileSet.java
+index 5c497d21cfc..629a00e0afe 100644
+--- a/server/src/main/java/org/opensearch/index/engine/exec/WriterFileSet.java
++++ b/server/src/main/java/org/opensearch/index/engine/exec/WriterFileSet.java
+@@ -8,6 +8,7 @@
+ 
+ package org.opensearch.index.engine.exec;
+ 
++import org.opensearch.Version;
+ import org.opensearch.common.annotation.ExperimentalApi;
+ import org.opensearch.core.common.io.stream.StreamInput;
+ import org.opensearch.core.common.io.stream.StreamOutput;
+@@ -23,17 +24,26 @@ import java.util.Set;
+  * Groups files by directory and writer generation, tracking metadata such as row count and total size.
+  */
+ @ExperimentalApi
+-public record WriterFileSet(String directory, long writerGeneration, Set<String> files, long numRows) implements Writeable {
++public record WriterFileSet(String directory, long writerGeneration, Set<String> files, long numRows, String formatVersion)
++    implements
++        Writeable {
+ 
+     public WriterFileSet {
+         files = Set.copyOf(files);
++        formatVersion = formatVersion == null ? "" : formatVersion;
+     }
+ 
+     /**
+      * Constructs a WriterFileSet by deserializing from a {@link StreamInput}.
+      */
+     public WriterFileSet(StreamInput in, String directory) throws IOException {
+-        this(directory, in.readLong(), new HashSet<>(in.readStringList()), in.readLong());
++        this(
++            directory,
++            in.readLong(),
++            new HashSet<>(in.readStringList()),
++            in.readLong(),
++            in.getVersion().onOrAfter(Version.V_3_7_0) ? in.readString() : ""
++        );
+     }
+ 
+     public long getTotalSize() {
+@@ -48,7 +58,16 @@ public record WriterFileSet(String directory, long writerGeneration, Set<String>
+ 
+     @Override
+     public String toString() {
+-        return "WriterFileSet{" + "directory=" + directory + ", writerGeneration=" + writerGeneration + ", files=" + files + '}';
++        return "WriterFileSet{"
++            + "directory="
++            + directory
++            + ", writerGeneration="
++            + writerGeneration
++            + ", files="
++            + files
++            + ", formatVersion="
++            + formatVersion
++            + '}';
+     }
+ 
+     /**
+@@ -58,6 +77,9 @@ public record WriterFileSet(String directory, long writerGeneration, Set<String>
+         out.writeLong(writerGeneration);
+         out.writeStringCollection(files);
+         out.writeLong(numRows);
++        if (out.getVersion().onOrAfter(Version.V_3_7_0)) {
++            out.writeString(formatVersion);
++        }
+     }
+ 
+     /**
+@@ -77,6 +99,7 @@ public record WriterFileSet(String directory, long writerGeneration, Set<String>
+         private Path directory;
+         private Long writerGeneration;
+         private long numRows;
++        private String formatVersion = "";
+         private final Set<String> files = new HashSet<>();
+ 
+         public Builder directory(Path directory) {
+@@ -104,6 +127,11 @@ public record WriterFileSet(String directory, long writerGeneration, Set<String>
+             return this;
+         }
+ 
++        public Builder formatVersion(String formatVersion) {
++            this.formatVersion = formatVersion == null ? "" : formatVersion;
++            return this;
++        }
++
+         public WriterFileSet build() {
+             if (directory == null) {
+                 throw new IllegalStateException("directory must be set");
+@@ -113,7 +141,7 @@ public record WriterFileSet(String directory, long writerGeneration, Set<String>
+                 throw new IllegalStateException("writerGeneration must be set");
+             }
+ 
+-            return new WriterFileSet(directory.toString(), writerGeneration, files, numRows);
++            return new WriterFileSet(directory.toString(), writerGeneration, files, numRows, formatVersion);
+         }
+     }
+ }
+diff --git a/server/src/main/java/org/opensearch/index/engine/exec/coord/CatalogSnapshot.java b/server/src/main/java/org/opensearch/index/engine/exec/coord/CatalogSnapshot.java
+index 76a7e2162f0..d09cee3ea2e 100644
+--- a/server/src/main/java/org/opensearch/index/engine/exec/coord/CatalogSnapshot.java
++++ b/server/src/main/java/org/opensearch/index/engine/exec/coord/CatalogSnapshot.java
+@@ -9,7 +9,6 @@
+ package org.opensearch.index.engine.exec.coord;
+ 
+ import org.apache.lucene.index.SegmentInfos;
+-import org.apache.lucene.util.Version;
+ import org.opensearch.common.annotation.ExperimentalApi;
+ import org.opensearch.common.util.concurrent.AbstractRefCounted;
+ import org.opensearch.core.common.io.stream.StreamInput;
+@@ -268,37 +267,25 @@ public abstract class CatalogSnapshot implements Writeable, Cloneable {
+     public abstract CatalogSnapshot clone();
+ 
+     /**
+-     * Returns the major version of the format that wrote the given file.
+-     * For Lucene files, this is the Lucene major version from SegmentInfo.
+-     * For non-Lucene files (e.g., parquet), this is the format-specific version.
++     * Returns the format-version string for the given file. Empty string means pre-versioning
++     * (legacy / BWC). The string is plugin-defined and MUST NOT be compared across formats.
+      *
+      * @param file the file name
+-     * @return the format major version
++     * @return the format version string
+      */
+-    public abstract Version getFormatVersionForFile(String file);
++    public abstract String getFormatVersionForFile(String file);
+ 
+     /**
+-     * Initial seed for {@code maxVersion} in {@link org.opensearch.index.store.Store.MetadataSnapshot
+-     * #loadMetadata(CatalogSnapshot, org.apache.lucene.store.Directory, org.apache.logging.log4j.Logger,
+-     * boolean)}. SI-backed snapshots return {@code segmentInfos.getMinSegmentLuceneVersion()};
+-     * DFA snapshots return {@code null}. May be {@code null} even on SI (in-memory infos).
++     * Returns the minimum segment format version string. Returns empty string for multi-format
++     * catalogs (cross-format comparison is not supported).
+      */
+-    public abstract Version getMinSegmentFormatVersion();
++    public abstract String getMinSegmentFormatVersion();
+ 
+     /**
+-     * Returns the version snapshot was committed under.
+-     * Used to populate remote-store checkpoint metadata so downstream consumers can interpret
+-     * per-file encodings consistently.
+-     *
+-     * <p>Implementations:
+-     * <ul>
+-     *   <li>Lucene-backed snapshots return the version read from {@code SegmentInfos}.</li>
+-     *   <li>DFA snapshots return the version tracked at commit time for their underlying format.</li>
+-     * </ul>
+-     *
+-     * @return the commit-time Lucene version
++     * Returns the commit-time format version string. Returns empty string for multi-format
++     * catalogs (cross-format comparison is not supported).
+      */
+-    public abstract Version getCommitDataFormatVersion();
++    public abstract String getCommitDataFormatVersion();
+ 
+     /** Total number of live documents in this snapshot. SI → Lucene live docs; DFA → 0 (TODO). */
+     public abstract long getNumDocs();
+diff --git a/server/src/main/java/org/opensearch/index/engine/exec/coord/DataformatAwareCatalogSnapshot.java b/server/src/main/java/org/opensearch/index/engine/exec/coord/DataformatAwareCatalogSnapshot.java
+index c6898f02cb8..62d8e9b8b28 100644
+--- a/server/src/main/java/org/opensearch/index/engine/exec/coord/DataformatAwareCatalogSnapshot.java
++++ b/server/src/main/java/org/opensearch/index/engine/exec/coord/DataformatAwareCatalogSnapshot.java
+@@ -9,7 +9,6 @@
+ package org.opensearch.index.engine.exec.coord;
+ 
+ import org.apache.lucene.index.SegmentInfos;
+-import org.apache.lucene.util.Version;
+ import org.opensearch.common.annotation.ExperimentalApi;
+ import org.opensearch.common.io.stream.BytesStreamOutput;
+ import org.opensearch.core.common.bytes.BytesReference;
+@@ -238,20 +237,25 @@ public class DataformatAwareCatalogSnapshot extends CatalogSnapshot {
+     }
+ 
+     @Override
+-    public Version getFormatVersionForFile(String file) {
+-        // TODO: return the per-file format version once per-segment tracking is available.
+-        return Version.LATEST;
++    public String getFormatVersionForFile(String file) {
++        for (Segment s : segments) {
++            for (WriterFileSet wfs : s.dfGroupedSearchableFiles().values()) {
++                if (wfs.files().contains(file)) {
++                    return wfs.formatVersion();
++                }
++            }
++        }
++        return "";
+     }
+ 
+     @Override
+-    public Version getMinSegmentFormatVersion() {
+-        return null;
++    public String getMinSegmentFormatVersion() {
++        return "";  // cross-format min is semantically meaningless
+     }
+ 
+     @Override
+-    public Version getCommitDataFormatVersion() {
+-        // Todo: update this api once proper versioning is implemented.
+-        return Version.LATEST;
++    public String getCommitDataFormatVersion() {
++        return "";  // same rationale
+     }
+ 
+     /**
+@@ -300,7 +304,6 @@ public class DataformatAwareCatalogSnapshot extends CatalogSnapshot {
+         this.lastCommitGeneration = commitGeneration;
+     }
+ 
+-
+     @Override
+     public SegmentInfos getSegmentInfos() {
+         throw new UnsupportedOperationException(
+diff --git a/server/src/main/java/org/opensearch/index/engine/exec/coord/SegmentInfosCatalogSnapshot.java b/server/src/main/java/org/opensearch/index/engine/exec/coord/SegmentInfosCatalogSnapshot.java
+index 8c396db2f54..12c3ab1fe10 100644
+--- a/server/src/main/java/org/opensearch/index/engine/exec/coord/SegmentInfosCatalogSnapshot.java
++++ b/server/src/main/java/org/opensearch/index/engine/exec/coord/SegmentInfosCatalogSnapshot.java
+@@ -157,7 +157,12 @@ public class SegmentInfosCatalogSnapshot extends CatalogSnapshot {
+      * file itself, or to the .si file's version for other unmapped files.
+      */
+     @Override
+-    public Version getFormatVersionForFile(String file) {
++    public String getFormatVersionForFile(String file) {
++        Version v = getLuceneVersionForFile(file);
++        return v == null ? "" : v.toString();
++    }
++
++    private Version getLuceneVersionForFile(String file) {
+         Version version = segmentFileVersionMap.get(file);
+         if (version != null) {
+             return version;
+@@ -174,13 +179,15 @@ public class SegmentInfosCatalogSnapshot extends CatalogSnapshot {
+     }
+ 
+     @Override
+-    public Version getMinSegmentFormatVersion() {
+-        return segmentInfos.getMinSegmentLuceneVersion();
++    public String getMinSegmentFormatVersion() {
++        Version v = segmentInfos.getMinSegmentLuceneVersion();
++        return v == null ? "" : v.toString();
+     }
+ 
+     @Override
+-    public org.apache.lucene.util.Version getCommitDataFormatVersion() {
+-        return segmentInfos.getCommitLuceneVersion();
++    public String getCommitDataFormatVersion() {
++        Version v = segmentInfos.getCommitLuceneVersion();
++        return v == null ? "" : v.toString();
+     }
+ 
+     @Override
+diff --git a/server/src/main/java/org/opensearch/index/store/RemoteSegmentStoreDirectory.java b/server/src/main/java/org/opensearch/index/store/RemoteSegmentStoreDirectory.java
+index 6fde995c878..e3ca03193ec 100644
+--- a/server/src/main/java/org/opensearch/index/store/RemoteSegmentStoreDirectory.java
++++ b/server/src/main/java/org/opensearch/index/store/RemoteSegmentStoreDirectory.java
+@@ -37,6 +37,7 @@ import org.opensearch.common.lucene.store.ByteArrayIndexInput;
+ import org.opensearch.core.action.ActionListener;
+ import org.opensearch.core.index.shard.ShardId;
+ import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
++import org.opensearch.index.engine.exec.coord.LuceneVersionConverter;
+ import org.opensearch.index.remote.RemoteStorePathStrategy;
+ import org.opensearch.index.remote.RemoteStoreUtils;
+ import org.opensearch.index.store.lockmanager.FileLockInfo;
+@@ -876,7 +877,11 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
+                     for (String file : segmentFiles) {
+                         if (segmentsUploadedToRemoteStore.containsKey(file)) {
+                             UploadedSegmentMetadata metadata = segmentsUploadedToRemoteStore.get(file);
+-                            metadata.setWrittenByMajor(catalogSnapshot.getFormatVersionForFile(metadata.originalFilename).major);
++                            metadata.setWrittenByMajor(
++                                LuceneVersionConverter.toLuceneOrLatest(
++                                    catalogSnapshot.getFormatVersionForFile(metadata.originalFilename)
++                                ).major
++                            );
+                             uploadedSegments.put(file, metadata.toString());
+                         } else {
+                             throw new NoSuchFileException(file);
+diff --git a/server/src/main/java/org/opensearch/index/store/Store.java b/server/src/main/java/org/opensearch/index/store/Store.java
+index 164bb42f196..55f46c87c57 100644
+--- a/server/src/main/java/org/opensearch/index/store/Store.java
++++ b/server/src/main/java/org/opensearch/index/store/Store.java
+@@ -94,6 +94,7 @@ import org.opensearch.index.engine.CombinedDeletionPolicy;
+ import org.opensearch.index.engine.Engine;
+ import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
+ import org.opensearch.index.engine.exec.coord.DataformatAwareCatalogSnapshot;
++import org.opensearch.index.engine.exec.coord.LuceneVersionConverter;
+ import org.opensearch.index.engine.exec.coord.SegmentInfosCatalogSnapshot;
+ import org.opensearch.index.seqno.SequenceNumbers;
+ import org.opensearch.index.shard.AbstractIndexShardComponent;
+@@ -1337,9 +1338,9 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
+             final Map<String, String> commitUserDataBuilder = new HashMap<>(catalogSnapshot.getUserData());
+             final Map<String, StoreFileMetadata> builder = new HashMap<>();
+ 
+-            Version maxVersion = catalogSnapshot.getMinSegmentFormatVersion();
++            Version maxVersion = LuceneVersionConverter.toLuceneOrLatest(catalogSnapshot.getMinSegmentFormatVersion());
+             for (String file : catalogSnapshot.getFiles(false)) {
+-                final Version version = catalogSnapshot.getFormatVersionForFile(file);
++                final Version version = LuceneVersionConverter.toLuceneOrLatest(catalogSnapshot.getFormatVersionForFile(file));
+                 if (maxVersion == null || version.onOrAfter(maxVersion)) {
+                     maxVersion = version;
+                 }
+diff --git a/server/src/main/java/org/opensearch/indices/replication/RemoteStoreReplicationSource.java b/server/src/main/java/org/opensearch/indices/replication/RemoteStoreReplicationSource.java
+index c385001fbd4..701db2eefd9 100644
+--- a/server/src/main/java/org/opensearch/indices/replication/RemoteStoreReplicationSource.java
++++ b/server/src/main/java/org/opensearch/indices/replication/RemoteStoreReplicationSource.java
+@@ -18,6 +18,7 @@ import org.opensearch.common.concurrent.GatedCloseable;
+ import org.opensearch.common.util.CancellableThreads;
+ import org.opensearch.core.action.ActionListener;
+ import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
++import org.opensearch.index.engine.exec.coord.LuceneVersionConverter;
+ import org.opensearch.index.shard.IndexShard;
+ import org.opensearch.index.shard.IndexShardState;
+ import org.opensearch.index.store.RemoteSegmentStoreDirectory;
+@@ -72,7 +73,7 @@ public class RemoteStoreReplicationSource implements SegmentReplicationSource {
+         try {
+             final Version version;
+             try (GatedCloseable<CatalogSnapshot> catalogSnapshotRef = indexShard.getCatalogSnapshot()) {
+-                version = catalogSnapshotRef.get().getCommitDataFormatVersion();
++                version = LuceneVersionConverter.toLuceneOrLatest(catalogSnapshotRef.get().getCommitDataFormatVersion());
+             }
+             final RemoteSegmentMetadata mdFile = getRemoteSegmentMetadata();
+ 
+diff --git a/server/src/test/java/org/opensearch/index/engine/dataformat/DataFormatPluginTests.java b/server/src/test/java/org/opensearch/index/engine/dataformat/DataFormatPluginTests.java
+index cdc6485c26f..1ccdedb0672 100644
+--- a/server/src/test/java/org/opensearch/index/engine/dataformat/DataFormatPluginTests.java
++++ b/server/src/test/java/org/opensearch/index/engine/dataformat/DataFormatPluginTests.java
+@@ -241,8 +241,8 @@ public class DataFormatPluginTests extends OpenSearchTestCase {
+         assertTrue(empty.existingSegments().isEmpty());
+ 
+         Path dir = createTempDir();
+-        WriterFileSet fs1 = new WriterFileSet(dir.toString(), 1L, Set.of(), 10);
+-        WriterFileSet fs2 = new WriterFileSet(dir.toString(), 2L, Set.of(), 20);
++        WriterFileSet fs1 = new WriterFileSet(dir.toString(), 1L, Set.of(), 10, "");
++        WriterFileSet fs2 = new WriterFileSet(dir.toString(), 2L, Set.of(), 20, "");
+         Segment seg = new Segment(0L, Map.of());
+ 
+         RefreshInput input = RefreshInput.builder()
+diff --git a/server/src/test/java/org/opensearch/index/engine/dataformat/merge/DataFormatAwareMergePolicyTests.java b/server/src/test/java/org/opensearch/index/engine/dataformat/merge/DataFormatAwareMergePolicyTests.java
+index 2f9069ac9cb..79f4f1310b7 100644
+--- a/server/src/test/java/org/opensearch/index/engine/dataformat/merge/DataFormatAwareMergePolicyTests.java
++++ b/server/src/test/java/org/opensearch/index/engine/dataformat/merge/DataFormatAwareMergePolicyTests.java
+@@ -51,7 +51,7 @@ public class DataFormatAwareMergePolicyTests extends OpenSearchTestCase {
+     public void testFindMergeCandidatesCapturesMergeContext() throws IOException {
+         Path tempDir = createTempDir();
+         MockDataFormat fmt = new MockDataFormat("lucene", 100L, Set.of());
+-        WriterFileSet wfs = new WriterFileSet(tempDir.toString(), 1L, Set.of(), 10);
++        WriterFileSet wfs = new WriterFileSet(tempDir.toString(), 1L, Set.of(), 10, "");
+         Segment seg1 = Segment.builder(1L).addSearchableFiles(fmt, wfs).build();
+         Segment seg2 = Segment.builder(2L).addSearchableFiles(fmt, wfs).build();
+ 
+@@ -78,8 +78,8 @@ public class DataFormatAwareMergePolicyTests extends OpenSearchTestCase {
+     public void testFindMergeCandidatesMergeContextReflectsAddedAndRemovedSegments() throws IOException {
+         Path tempDir = createTempDir();
+         MockDataFormat fmt = new MockDataFormat("lucene", 100L, Set.of());
+-        WriterFileSet wfs1 = new WriterFileSet(tempDir.toString(), 1L, Set.of(), 10);
+-        WriterFileSet wfs2 = new WriterFileSet(tempDir.toString(), 2L, Set.of(), 20);
++        WriterFileSet wfs1 = new WriterFileSet(tempDir.toString(), 1L, Set.of(), 10, "");
++        WriterFileSet wfs2 = new WriterFileSet(tempDir.toString(), 2L, Set.of(), 20, "");
+         Segment seg1 = Segment.builder(1L).addSearchableFiles(fmt, wfs1).build();
+         Segment seg2 = Segment.builder(2L).addSearchableFiles(fmt, wfs2).build();
+         Segment seg3 = Segment.builder(3L).addSearchableFiles(fmt, wfs1).build();
+@@ -129,7 +129,7 @@ public class DataFormatAwareMergePolicyTests extends OpenSearchTestCase {
+     public void testFindForceMergeCandidatesCapturesMergeContext() throws IOException {
+         Path tempDir = createTempDir();
+         MockDataFormat fmt = new MockDataFormat("lucene", 100L, Set.of());
+-        WriterFileSet wfs = new WriterFileSet(tempDir.toString(), 1L, Set.of(), 10);
++        WriterFileSet wfs = new WriterFileSet(tempDir.toString(), 1L, Set.of(), 10, "");
+         Segment seg1 = Segment.builder(1L).addSearchableFiles(fmt, wfs).build();
+         Segment seg2 = Segment.builder(2L).addSearchableFiles(fmt, wfs).build();
+ 
+@@ -173,10 +173,10 @@ public class DataFormatAwareMergePolicyTests extends OpenSearchTestCase {
+     public void testMergeContextTracksMultipleAddRemoveCycles() throws IOException {
+         Path tempDir = createTempDir();
+         MockDataFormat fmt = new MockDataFormat("lucene", 100L, Set.of());
+-        Segment seg1 = Segment.builder(1L).addSearchableFiles(fmt, new WriterFileSet(tempDir.toString(), 1L, Set.of(), 10)).build();
+-        Segment seg2 = Segment.builder(2L).addSearchableFiles(fmt, new WriterFileSet(tempDir.toString(), 2L, Set.of(), 20)).build();
+-        Segment seg3 = Segment.builder(3L).addSearchableFiles(fmt, new WriterFileSet(tempDir.toString(), 3L, Set.of(), 30)).build();
+-        Segment seg4 = Segment.builder(4L).addSearchableFiles(fmt, new WriterFileSet(tempDir.toString(), 4L, Set.of(), 40)).build();
++        Segment seg1 = Segment.builder(1L).addSearchableFiles(fmt, new WriterFileSet(tempDir.toString(), 1L, Set.of(), 10, "")).build();
++        Segment seg2 = Segment.builder(2L).addSearchableFiles(fmt, new WriterFileSet(tempDir.toString(), 2L, Set.of(), 20, "")).build();
++        Segment seg3 = Segment.builder(3L).addSearchableFiles(fmt, new WriterFileSet(tempDir.toString(), 3L, Set.of(), 30, "")).build();
++        Segment seg4 = Segment.builder(4L).addSearchableFiles(fmt, new WriterFileSet(tempDir.toString(), 4L, Set.of(), 40, "")).build();
+         List<Segment> allSegments = List.of(seg1, seg2, seg3, seg4);
+ 
+         MergePolicy lucenePolicy = mock(MergePolicy.class);
+@@ -256,8 +256,8 @@ public class DataFormatAwareMergePolicyTests extends OpenSearchTestCase {
+         Path tempDir = createTempDir();
+         MockDataFormat fmt1 = new MockDataFormat("lucene", 100L, Set.of());
+         MockDataFormat fmt2 = new MockDataFormat("columnar", 50L, Set.of());
+-        WriterFileSet wfs1 = new WriterFileSet(tempDir.toString(), 1L, Set.of(), 10);
+-        WriterFileSet wfs2 = new WriterFileSet(tempDir.toString(), 1L, Set.of(), 20);
++        WriterFileSet wfs1 = new WriterFileSet(tempDir.toString(), 1L, Set.of(), 10, "");
++        WriterFileSet wfs2 = new WriterFileSet(tempDir.toString(), 1L, Set.of(), 20, "");
+         Segment seg = Segment.builder(1L).addSearchableFiles(fmt1, wfs1).addSearchableFiles(fmt2, wfs2).build();
+ 
+         policy.findMergeCandidates(List.of(seg));
+@@ -291,7 +291,7 @@ public class DataFormatAwareMergePolicyTests extends OpenSearchTestCase {
+         for (int i = 0; i < 15; i++) {
+             Path file = tempDir.resolve("seg" + i + ".dat");
+             Files.write(file, new byte[100]);
+-            WriterFileSet wfs = new WriterFileSet(tempDir.toString(), i, Set.of("seg" + i + ".dat"), 10);
++            WriterFileSet wfs = new WriterFileSet(tempDir.toString(), i, Set.of("seg" + i + ".dat"), 10, "");
+             segments.add(Segment.builder(i).addSearchableFiles(fmt, wfs).build());
+         }
+ 
+@@ -314,7 +314,7 @@ public class DataFormatAwareMergePolicyTests extends OpenSearchTestCase {
+         for (int i = 0; i < 5; i++) {
+             Path file = tempDir.resolve("fseg" + i + ".dat");
+             Files.write(file, new byte[100]);
+-            WriterFileSet wfs = new WriterFileSet(tempDir.toString(), i, Set.of("fseg" + i + ".dat"), 10);
++            WriterFileSet wfs = new WriterFileSet(tempDir.toString(), i, Set.of("fseg" + i + ".dat"), 10, "");
+             segments.add(Segment.builder(i).addSearchableFiles(fmt, wfs).build());
+         }
+ 
+@@ -338,7 +338,7 @@ public class DataFormatAwareMergePolicyTests extends OpenSearchTestCase {
+         int numSegments = 50;
+         List<Segment> segments = new ArrayList<>();
+         for (int i = 0; i < numSegments; i++) {
+-            WriterFileSet wfs = new WriterFileSet(tempDir.toString(), i, Set.of(), 10);
++            WriterFileSet wfs = new WriterFileSet(tempDir.toString(), i, Set.of(), 10, "");
+             segments.add(Segment.builder(i).addSearchableFiles(fmt, wfs).build());
+         }
+ 
+@@ -390,7 +390,7 @@ public class DataFormatAwareMergePolicyTests extends OpenSearchTestCase {
+         for (int i = 0; i < 15; i++) {
+             Path file = tempDir.resolve("cseg" + i + ".dat");
+             Files.write(file, new byte[100]);
+-            WriterFileSet wfs = new WriterFileSet(tempDir.toString(), i, Set.of("cseg" + i + ".dat"), 10);
++            WriterFileSet wfs = new WriterFileSet(tempDir.toString(), i, Set.of("cseg" + i + ".dat"), 10, "");
+             segments.add(Segment.builder(i).addSearchableFiles(fmt, wfs).build());
+         }
+ 
+diff --git a/server/src/test/java/org/opensearch/index/engine/dataformat/merge/MergeTests.java b/server/src/test/java/org/opensearch/index/engine/dataformat/merge/MergeTests.java
+index 7d71599396b..62ac5ce99ee 100644
+--- a/server/src/test/java/org/opensearch/index/engine/dataformat/merge/MergeTests.java
++++ b/server/src/test/java/org/opensearch/index/engine/dataformat/merge/MergeTests.java
+@@ -168,8 +168,8 @@ public class MergeTests extends OpenSearchTestCase {
+     public void testOneMergeAggregatesDocCounts() {
+         Path dir = createTempDir();
+         MockDataFormat format = new MockDataFormat();
+-        WriterFileSet fs1 = new WriterFileSet(dir.toString(), 1L, Set.of(), 10);
+-        WriterFileSet fs2 = new WriterFileSet(dir.toString(), 2L, Set.of(), 20);
++        WriterFileSet fs1 = new WriterFileSet(dir.toString(), 1L, Set.of(), 10, "");
++        WriterFileSet fs2 = new WriterFileSet(dir.toString(), 2L, Set.of(), 20, "");
+ 
+         Segment seg1 = Segment.builder(1L).addSearchableFiles(format, fs1).build();
+         Segment seg2 = Segment.builder(2L).addSearchableFiles(format, fs2).build();
+@@ -300,10 +300,10 @@ public class MergeTests extends OpenSearchTestCase {
+     public void testDoMergeReturnsResult() throws IOException {
+         Path dir = createTempDir();
+         MockDataFormat format = new MockDataFormat();
+-        WriterFileSet inputWfs = new WriterFileSet(dir.toString(), 1L, Set.of("input.dat"), 10);
++        WriterFileSet inputWfs = new WriterFileSet(dir.toString(), 1L, Set.of("input.dat"), 10, "");
+         Segment seg = Segment.builder(1L).addSearchableFiles(format, inputWfs).build();
+ 
+-        WriterFileSet mergedWfs = new WriterFileSet(dir.toString(), 99L, Set.of("merged.dat"), 10);
++        WriterFileSet mergedWfs = new WriterFileSet(dir.toString(), 99L, Set.of("merged.dat"), 10, "");
+         MergeResult expectedResult = new MergeResult(Map.of(format, mergedWfs));
+         Merger merger = mergeInput -> expectedResult;
+ 
+@@ -384,7 +384,7 @@ public class MergeTests extends OpenSearchTestCase {
+     public void testTriggerMergesExecutesMergeThread() throws Exception {
+         List<Segment> segments = createSegments(15);
+         MockDataFormat format = new MockDataFormat();
+-        WriterFileSet mergedWfs = new WriterFileSet(createTempDir().toString(), 99L, Set.of("merged.dat"), 15);
++        WriterFileSet mergedWfs = new WriterFileSet(createTempDir().toString(), 99L, Set.of("merged.dat"), 15, "");
+         MergeResult mergeResult = new MergeResult(Map.of(format, mergedWfs));
+         CountDownLatch latch = new CountDownLatch(1);
+ 
+@@ -429,7 +429,7 @@ public class MergeTests extends OpenSearchTestCase {
+     public void testForceMergeExecutesMerges() throws Exception {
+         List<Segment> segments = createSegments(3);
+         MockDataFormat format = new MockDataFormat();
+-        WriterFileSet mergedWfs = new WriterFileSet(createTempDir().toString(), 99L, Set.of("merged.dat"), 3);
++        WriterFileSet mergedWfs = new WriterFileSet(createTempDir().toString(), 99L, Set.of("merged.dat"), 3, "");
+         MergeResult mergeResult = new MergeResult(Map.of(format, mergedWfs));
+         CountDownLatch latch = new CountDownLatch(1);
+ 
+diff --git a/server/src/test/java/org/opensearch/index/engine/exec/SegmentTests.java b/server/src/test/java/org/opensearch/index/engine/exec/SegmentTests.java
+index d5afc4257c4..191d9dc162b 100644
+--- a/server/src/test/java/org/opensearch/index/engine/exec/SegmentTests.java
++++ b/server/src/test/java/org/opensearch/index/engine/exec/SegmentTests.java
+@@ -68,7 +68,7 @@ public class SegmentTests extends OpenSearchTestCase {
+         for (int i = 0; i < fileCount; i++) {
+             files.add(randomAlphaOfLength(6) + "." + randomFrom(extensions));
+         }
+-        return new WriterFileSet(TEST_DIRECTORY, randomNonNegativeLong(), files, randomIntBetween(0, 10000));
++        return new WriterFileSet(TEST_DIRECTORY, randomNonNegativeLong(), files, randomIntBetween(0, 10000), "");
+     }
+ 
+     private Segment randomSegment() {
+diff --git a/server/src/test/java/org/opensearch/index/engine/exec/WriterFileSetTests.java b/server/src/test/java/org/opensearch/index/engine/exec/WriterFileSetTests.java
+index 2eb0d82b927..bb89c8d1ab1 100644
+--- a/server/src/test/java/org/opensearch/index/engine/exec/WriterFileSetTests.java
++++ b/server/src/test/java/org/opensearch/index/engine/exec/WriterFileSetTests.java
+@@ -8,6 +8,7 @@
+ 
+ package org.opensearch.index.engine.exec;
+ 
++import org.opensearch.Version;
+ import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
+ import org.opensearch.test.OpenSearchTestCase;
+ 
+@@ -34,7 +35,7 @@ public class WriterFileSetTests extends OpenSearchTestCase {
+     public void testDirectoryNotSerialized() throws Exception {
+         String originalDirectory = "/tmp/original";
+         String differentDirectory = "/tmp/different";
+-        WriterFileSet original = new WriterFileSet(originalDirectory, 1L, Set.of("a.dat"), 10);
++        WriterFileSet original = new WriterFileSet(originalDirectory, 1L, Set.of("a.dat"), 10, "");
+ 
+         WriterFileSet deserialized = copyWriteable(
+             original,
+@@ -49,6 +50,35 @@ public class WriterFileSetTests extends OpenSearchTestCase {
+         assertEquals(original.numRows(), deserialized.numRows());
+     }
+ 
++    public void testStreamRoundTripOldVersionDropsFormatVersion() throws Exception {
++        Version oldVersion = Version.V_3_6_0;
++        WriterFileSet original = new WriterFileSet("/tmp/dir", 1L, Set.of("a.dat"), 10, "1.0.0.0");
++        WriterFileSet copy = copyWriteable(
++            original,
++            new NamedWriteableRegistry(Collections.emptyList()),
++            in -> new WriterFileSet(in, "/tmp/dir"),
++            oldVersion
++        );
++        assertEquals("", copy.formatVersion());
++    }
++
++    public void testStreamRoundTripCurrentVersionPreservesFormatVersion() throws Exception {
++        Version currentVersion = Version.V_3_7_0;
++        WriterFileSet original = new WriterFileSet("/tmp/dir", 1L, Set.of("a.dat"), 10, "1.0.0.0");
++        WriterFileSet copy = copyWriteable(
++            original,
++            new NamedWriteableRegistry(Collections.emptyList()),
++            in -> new WriterFileSet(in, "/tmp/dir"),
++            currentVersion
++        );
++        assertEquals("1.0.0.0", copy.formatVersion());
++    }
++
++    public void testNullFormatVersionNormalizedToEmpty() {
++        WriterFileSet wfs = new WriterFileSet("/tmp/dir", 1L, Set.of("a.dat"), 0, null);
++        assertEquals("", wfs.formatVersion());
++    }
++
+     // --- helpers ---
+ 
+     private WriterFileSet randomWriterFileSet() {
+@@ -58,6 +88,6 @@ public class WriterFileSetTests extends OpenSearchTestCase {
+         for (int i = 0; i < fileCount; i++) {
+             files.add(randomAlphaOfLength(6) + "." + randomFrom("cfs", "si", "dat", "parquet"));
+         }
+-        return new WriterFileSet(directory, randomNonNegativeLong(), files, randomIntBetween(0, 10000));
++        return new WriterFileSet(directory, randomNonNegativeLong(), files, randomIntBetween(0, 10000), "");
+     }
+ }
+diff --git a/server/src/test/java/org/opensearch/index/engine/exec/coord/CatalogSnapshotManagerTests.java b/server/src/test/java/org/opensearch/index/engine/exec/coord/CatalogSnapshotManagerTests.java
+index 6df0c93dc4f..d276cd63104 100644
+--- a/server/src/test/java/org/opensearch/index/engine/exec/coord/CatalogSnapshotManagerTests.java
++++ b/server/src/test/java/org/opensearch/index/engine/exec/coord/CatalogSnapshotManagerTests.java
+@@ -305,10 +305,10 @@ public class CatalogSnapshotManagerTests extends OpenSearchTestCase {
+ 
+     public void testApplyMergeResultsReplacesSegments() throws Exception {
+         DataFormat format = new MockDataFormat();
+-        WriterFileSet wfs1 = new WriterFileSet("/tmp/dir", 1L, Set.of("a.cfs"), 100);
+-        WriterFileSet wfs2 = new WriterFileSet("/tmp/dir", 2L, Set.of("b.cfs"), 200);
+-        WriterFileSet wfs3 = new WriterFileSet("/tmp/dir", 3L, Set.of("c.cfs"), 300);
+-        WriterFileSet mergedWfs = new WriterFileSet("/tmp/dir", 4L, Set.of("merged.cfs"), 300);
++        WriterFileSet wfs1 = new WriterFileSet("/tmp/dir", 1L, Set.of("a.cfs"), 100, "");
++        WriterFileSet wfs2 = new WriterFileSet("/tmp/dir", 2L, Set.of("b.cfs"), 200, "");
++        WriterFileSet wfs3 = new WriterFileSet("/tmp/dir", 3L, Set.of("c.cfs"), 300, "");
++        WriterFileSet mergedWfs = new WriterFileSet("/tmp/dir", 4L, Set.of("merged.cfs"), 300, "");
+ 
+         Segment seg1 = new Segment(1L, Map.of(format.name(), wfs1));
+         Segment seg2 = new Segment(2L, Map.of(format.name(), wfs2));
+@@ -345,9 +345,9 @@ public class CatalogSnapshotManagerTests extends OpenSearchTestCase {
+ 
+     public void testApplyMergeResultsWhenAllMergedSegmentsRemoved() throws Exception {
+         DataFormat format = new MockDataFormat();
+-        WriterFileSet wfs1 = new WriterFileSet("/tmp/dir", 1L, Set.of("a.cfs"), 100);
+-        WriterFileSet wfs2 = new WriterFileSet("/tmp/dir", 2L, Set.of("b.cfs"), 200);
+-        WriterFileSet mergedWfs = new WriterFileSet("/tmp/dir", 3L, Set.of("merged.cfs"), 300);
++        WriterFileSet wfs1 = new WriterFileSet("/tmp/dir", 1L, Set.of("a.cfs"), 100, "");
++        WriterFileSet wfs2 = new WriterFileSet("/tmp/dir", 2L, Set.of("b.cfs"), 200, "");
++        WriterFileSet mergedWfs = new WriterFileSet("/tmp/dir", 3L, Set.of("merged.cfs"), 300, "");
+ 
+         Segment seg1 = new Segment(1L, Map.of(format.name(), wfs1));
+         Segment seg2 = new Segment(2L, Map.of(format.name(), wfs2));
+@@ -383,7 +383,7 @@ public class CatalogSnapshotManagerTests extends OpenSearchTestCase {
+ 
+     public void testApplyMergeResultsWithEmptyWriterFileSetMapThrows() throws Exception {
+         DataFormat format = new MockDataFormat();
+-        WriterFileSet wfs1 = new WriterFileSet("/tmp/dir", 1L, Set.of("a.cfs"), 100);
++        WriterFileSet wfs1 = new WriterFileSet("/tmp/dir", 1L, Set.of("a.cfs"), 100, "");
+         Segment seg1 = new Segment(1L, Map.of(format.name(), wfs1));
+ 
+         CatalogSnapshotManager manager = new CatalogSnapshotManager(
+@@ -416,7 +416,7 @@ public class CatalogSnapshotManagerTests extends OpenSearchTestCase {
+     }
+ 
+     private static Segment segment(long gen, String format, String... files) {
+-        WriterFileSet wfs = new WriterFileSet("/data", gen, Set.of(files), files.length);
++        WriterFileSet wfs = new WriterFileSet("/data", gen, Set.of(files), files.length, "");
+         return new Segment(gen, Map.of(format, wfs));
+     }
+ 
+@@ -728,7 +728,7 @@ public class CatalogSnapshotManagerTests extends OpenSearchTestCase {
+         for (int i = 0; i < fileCount; i++) {
+             files.add(randomAlphaOfLength(6) + "." + randomFrom(extensions));
+         }
+-        return new WriterFileSet(directory, randomNonNegativeLong(), files, randomIntBetween(1, 10000));
++        return new WriterFileSet(directory, randomNonNegativeLong(), files, randomIntBetween(1, 10000), "");
+     }
+ 
+     private Segment randomSegment() {
+@@ -821,7 +821,7 @@ public class CatalogSnapshotManagerTests extends OpenSearchTestCase {
+         }
+ 
+         // Build a snapshot that references only `known.si` under the lucene format.
+-        WriterFileSet wfs = new WriterFileSet(indexDir.toString(), 1L, Set.of("known.si"), 0);
++        WriterFileSet wfs = new WriterFileSet(indexDir.toString(), 1L, Set.of("known.si"), 0, "");
+         Segment seg = new Segment(1L, Map.of("lucene", wfs));
+         DataformatAwareCatalogSnapshot initial = new DataformatAwareCatalogSnapshot(1L, 1L, 1L, List.of(seg), 1L, Map.of());
+ 
+diff --git a/server/src/test/java/org/opensearch/index/engine/exec/coord/CombinedCatalogSnapshotDeletionPolicyTests.java b/server/src/test/java/org/opensearch/index/engine/exec/coord/CombinedCatalogSnapshotDeletionPolicyTests.java
+index b53090e9016..f89255c8383 100644
+--- a/server/src/test/java/org/opensearch/index/engine/exec/coord/CombinedCatalogSnapshotDeletionPolicyTests.java
++++ b/server/src/test/java/org/opensearch/index/engine/exec/coord/CombinedCatalogSnapshotDeletionPolicyTests.java
+@@ -246,8 +246,8 @@ public class CombinedCatalogSnapshotDeletionPolicyTests extends OpenSearchTestCa
+         CombinedCatalogSnapshotDeletionPolicy policy = createPolicy(globalCP);
+ 
+         List<Segment> segments = List.of(
+-            new Segment(0, Map.of("parquet", new WriterFileSet("/data", 0, Set.of("a.parquet"), 10))),
+-            new Segment(1, Map.of("parquet", new WriterFileSet("/data", 1, Set.of("b.parquet"), 25)))
++            new Segment(0, Map.of("parquet", new WriterFileSet("/data", 0, Set.of("a.parquet"), 10, ""))),
++            new Segment(1, Map.of("parquet", new WriterFileSet("/data", 1, Set.of("b.parquet"), 25, "")))
+         );
+         CatalogSnapshot cs1 = snapshotWithDocs(1, 100, 100, "uuid1", segments);
+         List<CatalogSnapshot> commits = new ArrayList<>(List.of(cs1));
+@@ -262,9 +262,9 @@ public class CombinedCatalogSnapshotDeletionPolicyTests extends OpenSearchTestCa
+ 
+     public void testGetDocCountOfCommitSumsAcrossSegments() {
+         List<Segment> segments = List.of(
+-            new Segment(0, Map.of("parquet", new WriterFileSet("/data", 0, Set.of("a.parquet"), 10))),
+-            new Segment(1, Map.of("parquet", new WriterFileSet("/data", 1, Set.of("b.parquet"), 20))),
+-            new Segment(2, Map.of("parquet", new WriterFileSet("/data", 2, Set.of("c.parquet"), 30)))
++            new Segment(0, Map.of("parquet", new WriterFileSet("/data", 0, Set.of("a.parquet"), 10, ""))),
++            new Segment(1, Map.of("parquet", new WriterFileSet("/data", 1, Set.of("b.parquet"), 20, ""))),
++            new Segment(2, Map.of("parquet", new WriterFileSet("/data", 2, Set.of("c.parquet"), 30, "")))
+         );
+         CatalogSnapshot cs = snapshotWithDocs(1, 100, 100, "uuid", segments);
+         assertEquals(60, CombinedCatalogSnapshotDeletionPolicy.getDocCountOfCommit(cs));
+@@ -276,9 +276,9 @@ public class CombinedCatalogSnapshotDeletionPolicyTests extends OpenSearchTestCa
+                 0,
+                 Map.of(
+                     "parquet",
+-                    new WriterFileSet("/data", 0, Set.of("a.parquet"), 15),
++                    new WriterFileSet("/data", 0, Set.of("a.parquet"), 15, ""),
+                     "lucene",
+-                    new WriterFileSet("/data", 0, Set.of("_0.cfs"), 15)
++                    new WriterFileSet("/data", 0, Set.of("_0.cfs"), 15, "")
+                 )
+             )
+         );
+diff --git a/server/src/test/java/org/opensearch/index/engine/exec/coord/DataformatAwareCatalogSnapshotTests.java b/server/src/test/java/org/opensearch/index/engine/exec/coord/DataformatAwareCatalogSnapshotTests.java
+index eb6116cc554..7223104a61c 100644
+--- a/server/src/test/java/org/opensearch/index/engine/exec/coord/DataformatAwareCatalogSnapshotTests.java
++++ b/server/src/test/java/org/opensearch/index/engine/exec/coord/DataformatAwareCatalogSnapshotTests.java
+@@ -348,8 +348,8 @@ public class DataformatAwareCatalogSnapshotTests extends OpenSearchTestCase {
+ 
+     public void testGetUploadFileNamesProducesFormatSlashFile() throws Exception {
+         // Build a snapshot with known segments and files
+-        WriterFileSet parquetWfs = new WriterFileSet("/tmp/pq", 1L, Set.of("_0.pqt", "_1.pqt"), 100);
+-        WriterFileSet luceneWfs = new WriterFileSet("/tmp/lc", 1L, Set.of("_0.cfe", "_0.si"), 50);
++        WriterFileSet parquetWfs = new WriterFileSet("/tmp/pq", 1L, Set.of("_0.pqt", "_1.pqt"), 100, "");
++        WriterFileSet luceneWfs = new WriterFileSet("/tmp/lc", 1L, Set.of("_0.cfe", "_0.si"), 50, "");
+         Segment segment = new Segment(1L, Map.of("parquet", parquetWfs, "lucene", luceneWfs));
+         DataformatAwareCatalogSnapshot snapshot = new DataformatAwareCatalogSnapshot(1L, 1L, 1L, List.of(segment), 0L, Map.of());
+ 
+@@ -371,8 +371,8 @@ public class DataformatAwareCatalogSnapshotTests extends OpenSearchTestCase {
+     }
+ 
+     public void testGetFilesMultipleSegments() throws Exception {
+-        WriterFileSet wfs1 = new WriterFileSet("/tmp/pq", 1L, Set.of("_0.pqt"), 10);
+-        WriterFileSet wfs2 = new WriterFileSet("/tmp/pq", 2L, Set.of("_1.pqt"), 20);
++        WriterFileSet wfs1 = new WriterFileSet("/tmp/pq", 1L, Set.of("_0.pqt"), 10, "");
++        WriterFileSet wfs2 = new WriterFileSet("/tmp/pq", 2L, Set.of("_1.pqt"), 20, "");
+         Segment seg1 = new Segment(1L, Map.of("parquet", wfs1));
+         Segment seg2 = new Segment(2L, Map.of("parquet", wfs2));
+         DataformatAwareCatalogSnapshot snapshot = new DataformatAwareCatalogSnapshot(1L, 1L, 1L, List.of(seg1, seg2), 0L, Map.of());
+@@ -385,9 +385,8 @@ public class DataformatAwareCatalogSnapshotTests extends OpenSearchTestCase {
+ 
+     public void testGetFormatVersionForFileReturnsLuceneMajor() {
+         DataformatAwareCatalogSnapshot snapshot = new DataformatAwareCatalogSnapshot(1L, 1L, 1L, List.of(), 0L, Map.of());
+-        // Must be in Lucene's valid range; returning OpenSearch major (3) would fail the check
+-        // in RemoteSegmentStoreDirectory.UploadedSegmentMetadata.setWrittenByMajor.
+-        assertEquals(org.apache.lucene.util.Version.LATEST, snapshot.getFormatVersionForFile("any_file.pqt"));
++        // With no segments, getFormatVersionForFile returns empty string (pre-versioning)
++        assertEquals("", snapshot.getFormatVersionForFile("any_file.pqt"));
+     }
+ 
+     public void testSetUserDataUpdatesAndReturns() {
+@@ -418,7 +417,7 @@ public class DataformatAwareCatalogSnapshotTests extends OpenSearchTestCase {
+         for (int i = 0; i < fileCount; i++) {
+             files.add(randomAlphaOfLength(6) + "." + randomFrom(extensions));
+         }
+-        return new WriterFileSet(directory, writerGeneration, files, randomIntBetween(0, 10000));
++        return new WriterFileSet(directory, writerGeneration, files, randomIntBetween(0, 10000), "");
+     }
+ 
+     private Segment randomSegment() {
+@@ -500,7 +499,7 @@ public class DataformatAwareCatalogSnapshotTests extends OpenSearchTestCase {
+         for (int i = 0; i < fileCount; i++) {
+             files.add(randomAlphaOfLength(6) + "." + randomFrom(extensions));
+         }
+-        return new WriterFileSet(directory, writerGeneration, files, randomIntBetween(0, 10000));
++        return new WriterFileSet(directory, writerGeneration, files, randomIntBetween(0, 10000), "");
+     }
+ 
+     private void assertSnapshotFieldsEqual(String context, DataformatAwareCatalogSnapshot expected, DataformatAwareCatalogSnapshot actual) {
+diff --git a/server/src/test/java/org/opensearch/index/engine/exec/coord/IndexFileDeleterTests.java b/server/src/test/java/org/opensearch/index/engine/exec/coord/IndexFileDeleterTests.java
+index fcfb23b8cb4..1cc7b338d9a 100644
+--- a/server/src/test/java/org/opensearch/index/engine/exec/coord/IndexFileDeleterTests.java
++++ b/server/src/test/java/org/opensearch/index/engine/exec/coord/IndexFileDeleterTests.java
+@@ -47,7 +47,7 @@ public class IndexFileDeleterTests extends OpenSearchTestCase {
+     }
+ 
+     private static Segment segment(long gen, String format, String... files) {
+-        WriterFileSet wfs = new WriterFileSet("/data", gen, Set.of(files), files.length);
++        WriterFileSet wfs = new WriterFileSet("/data", gen, Set.of(files), files.length, "");
+         return new Segment(gen, Map.of(format, wfs));
+     }
+ 
+@@ -252,9 +252,9 @@ public class IndexFileDeleterTests extends OpenSearchTestCase {
+             0,
+             Map.of(
+                 "parquet",
+-                new WriterFileSet("/data", 0, Set.of("data.parquet"), 1),
++                new WriterFileSet("/data", 0, Set.of("data.parquet"), 1, ""),
+                 "lucene",
+-                new WriterFileSet("/data", 0, Set.of("_0.cfs"), 1)
++                new WriterFileSet("/data", 0, Set.of("_0.cfs"), 1, "")
+             )
+         );
+         CatalogSnapshot cs1 = snapshot(1, List.of(seg), commitUserData(100, 100, "uuid"));
+@@ -275,9 +275,9 @@ public class IndexFileDeleterTests extends OpenSearchTestCase {
+             1,
+             Map.of(
+                 "parquet",
+-                new WriterFileSet("/data", 1, Set.of("data2.parquet"), 1),
++                new WriterFileSet("/data", 1, Set.of("data2.parquet"), 1, ""),
+                 "lucene",
+-                new WriterFileSet("/data", 1, Set.of("_1.cfs"), 1)
++                new WriterFileSet("/data", 1, Set.of("_1.cfs"), 1, "")
+             )
+         );
+         CatalogSnapshot cs2 = snapshot(2, List.of(seg2), commitUserData(200, 200, "uuid"));
+diff --git a/server/src/test/java/org/opensearch/index/engine/exec/coord/SegmentInfosCatalogSnapshotTests.java b/server/src/test/java/org/opensearch/index/engine/exec/coord/SegmentInfosCatalogSnapshotTests.java
+index 2f4d73f03db..a1ecaa647c1 100644
+--- a/server/src/test/java/org/opensearch/index/engine/exec/coord/SegmentInfosCatalogSnapshotTests.java
++++ b/server/src/test/java/org/opensearch/index/engine/exec/coord/SegmentInfosCatalogSnapshotTests.java
+@@ -84,8 +84,8 @@ public class SegmentInfosCatalogSnapshotTests extends OpenSearchTestCase {
+         SegmentInfos segmentInfos = randomSegmentInfos();
+         SegmentInfosCatalogSnapshot snapshot = new SegmentInfosCatalogSnapshot(segmentInfos);
+         // File not in segmentFileVersionMap and not the segments file → falls through to LATEST.
+-        Version version = snapshot.getFormatVersionForFile("nonexistent_file.xyz");
+-        assertEquals(Version.LATEST, version);
++        String version = snapshot.getFormatVersionForFile("nonexistent_file.xyz");
++        assertEquals(Version.LATEST.toString(), version);
+     }
+ 
+     public void testSetUserDataDelegatesToSegmentInfos() {
+diff --git a/test/framework/src/main/java/org/opensearch/index/engine/dataformat/stub/MockCatalogSnapshot.java b/test/framework/src/main/java/org/opensearch/index/engine/dataformat/stub/MockCatalogSnapshot.java
+index caf2c5508f2..9c2550782e5 100644
+--- a/test/framework/src/main/java/org/opensearch/index/engine/dataformat/stub/MockCatalogSnapshot.java
++++ b/test/framework/src/main/java/org/opensearch/index/engine/dataformat/stub/MockCatalogSnapshot.java
+@@ -88,18 +88,18 @@ public class MockCatalogSnapshot extends CatalogSnapshot {
+     }
+ 
+     @Override
+-    public org.apache.lucene.util.Version getFormatVersionForFile(String file) {
+-        return org.apache.lucene.util.Version.LATEST;
++    public String getFormatVersionForFile(String file) {
++        return "";
+     }
+ 
+     @Override
+-    public org.apache.lucene.util.Version getMinSegmentFormatVersion() {
+-        return null;
++    public String getMinSegmentFormatVersion() {
++        return "";
+     }
+ 
+     @Override
+-    public org.apache.lucene.util.Version getCommitDataFormatVersion() {
+-        return org.apache.lucene.util.Version.LATEST;
++    public String getCommitDataFormatVersion() {
++        return "";
+     }
+ 
+     @Override
+?? last-commit.patch
+?? sandbox/plugins/parquet-data-format/src/test/java/org/opensearch/parquet/ParquetDataFormatPluginTests.java
+?? server/src/main/java/org/opensearch/index/engine/DataFormatVersionValidator.java
+?? server/src/main/java/org/opensearch/index/engine/dataformat/UnreadableFormatVersionException.java
+?? server/src/main/java/org/opensearch/index/engine/exec/coord/LuceneVersionConverter.java
+?? server/src/test/java/org/opensearch/index/engine/DataFormatAwareNRTReplicationEngineValidationTests.java
+?? server/src/test/java/org/opensearch/index/engine/dataformat/DataFormatDescriptorTests.java
+?? server/src/test/java/org/opensearch/index/engine/exec/coord/LuceneVersionConverterTests.java
+
+
+=== NEW FILE: sandbox/plugins/parquet-data-format/src/test/java/org/opensearch/parquet/ParquetDataFormatPluginTests.java ===
+
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ */
+
+package org.opensearch.parquet;
+
+import org.opensearch.index.engine.dataformat.DataFormatDescriptor;
+import org.opensearch.test.OpenSearchTestCase;
+
+import java.util.Map;
+import java.util.function.Supplier;
+
+public class ParquetDataFormatPluginTests extends OpenSearchTestCase {
+
+    private DataFormatDescriptor descriptor() {
+        ParquetDataFormatPlugin plugin = new ParquetDataFormatPlugin();
+        Map<String, Supplier<DataFormatDescriptor>> descriptors = plugin.getFormatDescriptors(null, null);
+        return descriptors.get("parquet").get();
+    }
+
+    public void testCanReadNull() {
+        assertTrue(descriptor().canRead(null));
+    }
+
+    public void testCanReadEmpty() {
+        assertTrue(descriptor().canRead(""));
+    }
+
+    public void testCanReadSameMajor() {
+        assertTrue(descriptor().canRead("1.0.0.0"));
+        assertTrue(descriptor().canRead("1.9.9.9"));
+    }
+
+    public void testCanReadDifferentMajor() {
+        assertFalse(descriptor().canRead("2.0.0.0"));
+    }
+
+    public void testCanReadGarbage() {
+        assertFalse(descriptor().canRead("not-a-version"));
+    }
+
+    public void testCurrentVersion() {
+        assertEquals("1.0.0.0", descriptor().currentVersion());
+    }
+}
+
+
+=== NEW FILE: server/src/main/java/org/opensearch/index/engine/DataFormatVersionValidator.java ===
+
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ */
+
+package org.opensearch.index.engine;
+
+import org.opensearch.index.engine.dataformat.DataFormatDescriptor;
+import org.opensearch.index.engine.dataformat.UnreadableFormatVersionException;
+import org.opensearch.index.engine.exec.Segment;
+import org.opensearch.index.engine.exec.WriterFileSet;
+import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
+
+import java.util.Map;
+import java.util.function.Function;
+
+/**
+ * Validates that all non-Lucene format versions in a catalog snapshot are readable
+ * by the installed plugins. Extracted from DataFormatAwareNRTReplicationEngine for testability.
+ */
+final class DataFormatVersionValidator {
+
+    private DataFormatVersionValidator() {}
+
+    /**
+     * Validates format versions in the given snapshot against the descriptor lookup.
+     *
+     * @param snapshot              the catalog snapshot to validate
+     * @param descriptorByFormatName function to look up a descriptor by format name
+     * @throws UnreadableFormatVersionException if a format is missing or cannot read the version
+     */
+    static void validate(CatalogSnapshot snapshot, Function<String, DataFormatDescriptor> descriptorByFormatName)
+        throws UnreadableFormatVersionException {
+        for (Segment segment : snapshot.getSegments()) {
+            for (Map.Entry<String, WriterFileSet> entry : segment.dfGroupedSearchableFiles().entrySet()) {
+                String formatName = entry.getKey();
+                if ("lucene".equals(formatName)) {
+                    continue;
+                }
+                WriterFileSet wfs = entry.getValue();
+                DataFormatDescriptor descriptor = descriptorByFormatName.apply(formatName);
+                if (descriptor == null) {
+                    throw new UnreadableFormatVersionException(formatName, wfs.formatVersion(), "<plugin not installed>");
+                }
+                if (!descriptor.canRead(wfs.formatVersion())) {
+                    throw new UnreadableFormatVersionException(formatName, wfs.formatVersion(), descriptor.currentVersion());
+                }
+            }
+        }
+    }
+}
+
+
+=== NEW FILE: server/src/main/java/org/opensearch/index/engine/dataformat/UnreadableFormatVersionException.java ===
+
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ */
+
+package org.opensearch.index.engine.dataformat;
+
+import org.opensearch.common.annotation.ExperimentalApi;
+
+import java.io.IOException;
+
+/**
+ * Thrown when a reader cannot interpret a file or catalog produced at a newer or incompatible
+ * format version.
+ */
+@ExperimentalApi
+public class UnreadableFormatVersionException extends IOException {
+
+    /**
+     * Constructs an exception for a specific file that cannot be read.
+     *
+     * @param formatName    the data format name (e.g., "parquet")
+     * @param fileName      the file that cannot be read
+     * @param producedAt    the format version the file was produced at
+     * @param readerCurrent the current reader's format version
+     */
+    public UnreadableFormatVersionException(String formatName, String fileName, String producedAt, String readerCurrent) {
+        super(
+            "Cannot read format ["
+                + formatName
+                + "] file ["
+                + fileName
+                + "] produced at version ["
+                + producedAt
+                + "]; reader current version ["
+                + readerCurrent
+                + "]"
+        );
+    }
+
+    /**
+     * Constructs an exception for a catalog-level version incompatibility.
+     *
+     * @param formatName    the data format name
+     * @param producedAt    the format version the data was produced at
+     * @param readerCurrent the current reader's format version
+     */
+    public UnreadableFormatVersionException(String formatName, String producedAt, String readerCurrent) {
+        super(
+            "Cannot read format ["
+                + formatName
+                + "] produced at version ["
+                + producedAt
+                + "]; reader current version ["
+                + readerCurrent
+                + "]"
+        );
+    }
+}
+
+
+=== NEW FILE: server/src/main/java/org/opensearch/index/engine/exec/coord/LuceneVersionConverter.java ===
+
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ */
+
+package org.opensearch.index.engine.exec.coord;
+
+import org.apache.lucene.util.Version;
+import org.opensearch.common.annotation.ExperimentalApi;
+
+/**
+ * Converts a DFA format-version string to a Lucene Version.
+ * Returns Version.LATEST for null/empty/non-Lucene strings.
+ * Used only at 3 legacy boundaries (Store.loadMetadata, RemoteStoreReplicationSource,
+ * RemoteSegmentStoreDirectory) where writtenBy is an inert stamp.
+ */
+@ExperimentalApi
+public final class LuceneVersionConverter {
+
+    private LuceneVersionConverter() {}
+
+    /**
+     * Parses a format-version string as a Lucene {@link Version}, falling back to
+     * {@link Version#LATEST} for null, empty, or unparseable values.
+     */
+    public static Version toLuceneOrLatest(String formatVersion) {
+        if (formatVersion == null || formatVersion.isEmpty()) {
+            return Version.LATEST;
+        }
+        try {
+            return Version.parse(formatVersion);
+        } catch (Exception e) {
+            return Version.LATEST;
+        }
+    }
+}
+
+
+=== NEW FILE: server/src/test/java/org/opensearch/index/engine/DataFormatAwareNRTReplicationEngineValidationTests.java ===
+
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ */
+
+package org.opensearch.index.engine;
+
+import org.opensearch.index.engine.dataformat.DataFormatDescriptor;
+import org.opensearch.index.engine.dataformat.UnreadableFormatVersionException;
+import org.opensearch.index.engine.dataformat.stub.MockCatalogSnapshot;
+import org.opensearch.index.engine.dataformat.stub.MockDataFormat;
+import org.opensearch.index.engine.exec.Segment;
+import org.opensearch.index.engine.exec.WriterFileSet;
+import org.opensearch.index.store.PrecomputedChecksumStrategy;
+import org.opensearch.test.OpenSearchTestCase;
+
+import java.util.List;
+import java.util.Set;
+import java.util.function.Function;
+
+public class DataFormatAwareNRTReplicationEngineValidationTests extends OpenSearchTestCase {
+
+    private static final String PARQUET = "parquet";
+
+    private MockCatalogSnapshot snapshotWith(String formatName, String formatVersion) {
+        WriterFileSet wfs = new WriterFileSet("/tmp", 1L, Set.of("file.parquet"), 100, formatVersion);
+        Segment segment = Segment.builder(1L).addSearchableFiles(formatName, wfs).build();
+        return new MockCatalogSnapshot(1L, List.of(segment), new MockDataFormat(formatName, 100L, Set.of()));
+    }
+
+    private DataFormatDescriptor descriptorThatCanRead(boolean canRead, String currentVersion) {
+        return new DataFormatDescriptor(PARQUET, new PrecomputedChecksumStrategy()) {
+            @Override
+            public String currentVersion() {
+                return currentVersion;
+            }
+
+            @Override
+            public boolean canRead(String producedAt) {
+                return canRead;
+            }
+        };
+    }
+
+    public void testEmptyCatalogPasses() throws Exception {
+        MockCatalogSnapshot empty = new MockCatalogSnapshot(1L, List.of(), new MockDataFormat());
+        DataFormatVersionValidator.validate(empty, name -> null);
+        // no exception = pass
+    }
+
+    public void testValidFormatPasses() throws Exception {
+        MockCatalogSnapshot snapshot = snapshotWith(PARQUET, "1.0.0.0");
+        Function<String, DataFormatDescriptor> lookup = name -> descriptorThatCanRead(true, "1.0.0.0");
+        DataFormatVersionValidator.validate(snapshot, lookup);
+    }
+
+    public void testMissingPluginThrows() {
+        MockCatalogSnapshot snapshot = snapshotWith(PARQUET, "1.0.0.0");
+        UnreadableFormatVersionException ex = expectThrows(
+            UnreadableFormatVersionException.class,
+            () -> DataFormatVersionValidator.validate(snapshot, name -> null)
+        );
+        assertTrue(ex.getMessage().contains("plugin not installed"));
+    }
+
+    public void testCanReadFalseThrows() {
+        MockCatalogSnapshot snapshot = snapshotWith(PARQUET, "2.0.0.0");
+        Function<String, DataFormatDescriptor> lookup = name -> descriptorThatCanRead(false, "1.0.0.0");
+        UnreadableFormatVersionException ex = expectThrows(
+            UnreadableFormatVersionException.class,
+            () -> DataFormatVersionValidator.validate(snapshot, lookup)
+        );
+        assertTrue(ex.getMessage().contains("2.0.0.0"));
+    }
+
+    public void testEmptyFormatVersionBwc() throws Exception {
+        MockCatalogSnapshot snapshot = snapshotWith(PARQUET, "");
+        // Default descriptor accepts everything including empty
+        DataFormatDescriptor defaultDescriptor = new DataFormatDescriptor(PARQUET, new PrecomputedChecksumStrategy());
+        DataFormatVersionValidator.validate(snapshot, name -> defaultDescriptor);
+    }
+
+    public void testLuceneFormatSkipped() throws Exception {
+        WriterFileSet wfs = new WriterFileSet("/tmp", 1L, Set.of("_0.cfs"), 100, "10.4.0");
+        Segment segment = Segment.builder(1L).addSearchableFiles("lucene", wfs).build();
+        MockCatalogSnapshot snapshot = new MockCatalogSnapshot(1L, List.of(segment), new MockDataFormat("lucene", 0, Set.of()));
+        // null lookup — would throw if lucene wasn't skipped
+        DataFormatVersionValidator.validate(snapshot, name -> null);
+    }
+}
+
+
+=== NEW FILE: server/src/test/java/org/opensearch/index/engine/dataformat/DataFormatDescriptorTests.java ===
+
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ */
+
+package org.opensearch.index.engine.dataformat;
+
+import org.opensearch.index.store.PrecomputedChecksumStrategy;
+import org.opensearch.test.OpenSearchTestCase;
+
+public class DataFormatDescriptorTests extends OpenSearchTestCase {
+
+    private DataFormatDescriptor defaultDescriptor() {
+        return new DataFormatDescriptor("test-format", new PrecomputedChecksumStrategy());
+    }
+
+    public void testDefaultCurrentVersionIsEmpty() {
+        assertEquals("", defaultDescriptor().currentVersion());
+    }
+
+    public void testDefaultCanReadNullTrue() {
+        assertTrue(defaultDescriptor().canRead(null));
+    }
+
+    public void testDefaultCanReadEmptyTrue() {
+        assertTrue(defaultDescriptor().canRead(""));
+    }
+
+    public void testDefaultCanReadAnyTrue() {
+        assertTrue(defaultDescriptor().canRead("99.99.99"));
+    }
+
+    public void testOverrideChangesBehavior() {
+        DataFormatDescriptor custom = new DataFormatDescriptor("custom", new PrecomputedChecksumStrategy()) {
+            @Override
+            public String currentVersion() {
+                return "2.0.0";
+            }
+
+            @Override
+            public boolean canRead(String producedAt) {
+                return "2.0.0".equals(producedAt);
+            }
+        };
+        assertEquals("2.0.0", custom.currentVersion());
+        assertTrue(custom.canRead("2.0.0"));
+        assertFalse(custom.canRead("1.0.0"));
+    }
+}
+
+
+=== NEW FILE: server/src/test/java/org/opensearch/index/engine/exec/coord/LuceneVersionConverterTests.java ===
+
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ */
+
+package org.opensearch.index.engine.exec.coord;
+
+import org.apache.lucene.util.Version;
+import org.opensearch.test.OpenSearchTestCase;
+
+public class LuceneVersionConverterTests extends OpenSearchTestCase {
+
+    public void testNullReturnsLatest() {
+        assertEquals(Version.LATEST, LuceneVersionConverter.toLuceneOrLatest(null));
+    }
+
+    public void testEmptyReturnsLatest() {
+        assertEquals(Version.LATEST, LuceneVersionConverter.toLuceneOrLatest(""));
+    }
+
+    public void testValidLuceneStringParses() throws Exception {
+        Version expected = Version.parse("10.4.0");
+        assertEquals(expected, LuceneVersionConverter.toLuceneOrLatest("10.4.0"));
+    }
+
+    public void testGarbageStringReturnsLatest() {
+        assertEquals(Version.LATEST, LuceneVersionConverter.toLuceneOrLatest("not-a-version"));
+    }
+
+    public void testParquetStyleDoesNotThrow() {
+        // "1.0.0.0" is not a valid Lucene version — should fall back to LATEST without throwing
+        Version result = LuceneVersionConverter.toLuceneOrLatest("1.0.0.0");
+        assertNotNull(result);
+    }
+}

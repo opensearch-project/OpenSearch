@@ -73,6 +73,16 @@ public interface Indexer
     EngineConfig config();
 
     /**
+     * Returns {@code true} when this indexer represents a REPLICA engine (one that receives
+     * segments via segment replication rather than writing them directly). Implementations
+     * encapsulate the dispatch so callers don't need {@code instanceof} checks on the concrete
+     * engine type. Default: {@code false} (primary).
+     */
+    default boolean isReplicaIndexer() {
+        return false;
+    }
+
+    /**
      * Returns information about the safe commit point.
      * The safe commit represents a consistent state that can be used for recovery.
      *
@@ -182,4 +192,10 @@ public interface Indexer
      */
     GatedCloseable<CatalogSnapshot> acquireSafeCatalogSnapshot() throws EngineException;
 
+    /**
+     * Acquires a {@link CatalogSnapshot} pinned to the most recent commit on disk,
+     * regardless of retention policy. Used for peer-recovery phase-1 metadata diffing.
+     * Caller MUST close the returned handle to release the refcount.
+     */
+    GatedCloseable<CatalogSnapshot> acquireLastCommittedSnapshot(boolean flushFirst) throws EngineException;
 }

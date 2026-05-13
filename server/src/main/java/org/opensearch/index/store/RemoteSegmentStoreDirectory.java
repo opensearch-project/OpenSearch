@@ -877,6 +877,8 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
                     for (String file : segmentFiles) {
                         if (segmentsUploadedToRemoteStore.containsKey(file)) {
                             UploadedSegmentMetadata metadata = segmentsUploadedToRemoteStore.get(file);
+                            // DFA: writtenByMajor is best-effort — non-Lucene files collapse
+                            // to Lucene.LATEST. Accurate only for pure-Lucene shards.
                             metadata.setWrittenByMajor(
                                 LuceneVersionConverter.toLuceneOrLatest(
                                     catalogSnapshot.getFormatVersionForFile(metadata.originalFilename)
@@ -888,13 +890,11 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
                         }
                     }
 
-                    // Serialize via the caller-supplied CheckedFunction so the bytes are produced
-                    // from the reader registered for this snapshot (DFA primary) or from the real
-                    // SegmentInfos (non-DFA segrep Lucene engine). If no function is supplied
-                    // (legacy BWC overload), fall back to empty bytes.
-                    final byte[] segmentInfoSnapshotByteArray = catalogSnapshotToCommitSerializer != null
-                        ? catalogSnapshotToCommitSerializer.apply(catalogSnapshot)
-                        : new byte[0];
+                    Objects.requireNonNull(
+                        catalogSnapshotToCommitSerializer,
+                        "catalogSnapshotToCommitSerializer must be supplied for upload"
+                    );
+                    final byte[] segmentInfoSnapshotByteArray = catalogSnapshotToCommitSerializer.apply(catalogSnapshot);
 
                     metadataStreamWrapper.writeStream(
                         indexOutput,
@@ -912,61 +912,6 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
             }
         }
     }
-
-    /**
-     * Backwards-compatible overload; delegates with {@code null} serializer so the catalog's
-     * own {@code serialize()} is used. New callers (DFA primary upload) should use the overload
-     * that takes a {@link CheckedFunction}.
-     */
-    public void uploadMetadata(
-        Collection<String> segmentFiles,
-        CatalogSnapshot catalogSnapshot,
-        Directory storeDirectory,
-        long translogGeneration,
-        ReplicationCheckpoint replicationCheckpoint,
-        String nodeId,
-        org.apache.lucene.index.SegmentInfos luceneInMemoryInfos
-    ) throws IOException {
-        uploadMetadata(
-            segmentFiles,
-            catalogSnapshot,
-            storeDirectory,
-            translogGeneration,
-            replicationCheckpoint,
-            nodeId,
-            (CheckedFunction<CatalogSnapshot, byte[], IOException>) null
-        );
-    }
-
-    /**
-     * Backwards-compatible overload; delegates with {@code luceneInMemoryInfos=null}. New
-     * callers (DFA primary upload) should use the overload that takes {@code luceneInMemoryInfos}.
-     */
-    public void uploadMetadata(
-        Collection<String> segmentFiles,
-        CatalogSnapshot catalogSnapshot,
-        Directory storeDirectory,
-        long translogGeneration,
-        ReplicationCheckpoint replicationCheckpoint,
-        String nodeId
-    ) throws IOException {
-        uploadMetadata(
-            segmentFiles,
-            catalogSnapshot,
-            storeDirectory,
-            translogGeneration,
-            replicationCheckpoint,
-            nodeId,
-            (CheckedFunction<CatalogSnapshot, byte[], IOException>) null
-        );
-    }
-
-    // TODO: When RemoteStoreRefreshListener is migrated to use CatalogSnapshot-based uploadMetadata,
-    // the instanceof check for SegmentInfosCatalogSnapshot.setUserData() will no longer be needed
-    // since setUserData() is now properly implemented in SegmentInfosCatalogSnapshot.
-    // Also, the old uploadMetadata(SegmentInfos, ...) overload above can be removed at that point
-    // and getSegmentToLuceneVersion() can be deleted since it's encapsulated in
-    // SegmentInfosCatalogSnapshot.getFormatVersionForFile().
 
     /**
      * Parses the provided SegmentInfos to retrieve a mapping of the provided segment files to

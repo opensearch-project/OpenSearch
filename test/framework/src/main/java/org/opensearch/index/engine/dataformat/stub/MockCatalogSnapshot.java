@@ -8,7 +8,6 @@
 
 package org.opensearch.index.engine.dataformat.stub;
 
-import org.apache.lucene.index.SegmentInfos;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.index.engine.exec.Segment;
 import org.opensearch.index.engine.exec.WriterFileSet;
@@ -88,18 +87,18 @@ public class MockCatalogSnapshot extends CatalogSnapshot {
     }
 
     @Override
-    public String getFormatVersionForFile(String file) {
-        return "";
+    public long getFormatVersionForFile(String file) {
+        return 0L;
     }
 
     @Override
-    public String getMinSegmentFormatVersion() {
-        return "";
+    public long getMinSegmentFormatVersion() {
+        return 0L;
     }
 
     @Override
-    public String getCommitDataFormatVersion() {
-        return "";
+    public long getCommitDataFormatVersion() {
+        return 0L;
     }
 
     @Override
@@ -117,9 +116,8 @@ public class MockCatalogSnapshot extends CatalogSnapshot {
         return List.of();
     }
 
-    @Override
-    public SegmentInfos getSegmentInfos() {
-        throw new UnsupportedOperationException("MockCatalogSnapshot does not wrap SegmentInfos");
+    public java.util.Set<String> getSegmentNames() {
+        return java.util.Set.of();
     }
 
     @Override

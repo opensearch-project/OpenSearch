@@ -284,26 +284,10 @@ public abstract class RecoverySourceHandler {
         }, onFailure);
     }
 
-    protected void onSendFileStepComplete(
-        StepListener<SendFileResult> sendFileStep,
-        GatedCloseable<IndexCommit> wrappedSafeCommit,
-        Releasable releaseStore
-    ) {
-        sendFileStep.whenComplete(r -> {
-            logger.debug("sendFileStep completed");
-            IOUtils.close(wrappedSafeCommit, releaseStore);
-        }, e -> {
-            try {
-                IOUtils.close(wrappedSafeCommit, releaseStore);
-            } catch (final IOException ex) {
-                logger.warn("releasing snapshot caused exception", ex);
-            }
-        });
-    }
-
     /**
-     * Overload of {@link #onSendFileStepComplete(StepListener, GatedCloseable, Releasable)} for
-     * {@link CatalogSnapshot}-backed handles; delegates to shared close semantics.
+     * Handles cleanup after the file-sending step completes (success or failure): closes the
+     * safe snapshot handle and releases the store reference. Used by both local and remote
+     * recovery paths.
      */
     protected void onSendFileStepCompleteCatalogSnapshot(
         StepListener<SendFileResult> sendFileStep,

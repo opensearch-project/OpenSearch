@@ -58,6 +58,11 @@ public class CommitterTests extends OpenSearchTestCase {
             public boolean isCommitManagedFile(String fileName) {
                 return false;
             }
+
+            @Override
+            public byte[] serializeToCommitFormat(org.opensearch.index.engine.exec.coord.CatalogSnapshot snapshot) {
+                throw new UnsupportedOperationException("test stub does not serialize commits");
+            }
         };
     }
 
@@ -105,6 +110,11 @@ public class CommitterTests extends OpenSearchTestCase {
             public boolean isCommitManagedFile(String fileName) {
                 return false;
             }
+
+            @Override
+            public byte[] serializeToCommitFormat(org.opensearch.index.engine.exec.coord.CatalogSnapshot snapshot) {
+                throw new UnsupportedOperationException("test stub does not serialize commits");
+            }
         };
         committer.close();
         assertTrue("close() should have been called", closed.get());
@@ -148,6 +158,11 @@ public class CommitterTests extends OpenSearchTestCase {
             @Override
             public boolean isCommitManagedFile(String fileName) {
                 return false;
+            }
+
+            @Override
+            public byte[] serializeToCommitFormat(org.opensearch.index.engine.exec.coord.CatalogSnapshot snapshot) {
+                throw new UnsupportedOperationException("test stub does not serialize commits");
             }
         };
         committer.commit(Map.of());

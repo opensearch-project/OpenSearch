@@ -52,6 +52,16 @@ public class EngineBackedIndexer implements Indexer {
         return engine.config();
     }
 
+    /**
+     * Replica detection delegates to the wrapped {@link Engine}: true only when it's an
+     * {@link org.opensearch.index.engine.NRTReplicationEngine}. For non-replica engines
+     * (e.g., {@link org.opensearch.index.engine.InternalEngine}) this returns false.
+     */
+    @Override
+    public boolean isReplicaIndexer() {
+        return engine instanceof NRTReplicationEngine;
+    }
+
     @Override
     public Engine.IndexResult index(Engine.Index index) throws IOException {
         return engine.index(index);
@@ -249,6 +259,11 @@ public class EngineBackedIndexer implements Indexer {
     }
 
     @Override
+    public GatedCloseable<CatalogSnapshot> acquireLastCommittedSnapshot(boolean flushFirst) throws EngineException {
+        return engine.acquireLastCommittedSnapshot(flushFirst);
+    }
+
+    @Override
     public long getPersistedLocalCheckpoint() {
         return engine.getPersistedLocalCheckpoint();
     }
@@ -418,7 +433,7 @@ public class EngineBackedIndexer implements Indexer {
     public byte[] serializeSnapshotToRemoteMetadata(CatalogSnapshot catalogSnapshot) throws IOException {
         if (catalogSnapshot instanceof SegmentInfosCatalogSnapshot sicSnapshot) {
             ByteBuffersDataOutput out = new ByteBuffersDataOutput();
-            sicSnapshot.getSegmentInfos().write(new ByteBuffersIndexOutput(out, "DFA upload SegmentInfos", "DFA upload SegmentInfos"));
+            sicSnapshot.getSegmentInfos().write(new ByteBuffersIndexOutput(out, "Snapshot of SegmentInfos", "SegmentInfos"));
             return out.toArrayCopy();
         }
         throw new IllegalStateException(

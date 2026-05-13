@@ -8,7 +8,6 @@
 
 package org.opensearch.index.engine.exec.coord;
 
-import org.apache.lucene.index.SegmentInfos;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.core.common.bytes.BytesReference;
@@ -46,10 +45,15 @@ public class DataformatAwareCatalogSnapshot extends CatalogSnapshot {
     private final long numDocs;
     private Map<String, String> userData;
     // Lazily built; racy construction is safe (idempotent result).
-    private volatile Map<String, String> fileToFormatVersion;
+    private volatile Map<String, Long> fileToFormatVersion;
     private final AtomicBoolean closed = new AtomicBoolean(false);
-    private String lastCommitFileName;
-    private long lastCommitGeneration = -1;
+    // Mutated via setCommitInfo after a flush from a different thread than
+    // upload/recovery consumers; volatile ensures the latest commit is visible.
+    private volatile String lastCommitFileName;
+    private volatile long lastCommitGeneration = -1;
+    // Long-encoded format version (see LuceneVersionConverter) that wrote the last commit.
+    // Kept as raw long so this class has no dependency on Lucene's Version type.
+    private volatile long lastCommitDataFormatVersion = 0L;
 
     /**
      * Constructs a new DataformatAwareCatalogSnapshot.
@@ -69,7 +73,7 @@ public class DataformatAwareCatalogSnapshot extends CatalogSnapshot {
         long lastWriterGeneration,
         Map<String, String> userData
     ) {
-        this(id, generation, version, segments, lastWriterGeneration, userData, null, -1);
+        this(id, generation, version, segments, lastWriterGeneration, userData, null, -1, 0L);
     }
 
     /**
@@ -86,6 +90,7 @@ public class DataformatAwareCatalogSnapshot extends CatalogSnapshot {
      * @param userData user-defined metadata key-value pairs
      * @param lastCommittedFileName the segments_N file name from the most recent flush, or null
      * @param lastCommitGeneration the Lucene generation of the most recent commit, or -1
+     * @param lastCommitDataFormatVersion the format version that wrote the most recent commit, or ""
      */
     DataformatAwareCatalogSnapshot(
         long id,
@@ -95,7 +100,8 @@ public class DataformatAwareCatalogSnapshot extends CatalogSnapshot {
         long lastWriterGeneration,
         Map<String, String> userData,
         String lastCommittedFileName,
-        long lastCommitGeneration
+        long lastCommitGeneration,
+        long lastCommitDataFormatVersion
     ) {
         super("dataformat_aware_catalog_snapshot", generation, version);
         this.id = id;
@@ -105,6 +111,7 @@ public class DataformatAwareCatalogSnapshot extends CatalogSnapshot {
         this.userData = Map.copyOf(userData);
         this.lastCommitFileName = lastCommittedFileName;
         this.lastCommitGeneration = lastCommitGeneration;
+        this.lastCommitDataFormatVersion = lastCommitDataFormatVersion;
     }
 
     /**
@@ -114,7 +121,7 @@ public class DataformatAwareCatalogSnapshot extends CatalogSnapshot {
      * @param directoryResolver function that maps a data format name to its directory path
      * @throws IOException if an I/O error occurs
      */
-    public DataformatAwareCatalogSnapshot(StreamInput in, Function<String, String> directoryResolver) throws IOException {
+    DataformatAwareCatalogSnapshot(StreamInput in, Function<String, String> directoryResolver) throws IOException {
         super(in);
         this.userData = in.readMap(StreamInput::readString, StreamInput::readString);
         this.id = in.readLong();
@@ -234,23 +241,24 @@ public class DataformatAwareCatalogSnapshot extends CatalogSnapshot {
             lastWriterGeneration,
             userData,
             this.getLastCommitFileName(),
-            this.lastCommitGeneration
+            this.lastCommitGeneration,
+            this.lastCommitDataFormatVersion
         );
     }
 
     @Override
-    public String getFormatVersionForFile(String file) {
-        Map<String, String> map = fileToFormatVersion;
+    public long getFormatVersionForFile(String file) {
+        Map<String, Long> map = fileToFormatVersion;
         if (map == null) {
             map = buildFileToFormatVersionMap();
             fileToFormatVersion = map;
         }
-        String v = map.get(file);
-        return v == null ? "" : v;
+        Long v = map.get(file);
+        return v == null ? 0L : v;
     }
 
-    private Map<String, String> buildFileToFormatVersionMap() {
-        Map<String, String> m = new HashMap<>();
+    private Map<String, Long> buildFileToFormatVersionMap() {
+        Map<String, Long> m = new HashMap<>();
         for (Segment s : segments) {
             for (WriterFileSet wfs : s.dfGroupedSearchableFiles().values()) {
                 for (String f : wfs.files()) {
@@ -262,13 +270,15 @@ public class DataformatAwareCatalogSnapshot extends CatalogSnapshot {
     }
 
     @Override
-    public String getMinSegmentFormatVersion() {
-        return "";  // cross-format min is semantically meaningless
+    public long getMinSegmentFormatVersion() {
+        return 0L;  // cross-format min is semantically meaningless
     }
 
     @Override
-    public String getCommitDataFormatVersion() {
-        return "";  // same rationale
+    public long getCommitDataFormatVersion() {
+        // Populated by setLastCommitInfo from the Committer's CommitResult on flush.
+        // 0L means no commit has landed on this snapshot yet.
+        return lastCommitDataFormatVersion;
     }
 
     /**
@@ -282,8 +292,7 @@ public class DataformatAwareCatalogSnapshot extends CatalogSnapshot {
 
     private static long computeNumDocs(List<Segment> segments) {
         return segments.stream()
-            .flatMap(segment -> segment.dfGroupedSearchableFiles().values().stream())
-            .mapToLong(WriterFileSet::numRows)
+            .mapToLong(segment -> segment.dfGroupedSearchableFiles().values().stream().findFirst().map(WriterFileSet::numRows).orElse(0L))
             .sum();
     }
 
@@ -311,17 +320,12 @@ public class DataformatAwareCatalogSnapshot extends CatalogSnapshot {
      *
      * @param commitFileName the segments_N filename (e.g., "segments_2")
      * @param commitGeneration the Lucene generation of the commit
+     * @param commitDataFormatVersion the format version string that wrote this commit
      */
-    public synchronized void setLastCommitInfo(String commitFileName, long commitGeneration) {
+    public synchronized void setLastCommitInfo(String commitFileName, long commitGeneration, long commitDataFormatVersion) {
         this.lastCommitFileName = commitFileName;
         this.lastCommitGeneration = commitGeneration;
-    }
-
-    @Override
-    public SegmentInfos getSegmentInfos() {
-        throw new UnsupportedOperationException(
-            "DataformatAwareCatalogSnapshot does not wrap SegmentInfos. Use CatalogSnapshot API instead."
-        );
+        this.lastCommitDataFormatVersion = commitDataFormatVersion;
     }
 
     @Override

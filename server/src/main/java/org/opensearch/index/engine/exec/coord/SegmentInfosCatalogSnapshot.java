@@ -146,20 +146,14 @@ public class SegmentInfosCatalogSnapshot extends CatalogSnapshot {
         return new SegmentInfosCatalogSnapshot(segmentInfos.clone());
     }
 
-    @Override
-    public CatalogSnapshot cloneNoAcquire() {
-        return new SegmentInfosCatalogSnapshot(segmentInfos.clone());
-    }
-
     /**
      * Returns the Lucene major version that wrote the given segment file by looking it up
      * from the SegmentInfos. Falls back to the SegmentInfos commit version for the segments
      * file itself, or to the .si file's version for other unmapped files.
      */
     @Override
-    public String getFormatVersionForFile(String file) {
-        Version v = getLuceneVersionForFile(file);
-        return v == null ? "" : v.toString();
+    public long getFormatVersionForFile(String file) {
+        return LuceneVersionConverter.encode(getLuceneVersionForFile(file));
     }
 
     private Version getLuceneVersionForFile(String file) {
@@ -179,15 +173,13 @@ public class SegmentInfosCatalogSnapshot extends CatalogSnapshot {
     }
 
     @Override
-    public String getMinSegmentFormatVersion() {
-        Version v = segmentInfos.getMinSegmentLuceneVersion();
-        return v == null ? "" : v.toString();
+    public long getMinSegmentFormatVersion() {
+        return LuceneVersionConverter.encode(segmentInfos.getMinSegmentLuceneVersion());
     }
 
     @Override
-    public String getCommitDataFormatVersion() {
-        Version v = segmentInfos.getCommitLuceneVersion();
-        return v == null ? "" : v.toString();
+    public long getCommitDataFormatVersion() {
+        return LuceneVersionConverter.encode(segmentInfos.getCommitLuceneVersion());
     }
 
     @Override

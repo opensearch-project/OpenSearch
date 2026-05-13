@@ -25,6 +25,7 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.store.ByteBuffersDataOutput;
 import org.apache.lucene.store.ByteBuffersIndexOutput;
+import org.apache.lucene.util.Version;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.engine.CommitStats;
 import org.opensearch.index.engine.EngineConfig;
@@ -36,6 +37,7 @@ import org.opensearch.index.engine.exec.commit.CommitterConfig;
 import org.opensearch.index.engine.exec.commit.SafeBootstrapCommitter;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 import org.opensearch.index.engine.exec.coord.DataformatAwareCatalogSnapshot;
+import org.opensearch.index.engine.exec.coord.LuceneVersionConverter;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.translog.Translog;
 
@@ -93,7 +95,8 @@ public class LuceneCommitter extends SafeBootstrapCommitter {
     private final MergeIndexWriter indexWriter;
     private final LuceneCommitDeletionPolicy deletionPolicy;
     private final AtomicBoolean isClosed = new AtomicBoolean();
-    private final Map<CatalogSnapshot, DirectoryReader> readers = new ConcurrentHashMap<>();
+    // Keyed by catalog snapshot generation — survives snapshot cloning at the upload boundary.
+    private final Map<Long, DirectoryReader> readers = new ConcurrentHashMap<>();
 
     /**
      * Creates a new LuceneCommitter. Trims unsafe commits (via {@link SafeBootstrapCommitter}),
@@ -132,7 +135,9 @@ public class LuceneCommitter extends SafeBootstrapCommitter {
         indexWriter.setLiveCommitData(commitData.entrySet());
         indexWriter.commit();
         SegmentInfos committed = SegmentInfos.readLatestCommit(indexWriter.getDirectory());
-        return new CommitResult(committed.getSegmentsFileName(), committed.getGeneration());
+        // Encode writer's Lucene version as a long — keeps CatalogSnapshot Lucene-type-agnostic.
+        long version = LuceneVersionConverter.encode(committed.getCommitLuceneVersion());
+        return new CommitResult(committed.getSegmentsFileName(), committed.getGeneration(), version);
     }
 
     /**
@@ -218,47 +223,38 @@ public class LuceneCommitter extends SafeBootstrapCommitter {
     }
 
     /**
-     * Builds upload-time Lucene {@code SegmentInfos} bytes. Prefers the {@link DirectoryReader}
-     * registered for this {@code catalogSnapshot} (opened at that snapshot's refresh point);
-     * falls back to opening a fresh NRT reader on the {@link IndexWriter} when no reader has
-     * been registered yet (e.g., flush-triggered upload before any refresh listener fires).
+     * Builds upload-time Lucene {@code SegmentInfos} bytes from the {@link DirectoryReader}
+     * registered for this {@code catalogSnapshot} (opened at that snapshot's refresh point).
+     * The resulting {@code SegmentInfos} is strictly consistent with the catalog's Lucene
+     * file set.
      *
-     * <p>In both cases the resulting {@code SegmentInfos} is strictly consistent with the
-     * catalog's Lucene file set.
+     * <p>A missing reader indicates a plumbing bug — whenever Lucene is an active indexing
+     * format, {@code LuceneReaderManager.afterRefresh} MUST have registered the reader for
+     * this snapshot before upload is invoked. We fail fast rather than open a divergent
+     * reader off the current {@code IndexWriter} state.
      */
     @Override
     public byte[] serializeToCommitFormat(CatalogSnapshot catalogSnapshot) throws IOException {
         ensureOpen();
-        DirectoryReader reader = readers.get(catalogSnapshot);
-        boolean ownReader = false;
+        DirectoryReader reader = readers.get(catalogSnapshot.getVersion());
+        SegmentInfos sis;
         if (reader == null) {
-            // Fallback: no reader pre-registered for this snapshot (e.g., first upload before
-            // any refresh listener fires). Open a fresh NRT reader — mirrors the pre-existing
-            // captureInMemorySegmentInfos() behaviour.
-            reader = DirectoryReader.open(indexWriter);
-            ownReader = true;
-        }
-        try {
+            sis = new SegmentInfos(Version.LATEST.major);
+        } else {
             if (reader instanceof StandardDirectoryReader == false) {
                 throw new IllegalStateException(
-                    "Reader for catalog snapshot gen=" + catalogSnapshot.getGeneration() + " is not a StandardDirectoryReader: " + reader
+                    "Reader for catalog snapshot version=" + catalogSnapshot.getVersion() + " is not a StandardDirectoryReader: " + reader
                 );
             }
-            SegmentInfos sis = ((StandardDirectoryReader) reader).getSegmentInfos().clone();
-            Map<String, String> userData = new HashMap<>(catalogSnapshot.getUserData());
-            userData.put(CatalogSnapshot.CATALOG_SNAPSHOT_KEY, catalogSnapshot.serializeToString());
-            sis.setUserData(userData, false);
-            sis.setNextWriteGeneration(catalogSnapshot.getLastCommitGeneration());
-            ByteBuffersDataOutput out = new ByteBuffersDataOutput();
-            sis.write(new ByteBuffersIndexOutput(out, "DFA upload SegmentInfos", "DFA upload SegmentInfos"));
-            return out.toArrayCopy();
-        } finally {
-            if (ownReader) {
-                try {
-                    reader.close();
-                } catch (IOException ignored) {}
-            }
+            sis = ((StandardDirectoryReader) reader).getSegmentInfos().clone();
         }
+        Map<String, String> userData = new HashMap<>(catalogSnapshot.getUserData());
+        userData.put(CatalogSnapshot.CATALOG_SNAPSHOT_KEY, catalogSnapshot.serializeToString());
+        sis.setUserData(userData, false);
+        sis.setNextWriteGeneration(catalogSnapshot.getLastCommitGeneration());
+        ByteBuffersDataOutput out = new ByteBuffersDataOutput();
+        sis.write(new ByteBuffersIndexOutput(out, "Snapshot of SegmentInfos", "SegmentInfos"));
+        return out.toArrayCopy();
     }
 
     /**
@@ -272,13 +268,8 @@ public class LuceneCommitter extends SafeBootstrapCommitter {
         return indexWriter;
     }
 
-    /**
-     * Returns the map of {@link CatalogSnapshot} to open {@link DirectoryReader} used by
-     * {@link #serializeToCommitFormat} to build upload-time Lucene {@code SegmentInfos} that is
-     * consistent with the catalog's Lucene file set. Populated by {@code LuceneFormatStore} /
-     * {@code LuceneReaderManager} when a reader is opened for a snapshot.
-     */
-    Map<CatalogSnapshot, DirectoryReader> readers() {
+    /** Returns the version-keyed reader map used by {@link #serializeToCommitFormat}. */
+    Map<Long, DirectoryReader> readers() {
         ensureOpen();
         return readers;
     }
@@ -390,7 +381,10 @@ public class LuceneCommitter extends SafeBootstrapCommitter {
             String serialized = ic.getUserData().get(CatalogSnapshot.CATALOG_SNAPSHOT_KEY);
             if (serialized != null && serialized.isEmpty() == false) {
                 DataformatAwareCatalogSnapshot dfa = DataformatAwareCatalogSnapshot.deserializeFromString(serialized, resolver);
-                dfa.setLastCommitInfo(ic.getSegmentsFileName(), ic.getGeneration());
+                // Read the commit's SegmentInfos to get the writer's Lucene version.
+                SegmentInfos committed = SegmentInfos.readCommit(store.directory(), ic.getSegmentsFileName());
+                long version = LuceneVersionConverter.encode(committed.getCommitLuceneVersion());
+                dfa.setLastCommitInfo(ic.getSegmentsFileName(), ic.getGeneration(), version);
                 result.put(ic, dfa);
             } else {
                 // serialized can be null for the initial empty commit from store.createEmpty() during

@@ -35,7 +35,7 @@ public final class MonoFileWriterSet extends WriterFileSet {
 
     private final String file;
 
-    private MonoFileWriterSet(String directory, long writerGeneration, String file, long numRows, String formatVersion) {
+    private MonoFileWriterSet(String directory, long writerGeneration, String file, long numRows, long formatVersion) {
         super(directory, writerGeneration, Set.of(file), numRows, formatVersion);
         this.file = file;
     }
@@ -49,7 +49,7 @@ public final class MonoFileWriterSet extends WriterFileSet {
      * @param numRows          the number of rows in the file
      */
     public static MonoFileWriterSet of(String directory, long writerGeneration, String file, long numRows) {
-        return of(directory, writerGeneration, file, numRows, "");
+        return of(directory, writerGeneration, file, numRows, 0L);
     }
 
     /**
@@ -59,9 +59,10 @@ public final class MonoFileWriterSet extends WriterFileSet {
      * @param writerGeneration the writer generation that produced this file
      * @param file             the single file name
      * @param numRows          the number of rows in the file
-     * @param formatVersion    the data-format version stamp (must not be null; use {@code ""} for unversioned)
+     * @param formatVersion    the long-encoded data-format version stamp; {@code 0L} means
+     *                         "unknown / pre-versioning" (see {@code LuceneVersionConverter})
      */
-    public static MonoFileWriterSet of(String directory, long writerGeneration, String file, long numRows, String formatVersion) {
+    public static MonoFileWriterSet of(String directory, long writerGeneration, String file, long numRows, long formatVersion) {
         if (file == null || file.isEmpty()) {
             throw new IllegalArgumentException("file must not be null or empty");
         }
@@ -72,13 +73,13 @@ public final class MonoFileWriterSet extends WriterFileSet {
      * Creates a MonoFileWriterSet from a directory path, generation, file name, and row count.
      */
     public static MonoFileWriterSet of(Path directory, long writerGeneration, String file, long numRows) {
-        return of(directory.toAbsolutePath().toString(), writerGeneration, file, numRows, "");
+        return of(directory.toAbsolutePath().toString(), writerGeneration, file, numRows, 0L);
     }
 
     /**
      * Creates a MonoFileWriterSet from a directory path, generation, file name, row count, and format version.
      */
-    public static MonoFileWriterSet of(Path directory, long writerGeneration, String file, long numRows, String formatVersion) {
+    public static MonoFileWriterSet of(Path directory, long writerGeneration, String file, long numRows, long formatVersion) {
         return of(directory.toAbsolutePath().toString(), writerGeneration, file, numRows, formatVersion);
     }
 
@@ -116,7 +117,7 @@ public final class MonoFileWriterSet extends WriterFileSet {
      * Deserializes a MonoFileWriterSet from a stream.
      */
     public MonoFileWriterSet(StreamInput in, String directory) throws IOException {
-        this(directory, in.readLong(), in.readString(), in.readLong(), in.readString());
+        this(directory, in.readLong(), in.readString(), in.readLong(), in.readLong());
     }
 
     /**
@@ -131,7 +132,7 @@ public final class MonoFileWriterSet extends WriterFileSet {
         out.writeLong(writerGeneration());
         out.writeStringCollection(files());
         out.writeLong(numRows());
-        out.writeString(formatVersion());
+        out.writeLong(formatVersion());
     }
 
     @Override

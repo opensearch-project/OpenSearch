@@ -57,5 +57,4 @@ public class DataFormatDescriptor {
     public FormatChecksumStrategy getChecksumStrategy() {
         return checksumStrategy;
     }
-
 }
