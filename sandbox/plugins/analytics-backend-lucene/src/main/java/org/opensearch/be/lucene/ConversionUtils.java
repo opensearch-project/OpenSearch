@@ -130,8 +130,7 @@ final class ConversionUtils {
                     fields.add(FieldStorageInfo.resolve(fieldStorage, inputRef.getIndex()).getFieldName());
                 }
             }
-        }
-        if (operand instanceof RexInputRef inputRef) {
+        } else if (operand instanceof RexInputRef inputRef) {
             fields.add(FieldStorageInfo.resolve(fieldStorage, inputRef.getIndex()).getFieldName());
         }
         if (fields.isEmpty()) {

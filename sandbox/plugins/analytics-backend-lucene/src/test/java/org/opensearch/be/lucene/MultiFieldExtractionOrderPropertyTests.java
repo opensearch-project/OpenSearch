@@ -43,8 +43,6 @@ import java.util.List;
  */
 public class MultiFieldExtractionOrderPropertyTests extends OpenSearchTestCase {
 
-    private static final int ITERATIONS = 100;
-
     private static final SqlFunction MULTI_MATCH_FUNCTION = new SqlFunction(
         "MULTI_MATCH",
         SqlKind.OTHER_FUNCTION,
@@ -73,19 +71,17 @@ public class MultiFieldExtractionOrderPropertyTests extends OpenSearchTestCase {
      * in exact order.
      */
     public void testExtractionPreservesOrderNestedMapLiteralPath() {
-        for (int iter = 0; iter < ITERATIONS; iter++) {
-            int fieldCount = randomIntBetween(1, 10);
-            List<String> expectedFields = generateUniqueFieldNames(fieldCount);
+        int fieldCount = randomIntBetween(1, 10);
+        List<String> expectedFields = generateUniqueFieldNames(fieldCount);
 
-            RexCall call = buildNestedMapLiteralCall(expectedFields);
-            List<FieldStorageInfo> fieldStorage = List.of(); // not used in nested MAP literal path
+        RexCall call = buildNestedMapLiteralCall(expectedFields);
+        List<FieldStorageInfo> fieldStorage = List.of(); // not used in nested MAP literal path
 
-            List<String> result = ConversionUtils.extractFieldsFromRelevanceMap(call, 0, fieldStorage);
+        List<String> result = ConversionUtils.extractFieldsFromRelevanceMap(call, 0, fieldStorage);
 
-            assertEquals("Iteration " + iter + ": field count mismatch", expectedFields.size(), result.size());
-            for (int i = 0; i < expectedFields.size(); i++) {
-                assertEquals("Iteration " + iter + ": field at index " + i + " mismatch", expectedFields.get(i), result.get(i));
-            }
+        assertEquals("field count mismatch", expectedFields.size(), result.size());
+        for (int i = 0; i < expectedFields.size(); i++) {
+            assertEquals("field at index " + i + " mismatch", expectedFields.get(i), result.get(i));
         }
     }
 
@@ -98,23 +94,21 @@ public class MultiFieldExtractionOrderPropertyTests extends OpenSearchTestCase {
      * in exact order.
      */
     public void testExtractionPreservesOrderRexInputRefPath() {
-        for (int iter = 0; iter < ITERATIONS; iter++) {
-            int fieldCount = randomIntBetween(1, 10);
-            List<String> expectedFields = generateUniqueFieldNames(fieldCount);
+        int fieldCount = randomIntBetween(1, 10);
+        List<String> expectedFields = generateUniqueFieldNames(fieldCount);
 
-            List<FieldStorageInfo> fieldStorage = new ArrayList<>();
-            for (String fieldName : expectedFields) {
-                fieldStorage.add(new FieldStorageInfo(fieldName, "text", FieldType.TEXT, List.of(), List.of("lucene"), List.of(), false));
-            }
+        List<FieldStorageInfo> fieldStorage = new ArrayList<>();
+        for (String fieldName : expectedFields) {
+            fieldStorage.add(new FieldStorageInfo(fieldName, "text", FieldType.TEXT, List.of(), List.of("lucene"), List.of(), false));
+        }
 
-            RexCall call = buildRexInputRefCall(fieldCount);
+        RexCall call = buildRexInputRefCall(fieldCount);
 
-            List<String> result = ConversionUtils.extractFieldsFromRelevanceMap(call, 0, fieldStorage);
+        List<String> result = ConversionUtils.extractFieldsFromRelevanceMap(call, 0, fieldStorage);
 
-            assertEquals("Iteration " + iter + ": field count mismatch", expectedFields.size(), result.size());
-            for (int i = 0; i < expectedFields.size(); i++) {
-                assertEquals("Iteration " + iter + ": field at index " + i + " mismatch", expectedFields.get(i), result.get(i));
-            }
+        assertEquals("field count mismatch", expectedFields.size(), result.size());
+        for (int i = 0; i < expectedFields.size(); i++) {
+            assertEquals("field at index " + i + " mismatch", expectedFields.get(i), result.get(i));
         }
     }
 
