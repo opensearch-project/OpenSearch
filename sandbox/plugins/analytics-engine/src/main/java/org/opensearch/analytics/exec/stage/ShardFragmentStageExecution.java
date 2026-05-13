@@ -85,19 +85,20 @@ final class ShardFragmentStageExecution extends AbstractStageExecution implement
         }
         if (transitionTo(StageExecution.State.RUNNING) == false) return;
         inFlight.set(resolved.size());
+        int ordinal = 0;
         for (ExecutionTarget target : resolved) {
-            dispatchShardTask((ShardExecutionTarget) target);
+            dispatchShardTask((ShardExecutionTarget) target, ordinal++);
         }
     }
 
-    private void dispatchShardTask(ShardExecutionTarget target) {
+    private void dispatchShardTask(ShardExecutionTarget target, int shardOrdinal) {
         FragmentExecutionRequest request = requestBuilder.apply(target);
         PendingExecutions pending = pendingFor(target);
         if (useArrowStreaming()) {
             dispatcher.dispatchFragmentStreaming(
                 request,
                 target.node(),
-                responseListener(FragmentExecutionArrowResponse::getRoot),
+                responseListener(FragmentExecutionArrowResponse::getRoot, shardOrdinal),
                 config.parentTask(),
                 pending
             );
@@ -105,19 +106,17 @@ final class ShardFragmentStageExecution extends AbstractStageExecution implement
             dispatcher.dispatchFragment(
                 request,
                 target.node(),
-                responseListener(r -> responseCodec.decode(r, config.bufferAllocator())),
+                responseListener(r -> responseCodec.decode(r, config.bufferAllocator()), shardOrdinal),
                 config.parentTask(),
                 pending
             );
         }
     }
 
-    private <T extends ActionResponse> StreamingResponseListener<T> responseListener(Function<T, VectorSchemaRoot> toVsr) {
+    private <T extends ActionResponse> StreamingResponseListener<T> responseListener(
+        Function<T, VectorSchemaRoot> toVsr, int shardOrdinal
+    ) {
         return new StreamingResponseListener<>() {
-            // Runs inline on the per-stream virtual thread driving handleStreamResponse.
-            // Must NOT offload to a thread pool: reordering across batches would let the
-            // isLast=true task race ahead, flip state to SUCCEEDED, and drop queued
-            // earlier batches via the isDone() short-circuit.
             @Override
             public void onStreamResponse(T response, boolean isLast) {
                 if (isDone()) {
@@ -126,6 +125,11 @@ final class ShardFragmentStageExecution extends AbstractStageExecution implement
                 }
 
                 VectorSchemaRoot vsr = toVsr.apply(response);
+
+                // QTF POC: always inject shard_id for coordinator provenance tracking.
+                // The QTF completion listener uses it; non-QTF queries ignore it.
+                vsr = injectShardId(vsr, shardOrdinal);
+
                 outputSink.feed(vsr);
                 metrics.addRowsProcessed(vsr.getRowCount());
 
@@ -182,5 +186,23 @@ final class ShardFragmentStageExecution extends AbstractStageExecution implement
 
     private PendingExecutions pendingFor(ShardExecutionTarget target) {
         return pendingPerNode.computeIfAbsent(target.node().getId(), n -> new PendingExecutions(config.maxConcurrentShardRequests()));
+    }
+
+    /**
+     * QTF: Inject a shard_id column into the Arrow batch so the coordinator
+     * can track which shard each row came from after the reduce merge.
+     */
+    private static VectorSchemaRoot injectShardId(VectorSchemaRoot batch, int shardId) {
+        org.apache.arrow.vector.IntVector shardIdVector =
+            new org.apache.arrow.vector.IntVector("shard_id", batch.getFieldVectors().get(0).getAllocator());
+        shardIdVector.allocateNew(batch.getRowCount());
+        for (int i = 0; i < batch.getRowCount(); i++) {
+            shardIdVector.set(i, shardId);
+        }
+        shardIdVector.setValueCount(batch.getRowCount());
+
+        java.util.List<org.apache.arrow.vector.FieldVector> vectors = new java.util.ArrayList<>(batch.getFieldVectors());
+        vectors.add(shardIdVector);
+        return new VectorSchemaRoot(vectors);
     }
 }

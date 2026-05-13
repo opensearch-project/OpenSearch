@@ -102,6 +102,9 @@ public class AnalyticsSearchService implements AutoCloseable {
     }
 
     public FragmentExecutionResponse executeFragment(FragmentExecutionRequest request, IndexShard shard, AnalyticsShardTask task) {
+        if (request.isFetchMode()) {
+            return executeFetchByRowIds(request, shard, task);
+        }
         ResolvedFragment resolved = resolveFragment(request, shard);
         long startNanos = System.nanoTime();
         try (FragmentResources ctx = startFragment(request, resolved, shard, task)) {
@@ -115,6 +118,26 @@ public class AnalyticsSearchService implements AutoCloseable {
         } catch (Exception e) {
             listener.onFragmentFailure(resolved.queryId, resolved.stageId, resolved.shardIdStr, e);
             throw new RuntimeException("Failed to execute fragment on " + shard.shardId(), e);
+        }
+    }
+
+    /**
+     * QTF fetch phase: read specific rows by global row ID.
+     * Bypasses Substrait plan resolution — calls directly into Rust FFM.
+     */
+    private FragmentExecutionResponse executeFetchByRowIds(FragmentExecutionRequest request, IndexShard shard, AnalyticsShardTask task) {
+        long startNanos = System.nanoTime();
+        String shardIdStr = shard.shardId().toString();
+        try {
+            // TODO: Wire to NativeBridge.fetchByRowIds() via the DataFusion backend plugin.
+            // For now this is a placeholder — the actual FFM call will be wired through
+            // DatafusionSearchExecEngine or a dedicated FetchEngine.
+            throw new UnsupportedOperationException(
+                "QTF fetch-by-row-id not yet wired to native backend on shard " + shardIdStr
+            );
+        } catch (Exception e) {
+            listener.onFragmentFailure(request.getQueryId(), request.getStageId(), shardIdStr, e);
+            throw new RuntimeException("Failed to execute fetch-by-row-ids on " + shard.shardId(), e);
         }
     }
 

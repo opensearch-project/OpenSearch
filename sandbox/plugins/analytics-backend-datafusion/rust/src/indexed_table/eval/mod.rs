@@ -41,6 +41,7 @@
 pub mod bitmap_tree;
 pub mod eval_helpers;
 pub mod predicate_evaluator;
+pub mod row_id_set_evaluator;
 pub mod single_collector;
 
 use std::any::Any;

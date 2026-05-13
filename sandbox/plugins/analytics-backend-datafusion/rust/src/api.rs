@@ -462,6 +462,133 @@ pub async unsafe fn execute_query(
 /// is no automatic retry on the vanilla path — a false positive is a hard
 /// query error. In practice this is unreachable because the needle is not a
 /// valid DataFusion identifier anywhere else a plan would naturally contain
+/// QTF fetch phase: read specific rows by global row ID.
+///
+/// Resolves global row IDs to per-segment positions, builds a RowIdSetEvaluator
+/// per segment, and reads only the requested rows + columns via IndexedTableProvider.
+pub async unsafe fn fetch_by_row_ids(
+    shard_view: &ShardView,
+    runtime: &DataFusionRuntime,
+    manager: &crate::runtime_manager::RuntimeManager,
+    row_ids: Vec<i64>,
+    columns: Vec<String>,
+) -> Result<i64, DataFusionError> {
+    use std::collections::HashMap;
+    use datafusion::execution::runtime_env::RuntimeEnvBuilder;
+    use datafusion::execution::SessionStateBuilder;
+    use datafusion::prelude::*;
+    use roaring::RoaringBitmap;
+
+    use crate::cross_rt_stream::CrossRtStream;
+    use crate::indexed_table::eval::row_id_set_evaluator::RowIdSetEvaluator;
+    use crate::indexed_table::eval::RowGroupBitsetSource;
+    use crate::indexed_table::segment_info::build_segments;
+    use crate::indexed_table::table_provider::{
+        EvaluatorFactory, IndexedTableConfig, IndexedTableProvider, SegmentFileInfo,
+    };
+
+    let store = {
+        let runtime_env = RuntimeEnvBuilder::from_runtime_env(&runtime.runtime_env)
+            .build()
+            .map_err(|e| DataFusionError::Execution(format!("fetch runtime: {}", e)))?;
+        let state = SessionStateBuilder::new()
+            .with_runtime_env(Arc::from(runtime_env))
+            .with_default_features()
+            .build();
+        let ctx = datafusion::prelude::SessionContext::new_with_state(state);
+        ctx.state().runtime_env().object_store(&shard_view.table_path)?
+    };
+
+    // Build segments to get file layout with global_base
+    let (segments, schema) = build_segments(Arc::clone(&store), shard_view.object_metas.as_ref())
+        .await
+        .map_err(DataFusionError::Execution)?;
+
+    // Distribute global row_ids across segments
+    let mut per_segment: HashMap<usize, RoaringBitmap> = HashMap::new();
+    for &gid in &row_ids {
+        let seg_idx = segments
+            .partition_point(|s| s.global_base <= gid as u64)
+            .saturating_sub(1);
+        let local_pos = (gid as u64 - segments[seg_idx].global_base) as u32;
+        per_segment.entry(seg_idx).or_default().insert(local_pos);
+    }
+
+    // Determine column indices for projection
+    let mut proj_indices: Vec<usize> = Vec::new();
+    for col_name in &columns {
+        if let Ok(idx) = schema.index_of(col_name) {
+            if !proj_indices.contains(&idx) {
+                proj_indices.push(idx);
+            }
+        }
+    }
+    // Always include __row_id__ for position matching at coordinator
+    if let Ok(idx) = schema.index_of("__row_id__") {
+        if !proj_indices.contains(&idx) {
+            proj_indices.push(idx);
+        }
+    }
+
+    // Build evaluator factory: returns RowIdSetEvaluator for segments with requested rows,
+    // empty evaluator (skips all RGs) for segments without.
+    let per_segment_arc = Arc::new(per_segment);
+    let factory: EvaluatorFactory = {
+        let per_segment = Arc::clone(&per_segment_arc);
+        Arc::new(move |segment: &SegmentFileInfo, _chunk, _stream_metrics| {
+            let bitmap = per_segment
+                .get(&(segment.segment_ord as usize))
+                .cloned()
+                .unwrap_or_default();
+            let eval: Arc<dyn RowGroupBitsetSource> = Arc::new(RowIdSetEvaluator::new(bitmap));
+            Ok(eval)
+        })
+    };
+
+    // Build IndexedTableProvider
+    let store_url = datafusion::execution::object_store::ObjectStoreUrl::local_filesystem();
+    let query_config = crate::datafusion_query_config::DatafusionQueryConfig::test_default();
+
+    let provider = Arc::new(IndexedTableProvider::new(IndexedTableConfig {
+        schema: schema.clone(),
+        segments,
+        store: Arc::clone(&store),
+        store_url,
+        evaluator_factory: factory,
+        pushdown_predicate: None,
+        query_config: Arc::new(query_config),
+        predicate_columns: vec![],
+        emit_row_ids: true,
+    }));
+
+    // Execute query: SELECT projected_columns FROM provider
+    let ctx = datafusion::prelude::SessionContext::new();
+    ctx.register_table("t", provider)
+        .map_err(|e| DataFusionError::Execution(format!("register table: {}", e)))?;
+
+    let col_list = columns.iter()
+        .map(|c| format!("\"{}\"", c))
+        .collect::<Vec<_>>()
+        .join(", ");
+    let sql = format!("SELECT \"__row_id__\", {} FROM t", col_list);
+    let df = ctx.sql(&sql).await?;
+    let stream = df.execute_stream().await?;
+
+    let cpu_executor = manager.cpu_executor();
+    let cross_rt_stream = CrossRtStream::new_with_df_error_stream(stream, cpu_executor);
+    let wrapped = datafusion::physical_plan::stream::RecordBatchStreamAdapter::new(
+        cross_rt_stream.schema(),
+        cross_rt_stream,
+    );
+
+    let query_context = crate::query_tracker::QueryTrackingContext::new(
+        0,
+        runtime.runtime_env.memory_pool.clone(),
+    );
+    let handle = QueryStreamHandle::new(wrapped, query_context);
+    Ok(Box::into_raw(Box::new(handle)) as i64)
+}
+
 /// it; the failure mode is documented here to keep the dispatch contract
 /// explicit.
 fn plan_bytes_mentions_index_filter(plan_bytes: &[u8]) -> bool {

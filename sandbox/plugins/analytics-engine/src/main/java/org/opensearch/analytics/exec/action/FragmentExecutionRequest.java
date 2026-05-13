@@ -41,11 +41,30 @@ public class FragmentExecutionRequest extends ActionRequest {
     private final ShardId shardId;
     private final List<PlanAlternative> planAlternatives;
 
+    // QTF fetch mode fields (null = normal query, non-null = fetch-by-row-id)
+    private final long[] fetchRowIds;
+    private final String[] fetchColumns;
+
     public FragmentExecutionRequest(String queryId, int stageId, ShardId shardId, List<PlanAlternative> planAlternatives) {
+        this(queryId, stageId, shardId, planAlternatives, null, null);
+    }
+
+    public FragmentExecutionRequest(
+        String queryId, int stageId, ShardId shardId,
+        List<PlanAlternative> planAlternatives,
+        long[] fetchRowIds, String[] fetchColumns
+    ) {
         this.queryId = queryId;
         this.stageId = stageId;
         this.shardId = shardId;
         this.planAlternatives = planAlternatives;
+        this.fetchRowIds = fetchRowIds;
+        this.fetchColumns = fetchColumns;
+    }
+
+    /** Factory for QTF fetch-mode requests. */
+    public static FragmentExecutionRequest fetchMode(String queryId, ShardId shardId, long[] rowIds, String[] columns) {
+        return new FragmentExecutionRequest(queryId, 0, shardId, List.of(), rowIds, columns);
     }
 
     public FragmentExecutionRequest(StreamInput in) throws IOException {
@@ -58,6 +77,16 @@ public class FragmentExecutionRequest extends ActionRequest {
         for (int i = 0; i < numAlternatives; i++) {
             planAlternatives.add(new PlanAlternative(in));
         }
+        // QTF fetch fields
+        if (in.readBoolean()) {
+            int len = in.readVInt();
+            this.fetchRowIds = new long[len];
+            for (int i = 0; i < len; i++) fetchRowIds[i] = in.readLong();
+            this.fetchColumns = in.readStringArray();
+        } else {
+            this.fetchRowIds = null;
+            this.fetchColumns = null;
+        }
     }
 
     @Override
@@ -69,6 +98,13 @@ public class FragmentExecutionRequest extends ActionRequest {
         out.writeVInt(planAlternatives.size());
         for (PlanAlternative alt : planAlternatives) {
             alt.writeTo(out);
+        }
+        // QTF fetch fields
+        out.writeBoolean(fetchRowIds != null);
+        if (fetchRowIds != null) {
+            out.writeVInt(fetchRowIds.length);
+            for (long id : fetchRowIds) out.writeLong(id);
+            out.writeStringArray(fetchColumns);
         }
     }
 
@@ -86,6 +122,18 @@ public class FragmentExecutionRequest extends ActionRequest {
 
     public List<PlanAlternative> getPlanAlternatives() {
         return planAlternatives;
+    }
+
+    public boolean isFetchMode() {
+        return fetchRowIds != null;
+    }
+
+    public long[] getFetchRowIds() {
+        return fetchRowIds;
+    }
+
+    public String[] getFetchColumns() {
+        return fetchColumns;
     }
 
     @Override
