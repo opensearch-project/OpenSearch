@@ -154,6 +154,7 @@ public class CoordinatorReduceStressIT extends OpenSearchTestCase {
         ExchangeSinkContext ctx = new ExchangeSinkContext(
             "q-r1",
             0,
+            0L,
             substrait,
             alloc,
             List.of(new ExchangeSinkContext.ChildInput(0, buildPassthroughSubstrait(INPUT_ID))),
@@ -192,6 +193,7 @@ public class CoordinatorReduceStressIT extends OpenSearchTestCase {
         ExchangeSinkContext ctx = new ExchangeSinkContext(
             "q-r2",
             0,
+            0L,
             substrait,
             alloc,
             List.of(new ExchangeSinkContext.ChildInput(0, buildPassthroughSubstrait(INPUT_ID))),
@@ -272,6 +274,7 @@ public class CoordinatorReduceStressIT extends OpenSearchTestCase {
         ExchangeSinkContext ctx = new ExchangeSinkContext(
             "q-r3",
             0,
+            0L,
             substrait,
             alloc,
             List.of(new ExchangeSinkContext.ChildInput(0, buildPassthroughSubstrait(INPUT_ID))),
@@ -373,6 +376,7 @@ public class CoordinatorReduceStressIT extends OpenSearchTestCase {
         ExchangeSinkContext ctx = new ExchangeSinkContext(
             "q-r3-bug",
             0,
+            0L,
             substrait,
             alloc,
             List.of(new ExchangeSinkContext.ChildInput(0, buildPassthroughSubstrait(INPUT_ID))),
@@ -468,6 +472,7 @@ public class CoordinatorReduceStressIT extends OpenSearchTestCase {
                         ExchangeSinkContext ctx = new ExchangeSinkContext(
                             "q-r4-" + idx,
                             0,
+                            0L,
                             substrait,
                             alloc,
                             List.of(new ExchangeSinkContext.ChildInput(0, buildPassthroughSubstrait(INPUT_ID))),
@@ -561,6 +566,7 @@ public class CoordinatorReduceStressIT extends OpenSearchTestCase {
         ExchangeSinkContext ctx = new ExchangeSinkContext(
             queryId,
             0,
+            0L,
             substrait,
             alloc,
             List.of(new ExchangeSinkContext.ChildInput(0, buildPassthroughSubstrait(INPUT_ID))),
@@ -598,6 +604,7 @@ public class CoordinatorReduceStressIT extends OpenSearchTestCase {
         ExchangeSinkContext ctx = new ExchangeSinkContext(
             "q-m1",
             0,
+            0L,
             substrait,
             alloc,
             List.of(new ExchangeSinkContext.ChildInput(0, buildPassthroughSubstrait(INPUT_ID))),
@@ -637,6 +644,7 @@ public class CoordinatorReduceStressIT extends OpenSearchTestCase {
             ExchangeSinkContext ctx = new ExchangeSinkContext(
                 "q-m2-" + run,
                 0,
+                0L,
                 substrait,
                 alloc,
                 List.of(new ExchangeSinkContext.ChildInput(0, buildPassthroughSubstrait(INPUT_ID))),
@@ -672,6 +680,7 @@ public class CoordinatorReduceStressIT extends OpenSearchTestCase {
         ExchangeSinkContext ctx = new ExchangeSinkContext(
             "q-m3",
             0,
+            0L,
             buildSumSubstrait(),
             alloc,
             List.of(
@@ -708,6 +717,7 @@ public class CoordinatorReduceStressIT extends OpenSearchTestCase {
         ExchangeSinkContext ctx = new ExchangeSinkContext(
             "q-f1",
             0,
+            0L,
             substrait,
             alloc,
             List.of(
@@ -767,6 +777,7 @@ public class CoordinatorReduceStressIT extends OpenSearchTestCase {
         ExchangeSinkContext ctx = new ExchangeSinkContext(
             "q-f2",
             0,
+            0L,
             substrait,
             alloc,
             List.of(

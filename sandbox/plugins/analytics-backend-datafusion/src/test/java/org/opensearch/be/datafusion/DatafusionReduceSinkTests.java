@@ -99,6 +99,7 @@ public class DatafusionReduceSinkTests extends OpenSearchTestCase {
             ExchangeSinkContext ctx = new ExchangeSinkContext(
                 "q-1",
                 0,
+                0L,
                 substrait,
                 alloc,
                 List.of(new ExchangeSinkContext.ChildInput(0, buildPassthroughSubstraitBytes(DatafusionReduceSink.INPUT_ID))),
@@ -145,6 +146,7 @@ public class DatafusionReduceSinkTests extends OpenSearchTestCase {
             ExchangeSinkContext ctx = new ExchangeSinkContext(
                 "q-drain",
                 0,
+                0L,
                 substrait,
                 alloc,
                 List.of(new ExchangeSinkContext.ChildInput(0, buildPassthroughSubstraitBytes(DatafusionReduceSink.INPUT_ID))),
@@ -199,6 +201,7 @@ public class DatafusionReduceSinkTests extends OpenSearchTestCase {
             ExchangeSinkContext ctx = new ExchangeSinkContext(
                 "q-pipelined",
                 0,
+                0L,
                 reduceSubstrait,
                 alloc,
                 List.of(new ExchangeSinkContext.ChildInput(0, childSubstrait)),
