@@ -301,7 +301,8 @@ public class DataFormatAwareRemoteStoreRecoveryIT extends RemoteStoreBaseIntegTe
         client().admin().indices().prepareCreate(INDEX_NAME).setSettings(dfaIndexSettings(0)).get();
         ensureGreen(INDEX_NAME);
 
-        indexDocs(randomIntBetween(10, 30));
+        int docCount = randomIntBetween(10, 30);
+        indexDocs(docCount);
         // No flush — data only in translog
 
         internalCluster().stopRandomNode(s -> dataNode.equals(s));
@@ -313,11 +314,39 @@ public class DataFormatAwareRemoteStoreRecoveryIT extends RemoteStoreBaseIntegTe
             .restoreRemoteStore(new RestoreRemoteStoreRequest().indices(INDEX_NAME).restoreAllShards(true), PlainActionFuture.newFuture());
         ensureGreen(INDEX_NAME);
 
-        // Verify shard is operational after translog-only recovery
+        // Verify doc count survived translog replay
+        assertEquals(
+            "doc count must match after translog-only recovery",
+            docCount,
+            client().prepareSearch(INDEX_NAME).setSize(0).get().getHits().getTotalHits().value()
+        );
+
+        // Flush to materialize format files, then verify catalog + disk + remote upload
+        client().admin().indices().prepareFlush(INDEX_NAME).get();
+        client().admin().indices().prepareRefresh(INDEX_NAME).get();
+
         assertBusy(() -> {
             IndexShard recovered = getIndexShard(primaryNodeName(), INDEX_NAME);
             assertNotNull("recovered shard must not be null", recovered);
             assertTrue("shard must be started", recovered.routingEntry().started());
+
+            // Catalog snapshot state: non-empty, has segments
+            try (var snapshotRef = recovered.getCatalogSnapshot()) {
+                assertFalse(
+                    "catalog snapshot must have segments after flush",
+                    snapshotRef.get().getSegments().isEmpty()
+                );
+            }
+
+            // Format files on disk
+            Path parquetDir = recovered.shardPath().getDataPath().resolve("parquet");
+            assertTrue("parquet directory must exist after flush", Files.exists(parquetDir));
+            assertTrue("parquet directory must have files", Files.list(parquetDir).findAny().isPresent());
+
+            // Remote store upload after recovery
+            RemoteSegmentMetadata meta = recovered.getRemoteDirectory().readLatestMetadataFile();
+            assertNotNull("remote metadata must exist after flush", meta);
+            assertTrue("parquet must be in uploaded formats", formatsOf(meta.getMetadata()).contains("parquet"));
         }, 60, TimeUnit.SECONDS);
     }
 

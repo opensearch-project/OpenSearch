@@ -462,6 +462,13 @@ public class ReadOnlyEngine extends Engine {
     }
 
     @Override
+    public GatedCloseable<CatalogSnapshot> acquireLastCommittedSnapshot(boolean flushFirst) {
+        // flushFirst is a no-op on read-only engines — no writer to flush.
+        store.incRef();
+        return new GatedCloseable<>(new SegmentInfosCatalogSnapshot(lastCommittedSegmentInfos), store::decRef);
+    }
+
+    @Override
     public SafeCommitInfo getSafeCommitInfo() {
         return safeCommitInfo;
     }

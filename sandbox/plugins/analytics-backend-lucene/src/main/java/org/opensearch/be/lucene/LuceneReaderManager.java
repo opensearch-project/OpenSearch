@@ -28,8 +28,8 @@ import static org.opensearch.be.lucene.index.LuceneWriter.WRITER_GENERATION_ATTR
  * Lucene implementation of {@link EngineReaderManager}.
  * <p>
  * Constructed with a {@link DataFormat} and an initial {@link DirectoryReader}
- * (typically opened from an IndexWriter). Maintains a map of {@link CatalogSnapshot}
- * to {@link DirectoryReader} so each snapshot gets the reader that was current
+ * (typically opened from an IndexWriter). Maintains a version-keyed map of
+ * {@link DirectoryReader} so each snapshot gets the reader that was current
  * at the time of its refresh. On each {@link #afterRefresh}, the current reader is
  * refreshed via {@link DirectoryReader#openIfChanged}.
  *
@@ -39,7 +39,7 @@ import static org.opensearch.be.lucene.index.LuceneWriter.WRITER_GENERATION_ATTR
 public class LuceneReaderManager implements EngineReaderManager<DirectoryReader> {
 
     private final DataFormat dataFormat;
-    private final Map<CatalogSnapshot, DirectoryReader> readers;
+    private final Map<Long, DirectoryReader> readers;
     private volatile DirectoryReader currentReader;
 
     /**
@@ -49,7 +49,7 @@ public class LuceneReaderManager implements EngineReaderManager<DirectoryReader>
      * @param initialReader the initial DirectoryReader, must not be null
      * @throws NullPointerException if initialReader is null
      */
-    public LuceneReaderManager(DataFormat dataFormat, DirectoryReader initialReader, Map<CatalogSnapshot, DirectoryReader> readers) {
+    public LuceneReaderManager(DataFormat dataFormat, DirectoryReader initialReader, Map<Long, DirectoryReader> readers) {
         this.dataFormat = dataFormat;
         Objects.requireNonNull(initialReader, "initialReader must not be null");
         this.currentReader = initialReader;
@@ -58,9 +58,9 @@ public class LuceneReaderManager implements EngineReaderManager<DirectoryReader>
 
     @Override
     public DirectoryReader getReader(CatalogSnapshot catalogSnapshot) throws IOException {
-        DirectoryReader reader = readers.get(catalogSnapshot);
+        DirectoryReader reader = readers.get(catalogSnapshot.getVersion());
         if (reader == null) {
-            throw new IllegalStateException("No reader available for catalog snapshot [gen=" + catalogSnapshot.getGeneration() + "]");
+            throw new IllegalStateException("No reader available for catalog snapshot [version=" + catalogSnapshot.getVersion() + "]");
         }
         return reader;
     }
@@ -72,7 +72,7 @@ public class LuceneReaderManager implements EngineReaderManager<DirectoryReader>
 
     @Override
     public void afterRefresh(boolean didRefresh, CatalogSnapshot catalogSnapshot) throws IOException {
-        if (didRefresh == false || readers.containsKey(catalogSnapshot)) {
+        if (didRefresh == false || readers.containsKey(catalogSnapshot.getVersion())) {
             return;
         }
         DirectoryReader refreshed = DirectoryReader.openIfChanged(currentReader);
@@ -85,7 +85,7 @@ public class LuceneReaderManager implements EngineReaderManager<DirectoryReader>
             assert readersAreSame(catalogSnapshot, refreshed);
             currentReader = refreshed;
         }
-        readers.put(catalogSnapshot, currentReader);
+        readers.put(catalogSnapshot.getVersion(), currentReader);
     }
 
     /**
@@ -133,7 +133,7 @@ public class LuceneReaderManager implements EngineReaderManager<DirectoryReader>
 
     @Override
     public void onDeleted(CatalogSnapshot catalogSnapshot) throws IOException {
-        DirectoryReader reader = readers.remove(catalogSnapshot);
+        DirectoryReader reader = readers.remove(catalogSnapshot.getVersion());
         if (reader != null) {
             reader.close();
         }

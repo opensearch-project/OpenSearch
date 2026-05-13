@@ -411,6 +411,12 @@ public class NRTReplicationEngine extends Engine {
         return acquireLastCatalogSnapshot(false);
     }
 
+    @Override
+    public GatedCloseable<CatalogSnapshot> acquireLastCommittedSnapshot(boolean flushFirst) throws EngineException {
+        // flushFirst is a no-op on replica engines — no writer to flush.
+        return acquireLastCatalogSnapshot(flushFirst);
+    }
+
     /**
      * Parallel to {@link #acquireLastIndexCommit(boolean)}: optionally flushes, then wraps the
      * in-memory {@code lastCommittedSegmentInfos} as a {@link SegmentInfosCatalogSnapshot} while

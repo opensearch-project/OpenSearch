@@ -63,4 +63,10 @@ public class InMemoryCommitter implements Committer {
     public boolean isCommitManagedFile(String fileName) {
         return false;
     }
+
+    @Override
+    public byte[] serializeToCommitFormat(org.opensearch.index.engine.exec.coord.CatalogSnapshot snapshot) {
+        // Test stub does not upload to remote store.
+        throw new UnsupportedOperationException("InMemoryCommitter does not serialize commits");
+    }
 }

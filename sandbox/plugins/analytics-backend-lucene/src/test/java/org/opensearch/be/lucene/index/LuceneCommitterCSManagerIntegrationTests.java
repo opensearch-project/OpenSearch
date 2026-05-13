@@ -162,8 +162,8 @@ public class LuceneCommitterCSManagerIntegrationTests extends OpenSearchTestCase
     /** Builds a multi-format Segment from ingested lucene and parquet files. */
     private Segment buildSegment(long gen, Set<String> luceneFiles, Path indexDir, Set<String> parquetFiles, Path parquetDir) {
         long numRows = 100;
-        WriterFileSet luceneWfs = new WriterFileSet(indexDir.toString(), gen, luceneFiles, numRows, "");
-        WriterFileSet parquetWfs = new WriterFileSet(parquetDir.toString(), gen, parquetFiles, numRows, "");
+        WriterFileSet luceneWfs = new WriterFileSet(indexDir.toString(), gen, luceneFiles, numRows, 0L);
+        WriterFileSet parquetWfs = new WriterFileSet(parquetDir.toString(), gen, parquetFiles, numRows, 0L);
         return new Segment(gen, Map.of(LUCENE_FORMAT, luceneWfs, PARQUET_FORMAT, parquetWfs));
     }
 

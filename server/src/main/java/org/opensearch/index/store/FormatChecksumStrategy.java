@@ -65,6 +65,20 @@ public interface FormatChecksumStrategy {
     default void registerChecksum(String fileName, long checksum, long writerGeneration) {}
 
     /**
+     * {@link FileMetadata}-aware overload. The caller supplies a {@link FileMetadata}
+     * and the strategy converts to its internal storage key. Production code should
+     * prefer this overload so key-derivation logic stays inside the strategy.
+     *
+     * <p>Default implementation delegates to the String-based
+     * {@link #registerChecksum(String, long, long)} using {@link FileMetadata#serialize(String, String)}.
+     */
+    default void registerChecksum(FileMetadata fileMetadata, long checksum, long writerGeneration) {
+        if (fileMetadata != null) {
+            registerChecksum(fileMetadata.serialize(), checksum, writerGeneration);
+        }
+    }
+
+    /**
      * Clears all cached checksums. Called during cleanup/close.
      */
     default void clearChecksums() {}

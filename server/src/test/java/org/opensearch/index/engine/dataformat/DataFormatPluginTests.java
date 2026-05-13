@@ -242,8 +242,8 @@ public class DataFormatPluginTests extends OpenSearchTestCase {
         assertTrue(empty.existingSegments().isEmpty());
 
         Path dir = createTempDir();
-        WriterFileSet fs1 = new WriterFileSet(dir.toString(), 1L, Set.of(), 10, "");
-        WriterFileSet fs2 = new WriterFileSet(dir.toString(), 2L, Set.of(), 20, "");
+        WriterFileSet fs1 = new WriterFileSet(dir.toString(), 1L, Set.of(), 10, 0L);
+        WriterFileSet fs2 = new WriterFileSet(dir.toString(), 2L, Set.of(), 20, 0L);
         Segment seg = new Segment(0L, Map.of());
 
         RefreshInput input = RefreshInput.builder()

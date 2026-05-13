@@ -36,7 +36,6 @@ import org.opensearch.index.engine.dataformat.WriterConfig;
 import org.opensearch.index.engine.exec.Segment;
 import org.opensearch.index.engine.exec.WriterFileSet;
 import org.opensearch.index.engine.exec.commit.IndexStoreProvider;
-import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.store.Store;
 
@@ -332,8 +331,6 @@ public class LuceneIndexingExecutionEngine implements IndexingExecutionEngine<Lu
      * @param store  the shard store
      * @param writer the shared index writer
      */
-    public static record LuceneFormatStore(Store store, IndexWriter writer, Map<CatalogSnapshot, DirectoryReader> readers)
-        implements
-            FormatStore {
+    public static record LuceneFormatStore(Store store, IndexWriter writer, Map<Long, DirectoryReader> readers) implements FormatStore {
     }
 }

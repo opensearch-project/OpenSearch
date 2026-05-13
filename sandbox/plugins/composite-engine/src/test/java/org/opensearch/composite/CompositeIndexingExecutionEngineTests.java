@@ -279,6 +279,11 @@ public class CompositeIndexingExecutionEngineTests extends OpenSearchTestCase {
         public boolean isCommitManagedFile(String fileName) {
             return false;
         }
+
+        @Override
+        public byte[] serializeToCommitFormat(CatalogSnapshot snapshot) {
+            throw new UnsupportedOperationException("stub");
+        }
     }
 
     private IndexSettings createIndexSettings(String primaryFormat) {

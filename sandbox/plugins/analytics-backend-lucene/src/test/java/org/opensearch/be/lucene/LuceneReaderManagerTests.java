@@ -154,11 +154,6 @@ public class LuceneReaderManagerTests extends OpenSearchTestCase {
             }
 
             @Override
-            public CatalogSnapshot cloneNoAcquire() {
-                return this;
-            }
-
-            @Override
             public void setUserData(Map<String, String> userData, boolean commitData) {}
 
             @Override
@@ -167,18 +162,18 @@ public class LuceneReaderManagerTests extends OpenSearchTestCase {
             }
 
             @Override
-            public String getFormatVersionForFile(String file) {
-                return "";
+            public long getFormatVersionForFile(String file) {
+                return 0L;
             }
 
             @Override
-            public String getMinSegmentFormatVersion() {
-                return "";
+            public long getMinSegmentFormatVersion() {
+                return 0L;
             }
 
             @Override
-            public String getCommitDataFormatVersion() {
-                return "";
+            public long getCommitDataFormatVersion() {
+                return 0L;
             }
 
             @Override
@@ -191,9 +186,8 @@ public class LuceneReaderManagerTests extends OpenSearchTestCase {
                 return null;
             }
 
-            @Override
-            public org.apache.lucene.index.SegmentInfos getSegmentInfos() {
-                throw new UnsupportedOperationException("stub");
+            public java.util.Set<String> getSegmentNames() {
+                return java.util.Set.of();
             }
 
             @Override

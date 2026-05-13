@@ -307,10 +307,10 @@ public class CatalogSnapshotManagerTests extends OpenSearchTestCase {
 
     public void testApplyMergeResultsReplacesSegments() throws Exception {
         DataFormat format = new MockDataFormat();
-        WriterFileSet wfs1 = new WriterFileSet("/tmp/dir", 1L, Set.of("a.cfs"), 100, "");
-        WriterFileSet wfs2 = new WriterFileSet("/tmp/dir", 2L, Set.of("b.cfs"), 200, "");
-        WriterFileSet wfs3 = new WriterFileSet("/tmp/dir", 3L, Set.of("c.cfs"), 300, "");
-        WriterFileSet mergedWfs = new WriterFileSet("/tmp/dir", 4L, Set.of("merged.cfs"), 300, "");
+        WriterFileSet wfs1 = new WriterFileSet("/tmp/dir", 1L, Set.of("a.cfs"), 100, 0L);
+        WriterFileSet wfs2 = new WriterFileSet("/tmp/dir", 2L, Set.of("b.cfs"), 200, 0L);
+        WriterFileSet wfs3 = new WriterFileSet("/tmp/dir", 3L, Set.of("c.cfs"), 300, 0L);
+        WriterFileSet mergedWfs = new WriterFileSet("/tmp/dir", 4L, Set.of("merged.cfs"), 300, 0L);
 
         Segment seg1 = new Segment(1L, Map.of(format.name(), wfs1));
         Segment seg2 = new Segment(2L, Map.of(format.name(), wfs2));
@@ -347,9 +347,9 @@ public class CatalogSnapshotManagerTests extends OpenSearchTestCase {
 
     public void testApplyMergeResultsWhenAllMergedSegmentsRemoved() throws Exception {
         DataFormat format = new MockDataFormat();
-        WriterFileSet wfs1 = new WriterFileSet("/tmp/dir", 1L, Set.of("a.cfs"), 100, "");
-        WriterFileSet wfs2 = new WriterFileSet("/tmp/dir", 2L, Set.of("b.cfs"), 200, "");
-        WriterFileSet mergedWfs = new WriterFileSet("/tmp/dir", 3L, Set.of("merged.cfs"), 300, "");
+        WriterFileSet wfs1 = new WriterFileSet("/tmp/dir", 1L, Set.of("a.cfs"), 100, 0L);
+        WriterFileSet wfs2 = new WriterFileSet("/tmp/dir", 2L, Set.of("b.cfs"), 200, 0L);
+        WriterFileSet mergedWfs = new WriterFileSet("/tmp/dir", 3L, Set.of("merged.cfs"), 300, 0L);
 
         Segment seg1 = new Segment(1L, Map.of(format.name(), wfs1));
         Segment seg2 = new Segment(2L, Map.of(format.name(), wfs2));
@@ -385,7 +385,7 @@ public class CatalogSnapshotManagerTests extends OpenSearchTestCase {
 
     public void testApplyMergeResultsWithEmptyWriterFileSetMapThrows() throws Exception {
         DataFormat format = new MockDataFormat();
-        WriterFileSet wfs1 = new WriterFileSet("/tmp/dir", 1L, Set.of("a.cfs"), 100, "");
+        WriterFileSet wfs1 = new WriterFileSet("/tmp/dir", 1L, Set.of("a.cfs"), 100, 0L);
         Segment seg1 = new Segment(1L, Map.of(format.name(), wfs1));
 
         CatalogSnapshotManager manager = new CatalogSnapshotManager(
@@ -418,7 +418,7 @@ public class CatalogSnapshotManagerTests extends OpenSearchTestCase {
     }
 
     private static Segment segment(long gen, String format, String... files) {
-        WriterFileSet wfs = new WriterFileSet("/data", gen, Set.of(files), files.length, "");
+        WriterFileSet wfs = new WriterFileSet("/data", gen, Set.of(files), files.length, 0L);
         return new Segment(gen, Map.of(format, wfs));
     }
 
@@ -730,7 +730,7 @@ public class CatalogSnapshotManagerTests extends OpenSearchTestCase {
         for (int i = 0; i < fileCount; i++) {
             files.add(randomAlphaOfLength(6) + "." + randomFrom(extensions));
         }
-        return new WriterFileSet(directory, randomNonNegativeLong(), files, randomIntBetween(1, 10000), "");
+        return new WriterFileSet(directory, randomNonNegativeLong(), files, randomIntBetween(1, 10000), 0L);
     }
 
     private Segment randomSegment() {
@@ -823,7 +823,7 @@ public class CatalogSnapshotManagerTests extends OpenSearchTestCase {
         }
 
         // Build a snapshot that references only `known.si` under the lucene format.
-        WriterFileSet wfs = new WriterFileSet(indexDir.toString(), 1L, Set.of("known.si"), 0, "");
+        WriterFileSet wfs = new WriterFileSet(indexDir.toString(), 1L, Set.of("known.si"), 0, 0L);
         Segment seg = new Segment(1L, Map.of("lucene", wfs));
         DataformatAwareCatalogSnapshot initial = new DataformatAwareCatalogSnapshot(1L, 1L, 1L, List.of(seg), 1L, Map.of());
 
@@ -842,6 +842,11 @@ public class CatalogSnapshotManagerTests extends OpenSearchTestCase {
             @Override
             public boolean isCommitManagedFile(String fileName) {
                 return fileName.startsWith("segments") || "write.lock".equals(fileName);
+            }
+
+            @Override
+            public byte[] serializeToCommitFormat(CatalogSnapshot snapshot) {
+                throw new UnsupportedOperationException("not used by this test");
             }
         };
 

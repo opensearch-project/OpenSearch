@@ -415,7 +415,10 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         java.util.concurrent.locks.Lock lock = lockDirectory ? metadataLock.writeLock() : metadataLock.readLock();
         lock.lock();
         try (Closeable ignored = lockDirectory ? directory.obtainLock(IndexWriter.WRITE_LOCK_NAME) : () -> {}) {
-            return new MetadataSnapshot(commit, directory, logger);
+
+            final SegmentInfos segmentInfos = readSegmentsInfo(commit, directory);
+            final CatalogSnapshot catalogSnapshot = fromSegmentInfos(segmentInfos, shardFormatDirectoryResolver());
+            return new MetadataSnapshot(catalogSnapshot, directory, logger);
         } catch (CorruptIndexException | IndexFormatTooOldException | IndexFormatTooNewException ex) {
             markStoreCorrupted(ex);
             throw ex;
@@ -451,6 +454,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      * where we need to construct a MetadataSnapshot from an in-memory SegmentInfos object that
      * may not have a IndexCommit associated with it, such as with segment replication.
      */
+    @Deprecated
     public MetadataSnapshot getMetadata(SegmentInfos segmentInfos) throws IOException {
         return new MetadataSnapshot(segmentInfos, directory, logger);
     }
@@ -1018,7 +1022,8 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         String serialized = userData.get(CatalogSnapshot.CATALOG_SNAPSHOT_KEY);
         if (serialized != null && serialized.isEmpty() == false) {
             DataformatAwareCatalogSnapshot dfa = DataformatAwareCatalogSnapshot.deserializeFromString(serialized, directoryResolver);
-            dfa.setLastCommitInfo(segmentInfos.getSegmentsFileName(), segmentInfos.getGeneration());
+            long version = LuceneVersionConverter.encode(segmentInfos.getCommitLuceneVersion());
+            dfa.setLastCommitInfo(segmentInfos.getSegmentsFileName(), segmentInfos.getGeneration(), version);
             return dfa;
         }
         return new SegmentInfosCatalogSnapshot(segmentInfos);
