@@ -44,11 +44,10 @@ public interface CommitFileManager {
 
     /**
      * Serializes the given {@link CatalogSnapshot} into bytes that can be uploaded as the
-     * Lucene {@code SegmentInfos} payload in the remote metadata. Default produces an empty
-     * byte array; format-specific implementations override (e.g., {@code LuceneCommitter}
-     * uses the {@link org.apache.lucene.index.DirectoryReader} registered for the snapshot).
+     * Lucene {@code SegmentInfos} payload in the remote metadata. Implementations MUST
+     * produce a non-empty byte array; returning empty bytes silently breaks remote-store
+     * recovery. {@code LuceneCommitter} uses the {@link org.apache.lucene.index.DirectoryReader}
+     * registered for the snapshot.
      */
-    default byte[] serializeToCommitFormat(CatalogSnapshot catalogSnapshot) throws IOException {
-        return new byte[0];
-    }
+    byte[] serializeToCommitFormat(CatalogSnapshot catalogSnapshot) throws IOException;
 }

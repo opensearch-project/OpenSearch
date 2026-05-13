@@ -39,10 +39,13 @@ import java.util.Map;
 public interface Committer extends CommitFileManager, Closeable {
 
     /**
-     * Result of a successful commit, containing the segments file name and its Lucene generation.
+     * Result of a successful commit, containing the segments file name, its Lucene generation,
+     * and the format-version (long-encoded per {@code LuceneVersionConverter}) that wrote this commit.
+     * The version is surfaced via {@link org.opensearch.index.engine.exec.coord.CatalogSnapshot#getCommitDataFormatVersion()}
+     * so replicas / recovery can decide codec compatibility without parsing strings.
      */
     @ExperimentalApi
-    record CommitResult(String commitFileName, long generation) {
+    record CommitResult(String commitFileName, long generation, long commitDataFormatVersion) {
     }
 
     /**

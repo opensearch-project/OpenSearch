@@ -21,15 +21,19 @@ import java.util.Set;
 /**
  * Represents a set of files produced by a writer during indexing operations.
  * Groups files by directory and writer generation, tracking metadata such as row count and total size.
+ *
+ * <p>{@code formatVersion} is stored as a long-encoded value produced by the format plugin
+ * (see {@code LuceneVersionConverter} for the Lucene encoding). {@code 0} means
+ * "unknown / pre-versioning". Storing a number here removes the need for string parsing
+ * downstream and keeps {@code CatalogSnapshot} decoupled from Lucene version types.
  */
 @ExperimentalApi
-public record WriterFileSet(String directory, long writerGeneration, Set<String> files, long numRows, String formatVersion)
+public record WriterFileSet(String directory, long writerGeneration, Set<String> files, long numRows, long formatVersion)
     implements
         Writeable {
 
     public WriterFileSet {
         files = Set.copyOf(files);
-        formatVersion = formatVersion == null ? "" : formatVersion;
     }
 
     /**
@@ -40,7 +44,7 @@ public record WriterFileSet(String directory, long writerGeneration, Set<String>
      * No pre-3.7 wire format exists, so no version gate is needed here.
      */
     public WriterFileSet(StreamInput in, String directory) throws IOException {
-        this(directory, in.readLong(), new HashSet<>(in.readStringList()), in.readLong(), in.readString());
+        this(directory, in.readLong(), new HashSet<>(in.readStringList()), in.readLong(), in.readLong());
     }
 
     public long getTotalSize() {
@@ -74,7 +78,7 @@ public record WriterFileSet(String directory, long writerGeneration, Set<String>
         out.writeLong(writerGeneration);
         out.writeStringCollection(files);
         out.writeLong(numRows);
-        out.writeString(formatVersion);
+        out.writeLong(formatVersion);
     }
 
     /**
@@ -94,7 +98,7 @@ public record WriterFileSet(String directory, long writerGeneration, Set<String>
         private Path directory;
         private Long writerGeneration;
         private long numRows;
-        private String formatVersion = "";
+        private long formatVersion = 0L;
         private final Set<String> files = new HashSet<>();
 
         public Builder directory(Path directory) {
@@ -122,8 +126,8 @@ public record WriterFileSet(String directory, long writerGeneration, Set<String>
             return this;
         }
 
-        public Builder formatVersion(String formatVersion) {
-            this.formatVersion = formatVersion == null ? "" : formatVersion;
+        public Builder formatVersion(long formatVersion) {
+            this.formatVersion = formatVersion;
             return this;
         }
 

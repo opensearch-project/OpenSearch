@@ -131,7 +131,6 @@ import org.opensearch.index.cache.request.ShardRequestCache;
 import org.opensearch.index.codec.CodecService;
 import org.opensearch.index.engine.CommitStats;
 import org.opensearch.index.engine.DataFormatAwareEngine;
-import org.opensearch.index.engine.DataFormatAwareNRTReplicationEngine;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.Engine.GetResult;
 import org.opensearch.index.engine.EngineBackedIndexer;
@@ -151,7 +150,6 @@ import org.opensearch.index.engine.exec.IndexReaderProvider;
 import org.opensearch.index.engine.exec.Indexer;
 import org.opensearch.index.engine.exec.IndexerFactory;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
-import org.opensearch.index.engine.exec.coord.DataformatAwareCatalogSnapshot;
 import org.opensearch.index.engine.exec.coord.SegmentInfosCatalogSnapshot;
 import org.opensearch.index.fielddata.FieldDataStats;
 import org.opensearch.index.fielddata.ShardFieldData;
@@ -1867,19 +1865,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     /**
      * Returns true if the current indexer is a replica engine that supports segment replication.
-     * Works for both Lucene (NRTReplicationEngine via EngineBackedIndexer) and
-     * data-format-aware (DataFormatAwareNRTReplicationEngine) paths.
+     * Delegates to {@link Indexer#isReplicaIndexer()} so callers don't need to know concrete
+     * engine types (Lucene NRT vs DFA NRT).
      */
     public boolean isReplicationTarget() {
         try {
-            Indexer indexer = getIndexer();
-            if (indexer instanceof DataFormatAwareNRTReplicationEngine) {
-                return true;
-            }
-            if (indexer instanceof EngineBackedIndexer ebi && ebi.getEngine() instanceof NRTReplicationEngine) {
-                return true;
-            }
-            return false;
+            return getIndexer().isReplicaIndexer();
         } catch (AlreadyClosedException e) {
             return false;
         }
@@ -1893,18 +1884,39 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     /**
      * Finalizes replication with a {@link CatalogSnapshot}. Delegates engine-level segment state
      * updates to the {@link Indexer} (polymorphic: Lucene vs data-format-aware), then performs
-     * shard-level cleanup of {@code pendingMergedSegmentCheckpoints}. Matches the pre-refactor
-     * behavior for the Lucene path: if the engine is closed ({@link AlreadyClosedException}) or
-     * the indexer is not a replica, the method is a no-op and no cleanup is performed.
+     * shard-level cleanup of {@code pendingMergedSegmentCheckpoints} and of the precomputed
+     * checksum cache (so it stays bounded to the active snapshot on the replica, mirroring
+     * the primary's {@code evictUploadedChecksums} behavior). If the engine is closed
+     * ({@link AlreadyClosedException}), the method is a no-op and no cleanup is performed.
      */
     public void finalizeReplication(CatalogSnapshot catalogSnapshot) throws IOException {
         try {
+            assert getIndexer().isReplicaIndexer() : "finalizeReplication called on non-replica indexer";
             getIndexer().finalizeReplication(catalogSnapshot);
         } catch (AlreadyClosedException e) {
             logger.debug("finalizeReplication skipped, indexer already closed", e);
             return;
         }
         cleanupPendingMergedSegments(catalogSnapshot);
+        evictStaleDownloadedChecksums(catalogSnapshot);
+    }
+
+    /**
+     * Best-effort eviction of checksum entries for files no longer referenced by the active
+     * catalog snapshot. Keeps the replica's cache bounded in size across replication cycles,
+     * mirroring the primary's post-upload eviction in {@code RemoteStoreRefreshListener}.
+     * Failures here are logged and swallowed — cache eviction is optimization, not correctness.
+     */
+    private void evictStaleDownloadedChecksums(CatalogSnapshot catalogSnapshot) {
+        try {
+            DataFormatAwareStoreDirectory dfasd = DataFormatAwareStoreDirectory.unwrap(store.directory());
+            if (dfasd == null) {
+                return; // non-DFA index — no precomputed cache to evict from
+            }
+            dfasd.evictStaleChecksums(catalogSnapshot.getFiles(true));
+        } catch (AlreadyClosedException | IOException e) {
+            logger.debug("skipped precomputed checksum eviction on replica", e);
+        }
     }
 
     /**
@@ -1925,12 +1937,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 );
                 pendingMergedSegmentCheckpoints.removeIf(s -> s.getSegmentName().equals(segmentCommitInfoName));
             }
-        } else if (catalogSnapshot instanceof DataformatAwareCatalogSnapshot dfaSnapshot) {
-            Set<String> activeSegmentNames = new HashSet<>();
-            for (org.opensearch.index.engine.exec.Segment seg : dfaSnapshot.getSegments()) {
-                activeSegmentNames.add(seg.replicationCheckpointName());
-            }
-            pendingMergedSegmentCheckpoints.removeIf(s -> activeSegmentNames.contains(s.getSegmentName()));
         }
     }
 
@@ -2154,32 +2160,24 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     /**
      * Compute {@link ReferencedSegmentsCheckpoint} over the active catalog snapshot.
      *
-     * <p>On the Lucene path (legacy) the set of referenced segment names is derived from
-     * {@code .si} files present in the shard directory. On the DFA path it is derived from
-     * the active {@link DataformatAwareCatalogSnapshot} segments using
-     * {@link org.opensearch.index.engine.exec.Segment#replicationCheckpointName()} — the
-     * same identity that {@link org.opensearch.index.engine.DataFormatAwareMergeCheckpointPublisher} uses when minting
-     * a {@link MergedSegmentCheckpoint}, so that the replica's cleanup paths match by name.</p>
+     * <p>The set of referenced segment names is derived from {@code .si} files present in the
+     * shard directory. This method is only invoked for non-DFA (Lucene) indices — DFA indices
+     * skip the periodic publish-referenced-segments task entirely.</p>
      *
      * @return {@link ReferencedSegmentsCheckpoint}.
      * @throws IOException When there is an error computing referenced segments.
+     * @throws UnsupportedOperationException if the catalog snapshot is not Lucene-backed (DFA).
      */
     public ReferencedSegmentsCheckpoint computeReferencedSegmentsCheckpoint() throws IOException {
         try (GatedCloseable<CatalogSnapshot> closeable = acquireSafeCatalogSnapshot()) {
             CatalogSnapshot snapshot = closeable.get();
-            Set<String> segmentNames;
-            if (snapshot instanceof DataformatAwareCatalogSnapshot dfaSnapshot) {
-                segmentNames = new HashSet<>();
-                for (org.opensearch.index.engine.exec.Segment seg : dfaSnapshot.getSegments()) {
-                    segmentNames.add(seg.replicationCheckpointName());
-                }
-            } else {
-                // Lucene path: scan the shard directory for .si files (legacy behavior).
-                segmentNames = Sets.newHashSet();
-                for (String file : store.directory().listAll()) {
-                    if (file.endsWith(".si")) {
-                        segmentNames.add(IndexFileNames.parseSegmentName(file));
-                    }
+            if (snapshot instanceof SegmentInfosCatalogSnapshot == false) {
+                throw new UnsupportedOperationException("computeReferencedSegmentsCheckpoint is not supported for DataFormatAware indices");
+            }
+            Set<String> segmentNames = Sets.newHashSet();
+            for (String file : store.directory().listAll()) {
+                if (file.endsWith(".si")) {
+                    segmentNames.add(IndexFileNames.parseSegmentName(file));
                 }
             }
             return new ReferencedSegmentsCheckpoint(
@@ -2223,19 +2221,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 segmentCommitInfo.info.name
             );
         }
-    }
-
-    /** Returns the merged-segment publisher, or {@code null} if segment replication is not enabled for this shard. */
-    @Nullable
-    @ExperimentalApi
-    public MergedSegmentPublisher getMergedSegmentPublisher() {
-        return mergedSegmentPublisher;
-    }
-
-    /** Returns the codec name configured for this shard's engine. */
-    @ExperimentalApi
-    public String getCodecName() {
-        return getIndexer().config().getCodec().getName();
     }
 
     /**
@@ -2327,7 +2312,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     public Store.MetadataSnapshot snapshotStoreMetadata() throws IOException {
         assert Thread.holdsLock(mutex) == false : "snapshotting store metadata under mutex";
-        GatedCloseable<IndexCommit> wrappedIndexCommit = null;
+        GatedCloseable<CatalogSnapshot> wrappedCatalogSnapshot = null;
         store.incRef();
         try {
             synchronized (engineMutex) {
@@ -2335,17 +2320,57 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 // the engine on us. If the engine is running, we can get a snapshot via the deletion policy of the engine.
                 final Indexer indexer = getIndexerOrNull();
                 if (indexer != null) {
-                    wrappedIndexCommit = applyOnEngine(indexer, engine -> engine.acquireLastIndexCommit(false));
+                    wrappedCatalogSnapshot = indexer.acquireLastCommittedSnapshot(false);
                 }
-                if (wrappedIndexCommit == null) {
-                    return store.getMetadata(null, true);
+                if (wrappedCatalogSnapshot == null) {
+                    Store.MetadataSnapshot ms = store.getMetadata(null, true);
+                    logSnapshotStoreMetadataSummary(ms, "null-engine");
+                    return ms;
                 }
             }
-            return store.getMetadata(wrappedIndexCommit.get());
+            Store.MetadataSnapshot ms = store.getMetadata(wrappedCatalogSnapshot.get());
+            logSnapshotStoreMetadataSummary(ms, "catalog");
+            return ms;
         } finally {
             store.decRef();
-            IOUtils.close(wrappedIndexCommit);
+            IOUtils.close(wrappedCatalogSnapshot);
         }
+    }
+
+    /**
+     * Logs a one-line summary of the {@link Store.MetadataSnapshot} produced by
+     * {@link #snapshotStoreMetadata()}, including total file count, DFA-format file count
+     * (names containing a {@code "/"} path separator indicate a non-Lucene format),
+     * and a small sample of filenames. Intended for validating that DFA files are included
+     * during phase-1 peer recovery.
+     */
+    private void logSnapshotStoreMetadataSummary(Store.MetadataSnapshot metadataSnapshot, String source) {
+        if (logger.isInfoEnabled() == false) {
+            return;
+        }
+        int total = metadataSnapshot.size();
+        java.util.List<String> dfaFiles = metadataSnapshot.asMap()
+            .keySet()
+            .stream()
+            .filter(name -> name.contains("/"))
+            .sorted()
+            .collect(java.util.stream.Collectors.toList());
+        String luceneSample = metadataSnapshot.asMap()
+            .keySet()
+            .stream()
+            .filter(name -> name.contains("/") == false)
+            .sorted()
+            .limit(5)
+            .collect(java.util.stream.Collectors.joining(", "));
+        logger.info(
+            "[DFA-RECOVERY] snapshotStoreMetadata shardId={} source={} totalFiles={} dfaFiles={} dfaList=[{}] luceneSample=[{}]",
+            shardId,
+            source,
+            total,
+            dfaFiles.size(),
+            String.join(", ", dfaFiles),
+            luceneSample
+        );
     }
 
     /**
@@ -5537,6 +5562,17 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                             throw new AlreadyClosedException("engine was closed");
                         }
                         return applyOnEngine(newEngineReference.get(), Engine::acquireSafeCatalogSnapshot);
+                    }
+                }
+
+                @Override
+                public GatedCloseable<CatalogSnapshot> acquireLastCommittedSnapshot(boolean flushFirst) {
+                    // flushFirst is a no-op on read-only engines — no writer to flush.
+                    synchronized (engineMutex) {
+                        if (newEngineReference.get() == null) {
+                            throw new AlreadyClosedException("engine was closed");
+                        }
+                        return applyOnEngine(newEngineReference.get(), e -> e.acquireLastCommittedSnapshot(false));
                     }
                 }
 

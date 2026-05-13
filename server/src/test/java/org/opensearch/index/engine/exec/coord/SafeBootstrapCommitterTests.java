@@ -90,6 +90,11 @@ public class SafeBootstrapCommitterTests extends OpenSearchTestCase {
         }
 
         @Override
+        public byte[] serializeToCommitFormat(CatalogSnapshot snapshot) {
+            throw new UnsupportedOperationException("test stub does not serialize commits");
+        }
+
+        @Override
         public void close() {}
     }
 

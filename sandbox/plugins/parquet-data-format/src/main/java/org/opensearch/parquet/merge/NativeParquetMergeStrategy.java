@@ -18,6 +18,7 @@ import org.opensearch.index.engine.dataformat.MergeResult;
 import org.opensearch.index.engine.dataformat.RowIdMapping;
 import org.opensearch.index.engine.exec.WriterFileSet;
 import org.opensearch.index.shard.ShardPath;
+import org.opensearch.index.store.FileMetadata;
 import org.opensearch.parquet.bridge.MergeFilesResult;
 import org.opensearch.parquet.bridge.ParquetFileMetadata;
 import org.opensearch.parquet.bridge.RustBridge;
@@ -40,13 +41,13 @@ public class NativeParquetMergeStrategy implements ParquetMergeStrategy {
     private final DataFormat dataFormat;
     private final String indexName;
     private final ShardPath shardPath;
-    private TriConsumer<String, Long, Long> checksumUpdater;
+    private final TriConsumer<FileMetadata, Long, Long> checksumUpdater;
 
     public NativeParquetMergeStrategy(
         DataFormat dataFormat,
         String indexName,
         ShardPath shardPath,
-        TriConsumer<String, Long, Long> checksumUpdater
+        TriConsumer<FileMetadata, Long, Long> checksumUpdater
     ) {
         this.dataFormat = dataFormat;
         this.indexName = indexName;
@@ -99,7 +100,11 @@ public class NativeParquetMergeStrategy implements ParquetMergeStrategy {
                 .addNumRows(mergeMetadata.numRows())
                 .build();
 
-            checksumUpdater.apply(dataFormat.name() + "/" + mergedFileName, mergeMetadata.crc32(), mergeInput.newWriterGeneration());
+            checksumUpdater.apply(
+                new FileMetadata(dataFormat.name(), mergedFileName),
+                mergeMetadata.crc32(),
+                mergeInput.newWriterGeneration()
+            );
             Map<DataFormat, WriterFileSet> mergedWriterFileSetMap = Collections.singletonMap(dataFormat, mergedWriterFileSet);
 
             return new MergeResult(mergedWriterFileSetMap, rowIdMapping);

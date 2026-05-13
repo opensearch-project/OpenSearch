@@ -1291,6 +1291,12 @@ public abstract class Engine implements LifecycleAware, Closeable {
     }
 
     /**
+     * Acquires a {@link CatalogSnapshot} pinned to the most recent commit on disk,
+     * regardless of retention policy. Default wraps {@link #acquireLastIndexCommit(boolean)}.
+     */
+    public abstract GatedCloseable<CatalogSnapshot> acquireLastCommittedSnapshot(boolean flushFirst) throws EngineException;
+
+    /**
      * @return a summary of the contents of the current safe commit
      */
     public abstract SafeCommitInfo getSafeCommitInfo();

@@ -246,8 +246,8 @@ public class CombinedCatalogSnapshotDeletionPolicyTests extends OpenSearchTestCa
         CombinedCatalogSnapshotDeletionPolicy policy = createPolicy(globalCP);
 
         List<Segment> segments = List.of(
-            new Segment(0, Map.of("parquet", new WriterFileSet("/data", 0, Set.of("a.parquet"), 10, ""))),
-            new Segment(1, Map.of("parquet", new WriterFileSet("/data", 1, Set.of("b.parquet"), 25, "")))
+            new Segment(0, Map.of("parquet", new WriterFileSet("/data", 0, Set.of("a.parquet"), 10, 0L))),
+            new Segment(1, Map.of("parquet", new WriterFileSet("/data", 1, Set.of("b.parquet"), 25, 0L)))
         );
         CatalogSnapshot cs1 = snapshotWithDocs(1, 100, 100, "uuid1", segments);
         List<CatalogSnapshot> commits = new ArrayList<>(List.of(cs1));
@@ -262,9 +262,9 @@ public class CombinedCatalogSnapshotDeletionPolicyTests extends OpenSearchTestCa
 
     public void testGetDocCountOfCommitSumsAcrossSegments() {
         List<Segment> segments = List.of(
-            new Segment(0, Map.of("parquet", new WriterFileSet("/data", 0, Set.of("a.parquet"), 10, ""))),
-            new Segment(1, Map.of("parquet", new WriterFileSet("/data", 1, Set.of("b.parquet"), 20, ""))),
-            new Segment(2, Map.of("parquet", new WriterFileSet("/data", 2, Set.of("c.parquet"), 30, "")))
+            new Segment(0, Map.of("parquet", new WriterFileSet("/data", 0, Set.of("a.parquet"), 10, 0L))),
+            new Segment(1, Map.of("parquet", new WriterFileSet("/data", 1, Set.of("b.parquet"), 20, 0L))),
+            new Segment(2, Map.of("parquet", new WriterFileSet("/data", 2, Set.of("c.parquet"), 30, 0L)))
         );
         CatalogSnapshot cs = snapshotWithDocs(1, 100, 100, "uuid", segments);
         assertEquals(60, CombinedCatalogSnapshotDeletionPolicy.getDocCountOfCommit(cs));
@@ -276,9 +276,9 @@ public class CombinedCatalogSnapshotDeletionPolicyTests extends OpenSearchTestCa
                 0,
                 Map.of(
                     "parquet",
-                    new WriterFileSet("/data", 0, Set.of("a.parquet"), 15, ""),
+                    new WriterFileSet("/data", 0, Set.of("a.parquet"), 15, 0L),
                     "lucene",
-                    new WriterFileSet("/data", 0, Set.of("_0.cfs"), 15, "")
+                    new WriterFileSet("/data", 0, Set.of("_0.cfs"), 15, 0L)
                 )
             )
         );

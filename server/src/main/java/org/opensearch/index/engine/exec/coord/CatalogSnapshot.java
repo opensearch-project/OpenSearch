@@ -8,7 +8,6 @@
 
 package org.opensearch.index.engine.exec.coord;
 
-import org.apache.lucene.index.SegmentInfos;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.util.concurrent.AbstractRefCounted;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -239,18 +238,6 @@ public abstract class CatalogSnapshot implements Writeable, Cloneable {
     }
 
     /**
-     * Creates a clone without acquiring a reference count on this instance.
-     * Returns a new {@link CatalogSnapshot} with a fresh reference count of 1,
-     * delegating to the subclass's {@link #clone()} implementation.
-     * Used for Lucene compatibility where clone is required.
-     *
-     * @return a new {@link CatalogSnapshot} with the same logical state
-     */
-    public CatalogSnapshot cloneNoAcquire() {
-        return clone();
-    }
-
-    /**
      * Sets user-defined metadata for this catalog snapshot.
      *
      * @param userData map of user data key-value pairs
@@ -273,19 +260,31 @@ public abstract class CatalogSnapshot implements Writeable, Cloneable {
      * @param file the file name
      * @return the format version string
      */
-    public abstract String getFormatVersionForFile(String file);
+    /**
+     * Returns the format-version for the given file as a long-encoded value.
+     * Encoding is defined by {@link LuceneVersionConverter}:
+     * {@code major * 1_000_000 + minor * 1_000 + bugfix}. Returns {@code 0} to indicate
+     * "unknown / pre-versioning" (callers map this to {@link org.apache.lucene.util.Version#LATEST}).
+     *
+     * @param file the file name to inspect
+     * @return the encoded long version, or {@code 0} if unknown
+     */
+    public abstract long getFormatVersionForFile(String file);
 
     /**
-     * Returns the minimum segment format version string. Returns empty string for multi-format
-     * catalogs (cross-format comparison is not supported).
+     * Returns the minimum segment format version as a long-encoded value (see
+     * {@link LuceneVersionConverter}). Returns {@code 0} for multi-format catalogs
+     * (cross-format comparison is not meaningful) or for empty catalogs.
      */
-    public abstract String getMinSegmentFormatVersion();
+    public abstract long getMinSegmentFormatVersion();
 
     /**
-     * Returns the commit-time format version string. Returns empty string for multi-format
-     * catalogs (cross-format comparison is not supported).
+     * Returns the commit-time format version as a long-encoded value
+     * (see {@link LuceneVersionConverter}). Returns {@code 0} for multi-format
+     * catalogs or when no commit has landed yet. Callers decode via
+     * {@link LuceneVersionConverter#toLuceneOrLatest(long)} when a Lucene view is needed.
      */
-    public abstract String getCommitDataFormatVersion();
+    public abstract long getCommitDataFormatVersion();
 
     /** Total number of live documents in this snapshot. SI → Lucene live docs; DFA → 0 (TODO). */
     public abstract long getNumDocs();
@@ -309,12 +308,6 @@ public abstract class CatalogSnapshot implements Writeable, Cloneable {
     public long getLastCommitGeneration() {
         return getGeneration();
     }
-
-    /**
-     * Returns the underlying SegmentInfos for Lucene-backed snapshots.
-     * Throws UnsupportedOperationException for non-Lucene snapshots.
-     */
-    public abstract SegmentInfos getSegmentInfos();
 
     /**
      * Returns the canonical file names for upload to remote store.

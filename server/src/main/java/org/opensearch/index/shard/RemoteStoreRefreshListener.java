@@ -482,7 +482,7 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
         ReplicationCheckpoint replicationCheckpoint
     ) throws IOException {
         final long maxSeqNo = indexShard.getIndexer().currentOngoingRefreshCheckpoint();
-        CatalogSnapshot catalogSnapshotCloned = catalogSnapshot.cloneNoAcquire();
+        CatalogSnapshot catalogSnapshotCloned = catalogSnapshot.clone();
         Map<String, String> userData = new HashMap<>(catalogSnapshotCloned.getUserData());
         userData.put(LOCAL_CHECKPOINT_KEY, String.valueOf(maxSeqNo));
         userData.put(SequenceNumbers.MAX_SEQ_NO, Long.toString(maxSeqNo));

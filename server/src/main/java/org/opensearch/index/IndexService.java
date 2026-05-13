@@ -1771,7 +1771,10 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         // visible for tests
         protected boolean shouldRun() {
             return (indexSettings.isSegRepLocalEnabled() || indexSettings.isRemoteStoreEnabled())
-                && recoverySettings.isMergedSegmentReplicationWarmerEnabled();
+                // ToDo: remove the isPluggableDataFromatEnabled check once MergedSegment replication flow is integrated for DataFormatAware
+                // indices.
+                && recoverySettings.isMergedSegmentReplicationWarmerEnabled()
+                && indexSettings.isPluggableDataFormatEnabled() == false;
         }
     }
 

@@ -120,6 +120,11 @@ public class CatalogSnapshotManager implements Closeable {
             shardPath,
             commitFileManager
         );
+        // Notify listeners about the committed snapshot so reader managers
+        // are initialized on engine open.
+        for (CatalogSnapshotLifecycleListener listener : snapshotListeners) {
+            listener.afterRefresh(true, latestCatalogSnapshot);
+        }
         this.snapshotSerializer = commitFileManager::serializeToCommitFormat;
 
         // Notify listeners about the committed snapshot so reader managers
@@ -244,7 +249,8 @@ public class CatalogSnapshotManager implements Closeable {
                 latestCatalogSnapshot.getLastWriterGeneration() + 1,
                 latestCatalogSnapshot.getUserData(),
                 latestCatalogSnapshot.getLastCommitFileName(),
-                latestCatalogSnapshot.getLastCommitGeneration()
+                latestCatalogSnapshot.getLastCommitGeneration(),
+                latestCatalogSnapshot.getCommitDataFormatVersion()
             );
         } catch (Exception e) {
             // Construction failed (e.g., OOM) — notify listeners that the refresh did not produce a new snapshot

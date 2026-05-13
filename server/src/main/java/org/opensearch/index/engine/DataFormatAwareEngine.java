@@ -10,7 +10,6 @@ package org.opensearch.index.engine;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.ReferenceManager;
@@ -326,7 +325,9 @@ public class DataFormatAwareEngine implements Indexer {
                 snapshotListeners.add(entry.getValue());
             }
             List<CatalogSnapshot> committedSnapshots = committer.listCommittedSnapshots();
+            boolean emptyRecovery = false;
             if (committedSnapshots.isEmpty()) {
+                emptyRecovery = true;
                 committedSnapshots = List.of(CatalogSnapshotManager.createInitialSnapshot(0L, 0L, 0L, List.of(), -1L, userData));
             }
             this.catalogSnapshotManager = new CatalogSnapshotManager(
@@ -340,7 +341,9 @@ public class DataFormatAwareEngine implements Indexer {
             );
             // Bump catalog generation on engine open so uploads from this primary do not collide
             // with a prior primary's uploads for the same shard. See method Javadoc for rationale.
-            this.catalogSnapshotManager.bumpGenerationForNewEngineLifecycle();
+            if (!emptyRecovery) {
+                this.catalogSnapshotManager.bumpGenerationForNewEngineLifecycle();
+            }
 
             this.lastRefreshedCheckpointListener = new LastRefreshedCheckpointListener(localCheckpointTracker);
             this.refreshListeners.add(this.lastRefreshedCheckpointListener);
@@ -922,7 +925,11 @@ public class DataFormatAwareEngine implements Indexer {
                         assert Long.parseLong(commitData.get(SequenceNumbers.MAX_SEQ_NO)) >= -1 : "max seq no in commit data must be >= -1";
                         Committer.CommitResult commitResult = committer.commit(commitData);
                         if (commitResult != null && snapshot instanceof DataformatAwareCatalogSnapshot dfaSnapshot) {
-                            dfaSnapshot.setLastCommitInfo(commitResult.commitFileName(), commitResult.generation());
+                            dfaSnapshot.setLastCommitInfo(
+                                commitResult.commitFileName(),
+                                commitResult.generation(),
+                                commitResult.commitDataFormatVersion()
+                            );
                         }
                         snapshotRef.markSuccess();
                         translogManager.trimUnreferencedReaders();
@@ -1186,6 +1193,8 @@ public class DataFormatAwareEngine implements Indexer {
     @Override
     public DocsStats docStats() {
         try (GatedCloseable<CatalogSnapshot> snapshot = acquireSnapshot()) {
+            // Row count: ONE format per segment (findFirst) — each format holds the same numRows
+            // for a given segment; flatMap-summing would double-count multi-format segments.
             long count = snapshot.get()
                 .getSegments()
                 .stream()
@@ -1198,6 +1207,7 @@ public class DataFormatAwareEngine implements Indexer {
                 )
                 .mapToLong(WriterFileSet::numRows)
                 .sum();
+            // Total size: sum across all format files — each format contributes distinct disk bytes.
             long totalSize = snapshot.get()
                 .getSegments()
                 .stream()
@@ -1373,27 +1383,33 @@ public class DataFormatAwareEngine implements Indexer {
         return catalogSnapshotManager.serializeToCommitFormat(catalogSnapshot);
     }
 
-    // Todo: We need to update this api to return catalogSnapshot instead of IndexCommit to make it decoupled with lucene.
+    /**
+     * DFA callers MUST use {@link #acquireSafeCatalogSnapshot()} — that API avoids the extra
+     * {@code segments_N} disk read required to materialize a Lucene {@link IndexCommit}, and
+     * carries the richer {@link CatalogSnapshot} that describes multi-format segments.
+     * This method is retained only to satisfy the {@link Engine} contract; calling it on DFA
+     * is a programming error.
+     */
     @Override
     public GatedCloseable<IndexCommit> acquireSafeIndexCommit() throws EngineException {
-        GatedCloseable<CatalogSnapshot> snapshotRef = catalogSnapshotManager.acquireCommittedSnapshot(true);
-        try {
-            List<IndexCommit> commits = DirectoryReader.listCommits(store.directory());
-            final IndexCommit latest = commits.get(commits.size() - 1);
-            return new GatedCloseable<>(latest, snapshotRef::close);
-        } catch (Exception e) {
-            try {
-                snapshotRef.close();
-            } catch (Exception ignore) {}
-            throw new EngineException(shardId, "acquireSafeIndexCommit failed", e);
-        }
+        throw new UnsupportedOperationException(
+            "acquireSafeIndexCommit is not supported on DataFormatAwareEngine; use acquireSafeCatalogSnapshot instead"
+        );
     }
 
     @Override
     public GatedCloseable<CatalogSnapshot> acquireSafeCatalogSnapshot() throws EngineException {
         ensureOpen();
         return catalogSnapshotManager.acquireCommittedSnapshot(true);
+    }
 
+    @Override
+    public GatedCloseable<CatalogSnapshot> acquireLastCommittedSnapshot(boolean flushFirst) throws EngineException {
+        ensureOpen();
+        if (flushFirst) {
+            flush(false, true);
+        }
+        return catalogSnapshotManager.acquireCommittedSnapshot(false);
     }
 
     /**

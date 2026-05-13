@@ -37,7 +37,7 @@ public class DatafusionReaderManager implements EngineReaderManager<DatafusionRe
 
     private static final Logger logger = LogManager.getLogger(DatafusionReaderManager.class);
 
-    private final Map<CatalogSnapshot, DatafusionReader> readers = new HashMap<>();
+    private final Map<Long, DatafusionReader> readers = new HashMap<>();
     private final DataFormat dataFormat;
     private final String directoryPath;
     private final DataFusionService dataFusionService;
@@ -66,15 +66,16 @@ public class DatafusionReaderManager implements EngineReaderManager<DatafusionRe
 
     @Override
     public DatafusionReader getReader(CatalogSnapshot catalogSnapshot) throws IOException {
-        if (readers.containsKey(catalogSnapshot)) {
-            return readers.get(catalogSnapshot);
+        DatafusionReader reader = readers.get(catalogSnapshot.getVersion());
+        if (reader == null) {
+            throw new IOException("No DataFusion reader available for catalog snapshot [version=" + catalogSnapshot.getVersion() + "]");
         }
-        throw new IOException("No DataFusion reader available");
+        return reader;
     }
 
     @Override
     public void onDeleted(CatalogSnapshot catalogSnapshot) throws IOException {
-        DatafusionReader removed = readers.remove(catalogSnapshot);
+        DatafusionReader removed = readers.remove(catalogSnapshot.getVersion());
         if (removed != null) {
             removed.close();
         }
@@ -98,13 +99,13 @@ public class DatafusionReaderManager implements EngineReaderManager<DatafusionRe
     @Override
     public void afterRefresh(boolean didRefresh, CatalogSnapshot catalogSnapshot) throws IOException {
         if (didRefresh == false) return;
-        if (readers.containsKey(catalogSnapshot)) return;
+        if (readers.containsKey(catalogSnapshot.getVersion())) return;
         DatafusionReader reader = new DatafusionReader(
             directoryPath,
             catalogSnapshot.getSearchableFiles(dataFormat.name()),
             dataformatAwareStoreHandle
         );
-        readers.put(catalogSnapshot, reader);
+        readers.put(catalogSnapshot.getVersion(), reader);
     }
 
     private Collection<String> toAbsolutePaths(Collection<String> fileNames) {

@@ -100,7 +100,7 @@ public class PrecomputedChecksumStrategyTests extends OpenSearchTestCase {
         writeFile("f.parquet", "payload");
 
         strategy.registerChecksum("f.parquet", 0L, 1L); // zero treated as "unset"
-        strategy.registerChecksum(null, 1234L, 1L);     // null name is a no-op
+        strategy.registerChecksum((String) null, 1234L, 1L);     // null name is a no-op
 
         // Since no real register happened, compute falls back to scanning the file.
         long expected = fullFileCrc32("payload".getBytes(StandardCharsets.UTF_8));
