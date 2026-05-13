@@ -8,21 +8,32 @@
 
 package org.opensearch.be.datafusion.nativelib;
 
+import org.opensearch.analytics.spi.QueryExecutionMetrics;
+
 import java.lang.foreign.MemoryLayout;
 import java.lang.foreign.MemoryLayout.PathElement;
 import java.lang.foreign.MemorySegment;
+import java.lang.foreign.SequenceLayout;
 import java.lang.foreign.StructLayout;
 import java.lang.foreign.ValueLayout;
+import java.lang.invoke.VarHandle;
 
 /**
  * Mirrors the Rust {@code query_tracker::WireQueryMetric} {@code #[repr(C)]}
- * struct (5 × i64 = 40 bytes). A {@code df_query_registry_snapshot} call fills
- * an array of these structs back-to-back into a caller-provided buffer.
+ * struct (5 × i64 = 40 bytes) and decodes a strided buffer of those structs
+ * directly into the SPI types consumed by
+ * {@link org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin#getActiveQueryMetrics}.
  *
- * <p>Provides a decoder that reads one entry at a time by striding over the
- * buffer at multiples of {@link #ENTRY_BYTES}. Field offsets are derived from
- * the {@link StructLayout} so they stay in sync with any future reshuffle of
- * {@code WireQueryMetric}.
+ * <p>This is the same idiom {@code StatsLayout} uses for the {@code df_stats}
+ * call: a {@link StructLayout} describes the wire shape, cached
+ * {@link VarHandle}s read individual fields, and the decoder produces the
+ * caller's final type with no transport-only intermediate.
+ *
+ * <p>Buffer shape (populated by {@code df_query_registry_top_n_by_current}):
+ * <pre>
+ *   [ entry 0 ][ entry 1 ] ... [ entry N-1 ]
+ *   each entry = { context_id, current_bytes, peak_bytes, wall_nanos, completed } (5 × i64)
+ * </pre>
  */
 public final class QueryRegistryLayout {
 
@@ -38,11 +49,18 @@ public final class QueryRegistryLayout {
     /** Byte size of one wire entry. Matches {@code size_of::<WireQueryMetric>()} on the Rust side. */
     public static final long ENTRY_BYTES = ENTRY_LAYOUT.byteSize();
 
-    private static final long OFF_CONTEXT_ID = ENTRY_LAYOUT.byteOffset(PathElement.groupElement("context_id"));
-    private static final long OFF_CURRENT_BYTES = ENTRY_LAYOUT.byteOffset(PathElement.groupElement("current_bytes"));
-    private static final long OFF_PEAK_BYTES = ENTRY_LAYOUT.byteOffset(PathElement.groupElement("peak_bytes"));
-    private static final long OFF_WALL_NANOS = ENTRY_LAYOUT.byteOffset(PathElement.groupElement("wall_nanos"));
-    private static final long OFF_COMPLETED = ENTRY_LAYOUT.byteOffset(PathElement.groupElement("completed"));
+    /**
+     * Sequence layout used to derive per-row {@link VarHandle}s. The first path
+     * element is a {@code sequenceElement()} (the array index), the second is
+     * the field name within {@code ENTRY_LAYOUT}.
+     */
+    private static final SequenceLayout ROWS = MemoryLayout.sequenceLayout(Long.MAX_VALUE / ENTRY_BYTES, ENTRY_LAYOUT);
+
+    private static final VarHandle CONTEXT_ID = rowHandle("context_id");
+    private static final VarHandle CURRENT_BYTES = rowHandle("current_bytes");
+    private static final VarHandle PEAK_BYTES = rowHandle("peak_bytes");
+    private static final VarHandle WALL_NANOS = rowHandle("wall_nanos");
+    private static final VarHandle COMPLETED = rowHandle("completed");
 
     static {
         long expected = 5L * Long.BYTES;
@@ -54,17 +72,36 @@ public final class QueryRegistryLayout {
     private QueryRegistryLayout() {}
 
     /**
-     * Decode a single entry at zero-based index {@code i} from a buffer populated
-     * by {@code df_query_registry_snapshot}.
+     * Read the {@code context_id} of the entry at zero-based index {@code i}.
+     *
+     * @param seg buffer populated by {@code df_query_registry_top_n_by_current}
+     * @param i   row index, must be {@code < written} returned by the FFI call
      */
-    public static QueryMemoryUsage readEntry(MemorySegment seg, int i) {
-        long base = i * ENTRY_BYTES;
-        return new QueryMemoryUsage(
-            seg.get(ValueLayout.JAVA_LONG, base + OFF_CONTEXT_ID),
-            seg.get(ValueLayout.JAVA_LONG, base + OFF_CURRENT_BYTES),
-            seg.get(ValueLayout.JAVA_LONG, base + OFF_PEAK_BYTES),
-            seg.get(ValueLayout.JAVA_LONG, base + OFF_WALL_NANOS),
-            seg.get(ValueLayout.JAVA_LONG, base + OFF_COMPLETED) != 0L
+    public static long readContextId(MemorySegment seg, int i) {
+        return (long) CONTEXT_ID.get(seg, 0L, (long) i);
+    }
+
+    /**
+     * Read the metrics fields of the entry at zero-based index {@code i} into
+     * a fresh {@link QueryExecutionMetrics} record.
+     *
+     * @param seg buffer populated by {@code df_query_registry_top_n_by_current}
+     * @param i   row index, must be {@code < written} returned by the FFI call
+     */
+    public static QueryExecutionMetrics readMetrics(MemorySegment seg, int i) {
+        long row = (long) i;
+        return new QueryExecutionMetrics(
+            (long) CURRENT_BYTES.get(seg, 0L, row),
+            (long) PEAK_BYTES.get(seg, 0L, row),
+            (long) WALL_NANOS.get(seg, 0L, row),
+            (long) COMPLETED.get(seg, 0L, row) != 0L
         );
+    }
+
+    private static VarHandle rowHandle(String field) {
+        // sequenceElement() leaves the row index as a free coordinate, so the
+        // returned VarHandle takes (segment, base, rowIndex) — we always pass
+        // base=0 because the FFM call writes at the start of the segment.
+        return ROWS.varHandle(PathElement.sequenceElement(), PathElement.groupElement(field));
     }
 }
