@@ -149,6 +149,7 @@ public class RustBridge {
                 ValueLayout.JAVA_LONG,  // output file
                 ValueLayout.ADDRESS,
                 ValueLayout.JAVA_LONG,  // index_name
+                ValueLayout.JAVA_LONG,  // output_writer_generation
                 ValueLayout.ADDRESS,    // version_out
                 ValueLayout.ADDRESS,    // num_rows_out
                 ValueLayout.ADDRESS,    // created_by_buf
@@ -321,7 +322,12 @@ public class RustBridge {
         }
     }
 
-    public static MergeFilesResult mergeParquetFilesInRust(List<Path> inputFiles, String outputFile, String indexName) {
+    public static MergeFilesResult mergeParquetFilesInRust(
+        List<Path> inputFiles,
+        String outputFile,
+        String indexName,
+        long outputWriterGeneration
+    ) {
         String[] paths = inputFiles.stream().map(Path::toString).toArray(String[]::new);
         try (var call = new NativeCall()) {
             var inputs = call.strArray(paths);
@@ -351,6 +357,7 @@ public class RustBridge {
                 out.len(),
                 idx.segment(),
                 idx.len(),
+                outputWriterGeneration,
                 versionOut,
                 numRowsOut,
                 createdByOut.data(),

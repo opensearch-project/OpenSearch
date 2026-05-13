@@ -250,13 +250,16 @@ pub unsafe fn set_memory_pool_limit(ptr: i64, new_limit: i64) -> Result<(), Stri
 ///
 /// Returns a heap-allocated pointer (as i64) to `ShardView`.
 /// Caller must call `close_reader` exactly once to free it.
+///
+/// # Ordering
+/// `filenames` are kept in the order supplied by the caller. The writer
+/// generation for each file is read out of its parquet footer kv metadata at
+/// `build_segments` time (see `opensearch.writer_generation`).
 pub fn create_reader(
     table_path: &str,
-    mut filenames: Vec<String>,
+    filenames: Vec<String>,
     tokio_rt_manager: &RuntimeManager,
 ) -> Result<i64, DataFusionError> {
-    filenames.sort();
-
     let table_url = ListingTableUrl::parse(table_path)
         .map_err(|e| DataFusionError::Execution(format!("Invalid table path: {}", e)))?;
 

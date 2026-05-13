@@ -12,6 +12,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.SegmentCommitInfo;
+import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
@@ -36,9 +38,16 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.opensearch.be.lucene.index.LuceneWriter.WRITER_GENERATION_ATTRIBUTE;
+
 /**
  * Lucene implementation of {@link FilterDelegationHandle}. Compiles delegated expressions
  * into Lucene Queries, creates Weights on demand, and produces bitsets via Scorers.
+ *
+ * <p>Segments are resolved by <b>writer generation</b> (the stable per-segment
+ * identifier), not by positional ordinal.
+ * {@link org.opensearch.be.lucene.index.LuceneWriter#WRITER_GENERATION_ATTRIBUTE}
+ * stamped onto every {@link SegmentCommitInfo} at write and merge time.
  *
  * @opensearch.internal
  */
@@ -49,6 +58,8 @@ final class LuceneFilterDelegationHandle implements FilterDelegationHandle {
     private final Map<Integer, Query> queriesByAnnotationId;
     private final DirectoryReader directoryReader;
     private final List<LeafReaderContext> leaves;
+    /** Writer generation → Lucene leaf index. Built once in the constructor. */
+    private final Map<Long, Integer> generationToLeaf;
 
     private final ConcurrentHashMap<Integer, Weight> weightsByProviderKey = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<Integer, ScorerHandle> scorersByCollectorKey = new ConcurrentHashMap<>();
@@ -63,9 +74,11 @@ final class LuceneFilterDelegationHandle implements FilterDelegationHandle {
         DirectoryReader directoryReader,
         NamedWriteableRegistry namedWriteableRegistry
     ) {
+        assert directoryReader != null : "directoryReader must not be null";
         this.directoryReader = directoryReader;
         this.leaves = directoryReader.leaves();
         this.queriesByAnnotationId = compileQueries(expressions, queryShardContext, namedWriteableRegistry);
+        this.generationToLeaf = buildGenerationToLeaf(leaves);
     }
 
     private static Map<Integer, Query> compileQueries(
@@ -91,6 +104,59 @@ final class LuceneFilterDelegationHandle implements FilterDelegationHandle {
         return queries;
     }
 
+    /**
+     * Build {@code writerGeneration → leaf index} from the open {@link DirectoryReader}.
+     * Every Lucene leaf must carry a numeric {@link org.opensearch.be.lucene.index.LuceneWriter#WRITER_GENERATION_ATTRIBUTE}
+     */
+    private static Map<Long, Integer> buildGenerationToLeaf(List<LeafReaderContext> leaves) {
+        Map<Long, Integer> out = new HashMap<>(leaves.size());
+        for (int leafIdx = 0; leafIdx < leaves.size(); leafIdx++) {
+            LeafReaderContext lrc = leaves.get(leafIdx);
+            if ((lrc.reader() instanceof SegmentReader) == false) {
+                throw new IllegalStateException(
+                    "Expected SegmentReader at leaf " + leafIdx + " but got " + lrc.reader().getClass().getName()
+                );
+            }
+            SegmentReader sr = (SegmentReader) lrc.reader();
+            SegmentCommitInfo sci = sr.getSegmentInfo();
+            String genAttr = sci.info.getAttribute(WRITER_GENERATION_ATTRIBUTE);
+            if (genAttr == null) {
+                throw new IllegalStateException(
+                    "Lucene leaf "
+                        + leafIdx
+                        + " (segment name="
+                        + sci.info.name
+                        + ") is missing the "
+                        + WRITER_GENERATION_ATTRIBUTE
+                        + " attribute. Every segment must be stamped at write/merge time; a missing "
+                        + "attribute indicates a LuceneWriter or RowIdRemappingOneMerge regression."
+                );
+            }
+            long gen;
+            try {
+                gen = Long.parseLong(genAttr);
+            } catch (NumberFormatException e) {
+                throw new IllegalStateException(
+                    "Lucene leaf " + leafIdx + " has a non-numeric " + WRITER_GENERATION_ATTRIBUTE + "=[" + genAttr + "]",
+                    e
+                );
+            }
+            Integer prev = out.put(gen, leafIdx);
+            if (prev != null) {
+                throw new IllegalStateException(
+                    "Duplicate writer generation ["
+                        + gen
+                        + "] seen at Lucene leaves "
+                        + prev
+                        + " and "
+                        + leafIdx
+                        + ". Generations must be unique across leaves."
+                );
+            }
+        }
+        return out;
+    }
+
     @Override
     public int createProvider(int annotationId) {
         Query query = queriesByAnnotationId.get(annotationId);
@@ -110,20 +176,50 @@ final class LuceneFilterDelegationHandle implements FilterDelegationHandle {
     }
 
     @Override
-    public int createCollector(int providerKey, int segmentOrd, int minDoc, int maxDoc) {
+    public int createCollector(int providerKey, long writerGeneration, int minDoc, int maxDoc) {
         Weight weight = weightsByProviderKey.get(providerKey);
         if (weight == null) {
             return -1;
         }
+        Integer leafIdx = generationToLeaf.get(writerGeneration);
+        if (leafIdx == null) {
+            LOGGER.error(
+                "createCollector: no Lucene leaf for writer_generation={} (providerKey={}). Known generations: {}",
+                writerGeneration,
+                providerKey,
+                generationToLeaf.keySet()
+            );
+            return -1;
+        }
+        LeafReaderContext leaf = leaves.get(leafIdx);
+
+        // Partition bounds must sit inside the resolved leaf. If they don't, the caller
+        // is addressing a segment whose generation doesn't match its doc count — a
+        // regression of the exact bug this class is designed to prevent.
+        int leafMaxDoc = leaf.reader().maxDoc();
+        assert minDoc >= 0 && minDoc <= maxDoc && maxDoc <= leafMaxDoc : "createCollector(providerKey="
+            + providerKey
+            + ", writerGeneration="
+            + writerGeneration
+            + " -> leafOrd="
+            + leafIdx
+            + "): partition ["
+            + minDoc
+            + ","
+            + maxDoc
+            + ") exceeds leaf maxDoc="
+            + leafMaxDoc;
+
         try {
-            // TODO: segmentOrd translation — parquet segment ord may differ from Lucene leaf ord
-            LeafReaderContext leaf = leaves.get(segmentOrd);
             Scorer scorer = weight.scorer(leaf);
             int collectorKey = nextCollectorKey.getAndIncrement();
             scorersByCollectorKey.put(collectorKey, new ScorerHandle(scorer, minDoc, maxDoc));
             return collectorKey;
         } catch (IOException exception) {
-            LOGGER.error("createCollector failed for providerKey=" + providerKey + ", seg=" + segmentOrd, exception);
+            LOGGER.error(
+                "createCollector failed for providerKey=" + providerKey + ", writerGeneration=" + writerGeneration + ", leafOrd=" + leafIdx,
+                exception
+            );
             return -1;
         }
     }

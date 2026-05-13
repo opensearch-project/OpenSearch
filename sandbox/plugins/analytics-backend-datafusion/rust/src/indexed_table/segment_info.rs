@@ -7,20 +7,45 @@
  */
 
 //! Build `SegmentFileInfo`s from the query's object_metas by reading parquet
-//! metadata over the object store — no direct filesystem access.
+//! metadata over the object store.
 //!
-//! Plain async code; nothing here is FFM- or FFI-specific. The module name
-//! used to be `jni_helpers` (carried over from an earlier JNI-era layout);
-//! renamed to `segment_info` since the contents are about segment metadata
-//! construction, not any language bridge.
+//! Writer generation is read out of each parquet file's footer key-value
+//! metadata under the `opensearch.writer_generation` key — the same key the
+//! parquet writer stamps at write time (see
+//! `parquet-data-format/src/main/rust/src/writer_properties_builder.rs`).
+
+use datafusion::parquet::file::metadata::ParquetMetaData;
 
 use super::parquet_bridge;
 use super::stream::RowGroupInfo;
 use super::table_provider::SegmentFileInfo;
 use std::sync::Arc;
 
-/// Build `SegmentFileInfo` from the shard's object metas. Each entry is one
-/// segment; its max_doc is derived from the sum of row-group row counts.
+/// Parquet footer kv key under which the writer stamps the writer generation.
+/// Must match `parquet-data-format`'s `WRITER_GENERATION_KEY`.
+const WRITER_GENERATION_KEY: &str = "opensearch.writer_generation";
+
+/// Extract the writer generation from a parquet file's footer key-value metadata.
+fn read_writer_generation(pq_meta: &ParquetMetaData) -> Result<i64, String> {
+    let kvs = pq_meta
+        .file_metadata()
+        .key_value_metadata()
+        .ok_or_else(|| format!("parquet file missing footer key-value metadata (expected `{}`)", WRITER_GENERATION_KEY))?;
+    let kv = kvs
+        .iter()
+        .find(|kv| kv.key == WRITER_GENERATION_KEY)
+        .ok_or_else(|| format!("parquet footer missing `{}` attribute", WRITER_GENERATION_KEY))?;
+    let value = kv
+        .value
+        .as_ref()
+        .ok_or_else(|| format!("parquet footer `{}` has no value", WRITER_GENERATION_KEY))?;
+    value
+        .parse::<i64>()
+        .map_err(|e| format!("parquet footer `{}` not parseable as i64 [{}]: {}", WRITER_GENERATION_KEY, value, e))
+}
+
+/// Build `SegmentFileInfo` from the shard's object metas. One `SegmentFileInfo`
+/// per input meta; writer generation comes from the parquet footer.
 pub async fn build_segments(
     store: Arc<dyn object_store::ObjectStore>,
     object_metas: &[object_store::ObjectMeta],
@@ -28,7 +53,7 @@ pub async fn build_segments(
     let mut segments = Vec::with_capacity(object_metas.len());
     let mut schema: Option<arrow::datatypes::SchemaRef> = None;
 
-    for (seg_ord, meta) in object_metas.iter().enumerate() {
+    for meta in object_metas.iter() {
         let (file_schema, size, pq_meta) =
             parquet_bridge::load_parquet_metadata(Arc::clone(&store), &meta.location)
                 .await
@@ -51,8 +76,11 @@ pub async fn build_segments(
         }
         let max_doc = offset;
 
+        let writer_generation = read_writer_generation(&pq_meta)
+            .map_err(|e| format!("{} (file={})", e, meta.location))?;
+
         segments.push(SegmentFileInfo {
-            segment_ord: seg_ord as i32,
+            writer_generation,
             max_doc,
             object_path: meta.location.clone(),
             parquet_size: size,

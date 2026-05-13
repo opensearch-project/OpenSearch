@@ -66,7 +66,7 @@ pub(in crate::indexed_table::tests_e2e) struct LoadedSegment {
 }
 
 /// Load the corpus's parquet files into `SegmentFileInfo`s. Each
-/// segment gets `segment_ord = i` and a `first_row` reflecting its
+/// segment gets `writer_generation = i` and a `first_row` reflecting its
 /// offset in the global doc-id space (so Collector doc-ids keep
 /// working across segments).
 pub(in crate::indexed_table::tests_e2e) fn load_segment(corpus: &Corpus) -> LoadedSegment {
@@ -98,7 +98,7 @@ pub(in crate::indexed_table::tests_e2e) fn load_segment(corpus: &Corpus) -> Load
         }
         let object_path = object_store::path::Path::from(path.to_string_lossy().as_ref());
         segments.push(SegmentFileInfo {
-            segment_ord: i as i32,
+            writer_generation: i as i64,
             max_doc: seg_rows as i64,
             object_path,
             parquet_size: size,

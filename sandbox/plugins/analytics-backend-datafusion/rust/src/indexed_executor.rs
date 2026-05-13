@@ -535,15 +535,15 @@ pub async unsafe fn execute_indexed_with_context(
                 move |segment: &SegmentFileInfo, chunk, stream_metrics: &StreamMetrics| {
                     let collector = FfmSegmentCollector::create(
                         provider.key(),
-                        segment.segment_ord,
+                        segment.writer_generation,
                         chunk.doc_min,
                         chunk.doc_max,
                     )
                         .map_err(|e| {
                             format!(
-                                "FfmSegmentCollector::create(provider={}, seg={}, doc_range=[{},{})): {}",
+                                "FfmSegmentCollector::create(provider={}, writer_generation={}, doc_range=[{},{})): {}",
                                 provider.key(),
-                                segment.segment_ord,
+                                segment.writer_generation,
                                 chunk.doc_min,
                                 chunk.doc_max,
                                 e
@@ -620,7 +620,7 @@ pub async unsafe fn execute_indexed_with_context(
                     for (idx, provider) in providers.iter().enumerate() {
                         let collector = FfmSegmentCollector::create(
                             provider.key(),
-                            segment.segment_ord,
+                            segment.writer_generation,
                             chunk.doc_min,
                             chunk.doc_max,
                         )
@@ -632,7 +632,7 @@ pub async unsafe fn execute_indexed_with_context(
                     }
 
                     let resolved = tree.resolve(&per_leaf).map_err(|e| {
-                        format!("tree.resolve for segment {}: {}", segment.segment_ord, e)
+                        format!("tree.resolve for segment gen={}: {}", segment.writer_generation, e)
                     })?;
                     let resolved = Arc::new(resolved);
 
