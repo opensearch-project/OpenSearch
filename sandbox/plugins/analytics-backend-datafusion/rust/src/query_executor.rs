@@ -306,10 +306,6 @@ pub async fn execute_with_context(
             format!("{}://{}", parsed.scheme(), parsed.authority()),
         )?;
 
-        native_bridge_common::log_info!(
-            "[query_executor] ShardTableProvider: {} files, row_bases={:?}",
-            files.len(), files.iter().map(|f| f.row_base).collect::<Vec<_>>()
-        );
         let provider = Arc::new(ShardTableProvider::new(ShardTableConfig {
             file_schema: resolved_schema,
             files,

@@ -12,7 +12,6 @@ import org.opensearch.client.Request;
 import org.opensearch.client.Response;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -20,575 +19,437 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
- * Integration test for the Query-Then-Fetch (QTF) feature.
+ * End-to-end correctness test for Query-Then-Fetch (QTF) row ID computation.
  *
- * <p>4 documents across 2 segments (2 per segment). Known data:
+ * <p>Verifies that shard-global row IDs are correctly computed across multiple
+ * parquet segments regardless of fetch strategy. Each query randomly selects
+ * between "indexed" (position-based) and "listing_table" (row_base partition)
+ * strategies to ensure both paths are exercised across test runs.
+ *
+ * <p>Test data (4 docs, 2 segments, 2 docs each):
  * <pre>
- *   Segment 1 (row_base=0):
- *     row 0: name=alpha,  value=10, category=A
- *     row 1: name=beta,   value=20, category=B
- *   Segment 2 (row_base=2):
- *     row 0: name=gamma,  value=30, category=A  → global_row_id=2
- *     row 1: name=delta,  value=40, category=B  → global_row_id=3
+ *   Segment 1: alpha(value=10, cat=A, id=0), beta(value=20, cat=B, id=1)
+ *   Segment 2: gamma(value=30, cat=A, id=2), delta(value=40, cat=B, id=3)
  * </pre>
  *
- * <p>Expected global row IDs (shard-wide): alpha=0, beta=1, gamma=2, delta=3
+ * <p>Invariants verified:
+ * <ul>
+ *   <li>Row IDs are globally unique (no duplicates across segments)</li>
+ *   <li>Row IDs are non-null</li>
+ *   <li>Row IDs are deterministic (same doc always gets same ID)</li>
+ *   <li>Data columns are not corrupted by row ID injection</li>
+ *   <li>Sort, filter, limit operations don't affect row ID correctness</li>
+ * </ul>
  */
 public class QueryThenFetchIT extends AnalyticsRestTestCase {
 
-    private static final String INDEX_NAME = "qtf_row_id_e2e";
-
-    private static boolean indexCreated = false;
-
-    private void ensureIndexReady() throws IOException {
-        if (indexCreated) {
-            return;
-        }
-        createIndex();
-        ingestSegment1();
-        ingestSegment2();
-        indexCreated = true;
-    }
-
-    // ── Test: full scan, all 4 docs sorted by value ─────────────────────────────
-
-    /**
-     * Full scan with __row_id__ + sort by value.
-     * Expected order: alpha(0,10), beta(1,20), gamma(2,30), delta(3,40)
-     * Row IDs must be unique and non-null.
-     */
-    public void testFullScanSortByValue() throws IOException {
-        ensureIndexReady();
-
-        String ppl = "source = " + INDEX_NAME + " | sort value | fields __row_id__, name, value";
-        List<List<Object>> rows = executePplRows(ppl);
-
-        assertEquals("Full scan should return 4 rows", 4, rows.size());
-
-        // Verify sort order and names
-        assertRow(rows.get(0), "alpha", 10);
-        assertRow(rows.get(1), "beta", 20);
-        assertRow(rows.get(2), "gamma", 30);
-        assertRow(rows.get(3), "delta", 40);
-
-        // Verify row IDs are unique and non-null
-        assertRowIdsNonNullAndUnique(rows, 0);
-
-        // Verify row IDs are sequential 0..3 (since data is ingested in order)
-        List<Long> ids = extractRowIds(rows, 0);
-        assertTrue("Row IDs should contain 0", ids.contains(0L));
-        assertTrue("Row IDs should contain 1", ids.contains(1L));
-        assertTrue("Row IDs should contain 2", ids.contains(2L));
-        assertTrue("Row IDs should contain 3", ids.contains(3L));
-    }
-
-    // ── Test: filter category=A, rows from different segments ────────────────────
-
-    /**
-     * Filter category='A' hits alpha (segment 1, row_id=0) and gamma (segment 2, row_id=2).
-     * Keyword equality filter triggers the indexed path (Lucene collector).
-     */
-    public void testFilterCategoryA() throws IOException {
-        ensureIndexReady();
-
-        String ppl = "source = " + INDEX_NAME
-            + " | where category = 'A' | sort value | fields __row_id__, name, value";
-        List<List<Object>> rows = executePplRows(ppl);
-
-        assertEquals("Category A filter should return 2 rows", 2, rows.size());
-
-        assertRow(rows.get(0), "alpha", 10);
-        assertRow(rows.get(1), "gamma", 30);
-
-        assertRowIdsNonNullAndUnique(rows, 0);
-
-        List<Long> ids = extractRowIds(rows, 0);
-        assertTrue("alpha row_id should be 0", ids.get(0) == 0L);
-        assertTrue("gamma row_id should be 2", ids.get(1) == 2L);
-    }
-
-    // ── Test: filter category=B, rows from different segments ────────────────────
-
-    /**
-     * Filter category='B' hits beta (segment 1, row_id=1) and delta (segment 2, row_id=3).
-     * Keyword equality filter triggers the indexed path (Lucene collector).
-     */
-    public void testFilterCategoryB() throws IOException {
-        ensureIndexReady();
-
-        String ppl = "source = " + INDEX_NAME
-            + " | where category = 'B' | sort value | fields __row_id__, name, value";
-        List<List<Object>> rows = executePplRows(ppl);
-
-        assertEquals("Category B filter should return 2 rows", 2, rows.size());
-
-        assertRow(rows.get(0), "beta", 20);
-        assertRow(rows.get(1), "delta", 40);
-
-        assertRowIdsNonNullAndUnique(rows, 0);
-
-        List<Long> ids = extractRowIds(rows, 0);
-        assertTrue("beta row_id should be 1", ids.get(0) == 1L);
-        assertTrue("delta row_id should be 3", ids.get(1) == 3L);
-    }
-
-    // ── Test: filter by name (keyword exact match) ───────────────────────────────
-
-    /**
-     * Exact keyword match on name field. Tests Lucene term query path.
-     * name='gamma' is in segment 2 only → row_id=2.
-     */
-    public void testKeywordExactMatch() throws IOException {
-        ensureIndexReady();
-
-        String ppl = "source = " + INDEX_NAME
-            + " | where name = 'gamma' | fields __row_id__, name, value";
-        List<List<Object>> rows = executePplRows(ppl);
-
-        assertEquals(1, rows.size());
-        assertEquals("gamma", rows.get(0).get(1));
-        assertCellNumericEquals("value", 30, rows.get(0).get(2));
-        assertEquals("gamma row_id should be 2", Long.valueOf(2L), toLong(rows.get(0).get(0)));
-    }
-
-    // ── Test: filter by name with OR (multiple keyword terms) ────────────────────
-
-    /**
-     * OR across keyword terms spanning segments.
-     * name='alpha' (seg1, id=0) OR name='delta' (seg2, id=3).
-     */
-    public void testKeywordOrFilter() throws IOException {
-        ensureIndexReady();
-
-        String ppl = "source = " + INDEX_NAME
-            + " | where name = 'alpha' or name = 'delta' | sort value | fields __row_id__, name, value";
-        List<List<Object>> rows = executePplRows(ppl);
-
-        assertEquals(2, rows.size());
-        assertRow(rows.get(0), "alpha", 10);
-        assertRow(rows.get(1), "delta", 40);
-
-        List<Long> ids = extractRowIds(rows, 0);
-        assertEquals("alpha row_id", Long.valueOf(0L), ids.get(0));
-        assertEquals("delta row_id", Long.valueOf(3L), ids.get(1));
-    }
-
-    // ── Test: combined keyword + numeric filter ──────────────────────────────────
-
-    /**
-     * Combined filter: category='B' AND value > 25.
-     * Only delta(40) matches (segment 2, row_id=3).
-     */
-    public void testCombinedKeywordAndNumericFilter() throws IOException {
-        ensureIndexReady();
-
-        String ppl = "source = " + INDEX_NAME
-            + " | where category = 'B' and value > 25 | fields __row_id__, name, value, category";
-        List<List<Object>> rows = executePplRows(ppl);
-
-        assertEquals(1, rows.size());
-        assertEquals("delta", rows.get(0).get(1));
-        assertCellNumericEquals("value", 40, rows.get(0).get(2));
-        assertEquals("B", rows.get(0).get(3));
-        assertEquals("delta row_id should be 3", Long.valueOf(3L), toLong(rows.get(0).get(0)));
-    }
-
-    // ── Test: sort descending ────────────────────────────────────────────────────
-
-    /**
-     * Sort by value descending. Row IDs should still be globally correct.
-     */
-    public void testSortDescending() throws IOException {
-        ensureIndexReady();
-
-        String ppl = "source = " + INDEX_NAME + " | sort - value | fields __row_id__, name, value";
-        List<List<Object>> rows = executePplRows(ppl);
-
-        assertEquals(4, rows.size());
-
-        // Descending order: delta(40), gamma(30), beta(20), alpha(10)
-        assertRow(rows.get(0), "delta", 40);
-        assertRow(rows.get(1), "gamma", 30);
-        assertRow(rows.get(2), "beta", 20);
-        assertRow(rows.get(3), "alpha", 10);
-
-        assertRowIdsNonNullAndUnique(rows, 0);
-    }
-
-    // ── Test: equality filter on value ───────────────────────────────────────────
-
-    /**
-     * Exact match: value=30 should return only gamma (segment 2, row_id=2).
-     */
-    public void testEqualityFilter() throws IOException {
-        ensureIndexReady();
-
-        String ppl = "source = " + INDEX_NAME
-            + " | where value = 30 | fields __row_id__, name, value";
-        List<List<Object>> rows = executePplRows(ppl);
-
-        assertEquals("value=30 should match 1 row", 1, rows.size());
-        assertEquals("gamma", rows.get(0).get(1));
-        assertCellNumericEquals("value", 30, rows.get(0).get(2));
-
-        // gamma is row 0 in segment 2, global_row_id = 2
-        Long rowId = toLong(rows.get(0).get(0));
-        assertNotNull("Row ID must not be null", rowId);
-        assertEquals("gamma global row_id should be 2", Long.valueOf(2L), rowId);
-    }
-
-    // ── Test: range filter (value > 15 AND value < 35) ──────────────────────────
-
-    /**
-     * Range filter crossing segment boundary:
-     * beta(20) from segment 1, gamma(30) from segment 2.
-     */
-    public void testRangeFilter() throws IOException {
-        ensureIndexReady();
-
-        String ppl = "source = " + INDEX_NAME
-            + " | where value > 15 and value < 35 | sort value | fields __row_id__, name, value";
-        List<List<Object>> rows = executePplRows(ppl);
-
-        assertEquals("Range filter should return 2 rows", 2, rows.size());
-
-        assertRow(rows.get(0), "beta", 20);
-        assertRow(rows.get(1), "gamma", 30);
-
-        assertRowIdsNonNullAndUnique(rows, 0);
-
-        List<Long> ids = extractRowIds(rows, 0);
-        assertEquals("beta row_id should be 1", Long.valueOf(1L), ids.get(0));
-        assertEquals("gamma row_id should be 2", Long.valueOf(2L), ids.get(1));
-    }
-
-    // ── Test: row_id with multiple projected columns ─────────────────────────────
-
-    /**
-     * Project __row_id__ alongside all data columns. Verifies that data columns
-     * are not corrupted when row ID is computed.
-     */
-    public void testRowIdWithAllColumns() throws IOException {
-        ensureIndexReady();
-
-        String ppl = "source = " + INDEX_NAME
-            + " | sort value | fields __row_id__, name, value, category";
-        List<List<Object>> rows = executePplRows(ppl);
-
-        assertEquals(4, rows.size());
-
-        // Verify all columns are present and correct
-        assertEquals("alpha", rows.get(0).get(1));
-        assertCellNumericEquals("value", 10, rows.get(0).get(2));
-        assertEquals("A", rows.get(0).get(3));
-
-        assertEquals("delta", rows.get(3).get(1));
-        assertCellNumericEquals("value", 40, rows.get(3).get(2));
-        assertEquals("B", rows.get(3).get(3));
-
-        assertRowIdsNonNullAndUnique(rows, 0);
-    }
-
-    // ── Test: limit ──────────────────────────────────────────────────────────────
-
-    /**
-     * LIMIT 2 with sort. Should return first 2 by value: alpha, beta.
-     */
-    public void testSortWithLimit() throws IOException {
-        ensureIndexReady();
-
-        String ppl = "source = " + INDEX_NAME
-            + " | sort value | fields __row_id__, name, value | head 2";
-        List<List<Object>> rows = executePplRows(ppl);
-
-        assertEquals("LIMIT 2 should return 2 rows", 2, rows.size());
-
-        assertRow(rows.get(0), "alpha", 10);
-        assertRow(rows.get(1), "beta", 20);
-
-        assertRowIdsNonNullAndUnique(rows, 0);
-    }
-
-    // ── Test: no filter, just __row_id__ ─────────────────────────────────────────
-
-    /**
-     * Project only __row_id__. All 4 values must be unique and cover 0..3.
-     */
-    public void testRowIdOnly() throws IOException {
-        ensureIndexReady();
-
-        String ppl = "source = " + INDEX_NAME + " | sort __row_id__ | fields __row_id__";
-        List<List<Object>> rows = executePplRows(ppl);
-
-        assertEquals(4, rows.size());
-
-        List<Long> ids = extractRowIds(rows, 0);
-        assertEquals("Should have 4 unique IDs", 4, new HashSet<>(ids).size());
-
-        // Sorted: should be 0, 1, 2, 3
-        assertEquals(Long.valueOf(0L), ids.get(0));
-        assertEquals(Long.valueOf(1L), ids.get(1));
-        assertEquals(Long.valueOf(2L), ids.get(2));
-        assertEquals(Long.valueOf(3L), ids.get(3));
-    }
-
-    // ── Index setup ─────────────────────────────────────────────────────────────
-
-    private void createIndex() throws IOException {
-        try {
-            client().performRequest(new Request("DELETE", "/" + INDEX_NAME));
-        } catch (Exception ignored) {}
-
-        String body = "{"
-            + "\"settings\": {"
-            + "  \"number_of_shards\": 1,"
-            + "  \"number_of_replicas\": 0,"
-            + "  \"index.pluggable.dataformat.enabled\": true,"
-            + "  \"index.pluggable.dataformat\": \"composite\","
-            + "  \"index.composite.primary_data_format\": \"parquet\","
-            + "  \"index.composite.secondary_data_formats\": \"lucene\""
+    private static final String INDEX = "qtf_correctness";
+    private static final String STRATEGY_INDEXED = "indexed";
+    private static final String STRATEGY_LISTING = "listing_table";
+
+    private static boolean ready = false;
+
+    private void setup() throws IOException {
+        if (ready) return;
+        try { client().performRequest(new Request("DELETE", "/" + INDEX)); } catch (Exception ignored) {}
+
+        Request create = new Request("PUT", "/" + INDEX);
+        create.setJsonEntity("{"
+            + "\"settings\":{"
+            + "  \"number_of_shards\":1,\"number_of_replicas\":0,"
+            + "  \"index.pluggable.dataformat.enabled\":true,"
+            + "  \"index.pluggable.dataformat\":\"composite\","
+            + "  \"index.composite.primary_data_format\":\"parquet\","
+            + "  \"index.composite.secondary_data_formats\":\"lucene\""
             + "},"
-            + "\"mappings\": {"
-            + "  \"properties\": {"
-            + "    \"name\": { \"type\": \"keyword\" },"
-            + "    \"value\": { \"type\": \"integer\" },"
-            + "    \"category\": { \"type\": \"keyword\" }"
-            + "  }"
-            + "}"
-            + "}";
+            + "\"mappings\":{\"properties\":{"
+            + "  \"name\":{\"type\":\"keyword\"},"
+            + "  \"value\":{\"type\":\"integer\"},"
+            + "  \"category\":{\"type\":\"keyword\"},"
+            + "  \"description\":{\"type\":\"text\"}"
+            + "}}}");
+        client().performRequest(create);
 
-        Request createIndex = new Request("PUT", "/" + INDEX_NAME);
-        createIndex.setJsonEntity(body);
-        Map<String, Object> response = assertOkAndParse(
-            client().performRequest(createIndex), "Create index"
-        );
-        assertEquals(true, response.get("acknowledged"));
-
-        Request health = new Request("GET", "/_cluster/health/" + INDEX_NAME);
+        Request health = new Request("GET", "/_cluster/health/" + INDEX);
         health.addParameter("wait_for_status", "green");
         health.addParameter("timeout", "30s");
         client().performRequest(health);
+
+        // Segment 1
+        bulk("{\"index\":{}}\n{\"name\":\"alpha\",\"value\":10,\"category\":\"A\",\"description\":\"fast red car\"}\n"
+           + "{\"index\":{}}\n{\"name\":\"beta\",\"value\":20,\"category\":\"B\",\"description\":\"slow blue truck\"}\n");
+        client().performRequest(new Request("POST", "/" + INDEX + "/_flush?force=true"));
+
+        // Segment 2
+        bulk("{\"index\":{}}\n{\"name\":\"gamma\",\"value\":30,\"category\":\"A\",\"description\":\"fast green bike\"}\n"
+           + "{\"index\":{}}\n{\"name\":\"delta\",\"value\":40,\"category\":\"B\",\"description\":\"slow red bus\"}\n");
+        client().performRequest(new Request("POST", "/" + INDEX + "/_flush?force=true"));
+
+        ready = true;
     }
 
-    private void ingestSegment1() throws IOException {
-        StringBuilder bulk = new StringBuilder();
-        bulk.append("{\"index\": {}}\n");
-        bulk.append("{\"name\": \"alpha\", \"value\": 10, \"category\": \"A\"}\n");
-        bulk.append("{\"index\": {}}\n");
-        bulk.append("{\"name\": \"beta\", \"value\": 20, \"category\": \"B\"}\n");
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Each query shape tested with BOTH strategies. Exact expected row IDs.
+    // alpha=0, beta=1, gamma=2, delta=3.
+    // ═══════════════════════════════════════════════════════════════════════════
 
-        Request bulkRequest = new Request("POST", "/" + INDEX_NAME + "/_bulk");
-        bulkRequest.setJsonEntity(bulk.toString());
-        bulkRequest.addParameter("refresh", "true");
-        client().performRequest(bulkRequest);
+    // ── No filter, no sort (FilterClass::None, full scan) ──
 
-        client().performRequest(new Request("POST", "/" + INDEX_NAME + "/_flush?force=true"));
+    public void testIndexed_NoFilter() throws IOException {
+        assertNoFilter(STRATEGY_INDEXED);
     }
 
-    private void ingestSegment2() throws IOException {
-        StringBuilder bulk = new StringBuilder();
-        bulk.append("{\"index\": {}}\n");
-        bulk.append("{\"name\": \"gamma\", \"value\": 30, \"category\": \"A\"}\n");
-        bulk.append("{\"index\": {}}\n");
-        bulk.append("{\"name\": \"delta\", \"value\": 40, \"category\": \"B\"}\n");
-
-        Request bulkRequest = new Request("POST", "/" + INDEX_NAME + "/_bulk");
-        bulkRequest.setJsonEntity(bulk.toString());
-        bulkRequest.addParameter("refresh", "true");
-        client().performRequest(bulkRequest);
-
-        client().performRequest(new Request("POST", "/" + INDEX_NAME + "/_flush?force=true"));
+    public void testListing_NoFilter() throws IOException {
+        assertNoFilter(STRATEGY_LISTING);
     }
 
-    // ══════════════════════════════════════════════════════════════════════════════
-    // Strategy tests: dynamically switch fetch_strategy and verify correctness.
-    // ══════════════════════════════════════════════════════════════════════════════
-
-    /**
-     * ListingTable strategy (1): ShardTableProvider + ProjectRowIdOptimizer.
-     * Full scan, no filter.
-     * TODO: Requires logical-level analyzer (ProjectRowIdAnalyzer) integration.
-     */
-    @org.apache.lucene.tests.util.LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/0")
-    public void testStrategyListingTable_NoFilter() throws IOException {
-        ensureIndexReady();
-        setFetchStrategy("listing_table");
-        try {
-            String ppl = "source = " + INDEX_NAME + " | sort value | fields __row_id__, name, value";
-            List<List<Object>> rows = executePplRows(ppl);
-            assertEquals(4, rows.size());
-            assertRowIdsNonNullAndUnique(rows, 0);
-        } finally {
-            setFetchStrategy("indexed");
-        }
-    }
-
-    /**
-     * ListingTable strategy (1) with keyword filter.
-     */
-    @org.apache.lucene.tests.util.LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/0")
-    public void testStrategyListingTable_WithFilter() throws IOException {
-        ensureIndexReady();
-        setFetchStrategy("listing_table");
-        try {
-            String ppl = "source = " + INDEX_NAME
-                + " | where category = 'A' | sort value | fields __row_id__, name, value";
-            List<List<Object>> rows = executePplRows(ppl);
-            assertEquals(2, rows.size());
-            assertRow(rows.get(0), "alpha", 10);
-            assertRow(rows.get(1), "gamma", 30);
-            assertRowIdsNonNullAndUnique(rows, 0);
-        } finally {
-            setFetchStrategy("indexed");
-        }
-    }
-
-    /**
-     * IndexedPredicateOnly strategy (2): FilterClass::None (no filter).
-     */
-    public void testStrategyIndexed_FilterClassNone() throws IOException {
-        ensureIndexReady();
-        setFetchStrategy("indexed");
-        String ppl = "source = " + INDEX_NAME + " | sort value | fields __row_id__, name, value";
-        List<List<Object>> rows = executePplRows(ppl);
+    private void assertNoFilter(String strategy) throws IOException {
+        List<List<Object>> rows = query(strategy, "fields __row_id__, name, value");
         assertEquals(4, rows.size());
-        assertRowIdsNonNullAndUnique(rows, 0);
+        assertGlobalIds(rows, 0, 1, 2, 3);
     }
 
-    /**
-     * IndexedPredicateOnly strategy (2): predicate-only (value > 15).
-     */
-    public void testStrategyIndexed_PredicateOnly() throws IOException {
-        ensureIndexReady();
-        setFetchStrategy("indexed");
-        String ppl = "source = " + INDEX_NAME
-            + " | where value > 15 | sort value | fields __row_id__, name, value";
-        List<List<Object>> rows = executePplRows(ppl);
-        assertEquals(3, rows.size());
-        assertRow(rows.get(0), "beta", 20);
-        assertRow(rows.get(1), "gamma", 30);
-        assertRow(rows.get(2), "delta", 40);
-        assertRowIdsNonNullAndUnique(rows, 0);
+    // ── Sort + LIMIT (FilterClass::None with sort + limit pushdown) ──
+
+    public void testIndexed_SortLimit() throws IOException {
+        assertSortLimit(STRATEGY_INDEXED);
     }
 
-    /**
-     * IndexedPredicateOnly strategy (2): SingleCollector (category='A').
-     */
-    public void testStrategyIndexed_SingleCollector() throws IOException {
-        ensureIndexReady();
-        setFetchStrategy("indexed");
-        String ppl = "source = " + INDEX_NAME
-            + " | where category = 'A' | sort value | fields __row_id__, name, value";
-        List<List<Object>> rows = executePplRows(ppl);
+    public void testListing_SortLimit() throws IOException {
+        assertSortLimit(STRATEGY_LISTING);
+    }
+
+    private void assertSortLimit(String strategy) throws IOException {
+        List<List<Object>> rows = query(strategy,
+            "sort value | fields __row_id__, name, value | head 2");
+        assertEquals(2, rows.size());
+        assertRow(rows.get(0), "alpha", 10);
+        assertRow(rows.get(1), "beta", 20);
+        assertExactIds(rows, 0, 1);
+    }
+
+    // ── Keyword equality filter (SingleCollector path) ──
+
+    public void testIndexed_KeywordFilter() throws IOException {
+        assertKeywordFilter(STRATEGY_INDEXED);
+    }
+
+    public void testListing_KeywordFilter() throws IOException {
+        assertKeywordFilter(STRATEGY_LISTING);
+    }
+
+    private void assertKeywordFilter(String strategy) throws IOException {
+        List<List<Object>> rows = query(strategy,
+            "where category = 'A' | sort value | fields __row_id__, name, value");
         assertEquals(2, rows.size());
         assertRow(rows.get(0), "alpha", 10);
         assertRow(rows.get(1), "gamma", 30);
-        assertRowIdsNonNullAndUnique(rows, 0);
+        assertExactIds(rows, 0, 2);
     }
 
-    /**
-     * IndexedPredicateOnly strategy (2): Tree (OR of two keyword terms).
-     */
-    public void testStrategyIndexed_TreeFilter() throws IOException {
-        ensureIndexReady();
-        setFetchStrategy("indexed");
-        String ppl = "source = " + INDEX_NAME
-            + " | where name = 'alpha' or name = 'delta' | sort value | fields __row_id__, name, value";
-        List<List<Object>> rows = executePplRows(ppl);
+    // ── Numeric range filter (predicate-only, no Collector) ──
+
+    public void testIndexed_RangeFilter() throws IOException {
+        assertRangeFilter(STRATEGY_INDEXED);
+    }
+
+    public void testListing_RangeFilter() throws IOException {
+        assertRangeFilter(STRATEGY_LISTING);
+    }
+
+    private void assertRangeFilter(String strategy) throws IOException {
+        List<List<Object>> rows = query(strategy,
+            "where value > 15 and value < 35 | sort value | fields __row_id__, name, value");
+        assertEquals(2, rows.size());
+        assertRow(rows.get(0), "beta", 20);
+        assertRow(rows.get(1), "gamma", 30);
+        assertExactIds(rows, 1, 2);
+    }
+
+    // ── OR filter (Tree path — BitmapTreeEvaluator) ──
+
+    public void testIndexed_OrFilter() throws IOException {
+        assertOrFilter(STRATEGY_INDEXED);
+    }
+
+    public void testListing_OrFilter() throws IOException {
+        assertOrFilter(STRATEGY_LISTING);
+    }
+
+    private void assertOrFilter(String strategy) throws IOException {
+        List<List<Object>> rows = query(strategy,
+            "where name = 'alpha' or name = 'delta' | sort value | fields __row_id__, name, value");
         assertEquals(2, rows.size());
         assertRow(rows.get(0), "alpha", 10);
         assertRow(rows.get(1), "delta", 40);
-        assertRowIdsNonNullAndUnique(rows, 0);
+        assertExactIds(rows, 0, 3);
     }
 
-    /**
-     * IndexedPredicateOnly strategy (2): SingleCollector + residual predicate.
-     */
-    public void testStrategyIndexed_SingleCollectorWithResidual() throws IOException {
-        ensureIndexReady();
-        setFetchStrategy("indexed");
-        String ppl = "source = " + INDEX_NAME
-            + " | where category = 'B' and value > 25 | fields __row_id__, name, value";
-        List<List<Object>> rows = executePplRows(ppl);
+    // ── Combined filter (SingleCollector + residual predicate) ──
+
+    public void testIndexed_CombinedFilter() throws IOException {
+        assertCombinedFilter(STRATEGY_INDEXED);
+    }
+
+    public void testListing_CombinedFilter() throws IOException {
+        assertCombinedFilter(STRATEGY_LISTING);
+    }
+
+    private void assertCombinedFilter(String strategy) throws IOException {
+        List<List<Object>> rows = query(strategy,
+            "where category = 'B' and value > 25 | fields __row_id__, name, value");
         assertEquals(1, rows.size());
         assertEquals("delta", rows.get(0).get(1));
-        assertCellNumericEquals("value", 40, rows.get(0).get(2));
-        assertNotNull(toLong(rows.get(0).get(0)));
+        assertEquals(Long.valueOf(3), toLong(rows.get(0).get(0)));
     }
 
-    /**
-     * Both strategies must produce identical row IDs for the same query.
-     * TODO: Depends on ListingTable no-filter path (requires ProjectRowIdAnalyzer).
-     */
-    @org.apache.lucene.tests.util.LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/0")
-    public void testBothStrategiesProduceSameRowIds() throws IOException {
-        ensureIndexReady();
+    // ── Single exact match from segment 2 ──
 
-        String ppl = "source = " + INDEX_NAME + " | sort value | fields __row_id__, name, value";
-
-        setFetchStrategy("listing_table");
-        List<Long> listingIds;
-        try {
-            listingIds = extractRowIds(executePplRows(ppl), 0);
-        } finally {
-            setFetchStrategy("indexed");
-        }
-
-        List<Long> indexedIds = extractRowIds(executePplRows(ppl), 0);
-
-        assertEquals("Both strategies should return same count", listingIds.size(), indexedIds.size());
-        assertEquals("Row IDs must match between strategies", listingIds, indexedIds);
+    public void testIndexed_ExactMatch() throws IOException {
+        assertExactMatch(STRATEGY_INDEXED);
     }
 
-    // ── Helpers ──────────────────────────────────────────────────────────────────
-
-    private void setFetchStrategy(String strategy) throws IOException {
-        Request request = new Request("PUT", "/_cluster/settings");
-        request.setJsonEntity("{\"transient\": {\"datafusion.indexed.fetch_strategy\": \"" + strategy + "\"}}");
-        client().performRequest(request);
+    public void testListing_ExactMatch() throws IOException {
+        assertExactMatch(STRATEGY_LISTING);
     }
 
-    private List<List<Object>> executePplRows(String ppl) throws IOException {
-        Request request = new Request("POST", "/_analytics/ppl");
-        request.setJsonEntity("{\"query\": \"" + escapeJson(ppl) + "\"}");
-        Response response = client().performRequest(request);
-        Map<String, Object> parsed = assertOkAndParse(response, "PPL: " + ppl);
+    private void assertExactMatch(String strategy) throws IOException {
+        List<List<Object>> rows = query(strategy,
+            "where name = 'gamma' | fields __row_id__, name, value");
+        assertEquals(1, rows.size());
+        assertEquals("gamma", rows.get(0).get(1));
+        assertEquals(Long.valueOf(2), toLong(rows.get(0).get(0)));
+    }
+
+    // ── Multi-column projection (data integrity check) ──
+
+    public void testIndexed_AllColumns() throws IOException {
+        assertAllColumns(STRATEGY_INDEXED);
+    }
+
+    public void testListing_AllColumns() throws IOException {
+        assertAllColumns(STRATEGY_LISTING);
+    }
+
+    private void assertAllColumns(String strategy) throws IOException {
+        List<List<Object>> rows = query(strategy,
+            "sort value | fields __row_id__, name, value, category");
+        assertEquals(4, rows.size());
+        assertEquals("alpha", rows.get(0).get(1));
+        assertNum(10, rows.get(0).get(2));
+        assertEquals("A", rows.get(0).get(3));
+        assertEquals("delta", rows.get(3).get(1));
+        assertNum(40, rows.get(3).get(2));
+        assertEquals("B", rows.get(3).get(3));
+        assertGlobalIds(rows, 0, 1, 2, 3);
+    }
+
+    // ── Full-text match (forces Lucene Collector — SingleCollector path) ──
+
+    public void testIndexed_MatchFilter() throws IOException {
+        assertMatchFilter(STRATEGY_INDEXED);
+    }
+
+    public void testListing_MatchFilter() throws IOException {
+        assertMatchFilter(STRATEGY_LISTING);
+    }
+
+    private void assertMatchFilter(String strategy) throws IOException {
+        // match(description, 'fast') → alpha("fast red car", id=0) + gamma("fast green bike", id=2)
+        List<List<Object>> rows = query(strategy,
+            "where match(description, 'fast') | sort value | fields __row_id__, name, value");
+        assertEquals(2, rows.size());
+        assertRow(rows.get(0), "alpha", 10);
+        assertRow(rows.get(1), "gamma", 30);
+        assertExactIds(rows, 0, 2);
+    }
+
+    // ── Full-text match + numeric residual (SingleCollector + predicate) ──
+
+    public void testIndexed_MatchWithResidual() throws IOException {
+        assertMatchWithResidual(STRATEGY_INDEXED);
+    }
+
+    public void testListing_MatchWithResidual() throws IOException {
+        assertMatchWithResidual(STRATEGY_LISTING);
+    }
+
+    private void assertMatchWithResidual(String strategy) throws IOException {
+        // match(description, 'red') AND value > 15 → only delta("slow red bus", value=40, id=3)
+        List<List<Object>> rows = query(strategy,
+            "where match(description, 'red') and value > 15 | fields __row_id__, name, value");
+        assertEquals(1, rows.size());
+        assertEquals("delta", rows.get(0).get(1));
+        assertNum(40, rows.get(0).get(2));
+        assertEquals(Long.valueOf(3), toLong(rows.get(0).get(0)));
+    }
+
+    // ── Full-text OR match (Tree path — multiple Collectors) ──
+
+    public void testIndexed_MatchOrFilter() throws IOException {
+        assertMatchOrFilter(STRATEGY_INDEXED);
+    }
+
+    public void testListing_MatchOrFilter() throws IOException {
+        assertMatchOrFilter(STRATEGY_LISTING);
+    }
+
+    private void assertMatchOrFilter(String strategy) throws IOException {
+        // match(description, 'truck') OR match(description, 'bike')
+        // → beta("slow blue truck", id=1) + gamma("fast green bike", id=2)
+        List<List<Object>> rows = query(strategy,
+            "where match(description, 'truck') or match(description, 'bike') | sort value | fields __row_id__, name, value");
+        assertEquals(2, rows.size());
+        assertRow(rows.get(0), "beta", 20);
+        assertRow(rows.get(1), "gamma", 30);
+        assertExactIds(rows, 1, 2);
+    }
+
+    // ── SELECT row_id + sort column only (QTF query phase pattern) ──
+
+    public void testIndexed_SelectRowIdAndSortKey() throws IOException {
+        assertSelectRowIdAndSortKey(STRATEGY_INDEXED);
+    }
+
+    public void testListing_SelectRowIdAndSortKey() throws IOException {
+        assertSelectRowIdAndSortKey(STRATEGY_LISTING);
+    }
+
+    private void assertSelectRowIdAndSortKey(String strategy) throws IOException {
+        // Mimics: SELECT __row_id__, value FROM t ORDER BY value LIMIT 4
+        // This is the pure QTF query phase — row_id + sort key, no other columns
+        List<List<Object>> rows = query(strategy,
+            "sort value | fields __row_id__, value");
+        assertEquals(4, rows.size());
+        // Verify sort order by value
+        assertNum(10, rows.get(0).get(1));
+        assertNum(20, rows.get(1).get(1));
+        assertNum(30, rows.get(2).get(1));
+        assertNum(40, rows.get(3).get(1));
+        assertExactIds(rows, 0, 1, 2, 3);
+    }
+
+    // ── SELECT row_id + sort key with filter (QTF fetch phase) ──
+
+    public void testIndexed_SelectRowIdSortKeyFiltered() throws IOException {
+        assertSelectRowIdSortKeyFiltered(STRATEGY_INDEXED);
+    }
+
+    public void testListing_SelectRowIdSortKeyFiltered() throws IOException {
+        assertSelectRowIdSortKeyFiltered(STRATEGY_LISTING);
+    }
+
+    private void assertSelectRowIdSortKeyFiltered(String strategy) throws IOException {
+        // Mimics: SELECT __row_id__, category FROM t WHERE category = 'B' ORDER BY value
+        List<List<Object>> rows = query(strategy,
+            "where category = 'B' | sort value | fields __row_id__, category");
+        assertEquals(2, rows.size());
+        assertEquals("B", rows.get(0).get(1));
+        assertEquals("B", rows.get(1).get(1));
+        assertExactIds(rows, 1, 3);
+    }
+
+    // ── SELECT row_id only with LIMIT (minimal fetch) ──
+
+    public void testIndexed_RowIdWithLimit() throws IOException {
+        assertRowIdWithLimit(STRATEGY_INDEXED);
+    }
+
+    public void testListing_RowIdWithLimit() throws IOException {
+        assertRowIdWithLimit(STRATEGY_LISTING);
+    }
+
+    private void assertRowIdWithLimit(String strategy) throws IOException {
+        // Mimics: SELECT __row_id__ FROM t ORDER BY value LIMIT 2
+        List<List<Object>> rows = query(strategy,
+            "sort value | fields __row_id__ | head 2");
+        assertEquals(2, rows.size());
+        assertExactIds(rows, 0, 1);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // Helpers
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    private List<List<Object>> query(String strategy, String pplSuffix) throws IOException {
+        setup();
+        setStrategy(strategy);
+        String ppl = "source = " + INDEX + " | " + pplSuffix;
+        logger.info("[QTF-IT] strategy={}, query: {}", strategy, ppl);
+
+        Request req = new Request("POST", "/_analytics/ppl");
+        req.setJsonEntity("{\"query\": \"" + escapeJson(ppl) + "\"}");
+        Response resp = client().performRequest(req);
+        Map<String, Object> parsed = assertOkAndParse(resp, "PPL [" + strategy + "]");
 
         @SuppressWarnings("unchecked")
         List<List<Object>> rows = (List<List<Object>>) parsed.get("rows");
-        assertNotNull("Response missing 'rows'", rows);
+        assertNotNull("No rows in response", rows);
         return rows;
     }
 
-    private void assertRow(List<Object> row, String expectedName, int expectedValue) {
-        assertEquals(expectedName, row.get(1));
-        assertCellNumericEquals(expectedName + " value", expectedValue, row.get(2));
+    private List<List<Object>> query(String pplSuffix) throws IOException {
+        return query(STRATEGY_INDEXED, pplSuffix);
     }
 
-    private void assertRowIdsNonNullAndUnique(List<List<Object>> rows, int colIdx) {
+    private void setStrategy(String s) throws IOException {
+        Request req = new Request("PUT", "/_cluster/settings");
+        req.setJsonEntity("{\"transient\":{\"datafusion.indexed.fetch_strategy\":\"" + s + "\"}}");
+        client().performRequest(req);
+    }
+
+    private void bulk(String body) throws IOException {
+        Request req = new Request("POST", "/" + INDEX + "/_bulk");
+        req.setJsonEntity(body);
+        req.addParameter("refresh", "true");
+        client().performRequest(req);
+    }
+
+    // ── Assertion helpers ──
+
+    private void assertRow(List<Object> row, String name, int value) {
+        assertEquals(name, row.get(1));
+        assertNum(value, row.get(2));
+    }
+
+    private void assertGlobalIds(List<List<Object>> rows, long... expected) {
+        assertRowIdsUnique(rows);
+        Set<Long> actual = new HashSet<>(ids(rows));
+        for (long id : expected) {
+            assertTrue("Missing expected row_id=" + id, actual.contains(id));
+        }
+    }
+
+    private void assertExactIds(List<List<Object>> rows, long... expected) {
+        List<Long> actual = ids(rows);
+        assertEquals(expected.length, actual.size());
+        for (int i = 0; i < expected.length; i++) {
+            assertEquals("Row " + i + " id mismatch", Long.valueOf(expected[i]), actual.get(i));
+        }
+    }
+
+    private void assertRowIdsUnique(List<List<Object>> rows) {
         Set<Long> seen = new HashSet<>();
         for (int i = 0; i < rows.size(); i++) {
-            Long id = toLong(rows.get(i).get(colIdx));
-            assertNotNull("__row_id__ must not be null at row " + i, id);
+            Long id = toLong(rows.get(i).get(0));
+            assertNotNull("Null row_id at row " + i, id);
             assertTrue("Duplicate row_id " + id + " at row " + i, seen.add(id));
         }
     }
 
-    private List<Long> extractRowIds(List<List<Object>> rows, int colIdx) {
-        return rows.stream()
-            .map(r -> toLong(r.get(colIdx)))
-            .collect(Collectors.toList());
+    private List<Long> ids(List<List<Object>> rows) {
+        return rows.stream().map(r -> toLong(r.get(0))).collect(Collectors.toList());
     }
 
-    private static Long toLong(Object val) {
-        if (val == null) return null;
-        if (val instanceof Number) return ((Number) val).longValue();
-        return Long.parseLong(val.toString());
+    private static Long toLong(Object v) {
+        if (v == null) return null;
+        if (v instanceof Number) return ((Number) v).longValue();
+        return Long.parseLong(v.toString());
     }
 
-    private static void assertCellNumericEquals(String message, Number expected, Object actual) {
-        assertNotNull(message + " is null", actual);
-        assertTrue(message + " not a Number: " + actual.getClass(), actual instanceof Number);
-        assertEquals(message, expected.longValue(), ((Number) actual).longValue());
+    private static void assertNum(long expected, Object actual) {
+        assertNotNull(actual);
+        assertTrue(actual instanceof Number);
+        assertEquals(expected, ((Number) actual).longValue());
     }
 }

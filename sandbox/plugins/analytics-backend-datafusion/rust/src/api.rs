@@ -415,13 +415,6 @@ pub async unsafe fn execute_query(
     let token = query_tracker::get_cancellation_token(context_id);
 
     let has_row_id = plan_bytes_mentions_row_id(plan_bytes);
-    native_bridge_common::log_info!(
-        "[api::execute_query] routing: is_indexed={}, has_row_id={} → path={}",
-        is_indexed, has_row_id,
-        if is_indexed { "indexed_executor (index_filter)" }
-        else if has_row_id { "indexed_executor (row_id)" }
-        else { "query_executor (vanilla)" }
-    );
 
     let query_future = async move {
         if is_indexed || has_row_id {
