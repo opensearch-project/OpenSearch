@@ -11,7 +11,7 @@ name = "opensearch_block_cache"
 crate-type = ["rlib"]
 
 [dependencies]
-foyer                = "0.22"
+foyer                = "=0.22.3"
 bytes                = { workspace = true }
 dashmap              = { workspace = true }
 tokio                = { workspace = true }

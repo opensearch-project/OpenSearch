@@ -89,6 +89,8 @@ public class DatafusionResultStream implements EngineResultStream {
         private Schema schema;
         private VectorSchemaRoot nextBatch;
         private Boolean nextAvailable;
+        private boolean batchEmitted;
+        private boolean nativeStreamExhausted;
 
         BatchIterator(StreamHandle streamHandle, BufferAllocator allocator, CDataDictionaryProvider dictionaryProvider) {
             this.streamHandle = streamHandle;
@@ -110,15 +112,28 @@ public class DatafusionResultStream implements EngineResultStream {
 
         private boolean loadNextBatch() {
             ensureSchema();
+            if (nativeStreamExhausted) return false;
             long arrayAddr = callNativeFn(
                 listener -> NativeBridge.streamNext(streamHandle.getRuntimeHandle().get(), streamHandle.getPointer(), listener)
             );
-            if (arrayAddr == 0) return false;
+            if (arrayAddr == 0) {
+                nativeStreamExhausted = true;
+                // Streaming Flight requires ≥1 schema-bearing frame before completeStream;
+                // synthesise a zero-row batch carrying the schema for empty native streams.
+                if (!batchEmitted) {
+                    nextBatch = VectorSchemaRoot.create(schema, allocator);
+                    nextBatch.setRowCount(0);
+                    batchEmitted = true;
+                    return true;
+                }
+                return false;
+            }
             VectorSchemaRoot freshRoot = VectorSchemaRoot.create(schema, allocator);
             try (ArrowArray arrowArray = ArrowArray.wrap(arrayAddr)) {
                 Data.importIntoVectorSchemaRoot(allocator, arrowArray, freshRoot, dictionaryProvider);
             }
             nextBatch = freshRoot;
+            batchEmitted = true;
             return true;
         }
 
@@ -138,6 +153,7 @@ public class DatafusionResultStream implements EngineResultStream {
             nextAvailable = null;
             VectorSchemaRoot batch = nextBatch;
             nextBatch = null;
+            batchEmitted = true;
             // Caller owns the returned VSR's lifecycle. Streaming handler transfers it to Flight
             // (Flight closes after wire write); row-path collector closes after reading.
             return new ArrowResultBatch(batch);

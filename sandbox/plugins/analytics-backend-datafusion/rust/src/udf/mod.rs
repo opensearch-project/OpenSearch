@@ -6,40 +6,49 @@
  * compatible open source license.
  */
 
-//! OpenSearch scalar UDFs that aren't in DataFusion's built-in registry. Each
-//! must have a matching YAML entry in `opensearch_scalar_functions.yaml` so
-//! the substrait converter on the Java side can route to it by name.
-//!
-//! Functions registered here:
-//! - `convert_tz(ts, from_tz, to_tz)` — DST-aware timezone shift (chrono-tz)
-//! - `json_array_length(value)` — length of a JSON array, NULL on malformed/non-array
+//! OpenSearch scalar UDFs not in DataFusion's builtins. Each registered UDF must
+//! have a matching YAML entry in `opensearch_scalar_functions.yaml`.
 
 use datafusion::arrow::datatypes::{DataType, TimeUnit};
 use datafusion::common::plan_err;
 use datafusion::error::Result;
 use datafusion::execution::context::SessionContext;
 
-/// Categories of input type a UDF slot can accept. Each mode declares a
-/// canonical target arrow type plus the set of sources that coerce to it.
-/// UDFs use `Signature::user_defined()` and call [`coerce_slot`] per
-/// argument position to produce the `coerce_types` output.
-///
-/// Invalid sources produce an explicit `plan_err!` — no silent fallback. The
-/// failure message names the UDF, the slot index, the observed type and the
-/// expected canonical type so planning errors are actionable.
+/// Emit the `Default`, `PartialEq`, `Eq`, and `Hash` impls every stateless
+/// UDF needs. All instances of the same UDF type are semantically identical
+/// — they compare equal and hash to a single name-derived stable value.
+macro_rules! udf_identity {
+    ($udf:ident, $name:literal) => {
+        impl Default for $udf {
+            fn default() -> Self {
+                Self::new()
+            }
+        }
+        impl PartialEq for $udf {
+            fn eq(&self, _: &Self) -> bool {
+                true
+            }
+        }
+        impl Eq for $udf {}
+        impl std::hash::Hash for $udf {
+            fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+                $name.hash(state);
+            }
+        }
+    };
+}
+pub(crate) use udf_identity;
+
+/// Input-type categories for UDF argument slots. Each mode declares a canonical
+/// arrow target type plus the set of sources that coerce to it; invalid sources
+/// produce a `plan_err!` naming the UDF, slot index, and observed type.
 #[derive(Clone, Copy, Debug)]
 #[allow(dead_code)]
 pub(crate) enum CoerceMode {
-    /// Accept Utf8 / Date32 / Timestamp(any precision, any tz) → canonicalize
-    /// to Timestamp(Millisecond, None). DF has built-in casts for each source.
     TimestampMs,
-    /// Accept Utf8 / Date32 / Timestamp(any, any) → canonicalize to Date32.
     Date32,
-    /// Accept any integer or float → Int64.
     Int64,
-    /// Accept any integer or float → Float64.
     Float64,
-    /// Accept Utf8 / LargeUtf8 / Utf8View → Utf8.
     Utf8,
 }
 
@@ -71,23 +80,21 @@ pub(crate) fn coerce_slot(
             Int8 | Int16 | Int32 | Int64 | UInt8 | UInt16 | UInt32 | UInt64 | Float32 | Float64 => {
                 Ok(Int64)
             }
-            other => plan_err!(
-                "{udf_name}: arg {slot_index} expected integer or float, got {other:?}"
-            ),
+            other => {
+                plan_err!("{udf_name}: arg {slot_index} expected integer or float, got {other:?}")
+            }
         },
         CoerceMode::Float64 => match observed {
             Int8 | Int16 | Int32 | Int64 | UInt8 | UInt16 | UInt32 | UInt64 | Float32 | Float64 => {
                 Ok(Float64)
             }
-            other => plan_err!(
-                "{udf_name}: arg {slot_index} expected integer or float, got {other:?}"
-            ),
+            other => {
+                plan_err!("{udf_name}: arg {slot_index} expected integer or float, got {other:?}")
+            }
         },
         CoerceMode::Utf8 => match observed {
             Utf8 | LargeUtf8 | Utf8View => Ok(Utf8),
-            other => plan_err!(
-                "{udf_name}: arg {slot_index} expected string, got {other:?}"
-            ),
+            other => plan_err!("{udf_name}: arg {slot_index} expected string, got {other:?}"),
         },
     }
 }
@@ -114,6 +121,9 @@ pub(crate) fn coerce_args(
 }
 
 pub mod convert_tz;
+pub mod date_format;
+pub mod extract;
+pub mod from_unixtime;
 pub mod json_append;
 pub mod json_array_length;
 pub(crate) mod json_common;
@@ -122,9 +132,15 @@ pub mod json_extend;
 pub mod json_extract;
 pub mod json_keys;
 pub mod json_set;
+pub mod makedate;
+pub mod maketime;
 pub mod mvappend;
 pub mod mvfind;
 pub mod mvzip;
+pub(crate) mod mysql_format;
+pub mod str_to_date;
+pub mod strftime;
+pub mod time_format;
 pub mod tonumber;
 pub mod tostring;
 
@@ -137,6 +153,9 @@ pub mod tostring;
 // and restart the OpenSearch JVM (the loaded dylib is JVM-cached).
 pub fn register_all(ctx: &SessionContext) {
     convert_tz::register_all(ctx);
+    date_format::register_all(ctx);
+    extract::register_all(ctx);
+    from_unixtime::register_all(ctx);
     json_append::register_all(ctx);
     json_array_length::register_all(ctx);
     json_delete::register_all(ctx);
@@ -144,13 +163,18 @@ pub fn register_all(ctx: &SessionContext) {
     json_extract::register_all(ctx);
     json_keys::register_all(ctx);
     json_set::register_all(ctx);
-    mvzip::register_all(ctx);
-    mvfind::register_all(ctx);
+    makedate::register_all(ctx);
+    maketime::register_all(ctx);
     mvappend::register_all(ctx);
+    mvfind::register_all(ctx);
+    mvzip::register_all(ctx);
+    str_to_date::register_all(ctx);
+    strftime::register_all(ctx);
+    time_format::register_all(ctx);
     tonumber::register_all(ctx);
     tostring::register_all(ctx);
     log::info!(
-        "OpenSearch UDF register_all: convert_tz, json_append, json_array_length, json_delete, json_extend, json_extract, json_keys, json_set, mvzip, mvfind, mvappend, tonumber, tostring registered"
+        "OpenSearch UDF register_all: convert_tz, date_format, extract, from_unixtime, json_append, json_array_length, json_delete, json_extend, json_extract, json_keys, json_set, makedate, maketime, mvappend, mvfind, mvzip, str_to_date, strftime, time_format, tonumber, tostring registered"
     );
 }
 
@@ -181,7 +205,11 @@ mod tests {
             DataType::Timestamp(TimeUnit::Microsecond, Some("UTC".into())),
         ] {
             let result = coerce_slot("t", 0, &observed, CoerceMode::TimestampMs).unwrap();
-            assert_eq!(result, ts_ms(), "TimestampMs should canonicalize {observed:?}");
+            assert_eq!(
+                result,
+                ts_ms(),
+                "TimestampMs should canonicalize {observed:?}"
+            );
         }
     }
 

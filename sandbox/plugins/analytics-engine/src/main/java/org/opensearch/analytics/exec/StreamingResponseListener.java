@@ -15,7 +15,7 @@ import org.opensearch.core.action.ActionResponse;
  * Follows {@code StreamSearchActionListener.onStreamResponse(result, isLast)} pattern.
  *
  * <p>The type parameter {@code <Resp>} is the response type for the transport action.
- * For shard fragment stages this is {@code FragmentExecutionResponse}.
+ * For shard fragment stages this is {@code FragmentExecutionArrowResponse}.
  *
  * <p>Contract:
  * <ul>

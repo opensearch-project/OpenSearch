@@ -9,24 +9,38 @@
 package org.opensearch.index.engine.dataformat;
 
 import org.opensearch.common.annotation.ExperimentalApi;
-import org.opensearch.index.engine.exec.Segment;
+import org.opensearch.common.queue.Lockable;
 
-import java.util.List;
-import java.util.Map;
+import java.io.Closeable;
+import java.io.IOException;
 
 /**
- * Per-engine accessor for delete state (currently: live-docs bitsets per segment).
- * Constructed once at {@link IndexingExecutionEngine} initialization.
+ * Handles document deletion for a specific data format. Each deleter is paired with a
+ * {@link Writer} and shares its generation. Implements {@link Lockable} for thread-safe
+ * pooling via {@link org.opensearch.common.queue.LockablePool}.
+ *
+ * <p>For Parquet-only format, the deleter holds a per-generation Lucene writer for
+ * indexing identity documents. For Lucene-only format, the deleter is a no-op wrapper
+ * since Lucene natively tracks live docs.
  *
  * @opensearch.experimental
  */
 @ExperimentalApi
-public interface Deleter {
+public interface Deleter extends Closeable, Lockable {
 
     /**
-     * Returns a point-in-time snapshot of per-segment live-docs bitsets.
-     * Keyed by {@link Segment#generation()}; values use Lucene
-     * {@code FixedBitSet#getBits()} layout. Absent key = all rows alive.
+     * Returns the generation number of this deleter, matching its paired writer.
+     *
+     * @return the generation number
      */
-    Map<Long, long[]> getLiveDocs(List<Segment> segments);
+    long generation();
+
+    /**
+     * Deletes a document from the underlying format-specific storage.
+     *
+     * @param deleteInput the input containing field name, value, and generation to identify the document
+     * @return the result of the delete operation
+     * @throws IOException if an I/O error occurs
+     */
+    DeleteResult deleteDoc(DeleteInput deleteInput) throws IOException;
 }

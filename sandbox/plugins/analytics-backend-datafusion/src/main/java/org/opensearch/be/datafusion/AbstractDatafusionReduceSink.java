@@ -68,10 +68,31 @@ abstract class AbstractDatafusionReduceSink implements ExchangeSink {
     protected final NativeRuntimeHandle runtimeHandle;
     protected final DatafusionLocalSession session;
     /**
+     * Non-null when this sink was constructed with a pre-prepared FINAL-aggregate plan
+     * from the FinalAggregateInstructionHandler. When present, the handler already created
+     * the session, registered the input partitions, and called {@code prepareFinalPlan} on
+     * the Rust side; the sink only needs to drive {@code executeLocalPreparedPlan} and feed
+     * batches. When null, the sink falls back to the legacy path (create its own session,
+     * register its own partitions, call {@code executeLocalPlan}).
+     *
+     * <p>Close ownership: when {@code preparedState != null} the state owns session +
+     * senders and {@link #close} skips re-closing them (avoids double-close on the native
+     * side). When {@code preparedState == null} the base class closes the session itself.
+     */
+    protected final DataFusionReduceState preparedState;
+    /**
      * Per-child Arrow schema IPC bytes, keyed by childStageId. Iteration order matches
      * the order of {@code ctx.childInputs()} so subclasses get deterministic registration.
      */
     protected final Map<Integer, byte[]> childInputs;
+
+    /**
+     * Declared Arrow {@link org.apache.arrow.vector.types.pojo.Schema} per childStageId,
+     * parallel to {@link #childInputs}. Used by sinks to coerce incoming batches when
+     * the shard's actual emit type diverges from the declaration (e.g. DataFusion's
+     * {@code Utf8View} for string group keys vs. declared {@code Utf8}).
+     */
+    protected final Map<Integer, Schema> childSchemas;
 
     /** Guards {@link #closed} and serialises {@link #feed}/{@link #close} against producers. */
     protected final Object feedLock = new Object();
@@ -80,14 +101,26 @@ abstract class AbstractDatafusionReduceSink implements ExchangeSink {
     protected volatile boolean closed;
 
     protected AbstractDatafusionReduceSink(ExchangeSinkContext ctx, NativeRuntimeHandle runtimeHandle) {
+        this(ctx, runtimeHandle, null);
+    }
+
+    protected AbstractDatafusionReduceSink(
+        ExchangeSinkContext ctx,
+        NativeRuntimeHandle runtimeHandle,
+        DataFusionReduceState preparedState
+    ) {
         this.ctx = ctx;
         this.runtimeHandle = runtimeHandle;
-        this.session = new DatafusionLocalSession(runtimeHandle.get());
+        this.preparedState = preparedState;
+        this.session = preparedState != null ? preparedState.session() : new DatafusionLocalSession(runtimeHandle.get());
         Map<Integer, byte[]> inputs = new LinkedHashMap<>(ctx.childInputs().size());
+        Map<Integer, Schema> schemas = new LinkedHashMap<>(ctx.childInputs().size());
         for (ExchangeSinkContext.ChildInput child : ctx.childInputs()) {
             inputs.put(child.childStageId(), ArrowSchemaIpc.toBytes(child.schema()));
+            schemas.put(child.childStageId(), child.schema());
         }
         this.childInputs = inputs;
+        this.childSchemas = schemas;
     }
 
     /** DataFusion table name for an input partition associated with the given child stage id. */
@@ -124,10 +157,14 @@ abstract class AbstractDatafusionReduceSink implements ExchangeSink {
         } catch (Throwable t) {
             failure = accumulate(failure, t);
         } finally {
-            try {
-                session.close();
-            } catch (Throwable t) {
-                failure = accumulate(failure, t);
+            // If a preparedState owns the session/senders, let the state's close handle
+            // them (invoked by the orchestrator). Otherwise close the session we created.
+            if (preparedState == null) {
+                try {
+                    session.close();
+                } catch (Throwable t) {
+                    failure = accumulate(failure, t);
+                }
             }
         }
         rethrow(failure);
