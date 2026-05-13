@@ -525,8 +525,16 @@ scalar_functions:
           - { value: string, name: "format" }
         return: string
       - args:
+          - { value: "precision_timestamp<P>", name: "value" }
+          - { value: "varchar<L>", name: "format" }
+        return: string
+      - args:
           - { value: "date", name: "value" }
           - { value: string, name: "format" }
+        return: string
+      - args:
+          - { value: "date", name: "value" }
+          - { value: "varchar<L>", name: "format" }
         return: string
       - args:
           - { value: "string", name: "value" }
