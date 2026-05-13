@@ -156,7 +156,7 @@ pub async fn execute_indexed_query(
     let resolved_schema = listing_options
         .infer_schema(&ctx.state(), &shard_view.table_path)
         .await?;
-    let resolved_schema = crate::schema_coerce::coerce_for_substrait(resolved_schema);
+    let resolved_schema = crate::schema_coerce::coerce_inferred_schema(resolved_schema);
     let table_config = datafusion::datasource::listing::ListingTableConfig::new(shard_view.table_path.clone())
         .with_listing_options(listing_options)
         .with_schema(resolved_schema);

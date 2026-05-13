@@ -144,7 +144,7 @@ pub async unsafe fn create_session_context(
         })?;
     // Substrait's type system is narrower than Arrow's; normalize the inferred
     // schema to forms the Substrait consumer can bind against. See crate::schema_coerce.
-    let resolved_schema = crate::schema_coerce::coerce_for_substrait(resolved_schema);
+    let resolved_schema = crate::schema_coerce::coerce_inferred_schema(resolved_schema);
 
     let table_config = ListingTableConfig::new(shard_view.table_path.clone())
         .with_listing_options(listing_options)

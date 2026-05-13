@@ -10,12 +10,11 @@
 //!
 //! Substrait's type system is narrower than Arrow's. The DataFusion Substrait
 //! consumer rejects scans whose table-provider schema is not
-//! `datatype_is_logically_equal` to the schema declared in the plan. That
-//! function in DataFusion 53 has hardcoded equivalences for `(Utf8, Utf8View)`
-//! but not for several other Arrow/Substrait-incompatible pairs we hit:
+//! `datatype_is_logically_equal` to the schema declared in the plan. The pairs
+//! we hit on this path:
 //!
 //!   - `BinaryView`  ← parquet emits this for variable-length byte columns
-//!     (and for fixed-width byte arrays like OpenSearch's 16-byte `ip`) when
+//!     (including OpenSearch's 16-byte `ip` and `binary` mappings) when
 //!     `schema_force_view_types` is on. Substrait has no view types — isthmus
 //!     serializes `VARBINARY` as plain `binary`, which arrives as
 //!     `DataType::Binary`.
@@ -24,14 +23,45 @@
 //!     Substrait integers are signed only — Calcite `BIGINT` serializes as
 //!     `i64`, which arrives as `DataType::Int64`.
 //!
-//! Until upstream patches add equivalence arms (mirroring the existing
-//! Utf8/Utf8View pair), we normalize the inferred schema at the table-provider
-//! boundary: substitute the Arrow-only types with their Substrait-compatible
-//! counterparts before handing the schema to `ListingTableConfig`. The parquet
-//! reader's `SchemaAdapter` inserts the per-batch cast at read time.
+//! `Utf8View` doesn't need coercing: DataFusion 53's
+//! `DFSchema::datatype_is_logically_equal` (in `datafusion-common/src/dfschema.rs`)
+//! has hardcoded match arms `(Utf8, Utf8View) => true` and `(Utf8View, Utf8) => true`,
+//! so a Substrait plan declaring `Utf8` binds cleanly against a table column
+//! reporting `Utf8View`. The two cases above are different in nature:
 //!
-//! Strings keep their `Utf8View` layout because the upstream Utf8/Utf8View
-//! equivalence already lets them pass through without a coerce.
+//!   - `(Binary, BinaryView)` is a missing equivalence in DataFusion. The two
+//!     types are semantically identical, but `datatype_is_logically_equal` has
+//!     no arm for them today (DF 53). If it becomes available in DataFusion,
+//!     the `BinaryView → Binary` rewrite here can be removed.
+//!
+//!   - `(Int64, UInt64)` is a Substrait + Calcite gap. Substrait's integer
+//!     types are signed-only and Calcite has no unsigned `BIGINT`, so the
+//!     unsigned semantics are lost before the plan reaches DataFusion. Values
+//!     above `2^63 - 1` wrap into negatives — documented in
+//!     `OpenSearchSchemaBuilder.mapFieldType`. Narrowing at the scan boundary
+//!     is the only fix until Substrait grows unsigned types (see Substrait
+//!     `proto/type.proto`).
+//!
+//! We rewrite the inferred schema at the table-provider boundary: substitute the
+//! Arrow-only types with their Substrait-compatible counterparts before handing
+//! the schema to `ListingTableConfig`. The parquet reader's `SchemaAdapter` then
+//! inserts the per-batch cast at read time (zero-copy bit reinterpret for
+//! `UInt64 → Int64`; cheap buffer relabeling for `BinaryView → Binary`).
+//!
+//! Alternatives considered:
+//!
+//!   - Disable view types entirely with
+//!     `execution.parquet.schema_force_view_types = false` (threaded into
+//!     `ParquetFormat::with_options`). Makes the reader emit `Utf8/Binary` instead
+//!     of `Utf8View/BinaryView`. Removes the BinaryView mismatch but also strips
+//!     `Utf8View` from string columns, giving up the inline-prefix optimization
+//!     on filter/group-by/hash paths.
+//!
+//!   - Skip `infer_schema` entirely and construct the Arrow schema directly from
+//!     the OpenSearch mapping (the same source Calcite reads). Single source of
+//!     truth, no post-process step. Costs the cross-language plumbing to ship
+//!     the schema from Java to Rust and adds a second mapping table to keep in
+//!     sync with `OpenSearchSchemaBuilder.mapFieldType`.
 
 use std::sync::Arc;
 
@@ -45,7 +75,7 @@ use datafusion::arrow::datatypes::{DataType, Field, Fields, Schema, SchemaRef};
 /// `Union`, and `Dictionary`. Returns the input unchanged when no rewrite is
 /// needed so callers avoid an unnecessary `Arc` reallocation in the common
 /// case.
-pub fn coerce_for_substrait(schema: SchemaRef) -> SchemaRef {
+pub fn coerce_inferred_schema(schema: SchemaRef) -> SchemaRef {
     if !schema_needs_coerce(&schema) {
         return schema;
     }
@@ -113,7 +143,7 @@ mod tests {
             Field::new("a", DataType::Int64, true),
             Field::new("b", DataType::BinaryView, true),
         ]));
-        let out = coerce_for_substrait(schema);
+        let out = coerce_inferred_schema(schema);
         assert_eq!(out.field(0).data_type(), &DataType::Int64);
         assert_eq!(out.field(1).data_type(), &DataType::Binary);
     }
@@ -124,7 +154,7 @@ mod tests {
             Field::new("a", DataType::UInt64, true),
             Field::new("b", DataType::Int64, true),
         ]));
-        let out = coerce_for_substrait(schema);
+        let out = coerce_inferred_schema(schema);
         assert_eq!(out.field(0).data_type(), &DataType::Int64);
         assert_eq!(out.field(1).data_type(), &DataType::Int64);
     }
@@ -136,7 +166,7 @@ mod tests {
             Field::new("b", DataType::Utf8View, true),
         ]));
         let before = Arc::as_ptr(&schema);
-        let out = coerce_for_substrait(schema);
+        let out = coerce_inferred_schema(schema);
         assert_eq!(Arc::as_ptr(&out), before, "unchanged schema must not reallocate");
     }
 
@@ -146,7 +176,7 @@ mod tests {
         let schema = Arc::new(Schema::new(vec![
             Field::new("xs", DataType::List(Arc::new(inner)), true),
         ]));
-        let out = coerce_for_substrait(schema);
+        let out = coerce_inferred_schema(schema);
         match out.field(0).data_type() {
             DataType::List(f) => assert_eq!(f.data_type(), &DataType::Binary),
             other => panic!("expected List, got {other:?}"),
@@ -159,7 +189,7 @@ mod tests {
         let schema = Arc::new(Schema::new(vec![
             Field::new("xs", DataType::List(Arc::new(inner)), true),
         ]));
-        let out = coerce_for_substrait(schema);
+        let out = coerce_inferred_schema(schema);
         match out.field(0).data_type() {
             DataType::List(f) => assert_eq!(f.data_type(), &DataType::Int64),
             other => panic!("expected List, got {other:?}"),
@@ -172,7 +202,7 @@ mod tests {
         md.insert("key".to_string(), "value".to_string());
         let f = Field::new("b", DataType::BinaryView, false).with_metadata(md.clone());
         let schema = Arc::new(Schema::new(vec![f]));
-        let out = coerce_for_substrait(schema);
+        let out = coerce_inferred_schema(schema);
         assert!(!out.field(0).is_nullable());
         assert_eq!(out.field(0).metadata(), &md);
     }
@@ -183,7 +213,7 @@ mod tests {
             Field::new("s", DataType::Utf8View, true),
             Field::new("b", DataType::BinaryView, true),
         ]));
-        let out = coerce_for_substrait(schema);
+        let out = coerce_inferred_schema(schema);
         assert_eq!(out.field(0).data_type(), &DataType::Utf8View);
         assert_eq!(out.field(1).data_type(), &DataType::Binary);
     }
@@ -200,7 +230,7 @@ mod tests {
             Field::new("c", DataType::UInt32, true),
         ]));
         let before = Arc::as_ptr(&schema);
-        let out = coerce_for_substrait(schema);
+        let out = coerce_inferred_schema(schema);
         assert_eq!(Arc::as_ptr(&out), before);
     }
 }
