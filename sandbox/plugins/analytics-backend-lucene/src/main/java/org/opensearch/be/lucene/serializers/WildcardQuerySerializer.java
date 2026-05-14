@@ -38,7 +38,8 @@ public class WildcardQuerySerializer extends AbstractRelevanceSerializer {
                 case "boost" -> wildcardQb.boost(Float.parseFloat(entry.getValue()));
                 case "rewrite" -> wildcardQb.rewrite(entry.getValue());
                 case "case_insensitive" -> wildcardQb.caseInsensitive(Boolean.parseBoolean(entry.getValue()));
-                default -> { /* ignore unrecognized params for forward compatibility */ }
+                default -> {
+                    /* ignore unrecognized params for forward compatibility */ }
             }
         }
     }

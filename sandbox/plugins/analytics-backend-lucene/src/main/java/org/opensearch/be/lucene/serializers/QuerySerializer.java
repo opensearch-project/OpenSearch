@@ -74,7 +74,8 @@ public class QuerySerializer extends AbstractRelevanceSerializer {
                     Boolean.parseBoolean(entry.getValue())
                 );
                 case "fuzzy_rewrite" -> queryStringQb.fuzzyRewrite(entry.getValue());
-                default -> { /* ignore unrecognized params for forward compatibility */ }
+                default -> {
+                    /* ignore unrecognized params for forward compatibility */ }
             }
         }
     }

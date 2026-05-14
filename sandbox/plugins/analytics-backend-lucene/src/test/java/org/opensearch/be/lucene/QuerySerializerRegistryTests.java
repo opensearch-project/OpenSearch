@@ -412,10 +412,7 @@ public class QuerySerializerRegistryTests extends OpenSearchTestCase {
         );
 
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> serializer.serialize(call, fieldStorage));
-        assertTrue(
-            "Exception message must contain 'query', got: " + exception.getMessage(),
-            exception.getMessage().contains("query")
-        );
+        assertTrue("Exception message must contain 'query', got: " + exception.getMessage(), exception.getMessage().contains("query"));
     }
 
     /**
