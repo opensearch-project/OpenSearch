@@ -717,16 +717,34 @@ pub unsafe extern "C" fn df_execute_with_context(
 
     // Route based on whether the session was configured for indexed execution
     if session_handle.indexed_config.is_some() {
+        // Extract target_partitions BEFORE boxing into raw pointer (session_handle is consumed).
+        let partition_weight = session_handle.query_config.target_partitions.max(1) as u32;
         // TODO: refactor execute_indexed_with_context to take SessionContextHandle directly
         let ptr = Box::into_raw(Box::new(session_handle)) as i64;
         mgr.io_runtime
-            .block_on(crate::task_monitors::query_execution_monitor().instrument(
-                crate::indexed_executor::execute_indexed_with_context(
-                    ptr,
-                    plan_vec.clone(),
-                    cpu_executor,
-                )
-            ))
+            .block_on(async move {
+                // Acquire concurrency gate BEFORE spawning on CPU runtime (same as vanilla).
+                // This blocks the IO runtime thread (and thus the Java search thread),
+                // creating backpressure at the Java threadpool level when the gate is full.
+                let gate = mgr_for_spawn.cpu_executor().concurrency_gate().clone();
+                let max_p = gate.max_permits();
+                let permit = gate.acquire_many(partition_weight.min(max_p)).await;
+
+                let inner_fut = crate::task_monitors::query_execution_monitor().instrument(async move {
+                    crate::indexed_executor::execute_indexed_with_context(
+                        ptr,
+                        plan_vec,
+                        cpu_for_cross,
+                        permit,
+                    ).await
+                });
+                match mgr_for_spawn.cpu_executor().spawn(inner_fut).await {
+                    Ok(inner) => inner,
+                    Err(e) => Err(datafusion::error::DataFusionError::Execution(format!(
+                        "df_execute_with_context: CPU spawn failed: {e:?}"
+                    ))),
+                }
+            })
             .map_err(|e| e.to_string())
     } else {
         mgr.io_runtime
