@@ -275,7 +275,11 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         // consumer handles them natively.
         ScalarFunction.AND,
         ScalarFunction.OR,
-        ScalarFunction.NOT
+        ScalarFunction.NOT,
+        ScalarFunction.MD5,
+        ScalarFunction.SHA1,
+        ScalarFunction.SHA2,
+        ScalarFunction.CRC32
     );
 
     /**
@@ -460,6 +464,7 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                     Map.entry(ScalarFunction.SCALAR_MIN, nameMapping(SqlLibraryOperators.LEAST)),
                     Map.entry(ScalarFunction.SECOND, second),
                     Map.entry(ScalarFunction.SECOND_OF_MINUTE, second),
+                    Map.entry(ScalarFunction.SHA2, new Sha2FunctionAdapter()),
                     Map.entry(ScalarFunction.SIGN, nameMapping(SignumFunction.FUNCTION)),
                     Map.entry(ScalarFunction.SINH, new HyperbolicOperatorAdapter(SqlLibraryOperators.SINH)),
                     Map.entry(ScalarFunction.STRCMP, new StrcmpFunctionAdapter()),
