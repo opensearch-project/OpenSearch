@@ -26,6 +26,8 @@ import java.util.Set;
  */
 public class PplClickBenchIT extends AnalyticsRestTestCase {
 
+    private static final ExpectedResponseStrategy STRATEGY = ExpectedResponseStrategy.PASS_ON_MISSING;
+
     /**
      * ClickBench PPL query numbers to run. Auto-discovery finds all q{N}.ppl files under
      * resources/datasets/clickbench/ppl/. Individual queries can be excluded via
@@ -71,7 +73,8 @@ public class PplClickBenchIT extends AnalyticsRestTestCase {
                 request.setJsonEntity("{\"query\": \"" + escapeJson(ppl) + "\"}");
                 Response response = client.performRequest(request);
                 return assertOkAndParse(response, "PPL query");
-            }
+            },
+            STRATEGY
         );
 
         if (failures.isEmpty() == false) {

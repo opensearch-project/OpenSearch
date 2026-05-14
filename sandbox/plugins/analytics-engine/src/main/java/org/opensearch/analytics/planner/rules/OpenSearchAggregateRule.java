@@ -98,7 +98,12 @@ public class OpenSearchAggregateRule extends RelOptRule {
 
         LOGGER.debug("Aggregate viable backends: {} (child viable: {})", viableBackends, childViableBackends);
 
-        RelTraitSet aggregateTraits = child.getTraitSet().replace(context.getDistributionTraitDef().singleton());
+        // Inherit the child's distribution. The split decision (PARTIAL+FINAL vs unsplit)
+        // is left to the cost model in {@link OpenSearchAggregateSplitRule}: that rule
+        // fires on every SINGLE aggregate and generates the split alternative; Volcano
+        // cost-picks between unsplit (cheaper over SINGLETON inputs) and split (cheaper
+        // over RANDOM since pre-aggregation reduces network transfer).
+        RelTraitSet aggregateTraits = child.getTraitSet();
 
         call.transformTo(
             new OpenSearchAggregate(
