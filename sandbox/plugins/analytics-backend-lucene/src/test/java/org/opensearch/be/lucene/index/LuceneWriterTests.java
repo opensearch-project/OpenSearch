@@ -26,6 +26,8 @@ import org.opensearch.index.engine.dataformat.Writer;
 import org.opensearch.index.engine.exec.WriterFileSet;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.index.engine.dataformat.DeleteInput;
+import org.apache.lucene.util.BytesRef;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -334,5 +336,20 @@ public class LuceneWriterTests extends OpenSearchTestCase {
             assertFalse("Should return empty for non-lucene format", parquetResult.isPresent());
             assertFalse("Should return empty for null format", nullResult.isPresent());
         }
+    }
+
+    public void testWriterDefaultGetWriterForFormatReturnsEmpty() {
+        Writer<?> writer = mock(Writer.class, org.mockito.Mockito.CALLS_REAL_METHODS);
+        Optional<Writer<?>> result = writer.getWriterForFormat("any");
+        assertFalse(result.isPresent());
+    }
+
+    public void testWriterDefaultDeleteDocumentThrowsUnsupported() {
+        Writer<?> writer = mock(Writer.class, org.mockito.Mockito.CALLS_REAL_METHODS);
+        UnsupportedOperationException e = expectThrows(
+            UnsupportedOperationException.class,
+            () -> writer.deleteDocument(new DeleteInput("_id", new BytesRef("1"), 1L))
+        );
+        assertTrue(e.getMessage().contains("deleteDocument is not supported"));
     }
 }
