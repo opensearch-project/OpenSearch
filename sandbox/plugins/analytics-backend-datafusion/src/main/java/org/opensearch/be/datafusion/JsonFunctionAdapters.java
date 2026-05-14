@@ -89,6 +89,32 @@ final class JsonFunctionAdapters {
         }
     }
 
+    /**
+     * {@code JSON_EXTRACT_ALL(value)} — flatten a JSON document to a
+     * {@code MAP<VARCHAR, VARCHAR>} keyed by dot-separated path; non-object /
+     * top-level scalar / null / empty / whitespace inputs → NULL map; malformed
+     * → empty map. Matches the legacy {@code JsonExtractAllFunctionImpl} on the
+     * v2 / Calcite path. The locally-declared return type here is a placeholder
+     * — {@link AbstractNameMappingAdapter#adapt} preserves the original PPL
+     * call's MAP RelDataType, so isthmus emits a substrait map type and the
+     * DataFusion-side substrait consumer decodes it to Arrow {@code Map<Utf8, Utf8>}.
+     */
+    static class JsonExtractAllAdapter extends AbstractNameMappingAdapter {
+
+        static final SqlOperator LOCAL_JSON_EXTRACT_ALL_OP = new SqlFunction(
+            "json_extract_all",
+            SqlKind.OTHER_FUNCTION,
+            ReturnTypes.VARCHAR_NULLABLE,
+            null,
+            OperandTypes.STRING,
+            SqlFunctionCategory.STRING
+        );
+
+        JsonExtractAllAdapter() {
+            super(LOCAL_JSON_EXTRACT_ALL_OP, List.of(), List.of());
+        }
+    }
+
     /** {@code JSON_DELETE(value, path1, [path2, ...])} — remove PPL-path matches; missing paths are no-ops. */
     static class JsonDeleteAdapter extends AbstractNameMappingAdapter {
 
