@@ -273,7 +273,7 @@ public class DataFormatRegistryTests extends OpenSearchTestCase {
         DataFormatRegistry registry = new DataFormatRegistry(pluginsService);
 
         Map<DataFormat, EngineReaderManager<?>> managers = registry.getReaderManager(
-            new ReaderManagerConfig(Optional.empty(), format, registry, shardPath)
+            new ReaderManagerConfig(Optional.empty(), format, registry, shardPath, Map.of())
         );
         assertEquals(1, managers.size());
         assertNotNull(managers.get(format));

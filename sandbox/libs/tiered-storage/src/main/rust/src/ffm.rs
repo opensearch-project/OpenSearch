@@ -219,6 +219,8 @@ pub extern "C" fn ts_remove_file(
     let store = unsafe { arc_from_ptr(store_ptr) }?;
     let path = unsafe { str_from_raw(path_ptr, path_len) }
         .map_err(|e| format!("ts_remove_file path: {}", e))?;
+    // Strip leading "/" — object_store::Path normalizes paths without leading slash
+    let path = path.strip_prefix('/').unwrap_or(path);
 
     store.registry().remove(path, false);
 
