@@ -143,7 +143,6 @@ impl LocalSession {
             DataFusionError::Execution(format!("Failed to decode Substrait plan: {}", e))
         })?;
         let logical_plan = from_substrait_plan(&self.ctx.state(), &plan).await?;
-        log_debug!("DataFusion logical plan (streaming):\n{}", logical_plan.display_indent());
         self.ctx
             .execute_logical_plan(logical_plan)
             .await?
