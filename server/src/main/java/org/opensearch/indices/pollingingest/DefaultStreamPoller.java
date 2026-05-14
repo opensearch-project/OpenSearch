@@ -72,7 +72,7 @@ public class DefaultStreamPoller implements StreamPoller {
     private final CountDownLatch warmupLatch = new CountDownLatch(1);
 
     @Nullable
-    private IngestionShardConsumer consumer;
+    private volatile IngestionShardConsumer consumer;
     private IngestionConsumerFactory consumerFactory;
     private String consumerClientId;
     private int shardId;
@@ -80,7 +80,7 @@ public class DefaultStreamPoller implements StreamPoller {
     private ExecutorService consumerThread;
 
     // start of the batch, inclusive
-    private IngestionShardPointer initialBatchStartPointer;
+    private volatile IngestionShardPointer initialBatchStartPointer;
 
     private ResetState resetState;
     private final String resetValue;

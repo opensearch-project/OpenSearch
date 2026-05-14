@@ -26,7 +26,7 @@ public interface IngestionConsumerFactory<T extends IngestionShardConsumer, P ex
      * @deprecated Implement {@link #createShardConsumer(String, int, IngestionSource)} instead, which receives
      * the ingestion source directly and requires no separate initialization step.
      */
-    @Deprecated
+    @Deprecated(forRemoval = true)
     default void initialize(IngestionSource ingestionSource) {
         // no-op: implementations should override createShardConsumer(String, int, IngestionSource) instead
     }
@@ -39,7 +39,7 @@ public interface IngestionConsumerFactory<T extends IngestionShardConsumer, P ex
      * @return the created consumer
      * @deprecated Use {@link #createShardConsumer(String, int, IngestionSource)} instead.
      */
-    @Deprecated
+    @Deprecated(forRemoval = true)
     default T createShardConsumer(String clientId, int shardId) {
         throw new UnsupportedOperationException(
             "Implement createShardConsumer(String, int, IngestionSource) instead of the deprecated two-step API."
