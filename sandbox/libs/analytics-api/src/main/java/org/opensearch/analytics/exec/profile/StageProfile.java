@@ -34,20 +34,8 @@ import java.util.List;
  *                             raw JSON than a single multi-line escaped string
  * @param tasks                per-partition task profiles registered with the TaskTracker
  */
-public record StageProfile(
-    int stageId,
-    String executionType,
-    String distribution,
-    String state,
-    long startMs,
-    long endMs,
-    long elapsedMs,
-    long rowsProcessed,
-    long tasksCompleted,
-    long tasksFailed,
-    List<String> fragment,
-    List<TaskProfile> tasks
-) implements ToXContentObject {
+public record StageProfile(int stageId, String executionType, String distribution, String state, long startMs, long endMs, long elapsedMs,
+    long rowsProcessed, long tasksCompleted, long tasksFailed, List<String> fragment, List<TaskProfile> tasks) implements ToXContentObject {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
@@ -64,7 +52,8 @@ public record StageProfile(
         builder.field("tasks_failed", tasksFailed);
         if (fragment != null && fragment.isEmpty() == false) {
             builder.startArray("fragment");
-            for (String line : fragment) builder.value(line);
+            for (String line : fragment)
+                builder.value(line);
             builder.endArray();
         }
         builder.startArray("tasks");

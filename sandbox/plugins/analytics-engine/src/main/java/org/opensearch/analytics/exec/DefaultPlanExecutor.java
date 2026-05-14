@@ -211,7 +211,6 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
         QueryDAG dag = DAGBuilder.build(plan, capabilityRegistry, clusterService);
         PlanForker.forkAll(dag, capabilityRegistry);
         BackendPlanAdapter.adaptAll(dag, capabilityRegistry);
-        AggregateDecompositionResolver.resolveAll(dag, capabilityRegistry);
         FragmentConversionDriver.convertAll(dag, capabilityRegistry);
         logger.debug("[DefaultPlanExecutor] QueryDAG:\n{}", dag);
 

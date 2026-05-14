@@ -36,7 +36,8 @@ public record QueryProfile(String queryId, List<String> fullPlan, long totalElap
         builder.field("query_id", queryId);
         if (fullPlan != null && fullPlan.isEmpty() == false) {
             builder.startArray("full_plan");
-            for (String line : fullPlan) builder.value(line);
+            for (String line : fullPlan)
+                builder.value(line);
             builder.endArray();
         }
         builder.field("total_elapsed_ms", totalElapsedMs);
