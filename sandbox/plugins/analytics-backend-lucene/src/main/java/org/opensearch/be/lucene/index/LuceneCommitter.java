@@ -249,6 +249,7 @@ public class LuceneCommitter extends SafeBootstrapCommitter {
             sis = ((StandardDirectoryReader) reader).getSegmentInfos().clone();
         }
         Map<String, String> userData = new HashMap<>(catalogSnapshot.getUserData());
+        userData.put(CatalogSnapshot.CATALOG_SNAPSHOT_ID, Long.toString(catalogSnapshot.getId()));
         userData.put(CatalogSnapshot.CATALOG_SNAPSHOT_KEY, catalogSnapshot.serializeToString());
         sis.setUserData(userData, false);
         sis.setNextWriteGeneration(catalogSnapshot.getLastCommitGeneration());
