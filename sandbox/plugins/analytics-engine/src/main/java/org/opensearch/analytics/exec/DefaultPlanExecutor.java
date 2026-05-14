@@ -221,18 +221,6 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
         );
         final QueryContext config = new QueryContext(dag, searchExecutor, queryTask);
 
-        // Scheduler variant that exposes the walker so we can read its ExecutionGraph
-        // after the listener chain runs. The graph object outlives walkerPool removal —
-        // the pool carries a reference, not the only reference.
-        if (!(scheduler instanceof QueryScheduler)) {
-            listener.onFailure(
-                new UnsupportedOperationException(
-                    "executeWithProfile requires QueryScheduler — got " + scheduler.getClass().getSimpleName()
-                )
-            );
-            return;
-        }
-        final QueryScheduler qs = (QueryScheduler) scheduler;
         final PlanWalker[] walkerRef = new PlanWalker[1];
 
         // The batches listener converts VSRs -> rows, runs cleanup, then snapshots the
@@ -269,7 +257,7 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
             );
         }
 
-        walkerRef[0] = qs.executeAndReturnWalker(config, batchesListener);
+        walkerRef[0] = scheduler.execute(config, batchesListener);
     }
 
     @Override

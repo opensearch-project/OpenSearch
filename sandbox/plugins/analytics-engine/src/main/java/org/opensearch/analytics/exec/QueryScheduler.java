@@ -61,7 +61,7 @@ public class QueryScheduler implements Scheduler {
     }
 
     @Override
-    public void execute(QueryContext config, ActionListener<Iterable<VectorSchemaRoot>> listener) {
+    public PlanWalker execute(QueryContext config, ActionListener<Iterable<VectorSchemaRoot>> listener) {
         final String queryId = config.queryId();
         final long queryStartNanos = System.nanoTime();
         final AnalyticsOperationListener.CompositeListener opListener = new AnalyticsOperationListener.CompositeListener(
@@ -83,36 +83,6 @@ public class QueryScheduler implements Scheduler {
 
         opListener.onQueryStart(queryId, graph.stageCount());
 
-        logger.info("[QueryScheduler] ExecutionGraph built:\n{}", graph.explain());
-        walker.start(graph);
-    }
-
-    /**
-     * Variant of {@link #execute} that returns the {@link PlanWalker} it built so callers
-     * can observe the {@link ExecutionGraph} after terminal. The profile API needs this —
-     * by the time its outer listener fires, {@code walkerPool} has already removed the
-     * entry in {@link #createWalker}'s callback, so {@code walkerFor(queryId)} returns
-     * null. Holding the ref from the caller side survives that removal.
-     */
-    public PlanWalker executeAndReturnWalker(QueryContext config, ActionListener<Iterable<VectorSchemaRoot>> listener) {
-        final String queryId = config.queryId();
-        final long queryStartNanos = System.nanoTime();
-        final AnalyticsOperationListener.CompositeListener opListener = new AnalyticsOperationListener.CompositeListener(
-            config.operationListeners()
-        );
-
-        PlanWalker walker = createWalker(config, listener, queryId, queryStartNanos, opListener);
-        walkerPool.put(queryId, walker);
-
-        final AnalyticsQueryTask queryTask = config.parentTask();
-        queryTask.setOnCancelCallback(() -> {
-            String reason = "task cancelled: " + (queryTask.getReasonCancelled() != null ? queryTask.getReasonCancelled() : "unknown");
-            logger.info("[QueryScheduler] AnalyticsQueryTask.onCancelled fired, reason={}", reason);
-            walker.cancelAll(reason);
-        });
-
-        ExecutionGraph graph = walker.build();
-        opListener.onQueryStart(queryId, graph.stageCount());
         logger.info("[QueryScheduler] ExecutionGraph built:\n{}", graph.explain());
         walker.start(graph);
         return walker;
