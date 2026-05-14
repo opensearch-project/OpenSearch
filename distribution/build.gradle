@@ -311,7 +311,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
    *             Properties to expand when copying packaging files             *
    *****************************************************************************/
   configurations {
-    ['libs', 'libsPluginCli', 'libsKeystoreCli', 'libsFipsInstallerCli', 'bcFips'].each {
+    ['libs', 'libsPluginCli', 'libsKeystoreCli', 'libsFipsInstallerCli', 'libsHeapProfCli', 'bcFips'].each {
       create(it) {
         canBeConsumed = false
         canBeResolved = true
@@ -340,6 +340,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
     libsPluginCli project(':distribution:tools:plugin-cli')
     libsKeystoreCli project(path: ':distribution:tools:keystore-cli')
     libsFipsInstallerCli project(path: ':distribution:tools:fips-demo-installer-cli')
+    libsHeapProfCli project(path: ':distribution:tools:heap-prof-cli')
 
     bcFips libs.bundles.bouncycastle
 
@@ -367,6 +368,9 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
         // Add FIPS installer CLI
         into('tools/fips-demo-installer-cli') {
           from(configurations.libsFipsInstallerCli)
+        }
+        into('tools/heap-prof-cli') {
+          from(configurations.libsHeapProfCli)
         }
       }
     }
