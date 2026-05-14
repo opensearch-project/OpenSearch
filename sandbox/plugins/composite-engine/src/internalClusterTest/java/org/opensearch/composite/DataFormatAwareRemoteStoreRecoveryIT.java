@@ -332,10 +332,7 @@ public class DataFormatAwareRemoteStoreRecoveryIT extends RemoteStoreBaseIntegTe
 
             // Catalog snapshot state: non-empty, has segments
             try (var snapshotRef = recovered.getCatalogSnapshot()) {
-                assertFalse(
-                    "catalog snapshot must have segments after flush",
-                    snapshotRef.get().getSegments().isEmpty()
-                );
+                assertFalse("catalog snapshot must have segments after flush", snapshotRef.get().getSegments().isEmpty());
             }
 
             // Format files on disk

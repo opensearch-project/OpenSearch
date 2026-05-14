@@ -32,6 +32,7 @@ import org.opensearch.index.engine.dataformat.stub.MockDataFormatPlugin;
 import org.opensearch.index.engine.dataformat.stub.MockDocumentInput;
 import org.opensearch.index.engine.dataformat.stub.MockSearchBackEndPlugin;
 import org.opensearch.index.engine.exec.commit.Committer;
+import org.opensearch.index.engine.exec.commit.Committer.CommitResult;
 import org.opensearch.index.engine.exec.commit.CommitterFactory;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 import org.opensearch.index.engine.exec.coord.DataformatAwareCatalogSnapshot;
@@ -142,7 +143,7 @@ public class DataFormatAwareEngineRecoveryTests extends OpenSearchTestCase {
         }
 
         @Override
-        public void commit(Map<String, String> commitData) throws IOException {
+        public CommitResult commit(Map<String, String> commitData) throws IOException {
             try (
                 IndexWriter writer = new IndexWriter(
                     store.directory(),
@@ -163,6 +164,7 @@ public class DataFormatAwareEngineRecoveryTests extends OpenSearchTestCase {
                     // If deserialization fails, keep the previous snapshot
                 }
             }
+            return new CommitResult("segments_1", 1L, 0L);
         }
 
         @Override
@@ -194,6 +196,11 @@ public class DataFormatAwareEngineRecoveryTests extends OpenSearchTestCase {
         @Override
         public boolean isCommitManagedFile(String fileName) {
             return false;
+        }
+
+        @Override
+        public byte[] serializeToCommitFormat(CatalogSnapshot catalogSnapshot) throws IOException {
+            return new byte[0];
         }
 
         @Override
