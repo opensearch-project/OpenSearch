@@ -139,6 +139,9 @@ pub mod mvappend;
 pub mod mvfind;
 pub mod mvzip;
 pub(crate) mod mysql_format;
+pub mod rex_extract;
+pub mod rex_extract_multi;
+pub mod rex_offset;
 pub mod sha1;
 pub mod str_to_date;
 pub mod strftime;
@@ -171,6 +174,9 @@ pub fn register_all(ctx: &SessionContext) {
     mvappend::register_all(ctx);
     mvfind::register_all(ctx);
     mvzip::register_all(ctx);
+    rex_extract::register_all(ctx);
+    rex_extract_multi::register_all(ctx);
+    rex_offset::register_all(ctx);
     sha1::register_all(ctx);
     str_to_date::register_all(ctx);
     strftime::register_all(ctx);
@@ -178,7 +184,7 @@ pub fn register_all(ctx: &SessionContext) {
     tonumber::register_all(ctx);
     tostring::register_all(ctx);
     log::info!(
-        "OpenSearch UDF register_all: convert_tz, crc32, date_format, extract, from_unixtime, json_append, json_array_length, json_delete, json_extend, json_extract, json_keys, json_set, makedate, maketime, mvappend, mvfind, mvzip, sha1, str_to_date, strftime, time_format, tonumber, tostring registered"
+        "OpenSearch UDF register_all: convert_tz, crc32, date_format, extract, from_unixtime, json_append, json_array_length, json_delete, json_extend, json_extract, json_keys, json_set, makedate, maketime, mvappend, mvfind, mvzip, rex_extract, rex_extract_multi, rex_offset, sha1, str_to_date, strftime, time_format, tonumber, tostring registered"
     );
 }
 
