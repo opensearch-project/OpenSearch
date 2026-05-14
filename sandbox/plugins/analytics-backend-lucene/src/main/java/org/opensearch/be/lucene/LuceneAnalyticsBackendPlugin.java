@@ -24,6 +24,7 @@ import org.opensearch.analytics.spi.FieldType;
 import org.opensearch.analytics.spi.FilterCapability;
 import org.opensearch.analytics.spi.FilterDelegationHandle;
 import org.opensearch.analytics.spi.ScalarFunction;
+import org.opensearch.index.engine.exec.IndexReaderProvider;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryShardContext;
 
@@ -139,10 +140,19 @@ public class LuceneAnalyticsBackendPlugin implements AnalyticsSearchBackendPlugi
     @Override
     public FilterDelegationHandle getFilterDelegationHandle(List<DelegatedExpression> expressions, CommonExecutionContext ctx) {
         ShardScanExecutionContext shardCtx = (ShardScanExecutionContext) ctx;
-        DirectoryReader directoryReader = shardCtx.getReader().getReader(plugin.getDataFormat(), DirectoryReader.class);
+        IndexReaderProvider.Reader reader = shardCtx.getReader();
+        DirectoryReader directoryReader = reader.getReader(plugin.getDataFormat(), DirectoryReader.class);
         IndexSearcher searcher = new IndexSearcher(directoryReader);
         QueryShardContext queryShardContext = buildMinimalQueryShardContext(shardCtx, searcher);
-        return new LuceneFilterDelegationHandle(expressions, queryShardContext, directoryReader, shardCtx.getNamedWriteableRegistry());
+        // Pass the catalog snapshot through so the handle can build its generation→leaf
+        // map from the catalogsnapshot
+        return new LuceneFilterDelegationHandle(
+            expressions,
+            queryShardContext,
+            directoryReader,
+            reader.catalogSnapshot(),
+            shardCtx.getNamedWriteableRegistry()
+        );
     }
 
     private QueryShardContext buildMinimalQueryShardContext(ShardScanExecutionContext ctx, IndexSearcher searcher) {

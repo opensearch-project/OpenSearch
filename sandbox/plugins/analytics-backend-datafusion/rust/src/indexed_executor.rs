@@ -159,6 +159,7 @@ pub async fn execute_indexed_query(
         ctx,
         table_path: shard_view.table_path.clone(),
         object_metas: shard_view.object_metas.clone(),
+        writer_generations: shard_view.writer_generations.clone(),
         query_context: crate::query_tracker::QueryTrackingContext::new(0, runtime.runtime_env.memory_pool.clone()),
         table_name: table_name.clone(),
         indexed_config: None, // derive classification from tree
@@ -420,6 +421,7 @@ pub async unsafe fn execute_indexed_with_context(
     let table_name = handle.table_name;
     let table_path = handle.table_path;
     let object_metas = handle.object_metas;
+    let writer_generations = handle.writer_generations;
     let query_context = handle.query_context;
 
     // SessionContext already has RuntimeEnv, caches, memory pool, UDF from create_session_context_indexed.
@@ -432,7 +434,7 @@ pub async unsafe fn execute_indexed_with_context(
         .runtime_env()
         .object_store(&table_path)?;
 
-    let (segments, schema) = build_segments(Arc::clone(&store), object_metas.as_ref())
+    let (segments, schema) = build_segments(Arc::clone(&store), object_metas.as_ref(), writer_generations.as_ref())
         .await
         .map_err(DataFusionError::Execution)?;
     for (i, seg) in segments.iter().enumerate() {

@@ -22,6 +22,7 @@ import java.lang.foreign.SymbolLookup;
 import java.lang.foreign.ValueLayout;
 import java.lang.invoke.MethodHandle;
 import java.util.LinkedHashMap;
+import java.util.List;
 
 /**
  * FFM bridge to native DataFusion library.
@@ -136,11 +137,12 @@ public final class NativeBridge {
             lib.find("df_create_reader").orElseThrow(),
             FunctionDescriptor.of(
                 ValueLayout.JAVA_LONG,
-                ValueLayout.ADDRESS,
-                ValueLayout.JAVA_LONG,
-                ValueLayout.ADDRESS,
-                ValueLayout.ADDRESS,
-                ValueLayout.JAVA_LONG
+                ValueLayout.ADDRESS,    // table_path_ptr
+                ValueLayout.JAVA_LONG,  // table_path_len
+                ValueLayout.ADDRESS,    // files_ptr
+                ValueLayout.ADDRESS,    // files_len_ptr
+                ValueLayout.ADDRESS,    // writer_generations_ptr
+                ValueLayout.JAVA_LONG   // count (applies to all three parallel arrays)
             )
         );
 
@@ -562,12 +564,16 @@ public final class NativeBridge {
     /**
      * Creates a native reader. Returns an opaque native pointer.
      * Freed by {@link #closeDatafusionReader}.
+     *
+     * @param path     shard data directory
+     * @param segments per-segment metadata — each carries a single filename and writer generation
      */
-    public static long createDatafusionReader(String path, String[] files) {
+    public static long createDatafusionReader(String path, List<org.opensearch.index.engine.exec.MonoFileWriterSet> segments) {
         try (var call = new NativeCall()) {
             var p = call.str(path);
-            var f = call.strArray(files);
-            return call.invoke(CREATE_READER, p.segment(), p.len(), f.ptrs(), f.lens(), f.count());
+            var f = call.strArray(segments.stream().map(org.opensearch.index.engine.exec.MonoFileWriterSet::file).toArray(String[]::new));
+            var gens = call.longs(segments.stream().mapToLong(org.opensearch.index.engine.exec.MonoFileWriterSet::writerGeneration).toArray());
+            return call.invoke(CREATE_READER, p.segment(), p.len(), f.ptrs(), f.lens(), gens, f.count());
         }
     }
 

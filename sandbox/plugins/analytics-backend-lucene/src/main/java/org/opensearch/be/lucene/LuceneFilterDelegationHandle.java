@@ -26,6 +26,9 @@ import org.opensearch.analytics.spi.FilterDelegationHandle;
 import org.opensearch.core.common.io.stream.NamedWriteableAwareStreamInput;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.index.engine.exec.Segment;
+import org.opensearch.index.engine.exec.WriterFileSet;
+import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryShardContext;
 
@@ -33,8 +36,10 @@ import java.io.IOException;
 import java.lang.foreign.MemorySegment;
 import java.lang.foreign.ValueLayout;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -44,10 +49,15 @@ import static org.opensearch.be.lucene.index.LuceneWriter.WRITER_GENERATION_ATTR
  * Lucene implementation of {@link FilterDelegationHandle}. Compiles delegated expressions
  * into Lucene Queries, creates Weights on demand, and produces bitsets via Scorers.
  *
- * <p>Segments are resolved by <b>writer generation</b> (the stable per-segment
- * identifier), not by positional ordinal.
- * {@link org.opensearch.be.lucene.index.LuceneWriter#WRITER_GENERATION_ATTRIBUTE}
- * stamped onto every {@link SegmentCommitInfo} at write and merge time.
+ * <p>Segments are resolved by <b>writer generation</b>. The mapping
+ * {@code generation → Lucene leaf index} is built once at construction time directly from
+ * the {@link CatalogSnapshot}. We pair a catalog * {@link Segment} with a Lucene leaf by matching its
+ * {@link WriterFileSet#files()} (for the {@code "lucene"} format) against
+ * {@link SegmentCommitInfo#files()}. Both sets are byte-for-byte equal because the
+ * composite engine's writer copies {@code segInfo.files()} into the WFS at write time.
+ *
+ * <p>The {@link org.opensearch.be.lucene.index.LuceneWriter#WRITER_GENERATION_ATTRIBUTE}
+ * stamped is an {@code assert}-only cross-check against the catalog.
  *
  * @opensearch.internal
  */
@@ -58,7 +68,7 @@ final class LuceneFilterDelegationHandle implements FilterDelegationHandle {
     private final Map<Integer, Query> queriesByAnnotationId;
     private final DirectoryReader directoryReader;
     private final List<LeafReaderContext> leaves;
-    /** Writer generation → Lucene leaf index. Built once in the constructor. */
+    /** Writer generation → Lucene leaf index. Built once from the catalog snapshot. */
     private final Map<Long, Integer> generationToLeaf;
 
     private final ConcurrentHashMap<Integer, Weight> weightsByProviderKey = new ConcurrentHashMap<>();
@@ -72,13 +82,15 @@ final class LuceneFilterDelegationHandle implements FilterDelegationHandle {
         List<DelegatedExpression> expressions,
         QueryShardContext queryShardContext,
         DirectoryReader directoryReader,
+        CatalogSnapshot catalogSnapshot,
         NamedWriteableRegistry namedWriteableRegistry
     ) {
         assert directoryReader != null : "directoryReader must not be null";
+        assert catalogSnapshot != null : "catalogSnapshot must not be null";
         this.directoryReader = directoryReader;
         this.leaves = directoryReader.leaves();
         this.queriesByAnnotationId = compileQueries(expressions, queryShardContext, namedWriteableRegistry);
-        this.generationToLeaf = buildGenerationToLeaf(leaves);
+        this.generationToLeaf = buildGenerationToLeafFromCatalog(catalogSnapshot, leaves);
     }
 
     private static Map<Integer, Query> compileQueries(
@@ -105,11 +117,22 @@ final class LuceneFilterDelegationHandle implements FilterDelegationHandle {
     }
 
     /**
-     * Build {@code writerGeneration → leaf index} from the open {@link DirectoryReader}.
-     * Every Lucene leaf must carry a numeric {@link org.opensearch.be.lucene.index.LuceneWriter#WRITER_GENERATION_ATTRIBUTE}
+     * Build {@code writerGeneration → leaf index} from the catalog snapshot.
+     *
+     * <p>For each catalog {@link Segment} that has a {@code WriterFileSet} for the
+     * {@code "lucene"} format, we pair its {@link Segment#generation()} with the unique
+     * Lucene leaf whose {@link SegmentCommitInfo#files()} equals
+     * {@link WriterFileSet#files()}.
+     *
+     * <p>Under {@code -ea}, an additional cross-check asserts that each resolved leaf's
+     * {@code WRITER_GENERATION_ATTRIBUTE} (when present) agrees with what the catalog
+     * provided. The read path never depends on the attribute; the assertion just catches
+     * writer-side regressions in test/dev builds.
      */
-    private static Map<Long, Integer> buildGenerationToLeaf(List<LeafReaderContext> leaves) {
-        Map<Long, Integer> out = new HashMap<>(leaves.size());
+    private static Map<Long, Integer> buildGenerationToLeafFromCatalog(CatalogSnapshot catalogSnapshot, List<LeafReaderContext> leaves) {
+        // Index leaves by their file set. SegmentInfo.files() is unique per leaf within
+        // a directory, so this is a 1:1 mapping.
+        Map<Set<String>, Integer> filesToLeafIdx = new HashMap<>(leaves.size());
         for (int leafIdx = 0; leafIdx < leaves.size(); leafIdx++) {
             LeafReaderContext lrc = leaves.get(leafIdx);
             if ((lrc.reader() instanceof SegmentReader) == false) {
@@ -118,43 +141,103 @@ final class LuceneFilterDelegationHandle implements FilterDelegationHandle {
                 );
             }
             SegmentReader sr = (SegmentReader) lrc.reader();
-            SegmentCommitInfo sci = sr.getSegmentInfo();
-            String genAttr = sci.info.getAttribute(WRITER_GENERATION_ATTRIBUTE);
-            if (genAttr == null) {
-                throw new IllegalStateException(
-                    "Lucene leaf "
-                        + leafIdx
-                        + " (segment name="
-                        + sci.info.name
-                        + ") is missing the "
-                        + WRITER_GENERATION_ATTRIBUTE
-                        + " attribute. Every segment must be stamped at write/merge time; a missing "
-                        + "attribute indicates a LuceneWriter or RowIdRemappingOneMerge regression."
-                );
-            }
-            long gen;
             try {
-                gen = Long.parseLong(genAttr);
-            } catch (NumberFormatException e) {
-                throw new IllegalStateException(
-                    "Lucene leaf " + leafIdx + " has a non-numeric " + WRITER_GENERATION_ATTRIBUTE + "=[" + genAttr + "]",
-                    e
-                );
-            }
-            Integer prev = out.put(gen, leafIdx);
-            if (prev != null) {
-                throw new IllegalStateException(
-                    "Duplicate writer generation ["
-                        + gen
-                        + "] seen at Lucene leaves "
-                        + prev
-                        + " and "
-                        + leafIdx
-                        + ". Generations must be unique across leaves."
-                );
+                Set<String> files = new HashSet<>(sr.getSegmentInfo().files());
+                Integer prev = filesToLeafIdx.put(files, leafIdx);
+                if (prev != null) {
+                    throw new IllegalStateException(
+                        "Two Lucene leaves ("
+                            + prev
+                            + " and "
+                            + leafIdx
+                            + ") report identical SegmentInfo.files() — "
+                            + "Lucene invariant violated"
+                    );
+                }
+            } catch (IOException e) {
+                throw new IllegalStateException("Failed to read SegmentInfo.files() for leaf " + leafIdx, e);
             }
         }
-        return out;
+
+        // Walk catalog segments that have a "lucene" WriterFileSet and bind them to leaves.
+        Map<Long, Integer> generationToLeaf = new HashMap<>();
+        Set<Integer> claimedLeaves = new HashSet<>();
+        for (Segment seg : catalogSnapshot.getSegments()) {
+            WriterFileSet wfs = seg.dfGroupedSearchableFiles().get(LuceneDataFormat.LUCENE_FORMAT_NAME);
+            if (wfs == null) {
+                continue;
+            }
+            Integer leafIdx = filesToLeafIdx.get(wfs.files());
+            if (leafIdx == null) {
+                throw new IllegalStateException(
+                    "Catalog Lucene segment gen="
+                        + seg.generation()
+                        + " has files "
+                        + wfs.files()
+                        + " but no Lucene leaf reports that exact file set. Open leaves: "
+                        + leaves.size()
+                );
+            }
+            if (claimedLeaves.add(leafIdx) == false) {
+                throw new IllegalStateException(
+                    "Two catalog segments mapped to the same Lucene leaf " + leafIdx + "; mapping must be a bijection"
+                );
+            }
+            Integer prev = generationToLeaf.put(seg.generation(), leafIdx);
+            if (prev != null) {
+                throw new IllegalStateException(
+                    "Catalog has two Lucene segments with the same writer generation [" + seg.generation() + "]"
+                );
+            }
+
+            // Cross-check the on-disk attribute against the catalog. -ea-only — the read
+            // path never depends on this. A drift here is a writer-side regression.
+            assert assertCatalogAgreesWithSegmentInfoAttribute(leaves.get(leafIdx), seg.generation());
+        }
+        return generationToLeaf;
+    }
+
+    /**
+     * Returns true when the leaf either has no {@code WRITER_GENERATION_ATTRIBUTE} or has
+     * one whose value equals {@code catalogGen}. Used in an {@code assert} only — never
+     * on the production read path.
+     */
+    private static boolean assertCatalogAgreesWithSegmentInfoAttribute(LeafReaderContext leaf, long catalogGen) {
+        SegmentReader sr = (SegmentReader) leaf.reader();
+        String attr = sr.getSegmentInfo().info.getAttribute(WRITER_GENERATION_ATTRIBUTE);
+        if (attr == null) {
+            // Older segments written before the attribute was added. Catalog wins.
+            return true;
+        }
+        long stamped;
+        try {
+            stamped = Long.parseLong(attr);
+        } catch (NumberFormatException e) {
+            throw new AssertionError(
+                "Lucene SegmentInfo "
+                    + WRITER_GENERATION_ATTRIBUTE
+                    + " is not numeric: ["
+                    + attr
+                    + "] (segment="
+                    + sr.getSegmentInfo().info.name
+                    + ")",
+                e
+            );
+        }
+        if (stamped != catalogGen) {
+            throw new AssertionError(
+                "Lucene SegmentInfo "
+                    + WRITER_GENERATION_ATTRIBUTE
+                    + "="
+                    + stamped
+                    + " disagrees with catalog snapshot generation "
+                    + catalogGen
+                    + " (segment="
+                    + sr.getSegmentInfo().info.name
+                    + ")"
+            );
+        }
+        return true;
     }
 
     @Override
@@ -193,9 +276,6 @@ final class LuceneFilterDelegationHandle implements FilterDelegationHandle {
         }
         LeafReaderContext leaf = leaves.get(leafIdx);
 
-        // Partition bounds must sit inside the resolved leaf. If they don't, the caller
-        // is addressing a segment whose generation doesn't match its doc count — a
-        // regression of the exact bug this class is designed to prevent.
         int leafMaxDoc = leaf.reader().maxDoc();
         assert minDoc >= 0 && minDoc <= maxDoc && maxDoc <= leafMaxDoc : "createCollector(providerKey="
             + providerKey

@@ -150,6 +150,12 @@ impl DataFusionRuntime {
 pub struct ShardView {
     pub table_path: ListingTableUrl,
     pub object_metas: Arc<Vec<object_store::ObjectMeta>>,
+    /// Writer generation per file, parallel to `object_metas`. Sourced from the Java-side
+    /// catalog snapshot (`WriterFileSet.writerGeneration`) at reader-creation time. The
+    /// catalog is the authoritative source — Rust never reads generations from parquet
+    /// footers in production. Footer-kv reads, when they happen, are debug-only
+    /// assertions.
+    pub writer_generations: Arc<Vec<i64>>,
 }
 
 /// Creates a DataFusion global runtime with the given resource limits.
@@ -251,15 +257,29 @@ pub unsafe fn set_memory_pool_limit(ptr: i64, new_limit: i64) -> Result<(), Stri
 /// Returns a heap-allocated pointer (as i64) to `ShardView`.
 /// Caller must call `close_reader` exactly once to free it.
 ///
+/// # Writer generations
+/// `writer_generations[i]` is the generation of `filenames[i]`. Both come from the Java
+/// catalog snapshot (`WriterFileSet.writerGeneration` and `WriterFileSet.files()`); the
+/// catalog is the source of truth. The generation is later passed to
+/// `FfmSegmentCollector::create` so the Java side can identify the corresponding Lucene
+/// leaf — no filename parsing or parquet-footer reads are involved on the production path.
+///
 /// # Ordering
-/// `filenames` are kept in the order supplied by the caller. The writer
-/// generation for each file is read out of its parquet footer kv metadata at
-/// `build_segments` time (see `opensearch.writer_generation`).
+/// `filenames` are kept in the order supplied by the caller.
 pub fn create_reader(
     table_path: &str,
     filenames: Vec<String>,
+    writer_generations: Vec<i64>,
     tokio_rt_manager: &RuntimeManager,
 ) -> Result<i64, DataFusionError> {
+    if filenames.len() != writer_generations.len() {
+        return Err(DataFusionError::Execution(format!(
+            "create_reader: filenames ({}) and writer_generations ({}) must have the same length",
+            filenames.len(),
+            writer_generations.len()
+        )));
+    }
+
     let table_url = ListingTableUrl::parse(table_path)
         .map_err(|e| DataFusionError::Execution(format!("Invalid table path: {}", e)))?;
 
@@ -276,6 +296,7 @@ pub fn create_reader(
     let shard_view = ShardView {
         table_path: table_url,
         object_metas: Arc::new(object_metas),
+        writer_generations: Arc::new(writer_generations),
     };
     Ok(Box::into_raw(Box::new(shard_view)) as i64)
 }

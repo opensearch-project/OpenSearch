@@ -122,11 +122,13 @@ pub unsafe extern "C" fn df_create_reader(
     table_path_len: i64,
     files_ptr: *const *const u8,
     files_len_ptr: *const i64,
+    writer_generations_ptr: *const i64,
     files_count: i64,
 ) -> i64 {
     let table_path = str_from_raw(table_path_ptr, table_path_len)
         .map_err(|e| format!("df_create_reader: {}", e))?;
     let mut filenames = Vec::with_capacity(files_count as usize);
+    let mut writer_generations = Vec::with_capacity(files_count as usize);
     for i in 0..files_count as usize {
         let ptr = *files_ptr.add(i);
         let len = *files_len_ptr.add(i);
@@ -135,9 +137,10 @@ pub unsafe extern "C" fn df_create_reader(
                 .map_err(|e| format!("df_create_reader: {}", e))?
                 .to_string(),
         );
+        writer_generations.push(*writer_generations_ptr.add(i));
     }
     let mgr = get_rt_manager()?;
-    api::create_reader(table_path, filenames, &mgr).map_err(|e| e.to_string())
+    api::create_reader(table_path, filenames, writer_generations, &mgr).map_err(|e| e.to_string())
 }
 
 #[no_mangle]
