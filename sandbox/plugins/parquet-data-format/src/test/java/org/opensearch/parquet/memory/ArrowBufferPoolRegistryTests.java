@@ -28,7 +28,6 @@ public class ArrowBufferPoolRegistryTests extends OpenSearchTestCase {
     private ClusterSettings buildClusterSettings(Settings nodeSettings) {
         Set<org.opensearch.common.settings.Setting<?>> all = new HashSet<>(BUILT_IN_CLUSTER_SETTINGS);
         all.add(ParquetSettings.MAX_NATIVE_ALLOCATION);
-        all.add(ParquetSettings.MAX_NATIVE_ALLOCATION_CEILING);
         all.add(ParquetSettings.CHILD_ALLOCATION);
         return new ClusterSettings(nodeSettings, all);
     }

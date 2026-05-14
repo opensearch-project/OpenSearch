@@ -27,12 +27,6 @@ public final class ParquetSettings {
     public static final int DEFAULT_MAX_ROWS_PER_VSR = 50000;
 
     /**
-     * Ceiling applied when {@link #MAX_NATIVE_ALLOCATION} is a percentage. Mirrors the
-     * {@code indices.memory.max_native_index_buffer_size} pattern in {@code IndexingMemoryController}.
-     */
-    public static final ByteSizeValue DEFAULT_MAX_NATIVE_ALLOCATION_CEILING = new ByteSizeValue(8, ByteSizeUnit.GB);
-
-    /**
      * Default per-VSR child allocator cap. Bounds memory a single in-flight VectorSchemaRoot can
      * hold so one writer cannot monopolize the root allocator. {@code 512mb} comes from the OFAT
      * sweep documented in
@@ -111,8 +105,7 @@ public final class ParquetSettings {
     /**
      * Maximum native memory allocation for Arrow buffers. Accepts a percentage of non-heap memory
      * ({@code totalPhysicalMemory - configuredMaxHeap}, e.g. {@code "10%"}) or an absolute byte
-     * size (e.g. {@code "2gb"}). When a percentage is supplied, the resolved value is clamped by
-     * {@link #MAX_NATIVE_ALLOCATION_CEILING}.
+     * size (e.g. {@code "2gb"}).
      * <p>
      * Dynamic: changes take effect on the live Arrow {@code RootAllocator} via
      * {@code BaseAllocator.setLimit}. Lowering below current usage rejects future allocations
@@ -126,19 +119,6 @@ public final class ParquetSettings {
         "parquet.max_native_allocation",
         DEFAULT_MAX_NATIVE_ALLOCATION,
         ParquetSettings::validateMemorySizeOrPercentage,
-        Setting.Property.NodeScope,
-        Setting.Property.Dynamic
-    );
-
-    /**
-     * Ceiling applied when {@link #MAX_NATIVE_ALLOCATION} is a percentage. {@code -1} disables
-     * the ceiling.
-     */
-    public static final Setting<ByteSizeValue> MAX_NATIVE_ALLOCATION_CEILING = Setting.byteSizeSetting(
-        "parquet.max_native_allocation_ceiling",
-        DEFAULT_MAX_NATIVE_ALLOCATION_CEILING,
-        new ByteSizeValue(-1),
-        new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES),
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
@@ -249,7 +229,6 @@ public final class ParquetSettings {
             BLOOM_FILTER_FPP,
             BLOOM_FILTER_NDV,
             MAX_NATIVE_ALLOCATION,
-            MAX_NATIVE_ALLOCATION_CEILING,
             CHILD_ALLOCATION,
             MAX_ROWS_PER_VSR,
             SORT_IN_MEMORY_THRESHOLD,

@@ -26,8 +26,7 @@ import java.io.Closeable;
  *
  * <p>Wraps an Apache Arrow {@link RootAllocator} whose maximum allocation is derived from the
  * {@link ParquetSettings#MAX_NATIVE_ALLOCATION} setting. Percentages are applied against
- * {@code totalPhysicalMemory - configuredMaxHeap} and clamped by
- * {@link ParquetSettings#MAX_NATIVE_ALLOCATION_CEILING}; absolute byte sizes are used as-is.
+ * {@code totalPhysicalMemory - configuredMaxHeap}; absolute byte sizes are used as-is.
  *
  * <p>Child allocators are created per {@link org.opensearch.parquet.vsr.ManagedVSR} instance,
  * each capped by {@link ParquetSettings#CHILD_ALLOCATION} to provide memory isolation between
@@ -84,8 +83,7 @@ public class ArrowBufferPool implements Closeable {
     }
 
     /**
-     * Re-reads the three allocation settings ({@link ParquetSettings#MAX_NATIVE_ALLOCATION},
-     * {@link ParquetSettings#MAX_NATIVE_ALLOCATION_CEILING},
+     * Re-reads the two allocation settings ({@link ParquetSettings#MAX_NATIVE_ALLOCATION},
      * {@link ParquetSettings#CHILD_ALLOCATION}), pushes the resolved root limit to the live
      * {@link RootAllocator} and pushes the new per-child cap to every live child allocator. New
      * children created after this call also see the new cap via the volatile field.
@@ -115,8 +113,7 @@ public class ArrowBufferPool implements Closeable {
 
     /**
      * Resolves the root allocator budget. Percentages apply to
-     * {@code totalPhysicalMemory - configuredMaxHeap} and are clamped at
-     * {@link ParquetSettings#MAX_NATIVE_ALLOCATION_CEILING}; absolute byte sizes are used as-is.
+     * {@code totalPhysicalMemory - configuredMaxHeap}; absolute byte sizes are used as-is.
      * <p>
      * Throws {@link IllegalStateException} if a percentage is supplied but non-heap memory is
      * unmeasurable — operators on misconfigured boxes should specify an absolute byte size.
@@ -135,13 +132,7 @@ public class ArrowBufferPool implements Closeable {
             }
 
             RatioValue ratio = RatioValue.parseRatioValue(configured);
-            long bytes = (long) (totalAvailableMemory * ratio.getAsRatio());
-
-            ByteSizeValue ceiling = ParquetSettings.MAX_NATIVE_ALLOCATION_CEILING.get(settings);
-            if (ceiling.getBytes() != -1 && bytes > ceiling.getBytes()) {
-                bytes = ceiling.getBytes();
-            }
-            return bytes;
+            return (long) (totalAvailableMemory * ratio.getAsRatio());
         }
 
         return ByteSizeValue.parseBytesSizeValue(configured, ParquetSettings.MAX_NATIVE_ALLOCATION.getKey()).getBytes();
