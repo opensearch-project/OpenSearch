@@ -82,11 +82,7 @@ public class TaskCancellationStatsTests extends AbstractWireSerializingTestCase<
             in.setVersion(Version.V_3_7_0);
             TaskCancellationStats deserialized = new TaskCancellationStats(in);
 
-            assertEquals(
-                "Round-trip with native stats failed for instance " + i,
-                original,
-                deserialized
-            );
+            assertEquals("Round-trip with native stats failed for instance " + i, original, deserialized);
         }
     }
 
@@ -113,11 +109,7 @@ public class TaskCancellationStatsTests extends AbstractWireSerializingTestCase<
             in.setVersion(Version.V_3_7_0);
             TaskCancellationStats deserialized = new TaskCancellationStats(in);
 
-            assertEquals(
-                "Round-trip without native stats failed for instance " + i,
-                original,
-                deserialized
-            );
+            assertEquals("Round-trip without native stats failed for instance " + i, original, deserialized);
         }
     }
 

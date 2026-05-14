@@ -16,11 +16,11 @@ import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
-import org.opensearch.nativebridge.spi.FfmNativeMemoryService;
 import org.opensearch.nativebridge.spi.NativeAllocatorConfig;
 import org.opensearch.nativebridge.spi.NativeLibraryLoader;
-import org.opensearch.nativebridge.spi.NativeMemoryService;
-import org.opensearch.nativebridge.spi.NativeMemoryServiceProvider;
+import org.opensearch.nativebridge.spi.NativeMemoryFetcher;
+import org.opensearch.nativebridge.spi.NativeMemoryStats;
+import org.opensearch.nativebridge.spi.NativeStatsProvider;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.script.ScriptService;
@@ -38,13 +38,10 @@ import java.util.function.Supplier;
  * <p>
  * Registers dynamic cluster settings and applies changes at runtime via the FFM bridge.
  * <p>
- * Implements {@link NativeMemoryServiceProvider} so that {@code Node.java} can discover
- * the {@link FfmNativeMemoryService} via {@code filterPlugins()} without a direct compile
- * dependency on the JDK 25+ {@code dataformat-native} library.
+ * Implements {@link NativeStatsProvider} so that {@code Node.java} can discover
+ * native memory stats capability via {@code filterPlugins(NativeStatsProvider.class)}.
  */
-public class NativeBridgeModule extends Plugin implements NativeMemoryServiceProvider {
-
-    private volatile NativeMemoryService nativeMemoryService;
+public class NativeBridgeModule extends Plugin implements NativeStatsProvider {
 
     /** jemalloc dirty page decay time (ms). Dynamically tunable — applied to all arenas at runtime. */
     public static final Setting<Long> JEMALLOC_DIRTY_DECAY_MS = Setting.longSetting(
@@ -63,6 +60,14 @@ public class NativeBridgeModule extends Plugin implements NativeMemoryServicePro
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
+
+    @Override
+    public NativeMemoryStats memoryStats() {
+        if (!NativeLibraryLoader.isLoaded()) {
+            return null;
+        }
+        return NativeMemoryFetcher.fetch();
+    }
 
     @Override
     public Collection<Object> createComponents(
@@ -88,17 +93,7 @@ public class NativeBridgeModule extends Plugin implements NativeMemoryServicePro
         clusterService.getClusterSettings().addSettingsUpdateConsumer(JEMALLOC_DIRTY_DECAY_MS, NativeAllocatorConfig::setDirtyDecayMs);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(JEMALLOC_MUZZY_DECAY_MS, NativeAllocatorConfig::setMuzzyDecayMs);
 
-        // Instantiate NativeMemoryService if native library is loaded
-        if (NativeLibraryLoader.isLoaded()) {
-            this.nativeMemoryService = new FfmNativeMemoryService(settings);
-        }
-
         return Collections.emptyList();
-    }
-
-    @Override
-    public NativeMemoryService getNativeMemoryService() {
-        return nativeMemoryService;
     }
 
     @Override

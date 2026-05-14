@@ -51,33 +51,25 @@ public class NativeMemoryStatsXContentTests extends OpenSearchTestCase {
 
             // Assert top-level key is "native_memory"
             assertTrue(
-                "Expected top-level key 'native_memory' on iteration " + i + " for values: ["
-                    + allocatedBytes + ", " + residentBytes + "], got keys: " + root.keySet(),
+                "Expected top-level key 'native_memory' on iteration "
+                    + i
+                    + " for values: ["
+                    + allocatedBytes
+                    + ", "
+                    + residentBytes
+                    + "], got keys: "
+                    + root.keySet(),
                 root.containsKey("native_memory")
             );
-            assertEquals(
-                "Expected exactly one top-level key on iteration " + i,
-                1,
-                root.size()
-            );
+            assertEquals("Expected exactly one top-level key on iteration " + i, 1, root.size());
 
             // Assert the native_memory object contains exactly the two expected fields
             @SuppressWarnings("unchecked")
             Map<String, Object> nativeMemory = (Map<String, Object>) root.get("native_memory");
             assertNotNull("native_memory value should not be null on iteration " + i, nativeMemory);
-            assertEquals(
-                "Expected exactly 2 fields in native_memory on iteration " + i,
-                2,
-                nativeMemory.size()
-            );
-            assertTrue(
-                "Expected 'allocated_bytes' field on iteration " + i,
-                nativeMemory.containsKey("allocated_bytes")
-            );
-            assertTrue(
-                "Expected 'resident_bytes' field on iteration " + i,
-                nativeMemory.containsKey("resident_bytes")
-            );
+            assertEquals("Expected exactly 2 fields in native_memory on iteration " + i, 2, nativeMemory.size());
+            assertTrue("Expected 'allocated_bytes' field on iteration " + i, nativeMemory.containsKey("allocated_bytes"));
+            assertTrue("Expected 'resident_bytes' field on iteration " + i, nativeMemory.containsKey("resident_bytes"));
 
             // Assert correct values (JSON numbers are parsed as Long or Integer depending on size)
             assertEquals(

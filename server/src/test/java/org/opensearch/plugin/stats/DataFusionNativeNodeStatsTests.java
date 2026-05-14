@@ -56,8 +56,15 @@ public class DataFusionNativeNodeStatsTests extends OpenSearchTestCase {
                 try (StreamInput in = out.bytes().streamInput()) {
                     DataFusionNativeNodeStats deserialized = new DataFusionNativeNodeStats(in);
                     assertEquals(
-                        "Round-trip failed for values: [" + searchTaskCurrent + ", " + searchTaskTotal + ", "
-                            + shardTaskCurrent + ", " + shardTaskTotal + "]",
+                        "Round-trip failed for values: ["
+                            + searchTaskCurrent
+                            + ", "
+                            + searchTaskTotal
+                            + ", "
+                            + shardTaskCurrent
+                            + ", "
+                            + shardTaskTotal
+                            + "]",
                         original,
                         deserialized
                     );

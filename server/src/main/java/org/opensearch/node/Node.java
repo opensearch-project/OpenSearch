@@ -120,6 +120,7 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.PageCacheRecycler;
+import org.opensearch.common.util.SingleObjectCache;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.Assertions;
 import org.opensearch.core.common.breaker.CircuitBreaker;
@@ -204,6 +205,8 @@ import org.opensearch.monitor.fs.FsServiceProvider;
 import org.opensearch.monitor.jvm.JvmInfo;
 import org.opensearch.monitor.os.OsProbe;
 import org.opensearch.monitor.process.ProcessProbe;
+import org.opensearch.nativebridge.spi.NativeMemoryStats;
+import org.opensearch.nativebridge.spi.NativeStatsProvider;
 import org.opensearch.node.remotestore.RemoteStoreNodeService;
 import org.opensearch.node.remotestore.RemoteStorePinnedTimestampService;
 import org.opensearch.node.resource.tracker.NodeResourceUsageTracker;
@@ -212,8 +215,6 @@ import org.opensearch.persistent.PersistentTasksExecutor;
 import org.opensearch.persistent.PersistentTasksExecutorRegistry;
 import org.opensearch.persistent.PersistentTasksService;
 import org.opensearch.plugin.stats.BackendStatsProvider;
-import org.opensearch.nativebridge.spi.NativeMemoryService;
-import org.opensearch.nativebridge.spi.NativeMemoryServiceProvider;
 import org.opensearch.plugins.ActionPlugin;
 import org.opensearch.plugins.AnalysisPlugin;
 import org.opensearch.plugins.CachePlugin;
@@ -440,6 +441,13 @@ public class Node implements Closeable {
         "node.search.cache.size",
         s -> (DiscoveryNode.isDedicatedWarmNode(s)) ? "80%" : ZERO,
         Node::validateFileCacheSize,
+        Property.NodeScope
+    );
+
+    public static final Setting<TimeValue> NATIVE_MEMORY_REFRESH_INTERVAL_SETTING = Setting.timeSetting(
+        "monitor.native_memory.refresh_interval",
+        TimeValue.timeValueSeconds(1),
+        TimeValue.timeValueSeconds(1),
         Property.NodeScope
     );
 
@@ -1580,12 +1588,32 @@ public class Node implements Closeable {
                 backendStatsProvider
             );
 
-            final NativeMemoryService nativeMemoryService = pluginsService.filterPlugins(NativeMemoryServiceProvider.class)
+            final NativeStatsProvider nativeStatsProvider = pluginsService.filterPlugins(NativeStatsProvider.class)
                 .stream()
-                .map(NativeMemoryServiceProvider::getNativeMemoryService)
-                .filter(Objects::nonNull)
                 .findFirst()
                 .orElse(null);
+
+            final Supplier<NativeMemoryStats> nativeMemoryStatsSupplier;
+            if (nativeStatsProvider != null) {
+                TimeValue refreshInterval = NATIVE_MEMORY_REFRESH_INTERVAL_SETTING.get(settings);
+                NativeMemoryStats initialStats = nativeStatsProvider.memoryStats();
+                if (initialStats == null) {
+                    initialStats = new NativeMemoryStats(-1, -1);
+                }
+                SingleObjectCache<NativeMemoryStats> nativeMemoryCache = new SingleObjectCache<NativeMemoryStats>(
+                    refreshInterval,
+                    initialStats
+                ) {
+                    @Override
+                    protected NativeMemoryStats refresh() {
+                        NativeMemoryStats stats = nativeStatsProvider.memoryStats();
+                        return stats != null ? stats : new NativeMemoryStats(-1, -1);
+                    }
+                };
+                nativeMemoryStatsSupplier = nativeMemoryCache::getOrRefresh;
+            } else {
+                nativeMemoryStatsSupplier = () -> null;
+            }
 
             this.nodeService = new NodeService(
                 settings,
@@ -1614,7 +1642,7 @@ public class Node implements Closeable {
                 repositoryService,
                 admissionControlService,
                 cacheService,
-                nativeMemoryService
+                nativeMemoryStatsSupplier
             );
 
             final SearchService searchService = newSearchService(
