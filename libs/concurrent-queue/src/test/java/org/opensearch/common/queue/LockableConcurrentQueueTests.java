@@ -215,4 +215,36 @@ public class LockableConcurrentQueueTests extends OpenSearchTestCase {
         }
         assertEquals(numEntries, remaining);
     }
+
+    public void testLockAndPollWithRejectsReturnsCompatibleEntry() {
+        LockableConcurrentQueue<LockableEntry> queue = new LockableConcurrentQueue<>(LinkedList::new, 1);
+        LockableEntry e1 = new LockableEntry("old");
+        LockableEntry e2 = new LockableEntry("old");
+        LockableEntry e3 = new LockableEntry("current");
+        seedEntry(queue, e1);
+        seedEntry(queue, e2);
+        seedEntry(queue, e3);
+
+        LockableEntry result = queue.lockAndPollWithRejects(e -> e.id.equals("current"));
+        assertSame(e3, result);
+        assertTrue(result.isHeldByCurrentThread());
+        // e1 and e2 were incompatible and should have been dropped
+        assertNull(queue.lockAndPoll());
+        result.unlock();
+    }
+
+    public void testLockAndPollWithRejectsAllIncompatible() {
+        LockableConcurrentQueue<LockableEntry> queue = new LockableConcurrentQueue<>(LinkedList::new, 1);
+        seedEntry(queue, new LockableEntry("old"));
+        seedEntry(queue, new LockableEntry("old"));
+
+        assertNull(queue.lockAndPollWithRejects(e -> e.id.equals("new")));
+        // Queue should be empty after all incompatible entries were dropped
+        assertNull(queue.lockAndPoll());
+    }
+
+    public void testLockAndPollWithRejectsEmptyQueue() {
+        LockableConcurrentQueue<LockableEntry> queue = new LockableConcurrentQueue<>(LinkedList::new, 1);
+        assertNull(queue.lockAndPollWithRejects(e -> true));
+    }
 }

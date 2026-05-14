@@ -144,18 +144,24 @@ public class OpenSearchFilterRule extends RelOptRule {
 
         CapabilityRegistry registry = context.getCapabilityRegistry();
 
-        if (fieldIndices.isEmpty()) {
-            throw new UnsupportedOperationException(
-                "Constant predicate with no field references reached the filter rule: ["
-                    + predicate
-                    + "]. ReduceExpressionsRule in PlannerImpl should have eliminated it."
-            );
-        }
-
         ScalarFunction function = ScalarFunction.fromSqlOperatorWithFallback(predicate.getOperator());
         if (function == null) {
             throw new IllegalStateException(
                 "Unrecognized filter operator [" + predicate.getOperator().getName() + " / " + predicate.getKind() + "]"
+            );
+        }
+
+        if (fieldIndices.isEmpty()) {
+            // Multi-field full-text functions (multi_match, query_string, simple_query_string)
+            // encode field names as string literals in nested MAPs rather than RexInputRef.
+            // Resolve viability against any backend that supports the function on text fields.
+            if (function.getCategory() == ScalarFunction.Category.FULL_TEXT) {
+                return new ArrayList<>(registry.filterBackendsAnyFormat(function, FieldType.TEXT));
+            }
+            throw new UnsupportedOperationException(
+                "Constant predicate with no field references reached the filter rule: ["
+                    + predicate
+                    + "]. ReduceExpressionsRule in PlannerImpl should have eliminated it."
             );
         }
 

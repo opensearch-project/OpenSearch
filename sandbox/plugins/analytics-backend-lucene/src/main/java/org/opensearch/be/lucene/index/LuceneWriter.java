@@ -72,12 +72,14 @@ public class LuceneWriter implements Writer<LuceneDocumentInput> {
     private final Path tempDirectory;
     private final Directory directory;
     private final IndexWriter indexWriter;
+    private long mappingVersion;
     private volatile long docCount;
 
     /**
      * Creates a new LuceneWriter for the given generation.
      *
      * @param writerGeneration the writer generation number
+     * @param mappingVersion   the initial mapping version
      * @param dataFormat       the Lucene data format descriptor
      * @param baseDirectory    the base directory under which to create the temp directory
      * @param analyzer         the analyzer to use for tokenized fields, or null for default
@@ -87,6 +89,7 @@ public class LuceneWriter implements Writer<LuceneDocumentInput> {
      */
     public LuceneWriter(
         long writerGeneration,
+        long mappingVersion,
         LuceneDataFormat dataFormat,
         Path baseDirectory,
         Analyzer analyzer,
@@ -94,6 +97,7 @@ public class LuceneWriter implements Writer<LuceneDocumentInput> {
         Sort indexSort
     ) throws IOException {
         this.writerGeneration = writerGeneration;
+        this.mappingVersion = mappingVersion;
         this.dataFormat = dataFormat;
         this.docCount = 0;
 
@@ -202,6 +206,23 @@ public class LuceneWriter implements Writer<LuceneDocumentInput> {
     @Override
     public long generation() {
         return writerGeneration;
+    }
+
+    @Override
+    public boolean isSchemaMutable() {
+        return true;
+    }
+
+    @Override
+    public long mappingVersion() {
+        return mappingVersion;
+    }
+
+    @Override
+    public void updateMappingVersion(long newVersion) {
+        if (newVersion > this.mappingVersion) {
+            this.mappingVersion = newVersion;
+        }
     }
 
     /**

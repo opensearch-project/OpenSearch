@@ -23,6 +23,7 @@ use datafusion::execution::cache::{CacheAccessor, DefaultListFilesCache};
 use datafusion_substrait::logical_plan::consumer::from_substrait_plan;
 use log::error;
 use object_store::ObjectMeta;
+use object_store::ObjectStore;
 use prost::Message;
 use substrait::proto::Plan;
 
@@ -51,6 +52,7 @@ pub async fn execute_query(
     // wire up context_id correctly.
     query_memory_pool: Option<Arc<dyn datafusion::execution::memory_pool::MemoryPool>>,
     query_config: &crate::datafusion_query_config::DatafusionQueryConfig,
+    shard_store: Arc<dyn ObjectStore>,
 ) -> Result<i64, DataFusionError> {
     // Build per-query RuntimeEnv with list-files cache pre-populated.
     let runtime_env = build_query_runtime_env(runtime, &table_path, object_metas.as_ref())?;
@@ -70,6 +72,13 @@ pub async fn execute_query(
     } else {
         runtime_env
     };
+
+    // Register shard-specific object store on file:// scheme for this query.
+    // Routes reads through TieredObjectStore (local + remote) or default LocalFileSystem.
+    runtime_env.register_object_store(
+        &url::Url::parse("file://").unwrap(),
+        shard_store,
+    );
 
     // Build a fresh session state per query. TODO : Tune this during planning per query
     let mut config = SessionConfig::new();

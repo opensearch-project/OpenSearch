@@ -147,7 +147,9 @@ public class CoordinatorResilienceIT extends OpenSearchIntegTestCase {
     public void testStubReplacesStreamingShardResponseWithEmptyBatch() throws Exception {
         createAndSeedIndex();
         stubAllocator = new RootAllocator();
-        Schema schema = new Schema(List.of(new Field("value", FieldType.nullable(new ArrowType.Int(32, true)), null)));
+        // Schema width must match the coordinator's declared input-partition schema — that's
+        // the *aggregate* output type (SUM(int) → Int64/BIGINT), not the base column type.
+        Schema schema = new Schema(List.of(new Field("total", FieldType.nullable(new ArrowType.Int(64, true)), null)));
 
         AtomicInteger stubCalls = new AtomicInteger();
         String victim = pickShardHostingNode();

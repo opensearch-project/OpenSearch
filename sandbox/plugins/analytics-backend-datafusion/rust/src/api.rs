@@ -55,7 +55,7 @@ use datafusion::physical_plan::execute_stream;
 use datafusion::physical_plan::stream::RecordBatchStreamAdapter;
 use datafusion::prelude::{SessionConfig, SessionContext};
 use futures::TryStreamExt;
-use object_store::ObjectStoreExt;
+use object_store::{ObjectStore, ObjectStoreExt};
 use roaring::RoaringBitmap;
 
 use crate::cancellation;
@@ -248,6 +248,10 @@ pub struct ShardView {
     /// Per-file row group counts, passed from Java at shard view creation.
     /// When present, enables ShardTableProvider construction with row_base.
     pub file_metadata: Option<Vec<FileRowMetadata>>,
+    /// Per-shard object store. When a native store is provided (store_ptr > 0),
+    /// this routes reads through TieredObjectStore (local + remote).
+    /// When no store is provided, uses default LocalFileSystem.
+    pub store: Arc<dyn ObjectStore>,
 }
 
 /// Creates a DataFusion global runtime with the given resource limits.
@@ -348,19 +352,29 @@ pub unsafe fn set_memory_pool_limit(ptr: i64, new_limit: i64) -> Result<(), Stri
 ///
 /// Returns a heap-allocated pointer (as i64) to `ShardView`.
 /// Caller must call `close_reader` exactly once to free it.
+///
+/// `store_ptr`: 0 = use default LocalFileSystem (hot path),
+/// >0 = Box<Arc<dyn ObjectStore>> pointer (routes reads through TieredObjectStore).
 pub fn create_reader(
     table_path: &str,
     mut filenames: Vec<String>,
     tokio_rt_manager: &RuntimeManager,
+    store_ptr: i64,
 ) -> Result<i64, DataFusionError> {
     filenames.sort();
 
     let table_url = ListingTableUrl::parse(table_path)
         .map_err(|e| DataFusionError::Execution(format!("Invalid table path: {}", e)))?;
 
-    // TODO: use global runtime's object store instead of building a throwaway RuntimeEnv
-    let default_rt = RuntimeEnvBuilder::new().build()?;
-    let store = default_rt.object_store(&table_url)?;
+    // Resolve the object store: if store_ptr > 0, clone the Arc from the boxed pointer.
+    // Otherwise use default LocalFileSystem.
+    let store: Arc<dyn ObjectStore> = if store_ptr > 0 {
+        let boxed = unsafe { &*(store_ptr as *const Arc<dyn ObjectStore>) };
+        Arc::clone(boxed)
+    } else {
+        let default_rt = RuntimeEnvBuilder::new().build()?;
+        default_rt.object_store(&table_url)?
+    };
 
     let object_metas = tokio_rt_manager.io_runtime.block_on(create_object_metas(
         store.as_ref(),
@@ -372,6 +386,7 @@ pub fn create_reader(
         table_path: table_url,
         object_metas: Arc::new(object_metas),
         file_metadata: None,
+        store,
     };
     Ok(Box::into_raw(Box::new(shard_view)) as i64)
 }
@@ -454,6 +469,7 @@ pub async unsafe fn execute_query(
                 cpu_executor,
                 query_memory_pool,
                 &query_config,
+                Arc::clone(&shard_view.store),
             ).await
         }
     };
@@ -498,6 +514,12 @@ pub async unsafe fn fetch_by_row_ids(
 
     let runtime_env = build_query_runtime_env(runtime, &shard_view.table_path, shard_view.object_metas.as_ref())?;
 
+    // Register shard-specific object store on file:// scheme for this query.
+    runtime_env.register_object_store(
+        &url::Url::parse("file://").unwrap(),
+        Arc::clone(&shard_view.store),
+    );
+
     let mut config = SessionConfig::new();
     config.options_mut().execution.parquet.pushdown_filters = true;
     config.options_mut().execution.target_partitions = 1;
@@ -512,7 +534,7 @@ pub async unsafe fn fetch_by_row_ids(
     // ── 2. Build ShardFileInfo with ParquetAccessPlan per file ──
 
     let store = ctx.state().runtime_env().object_store(&shard_view.table_path)?;
-    let (segments, _schema) = build_segments(Arc::clone(&store), shard_view.object_metas.as_ref())
+    let (segments, _schema) = build_segments(&ctx.state(), Arc::clone(&store), shard_view.object_metas.as_ref())
         .await
         .map_err(DataFusionError::Execution)?;
 

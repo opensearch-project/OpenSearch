@@ -162,6 +162,54 @@ impl TieredObjectStore {
             None
         }
     }
+
+    /// Fast-path head response from registry or directory existence check.
+    /// Returns `Some(GetResult)` if the head can be answered without I/O,
+    /// `None` if the caller should fall through to the normal get_opts path.
+    fn try_head_from_registry(&self, location: &Path, path_str: &str) -> Option<OsResult<GetResult>> {
+        // Check registry for cached file size
+        if let Some(guard) = self.registry.get(path_str) {
+            let size = guard.size();
+            if size > 0 {
+                let meta = ObjectMeta {
+                    location: location.clone(),
+                    last_modified: chrono::DateTime::<chrono::Utc>::default(),
+                    size,
+                    e_tag: None,
+                    version: None,
+                };
+                return Some(Ok(GetResult {
+                    payload: object_store::GetResultPayload::Stream(
+                        futures::stream::empty().boxed(),
+                    ),
+                    meta,
+                    range: 0..size,
+                    attributes: Default::default(),
+                }));
+            }
+        }
+        // Directory existence check: if path looks like a directory and registry
+        // has entries, return synthetic metadata. Handles DataFusion's ListingTable
+        // directory existence check on warm where no local directory exists.
+        if (!path_str.contains('.') || path_str.ends_with('/')) && self.registry.len() > 0 {
+            let meta = ObjectMeta {
+                location: location.clone(),
+                last_modified: chrono::DateTime::<chrono::Utc>::default(),
+                size: 0,
+                e_tag: None,
+                version: None,
+            };
+            return Some(Ok(GetResult {
+                payload: object_store::GetResultPayload::Stream(
+                    futures::stream::empty().boxed(),
+                ),
+                meta,
+                range: 0..0,
+                attributes: Default::default(),
+            }));
+        }
+        None
+    }
 }
 
 impl fmt::Debug for TieredObjectStore {
@@ -224,27 +272,10 @@ impl ObjectStore for TieredObjectStore {
     async fn get_opts(&self, location: &Path, options: GetOptions) -> OsResult<GetResult> {
         let path_str = location.as_ref();
 
-        // Fast path for head: return cached size from registry if available
+        // Fast path for head: check registry/directory without I/O
         if options.head {
-            if let Some(guard) = self.registry.get(path_str) {
-                let size = guard.size();
-                if size > 0 {
-                    let meta = ObjectMeta {
-                        location: location.clone(),
-                        last_modified: chrono::DateTime::<chrono::Utc>::default(),
-                        size,
-                        e_tag: None,
-                        version: None,
-                    };
-                    return Ok(GetResult {
-                        payload: object_store::GetResultPayload::Stream(
-                            futures::stream::empty().boxed(),
-                        ),
-                        meta,
-                        range: 0..size,
-                        attributes: Default::default(),
-                    });
-                }
+            if let Some(result) = self.try_head_from_registry(location, path_str) {
+                return result;
             }
         }
 

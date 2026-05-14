@@ -65,6 +65,24 @@ public class AnnotatedProjectExpression extends RexCall implements OperatorAnnot
         return viableBackends;
     }
 
+    /**
+     * Preserves subclass identity when {@link org.apache.calcite.rex.RexShuttle#visitCall}'s
+     * default implementation clones this call with updated operands. Without this override,
+     * {@link RexCall#clone(RelDataType, List)} would produce a plain {@code RexCall} with
+     * {@link #ANNOTATED_PROJECT_EXPR_OP} as its operator — downstream {@code stripAnnotations}
+     * would then fail to recognize it as an annotation (because the pattern match is on the
+     * subclass, not the operator), leaving a {@code ANNOTATED_PROJECT_EXPR(...)} call in the
+     * plan that isthmus cannot convert.
+     */
+    @Override
+    public RexCall clone(RelDataType type, List<RexNode> operands) {
+        RexNode newOriginal = operands.isEmpty() ? original : operands.get(0);
+        if (newOriginal == original && type == this.type) {
+            return this;
+        }
+        return new AnnotatedProjectExpression(type, newOriginal, viableBackends, annotationId);
+    }
+
     @Override
     public int getAnnotationId() {
         return annotationId;
