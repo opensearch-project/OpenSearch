@@ -16,6 +16,8 @@ import org.opensearch.analytics.spi.ExchangeSink;
 import org.opensearch.analytics.spi.ExchangeSinkProvider;
 import org.opensearch.analytics.spi.FieldType;
 import org.opensearch.analytics.spi.FilterCapability;
+import org.opensearch.analytics.spi.JoinCapability;
+import org.opensearch.analytics.spi.ProjectCapability;
 import org.opensearch.analytics.spi.ScalarFunction;
 import org.opensearch.analytics.spi.ScanCapability;
 import org.opensearch.index.engine.dataformat.ReaderManagerConfig;
@@ -115,13 +117,71 @@ public class MockDataFusionBackend extends MockBackend implements SearchBackEndP
     }
 
     @Override
+    protected Set<JoinCapability> joinCapabilities() {
+        return Set.of(
+            new JoinCapability(
+                Set.of(
+                    JoinCapability.JoinKind.INNER,
+                    JoinCapability.JoinKind.LEFT,
+                    JoinCapability.JoinKind.RIGHT,
+                    JoinCapability.JoinKind.FULL,
+                    JoinCapability.JoinKind.SEMI,
+                    JoinCapability.JoinKind.ANTI,
+                    JoinCapability.JoinKind.CROSS
+                ),
+                Set.of(PARQUET_DATA_FORMAT)
+            )
+        );
+    }
+
+    @Override
     protected Set<ScanCapability> scanCapabilities() {
         return SCAN_CAPS;
+    }
+
+    private static final Set<ScalarFunction> PROJECT_OPS = Set.of(
+        // Arithmetic / math (emitted by Calcite's AggregateReduceFunctionsRule)
+        ScalarFunction.PLUS,
+        ScalarFunction.MINUS,
+        ScalarFunction.TIMES,
+        ScalarFunction.DIVIDE,
+        ScalarFunction.POWER,
+        // Type coercion / null handling
+        ScalarFunction.CAST,
+        ScalarFunction.COALESCE,
+        ScalarFunction.IS_NULL,
+        ScalarFunction.IS_NOT_NULL,
+        // Conditional / comparisons (STDDEV_SAMP / VAR_SAMP emit CASE WHEN count > 1 …)
+        ScalarFunction.CASE,
+        ScalarFunction.EQUALS,
+        ScalarFunction.NOT_EQUALS,
+        ScalarFunction.GREATER_THAN,
+        ScalarFunction.GREATER_THAN_OR_EQUAL,
+        ScalarFunction.LESS_THAN,
+        ScalarFunction.LESS_THAN_OR_EQUAL,
+        // Logical connectives (projection-side composition: `case(a and b, …)`)
+        ScalarFunction.AND,
+        ScalarFunction.OR,
+        ScalarFunction.NOT
+    );
+
+    private static final Set<ProjectCapability> PROJECT_CAPS;
+    static {
+        Set<ProjectCapability> caps = new HashSet<>();
+        for (ScalarFunction op : PROJECT_OPS) {
+            caps.add(new ProjectCapability.Scalar(op, SUPPORTED_TYPES, DATAFUSION_FORMATS, false));
+        }
+        PROJECT_CAPS = caps;
     }
 
     @Override
     protected Set<FilterCapability> filterCapabilities() {
         return FILTER_CAPS;
+    }
+
+    @Override
+    protected Set<ProjectCapability> projectCapabilities() {
+        return PROJECT_CAPS;
     }
 
     @Override

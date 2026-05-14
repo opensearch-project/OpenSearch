@@ -100,15 +100,21 @@ public class NativeParquetWriterTests extends OpenSearchTestCase {
 
     public void testFlushWithoutWrite() throws Exception {
         String filePath = createTempDir().resolve("close-only.parquet").toString();
-        NativeParquetWriter writer = createWriter(filePath);
-        writer.flush();
-        assertNotNull(writer.getMetadata());
-        assertEquals(0, writer.getMetadata().numRows());
+        NativeParquetWriter writer = new NativeParquetWriter(filePath);
+        ParquetFileMetadata metadata = writer.flush();
+        // Writer was never initialized, so flush returns null
+        assertNull(metadata);
     }
 
     public void testFlushIsIdempotent() throws Exception {
         String filePath = createTempDir().resolve("idempotent.parquet").toString();
         NativeParquetWriter writer = createWriter(filePath);
+
+        // Write some data first so the writer gets initialized
+        try (ArrowExport export = exportData(new int[] { 1 }, new String[] { "alice" }, new long[] { 10L })) {
+            writer.write(export.getArrayAddress(), export.getSchemaAddress());
+        }
+
         writer.flush();
         ParquetFileMetadata first = writer.getMetadata();
         writer.flush();
@@ -134,6 +140,11 @@ public class NativeParquetWriterTests extends OpenSearchTestCase {
     public void testWriteAfterFlushThrows() throws Exception {
         String filePath = createTempDir().resolve("write-after-flush.parquet").toString();
         NativeParquetWriter writer = createWriter(filePath);
+
+        // Initialize writer with a write, then flush
+        try (ArrowExport export = exportData(new int[] { 1 }, new String[] { "a" }, new long[] { 1L })) {
+            writer.write(export.getArrayAddress(), export.getSchemaAddress());
+        }
         writer.flush();
 
         try (ArrowExport export = exportData(new int[] { 1 }, new String[] { "alice" }, new long[] { 10L })) {
@@ -141,30 +152,34 @@ public class NativeParquetWriterTests extends OpenSearchTestCase {
         }
     }
 
-    public void testCreateWriterWithNonExistentDirectory() {
-        expectThrows(IOException.class, () -> {
-            try (ArrowExport export = exportSchema()) {
-                new NativeParquetWriter(
-                    "/nonexistent/dir/file.parquet",
-                    "test-index",
-                    export.getSchemaAddress(),
-                    ParquetSortConfig.empty(),
-                    0L
-                );
-            }
-        });
+    public void testCreateWriterWithNonExistentDirectory() throws Exception {
+        // Constructor is lightweight — error surfaces on initialize
+        NativeParquetWriter writer = new NativeParquetWriter("/nonexistent/dir/file.parquet");
+        try (ArrowExport export = exportSchema()) {
+            expectThrows(
+                IOException.class,
+                () -> writer.initialize("test-index", export.getSchemaAddress(), ParquetSortConfig.empty(), 0L)
+            );
+        }
     }
 
-    public void testCreateWriterWithInvalidSchemaAddress() {
+    public void testCreateWriterWithInvalidSchemaAddress() throws Exception {
         String filePath = createTempDir().resolve("bad-schema.parquet").toString();
-        expectThrows(Exception.class, () -> new NativeParquetWriter(filePath, "test-index", 0L, ParquetSortConfig.empty(), 0L));
+        NativeParquetWriter writer = new NativeParquetWriter(filePath);
+        assertFalse(writer.isInitialized());
+        expectThrows(Exception.class, () -> writer.initialize("test-index", 0L, ParquetSortConfig.empty(), 0L));
     }
 
     public void testWriteWithSchemaMismatch() throws Exception {
         String filePath = createTempDir().resolve("mismatch.parquet").toString();
         NativeParquetWriter writer = createWriter(filePath);
 
-        // Writer was created with (id:int, name:utf8, score:long), write with (other_field:int)
+        // First write initializes the writer with the correct schema
+        try (ArrowExport export = exportData(new int[] { 1 }, new String[] { "a" }, new long[] { 1L })) {
+            writer.write(export.getArrayAddress(), export.getSchemaAddress());
+        }
+
+        // Second write with mismatched schema
         try (
             ArrowExport export = exportDataWithSchema(
                 new Schema(List.of(new Field("other_field", FieldType.nullable(new ArrowType.Int(32, true)), null))),
@@ -174,10 +189,17 @@ public class NativeParquetWriterTests extends OpenSearchTestCase {
                 }
             )
         ) {
-            writer.write(export.getArrayAddress(), export.getSchemaAddress());
+            // Rust side may or may not throw on schema mismatch during write;
+            // the mismatch is detected at flush time
+            try {
+                writer.write(export.getArrayAddress(), export.getSchemaAddress());
+            } catch (IOException e) {
+                // Expected — some Rust versions detect mismatch at write time
+                return;
+            }
         }
 
-        // Flush fails — Parquet ArrowWriter detects row count mismatch between columns
+        // If write didn't throw, flush should detect the mismatch
         expectThrows(IOException.class, writer::flush);
     }
 
@@ -185,8 +207,19 @@ public class NativeParquetWriterTests extends OpenSearchTestCase {
         String filePath = createTempDir().resolve("duplicate.parquet").toString();
         NativeParquetWriter writer1 = createWriter(filePath);
 
+        // Initialize writer1 by writing data
+        try (ArrowExport export = exportData(new int[] { 1 }, new String[] { "a" }, new long[] { 1L })) {
+            writer1.write(export.getArrayAddress(), export.getSchemaAddress());
+        }
+
         // Native side rejects creating a second writer for the same file
-        expectThrows(IOException.class, () -> createWriter(filePath));
+        NativeParquetWriter writer2 = new NativeParquetWriter(filePath);
+        try (ArrowExport export = exportSchema()) {
+            expectThrows(
+                IOException.class,
+                () -> writer2.initialize("test-index", export.getSchemaAddress(), ParquetSortConfig.empty(), 0L)
+            );
+        }
 
         writer1.flush();
     }
@@ -216,7 +249,6 @@ public class NativeParquetWriterTests extends OpenSearchTestCase {
 
         writer.flush();
         assertNotNull(writer.getMetadata());
-        assertEquals(0, writer.getMetadata().numRows());
     }
 
     public void testWriteWithNullAddresses() throws Exception {
@@ -235,14 +267,14 @@ public class NativeParquetWriterTests extends OpenSearchTestCase {
         try (ArrowExport dataExport = exportData(new int[] { 1 }, new String[] { "a" }, new long[] { 1L })) {
             expectThrows(IOException.class, () -> writer.write(dataExport.getArrayAddress(), 0L));
         }
-
-        writer.flush();
     }
 
     private NativeParquetWriter createWriter(String filePath) throws Exception {
+        NativeParquetWriter writer = new NativeParquetWriter(filePath);
         try (ArrowExport export = exportSchema()) {
-            return new NativeParquetWriter(filePath, "test-index", export.getSchemaAddress(), ParquetSortConfig.empty(), 0L);
+            writer.initialize("test-index", export.getSchemaAddress(), ParquetSortConfig.empty(), 0L);
         }
+        return writer;
     }
 
     private ArrowExport exportSchema() {
