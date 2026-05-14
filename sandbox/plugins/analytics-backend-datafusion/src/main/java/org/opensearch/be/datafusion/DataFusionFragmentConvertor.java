@@ -114,6 +114,24 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
      *   <li>{@link SqlLibraryOperators#REGEXP_REPLACE_3} → {@code regexp_replace} (regex string
      *       replacement; lowering target for PPL `replace` command on wildcard patterns and for
      *       PPL `replace()` / `regexp_replace()` functions in `eval`).</li>
+     *   <li>{@link SqlLibraryOperators#REGEXP_REPLACE_PG_4} → {@code regexp_replace} (4-arg
+     *       PostgreSQL-style with flags string; lowering target for PPL `rex mode=sed` with
+     *       {@code g}/{@code i} flags. Reuses the same DataFusion {@code regexp_replace} UDF as
+     *       the 3-arg form.</li>
+     *   <li>{@link SqlLibraryOperators#TRANSLATE3} → {@code translate} (3-arg character
+     *       transliteration; lowering target for PPL `rex mode=sed` with {@code y/from/to/}
+     *       transliteration syntax). DataFusion's substrait consumer resolves the extension name
+     *       "translate" to its native {@code translate} UDF
+     *       (datafusion-functions/src/unicode/translate.rs).</li>
+     *   <li>{@link RexExtractAdapter#LOCAL_REX_EXTRACT_OP} → {@code rex_extract} (Rust UDF;
+     *       single-match named/numbered group extract). Lowering target for PPL
+     *       {@code rex field=f "(?<g>...)"} extract command.</li>
+     *   <li>{@link RexExtractMultiAdapter#LOCAL_REX_EXTRACT_MULTI_OP} → {@code rex_extract_multi}
+     *       (Rust UDF; multi-match named/numbered group extract returning {@code list<varchar>}).
+     *       Lowering target for PPL {@code rex ... max_match=N}.</li>
+     *   <li>{@link RexOffsetAdapter#LOCAL_REX_OFFSET_OP} → {@code rex_offset} (Rust UDF;
+     *       named-group position emission as a single string). Lowering target for PPL
+     *       {@code rex ... offset_field=name}.</li>
      * </ul>
      */
     private static final List<FunctionMappings.Sig> ADDITIONAL_SCALAR_SIGS = List.of(
@@ -147,8 +165,9 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         FunctionMappings.s(SqlLibraryOperators.REGEXP_CONTAINS, "regex_match"),
         FunctionMappings.s(SqlStdOperatorTable.REPLACE, "replace"),
         FunctionMappings.s(SqlLibraryOperators.REGEXP_REPLACE_3, "regexp_replace"),
-        FunctionMappings.s(SqlLibraryOperators.REGEXP_CONTAINS, "regex_match"),
+        FunctionMappings.s(SqlLibraryOperators.REGEXP_REPLACE_PG_4, "regexp_replace"),
         FunctionMappings.s(SqlLibraryOperators.REVERSE, "reverse"),
+        FunctionMappings.s(SqlLibraryOperators.TRANSLATE3, "translate"),
         FunctionMappings.s(PositionAdapter.STRPOS, "strpos"),
         FunctionMappings.s(StrftimeFunctionAdapter.STRFTIME, "strftime"),
         FunctionMappings.s(ToNumberFunctionAdapter.TONUMBER, "tonumber"),
@@ -158,6 +177,10 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         FunctionMappings.s(SqlLibraryOperators.CRC32, "crc32"),
         FunctionMappings.s(Sha2FunctionAdapter.DIGEST, "digest"),
         FunctionMappings.s(Sha2FunctionAdapter.ENCODE, "encode"),
+        FunctionMappings.s(RexExtractAdapter.LOCAL_REX_EXTRACT_OP, "rex_extract"),
+        FunctionMappings.s(RexExtractMultiAdapter.LOCAL_REX_EXTRACT_MULTI_OP, "rex_extract_multi"),
+        FunctionMappings.s(RexOffsetAdapter.LOCAL_REX_OFFSET_OP, "rex_offset"),
+        FunctionMappings.s(SqlLibraryOperators.ARRAY_LENGTH, "array_length"),
         FunctionMappings.s(SqlStdOperatorTable.TRUNCATE, "trunc"),
         FunctionMappings.s(SqlStdOperatorTable.CBRT, "cbrt"),
         FunctionMappings.s(SqlStdOperatorTable.COT, "cot"),
