@@ -78,6 +78,25 @@ public interface IndexFieldDataCache {
          * Called after the fielddata is unloaded
          */
         default void onRemoval(ShardId shardId, String fieldName, boolean wasEvicted, long sizeInBytes) {}
+
+        /**
+         * Same as {@link #onCache(ShardId, String, Accountable)} but carries {@code shardIdentity} —
+         * the {@code System.identityHashCode} of the IndexShard at cache-load time.
+         */
+        default void onCache(ShardId shardId, String fieldName, Accountable ramUsage, int shardIdentity) {
+            onCache(shardId, fieldName, ramUsage);
+        }
+
+        /**
+         * Same as {@link #onRemoval(ShardId, String, boolean, long)} but carries the
+         * {@code shardIdentity} captured at cache-load time. Per-shard listeners should compare it
+         * to the current shard's identity and skip if they differ; this avoids decrementing a
+         * replacement shard for an entry it never cached (#20363). Node-wide listeners (e.g. the
+         * field-data circuit breaker) should ignore identity and always run.
+         */
+        default void onRemoval(ShardId shardId, String fieldName, boolean wasEvicted, long sizeInBytes, int shardIdentity) {
+            onRemoval(shardId, fieldName, wasEvicted, sizeInBytes);
+        }
     }
 
     /**

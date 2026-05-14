@@ -320,6 +320,10 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 this.indexSortSupplier = () -> null;
             }
             indexFieldData.setListener(new FieldDataCacheListener(this));
+            indexFieldData.setShardIdentityResolver(shardId -> {
+                final IndexShard shard = getShardOrNull(shardId.id());
+                return shard == null ? 0 : System.identityHashCode(shard);
+            });
             this.bitsetFilterCache = new BitsetFilterCache(indexSettings, indicesBitsetFilterCache, new BitsetCacheListener(this));
             this.warmer = new IndexWarmer(
                 threadPool,
@@ -1248,6 +1252,23 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                     shard.fieldData().onRemoval(shardId, fieldName, wasEvicted, sizeInBytes);
                 }
             }
+        }
+
+        // Skip the decrement if the shard has been replaced since this entry was cached.
+        // Prevents negative FieldDataStats.memorySize after shard reallocation (#20363).
+        @Override
+        public void onRemoval(ShardId shardId, String fieldName, boolean wasEvicted, long sizeInBytes, int shardIdentity) {
+            if (shardId == null) {
+                return;
+            }
+            final IndexShard shard = indexService.getShardOrNull(shardId.id());
+            if (shard == null) {
+                return;
+            }
+            if (shardIdentity != 0 && shardIdentity != System.identityHashCode(shard)) {
+                return;
+            }
+            shard.fieldData().onRemoval(shardId, fieldName, wasEvicted, sizeInBytes);
         }
     }
 
