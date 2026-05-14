@@ -16,8 +16,8 @@ import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.dataformat.stub.MockDataFormat;
 import org.opensearch.index.engine.dataformat.stub.MockDataFormatPlugin;
 import org.opensearch.index.engine.dataformat.stub.MockSearchBackEndPlugin;
-import org.opensearch.index.engine.exec.commit.Committer;
 import org.opensearch.index.engine.exec.EngineReaderManager;
+import org.opensearch.index.engine.exec.commit.Committer;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.plugins.PluginsService;
@@ -427,10 +427,7 @@ public class DataFormatRegistryTests extends OpenSearchTestCase {
 
         DataFormatRegistry registry = new DataFormatRegistry(pluginsService);
 
-        IllegalStateException e = expectThrows(
-            IllegalStateException.class,
-            () -> registry.getDeleteExecutionEngine(mock(Committer.class))
-        );
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> registry.getDeleteExecutionEngine(mock(Committer.class)));
         assertTrue(e.getMessage().contains("Multiple DataFormatPlugins provide a DeleteExecutionEngine"));
     }
 
@@ -440,10 +437,7 @@ public class DataFormatRegistryTests extends OpenSearchTestCase {
 
         DataFormatRegistry registry = new DataFormatRegistry(pluginsService);
 
-        IllegalStateException e = expectThrows(
-            IllegalStateException.class,
-            () -> registry.getDeleteExecutionEngine(mock(Committer.class))
-        );
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> registry.getDeleteExecutionEngine(mock(Committer.class)));
         assertTrue(e.getMessage().contains("No DataFormatPlugin provides a DeleteExecutionEngine"));
     }
 
@@ -460,10 +454,7 @@ public class DataFormatRegistryTests extends OpenSearchTestCase {
 
         DataFormatRegistry registry = new DataFormatRegistry(pluginsService);
 
-        IllegalStateException e = expectThrows(
-            IllegalStateException.class,
-            () -> registry.getDeleteExecutionEngine(mock(Committer.class))
-        );
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> registry.getDeleteExecutionEngine(mock(Committer.class)));
         assertTrue(e.getMessage().contains("No DataFormatPlugin provides a DeleteExecutionEngine"));
     }
 }
