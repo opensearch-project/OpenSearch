@@ -64,7 +64,6 @@ import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import io.netty.channel.EventLoopGroup;
@@ -102,7 +101,7 @@ class FlightTransport extends TcpTransport {
 
     private final NamedWriteableRegistry namedWriteableRegistry;
     private final FlightStatsCollector statsCollector;
-    private final Supplier<ArrowAllocatorService> allocatorServiceSupplier;
+    private final ArrowAllocatorService allocatorService;
     private final FlightTransportConfig config = new FlightTransportConfig();
 
     final FlightServerMiddleware.Key<ServerHeaderMiddleware> SERVER_HEADER_KEY = FlightServerMiddleware.Key.of(
@@ -120,7 +119,7 @@ class FlightTransport extends TcpTransport {
         Tracer tracer,
         SslContextProvider sslContextProvider,
         FlightStatsCollector statsCollector,
-        Supplier<ArrowAllocatorService> allocatorServiceSupplier
+        ArrowAllocatorService allocatorService
     ) {
         super(settings, version, threadPool, pageCacheRecycler, circuitBreakerService, namedWriteableRegistry, networkService, tracer);
         this.portRange = SETTING_FLIGHT_PORTS.get(settings);
@@ -128,7 +127,7 @@ class FlightTransport extends TcpTransport {
         this.publishHosts = SETTING_FLIGHT_PUBLISH_HOST.get(settings).toArray(new String[0]);
         this.sslContextProvider = sslContextProvider;
         this.statsCollector = statsCollector;
-        this.allocatorServiceSupplier = allocatorServiceSupplier;
+        this.allocatorService = allocatorService;
         this.bossEventLoopGroup = createEventLoopGroup("os-grpc-boss-ELG", 1);
         this.workerEventLoopGroup = createEventLoopGroup("os-grpc-worker-ELG", Runtime.getRuntime().availableProcessors());
         this.serverExecutor = threadPool.executor(ServerConfig.GRPC_EXECUTOR_THREAD_POOL_NAME);
@@ -148,13 +147,7 @@ class FlightTransport extends TcpTransport {
     protected void doStart() {
         boolean success = false;
         try {
-            ArrowAllocatorService service = allocatorServiceSupplier.get();
-            if (service == null) {
-                throw new IllegalStateException(
-                    "ArrowAllocatorService not yet available; arrow-base plugin must be installed and its Guice module loaded before FlightTransport starts"
-                );
-            }
-            flightAllocator = service.newChildAllocator("flight", Integer.MAX_VALUE);
+            flightAllocator = allocatorService.newChildAllocator("flight", Integer.MAX_VALUE);
             serverAllocator = flightAllocator.newChildAllocator("server", 0, flightAllocator.getLimit());
             clientAllocator = flightAllocator.newChildAllocator("client", 0, flightAllocator.getLimit());
             if (statsCollector != null) {

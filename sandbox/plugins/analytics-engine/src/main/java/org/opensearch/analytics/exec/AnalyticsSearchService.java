@@ -36,7 +36,6 @@ import org.opensearch.tasks.TaskResourceTrackingService;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Supplier;
 
 /**
  * Data-node service that executes plan fragments against local shards.
@@ -59,68 +58,41 @@ public class AnalyticsSearchService implements AutoCloseable {
 
     private final Map<String, AnalyticsSearchBackendPlugin> backends;
     private final AnalyticsOperationListener listener;
-    private final java.util.function.Supplier<ArrowAllocatorService> allocatorServiceSupplier;
     private final NamedWriteableRegistry namedWriteableRegistry;
     private TaskResourceTrackingService taskResourceTrackingService;
-    private volatile BufferAllocator allocator;
+    private final BufferAllocator allocator;
 
-    public AnalyticsSearchService(
-        Map<String, AnalyticsSearchBackendPlugin> backends,
-        Supplier<ArrowAllocatorService> allocatorServiceSupplier
-    ) {
-        this(backends, List.of(), allocatorServiceSupplier, null);
+    public AnalyticsSearchService(Map<String, AnalyticsSearchBackendPlugin> backends, ArrowAllocatorService allocatorService) {
+        this(backends, List.of(), allocatorService, null);
     }
 
     public AnalyticsSearchService(
         Map<String, AnalyticsSearchBackendPlugin> backends,
-        Supplier<ArrowAllocatorService> allocatorServiceSupplier,
+        ArrowAllocatorService allocatorService,
         NamedWriteableRegistry namedWriteableRegistry
     ) {
-        this(backends, List.of(), allocatorServiceSupplier, namedWriteableRegistry);
+        this(backends, List.of(), allocatorService, namedWriteableRegistry);
     }
 
     public AnalyticsSearchService(
         Map<String, AnalyticsSearchBackendPlugin> backends,
         List<AnalyticsOperationListener> listeners,
-        Supplier<ArrowAllocatorService> allocatorServiceSupplier,
+        ArrowAllocatorService allocatorService,
         NamedWriteableRegistry namedWriteableRegistry
     ) {
         this.backends = backends;
         this.listener = new AnalyticsOperationListener.CompositeListener(listeners);
-        this.allocatorServiceSupplier = allocatorServiceSupplier;
+        this.allocator = allocatorService.newChildAllocator("analytics-search-service", Long.MAX_VALUE);
         this.namedWriteableRegistry = namedWriteableRegistry;
-    }
-
-    private BufferAllocator allocator() {
-        BufferAllocator a = allocator;
-        if (a == null) {
-            synchronized (this) {
-                a = allocator;
-                if (a == null) {
-                    ArrowAllocatorService service = allocatorServiceSupplier.get();
-                    if (service == null) {
-                        throw new IllegalStateException(
-                            "ArrowAllocatorService not yet available; arrow-base plugin must be installed and loaded"
-                        );
-                    }
-                    a = service.newChildAllocator("analytics-search-service", Long.MAX_VALUE);
-                    allocator = a;
-                }
-            }
-        }
-        return a;
     }
 
     @Override
     public void close() {
-        BufferAllocator a = allocator;
-        if (a != null) {
-            try {
-                a.close();
-            } catch (IllegalStateException ignored) {
-                // Root may have already been closed by arrow-base's plugin shutdown, which cascades
-                // to children. Plugin close order is not guaranteed; swallow to stay idempotent.
-            }
+        try {
+            allocator.close();
+        } catch (IllegalStateException ignored) {
+            // Root may have already been closed by arrow-base's plugin shutdown, which cascades
+            // to children. Plugin close order is not guaranteed; swallow to stay idempotent.
         }
     }
 
@@ -257,7 +229,7 @@ public class AnalyticsSearchService implements AutoCloseable {
     ) {
         ShardScanExecutionContext ctx = new ShardScanExecutionContext(request.getShardId().getIndexName(), task, reader);
         ctx.setFragmentBytes(plan.getFragmentBytes());
-        ctx.setAllocator(allocator());
+        ctx.setAllocator(allocator);
         ctx.setMapperService(shard.mapperService());
         ctx.setIndexSettings(shard.indexSettings());
         ctx.setNamedWriteableRegistry(namedWriteableRegistry);

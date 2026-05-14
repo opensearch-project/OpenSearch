@@ -17,7 +17,6 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.action.ActionRequest;
 import org.opensearch.analytics.exec.AnalyticsSearchService;
 import org.opensearch.analytics.exec.DefaultPlanExecutor;
-import org.opensearch.analytics.exec.QueryContext;
 import org.opensearch.analytics.exec.QueryPlanExecutor;
 import org.opensearch.analytics.exec.QueryScheduler;
 import org.opensearch.analytics.exec.Scheduler;
@@ -29,7 +28,6 @@ import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
 import org.opensearch.arrow.memory.ArrowAllocatorService;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.common.inject.Inject;
 import org.opensearch.common.inject.Module;
 import org.opensearch.common.inject.TypeLiteral;
 import org.opensearch.core.action.ActionResponse;
@@ -40,6 +38,7 @@ import org.opensearch.env.NodeEnvironment;
 import org.opensearch.plugins.ActionPlugin;
 import org.opensearch.plugins.ExtensiblePlugin;
 import org.opensearch.plugins.Plugin;
+import org.opensearch.plugins.PluginComponentRegistry;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.script.ScriptService;
 import org.opensearch.threadpool.ThreadPool;
@@ -51,7 +50,6 @@ import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 
 /**
@@ -72,7 +70,6 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
     private final List<AnalyticsSearchBackendPlugin> backEnds = new ArrayList<>();
     private SqlOperatorTable operatorTable;
     private AnalyticsSearchService searchService;
-    private final ArrowAllocatorServiceHolder allocatorHolder = new ArrowAllocatorServiceHolder();
 
     @SuppressWarnings("rawtypes")
     @Override
@@ -92,8 +89,12 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
         NodeEnvironment nodeEnvironment,
         NamedWriteableRegistry namedWriteableRegistry,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        Supplier<RepositoriesService> repositoriesServiceSupplier
+        Supplier<RepositoriesService> repositoriesServiceSupplier,
+        PluginComponentRegistry pluginComponentRegistry
     ) {
+        ArrowAllocatorService allocatorService = pluginComponentRegistry.getComponent(ArrowAllocatorService.class)
+            .orElseThrow(() -> new IllegalStateException("ArrowAllocatorService not available; arrow-base plugin must be installed"));
+
         operatorTable = aggregateOperatorTables();
         DefaultEngineContext ctx = new DefaultEngineContext(clusterService, operatorTable);
         CapabilityRegistry capabilityRegistry = new CapabilityRegistry(backEnds, FieldStorageResolver::new);
@@ -102,12 +103,9 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
         for (AnalyticsSearchBackendPlugin be : backEnds) {
             backEndsByName.put(be.name(), be);
         }
-        searchService = new AnalyticsSearchService(backEndsByName, allocatorHolder, namedWriteableRegistry);
+        searchService = new AnalyticsSearchService(backEndsByName, allocatorService, namedWriteableRegistry);
 
-        // Returned as components so Guice can inject them into DefaultPlanExecutor
-        // (a HandledTransportAction registered via getActions() — constructed by Guice
-        // after createComponents) and into AnalyticsSearchTransportService.
-        return List.of(searchService, ctx, capabilityRegistry, allocatorHolder);
+        return List.of(searchService, ctx, capabilityRegistry);
     }
 
     @Override
@@ -123,7 +121,6 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
             // transport handlers and is only legal to call once per node).
             b.bind(QueryScheduler.class).asEagerSingleton();
             b.bind(Scheduler.class).to(QueryScheduler.class);
-            b.bind(ArrowAllocatorServiceBridge.class).asEagerSingleton();
         });
     }
 
@@ -155,34 +152,4 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
         }
     }
 
-    /**
-     * Per-plugin-instance holder populated by {@link ArrowAllocatorServiceBridge}. Services
-     * inside this plugin (e.g., {@link AnalyticsSearchService}, {@link QueryContext}) read
-     * through it instead of capturing the concrete {@link ArrowAllocatorService} at
-     * {@code createComponents} time (which is too early — the injector is not yet built).
-     */
-    public static final class ArrowAllocatorServiceHolder implements Supplier<ArrowAllocatorService> {
-
-        /** Creates an empty holder. Populated later by {@link ArrowAllocatorServiceBridge}. */
-        public ArrowAllocatorServiceHolder() {}
-
-        private final AtomicReference<ArrowAllocatorService> ref = new AtomicReference<>();
-
-        void set(ArrowAllocatorService service) {
-            ref.set(service);
-        }
-
-        @Override
-        public ArrowAllocatorService get() {
-            return ref.get();
-        }
-    }
-
-    /** Guice-built bridge that stores the injected {@link ArrowAllocatorService} into the plugin's holder. */
-    public static final class ArrowAllocatorServiceBridge {
-        @Inject
-        public ArrowAllocatorServiceBridge(ArrowAllocatorService service, ArrowAllocatorServiceHolder holder) {
-            holder.set(service);
-        }
-    }
 }

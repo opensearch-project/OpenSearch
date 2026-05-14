@@ -218,6 +218,7 @@ import org.opensearch.plugins.CircuitBreakerPlugin;
 import org.opensearch.plugins.ClusterPlugin;
 import org.opensearch.plugins.CryptoKeyProviderPlugin;
 import org.opensearch.plugins.CryptoPlugin;
+import org.opensearch.plugins.DefaultPluginComponentRegistry;
 import org.opensearch.plugins.DiscoveryPlugin;
 import org.opensearch.plugins.EnginePlugin;
 import org.opensearch.plugins.ExtensionAwarePlugin;
@@ -1148,24 +1149,29 @@ public class Node implements Closeable {
 
             final ViewService viewService = new ViewService(clusterService, client, null);
 
-            Collection<Object> pluginComponents = pluginsService.filterPlugins(Plugin.class)
-                .stream()
-                .flatMap(
-                    p -> p.createComponents(
-                        client,
-                        clusterService,
-                        threadPool,
-                        resourceWatcherService,
-                        scriptService,
-                        xContentRegistry,
-                        environment,
-                        nodeEnvironment,
-                        namedWriteableRegistry,
-                        clusterModule.getIndexNameExpressionResolver(),
-                        repositoriesServiceReference::get
-                    ).stream()
-                )
-                .collect(Collectors.toList());
+            final DefaultPluginComponentRegistry pluginComponentRegistry = new DefaultPluginComponentRegistry();
+            final List<Object> pluginComponents = new ArrayList<>();
+            for (Plugin p : pluginsService.filterPlugins(Plugin.class)) {
+                Collection<Object> components = p.createComponents(
+                    client,
+                    clusterService,
+                    threadPool,
+                    resourceWatcherService,
+                    scriptService,
+                    xContentRegistry,
+                    environment,
+                    nodeEnvironment,
+                    namedWriteableRegistry,
+                    clusterModule.getIndexNameExpressionResolver(),
+                    repositoriesServiceReference::get,
+                    pluginComponentRegistry
+                );
+                for (Object component : components) {
+                    pluginComponentRegistry.register(component);
+                }
+                pluginComponents.addAll(components);
+            }
+            pluginComponentRegistry.seal();
 
             Collection<Object> telemetryAwarePluginComponents = pluginsService.filterPlugins(TelemetryAwarePlugin.class)
                 .stream()
