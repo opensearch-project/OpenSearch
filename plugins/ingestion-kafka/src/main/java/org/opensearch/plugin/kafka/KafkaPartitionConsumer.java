@@ -294,12 +294,4 @@ public class KafkaPartitionConsumer implements IngestionShardConsumer<KafkaOffse
     public void close() throws IOException {
         consumer.close();
     }
-
-    /**
-     * Get the client id
-     * @return the client id
-     */
-    public String getClientId() {
-        return clientId;
-    }
 }
