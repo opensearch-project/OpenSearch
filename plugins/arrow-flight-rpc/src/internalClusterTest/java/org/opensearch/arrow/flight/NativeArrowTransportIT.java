@@ -18,6 +18,7 @@ import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.FieldType;
 import org.apache.arrow.vector.types.pojo.Schema;
+import org.opensearch.Version;
 import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.ActionType;
@@ -36,6 +37,7 @@ import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.plugins.ActionPlugin;
 import org.opensearch.plugins.Plugin;
+import org.opensearch.plugins.PluginInfo;
 import org.opensearch.tasks.Task;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.threadpool.ThreadPool;
@@ -89,7 +91,24 @@ public class NativeArrowTransportIT extends OpenSearchIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(NativeArrowTestPlugin.class, ArrowBasePlugin.class, FlightStreamPlugin.class);
+        return List.of(NativeArrowTestPlugin.class, ArrowBasePlugin.class);
+    }
+
+    @Override
+    protected Collection<PluginInfo> additionalNodePlugins() {
+        return List.of(
+            new PluginInfo(
+                FlightStreamPlugin.class.getName(),
+                "classpath plugin",
+                "NA",
+                Version.CURRENT,
+                "1.8",
+                FlightStreamPlugin.class.getName(),
+                null,
+                List.of(ArrowBasePlugin.class.getName()),
+                false
+            )
+        );
     }
 
     // ── Tests ──

@@ -8,6 +8,7 @@
 
 package org.opensearch.arrow.flight;
 
+import org.opensearch.Version;
 import org.opensearch.action.admin.indices.create.CreateIndexRequest;
 import org.opensearch.action.admin.indices.create.CreateIndexResponse;
 import org.opensearch.action.admin.indices.refresh.RefreshRequest;
@@ -22,6 +23,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.plugins.Plugin;
+import org.opensearch.plugins.PluginInfo;
 import org.opensearch.search.SearchHit;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
@@ -35,7 +37,24 @@ public class FlightTransportIT extends OpenSearchIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(ArrowBasePlugin.class, FlightStreamPlugin.class);
+        return List.of(ArrowBasePlugin.class);
+    }
+
+    @Override
+    protected Collection<PluginInfo> additionalNodePlugins() {
+        return List.of(
+            new PluginInfo(
+                FlightStreamPlugin.class.getName(),
+                "classpath plugin",
+                "NA",
+                Version.CURRENT,
+                "1.8",
+                FlightStreamPlugin.class.getName(),
+                null,
+                List.of(ArrowBasePlugin.class.getName()),
+                false
+            )
+        );
     }
 
     @Override

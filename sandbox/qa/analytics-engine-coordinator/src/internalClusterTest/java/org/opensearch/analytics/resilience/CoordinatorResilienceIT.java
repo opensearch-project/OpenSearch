@@ -144,7 +144,6 @@ public class CoordinatorResilienceIT extends OpenSearchIntegTestCase {
         return List.of(
             ArrowBasePlugin.class,
             TestPPLPlugin.class,
-            FlightStreamPlugin.class,
             CompositeDataFormatPlugin.class,
             MockTransportService.TestPlugin.class,
             MockCommitterEnginePlugin.class
@@ -154,6 +153,7 @@ public class CoordinatorResilienceIT extends OpenSearchIntegTestCase {
     @Override
     protected Collection<PluginInfo> additionalNodePlugins() {
         return List.of(
+            classpathPlugin(FlightStreamPlugin.class, List.of(ArrowBasePlugin.class.getName())),
             classpathPlugin(AnalyticsPlugin.class, Collections.emptyList()),
             classpathPlugin(ParquetDataFormatPlugin.class, Collections.emptyList()),
             classpathPlugin(DataFusionPlugin.class, List.of(AnalyticsPlugin.class.getName()))

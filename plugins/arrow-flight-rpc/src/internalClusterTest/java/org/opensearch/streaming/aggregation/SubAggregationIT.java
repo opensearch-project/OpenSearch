@@ -10,6 +10,7 @@ package org.opensearch.streaming.aggregation;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.opensearch.Version;
 import org.opensearch.action.admin.indices.create.CreateIndexRequest;
 import org.opensearch.action.admin.indices.create.CreateIndexResponse;
 import org.opensearch.action.admin.indices.flush.FlushRequest;
@@ -27,6 +28,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.plugins.Plugin;
+import org.opensearch.plugins.PluginInfo;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.aggregations.AggregationBuilders;
 import org.opensearch.search.aggregations.bucket.terms.GlobalOrdinalsStringTermsAggregator;
@@ -73,7 +75,24 @@ public class SubAggregationIT extends ParameterizedDynamicSettingsOpenSearchInte
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(ArrowBasePlugin.class, FlightStreamPlugin.class, InternalSettingsPlugin.class);
+        return Arrays.asList(ArrowBasePlugin.class, InternalSettingsPlugin.class);
+    }
+
+    @Override
+    protected Collection<PluginInfo> additionalNodePlugins() {
+        return List.of(
+            new PluginInfo(
+                FlightStreamPlugin.class.getName(),
+                "classpath plugin",
+                "NA",
+                Version.CURRENT,
+                "1.8",
+                FlightStreamPlugin.class.getName(),
+                null,
+                List.of(ArrowBasePlugin.class.getName()),
+                false
+            )
+        );
     }
 
     @Override
