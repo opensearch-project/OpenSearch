@@ -29,6 +29,7 @@ import org.opensearch.common.unit.Fuzziness;
 import org.opensearch.core.common.io.stream.NamedWriteableAwareStreamInput;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.index.query.MatchAllQueryBuilder;
 import org.opensearch.index.query.MatchBoolPrefixQueryBuilder;
 import org.opensearch.index.query.MatchPhrasePrefixQueryBuilder;
 import org.opensearch.index.query.MatchPhraseQueryBuilder;
@@ -39,16 +40,17 @@ import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryStringQueryBuilder;
 import org.opensearch.index.query.SimpleQueryStringBuilder;
 import org.opensearch.index.query.SimpleQueryStringFlag;
+import org.opensearch.index.query.WildcardQueryBuilder;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 /**
- * Unit tests for optional parameter application in {@link QuerySerializerRegistry}.
- * Validates Requirements 11.2, 11.3, 11.4, 11.5, 11.6, 11.7, 11.8, 11.9, 11.10.
+ * Unit tests for {@link QuerySerializerRegistry} serializers — optional parameter round-trips
+ * and SQL text relevance serializer behavior (WILDCARD_QUERY, QUERY, MATCHALL).
  */
 public class QuerySerializerRegistryTests extends OpenSearchTestCase {
 
@@ -60,8 +62,37 @@ public class QuerySerializerRegistryTests extends OpenSearchTestCase {
             new NamedWriteableRegistry.Entry(QueryBuilder.class, MatchPhrasePrefixQueryBuilder.NAME, MatchPhrasePrefixQueryBuilder::new),
             new NamedWriteableRegistry.Entry(QueryBuilder.class, MultiMatchQueryBuilder.NAME, MultiMatchQueryBuilder::new),
             new NamedWriteableRegistry.Entry(QueryBuilder.class, QueryStringQueryBuilder.NAME, QueryStringQueryBuilder::new),
-            new NamedWriteableRegistry.Entry(QueryBuilder.class, SimpleQueryStringBuilder.NAME, SimpleQueryStringBuilder::new)
+            new NamedWriteableRegistry.Entry(QueryBuilder.class, SimpleQueryStringBuilder.NAME, SimpleQueryStringBuilder::new),
+            new NamedWriteableRegistry.Entry(QueryBuilder.class, WildcardQueryBuilder.NAME, WildcardQueryBuilder::new),
+            new NamedWriteableRegistry.Entry(QueryBuilder.class, MatchAllQueryBuilder.NAME, MatchAllQueryBuilder::new)
         )
+    );
+
+    private static final SqlFunction MATCHALL_FUNCTION = new SqlFunction(
+        "MATCHALL",
+        SqlKind.OTHER_FUNCTION,
+        ReturnTypes.BOOLEAN,
+        null,
+        OperandTypes.ANY,
+        SqlFunctionCategory.USER_DEFINED_FUNCTION
+    );
+
+    private static final SqlFunction WILDCARD_QUERY_FUNCTION = new SqlFunction(
+        "WILDCARD_QUERY",
+        SqlKind.OTHER_FUNCTION,
+        ReturnTypes.BOOLEAN,
+        null,
+        OperandTypes.ANY,
+        SqlFunctionCategory.USER_DEFINED_FUNCTION
+    );
+
+    private static final SqlFunction QUERY_FUNCTION = new SqlFunction(
+        "QUERY",
+        SqlKind.OTHER_FUNCTION,
+        ReturnTypes.BOOLEAN,
+        null,
+        OperandTypes.ANY,
+        SqlFunctionCategory.USER_DEFINED_FUNCTION
     );
 
     private RelDataTypeFactory typeFactory;
@@ -221,21 +252,257 @@ public class QuerySerializerRegistryTests extends OpenSearchTestCase {
         }
     }
 
+    // --- MatchAllSerializer tests ---
+
     /**
-     * Tests that the registry contains exactly 7 entries for the expected ScalarFunction keys.
+     * Tests MatchAllSerializer serialize → deserialize produces MatchAllQueryBuilder.
      */
-    public void testRegistryContainsExpectedEntries() {
-        assertEquals("Registry must contain exactly 7 serializers", 7, serializers.size());
-        Set<ScalarFunction> expectedKeys = Set.of(
-            ScalarFunction.MATCH,
-            ScalarFunction.MATCH_PHRASE,
-            ScalarFunction.MATCH_BOOL_PREFIX,
-            ScalarFunction.MATCH_PHRASE_PREFIX,
-            ScalarFunction.MULTI_MATCH,
-            ScalarFunction.QUERY_STRING,
-            ScalarFunction.SIMPLE_QUERY_STRING
+    public void testMatchAllSerializerRoundTrip() throws IOException {
+        DelegatedPredicateSerializer serializer = serializers.get(ScalarFunction.MATCHALL);
+        assertNotNull("MATCHALL serializer must be registered", serializer);
+
+        RexCall call = (RexCall) rexBuilder.makeCall(MATCHALL_FUNCTION);
+        List<FieldStorageInfo> fieldStorage = List.of();
+
+        byte[] serialized = serializer.serialize(call, fieldStorage);
+        assertNotNull("Serialized bytes must not be null", serialized);
+        assertTrue("Serialized bytes must not be empty", serialized.length > 0);
+
+        try (StreamInput input = new NamedWriteableAwareStreamInput(StreamInput.wrap(serialized), WRITEABLE_REGISTRY)) {
+            QueryBuilder deserialized = input.readNamedWriteable(QueryBuilder.class);
+            assertTrue("Deserialized must be MatchAllQueryBuilder", deserialized instanceof MatchAllQueryBuilder);
+        }
+    }
+
+    /**
+     * Tests MatchAllSerializer ignores unexpected operands without throwing.
+     */
+    public void testMatchAllSerializerIgnoresUnrecognizedOperands() throws IOException {
+        DelegatedPredicateSerializer serializer = serializers.get(ScalarFunction.MATCHALL);
+        assertNotNull("MATCHALL serializer must be registered", serializer);
+
+        RexNode extraMap = rexBuilder.makeCall(
+            SqlStdOperatorTable.MAP_VALUE_CONSTRUCTOR,
+            rexBuilder.makeLiteral("unexpected"),
+            rexBuilder.makeLiteral("value")
         );
-        assertEquals("Registry keys must match expected ScalarFunction set", expectedKeys, serializers.keySet());
+        RexCall call = (RexCall) rexBuilder.makeCall(MATCHALL_FUNCTION, extraMap);
+        List<FieldStorageInfo> fieldStorage = List.of();
+
+        byte[] serialized = serializer.serialize(call, fieldStorage);
+
+        try (StreamInput input = new NamedWriteableAwareStreamInput(StreamInput.wrap(serialized), WRITEABLE_REGISTRY)) {
+            QueryBuilder deserialized = input.readNamedWriteable(QueryBuilder.class);
+            assertTrue("Deserialized must be MatchAllQueryBuilder", deserialized instanceof MatchAllQueryBuilder);
+        }
+    }
+
+    // --- WildcardQuerySerializer tests ---
+
+    /**
+     * Tests WildcardQuerySerializer throws IllegalArgumentException with "wildcard_query" when field is missing.
+     */
+    public void testWildcardQuerySerializerThrowsWhenFieldMissing() {
+        DelegatedPredicateSerializer serializer = serializers.get(ScalarFunction.WILDCARD_QUERY);
+        assertNotNull("WILDCARD_QUERY serializer must be registered", serializer);
+
+        RexNode queryMap = rexBuilder.makeCall(
+            SqlStdOperatorTable.MAP_VALUE_CONSTRUCTOR,
+            rexBuilder.makeLiteral("query"),
+            rexBuilder.makeLiteral("test*")
+        );
+        RexCall call = (RexCall) rexBuilder.makeCall(WILDCARD_QUERY_FUNCTION, queryMap);
+        List<FieldStorageInfo> fieldStorage = List.of();
+
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> serializer.serialize(call, fieldStorage));
+        assertTrue(
+            "Exception message must contain 'wildcard_query', got: " + exception.getMessage(),
+            exception.getMessage().contains("wildcard_query")
+        );
+    }
+
+    /**
+     * Tests WildcardQuerySerializer round-trip with field and pattern.
+     */
+    public void testWildcardQuerySerializerRoundTrip() throws IOException {
+        DelegatedPredicateSerializer serializer = serializers.get(ScalarFunction.WILDCARD_QUERY);
+        assertNotNull("WILDCARD_QUERY serializer must be registered", serializer);
+
+        RexCall call = buildSingleFieldRexCallWithParams("title", "test*", "WILDCARD_QUERY", Map.of());
+        List<FieldStorageInfo> fieldStorage = List.of(
+            new FieldStorageInfo("title", "text", FieldType.TEXT, List.of(), List.of("lucene"), List.of(), false)
+        );
+
+        byte[] serialized = serializer.serialize(call, fieldStorage);
+
+        try (StreamInput input = new NamedWriteableAwareStreamInput(StreamInput.wrap(serialized), WRITEABLE_REGISTRY)) {
+            QueryBuilder deserialized = input.readNamedWriteable(QueryBuilder.class);
+            assertTrue("Deserialized must be WildcardQueryBuilder", deserialized instanceof WildcardQueryBuilder);
+            WildcardQueryBuilder wildcardQb = (WildcardQueryBuilder) deserialized;
+            assertEquals("title", wildcardQb.fieldName());
+            assertEquals("test*", wildcardQb.value());
+        }
+    }
+
+    /**
+     * Tests WildcardQuerySerializer silently ignores unrecognized params.
+     */
+    public void testWildcardQuerySerializerIgnoresUnrecognizedParams() throws IOException {
+        DelegatedPredicateSerializer serializer = serializers.get(ScalarFunction.WILDCARD_QUERY);
+        assertNotNull("WILDCARD_QUERY serializer must be registered", serializer);
+
+        RexCall call = buildSingleFieldRexCallWithParams("title", "test*", "WILDCARD_QUERY", Map.of("unknown_param", "value"));
+        List<FieldStorageInfo> fieldStorage = List.of(
+            new FieldStorageInfo("title", "text", FieldType.TEXT, List.of(), List.of("lucene"), List.of(), false)
+        );
+
+        byte[] serialized = serializer.serialize(call, fieldStorage);
+
+        try (StreamInput input = new NamedWriteableAwareStreamInput(StreamInput.wrap(serialized), WRITEABLE_REGISTRY)) {
+            QueryBuilder deserialized = input.readNamedWriteable(QueryBuilder.class);
+            assertTrue("Deserialized must be WildcardQueryBuilder", deserialized instanceof WildcardQueryBuilder);
+            WildcardQueryBuilder wildcardQb = (WildcardQueryBuilder) deserialized;
+            assertEquals("title", wildcardQb.fieldName());
+            assertEquals("test*", wildcardQb.value());
+        }
+    }
+
+    /**
+     * Tests WildcardQuerySerializer with boost optional param round-trip.
+     */
+    public void testWildcardQuerySerializerWithBoost() throws IOException {
+        DelegatedPredicateSerializer serializer = serializers.get(ScalarFunction.WILDCARD_QUERY);
+        assertNotNull("WILDCARD_QUERY serializer must be registered", serializer);
+
+        RexCall call = buildSingleFieldRexCallWithParams("title", "test*", "WILDCARD_QUERY", Map.of("boost", "2.5"));
+        List<FieldStorageInfo> fieldStorage = List.of(
+            new FieldStorageInfo("title", "text", FieldType.TEXT, List.of(), List.of("lucene"), List.of(), false)
+        );
+
+        byte[] serialized = serializer.serialize(call, fieldStorage);
+
+        try (StreamInput input = new NamedWriteableAwareStreamInput(StreamInput.wrap(serialized), WRITEABLE_REGISTRY)) {
+            QueryBuilder deserialized = input.readNamedWriteable(QueryBuilder.class);
+            assertTrue("Deserialized must be WildcardQueryBuilder", deserialized instanceof WildcardQueryBuilder);
+            WildcardQueryBuilder wildcardQb = (WildcardQueryBuilder) deserialized;
+            assertEquals("title", wildcardQb.fieldName());
+            assertEquals("test*", wildcardQb.value());
+            assertEquals(2.5f, wildcardQb.boost(), 0.001f);
+        }
+    }
+
+    // --- QuerySerializer (no-field) tests ---
+
+    /**
+     * Tests QuerySerializer throws IllegalArgumentException with "query" when query is missing.
+     */
+    public void testQuerySerializerThrowsWhenQueryMissing() {
+        DelegatedPredicateSerializer serializer = serializers.get(ScalarFunction.QUERY);
+        assertNotNull("QUERY serializer must be registered", serializer);
+
+        RelDataType varcharType = typeFactory.createSqlType(SqlTypeName.VARCHAR);
+        RexNode fieldMap = rexBuilder.makeCall(
+            SqlStdOperatorTable.MAP_VALUE_CONSTRUCTOR,
+            rexBuilder.makeLiteral("field"),
+            rexBuilder.makeInputRef(varcharType, 0)
+        );
+        RexCall call = (RexCall) rexBuilder.makeCall(QUERY_FUNCTION, fieldMap);
+        List<FieldStorageInfo> fieldStorage = List.of(
+            new FieldStorageInfo("title", "text", FieldType.TEXT, List.of(), List.of("lucene"), List.of(), false)
+        );
+
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> serializer.serialize(call, fieldStorage));
+        assertTrue(
+            "Exception message must contain 'query', got: " + exception.getMessage(),
+            exception.getMessage().contains("query")
+        );
+    }
+
+    /**
+     * Tests QuerySerializer accepts missing field without exception (no-field variant).
+     */
+    public void testQuerySerializerAcceptsMissingField() throws IOException {
+        DelegatedPredicateSerializer serializer = serializers.get(ScalarFunction.QUERY);
+        assertNotNull("QUERY serializer must be registered", serializer);
+
+        RexNode queryMap = rexBuilder.makeCall(
+            SqlStdOperatorTable.MAP_VALUE_CONSTRUCTOR,
+            rexBuilder.makeLiteral("query"),
+            rexBuilder.makeLiteral("status:active AND type:premium")
+        );
+        RexCall call = (RexCall) rexBuilder.makeCall(QUERY_FUNCTION, queryMap);
+        List<FieldStorageInfo> fieldStorage = List.of();
+
+        byte[] serialized = serializer.serialize(call, fieldStorage);
+        assertNotNull("Serialized bytes must not be null", serialized);
+
+        try (StreamInput input = new NamedWriteableAwareStreamInput(StreamInput.wrap(serialized), WRITEABLE_REGISTRY)) {
+            QueryBuilder deserialized = input.readNamedWriteable(QueryBuilder.class);
+            assertTrue("Deserialized must be QueryStringQueryBuilder", deserialized instanceof QueryStringQueryBuilder);
+            QueryStringQueryBuilder queryStringQb = (QueryStringQueryBuilder) deserialized;
+            assertEquals("status:active AND type:premium", queryStringQb.queryString());
+        }
+    }
+
+    /**
+     * Tests QuerySerializer silently ignores unrecognized params.
+     */
+    public void testQuerySerializerIgnoresUnrecognizedParams() throws IOException {
+        DelegatedPredicateSerializer serializer = serializers.get(ScalarFunction.QUERY);
+        assertNotNull("QUERY serializer must be registered", serializer);
+
+        RexNode queryMap = rexBuilder.makeCall(
+            SqlStdOperatorTable.MAP_VALUE_CONSTRUCTOR,
+            rexBuilder.makeLiteral("query"),
+            rexBuilder.makeLiteral("hello world")
+        );
+        RexNode unknownParamMap = rexBuilder.makeCall(
+            SqlStdOperatorTable.MAP_VALUE_CONSTRUCTOR,
+            rexBuilder.makeLiteral("unknown_param"),
+            rexBuilder.makeLiteral("some_value")
+        );
+        RexCall call = (RexCall) rexBuilder.makeCall(QUERY_FUNCTION, queryMap, unknownParamMap);
+        List<FieldStorageInfo> fieldStorage = List.of();
+
+        byte[] serialized = serializer.serialize(call, fieldStorage);
+
+        try (StreamInput input = new NamedWriteableAwareStreamInput(StreamInput.wrap(serialized), WRITEABLE_REGISTRY)) {
+            QueryBuilder deserialized = input.readNamedWriteable(QueryBuilder.class);
+            assertTrue("Deserialized must be QueryStringQueryBuilder", deserialized instanceof QueryStringQueryBuilder);
+            QueryStringQueryBuilder queryStringQb = (QueryStringQueryBuilder) deserialized;
+            assertEquals("hello world", queryStringQb.queryString());
+        }
+    }
+
+    /**
+     * Tests QuerySerializer with default_operator=AND optional param round-trip.
+     */
+    public void testQuerySerializerWithDefaultOperator() throws IOException {
+        DelegatedPredicateSerializer serializer = serializers.get(ScalarFunction.QUERY);
+        assertNotNull("QUERY serializer must be registered", serializer);
+
+        RexNode queryMap = rexBuilder.makeCall(
+            SqlStdOperatorTable.MAP_VALUE_CONSTRUCTOR,
+            rexBuilder.makeLiteral("query"),
+            rexBuilder.makeLiteral("hello world")
+        );
+        RexNode operatorMap = rexBuilder.makeCall(
+            SqlStdOperatorTable.MAP_VALUE_CONSTRUCTOR,
+            rexBuilder.makeLiteral("default_operator"),
+            rexBuilder.makeLiteral("AND")
+        );
+        RexCall call = (RexCall) rexBuilder.makeCall(QUERY_FUNCTION, queryMap, operatorMap);
+        List<FieldStorageInfo> fieldStorage = List.of();
+
+        byte[] serialized = serializer.serialize(call, fieldStorage);
+
+        try (StreamInput input = new NamedWriteableAwareStreamInput(StreamInput.wrap(serialized), WRITEABLE_REGISTRY)) {
+            QueryBuilder deserialized = input.readNamedWriteable(QueryBuilder.class);
+            assertTrue("Deserialized must be QueryStringQueryBuilder", deserialized instanceof QueryStringQueryBuilder);
+            QueryStringQueryBuilder queryStringQb = (QueryStringQueryBuilder) deserialized;
+            assertEquals("hello world", queryStringQb.queryString());
+            assertEquals(Operator.AND, queryStringQb.defaultOperator());
+        }
     }
 
     // --- New optional parameter round-trip tests ---
@@ -580,7 +847,7 @@ public class QuerySerializerRegistryTests extends OpenSearchTestCase {
         );
 
         // Build operand list: field, query, then optional params
-        List<RexNode> operands = new java.util.ArrayList<>();
+        List<RexNode> operands = new ArrayList<>();
         operands.add(fieldMap);
         operands.add(queryMap);
 
@@ -618,7 +885,7 @@ public class QuerySerializerRegistryTests extends OpenSearchTestCase {
         RelDataType doubleType = typeFactory.createSqlType(SqlTypeName.DOUBLE);
 
         // Build nested MAP with field/boost pairs
-        List<RexNode> nestedMapOperands = new java.util.ArrayList<>();
+        List<RexNode> nestedMapOperands = new ArrayList<>();
         for (String field : fields) {
             nestedMapOperands.add(rexBuilder.makeLiteral(field));
             nestedMapOperands.add(rexBuilder.makeExactLiteral(new java.math.BigDecimal("1.0"), doubleType));
@@ -636,7 +903,7 @@ public class QuerySerializerRegistryTests extends OpenSearchTestCase {
         );
 
         // Build operand list
-        List<RexNode> operands = new java.util.ArrayList<>();
+        List<RexNode> operands = new ArrayList<>();
         operands.add(outerMap);
         operands.add(queryMap);
 
