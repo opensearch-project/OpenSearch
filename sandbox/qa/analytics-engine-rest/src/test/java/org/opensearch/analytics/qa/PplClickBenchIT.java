@@ -34,27 +34,13 @@ public class PplClickBenchIT extends AnalyticsRestTestCase {
      * {@link #SKIP_QUERIES} when a feature is genuinely missing rather than broken.
      */
     // Queries skipped:
-    //  - Missing feature: Q19 (extract(minute from …)), Q40 (case() else + head N from M),
-    //    Q43 (date_format() + head N from M).
-    //  - Substrait emit can't find a MIN binding for VARCHAR inputs (isthmus library):
-    //    Q29 (min(Referer) where Referer is text). Needs a min(string) binding in
-    //    the aggregate function catalog or an equivalent adapter.
-    //  - Multi-shard exchange can't serialize TIMESTAMP (LocalDateTime): Q7, Q24-Q27,
-    //    Q37-Q42.
-    //  - WHERE + GROUP-BY + aggregate on multi-shard triggers Arrow "project index 0
-    //    out of bounds, max field 0": Q11, Q12, Q13, Q14, Q15, Q22, Q23, Q31, Q32;
-    //    plus Q20 (WHERE + fields, no aggregate, still routed through multi-shard path).
-    // DEBUG: temporarily un-skip the multi-shard-only failures to see if they
-    // pass on single-shard (where the split rule doesn't fire and no exchange
-    // traffic / no native-side aggregate reduce is exercised).
-    // Queries skipped — all known PPL frontend / Substrait gaps, unrelated to the
-    // distributed aggregate execution path:
-    //  - Q19: extract(minute from …) not supported by the PPL frontend.
-    //  - Q29: Substrait can't bind MIN on VARCHAR inputs (isthmus library limitation).
-    //    Requires a min(string) binding in the aggregate function catalog.
-    //  - Q40: case() else + head N from M — PPL frontend gap.
-    //  - Q43: date_format() + head N from M — PPL frontend gap.
-    private static final Set<Integer> SKIP_QUERIES = Set.of(19, 29, 40, 43);
+    //  - Q29: Substrait's default aggregate catalog has no min/max binding for string
+    //    types. Isthmus fails with "Unable to find binding for call MIN($1)" when PPL
+    //    emits `min(Referer)` on a VARCHAR column. DataFusion can execute min(Utf8)
+    //    natively — the gap is purely in the Substrait serialization layer. A fix
+    //    would register additional min/max impls covering string types in the loaded
+    //    SimpleExtension.ExtensionCollection at plugin init.
+    private static final Set<Integer> SKIP_QUERIES = Set.of(29);
 
     private static boolean dataProvisioned = false;
 
