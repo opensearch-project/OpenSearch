@@ -21,7 +21,7 @@ import java.util.WeakHashMap;
 
 /**
  * Plugin-scoped tracker for live {@link ArrowBufferPool} instances. Registers cluster-settings
- * listeners on the four allocation knobs once, then fans dynamic updates out to every pool
+ * listeners on the three allocation knobs once, then fans dynamic updates out to every pool
  * created since the listener registered.
  *
  * <p>Pools are held via a synchronized {@link WeakHashMap}-backed set so closed/GC'd pools drop
@@ -35,13 +35,12 @@ public class ArrowBufferPoolRegistry {
     private final ClusterSettings clusterSettings;
     private final Set<ArrowBufferPool> pools = Collections.newSetFromMap(Collections.synchronizedMap(new WeakHashMap<>()));
     /**
-     * Latest known values for the four allocation knobs. Each listener updates one field then
+     * Latest known values for the three allocation knobs. Each listener updates one field then
      * fans out an {@link ArrowBufferPool#applyLimits(Settings)} call. We track them locally
      * because {@link ClusterSettings#get(org.opensearch.common.settings.Setting)} reads from
      * {@code lastSettingsApplied} which is written only after all updaters run.
      */
     private volatile String maxNativeAllocation;
-    private volatile ByteSizeValue minNativeAllocation;
     private volatile ByteSizeValue maxNativeAllocationCeiling;
     private volatile ByteSizeValue childAllocation;
 
@@ -51,16 +50,11 @@ public class ArrowBufferPoolRegistry {
         // Snapshot initial values from the registered defaults so the first PUT sees a coherent
         // settings view. Subsequent listener fires update only the field that changed.
         this.maxNativeAllocation = clusterSettings.get(ParquetSettings.MAX_NATIVE_ALLOCATION);
-        this.minNativeAllocation = clusterSettings.get(ParquetSettings.MIN_NATIVE_ALLOCATION);
         this.maxNativeAllocationCeiling = clusterSettings.get(ParquetSettings.MAX_NATIVE_ALLOCATION_CEILING);
         this.childAllocation = clusterSettings.get(ParquetSettings.CHILD_ALLOCATION);
 
         clusterSettings.addSettingsUpdateConsumer(ParquetSettings.MAX_NATIVE_ALLOCATION, v -> {
             this.maxNativeAllocation = v;
-            applyToAllPools();
-        });
-        clusterSettings.addSettingsUpdateConsumer(ParquetSettings.MIN_NATIVE_ALLOCATION, v -> {
-            this.minNativeAllocation = v;
             applyToAllPools();
         });
         clusterSettings.addSettingsUpdateConsumer(ParquetSettings.MAX_NATIVE_ALLOCATION_CEILING, v -> {
@@ -120,7 +114,6 @@ public class ArrowBufferPoolRegistry {
     private Settings currentSettings() {
         return Settings.builder()
             .put(ParquetSettings.MAX_NATIVE_ALLOCATION.getKey(), maxNativeAllocation)
-            .put(ParquetSettings.MIN_NATIVE_ALLOCATION.getKey(), minNativeAllocation.getStringRep())
             .put(ParquetSettings.MAX_NATIVE_ALLOCATION_CEILING.getKey(), maxNativeAllocationCeiling.getStringRep())
             .put(ParquetSettings.CHILD_ALLOCATION.getKey(), childAllocation.getStringRep())
             .build();

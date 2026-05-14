@@ -33,25 +33,11 @@ public class DataFusionPluginSettingsTests extends OpenSearchTestCase {
         assertTrue("datafusion.memory_pool_limit_bytes must have node scope", DataFusionPlugin.DATAFUSION_MEMORY_POOL_LIMIT.hasNodeScope());
     }
 
-    public void testMemoryPoolLimitMinIsDynamic() {
-        assertTrue(
-            "datafusion.memory_pool_limit.min must be dynamic so the floor can be tuned without restart",
-            DataFusionPlugin.DATAFUSION_MEMORY_POOL_LIMIT_MIN.isDynamic()
-        );
-    }
-
     public void testSpillMemoryLimitIsStatic() {
         assertFalse(
             "datafusion.spill_memory_limit_bytes is intentionally static — DataFusion's DiskManager"
                 + " has no thread-safe runtime setter (Arc::get_mut)",
             DataFusionPlugin.DATAFUSION_SPILL_MEMORY_LIMIT.isDynamic()
-        );
-    }
-
-    public void testSpillMemoryLimitMinIsStatic() {
-        assertFalse(
-            "datafusion.spill_memory_limit.min is intentionally static — see" + " DATAFUSION_SPILL_MEMORY_LIMIT for why",
-            DataFusionPlugin.DATAFUSION_SPILL_MEMORY_LIMIT_MIN.isDynamic()
         );
     }
 
@@ -105,7 +91,7 @@ public class DataFusionPluginSettingsTests extends OpenSearchTestCase {
     public void testGetSettingsReturnsTotalExpectedCount() {
         try (DataFusionPlugin plugin = new DataFusionPlugin()) {
             List<Setting<?>> settings = plugin.getSettings();
-            assertEquals(18, settings.size());
+            assertEquals(16, settings.size());
         } catch (Exception e) {
             throw new AssertionError(e);
         }

@@ -27,12 +27,6 @@ public final class ParquetSettings {
     public static final int DEFAULT_MAX_ROWS_PER_VSR = 50000;
 
     /**
-     * Floor applied when {@link #MAX_NATIVE_ALLOCATION} is a percentage. Mirrors the
-     * {@code indices.memory.min_native_index_buffer_size} pattern in {@code IndexingMemoryController}.
-     */
-    public static final ByteSizeValue DEFAULT_MIN_NATIVE_ALLOCATION = new ByteSizeValue(512, ByteSizeUnit.MB);
-
-    /**
      * Ceiling applied when {@link #MAX_NATIVE_ALLOCATION} is a percentage. Mirrors the
      * {@code indices.memory.max_native_index_buffer_size} pattern in {@code IndexingMemoryController}.
      */
@@ -118,26 +112,20 @@ public final class ParquetSettings {
      * Maximum native memory allocation for Arrow buffers. Accepts a percentage of non-heap memory
      * ({@code totalPhysicalMemory - configuredMaxHeap}, e.g. {@code "10%"}) or an absolute byte
      * size (e.g. {@code "2gb"}). When a percentage is supplied, the resolved value is clamped by
-     * {@link #MIN_NATIVE_ALLOCATION} and {@link #MAX_NATIVE_ALLOCATION_CEILING}.
+     * {@link #MAX_NATIVE_ALLOCATION_CEILING}.
      * <p>
      * Dynamic: changes take effect on the live Arrow {@code RootAllocator} via
      * {@code BaseAllocator.setLimit}. Lowering below current usage rejects future allocations
      * until reservations drain; it does not reclaim allocated memory.
+     * <p>
+     * If non-heap memory is unmeasurable at resolve time, an {@link IllegalStateException} is
+     * thrown — operators on misconfigured boxes should specify an absolute byte size rather
+     * than a percentage.
      */
     public static final Setting<String> MAX_NATIVE_ALLOCATION = Setting.simpleString(
         "parquet.max_native_allocation",
         DEFAULT_MAX_NATIVE_ALLOCATION,
         ParquetSettings::validateMemorySizeOrPercentage,
-        Setting.Property.NodeScope,
-        Setting.Property.Dynamic
-    );
-
-    /** Floor applied when {@link #MAX_NATIVE_ALLOCATION} is a percentage. */
-    public static final Setting<ByteSizeValue> MIN_NATIVE_ALLOCATION = Setting.byteSizeSetting(
-        "parquet.min_native_allocation",
-        DEFAULT_MIN_NATIVE_ALLOCATION,
-        new ByteSizeValue(0, ByteSizeUnit.BYTES),
-        new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES),
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
@@ -261,7 +249,6 @@ public final class ParquetSettings {
             BLOOM_FILTER_FPP,
             BLOOM_FILTER_NDV,
             MAX_NATIVE_ALLOCATION,
-            MIN_NATIVE_ALLOCATION,
             MAX_NATIVE_ALLOCATION_CEILING,
             CHILD_ALLOCATION,
             MAX_ROWS_PER_VSR,

@@ -27,8 +27,7 @@ import java.io.Closeable;
  * <p>Wraps an Apache Arrow {@link RootAllocator} whose maximum allocation is derived from the
  * {@link ParquetSettings#MAX_NATIVE_ALLOCATION} setting. Percentages are applied against
  * {@code totalPhysicalMemory - configuredMaxHeap} and clamped by
- * {@link ParquetSettings#MIN_NATIVE_ALLOCATION} / {@link ParquetSettings#MAX_NATIVE_ALLOCATION_CEILING};
- * absolute byte sizes are used as-is.
+ * {@link ParquetSettings#MAX_NATIVE_ALLOCATION_CEILING}; absolute byte sizes are used as-is.
  *
  * <p>Child allocators are created per {@link org.opensearch.parquet.vsr.ManagedVSR} instance,
  * each capped by {@link ParquetSettings#CHILD_ALLOCATION} to provide memory isolation between
@@ -85,8 +84,7 @@ public class ArrowBufferPool implements Closeable {
     }
 
     /**
-     * Re-reads the four allocation settings ({@link ParquetSettings#MAX_NATIVE_ALLOCATION},
-     * {@link ParquetSettings#MIN_NATIVE_ALLOCATION},
+     * Re-reads the three allocation settings ({@link ParquetSettings#MAX_NATIVE_ALLOCATION},
      * {@link ParquetSettings#MAX_NATIVE_ALLOCATION_CEILING},
      * {@link ParquetSettings#CHILD_ALLOCATION}), pushes the resolved root limit to the live
      * {@link RootAllocator} and pushes the new per-child cap to every live child allocator. New
@@ -116,33 +114,30 @@ public class ArrowBufferPool implements Closeable {
     }
 
     /**
-     * Resolves the root allocator budget. Mirrors {@code IndexingMemoryController}'s native
-     * indexing buffer logic: percentages apply to {@code totalPhysicalMemory - configuredMaxHeap}
-     * and are clamped by {@link ParquetSettings#MIN_NATIVE_ALLOCATION} /
+     * Resolves the root allocator budget. Percentages apply to
+     * {@code totalPhysicalMemory - configuredMaxHeap} and are clamped at
      * {@link ParquetSettings#MAX_NATIVE_ALLOCATION_CEILING}; absolute byte sizes are used as-is.
+     * <p>
+     * Throws {@link IllegalStateException} if a percentage is supplied but non-heap memory is
+     * unmeasurable — operators on misconfigured boxes should specify an absolute byte size.
      */
     static long resolveMaxAllocationBytes(Settings settings) {
         String configured = ParquetSettings.MAX_NATIVE_ALLOCATION.get(settings);
 
         if (configured.endsWith("%")) {
             long totalAvailableMemory = OsProbe.getInstance().getTotalPhysicalMemorySize() - JvmInfo.jvmInfo().getConfiguredMaxHeapSize();
-            ByteSizeValue floor = ParquetSettings.MIN_NATIVE_ALLOCATION.get(settings);
             if (totalAvailableMemory <= 0) {
-                logger.warn(
-                    "Non-heap memory not measurable; falling back to [{}] = {}",
-                    ParquetSettings.MIN_NATIVE_ALLOCATION.getKey(),
-                    floor
+                throw new IllegalStateException(
+                    "Non-heap memory not measurable for setting ["
+                        + ParquetSettings.MAX_NATIVE_ALLOCATION.getKey()
+                        + "]; configure an absolute byte size (e.g. \"2gb\") instead of a percentage."
                 );
-                return floor.getBytes();
             }
 
             RatioValue ratio = RatioValue.parseRatioValue(configured);
             long bytes = (long) (totalAvailableMemory * ratio.getAsRatio());
 
             ByteSizeValue ceiling = ParquetSettings.MAX_NATIVE_ALLOCATION_CEILING.get(settings);
-            if (bytes < floor.getBytes()) {
-                bytes = floor.getBytes();
-            }
             if (ceiling.getBytes() != -1 && bytes > ceiling.getBytes()) {
                 bytes = ceiling.getBytes();
             }

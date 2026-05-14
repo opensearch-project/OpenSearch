@@ -22,7 +22,6 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsFilter;
 import org.opensearch.common.unit.RatioValue;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
-import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
@@ -65,32 +64,31 @@ public class DataFusionPlugin extends Plugin implements SearchBackEndPlugin<Data
     private static final Logger logger = LogManager.getLogger(DataFusionPlugin.class);
 
     /**
-     * Default value for {@link #DATAFUSION_MEMORY_POOL_LIMIT}. {@code 15%} of non-heap memory
-     * comes from the OFAT sweep on r7g.2xlarge documented in
+     * Default value for {@link #DATAFUSION_MEMORY_POOL_LIMIT}. Set to {@code 50%} of non-heap
+     * memory to give DataFusion a generous working set on AOS-standard heap configurations
+     * (which use the 50% heap rule, leaving non-heap = total/2). On a 64&nbsp;GiB r7g.2xlarge
+     * with 32&nbsp;GiB heap that yields a 16&nbsp;GiB DF pool — comfortably past the diminishing-
+     * returns inflection point in the OFAT sweep at
      * <a href="https://quip-amazon.com/baxtAdGoq6S9/Mustang-Memory-Tuning-Recommended-Defaults">
-     * Mustang Memory Tuning - Recommended Defaults</a>: doubling 4&nbsp;GiB → 8&nbsp;GiB buys
-     * ~15% lower p95 ClickBench latency, but 8&nbsp;GiB → 16&nbsp;GiB only ~5%. 15% is the
-     * inflection point that scales cleanly across instance sizes.
+     * Mustang Memory Tuning - Recommended Defaults</a>. Operators on memory-tight workloads
+     * who need more page cache can lower this dynamically via the cluster-settings API.
      */
-    public static final String DEFAULT_MEMORY_POOL_LIMIT = "15%";
-
-    /** Default floor for {@link #DATAFUSION_MEMORY_POOL_LIMIT_MIN}. */
-    public static final ByteSizeValue DEFAULT_MEMORY_POOL_LIMIT_MIN = new ByteSizeValue(512, ByteSizeUnit.MB);
+    public static final String DEFAULT_MEMORY_POOL_LIMIT = "50%";
 
     /** Default value for {@link #DATAFUSION_SPILL_MEMORY_LIMIT}. */
     public static final String DEFAULT_SPILL_MEMORY_LIMIT = "50%";
 
-    /** Default floor for {@link #DATAFUSION_SPILL_MEMORY_LIMIT_MIN}. */
-    public static final ByteSizeValue DEFAULT_SPILL_MEMORY_LIMIT_MIN = new ByteSizeValue(1, ByteSizeUnit.GB);
-
     /**
      * Memory pool limit for the DataFusion runtime. Accepts a percentage of non-heap memory
-     * ({@code totalPhysicalMemory - configuredMaxHeap}, e.g. {@code "15%"}) or an absolute byte
-     * size (e.g. {@code "10gb"}). When a percentage is supplied, the resolved value is floored
-     * by {@link #DATAFUSION_MEMORY_POOL_LIMIT_MIN}.
+     * ({@code totalPhysicalMemory - configuredMaxHeap}, e.g. {@code "50%"}) or an absolute byte
+     * size (e.g. {@code "10gb"}).
      * <p>
      * Dynamic: changes take effect for new allocations only. Existing reservations that exceed
      * the new limit are not reclaimed — they drain naturally as queries complete.
+     * <p>
+     * If non-heap memory is unmeasurable at resolve time, an {@link IllegalStateException} is
+     * thrown — operators on misconfigured boxes should specify an absolute byte size rather
+     * than a percentage.
      */
     public static final Setting<String> DATAFUSION_MEMORY_POOL_LIMIT = Setting.simpleString(
         "datafusion.memory_pool_limit_bytes",
@@ -100,20 +98,9 @@ public class DataFusionPlugin extends Plugin implements SearchBackEndPlugin<Data
         Setting.Property.Dynamic
     );
 
-    /** Floor applied when {@link #DATAFUSION_MEMORY_POOL_LIMIT} is a percentage. */
-    public static final Setting<ByteSizeValue> DATAFUSION_MEMORY_POOL_LIMIT_MIN = Setting.byteSizeSetting(
-        "datafusion.memory_pool_limit.min",
-        DEFAULT_MEMORY_POOL_LIMIT_MIN,
-        new ByteSizeValue(0, ByteSizeUnit.BYTES),
-        new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES),
-        Setting.Property.NodeScope,
-        Setting.Property.Dynamic
-    );
-
     /**
      * Spill memory limit — when exceeded, DataFusion spills to disk. Accepts a percentage of
-     * non-heap memory or an absolute byte size. When a percentage is supplied, the resolved value
-     * is floored by {@link #DATAFUSION_SPILL_MEMORY_LIMIT_MIN}.
+     * non-heap memory or an absolute byte size.
      * <p>
      * Static (NodeScope only). DataFusion's {@code DiskManager} stores the spill cap as a plain
      * {@code u64} and only exposes a setter behind {@code Arc::get_mut}, which fails as soon as
@@ -124,18 +111,6 @@ public class DataFusionPlugin extends Plugin implements SearchBackEndPlugin<Data
         "datafusion.spill_memory_limit_bytes",
         DEFAULT_SPILL_MEMORY_LIMIT,
         DataFusionPlugin::validateMemorySizeOrPercentage,
-        Setting.Property.NodeScope
-    );
-
-    /**
-     * Floor applied when {@link #DATAFUSION_SPILL_MEMORY_LIMIT} is a percentage. Static (NodeScope
-     * only) — see {@link #DATAFUSION_SPILL_MEMORY_LIMIT} for why.
-     */
-    public static final Setting<ByteSizeValue> DATAFUSION_SPILL_MEMORY_LIMIT_MIN = Setting.byteSizeSetting(
-        "datafusion.spill_memory_limit.min",
-        DEFAULT_SPILL_MEMORY_LIMIT_MIN,
-        new ByteSizeValue(0, ByteSizeUnit.BYTES),
-        new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES),
         Setting.Property.NodeScope
     );
 
@@ -168,16 +143,6 @@ public class DataFusionPlugin extends Plugin implements SearchBackEndPlugin<Data
     private volatile SimpleExtension.ExtensionCollection substraitExtensions;
     private volatile ClusterService clusterService;
     private volatile DatafusionSettings datafusionSettings;
-    /** Most recent raw value of {@link #DATAFUSION_MEMORY_POOL_LIMIT}; updated by its listener. */
-    private volatile String currentMemoryPoolLimitRaw = DEFAULT_MEMORY_POOL_LIMIT;
-    /**
-     * Most recent value of {@link #DATAFUSION_MEMORY_POOL_LIMIT_MIN}; updated by its listener.
-     * We cache it in this volatile field rather than reading {@code clusterService.getSettings()}
-     * inside the listener — {@code AbstractScopedSettings} only writes {@code lastSettingsApplied}
-     * after all updaters run, so a listener that re-reads via {@code .get(getSettings())} sees the
-     * pre-update value.
-     */
-    private volatile ByteSizeValue currentMemoryPoolMin = DEFAULT_MEMORY_POOL_LIMIT_MIN;
 
     /**
      * Creates the DataFusion plugin.
@@ -202,8 +167,6 @@ public class DataFusionPlugin extends Plugin implements SearchBackEndPlugin<Data
         this.dataFormatRegistry = dataFormatRegistry;
         this.clusterService = clusterService;
         Settings settings = environment.settings();
-        this.currentMemoryPoolLimitRaw = DATAFUSION_MEMORY_POOL_LIMIT.get(settings);
-        this.currentMemoryPoolMin = DATAFUSION_MEMORY_POOL_LIMIT_MIN.get(settings);
         long memoryPoolLimit = resolveMemoryPoolBytes(settings);
         long spillMemoryLimit = resolveSpillMemoryBytes(settings);
         String spillDir = environment.dataFiles()[0].getParent().resolve("tmp").toAbsolutePath().toString();
@@ -217,11 +180,9 @@ public class DataFusionPlugin extends Plugin implements SearchBackEndPlugin<Data
         dataFusionService.start();
         logger.debug("DataFusion plugin initialized — memory pool {}B, spill limit {}B", memoryPoolLimit, spillMemoryLimit);
 
-        // Wire the memory pool limit setting (and its dynamic min companion) to the native runtime
-        // so cluster-settings PUTs take effect without restarting the node. Both listeners route
-        // through the same resolver, which re-reads the latest raw value plus min on every update.
+        // Wire the memory pool limit setting to the native runtime so cluster-settings PUTs take
+        // effect without restarting the node.
         clusterService.getClusterSettings().addSettingsUpdateConsumer(DATAFUSION_MEMORY_POOL_LIMIT, this::onMemoryPoolLimitChanged);
-        clusterService.getClusterSettings().addSettingsUpdateConsumer(DATAFUSION_MEMORY_POOL_LIMIT_MIN, this::onMemoryPoolMinChanged);
 
         this.datafusionSettings = new DatafusionSettings(clusterService);
 
@@ -282,78 +243,50 @@ public class DataFusionPlugin extends Plugin implements SearchBackEndPlugin<Data
 
     /**
      * Resolves {@link #DATAFUSION_MEMORY_POOL_LIMIT}. Percentages apply against
-     * {@code totalPhysicalMemory - configuredMaxHeap} and are floored by the {@code min}
-     * companion setting; absolute byte sizes are used as-is.
+     * {@code totalPhysicalMemory - configuredMaxHeap}; absolute byte sizes are used as-is.
      */
     static long resolveMemoryPoolBytes(Settings settings) {
-        return resolveBytes(
-            DATAFUSION_MEMORY_POOL_LIMIT.get(settings),
-            DATAFUSION_MEMORY_POOL_LIMIT_MIN.get(settings),
-            DATAFUSION_MEMORY_POOL_LIMIT.getKey()
-        );
+        return resolveBytes(DATAFUSION_MEMORY_POOL_LIMIT.get(settings), DATAFUSION_MEMORY_POOL_LIMIT.getKey());
     }
 
     /**
      * Resolves {@link #DATAFUSION_SPILL_MEMORY_LIMIT}. Percentages apply against
-     * {@code totalPhysicalMemory - configuredMaxHeap} and are floored by the {@code min}
-     * companion setting; absolute byte sizes are used as-is.
+     * {@code totalPhysicalMemory - configuredMaxHeap}; absolute byte sizes are used as-is.
      */
     static long resolveSpillMemoryBytes(Settings settings) {
-        return resolveBytes(
-            DATAFUSION_SPILL_MEMORY_LIMIT.get(settings),
-            DATAFUSION_SPILL_MEMORY_LIMIT_MIN.get(settings),
-            DATAFUSION_SPILL_MEMORY_LIMIT.getKey()
-        );
+        return resolveBytes(DATAFUSION_SPILL_MEMORY_LIMIT.get(settings), DATAFUSION_SPILL_MEMORY_LIMIT.getKey());
     }
 
     /**
      * Shared parser for memory-pool-style settings. Mirrors {@code IndexingMemoryController}'s
      * native indexing buffer logic: percentages resolve against
-     * {@code totalPhysicalMemory - configuredMaxHeap} and are floored by the supplied minimum;
-     * absolute byte sizes are returned as-is.
+     * {@code totalPhysicalMemory - configuredMaxHeap}; absolute byte sizes are returned as-is.
+     * <p>
+     * Throws {@link IllegalStateException} if a percentage is supplied but non-heap memory is
+     * unmeasurable — the operator should specify an absolute byte size in that case.
      */
-    private static long resolveBytes(String configured, ByteSizeValue floor, String settingKey) {
+    private static long resolveBytes(String configured, String settingKey) {
         if (configured.endsWith("%")) {
             long totalAvailableMemory = OsProbe.getInstance().getTotalPhysicalMemorySize() - JvmInfo.jvmInfo().getConfiguredMaxHeapSize();
             if (totalAvailableMemory <= 0) {
-                logger.warn("Non-heap memory not measurable while resolving [{}]; falling back to {}", settingKey, floor);
-                return floor.getBytes();
+                throw new IllegalStateException(
+                    "Non-heap memory not measurable for setting ["
+                        + settingKey
+                        + "]; configure an absolute byte size (e.g. \"2gb\") instead of a percentage."
+                );
             }
             RatioValue ratio = RatioValue.parseRatioValue(configured);
-            long bytes = (long) (totalAvailableMemory * ratio.getAsRatio());
-            if (bytes < floor.getBytes()) {
-                bytes = floor.getBytes();
-            }
-            return bytes;
+            return (long) (totalAvailableMemory * ratio.getAsRatio());
         }
         return ByteSizeValue.parseBytesSizeValue(configured, settingKey).getBytes();
     }
 
     /**
-     * Cluster-settings listener for {@link #DATAFUSION_MEMORY_POOL_LIMIT}. Records the new raw
-     * value, re-resolves against the current min, and propagates the result to the native runtime.
+     * Cluster-settings listener for {@link #DATAFUSION_MEMORY_POOL_LIMIT}. Re-resolves the new
+     * value and propagates the result to the native runtime.
      */
     private void onMemoryPoolLimitChanged(String newValue) {
-        this.currentMemoryPoolLimitRaw = newValue;
-        applyMemoryPoolLimit(newValue);
-    }
-
-    /**
-     * Cluster-settings listener for {@link #DATAFUSION_MEMORY_POOL_LIMIT_MIN}. Caches the new
-     * floor and re-resolves the current raw limit against it. Only meaningful when the limit is
-     * configured as a percentage — absolute byte sizes ignore the floor.
-     */
-    private void onMemoryPoolMinChanged(ByteSizeValue newMin) {
-        this.currentMemoryPoolMin = newMin;
-        applyMemoryPoolLimit(currentMemoryPoolLimitRaw);
-    }
-
-    private void applyMemoryPoolLimit(String rawValue) {
-        // Read floor from our volatile cache rather than from clusterService.getSettings().
-        // AbstractScopedSettings updates lastSettingsApplied only after all listener callbacks
-        // run, so reading via .get(cs.getSettings()) inside a listener returns the pre-update
-        // value. See ArrowBufferPoolRegistry for the same pattern on the parquet side.
-        long newLimitBytes = resolveBytes(rawValue, currentMemoryPoolMin, DATAFUSION_MEMORY_POOL_LIMIT.getKey());
+        long newLimitBytes = resolveBytes(newValue, DATAFUSION_MEMORY_POOL_LIMIT.getKey());
         updateMemoryPoolLimit(newLimitBytes);
     }
 
