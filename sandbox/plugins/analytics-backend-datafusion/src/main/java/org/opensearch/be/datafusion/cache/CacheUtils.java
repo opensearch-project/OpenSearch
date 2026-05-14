@@ -91,10 +91,12 @@ public final class CacheUtils {
      *
      * @param clusterSettings OpenSearch cluster settings containing cache configuration
      */
-    public static long createCacheConfig(ClusterSettings clusterSettings) {
+    public static NativeCacheManagerHandle createCacheConfig(ClusterSettings clusterSettings) {
         logger.info("Initializing cache configuration");
 
         long cacheManagerPtr = NativeBridge.createCustomCacheManager();
+        NativeCacheManagerHandle handle = new NativeCacheManagerHandle(cacheManagerPtr);
+
         // Configure each enabled cache type
         for (CacheType type : CacheType.values()) {
             if (type.isEnabled(clusterSettings)) {
@@ -106,7 +108,7 @@ public final class CacheUtils {
                 );
 
                 NativeBridge.createCache(
-                    cacheManagerPtr,
+                    handle.getPointer(),
                     type.cacheTypeName,
                     type.getSizeLimit(clusterSettings).getBytes(),
                     type.getEvictionType(clusterSettings)
@@ -116,6 +118,6 @@ public final class CacheUtils {
             }
         }
         logger.info("Cache configuration completed");
-        return cacheManagerPtr;
+        return handle;
     }
 }

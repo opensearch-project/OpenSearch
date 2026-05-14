@@ -114,6 +114,9 @@ pub async fn execute_indexed_query(
                 .with_file_metadata_cache(Some(
                     runtime.runtime_env.cache_manager.get_file_metadata_cache(),
                 ))
+                .with_metadata_cache_limit(
+                    runtime.runtime_env.cache_manager.get_metadata_cache_limit(),
+                )
                 .with_files_statistics_cache(
                     runtime.runtime_env.cache_manager.get_file_statistic_cache(),
                 ),
@@ -439,9 +442,16 @@ pub async unsafe fn execute_indexed_with_context(
     let state = ctx.state();
     let store = state.runtime_env().object_store(&table_path)?;
 
-    let (segments, schema) = build_segments(&state, Arc::clone(&store), object_metas.as_ref())
-        .await
-        .map_err(DataFusionError::Execution)?;
+    let metadata_cache = state.runtime_env().cache_manager.get_file_metadata_cache();
+
+    let (segments, schema) = build_segments(
+        &state,
+        Arc::clone(&store),
+        object_metas.as_ref(),
+        metadata_cache,
+    )
+    .await
+    .map_err(DataFusionError::Execution)?;
     for (i, seg) in segments.iter().enumerate() {
     }
 

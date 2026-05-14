@@ -179,6 +179,24 @@ public class DataFusionServiceTests extends OpenSearchTestCase {
         NativeBridge.closeGlobalRuntime(runtimePtr);
     }
 
+    public void testCacheManagerHandleConsumedAfterRuntimeCreation() {
+        ensureTokioInit();
+        var handle = new org.opensearch.be.datafusion.cache.NativeCacheManagerHandle(NativeBridge.createCustomCacheManager());
+        NativeBridge.createCache(handle.getPointer(), "METADATA", 250 * 1024 * 1024, "LRU");
+
+        long ptrBefore = handle.getPointer();
+        assertTrue(org.opensearch.analytics.backend.jni.NativeHandle.isLivePointer(ptrBefore));
+
+        Path spillDir = createTempDir("spill");
+        long runtimePtr = NativeBridge.createGlobalRuntime(64 * 1024 * 1024, handle.getPointer(), spillDir.toString(), 32 * 1024 * 1024);
+        handle.markConsumed();
+
+        assertFalse(org.opensearch.analytics.backend.jni.NativeHandle.isLivePointer(ptrBefore));
+        expectThrows(IllegalStateException.class, handle::getPointer);
+
+        NativeBridge.closeGlobalRuntime(runtimePtr);
+    }
+
     private ClusterSettings createCacheClusterSettings(Settings settings) {
         Set<Setting<?>> all = new HashSet<>(BUILT_IN_CLUSTER_SETTINGS);
         all.add(CacheSettings.METADATA_CACHE_ENABLED);

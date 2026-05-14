@@ -22,6 +22,7 @@ use std::sync::Arc;
 use datafusion::catalog::Session;
 use datafusion::datasource::file_format::parquet::ParquetFormat;
 use datafusion::datasource::file_format::FileFormat;
+use datafusion::execution::cache::cache_manager::FileMetadataCache;
 
 /// Build `SegmentFileInfo` from the shard's object metas. Each entry is one
 /// segment; its max_doc is derived from the sum of row-group row counts.
@@ -37,6 +38,7 @@ pub async fn build_segments(
     state: &dyn Session,
     store: Arc<dyn object_store::ObjectStore>,
     object_metas: &[object_store::ObjectMeta],
+    metadata_cache: Arc<dyn FileMetadataCache>,
 ) -> Result<(Vec<SegmentFileInfo>, arrow::datatypes::SchemaRef), String> {
     if object_metas.is_empty() {
         return Err("No parquet files provided".to_string());
@@ -50,10 +52,13 @@ pub async fn build_segments(
         // RuntimeEnv that `infer_schema` uses below shares this data when
         // both are pointed at the same object location, so this isn't a
         // duplicated cold fetch in practice.
-        let (_file_schema, size, pq_meta) =
-            parquet_bridge::load_parquet_metadata(Arc::clone(&store), &meta.location)
-                .await
-                .map_err(|e| format!("parquet metadata {}: {}", meta.location, e))?;
+        let (_file_schema, size, pq_meta) = parquet_bridge::load_parquet_metadata(
+            Arc::clone(&store),
+            &meta.location,
+            Arc::clone(&metadata_cache),
+        )
+        .await
+        .map_err(|e| format!("parquet metadata {}: {}", meta.location, e))?;
 
         let mut row_groups = Vec::new();
         let mut offset: i64 = 0;
@@ -100,10 +105,17 @@ mod tests {
     use super::*;
     use arrow::datatypes::{DataType, Field, Schema};
     use arrow_array::{Int32Array, RecordBatch, StringArray};
+    use datafusion::execution::cache::cache_unit::DefaultFilesMetadataCache;
     use datafusion::execution::context::SessionContext;
     use datafusion::parquet::arrow::ArrowWriter;
     use object_store::{local::LocalFileSystem, path::Path as ObjectPath, ObjectStore, ObjectStoreExt};
     use tempfile::tempdir;
+
+    /// Mirror of what `CacheManager::try_new` auto-installs when no custom
+    /// metadata cache is configured.
+    fn default_metadata_cache() -> Arc<dyn FileMetadataCache> {
+        Arc::new(DefaultFilesMetadataCache::new(50 * 1024 * 1024))
+    }
 
     /// Write a parquet file with the given schema + arrays into `dir`
     /// under `filename`. Returns the absolute filesystem path.
@@ -168,9 +180,14 @@ mod tests {
         let store: Arc<dyn ObjectStore> = Arc::new(LocalFileSystem::new());
         let metas = object_metas(store.as_ref(), &[p0, p1]).await;
         let ctx = SessionContext::new();
-        let (segments, merged) = build_segments(&ctx.state(), Arc::clone(&store), &metas)
-            .await
-            .unwrap();
+        let (segments, merged) = build_segments(
+            &ctx.state(),
+            Arc::clone(&store),
+            &metas,
+            default_metadata_cache(),
+        )
+        .await
+        .unwrap();
 
         assert_eq!(segments.len(), 2);
         assert_eq!(merged.fields().len(), 2);
@@ -217,9 +234,14 @@ mod tests {
         let store: Arc<dyn ObjectStore> = Arc::new(LocalFileSystem::new());
         let metas = object_metas(store.as_ref(), &[p0, p1]).await;
         let ctx = SessionContext::new();
-        let (_segments, merged) = build_segments(&ctx.state(), Arc::clone(&store), &metas)
-            .await
-            .unwrap();
+        let (_segments, merged) = build_segments(
+            &ctx.state(),
+            Arc::clone(&store),
+            &metas,
+            default_metadata_cache(),
+        )
+        .await
+        .unwrap();
 
         let names: Vec<&str> = merged.fields().iter().map(|f| f.name().as_str()).collect();
         assert_eq!(
@@ -274,12 +296,22 @@ mod tests {
         let metas_ab = object_metas(store.as_ref(), &[p0.clone(), p1.clone()]).await;
         let metas_ba = object_metas(store.as_ref(), &[p1, p0]).await;
 
-        let (_, schema_ab) = build_segments(&ctx.state(), Arc::clone(&store), &metas_ab)
-            .await
-            .unwrap();
-        let (_, schema_ba) = build_segments(&ctx.state(), Arc::clone(&store), &metas_ba)
-            .await
-            .unwrap();
+        let (_, schema_ab) = build_segments(
+            &ctx.state(),
+            Arc::clone(&store),
+            &metas_ab,
+            default_metadata_cache(),
+        )
+        .await
+        .unwrap();
+        let (_, schema_ba) = build_segments(
+            &ctx.state(),
+            Arc::clone(&store),
+            &metas_ba,
+            default_metadata_cache(),
+        )
+        .await
+        .unwrap();
 
         let fields_ab: Vec<&str> = schema_ab
             .fields()
@@ -322,7 +354,13 @@ mod tests {
         let store: Arc<dyn ObjectStore> = Arc::new(LocalFileSystem::new());
         let metas = object_metas(store.as_ref(), &[p0, p1]).await;
         let ctx = SessionContext::new();
-        let result = build_segments(&ctx.state(), Arc::clone(&store), &metas).await;
+        let result = build_segments(
+            &ctx.state(),
+            Arc::clone(&store),
+            &metas,
+            default_metadata_cache(),
+        )
+        .await;
         assert!(
             result.is_err(),
             "conflicting Int32 / Int64 on same field name must fail at schema-union time"

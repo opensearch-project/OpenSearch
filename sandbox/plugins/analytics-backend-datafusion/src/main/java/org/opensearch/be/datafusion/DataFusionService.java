@@ -14,6 +14,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.be.datafusion.cache.CacheManager;
 import org.opensearch.be.datafusion.cache.CacheUtils;
+import org.opensearch.be.datafusion.cache.NativeCacheManagerHandle;
 import org.opensearch.be.datafusion.nativelib.NativeBridge;
 import org.opensearch.be.datafusion.stats.DataFusionStats;
 import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
@@ -102,12 +103,24 @@ public class DataFusionService extends AbstractLifecycleComponent {
         this.drainExecutor = Executors.newThreadPerTaskExecutor(Thread.ofVirtual().name("analytics-reduce-drain-", 0).factory());
 
         long cacheManagerPtr = 0L;
+        NativeCacheManagerHandle cacheHandle = null;
         if (clusterSettings != null) {
-            cacheManagerPtr = CacheUtils.createCacheConfig(clusterSettings);
+            cacheHandle = CacheUtils.createCacheConfig(clusterSettings);
+            cacheManagerPtr = cacheHandle.getPointer();
         }
 
-        long ptr = NativeBridge.createGlobalRuntime(memoryPoolLimit, cacheManagerPtr, spillDirectory, spillMemoryLimit);
-        this.runtimeHandle = new NativeRuntimeHandle(ptr);
+        try {
+            long ptr = NativeBridge.createGlobalRuntime(memoryPoolLimit, cacheManagerPtr, spillDirectory, spillMemoryLimit);
+            if (cacheHandle != null) {
+                cacheHandle.markConsumed();
+            }
+            this.runtimeHandle = new NativeRuntimeHandle(ptr);
+        } catch (Exception e) {
+            if (cacheHandle != null) {
+                cacheHandle.close();
+            }
+            throw e;
+        }
         this.rootAllocator = new RootAllocator(memoryPoolLimit);
 
         if (clusterSettings != null) {

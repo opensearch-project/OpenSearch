@@ -493,8 +493,11 @@ pub unsafe extern "C" fn df_cache_manager_add_files(
         );
     }
 
-    manager
-        .add_files(&file_paths)
+    let rt_manager = get_rt_manager()
+        .map_err(|e| format!("df_cache_manager_add_files: {}", e))?;
+    let rt_handle = rt_manager.io_runtime.handle();
+
+    manager.add_files(&file_paths, rt_handle)
         .map_err(|e| format!("df_cache_manager_add_files: {}", e))?;
     Ok(0)
 }
