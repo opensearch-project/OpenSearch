@@ -52,8 +52,6 @@ public class NativeMemoryBasedAdmissionControllerSettings {
     public static final Setting<Long> SEARCH_NATIVE_MEMORY_USAGE_LIMIT = Setting.longSetting(
         "admission_control.search.native_memory_usage.limit",
         Defaults.NATIVE_MEMORY_USAGE_LIMIT,
-        0,
-        100,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
@@ -65,8 +63,6 @@ public class NativeMemoryBasedAdmissionControllerSettings {
     public static final Setting<Long> INDEXING_NATIVE_MEMORY_USAGE_LIMIT = Setting.longSetting(
         "admission_control.indexing.native_memory_usage.limit",
         Defaults.NATIVE_MEMORY_USAGE_LIMIT,
-        0,
-        100,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
@@ -78,8 +74,6 @@ public class NativeMemoryBasedAdmissionControllerSettings {
     public static final Setting<Long> CLUSTER_ADMIN_NATIVE_MEMORY_USAGE_LIMIT = Setting.longSetting(
         "admission_control.cluster_admin.native_memory_usage.limit",
         Defaults.CLUSTER_ADMIN_NATIVE_MEMORY_USAGE_LIMIT,
-        0,
-        100,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );

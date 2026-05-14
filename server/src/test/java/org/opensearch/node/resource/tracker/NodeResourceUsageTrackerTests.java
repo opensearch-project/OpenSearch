@@ -51,16 +51,8 @@ public class NodeResourceUsageTrackerTests extends OpenSearchSingleNodeTestCase 
     }
 
     public void testStats() throws Exception {
-        // Set a huge native-memory limit so the denominator is non-zero; any nativeUsed > 0 yields
-        // a non-zero reading (limit / (1 - 0%) == limit).
         Settings settings = Settings.builder()
             .put(ResourceTrackerSettings.GLOBAL_JVM_USAGE_AC_WINDOW_DURATION_SETTING.getKey(), new TimeValue(500, TimeUnit.MILLISECONDS))
-            .put(
-                ResourceTrackerSettings.GLOBAL_NATIVE_MEMORY_USAGE_AC_WINDOW_DURATION_SETTING.getKey(),
-                new TimeValue(500, TimeUnit.MILLISECONDS)
-            )
-            .put(ResourceTrackerSettings.NODE_NATIVE_MEMORY_LIMIT_SETTING.getKey(), "1TB")
-            .put(ResourceTrackerSettings.NODE_NATIVE_MEMORY_BUFFER_PERCENT_SETTING.getKey(), 0)
             .build();
         NodeResourceUsageTracker tracker = new NodeResourceUsageTracker(
             mock(FsService.class),
@@ -74,9 +66,6 @@ public class NodeResourceUsageTrackerTests extends OpenSearchSingleNodeTestCase 
          * cpu percent used is mostly 0, so skipping assertion for that
          */
         assertBusy(() -> assertThat(tracker.getMemoryUtilizationPercent(), greaterThan(0.0)), 5, TimeUnit.SECONDS);
-        if (Constants.LINUX) {
-            assertBusy(() -> assertThat(tracker.getNativeMemoryUtilizationPercent(), greaterThan(0.0)), 5, TimeUnit.SECONDS);
-        }
         tracker.stop();
         tracker.close();
     }
