@@ -30,12 +30,9 @@ import java.util.Objects;
  * @opensearch.experimental
  */
 @ExperimentalApi
-public record MergeInput(
-    List<Segment> segments,
-    RowIdMapping rowIdMapping,
-    long newWriterGeneration,
-    Map<Long, long[]> liveDocsPerSegment
-) {
+public record MergeInput(List<Segment> segments, RowIdMapping rowIdMapping, long newWriterGeneration, Map<
+    Long,
+    long[]> liveDocsPerSegment) {
 
     public MergeInput {
         segments = List.copyOf(segments);

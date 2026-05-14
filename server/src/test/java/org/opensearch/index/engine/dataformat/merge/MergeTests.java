@@ -24,7 +24,6 @@ import org.opensearch.index.engine.exec.WriterFileSet;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.ThreadPool;
-import org.mockito.ArgumentCaptor;
 
 import java.io.IOException;
 import java.lang.reflect.Field;
@@ -43,6 +42,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
+
+import org.mockito.ArgumentCaptor;
 
 import static org.opensearch.index.IndexSettingsTests.newIndexMeta;
 import static org.mockito.ArgumentMatchers.anyList;
