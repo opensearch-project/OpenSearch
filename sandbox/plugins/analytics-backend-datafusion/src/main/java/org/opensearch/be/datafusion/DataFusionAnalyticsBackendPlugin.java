@@ -573,4 +573,9 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         // (createProvider, createCollector, collectDocs, release*) route to it.
         FilterTreeCallbacks.setHandle(handle);
     }
+
+    @Override
+    public void setDelegationThreadTracker(org.opensearch.analytics.spi.DelegationThreadTracker tracker) {
+        FilterTreeCallbacks.setThreadTracker(tracker);
+    }
 }
