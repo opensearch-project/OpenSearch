@@ -26,6 +26,7 @@ import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.store.ByteBuffersDataOutput;
 import org.apache.lucene.store.ByteBuffersIndexOutput;
 import org.apache.lucene.util.Version;
+import org.opensearch.be.lucene.LuceneDataFormat;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.engine.CommitStats;
 import org.opensearch.index.engine.EngineConfig;
@@ -239,6 +240,9 @@ public class LuceneCommitter extends SafeBootstrapCommitter {
         DirectoryReader reader = readers.get(catalogSnapshot.getVersion());
         SegmentInfos sis;
         if (reader == null) {
+            assert catalogSnapshot.getDataFormats().contains(LuceneDataFormat.LUCENE_FORMAT_NAME) == false
+                : "Lucene is listed in catalog data formats but no reader was registered for version=" + catalogSnapshot.getVersion();
+            logger.info("No Lucene reader for catalog snapshot version={} — producing empty SegmentInfos", catalogSnapshot.getVersion());
             sis = new SegmentInfos(Version.LATEST.major);
         } else {
             if (reader instanceof StandardDirectoryReader == false) {

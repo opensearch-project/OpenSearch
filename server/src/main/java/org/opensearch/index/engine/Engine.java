@@ -61,6 +61,7 @@ import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.index.IndexRequest;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.SetOnce;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.lease.Releasable;
@@ -1267,6 +1268,7 @@ public abstract class Engine implements LifecycleAware, Closeable {
      * {@link SegmentInfosCatalogSnapshot}; engines with a native catalog should override
      * to avoid the extra disk read.
      */
+    @ExperimentalApi
     public GatedCloseable<CatalogSnapshot> acquireSafeCatalogSnapshot() throws EngineException {
         final GatedCloseable<IndexCommit> commitRef = acquireSafeIndexCommit();
         try {
@@ -1292,9 +1294,13 @@ public abstract class Engine implements LifecycleAware, Closeable {
 
     /**
      * Acquires a {@link CatalogSnapshot} pinned to the most recent commit on disk,
-     * regardless of retention policy. Default wraps {@link #acquireLastIndexCommit(boolean)}.
+     * regardless of retention policy. Default throws UnsupportedOperationException for engines
+     * that do not support catalog snapshots.
      */
-    public abstract GatedCloseable<CatalogSnapshot> acquireLastCommittedSnapshot(boolean flushFirst) throws EngineException;
+    @ExperimentalApi
+    public GatedCloseable<CatalogSnapshot> acquireLastCommittedSnapshot(boolean flushFirst) throws EngineException {
+        throw new UnsupportedOperationException("acquireLastCommittedSnapshot not supported on " + getClass().getSimpleName());
+    }
 
     /**
      * @return a summary of the contents of the current safe commit
