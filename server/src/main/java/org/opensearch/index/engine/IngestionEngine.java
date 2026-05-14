@@ -95,8 +95,6 @@ public class IngestionEngine extends InternalEngine {
         assert indexMetadata != null;
         IngestionSource ingestionSource = Objects.requireNonNull(indexMetadata.getIngestionSource());
 
-        // initialize the ingestion consumer factory
-        this.ingestionConsumerFactory.initialize(ingestionSource);
         String clientId = engineConfig.getIndexSettings().getNodeName()
             + "-"
             + engineConfig.getIndexSettings().getIndex().getName()
@@ -160,6 +158,7 @@ public class IngestionEngine extends InternalEngine {
             .mapperSettings(ingestionSource.getMapperSettings())
             .pipelineExecutor(pipelineExecutor)
             .warmupConfig(ingestionSource.getWarmupConfig())
+            .ingestionSource(ingestionSource)
             .build();
         registerStreamPollerListener();
 

@@ -58,6 +58,9 @@ public class DefaultStreamPoller implements StreamPoller {
     // flag to indicate if consumer needs to be reinitialized
     private volatile boolean reinitializeConsumer;
 
+    // the ingestion source used to create the consumer; updated on settings changes
+    private volatile IngestionSource currentIngestionSource;
+
     private volatile long lastPolledMessageTimestamp = 0;
     private volatile long cachedPointerBasedLag = -1; // -1 indicates poller has not consumed any message yet
     private volatile long lastPointerBasedLagUpdateTime = 0;
@@ -118,7 +121,8 @@ public class DefaultStreamPoller implements StreamPoller {
         IngestionMessageMapper.MapperType mapperType,
         Map<String, Object> mapperSettings,
         IngestPipelineExecutor pipelineExecutor,
-        IngestionSource.WarmupConfig warmupConfig
+        IngestionSource.WarmupConfig warmupConfig,
+        IngestionSource ingestionSource
     ) {
         this(
             startPointer,
@@ -142,7 +146,8 @@ public class DefaultStreamPoller implements StreamPoller {
             pointerBasedLagUpdateIntervalMs,
             ingestionEngine.config().getIndexSettings(),
             IngestionMessageMapper.create(mapperType.getName(), shardId, mapperSettings),
-            warmupConfig
+            warmupConfig,
+            ingestionSource
         );
     }
 
@@ -164,7 +169,8 @@ public class DefaultStreamPoller implements StreamPoller {
         long pointerBasedLagUpdateIntervalMs,
         IndexSettings indexSettings,
         IngestionMessageMapper messageMapper,
-        IngestionSource.WarmupConfig warmupConfig
+        IngestionSource.WarmupConfig warmupConfig,
+        IngestionSource ingestionSource
     ) {
         this.consumerFactory = Objects.requireNonNull(consumerFactory);
         this.consumerClientId = Objects.requireNonNull(consumerClientId);
@@ -184,6 +190,7 @@ public class DefaultStreamPoller implements StreamPoller {
         this.indexName = indexSettings.getIndex().getName();
         this.messageMapper = Objects.requireNonNull(messageMapper);
         this.warmupConfig = Objects.requireNonNull(warmupConfig);
+        this.currentIngestionSource = Objects.requireNonNull(ingestionSource);
 
         // handle initial poller states
         this.paused = initialState == State.PAUSED;
@@ -619,7 +626,7 @@ public class DefaultStreamPoller implements StreamPoller {
 
     /**
      * Mark the poller's consumer for reinitialization. A new consumer will be initialized and start consuming from the
-     * latest batchStartPointer. This method also reinitializes the consumer factory with the updated ingestion source.
+     * latest batchStartPointer using the updated ingestion source.
      * @param updatedIngestionSource the updated ingestion source with new configuration parameters
      */
     @Override
@@ -629,8 +636,7 @@ public class DefaultStreamPoller implements StreamPoller {
             return;
         }
 
-        // Reinitialize the consumer factory with updated configuration
-        consumerFactory.initialize(updatedIngestionSource);
+        this.currentIngestionSource = updatedIngestionSource;
         logger.info("Configuration parameters updated for index {} shard {}, requesting consumer reinitialization", indexName, shardId);
         reinitializeConsumer = true;
     }
@@ -718,7 +724,7 @@ public class DefaultStreamPoller implements StreamPoller {
     private synchronized void initializeConsumer() {
         try {
             reinitializeConsumer = false;
-            this.consumer = consumerFactory.createShardConsumer(consumerClientId, shardId);
+            this.consumer = consumerFactory.createShardConsumer(consumerClientId, shardId, currentIngestionSource);
             logger.info("Successfully initialized consumer for shard {}", shardId);
         } catch (Exception e) {
             logger.warn("Failed to create consumer for shard {}: {}", shardId, e.getMessage());
@@ -769,6 +775,7 @@ public class DefaultStreamPoller implements StreamPoller {
         private IngestPipelineExecutor pipelineExecutor;
         // Warmup configuration - default matches IndexMetadata settings
         private IngestionSource.WarmupConfig warmupConfig = new IngestionSource.WarmupConfig(TimeValue.timeValueMillis(-1), 100L);
+        private IngestionSource ingestionSource;
 
         /**
          * Initialize the builder with mandatory parameters
@@ -893,6 +900,14 @@ public class DefaultStreamPoller implements StreamPoller {
         }
 
         /**
+         * Set the ingestion source used to create the consumer.
+         */
+        public Builder ingestionSource(IngestionSource ingestionSource) {
+            this.ingestionSource = Objects.requireNonNull(ingestionSource);
+            return this;
+        }
+
+        /**
          * Build the DefaultStreamPoller instance
          */
         public DefaultStreamPoller build() {
@@ -914,7 +929,8 @@ public class DefaultStreamPoller implements StreamPoller {
                 mapperType,
                 mapperSettings,
                 pipelineExecutor,
-                warmupConfig
+                warmupConfig,
+                ingestionSource
             );
         }
     }
