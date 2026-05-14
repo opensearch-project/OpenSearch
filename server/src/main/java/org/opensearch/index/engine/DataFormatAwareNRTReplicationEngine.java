@@ -240,7 +240,15 @@ public class DataFormatAwareNRTReplicationEngine implements Indexer {
             for (String formatName : allDescriptors.keySet()) {
                 DataFormat format = registry.format(formatName);
                 aggregated.putAll(
-                    registry.getReaderManager(new ReaderManagerConfig(Optional.empty(), format, registry, store.shardPath(), store.getDataformatAwareStoreHandles()))
+                    registry.getReaderManager(
+                        new ReaderManagerConfig(
+                            Optional.empty(),
+                            format,
+                            registry,
+                            store.shardPath(),
+                            store.getDataformatAwareStoreHandles()
+                        )
+                    )
                 );
             }
             readerManagersRef = Map.copyOf(aggregated);

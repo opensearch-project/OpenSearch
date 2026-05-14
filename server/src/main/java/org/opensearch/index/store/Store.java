@@ -67,6 +67,7 @@ import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.Version;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.common.UUIDs;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.logging.Loggers;
@@ -299,6 +300,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      * others at {@code <shard>/<formatName>}. Used when deserializing a {@link CatalogSnapshot}
      * on a replica/recovery target.
      */
+    @ExperimentalApi
     public Function<String, String> shardFormatDirectoryResolver() {
         return formatName -> DataFormatAwareStoreDirectory.isDefaultFormat(formatName)
             ? shardPath.resolveIndex().toString()
@@ -434,6 +436,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      * @throws CorruptIndexException if a checksum or file is found to be inconsistent.
      * @throws IOException on any other I/O error.
      */
+    @ExperimentalApi
     public MetadataSnapshot getMetadata(CatalogSnapshot catalogSnapshot) throws IOException {
         ensureOpen();
         failIfCorrupted();
@@ -483,6 +486,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      * @return {@link Map} map file name to {@link StoreFileMetadata}.
      * @throws IOException in case of I/O error during metadata computation.
      */
+    @ExperimentalApi
     public Map<String, StoreFileMetadata> getSegmentMetadataMap(CatalogSnapshot catalogSnapshot) throws IOException {
         assert indexSettings.isSegRepEnabledOrRemoteNode();
         failIfCorrupted();
@@ -504,6 +508,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      * @return map of filename to {@link StoreFileMetadata}
      * @throws IOException on I/O error during checksum computation
      */
+    @ExperimentalApi
     public Map<String, StoreFileMetadata> getFileMetadata(Collection<String> files) throws IOException {
         failIfCorrupted();
         Map<String, StoreFileMetadata> result = new HashMap<>();
@@ -1016,6 +1021,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      * format names to absolute on-disk directories — use
      * {@link org.opensearch.index.store.Store#shardFormatDirectoryResolver}.
      */
+    @ExperimentalApi
     public static CatalogSnapshot fromSegmentInfos(SegmentInfos segmentInfos, Function<String, String> directoryResolver)
         throws IOException {
         Map<String, String> userData = segmentInfos.getUserData();
@@ -1857,6 +1863,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      *
      * @opensearch.internal
      */
+    @ExperimentalApi
     public static class DataFormatVerifyingIndexOutput extends VerifyingIndexOutput {
 
         private final StoreFileMetadata metadata;

@@ -325,7 +325,7 @@ public class SubdirectoryAwareRecoveryTests extends OpenSearchIntegTestCase {
                     }
                 }
                 // Reuse the SegmentInfos from the base snapshot — no redundant disk read.
-                SegmentInfos mainInfos = base.get().getSegmentInfos();
+                SegmentInfos mainInfos = ((SegmentInfosCatalogSnapshot) base.get()).getSegmentInfos();
                 CatalogSnapshot wrapped = new SegmentInfosCatalogSnapshot(mainInfos) {
                     @Override
                     public Collection<String> getFiles(boolean includeSegmentsFile) throws IOException {

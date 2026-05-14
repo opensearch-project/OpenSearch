@@ -13,6 +13,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.index.store.FormatChecksumStrategy;
 import org.opensearch.index.store.Store;
@@ -39,6 +40,7 @@ public class LuceneChecksumHandler implements FormatChecksumStrategy {
         }
     }
 
+    @ExperimentalApi
     @Override
     public VerifyingIndexOutput createVerifyingOutput(StoreFileMetadata metadata, IndexOutput output) {
         return new Store.LuceneVerifyingIndexOutput(metadata, output);

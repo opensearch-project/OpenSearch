@@ -28,6 +28,7 @@ import org.opensearch.cluster.metadata.CryptoMetadata;
 import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.UUIDs;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.annotation.InternalApi;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.collect.Tuple;
@@ -850,6 +851,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
      * @param nodeId               node id
      * @throws IOException in case of I/O error while uploading the metadata file
      */
+    @ExperimentalApi
     public void uploadMetadata(
         Collection<String> segmentFiles,
         CatalogSnapshot catalogSnapshot,

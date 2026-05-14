@@ -1868,6 +1868,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * Delegates to {@link Indexer#isReplicaIndexer()} so callers don't need to know concrete
      * engine types (Lucene NRT vs DFA NRT).
      */
+    @ExperimentalApi
     public boolean isReplicationTarget() {
         try {
             return getIndexer().isReplicaIndexer();
@@ -1889,6 +1890,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * the primary's {@code evictUploadedChecksums} behavior). If the engine is closed
      * ({@link AlreadyClosedException}), the method is a no-op and no cleanup is performed.
      */
+    @ExperimentalApi
     public void finalizeReplication(CatalogSnapshot catalogSnapshot) throws IOException {
         try {
             assert getIndexer().isReplicaIndexer() : "finalizeReplication called on non-replica indexer";
@@ -2029,6 +2031,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * Preferred over {@link #acquireSafeIndexCommit()} because it does not require re-reading
      * {@code segments_N} to materialize an {@link IndexCommit}.
      */
+    @ExperimentalApi
     public GatedCloseable<CatalogSnapshot> acquireSafeCatalogSnapshot() throws EngineException {
         final IndexShardState state = this.state; // one time volatile read
         if (state == IndexShardState.STARTED || state == IndexShardState.CLOSED) {
@@ -6148,6 +6151,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * the reader registered for the snapshot — eliminating the race between catalog acquisition
      * and an on-demand {@code IndexWriter} re-capture.
      */
+    @ExperimentalApi
     public org.opensearch.common.CheckedFunction<CatalogSnapshot, byte[], IOException> catalogSnapshotToRemoteMetadataSerializer() {
         return cs -> getIndexer().serializeSnapshotToRemoteMetadata(cs);
     }

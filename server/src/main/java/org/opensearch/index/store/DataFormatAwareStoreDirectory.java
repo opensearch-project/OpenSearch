@@ -15,6 +15,7 @@ import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.blobstore.transfer.RemoteTransferContainer;
 import org.opensearch.index.shard.ShardPath;
@@ -288,6 +289,7 @@ public class DataFormatAwareStoreDirectory extends FilterDirectory implements Re
      * return full-file CRC32. Distinct from {@link #calculateUploadChecksum}, which returns the
      * metadata checksum used for segment replication comparison.
      */
+    @ExperimentalApi
     public long calculateTransferChecksum(String name) throws IOException {
         FileMetadata fm = toFileMetadata(name);
         if (isDefaultFormat(fm.dataFormat())) {
@@ -317,6 +319,7 @@ public class DataFormatAwareStoreDirectory extends FilterDirectory implements Re
      *
      * @param currentSnapshotFiles the files in the current catalog snapshot (format-prefixed)
      */
+    @ExperimentalApi
     public void evictStaleChecksums(Collection<String> currentSnapshotFiles) {
         for (Map.Entry<String, FormatChecksumStrategy> entry : checksumStrategies.entrySet()) {
             if (isDefaultFormat(entry.getKey())) {
@@ -336,6 +339,7 @@ public class DataFormatAwareStoreDirectory extends FilterDirectory implements Re
      * strategies that don't support caching (default no-op) silently ignore it. Uses
      * generation {@code 0} so later write-path registrations overwrite.
      */
+    @ExperimentalApi
     public void registerDownloadedChecksum(String fileName, String checksumStr) {
         if (fileName == null || checksumStr == null) {
             return;
@@ -355,6 +359,7 @@ public class DataFormatAwareStoreDirectory extends FilterDirectory implements Re
     }
 
     /** Bulk variant of {@link #registerDownloadedChecksum}. */
+    @ExperimentalApi
     public void registerDownloadedChecksums(Map<String, String> fileToChecksum) {
         if (fileToChecksum == null || fileToChecksum.isEmpty()) {
             return;
@@ -373,6 +378,7 @@ public class DataFormatAwareStoreDirectory extends FilterDirectory implements Re
      * @param output the underlying index output to wrap
      * @return a format-appropriate verifying output
      */
+    @ExperimentalApi
     public VerifyingIndexOutput createVerifyingOutput(StoreFileMetadata metadata, IndexOutput output) {
         String format = FileMetadata.parseDataFormat(metadata.name());
         FormatChecksumStrategy strategy = checksumStrategies.getOrDefault(format, DEFAULT_CHECKSUM_STRATEGY);
@@ -401,6 +407,7 @@ public class DataFormatAwareStoreDirectory extends FilterDirectory implements Re
      * {@code "metadata"} files (plus {@code null}/empty as defensive defaults) are laid out
      * flat; every other format (e.g. {@code "parquet"}) gets its own subdirectory.
      */
+    @ExperimentalApi
     public static boolean isDefaultFormat(String format) {
         return format == null || format.isEmpty() || INDEX_DIRECTORY_FORMATS.contains(format.toLowerCase(Locale.ROOT));
     }
