@@ -50,7 +50,12 @@ import java.util.Set;
  */
 public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendPlugin {
 
-    private static final Set<EngineCapability> ENGINE_CAPS = Set.of(EngineCapability.SORT, EngineCapability.UNION);
+    // WINDOW lets the planner mark Projects containing RexOver (e.g. ROW_NUMBER() OVER ...) as
+    // OpenSearchProject so isthmus's RexExpressionConverter#visitOver emits an inline substrait
+    // WindowFunctionInvocation that DataFusion's substrait consumer decodes natively. The substrait
+    // standard catalog already constrains which window aggregates DataFusion can decode, so per-
+    // window-function granularity isn't needed at the SPI level.
+    private static final Set<EngineCapability> ENGINE_CAPS = Set.of(EngineCapability.SORT, EngineCapability.UNION, EngineCapability.WINDOW);
 
     private static final Set<FieldType> SUPPORTED_FIELD_TYPES = new HashSet<>();
     static {
