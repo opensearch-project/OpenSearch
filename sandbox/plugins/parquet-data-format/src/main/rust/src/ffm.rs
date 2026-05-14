@@ -17,6 +17,7 @@ use std::str;
 use native_bridge_common::{ffm_safe, log_debug};
 
 use crate::native_settings::NativeSettings;
+use crate::field_config::FieldConfig;
 use crate::merge;
 use crate::writer::{NativeParquetWriter, SETTINGS_STORE};
 
@@ -225,6 +226,26 @@ pub unsafe extern "C" fn parquet_on_settings_update(
     merge_batch_size: i64,
     merge_rayon_threads: i64,
     merge_io_threads: i64,
+    field_name_ptrs: *const *const u8,
+    field_name_lens: *const i64,
+    field_encoding_ptrs: *const *const u8,
+    field_encoding_lens: *const i64,
+    field_count: i64,
+    field_compression_name_ptrs: *const *const u8,
+    field_compression_name_lens: *const i64,
+    field_compression_value_ptrs: *const *const u8,
+    field_compression_value_lens: *const i64,
+    field_compression_count: i64,
+    type_encoding_name_ptrs: *const *const u8,
+    type_encoding_name_lens: *const i64,
+    type_encoding_value_ptrs: *const *const u8,
+    type_encoding_value_lens: *const i64,
+    type_encoding_count: i64,
+    type_compression_name_ptrs: *const *const u8,
+    type_compression_name_lens: *const i64,
+    type_compression_value_ptrs: *const *const u8,
+    type_compression_value_lens: *const i64,
+    type_compression_count: i64,
 ) -> i64 {
     let index_name = str_from_raw(index_name_ptr, index_name_len)
         .map_err(|e| format!("parquet_on_settings_update index_name: {}", e))?.to_string();
@@ -242,6 +263,46 @@ pub unsafe extern "C" fn parquet_on_settings_update(
     fn opt_f64(v: f64) -> Option<f64> { if v < 0.0 { None } else { Some(v) } }
     fn opt_u64(v: i64) -> Option<u64> { if v < 0 { None } else { Some(v as u64) } }
 
+    let field_names = str_array_from_raw(field_name_ptrs, field_name_lens, field_count)
+        .map_err(|e| format!("parquet_on_settings_update field_names: {}", e))?;
+    let field_encodings = str_array_from_raw(field_encoding_ptrs, field_encoding_lens, field_count)
+        .map_err(|e| format!("parquet_on_settings_update field_encodings: {}", e))?;
+    let field_compression_names = str_array_from_raw(field_compression_name_ptrs, field_compression_name_lens, field_compression_count)
+        .map_err(|e| format!("parquet_on_settings_update field_compression_names: {}", e))?;
+    let field_compressions = str_array_from_raw(field_compression_value_ptrs, field_compression_value_lens, field_compression_count)
+        .map_err(|e| format!("parquet_on_settings_update field_compressions: {}", e))?;
+
+    let type_encoding_names = str_array_from_raw(type_encoding_name_ptrs, type_encoding_name_lens, type_encoding_count)
+        .map_err(|e| format!("parquet_on_settings_update type_encoding_names: {}", e))?;
+    let type_encodings = str_array_from_raw(type_encoding_value_ptrs, type_encoding_value_lens, type_encoding_count)
+        .map_err(|e| format!("parquet_on_settings_update type_encodings: {}", e))?;
+    let type_compression_names = str_array_from_raw(type_compression_name_ptrs, type_compression_name_lens, type_compression_count)
+        .map_err(|e| format!("parquet_on_settings_update type_compression_names: {}", e))?;
+    let type_compressions = str_array_from_raw(type_compression_value_ptrs, type_compression_value_lens, type_compression_count)
+        .map_err(|e| format!("parquet_on_settings_update type_compressions: {}", e))?;
+
+    let field_configs = {
+        let mut map = std::collections::HashMap::new();
+        for (name, encoding) in field_names.into_iter().zip(field_encodings.into_iter()) {
+            map.insert(name, FieldConfig { encoding_type: Some(encoding), ..Default::default() });
+        }
+        for (name, compression) in field_compression_names.into_iter().zip(field_compressions.into_iter()) {
+            map.entry(name)
+               .and_modify(|fc| fc.compression_type = Some(compression.clone()))
+               .or_insert(FieldConfig { compression_type: Some(compression), ..Default::default() });
+        }
+        if map.is_empty() { None } else { Some(map) }
+    };
+
+    let type_encoding_configs: Option<std::collections::HashMap<String, String>> = {
+        let map: std::collections::HashMap<_, _> = type_encoding_names.into_iter().zip(type_encodings.into_iter()).collect();
+        if map.is_empty() { None } else { Some(map) }
+    };
+    let type_compression_configs: Option<std::collections::HashMap<String, String>> = {
+        let map: std::collections::HashMap<_, _> = type_compression_names.into_iter().zip(type_compressions.into_iter()).collect();
+        if map.is_empty() { None } else { Some(map) }
+    };
+
     let config = NativeSettings {
         index_name: Some(index_name.clone()),
         compression_type,
@@ -258,6 +319,9 @@ pub unsafe extern "C" fn parquet_on_settings_update(
         merge_batch_size: opt_usize(merge_batch_size),
         merge_rayon_threads: opt_usize(merge_rayon_threads),
         merge_io_threads: opt_usize(merge_io_threads),
+        field_configs,
+        type_encoding_configs,
+        type_compression_configs,
         ..Default::default()
     };
 

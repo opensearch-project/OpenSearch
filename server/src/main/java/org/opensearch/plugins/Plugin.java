@@ -51,6 +51,7 @@ import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
+import org.opensearch.index.IndexCreationValidator;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.shard.IndexSettingProvider;
 import org.opensearch.repositories.RepositoriesService;
@@ -267,6 +268,15 @@ public abstract class Plugin implements Closeable {
      * explicitly, but still allow the setting to be overridden by a template or creation request body.
      */
     public Collection<IndexSettingProvider> getAdditionalIndexSettingProviders() {
+        return Collections.emptyList();
+    }
+
+    /**
+     * Returns {@link IndexCreationValidator} instances that are called during index creation
+     * after mappings have been merged, allowing plugins to validate the combination of
+     * index settings and mappings.
+     */
+    public Collection<IndexCreationValidator> getIndexCreationValidators() {
         return Collections.emptyList();
     }
 

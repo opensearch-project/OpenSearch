@@ -8,6 +8,9 @@
 
 package org.opensearch.parquet.bridge;
 
+import java.util.Collections;
+import java.util.Map;
+
 /**
  * Immutable settings passed to the native Rust writer via JNI.
  * The Rust side reads values through the getter methods.
@@ -30,6 +33,10 @@ public class NativeSettings {
     private final Integer mergeBatchSize;
     private final Integer mergeRayonThreads;
     private final Integer mergeIoThreads;
+    private final Map<String, String> fieldEncodings;
+    private final Map<String, String> fieldCompressions;
+    private final Map<String, String> typeEncodings;
+    private final Map<String, String> typeCompressions;
 
     private NativeSettings(Builder builder) {
         this.indexName = builder.indexName;
@@ -47,6 +54,14 @@ public class NativeSettings {
         this.mergeBatchSize = builder.mergeBatchSize;
         this.mergeRayonThreads = builder.mergeRayonThreads;
         this.mergeIoThreads = builder.mergeIoThreads;
+        this.fieldEncodings = builder.fieldEncodings != null ? Collections.unmodifiableMap(builder.fieldEncodings) : Collections.emptyMap();
+        this.fieldCompressions = builder.fieldCompressions != null
+            ? Collections.unmodifiableMap(builder.fieldCompressions)
+            : Collections.emptyMap();
+        this.typeEncodings = builder.typeEncodings != null ? Collections.unmodifiableMap(builder.typeEncodings) : Collections.emptyMap();
+        this.typeCompressions = builder.typeCompressions != null
+            ? Collections.unmodifiableMap(builder.typeCompressions)
+            : Collections.emptyMap();
     }
 
     public String getIndexName() {
@@ -109,6 +124,22 @@ public class NativeSettings {
         return mergeIoThreads;
     }
 
+    public Map<String, String> getFieldEncodings() {
+        return fieldEncodings;
+    }
+
+    public Map<String, String> getFieldCompressions() {
+        return fieldCompressions;
+    }
+
+    public Map<String, String> getTypeEncodings() {
+        return typeEncodings;
+    }
+
+    public Map<String, String> getTypeCompressions() {
+        return typeCompressions;
+    }
+
     public static Builder builder() {
         return new Builder();
     }
@@ -129,6 +160,10 @@ public class NativeSettings {
         private Integer mergeBatchSize;
         private Integer mergeRayonThreads;
         private Integer mergeIoThreads;
+        private Map<String, String> fieldEncodings;
+        private Map<String, String> fieldCompressions;
+        private Map<String, String> typeEncodings;
+        private Map<String, String> typeCompressions;
 
         public Builder indexName(String v) {
             this.indexName = v;
@@ -202,6 +237,26 @@ public class NativeSettings {
 
         public Builder mergeIoThreads(Integer v) {
             this.mergeIoThreads = v;
+            return this;
+        }
+
+        public Builder fieldEncodings(Map<String, String> v) {
+            this.fieldEncodings = v;
+            return this;
+        }
+
+        public Builder fieldCompressions(Map<String, String> v) {
+            this.fieldCompressions = v;
+            return this;
+        }
+
+        public Builder typeEncodings(Map<String, String> v) {
+            this.typeEncodings = v;
+            return this;
+        }
+
+        public Builder typeCompressions(Map<String, String> v) {
+            this.typeCompressions = v;
             return this;
         }
 

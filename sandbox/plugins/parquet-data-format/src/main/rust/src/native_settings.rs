@@ -19,6 +19,8 @@ pub struct NativeSettings {
     pub page_row_limit: Option<usize>,
     pub dict_size_bytes: Option<usize>,
     pub field_configs: Option<HashMap<String, FieldConfig>>,
+    pub type_encoding_configs: Option<HashMap<String, String>>,
+    pub type_compression_configs: Option<HashMap<String, String>>,
     pub custom_settings: Option<HashMap<String, String>>,
     pub bloom_filter_enabled: Option<bool>,
     pub bloom_filter_fpp: Option<f64>,
@@ -137,6 +139,7 @@ mod tests {
         field_configs.insert("timestamp".to_string(), FieldConfig {
             compression_type: Some("SNAPPY".to_string()),
             compression_level: None,
+            encoding_type: None,
         });
         let config = NativeSettings {
             compression_type: Some("ZSTD".to_string()),

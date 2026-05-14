@@ -187,6 +187,10 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
             .mergeBatchSize(ParquetSettings.MERGE_BATCH_SIZE.get(settings))
             .mergeRayonThreads(ParquetSettings.MERGE_RAYON_THREADS.get(nodeSettings))
             .mergeIoThreads(ParquetSettings.MERGE_IO_THREADS.get(nodeSettings))
+            .fieldEncodings(ParquetSettings.getFieldEncodings(settings))
+            .fieldCompressions(ParquetSettings.getFieldCompressions(settings))
+            .typeEncodings(ParquetSettings.getTypeEncodings(nodeSettings))
+            .typeCompressions(ParquetSettings.getTypeCompressions(nodeSettings))
             .build();
         try {
             RustBridge.onSettingsUpdate(config);

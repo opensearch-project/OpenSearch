@@ -136,7 +136,8 @@ impl NativeParquetWriter {
         } else {
             let file = File::create(&temp_filename)?;
             let (crc_file, crc_handle) = CrcWriter::new(file);
-            let props = WriterPropertiesBuilder::build_with_generation(&settings, Some(writer_generation));
+            let props = WriterPropertiesBuilder::build_with_generation(&settings, Some(writer_generation), &schema)
+                .map_err(|e| format!("Invalid encoding/compression config: {}", e))?;
             let writer = ArrowWriter::try_new(crc_file, schema, Some(props))?;
             (WriterVariant::Parquet(Arc::new(Mutex::new(writer))), Some(crc_handle))
         };
@@ -331,7 +332,8 @@ impl NativeParquetWriter {
             let props = WriterPropertiesBuilder::build_with_generation(
                 &SETTINGS_STORE.get(index_name).map(|r| r.clone()).unwrap_or_default(),
                 Some(writer_generation),
-            );
+                &schema,
+            ).map_err(|e| format!("Invalid encoding/compression config: {}", e))?;
             let file = File::create(output_filename)?;
             let writer = ArrowWriter::try_new(file, schema, Some(props))?;
             writer.close()?;
@@ -513,7 +515,8 @@ impl NativeParquetWriter {
             .get(index_name)
             .map(|r| r.clone())
             .unwrap_or_default();
-        let props = WriterPropertiesBuilder::build_with_generation(&config, writer_generation);
+        let props = WriterPropertiesBuilder::build_with_generation(&config, writer_generation, &schema)
+            .map_err(|e| format!("Invalid encoding/compression config: {}", e))?;
         let file = File::create(output_filename)?;
         let (crc_file, crc_handle) = CrcWriter::new(file);
         let mut writer = ArrowWriter::try_new(crc_file, schema, Some(props))?;
