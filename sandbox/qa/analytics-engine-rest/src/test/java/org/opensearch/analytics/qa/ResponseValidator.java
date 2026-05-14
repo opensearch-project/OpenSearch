@@ -48,19 +48,19 @@ public final class ResponseValidator {
         
         if (!expectedExists) {
             if (strategy == ExpectedResponseStrategy.FAIL_ON_MISSING) {
-                return String.format("%s Q%d: Expected response file missing: %s", 
-                    language.toUpperCase(), queryNumber, expectedPath);
+                return String.format(java.util.Locale.ROOT, "%s Q%d: Expected response file missing: %s", 
+                    language.toUpperCase(java.util.Locale.ROOT), queryNumber, expectedPath);
             }
             // PASS_ON_MISSING or SKIP_VALIDATION - no validation needed
             logger.debug("No expected response for {} Q{}, strategy={}", 
-                language.toUpperCase(), queryNumber, strategy);
+                language.toUpperCase(java.util.Locale.ROOT), queryNumber, strategy);
             return null;
         }
 
         // Expected response exists - validate it (unless SKIP_VALIDATION)
         if (strategy == ExpectedResponseStrategy.SKIP_VALIDATION) {
             logger.debug("Skipping validation for {} Q{} (SKIP_VALIDATION strategy)", 
-                language.toUpperCase(), queryNumber);
+                language.toUpperCase(java.util.Locale.ROOT), queryNumber);
             return null;
         }
 
@@ -89,6 +89,7 @@ public final class ResponseValidator {
 
     /**
      * Compare expected and actual responses, focusing on data rows.
+     * Rows are compared in an unordered fashion - both sets are sorted before comparison.
      */
     @SuppressWarnings("unchecked")
     private static String compareResponses(Map<String, Object> expected, Map<String, Object> actual, String language, int queryNumber) {
@@ -101,39 +102,85 @@ public final class ResponseValidator {
         }
 
         if (expectedRows == null) {
-            return String.format("%s Q%d: Expected empty response but got %d rows", 
-                language.toUpperCase(), queryNumber, actualRows.size());
+            return String.format(java.util.Locale.ROOT, "%s Q%d: Expected empty response but got %d rows", 
+                language.toUpperCase(java.util.Locale.ROOT), queryNumber, actualRows.size());
         }
 
         if (actualRows == null) {
-            return String.format("%s Q%d: Expected %d rows but got empty response", 
-                language.toUpperCase(), queryNumber, expectedRows.size());
+            return String.format(java.util.Locale.ROOT, "%s Q%d: Expected %d rows but got empty response", 
+                language.toUpperCase(java.util.Locale.ROOT), queryNumber, expectedRows.size());
         }
 
         if (expectedRows.size() != actualRows.size()) {
-            return String.format("%s Q%d: Row count mismatch - expected %d, got %d", 
-                language.toUpperCase(), queryNumber, expectedRows.size(), actualRows.size());
+            return String.format(java.util.Locale.ROOT, "%s Q%d: Row count mismatch - expected %d, got %d", 
+                language.toUpperCase(java.util.Locale.ROOT), queryNumber, expectedRows.size(), actualRows.size());
         }
 
-        // Compare row by row
+        // Sort both row sets for unordered comparison
+        expectedRows.sort(new RowComparator());
+        actualRows.sort(new RowComparator());
+
+        // Compare row by row after sorting
         for (int i = 0; i < expectedRows.size(); i++) {
             List<Object> expectedRow = expectedRows.get(i);
             List<Object> actualRow = actualRows.get(i);
 
             if (expectedRow.size() != actualRow.size()) {
-                return String.format("%s Q%d row %d: Column count mismatch - expected %d, got %d", 
-                    language.toUpperCase(), queryNumber, i, expectedRow.size(), actualRow.size());
+                return String.format(java.util.Locale.ROOT, "%s Q%d row %d: Column count mismatch - expected %d, got %d", 
+                    language.toUpperCase(java.util.Locale.ROOT), queryNumber, i, expectedRow.size(), actualRow.size());
             }
 
             for (int j = 0; j < expectedRow.size(); j++) {
                 if (!valuesEqual(expectedRow.get(j), actualRow.get(j))) {
-                    return String.format("%s Q%d row %d col %d: Value mismatch - expected %s, got %s", 
-                        language.toUpperCase(), queryNumber, i, j, expectedRow.get(j), actualRow.get(j));
+                    return String.format(java.util.Locale.ROOT, "%s Q%d row %d col %d: Value mismatch - expected %s, got %s", 
+                        language.toUpperCase(java.util.Locale.ROOT), queryNumber, i, j, expectedRow.get(j), actualRow.get(j));
                 }
             }
         }
 
         return null; // validation passed
+    }
+
+    /**
+     * Comparator for sorting rows lexicographically.
+     */
+    private static class RowComparator implements java.util.Comparator<List<Object>> {
+        @Override
+        public int compare(List<Object> row1, List<Object> row2) {
+            int minSize = Math.min(row1.size(), row2.size());
+            for (int i = 0; i < minSize; i++) {
+                int cmp = compareValues(row1.get(i), row2.get(i));
+                if (cmp != 0) {
+                    return cmp;
+                }
+            }
+            return Integer.compare(row1.size(), row2.size());
+        }
+
+        @SuppressWarnings("unchecked")
+        private int compareValues(Object v1, Object v2) {
+            if (v1 == null && v2 == null) return 0;
+            if (v1 == null) return -1;
+            if (v2 == null) return 1;
+
+            // Compare numbers
+            if (v1 instanceof Number && v2 instanceof Number) {
+                return Double.compare(((Number) v1).doubleValue(), ((Number) v2).doubleValue());
+            }
+
+            // Compare strings
+            if (v1 instanceof String && v2 instanceof String) {
+                return ((String) v1).compareTo((String) v2);
+            }
+
+            // Compare booleans
+            if (v1 instanceof Boolean && v2 instanceof Boolean) {
+                return ((Boolean) v1).compareTo((Boolean) v2);
+            }
+
+            // Fallback to string comparison
+            return v1.toString().compareTo(v2.toString());
+        }
     }
 
     /**

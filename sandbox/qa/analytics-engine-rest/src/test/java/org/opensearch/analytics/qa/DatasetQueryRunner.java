@@ -127,7 +127,7 @@ public final class DatasetQueryRunner {
                     return Collections.emptyList();
                 }
                 logger.info("Auto-discovered {} queries for {} in dataset [{}]",
-                    queriesToRun.size(), language.toUpperCase(), dataset.name);
+                    queriesToRun.size(), language.toUpperCase(Locale.ROOT), dataset.name);
             } catch (IOException e) {
                 return Collections.singletonList("Failed to discover queries: " + e.getMessage());
             }
