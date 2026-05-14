@@ -22,7 +22,7 @@ import java.util.concurrent.Executor;
  * and threaded through execution components. Holds immutable config (DAG,
  * executor, parent task) and the lazy per-query {@link BufferAllocator}.
  *
- * <p>The execution registry has moved to {@link PlanWalker}, which owns
+ * <p>The execution registry has moved to {@link QueryExecution}, which owns
  * the per-query execution map internally. This context is now purely
  * configuration plus one lazy allocator.
  *

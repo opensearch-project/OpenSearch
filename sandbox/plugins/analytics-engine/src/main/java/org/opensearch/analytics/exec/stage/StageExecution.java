@@ -19,7 +19,7 @@ import org.opensearch.common.Nullable;
  *   <li>{@link LocalStageExecution} — coordinator-local execution, backend-provided stage</li>
  * </ul>
  *
- * <p>Tracked in {@code PlanWalker.executions} for the duration of
+ * <p>Tracked in {@code QueryExecution.graph} for the duration of
  * execution so that {@code DefaultPlanExecutor} can push cancellation
  * to in-flight stages on failure.
  *
@@ -70,7 +70,7 @@ public interface StageExecution {
 
     /**
      * Captures the given failure and attempts to transition to {@link State#FAILED}.
-     * Used by the per-parent listener in {@code PlanWalker} to propagate a child's
+     * Used by the per-parent listener in {@code ChildToParentCascade} to propagate a child's
      * failure upward so the root terminal listener surfaces the actual exception.
      *
      * @return {@code true} if the transition happened, {@code false} otherwise

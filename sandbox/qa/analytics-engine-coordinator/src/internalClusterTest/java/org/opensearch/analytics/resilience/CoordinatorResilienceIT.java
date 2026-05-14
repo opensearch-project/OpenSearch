@@ -1454,7 +1454,7 @@ public class CoordinatorResilienceIT extends OpenSearchIntegTestCase {
      * No test-only static hook, no private-field reflection.
      *
      * <p>This test exercises the partial-build cleanup path in
-     * {@code PlanWalker.build()}: the coordinator-reduce stage builds first
+     * {@code QueryExecution.build()}: the coordinator-reduce stage builds first
      * (root, allocates a native session via {@code ExchangeSinkProvider.createSink}),
      * then a child {@code SHARD_FRAGMENT} build throws — at which point the
      * already-built reduce stage must be cancelled, releasing its native
@@ -1504,7 +1504,7 @@ public class CoordinatorResilienceIT extends OpenSearchIntegTestCase {
             }
         }
         // Native handle registry must return to baseline — the partial-build
-        // cleanup in PlanWalker.build() cancels every already-built stage,
+        // cleanup in QueryExecution.build() cancels every already-built stage,
         // which closes any backend sink the reduce path created before the
         // child build threw.
         assertBusy(() -> {
@@ -1536,7 +1536,7 @@ public class CoordinatorResilienceIT extends OpenSearchIntegTestCase {
      * {@code ExchangeSinkProvider.createSink} failure (e.g. the backend
      * runs out of native memory while allocating a session) flows through
      * the same code path: {@code LocalStageScheduler} catches and
-     * re-throws, {@code PlanWalker.build()} catches and runs the
+     * re-throws, {@code QueryExecution.build()} catches and runs the
      * partial-build cleanup, the listener sees the original cause.
      */
     public void testExchangeSinkRegistrationFailureTearsDown() throws Exception {

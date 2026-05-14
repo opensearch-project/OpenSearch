@@ -29,7 +29,7 @@ import java.util.Map;
  * contract, then delegates to the scheduler registered for the stage's
  * {@link StageExecutionType} to construct the concrete execution.
  *
- * <p>{@code PlanWalker} never sees schedulers or output targets. It calls
+ * <p>{@code QueryExecution} never sees schedulers or output targets. It calls
  * {@link #buildRootExecution} for the root stage and {@link #buildExecution}
  * for every child. Both methods delegate to the same internal dispatch logic;
  * the only difference is where the output sink comes from (fresh for root,
@@ -70,12 +70,20 @@ public class StageExecutionBuilder {
 
     /**
      * Builds the root stage's execution. The root accumulates into a fresh
-     * {@link RowProducingSink}; the walker reads the final result via the
-     * stage's {@code outputSource()} contract.
+     * {@link RowProducingSink}; the query execution reads the final result via
+     * the stage's {@code outputSource()} contract — the root must therefore
+     * implement {@link DataProducer}, enforced here as a fail-fast invariant
+     * rather than a runtime cast at every terminal listener fire.
      */
     public StageExecution buildRootExecution(Stage rootStage, QueryContext config) {
         // TODO: Update to read directly from back-end provided ExchangeSource when the root stage has a fragment
-        return buildStageExecution(rootStage, new RowProducingSink(), config);
+        StageExecution rootExec = buildStageExecution(rootStage, new RowProducingSink(), config);
+        if ((rootExec instanceof DataProducer) == false) {
+            throw new IllegalStateException(
+                "Root execution " + rootExec.getClass().getSimpleName() + " (stage " + rootStage.getStageId() + ") does not implement DataProducer"
+            );
+        }
+        return rootExec;
     }
 
     /**

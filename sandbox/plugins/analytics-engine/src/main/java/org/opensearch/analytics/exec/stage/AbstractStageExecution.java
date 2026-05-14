@@ -26,7 +26,7 @@ import java.util.concurrent.atomic.AtomicReference;
  * {@link #cancel(String)}.
  *
  * <p>Listener registration is append-only and must happen before {@link #start()}
- * is called (during {@code PlanWalker.walk()} construction phase). After that
+ * is called (during the {@code QueryExecution} construction phase). After that
  * point the list is effectively frozen.
  *
  * @opensearch.internal
@@ -191,7 +191,7 @@ abstract class AbstractStageExecution implements StageExecution {
 
     /**
      * Captures the given failure and attempts to transition to {@link State#FAILED}.
-     * Called from the per-parent listener in {@code PlanWalker} when a child fails —
+     * Called from the per-parent listener in {@code ChildToParentCascade} when a child fails —
      * propagates the child's cause upward so the root terminal listener surfaces
      * the actual exception, not a synthetic "CANCELLED" message.
      *

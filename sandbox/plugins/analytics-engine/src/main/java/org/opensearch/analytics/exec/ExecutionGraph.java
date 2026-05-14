@@ -9,17 +9,20 @@
 package org.opensearch.analytics.exec;
 
 import org.opensearch.analytics.exec.stage.StageExecution;
+import org.opensearch.analytics.exec.stage.StageExecutionBuilder;
 import org.opensearch.analytics.exec.stage.StageMetrics;
+import org.opensearch.analytics.planner.dag.Stage;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 /**
- * Inspectable snapshot of a fully-wired execution graph. Built by
- * {@link PlanWalker#build()}, consumed by {@link PlanWalker#start(ExecutionGraph)}
- * or by EXPLAIN without executing.
+ * Inspectable snapshot of a fully-wired execution graph, built and consumed
+ * by {@link QueryExecution}.
  *
  * <p>The graph holds all {@link StageExecution} instances with their
  * state listeners already wired. No stage has been started yet — all
@@ -41,6 +44,91 @@ public class ExecutionGraph {
         this.leaves = leaves;
     }
 
+    /**
+     * Constructs a fully-wired execution graph for {@code context}'s DAG. All stages
+     * are in {@link StageExecution.State#CREATED} when this returns.
+     *
+     * <p>Build-time failures bubble unchecked. Partial-graph cleanup runs in a
+     * {@code finally} to release any native handles backend factories had already
+     * allocated; if a stage's cancel itself throws, subsequent stages still get a
+     * chance to cancel — the first cancel failure is rethrown at the end with later
+     * ones attached as suppressed.
+     */
+    public static ExecutionGraph build(QueryContext context, StageExecutionBuilder builder) {
+        Map<Integer, StageExecution> executions = new HashMap<>();
+        Stage rootStage = context.dag().rootStage();
+        boolean success = false;
+        try {
+            StageExecution rootExec = builder.buildRootExecution(rootStage, context);
+            executions.put(rootStage.getStageId(), rootExec);
+
+            buildChildrenRecursively(executions, builder, rootExec, rootStage, context);
+
+            List<StageExecution> leaves = findLeaves(executions, rootStage);
+            ExecutionGraph g = new ExecutionGraph(context.queryId(), executions, rootExec, leaves);
+            success = true;
+            return g;
+        } finally {
+            if (!success) cancelPartialBuild(executions);
+        }
+    }
+
+    private static void cancelPartialBuild(Map<Integer, StageExecution> executions) {
+        IllegalStateException primary = null;
+        for (StageExecution stage : executions.values()) {
+            try {
+                stage.cancel("stage-build failure");
+            } catch (IllegalStateException t) {
+                if (primary == null) {
+                    primary = t;
+                } else {
+                    primary.addSuppressed(t);
+                }
+            }
+        }
+        if (primary != null) throw primary;
+    }
+
+    private static void buildChildrenRecursively(
+        Map<Integer, StageExecution> executions,
+        StageExecutionBuilder builder,
+        StageExecution parentExec,
+        Stage parentStage,
+        QueryContext config
+    ) {
+        List<Stage> children = parentStage.getChildStages();
+        if (children.isEmpty()) {
+            return;
+        }
+        List<StageExecution> childExecs = new ArrayList<>(children.size());
+        for (Stage child : children) {
+            StageExecution childExec = builder.buildExecution(child, parentExec, config);
+            executions.put(child.getStageId(), childExec);
+            childExecs.add(childExec);
+            buildChildrenRecursively(executions, builder, childExec, child, config);
+        }
+        ChildToParentCascade.wire(parentExec, childExecs);
+    }
+
+    private static List<StageExecution> findLeaves(Map<Integer, StageExecution> executions, Stage rootStage) {
+        final List<StageExecution> leaves = new ArrayList<>();
+        collectLeaves(executions, rootStage, leaves);
+        return leaves;
+    }
+
+    private static void collectLeaves(Map<Integer, StageExecution> executions, Stage stage, List<StageExecution> leaves) {
+        if (stage.getChildStages().isEmpty()) {
+            StageExecution exec = executions.get(stage.getStageId());
+            if (exec != null) {
+                leaves.add(exec);
+            }
+        } else {
+            for (Stage child : stage.getChildStages()) {
+                collectLeaves(executions, child, leaves);
+            }
+        }
+    }
+
     /** The query this graph belongs to. */
     public String queryId() {
         return queryId;
@@ -54,11 +142,6 @@ public class ExecutionGraph {
     /** All leaf executions (stages with no children). */
     public List<StageExecution> leaves() {
         return Collections.unmodifiableList(leaves);
-    }
-
-    /** Lookup a stage execution by stage id. */
-    public StageExecution executionFor(int stageId) {
-        return executions.get(stageId);
     }
 
     /** All stage executions in the graph. */

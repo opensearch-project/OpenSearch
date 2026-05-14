@@ -17,22 +17,12 @@ import org.opensearch.analytics.exec.task.AnalyticsQueryTask;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.core.action.ActionListener;
 
-import java.util.Collection;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Default {@link Scheduler} implementation. Two-phase execution:
- * <ol>
- *   <li>{@link #plan(QueryContext)} — builds the execution graph without
- *       starting any stages. Returns an {@link ExecutionGraph} that can
- *       be inspected for EXPLAIN.</li>
- *   <li>{@link #execute(QueryContext, ActionListener)} — builds and starts
- *       execution in one call (the normal query path).</li>
- * </ol>
- *
- * <p>Also manages a pool of active {@link PlanWalker} instances for
- * observability and cancellation.
+ * Default {@link Scheduler} implementation. Builds a {@link QueryExecution} per
+ * query, starts it, and tracks it in a pool for observability and cancellation.
  *
  * @opensearch.internal
  */
@@ -41,75 +31,58 @@ public class QueryScheduler implements Scheduler {
     private static final Logger logger = LogManager.getLogger(QueryScheduler.class);
 
     private final StageExecutionBuilder stageExecutionBuilder;
-    private final Map<String, PlanWalker> walkerPool = new ConcurrentHashMap<>();
+    private final Map<String, QueryExecution> executions = new ConcurrentHashMap<>();
 
     @Inject
     public QueryScheduler(StageExecutionBuilder stageExecutionBuilder) {
         this.stageExecutionBuilder = stageExecutionBuilder;
     }
 
-    /**
-     * Builds the execution graph without starting any stages.
-     * Use for EXPLAIN — inspect the returned graph, then discard.
-     *
-     * @param config the per-query context
-     * @return the fully-wired but unstarted execution graph
-     */
-    public ExecutionGraph plan(QueryContext config) {
-        PlanWalker walker = new PlanWalker(config, stageExecutionBuilder, ActionListener.wrap(r -> {}, e -> {}));
-        return walker.build();
-    }
-
     @Override
     public void execute(QueryContext config, ActionListener<Iterable<VectorSchemaRoot>> listener) {
         final String queryId = config.queryId();
-        final long queryStartNanos = System.nanoTime();
         final AnalyticsOperationListener.CompositeListener opListener = new AnalyticsOperationListener.CompositeListener(
             config.operationListeners()
         );
 
-        PlanWalker walker = createWalker(config, listener, queryId, queryStartNanos, opListener);
+        ExecutionGraph graph = ExecutionGraph.build(config, stageExecutionBuilder);
 
-        // Build the graph first. On failure the partial graph cleans itself up via
-        // walker.build()'s try-finally; the RuntimeException bubbles to
-        // DefaultPlanExecutor's outer catch which fires listener.onFailure with the cause.
-        // Build-time failures are not recorded in opListener — the query never started.
-        ExecutionGraph graph = walker.build();
+        QueryExecution execution = new QueryExecution(config, graph, wrapWithLifecycle(config, opListener, listener));
+        executions.put(queryId, execution);
 
-        // Wire the completion listener BEFORE registering the cancel callback so a
-        // post-build / pre-start cancellation reaches the listener via the cascade.
-        walker.wireCompletion();
-        walkerPool.put(queryId, walker);
+        setCancellationCallback(config, execution);
 
+        opListener.onQueryStart(queryId, graph.stageCount());
+        logger.debug("[QueryScheduler] ExecutionGraph built:\n{}", graph.explain());
+        execution.start();
+    }
+
+    private static void setCancellationCallback(QueryContext config, QueryExecution execution) {
         final AnalyticsQueryTask queryTask = config.parentTask();
         queryTask.setOnCancelCallback(() -> {
             String reason = "task cancelled: " + (queryTask.getReasonCancelled() != null ? queryTask.getReasonCancelled() : "unknown");
-            logger.info("[QueryScheduler] AnalyticsQueryTask.onCancelled fired, reason={}", reason);
-            walker.cancelAll(reason);
+            execution.cancelAll(reason);
         });
-
-        opListener.onQueryStart(queryId, graph.stageCount());
-        logger.info("[QueryScheduler] ExecutionGraph built:\n{}", graph.explain());
-        walker.start(graph);
     }
 
-    private PlanWalker createWalker(
+    /**
+     * Wraps the caller's listener with: (1) operation-listener notification on
+     * success/failure, and (2) pool removal before the listener is fired.
+     */
+    private ActionListener<Iterable<VectorSchemaRoot>> wrapWithLifecycle(
         QueryContext config,
-        ActionListener<Iterable<VectorSchemaRoot>> listener,
-        String queryId,
-        long queryStartNanos,
-        AnalyticsOperationListener opListener
+        AnalyticsOperationListener opListener,
+        ActionListener<Iterable<VectorSchemaRoot>> listener
     ) {
-        ActionListener<Iterable<VectorSchemaRoot>> wrapped = ActionListener.wrap(result -> {
-            walkerPool.remove(queryId);
+        final String queryId = config.queryId();
+        final long queryStartNanos = System.nanoTime();
+        return ActionListener.runBefore(ActionListener.wrap(result -> {
             opListener.onQuerySuccess(queryId, System.nanoTime() - queryStartNanos, 0);
             listener.onResponse(result);
         }, e -> {
-            walkerPool.remove(queryId);
             opListener.onQueryFailure(queryId, e);
             listener.onFailure(e);
-        });
-        return new PlanWalker(config, stageExecutionBuilder, wrapped);
+        }), () -> executions.remove(queryId));
     }
 
     /**
@@ -122,15 +95,5 @@ public class QueryScheduler implements Scheduler {
      */
     public StageExecutionBuilder getStageExecutionBuilder() {
         return stageExecutionBuilder;
-    }
-
-    /** Pool-level lookup for observability / metrics. */
-    public PlanWalker walkerFor(String queryId) {
-        return walkerPool.get(queryId);
-    }
-
-    /** Pool-level iteration for concurrency limiting. */
-    public Collection<PlanWalker> activeWalkers() {
-        return walkerPool.values();
     }
 }
