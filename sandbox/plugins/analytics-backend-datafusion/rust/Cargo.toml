@@ -79,3 +79,15 @@ rand = "=0.8.6"
 [[bench]]
 name = "query_bench"
 harness = false
+
+[[bench]]
+name = "memory_budget_bench"
+harness = false
+
+[[bench]]
+name = "memory_pressure_bench"
+harness = false
+
+[[bench]]
+name = "cross_rt_throughput_bench"
+harness = false

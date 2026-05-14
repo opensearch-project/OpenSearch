@@ -97,35 +97,52 @@ impl MemoryPool for DynamicLimitPool {
         reservation: &MemoryReservation,
         additional: usize,
     ) -> Result<(), DataFusionError> {
-        // Load the limit inside the closure so every CAS retry sees the current
-        // value. A concurrent `set_limit` that raises the limit while we are
-        // spinning here should be honoured; loading once outside the closure
-        // would miss that update.
         let dynamic_limit = &self.dynamic_limit;
-        self.used
+
+        // Fast path: try the normal CAS against the pool limit.
+        let cas_result = self.used
             .fetch_update(Ordering::Relaxed, Ordering::Relaxed, |used| {
                 let limit = dynamic_limit.load(Ordering::Acquire);
                 let new_used = used.checked_add(additional)?;
                 (new_used <= limit).then_some(new_used)
-            })
-            .map_err(|used| {
-                // Re-load the limit for the error message. This can be a slightly newer
-                // value than the limit used in the decision above under a concurrent
-                // `set_limit`, but we prefer "most-recent" for operator visibility. The
-                // allocation decision itself was already made against a consistent
-                // snapshot inside the closure.
-                let limit = dynamic_limit.load(Ordering::Acquire);
-                DataFusionError::ResourcesExhausted(format!(
-                    "Failed to allocate {} bytes for {} ({} already reserved) \
-                     — {} available out of {} (dynamic limit)",
-                    additional,
-                    reservation.consumer().name(),
-                    reservation.size(),
-                    limit.saturating_sub(used),
-                    limit,
-                ))
-            })?;
-        Ok(())
+            });
+
+        if cas_result.is_ok() {
+            return Ok(());
+        }
+
+        // Pool accounting says "full". Before failing the operator (which
+        // triggers spill), consult jemalloc as ground truth. If actual process
+        // memory is below the override threshold, the pool's "full" state is
+        // from stale phantoms or accounting drift — allow the grow.
+        //
+        // This gives already-executing operators a higher effective limit,
+        // preventing unnecessary spills when phantoms from finished queries
+        // haven't been released yet.
+        let limit = dynamic_limit.load(Ordering::Acquire);
+        let used = self.used.load(Ordering::Relaxed);
+        // Only attempt override if the allocation is plausible (won't overflow).
+        if used.checked_add(additional).is_some() {
+            if crate::memory_guard::should_override(limit, crate::memory_guard::OverrideContext::Operator) {
+                // jemalloc confirms headroom — allow the grow
+                let _ = self.used.fetch_update(Ordering::Relaxed, Ordering::Relaxed, |u| {
+                    u.checked_add(additional)
+                });
+                return Ok(());
+            }
+        }
+
+        // Both pool and jemalloc confirm pressure — reject (operator will spill)
+        let used = self.used.load(Ordering::Relaxed);
+        Err(DataFusionError::ResourcesExhausted(format!(
+            "Failed to allocate {} bytes for {} ({} already reserved) \
+             — {} available out of {} (dynamic limit, confirmed by jemalloc)",
+            additional,
+            reservation.consumer().name(),
+            reservation.size(),
+            limit.saturating_sub(used),
+            limit,
+        )))
     }
 
     fn reserved(&self) -> usize {

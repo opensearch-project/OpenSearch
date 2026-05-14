@@ -312,10 +312,35 @@ pub async unsafe fn execute_query(
 
     // Create per-query context — auto-registers in the global registry
     let global_pool = runtime.runtime_env.memory_pool.clone();
-    let query_context = QueryTrackingContext::new(context_id, global_pool);
+    let mut query_context = QueryTrackingContext::new(context_id, global_pool.clone());
     let query_memory_pool = query_context
         .memory_pool()
         .map(|p| p as Arc<dyn datafusion::execution::memory_pool::MemoryPool>);
+
+    // Acquire memory budget: reserve phantom for untracked memory.
+    // Best-effort from cached metadata (zero I/O). If not cached, skip budget
+    // — first query warms the cache, subsequent queries benefit.
+    let (effective_config, phantom_corrector) = {
+        let mut cfg = query_config.clone();
+        let corrector = if let Some(budget) = try_acquire_budget_from_cache(shard_view, runtime, &global_pool, &cfg) {
+            cfg.target_partitions = budget.target_partitions;
+            cfg.batch_size = budget.batch_size;
+            let batches_in_pipeline = budget.target_partitions * 3 + 2; // partitions × multiplier + output channel(2)
+            let estimated_batch_bytes = if budget.phantom_bytes > 0 && batches_in_pipeline > 0 {
+                budget.phantom_bytes / batches_in_pipeline
+            } else {
+                cfg.batch_size * 100 // fallback
+            };
+            let corrector = Arc::new(crate::phantom_corrector::PhantomCorrector::new_from_metadata(
+                budget.phantom_bytes, estimated_batch_bytes, batches_in_pipeline,
+            ));
+            query_context.set_phantom_reservation(budget.phantom_reservation);
+            Some(query_context.set_phantom_corrector(corrector))
+        } else {
+            None
+        };
+        (cfg, corrector)
+    };
 
     // Peek at the substrait extensions list to see if this is an indexed query.
     // The `index_filter` UDF name appears there if Calcite planted any
@@ -327,7 +352,7 @@ pub async unsafe fn execute_query(
 
     let query_future = async move {
         if is_indexed {
-            let qc = Arc::new(query_config);
+            let qc = Arc::new(effective_config);
             crate::indexed_executor::execute_indexed_query(
                 plan_bytes.to_vec(),
                 table_name.to_string(),
@@ -346,7 +371,8 @@ pub async unsafe fn execute_query(
                 runtime,
                 cpu_executor,
                 query_memory_pool,
-                &query_config,
+                &effective_config,
+                phantom_corrector,
             ).await
         }
     };
@@ -374,10 +400,57 @@ pub async unsafe fn execute_query(
 /// it; the failure mode is documented here to keep the dispatch contract
 /// explicit.
 fn plan_bytes_mentions_index_filter(plan_bytes: &[u8]) -> bool {
-    // The substrait plan carries extension-function names as UTF-8 strings.
-    // Substring match is sufficient for dispatch.
     const NEEDLE: &[u8] = b"index_filter";
     plan_bytes.windows(NEEDLE.len()).any(|w| w == NEEDLE)
+}
+
+/// Best-effort budget acquisition from cached parquet metadata.
+///
+/// Looks up the first file's ParquetMetaData from the file metadata cache.
+/// If cached: extracts the schema + measured row bytes, acquires budget.
+/// If not cached: returns None (first query — skip budget, warm cache).
+/// Zero I/O in all cases.
+/// Best-effort budget acquisition from cached parquet metadata.
+///
+/// Looks up the first file's ParquetMetaData from the file metadata cache.
+/// If cached: extracts the schema + measured row bytes, acquires budget.
+/// If not cached: returns None (first query — skip budget, warm cache).
+/// Zero I/O in all cases.
+fn try_acquire_budget_from_cache(
+    shard_view: &ShardView,
+    runtime: &DataFusionRuntime,
+    pool: &Arc<dyn datafusion::execution::memory_pool::MemoryPool>,
+    config: &crate::datafusion_query_config::DatafusionQueryConfig,
+) -> Option<crate::query_budget::QueryMemoryBudget> {
+    use datafusion::execution::cache::CacheAccessor;
+    use parquet::arrow::parquet_to_arrow_schema;
+    use parquet::file::metadata::ParquetMetaData;
+
+    // Get the file metadata cache from the custom cache manager
+    let cache_mgr = runtime.custom_cache_manager.as_ref()?;
+    let cache = cache_mgr.get_file_metadata_cache_for_datafusion()?;
+
+    // Look up metadata for the first file
+    let first_meta = shard_view.object_metas.first()?;
+    let cached = cache.get(first_meta)?;
+
+    // Downcast Arc<dyn FileMetadata> to ParquetMetaData
+    let parquet_meta = cached.as_any().downcast_ref::<ParquetMetaData>()?;
+
+    // Extract Arrow schema (zero I/O — just struct conversion)
+    let schema = parquet_to_arrow_schema(
+        parquet_meta.file_metadata().schema_descr(),
+        parquet_meta.file_metadata().key_value_metadata(),
+    ).ok().map(Arc::new)?;
+
+    // Acquire budget using measured row bytes from metadata
+    crate::query_budget::acquire_budget_from_metadata(
+        pool,
+        &schema,
+        parquet_meta,
+        config.target_partitions,
+        config.batch_size,
+    ).ok()
 }
 
 /// Returns the Arrow schema for the given stream as a heap-allocated FFI_ArrowSchema pointer.
@@ -415,6 +488,9 @@ pub async unsafe fn stream_next(stream_ptr: i64) -> Result<i64, DataFusionError>
 
     match result {
         Some(batch) => {
+            // Apply pending phantom correction from the self-correcting budget.
+            handle._query_tracking_context.apply_pending_phantom_correction();
+
             let struct_array: StructArray = batch.into();
             let array_data = struct_array.into_data();
             let ffi_array = FFI_ArrowArray::new(&array_data);
