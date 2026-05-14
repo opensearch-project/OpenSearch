@@ -8,7 +8,6 @@
 
 package org.opensearch.node.resource.tracker;
 
-import org.apache.lucene.util.Constants;
 import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
