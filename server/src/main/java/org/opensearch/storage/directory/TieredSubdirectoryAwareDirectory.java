@@ -204,7 +204,13 @@ public class TieredSubdirectoryAwareDirectory extends FilterDirectory implements
                 try {
                     switchable.switchToRemote();
                 } catch (IOException e) {
-                    logger.warn("afterSyncToRemote: failed to switch to remote for file={}", file, e);
+                    logger.warn(
+                        () -> new org.apache.logging.log4j.message.ParameterizedMessage(
+                            "afterSyncToRemote: failed to switch to remote for file={}",
+                            file
+                        ),
+                        e
+                    );
                 }
             }
 

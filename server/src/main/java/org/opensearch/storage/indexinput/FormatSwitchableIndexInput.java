@@ -216,7 +216,13 @@ public class FormatSwitchableIndexInput extends IndexInput implements RandomAcce
                             clone.switchToRemote();
                         } catch (Exception e) {
                             // Clone may be closed or supplier may fail for clone — log and continue.
-                            logger.error("Failed to switch clone to remote for file={}", fileName, e);
+                            logger.error(
+                                () -> new org.apache.logging.log4j.message.ParameterizedMessage(
+                                    "Failed to switch clone to remote for file={}",
+                                    fileName
+                                ),
+                                e
+                            );
                         }
                     }
                 }
@@ -227,7 +233,13 @@ public class FormatSwitchableIndexInput extends IndexInput implements RandomAcce
                         oldLocal.close();
                     } catch (Exception e) {
                         // Local file may already be deleted — that's fine.
-                        logger.debug("Failed to close local input during switch for file={}", fileName, e);
+                        logger.debug(
+                            () -> new org.apache.logging.log4j.message.ParameterizedMessage(
+                                "Failed to close local input during switch for file={}",
+                                fileName
+                            ),
+                            e
+                        );
                     }
                 }
 
@@ -442,7 +454,13 @@ public class FormatSwitchableIndexInput extends IndexInput implements RandomAcce
         try {
             close();
         } catch (Exception e) {
-            logger.error("Error while cleaning up FormatSwitchableIndexInput for file={}", fileName, e);
+            logger.error(
+                () -> new org.apache.logging.log4j.message.ParameterizedMessage(
+                    "Error while cleaning up FormatSwitchableIndexInput for file={}",
+                    fileName
+                ),
+                e
+            );
         }
     }
 
