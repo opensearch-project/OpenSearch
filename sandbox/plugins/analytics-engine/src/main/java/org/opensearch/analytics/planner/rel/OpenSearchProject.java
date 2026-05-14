@@ -132,6 +132,12 @@ public class OpenSearchProject extends Project implements OpenSearchRelNode {
         // nested wrappers. Substrait conversion only recognizes the underlying RexCall shape,
         // so every wrapper at every depth must be removed before the plan is handed to a
         // backend's FragmentConvertor.
+        //
+        // Top-level baseline operators (BASELINE_SCALAR_OPS — COALESCE, CASE, CAST, arithmetic,
+        // IS_NULL, …) bypass the AnnotatedProjectExpression wrap at the call site, but their
+        // operands still go through annotation. The shuttle therefore runs on every project
+        // expression — including plain ones — to catch annotated operands nested inside a
+        // baseline-op root.
         RexShuttle nestedAnnotationStripper = new RexShuttle() {
             @Override
             public RexNode visitCall(RexCall call) {
@@ -147,8 +153,10 @@ public class OpenSearchProject extends Project implements OpenSearchRelNode {
                 RexNode resolved = annotationResolver.apply(annotated);
                 strippedExprs.add(resolved.accept(nestedAnnotationStripper));
             } else {
-                // Plain expressions have no annotation to strip — pass through.
-                strippedExprs.add(expr);
+                // Pass-through expressions (RexInputRef, RexLiteral) have no annotation to
+                // resolve. Running the shuttle is defensive and idempotent — atomic nodes
+                // contain no nested AnnotatedProjectExpression to strip.
+                strippedExprs.add(expr.accept(nestedAnnotationStripper));
             }
         }
         return LogicalProject.create(strippedChildren.getFirst(), List.of(), strippedExprs, getRowType());

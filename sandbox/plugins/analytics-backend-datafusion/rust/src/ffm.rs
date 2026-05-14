@@ -123,6 +123,7 @@ pub unsafe extern "C" fn df_create_reader(
     files_ptr: *const *const u8,
     files_len_ptr: *const i64,
     files_count: i64,
+    store_ptr: i64,
 ) -> i64 {
     let table_path = str_from_raw(table_path_ptr, table_path_len)
         .map_err(|e| format!("df_create_reader: {}", e))?;
@@ -137,7 +138,7 @@ pub unsafe extern "C" fn df_create_reader(
         );
     }
     let mgr = get_rt_manager()?;
-    api::create_reader(table_path, filenames, &mgr).map_err(|e| e.to_string())
+    api::create_reader(table_path, filenames, &mgr, store_ptr).map_err(|e| e.to_string())
 }
 
 #[no_mangle]
@@ -749,4 +750,91 @@ pub unsafe extern "C" fn df_stats(out_ptr: *mut u8, out_cap: i64) -> i64 {
         std::mem::size_of::<DfStatsBuffer>(),
     );
     Ok(0)
+}
+
+// ---------------------------------------------------------------------------
+// Distributed aggregate: prepare partial/final plans
+// ---------------------------------------------------------------------------
+
+/// Prepares a partial-aggregate physical plan on the session context handle.
+///
+/// Decodes the Substrait bytes, converts to a physical plan, strips the
+/// final-aggregate half, and stores the result on the handle for later
+/// execution via `df_execute_with_context`.
+///
+/// Returns 0 on success; < 0 is a negated error-string pointer.
+///
+/// # Safety
+/// `handle_ptr` must be a valid pointer returned by `df_create_session_context`.
+/// `bytes_ptr` must point to `bytes_len` valid bytes of a Substrait plan.
+#[ffm_safe]
+#[no_mangle]
+pub unsafe extern "C" fn df_prepare_partial_plan(
+    handle_ptr: i64,
+    bytes_ptr: *const u8,
+    bytes_len: usize,
+) -> i64 {
+    let handle = &mut *(handle_ptr as *mut crate::session_context::SessionContextHandle);
+    let bytes = slice::from_raw_parts(bytes_ptr, bytes_len);
+    let mgr = get_rt_manager()?;
+    mgr.io_runtime
+        .block_on(crate::session_context::prepare_partial_plan(handle, bytes))
+        .map_err(|e| e.to_string())?;
+    Ok(0)
+}
+
+/// Prepares a final-aggregate physical plan on a local session.
+///
+/// Decodes the Substrait bytes, converts to a physical plan, strips the
+/// partial-aggregate half, and stores the result on the session for later
+/// execution via `df_execute_local_prepared_plan`.
+///
+/// Returns 0 on success; < 0 is a negated error-string pointer.
+///
+/// # Safety
+/// `session_ptr` must be a valid pointer returned by `df_create_local_session`.
+/// `bytes_ptr` must point to `bytes_len` valid bytes of a Substrait plan.
+#[ffm_safe]
+#[no_mangle]
+pub unsafe extern "C" fn df_prepare_final_plan(
+    session_ptr: i64,
+    bytes_ptr: *const u8,
+    bytes_len: usize,
+) -> i64 {
+    let session = &mut *(session_ptr as *mut crate::local_executor::LocalSession);
+    let bytes = slice::from_raw_parts(bytes_ptr, bytes_len);
+    let mgr = get_rt_manager()?;
+    mgr.io_runtime
+        .block_on(session.prepare_final_plan(bytes))
+        .map_err(|e| e.to_string())?;
+    Ok(0)
+}
+
+/// Executes the previously prepared final-aggregate plan on a local session.
+///
+/// Returns a stream pointer (same shape as `df_execute_local_plan`) that can
+/// be drained via `df_stream_next` / `df_stream_close`.
+///
+/// # Safety
+/// `session_ptr` must be a valid pointer returned by `df_create_local_session`
+/// with a plan already prepared via `df_prepare_final_plan`.
+#[ffm_safe]
+#[no_mangle]
+pub unsafe extern "C" fn df_execute_local_prepared_plan(session_ptr: i64) -> i64 {
+    let session = &*(session_ptr as *const crate::local_executor::LocalSession);
+    let mgr = get_rt_manager()?;
+    // DataFusion's execute_stream is sync, but kicks off RepartitionExec / stream
+    // channels that require a Tokio reactor. Enter the IO runtime's context so those
+    // operators can register with the reactor.
+    let _guard = mgr.io_runtime.enter();
+    let df_stream = session.execute_prepared().map_err(|e| e.to_string())?;
+    let cross_rt_stream =
+        crate::cross_rt_stream::CrossRtStream::new_with_df_error_stream(df_stream, mgr.cpu_executor());
+    let wrapped = datafusion::physical_plan::stream::RecordBatchStreamAdapter::new(
+        cross_rt_stream.schema(),
+        cross_rt_stream,
+    );
+    let query_context = crate::query_tracker::QueryTrackingContext::new(0, session.memory_pool());
+    let handle = crate::api::QueryStreamHandle::new(wrapped, query_context);
+    Ok(Box::into_raw(Box::new(handle)) as i64)
 }

@@ -104,6 +104,10 @@ public class OpenSearchProjectRule extends RelOptRule {
             return expr;
         }
 
+        // All scalar operators (including arithmetic, CAST, null-handling, conditional,
+        // logical connectives) go through the capability registry. Operands recurse via the
+        // "Standard scalar function" path below so nested operators get their own annotations.
+
         // Opaque operations — no recursion into operands
         if (rexCall.getOperator() instanceof SqlFunction sqlFunction) {
             String funcName = sqlFunction.getName();

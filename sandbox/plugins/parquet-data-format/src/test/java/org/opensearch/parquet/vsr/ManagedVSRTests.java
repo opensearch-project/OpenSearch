@@ -147,4 +147,42 @@ public class ManagedVSRTests extends OpenSearchTestCase {
         vsr.moveToFrozen();
         vsr.close();
     }
+
+    public void testAddFieldVectorAddsNewField() {
+        ManagedVSR vsr = createVSR("test-add-field");
+        vsr.addFieldVector(new Field("name", FieldType.nullable(new ArrowType.Utf8()), null));
+        assertNotNull(vsr.getVector("name"));
+        assertEquals(2, vsr.getSchema().getFields().size());
+        cleanup(vsr);
+    }
+
+    public void testAddFieldVectorPreservesExistingData() {
+        ManagedVSR vsr = createVSR("test-preserve-data");
+        IntVector vec = (IntVector) vsr.getVector("val");
+        vec.setSafe(0, 100);
+        vsr.setRowCount(1);
+        vsr.addFieldVector(new Field("name", FieldType.nullable(new ArrowType.Utf8()), null));
+        assertEquals(100, ((IntVector) vsr.getVector("val")).get(0));
+        assertEquals(1, vsr.getRowCount());
+        cleanup(vsr);
+    }
+
+    public void testAddFieldVectorThrowsOnFrozenState() {
+        ManagedVSR vsr = createVSR("test-add-frozen");
+        vsr.moveToFrozen();
+        expectThrows(IllegalStateException.class, () -> vsr.addFieldVector(new Field("x", FieldType.nullable(new ArrowType.Utf8()), null)));
+        vsr.close();
+    }
+
+    public void testGetSchemaReflectsDynamicAdditions() {
+        ManagedVSR vsr = createVSR("test-schema-dynamic");
+        vsr.addFieldVector(new Field("f1", FieldType.nullable(new ArrowType.Utf8()), null));
+        vsr.addFieldVector(new Field("f2", FieldType.nullable(new ArrowType.Int(64, true)), null));
+        assertEquals(3, vsr.getSchema().getFields().size());
+        List<String> names = vsr.getSchema().getFields().stream().map(Field::getName).collect(java.util.stream.Collectors.toList());
+        assertTrue(names.contains("val"));
+        assertTrue(names.contains("f1"));
+        assertTrue(names.contains("f2"));
+        cleanup(vsr);
+    }
 }

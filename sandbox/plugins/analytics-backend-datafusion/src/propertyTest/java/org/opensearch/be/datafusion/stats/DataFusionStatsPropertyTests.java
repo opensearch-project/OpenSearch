@@ -12,8 +12,6 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import org.opensearch.be.datafusion.stats.NativeExecutorsStats.OperationType;
-import org.opensearch.be.datafusion.stats.NativeExecutorsStats.RuntimeMetrics;
-import org.opensearch.be.datafusion.stats.NativeExecutorsStats.TaskMonitorStats;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.common.bytes.BytesReference;
@@ -49,7 +47,7 @@ public class DataFusionStatsPropertyTests {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
-    /** JSON field names for RuntimeMetrics in documented order (8 fields). */
+    /** JSON field names for RuntimeMetrics in documented order (9 fields). */
     private static final String[] RUNTIME_FIELD_NAMES = {
         "workers_count",
         "total_polls_count",
@@ -58,7 +56,8 @@ public class DataFusionStatsPropertyTests {
         "global_queue_depth",
         "blocking_queue_depth",
         "num_alive_tasks",
-        "spawned_tasks_count" };
+        "spawned_tasks_count",
+        "total_local_queue_depth" };
 
     /** JSON field names for TaskMonitorStats in documented order (3 fields). */
     private static final String[] TASK_FIELD_NAMES = { "total_poll_duration_ms", "total_scheduled_duration_ms", "total_idle_duration_ms" };
@@ -174,28 +173,23 @@ public class DataFusionStatsPropertyTests {
 
         String json = renderJson(stats);
         JsonNode root = MAPPER.readTree(json);
-        JsonNode nativeExecutors = root.get("native_executors");
-        assertNotNull(nativeExecutors, "native_executors must be present");
 
-        // IO runtime: 8 fields
-        JsonNode ioRuntime = nativeExecutors.get("io_runtime");
+        // IO runtime: 9 fields
+        JsonNode ioRuntime = root.get("io_runtime");
         assertNotNull(ioRuntime, "io_runtime must be present");
-        assertEquals(8, ioRuntime.size(), "io_runtime must have exactly 8 fields");
+        assertEquals(9, ioRuntime.size(), "io_runtime must have exactly 9 fields");
         verifyRuntimeFields(nes.getIoRuntime(), ioRuntime);
 
-        // CPU runtime: 8 fields
-        assertTrue(nativeExecutors.has("cpu_runtime"), "cpu_runtime must be present");
-        JsonNode cpuRuntime = nativeExecutors.get("cpu_runtime");
-        assertEquals(8, cpuRuntime.size(), "cpu_runtime must have exactly 8 fields");
+        // CPU runtime: 9 fields
+        assertTrue(root.has("cpu_runtime"), "cpu_runtime must be present");
+        JsonNode cpuRuntime = root.get("cpu_runtime");
+        assertEquals(9, cpuRuntime.size(), "cpu_runtime must have exactly 9 fields");
         verifyRuntimeFields(nes.getCpuRuntime(), cpuRuntime);
 
-        // Task monitors: 4 ops × 3 fields
-        JsonNode taskMonitors = nativeExecutors.get("task_monitors");
-        assertNotNull(taskMonitors, "task_monitors must be present");
-        assertEquals(4, taskMonitors.size());
+        // Task monitors: 4 ops × 3 fields (at top level, no task_monitors wrapper)
         for (OperationType opType : OperationType.values()) {
-            JsonNode monitor = taskMonitors.get(opType.key());
-            assertNotNull(monitor, "task_monitors." + opType.key() + " must be present");
+            JsonNode monitor = root.get(opType.key());
+            assertNotNull(monitor, opType.key() + " must be present");
             assertEquals(3, monitor.size());
             verifyTaskMonitorFields(nes.getTaskMonitors().get(opType.key()), monitor, opType.key());
         }
@@ -211,25 +205,20 @@ public class DataFusionStatsPropertyTests {
 
         String json = renderJson(stats);
         JsonNode root = MAPPER.readTree(json);
-        JsonNode nativeExecutors = root.get("native_executors");
-        assertNotNull(nativeExecutors, "native_executors must be present");
 
-        // IO runtime: 8 fields
-        JsonNode ioRuntime = nativeExecutors.get("io_runtime");
+        // IO runtime: 9 fields
+        JsonNode ioRuntime = root.get("io_runtime");
         assertNotNull(ioRuntime, "io_runtime must be present");
-        assertEquals(8, ioRuntime.size(), "io_runtime must have exactly 8 fields");
+        assertEquals(9, ioRuntime.size(), "io_runtime must have exactly 9 fields");
         verifyRuntimeFields(nes.getIoRuntime(), ioRuntime);
 
         // CPU runtime absent
-        assertFalse(nativeExecutors.has("cpu_runtime"), "cpu_runtime must be absent when cpuRuntime is null");
+        assertFalse(root.has("cpu_runtime"), "cpu_runtime must be absent when cpuRuntime is null");
 
-        // Task monitors
-        JsonNode taskMonitors = nativeExecutors.get("task_monitors");
-        assertNotNull(taskMonitors);
-        assertEquals(4, taskMonitors.size());
+        // Task monitors: at top level, no task_monitors wrapper
         for (OperationType opType : OperationType.values()) {
-            JsonNode monitor = taskMonitors.get(opType.key());
-            assertNotNull(monitor);
+            JsonNode monitor = root.get(opType.key());
+            assertNotNull(monitor, opType.key() + " must be present");
             assertEquals(3, monitor.size());
             verifyTaskMonitorFields(nes.getTaskMonitors().get(opType.key()), monitor, opType.key());
         }
@@ -308,7 +297,8 @@ public class DataFusionStatsPropertyTests {
             rm.globalQueueDepth,
             rm.blockingQueueDepth,
             rm.numAliveTasks,
-            rm.spawnedTasksCount };
+            rm.spawnedTasksCount,
+            rm.totalLocalQueueDepth };
         for (int i = 0; i < RUNTIME_FIELD_NAMES.length; i++) {
             String fieldName = RUNTIME_FIELD_NAMES[i];
             assertTrue(runtimeNode.has(fieldName), "Runtime field '" + fieldName + "' must be present");

@@ -18,11 +18,12 @@ use datafusion::{
     prelude::*,
 };
 use datafusion::datasource::file_format::parquet::ParquetFormat;
-use datafusion::execution::cache::cache_manager::CacheManagerConfig;
+use datafusion::execution::cache::cache_manager::{CacheManagerConfig, CachedFileList};
 use datafusion::execution::cache::{CacheAccessor, DefaultListFilesCache};
 use datafusion_substrait::logical_plan::consumer::from_substrait_plan;
 use log::error;
 use object_store::ObjectMeta;
+use object_store::ObjectStore;
 use prost::Message;
 use substrait::proto::Plan;
 
@@ -51,6 +52,7 @@ pub async fn execute_query(
     // wire up context_id correctly.
     query_memory_pool: Option<Arc<dyn datafusion::execution::memory_pool::MemoryPool>>,
     query_config: &crate::datafusion_query_config::DatafusionQueryConfig,
+    shard_store: Arc<dyn ObjectStore>,
 ) -> Result<i64, DataFusionError> {
     // Pre-populate the list-files cache so DataFusion doesn't re-list the directory
     let list_file_cache = Arc::new(DefaultListFilesCache::default());
@@ -58,7 +60,7 @@ pub async fn execute_query(
         table: None,
         path: table_path.prefix().clone(),
     };
-    list_file_cache.put(&table_scoped_path, object_metas);
+    list_file_cache.put(&table_scoped_path, CachedFileList::new(object_metas.as_ref().clone()));
 
     // Build a per-query RuntimeEnv sharing the global memory pool + caches,
     // but with a fresh list-files cache for this query's shard files.
@@ -86,6 +88,13 @@ pub async fn execute_query(
             error!("Failed to build runtime env: {}", e);
             e
         })?;
+
+    // Register shard-specific object store on file:// scheme for this query.
+    // Routes reads through TieredObjectStore (local + remote) or default LocalFileSystem.
+    runtime_env.register_object_store(
+        &url::Url::parse("file://").unwrap(),
+        shard_store,
+    );
 
     // Build a fresh session state per query. TODO : Tune this during planning per query
     let mut config = SessionConfig::new();

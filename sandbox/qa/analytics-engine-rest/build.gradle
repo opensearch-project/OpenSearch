@@ -62,11 +62,15 @@ def configureAnalyticsCluster = { cluster ->
 
     // Enable pluggable dataformat feature flag
     cluster.systemProperty 'opensearch.experimental.feature.pluggable.dataformat.enabled', 'true'
+
+    // analytics-engine requires the streaming transport — fragment dispatch is streaming-only.
+    cluster.systemProperty 'opensearch.experimental.feature.transport.stream.enabled', 'true'
 }
 
 // ── Default integTest cluster ────────────────────────────────────────────────
 // TODO: enable numberOfNodes = 2 once partial aggs is handled
 testClusters.integTest {
+    numberOfNodes = 2
     configureAnalyticsCluster(delegate)
 }
 
@@ -109,7 +113,6 @@ check.dependsOn(integTestStreaming)
 testClusters.integTestStreaming {
     numberOfNodes = 2
     configureAnalyticsCluster(delegate)
-    systemProperty 'opensearch.experimental.feature.transport.stream.enabled', 'true'
 }
 
 // Run against an external cluster (no testClusters lifecycle):
