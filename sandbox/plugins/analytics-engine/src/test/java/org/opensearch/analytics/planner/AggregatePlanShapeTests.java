@@ -107,7 +107,7 @@ public class AggregatePlanShapeTests extends PlanShapeTestBase {
         // Skeleton: Project ← FINAL(SUM,COUNT) ← ER ← PARTIAL(SUM,COUNT) ← Scan.
         assertPlanShape(
             """
-                OpenSearchProject(status=[$0], avg_size=[CAST(/($1, $2)):INTEGER NOT NULL], viableBackends=[[mock-parquet]])
+                OpenSearchProject(status=[$0], avg_size=[ANNOTATED_PROJECT_EXPR(id=3, backends=[mock-parquet], CAST(ANNOTATED_PROJECT_EXPR(id=2, backends=[mock-parquet], /($1, $2))):INTEGER NOT NULL)], viableBackends=[[mock-parquet]])
                   OpenSearchAggregate(group=[{0}], agg#0=[SUM(AGG_CALL_ANNOTATION(id=0, viableBackends=[mock-parquet]), $1)], agg#1=[COUNT(AGG_CALL_ANNOTATION(id=1, viableBackends=[mock-parquet]))], mode=[FINAL], viableBackends=[[mock-parquet]])
                     OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
                       OpenSearchAggregate(group=[{0}], agg#0=[SUM(AGG_CALL_ANNOTATION(id=0, viableBackends=[mock-parquet]), $1)], agg#1=[COUNT(AGG_CALL_ANNOTATION(id=1, viableBackends=[mock-parquet]))], mode=[PARTIAL], viableBackends=[[mock-parquet]])

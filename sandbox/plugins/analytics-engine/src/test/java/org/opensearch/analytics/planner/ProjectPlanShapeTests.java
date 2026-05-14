@@ -44,8 +44,8 @@ public class ProjectPlanShapeTests extends PlanShapeTestBase {
     }
 
     public void testProjectWithScalarExpression_2shard() {
-        // status + size — primitive arithmetic stays on the shard. No backend-capability
-        // narrowing needed (PLUS is in BASELINE_SCALAR_OPS).
+        // status + size — primitive arithmetic. PLUS now goes through the capability
+        // registry so it gets wrapped in ANNOTATED_PROJECT_EXPR.
         RelNode scan = stubScan(mockTable("test_index", "status", "size"));
         RexNode plus = rexBuilder.makeCall(SqlStdOperatorTable.PLUS, rexBuilder.makeInputRef(scan, 0), rexBuilder.makeInputRef(scan, 1));
         RelNode plan = LogicalProject.create(scan, List.of(), List.of(rexBuilder.makeInputRef(scan, 0), plus), List.of("status", "sum"));
@@ -53,7 +53,7 @@ public class ProjectPlanShapeTests extends PlanShapeTestBase {
         assertPlanShape(
             """
                 OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
-                  OpenSearchProject(status=[$0], sum=[+($0, $1)], viableBackends=[[mock-parquet]])
+                  OpenSearchProject(status=[$0], sum=[ANNOTATED_PROJECT_EXPR(id=0, backends=[mock-parquet], +($0, $1))], viableBackends=[[mock-parquet]])
                     OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
                 """,
             result
