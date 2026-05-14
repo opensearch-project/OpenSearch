@@ -38,6 +38,11 @@ public class QuerySerializer extends AbstractRelevanceSerializer {
     }
 
     @Override
+    protected int optionalParamsStartIndex() {
+        return 1;
+    }
+
+    @Override
     protected QueryBuilder createQueryBuilder(ConversionUtils.RelevanceOperands operands) {
         return new QueryStringQueryBuilder(operands.query());
     }
