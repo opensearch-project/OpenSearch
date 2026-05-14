@@ -110,7 +110,7 @@ public class LuceneIndexingExecutionEngine implements IndexingExecutionEngine<Lu
         this.codec = sharedWriter.getConfig().getCodec();
         this.fieldFactoryRegistry = new LuceneFieldFactoryRegistry();
 
-        this.luceneMerger = new LuceneMerger(sharedWriter, dataFormat, store.shardPath().resolveIndex());
+        this.luceneMerger = new LuceneMerger(sharedWriter, dataFormat, store.shardPath().resolveIndex(), store.indexSettings());
 
         // Create the lucene subdirectory if it doesn't exist
         try {

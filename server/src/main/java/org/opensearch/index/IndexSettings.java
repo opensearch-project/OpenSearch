@@ -727,6 +727,34 @@ public final class IndexSettings {
     );
 
     /**
+     * Whether to perform a pre-merge disk space check before launching a pluggable
+     * data format merge. When enabled, the merge is aborted with
+     * {@code InsufficientDiskSpaceException} if the target file system does not have
+     * enough usable space to hold the projected merged output (estimated input bytes
+     * multiplied by {@link #INDEX_MERGE_DISK_SPACE_CHECK_SAFETY_MULTIPLIER}).
+     */
+    public static final Setting<Boolean> INDEX_MERGE_DISK_SPACE_CHECK_ENABLED = Setting.boolSetting(
+        "index.merge.disk_space_check.enabled",
+        true,
+        Property.IndexScope,
+        Property.Dynamic
+    );
+
+    /**
+     * Safety multiplier applied to estimated input bytes when computing the required free
+     * disk space for a pluggable data format merge. The merged segment output is normally
+     * bounded above by the input size, but transient working files (temp output, partial
+     * writes) can push peak usage higher. Defaults to {@code 2.0}.
+     */
+    public static final Setting<Double> INDEX_MERGE_DISK_SPACE_CHECK_SAFETY_MULTIPLIER = Setting.doubleSetting(
+        "index.merge.disk_space_check.safety_multiplier",
+        2.0d,
+        1.0d,
+        Property.IndexScope,
+        Property.Dynamic
+    );
+
+    /**
      * Expert: Makes indexing threads check for pending flushes on update in order to help out
      * flushing indexing buffers to disk. This is an experimental Apache Lucene feature.
      */
