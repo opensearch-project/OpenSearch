@@ -118,6 +118,12 @@ public class CatalogSnapshotManager implements Closeable {
             shardPath,
             commitFileManager
         );
+
+        // Notify listeners about the committed snapshot so reader managers
+        // are initialized on engine open.
+        for (CatalogSnapshotLifecycleListener listener : snapshotListeners) {
+            listener.afterRefresh(true, latestCatalogSnapshot);
+        }
     }
 
     /**
