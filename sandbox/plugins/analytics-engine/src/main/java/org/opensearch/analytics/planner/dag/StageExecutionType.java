@@ -35,5 +35,11 @@ public enum StageExecutionType {
      * stages sitting above children that already produced the final rows.
      * A single-stage query that scans shards is {@link #SHARD_FRAGMENT}, not this.
      */
-    LOCAL_PASSTHROUGH
+    LOCAL_PASSTHROUGH,
+    /**
+     * Late materialization (QTF) root stage. Consumes the reduced output from
+     * a child COORDINATOR_REDUCE stage, builds a position map from (shard_id, __row_id__),
+     * dispatches fetch-by-row-id requests per shard, and assembles the final result.
+     */
+    LATE_MATERIALIZATION
 }

@@ -103,6 +103,7 @@ public class QueryScheduler implements Scheduler {
             opListener.onQueryFailure(queryId, e);
             listener.onFailure(e);
         });
+
         return new PlanWalker(config, stageExecutionBuilder, wrapped);
     }
 

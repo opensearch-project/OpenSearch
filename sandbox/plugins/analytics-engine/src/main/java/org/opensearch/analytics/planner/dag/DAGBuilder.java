@@ -12,6 +12,7 @@ import org.apache.calcite.rel.RelNode;
 import org.opensearch.analytics.planner.CapabilityRegistry;
 import org.opensearch.analytics.planner.CapabilityResolutionUtils;
 import org.opensearch.analytics.planner.rel.OpenSearchExchangeReducer;
+import org.opensearch.analytics.planner.rel.OpenSearchProject;
 import org.opensearch.analytics.planner.rel.OpenSearchRelNode;
 import org.opensearch.analytics.planner.rel.OpenSearchStageInputScan;
 import org.opensearch.analytics.spi.ExchangeSinkProvider;
@@ -69,7 +70,67 @@ public class DAGBuilder {
         TargetResolver rootTargetResolver = childStages.isEmpty() ? new ShardTargetResolver(rootFragment, clusterService) : null;
 
         Stage rootStage = new Stage(counter[0]++, rootFragment, childStages, null, sinkProvider, rootTargetResolver);
+
+        // QTF: if the root fragment's output schema contains __row_id__, the
+        // LateMaterializationRule has narrowed the projection to sort/filter
+        // columns + __row_id__. Wrap the reduce stage with a late-materialization
+        // root that handles the fetch + assembly phase.
+        if (isLateMaterializationEligible(rootFragment)) {
+            return wrapWithLateMaterialization(counter, rootStage);
+        }
+
         return new QueryDAG(UUID.randomUUID().toString(), rootStage);
+    }
+
+    /**
+     * Checks whether the {@code LateMaterializationRule} has rewritten the plan for QTF.
+     *
+     * <p>Detection: the root fragment's top node must be an {@code OpenSearchProject}
+     * whose output schema includes {@code __row_id__}. This is a reliable signal because:
+     * <ul>
+     *   <li>The scan always has {@code __row_id__} in its row type (added by schema builder),
+     *       but a normal Project does not reference it — only the QTF-rewritten Project does.</li>
+     *   <li>If there is no Project (e.g. {@code SELECT *}), the rule did not fire, so we
+     *       should not trigger late materialization.</li>
+     * </ul>
+     */
+    private static boolean isLateMaterializationEligible(RelNode rootFragment) {
+        if (rootFragment instanceof OpenSearchProject project) {
+            return project.getRowType().getFieldNames().contains("__row_id__");
+        }
+        return false;
+    }
+
+    /**
+     * Wraps a 2-stage DAG (shard + reduce) into a 3-stage QTF DAG:
+     * <pre>
+     *   LateMaterializationStageExecution (root)
+     *       └─ LocalStageExecution (COORDINATOR_REDUCE)  — sort + limit
+     *             └─ ShardFragmentStageExecution (SHARD_FRAGMENT, injectShardOrdinal=true)
+     * </pre>
+     */
+    private static QueryDAG wrapWithLateMaterialization(int[] counter, Stage reduceStage) {
+        // Mark the shard fragment child to inject shard_id into every batch
+        for (Stage child : reduceStage.getChildStages()) {
+            if (child.getTargetResolver() != null) {
+                child.setInjectShardOrdinal(true);
+            }
+        }
+
+        // The reduce stage becomes a child of the new late-mat root.
+        // Late-mat root has no sink provider, no target resolver, and no plan fragment
+        // (it is a pure execution stage — position map + fetch + assembly).
+        Stage lateMatRoot = new Stage(
+            counter[0]++,
+            null,   // no plan fragment (pure execution stage)
+            List.of(reduceStage),
+            null,   // no exchange info (root)
+            null,   // no sink provider
+            null,   // no target resolver
+            true    // lateMaterialization = true
+        );
+
+        return new QueryDAG(UUID.randomUUID().toString(), lateMatRoot);
     }
 
     private static RelNode sever(

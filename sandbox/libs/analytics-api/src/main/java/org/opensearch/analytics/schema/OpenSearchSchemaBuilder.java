@@ -117,6 +117,12 @@ public class OpenSearchSchemaBuilder {
             public RelDataType getRowType(RelDataTypeFactory typeFactory) {
                 RelDataTypeFactory.Builder builder = typeFactory.builder();
                 addLeafFields(builder, typeFactory, properties, "");
+                // Virtual row ID column — always present in parquet files, computed by analytics backend.
+                // Only add if not already in the mapping.
+                if (!properties.containsKey("__row_id__")) {
+                    builder.add("__row_id__", typeFactory.createTypeWithNullability(
+                        typeFactory.createSqlType(SqlTypeName.BIGINT), true));
+                }
                 return builder.build();
             }
         };

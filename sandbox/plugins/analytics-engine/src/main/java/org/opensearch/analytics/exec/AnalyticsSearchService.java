@@ -9,21 +9,31 @@
 package org.opensearch.analytics.exec;
 
 import org.apache.arrow.memory.BufferAllocator;
+import org.apache.arrow.vector.VectorSchemaRoot;
+import org.apache.arrow.vector.VectorUnloader;
+import org.apache.arrow.vector.ipc.ArrowStreamWriter;
+import org.apache.arrow.vector.ipc.WriteChannel;
+import org.apache.arrow.vector.ipc.message.ArrowRecordBatch;
+import org.apache.arrow.vector.ipc.message.IpcOption;
+import org.apache.arrow.vector.ipc.message.MessageSerializer;
+import org.apache.arrow.vector.types.pojo.Schema;
 import org.opensearch.analytics.backend.AnalyticsOperationListener;
+import org.opensearch.analytics.backend.EngineResultBatch;
 import org.opensearch.analytics.backend.EngineResultStream;
 import org.opensearch.analytics.backend.SearchExecEngine;
 import org.opensearch.analytics.backend.ShardScanExecutionContext;
 import org.opensearch.analytics.exec.action.FragmentExecutionRequest;
+import org.opensearch.analytics.exec.action.FragmentExecutionResponse;
 import org.opensearch.analytics.exec.task.AnalyticsShardTask;
 import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
 import org.opensearch.analytics.spi.BackendExecutionContext;
 import org.opensearch.analytics.spi.DelegationDescriptor;
-import org.opensearch.analytics.spi.DelegationThreadTracker;
 import org.opensearch.analytics.spi.FilterDelegationHandle;
 import org.opensearch.analytics.spi.FragmentInstructionHandler;
 import org.opensearch.analytics.spi.FragmentInstructionHandlerFactory;
 import org.opensearch.analytics.spi.InstructionNode;
 import org.opensearch.arrow.flight.transport.ArrowAllocatorProvider;
+import org.opensearch.common.Nullable;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.tasks.TaskCancelledException;
@@ -31,9 +41,11 @@ import org.opensearch.index.engine.exec.IndexReaderProvider;
 import org.opensearch.index.engine.exec.IndexReaderProvider.Reader;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.tasks.Task;
-import org.opensearch.tasks.TaskResourceTrackingService;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.nio.channels.Channels;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
@@ -60,7 +72,6 @@ public class AnalyticsSearchService implements AutoCloseable {
     private final AnalyticsOperationListener listener;
     private final BufferAllocator allocator;
     private final NamedWriteableRegistry namedWriteableRegistry;
-    private TaskResourceTrackingService taskResourceTrackingService;
 
     public AnalyticsSearchService(Map<String, AnalyticsSearchBackendPlugin> backends) {
         this(backends, List.of(), null);
@@ -86,8 +97,78 @@ public class AnalyticsSearchService implements AutoCloseable {
         allocator.close();
     }
 
-    public void setTaskResourceTrackingService(TaskResourceTrackingService service) {
-        this.taskResourceTrackingService = service;
+    public FragmentExecutionResponse executeFragment(FragmentExecutionRequest request, IndexShard shard) {
+        return executeFragment(request, shard, null);
+    }
+
+    public FragmentExecutionResponse executeFragment(FragmentExecutionRequest request, IndexShard shard, AnalyticsShardTask task) {
+        ResolvedFragment resolved = resolveFragment(request, shard);
+        long startNanos = System.nanoTime();
+        try (FragmentResources ctx = startFragment(request, resolved, shard, task)) {
+            FragmentExecutionResponse response = collectResponse(ctx.stream(), task);
+            long tookNanos = System.nanoTime() - startNanos;
+            listener.onFragmentSuccess(resolved.queryId, resolved.stageId, resolved.shardIdStr, tookNanos, response.getRowCount());
+            return response;
+        } catch (TaskCancelledException | IllegalStateException | IllegalArgumentException e) {
+            listener.onFragmentFailure(resolved.queryId, resolved.stageId, resolved.shardIdStr, e);
+            throw e;
+        } catch (Exception e) {
+            listener.onFragmentFailure(resolved.queryId, resolved.stageId, resolved.shardIdStr, e);
+            throw new RuntimeException("Failed to execute fragment on " + shard.shardId(), e);
+        }
+    }
+
+    /**
+     * QTF fetch phase: read specific rows by global row ID.
+     * Bypasses Substrait plan resolution — calls directly into backend's FFM.
+     */
+    public org.opensearch.analytics.exec.action.FetchByRowIdsResponse executeFetchByRowIds(
+        org.opensearch.analytics.exec.action.FetchByRowIdsRequest request,
+        IndexShard shard,
+        AnalyticsShardTask task
+    ) {
+        long startNanos = System.nanoTime();
+        String shardIdStr = shard.shardId().toString();
+        try {
+            EngineResultStream stream = executeFetchStreaming(request, shard, task);
+            FragmentExecutionResponse fragmentResp = collectResponse(stream, task);
+            long tookNanos = System.nanoTime() - startNanos;
+            listener.onFragmentSuccess(request.getQueryId(), 0, shardIdStr, tookNanos, fragmentResp.getRowCount());
+            return new org.opensearch.analytics.exec.action.FetchByRowIdsResponse(fragmentResp.getIpcPayload(), fragmentResp.getRowCount());
+        } catch (Exception e) {
+            listener.onFragmentFailure(request.getQueryId(), 0, shardIdStr, e);
+            throw new RuntimeException("Failed to execute fetch-by-row-ids on " + shard.shardId(), e);
+        }
+    }
+
+    /**
+     * Streaming variant: returns the raw EngineResultStream for the fetch phase.
+     * Used by the streaming transport handler to send Arrow batches directly.
+     */
+    public EngineResultStream executeFetchStreaming(
+        org.opensearch.analytics.exec.action.FetchByRowIdsRequest request,
+        IndexShard shard,
+        AnalyticsShardTask task
+    ) {
+        IndexReaderProvider readerProvider = shard.getReaderProvider();
+        if (readerProvider == null) {
+            throw new IllegalStateException("No ReaderProvider on " + shard.shardId());
+        }
+        try {
+            GatedCloseable<Reader> gatedReader = readerProvider.acquireReader();
+            long[] rowIds = request.getRowIds();
+            org.apache.arrow.vector.BigIntVector rowIdVector = new org.apache.arrow.vector.BigIntVector("__row_id__", allocator);
+            rowIdVector.allocateNew(rowIds.length);
+            for (int i = 0; i < rowIds.length; i++) {
+                rowIdVector.set(i, rowIds[i]);
+            }
+            rowIdVector.setValueCount(rowIds.length);
+
+            AnalyticsSearchBackendPlugin backend = backends.values().iterator().next();
+            return backend.fetchByRowIds(gatedReader.get(), rowIdVector, request.getColumns(), allocator);
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to start fetch-by-row-ids on " + shard.shardId(), e);
+        }
     }
 
     public FragmentResources executeFragmentStreaming(FragmentExecutionRequest request, IndexShard shard, AnalyticsShardTask task) {
@@ -109,7 +190,6 @@ public class AnalyticsSearchService implements AutoCloseable {
         SearchExecEngine<ShardScanExecutionContext, EngineResultStream> engine = null;
         EngineResultStream stream = null;
         BackendExecutionContext backendContext = null;
-        Runnable trackerCleanup = null;
         try {
             ShardScanExecutionContext ctx = buildContext(request, gatedReader.get(), resolved.plan, shard, task);
             AnalyticsSearchBackendPlugin backend = backends.get(resolved.plan.getBackendId());
@@ -133,33 +213,14 @@ public class AnalyticsSearchService implements AutoCloseable {
                 AnalyticsSearchBackendPlugin acceptingBackend = backends.get(acceptingBackendId);
                 FilterDelegationHandle handle = acceptingBackend.getFilterDelegationHandle(delegation.delegatedExpressions(), ctx);
                 backend.configureFilterDelegation(handle, backendContext);
-
-                if (task != null && taskResourceTrackingService != null) {
-                    long taskId = task.getId();
-                    TaskResourceTrackingService service = taskResourceTrackingService;
-                    backend.setDelegationThreadTracker(new DelegationThreadTracker() {
-                        @Override
-                        public long trackStart() {
-                            long threadId = Thread.currentThread().threadId();
-                            service.taskExecutionStartedOnThread(taskId, threadId);
-                            return threadId;
-                        }
-
-                        @Override
-                        public void trackEnd(long threadId) {
-                            service.taskExecutionFinishedOnThread(taskId, threadId);
-                        }
-                    });
-                    trackerCleanup = () -> backend.setDelegationThreadTracker(null);
-                }
             }
 
             engine = backend.getSearchExecEngineProvider().createSearchExecEngine(ctx, backendContext);
             stream = engine.execute(ctx);
-            return new FragmentResources(gatedReader, engine, stream, trackerCleanup);
+            return new FragmentResources(gatedReader, engine, stream);
         } catch (Exception e) {
             try {
-                new FragmentResources(gatedReader, engine, stream, trackerCleanup).close();
+                new FragmentResources(gatedReader, engine, stream).close();
             } catch (Exception suppressed) {
                 e.addSuppressed(suppressed);
             }
@@ -226,4 +287,47 @@ public class AnalyticsSearchService implements AutoCloseable {
         return ctx;
     }
 
+    FragmentExecutionResponse collectResponse(EngineResultStream stream) {
+        return collectResponse(stream, null);
+    }
+
+    FragmentExecutionResponse collectResponse(EngineResultStream stream, @Nullable AnalyticsShardTask task) {
+        // Serialize incoming Arrow batches as an Arrow IPC stream: one schema header
+        // followed by one record-batch message per incoming batch. Arrow's own
+        // serializer handles every Arrow type — no per-type Java code path.
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        WriteChannel channel = new WriteChannel(Channels.newChannel(baos));
+        Schema schema = null;
+        int totalRows = 0;
+        Iterator<EngineResultBatch> it = stream.iterator();
+        try {
+            while (it.hasNext()) {
+                if (task != null && task.isCancelled()) {
+                    throw new TaskCancelledException("task cancelled: " + task.getReasonCancelled());
+                }
+                EngineResultBatch batch = it.next();
+                VectorSchemaRoot root = batch.getArrowRoot();
+                try {
+                    if (schema == null) {
+                        schema = root.getSchema();
+                        MessageSerializer.serialize(channel, schema);
+                    }
+                    try (ArrowRecordBatch recordBatch = new VectorUnloader(root).getRecordBatch()) {
+                        MessageSerializer.serialize(channel, recordBatch);
+                    }
+                    totalRows += root.getRowCount();
+                } finally {
+                    root.close();
+                }
+            }
+            if (schema != null) {
+                // Write the end-of-stream marker so the reader sees a clean EOS
+                // instead of hitting end-of-input mid-message.
+                ArrowStreamWriter.writeEndOfStream(channel, IpcOption.DEFAULT);
+            }
+        } catch (IOException e) {
+            throw new IllegalStateException("Failed to serialize fragment output as Arrow IPC stream", e);
+        }
+        return new FragmentExecutionResponse(baos.toByteArray(), totalRows);
+    }
 }

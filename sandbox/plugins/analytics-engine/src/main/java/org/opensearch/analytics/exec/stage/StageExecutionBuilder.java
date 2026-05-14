@@ -57,6 +57,7 @@ public class StageExecutionBuilder {
         registerScheduler(StageExecutionType.SHARD_FRAGMENT, new ShardFragmentStageScheduler(clusterService, dispatcher));
         registerScheduler(StageExecutionType.COORDINATOR_REDUCE, new LocalStageScheduler());
         registerScheduler(StageExecutionType.LOCAL_PASSTHROUGH, (stage, sink, config) -> new PassThroughStageExecution(stage, sink));
+        registerScheduler(StageExecutionType.LATE_MATERIALIZATION, new LateMaterializationStageScheduler(dispatcher));
     }
 
     /**
@@ -88,7 +89,7 @@ public class StageExecutionBuilder {
      */
     public StageExecution buildExecution(Stage stage, StageExecution parentExec, QueryContext config) {
         ExchangeSink sink = switch (stage.getExecutionType()) {
-            case SHARD_FRAGMENT, COORDINATOR_REDUCE, LOCAL_PASSTHROUGH -> resolveRowSink(stage, parentExec);
+            case SHARD_FRAGMENT, COORDINATOR_REDUCE, LOCAL_PASSTHROUGH, LATE_MATERIALIZATION -> resolveRowSink(stage, parentExec);
         };
         return buildStageExecution(stage, sink, config);
     }

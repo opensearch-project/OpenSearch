@@ -27,6 +27,7 @@ import org.apache.calcite.tools.RelBuilder;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.analytics.planner.rel.OpenSearchDistributionTraitDef;
+import org.opensearch.analytics.planner.rules.LateMaterializationRule;
 import org.opensearch.analytics.planner.rules.OpenSearchAggregateReduceRule;
 import org.opensearch.analytics.planner.rules.OpenSearchAggregateRule;
 import org.opensearch.analytics.planner.rules.OpenSearchAggregateSplitRule;
@@ -146,6 +147,22 @@ public class PlannerImpl {
         RelNode result = volcanoPlanner.findBestExp();
 
         LOGGER.info("After CBO:\n{}", RelOptUtil.toString(result));
-        return result;
+
+        // Phase 3: Post-CBO rewrites — late materialization (QTF) detection.
+        // Runs on the marked OpenSearch nodes after CBO has inserted exchanges.
+        // The rule narrows projections to sort/filter columns + __row_id__ when
+        // beneficial, enabling the DAGBuilder to detect QTF eligibility downstream.
+        HepProgramBuilder postCboBuilder = new HepProgramBuilder();
+        postCboBuilder.addMatchOrder(HepMatchOrder.TOP_DOWN);
+        postCboBuilder.addRuleInstance(new LateMaterializationRule());
+        HepPlanner postCboPlanner = new HepPlanner(postCboBuilder.build());
+        postCboPlanner.setRoot(result);
+        RelNode afterPostCbo = postCboPlanner.findBestExp();
+
+        if (afterPostCbo != result) {
+            LOGGER.info("After post-CBO (QTF rewrite):\n{}", RelOptUtil.toString(afterPostCbo));
+        }
+
+        return afterPostCbo;
     }
 }

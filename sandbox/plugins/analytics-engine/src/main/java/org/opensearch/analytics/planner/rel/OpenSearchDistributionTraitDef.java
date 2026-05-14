@@ -110,9 +110,9 @@ public class OpenSearchDistributionTraitDef extends RelTraitDef<OpenSearchDistri
             List<String> reduceViable = CapabilityResolutionUtils.filterByReduceCapability(registry, viableBackends);
             result = new OpenSearchExchangeReducer(rel.getCluster(), rel.getTraitSet().replace(toTrait), rel, reduceViable);
         } else {
-            // TODO: implement HASH/RANGE shuffle exchange when joins and shuffle aggregates are added.
-            // Requires DataTransferCapability producer/consumer intersection for shuffle impl selection.
-            throw new UnsupportedOperationException("HASH/RANGE exchange not yet implemented [toTrait=" + toTrait + "]");
+            // Unsupported conversion (e.g. SINGLETON→RANDOM) — return null to let
+            // Volcano discard this option and find an alternative plan.
+            return null;
         }
 
         return planner.register(result, rel);

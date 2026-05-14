@@ -47,6 +47,7 @@ public class Stage {
     private final StageExecutionType executionType;
     private List<StagePlan> planAlternatives;
     private FragmentInstructionHandlerFactory instructionHandlerFactory;
+    private boolean injectShardOrdinal;
 
     public Stage(
         int stageId,
@@ -56,13 +57,32 @@ public class Stage {
         ExchangeSinkProvider exchangeSinkProvider,
         TargetResolver targetResolver
     ) {
+        this(stageId, fragment, childStages, exchangeInfo, exchangeSinkProvider, targetResolver, false);
+    }
+
+    /**
+     * Constructs a stage with an optional late-materialization override.
+     * When {@code lateMaterialization} is true, the execution type is forced to
+     * {@link StageExecutionType#LATE_MATERIALIZATION} regardless of the derived type.
+     */
+    public Stage(
+        int stageId,
+        RelNode fragment,
+        List<Stage> childStages,
+        ExchangeInfo exchangeInfo,
+        ExchangeSinkProvider exchangeSinkProvider,
+        TargetResolver targetResolver,
+        boolean lateMaterialization
+    ) {
         this.stageId = stageId;
         this.fragment = fragment;
         this.childStages = List.copyOf(childStages);
         this.exchangeInfo = exchangeInfo;
         this.exchangeSinkProvider = exchangeSinkProvider;
         this.targetResolver = targetResolver;
-        this.executionType = setStageExecutionType(exchangeSinkProvider, targetResolver);
+        this.executionType = lateMaterialization
+            ? StageExecutionType.LATE_MATERIALIZATION
+            : setStageExecutionType(exchangeSinkProvider, targetResolver);
         this.planAlternatives = List.of();
     }
 
@@ -126,6 +146,14 @@ public class Stage {
 
     public void setInstructionHandlerFactory(FragmentInstructionHandlerFactory instructionHandlerFactory) {
         this.instructionHandlerFactory = instructionHandlerFactory;
+    }
+
+    public boolean isInjectShardOrdinal() {
+        return injectShardOrdinal;
+    }
+
+    public void setInjectShardOrdinal(boolean injectShardOrdinal) {
+        this.injectShardOrdinal = injectShardOrdinal;
     }
 
     private StageExecutionType setStageExecutionType(ExchangeSinkProvider exchangeSinkProvider, TargetResolver targetResolver) {

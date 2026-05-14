@@ -20,6 +20,7 @@ import org.opensearch.analytics.exec.AnalyticsSearchTransportService;
 import org.opensearch.analytics.exec.QueryContext;
 import org.opensearch.analytics.exec.StreamingResponseListener;
 import org.opensearch.analytics.exec.action.FragmentExecutionArrowResponse;
+import org.opensearch.analytics.exec.stage.RowResponseCodec;
 import org.opensearch.analytics.exec.action.FragmentExecutionRequest;
 import org.opensearch.analytics.exec.task.AnalyticsQueryTask;
 import org.opensearch.analytics.planner.dag.ShardExecutionTarget;
@@ -134,7 +135,7 @@ public class ShardFragmentStageExecutionTests extends OpenSearchTestCase {
             List.of(new FragmentExecutionRequest.PlanAlternative("test-backend", new byte[0], List.of()))
         );
 
-        return new ShardFragmentStageExecution(stage, config, sink, clusterService, requestBuilder, dispatcher);
+        return new ShardFragmentStageExecution(stage, config, sink, clusterService, requestBuilder, dispatcher, RowResponseCodec.INSTANCE);
     }
 
     private VectorSchemaRoot createTestBatch(int rows) {

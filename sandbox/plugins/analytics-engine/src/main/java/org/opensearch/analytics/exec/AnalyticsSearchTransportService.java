@@ -9,26 +9,33 @@
 package org.opensearch.analytics.exec;
 
 import org.opensearch.analytics.backend.EngineResultBatch;
+import org.opensearch.analytics.exec.action.FetchByRowIdsAction;
+import org.opensearch.analytics.exec.action.FetchByRowIdsRequest;
+import org.opensearch.analytics.exec.action.FetchByRowIdsResponse;
 import org.opensearch.analytics.exec.action.FragmentExecutionAction;
 import org.opensearch.analytics.exec.action.FragmentExecutionArrowResponse;
 import org.opensearch.analytics.exec.action.FragmentExecutionRequest;
+import org.opensearch.analytics.exec.action.FragmentExecutionResponse;
 import org.opensearch.analytics.exec.task.AnalyticsShardTask;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.Nullable;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.inject.Singleton;
+import org.opensearch.core.action.ActionResponse;
 import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.ratelimitting.admissioncontrol.enums.AdmissionControlActionType;
 import org.opensearch.tasks.Task;
-import org.opensearch.tasks.TaskResourceTrackingService;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.StreamTransportService;
 import org.opensearch.transport.Transport;
 import org.opensearch.transport.TransportException;
 import org.opensearch.transport.TransportRequestOptions;
 import org.opensearch.transport.TransportResponseHandler;
+import org.opensearch.transport.TransportService;
 import org.opensearch.transport.stream.StreamErrorCode;
 import org.opensearch.transport.stream.StreamException;
 import org.opensearch.transport.stream.StreamTransportResponse;
@@ -37,42 +44,67 @@ import java.io.IOException;
 import java.util.Iterator;
 
 /**
- * Stateless transport dispatch component for fragment requests. Owns the
- * {@link StreamTransportService} (analytics-engine is streaming-only) and
+ * Stateless transport dispatch component for fragment requests. Owns
+ * {@link TransportService} (or {@link StreamTransportService}) and
  * connection lookup.
  *
- * <p>Does NOT track per-query or per-node concurrency state — callers provide
- * their own {@link PendingExecutions} instance to gate dispatch concurrency.
+ * <p>Does NOT track per-query or per-node concurrency
+ * state — callers provide their own {@link PendingExecutions} instance
+ * to gate dispatch concurrency.
  *
  * @opensearch.internal
  */
 @Singleton
 public class AnalyticsSearchTransportService {
-    private final StreamTransportService transportService;
+    private final TransportService transportService;
     private final ClusterService clusterService;
+    private final boolean streamingEnabled;
 
     @Inject
     public AnalyticsSearchTransportService(
-        StreamTransportService streamTransportService,
+        TransportService transportService,
+        @Nullable StreamTransportService streamTransportService,
         ClusterService clusterService,
         AnalyticsSearchService searchService,
-        IndicesService indicesService,
-        TaskResourceTrackingService taskResourceTrackingService
+        IndicesService indicesService
     ) {
-        if (streamTransportService == null) {
-            throw new IllegalStateException(
-                "analytics-engine requires the STREAM_TRANSPORT feature flag to be enabled "
-                    + "(opensearch.experimental.feature.stream_transport.enabled=true)"
-            );
-        }
-        searchService.setTaskResourceTrackingService(taskResourceTrackingService);
-        this.transportService = streamTransportService;
+        this.streamingEnabled = streamTransportService != null;
+        this.transportService = this.streamingEnabled ? streamTransportService : transportService;
         this.clusterService = clusterService;
-        registerStreamingFragmentHandler(this.transportService, searchService, indicesService);
+        if (this.streamingEnabled) {
+            registerStreamingFragmentHandler(this.transportService, searchService, indicesService);
+        } else {
+            registerFragmentHandler(this.transportService, searchService, indicesService);
+        }
+        registerFetchHandler(this.transportService, searchService, indicesService);
+    }
+
+    public boolean isStreamingEnabled() {
+        return streamingEnabled;
+    }
+
+    private static void registerFragmentHandler(
+        TransportService transportService,
+        AnalyticsSearchService searchService,
+        IndicesService indicesService
+    ) {
+        transportService.registerRequestHandler(
+            FragmentExecutionAction.NAME,
+            ThreadPool.Names.SAME,
+            false,
+            true,
+            AdmissionControlActionType.SEARCH,
+            FragmentExecutionRequest::new,
+            (request, channel, task) -> {
+                IndexShard shard = indicesService.indexServiceSafe(request.getShardId().getIndex()).getShard(request.getShardId().id());
+                FragmentExecutionResponse response = searchService.executeFragment(request, shard, (AnalyticsShardTask) task);
+                channel.sendResponse(response);
+            }
+        );
     }
 
     private static void registerStreamingFragmentHandler(
-        StreamTransportService transportService,
+        TransportService transportService,
         AnalyticsSearchService searchService,
         IndicesService indicesService
     ) {
@@ -104,6 +136,214 @@ public class AnalyticsSearchTransportService {
         );
     }
 
+    private static void registerFetchHandler(
+        TransportService transportService,
+        AnalyticsSearchService searchService,
+        IndicesService indicesService
+    ) {
+        if (transportService instanceof StreamTransportService) {
+            // Streaming path: send Arrow batches directly
+            transportService.registerRequestHandler(
+                FetchByRowIdsAction.NAME,
+                ThreadPool.Names.SAME,
+                false,
+                true,
+                AdmissionControlActionType.SEARCH,
+                FetchByRowIdsRequest::new,
+                (request, channel, task) -> {
+                    IndexShard shard = indicesService.indexServiceSafe(request.getShardId().getIndex()).getShard(request.getShardId().id());
+                    try {
+                        org.opensearch.analytics.backend.EngineResultStream stream = searchService.executeFetchStreaming(
+                            request,
+                            shard,
+                            (AnalyticsShardTask) task
+                        );
+                        Iterator<org.opensearch.analytics.backend.EngineResultBatch> it = stream.iterator();
+                        while (it.hasNext()) {
+                            org.opensearch.analytics.backend.EngineResultBatch batch = it.next();
+                            channel.sendResponseBatch(
+                                new org.opensearch.analytics.exec.action.FetchByRowIdsArrowResponse(batch.getArrowRoot())
+                            );
+                        }
+                        channel.completeStream();
+                    } catch (StreamException e) {
+                        if (e.getErrorCode() != StreamErrorCode.CANCELLED) {
+                            channel.sendResponse(e);
+                        }
+                    } catch (Exception e) {
+                        channel.sendResponse(e);
+                    }
+                }
+            );
+        } else {
+            // Non-streaming path: serialize to IPC bytes
+            transportService.registerRequestHandler(
+                FetchByRowIdsAction.NAME,
+                ThreadPool.Names.SAME,
+                false,
+                true,
+                AdmissionControlActionType.SEARCH,
+                FetchByRowIdsRequest::new,
+                (request, channel, task) -> {
+                    IndexShard shard = indicesService.indexServiceSafe(request.getShardId().getIndex()).getShard(request.getShardId().id());
+                    FetchByRowIdsResponse response = searchService.executeFetchByRowIds(request, shard, (AnalyticsShardTask) task);
+                    channel.sendResponse(response);
+                }
+            );
+        }
+    }
+
+    public void dispatchFetch(
+        FetchByRowIdsRequest request,
+        DiscoveryNode targetNode,
+        StreamingResponseListener<FetchByRowIdsResponse> listener,
+        Task parentTask
+    ) {
+        if (streamingEnabled) {
+            dispatchFetchStreaming(request, targetNode, listener, parentTask);
+        } else {
+            dispatchFetchNonStreaming(request, targetNode, listener, parentTask);
+        }
+    }
+
+    private void dispatchFetchStreaming(
+        FetchByRowIdsRequest request,
+        DiscoveryNode targetNode,
+        StreamingResponseListener<FetchByRowIdsResponse> listener,
+        Task parentTask
+    ) {
+        try {
+            Transport.Connection connection = getConnection(null, targetNode.getId());
+            transportService.sendChildRequest(
+                connection,
+                FetchByRowIdsAction.NAME,
+                request,
+                parentTask,
+                TransportRequestOptions.builder().withType(TransportRequestOptions.Type.STREAM).build(),
+                new TransportResponseHandler<org.opensearch.analytics.exec.action.FetchByRowIdsArrowResponse>() {
+                    @Override
+                    public org.opensearch.analytics.exec.action.FetchByRowIdsArrowResponse read(StreamInput in) throws IOException {
+                        return new org.opensearch.analytics.exec.action.FetchByRowIdsArrowResponse(in);
+                    }
+
+                    @Override
+                    public boolean skipsDeserialization() {
+                        return true;
+                    }
+
+                    @Override
+                    public String executor() {
+                        return ThreadPool.Names.SAME;
+                    }
+
+                    @Override
+                    public void handleStreamResponse(
+                        StreamTransportResponse<org.opensearch.analytics.exec.action.FetchByRowIdsArrowResponse> stream
+                    ) {
+                        try {
+                            org.opensearch.analytics.exec.action.FetchByRowIdsArrowResponse current;
+                            org.opensearch.analytics.exec.action.FetchByRowIdsArrowResponse last = null;
+                            while ((current = stream.nextResponse()) != null) {
+                                if (last != null) {
+                                    listener.onStreamResponse(wrapArrowAsResponse(last), false);
+                                }
+                                last = current;
+                            }
+                            if (last != null) {
+                                listener.onStreamResponse(wrapArrowAsResponse(last), true);
+                            }
+                        } catch (Exception e) {
+                            listener.onFailure(e);
+                        } finally {
+                            try {
+                                stream.close();
+                            } catch (Exception ignore) {}
+                        }
+                    }
+
+                    @Override
+                    public void handleResponse(org.opensearch.analytics.exec.action.FetchByRowIdsArrowResponse response) {
+                        listener.onStreamResponse(wrapArrowAsResponse(response), true);
+                    }
+
+                    @Override
+                    public void handleException(TransportException e) {
+                        listener.onFailure(e);
+                    }
+                }
+            );
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
+    }
+
+    private void dispatchFetchNonStreaming(
+        FetchByRowIdsRequest request,
+        DiscoveryNode targetNode,
+        StreamingResponseListener<FetchByRowIdsResponse> listener,
+        Task parentTask
+    ) {
+        try {
+            Transport.Connection connection = getConnection(null, targetNode.getId());
+            transportService.sendChildRequest(
+                connection,
+                FetchByRowIdsAction.NAME,
+                request,
+                parentTask,
+                TransportRequestOptions.EMPTY,
+                new TransportResponseHandler<FetchByRowIdsResponse>() {
+                    @Override
+                    public FetchByRowIdsResponse read(StreamInput in) throws IOException {
+                        return new FetchByRowIdsResponse(in);
+                    }
+
+                    @Override
+                    public String executor() {
+                        return ThreadPool.Names.SAME;
+                    }
+
+                    @Override
+                    public void handleResponse(FetchByRowIdsResponse response) {
+                        listener.onStreamResponse(response, true);
+                    }
+
+                    @Override
+                    public void handleException(TransportException e) {
+                        listener.onFailure(e);
+                    }
+                }
+            );
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
+    }
+
+    private static FetchByRowIdsResponse wrapArrowAsResponse(org.opensearch.analytics.exec.action.FetchByRowIdsArrowResponse arrowResp) {
+        // For the streaming path, wrap the Arrow batch as IPC bytes for uniform handling
+        // in LateMaterializationStageExecution's assembler. TODO: pass VectorSchemaRoot directly.
+        org.apache.arrow.vector.VectorSchemaRoot root = arrowResp.getRoot();
+        if (root == null) return new FetchByRowIdsResponse(new byte[0], 0);
+        try {
+            java.io.ByteArrayOutputStream baos = new java.io.ByteArrayOutputStream();
+            org.apache.arrow.vector.ipc.WriteChannel channel = new org.apache.arrow.vector.ipc.WriteChannel(
+                java.nio.channels.Channels.newChannel(baos)
+            );
+            org.apache.arrow.vector.ipc.message.MessageSerializer.serialize(channel, root.getSchema());
+            try (
+                org.apache.arrow.vector.ipc.message.ArrowRecordBatch batch = new org.apache.arrow.vector.VectorUnloader(root)
+                    .getRecordBatch()
+            ) {
+                org.apache.arrow.vector.ipc.message.MessageSerializer.serialize(channel, batch);
+            }
+            org.apache.arrow.vector.ipc.ArrowStreamWriter.writeEndOfStream(channel, org.apache.arrow.vector.ipc.message.IpcOption.DEFAULT);
+            return new FetchByRowIdsResponse(baos.toByteArray(), root.getRowCount());
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to serialize Arrow batch to IPC", e);
+        } finally {
+            root.close();
+        }
+    }
+
     Transport.Connection getConnection(String clusterAlias, String nodeId) {
         DiscoveryNode node = clusterService.state().nodes().get(nodeId);
         return transportService.getConnection(node);
@@ -116,15 +356,56 @@ public class AnalyticsSearchTransportService {
         Task parentTask,
         PendingExecutions pending
     ) {
-        TransportResponseHandler<FragmentExecutionArrowResponse> handler = new TransportResponseHandler<>() {
+        dispatchFragment(
+            request,
+            targetNode,
+            listener,
+            parentTask,
+            pending,
+            in -> new FragmentExecutionArrowResponse(in),
+            TransportRequestOptions.builder().withType(TransportRequestOptions.Type.STREAM).build(),
+            true
+        );
+    }
+
+    public void dispatchFragment(
+        FragmentExecutionRequest request,
+        DiscoveryNode targetNode,
+        StreamingResponseListener<FragmentExecutionResponse> listener,
+        Task parentTask,
+        PendingExecutions pending
+    ) {
+        dispatchFragment(
+            request,
+            targetNode,
+            listener,
+            parentTask,
+            pending,
+            in -> new FragmentExecutionResponse(in),
+            TransportRequestOptions.EMPTY,
+            false
+        );
+    }
+
+    private <T extends ActionResponse> void dispatchFragment(
+        FragmentExecutionRequest request,
+        DiscoveryNode targetNode,
+        StreamingResponseListener<T> listener,
+        Task parentTask,
+        PendingExecutions pending,
+        Writeable.Reader<T> reader,
+        TransportRequestOptions options,
+        boolean skipsDeserialization
+    ) {
+        TransportResponseHandler<T> handler = new TransportResponseHandler<>() {
             @Override
-            public FragmentExecutionArrowResponse read(StreamInput in) throws IOException {
-                return new FragmentExecutionArrowResponse(in);
+            public T read(StreamInput in) throws IOException {
+                return reader.read(in);
             }
 
             @Override
             public boolean skipsDeserialization() {
-                return true;
+                return skipsDeserialization;
             }
 
             @Override
@@ -133,10 +414,10 @@ public class AnalyticsSearchTransportService {
             }
 
             @Override
-            public void handleStreamResponse(StreamTransportResponse<FragmentExecutionArrowResponse> stream) {
+            public void handleStreamResponse(StreamTransportResponse<T> stream) {
                 try {
-                    FragmentExecutionArrowResponse current;
-                    FragmentExecutionArrowResponse last = null;
+                    T current;
+                    T last = null;
                     while ((current = stream.nextResponse()) != null) {
                         if (last != null) {
                             listener.onStreamResponse(last, false);
@@ -157,12 +438,9 @@ public class AnalyticsSearchTransportService {
             }
 
             @Override
-            public void handleResponse(FragmentExecutionArrowResponse response) {
-                try {
-                    listener.onStreamResponse(response, true);
-                } finally {
-                    pending.finishAndRunNext();
-                }
+            public void handleResponse(T response) {
+                listener.onStreamResponse(response, true);
+                pending.finishAndRunNext();
             }
 
             @Override
@@ -175,7 +453,6 @@ public class AnalyticsSearchTransportService {
             }
         };
 
-        TransportRequestOptions options = TransportRequestOptions.builder().withType(TransportRequestOptions.Type.STREAM).build();
         pending.tryRun(() -> {
             try {
                 Transport.Connection connection = getConnection(null, targetNode.getId());

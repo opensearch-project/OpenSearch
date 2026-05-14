@@ -16,11 +16,14 @@ import org.opensearch.analytics.exec.QueryContext;
 import org.opensearch.analytics.exec.StreamingResponseListener;
 import org.opensearch.analytics.exec.action.FragmentExecutionArrowResponse;
 import org.opensearch.analytics.exec.action.FragmentExecutionRequest;
+import org.opensearch.analytics.exec.action.FragmentExecutionResponse;
 import org.opensearch.analytics.planner.dag.ExecutionTarget;
 import org.opensearch.analytics.planner.dag.ShardExecutionTarget;
 import org.opensearch.analytics.planner.dag.Stage;
 import org.opensearch.analytics.spi.ExchangeSink;
+import org.opensearch.arrow.flight.transport.ArrowBatchResponse;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.core.action.ActionResponse;
 
 import java.util.List;
 import java.util.Map;
@@ -29,16 +32,17 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 
 /**
- * Leaf stage execution that dispatches fragment work to data-node shards via
- * Arrow streaming, feeding resulting batches into the parent stage's
- * {@link ExchangeSink}.
+ * Leaf stage execution that dispatches fragment work to data-node shards.
+ *
+ * <p>Handles both Arrow streaming and row (codec-decoded) responses, feeding
+ * resulting batches into the parent stage's {@link ExchangeSink}.
  *
  * <p>One-shot: constructed, {@link #start()} called once, listener
  * signaled on completion, then discarded.
  *
  * @opensearch.internal
  */
-final class ShardFragmentStageExecution extends AbstractStageExecution implements DataProducer {
+public final class ShardFragmentStageExecution extends AbstractStageExecution implements DataProducer {
 
     private final AtomicInteger inFlight = new AtomicInteger(0);
 
@@ -47,7 +51,11 @@ final class ShardFragmentStageExecution extends AbstractStageExecution implement
     private final ClusterService clusterService;
     private final Function<ShardExecutionTarget, FragmentExecutionRequest> requestBuilder;
     private final AnalyticsSearchTransportService dispatcher;
+    private final ResponseCodec<FragmentExecutionResponse> responseCodec;
     private final Map<String, PendingExecutions> pendingPerNode = new ConcurrentHashMap<>();
+
+    // QTF: ordinal → target mapping so coordinator can dispatch fetches to the right shard/node.
+    private final List<ShardExecutionTarget> resolvedTargets = new java.util.ArrayList<>();
 
     ShardFragmentStageExecution(
         Stage stage,
@@ -55,7 +63,8 @@ final class ShardFragmentStageExecution extends AbstractStageExecution implement
         ExchangeSink outputSink,
         ClusterService clusterService,
         Function<ShardExecutionTarget, FragmentExecutionRequest> requestBuilder,
-        AnalyticsSearchTransportService dispatcher
+        AnalyticsSearchTransportService dispatcher,
+        ResponseCodec<FragmentExecutionResponse> responseCodec
     ) {
         super(stage);
         this.config = config;
@@ -63,6 +72,11 @@ final class ShardFragmentStageExecution extends AbstractStageExecution implement
         this.clusterService = clusterService;
         this.requestBuilder = requestBuilder;
         this.dispatcher = dispatcher;
+        this.responseCodec = responseCodec;
+    }
+
+    private boolean useArrowStreaming() {
+        return dispatcher.isStreamingEnabled();
     }
 
     @Override
@@ -75,43 +89,58 @@ final class ShardFragmentStageExecution extends AbstractStageExecution implement
         if (transitionTo(StageExecution.State.RUNNING) == false) return;
         inFlight.set(resolved.size());
         for (ExecutionTarget target : resolved) {
-            dispatchShardTask((ShardExecutionTarget) target);
+            resolvedTargets.add((ShardExecutionTarget) target);
+        }
+        // Populate context targets BEFORE dispatch (local dispatch is synchronous)
+        if (stage.isInjectShardOrdinal()) {
+            config.getResolvedShardTargets().addAll(resolvedTargets);
+        }
+        for (int i = 0; i < resolvedTargets.size(); i++) {
+            dispatchShardTask(resolvedTargets.get(i), i);
         }
     }
 
-    private void dispatchShardTask(ShardExecutionTarget target) {
+    private void dispatchShardTask(ShardExecutionTarget target, int shardOrdinal) {
         FragmentExecutionRequest request = requestBuilder.apply(target);
         PendingExecutions pending = pendingFor(target);
-        dispatcher.dispatchFragmentStreaming(request, target.node(), responseListener(), config.parentTask(), pending);
+        if (useArrowStreaming()) {
+            dispatcher.dispatchFragmentStreaming(
+                request,
+                target.node(),
+                responseListener(FragmentExecutionArrowResponse::getRoot, shardOrdinal),
+                config.parentTask(),
+                pending
+            );
+        } else {
+            dispatcher.dispatchFragment(
+                request,
+                target.node(),
+                responseListener(r -> responseCodec.decode(r, config.bufferAllocator()), shardOrdinal),
+                config.parentTask(),
+                pending
+            );
+        }
     }
 
-    private StreamingResponseListener<FragmentExecutionArrowResponse> responseListener() {
+    private <T extends ActionResponse> StreamingResponseListener<T> responseListener(
+        Function<T, VectorSchemaRoot> toVsr,
+        int shardOrdinal
+    ) {
         return new StreamingResponseListener<>() {
-            // Runs inline on the per-stream virtual thread driving handleStreamResponse.
-            // Must NOT offload to a thread pool: reordering across batches would let the
-            // isLast=true task race ahead, flip state to SUCCEEDED, and drop queued
-            // earlier batches via the isDone() short-circuit.
             @Override
-            public void onStreamResponse(FragmentExecutionArrowResponse response, boolean isLast) {
+            public void onStreamResponse(T response, boolean isLast) {
                 if (isDone()) {
-                    VectorSchemaRoot root = response.getRoot();
-                    if (root != null) {
-                        root.close();
-                    }
+                    releaseResponseResources(response);
                     return;
                 }
 
-                VectorSchemaRoot vsr = response.getRoot();
-                try {
-                    outputSink.feed(vsr);
-                } catch (Exception e) {
-                    // Without this guard the exception only surfaces on the stream's virtual
-                    // thread; inFlight never decrements and the stage hangs to QUERY_TIMEOUT.
-                    captureFailure(new RuntimeException("Stage " + stage.getStageId() + " sink feed failed", e));
-                    metrics.incrementTasksFailed();
-                    onShardTerminated();
-                    return;
+                VectorSchemaRoot vsr = toVsr.apply(response);
+
+                if (stage.isInjectShardOrdinal()) {
+                    vsr = injectShardId(vsr, shardOrdinal);
                 }
+
+                outputSink.feed(vsr);
                 metrics.addRowsProcessed(vsr.getRowCount());
 
                 if (isLast) {
@@ -127,6 +156,12 @@ final class ShardFragmentStageExecution extends AbstractStageExecution implement
                 onShardTerminated();
             }
         };
+    }
+
+    private static <T> void releaseResponseResources(T response) {
+        if (response instanceof ArrowBatchResponse arrowResp && arrowResp.getRoot() != null) {
+            arrowResp.getRoot().close();
+        }
     }
 
     private void onShardTerminated() {
@@ -154,6 +189,11 @@ final class ShardFragmentStageExecution extends AbstractStageExecution implement
         throw new UnsupportedOperationException("outputSink does not implement ExchangeSource");
     }
 
+    /** QTF: returns the ordered list of shard targets for fetch dispatch. */
+    public List<ShardExecutionTarget> getResolvedTargets() {
+        return java.util.Collections.unmodifiableList(resolvedTargets);
+    }
+
     private boolean isDone() {
         StageExecution.State s = getState();
         return s == StageExecution.State.SUCCEEDED || s == StageExecution.State.FAILED || s == StageExecution.State.CANCELLED;
@@ -161,5 +201,25 @@ final class ShardFragmentStageExecution extends AbstractStageExecution implement
 
     private PendingExecutions pendingFor(ShardExecutionTarget target) {
         return pendingPerNode.computeIfAbsent(target.node().getId(), n -> new PendingExecutions(config.maxConcurrentShardRequests()));
+    }
+
+    /**
+     * QTF: Inject a shard_id column into the Arrow batch so the coordinator
+     * can track which shard each row came from after the reduce merge.
+     */
+    private static VectorSchemaRoot injectShardId(VectorSchemaRoot batch, int shardId) {
+        org.apache.arrow.vector.IntVector shardIdVector = new org.apache.arrow.vector.IntVector(
+            "shard_id",
+            batch.getFieldVectors().get(0).getAllocator()
+        );
+        shardIdVector.allocateNew(batch.getRowCount());
+        for (int i = 0; i < batch.getRowCount(); i++) {
+            shardIdVector.set(i, shardId);
+        }
+        shardIdVector.setValueCount(batch.getRowCount());
+
+        java.util.List<org.apache.arrow.vector.FieldVector> vectors = new java.util.ArrayList<>(batch.getFieldVectors());
+        vectors.add(shardIdVector);
+        return new VectorSchemaRoot(vectors);
     }
 }

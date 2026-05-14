@@ -44,6 +44,7 @@ public class QueryContext {
     private final List<AnalyticsOperationListener> operationListeners;
     private volatile BufferAllocator bufferAllocator;
     private boolean closed;  // guarded by `this`
+    private final List<org.opensearch.analytics.planner.dag.ShardExecutionTarget> resolvedShardTargets = new java.util.ArrayList<>();
 
     public QueryContext(QueryDAG dag, Executor searchExecutor, AnalyticsQueryTask parentTask) {
         this(dag, searchExecutor, parentTask, DEFAULT_MAX_CONCURRENT_SHARD_REQUESTS, DEFAULT_PER_QUERY_MEMORY_LIMIT, List.of());
@@ -142,6 +143,10 @@ public class QueryContext {
                 bufferAllocator = null;
             }
         }
+    }
+
+    public List<org.opensearch.analytics.planner.dag.ShardExecutionTarget> getResolvedShardTargets() {
+        return resolvedShardTargets;
     }
 
     // ─── Test factories ────────────────────────────────────────────────
