@@ -254,7 +254,7 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
             withAggregationPhase(wrapper, Expression.AggregationPhase.INITIAL_TO_INTERMEDIATE),
             fieldNames(partialAggFragment)
         );
-        return serializePlan(rewired);
+        return serializePlan(SubstraitPlanRewriter.rewrite(rewired));
     }
 
     @Override
@@ -277,7 +277,14 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         // the visitor still walks them top-down to build the wrapper rel.
         RelNode rewritten = rewriteStageInputScans(fragment);
         Rel wrapper = convertStandalone(rewritten);
-        return serializePlan(rewire(inner, wrapper, fieldNames(fragment)));
+        // SubstraitPlanRewriter must run on the assembled wrapper-over-inner plan, not
+        // just on the inner bytes (those came in already rewritten from the leaf path).
+        // The wrapper rel was just produced by isthmus and carries un-rewritten literals
+        // (e.g. timestamp precision 6 vs Parquet's 3) — without this pass the rewritten
+        // inner gets reattached under a non-rewritten wrapper, leaving the new wrapper
+        // expressions out of sync with the rest of the plan and tripping DataFusion at
+        // execution time. Same fix applied to attachPartialAggOnTop.
+        return serializePlan(SubstraitPlanRewriter.rewrite(rewire(inner, wrapper, fieldNames(fragment))));
     }
 
     // ── Core conversion helpers ─────────────────────────────────────────────────
@@ -336,17 +343,18 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
     /**
      * Rewires the Substrait {@code wrapper} rel to sit above the root relation of
      * {@code inner}. Returns a new {@link Plan} whose single root is
-     * {@code wrapper(inner.root)}. Supports the known single-input wrappers emitted
-     * by our four SPI methods ({@link Aggregate}, {@link Sort}, {@link Filter},
-     * {@link Project}).
+     * {@code wrapper(inner.root)} with {@code wrapperNames} attached as the root's
+     * names list. Supports the known single-input wrappers emitted by our SPI
+     * methods ({@link Aggregate}, {@link Sort}, {@link Filter}, {@link Project},
+     * {@link Fetch}).
      *
-     * <p>{@code wrapperNames} must be the wrapper's output column names — typically
-     * derived from the wrapper {@link RelNode}'s row type. For schema-preserving
-     * wrappers (Sort, Filter, Fetch) these match the inner plan's names; for
-     * schema-reshaping wrappers (Aggregate, Project) they don't, and using the
-     * inner's names there causes DataFusion's substrait consumer to reject the
-     * Plan with a "Names list must match exactly to nested schema" error in
-     * {@code make_renamed_schema}.
+     * <p>{@code wrapperNames} must describe the wrapper's output schema — one entry
+     * per leaf field in the wrapper's row type. For schema-preserving wrappers
+     * (Sort, Filter, Fetch) these match the inner plan's names; for schema-reshaping
+     * wrappers (Aggregate, Project) they don't. Using the inner's names where the
+     * wrapper reshapes the schema causes DataFusion to reject the Plan with
+     * "Names list must match exactly to nested schema" — surfaces with
+     * Aggregate-over-Join over exchange-gathered Scan.
      */
     static Plan rewire(Plan inner, Rel wrapper, List<String> wrapperNames) {
         if (inner.getRoots().isEmpty()) {
@@ -358,7 +366,7 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         return Plan.builder().addRoots(Plan.Root.builder().input(rewired).names(wrapperNames).build()).build();
     }
 
-    /** Extracts a wrapper's output column names from its Calcite row type. */
+    /** Wrapper's output column names from its Calcite row type. */
     private static List<String> fieldNames(RelNode fragment) {
         return fragment.getRowType().getFieldList().stream().map(RelDataTypeField::getName).toList();
     }
