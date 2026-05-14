@@ -139,7 +139,7 @@ public class BlockCacheFoyerPlugin extends Plugin implements BlockCacheProvider 
 
         final Settings settings = clusterService.getSettings();
         final long blockSizeBytes = FoyerBlockCacheSettings.BLOCK_SIZE_SETTING.get(settings).getBytes();
-        final String ioEngine     = FoyerBlockCacheSettings.IO_ENGINE_SETTING.get(settings);
+        final String ioEngine = FoyerBlockCacheSettings.IO_ENGINE_SETTING.get(settings);
         // Use the exact capacity reserved by NodeCacheOrchestrator during budget phase.
         final long diskCapacityBytes = reservedCapacityBytes;
 
@@ -162,7 +162,9 @@ public class BlockCacheFoyerPlugin extends Plugin implements BlockCacheProvider 
         }
         logger.info(
             "BlockCacheFoyerPlugin created FoyerBlockCache (diskDir={}, blockSize={}, ioEngine={})",
-            diskDir, blockSizeBytes, ioEngine
+            diskDir,
+            blockSizeBytes,
+            ioEngine
         );
         return List.of(cache);
     }

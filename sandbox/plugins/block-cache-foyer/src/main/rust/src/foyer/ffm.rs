@@ -10,7 +10,7 @@
 
 use std::sync::Arc;
 use native_bridge_common::ffm_safe;
-use crate::foyer::foyer_cache::FoyerCache;
+use crate::foyer_cache::FoyerCache;
 
 /// Create a [`FoyerCache`] and return an opaque `Arc` handle as `i64`.
 ///

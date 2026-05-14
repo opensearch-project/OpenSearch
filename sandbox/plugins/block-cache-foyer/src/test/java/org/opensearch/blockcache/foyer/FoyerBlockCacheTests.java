@@ -21,10 +21,7 @@ public class FoyerBlockCacheTests extends OpenSearchTestCase {
     // ── diskBytes validation ──────────────────────────────────────────────────
 
     public void testConstructorThrowsWhenDiskBytesIsZero() {
-        IllegalArgumentException ex = expectThrows(
-            IllegalArgumentException.class,
-            () -> new FoyerBlockCache(0L, "/tmp/cache", 1L, "auto")
-        );
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> new FoyerBlockCache(0L, "/tmp/cache", 1L, "auto"));
         assertTrue("message should mention diskBytes", ex.getMessage().contains("diskBytes"));
     }
 
@@ -39,36 +36,24 @@ public class FoyerBlockCacheTests extends OpenSearchTestCase {
     // ── diskDir validation ────────────────────────────────────────────────────
 
     public void testConstructorThrowsWhenDiskDirIsNull() {
-        NullPointerException ex = expectThrows(
-            NullPointerException.class,
-            () -> new FoyerBlockCache(1L, null, 1L, "auto")
-        );
+        NullPointerException ex = expectThrows(NullPointerException.class, () -> new FoyerBlockCache(1L, null, 1L, "auto"));
         assertTrue("message should mention diskDir", ex.getMessage().contains("diskDir"));
     }
 
     public void testConstructorThrowsWhenDiskDirIsBlank() {
-        IllegalArgumentException ex = expectThrows(
-            IllegalArgumentException.class,
-            () -> new FoyerBlockCache(1L, "   ", 1L, "auto")
-        );
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> new FoyerBlockCache(1L, "   ", 1L, "auto"));
         assertTrue(ex.getMessage().contains("diskDir"));
     }
 
     public void testConstructorThrowsWhenDiskDirIsEmptyString() {
-        IllegalArgumentException ex = expectThrows(
-            IllegalArgumentException.class,
-            () -> new FoyerBlockCache(1L, "", 1L, "auto")
-        );
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> new FoyerBlockCache(1L, "", 1L, "auto"));
         assertTrue(ex.getMessage().contains("diskDir"));
     }
 
     // ── blockSizeBytes validation ─────────────────────────────────────────────
 
     public void testConstructorThrowsWhenBlockSizeBytesIsZero() {
-        IllegalArgumentException ex = expectThrows(
-            IllegalArgumentException.class,
-            () -> new FoyerBlockCache(1L, "/tmp/cache", 0L, "auto")
-        );
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> new FoyerBlockCache(1L, "/tmp/cache", 0L, "auto"));
         assertTrue("message should mention blockSizeBytes", ex.getMessage().contains("blockSizeBytes"));
     }
 
@@ -83,10 +68,7 @@ public class FoyerBlockCacheTests extends OpenSearchTestCase {
     // ── ioEngine validation ───────────────────────────────────────────────────
 
     public void testConstructorThrowsWhenIoEngineIsNull() {
-        NullPointerException ex = expectThrows(
-            NullPointerException.class,
-            () -> new FoyerBlockCache(1L, "/tmp/cache", 1L, null)
-        );
+        NullPointerException ex = expectThrows(NullPointerException.class, () -> new FoyerBlockCache(1L, "/tmp/cache", 1L, null));
         assertTrue("message should mention ioEngine", ex.getMessage().contains("ioEngine"));
     }
 
@@ -120,10 +102,7 @@ public class FoyerBlockCacheTests extends OpenSearchTestCase {
      */
     public void testDiskBytesGuardFiresBeforeDiskDirNullCheck() {
         // zero diskBytes + null diskDir: first guard (diskBytes) should fire
-        IllegalArgumentException ex = expectThrows(
-            IllegalArgumentException.class,
-            () -> new FoyerBlockCache(0L, null, 1L, "auto")
-        );
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> new FoyerBlockCache(0L, null, 1L, "auto"));
         assertTrue(ex.getMessage().contains("diskBytes"));
     }
 }

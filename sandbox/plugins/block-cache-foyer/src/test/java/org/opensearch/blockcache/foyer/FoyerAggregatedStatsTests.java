@@ -24,13 +24,26 @@ import org.opensearch.test.OpenSearchTestCase;
 public class FoyerAggregatedStatsTests extends OpenSearchTestCase {
 
     private static long[] buf(
-        long hc0, long hb0, long mc0, long mb0, long ec0, long eb0, long ub0,
-        long hc1, long hb1, long mc1, long mb1, long ec1, long eb1, long ub1) {
-        return new long[]{hc0,hb0,mc0,mb0,ec0,eb0,ub0, hc1,hb1,mc1,mb1,ec1,eb1,ub1};
+        long hc0,
+        long hb0,
+        long mc0,
+        long mb0,
+        long ec0,
+        long eb0,
+        long ub0,
+        long hc1,
+        long hb1,
+        long mc1,
+        long mb1,
+        long ec1,
+        long eb1,
+        long ub1
+    ) {
+        return new long[] { hc0, hb0, mc0, mb0, ec0, eb0, ub0, hc1, hb1, mc1, mb1, ec1, eb1, ub1 };
     }
 
-    private static long[] uniform(long hc,long hb,long mc,long mb,long ec,long eb,long ub) {
-        return buf(hc,hb,mc,mb,ec,eb,ub, hc,hb,mc,mb,ec,eb,ub);
+    private static long[] uniform(long hc, long hb, long mc, long mb, long ec, long eb, long ub) {
+        return buf(hc, hb, mc, mb, ec, eb, ub, hc, hb, mc, mb, ec, eb, ub);
     }
 
     // ── Non-null guarantees ───────────────────────────────────────────────────
@@ -50,37 +63,49 @@ public class FoyerAggregatedStatsTests extends OpenSearchTestCase {
     // ── overallStats field mapping (one-hot) ──────────────────────────────────
 
     public void testHitCountFromIndex0() {
-        assertEquals(42L, FoyerAggregatedStats.snapshot(buf(42,0,0,0,0,0,0, 0,0,0,0,0,0,0), 1L).overallStats().hits());
+        assertEquals(42L, FoyerAggregatedStats.snapshot(buf(42, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0), 1L).overallStats().hits());
     }
+
     public void testHitBytesFromIndex1() {
-        assertEquals(1024L, FoyerAggregatedStats.snapshot(buf(0,1024,0,0,0,0,0, 0,0,0,0,0,0,0), 1L).overallStats().hitBytes());
+        assertEquals(1024L, FoyerAggregatedStats.snapshot(buf(0, 1024, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0), 1L).overallStats().hitBytes());
     }
+
     public void testMissCountFromIndex2() {
-        assertEquals(7L, FoyerAggregatedStats.snapshot(buf(0,0,7,0,0,0,0, 0,0,0,0,0,0,0), 1L).overallStats().misses());
+        assertEquals(7L, FoyerAggregatedStats.snapshot(buf(0, 0, 7, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0), 1L).overallStats().misses());
     }
+
     public void testMissBytesFromIndex3() {
-        assertEquals(512L, FoyerAggregatedStats.snapshot(buf(0,0,0,512,0,0,0, 0,0,0,0,0,0,0), 1L).overallStats().missBytes());
+        assertEquals(512L, FoyerAggregatedStats.snapshot(buf(0, 0, 0, 512, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0), 1L).overallStats().missBytes());
     }
+
     public void testEvictionCountFromIndex4() {
-        assertEquals(3L, FoyerAggregatedStats.snapshot(buf(0,0,0,0,3,0,0, 0,0,0,0,0,0,0), 1L).overallStats().evictions());
+        assertEquals(3L, FoyerAggregatedStats.snapshot(buf(0, 0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0), 1L).overallStats().evictions());
     }
+
     public void testEvictionBytesFromIndex5() {
-        assertEquals(2048L, FoyerAggregatedStats.snapshot(buf(0,0,0,0,0,2048,0, 0,0,0,0,0,0,0), 1L).overallStats().evictionBytes());
+        assertEquals(
+            2048L,
+            FoyerAggregatedStats.snapshot(buf(0, 0, 0, 0, 0, 2048, 0, 0, 0, 0, 0, 0, 0, 0), 1L).overallStats().evictionBytes()
+        );
     }
+
     public void testUsedBytesFromIndex6() {
-        assertEquals(999L, FoyerAggregatedStats.snapshot(buf(0,0,0,0,0,0,999, 0,0,0,0,0,0,0), 1L).overallStats().diskBytesUsed());
+        assertEquals(
+            999L,
+            FoyerAggregatedStats.snapshot(buf(0, 0, 0, 0, 0, 0, 999, 0, 0, 0, 0, 0, 0, 0), 1L).overallStats().diskBytesUsed()
+        );
     }
 
     // ── blockLevelStats section isolation ─────────────────────────────────────
 
     public void testBlockLevelReadsFromSection1() {
-        FoyerAggregatedStats s = FoyerAggregatedStats.snapshot(buf(10,0,0,0,0,0,0, 99,0,0,0,0,0,0), 1L);
+        FoyerAggregatedStats s = FoyerAggregatedStats.snapshot(buf(10, 0, 0, 0, 0, 0, 0, 99, 0, 0, 0, 0, 0, 0), 1L);
         assertEquals(10L, s.overallStats().hits());
         assertEquals(99L, s.blockLevelStats().hits());
     }
 
     public void testBlockLevelAllFieldsMapped() {
-        long[] raw = buf(0,0,0,0,0,0,0, 11,22,33,44,55,66,77);
+        long[] raw = buf(0, 0, 0, 0, 0, 0, 0, 11, 22, 33, 44, 55, 66, 77);
         BlockCacheStats bl = FoyerAggregatedStats.snapshot(raw, 100L).blockLevelStats();
         assertEquals(11L, bl.hits());
         assertEquals(22L, bl.hitBytes());
@@ -92,9 +117,9 @@ public class FoyerAggregatedStatsTests extends OpenSearchTestCase {
     }
 
     public void testSection0DoesNotAffectSection1() {
-        FoyerAggregatedStats s = FoyerAggregatedStats.snapshot(buf(0,0,0,0,999,0,0, 0,0,0,0,0,0,0), 0L);
+        FoyerAggregatedStats s = FoyerAggregatedStats.snapshot(buf(0, 0, 0, 0, 999, 0, 0, 0, 0, 0, 0, 0, 0, 0), 0L);
         assertEquals(999L, s.overallStats().evictions());
-        assertEquals(0L,   s.blockLevelStats().evictions());
+        assertEquals(0L, s.blockLevelStats().evictions());
     }
 
     // ── capacityBytes ─────────────────────────────────────────────────────────
@@ -102,9 +127,11 @@ public class FoyerAggregatedStatsTests extends OpenSearchTestCase {
     public void testCapacityPassedToOverall() {
         assertEquals(1_073_741_824L, FoyerAggregatedStats.snapshot(new long[14], 1_073_741_824L).overallStats().totalBytes());
     }
+
     public void testCapacityPassedToBlockLevel() {
         assertEquals(1_073_741_824L, FoyerAggregatedStats.snapshot(new long[14], 1_073_741_824L).blockLevelStats().totalBytes());
     }
+
     public void testZeroCapacity() {
         assertEquals(0L, FoyerAggregatedStats.snapshot(new long[14], 0L).overallStats().totalBytes());
     }
@@ -112,33 +139,38 @@ public class FoyerAggregatedStatsTests extends OpenSearchTestCase {
     // ── Foyer-specific zero fields ─────────────────────────────────────────────
 
     public void testMemoryBytesUsedAlwaysZeroOverall() {
-        assertEquals(0L, FoyerAggregatedStats.snapshot(uniform(10,100,5,50,2,20,500), 1000L).overallStats().memoryBytesUsed());
+        assertEquals(0L, FoyerAggregatedStats.snapshot(uniform(10, 100, 5, 50, 2, 20, 500), 1000L).overallStats().memoryBytesUsed());
     }
+
     public void testMemoryBytesUsedAlwaysZeroBlockLevel() {
-        assertEquals(0L, FoyerAggregatedStats.snapshot(uniform(10,100,5,50,2,20,500), 1000L).blockLevelStats().memoryBytesUsed());
+        assertEquals(0L, FoyerAggregatedStats.snapshot(uniform(10, 100, 5, 50, 2, 20, 500), 1000L).blockLevelStats().memoryBytesUsed());
     }
+
     public void testRemovedAlwaysZeroOverall() {
-        assertEquals(0L, FoyerAggregatedStats.snapshot(uniform(10,100,5,50,2,20,500), 1000L).overallStats().removed());
-        assertEquals(0L, FoyerAggregatedStats.snapshot(uniform(10,100,5,50,2,20,500), 1000L).overallStats().removedBytes());
+        assertEquals(0L, FoyerAggregatedStats.snapshot(uniform(10, 100, 5, 50, 2, 20, 500), 1000L).overallStats().removed());
+        assertEquals(0L, FoyerAggregatedStats.snapshot(uniform(10, 100, 5, 50, 2, 20, 500), 1000L).overallStats().removedBytes());
     }
+
     public void testRemovedAlwaysZeroBlockLevel() {
-        assertEquals(0L, FoyerAggregatedStats.snapshot(uniform(10,100,5,50,2,20,500), 1000L).blockLevelStats().removed());
-        assertEquals(0L, FoyerAggregatedStats.snapshot(uniform(10,100,5,50,2,20,500), 1000L).blockLevelStats().removedBytes());
+        assertEquals(0L, FoyerAggregatedStats.snapshot(uniform(10, 100, 5, 50, 2, 20, 500), 1000L).blockLevelStats().removed());
+        assertEquals(0L, FoyerAggregatedStats.snapshot(uniform(10, 100, 5, 50, 2, 20, 500), 1000L).blockLevelStats().removedBytes());
     }
 
     // ── All-zeros ─────────────────────────────────────────────────────────────
 
     public void testAllZeroBuffer() {
         BlockCacheStats s = FoyerAggregatedStats.snapshot(new long[14], 0L).overallStats();
-        assertEquals(0L, s.hits()); assertEquals(0L, s.misses());
-        assertEquals(0L, s.evictions()); assertEquals(0L, s.diskBytesUsed());
+        assertEquals(0L, s.hits());
+        assertEquals(0L, s.misses());
+        assertEquals(0L, s.evictions());
+        assertEquals(0L, s.diskBytesUsed());
     }
 
     // ── Large values ──────────────────────────────────────────────────────────
 
     public void testLargeValuesNoCorruption() {
         long large = Long.MAX_VALUE / 2;
-        BlockCacheStats s = FoyerAggregatedStats.snapshot(uniform(large,large,large,large,large,large,large), large).overallStats();
+        BlockCacheStats s = FoyerAggregatedStats.snapshot(uniform(large, large, large, large, large, large, large), large).overallStats();
         assertEquals(large, s.hits());
         assertEquals(large, s.diskBytesUsed());
         assertEquals(large, s.totalBytes());
@@ -147,18 +179,18 @@ public class FoyerAggregatedStatsTests extends OpenSearchTestCase {
     // ── Complete projection ───────────────────────────────────────────────────
 
     public void testCompleteProjection() {
-        long[] raw = buf(100,1000,10,200,5,500,4096, 0,0,0,0,0,0,0);
+        long[] raw = buf(100, 1000, 10, 200, 5, 500, 4096, 0, 0, 0, 0, 0, 0, 0);
         BlockCacheStats bc = FoyerAggregatedStats.snapshot(raw, 8192L).overallStats();
-        assertEquals(100L,  bc.hits());
+        assertEquals(100L, bc.hits());
         assertEquals(1000L, bc.hitBytes());
-        assertEquals(10L,   bc.misses());
-        assertEquals(200L,  bc.missBytes());
-        assertEquals(5L,    bc.evictions());
-        assertEquals(500L,  bc.evictionBytes());
+        assertEquals(10L, bc.misses());
+        assertEquals(200L, bc.missBytes());
+        assertEquals(5L, bc.evictions());
+        assertEquals(500L, bc.evictionBytes());
         assertEquals(4096L, bc.diskBytesUsed());
         assertEquals(8192L, bc.totalBytes());
-        assertEquals(0L,    bc.memoryBytesUsed());
-        assertEquals(0L,    bc.removed());
-        assertEquals(0L,    bc.removedBytes());
+        assertEquals(0L, bc.memoryBytesUsed());
+        assertEquals(0L, bc.removed());
+        assertEquals(0L, bc.removedBytes());
     }
 }

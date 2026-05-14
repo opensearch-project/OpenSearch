@@ -166,8 +166,9 @@ public final class FoyerBridge {
                 // silently mismap fields, which would corrupt stats.
                 logger.error(
                     "foyer_snapshot_stats: expected {} values but got {}; "
-                    + "Rust snapshot() and Java FoyerAggregatedStats.Field are out of sync",
-                    bufferSize, result.length
+                        + "Rust snapshot() and Java FoyerAggregatedStats.Field are out of sync",
+                    bufferSize,
+                    result.length
                 );
                 return new long[bufferSize];
             }

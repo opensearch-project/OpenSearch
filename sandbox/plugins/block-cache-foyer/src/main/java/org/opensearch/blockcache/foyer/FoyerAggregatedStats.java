@@ -43,6 +43,9 @@ public final class FoyerAggregatedStats {
         static final int COUNT = values().length;
     }
 
+    /** Buffer size for {@link FoyerBridge#snapshotStats}: 2 sections × Field.COUNT values. */
+    static final int STATS_BUFFER_SIZE = Field.COUNT * 2;
+
     /** Cross-tier rollup — section 0 of the FFM buffer. */
     private final BlockCacheStats overallStats;
 
@@ -50,7 +53,7 @@ public final class FoyerAggregatedStats {
     private final BlockCacheStats blockLevelStats;
 
     private FoyerAggregatedStats(BlockCacheStats overallStats, BlockCacheStats blockLevelStats) {
-        this.overallStats    = overallStats;
+        this.overallStats = overallStats;
         this.blockLevelStats = blockLevelStats;
     }
 
@@ -62,10 +65,7 @@ public final class FoyerAggregatedStats {
      * @param capacityBytes configured disk capacity for this cache instance
      */
     public static FoyerAggregatedStats snapshot(long[] raw, long capacityBytes) {
-        return new FoyerAggregatedStats(
-            readSection(raw, 0, capacityBytes),
-            readSection(raw, Field.COUNT, capacityBytes)
-        );
+        return new FoyerAggregatedStats(readSection(raw, 0, capacityBytes), readSection(raw, Field.COUNT, capacityBytes));
     }
 
     private static BlockCacheStats readSection(long[] raw, int offset, long capacityBytes) {

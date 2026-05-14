@@ -54,25 +54,20 @@ public final class FoyerBlockCacheSettings {
      * block_cache.foyer.size: 25%
      * }</pre>
      */
-    public static final Setting<String> CACHE_SIZE_SETTING = new Setting<>(
-        "block_cache.foyer.size",
-        "25%",
-        value -> {
-            try {
-                RatioValue ratio = RatioValue.parseRatioValue(value);
-                if (ratio.getAsRatio() < 0 || ratio.getAsRatio() >= 1.0) {
-                    throw new IllegalArgumentException(
-                        "[block_cache.foyer.size] must be in [0%, 100%); got: " + value);
-                }
-                return value;
-            } catch (Exception e) {
-                throw new IllegalArgumentException(
-                    "[block_cache.foyer.size] must be a percentage (e.g. 25%) or ratio (e.g. 0.25); got: " + value, e);
+    public static final Setting<String> CACHE_SIZE_SETTING = new Setting<>("block_cache.foyer.size", "25%", value -> {
+        try {
+            RatioValue ratio = RatioValue.parseRatioValue(value);
+            if (ratio.getAsRatio() < 0 || ratio.getAsRatio() >= 1.0) {
+                throw new IllegalArgumentException("[block_cache.foyer.size] must be in [0%, 100%); got: " + value);
             }
-        },
-        Setting.Property.NodeScope
-    );
-
+            return value;
+        } catch (Exception e) {
+            throw new IllegalArgumentException(
+                "[block_cache.foyer.size] must be a percentage (e.g. 25%) or ratio (e.g. 0.25); got: " + value,
+                e
+            );
+        }
+    }, Setting.Property.NodeScope);
 
     /**
      * Block size for the Foyer disk tier.
