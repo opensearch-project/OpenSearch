@@ -5569,13 +5569,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 }
 
                 @Override
-                public GatedCloseable<CatalogSnapshot> acquireLastCommittedSnapshot(boolean flushFirst) {
+                public GatedCloseable<CatalogSnapshot> acquireLastCommittedSnapshot(boolean flushFirst) throws IOException {
                     // flushFirst is a no-op on read-only engines — no writer to flush.
                     synchronized (engineMutex) {
-                        if (newEngineReference.get() == null) {
+                        final Indexer ref = newEngineReference.get();
+                        if (ref == null) {
                             throw new AlreadyClosedException("engine was closed");
                         }
-                        return applyOnEngine(newEngineReference.get(), e -> e.acquireLastCommittedSnapshot(false));
+                        return ref.acquireLastCommittedSnapshot(false);
                     }
                 }
 

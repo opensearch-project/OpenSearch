@@ -1294,12 +1294,25 @@ public abstract class Engine implements LifecycleAware, Closeable {
 
     /**
      * Acquires a {@link CatalogSnapshot} pinned to the most recent commit on disk,
-     * regardless of retention policy. Default throws UnsupportedOperationException for engines
-     * that do not support catalog snapshots.
+     * regardless of retention policy. Default wraps {@link #acquireLastIndexCommit(boolean)}.
+     * Propagates {@link IOException} as-is so callers (e.g. shard-store fetch on corrupted
+     * indices) can treat read failures uniformly with the legacy commit path.
      */
     @ExperimentalApi
-    public GatedCloseable<CatalogSnapshot> acquireLastCommittedSnapshot(boolean flushFirst) throws EngineException {
-        throw new UnsupportedOperationException("acquireLastCommittedSnapshot not supported on " + getClass().getSimpleName());
+    public GatedCloseable<CatalogSnapshot> acquireLastCommittedSnapshot(boolean flushFirst) throws EngineException, IOException {
+        final GatedCloseable<IndexCommit> commitRef = acquireLastIndexCommit(flushFirst);
+        try {
+            final SegmentInfos infos = Lucene.readSegmentInfos(commitRef.get());
+            final CatalogSnapshot snapshot = new SegmentInfosCatalogSnapshot(infos);
+            return new GatedCloseable<>(snapshot, commitRef::close);
+        } catch (IOException | RuntimeException e) {
+            try {
+                commitRef.close();
+            } catch (IOException closeEx) {
+                e.addSuppressed(closeEx);
+            }
+            throw e;
+        }
     }
 
     /**

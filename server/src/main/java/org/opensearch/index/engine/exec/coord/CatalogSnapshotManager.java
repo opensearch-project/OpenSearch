@@ -225,10 +225,6 @@ public class CatalogSnapshotManager implements Closeable {
             throw new IllegalStateException("CatalogSnapshotManager is closed");
         }
 
-        // Snapshot generation must advance monotonically — this is the ordering guarantee
-        // that readers and the commit path depend on
-        long prevGen = latestCatalogSnapshot.getGeneration();
-
         for (CatalogSnapshotLifecycleListener listener : snapshotListeners) {
             listener.beforeRefresh();
         }
@@ -259,6 +255,16 @@ public class CatalogSnapshotManager implements Closeable {
             throw e;
         }
 
+        installSnapshot(newSnapshot);
+    }
+
+    /**
+     * Validates snapshot invariants, registers file references, notifies listeners, and swaps
+     * the snapshot as latest. Shared by commitNewSnapshot and applyReplicationSnapshot.
+     */
+    private void installSnapshot(CatalogSnapshot newSnapshot) throws IOException {
+        long prevGen = latestCatalogSnapshot.getGeneration();
+
         // New snapshot generation must be strictly greater than the previous
         assert newSnapshot.getGeneration() > prevGen : "new snapshot generation ["
             + newSnapshot.getGeneration()
@@ -271,6 +277,8 @@ public class CatalogSnapshotManager implements Closeable {
             + "] must be > previous ["
             + latestCatalogSnapshot.getId()
             + "]";
+
+        List<Segment> refreshedSegments = newSnapshot.getSegments();
 
         // Segment generation uniqueness: a generation that appeared in a previous snapshot
         // must not reappear with different files. This prevents generation overlap bugs
@@ -349,22 +357,19 @@ public class CatalogSnapshotManager implements Closeable {
 
     /**
      * Replaces the current snapshot with one received from the primary via segment replication.
-     * The incoming snapshot is registered with the file deleter (ref counts for its files), then
-     * the manager's prior reference is released. Replica-only: does not go through a commit.
+     * Replica-only: does not fire beforeRefresh/afterRefresh since the catalog snapshot
+     * should only become visible after readers are notified by the engine. Idempotent —
+     * a resend of the same (or older) generation is a no-op.
      */
-    public synchronized void applyReplicationSnapshot(CatalogSnapshot incoming) {
+    public synchronized void applyReplicationSnapshot(CatalogSnapshot incoming) throws IOException {
         if (closed.get()) {
             throw new IllegalStateException("CatalogSnapshotManager is closed");
         }
-        try {
-            indexFileDeleter.addFileReferences(incoming);
-        } catch (IOException e) {
-            throw new RuntimeException("Failed to add file references for replicated snapshot [gen=" + incoming.getGeneration() + "]", e);
+        if (incoming.getGeneration() <= latestCatalogSnapshot.getGeneration()) {
+            // Resend of an already-applied snapshot — skip to keep the call idempotent.
+            return;
         }
-        catalogSnapshotMap.put(incoming.getGeneration(), incoming);
-        CatalogSnapshot previous = latestCatalogSnapshot;
-        latestCatalogSnapshot = incoming;
-        decRefAndMaybeDelete(previous);
+        installSnapshot(incoming);
     }
 
     // ---- Acquire path ----
