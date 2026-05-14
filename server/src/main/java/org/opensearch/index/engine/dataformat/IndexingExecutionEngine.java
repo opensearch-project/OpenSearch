@@ -122,11 +122,4 @@ public interface IndexingExecutionEngine<T extends DataFormat, P extends Documen
     default Map<DataFormat, EngineReaderManager<?>> buildReaderManager(ReaderManagerConfig config) throws IOException {
         return config.registry().getReaderManager(config);
     }
-
-    /**
-     * Returns the deleter for this engine, or {@code null} if deletes are not supported.
-     */
-    default Deleter getDeleter() {
-        return null;
-    }
 }

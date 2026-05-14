@@ -375,7 +375,7 @@ public class DataFormatAwareEngine implements Indexer {
                     assert gen > 0 : "merge generation must be positive but was: " + gen;
                     return gen;
                 },
-                indexingExecutionEngine.getDeleter()
+                deleteExecutionEngine
             );
             this.mergeScheduler = new MergeScheduler(
                 mergeHandler,

@@ -525,3 +525,110 @@ pub unsafe extern "C" fn parquet_read_as_json(
     *out_len = bytes.len() as i64;
     Ok(0)
 }
+
+// ---------------------------------------------------------------------------
+// Tests
+// ---------------------------------------------------------------------------
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // ===== live_bits_array_from_raw =====
+
+    #[test]
+    fn live_bits_array_from_raw_zero_count_returns_empty() {
+        let result = unsafe { live_bits_array_from_raw(std::ptr::null(), std::ptr::null(), 0) };
+        assert!(result.is_empty());
+    }
+
+    #[test]
+    fn live_bits_array_from_raw_null_lens_returns_empty() {
+        let invalid_ptr: *const i64 = usize::MAX as *const i64;
+        let invalid_ptrs: *const *const i64 = &invalid_ptr;
+        let result = unsafe { live_bits_array_from_raw(invalid_ptrs, std::ptr::null(), 1) };
+        assert!(result.is_empty());
+    }
+
+    #[test]
+    fn live_bits_array_from_raw_decodes_single_input() {
+        let bits: Vec<i64> = vec![0xFFFF_FFFF_FFFF_FFFEu64 as i64];
+        let ptr = bits.as_ptr();
+        let ptrs: Vec<*const i64> = vec![ptr];
+        let lens: Vec<i64> = vec![bits.len() as i64];
+
+        let result = unsafe { live_bits_array_from_raw(ptrs.as_ptr(), lens.as_ptr(), 1) };
+
+        assert_eq!(result.len(), 1);
+        let decoded = result[0].as_ref().expect("expected non-None entry");
+        assert_eq!(decoded.len(), 1);
+        // i64 0xFFFF_FFFF_FFFF_FFFE reinterpreted as u64 ⇒ 0xFFFF_FFFF_FFFF_FFFE
+        assert_eq!(decoded[0], 0xFFFF_FFFF_FFFF_FFFEu64);
+    }
+
+    #[test]
+    fn live_bits_array_from_raw_zero_length_entry_yields_none() {
+        let lens: Vec<i64> = vec![0];
+        let ptrs: Vec<*const i64> = vec![std::ptr::null()];
+
+        let result = unsafe { live_bits_array_from_raw(ptrs.as_ptr(), lens.as_ptr(), 1) };
+
+        assert_eq!(result.len(), 1);
+        assert!(result[0].is_none());
+    }
+
+    #[test]
+    fn live_bits_array_from_raw_negative_length_entry_yields_none() {
+        let lens: Vec<i64> = vec![-1];
+        let ptrs: Vec<*const i64> = vec![std::ptr::null()];
+
+        let result = unsafe { live_bits_array_from_raw(ptrs.as_ptr(), lens.as_ptr(), 1) };
+
+        assert_eq!(result.len(), 1);
+        assert!(result[0].is_none());
+    }
+
+    #[test]
+    fn live_bits_array_from_raw_null_inner_ptr_yields_none() {
+        let lens: Vec<i64> = vec![1];
+        let ptrs: Vec<*const i64> = vec![std::ptr::null()];
+
+        let result = unsafe { live_bits_array_from_raw(ptrs.as_ptr(), lens.as_ptr(), 1) };
+
+        assert_eq!(result.len(), 1);
+        assert!(result[0].is_none(), "null pointer with positive length should yield None");
+    }
+
+    #[test]
+    fn live_bits_array_from_raw_mixed_some_none() {
+        let bits_a: Vec<i64> = vec![0x0000_0000_0000_000Fi64];
+        let bits_c: Vec<i64> = vec![0x00FF_FF00_0000_0000u64 as i64];
+
+        let ptrs: Vec<*const i64> = vec![bits_a.as_ptr(), std::ptr::null(), bits_c.as_ptr()];
+        let lens: Vec<i64> = vec![bits_a.len() as i64, 0, bits_c.len() as i64];
+
+        let result = unsafe { live_bits_array_from_raw(ptrs.as_ptr(), lens.as_ptr(), 3) };
+
+        assert_eq!(result.len(), 3);
+        assert!(result[0].is_some());
+        assert!(result[1].is_none(), "middle entry with len=0 should be None");
+        assert!(result[2].is_some());
+        assert_eq!(result[0].as_ref().unwrap()[0], 0x0000_0000_0000_000Fu64);
+        assert_eq!(result[2].as_ref().unwrap()[0], 0x00FF_FF00_0000_0000u64);
+    }
+
+    #[test]
+    fn live_bits_array_from_raw_multi_word_bitmap() {
+        let bits: Vec<i64> = vec![1i64, 0i64, 0x0123_4567i64];
+        let ptrs: Vec<*const i64> = vec![bits.as_ptr()];
+        let lens: Vec<i64> = vec![bits.len() as i64];
+
+        let result = unsafe { live_bits_array_from_raw(ptrs.as_ptr(), lens.as_ptr(), 1) };
+
+        let decoded = result[0].as_ref().expect("expected Some");
+        assert_eq!(decoded.len(), 3);
+        assert_eq!(decoded[0], 1u64);
+        assert_eq!(decoded[1], 0u64);
+        assert_eq!(decoded[2], 0x0123_4567u64);
+    }
+}

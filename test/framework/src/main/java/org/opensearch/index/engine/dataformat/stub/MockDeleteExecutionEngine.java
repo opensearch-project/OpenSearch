@@ -16,8 +16,10 @@ import org.opensearch.index.engine.dataformat.Deleter;
 import org.opensearch.index.engine.dataformat.RefreshInput;
 import org.opensearch.index.engine.dataformat.RefreshResult;
 import org.opensearch.index.engine.dataformat.Writer;
+import org.opensearch.index.engine.exec.Segment;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -57,6 +59,11 @@ public class MockDeleteExecutionEngine implements DeleteExecutionEngine<DataForm
             return deleter.deleteDoc(deleteInput);
         }
         return new DeleteResult.Success(1L, 1L, 1L);
+    }
+
+    @Override
+    public Map<Long, long[]> getLiveDocsForSegments(List<Segment> segments) {
+        return Map.of();
     }
 
     @Override

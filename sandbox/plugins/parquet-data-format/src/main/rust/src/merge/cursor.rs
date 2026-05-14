@@ -45,25 +45,58 @@ pub struct FileCursor {
     pub base_row_id: u64,
 }
 
+/// Returns `true` if `abs_row_id` is alive given the optional `live_bits` packed bitset.
+/// `None` ⇒ all alive; rows beyond `num_rows` or beyond the bitset's length are treated
+/// as alive (defensive — Java-side contract is that absent bits mean "all alive").
+#[inline]
+pub fn is_row_id_alive(live_bits: Option<&[u64]>, num_rows: u64, abs_row_id: u64) -> bool {
+    match live_bits {
+        None => true,
+        Some(bits) => {
+            if abs_row_id >= num_rows {
+                return true;
+            }
+            let word = (abs_row_id / 64) as usize;
+            let bit = (abs_row_id % 64) as u64;
+            match bits.get(word) {
+                Some(&w) => (w & (1u64 << bit)) != 0,
+                None => true,
+            }
+        }
+    }
+}
+
+/// One past the highest live-row index within `[0, batch_upper)` for the batch starting
+/// at `base_row_id`. `None` live_bits ⇒ all alive ⇒ returns `batch_upper`. If no row in
+/// the range is alive, returns 0.
+#[inline]
+pub fn last_live_index_plus_one(
+    live_bits: Option<&[u64]>,
+    num_rows: u64,
+    base_row_id: u64,
+    batch_upper: usize,
+) -> usize {
+    match live_bits {
+        None => batch_upper,
+        Some(_) => {
+            let mut i = batch_upper;
+            while i > 0 {
+                let idx = i - 1;
+                if is_row_id_alive(live_bits, num_rows, base_row_id + idx as u64) {
+                    return i;
+                }
+                i -= 1;
+            }
+            0
+        }
+    }
+}
+
 impl FileCursor {
     /// Returns `true` if the given absolute source row id is alive.
     #[inline]
     pub fn is_row_id_alive(&self, abs_row_id: u64) -> bool {
-        match &self.live_bits {
-            None => true,
-            Some(bits) => {
-                // Bits beyond num_rows / bitset length are treated as alive (defensive).
-                if abs_row_id >= self.num_rows {
-                    return true;
-                }
-                let word = (abs_row_id / 64) as usize;
-                let bit = (abs_row_id % 64) as u64;
-                match bits.get(word) {
-                    Some(&w) => (w & (1u64 << bit)) != 0,
-                    None => true,
-                }
-            }
-        }
+        is_row_id_alive(self.live_bits.as_deref().map(|v| v.as_slice()), self.num_rows, abs_row_id)
     }
 
     /// Opens a Parquet file and creates a cursor positioned at the first live row.
@@ -268,20 +301,12 @@ impl FileCursor {
     /// One past the highest live-row index within `[0, batch_upper)`.
     #[inline]
     fn last_live_index_plus_one(&self, batch_upper: usize) -> usize {
-        match &self.live_bits {
-            None => batch_upper,
-            Some(_) => {
-                let mut i = batch_upper;
-                while i > 0 {
-                    let idx = i - 1;
-                    if self.is_row_id_alive(self.base_row_id + idx as u64) {
-                        return i;
-                    }
-                    i -= 1;
-                }
-                0
-            }
-        }
+        last_live_index_plus_one(
+            self.live_bits.as_deref().map(|v| v.as_slice()),
+            self.num_rows,
+            self.base_row_id,
+            batch_upper,
+        )
     }
 
     #[inline]
@@ -334,5 +359,132 @@ impl FileCursor {
             return Ok(self.current_batch.is_some());
         }
         Ok(true)
+    }
+}
+
+
+// ---------------------------------------------------------------------------
+// Tests
+// ---------------------------------------------------------------------------
+
+#[cfg(test)]
+mod is_row_id_alive_tests {
+    use super::is_row_id_alive;
+
+    #[test]
+    fn none_bits_returns_true_for_any_row() {
+        assert!(is_row_id_alive(None, 0, 0));
+        assert!(is_row_id_alive(None, 100, 0));
+        assert!(is_row_id_alive(None, 100, 99));
+        assert!(is_row_id_alive(None, 100, 1_000_000));
+    }
+
+    #[test]
+    fn bit_zero_alive_and_dead() {
+        let all_alive: Vec<u64> = vec![!0u64];
+        assert!(is_row_id_alive(Some(&all_alive), 64, 0));
+        let row_zero_dead: Vec<u64> = vec![!0u64 & !1u64];
+        assert!(!is_row_id_alive(Some(&row_zero_dead), 64, 0));
+    }
+
+    #[test]
+    fn bit_at_word_boundary_63() {
+        let bits: Vec<u64> = vec![1u64 << 63];
+        assert!(is_row_id_alive(Some(&bits), 64, 63));
+        for r in 0..63 {
+            assert!(!is_row_id_alive(Some(&bits), 64, r), "row {} should be dead", r);
+        }
+    }
+
+    #[test]
+    fn bit_crosses_word_boundary_64() {
+        let bits: Vec<u64> = vec![0u64, 1u64];
+        assert!(is_row_id_alive(Some(&bits), 128, 64));
+        assert!(!is_row_id_alive(Some(&bits), 128, 63));
+        assert!(!is_row_id_alive(Some(&bits), 128, 65));
+    }
+
+    #[test]
+    fn bit_at_word_boundary_127() {
+        let bits: Vec<u64> = vec![0u64, 1u64 << 63];
+        assert!(is_row_id_alive(Some(&bits), 128, 127));
+        assert!(!is_row_id_alive(Some(&bits), 128, 126));
+    }
+
+    #[test]
+    fn out_of_bounds_returns_alive_defensively() {
+        let bits: Vec<u64> = vec![0u64];
+        // num_rows=10 — anything >= 10 must come back alive even though all bits are 0.
+        assert!(is_row_id_alive(Some(&bits), 10, 10));
+        assert!(is_row_id_alive(Some(&bits), 10, 100));
+    }
+
+    #[test]
+    fn short_bitmap_treats_missing_words_as_alive() {
+        // Bitmap covers only 64 bits, but num_rows says 128.
+        let bits: Vec<u64> = vec![0u64];
+        // Row 64 lives in word 1, which is missing.
+        assert!(is_row_id_alive(Some(&bits), 128, 64));
+        // Row 0 is in word 0 and explicitly dead.
+        assert!(!is_row_id_alive(Some(&bits), 128, 0));
+    }
+
+    #[test]
+    fn empty_bitmap_returns_alive_for_all() {
+        let bits: Vec<u64> = vec![];
+        assert!(is_row_id_alive(Some(&bits), 0, 0));
+        assert!(is_row_id_alive(Some(&bits), 100, 0));
+    }
+}
+
+#[cfg(test)]
+mod last_live_index_plus_one_tests {
+    use super::last_live_index_plus_one;
+
+    #[test]
+    fn none_bits_returns_batch_upper() {
+        assert_eq!(last_live_index_plus_one(None, 100, 0, 50), 50);
+        assert_eq!(last_live_index_plus_one(None, 100, 25, 25), 25);
+    }
+
+    #[test]
+    fn empty_batch_returns_zero() {
+        let bits: Vec<u64> = vec![!0u64];
+        assert_eq!(last_live_index_plus_one(Some(&bits), 64, 0, 0), 0);
+    }
+
+    #[test]
+    fn all_rows_alive_returns_batch_upper() {
+        let bits: Vec<u64> = vec![!0u64];
+        assert_eq!(last_live_index_plus_one(Some(&bits), 64, 0, 10), 10);
+    }
+
+    #[test]
+    fn last_row_dead_returns_index_of_previous_alive() {
+        // Rows 0..9 alive, row 10 dead.
+        let bits: Vec<u64> = vec![0x3FFu64];
+        assert_eq!(last_live_index_plus_one(Some(&bits), 64, 0, 11), 10);
+    }
+
+    #[test]
+    fn trailing_dead_rows_skipped() {
+        // Rows 0..4 alive, rows 5..15 dead.
+        let bits: Vec<u64> = vec![0x1Fu64];
+        assert_eq!(last_live_index_plus_one(Some(&bits), 64, 0, 16), 5);
+    }
+
+    #[test]
+    fn all_rows_dead_returns_zero() {
+        let bits: Vec<u64> = vec![0u64];
+        assert_eq!(last_live_index_plus_one(Some(&bits), 64, 0, 10), 0);
+    }
+
+    #[test]
+    fn respects_base_row_id_offset() {
+        // bit at abs row 10 alive, all others dead.
+        let bits: Vec<u64> = vec![1u64 << 10];
+        // Cursor is at base_row_id=5, asking about a 10-row batch ⇒ checks abs rows 5..14.
+        // Last alive in that range is abs 10 (= local idx 5 in this batch). Result is 5+1=6.
+        assert_eq!(last_live_index_plus_one(Some(&bits), 64, 5, 10), 6);
     }
 }

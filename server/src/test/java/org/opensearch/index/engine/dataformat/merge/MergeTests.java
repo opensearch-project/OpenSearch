@@ -14,6 +14,8 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.MergeSchedulerConfig;
+import org.opensearch.index.engine.dataformat.DeleteExecutionEngine;
+import org.opensearch.index.engine.dataformat.MergeInput;
 import org.opensearch.index.engine.dataformat.MergeResult;
 import org.opensearch.index.engine.dataformat.Merger;
 import org.opensearch.index.engine.dataformat.stub.MockDataFormat;
@@ -22,6 +24,7 @@ import org.opensearch.index.engine.exec.WriterFileSet;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.ThreadPool;
+import org.mockito.ArgumentCaptor;
 
 import java.io.IOException;
 import java.lang.reflect.Field;
@@ -42,8 +45,11 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 
 import static org.opensearch.index.IndexSettingsTests.newIndexMeta;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
@@ -319,6 +325,123 @@ public class MergeTests extends OpenSearchTestCase {
         MergeResult result = handler.doMerge(new OneMerge(List.of(seg)));
 
         assertSame(expectedResult, result);
+    }
+
+    public void testDoMergeWithNullDeleteEngineUsesEmptyLiveDocs() throws IOException {
+        Path dir = createTempDir();
+        MockDataFormat format = new MockDataFormat();
+        WriterFileSet inputWfs = new WriterFileSet(dir.toString(), 1L, Set.of("input.dat"), 10);
+        Segment seg = Segment.builder(1L).addSearchableFiles(format, inputWfs).build();
+
+        AtomicReference<MergeInput> captured = new AtomicReference<>();
+        WriterFileSet mergedWfs = new WriterFileSet(dir.toString(), 99L, Set.of("merged.dat"), 10);
+        Merger merger = input -> {
+            captured.set(input);
+            return new MergeResult(Map.of(format, mergedWfs));
+        };
+
+        MergeHandler handler = new MergeHandler(
+            snapshotSupplierOf(List.of(seg)),
+            merger,
+            SHARD_ID,
+            NOOP_MERGE_POLICY,
+            NOOP_MERGE_LISTENER,
+            () -> 1L,
+            null
+        );
+        handler.doMerge(new OneMerge(List.of(seg)));
+
+        assertNotNull(captured.get());
+        assertTrue("null delete engine ⇒ empty live-docs map", captured.get().liveDocsPerSegment().isEmpty());
+    }
+
+    public void testDoMergeCallsDeleteEngineWithMergeSegments() throws IOException {
+        Path dir = createTempDir();
+        MockDataFormat format = new MockDataFormat();
+        Segment seg1 = Segment.builder(1L).addSearchableFiles(format, new WriterFileSet(dir.toString(), 1L, Set.of("a.dat"), 5)).build();
+        Segment seg2 = Segment.builder(2L).addSearchableFiles(format, new WriterFileSet(dir.toString(), 2L, Set.of("b.dat"), 5)).build();
+
+        DeleteExecutionEngine<?> deleteEngine = mock(DeleteExecutionEngine.class);
+        when(deleteEngine.getLiveDocsForSegments(anyList())).thenReturn(Map.of());
+
+        WriterFileSet mergedWfs = new WriterFileSet(dir.toString(), 99L, Set.of("merged.dat"), 10);
+        Merger merger = input -> new MergeResult(Map.of(format, mergedWfs));
+
+        MergeHandler handler = new MergeHandler(
+            snapshotSupplierOf(List.of(seg1, seg2)),
+            merger,
+            SHARD_ID,
+            NOOP_MERGE_POLICY,
+            NOOP_MERGE_LISTENER,
+            () -> 99L,
+            deleteEngine
+        );
+        handler.doMerge(new OneMerge(List.of(seg1, seg2)));
+
+        ArgumentCaptor<List<Segment>> captor = ArgumentCaptor.forClass(List.class);
+        verify(deleteEngine, times(1)).getLiveDocsForSegments(captor.capture());
+        List<Segment> actualSegments = captor.getValue();
+        assertEquals(List.of(seg1, seg2), actualSegments);
+    }
+
+    public void testDoMergeForwardsLiveDocsToMerger() throws IOException {
+        Path dir = createTempDir();
+        MockDataFormat format = new MockDataFormat();
+        Segment seg = Segment.builder(1L).addSearchableFiles(format, new WriterFileSet(dir.toString(), 1L, Set.of("a.dat"), 10)).build();
+
+        // Bitmap with row 0 dead, rest alive.
+        long[] bits = new long[] { ~1L };
+        Map<Long, long[]> liveDocs = Map.of(1L, bits);
+
+        DeleteExecutionEngine<?> deleteEngine = mock(DeleteExecutionEngine.class);
+        when(deleteEngine.getLiveDocsForSegments(anyList())).thenReturn(liveDocs);
+
+        AtomicReference<MergeInput> captured = new AtomicReference<>();
+        WriterFileSet mergedWfs = new WriterFileSet(dir.toString(), 99L, Set.of("merged.dat"), 9);
+        Merger merger = input -> {
+            captured.set(input);
+            return new MergeResult(Map.of(format, mergedWfs));
+        };
+
+        MergeHandler handler = new MergeHandler(
+            snapshotSupplierOf(List.of(seg)),
+            merger,
+            SHARD_ID,
+            NOOP_MERGE_POLICY,
+            NOOP_MERGE_LISTENER,
+            () -> 99L,
+            deleteEngine
+        );
+        handler.doMerge(new OneMerge(List.of(seg)));
+
+        assertNotNull(captured.get());
+        long[] forwarded = captured.get().getLiveDocsForSegment(1L);
+        assertNotNull(forwarded);
+        assertArrayEquals(bits, forwarded);
+    }
+
+    public void testDoMergePropagatesDeleteEngineIOException() throws IOException {
+        Path dir = createTempDir();
+        MockDataFormat format = new MockDataFormat();
+        Segment seg = Segment.builder(1L).addSearchableFiles(format, new WriterFileSet(dir.toString(), 1L, Set.of("a.dat"), 10)).build();
+
+        DeleteExecutionEngine<?> deleteEngine = mock(DeleteExecutionEngine.class);
+        when(deleteEngine.getLiveDocsForSegments(anyList())).thenThrow(new IOException("delete engine blew up"));
+
+        WriterFileSet mergedWfs = new WriterFileSet(dir.toString(), 99L, Set.of("merged.dat"), 10);
+        Merger merger = input -> new MergeResult(Map.of(format, mergedWfs));
+
+        MergeHandler handler = new MergeHandler(
+            snapshotSupplierOf(List.of(seg)),
+            merger,
+            SHARD_ID,
+            NOOP_MERGE_POLICY,
+            NOOP_MERGE_LISTENER,
+            () -> 99L,
+            deleteEngine
+        );
+        IOException ex = expectThrows(IOException.class, () -> handler.doMerge(new OneMerge(List.of(seg))));
+        assertEquals("delete engine blew up", ex.getMessage());
     }
 
     // ---- MergeScheduler tests ----

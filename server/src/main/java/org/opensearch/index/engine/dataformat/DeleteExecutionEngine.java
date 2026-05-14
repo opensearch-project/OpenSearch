@@ -9,9 +9,12 @@
 package org.opensearch.index.engine.dataformat;
 
 import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.index.engine.exec.Segment;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.List;
+import java.util.Map;
 
 /**
  * Engine for executing delete operations for a specific data format.
@@ -65,4 +68,11 @@ public interface DeleteExecutionEngine<T extends DataFormat> extends Closeable {
      * @throws IOException if an I/O error occurs during deletion
      */
     DeleteResult deleteDocument(DeleteInput deleteInput) throws IOException;
+
+    /**
+     * Returns per-segment live-docs for the given segments. Keyed by {@link Segment#generation()};
+     * values use {@link org.apache.lucene.util.FixedBitSet#getBits()} layout. Missing keys mean
+     * the segment has no deletes applied.
+     */
+    Map<Long, long[]> getLiveDocsForSegments(List<Segment> segments) throws IOException;
 }
