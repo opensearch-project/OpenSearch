@@ -46,9 +46,6 @@ class TimestampFunctionAdapter implements ScalarFunctionAdapter {
             return original;
         }
         int precision = resolveTimestampPrecision(original, fieldStorage);
-        if (precision < 0) {
-            return original;
-        }
         String value = literal.getValueAs(String.class);
         if (value == null) {
             return original;
@@ -61,6 +58,10 @@ class TimestampFunctionAdapter implements ScalarFunctionAdapter {
      * Resolves timestamp precision from field storage. Scans all fields for date/date_nanos
      * since the TIMESTAMP(varchar) call itself has no field reference — the field ref is
      * in the parent comparison (e.g., $0 in >($0, TIMESTAMP('...'))).
+     *
+     * <p>Falls back to the RexCall's declared return-type precision (set by
+     * {@code DatetimeUdtNormalizeRule} to the type system's max, typically 9) when no
+     * date field is in scope — e.g. pure-literal {@code eval f = TIMESTAMP('...')}.
      */
     private int resolveTimestampPrecision(RexCall call, List<FieldStorageInfo> fieldStorage) {
         for (FieldStorageInfo field : fieldStorage) {
@@ -70,7 +71,8 @@ class TimestampFunctionAdapter implements ScalarFunctionAdapter {
             if ("date_nanos".equals(mappingType)) return 9;
             if ("date".equals(mappingType)) return 3;
         }
-        return -1;
+        int declared = call.getType().getPrecision();
+        return declared >= 0 ? declared : 9;
     }
 
     TimestampString parseTimestamp(String input) {

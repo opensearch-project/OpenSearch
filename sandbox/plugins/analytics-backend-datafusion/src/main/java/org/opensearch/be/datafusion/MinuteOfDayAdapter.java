@@ -19,19 +19,20 @@ import org.apache.calcite.sql.type.SqlTypeName;
 import org.opensearch.analytics.spi.FieldStorageInfo;
 import org.opensearch.analytics.spi.ScalarFunctionAdapter;
 
+import java.math.BigDecimal;
 import java.util.List;
 
 /**
- * PPL {@code second}/{@code second_of_minute} → {@code CAST(FLOOR(date_part('second', x)) AS ret)}.
- * FLOOR drops {@code date_part}'s fp64 fractional part (integer portion already in [0, 59]); the
- * intermediate CAST to DOUBLE is needed because our substrait YAML declares date_part/floor as
- * fp64-only while Calcite's inference returns BIGINT for {@code part='second'}.
+ * PPL {@code minute_of_day(x)} → {@code CAST(date_part('hour', x) * 60 + date_part('minute', x)
+ * AS <retType>)} for TIMESTAMP/DATE/STRING/TIME operands. Reference impl
+ * {@code DateTimeFunctions.exprMinuteOfDay} computes {@code MINUTES.between(LocalTime.MIN, time)},
+ * which equals {@code hour*60 + minute}.
  *
  * <p>TIME operand handling: see {@link DatePartAdapters}.
  *
  * @opensearch.internal
  */
-class SecondAdapter implements ScalarFunctionAdapter {
+class MinuteOfDayAdapter implements ScalarFunctionAdapter {
 
     @Override
     public RexNode adapt(RexCall original, List<FieldStorageInfo> fieldStorage, RelOptCluster cluster) {
@@ -40,7 +41,6 @@ class SecondAdapter implements ScalarFunctionAdapter {
         }
         RexBuilder rexBuilder = cluster.getRexBuilder();
         RelDataType varchar = cluster.getTypeFactory().createSqlType(SqlTypeName.VARCHAR);
-        RexNode partLiteral = rexBuilder.makeLiteral("second", varchar, true);
         RexNode arg = original.getOperands().get(0);
         if (arg.getType().getSqlTypeName() == SqlTypeName.TIME) {
             RexNode synthesized = DatetimeLiteralHelper.unwrapTimeLiteralToTimestamp(arg, rexBuilder);
@@ -51,11 +51,11 @@ class SecondAdapter implements ScalarFunctionAdapter {
                 arg = rexBuilder.makeCast(nullableVarchar, arg);
             }
         }
-        RexNode datePart = rexBuilder.makeCall(SqlLibraryOperators.DATE_PART, partLiteral, arg);
-        RelDataType doubleType = cluster.getTypeFactory()
-            .createTypeWithNullability(cluster.getTypeFactory().createSqlType(SqlTypeName.DOUBLE), datePart.getType().isNullable());
-        RexNode datePartDouble = rexBuilder.makeCast(doubleType, datePart);
-        RexNode floored = rexBuilder.makeCall(SqlStdOperatorTable.FLOOR, datePartDouble);
-        return rexBuilder.makeCast(original.getType(), floored);
+        RexNode hour = rexBuilder.makeCall(SqlLibraryOperators.DATE_PART, rexBuilder.makeLiteral("hour", varchar, true), arg);
+        RexNode minute = rexBuilder.makeCall(SqlLibraryOperators.DATE_PART, rexBuilder.makeLiteral("minute", varchar, true), arg);
+        RexNode sixty = rexBuilder.makeExactLiteral(BigDecimal.valueOf(60));
+        RexNode product = rexBuilder.makeCall(SqlStdOperatorTable.MULTIPLY, hour, sixty);
+        RexNode sum = rexBuilder.makeCall(SqlStdOperatorTable.PLUS, product, minute);
+        return rexBuilder.makeCast(original.getType(), sum);
     }
 }

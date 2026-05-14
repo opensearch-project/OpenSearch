@@ -8,13 +8,20 @@
 
 package org.opensearch.be.datafusion;
 
+import org.apache.calcite.plan.RelOptCluster;
+import org.apache.calcite.rex.RexBuilder;
+import org.apache.calcite.rex.RexCall;
+import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.sql.SqlFunction;
 import org.apache.calcite.sql.SqlFunctionCategory;
 import org.apache.calcite.sql.SqlKind;
 import org.apache.calcite.sql.SqlOperator;
 import org.apache.calcite.sql.type.OperandTypes;
 import org.apache.calcite.sql.type.ReturnTypes;
+import org.apache.calcite.sql.type.SqlTypeName;
 import org.opensearch.analytics.spi.AbstractNameMappingAdapter;
+import org.opensearch.analytics.spi.FieldStorageInfo;
+import org.opensearch.analytics.spi.ScalarFunctionAdapter;
 
 import java.util.List;
 
@@ -84,9 +91,45 @@ final class DateTimeAdapters {
         SqlFunctionCategory.TIMEDATE
     );
 
-    static final class NowAdapter extends AbstractNameMappingAdapter {
-        NowAdapter() {
-            super(LOCAL_NOW_OP, List.of(), List.of());
+    /**
+     * Rewrites PPL {@code now()} / {@code current_timestamp()} / {@code sysdate()} /
+     * {@code utc_timestamp()} to {@code date_format(now(), '%Y-%m-%d %H:%i:%S')}.
+     *
+     * <p>Rationale: the legacy engine and every PPL IT parse timestamp results with
+     * {@code LocalDateTime.parse(value, "uuuu-MM-dd HH:mm:ss")} — a SPACE between date
+     * and time. DataFusion's Arrow {@code CAST(Timestamp AS Utf8)} emits ISO-8601 with
+     * a 'T' separator, which the PPL result layer's outer {@code CAST($0):VARCHAR}
+     * invokes on every TIMESTAMP-returning projection. Folding the rewrite into this
+     * adapter short-circuits that path: the inner expression is already VARCHAR in
+     * PPL canonical form, so the outer CAST becomes a pass-through.
+     *
+     * <p>Issue #5420 tracks the underlying ISO-T gap. Fixing it at the adapter is
+     * narrower than a RelNode-wide rewrite of every {@code CAST(ts AS varchar)},
+     * which would also affect filter subexpressions where ISO-T is the correct
+     * DataFusion semantic.
+     */
+    static final class NowAdapter implements ScalarFunctionAdapter {
+        // `%Y-%m-%d %H:%i:%S` (MySQL tokens consumed by the date_format Rust UDF)
+        // matches reference PPL's second-precision canonical form; fractional seconds
+        // are dropped intentionally because the reference PPL `now()` formatter also
+        // yields second precision when nanos==0 and the NowLike IT asserts against a
+        // `uuuu-MM-dd HH:mm:ss` parser.
+        private static final String PPL_TIMESTAMP_FORMAT = "%Y-%m-%d %H:%i:%S";
+
+        @Override
+        public RexNode adapt(RexCall original, List<FieldStorageInfo> fieldStorage, RelOptCluster cluster) {
+            RexBuilder rexBuilder = cluster.getRexBuilder();
+            // 3-arg makeLiteral matches AbstractNameMappingAdapter — 1-arg infers
+            // CHAR<N> (fixed-width) which Substrait rejects against date_format's
+            // `string` format-arg signature (`Unable to convert call
+            // date_format(precision_timestamp<9>?, char<N>)`).
+            RexNode format = rexBuilder.makeLiteral(
+                PPL_TIMESTAMP_FORMAT,
+                rexBuilder.getTypeFactory().createSqlType(SqlTypeName.VARCHAR),
+                true
+            );
+            RexNode now = rexBuilder.makeCall(original.getType(), LOCAL_NOW_OP, List.of());
+            return rexBuilder.makeCall(original.getType(), RustUdfDateTimeAdapters.LOCAL_DATE_FORMAT_OP, List.of(now, format));
         }
     }
 
