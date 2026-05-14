@@ -73,7 +73,7 @@ public class QueryProfileBuilderTests extends OpenSearchTestCase {
         QueryContext ctx = new QueryContext(new QueryDAG("q-plan", rootStage), Runnable::run, taskStub(), 1, Long.MAX_VALUE);
         ExecutionGraph graph = singleStageGraph("q-plan", new StubExecution(0));
 
-        // Calcite's RelOptUtil.toString produces "Node\n  child\n" — mimic that.
+        // Calcite's RelOptUtil.toString produces "Node\n child\n" — mimic that.
         QueryProfile profile = QueryProfileBuilder.snapshot(graph, ctx, "Aggregate\n  TableScan\n");
 
         assertEquals(java.util.List.of("Aggregate", "  TableScan"), profile.fullPlan());

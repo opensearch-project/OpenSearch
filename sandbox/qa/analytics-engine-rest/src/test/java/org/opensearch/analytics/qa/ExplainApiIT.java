@@ -170,7 +170,6 @@ public class ExplainApiIT extends AnalyticsRestTestCase {
     }
 
     private Map<String, Object> executeExplain(String ppl) throws IOException {
-        ensureDataProvisioned();
         Request request = new Request("POST", "/_analytics/ppl/_explain");
         request.setJsonEntity("{\"query\": \"" + escapeJson(ppl) + "\"}");
         Response response = client().performRequest(request);

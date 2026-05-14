@@ -105,10 +105,12 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
     public void execute(RelNode logicalFragment, Object context, ActionListener<Iterable<Object[]>> listener) {
         searchExecutor.execute(() -> {
             try {
-                executeInternal(logicalFragment, false, ActionListener.wrap(
-                    result -> listener.onResponse(result.rows()),
-                    listener::onFailure
-                ));
+                // Non-profile path: unwrap rows from ProfiledResult (profile is null)
+                executeInternal(
+                    logicalFragment,
+                    false,
+                    ActionListener.wrap(result -> listener.onResponse(result.rows()), listener::onFailure)
+                );
             } catch (Exception e) {
                 listener.onFailure(e);
             }
@@ -181,10 +183,7 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
                 listener.onResponse(new ProfiledResult(null, e, qp));
             });
         } else {
-            rowsListener = ActionListener.wrap(
-                rows -> listener.onResponse(new ProfiledResult(rows, null, null)),
-                listener::onFailure
-            );
+            rowsListener = ActionListener.wrap(rows -> listener.onResponse(new ProfiledResult(rows, null, null)), listener::onFailure);
         }
 
         ActionListener<Iterable<VectorSchemaRoot>> batchesListener = buildBatchesListener(rowsListener, () -> {
@@ -207,7 +206,7 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
             );
         }
 
-        walkerRef[0] = scheduler.execute(config, batchesListener);
+        walkerRef[0] = scheduler.execute(config, batchesListener); // walkerRef read only by profile path; no-op for non-profile
     }
 
     @Override

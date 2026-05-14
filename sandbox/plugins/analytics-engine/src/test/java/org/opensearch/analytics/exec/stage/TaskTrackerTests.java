@@ -107,7 +107,11 @@ public class TaskTrackerTests extends OpenSearchTestCase {
         t.transitionTo(StageTaskState.FINISHED);
         long firstEnd = t.finishedAtMs();
         // Spin briefly so System.currentTimeMillis() would advance.
-        try { Thread.sleep(2); } catch (InterruptedException ie) { Thread.currentThread().interrupt(); }
+        try {
+            Thread.sleep(2);
+        } catch (InterruptedException ie) {
+            Thread.currentThread().interrupt();
+        }
         assertFalse(t.transitionTo(StageTaskState.FAILED));
         assertEquals("end stamp must not rewrite on rejected transition", firstEnd, t.finishedAtMs());
     }

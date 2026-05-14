@@ -111,15 +111,7 @@ public final class QueryProfileBuilder {
             long end = t.finishedAtMs();
             long elapsed = (start > 0 && end > 0) ? end - start : 0L;
             out.add(
-                new TaskProfile(
-                    t.id().stageId(),
-                    t.id().partitionId(),
-                    describeTarget(t.target()),
-                    t.state().name(),
-                    start,
-                    end,
-                    elapsed
-                )
+                new TaskProfile(t.id().stageId(), t.id().partitionId(), describeTarget(t.target()), t.state().name(), start, end, elapsed)
             );
         }
         return out;
