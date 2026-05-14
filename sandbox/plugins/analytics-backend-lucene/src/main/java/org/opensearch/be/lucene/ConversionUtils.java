@@ -31,6 +31,13 @@ import java.util.List;
  */
 final class ConversionUtils {
 
+    /** MAP key for single-field relevance operands. */
+    static final String KEY_FIELD = "field";
+    /** MAP key for multi-field relevance operands. */
+    static final String KEY_FIELDS = "fields";
+    /** MAP key for the query text operand. */
+    static final String KEY_QUERY = "query";
+
     private ConversionUtils() {}
 
     /**
@@ -77,6 +84,63 @@ final class ConversionUtils {
         } catch (IOException exception) {
             throw new IllegalStateException("Failed to serialize delegated query: " + queryBuilder, exception);
         }
+    }
+
+    /**
+     * Extracts the key string from a MAP_VALUE_CONSTRUCTOR operand: MAP('key', value).
+     * Returns null if the operand is not a MAP or the key is not a string literal.
+     */
+    static String extractMapKey(RexCall call, int operandIndex) {
+        RexNode operand = call.getOperands().get(operandIndex);
+        if (operand instanceof RexCall mapCall && mapCall.getOperands().size() >= 2) {
+            RexNode key = mapCall.getOperands().get(0);
+            if (key instanceof RexLiteral literal) {
+                return literal.getValueAs(String.class);
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Extracted operands from a relevance function RexCall.
+     * @param fieldName  single field name (null if not present or multi-field)
+     * @param fields     multiple field names (null if not present)
+     * @param query      the query string (null if not found)
+     */
+    record RelevanceOperands(String fieldName, List<String> fields, String query) {
+    }
+
+    /**
+     * Extracts field/fields and query from a relevance function RexCall by MAP key lookup,
+     * with positional fallback for non-MAP operand structures (e.g. MATCH($ref, literal)).
+     *
+     * @param call         the relevance function RexCall
+     * @param fieldStorage per-column storage metadata for resolving field names
+     * @return extracted operands
+     */
+    static RelevanceOperands extractRelevanceOperands(RexCall call, List<FieldStorageInfo> fieldStorage) {
+        String fieldName = null;
+        List<String> fields = null;
+        String query = null;
+
+        for (int i = 0; i < call.getOperands().size(); i++) {
+            String key = extractMapKey(call, i);
+            if (KEY_FIELD.equals(key)) {
+                fieldName = extractFieldFromRelevanceMap(call, i, fieldStorage);
+            } else if (KEY_FIELDS.equals(key)) {
+                fields = extractFieldsFromRelevanceMap(call, i, fieldStorage);
+            } else if (KEY_QUERY.equals(key)) {
+                query = extractStringFromRelevanceMap(call, i);
+            }
+        }
+
+        // Fallback: positional extraction for non-MAP operand structures (e.g. MATCH($ref, literal))
+        if (fieldName == null && fields == null && query == null && call.getOperands().size() >= 2) {
+            fieldName = extractFieldFromRelevanceMap(call, 0, fieldStorage);
+            query = extractStringFromRelevanceMap(call, 1);
+        }
+
+        return new RelevanceOperands(fieldName, fields, query);
     }
 
     /**

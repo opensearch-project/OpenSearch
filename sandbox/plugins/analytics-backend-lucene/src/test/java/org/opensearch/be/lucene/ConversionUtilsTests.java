@@ -29,12 +29,30 @@ import java.math.BigDecimal;
 import java.util.List;
 
 /**
- * Unit tests for {@link ConversionUtils#extractFieldsFromRelevanceMap}.
+ * Unit tests for {@link ConversionUtils}.
  */
 public class ConversionUtilsTests extends OpenSearchTestCase {
 
     private static final SqlFunction MULTI_MATCH_FUNCTION = new SqlFunction(
         "MULTI_MATCH",
+        SqlKind.OTHER_FUNCTION,
+        ReturnTypes.BOOLEAN,
+        null,
+        OperandTypes.ANY,
+        SqlFunctionCategory.USER_DEFINED_FUNCTION
+    );
+
+    private static final SqlFunction MATCH_FUNCTION = new SqlFunction(
+        "MATCH",
+        SqlKind.OTHER_FUNCTION,
+        ReturnTypes.BOOLEAN,
+        null,
+        OperandTypes.ANY,
+        SqlFunctionCategory.USER_DEFINED_FUNCTION
+    );
+
+    private static final SqlFunction QUERY_STRING_FUNCTION = new SqlFunction(
+        "QUERY_STRING",
         SqlKind.OTHER_FUNCTION,
         ReturnTypes.BOOLEAN,
         null,
@@ -204,5 +222,133 @@ public class ConversionUtilsTests extends OpenSearchTestCase {
             "Exception message should mention operand index",
             exception.getMessage().contains("Cannot extract field names from operand 0")
         );
+    }
+
+    // --- Tests for extractMapKey ---
+
+    /**
+     * Tests that extractMapKey returns the key string from a MAP_VALUE_CONSTRUCTOR operand.
+     * Structure: MATCH(MAP('field', $0), MAP('query', 'hello'))
+     * extractMapKey(call, 0) should return "field".
+     */
+    public void testExtractMapKey_returnsKeyFromMapCall() {
+        RelDataType varcharType = typeFactory.createSqlType(SqlTypeName.VARCHAR);
+
+        RexNode fieldMap = rexBuilder.makeCall(
+            SqlStdOperatorTable.MAP_VALUE_CONSTRUCTOR,
+            rexBuilder.makeLiteral("field"),
+            rexBuilder.makeInputRef(varcharType, 0)
+        );
+
+        RexNode queryMap = rexBuilder.makeCall(
+            SqlStdOperatorTable.MAP_VALUE_CONSTRUCTOR,
+            rexBuilder.makeLiteral("query"),
+            rexBuilder.makeLiteral("hello")
+        );
+
+        RexCall topCall = (RexCall) rexBuilder.makeCall(MATCH_FUNCTION, fieldMap, queryMap);
+
+        String key = ConversionUtils.extractMapKey(topCall, 0);
+        assertEquals("field", key);
+    }
+
+    /**
+     * Tests that extractMapKey returns null when the operand is a plain RexInputRef (not a MAP).
+     */
+    public void testExtractMapKey_returnsNullForNonMapOperand() {
+        RelDataType varcharType = typeFactory.createSqlType(SqlTypeName.VARCHAR);
+
+        // Direct RexInputRef operand (no MAP wrapper)
+        RexNode inputRef = rexBuilder.makeInputRef(varcharType, 0);
+        RexNode literal = rexBuilder.makeLiteral("hello");
+
+        RexCall topCall = (RexCall) rexBuilder.makeCall(MATCH_FUNCTION, inputRef, literal);
+
+        // RexInputRef is not a RexCall, so extractMapKey should return null
+        assertNull(ConversionUtils.extractMapKey(topCall, 0));
+        // RexLiteral is not a RexCall, so extractMapKey should return null
+        assertNull(ConversionUtils.extractMapKey(topCall, 1));
+    }
+
+    // --- Tests for extractRelevanceOperands ---
+
+    /**
+     * Tests that extractRelevanceOperands correctly extracts field and query from MAP-wrapped operands.
+     * Structure: MATCH(MAP('field', $0), MAP('query', 'hello'))
+     * Should resolve fieldName from fieldStorage and query from the literal.
+     */
+    public void testExtractRelevanceOperands_mapWrappedFieldAndQuery() {
+        RelDataType varcharType = typeFactory.createSqlType(SqlTypeName.VARCHAR);
+
+        RexNode fieldMap = rexBuilder.makeCall(
+            SqlStdOperatorTable.MAP_VALUE_CONSTRUCTOR,
+            rexBuilder.makeLiteral("field"),
+            rexBuilder.makeInputRef(varcharType, 0)
+        );
+
+        RexNode queryMap = rexBuilder.makeCall(
+            SqlStdOperatorTable.MAP_VALUE_CONSTRUCTOR,
+            rexBuilder.makeLiteral("query"),
+            rexBuilder.makeLiteral("hello")
+        );
+
+        RexCall topCall = (RexCall) rexBuilder.makeCall(MATCH_FUNCTION, fieldMap, queryMap);
+
+        List<FieldStorageInfo> fieldStorage = List.of(
+            new FieldStorageInfo("status", "keyword", FieldType.KEYWORD, List.of(), List.of("lucene"), List.of(), false)
+        );
+
+        ConversionUtils.RelevanceOperands operands = ConversionUtils.extractRelevanceOperands(topCall, fieldStorage);
+
+        assertEquals("status", operands.fieldName());
+        assertNull(operands.fields());
+        assertEquals("hello", operands.query());
+    }
+
+    /**
+     * Tests that extractRelevanceOperands handles a query-only MAP structure (no field MAP).
+     * Structure: query_string(MAP('query', 'brewing'))
+     * Should return fieldName=null, fields=null, query="brewing".
+     */
+    public void testExtractRelevanceOperands_queryOnlyNoField() {
+        RexNode queryMap = rexBuilder.makeCall(
+            SqlStdOperatorTable.MAP_VALUE_CONSTRUCTOR,
+            rexBuilder.makeLiteral("query"),
+            rexBuilder.makeLiteral("brewing")
+        );
+
+        RexCall topCall = (RexCall) rexBuilder.makeCall(QUERY_STRING_FUNCTION, queryMap);
+
+        List<FieldStorageInfo> fieldStorage = List.of();
+
+        ConversionUtils.RelevanceOperands operands = ConversionUtils.extractRelevanceOperands(topCall, fieldStorage);
+
+        assertNull(operands.fieldName());
+        assertNull(operands.fields());
+        assertEquals("brewing", operands.query());
+    }
+
+    /**
+     * Tests that extractRelevanceOperands falls back to positional extraction when operands
+     * are not MAP-wrapped (e.g. MATCH($0, 'hello') with direct RexInputRef and RexLiteral).
+     */
+    public void testExtractRelevanceOperands_positionalFallback() {
+        RelDataType varcharType = typeFactory.createSqlType(SqlTypeName.VARCHAR);
+
+        // Direct operands without MAP wrappers
+        RexNode inputRef = rexBuilder.makeInputRef(varcharType, 0);
+        RexNode literal = rexBuilder.makeLiteral("hello");
+
+        RexCall topCall = (RexCall) rexBuilder.makeCall(MATCH_FUNCTION, inputRef, literal);
+
+        List<FieldStorageInfo> fieldStorage = List.of(
+            new FieldStorageInfo("status", "keyword", FieldType.KEYWORD, List.of(), List.of("lucene"), List.of(), false)
+        );
+
+        ConversionUtils.RelevanceOperands operands = ConversionUtils.extractRelevanceOperands(topCall, fieldStorage);
+
+        assertEquals("status", operands.fieldName());
+        assertNull(operands.fields());
+        assertEquals("hello", operands.query());
     }
 }
