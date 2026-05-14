@@ -125,6 +125,63 @@ public class DataFormatAwareReplicationPromotionIT extends DataFormatAwareReplic
     }
 
     /**
+     * After promotion, the new primary must be able to index new docs, flush, and upload
+     * metadata to remote store successfully. This validates that the promoted engine's
+     * IndexWriter has the correct Lucene segment entries (not an empty SegmentInfos) so
+     * that serializeToCommitFormat can produce valid bytes for the remote metadata file.
+     *
+     * <p>Failure mode without the fix: the replica's commitCatalogSnapshot writes an empty
+     * SegmentInfos (no Lucene segments). After promotion, the new primary's IndexWriter
+     * opens on this empty commit, LuceneReaderManager has no readers, and uploadMetadata
+     * fails with IllegalStateException or produces corrupt metadata.
+     *
+     * <p>Uses Lucene as a secondary data format so that real Lucene segment files exist
+     * on disk and must be correctly tracked through the promotion.
+     */
+    public void testPromotedPrimaryCanUploadToRemoteStore() throws Exception {
+        createDfaIndex(1);
+
+        try (BackgroundIndexer indexer = newIndexer()) {
+            indexer.start(-1);
+            waitForIndexerDocs(100, indexer);
+
+            // Force a flush so segments are committed and replicated
+            client().admin().indices().prepareFlush(INDEX_NAME).get();
+
+            // Pause indexer for a clean handover
+            indexer.pauseIndexing();
+
+            // Promote replica to primary
+            String oldPrimary = primaryNodeName();
+            cancelPrimaryAllocation(INDEX_NAME, 0, oldPrimary);
+            waitForPrimaryTerm(INDEX_NAME, 0, 2L, TimeValue.timeValueSeconds(30));
+            ensureGreen(GREEN_TIMEOUT, INDEX_NAME);
+
+            // Resume + index more on the new primary
+            indexer.continueIndexing(50);
+            waitForIndexerDocs(150, indexer);
+            indexer.stopAndAwaitStopped();
+
+            // Force the new primary to flush — exercises the full upload path
+            client().admin().indices().prepareFlush(INDEX_NAME).get();
+            client().admin().indices().prepareRefresh(INDEX_NAME).get();
+
+            assertBusy(() -> {
+                org.opensearch.index.shard.IndexShard shard = getIndexShard(primaryNodeName(), INDEX_NAME);
+                org.opensearch.index.store.remote.metadata.RemoteSegmentMetadata meta = shard.getRemoteDirectory().readLatestMetadataFile();
+                assertNotNull("promoted primary must upload metadata to remote store", meta);
+
+                // All expected formats must be present in uploaded metadata
+                java.util.Set<String> formats = formatsOf(meta.getMetadata());
+                assertEquals("uploaded formats must match expected after promotion", expectedFormats(), formats);
+
+                DataFormatAwareITUtils.assertCatalogMatchesLocalAndRemote(shard);
+                assertAllFormatDirsHaveFiles(shard);
+            }, 60, java.util.concurrent.TimeUnit.SECONDS);
+        }
+    }
+
+    /**
      * Builds a BackgroundIndexer that swallows indexing failures. Writes issued during the brief
      * no-primary window around a cancel/promote will get UnavailableShardsException; the test
      * tolerates these as expected.

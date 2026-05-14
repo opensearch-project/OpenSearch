@@ -376,4 +376,24 @@ public class DataformatAwareCatalogSnapshot extends CatalogSnapshot {
             + closed
             + '}';
     }
+
+    /**
+     * Transient {@link org.apache.lucene.index.SegmentInfos} that produced this snapshot, when
+     * available. Set by segment replication on the replica side so that the replica's commit
+     * path can write a {@code segments_N} containing the real Lucene segment entries (not an
+     * empty synthetic one). This guarantees that if the replica is later promoted to primary,
+     * the new {@code IndexWriter} opens on a valid commit with all Lucene segments visible.
+     *
+     * <p>Not serialized — only lives in memory during the replication cycle. Null on the
+     * primary's own snapshots and on snapshots loaded from disk.
+     */
+    private volatile org.apache.lucene.index.SegmentInfos commitSegmentInfos;
+
+    public org.apache.lucene.index.SegmentInfos getCommitSegmentInfos() {
+        return commitSegmentInfos;
+    }
+
+    public void setCommitSegmentInfos(org.apache.lucene.index.SegmentInfos infos) {
+        this.commitSegmentInfos = infos;
+    }
 }
