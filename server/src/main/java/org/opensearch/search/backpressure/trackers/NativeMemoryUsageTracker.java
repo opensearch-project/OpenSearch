@@ -193,11 +193,7 @@ public class NativeMemoryUsageTracker extends TaskResourceUsageTracker {
             );
             return Optional.of(
                 new TaskCancellation.Reason(
-                    "native memory usage exceeded ["
-                        + new ByteSizeValue(currentUsage)
-                        + " >= "
-                        + new ByteSizeValue(bytesThreshold)
-                        + "]",
+                    "native memory usage exceeded [" + new ByteSizeValue(currentUsage) + " >= " + new ByteSizeValue(bytesThreshold) + "]",
                     score
                 )
             );
@@ -236,14 +232,11 @@ public class NativeMemoryUsageTracker extends TaskResourceUsageTracker {
         );
         if (bytesByTaskId.size() > 0) {
             // log the heaviest few so we can see whether registry has anything substantive
-            bytesByTaskId.entrySet().stream()
+            bytesByTaskId.entrySet()
+                .stream()
                 .sorted((a, b) -> Long.compare(b.getValue(), a.getValue()))
                 .limit(5)
-                .forEach(e -> logger.info(
-                    "[nativemem-bp] tracker.refresh:   taskId={} currentBytes={}",
-                    e.getKey(),
-                    e.getValue()
-                ));
+                .forEach(e -> logger.info("[nativemem-bp] tracker.refresh:   taskId={} currentBytes={}", e.getKey(), e.getValue()));
         }
     }
 
@@ -273,7 +266,7 @@ public class NativeMemoryUsageTracker extends TaskResourceUsageTracker {
         if (Constants.LINUX == false) {
             return false;
         }
-        if(hasSnapshotProvider() == false) {
+        if (hasSnapshotProvider() == false) {
             return false;
         }
         return OsProbe.getInstance().getTotalPhysicalMemorySize() > 0L;

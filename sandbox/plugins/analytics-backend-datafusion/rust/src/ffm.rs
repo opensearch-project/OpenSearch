@@ -12,7 +12,6 @@ use std::slice;
 use std::str;
 use std::sync::Arc;
 
-use log::info;
 use native_bridge_common::ffm_safe;
 use parking_lot::RwLock;
 
@@ -23,6 +22,7 @@ use crate::custom_cache_manager::CustomCacheManager;
 use crate::eviction_policy::PolicyType;
 use crate::runtime_manager::RuntimeManager;
 use crate::statistics_cache::CustomStatisticsCache;
+use crate::log_info;
 
 use datafusion::execution::cache::cache_unit::DefaultFilesMetadataCache;
 
@@ -163,7 +163,7 @@ pub unsafe extern "C" fn df_execute_query(
     let mgr = get_rt_manager()?;
     let table_name = str_from_raw(table_name_ptr, table_name_len)
         .map_err(|e| format!("df_execute_query: {}", e))?;
-    info!(
+    log_info!(
         "[nativemem-bp] ffm.df_execute_query: enter ctx={} table={} plan_len={} runtime_ptr={:#x}",
         context_id, table_name, plan_len, runtime_ptr as u64
     );
@@ -183,11 +183,11 @@ pub unsafe extern "C" fn df_execute_query(
         ))
         .map_err(|e| e.to_string());
     match &result {
-        Ok(stream_ptr) => info!(
+        Ok(stream_ptr) => log_info!(
             "[nativemem-bp] ffm.df_execute_query: exit ctx={} ok stream_ptr={:#x}",
             context_id, *stream_ptr as u64
         ),
-        Err(e) => info!(
+        Err(e) => log_info!(
             "[nativemem-bp] ffm.df_execute_query: exit ctx={} err={}",
             context_id, e
         ),
@@ -250,7 +250,7 @@ pub unsafe extern "C" fn df_query_registry_top_n_by_current(
         return Err(format!("negative capacity: {cap_entries}"));
     }
     if cap_entries == 0 {
-        info!("[nativemem-bp] ffm.df_query_registry_top_n_by_current: capacity=0, nothing to write");
+        log_info!("[nativemem-bp] ffm.df_query_registry_top_n_by_current: capacity=0, nothing to write");
         return Ok(0);
     }
     if out_ptr.is_null() {
@@ -259,7 +259,7 @@ pub unsafe extern "C" fn df_query_registry_top_n_by_current(
     let out: &mut [WireQueryMetric] =
         slice::from_raw_parts_mut(out_ptr as *mut WireQueryMetric, cap_entries as usize);
     let written = snapshot_top_n_by_current(out);
-    info!(
+    log_info!(
         "[nativemem-bp] ffm.df_query_registry_top_n_by_current: wrote {} entries (capacity {})",
         written, cap_entries
     );
@@ -733,7 +733,7 @@ pub unsafe extern "C" fn df_execute_with_context(
 ) -> i64 {
     let session_handle = *Box::from_raw(session_ctx_ptr as *mut crate::session_context::SessionContextHandle);
     let ctx_id = session_handle.query_context.context_id();
-    info!(
+    log_info!(
         "[nativemem-bp] ffm.df_execute_with_context: enter session_ctx_ptr={:#x} ctx={} plan_len={} indexed={}",
         session_ctx_ptr as u64,
         ctx_id,
@@ -766,11 +766,11 @@ pub unsafe extern "C" fn df_execute_with_context(
             .map_err(|e| e.to_string())
     };
     match &result {
-        Ok(stream_ptr) => info!(
+        Ok(stream_ptr) => log_info!(
             "[nativemem-bp] ffm.df_execute_with_context: exit ctx={} ok stream_ptr={:#x}",
             ctx_id, *stream_ptr as u64
         ),
-        Err(e) => info!(
+        Err(e) => log_info!(
             "[nativemem-bp] ffm.df_execute_with_context: exit ctx={} err={}",
             ctx_id, e
         ),

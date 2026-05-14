@@ -410,7 +410,6 @@ public class OsProbe {
         return Math.max(0L, rssAnon - jvmHeapMax);
     }
 
-
     public short getSystemCpuPercent() {
         return Probes.getLoadAndScaleToPercent(getSystemCpuLoad, osMxBean);
     }

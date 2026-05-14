@@ -22,12 +22,13 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use dashmap::DashMap;
-use log::{debug, info};
 use once_cell::sync::Lazy;
 use tokio_util::sync::CancellationToken;
 
 use datafusion::common::DataFusionError;
 use datafusion::execution::memory_pool::{MemoryConsumer, MemoryPool, MemoryReservation};
+
+use crate::{log_debug, log_info};
 
 // ---------------------------------------------------------------------------
 // Per-query memory pool
@@ -172,14 +173,14 @@ pub fn drain_completed_query(context_id: i64) -> Option<Arc<QueryTracker>> {
         .remove_if(&context_id, |_, t| t.is_completed())
         .map(|(_, t)| t);
     match &result {
-        Some(t) => info!(
+        Some(t) => log_info!(
             "[nativemem-bp] rust.drain_completed_query: drained ctx={} (peak_bytes={}, wall_secs={:.3}, registry_size_after={})",
             context_id,
             t.memory_pool.peak_bytes(),
             t.wall_secs(),
             QUERY_REGISTRY.len()
         ),
-        None => info!(
+        None => log_info!(
             "[nativemem-bp] rust.drain_completed_query: ctx={} not drained (absent or not completed) (registry_size={})",
             context_id,
             QUERY_REGISTRY.len()
@@ -295,12 +296,32 @@ pub fn snapshot_top_n_by_current(out: &mut [WireQueryMetric]) -> usize {
     // set — the one a heavier candidate displaces.
     let mut heap: BinaryHeap<Reverse<HeapEntry>> = BinaryHeap::with_capacity(n);
 
+    // Diagnostic: log registry size at entry, plus a sample of what's in there.
+    // Helps distinguish "registry empty" from "registry has entries but all are
+    // completed or have current_bytes == 0".
+    let registry_size = QUERY_REGISTRY.len();
+    let mut sample_logged = 0usize;
+    log_info!(
+        "[nativemem-bp] rust.snapshot_top_n_by_current: enter cap={} registry_size={}",
+        n, registry_size
+    );
+
     for entry in QUERY_REGISTRY.iter() {
         let tracker = entry.value();
-        if tracker.is_completed() {
+        let bytes_raw = tracker.memory_pool.current_bytes();
+        let peak_raw = tracker.memory_pool.peak_bytes();
+        let completed = tracker.is_completed();
+        if sample_logged < 5 {
+            log_info!(
+                "[nativemem-bp] rust.snapshot_top_n_by_current: sample ctx={} current_bytes={} peak_bytes={} completed={}",
+                tracker.context_id, bytes_raw, peak_raw, completed
+            );
+            sample_logged += 1;
+        }
+        if completed {
             continue;
         }
-        let bytes = usize_to_i64_saturating(tracker.memory_pool.current_bytes());
+        let bytes = usize_to_i64_saturating(bytes_raw);
         if bytes == 0 {
             continue;
         }
@@ -327,7 +348,7 @@ pub fn snapshot_top_n_by_current(out: &mut [WireQueryMetric]) -> usize {
         // values at materialization time, consistent with from_tracker. Ranking
         // and final values are independent point-in-time samples.
         out[written] = WireQueryMetric::from_tracker(&entry.tracker);
-        info!(
+        log_info!(
             "[nativemem-bp] rust.snapshot_top_n entry[{}]: ctx={}, current={}B, peak={}B, wall_ns={}, completed={}",
             written,
             out[written].context_id,
@@ -338,7 +359,7 @@ pub fn snapshot_top_n_by_current(out: &mut [WireQueryMetric]) -> usize {
         );
         written += 1;
     }
-    info!(
+    log_info!(
         "[nativemem-bp] rust.snapshot_top_n_by_current: wrote {} entries (cap {})",
         written, n
     );
@@ -349,7 +370,7 @@ pub fn snapshot_top_n_by_current(out: &mut [WireQueryMetric]) -> usize {
 /// No-op for unknown or already-completed queries.
 pub fn cancel_query(context_id: i64) {
     if let Some(tracker) = QUERY_REGISTRY.get(&context_id) {
-        info!(
+        log_info!(
             "[nativemem-bp] rust.cancel_query: firing token for ctx={} (completed={}, current_bytes={})",
             context_id,
             tracker.is_completed(),
@@ -357,7 +378,7 @@ pub fn cancel_query(context_id: i64) {
         );
         tracker.cancellation_token.cancel();
     } else {
-        info!(
+        log_info!(
             "[nativemem-bp] rust.cancel_query: ctx={} not in registry (registry_size={}) — no-op",
             context_id,
             QUERY_REGISTRY.len()
@@ -406,7 +427,7 @@ impl QueryTrackingContext {
             wall_nanos: std::sync::atomic::AtomicU64::new(0),
         });
         QUERY_REGISTRY.insert(context_id, Arc::clone(&tracker));
-        info!(
+        log_info!(
             "[nativemem-bp] rust.QueryTrackingContext::new: registered ctx={} (registry_size={})",
             context_id,
             QUERY_REGISTRY.len()
@@ -432,7 +453,7 @@ impl Drop for QueryTrackingContext {
     fn drop(&mut self) {
         if let Some(tracker) = &self.tracker {
             tracker.mark_completed();
-            info!(
+            log_info!(
                 "[nativemem-bp] rust.QueryTrackingContext::drop: ctx={} completed (wall={:.3}s, mem_current={}B, mem_peak={}B)",
                 tracker.context_id,
                 tracker.wall_secs(),
@@ -440,7 +461,7 @@ impl Drop for QueryTrackingContext {
                 tracker.memory_pool.peak_bytes(),
             );
             // Keep the debug line for operators who already tail the Rust debug log.
-            debug!(
+            log_debug!(
                 "Query completed ctx={}: wall={:.3}s, mem_current={}B, mem_peak={}B",
                 tracker.context_id,
                 tracker.wall_secs(),

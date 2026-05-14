@@ -507,4 +507,43 @@ public class OsProbeTests extends OpenSearchTestCase {
         assertEquals(-1L, OsProbe.getInstance().getProcessRssAnonBytes());
     }
 
+    // ---- getProcessNativeMemoryBytes (RssAnon - heapMax, clamped) ----
+
+    public void testGetProcessNativeMemoryBytes_returnsNegativeWhenRssAnonUnavailable() {
+        // Override getProcessRssAnonBytes to return -1 (the "not supported" sentinel). The
+        // method must propagate that signal upward without subtracting from -1.
+        OsProbe probe = new OsProbe() {
+            @Override
+            public long getProcessRssAnonBytes() {
+                return -1L;
+            }
+        };
+        assertEquals(-1L, probe.getProcessNativeMemoryBytes());
+    }
+
+    public void testGetProcessNativeMemoryBytes_subtractsHeapMaxAndClampsAtZero() {
+        // RssAnon below heapMax (early process lifetime, before heap pages are committed).
+        // The method must clamp at 0 instead of returning a negative.
+        OsProbe probe = new OsProbe() {
+            @Override
+            public long getProcessRssAnonBytes() {
+                return 1L; // way below any real -Xmx setting
+            }
+        };
+        assertEquals(0L, probe.getProcessNativeMemoryBytes());
+    }
+
+    public void testGetProcessNativeMemoryBytes_returnsDifferenceWhenRssAnonExceedsHeap() {
+        // RssAnon clearly larger than the JVM heap max — the difference is reported back.
+        long heapMax = org.opensearch.monitor.jvm.JvmStats.jvmStats().getMem().getHeapMax().getBytes();
+        long rssAnon = heapMax + 64L * 1024L * 1024L;
+        OsProbe probe = new OsProbe() {
+            @Override
+            public long getProcessRssAnonBytes() {
+                return rssAnon;
+            }
+        };
+        assertEquals(64L * 1024L * 1024L, probe.getProcessNativeMemoryBytes());
+    }
+
 }

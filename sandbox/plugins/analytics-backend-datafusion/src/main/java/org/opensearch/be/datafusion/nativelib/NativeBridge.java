@@ -90,8 +90,6 @@ public final class NativeBridge {
     private static final MethodHandle PREPARE_PARTIAL_PLAN;
     private static final MethodHandle PREPARE_FINAL_PLAN;
     private static final MethodHandle EXECUTE_LOCAL_PREPARED_PLAN;
-    private static final MethodHandle QUERY_REGISTRY_LEN;
-    private static final MethodHandle QUERY_REGISTRY_SNAPSHOT;
 
     static {
         SymbolLookup lib = NativeLibraryLoader.symbolLookup();
@@ -404,6 +402,9 @@ public final class NativeBridge {
         // i64 df_query_registry_top_n_by_current(out_ptr, cap_entries)
         QUERY_REGISTRY_TOP_N_BY_CURRENT = linker.downcallHandle(
             lib.find("df_query_registry_top_n_by_current").orElseThrow(),
+            FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG)
+        );
+
         // ── Distributed aggregate: prepare partial/final plans ──
         // i64 df_prepare_partial_plan(handle_ptr, bytes_ptr, bytes_len)
         PREPARE_PARTIAL_PLAN = linker.downcallHandle(
@@ -421,18 +422,6 @@ public final class NativeBridge {
         EXECUTE_LOCAL_PREPARED_PLAN = linker.downcallHandle(
             lib.find("df_execute_local_prepared_plan").orElseThrow(),
             FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG)
-        );
-
-        // i64 df_query_registry_len()
-        QUERY_REGISTRY_LEN = linker.downcallHandle(
-            lib.find("df_query_registry_len").orElseThrow(),
-            FunctionDescriptor.of(ValueLayout.JAVA_LONG)
-        );
-
-        // i64 df_query_registry_snapshot(out_ptr, cap_entries)
-        QUERY_REGISTRY_SNAPSHOT = linker.downcallHandle(
-            lib.find("df_query_registry_snapshot").orElseThrow(),
-            FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG)
         );
     }
 
