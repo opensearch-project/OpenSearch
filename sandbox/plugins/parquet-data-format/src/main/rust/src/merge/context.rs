@@ -26,7 +26,7 @@ use crate::{log_debug, SETTINGS_STORE};
 
 use super::error::{MergeError, MergeResult};
 use super::io_task::{
-    get_merge_pool, spawn_io_task, IoCommand, RATE_LIMIT_MB_PER_SEC,
+    get_merge_pool, spawn_io_task, IoCommand,
 };
 use super::schema::{append_row_id, build_parquet_root_schema, ROW_ID_COLUMN_NAME};
 
@@ -90,16 +90,18 @@ impl MergeContext {
 
         let parquet_root = build_parquet_root_schema(parquet_descriptors)?;
 
-        let output_file = File::create(output_path)?;
-        let throttled_writer =
-            RateLimitedWriter::new(output_file, RATE_LIMIT_MB_PER_SEC).map_err(MergeError::Io)?;
-
-        let (crc_writer, crc_handle) = CrcWriter::new(throttled_writer);
-
         let config = SETTINGS_STORE
             .get(index_name)
             .map(|r| r.clone())
             .unwrap_or_default();
+
+        let output_file = File::create(output_path)?;
+        let throttled_writer =
+            RateLimitedWriter::new(output_file, config.get_merge_rate_limit_mb_per_sec())
+                .map_err(MergeError::Io)?;
+
+        let (crc_writer, crc_handle) = CrcWriter::new(throttled_writer);
+
         let writer_props = Arc::new(WriterPropertiesBuilder::build(&config));
 
         let writer = SerializedFileWriter::new(crc_writer, parquet_root, writer_props)?;

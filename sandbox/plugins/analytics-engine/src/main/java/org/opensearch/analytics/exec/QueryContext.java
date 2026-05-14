@@ -30,27 +30,30 @@ import java.util.concurrent.Executor;
  */
 public class QueryContext {
 
-    // TODO: make configurable via cluster setting (like search.max_concurrent_shard_requests)
     private static final int DEFAULT_MAX_CONCURRENT_SHARD_REQUESTS = 5;
 
     /** Default per-query memory limit for Arrow allocations (256 MB). */
     private static final long DEFAULT_PER_QUERY_MEMORY_LIMIT = 256L * 1024 * 1024;
+
+    /** Default maximum result rows before the coordinator rejects further batches. */
+    private static final long DEFAULT_MAX_ROWS = 1_000_000L;
 
     private final QueryDAG dag;
     private final Executor searchExecutor;
     private final AnalyticsQueryTask parentTask;
     private final int maxConcurrentShardRequests;
     private final long perQueryMemoryLimit;
+    private final long maxResultRows;
     private final List<AnalyticsOperationListener> operationListeners;
     private volatile BufferAllocator bufferAllocator;
     private boolean closed;  // guarded by `this`
 
     public QueryContext(QueryDAG dag, Executor searchExecutor, AnalyticsQueryTask parentTask) {
-        this(dag, searchExecutor, parentTask, DEFAULT_MAX_CONCURRENT_SHARD_REQUESTS, DEFAULT_PER_QUERY_MEMORY_LIMIT, List.of());
+        this(dag, searchExecutor, parentTask, DEFAULT_MAX_CONCURRENT_SHARD_REQUESTS, DEFAULT_PER_QUERY_MEMORY_LIMIT, DEFAULT_MAX_ROWS);
     }
 
     public QueryContext(QueryDAG dag, Executor searchExecutor, AnalyticsQueryTask parentTask, int maxConcurrentShardRequests) {
-        this(dag, searchExecutor, parentTask, maxConcurrentShardRequests, DEFAULT_PER_QUERY_MEMORY_LIMIT, List.of());
+        this(dag, searchExecutor, parentTask, maxConcurrentShardRequests, DEFAULT_PER_QUERY_MEMORY_LIMIT, DEFAULT_MAX_ROWS);
     }
 
     public QueryContext(
@@ -60,7 +63,7 @@ public class QueryContext {
         int maxConcurrentShardRequests,
         long perQueryMemoryLimit
     ) {
-        this(dag, searchExecutor, parentTask, maxConcurrentShardRequests, perQueryMemoryLimit, List.of());
+        this(dag, searchExecutor, parentTask, maxConcurrentShardRequests, perQueryMemoryLimit, DEFAULT_MAX_ROWS);
     }
 
     public QueryContext(
@@ -69,6 +72,18 @@ public class QueryContext {
         AnalyticsQueryTask parentTask,
         int maxConcurrentShardRequests,
         long perQueryMemoryLimit,
+        long maxResultRows
+    ) {
+        this(dag, searchExecutor, parentTask, maxConcurrentShardRequests, perQueryMemoryLimit, maxResultRows, List.of());
+    }
+
+    public QueryContext(
+        QueryDAG dag,
+        Executor searchExecutor,
+        AnalyticsQueryTask parentTask,
+        int maxConcurrentShardRequests,
+        long perQueryMemoryLimit,
+        long maxResultRows,
         List<AnalyticsOperationListener> operationListeners
     ) {
         this.dag = dag;
@@ -76,6 +91,7 @@ public class QueryContext {
         this.parentTask = parentTask;
         this.maxConcurrentShardRequests = maxConcurrentShardRequests;
         this.perQueryMemoryLimit = perQueryMemoryLimit;
+        this.maxResultRows = maxResultRows;
         this.operationListeners = operationListeners;
     }
 
@@ -97,6 +113,10 @@ public class QueryContext {
 
     public int maxConcurrentShardRequests() {
         return maxConcurrentShardRequests;
+    }
+
+    public long maxResultRows() {
+        return maxResultRows;
     }
 
     /** Returns the operation listeners for this query. */

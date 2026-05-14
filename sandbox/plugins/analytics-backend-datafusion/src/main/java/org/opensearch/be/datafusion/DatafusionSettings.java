@@ -32,6 +32,36 @@ import java.util.List;
 @ExperimentalApi
 public final class DatafusionSettings {
 
+    // ── Runtime thread pool settings (static — require restart) ──
+
+    /**
+     * Number of CPU threads for the DataFusion dedicated executor.
+     * Controls the Tokio runtime that runs CPU-bound DataFusion plans.
+     * Default is 50% of available processors to leave headroom for Lucene
+     * indexing and transport threads.
+     */
+    public static final Setting<Integer> CPU_THREADS = Setting.intSetting(
+        "datafusion.cpu_threads",
+        Math.max(1, Runtime.getRuntime().availableProcessors() / 2),
+        1,
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * Number of IO threads for the DataFusion async runtime.
+     * Controls the Tokio runtime handling disk/network IO (object store reads,
+     * spill writes). Default is {@code cpu_threads * 2}.
+     * <p>
+     * Set higher on network-attached storage (EBS, S3) where IO parallelism
+     * improves throughput; lower on local NVMe where CPU is the bottleneck.
+     */
+    public static final Setting<Integer> IO_THREADS = Setting.intSetting(
+        "datafusion.io_threads",
+        Math.max(2, Runtime.getRuntime().availableProcessors()),
+        1,
+        Setting.Property.NodeScope
+    );
+
     // ── New indexed query settings ──
 
     /** Number of rows per batch in the indexed query execution path. */
@@ -166,10 +196,12 @@ public final class DatafusionSettings {
 
     public static final List<Setting<?>> ALL_SETTINGS = List.of(
 
-        // Runtime settings — memory pool, spill, and reduce input mode
+        // Runtime settings — memory pool, spill, reduce input mode, and thread pools
         DataFusionPlugin.DATAFUSION_MEMORY_POOL_LIMIT,
         DataFusionPlugin.DATAFUSION_SPILL_MEMORY_LIMIT,
         DataFusionPlugin.DATAFUSION_REDUCE_INPUT_MODE,
+        CPU_THREADS,
+        IO_THREADS,
 
         // Cache settings — metadata and statistics cache configuration
         CacheSettings.METADATA_CACHE_SIZE_LIMIT,

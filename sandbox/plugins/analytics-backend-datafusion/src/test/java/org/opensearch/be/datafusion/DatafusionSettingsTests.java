@@ -16,6 +16,46 @@ public class DatafusionSettingsTests extends OpenSearchTestCase {
 
     private static final int DEFAULT_PARALLELISM = Math.max(1, Math.min(Runtime.getRuntime().availableProcessors() / 2, 4));
 
+    public void testCpuThreadsSettingDefinition() {
+        assertEquals("datafusion.cpu_threads", DatafusionSettings.CPU_THREADS.getKey());
+        assertEquals(
+            Integer.valueOf(Math.max(1, Runtime.getRuntime().availableProcessors() / 2)),
+            DatafusionSettings.CPU_THREADS.get(Settings.EMPTY)
+        );
+        assertFalse(DatafusionSettings.CPU_THREADS.isDynamic());
+        assertTrue(DatafusionSettings.CPU_THREADS.hasNodeScope());
+    }
+
+    public void testIoThreadsSettingDefinition() {
+        assertEquals("datafusion.io_threads", DatafusionSettings.IO_THREADS.getKey());
+        assertEquals(
+            Integer.valueOf(Math.max(2, Runtime.getRuntime().availableProcessors())),
+            DatafusionSettings.IO_THREADS.get(Settings.EMPTY)
+        );
+        assertFalse(DatafusionSettings.IO_THREADS.isDynamic());
+        assertTrue(DatafusionSettings.IO_THREADS.hasNodeScope());
+    }
+
+    public void testCpuThreadsCustomValue() {
+        Settings settings = Settings.builder().put("datafusion.cpu_threads", 4).build();
+        assertEquals(Integer.valueOf(4), DatafusionSettings.CPU_THREADS.get(settings));
+    }
+
+    public void testIoThreadsCustomValue() {
+        Settings settings = Settings.builder().put("datafusion.io_threads", 16).build();
+        assertEquals(Integer.valueOf(16), DatafusionSettings.IO_THREADS.get(settings));
+    }
+
+    public void testCpuThreadsZeroIsRejected() {
+        Settings settings = Settings.builder().put("datafusion.cpu_threads", 0).build();
+        expectThrows(IllegalArgumentException.class, () -> DatafusionSettings.CPU_THREADS.get(settings));
+    }
+
+    public void testIoThreadsZeroIsRejected() {
+        Settings settings = Settings.builder().put("datafusion.io_threads", 0).build();
+        expectThrows(IllegalArgumentException.class, () -> DatafusionSettings.IO_THREADS.get(settings));
+    }
+
     public void testBatchSizeSettingDefinition() {
         assertEquals("datafusion.indexed.batch_size", DatafusionSettings.INDEXED_BATCH_SIZE.getKey());
         assertEquals(Integer.valueOf(8192), DatafusionSettings.INDEXED_BATCH_SIZE.get(Settings.EMPTY));
@@ -69,7 +109,9 @@ public class DatafusionSettingsTests extends OpenSearchTestCase {
     }
 
     public void testAllSettingsContainsAllExpectedSettings() {
-        assertEquals(16, DatafusionSettings.ALL_SETTINGS.size());
+        assertEquals(18, DatafusionSettings.ALL_SETTINGS.size());
+        assertTrue(DatafusionSettings.ALL_SETTINGS.contains(DatafusionSettings.CPU_THREADS));
+        assertTrue(DatafusionSettings.ALL_SETTINGS.contains(DatafusionSettings.IO_THREADS));
         assertTrue(DatafusionSettings.ALL_SETTINGS.contains(DatafusionSettings.INDEXED_BATCH_SIZE));
         assertTrue(DatafusionSettings.ALL_SETTINGS.contains(DatafusionSettings.INDEXED_PARQUET_PUSHDOWN_FILTERS));
         assertTrue(DatafusionSettings.ALL_SETTINGS.contains(DatafusionSettings.INDEXED_MIN_SKIP_RUN_DEFAULT));

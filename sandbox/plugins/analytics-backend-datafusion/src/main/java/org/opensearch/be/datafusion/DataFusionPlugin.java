@@ -73,12 +73,19 @@ public class DataFusionPlugin extends Plugin implements SearchBackEndPlugin<Data
         Setting.Property.Dynamic
     );
 
-    /** Spill memory limit — when exceeded, DataFusion spills to disk. */
+    /**
+     * Spill memory limit — when exceeded, DataFusion spills to disk.
+     * <p>
+     * Dynamic: updated limit applies to new sort/hash operations. In-flight
+     * operations that already reserved memory above the new limit are not
+     * interrupted — they drain naturally.
+     */
     public static final Setting<Long> DATAFUSION_SPILL_MEMORY_LIMIT = Setting.longSetting(
         "datafusion.spill_memory_limit_bytes",
         Runtime.getRuntime().maxMemory() / 8,
         0L,
-        Setting.Property.NodeScope
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
     );
 
     /**
@@ -136,12 +143,16 @@ public class DataFusionPlugin extends Plugin implements SearchBackEndPlugin<Data
         Settings settings = environment.settings();
         long memoryPoolLimit = DATAFUSION_MEMORY_POOL_LIMIT.get(settings);
         long spillMemoryLimit = DATAFUSION_SPILL_MEMORY_LIMIT.get(settings);
+        int cpuThreads = DatafusionSettings.CPU_THREADS.get(settings);
+        int ioThreads = DatafusionSettings.IO_THREADS.get(settings);
         String spillDir = environment.dataFiles()[0].getParent().resolve("tmp").toAbsolutePath().toString();
 
         dataFusionService = DataFusionService.builder()
             .memoryPoolLimit(memoryPoolLimit)
             .spillMemoryLimit(spillMemoryLimit)
             .spillDirectory(spillDir)
+            .cpuThreads(cpuThreads)
+            .ioThreads(ioThreads)
             .clusterSettings(clusterService.getClusterSettings())
             .build();
         dataFusionService.start();

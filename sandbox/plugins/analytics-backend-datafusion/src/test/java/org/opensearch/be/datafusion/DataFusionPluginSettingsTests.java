@@ -68,6 +68,8 @@ public class DataFusionPluginSettingsTests extends OpenSearchTestCase {
             List<Setting<?>> settings = plugin.getSettings();
             Set<String> settingKeys = settings.stream().map(Setting::getKey).collect(Collectors.toSet());
 
+            assertTrue(settingKeys.contains("datafusion.cpu_threads"));
+            assertTrue(settingKeys.contains("datafusion.io_threads"));
             assertTrue(settingKeys.contains("datafusion.indexed.batch_size"));
             assertTrue(settingKeys.contains("datafusion.indexed.parquet_pushdown_filters"));
             assertTrue(settingKeys.contains("datafusion.indexed.min_skip_run_default"));
@@ -83,7 +85,7 @@ public class DataFusionPluginSettingsTests extends OpenSearchTestCase {
     public void testGetSettingsReturnsTotalExpectedCount() {
         try (DataFusionPlugin plugin = new DataFusionPlugin()) {
             List<Setting<?>> settings = plugin.getSettings();
-            assertEquals(16, settings.size());
+            assertEquals(18, settings.size());
         } catch (Exception e) {
             throw new AssertionError(e);
         }

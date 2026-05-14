@@ -21,9 +21,7 @@ pub struct RuntimeManager {
 }
 
 impl RuntimeManager {
-    pub fn new(cpu_threads: usize) -> Self {
-        let io_threads = cpu_threads * 2;
-
+    pub fn new(cpu_threads: usize, io_threads: usize) -> Self {
         let io_runtime = Arc::new(
             Builder::new_multi_thread()
                 .worker_threads(io_threads)
@@ -82,7 +80,7 @@ mod tests {
     use super::*;
 
     fn test_mgr() -> RuntimeManager {
-        RuntimeManager::new(1)
+        RuntimeManager::new(1, 2)
     }
 
     #[tokio::test]

@@ -35,7 +35,7 @@ public class DataFusionNativeBridgeTests extends OpenSearchTestCase {
 
     public void testRuntimeLifecycle() {
         // Init tokio runtime (no-op if already initialized by another test class)
-        NativeBridge.initTokioRuntimeManager(2);
+        NativeBridge.initTokioRuntimeManager(2, 4);
 
         // Create global runtime with small memory pool
         Path spillDir = createTempDir("datafusion-spill");
@@ -52,7 +52,7 @@ public class DataFusionNativeBridgeTests extends OpenSearchTestCase {
     }
 
     public void testReaderLifecycle() throws Exception {
-        NativeBridge.initTokioRuntimeManager(2);
+        NativeBridge.initTokioRuntimeManager(2, 4);
         Path spillDir = createTempDir("datafusion-spill");
         long runtimePtr = NativeBridge.createGlobalRuntime(64 * 1024 * 1024, 0L, spillDir.toString(), 32 * 1024 * 1024);
 
@@ -72,7 +72,7 @@ public class DataFusionNativeBridgeTests extends OpenSearchTestCase {
     }
 
     public void testSessionContextCreationAndTableRegistration() throws Exception {
-        NativeBridge.initTokioRuntimeManager(2);
+        NativeBridge.initTokioRuntimeManager(2, 4);
         Path spillDir = createTempDir("datafusion-spill");
         long runtimePtr = NativeBridge.createGlobalRuntime(64 * 1024 * 1024, 0L, spillDir.toString(), 32 * 1024 * 1024);
         NativeRuntimeHandle runtimeHandle = new NativeRuntimeHandle(runtimePtr);

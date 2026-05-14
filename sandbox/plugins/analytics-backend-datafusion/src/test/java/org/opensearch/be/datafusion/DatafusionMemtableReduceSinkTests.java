@@ -52,7 +52,7 @@ public class DatafusionMemtableReduceSinkTests extends OpenSearchTestCase {
     }
 
     public void testFeedDrainsSumToDownstream() throws Exception {
-        NativeBridge.initTokioRuntimeManager(2);
+        NativeBridge.initTokioRuntimeManager(2, 4);
         Path spillDir = createTempDir("datafusion-spill");
         long runtimePtr = NativeBridge.createGlobalRuntime(64 * 1024 * 1024, 0L, spillDir.toString(), 32 * 1024 * 1024);
         assertTrue("runtime ptr non-zero", runtimePtr != 0);

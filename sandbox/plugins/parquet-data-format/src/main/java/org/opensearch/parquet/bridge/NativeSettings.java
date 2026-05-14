@@ -28,6 +28,7 @@ public class NativeSettings {
     private final Integer sortBatchSize;
     private final Integer rowGroupMaxRows;
     private final Integer mergeBatchSize;
+    private final Double mergeRateLimitMbPerSec;
     private final Integer mergeRayonThreads;
     private final Integer mergeIoThreads;
 
@@ -45,6 +46,7 @@ public class NativeSettings {
         this.sortBatchSize = builder.sortBatchSize;
         this.rowGroupMaxRows = builder.rowGroupMaxRows;
         this.mergeBatchSize = builder.mergeBatchSize;
+        this.mergeRateLimitMbPerSec = builder.mergeRateLimitMbPerSec;
         this.mergeRayonThreads = builder.mergeRayonThreads;
         this.mergeIoThreads = builder.mergeIoThreads;
     }
@@ -101,6 +103,10 @@ public class NativeSettings {
         return mergeBatchSize;
     }
 
+    public Double getMergeRateLimitMbPerSec() {
+        return mergeRateLimitMbPerSec;
+    }
+
     public Integer getMergeRayonThreads() {
         return mergeRayonThreads;
     }
@@ -127,6 +133,7 @@ public class NativeSettings {
         private Integer sortBatchSize;
         private Integer rowGroupMaxRows;
         private Integer mergeBatchSize;
+        private Double mergeRateLimitMbPerSec;
         private Integer mergeRayonThreads;
         private Integer mergeIoThreads;
 
@@ -192,6 +199,11 @@ public class NativeSettings {
 
         public Builder mergeBatchSize(Integer v) {
             this.mergeBatchSize = v;
+            return this;
+        }
+
+        public Builder mergeRateLimitMbPerSec(Double v) {
+            this.mergeRateLimitMbPerSec = v;
             return this;
         }
 

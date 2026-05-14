@@ -29,6 +29,7 @@ pub struct NativeSettings {
     pub sort_in_memory_threshold_bytes: Option<u64>,
     pub sort_batch_size: Option<usize>,
     pub merge_batch_size: Option<usize>,
+    pub merge_rate_limit_mb_per_sec: Option<f64>,
     pub row_group_max_rows: Option<usize>,
     pub merge_rayon_threads: Option<usize>,
     pub merge_io_threads: Option<usize>,
@@ -89,6 +90,10 @@ impl NativeSettings {
 
     pub fn get_merge_batch_size(&self) -> usize {
         self.merge_batch_size.unwrap_or(100_000)
+    }
+
+    pub fn get_merge_rate_limit_mb_per_sec(&self) -> f64 {
+        self.merge_rate_limit_mb_per_sec.unwrap_or(20.0)
     }
 
     pub fn get_row_group_max_rows(&self) -> usize {

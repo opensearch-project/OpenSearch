@@ -200,7 +200,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_full_stats_packing() {
-        let mgr = crate::runtime_manager::RuntimeManager::new(1);
+        let mgr = crate::runtime_manager::RuntimeManager::new(1, 2);
 
         let io_runtime = pack_runtime_metrics(&mgr.io_monitor, mgr.io_runtime.handle());
 
