@@ -224,17 +224,20 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
      * Wrapper class for {@link PostingsEnum} that checks for query cancellation or timeout
      * during document iteration. This closes the gap where field data loading iterates
      * postings (e.g., {@code OrdinalsBuilder.addDoc()}) without cancellation checks.
+     *
+     * <p>Extends {@link FilterLeafReader.FilterPostingsEnum} so that callers (including plugins
+     * with custom codec PostingsEnum implementations) can use {@link #unwrap()} to access the
+     * underlying delegate PostingsEnum.
      */
-    private static class ExitablePostingsEnum extends PostingsEnum {
+    static class ExitablePostingsEnum extends FilterLeafReader.FilterPostingsEnum {
 
         private static final int MAX_CALLS_BEFORE_QUERY_TIMEOUT_CHECK = (1 << 13) - 1; // 8191
 
-        private final PostingsEnum in;
         private final QueryCancellation queryCancellation;
         private int calls;
 
-        private ExitablePostingsEnum(PostingsEnum in, QueryCancellation queryCancellation) {
-            this.in = in;
+        ExitablePostingsEnum(PostingsEnum in, QueryCancellation queryCancellation) {
+            super(in);
             this.queryCancellation = queryCancellation;
         }
 
@@ -247,48 +250,13 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
         @Override
         public int nextDoc() throws IOException {
             checkAndThrowWithSampling();
-            return in.nextDoc();
+            return super.nextDoc();
         }
 
         @Override
         public int advance(int target) throws IOException {
             queryCancellation.checkCancelled();
-            return in.advance(target);
-        }
-
-        @Override
-        public int docID() {
-            return in.docID();
-        }
-
-        @Override
-        public long cost() {
-            return in.cost();
-        }
-
-        @Override
-        public int freq() throws IOException {
-            return in.freq();
-        }
-
-        @Override
-        public int nextPosition() throws IOException {
-            return in.nextPosition();
-        }
-
-        @Override
-        public int startOffset() throws IOException {
-            return in.startOffset();
-        }
-
-        @Override
-        public int endOffset() throws IOException {
-            return in.endOffset();
-        }
-
-        @Override
-        public BytesRef getPayload() throws IOException {
-            return in.getPayload();
+            return super.advance(target);
         }
     }
 

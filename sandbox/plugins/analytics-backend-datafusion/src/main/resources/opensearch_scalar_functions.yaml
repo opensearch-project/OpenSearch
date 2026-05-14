@@ -307,6 +307,150 @@ scalar_functions:
           - value: "string"
             name: "replacement"
         return: string
+      - args:
+          - value: "varchar<L1>"
+            name: "input"
+          - value: "varchar<L2>"
+            name: "pattern"
+          - value: "varchar<L3>"
+            name: "replacement"
+          - value: "varchar<L4>"
+            name: "flags"
+        return: "varchar<L1>"
+      - args:
+          - value: "string"
+            name: "input"
+          - value: "string"
+            name: "pattern"
+          - value: "string"
+            name: "replacement"
+          - value: "string"
+            name: "flags"
+        return: string
+  - name: translate
+    description: >-
+      Character transliteration — replace each character in `input` that appears
+      in `from` with the corresponding character in `to`. Lowering target for
+      PPL's `rex mode=sed` with {@code y/from/to/} transliteration syntax
+      (Calcite `SqlLibraryOperators.TRANSLATE3`). datafusion-substrait resolves
+      the extension name "translate" to DataFusion's native `translate` UDF
+      (datafusion-functions/src/unicode/translate.rs).
+    impls:
+      - args:
+          - value: "varchar<L1>"
+            name: "input"
+          - value: "varchar<L2>"
+            name: "from"
+          - value: "varchar<L3>"
+            name: "to"
+        return: "varchar<L1>"
+      - args:
+          - value: "string"
+            name: "input"
+          - value: "string"
+            name: "from"
+          - value: "string"
+            name: "to"
+        return: string
+  - name: rex_extract
+    description: >-
+      Extract the first occurrence of a regex named or numbered capture group
+      from a string (Java-Pattern-compatible regex). Lowering target for PPL's
+      `rex field=f "(?<g>...)"` extract command (single-match form) — emitted
+      by the SQL plugin as a custom Calcite UDF named `REX_EXTRACT`. The
+      analytics-engine adapter rewrites the call to a local Calcite operator
+      whose `FunctionMappings.Sig` resolves to this Substrait extension; the
+      Rust UDF implementation lives at
+      sandbox/plugins/analytics-backend-datafusion/rust/src/udf/rex_extract.rs.
+      Returns NULL when the pattern doesn't match, the group doesn't exist, or
+      either operand is NULL.
+    impls:
+      - args:
+          - value: "varchar<L1>"
+            name: "input"
+          - value: "varchar<L2>"
+            name: "pattern"
+          - value: "varchar<L3>"
+            name: "group"
+        return: "varchar<L1>"
+      - args:
+          - value: "string"
+            name: "input"
+          - value: "string"
+            name: "pattern"
+          - value: "string"
+            name: "group"
+        return: string
+  - name: rex_extract_multi
+    description: >-
+      Extract up to `max_match` occurrences of a regex named or numbered
+      capture group from a string, returned as a `list<varchar>`. Lowering
+      target for PPL's `rex field=f "(?<g>...)" max_match=N`. `max_match=0`
+      is unbounded. The Rust UDF implementation lives at
+      sandbox/plugins/analytics-backend-datafusion/rust/src/udf/rex_extract_multi.rs.
+      Returns NULL (not an empty list) when no matches are found.
+    impls:
+      - args:
+          - value: "varchar<L1>"
+            name: "input"
+          - value: "varchar<L2>"
+            name: "pattern"
+          - value: "varchar<L3>"
+            name: "group"
+          - value: i32
+            name: "max_match"
+        return: list<varchar<L1>>
+      - args:
+          - value: "string"
+            name: "input"
+          - value: "string"
+            name: "pattern"
+          - value: "string"
+            name: "group"
+          - value: i32
+            name: "max_match"
+        return: list<string>
+  - name: rex_offset
+    description: >-
+      Compute the start-end offsets of every named capture group from the
+      first regex match, formatted as `"name1=start1-end1&name2=start2-end2"`
+      (group names sorted alphabetically). Lowering target for PPL's
+      `rex field=f "(?<g>...)" offset_field=name`. The Rust UDF implementation
+      lives at sandbox/plugins/analytics-backend-datafusion/rust/src/udf/rex_offset.rs.
+      Returns NULL when the pattern doesn't match or has no named groups.
+      The end position is inclusive (matches the SQL plugin's Java
+      RexOffsetFunction: `end - 1`).
+    impls:
+      - args:
+          - value: "varchar<L1>"
+            name: "input"
+          - value: "varchar<L2>"
+            name: "pattern"
+        return: "varchar<L1>"
+      - args:
+          - value: "string"
+            name: "input"
+          - value: "string"
+            name: "pattern"
+        return: string
+  - name: array_length
+    description: >-
+      Number of elements in a list. Lowering target for PPL's `array_length()`
+      function (Calcite `SqlLibraryOperators.ARRAY_LENGTH`). Needed end-to-end
+      so PPL queries can size the list returned by `rex` extract-mode
+      (`eval count = array_length(g)` after `rex field=f "(?<g>...)"`).
+      datafusion-substrait resolves the extension name "array_length" to
+      DataFusion's native `array_length` UDF.
+      Single polymorphic impl over `list<any1>`: substrait's compound function
+      key drops the inner parametric element type, so declaring separate
+      `list<varchar<L1>>` and `list<string>` impls collapses to the same key
+      `array_length:list` and trips the SimpleExtension loader's duplicate-key
+      check at plugin start. The single `any1` impl matches both call sites.
+    impls:
+      - args:
+          - value: "list<any1>"
+            name: "input"
+        return: i64
 
   # ascii(str) — Unicode code point of the first character.
   - name: "ascii"
@@ -571,3 +715,62 @@ scalar_functions:
           - { value: "varchar<L1>", name: "input" }
           - { value: "varchar<L2>", name: "format" }
         return: precision_timestamp<6>
+
+  - name: "md5"
+    description: "Return the 128-bit MD5 digest of the input string as a lowercase hex string."
+    impls:
+      - args:
+          - { name: input, value: "varchar<L1>" }
+        nullability: DECLARED_OUTPUT
+        return: "varchar<L1>"
+      - args:
+          - { name: input, value: "string" }
+        nullability: DECLARED_OUTPUT
+        return: string
+
+  - name: "digest"
+    description: "Compute the binary hash of the input using the given algorithm ('sha224'/'sha256'/'sha384'/'sha512' are used by the SHA2)."
+    impls:
+      - args:
+          - { name: input, value: "string" }
+          - { name: algorithm, value: "string" }
+        nullability: DECLARED_OUTPUT
+        return: binary
+      - args:
+          - { name: input, value: "varchar<L1>" }
+          - { name: algorithm, value: "string" }
+        nullability: DECLARED_OUTPUT
+        return: binary
+
+  - name: "encode"
+    description: "Encode a binary value to a string (format 'hex' used by the SHA2)."
+    impls:
+      - args:
+          - { name: input, value: "binary" }
+          - { name: format, value: "string" }
+        nullability: DECLARED_OUTPUT
+        return: string
+
+  - name: "sha1"
+    description: "Return the 160-bit SHA-1 digest of the input string as a lowercase hex string."
+    impls:
+      - args:
+          - { name: input, value: "varchar<L1>" }
+        nullability: DECLARED_OUTPUT
+        return: "varchar<L1>"
+      - args:
+          - { name: input, value: "string" }
+        nullability: DECLARED_OUTPUT
+        return: string
+
+  - name: "crc32"
+    description: "Return the CRC-32 checksum of the input string as a non-negative integer."
+    impls:
+      - args:
+          - { name: input, value: "varchar<L1>" }
+        nullability: DECLARED_OUTPUT
+        return: i64
+      - args:
+          - { name: input, value: "string" }
+        nullability: DECLARED_OUTPUT
+        return: i64

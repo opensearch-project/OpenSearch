@@ -892,3 +892,58 @@ fn test_delete_during_active_guard() {
 fn local_entry() -> TieredFileEntry {
     TieredFileEntry::new(FileLocation::Local, None)
 }
+
+// -- head() directory existence check tests ---------------------------------
+
+#[tokio::test]
+async fn test_head_directory_path_returns_synthetic_when_registry_has_entries() {
+    let (registry, _local, _remote, tiered) = setup();
+
+    // Register a file so registry is non-empty
+    let entry = TieredFileEntry::with_size(FileLocation::Remote, Some(Arc::from("remote/a.parquet")), 1024);
+    registry.register("data/parquet/a.parquet", entry);
+
+    // head() on a directory path (no file extension) should return synthetic metadata
+    let result = tiered.head(&Path::from("data/parquet")).await;
+    assert!(result.is_ok());
+    let meta = result.unwrap();
+    assert_eq!(meta.size, 0);
+    assert_eq!(meta.location, Path::from("data/parquet"));
+}
+
+#[tokio::test]
+async fn test_head_directory_path_with_trailing_slash() {
+    let (registry, _local, _remote, tiered) = setup();
+
+    let entry = TieredFileEntry::with_size(FileLocation::Remote, Some(Arc::from("remote/b.parquet")), 2048);
+    registry.register("data/parquet/b.parquet", entry);
+
+    // Trailing slash also treated as directory
+    let result = tiered.head(&Path::from("data/parquet/")).await;
+    assert!(result.is_ok());
+    assert_eq!(result.unwrap().size, 0);
+}
+
+#[tokio::test]
+async fn test_head_directory_path_returns_not_found_when_registry_empty() {
+    let (_registry, _local, _remote, tiered) = setup();
+
+    // Registry is empty — directory doesn't "exist"
+    let result = tiered.head(&Path::from("data/parquet")).await;
+    assert!(result.is_err());
+}
+
+#[tokio::test]
+async fn test_head_file_path_not_treated_as_directory() {
+    let (registry, _local, _remote, tiered) = setup();
+
+    // Register a file so registry is non-empty
+    let entry = TieredFileEntry::with_size(FileLocation::Remote, Some(Arc::from("remote/c.parquet")), 512);
+    registry.register("data/parquet/c.parquet", entry);
+
+    // head() on a file path (has extension) should NOT use directory check
+    // — it should try registry lookup, then remote, then local
+    let result = tiered.head(&Path::from("data/parquet/nonexistent.parquet")).await;
+    // Not in registry, not local → NotFound
+    assert!(result.is_err());
+}

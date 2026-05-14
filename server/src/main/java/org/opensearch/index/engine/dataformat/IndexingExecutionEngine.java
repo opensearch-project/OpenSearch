@@ -32,10 +32,10 @@ public interface IndexingExecutionEngine<T extends DataFormat, P extends Documen
     /**
      * Creates a new writer for the given writer generation.
      *
-     * @param writerGeneration the writer generation number
+     * @param config the writer configuration
      * @return a new writer instance
      */
-    Writer<P> createWriter(long writerGeneration);
+    Writer<P> createWriter(WriterConfig config);
 
     /**
      * Returns the merger for combining writer file sets.

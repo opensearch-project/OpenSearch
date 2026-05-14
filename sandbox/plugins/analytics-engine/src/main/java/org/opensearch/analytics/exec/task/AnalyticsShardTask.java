@@ -30,4 +30,9 @@ public class AnalyticsShardTask extends CancellableTask {
     public boolean shouldCancelChildrenOnCancellation() {
         return false;
     }
+
+    @Override
+    public boolean supportsResourceTracking() {
+        return true;
+    }
 }

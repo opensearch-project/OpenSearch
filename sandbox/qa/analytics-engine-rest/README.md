@@ -43,6 +43,57 @@ Dataset myDataset = new Dataset("myDatasetName", "my_index_name");
 
 `DatasetProvisioner.provision(client, myDataset)` creates the index with parquet data format and ingests the bulk data. `DatasetQueryRunner.discoverQueryNumbers(myDataset, "dsl")` auto-discovers all query files.
 
+## Expected Response Validation
+
+Tests support validating query results against expected responses stored in `src/test/resources/datasets/{name}/{language}/expected/q{N}.json`.
+
+### Validation Strategies
+
+Configure via `ExpectedResponseStrategy` constant in test classes:
+
+- **`SKIP_VALIDATION`** — Only checks for 200 OK response, no content validation
+- **`PASS_ON_MISSING`** — Validates if expected response exists, passes if it doesn't
+- **`FAIL_ON_MISSING`** — Fails test if expected response file is missing
+
+### Expected Response Format
+
+```json
+{
+  "rows": [
+    [value1, value2, ...],
+    [value1, value2, ...]
+  ]
+}
+```
+
+### Validation Method
+
+`ResponseValidator.validate()` compares actual vs expected responses:
+- Parses expected JSON using OpenSearch's `XContentHelper`
+- Extracts `rows` or `datarows` from both responses
+- Compares row count, column count, and values with numeric tolerance (1e-9)
+- Returns `null` if validation passes, error message if it fails
+
+### Usage in Tests
+
+```java
+private static final ExpectedResponseStrategy STRATEGY = ExpectedResponseStrategy.PASS_ON_MISSING;
+
+List<String> failures = DatasetQueryRunner.runQueries(
+    client(), dataset, "ppl", "ppl", queryNumbers,
+    (client, dataset, queryBody) -> {
+        // execute query
+        return assertOkAndParse(response, "PPL query");
+    },
+    STRATEGY  // pass strategy to enable validation
+);
+```
+
+
+- `PplClickBenchIT` runs all discovered queries (39 of 43) with `PASS_ON_MISSING` strategy and skipping SKIP_QUERIES.
+- Only Q1, Q2 has an expected response file; validation passes for Q1 & Q2 and skips for others except from response 200 validation.
+- Queries skipped: Q19, Q29, Q40, Q43 (PPL frontend gaps, not validation issues)
+
 ## Test Classes
 
 | Test | Description |
@@ -130,6 +181,3 @@ Note: PPL tests via `/_analytics/ppl` require the `test-ppl-frontend` plugin. It
 - The `pluggable.dataformat.enabled` feature flag must be set at cluster startup (already configured for `integTest`)
 - DSL path: `_search` → dsl-query-executor → Calcite planning → Substrait → DataFusion
 - PPL path: `/_analytics/ppl` → test-ppl-frontend → analytics-engine → Calcite → Substrait → DataFusion
-- Expected response validation (via `{language}/expected/q{N}.json`) is planned for future iterations — currently the runner only validates that responses are non-empty
-- `DslClickBenchIT` runs ClickBench Q1. Auto-discovery of all 43 DSL queries is commented out in the test (see class javadoc) because several queries exercise unsupported translators/planner rules and destabilize the shared cluster. Re-enable as support expands.
-- `PplClickBenchIT` runs ClickBench Q1 via the test-ppl-frontend plugin. Auto-discovery is commented out for the same reason as DSL.

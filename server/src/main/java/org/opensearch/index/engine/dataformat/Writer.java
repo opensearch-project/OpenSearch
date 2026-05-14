@@ -52,4 +52,28 @@ public interface Writer<P extends DocumentInput<?>> extends Closeable {
      * @return the generation number
      */
     long generation();
+
+    /**
+     * Whether this writer's schema can still evolve.
+     * Formats that handle schema evolution natively (e.g., Lucene) can always return true.
+     *
+     * @return true if the schema is mutable
+     */
+    boolean isSchemaMutable();
+
+    /**
+     * The current mapping version this writer is associated with.
+     *
+     * @return the mapping version
+     */
+    long mappingVersion();
+
+    /**
+     * Update the mapping version on a writer. Implementations must ignore
+     * the call if {@code newVersion} is less than or equal to the current version
+     * (i.e., mapping version must only move forward).
+     *
+     * @param newVersion the new mapping version
+     */
+    void updateMappingVersion(long newVersion);
 }
