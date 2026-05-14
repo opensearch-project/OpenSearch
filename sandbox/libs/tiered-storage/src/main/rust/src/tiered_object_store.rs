@@ -86,6 +86,17 @@ impl TieredObjectStore {
         self
     }
 
+    /// Evict all cache entries whose key starts with `path`.
+    ///
+    /// No-op if no cache is attached (hot nodes or cache disabled).
+    /// Called from `ts_remove_file` after a file is removed from the registry
+    /// so that stale byte-range entries are freed promptly.
+    pub fn evict_path(&self, path: &str) {
+        if let Some(ref cache) = self.cache {
+            cache.evict_prefix(path);
+        }
+    }
+
     /// Register a file in the registry. For Remote/Both locations, the caller
     /// must provide a `remote_path`.
     pub fn register_file(

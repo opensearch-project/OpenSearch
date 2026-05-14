@@ -25,6 +25,7 @@ import org.opensearch.monitor.fs.FsProbe;
 import org.opensearch.node.Node;
 import org.opensearch.plugins.BlockCache;
 import org.opensearch.plugins.BlockCacheProvider;
+import java.util.Map;
 import org.opensearch.plugins.BlockCacheRegistry;
 import org.opensearch.plugins.BlockCacheStats;
 
@@ -100,7 +101,7 @@ public class NodeCacheOrchestrator implements Closeable, BlockCacheRegistry {
      *
      * @param providers all discovered {@link BlockCacheProvider} plugins
      */
-    public static NodeCacheOrchestrator create(Settings settings, NodeEnvironment nodeEnvironment, List<BlockCacheProvider> providers)
+    public static NodeCacheOrchestrator create(Settings settings, NodeEnvironment nodeEnvironment, Map<String, BlockCacheProvider> providers)
         throws IOException {
         NodeEnvironment.NodePath fileCacheNodePath = nodeEnvironment.fileCacheNodePath();
         long totalSSDBytes = ExceptionsHelper.catchAsRuntimeException(() -> FsProbe.getTotalSize(fileCacheNodePath));
@@ -115,7 +116,7 @@ public class NodeCacheOrchestrator implements Closeable, BlockCacheRegistry {
         validate(fileCacheBytes, blockCacheBytes, totalSSDBytes);
 
         // Inform each provider of its exact reserved capacity to avoid re-derivation.
-        for (BlockCacheProvider provider : providers) {
+        for (BlockCacheProvider provider : providers.values()) {
             long reserved = provider.requestedCapacityBytes(settings, totalBudgetBytes);
             provider.setReservedCapacityBytes(reserved);
         }
@@ -133,16 +134,16 @@ public class NodeCacheOrchestrator implements Closeable, BlockCacheRegistry {
     /**
      * Sums the SSD bytes requested by all registered block-cache providers.
      */
-    public static long computeBlockCacheBudget(List<BlockCacheProvider> providers, Settings settings, long totalBudgetBytes) {
-        return providers.stream().mapToLong(p -> p.requestedCapacityBytes(settings, totalBudgetBytes)).sum();
+    public static long computeBlockCacheBudget(Map<String, BlockCacheProvider> providers, Settings settings, long totalBudgetBytes) {
+        return providers.values().stream().mapToLong(p -> p.requestedCapacityBytes(settings, totalBudgetBytes)).sum();
     }
 
     /**
      * Computes the virtual data bytes that all block caches can serve, accounting
      * for each provider's data-to-cache amplification ratio.
      */
-    static long computeVirtualBlockCacheBytes(List<BlockCacheProvider> providers, Settings settings, long totalBudgetBytes) {
-        return providers.stream()
+    static long computeVirtualBlockCacheBytes(Map<String, BlockCacheProvider> providers, Settings settings, long totalBudgetBytes) {
+        return providers.values().stream()
             .mapToLong(p -> (long) (p.requestedCapacityBytes(settings, totalBudgetBytes) * p.dataToCapacityRatio(settings)))
             .sum();
     }
@@ -195,8 +196,8 @@ public class NodeCacheOrchestrator implements Closeable, BlockCacheRegistry {
      * Wires live BlockCache instances from providers after {@code createComponents()}.
      * Call once after all plugins have created their components.
      */
-    public void registerProviders(List<BlockCacheProvider> providers) {
-        for (BlockCacheProvider p : providers) {
+    public void registerProviders(Map<String, BlockCacheProvider> providers) {
+        for (BlockCacheProvider p : providers.values()) {
             p.getBlockCache().ifPresent(this::addBlockCache);
         }
     }

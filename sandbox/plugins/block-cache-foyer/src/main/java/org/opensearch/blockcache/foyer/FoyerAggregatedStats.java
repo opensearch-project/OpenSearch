@@ -38,7 +38,9 @@ public final class FoyerAggregatedStats {
         MISS_BYTES,
         EVICTION_COUNT,
         EVICTION_BYTES,
-        USED_BYTES;
+        USED_BYTES,
+        REMOVED_COUNT,
+        REMOVED_BYTES;
 
         static final int COUNT = values().length;
     }
@@ -76,8 +78,8 @@ public final class FoyerAggregatedStats {
             raw[offset + Field.MISS_BYTES.ordinal()],
             raw[offset + Field.EVICTION_COUNT.ordinal()],
             raw[offset + Field.EVICTION_BYTES.ordinal()],
-            0L,                                          // removed — not tracked yet
-            0L,                                          // removedBytes — not tracked yet
+            raw[offset + Field.REMOVED_COUNT.ordinal()],
+            raw[offset + Field.REMOVED_BYTES.ordinal()],
             0L,                                          // memoryBytesUsed — disk-only cache
             raw[offset + Field.USED_BYTES.ordinal()],
             capacityBytes

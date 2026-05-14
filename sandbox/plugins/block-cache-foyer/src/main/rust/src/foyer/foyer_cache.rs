@@ -155,29 +155,47 @@ impl EventListener for KeyIndexListener {
                     self.stats.used_bytes.load(Ordering::Relaxed)
                 );
             }
-            Event::Replace | Event::Remove => {
+            Event::Remove => {
+                // Explicit deletion — e.g. evict_prefix() called on shard/index removal.
                 let index_key = if let Some(sep_pos) = key.find(SEPARATOR) {
                     &key[..sep_pos]
                 } else {
                     key.as_str()
                 };
                 if let Some(mut keys) = self.key_index.get_mut(index_key) {
-                    let before = keys.len();
                     keys.retain(|k| k != key);
-                    let after = keys.len();
-                    native_bridge_common::log_debug!(
-                        "[block-cache] on_leave {:?}: index_key='{}' keys_before={} keys_after={}",
-                        reason, index_key, before, after
-                    );
                     if keys.is_empty() {
                         drop(keys);
                         self.key_index.remove(index_key);
                     }
                 }
+                self.stats.removed_count.fetch_add(1, Ordering::Relaxed);
+                self.stats.removed_bytes.fetch_add(size, Ordering::Relaxed);
                 self.stats.used_bytes.fetch_add(-size, Ordering::Relaxed);
                 native_bridge_common::log_debug!(
-                    "[block-cache] {:?} key='{}' size={} used_bytes={}",
-                    reason, key, size, self.stats.used_bytes.load(Ordering::Relaxed)
+                    "[block-cache] Remove key='{}' size={} used_bytes={}",
+                    key, size, self.stats.used_bytes.load(Ordering::Relaxed)
+                );
+            }
+            Event::Replace => {
+                // Overwrite by a newer put — old entry leaves, new entry arrives via put().
+                let index_key = if let Some(sep_pos) = key.find(SEPARATOR) {
+                    &key[..sep_pos]
+                } else {
+                    key.as_str()
+                };
+                if let Some(mut keys) = self.key_index.get_mut(index_key) {
+                    keys.retain(|k| k != key);
+                    if keys.is_empty() {
+                        drop(keys);
+                        self.key_index.remove(index_key);
+                    }
+                }
+                // Only subtract old size — put() will add the new size.
+                self.stats.used_bytes.fetch_add(-size, Ordering::Relaxed);
+                native_bridge_common::log_debug!(
+                    "[block-cache] Replace key='{}' old_size={} used_bytes={}",
+                    key, size, self.stats.used_bytes.load(Ordering::Relaxed)
                 );
             }
             Event::Clear => {

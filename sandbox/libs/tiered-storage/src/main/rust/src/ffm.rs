@@ -238,6 +238,7 @@ pub extern "C" fn ts_remove_file(
     let path = path.strip_prefix('/').unwrap_or(path);
 
     store.registry().remove(path, false);
+    store.evict_path(path);
 
     native_bridge_common::log_debug!("ffm: ts_remove_file path='{}'", path);
     Ok(0)

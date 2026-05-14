@@ -816,9 +816,18 @@ public class Node implements Closeable {
             );
 
             // Block-cache providers discovered once, reused for budget, registration, and capacity.
-            final List<org.opensearch.plugins.BlockCacheProvider> blockCacheProviders = pluginsService.filterPlugins(
-                org.opensearch.plugins.BlockCacheProvider.class
-            );
+            // Collect providers into a map keyed by cache name for O(1) lookup
+            // and fail-fast detection of duplicate names at startup.
+            final Map<String, org.opensearch.plugins.BlockCacheProvider> blockCacheProviders = pluginsService
+                .filterPlugins(org.opensearch.plugins.BlockCacheProvider.class)
+                .stream()
+                .collect(java.util.stream.Collectors.toMap(
+                    org.opensearch.plugins.BlockCacheProvider::cacheName,
+                    p -> p,
+                    (a, b) -> { throw new IllegalStateException(
+                        "Duplicate BlockCacheProvider for name [" + a.cacheName() + "]: "
+                        + a.getClass().getName() + " and " + b.getClass().getName()); }
+                ));
 
             if (DiscoveryNode.isWarmNode(settings)) {
                 this.nodeCacheOrchestrator = NodeCacheOrchestrator.create(settings, nodeEnvironment, blockCacheProviders);

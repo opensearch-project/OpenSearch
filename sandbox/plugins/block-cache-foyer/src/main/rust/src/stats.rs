@@ -18,7 +18,7 @@
 //!   [`FoyerStatsCounter::snapshot()`] called from the `foyer_snapshot_stats` FFM
 //!   function in [`crate::foyer::ffm`].
 //!
-//! The snapshot produces a `[i64; 7]` array whose layout is fixed and
+//! The snapshot produces a `[i64; 9]` array whose layout is fixed and
 //! documented on [`FoyerStatsCounter::snapshot`]. Java reads this array via
 //! `FoyerBridge.snapshotStats()` and constructs a `FoyerAggregatedStats` snapshot
 //! (two sections: overall and block-level), which is then projected to a
@@ -51,6 +51,8 @@ use std::sync::Arc;
 /// | `eviction_count`   | `KeyIndexListener::on_leave` | +1 per LRU eviction (`Event::Evict`)                 |
 /// | `eviction_bytes`   | `KeyIndexListener::on_leave` | +len per LRU eviction                                |
 /// | `used_bytes`       | `put()` / `on_leave`         | +len on insert, -len on eviction/remove/clear        |
+/// | `removed_count`    | `KeyIndexListener::on_leave` | +1 per explicit removal (`Event::Remove`)            |
+/// | `removed_bytes`    | `KeyIndexListener::on_leave` | +len per explicit removal                            |
 #[derive(Default)]
 pub struct FoyerStatsCounter {
     /// Number of `get()` calls that returned a cached value.
@@ -70,6 +72,11 @@ pub struct FoyerStatsCounter {
     pub eviction_bytes: AtomicI64,
     /// Current bytes resident in the cache on disk.
     pub used_bytes: AtomicI64,
+    /// Number of entries explicitly removed (e.g. via `evict_prefix` on shard/index deletion).
+    /// Distinct from LRU evictions (`eviction_count`) — these are application-driven removals.
+    pub removed_count: AtomicI64,
+    /// Total bytes explicitly removed.
+    pub removed_bytes: AtomicI64,
 }
 
 impl FoyerStatsCounter {
@@ -81,12 +88,15 @@ impl FoyerStatsCounter {
     /// Snapshot all counters atomically (best-effort — each field is read once).
     ///
     /// Returns `[hit_count, hit_bytes, miss_count, miss_bytes,
-    ///           eviction_count, eviction_bytes, used_bytes]` (7 values).
+    ///           eviction_count, eviction_bytes, used_bytes,
+    ///           removed_count, removed_bytes]` (9 values).
+    ///
+    /// The field order is fixed and must match `FoyerAggregatedStats.Field` ordinals in Java.
     ///
     /// Called by the `foyer_snapshot_stats` FFM export at most once per
     /// `_nodes/stats` request. Relaxed ordering is sufficient — stale-by-one
     /// stats are acceptable for monitoring purposes.
-    pub fn snapshot(&self) -> [i64; 7] {
+    pub fn snapshot(&self) -> [i64; 9] {
         [
             self.hit_count.load(Ordering::Relaxed),
             self.hit_bytes.load(Ordering::Relaxed),
@@ -95,6 +105,8 @@ impl FoyerStatsCounter {
             self.eviction_count.load(Ordering::Relaxed),
             self.eviction_bytes.load(Ordering::Relaxed),
             self.used_bytes.load(Ordering::Relaxed),
+            self.removed_count.load(Ordering::Relaxed),
+            self.removed_bytes.load(Ordering::Relaxed),
         ]
     }
 }
@@ -108,13 +120,13 @@ mod tests {
     fn new_returns_all_zeros() {
         let c = FoyerStatsCounter::new();
         let snap = c.snapshot();
-        assert_eq!(snap, [0i64; 7]);
+        assert_eq!(snap, [0i64; 9]);
     }
 
     #[test]
-    fn snapshot_returns_7_values() {
+    fn snapshot_returns_9_values() {
         let snap = FoyerStatsCounter::new().snapshot();
-        assert_eq!(snap.len(), 7);
+        assert_eq!(snap.len(), 9);
     }
 
     // Verify exact field-to-index mapping: each field maps to a distinct index.
@@ -170,6 +182,20 @@ mod tests {
     }
 
     #[test]
+    fn removed_count_is_index_7() {
+        let c = FoyerStatsCounter::new();
+        c.removed_count.store(11, Ordering::Relaxed);
+        assert_eq!(c.snapshot()[7], 11);
+    }
+
+    #[test]
+    fn removed_bytes_is_index_8() {
+        let c = FoyerStatsCounter::new();
+        c.removed_bytes.store(4096, Ordering::Relaxed);
+        assert_eq!(c.snapshot()[8], 4096);
+    }
+
+    #[test]
     fn all_fields_independent() {
         let c = FoyerStatsCounter::new();
         c.hit_count.store(1, Ordering::Relaxed);
@@ -179,6 +205,8 @@ mod tests {
         c.eviction_count.store(5, Ordering::Relaxed);
         c.eviction_bytes.store(6, Ordering::Relaxed);
         c.used_bytes.store(7, Ordering::Relaxed);
-        assert_eq!(c.snapshot(), [1, 2, 3, 4, 5, 6, 7]);
+        c.removed_count.store(8, Ordering::Relaxed);
+        c.removed_bytes.store(9, Ordering::Relaxed);
+        assert_eq!(c.snapshot(), [1, 2, 3, 4, 5, 6, 7, 8, 9]);
     }
 }

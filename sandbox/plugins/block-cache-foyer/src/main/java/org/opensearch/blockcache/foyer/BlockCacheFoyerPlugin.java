@@ -21,6 +21,7 @@ import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.plugins.BlockCache;
 import org.opensearch.plugins.BlockCacheProvider;
+import org.opensearch.plugins.BuiltInBlockCaches;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.script.ScriptService;
@@ -101,13 +102,16 @@ public class BlockCacheFoyerPlugin extends Plugin implements BlockCacheProvider 
         return FoyerBlockCacheSettings.DATA_TO_CACHE_RATIO_SETTING.get(settings);
     }
 
+    @Override
+    public String cacheName() {
+        return BuiltInBlockCaches.FOYER;
+    }
+
     /**
      * Reports the SSD bytes requested by this plugin from the total warm-cache budget.
-     * Called by {@code Node.java} before {@code createComponents()} so the budget
-     * partition between FileCache and this block cache is settled at startup.
      *
      * @param settings         node settings
-     * @param totalBudgetBytes total warm-cache SSD budget (from {@code node.search.cache.size})
+     * @param totalBudgetBytes total warm-cache SSD budget
      * @return bytes requested; 0 if the block cache is disabled (size = 0%)
      */
     @Override

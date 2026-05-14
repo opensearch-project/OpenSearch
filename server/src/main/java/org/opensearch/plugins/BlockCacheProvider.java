@@ -41,6 +41,18 @@ import java.util.Optional;
 public interface BlockCacheProvider {
 
     /**
+     * Returns the unique name of the cache backend this provider produces.
+     *
+     * <p>Used as the map key when core collects all providers, and to detect
+     * duplicate registrations at startup. Should match
+     * {@link BlockCache#cacheName()} of the cache returned by
+     * {@link #getBlockCache()}.
+     *
+     * @return cache name; must be unique across all registered providers
+     */
+    String cacheName();
+
+    /**
      * Returns the SSD bytes this plugin wants from the total warm-cache budget.
      *
      * <p>Called before any {@code createComponents()} invocation so the budget
