@@ -79,12 +79,7 @@ public class NativeParquetMergeStrategy implements ParquetMergeStrategy {
 
         try {
             // Merge files in Rust
-            MergeFilesResult merged = RustBridge.mergeParquetFilesInRust(
-                filePaths,
-                mergedFilePath.toString(),
-                indexName,
-                writerGeneration
-            );
+            MergeFilesResult merged = RustBridge.mergeParquetFilesInRust(filePaths, mergedFilePath.toString(), indexName, writerGeneration);
             ParquetFileMetadata mergeMetadata = merged.metadata();
             RowIdMapping rowIdMapping = merged.rowIdMapping();
 

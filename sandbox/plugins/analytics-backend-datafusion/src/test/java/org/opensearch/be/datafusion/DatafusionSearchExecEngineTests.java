@@ -14,8 +14,8 @@ import org.opensearch.analytics.backend.EngineResultStream;
 import org.opensearch.analytics.backend.ShardScanExecutionContext;
 import org.opensearch.be.datafusion.nativelib.NativeBridge;
 import org.opensearch.be.datafusion.nativelib.ReaderHandle;
-import org.opensearch.index.engine.exec.MonoFileWriterSet;
 import org.opensearch.be.datafusion.nativelib.SessionContextHandle;
+import org.opensearch.index.engine.exec.MonoFileWriterSet;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.lang.foreign.Arena;

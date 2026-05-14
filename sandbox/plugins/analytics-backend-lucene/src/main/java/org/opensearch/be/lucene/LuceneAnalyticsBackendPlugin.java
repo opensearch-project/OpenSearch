@@ -10,7 +10,6 @@ package org.opensearch.be.lucene;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.search.IndexSearcher;
 import org.opensearch.analytics.backend.ShardScanExecutionContext;
 import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
@@ -141,15 +140,13 @@ public class LuceneAnalyticsBackendPlugin implements AnalyticsSearchBackendPlugi
     public FilterDelegationHandle getFilterDelegationHandle(List<DelegatedExpression> expressions, CommonExecutionContext ctx) {
         ShardScanExecutionContext shardCtx = (ShardScanExecutionContext) ctx;
         IndexReaderProvider.Reader reader = shardCtx.getReader();
-        DirectoryReader directoryReader = reader.getReader(plugin.getDataFormat(), DirectoryReader.class);
-        IndexSearcher searcher = new IndexSearcher(directoryReader);
+        LuceneReader luceneReader = reader.getReader(plugin.getDataFormat(), LuceneReader.class);
+        IndexSearcher searcher = new IndexSearcher(luceneReader.directoryReader());
         QueryShardContext queryShardContext = buildMinimalQueryShardContext(shardCtx, searcher);
-        // Pass the catalog snapshot through so the handle can build its generation→leaf
-        // map from the catalogsnapshot
         return new LuceneFilterDelegationHandle(
             expressions,
             queryShardContext,
-            directoryReader,
+            luceneReader,
             reader.catalogSnapshot(),
             shardCtx.getNamedWriteableRegistry()
         );

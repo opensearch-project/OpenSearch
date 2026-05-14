@@ -17,9 +17,9 @@ import org.apache.arrow.vector.VectorSchemaRoot;
 import org.apache.arrow.vector.types.pojo.Schema;
 import org.opensearch.be.datafusion.nativelib.NativeBridge;
 import org.opensearch.be.datafusion.nativelib.ReaderHandle;
-import org.opensearch.index.engine.exec.MonoFileWriterSet;
 import org.opensearch.be.datafusion.nativelib.StreamHandle;
 import org.opensearch.core.action.ActionListener;
+import org.opensearch.index.engine.exec.MonoFileWriterSet;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.lang.foreign.Arena;

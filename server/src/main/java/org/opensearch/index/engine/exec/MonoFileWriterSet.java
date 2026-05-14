@@ -83,12 +83,7 @@ public final class MonoFileWriterSet extends WriterFileSet {
                     + wfs.files()
             );
         }
-        return new MonoFileWriterSet(
-            wfs.directory(),
-            wfs.writerGeneration(),
-            wfs.files().iterator().next(),
-            wfs.numRows()
-        );
+        return new MonoFileWriterSet(wfs.directory(), wfs.writerGeneration(), wfs.files().iterator().next(), wfs.numRows());
     }
 
     /**

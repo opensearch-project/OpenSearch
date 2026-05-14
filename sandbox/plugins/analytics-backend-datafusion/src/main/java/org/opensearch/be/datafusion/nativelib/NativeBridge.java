@@ -572,7 +572,9 @@ public final class NativeBridge {
         try (var call = new NativeCall()) {
             var p = call.str(path);
             var f = call.strArray(segments.stream().map(org.opensearch.index.engine.exec.MonoFileWriterSet::file).toArray(String[]::new));
-            var gens = call.longs(segments.stream().mapToLong(org.opensearch.index.engine.exec.MonoFileWriterSet::writerGeneration).toArray());
+            var gens = call.longs(
+                segments.stream().mapToLong(org.opensearch.index.engine.exec.MonoFileWriterSet::writerGeneration).toArray()
+            );
             return call.invoke(CREATE_READER, p.segment(), p.len(), f.ptrs(), f.lens(), gens, f.count());
         }
     }

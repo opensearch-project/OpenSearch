@@ -8,7 +8,6 @@
 
 package org.opensearch.be.lucene;
 
-import org.apache.lucene.index.DirectoryReader;
 import org.opensearch.be.lucene.index.LuceneCommitter;
 import org.opensearch.be.lucene.index.LuceneCommitterFactory;
 import org.opensearch.be.lucene.index.LuceneIndexingExecutionEngine;
@@ -45,7 +44,7 @@ import java.util.Optional;
  * @opensearch.experimental
  */
 @ExperimentalApi
-public class LucenePlugin extends Plugin implements DataFormatPlugin, SearchBackEndPlugin<DirectoryReader>, EnginePlugin {
+public class LucenePlugin extends Plugin implements DataFormatPlugin, SearchBackEndPlugin<LuceneReader>, EnginePlugin {
 
     private static final LuceneDataFormat DATA_FORMAT = new LuceneDataFormat();
 
@@ -108,7 +107,7 @@ public class LucenePlugin extends Plugin implements DataFormatPlugin, SearchBack
      * @throws IOException if reader creation fails
      */
     @Override
-    public EngineReaderManager<DirectoryReader> createReaderManager(ReaderManagerConfig settings) throws IOException {
+    public EngineReaderManager<LuceneReader> createReaderManager(ReaderManagerConfig settings) throws IOException {
         return LuceneSearchBackEnd.createReaderManager(settings);
     }
 

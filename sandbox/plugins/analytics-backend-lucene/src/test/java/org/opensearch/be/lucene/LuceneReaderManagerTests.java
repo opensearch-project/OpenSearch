@@ -108,12 +108,46 @@ public class LuceneReaderManagerTests extends OpenSearchTestCase {
 
     /**
      * Builds a stub snapshot whose segment list contains the given writer generations.
-     * This is required by {@link LuceneReaderManager#afterRefresh}'s assertion, which
-     * compares the snapshot's segment generations against the writer-generation attribute
-     * on each leaf in the refreshed {@link DirectoryReader}.
+     * Each segment includes a Lucene {@link WriterFileSet} whose files match what the
+     * corresponding leaf will report from {@code SegmentCommitInfo.files()}.
      */
     private CatalogSnapshot stubSnapshot(long generation, List<Long> segmentGenerations) {
-        List<Segment> segs = segmentGenerations.stream().map(g -> Segment.builder(g).build()).toList();
+        // Build segments with file sets that match the current IndexWriter's segments.
+        List<Segment> segs = buildSegmentsWithFiles(segmentGenerations);
+        return buildCatalogSnapshot(generation, segs);
+    }
+
+    @SuppressForbidden(reason = "Need reflection to read SegmentInfos for building test file sets")
+    private List<Segment> buildSegmentsWithFiles(List<Long> segmentGenerations) {
+        if (segmentGenerations.isEmpty()) {
+            return List.of();
+        }
+        try {
+            java.lang.reflect.Field segInfosField = IndexWriter.class.getDeclaredField("segmentInfos");
+            segInfosField.setAccessible(true);
+            SegmentInfos segInfos = (SegmentInfos) segInfosField.get(indexWriter);
+            List<Segment> result = new java.util.ArrayList<>();
+            for (SegmentCommitInfo sci : segInfos) {
+                String genAttr = sci.info.getAttribute(LuceneWriter.WRITER_GENERATION_ATTRIBUTE);
+                if (genAttr == null) continue;
+                long gen = Long.parseLong(genAttr);
+                if (segmentGenerations.contains(gen)) {
+                    WriterFileSet wfs = new WriterFileSet(
+                        sci.info.dir.toString(),
+                        gen,
+                        new java.util.HashSet<>(sci.files()),
+                        sci.info.maxDoc()
+                    );
+                    result.add(Segment.builder(gen).addSearchableFiles(LuceneDataFormat.LUCENE_FORMAT_NAME, wfs).build());
+                }
+            }
+            return result;
+        } catch (ReflectiveOperationException | IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private CatalogSnapshot buildCatalogSnapshot(long generation, List<Segment> segs) {
         return new CatalogSnapshot("test", generation, 1) {
             @Override
             protected void closeInternal() {}
@@ -238,27 +272,30 @@ public class LuceneReaderManagerTests extends OpenSearchTestCase {
         // Empty initial reader — no segments yet.
         CatalogSnapshot snap1 = stubSnapshot(1);
         rm.afterRefresh(true, snap1);
-        DirectoryReader reader1 = rm.getReader(snap1);
-        assertEquals(0, new IndexSearcher(reader1).count(new MatchAllDocsQuery()));
+        LuceneReader lr1 = rm.getReader(snap1);
+        assertEquals(0, new IndexSearcher(lr1.directoryReader()).count(new MatchAllDocsQuery()));
+        assertTrue(lr1.generationToLeaf().isEmpty());
 
-        // Add doc1 in generation 10, refresh. Reader now has one leaf stamped with gen=10.
+        // Add doc1 in generation 10, refresh.
         addDoc("doc1", 10L);
         CatalogSnapshot snap2 = stubSnapshot(2, List.of(10L));
         rm.afterRefresh(true, snap2);
-        DirectoryReader reader2 = rm.getReader(snap2);
-        assertEquals(1, new IndexSearcher(reader2).count(new MatchAllDocsQuery()));
+        LuceneReader lr2 = rm.getReader(snap2);
+        assertEquals(1, new IndexSearcher(lr2.directoryReader()).count(new MatchAllDocsQuery()));
+        assertEquals(0, (int) lr2.generationToLeaf().get(10L));
 
-        assertEquals(0, new IndexSearcher(reader1).count(new MatchAllDocsQuery()));
+        assertEquals(0, new IndexSearcher(lr1.directoryReader()).count(new MatchAllDocsQuery()));
 
-        // Add doc2 in generation 20. Reader now has two leaves stamped with gens {10, 20}.
+        // Add doc2 in generation 20.
         addDoc("doc2", 20L);
         CatalogSnapshot snap3 = stubSnapshot(3, List.of(10L, 20L));
         rm.afterRefresh(true, snap3);
-        DirectoryReader reader3 = rm.getReader(snap3);
-        assertEquals(2, new IndexSearcher(reader3).count(new MatchAllDocsQuery()));
+        LuceneReader lr3 = rm.getReader(snap3);
+        assertEquals(2, new IndexSearcher(lr3.directoryReader()).count(new MatchAllDocsQuery()));
+        assertEquals(2, lr3.generationToLeaf().size());
 
-        assertNotSame(reader1, reader2);
-        assertNotSame(reader2, reader3);
+        assertNotSame(lr1, lr2);
+        assertNotSame(lr2, lr3);
 
         rm.onDeleted(snap1);
         rm.onDeleted(snap2);
@@ -270,8 +307,8 @@ public class LuceneReaderManagerTests extends OpenSearchTestCase {
         CatalogSnapshot snap = stubSnapshot(1);
         rm.afterRefresh(true, snap);
 
-        DirectoryReader reader = rm.getReader(snap);
-        assertTrue(reader.getRefCount() > 0);
+        LuceneReader lr = rm.getReader(snap);
+        assertTrue(lr.directoryReader().getRefCount() > 0);
 
         rm.onDeleted(snap);
         expectThrows(IllegalStateException.class, () -> rm.getReader(snap));
@@ -292,7 +329,7 @@ public class LuceneReaderManagerTests extends OpenSearchTestCase {
         CatalogSnapshot snap = stubSnapshot(1);
 
         rm.afterRefresh(true, snap);
-        DirectoryReader first = rm.getReader(snap);
+        LuceneReader first = rm.getReader(snap);
 
         rm.afterRefresh(true, snap);
         assertSame(first, rm.getReader(snap));

@@ -13,8 +13,8 @@ import org.apache.arrow.memory.RootAllocator;
 import org.opensearch.analytics.backend.EngineResultBatch;
 import org.opensearch.be.datafusion.nativelib.NativeBridge;
 import org.opensearch.be.datafusion.nativelib.ReaderHandle;
-import org.opensearch.index.engine.exec.MonoFileWriterSet;
 import org.opensearch.core.action.ActionListener;
+import org.opensearch.index.engine.exec.MonoFileWriterSet;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.lang.foreign.Arena;
