@@ -17,6 +17,7 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.inject.Singleton;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.indices.IndicesService;
@@ -62,7 +63,9 @@ public class AnalyticsSearchTransportService {
         if (streamTransportService == null) {
             throw new IllegalStateException(
                 "analytics-engine requires the STREAM_TRANSPORT feature flag to be enabled "
-                    + "(opensearch.experimental.feature.stream_transport.enabled=true)"
+                    + "("
+                    + FeatureFlags.STREAM_TRANSPORT
+                    + "=true)"
             );
         }
         searchService.setTaskResourceTrackingService(taskResourceTrackingService);
