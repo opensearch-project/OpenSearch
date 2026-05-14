@@ -14,6 +14,7 @@ import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SoftDeletesDirectoryReaderWrapper;
 import org.apache.lucene.search.ReferenceManager;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.lucene.Lucene;
@@ -406,11 +407,13 @@ public class NRTReplicationEngine extends Engine {
         return acquireLastIndexCommit(false);
     }
 
+    @ExperimentalApi
     @Override
     public GatedCloseable<CatalogSnapshot> acquireSafeCatalogSnapshot() throws EngineException {
         return acquireLastCatalogSnapshot(false);
     }
 
+    @ExperimentalApi
     @Override
     public GatedCloseable<CatalogSnapshot> acquireLastCommittedSnapshot(boolean flushFirst) throws EngineException {
         // flushFirst is a no-op on replica engines — no writer to flush.
