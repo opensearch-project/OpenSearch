@@ -130,7 +130,8 @@ public class TieredDataFormatAwareStoreDirectoryFactoryTests extends OpenSearchT
             true,
             org.opensearch.repositories.NativeStoreRepository.EMPTY,
             java.util.Map.of(),
-            remoteDirectory
+            remoteDirectory,
+            null
         );
         DataFormatAwareStoreDirectory result = factory.newDataFormatAwareStoreDirectory(
             indexSettings,
@@ -168,7 +169,8 @@ public class TieredDataFormatAwareStoreDirectoryFactoryTests extends OpenSearchT
             true,
             org.opensearch.repositories.NativeStoreRepository.EMPTY,
             java.util.Map.of(),
-            remoteDirectory
+            remoteDirectory,
+            null
         );
         DataFormatAwareStoreDirectory result = factory.newDataFormatAwareStoreDirectory(
             indexSettings,
@@ -206,7 +208,8 @@ public class TieredDataFormatAwareStoreDirectoryFactoryTests extends OpenSearchT
             true,
             org.opensearch.repositories.NativeStoreRepository.EMPTY,
             java.util.Map.of(),
-            remoteDirectory
+            remoteDirectory,
+            null
         );
         DataFormatAwareStoreDirectory result = factory.newDataFormatAwareStoreDirectory(
             indexSettings,
