@@ -168,9 +168,24 @@ static QUERY_REGISTRY: Lazy<DashMap<i64, Arc<QueryTracker>>> = Lazy::new(DashMap
 /// Remove a completed tracker from the registry and return it.
 /// Called from JNI after Java has consumed the metrics.
 pub fn drain_completed_query(context_id: i64) -> Option<Arc<QueryTracker>> {
-    QUERY_REGISTRY
+    let result = QUERY_REGISTRY
         .remove_if(&context_id, |_, t| t.is_completed())
-        .map(|(_, t)| t)
+        .map(|(_, t)| t);
+    match &result {
+        Some(t) => info!(
+            "[nativemem-bp] rust.drain_completed_query: drained ctx={} (peak_bytes={}, wall_secs={:.3}, registry_size_after={})",
+            context_id,
+            t.memory_pool.peak_bytes(),
+            t.wall_secs(),
+            QUERY_REGISTRY.len()
+        ),
+        None => info!(
+            "[nativemem-bp] rust.drain_completed_query: ctx={} not drained (absent or not completed) (registry_size={})",
+            context_id,
+            QUERY_REGISTRY.len()
+        ),
+    }
+    result
 }
 
 // ---------------------------------------------------------------------------
@@ -334,7 +349,19 @@ pub fn snapshot_top_n_by_current(out: &mut [WireQueryMetric]) -> usize {
 /// No-op for unknown or already-completed queries.
 pub fn cancel_query(context_id: i64) {
     if let Some(tracker) = QUERY_REGISTRY.get(&context_id) {
+        info!(
+            "[nativemem-bp] rust.cancel_query: firing token for ctx={} (completed={}, current_bytes={})",
+            context_id,
+            tracker.is_completed(),
+            tracker.memory_pool.current_bytes()
+        );
         tracker.cancellation_token.cancel();
+    } else {
+        info!(
+            "[nativemem-bp] rust.cancel_query: ctx={} not in registry (registry_size={}) — no-op",
+            context_id,
+            QUERY_REGISTRY.len()
+        );
     }
 }
 

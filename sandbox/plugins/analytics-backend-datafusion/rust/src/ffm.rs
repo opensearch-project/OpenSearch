@@ -163,10 +163,15 @@ pub unsafe extern "C" fn df_execute_query(
     let mgr = get_rt_manager()?;
     let table_name = str_from_raw(table_name_ptr, table_name_len)
         .map_err(|e| format!("df_execute_query: {}", e))?;
+    info!(
+        "[nativemem-bp] ffm.df_execute_query: enter ctx={} table={} plan_len={} runtime_ptr={:#x}",
+        context_id, table_name, plan_len, runtime_ptr as u64
+    );
     let plan_bytes = slice::from_raw_parts(plan_ptr, plan_len as usize);
     let query_config =
         crate::datafusion_query_config::DatafusionQueryConfig::from_ffm_ptr(query_config_ptr);
-    mgr.io_runtime
+    let result = mgr
+        .io_runtime
         .block_on(api::execute_query(
             shard_view_ptr,
             table_name,
@@ -176,7 +181,18 @@ pub unsafe extern "C" fn df_execute_query(
             context_id,
             query_config,
         ))
-        .map_err(|e| e.to_string())
+        .map_err(|e| e.to_string());
+    match &result {
+        Ok(stream_ptr) => info!(
+            "[nativemem-bp] ffm.df_execute_query: exit ctx={} ok stream_ptr={:#x}",
+            context_id, *stream_ptr as u64
+        ),
+        Err(e) => info!(
+            "[nativemem-bp] ffm.df_execute_query: exit ctx={} err={}",
+            context_id, e
+        ),
+    }
+    result
 }
 
 #[ffm_safe]
@@ -716,12 +732,20 @@ pub unsafe extern "C" fn df_execute_with_context(
     plan_len: i64,
 ) -> i64 {
     let session_handle = *Box::from_raw(session_ctx_ptr as *mut crate::session_context::SessionContextHandle);
+    let ctx_id = session_handle.query_context.context_id();
+    info!(
+        "[nativemem-bp] ffm.df_execute_with_context: enter session_ctx_ptr={:#x} ctx={} plan_len={} indexed={}",
+        session_ctx_ptr as u64,
+        ctx_id,
+        plan_len,
+        session_handle.indexed_config.is_some()
+    );
 
     let mgr = get_rt_manager()?;
     let plan_bytes = slice::from_raw_parts(plan_ptr, plan_len as usize);
     let cpu_executor = mgr.cpu_executor();
     // Route based on whether the session was configured for indexed execution
-    if session_handle.indexed_config.is_some() {
+    let result = if session_handle.indexed_config.is_some() {
         // TODO: refactor execute_indexed_with_context to take SessionContextHandle directly
         // (like execute_with_context) instead of i64 raw pointer — avoids this re-boxing.
         let ptr = Box::into_raw(Box::new(session_handle)) as i64;
@@ -740,7 +764,18 @@ pub unsafe extern "C" fn df_execute_with_context(
                 cpu_executor,
             ))
             .map_err(|e| e.to_string())
+    };
+    match &result {
+        Ok(stream_ptr) => info!(
+            "[nativemem-bp] ffm.df_execute_with_context: exit ctx={} ok stream_ptr={:#x}",
+            ctx_id, *stream_ptr as u64
+        ),
+        Err(e) => info!(
+            "[nativemem-bp] ffm.df_execute_with_context: exit ctx={} err={}",
+            ctx_id, e
+        ),
     }
+    result
 }
 
 // ---- Stats collection ----
