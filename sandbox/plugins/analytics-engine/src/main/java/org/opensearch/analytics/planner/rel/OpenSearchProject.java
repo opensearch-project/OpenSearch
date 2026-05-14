@@ -153,11 +153,9 @@ public class OpenSearchProject extends Project implements OpenSearchRelNode {
                 RexNode resolved = annotationResolver.apply(annotated);
                 strippedExprs.add(resolved.accept(nestedAnnotationStripper));
             } else {
-                // Baseline scalar operators (OpenSearchProjectRule.BASELINE_SCALAR_OPS —
-                // COALESCE, CASE, CAST, arithmetic, IS_NULL, …) are not wrapped at the
-                // top level but their operands may still be annotated. The shuttle is
-                // idempotent for calls without nested wrappers, so run it unconditionally
-                // to strip AnnotatedProjectExpression at any depth.
+                // Pass-through expressions (RexInputRef, RexLiteral) have no annotation to
+                // resolve. Running the shuttle is defensive and idempotent — atomic nodes
+                // contain no nested AnnotatedProjectExpression to strip.
                 strippedExprs.add(expr.accept(nestedAnnotationStripper));
             }
         }
