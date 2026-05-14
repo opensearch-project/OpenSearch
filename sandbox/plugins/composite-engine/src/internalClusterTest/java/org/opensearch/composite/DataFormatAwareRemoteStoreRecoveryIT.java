@@ -87,6 +87,42 @@ public class DataFormatAwareRemoteStoreRecoveryIT extends RemoteStoreBaseIntegTe
             .build();
     }
 
+    /** Set of formats this index variant uses. Override in subclasses to add more formats. */
+    protected Set<String> expectedFormats() {
+        return Set.of("parquet", "lucene");
+    }
+
+    /** Whether lucene is configured as a secondary data format (produces searchable segment files). */
+    protected boolean hasLuceneSecondary() {
+        return false;
+    }
+
+    /**
+     * Asserts that the index/ directory on the shard contains the expected Lucene files:
+     * - parquet-only: only segments_N (commit metadata)
+     * - parquet+lucene: segments_N plus additional segment data files (.si, .cfs, etc.)
+     */
+    protected void assertLuceneIndexDirContents(IndexShard shard) throws java.io.IOException {
+        java.nio.file.Path indexDir = shard.shardPath().resolveIndex();
+        assertTrue("index/ directory must exist", java.nio.file.Files.exists(indexDir));
+        java.util.Set<String> files;
+        try (var stream = java.nio.file.Files.list(indexDir)) {
+            files = stream.map(p -> p.getFileName().toString()).collect(java.util.stream.Collectors.toSet());
+        }
+        assertTrue("index/ must contain segments_N, got " + files, files.stream().anyMatch(f -> f.startsWith("segments_")));
+        java.util.Set<String> nonSegmentsFiles = files.stream()
+            .filter(f -> f.startsWith("segments_") == false && f.equals("write.lock") == false)
+            .collect(java.util.stream.Collectors.toSet());
+        if (hasLuceneSecondary()) {
+            assertFalse("parquet+lucene: index/ must have segment data files beyond segments_N, got " + files, nonSegmentsFiles.isEmpty());
+        } else {
+            assertTrue(
+                "parquet-only: index/ must have only segments_N (and write.lock), got extra: " + nonSegmentsFiles,
+                nonSegmentsFiles.isEmpty()
+            );
+        }
+    }
+
     protected void indexDocs(int count) {
         for (int i = 0; i < count; i++) {
             client().prepareIndex(INDEX_NAME)
@@ -193,6 +229,7 @@ public class DataFormatAwareRemoteStoreRecoveryIT extends RemoteStoreBaseIntegTe
             assertNotNull(meta);
             assertTrue("formats must include parquet", formatsOf(meta.getMetadata()).contains("parquet"));
             DataFormatAwareITUtils.assertCatalogMatchesLocalAndRemote(shard);
+            assertLuceneIndexDirContents(shard);
             Map<String, UploadedSegmentMetadata> map = shard.getRemoteDirectory().getSegmentsUploadedToRemoteStore();
             assertFalse("upload map must not be empty", map.isEmpty());
             return map;
@@ -224,6 +261,7 @@ public class DataFormatAwareRemoteStoreRecoveryIT extends RemoteStoreBaseIntegTe
 
             // Catalog must match local and remote
             DataFormatAwareITUtils.assertCatalogMatchesLocalAndRemote(recovered);
+            assertLuceneIndexDirContents(recovered);
 
             // Catalog file set must match what was there before
             Set<String> catalogAfter = DataFormatAwareITUtils.catalogFilesExcludingSegments(recovered);
@@ -285,6 +323,7 @@ public class DataFormatAwareRemoteStoreRecoveryIT extends RemoteStoreBaseIntegTe
 
             assertUploadMapFilesOnDisk(uploadMapBefore, recovered);
             DataFormatAwareITUtils.assertCatalogMatchesLocalAndRemote(recovered);
+            assertLuceneIndexDirContents(recovered);
 
             Set<String> catalogAfter = DataFormatAwareITUtils.catalogFilesExcludingSegments(recovered);
             assertEquals("catalog files must match before/after recovery", catalogBefore, catalogAfter);
@@ -389,6 +428,7 @@ public class DataFormatAwareRemoteStoreRecoveryIT extends RemoteStoreBaseIntegTe
 
             assertUploadMapFilesOnDisk(uploadMapBefore, recovered);
             DataFormatAwareITUtils.assertCatalogMatchesLocalAndRemote(recovered);
+            assertLuceneIndexDirContents(recovered);
 
             Set<String> catalogAfter = DataFormatAwareITUtils.catalogFilesExcludingSegments(recovered);
             assertEquals("catalog files must match before/after restart", catalogBefore, catalogAfter);
@@ -456,6 +496,7 @@ public class DataFormatAwareRemoteStoreRecoveryIT extends RemoteStoreBaseIntegTe
             // All current files must be on disk
             assertUploadMapFilesOnDisk(uploadMapAfter, recovered);
             DataFormatAwareITUtils.assertCatalogMatchesLocalAndRemote(recovered);
+            assertLuceneIndexDirContents(recovered);
         }, 60, TimeUnit.SECONDS);
     }
 
@@ -553,6 +594,7 @@ public class DataFormatAwareRemoteStoreRecoveryIT extends RemoteStoreBaseIntegTe
             assertNotNull(meta);
             assertTrue("formats must include parquet before relocation", formatsOf(meta.getMetadata()).contains("parquet"));
             DataFormatAwareITUtils.assertCatalogMatchesLocalAndRemote(shard);
+            assertLuceneIndexDirContents(shard);
             Map<String, UploadedSegmentMetadata> map = shard.getRemoteDirectory().getSegmentsUploadedToRemoteStore();
             assertFalse("upload map must not be empty", map.isEmpty());
             return map;
@@ -590,6 +632,7 @@ public class DataFormatAwareRemoteStoreRecoveryIT extends RemoteStoreBaseIntegTe
 
             // Catalog ⊆ local, catalog ⊆ remote.
             DataFormatAwareITUtils.assertCatalogMatchesLocalAndRemote(relocated);
+            assertLuceneIndexDirContents(relocated);
 
             // Catalog file set must equal the pre-relocation catalog (segments_N excluded).
             Set<String> catalogAfter = DataFormatAwareITUtils.catalogFilesExcludingSegments(relocated);
@@ -651,6 +694,7 @@ public class DataFormatAwareRemoteStoreRecoveryIT extends RemoteStoreBaseIntegTe
             // Every file from every generation must be on disk.
             assertUploadMapFilesOnDisk(uploadMapBefore, relocated);
             DataFormatAwareITUtils.assertCatalogMatchesLocalAndRemote(relocated);
+            assertLuceneIndexDirContents(relocated);
 
             Set<String> catalogAfter = DataFormatAwareITUtils.catalogFilesExcludingSegments(relocated);
             assertEquals("catalog files must match before/after relocation", catalogBefore, catalogAfter);
@@ -724,6 +768,7 @@ public class DataFormatAwareRemoteStoreRecoveryIT extends RemoteStoreBaseIntegTe
 
             assertUploadMapFilesOnDisk(uploadMapAfter, relocated);
             DataFormatAwareITUtils.assertCatalogMatchesLocalAndRemote(relocated);
+            assertLuceneIndexDirContents(relocated);
         }, 60, TimeUnit.SECONDS);
     }
 
@@ -754,6 +799,7 @@ public class DataFormatAwareRemoteStoreRecoveryIT extends RemoteStoreBaseIntegTe
             assertNotNull(pMeta);
             assertTrue("formats must include parquet", formatsOf(pMeta.getMetadata()).contains("parquet"));
             DataFormatAwareITUtils.assertCatalogMatchesLocalAndRemote(primary);
+            assertLuceneIndexDirContents(primary);
         }, 30, TimeUnit.SECONDS);
 
         // Find the replica's current node by elimination: data node that is not the primary's.
@@ -813,6 +859,7 @@ public class DataFormatAwareRemoteStoreRecoveryIT extends RemoteStoreBaseIntegTe
             IndexShard replica = getIndexShard(targetNode, INDEX_NAME);
 
             DataFormatAwareITUtils.assertCatalogMatchesLocalAndRemote(replica);
+            assertLuceneIndexDirContents(replica);
             DataFormatAwareITUtils.assertPrimaryUploadMapOnReplicaDisk(primary, replica);
 
             Set<String> primaryCatalogAfter = DataFormatAwareITUtils.catalogFilesExcludingSegments(primary);

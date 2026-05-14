@@ -78,6 +78,43 @@ public class DataFormatAwareReplicationIT extends RemoteStoreBaseIntegTestCase {
             .build();
     }
 
+    /** Set of formats this index variant uses. Override in subclasses to add more formats. */
+    protected Set<String> expectedFormats() {
+        return Set.of("parquet", "lucene");
+    }
+
+    /** Whether lucene is configured as a secondary data format (produces searchable segment files). */
+    protected boolean hasLuceneSecondary() {
+        return false;
+    }
+
+    /**
+     * Asserts that the index/ directory on the shard contains the expected Lucene files:
+     * - parquet-only: only segments_N (commit metadata)
+     * - parquet+lucene: segments_N plus additional segment data files (.si, .cfs, etc.)
+     */
+    protected void assertLuceneIndexDirContents(IndexShard shard) throws java.io.IOException {
+        java.nio.file.Path indexDir = shard.shardPath().resolveIndex();
+        assertTrue("index/ directory must exist", java.nio.file.Files.exists(indexDir));
+        Set<String> files;
+        try (var stream = java.nio.file.Files.list(indexDir)) {
+            files = stream.map(p -> p.getFileName().toString()).collect(Collectors.toSet());
+        }
+        // segments_N must always be present
+        assertTrue("index/ must contain segments_N, got " + files, files.stream().anyMatch(f -> f.startsWith("segments_")));
+        Set<String> nonSegmentsFiles = files.stream()
+            .filter(f -> f.startsWith("segments_") == false && f.equals("write.lock") == false)
+            .collect(Collectors.toSet());
+        if (hasLuceneSecondary()) {
+            assertFalse("parquet+lucene: index/ must have segment data files beyond segments_N, got " + files, nonSegmentsFiles.isEmpty());
+        } else {
+            assertTrue(
+                "parquet-only: index/ must have only segments_N (and write.lock), got extra: " + nonSegmentsFiles,
+                nonSegmentsFiles.isEmpty()
+            );
+        }
+    }
+
     protected void indexDocs(int count) {
         // RefreshPolicy.NONE so per-doc background refreshes don't fire; a single explicit
         // refresh/flush at the end gives deterministic replication rounds.
@@ -156,11 +193,11 @@ public class DataFormatAwareReplicationIT extends RemoteStoreBaseIntegTestCase {
                 rMeta.getSegmentInfosBytes() != null && rMeta.getSegmentInfosBytes().length > 0
             );
 
-            // Data-format set must agree and include the primary format (parquet).
+            // Data-format set must agree and include all expected formats.
             Set<String> pFormats = formatsOf(pMeta.getMetadata());
             Set<String> rFormats = formatsOf(rMeta.getMetadata());
             assertEquals("primary/replica formats must agree", pFormats, rFormats);
-            assertTrue("formats must include parquet, got " + pFormats, pFormats.contains("parquet"));
+            assertEquals("primary formats must match expected", expectedFormats(), pFormats);
 
             // Catalog↔local↔remote tier agreement on each node.
             DataFormatAwareITUtils.assertCatalogMatchesLocalAndRemote(primary);
@@ -175,6 +212,10 @@ public class DataFormatAwareReplicationIT extends RemoteStoreBaseIntegTestCase {
 
             // Every data file the primary uploaded must be present on the replica's disk.
             DataFormatAwareITUtils.assertPrimaryUploadMapOnReplicaDisk(primary, replica);
+
+            // Validate index/ directory contents match format configuration.
+            assertLuceneIndexDirContents(primary);
+            assertLuceneIndexDirContents(replica);
         }, 60, TimeUnit.SECONDS);
     }
 
@@ -219,6 +260,8 @@ public class DataFormatAwareReplicationIT extends RemoteStoreBaseIntegTestCase {
                     DataFormatAwareITUtils.catalogFilesExcludingSegments(replica)
                 );
                 DataFormatAwareITUtils.assertPrimaryUploadMapOnReplicaDisk(primary, replica);
+                assertLuceneIndexDirContents(primary);
+                assertLuceneIndexDirContents(replica);
             }, 60, TimeUnit.SECONDS);
 
             previousVersion = getIndexShard(primaryNodeName(), INDEX_NAME).getRemoteDirectory()
@@ -275,6 +318,8 @@ public class DataFormatAwareReplicationIT extends RemoteStoreBaseIntegTestCase {
                 DataFormatAwareITUtils.catalogFilesExcludingSegments(recoveredReplica)
             );
             DataFormatAwareITUtils.assertPrimaryUploadMapOnReplicaDisk(primary, recoveredReplica);
+            assertLuceneIndexDirContents(primary);
+            assertLuceneIndexDirContents(recoveredReplica);
         }, 90, TimeUnit.SECONDS);
     }
 
@@ -346,6 +391,8 @@ public class DataFormatAwareReplicationIT extends RemoteStoreBaseIntegTestCase {
                 DataFormatAwareITUtils.catalogFilesExcludingSegments(recoveredReplica)
             );
             DataFormatAwareITUtils.assertPrimaryUploadMapOnReplicaDisk(primary, recoveredReplica);
+            assertLuceneIndexDirContents(primary);
+            assertLuceneIndexDirContents(recoveredReplica);
         }, 90, TimeUnit.SECONDS);
     }
 
@@ -383,7 +430,9 @@ public class DataFormatAwareReplicationIT extends RemoteStoreBaseIntegTestCase {
                 );
                 DataFormatAwareITUtils.assertCatalogMatchesLocalAndRemote(replica);
                 DataFormatAwareITUtils.assertPrimaryUploadMapOnReplicaDisk(primary, replica);
+                assertLuceneIndexDirContents(replica);
             }
+            assertLuceneIndexDirContents(primary);
         }, 90, TimeUnit.SECONDS);
     }
 }

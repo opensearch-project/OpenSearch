@@ -2365,7 +2365,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             .sorted()
             .limit(5)
             .collect(java.util.stream.Collectors.joining(", "));
-        logger.info(
+        logger.debug(
             "[DFA-RECOVERY] snapshotStoreMetadata shardId={} source={} totalFiles={} dfaFiles={} dfaList=[{}] luceneSample=[{}]",
             shardId,
             source,

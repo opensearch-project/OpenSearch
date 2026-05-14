@@ -351,7 +351,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                     .sorted()
                     .limit(5)
                     .collect(java.util.stream.Collectors.joining(", "));
-                logger.info(
+                logger.debug(
                     "[DFA-RECOVERY] peer recovery TARGET sending metadata to source shardId={} totalFiles={} "
                         + "dfaFiles={} dfaList=[{}] luceneSample=[{}]",
                     recoveryTarget.shardId(),
