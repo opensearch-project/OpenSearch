@@ -63,22 +63,22 @@ public class BlockCacheFoyerPluginTests extends OpenSearchTestCase {
     }
 
     public void testRequestedCapacityBytes50Percent() {
-        Settings s = Settings.builder().put("block_cache.size", "50%").build();
+        Settings s = Settings.builder().put("block_cache.foyer.size", "50%").build();
         assertEquals(500L, new BlockCacheFoyerPlugin(Settings.EMPTY).requestedCapacityBytes(s, 1000L));
     }
 
     public void testRequestedCapacityBytesZeroPercent() {
-        Settings s = Settings.builder().put("block_cache.size", "0%").build();
+        Settings s = Settings.builder().put("block_cache.foyer.size", "0%").build();
         assertEquals(0L, new BlockCacheFoyerPlugin(Settings.EMPTY).requestedCapacityBytes(s, 1000L));
     }
 
     public void testRequestedCapacityBytesDecimalRatioForm() {
-        Settings s = Settings.builder().put("block_cache.size", "0.25").build();
+        Settings s = Settings.builder().put("block_cache.foyer.size", "0.25").build();
         assertEquals(250L, new BlockCacheFoyerPlugin(Settings.EMPTY).requestedCapacityBytes(s, 1000L));
     }
 
     public void testRequestedCapacityBytesRoundsCorrectly() {
-        Settings s = Settings.builder().put("block_cache.size", "33%").build();
+        Settings s = Settings.builder().put("block_cache.foyer.size", "33%").build();
         assertEquals(33L, new BlockCacheFoyerPlugin(Settings.EMPTY).requestedCapacityBytes(s, 100L));
     }
 
@@ -103,12 +103,12 @@ public class BlockCacheFoyerPluginTests extends OpenSearchTestCase {
     }
 
     public void testDataToCapacityRatioCustom() {
-        Settings s = Settings.builder().put("block_cache.data_to_cache_ratio", "10.0").build();
+        Settings s = Settings.builder().put("block_cache.foyer.data_to_cache_ratio", "10.0").build();
         assertEquals(10.0, new BlockCacheFoyerPlugin(Settings.EMPTY).dataToCapacityRatio(s), 0.0);
     }
 
     public void testDataToCapacityRatioMinimumOf1() {
-        Settings s = Settings.builder().put("block_cache.data_to_cache_ratio", "1.0").build();
+        Settings s = Settings.builder().put("block_cache.foyer.data_to_cache_ratio", "1.0").build();
         assertEquals(1.0, new BlockCacheFoyerPlugin(Settings.EMPTY).dataToCapacityRatio(s), 0.0);
     }
 

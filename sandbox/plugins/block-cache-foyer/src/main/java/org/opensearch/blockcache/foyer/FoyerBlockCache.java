@@ -13,7 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.plugins.BlockCache;
 import org.opensearch.plugins.BlockCacheStats;
 import org.opensearch.plugins.BuiltInBlockCaches;
-import org.opensearch.plugins.NativeCacheHandle;
+import org.opensearch.plugins.NativeStoreHandle;
 
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -105,18 +105,20 @@ public final class FoyerBlockCache implements BlockCache {
     }
 
     /**
-     * Returns a borrowed, non-owning {@link NativeCacheHandle} for this Foyer cache.
+     * Returns a borrowed, non-owning {@link NativeStoreHandle} for this Foyer cache.
      *
-     * <p>The handle wraps the raw fat pointer created by {@code foyer_create_cache}.
-     * It is valid for the entire lifetime of this {@code FoyerBlockCache} instance.
-     * {@code FoyerBlockCache} owns the cache and destroys it via
-     * {@code foyer_destroy_cache} in {@link #close()} — callers must never free the pointer.
+     * <p>The handle uses a no-op destructor — calling {@link NativeStoreHandle#close()} is safe
+     * but does nothing. The raw fat pointer created by {@code foyer_create_cache} is valid for
+     * the entire lifetime of this {@code FoyerBlockCache} instance. {@code FoyerBlockCache}
+     * owns the cache and destroys it via {@code foyer_destroy_cache} in {@link #close()} —
+     * callers must never free the pointer directly.
      *
-     * @return a borrowed handle; never {@code null}, always {@link NativeCacheHandle#isLive()}
+     * @return a borrowed handle; never {@code null}, always {@link NativeStoreHandle#isLive()}
      */
     @Override
-    public NativeCacheHandle nativeCacheHandle() {
-        return NativeCacheHandle.of(cachePtr);
+    public NativeStoreHandle nativeCacheHandle() {
+        // No-op destructor: this is a borrowed reference — FoyerBlockCache owns the lifecycle.
+        return new NativeStoreHandle(cachePtr, ptr -> {});
     }
 
     /**

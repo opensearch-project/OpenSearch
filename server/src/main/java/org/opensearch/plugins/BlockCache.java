@@ -64,27 +64,28 @@ public interface BlockCache extends Closeable {
     }
 
     /**
-     * Returns a <em>borrowed</em>, non-owning handle to the native cache backing
-     * this instance, or {@link NativeCacheHandle#EMPTY} if this cache has no
-     * native backing.
+     * Returns a <em>borrowed</em>, non-owning {@link NativeStoreHandle} pointing
+     * to the native cache backing this instance, or {@link NativeStoreHandle#EMPTY}
+     * if this cache has no native backing.
      *
-     * <p>A {@link NativeCacheHandle} is intentionally non-closeable. The native
+     * <p>The returned handle uses a <em>no-op destructor</em> — calling
+     * {@link NativeStoreHandle#close()} on it is safe but does nothing. The native
      * cache resource is owned exclusively by the {@link BlockCache} instance and
      * its lifecycle is managed by {@link #close()}. Callers must never attempt to
-     * free the underlying pointer.
+     * free the underlying pointer directly.
      *
      * <p>The returned handle is valid for as long as this {@code BlockCache}
      * is alive. Callers that hold a reference past that lifetime will have a
      * dangling pointer.
      *
-     * <p>Pure-Java implementations return {@link NativeCacheHandle#EMPTY}.
-     * Native storage components check {@link NativeCacheHandle#isLive()} and
+     * <p>Pure-Java implementations return {@link NativeStoreHandle#EMPTY}.
+     * Native storage components check {@link NativeStoreHandle#isLive()} and
      * fall back to uncached behaviour when the handle is empty.
      *
-     * @return a borrowed handle to the native cache; never {@code null}
+     * @return a borrowed (non-owning) handle to the native cache; never {@code null}
      */
-    default NativeCacheHandle nativeCacheHandle() {
-        return NativeCacheHandle.EMPTY;
+    default NativeStoreHandle nativeCacheHandle() {
+        return NativeStoreHandle.EMPTY;
     }
 
     /**

@@ -25,7 +25,6 @@ import org.opensearch.monitor.fs.FsProbe;
 import org.opensearch.node.Node;
 import org.opensearch.plugins.BlockCache;
 import org.opensearch.plugins.BlockCacheProvider;
-import java.util.Map;
 import org.opensearch.plugins.BlockCacheRegistry;
 import org.opensearch.plugins.BlockCacheStats;
 
@@ -33,6 +32,7 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.ForkJoinTask;
@@ -101,8 +101,11 @@ public class NodeCacheOrchestrator implements Closeable, BlockCacheRegistry {
      *
      * @param providers all discovered {@link BlockCacheProvider} plugins
      */
-    public static NodeCacheOrchestrator create(Settings settings, NodeEnvironment nodeEnvironment, Map<String, BlockCacheProvider> providers)
-        throws IOException {
+    public static NodeCacheOrchestrator create(
+        Settings settings,
+        NodeEnvironment nodeEnvironment,
+        Map<String, BlockCacheProvider> providers
+    ) throws IOException {
         NodeEnvironment.NodePath fileCacheNodePath = nodeEnvironment.fileCacheNodePath();
         long totalSSDBytes = ExceptionsHelper.catchAsRuntimeException(() -> FsProbe.getTotalSize(fileCacheNodePath));
 
@@ -143,8 +146,9 @@ public class NodeCacheOrchestrator implements Closeable, BlockCacheRegistry {
      * for each provider's data-to-cache amplification ratio.
      */
     static long computeVirtualBlockCacheBytes(Map<String, BlockCacheProvider> providers, Settings settings, long totalBudgetBytes) {
-        return providers.values().stream()
-            .mapToLong(p -> (long) (p.requestedCapacityBytes(settings, totalBudgetBytes) * p.dataToCapacityRatio(settings)))
+        return providers.values()
+            .stream()
+            .mapToLong(p -> Math.round(p.requestedCapacityBytes(settings, totalBudgetBytes) * p.dataToCapacityRatio(settings)))
             .sum();
     }
 
@@ -260,7 +264,7 @@ public class NodeCacheOrchestrator implements Closeable, BlockCacheRegistry {
 
     /** Returns total bytes currently used across all caches (FileCache + block caches). */
     public long cacheUtilizedBytes() {
-        long used = fileCache.usage();
+        long used = fileCache != null ? fileCache.usage() : 0L;
         for (BlockCache bc : blockCaches) {
             BlockCacheStats s = bc.stats();
             used += s.memoryBytesUsed() + s.diskBytesUsed();

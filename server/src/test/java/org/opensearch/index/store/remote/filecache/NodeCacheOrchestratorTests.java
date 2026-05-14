@@ -14,7 +14,7 @@ import org.opensearch.plugins.BlockCacheProvider;
 import org.opensearch.plugins.BlockCacheStats;
 import org.opensearch.test.OpenSearchTestCase;
 
-import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.mockito.Mockito.mock;
@@ -156,7 +156,6 @@ public class NodeCacheOrchestratorTests extends OpenSearchTestCase {
     public void testBlockCacheDiskBytesUsedSumsAcrossCaches() {
         FileCache fc = mock(FileCache.class);
         NodeCacheOrchestrator orc = new NodeCacheOrchestrator(fc, 0L);
-        // diskUsed is the 3rd positional arg in mockBlockCache
         orc.addBlockCache(mockBlockCache(0, 0, 300L, 0, 1000L));
         orc.addBlockCache(mockBlockCache(0, 0, 200L, 0, 1000L));
         assertEquals(500L, orc.blockCacheDiskBytesUsed());
@@ -165,7 +164,6 @@ public class NodeCacheOrchestratorTests extends OpenSearchTestCase {
     public void testBlockCacheDiskBytesUsedIgnoresMemory() {
         FileCache fc = mock(FileCache.class);
         NodeCacheOrchestrator orc = new NodeCacheOrchestrator(fc, 0L);
-        // memory-only entry: memUsed=100, diskUsed=0
         orc.addBlockCache(mockBlockCache(0, 0, 0L, 100L, 1000L));
         assertEquals(0L, orc.blockCacheDiskBytesUsed());
     }
@@ -173,47 +171,46 @@ public class NodeCacheOrchestratorTests extends OpenSearchTestCase {
     // ── computeBlockCacheBudget ───────────────────────────────────────────────
 
     public void testComputeBlockCacheBudgetNoProviders() {
-        assertEquals(0L, NodeCacheOrchestrator.computeBlockCacheBudget(List.of(), Settings.EMPTY, 1000L));
+        assertEquals(0L, NodeCacheOrchestrator.computeBlockCacheBudget(Map.of(), Settings.EMPTY, 1000L));
     }
 
     public void testComputeBlockCacheBudgetSingleProvider() {
-        // Provider requests 25% of 1000 = 250
         var provider = mockProvider("25%", 1.0);
-        assertEquals(250L, NodeCacheOrchestrator.computeBlockCacheBudget(List.of(provider), Settings.EMPTY, 1000L));
+        assertEquals(250L, NodeCacheOrchestrator.computeBlockCacheBudget(Map.of("foyer", provider), Settings.EMPTY, 1000L));
     }
 
     public void testComputeBlockCacheBudgetMultipleProviders() {
         var p1 = mockProvider("25%", 1.0);  // 250 of 1000
         var p2 = mockProvider("10%", 1.0);  // 100 of 1000
-        assertEquals(350L, NodeCacheOrchestrator.computeBlockCacheBudget(List.of(p1, p2), Settings.EMPTY, 1000L));
+        assertEquals(350L, NodeCacheOrchestrator.computeBlockCacheBudget(Map.of("p1", p1, "p2", p2), Settings.EMPTY, 1000L));
     }
 
     public void testComputeBlockCacheBudgetZeroPercentProvider() {
         var provider = mockProvider("0%", 1.0);
-        assertEquals(0L, NodeCacheOrchestrator.computeBlockCacheBudget(List.of(provider), Settings.EMPTY, 1000L));
+        assertEquals(0L, NodeCacheOrchestrator.computeBlockCacheBudget(Map.of("foyer", provider), Settings.EMPTY, 1000L));
     }
 
     // ── computeVirtualBlockCacheBytes ─────────────────────────────────────────
 
     public void testComputeVirtualBlockCacheBytesNoProviders() {
-        assertEquals(0L, NodeCacheOrchestrator.computeVirtualBlockCacheBytes(List.of(), Settings.EMPTY, 1000L));
+        assertEquals(0L, NodeCacheOrchestrator.computeVirtualBlockCacheBytes(Map.of(), Settings.EMPTY, 1000L));
     }
 
     public void testComputeVirtualBlockCacheBytesAppliesRatio() {
         // 25% of 1000 = 250 bytes reserved × ratio 5.0 = 1250 virtual bytes
         var provider = mockProvider("25%", 5.0);
-        assertEquals(1250L, NodeCacheOrchestrator.computeVirtualBlockCacheBytes(List.of(provider), Settings.EMPTY, 1000L));
+        assertEquals(1250L, NodeCacheOrchestrator.computeVirtualBlockCacheBytes(Map.of("foyer", provider), Settings.EMPTY, 1000L));
     }
 
     public void testComputeVirtualBlockCacheBytesSumsMultipleProviders() {
         var p1 = mockProvider("20%", 4.0);  // 200 × 4 = 800
         var p2 = mockProvider("10%", 2.0);  // 100 × 2 = 200
-        assertEquals(1000L, NodeCacheOrchestrator.computeVirtualBlockCacheBytes(List.of(p1, p2), Settings.EMPTY, 1000L));
+        assertEquals(1000L, NodeCacheOrchestrator.computeVirtualBlockCacheBytes(Map.of("p1", p1, "p2", p2), Settings.EMPTY, 1000L));
     }
 
     public void testComputeVirtualBlockCacheBytesRatioOneEqualsReserved() {
         var provider = mockProvider("30%", 1.0);  // 300 × 1 = 300
-        assertEquals(300L, NodeCacheOrchestrator.computeVirtualBlockCacheBytes(List.of(provider), Settings.EMPTY, 1000L));
+        assertEquals(300L, NodeCacheOrchestrator.computeVirtualBlockCacheBytes(Map.of("foyer", provider), Settings.EMPTY, 1000L));
     }
 
     // ── registerProviders ─────────────────────────────────────────────────────
@@ -222,10 +219,10 @@ public class NodeCacheOrchestratorTests extends OpenSearchTestCase {
         FileCache fc = mock(FileCache.class);
         NodeCacheOrchestrator orc = new NodeCacheOrchestrator(fc, 0L);
 
-        org.opensearch.plugins.BlockCacheProvider emptyProvider = mock(org.opensearch.plugins.BlockCacheProvider.class);
-        when(emptyProvider.getBlockCache()).thenReturn(java.util.Optional.empty());
+        BlockCacheProvider emptyProvider = mock(BlockCacheProvider.class);
+        when(emptyProvider.getBlockCache()).thenReturn(Optional.empty());
 
-        orc.registerProviders(List.of(emptyProvider));
+        orc.registerProviders(Map.of("empty", emptyProvider));
         assertEquals(0, orc.blockCaches().size());
     }
 
@@ -234,10 +231,10 @@ public class NodeCacheOrchestratorTests extends OpenSearchTestCase {
         NodeCacheOrchestrator orc = new NodeCacheOrchestrator(fc, 0L);
 
         BlockCache bc = mockBlockCache(0, 0, 0, 0, 500L);
-        org.opensearch.plugins.BlockCacheProvider provider = mock(org.opensearch.plugins.BlockCacheProvider.class);
-        when(provider.getBlockCache()).thenReturn(java.util.Optional.of(bc));
+        BlockCacheProvider provider = mock(BlockCacheProvider.class);
+        when(provider.getBlockCache()).thenReturn(Optional.of(bc));
 
-        orc.registerProviders(List.of(provider));
+        orc.registerProviders(Map.of("foyer", provider));
         assertEquals(1, orc.blockCaches().size());
         assertSame(bc, orc.blockCaches().get(0));
     }
@@ -248,13 +245,13 @@ public class NodeCacheOrchestratorTests extends OpenSearchTestCase {
 
         BlockCache bc = mockBlockCache(0, 0, 0, 0, 100L);
 
-        org.opensearch.plugins.BlockCacheProvider withCache = mock(org.opensearch.plugins.BlockCacheProvider.class);
-        when(withCache.getBlockCache()).thenReturn(java.util.Optional.of(bc));
+        BlockCacheProvider withCache = mock(BlockCacheProvider.class);
+        when(withCache.getBlockCache()).thenReturn(Optional.of(bc));
 
-        org.opensearch.plugins.BlockCacheProvider withoutCache = mock(org.opensearch.plugins.BlockCacheProvider.class);
-        when(withoutCache.getBlockCache()).thenReturn(java.util.Optional.empty());
+        BlockCacheProvider withoutCache = mock(BlockCacheProvider.class);
+        when(withoutCache.getBlockCache()).thenReturn(Optional.empty());
 
-        orc.registerProviders(List.of(withCache, withoutCache));
+        orc.registerProviders(Map.of("foyer", withCache, "other", withoutCache));
         assertEquals(1, orc.blockCaches().size());
     }
 
@@ -263,7 +260,6 @@ public class NodeCacheOrchestratorTests extends OpenSearchTestCase {
     public void testAggregateStatsMergesHitsFromBlockCache() {
         FileCache fc = fileCacheWithStats(0, 0, 0, 0, 1000L, 0L, 0L);
         NodeCacheOrchestrator orc = new NodeCacheOrchestrator(fc, 0L);
-        // block cache: 50 hits, 10 misses, diskUsed=0, total=500
         orc.addBlockCache(mockBlockCacheWithFullStats(50L, 10L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 500L));
         AggregateFileCacheStats s = orc.aggregateStats();
         assertEquals(50L, s.getCacheHits());
@@ -275,27 +271,22 @@ public class NodeCacheOrchestratorTests extends OpenSearchTestCase {
         NodeCacheOrchestrator orc = new NodeCacheOrchestrator(fc, 0L);
         orc.addBlockCache(mockBlockCacheWithFullStats(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 500L));
         AggregateFileCacheStats s = orc.aggregateStats();
-        // total = fileCache total (1000) + blockCache total (500) = 1500
         assertEquals(1500L, s.getTotal().getBytes());
     }
 
     public void testAggregateStatsMergesEvictionBytesFromBlockCache() {
-        FileCache fc = fileCacheWithStats(0, 0, 0, 0, 1000L, 100L, 0L);  // fileCache evicted=100
+        FileCache fc = fileCacheWithStats(0, 0, 0, 0, 1000L, 100L, 0L);
         NodeCacheOrchestrator orc = new NodeCacheOrchestrator(fc, 0L);
-        // block cache: evictionBytes=200
         orc.addBlockCache(mockBlockCacheWithFullStats(0, 0, 0, 0, 0, 200L, 0, 0, 0, 200L, 500L));
         AggregateFileCacheStats s = orc.aggregateStats();
-        // overall evicted = fileCache(100) + blockCache evictionBytes(200) = 300
         assertEquals(300L, s.getEvicted().getBytes());
     }
 
     public void testAggregateStatsMergesUsedBytesFromBlockCacheDisk() {
-        FileCache fc = fileCacheWithStats(0, 0, 400L, 0, 1000L, 0L, 0L);  // fileCache used=400
+        FileCache fc = fileCacheWithStats(0, 0, 400L, 0, 1000L, 0L, 0L);
         NodeCacheOrchestrator orc = new NodeCacheOrchestrator(fc, 0L);
-        // block cache: diskBytesUsed=200
         orc.addBlockCache(mockBlockCacheWithFullStats(0, 0, 0, 0, 0, 0, 0, 0, 0, 200L, 500L));
         AggregateFileCacheStats s = orc.aggregateStats();
-        // overall used = fileCache(400) + blockCache disk(200) = 600
         assertEquals(600L, s.getUsed().getBytes());
     }
 
@@ -304,7 +295,6 @@ public class NodeCacheOrchestratorTests extends OpenSearchTestCase {
         NodeCacheOrchestrator orc = new NodeCacheOrchestrator(fc, 0L);
         orc.addBlockCache(mockBlockCacheWithFullStats(7L, 3L, 0, 0, 0, 0, 0, 0, 0, 100L, 200L));
         AggregateFileCacheStats s = orc.aggregateStats();
-        // block section: hits should include the block cache's hits
         assertEquals(7L, s.getBlockFileCacheStats().getCacheHits());
     }
 
@@ -319,15 +309,8 @@ public class NodeCacheOrchestratorTests extends OpenSearchTestCase {
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 
-    /**
-     * Creates a {@link BlockCacheProvider} mock whose {@code requestedCapacityBytes}
-     * returns {@code Math.round(totalBudget * ratio)} where {@code ratio} is parsed
-     * from {@code sizePercent} (e.g. "25%" → 0.25), and whose
-     * {@code dataToCapacityRatio} returns {@code amplification}.
-     */
     private BlockCacheProvider mockProvider(String sizePercent, double amplification) {
         BlockCacheProvider provider = mock(BlockCacheProvider.class);
-        // Parse the percentage string into a double ratio (e.g. "25%" → 0.25)
         String stripped = sizePercent.endsWith("%") ? sizePercent.substring(0, sizePercent.length() - 1) : sizePercent;
         double ratio = Double.parseDouble(stripped) / 100.0;
         when(provider.requestedCapacityBytes(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.anyLong())).thenAnswer(
@@ -345,8 +328,6 @@ public class NodeCacheOrchestratorTests extends OpenSearchTestCase {
         return bc;
     }
 
-    /** Full BlockCacheStats constructor: hits,misses,hitBytes,missBytes,evictions,evictionBytes,
-     *  removed,removedBytes,memBytesUsed,diskBytesUsed,totalBytes */
     private BlockCache mockBlockCacheWithFullStats(
         long hits,
         long misses,
@@ -378,12 +359,6 @@ public class NodeCacheOrchestratorTests extends OpenSearchTestCase {
         return bc;
     }
 
-    /**
-     * Creates a mock FileCache whose {@code fileCacheStats()} returns an
-     * {@link AggregateFileCacheStats} built from the provided values.
-     * All sub-sections (full, block, pinned) are zero; only the overall section
-     * carries the values, which is sufficient for mergeStats tests.
-     */
     private FileCache fileCacheWithStats(long active, long hits, long used, long pinned, long total, long evicted, long removed) {
         FileCacheStats overall = new FileCacheStats(
             active,

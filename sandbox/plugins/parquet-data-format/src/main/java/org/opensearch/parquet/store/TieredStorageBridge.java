@@ -93,9 +93,7 @@ public final class TieredStorageBridge {
      */
     public static long createTieredObjectStore(long localStorePtr, long remoteStorePtr, long cacheBoxPtr) {
         try {
-            return NativeLibraryLoader.checkResult(
-                (long) CREATE.invokeExact(localStorePtr, remoteStorePtr, cacheBoxPtr)
-            );
+            return NativeLibraryLoader.checkResult((long) CREATE.invokeExact(localStorePtr, remoteStorePtr, cacheBoxPtr));
         } catch (Throwable t) {
             throw new RuntimeException("Failed to create TieredObjectStore", t);
         }

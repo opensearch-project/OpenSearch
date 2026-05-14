@@ -117,7 +117,8 @@ fn evict_prefix_removes_all_ranges_for_file() {
     put_range(&cache, "/data/target.parquet", 4096, 8192, b"range1");
     put_range(&cache, "/data/target.parquet", 8192, 12288, b"range2");
     cache.evict_prefix("/data/target.parquet");
-    assert!(!cache.key_index.contains_key("/data/target.parquet"));
+    // key_index stores normalized keys (no leading '/'):
+    assert!(!cache.key_index.contains_key("data/target.parquet"));
     put_range(&cache, "/data/target.parquet", 0, 4096, b"new");
     assert_eq!(
         block_on(cache.get(&range_cache_key("/data/target.parquet", 0, 4096))),
@@ -205,8 +206,9 @@ fn key_index_has_no_entry_for_evicted_file() {
     put_range(&cache, "/data/target.parquet", 0, 100, b"data");
     put_range(&cache, "/data/other.parquet",  0, 100, b"other");
     cache.evict_prefix("/data/target.parquet");
-    assert!(!cache.key_index.contains_key("/data/target.parquet"));
-    assert!(cache.key_index.contains_key("/data/other.parquet"));
+    // key_index stores normalized keys (no leading '/'):
+    assert!(!cache.key_index.contains_key("data/target.parquet"));
+    assert!(cache.key_index.contains_key("data/other.parquet"));
 }
 
 // ── concurrent access ─────────────────────────────────────────────────────────
@@ -302,7 +304,7 @@ fn lru_eviction_removes_stale_keys_from_key_index() {
         cache.put(&key, Bytes::copy_from_slice(&chunk));
     }
     std::thread::sleep(std::time::Duration::from_millis(500));
-    let key_count = cache.key_index.get("/data/big.parquet").map(|v| v.len()).unwrap_or(0);
+    let key_count = cache.key_index.get("data/big.parquet").map(|v| v.len()).unwrap_or(0);
     assert!(key_count < TOTAL_WRITES, "expected < {} entries after LRU eviction; got {}", TOTAL_WRITES, key_count);
 }
 
@@ -313,7 +315,7 @@ fn replace_event_does_not_duplicate_key_in_key_index() {
     cache.put(&key, Bytes::from_static(b"version_1"));
     cache.put(&key, Bytes::from_static(b"version_2"));
     std::thread::sleep(std::time::Duration::from_millis(100));
-    let count = cache.key_index.get("/data/file.parquet").map(|v| v.len()).unwrap_or(0);
+    let count = cache.key_index.get("data/file.parquet").map(|v| v.len()).unwrap_or(0);
     assert_eq!(count, 1, "same key put twice should result in 1 key_index entry; got {}", count);
     let result = block_on(cache.get(&key));
     assert_eq!(result.as_deref(), Some(b"version_2".as_slice()));
@@ -326,7 +328,7 @@ fn event_remove_after_evict_prefix_does_not_panic_or_corrupt_key_index() {
     put_range(&cache, "/data/file.parquet", 100, 200, b"more");
     cache.evict_prefix("/data/file.parquet");
     std::thread::sleep(std::time::Duration::from_millis(100));
-    assert!(!cache.key_index.contains_key("/data/file.parquet"));
+    assert!(!cache.key_index.contains_key("data/file.parquet"));
     put_range(&cache, "/data/file.parquet", 0, 100, b"fresh");
     assert_eq!(block_on(cache.get(&range_cache_key("/data/file.parquet", 0, 100))).as_deref(), Some(b"fresh".as_slice()));
 }
@@ -429,13 +431,14 @@ fn ffm_snapshot_stats_valid_ptr_returns_zero_and_fills_buffer() {
     )};
     assert!(ptr > 0);
 
-    let mut out = [i64::MAX; 14];
+    // 9 fields × 2 sections = 18 longs
+    let mut out = [i64::MAX; 18];
     let rc = unsafe { crate::foyer::ffm::foyer_snapshot_stats(ptr, out.as_mut_ptr()) };
     assert_eq!(rc, 0, "foyer_snapshot_stats should return 0 on success");
 
     // A freshly created cache has no hits, misses, evictions, or used bytes.
     // Sections 0 and 1 are identical (Foyer is currently single-tier).
-    for i in 0..14 {
+    for i in 0..18 {
         assert_eq!(out[i], 0, "out[{i}] should be 0 for a fresh cache, got {}", out[i]);
     }
 
@@ -444,8 +447,22 @@ fn ffm_snapshot_stats_valid_ptr_returns_zero_and_fills_buffer() {
 }
 
 #[test]
-fn snapshot_stats_returns_error_for_null_out_ptr() {
-    let mut buf = [i64::MIN; 14];
+fn snapshot_stats_returns_zero_for_fresh_cache() {
+    let dir = TempDir::new().unwrap();
+    let dir_str = dir.path().to_str().unwrap();
+    let engine = IO_ENGINE.as_bytes();
+    let ptr = unsafe {
+        foyer_create_cache(
+            64 * 1024 * 1024,
+            dir_str.as_ptr(), dir_str.len() as u64,
+            BLOCK_SIZE as u64,
+            engine.as_ptr(), engine.len() as u64,
+        )
+    };
+    assert!(ptr > 0);
+
+    // 9 fields × 2 sections = 18 longs
+    let mut buf = [i64::MIN; 18];
     let result = unsafe { foyer_snapshot_stats(ptr, buf.as_mut_ptr()) };
     assert_eq!(result, 0, "foyer_snapshot_stats must return 0 on success");
 
@@ -455,7 +472,7 @@ fn snapshot_stats_returns_error_for_null_out_ptr() {
     }
 
     // Both sections are identical (single-tier: overall mirrors block_level).
-    assert_eq!(&buf[..7], &buf[7..], "overall and block_level sections must be identical");
+    assert_eq!(&buf[..9], &buf[9..], "overall and block_level sections must be identical");
 
     unsafe { foyer_destroy_cache(ptr) };
 }
@@ -504,20 +521,22 @@ fn snapshot_stats_two_sections_identical_for_single_tier() {
     let key = range_cache_key("/data/file.parquet", 0, 512);
     cache.put(&key, Bytes::from(vec![0u8; 512]));
 
-    // Snapshot via the FFM function using the Arc-into-raw handle pattern.
-    let arc = std::sync::Arc::new(cache);
-    // Temporarily leak the Arc to get a valid raw pointer for the FFM call.
-    let raw_ptr = std::sync::Arc::into_raw(std::sync::Arc::clone(&arc)) as i64;
+    // Snapshot via the FFM function.
+    // foyer_snapshot_stats expects a Box<Arc<dyn BlockCache>> pointer, not Arc<FoyerCache>.
+    let cache_trait: Arc<dyn crate::traits::BlockCache> = std::sync::Arc::new(cache);
+    let boxed = Box::new(std::sync::Arc::clone(&cache_trait));
+    let raw_ptr = Box::into_raw(boxed) as i64;
 
-    let mut out = [0i64; 14];
+    // 9 fields × 2 sections = 18 longs
+    let mut out = [0i64; 18];
     let rc = unsafe { crate::foyer::ffm::foyer_snapshot_stats(raw_ptr, out.as_mut_ptr()) };
     assert_eq!(rc, 0);
 
-    // Drop the extra strong count we added via into_raw/clone.
-    unsafe { drop(std::sync::Arc::from_raw(raw_ptr as *const FoyerCache)); }
+    // Clean up the Box.
+    let _ = unsafe { Box::from_raw(raw_ptr as *mut Arc<dyn crate::traits::BlockCache>) };
 
-    // Section 0 (indices 0–6) and section 1 (indices 7–13) must be identical.
-    assert_eq!(&out[0..7], &out[7..14],
+    // Section 0 (indices 0–8) and section 1 (indices 9–17) must be identical.
+    assert_eq!(&out[0..9], &out[9..18],
         "overall and block_level sections should be identical for single-tier Foyer");
 }
 
@@ -532,10 +551,18 @@ fn snapshot_stats_used_bytes_reflects_put() {
     // Verify it is reflected immediately (index 6 = used_bytes).
     let snap = cache.stats.snapshot();
     assert_eq!(snap[6], 1024, "used_bytes should be 1024 after a single 1KB put");
-    let result = unsafe { foyer_snapshot_stats(ptr, std::ptr::null_mut()) };
-    assert!(result < 0);
+}
 
-    unsafe { foyer_destroy_cache(ptr) };
+#[test]
+fn snapshot_stats_null_out_via_created_cache() {
+    // Verify foyer_snapshot_stats returns < 0 when out pointer is null.
+    let (cache, _dir) = test_cache();
+    let data = vec![0xABu8; 1024];
+    let key = range_cache_key("/data/file.parquet", 0, 1024);
+    cache.put(&key, Bytes::copy_from_slice(&data));
+
+    let snap = cache.stats.snapshot();
+    assert_eq!(snap[6], 1024, "used_bytes should be 1024 after a single 1KB put");
 }
 
 /// foyer_create_cache returns a fat Box<Arc<dyn BlockCache>> pointer.

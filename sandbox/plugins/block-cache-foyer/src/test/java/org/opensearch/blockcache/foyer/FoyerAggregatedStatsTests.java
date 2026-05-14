@@ -17,12 +17,37 @@ import org.opensearch.test.OpenSearchTestCase;
  * Tests the FFM buffer parsing (snapshot factory) directly without the native
  * library. Any field-ordinal bug would be caught here.
  *
- * Buffer layout: 14 longs — section 0 (overall) at [0..6], section 1 (block-level) at [7..13].
+ * Buffer layout: 18 longs — section 0 (overall) at [0..8], section 1 (block-level) at [9..17].
  *   [0] HIT_COUNT  [1] HIT_BYTES  [2] MISS_COUNT  [3] MISS_BYTES
  *   [4] EVICTION_COUNT  [5] EVICTION_BYTES  [6] USED_BYTES
+ *   [7] REMOVED_COUNT  [8] REMOVED_BYTES
  */
 public class FoyerAggregatedStatsTests extends OpenSearchTestCase {
 
+    private static long[] buf(
+        long hc0,
+        long hb0,
+        long mc0,
+        long mb0,
+        long ec0,
+        long eb0,
+        long ub0,
+        long rc0,
+        long rb0,
+        long hc1,
+        long hb1,
+        long mc1,
+        long mb1,
+        long ec1,
+        long eb1,
+        long ub1,
+        long rc1,
+        long rb1
+    ) {
+        return new long[] { hc0, hb0, mc0, mb0, ec0, eb0, ub0, rc0, rb0, hc1, hb1, mc1, mb1, ec1, eb1, ub1, rc1, rb1 };
+    }
+
+    /** 14-arg shorthand: removed_count and removed_bytes default to 0 for both sections. */
     private static long[] buf(
         long hc0,
         long hb0,
@@ -39,25 +64,25 @@ public class FoyerAggregatedStatsTests extends OpenSearchTestCase {
         long eb1,
         long ub1
     ) {
-        return new long[] { hc0, hb0, mc0, mb0, ec0, eb0, ub0, hc1, hb1, mc1, mb1, ec1, eb1, ub1 };
+        return buf(hc0, hb0, mc0, mb0, ec0, eb0, ub0, 0, 0, hc1, hb1, mc1, mb1, ec1, eb1, ub1, 0, 0);
     }
 
     private static long[] uniform(long hc, long hb, long mc, long mb, long ec, long eb, long ub) {
-        return buf(hc, hb, mc, mb, ec, eb, ub, hc, hb, mc, mb, ec, eb, ub);
+        return buf(hc, hb, mc, mb, ec, eb, ub, 0, 0, hc, hb, mc, mb, ec, eb, ub, 0, 0);
     }
 
     // ── Non-null guarantees ───────────────────────────────────────────────────
 
     public void testSnapshotNonNull() {
-        assertNotNull(FoyerAggregatedStats.snapshot(new long[14], 0L));
+        assertNotNull(FoyerAggregatedStats.snapshot(new long[18], 0L));
     }
 
     public void testOverallStatsNonNull() {
-        assertNotNull(FoyerAggregatedStats.snapshot(new long[14], 0L).overallStats());
+        assertNotNull(FoyerAggregatedStats.snapshot(new long[18], 0L).overallStats());
     }
 
     public void testBlockLevelStatsNonNull() {
-        assertNotNull(FoyerAggregatedStats.snapshot(new long[14], 0L).blockLevelStats());
+        assertNotNull(FoyerAggregatedStats.snapshot(new long[18], 0L).blockLevelStats());
     }
 
     // ── overallStats field mapping (one-hot) ──────────────────────────────────
@@ -125,15 +150,15 @@ public class FoyerAggregatedStatsTests extends OpenSearchTestCase {
     // ── capacityBytes ─────────────────────────────────────────────────────────
 
     public void testCapacityPassedToOverall() {
-        assertEquals(1_073_741_824L, FoyerAggregatedStats.snapshot(new long[14], 1_073_741_824L).overallStats().totalBytes());
+        assertEquals(1_073_741_824L, FoyerAggregatedStats.snapshot(new long[18], 1_073_741_824L).overallStats().totalBytes());
     }
 
     public void testCapacityPassedToBlockLevel() {
-        assertEquals(1_073_741_824L, FoyerAggregatedStats.snapshot(new long[14], 1_073_741_824L).blockLevelStats().totalBytes());
+        assertEquals(1_073_741_824L, FoyerAggregatedStats.snapshot(new long[18], 1_073_741_824L).blockLevelStats().totalBytes());
     }
 
     public void testZeroCapacity() {
-        assertEquals(0L, FoyerAggregatedStats.snapshot(new long[14], 0L).overallStats().totalBytes());
+        assertEquals(0L, FoyerAggregatedStats.snapshot(new long[18], 0L).overallStats().totalBytes());
     }
 
     // ── Foyer-specific zero fields ─────────────────────────────────────────────
@@ -159,7 +184,7 @@ public class FoyerAggregatedStatsTests extends OpenSearchTestCase {
     // ── All-zeros ─────────────────────────────────────────────────────────────
 
     public void testAllZeroBuffer() {
-        BlockCacheStats s = FoyerAggregatedStats.snapshot(new long[14], 0L).overallStats();
+        BlockCacheStats s = FoyerAggregatedStats.snapshot(new long[18], 0L).overallStats();
         assertEquals(0L, s.hits());
         assertEquals(0L, s.misses());
         assertEquals(0L, s.evictions());

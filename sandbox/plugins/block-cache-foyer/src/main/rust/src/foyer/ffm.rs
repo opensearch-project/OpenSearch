@@ -114,9 +114,10 @@ pub unsafe extern "C" fn foyer_snapshot_stats(ptr: i64, out: *mut i64) -> i64 {
     let single = foyer.stats.snapshot();
 
     // Foyer is currently single-tier (disk only): overall and block_level are identical.
-    let mut flat = [0i64; 14];
-    flat[..7].copy_from_slice(&single);
-    flat[7..].copy_from_slice(&single);
+    // 9 fields × 2 sections = 18 longs total.
+    let mut flat = [0i64; 18];
+    flat[..9].copy_from_slice(&single);
+    flat[9..].copy_from_slice(&single);
     for (i, &v) in flat.iter().enumerate() {
         *out.add(i) = v;
     }

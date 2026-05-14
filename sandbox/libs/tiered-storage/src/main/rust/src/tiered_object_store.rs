@@ -236,6 +236,100 @@ impl TieredObjectStore {
         }
         None
     }
+
+    /// Phase 1 — probe the block cache for each requested range.
+    ///
+    /// Returns:
+    /// - `slots`: one entry per input range — `Some(bytes)` for hits, `None` for misses
+    /// - `miss_indices`: original indices of the ranges that missed
+    /// - `miss_ranges`: the ranges that need to be fetched from the backing store
+    ///
+    /// When no cache is attached all ranges are unconditionally treated as misses.
+    async fn probe_cache(
+        &self,
+        path_str: &str,
+        ranges: &[Range<u64>],
+    ) -> (Vec<Option<Bytes>>, Vec<usize>, Vec<Range<u64>>) {
+        let mut slots: Vec<Option<Bytes>> = Vec::with_capacity(ranges.len());
+        let mut miss_indices: Vec<usize> = Vec::new();
+        let mut miss_ranges: Vec<Range<u64>> = Vec::new();
+
+        if let Some(ref cache) = self.cache {
+            for (i, r) in ranges.iter().enumerate() {
+                let key = range_cache_key(path_str, r.start, r.end);
+                if let Some(cached) = cache.get(&key).await {
+                    slots.push(Some(cached));
+                } else {
+                    slots.push(None);
+                    miss_indices.push(i);
+                    miss_ranges.push(r.clone());
+                }
+            }
+        } else {
+            // No cache — all ranges are misses.
+            for (i, r) in ranges.iter().enumerate() {
+                slots.push(None);
+                miss_indices.push(i);
+                miss_ranges.push(r.clone());
+            }
+        }
+
+        (slots, miss_indices, miss_ranges)
+    }
+
+    /// Phase 2 — fetch missing ranges from the backing store (remote or local).
+    ///
+    /// Tries the remote store first (registry lookup). Falls back to local,
+    /// and retries remote if local returns `NotFound` and the file has since
+    /// transitioned to `REMOTE` in the registry.
+    async fn fetch_misses(
+        &self,
+        location: &Path,
+        path_str: &str,
+        miss_ranges: &[Range<u64>],
+    ) -> OsResult<Vec<Bytes>> {
+        if let Some((rp, store)) = self.resolve_remote(path_str) {
+            return store.get_ranges(&rp, miss_ranges).await;
+        }
+        let result = self.local.get_ranges(location, miss_ranges).await;
+        match result {
+            Ok(bytes) => Ok(bytes),
+            Err(ref e) => {
+                if let Some((rp, store)) = self.should_retry_remote(path_str, e) {
+                    store.get_ranges(&rp, miss_ranges).await
+                } else {
+                    result
+                }
+            }
+        }
+    }
+
+    /// Phase 3 — populate the block cache with freshly fetched bytes and
+    /// reassemble the complete result in original range order.
+    ///
+    /// If no cache is attached, only the slot reassembly is performed.
+    fn populate_cache_and_reassemble(
+        &self,
+        path_str: &str,
+        fetched: &[Bytes],
+        miss_indices: &[usize],
+        miss_ranges: &[Range<u64>],
+        slots: &mut Vec<Option<Bytes>>,
+    ) {
+        if let Some(ref cache) = self.cache {
+            for (fetched_bytes, (&slot_i, miss_range)) in
+                fetched.iter().zip(miss_indices.iter().zip(miss_ranges.iter()))
+            {
+                let key = range_cache_key(path_str, miss_range.start, miss_range.end);
+                cache.put(&key, fetched_bytes.clone());
+                slots[slot_i] = Some(fetched_bytes.clone());
+            }
+        } else {
+            for (fetched_bytes, &slot_i) in fetched.iter().zip(miss_indices.iter()) {
+                slots[slot_i] = Some(fetched_bytes.clone());
+            }
+        }
+    }
 }
 
 impl fmt::Debug for TieredObjectStore {
@@ -306,6 +400,7 @@ impl ObjectStore for TieredObjectStore {
             }
         }
 
+
         if let Some((rp, store)) = self.resolve_remote(path_str) {
             native_bridge_common::log_debug!(
                 "TieredObjectStore: get_opts REMOTE path='{}'",
@@ -314,7 +409,11 @@ impl ObjectStore for TieredObjectStore {
             return store.get_opts(&rp, options).await;
         }
 
+
         let result = self.local.get_opts(location, options.clone()).await;
+
+
+
         if let Err(ref e) = result {
             if let Some((rp, store)) = self.should_retry_remote(path_str, e) {
                 return store.get_opts(&rp, options).await;
@@ -324,78 +423,27 @@ impl ObjectStore for TieredObjectStore {
     }
 
     /// Multi-range read with cache-first routing.
-    /// Probes cache per range; fetches only misses; populates cache on success.
+    /// Probes cache per range, fetches only misses, populates cache on success.
     async fn get_ranges(&self, location: &Path, ranges: &[Range<u64>]) -> OsResult<Vec<Bytes>> {
         let path_str = location.as_ref();
 
-        // probe cache; collect hits and misses
-        let mut slots: Vec<Option<Bytes>> = Vec::with_capacity(ranges.len());
-        let mut miss_indices: Vec<usize> = Vec::new();
-        let mut miss_ranges: Vec<Range<u64>> = Vec::new();
+        let (mut slots, miss_indices, miss_ranges) = self.probe_cache(path_str, ranges).await;
 
-        if let Some(ref cache) = self.cache {
-            for (i, r) in ranges.iter().enumerate() {
-                let key = range_cache_key(path_str, r.start, r.end);
-                if let Some(cached) = cache.get(&key).await {
-                    slots.push(Some(cached));
-                } else {
-                    slots.push(None);
-                    miss_indices.push(i);
-                    miss_ranges.push(r.clone());
-                }
-            }
-            if miss_ranges.is_empty() {
-                native_bridge_common::log_info!(
-                    "TieredObjectStore: get_ranges FULL CACHE HIT path='{}' n={}",
-                    path_str, ranges.len()
-                );
-                return Ok(slots.into_iter().map(|o| o.unwrap()).collect());
-            }
-        } else {
-            for (i, r) in ranges.iter().enumerate() {
-                slots.push(None);
-                miss_indices.push(i);
-                miss_ranges.push(r.clone());
-            }
+        if miss_ranges.is_empty() {
+            // Full cache hit — all ranges served from SSD.
+            return Ok(slots.into_iter().map(|o| o.unwrap()).collect());
         }
 
-        // fetch only misses
-        let fetched = if let Some((rp, store)) = self.resolve_remote(path_str) {
-            store.get_ranges(&rp, &miss_ranges).await?
-        } else {
-            let r = self.local.get_ranges(location, &miss_ranges).await;
-            match r {
-                Ok(b) => b,
-                Err(ref e) => {
-                    if let Some((rp, store)) = self.should_retry_remote(path_str, e) {
-                        store.get_ranges(&rp, &miss_ranges).await?
-                    } else {
-                        r?
-                    }
-                }
-            }
-        };
-
-        // log miss summary
         native_bridge_common::log_info!(
             "TieredObjectStore: get_ranges CACHE MISS path='{}' misses={}/{}",
             path_str, miss_ranges.len(), ranges.len()
         );
 
-        // populate cache and reassemble in original order
-        if let Some(ref cache) = self.cache {
-            for (fetched_bytes, (&slot_i, miss_range)) in
-                fetched.iter().zip(miss_indices.iter().zip(miss_ranges.iter()))
-            {
-                let key = range_cache_key(path_str, miss_range.start, miss_range.end);
-                cache.put(&key, fetched_bytes.clone());
-                slots[slot_i] = Some(fetched_bytes.clone());
-            }
-        } else {
-            for (fetched_bytes, &slot_i) in fetched.iter().zip(miss_indices.iter()) {
-                slots[slot_i] = Some(fetched_bytes.clone());
-            }
-        }
+        let fetched = self.fetch_misses(location, path_str, &miss_ranges).await?;
+
+        self.populate_cache_and_reassemble(
+            path_str, &fetched, &miss_indices, &miss_ranges, &mut slots,
+        );
 
         Ok(slots.into_iter().map(|o| o.unwrap()).collect())
     }

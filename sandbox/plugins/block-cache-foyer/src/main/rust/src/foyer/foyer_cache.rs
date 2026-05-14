@@ -126,11 +126,8 @@ impl EventListener for KeyIndexListener {
 
         match reason {
             Event::Evict => {
-                let index_key = if let Some(sep_pos) = key.find(SEPARATOR) {
-                    &key[..sep_pos]
-                } else {
-                    key.as_str()
-                };
+                let raw_idx = if let Some(sep_pos) = key.find(SEPARATOR) { &key[..sep_pos] } else { key.as_str() };
+                let index_key = raw_idx.trim_start_matches('/');
                 if let Some(mut keys) = self.key_index.get_mut(index_key) {
                     let before = keys.len();
                     keys.retain(|k| k != key);
@@ -157,11 +154,8 @@ impl EventListener for KeyIndexListener {
             }
             Event::Remove => {
                 // Explicit deletion — e.g. evict_prefix() called on shard/index removal.
-                let index_key = if let Some(sep_pos) = key.find(SEPARATOR) {
-                    &key[..sep_pos]
-                } else {
-                    key.as_str()
-                };
+                let raw_idx = if let Some(sep_pos) = key.find(SEPARATOR) { &key[..sep_pos] } else { key.as_str() };
+                let index_key = raw_idx.trim_start_matches('/');
                 if let Some(mut keys) = self.key_index.get_mut(index_key) {
                     keys.retain(|k| k != key);
                     if keys.is_empty() {
@@ -179,11 +173,8 @@ impl EventListener for KeyIndexListener {
             }
             Event::Replace => {
                 // Overwrite by a newer put — old entry leaves, new entry arrives via put().
-                let index_key = if let Some(sep_pos) = key.find(SEPARATOR) {
-                    &key[..sep_pos]
-                } else {
-                    key.as_str()
-                };
+                let raw_idx = if let Some(sep_pos) = key.find(SEPARATOR) { &key[..sep_pos] } else { key.as_str() };
+                let index_key = raw_idx.trim_start_matches('/');
                 if let Some(mut keys) = self.key_index.get_mut(index_key) {
                     keys.retain(|k| k != key);
                     if keys.is_empty() {
@@ -307,11 +298,15 @@ impl FoyerCache {
         Self { inner, key_index, _runtime: Arc::new(rt), stats }
     }
 
-    /// Derive the index key from a cache key: everything before the first [`SEPARATOR`].
-    /// For keys without [`SEPARATOR`] (e.g. Lucene block paths), the full key is its
-    /// own index entry.
+    /// Derive the normalized index key from a cache key.
+    ///
+    /// Extracts everything before the first [`SEPARATOR`] (the path prefix),
+    /// then strips any leading `/` so that keys stored by DataFusion's
+    /// `object_store::Path` (no leading slash) and keys from tests or
+    /// direct path strings (with leading slash) both map to the same bucket.
     fn index_key(key: &str) -> &str {
-        if let Some(pos) = key.find(SEPARATOR) { &key[..pos] } else { key }
+        let raw = if let Some(pos) = key.find(SEPARATOR) { &key[..pos] } else { key };
+        raw.trim_start_matches('/')
     }
 }
 
@@ -320,7 +315,7 @@ impl BlockCache for FoyerCache {
     fn get<'a>(&'a self, key: &'a CacheKey)
         -> std::pin::Pin<Box<dyn std::future::Future<Output = Option<Bytes>> + Send + 'a>>
     {
-        Box::pin(async move {
+        Box::pin(async {
         match self.inner.get(&key.as_str().to_string()).await {
             Ok(Some(e)) => {
                 let size = e.value().len() as i64;
@@ -343,6 +338,7 @@ impl BlockCache for FoyerCache {
         let k = raw.to_string();
         self.inner.insert(k.clone(), data.to_vec());
         self.stats.used_bytes.fetch_add(size, Ordering::Relaxed);
+        // index_key() normalizes by stripping leading '/' — evict_prefix uses the same normalization.
         let idx = Self::index_key(raw).to_string();
         self.key_index.entry(idx).or_default().push(k);
     }

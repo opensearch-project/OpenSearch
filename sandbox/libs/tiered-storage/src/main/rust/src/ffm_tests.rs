@@ -150,13 +150,16 @@ fn test_create_with_cache_does_not_consume_pointer() {
     // Minimal no-op cache used only to construct a valid Box<Arc<dyn BlockCache>> pointer.
     struct NoopCache;
     impl BlockCache for NoopCache {
-        fn get(&self, _key: &CacheKey) -> impl std::future::Future<Output = Option<Bytes>> + Send {
-            std::future::ready(None)
+        fn as_any(&self) -> &dyn std::any::Any { self }
+        fn get<'a>(&'a self, _key: &'a CacheKey)
+            -> std::pin::Pin<Box<dyn std::future::Future<Output = Option<Bytes>> + Send + 'a>>
+        {
+            Box::pin(std::future::ready(None))
         }
         fn put(&self, _key: &CacheKey, _data: Bytes) {}
         fn evict_prefix(&self, _prefix: &str) {}
-        fn clear(&self) -> impl std::future::Future<Output = ()> + Send {
-            std::future::ready(())
+        fn clear(&self) -> std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send + '_>> {
+            Box::pin(std::future::ready(()))
         }
     }
 
