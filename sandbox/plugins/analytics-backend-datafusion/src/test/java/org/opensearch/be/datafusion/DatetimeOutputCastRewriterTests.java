@@ -12,9 +12,11 @@ import org.apache.calcite.jdbc.JavaTypeFactoryImpl;
 import org.apache.calcite.plan.RelOptCluster;
 import org.apache.calcite.plan.hep.HepPlanner;
 import org.apache.calcite.plan.hep.HepProgramBuilder;
+import org.apache.calcite.rel.RelCollations;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.logical.LogicalFilter;
 import org.apache.calcite.rel.logical.LogicalProject;
+import org.apache.calcite.rel.logical.LogicalSort;
 import org.apache.calcite.rel.logical.LogicalValues;
 import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rel.type.RelDataTypeFactory;
@@ -257,6 +259,58 @@ public class DatetimeOutputCastRewriterTests extends OpenSearchTestCase {
             DatetimeOutputCastRewriter.PPL_TIMESTAMP_FORMAT,
             formatLit.getValueAs(String.class)
         );
+    }
+
+    /**
+     * Production shape from the unified planner: the output Project sits directly under a
+     * {@code LogicalSystemLimit} (a {@link LogicalSort} with no collation and a fixed fetch).
+     * The rewriter must descend through that single Sort wrapper, rewrite the Project's
+     * cast slots, and reattach the Sort on top of the rewritten Project.
+     */
+    public void testSortOverProjectDirectTimestampOutputCastIsRewritten() {
+        RelDataType timestampType = typeFactory.createTypeWithNullability(typeFactory.createSqlType(SqlTypeName.TIMESTAMP, 6), true);
+        RelDataType varcharType = typeFactory.createTypeWithNullability(typeFactory.createSqlType(SqlTypeName.VARCHAR), true);
+        RelDataType intType = typeFactory.createSqlType(SqlTypeName.INTEGER);
+
+        RelNode values = singleRowWithTimestampField(timestampType);
+        RexNode tsField = rexBuilder.makeInputRef(values, 0);
+        RexNode castExpr = rexBuilder.makeCast(varcharType, tsField);
+        RelNode project = LogicalProject.create(values, List.of(), List.of(castExpr), List.of("ts_str"), Set.of());
+        RexNode fetch = rexBuilder.makeLiteral(10000, intType);
+        RelNode sort = LogicalSort.create(project, RelCollations.EMPTY, null, fetch);
+
+        RelNode rewritten = DatetimeOutputCastRewriter.rewrite(sort);
+
+        assertTrue("Rewritten root must remain a Sort", rewritten instanceof LogicalSort);
+        LogicalSort rewrittenSort = (LogicalSort) rewritten;
+        assertSame("Sort fetch must round-trip identical", fetch, rewrittenSort.fetch);
+        assertTrue("Sort input must remain a Project", rewrittenSort.getInput() instanceof LogicalProject);
+        LogicalProject rewrittenProj = (LogicalProject) rewrittenSort.getInput();
+        RexNode rewrittenSlot = rewrittenProj.getProjects().get(0);
+        assertTrue("Inner project slot must be rewritten to a TO_CHAR call", rewrittenSlot instanceof RexCall);
+        RexCall call = (RexCall) rewrittenSlot;
+        assertEquals("Slot operator must be Calcite's TO_CHAR", SqlLibraryOperators.TO_CHAR, call.getOperator());
+        assertEquals(
+            "First operand must remain the original TIMESTAMP source ref",
+            tsField.toString(),
+            call.getOperands().get(0).toString()
+        );
+    }
+
+    /**
+     * If the root is a {@link LogicalSort} whose input is NOT a {@link LogicalProject}
+     * (e.g. Sort directly over a scan/values), the tree must round-trip identical.
+     * The rewriter only descends through the Sort when its input is a Project.
+     */
+    public void testSortOverNonProjectIsUntouched() {
+        RelDataType timestampType = typeFactory.createTypeWithNullability(typeFactory.createSqlType(SqlTypeName.TIMESTAMP, 6), true);
+        RelDataType intType = typeFactory.createSqlType(SqlTypeName.INTEGER);
+        RelNode values = singleRowWithTimestampField(timestampType);
+        RexNode fetch = rexBuilder.makeLiteral(10000, intType);
+        RelNode sort = LogicalSort.create(values, RelCollations.EMPTY, null, fetch);
+
+        RelNode rewritten = DatetimeOutputCastRewriter.rewrite(sort);
+        assertSame("Sort over non-Project must round-trip identical", sort, rewritten);
     }
 
     private RelNode singleRowWithTimestampField(RelDataType timestampType) {

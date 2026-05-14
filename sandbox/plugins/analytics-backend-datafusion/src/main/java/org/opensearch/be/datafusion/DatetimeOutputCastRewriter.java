@@ -9,6 +9,8 @@
 package org.opensearch.be.datafusion;
 
 import org.apache.calcite.rel.RelNode;
+import org.apache.calcite.rel.core.Project;
+import org.apache.calcite.rel.core.Sort;
 import org.apache.calcite.rel.logical.LogicalProject;
 import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rex.RexBuilder;
@@ -41,10 +43,14 @@ import java.util.List;
  *
  * <p>Scope is intentionally narrow:
  * <ul>
- *   <li>Only the root {@link LogicalProject} is inspected. {@code DatetimeOutputCastRule}
- *       wraps the input in exactly one final {@link LogicalProject}; any inner
- *       {@link LogicalProject} (whether user-authored or optimizer-generated) carries
- *       expressions that must round-trip verbatim.</li>
+ *   <li>Only the output {@link Project} is inspected. {@code DatetimeOutputCastRule}
+ *       wraps the input in exactly one final {@link Project}; the unified planner
+ *       may then wrap that Project in a single {@link Sort} (system query-size
+ *       limit). The rewriter therefore inspects either the root {@link Project}
+ *       or, when the root is a {@link Sort}, the {@link Project} sitting
+ *       directly beneath it. Any deeper {@link Project} (whether user-authored
+ *       or optimizer-generated) carries expressions that must round-trip
+ *       verbatim.</li>
  *   <li>Only direct project slots — {@code project.getProjects().get(i)} — are
  *       inspected. Nested casts inside {@code CASE}/{@code COALESCE}/UDF args
  *       were authored by the user query and must round-trip verbatim.</li>
@@ -84,17 +90,53 @@ final class DatetimeOutputCastRewriter {
 
     /**
      * Rewrite the engine-output {@code CAST(<TIMESTAMP> AS VARCHAR)} slots in the
-     * root {@link LogicalProject}. Returns {@code root} unchanged when the root is
-     * not a {@link LogicalProject} (e.g. raw scan / aggregate fragment) or when no
-     * slot matches. The traversal is intentionally NOT recursive: only the final
-     * project introduced by {@code DatetimeOutputCastRule} should be rewritten —
-     * any inner {@link LogicalProject} carries expressions that must round-trip
-     * verbatim.
+     * output {@link Project}. Returns {@code root} unchanged when the output
+     * Project cannot be located (e.g. raw scan / aggregate fragment) or when no
+     * slot matches.
+     *
+     * <p>The output Project is located in one of two shapes:
+     * <ol>
+     *   <li>{@code root} is itself a {@link Project} — the rule's output sits at
+     *       the root.</li>
+     *   <li>{@code root} is a {@link Sort} (the unified planner's
+     *       {@code LogicalSystemLimit} system query-size cap) and its input is a
+     *       {@link Project} — rewrite that Project's slots and rebuild the Sort
+     *       on top of the rewritten Project.</li>
+     * </ol>
+     *
+     * <p>Matches any {@link Project} subclass — {@code DatetimeOutputCastRule}
+     * emits a {@link LogicalProject}, but engine-side optimizer rules
+     * (e.g. {@code OpenSearchProjectRule}) may have already converted the
+     * matched Project to a custom {@link Project} subclass (e.g.
+     * {@code OpenSearchProject}). {@link Project#copy} on the matched subclass
+     * round-trips back to the same subclass, so any subclass-specific state
+     * (viable backends, traits) is preserved.
+     *
+     * <p>The traversal is intentionally NOT recursive: only the output Project
+     * is rewritten — any deeper {@link Project} carries expressions that must
+     * round-trip verbatim.
      */
     static RelNode rewrite(RelNode root) {
-        if (!(root instanceof LogicalProject project)) {
-            return root;
+        if (root instanceof Project project) {
+            Project rewritten = rewriteOutputProject(project);
+            return rewritten == project ? root : rewritten;
         }
+        if (root instanceof Sort sort && sort.getInput() instanceof Project project) {
+            Project rewritten = rewriteOutputProject(project);
+            if (rewritten == project) {
+                return root;
+            }
+            return sort.copy(sort.getTraitSet(), rewritten, sort.getCollation(), sort.offset, sort.fetch);
+        }
+        return root;
+    }
+
+    /**
+     * Returns a new {@link Project} (same subclass as {@code project}) with
+     * engine-output cast slots rewritten, or returns {@code project} unchanged
+     * when no slot matched.
+     */
+    private static Project rewriteOutputProject(Project project) {
         List<RexNode> oldProjects = project.getProjects();
         List<RexNode> newProjects = new ArrayList<>(oldProjects.size());
         boolean changed = false;
