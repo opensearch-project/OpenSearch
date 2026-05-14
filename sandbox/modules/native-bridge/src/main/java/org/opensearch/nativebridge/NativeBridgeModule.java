@@ -8,6 +8,8 @@
 
 package org.opensearch.nativebridge;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.Setting;
@@ -34,8 +36,12 @@ import java.util.function.Supplier;
  * Always-loaded module that manages runtime tuning for the native (Rust/FFM) layer.
  * <p>
  * Registers dynamic cluster settings and applies changes at runtime via the FFM bridge.
+ * Also registers the NativeHeapProfiler JMX MBean for on-demand heap profiling via
+ * the opensearch-heap-prof CLI tool.
  */
 public class NativeBridgeModule extends Plugin {
+
+    private static final Logger logger = LogManager.getLogger(NativeBridgeModule.class);
 
     /** jemalloc dirty page decay time (ms). Dynamically tunable — applied to all arenas at runtime. */
     public static final Setting<Long> JEMALLOC_DIRTY_DECAY_MS = Setting.longSetting(
@@ -51,26 +57,6 @@ public class NativeBridgeModule extends Plugin {
         "native.jemalloc.muzzy_decay_ms",
         30_000L,
         -1L,
-        Setting.Property.NodeScope,
-        Setting.Property.Dynamic
-    );
-
-    /** Activates/deactivates jemalloc heap profiling at runtime. Requires prof:true via _RJEM_MALLOC_CONF env var. */
-    public static final Setting<Boolean> JEMALLOC_HEAP_PROF_ACTIVE = Setting.boolSetting(
-        "native.jemalloc.heap_prof_active",
-        false,
-        Setting.Property.NodeScope,
-        Setting.Property.Dynamic
-    );
-
-    /**
-     * Triggers a heap profile dump to the specified path when updated.
-     * Path must be under the node's data directory (validated by NativeHeapProfiler).
-     * Analyzed with jeprof. WARNING: Heap dumps may contain sensitive in-memory data.
-     */
-    public static final Setting<String> JEMALLOC_HEAP_PROF_DUMP_PATH = Setting.simpleString(
-        "native.jemalloc.heap_prof_dump_path",
-        "",
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
@@ -91,28 +77,38 @@ public class NativeBridgeModule extends Plugin {
     ) {
         Settings settings = environment.settings();
 
-        // Apply initial values (handles opensearch.yml overrides of the compile-time malloc_conf defaults)
-        NativeAllocatorConfig.setDirtyDecayMs(JEMALLOC_DIRTY_DECAY_MS.get(settings));
-        NativeAllocatorConfig.setMuzzyDecayMs(JEMALLOC_MUZZY_DECAY_MS.get(settings));
-
-        // Restrict heap dump paths to the node's data directory
-        NativeHeapProfiler.setAllowedDumpDir(environment.dataFiles()[0].toAbsolutePath().toString());
-
-        // Register dynamic update listeners
-        clusterService.getClusterSettings().addSettingsUpdateConsumer(JEMALLOC_DIRTY_DECAY_MS, NativeAllocatorConfig::setDirtyDecayMs);
-        clusterService.getClusterSettings().addSettingsUpdateConsumer(JEMALLOC_MUZZY_DECAY_MS, NativeAllocatorConfig::setMuzzyDecayMs);
-        clusterService.getClusterSettings().addSettingsUpdateConsumer(JEMALLOC_HEAP_PROF_ACTIVE, NativeHeapProfiler::setActive);
-        clusterService.getClusterSettings().addSettingsUpdateConsumer(JEMALLOC_HEAP_PROF_DUMP_PATH, path -> {
-            if (path != null && !path.isEmpty()) {
-                NativeHeapProfiler.dumpProfile(path);
+        // Register the heap profiler MBean first — this is pure Java and always works
+        java.util.List<String> allowedDirs = new java.util.ArrayList<>();
+        allowedDirs.add(environment.dataFiles()[0].toAbsolutePath().toString());
+        // Additional paths configurable via system property (set in jvm.options)
+        String extraPaths = System.getProperty("native.heap_prof.allowed_paths", "");
+        if (!extraPaths.isEmpty()) {
+            for (String p : extraPaths.split(",")) {
+                if (!p.trim().isEmpty()) {
+                    allowedDirs.add(p.trim());
+                }
             }
-        });
+        }
+        NativeHeapProfiler.setAllowedDumpDirs(allowedDirs);
+        NativeHeapProfiler.register();
+
+        // Apply initial allocator values — requires native library to be loaded
+        try {
+            NativeAllocatorConfig.setDirtyDecayMs(JEMALLOC_DIRTY_DECAY_MS.get(settings));
+            NativeAllocatorConfig.setMuzzyDecayMs(JEMALLOC_MUZZY_DECAY_MS.get(settings));
+
+            // Register dynamic update listeners
+            clusterService.getClusterSettings().addSettingsUpdateConsumer(JEMALLOC_DIRTY_DECAY_MS, NativeAllocatorConfig::setDirtyDecayMs);
+            clusterService.getClusterSettings().addSettingsUpdateConsumer(JEMALLOC_MUZZY_DECAY_MS, NativeAllocatorConfig::setMuzzyDecayMs);
+        } catch (Throwable t) {
+            logger.warn("Native allocator config unavailable — native library may not be loaded", t);
+        }
 
         return Collections.emptyList();
     }
 
     @Override
     public List<Setting<?>> getSettings() {
-        return List.of(JEMALLOC_DIRTY_DECAY_MS, JEMALLOC_MUZZY_DECAY_MS, JEMALLOC_HEAP_PROF_ACTIVE, JEMALLOC_HEAP_PROF_DUMP_PATH);
+        return List.of(JEMALLOC_DIRTY_DECAY_MS, JEMALLOC_MUZZY_DECAY_MS);
     }
 }

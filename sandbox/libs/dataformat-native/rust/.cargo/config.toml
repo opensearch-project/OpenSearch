@@ -2,4 +2,7 @@
 rustflags = ["--cfg", "tokio_unstable", "-C", "force-frame-pointers=yes", "-C", "symbol-mangling-version=v0"]
 
 [env]
+# Enable jemalloc heap profiling support in all builds. prof:true is init-time only and
+# cannot be enabled post-start, so it must be compiled in. prof_active:false ensures zero
+# runtime overhead until explicitly activated via cluster settings at runtime.
 JEMALLOC_SYS_WITH_MALLOC_CONF = "prof:true,prof_active:false,lg_prof_sample:17"

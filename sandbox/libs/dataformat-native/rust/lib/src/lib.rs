@@ -24,10 +24,17 @@
 ///   only used until that point.
 /// - lg_tcache_max: NOT dynamically tunable by jemalloc — init-time only, requires process restart to change.
 ///
-/// NOTE: prof:true is baked into jemalloc at compile time via JEMALLOC_SYS_WITH_MALLOC_CONF
-/// in .cargo/config.toml. This ensures profiling works even when the library is loaded via
-/// dlopen/FFM (where the malloc_conf symbol is not read by jemalloc). Profiling is inactive
-/// by default (prof_active:false) and activated on-demand via cluster settings.
+/// NOTE on heap profiling:
+/// `prof:true` is baked into jemalloc at compile time via JEMALLOC_SYS_WITH_MALLOC_CONF
+/// set by the Gradle buildRustLibrary task (release builds only) and the `profiling`
+/// feature on tikv-jemallocator. This is required because:
+///   1. prof:true is init-time only — cannot be enabled after process start
+///   2. The malloc_conf symbol is not read by jemalloc for dlopen'd libraries
+///
+/// With `prof_active:false`, profiling infrastructure is initialized but **inactive** —
+/// zero CPU overhead and negligible memory overhead. Profiling is activated on-demand
+/// via cluster settings at runtime. Dev/test builds (cargo build without --release)
+/// do not include profiling support.
 #[export_name = "malloc_conf"]
 pub static MALLOC_CONF: &[u8] = b"dirty_decay_ms:30000,muzzy_decay_ms:30000,lg_tcache_max:16\0";
 

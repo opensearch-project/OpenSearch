@@ -158,6 +158,20 @@ pub unsafe extern "C" fn native_jemalloc_heap_prof_dump(path: *const std::ffi::c
     })
 }
 
+/// FFI: Resets profiling state and sets a new sample interval.
+/// Discards all accumulated profiling data and applies the new lg_prof_sample value
+/// for future allocations. Returns 0 on success, negative error pointer on failure.
+///
+/// Common values: 15 (~32KB, high accuracy), 17 (~128KB, default), 19 (~512KB, low overhead).
+#[no_mangle]
+pub extern "C" fn native_jemalloc_heap_prof_reset(lg_sample: usize) -> i64 {
+    ffm_wrap("native_jemalloc_heap_prof_reset", || {
+        unsafe { tikv_jemalloc_ctl::raw::write(b"prof.reset\0", lg_sample) }
+            .map(|_| 0i64)
+            .map_err(|e| format!("failed to reset profiling with lg_sample={}: {}", lg_sample, e))
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
