@@ -61,7 +61,7 @@ import static org.opensearch.index.translog.Translog.EMPTY_TRANSLOG_SNAPSHOT;
  */
 public class IngestionEngine extends InternalEngine {
 
-    private StreamPoller streamPoller;
+    private volatile StreamPoller streamPoller;
     private final IngestionConsumerFactory ingestionConsumerFactory;
     private final Supplier<DocumentMapperForType> documentMapperForTypeSupplier;
     private final IngestPipelineExecutor pipelineExecutor;
