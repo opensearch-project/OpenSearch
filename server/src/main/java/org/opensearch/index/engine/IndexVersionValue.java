@@ -42,7 +42,7 @@ import java.util.Objects;
  *
  * @opensearch.internal
  */
-final class IndexVersionValue extends VersionValue {
+class IndexVersionValue extends VersionValue {
 
     private static final long RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(IndexVersionValue.class);
     private static final long TRANSLOG_LOC_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(Translog.Location.class);
