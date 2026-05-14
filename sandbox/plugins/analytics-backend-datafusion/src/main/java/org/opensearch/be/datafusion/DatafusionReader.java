@@ -14,6 +14,7 @@ import org.opensearch.be.datafusion.nativelib.ReaderHandle;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.engine.exec.MonoFileWriterSet;
 import org.opensearch.index.engine.exec.WriterFileSet;
+import org.opensearch.plugins.NativeStoreHandle;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -45,8 +46,9 @@ public class DatafusionReader implements Closeable {
      *
      * @param directoryPath shard data directory
      * @param writerFileSets the per-segment file sets from the catalog snapshot
+     * @param dataformatAwareStoreHandle per-format native store handle (null on hot, live on warm)
      */
-    public DatafusionReader(String directoryPath, Collection<WriterFileSet> writerFileSets) {
+    public DatafusionReader(String directoryPath, Collection<WriterFileSet> writerFileSets, NativeStoreHandle dataformatAwareStoreHandle) {
         this.directoryPath = directoryPath;
         List<MonoFileWriterSet> segments;
         if (writerFileSets == null || writerFileSets.isEmpty()) {
@@ -54,7 +56,7 @@ public class DatafusionReader implements Closeable {
         } else {
             segments = writerFileSets.stream().map(MonoFileWriterSet::from).toList();
         }
-        readerHandle = new ReaderHandle(directoryPath, segments);
+        readerHandle = new ReaderHandle(directoryPath, segments, dataformatAwareStoreHandle);
     }
 
     /**

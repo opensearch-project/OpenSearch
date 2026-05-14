@@ -11,7 +11,9 @@ package org.opensearch.analytics.planner.rel;
 import org.apache.calcite.plan.RelOptCluster;
 import org.apache.calcite.plan.RelOptCost;
 import org.apache.calcite.plan.RelOptPlanner;
+import org.apache.calcite.plan.RelTrait;
 import org.apache.calcite.plan.RelTraitSet;
+import org.apache.calcite.rel.RelDistribution;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.RelWriter;
 import org.apache.calcite.rel.core.Project;
@@ -81,8 +83,29 @@ public class OpenSearchProject extends Project implements OpenSearchRelNode {
         return new OpenSearchProject(getCluster(), traitSet, input, projects, rowType, viableBackends);
     }
 
+    /**
+     * Projects containing {@code RexOver} (window functions) need fully-gathered input so the
+     * window's global frame semantics are correct — infinite cost unless input is SINGLETON.
+     * Volcano picks the plan where an ER sits under this project.
+     *
+     * <p>Plain projects (no RexOver) have no ordering requirement — tiny cost unconditionally.
+     */
     @Override
     public RelOptCost computeSelfCost(RelOptPlanner planner, RelMetadataQuery mq) {
+        if (!containsOver()) {
+            return planner.getCostFactory().makeTinyCost();
+        }
+        // containsOver() is Calcite's own — inherited from Project.
+        for (int i = 0; i < getInput().getTraitSet().size(); i++) {
+            RelTrait trait = getInput().getTraitSet().getTrait(i);
+            if (trait instanceof OpenSearchDistribution distribution) {
+                boolean singletonOrAny = distribution.getType() == RelDistribution.Type.SINGLETON
+                    || distribution.getType() == RelDistribution.Type.ANY;
+                if (!singletonOrAny) {
+                    return planner.getCostFactory().makeInfiniteCost();
+                }
+            }
+        }
         return planner.getCostFactory().makeTinyCost();
     }
 
@@ -153,11 +176,9 @@ public class OpenSearchProject extends Project implements OpenSearchRelNode {
                 RexNode resolved = annotationResolver.apply(annotated);
                 strippedExprs.add(resolved.accept(nestedAnnotationStripper));
             } else {
-                // Baseline scalar operators (OpenSearchProjectRule.BASELINE_SCALAR_OPS —
-                // COALESCE, CASE, CAST, arithmetic, IS_NULL, …) are not wrapped at the
-                // top level but their operands may still be annotated. The shuttle is
-                // idempotent for calls without nested wrappers, so run it unconditionally
-                // to strip AnnotatedProjectExpression at any depth.
+                // Pass-through expressions (RexInputRef, RexLiteral) have no annotation to
+                // resolve. Running the shuttle is defensive and idempotent — atomic nodes
+                // contain no nested AnnotatedProjectExpression to strip.
                 strippedExprs.add(expr.accept(nestedAnnotationStripper));
             }
         }

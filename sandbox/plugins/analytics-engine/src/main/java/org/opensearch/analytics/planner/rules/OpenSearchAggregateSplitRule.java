@@ -25,21 +25,16 @@ import org.opensearch.analytics.planner.rel.OpenSearchConvention;
  * trait enforcement (via {@code ExpandConversionRule} + {@code OpenSearchDistributionTraitDef})
  * automatically insert an {@code OpenSearchExchangeReducer}.
  *
- * <p>Decomposition responsibilities (post-refactor):
- * <ul>
- *   <li><b>Multi-field primitive decomposition</b> (AVG / STDDEV / VAR) is handled by
- *       {@link OpenSearchAggregateReduceRule} during HEP marking — before this rule runs.
- *       Volcano sees an already-reduced inner aggregate with primitive SUM/COUNT calls
- *       and a Project on top.</li>
- *   <li><b>Single-field cases</b> (pass-through SUM/MIN/MAX, function-swap COUNT→SUM at
- *       FINAL, engine-native APPROX_COUNT_DISTINCT sketch merge) are handled by
- *       {@code AggregateDecompositionResolver} after this split rule runs, reading
- *       {@link org.opensearch.analytics.spi.AggregateFunction#intermediateFields()}
- *       as the sole source of truth.</li>
- * </ul>
+ * <p>This rule is <b>purely structural</b>: it produces {@code FINAL(Exchange(PARTIAL))}
+ * with both halves carrying the same aggCall list as the original SINGLE node. Rewriting
+ * FINAL's aggregate calls — arg rebasing, COUNT→SUM function-swap, engine-native merge
+ * handling — runs post-Volcano via {@code DistributedAggregateRewriter}. Keeping the
+ * split rule structural avoids Volcano's {@code Aggregate.typeMatchesInferred} and
+ * row-type equivalence checks, which are sensitive to nullability differences that
+ * the rewrites inevitably introduce.
  *
- * <p>This rule's own contract is purely structural: SINGLE → FINAL(Exchange(PARTIAL(child))).
- * It does not rewrite aggregate calls.
+ * <p>Multi-field primitive decomposition (AVG / STDDEV / VAR) is handled by
+ * {@link OpenSearchAggregateReduceRule} during HEP marking — before this rule runs.
  *
  * @opensearch.internal
  */
@@ -63,7 +58,6 @@ public class OpenSearchAggregateSplitRule extends RelOptRule {
         OpenSearchAggregate aggregate = call.rel(0);
         RelNode child = call.rel(1);
 
-        // Partial aggregate: runs on each partition, keeps input's traits
         RelTraitSet partialTraits = child.getTraitSet().replace(OpenSearchConvention.INSTANCE);
         OpenSearchAggregate partial = new OpenSearchAggregate(
             aggregate.getCluster(),
@@ -77,10 +71,9 @@ public class OpenSearchAggregateSplitRule extends RelOptRule {
         );
 
         // Request SINGLETON distribution — Volcano inserts Exchange automatically
-        RelTraitSet singletonTraits = partial.getTraitSet().replace(context.getDistributionTraitDef().singleton());
+        RelTraitSet singletonTraits = partial.getTraitSet().replace(context.getDistributionTraitDef().coordSingleton());
         RelNode gathered = convert(partial, singletonTraits);
 
-        // Final aggregate: merges partial states at coordinator
         OpenSearchAggregate finalAggregate = new OpenSearchAggregate(
             aggregate.getCluster(),
             singletonTraits,

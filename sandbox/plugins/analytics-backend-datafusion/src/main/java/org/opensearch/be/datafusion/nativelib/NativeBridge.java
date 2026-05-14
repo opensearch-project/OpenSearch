@@ -15,6 +15,7 @@ import org.opensearch.be.datafusion.stats.TaskMonitorStats;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.nativebridge.spi.NativeCall;
 import org.opensearch.nativebridge.spi.NativeLibraryLoader;
+import org.opensearch.plugins.NativeStoreHandle;
 
 import java.lang.foreign.FunctionDescriptor;
 import java.lang.foreign.Linker;
@@ -142,7 +143,8 @@ public final class NativeBridge {
                 ValueLayout.ADDRESS,    // files_ptr
                 ValueLayout.ADDRESS,    // files_len_ptr
                 ValueLayout.ADDRESS,    // writer_generations_ptr
-                ValueLayout.JAVA_LONG   // count (applies to all three parallel arrays)
+                ValueLayout.JAVA_LONG,   // count (applies to all three parallel arrays)
+                ValueLayout.JAVA_LONG // object store ptr
             )
         );
 
@@ -567,15 +569,29 @@ public final class NativeBridge {
      *
      * @param path     shard data directory
      * @param segments per-segment metadata — each carries a single filename and writer generation
+     * @param dataformatAwareStoreHandle per-format native store handle (null = local, live = use store pointer)
      */
-    public static long createDatafusionReader(String path, List<org.opensearch.index.engine.exec.MonoFileWriterSet> segments) {
+    public static long createDatafusionReader(
+        String path,
+        List<org.opensearch.index.engine.exec.MonoFileWriterSet> segments,
+        NativeStoreHandle dataformatAwareStoreHandle
+    ) {
+        long storePtr = 0L;
+        if (dataformatAwareStoreHandle != null) {
+            try {
+                storePtr = dataformatAwareStoreHandle.getPointer();
+            } catch (IllegalStateException e) {
+                // Handle closed between check and extraction — use default (local)
+                storePtr = 0L;
+            }
+        }
         try (var call = new NativeCall()) {
             var p = call.str(path);
             var f = call.strArray(segments.stream().map(org.opensearch.index.engine.exec.MonoFileWriterSet::file).toArray(String[]::new));
             var gens = call.longs(
                 segments.stream().mapToLong(org.opensearch.index.engine.exec.MonoFileWriterSet::writerGeneration).toArray()
             );
-            return call.invoke(CREATE_READER, p.segment(), p.len(), f.ptrs(), f.lens(), gens, f.count());
+            return call.invoke(CREATE_READER, p.segment(), p.len(), f.ptrs(), f.lens(), gens, f.count(), storePtr);
         }
     }
 

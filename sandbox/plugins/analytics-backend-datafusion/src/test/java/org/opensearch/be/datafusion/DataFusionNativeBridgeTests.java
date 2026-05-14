@@ -14,6 +14,7 @@ import org.opensearch.be.datafusion.nativelib.ReaderHandle;
 import org.opensearch.be.datafusion.nativelib.SessionContextHandle;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.index.engine.exec.MonoFileWriterSet;
+import org.opensearch.plugins.NativeStoreHandle;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.lang.foreign.Arena;
@@ -64,7 +65,8 @@ public class DataFusionNativeBridgeTests extends OpenSearchTestCase {
         // Create reader
         ReaderHandle readerHandle = new ReaderHandle(
             dataDir.toString(),
-            java.util.List.of(MonoFileWriterSet.of(".", 0L, "test.parquet", 0L))
+            java.util.List.of(MonoFileWriterSet.of(".", 0L, "test.parquet", 0L)),
+            null
         );
         assertTrue("Reader pointer should be non-zero", readerHandle.getPointer() != 0);
 
@@ -86,9 +88,9 @@ public class DataFusionNativeBridgeTests extends OpenSearchTestCase {
 
         ReaderHandle readerHandle = new ReaderHandle(
             dataDir.toString(),
-            java.util.List.of(MonoFileWriterSet.of(".", 0L, "test.parquet", 0L))
+            java.util.List.of(MonoFileWriterSet.of(".", 0L, "test.parquet", 0L)),
+            null
         );
-
         // Create session context with table registered
         long queryConfigPtr;
         Arena arena = Arena.ofConfined();
@@ -141,5 +143,110 @@ public class DataFusionNativeBridgeTests extends OpenSearchTestCase {
         NativeBridge.streamClose(streamPtr);
         readerHandle.close();
         runtimeHandle.close();
+    }
+
+    /**
+     * End-to-end test: create a real TieredObjectStore via FFM, wrap it in NativeStoreHandle,
+     * and pass it to ReaderHandle. Proves the full native wiring works — Java → FFM → Rust
+     * tiered storage → DataFusion reader with a real object store backing reads.
+     */
+    public void testReaderWithRealNativeStoreHandle() throws Exception {
+        NativeBridge.initTokioRuntimeManager(2);
+        Path spillDir = createTempDir("datafusion-spill");
+        long runtimePtr = NativeBridge.createGlobalRuntime(64 * 1024 * 1024, 0L, spillDir.toString(), 32 * 1024 * 1024);
+
+        // Copy test parquet to a temp dir
+        Path dataDir = createTempDir("datafusion-data");
+        Path testParquet = Path.of(getClass().getClassLoader().getResource("test.parquet").toURI());
+        Files.copy(testParquet, dataDir.resolve("test.parquet"));
+
+        // Create a real TieredObjectStore via FFM (local-only, no remote)
+        // ts_create_tiered_object_store(0, 0) → default LocalFileSystem, no remote
+        long tieredStorePtr = NativeStoreTestHelper.createTieredObjectStore(0L, 0L);
+        assertTrue("TieredObjectStore pointer should be non-zero", tieredStorePtr > 0);
+
+        // Get a Box<Arc<dyn ObjectStore>> pointer for DataFusion
+        long boxPtr = NativeStoreTestHelper.getObjectStoreBoxPtr(tieredStorePtr);
+        assertTrue("Box pointer should be non-zero", boxPtr > 0);
+
+        // Wrap in NativeStoreHandle with proper cleanup
+        NativeStoreHandle storeHandle = new NativeStoreHandle(boxPtr, NativeStoreTestHelper::destroyObjectStoreBoxPtr);
+        assertTrue("NativeStoreHandle should be live", storeHandle.isLive());
+
+        // Create reader with the real store handle — this proves the full wiring
+        ReaderHandle readerHandle = new ReaderHandle(dataDir.toString(), new String[] { "test.parquet" }, storeHandle);
+        assertTrue("Reader pointer should be non-zero", readerHandle.getPointer() != 0);
+
+        // Clean up in reverse order
+        readerHandle.close();
+        storeHandle.close();
+        NativeStoreTestHelper.destroyTieredObjectStore(tieredStorePtr);
+        NativeBridge.closeGlobalRuntime(runtimePtr);
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // FFM helpers for TieredObjectStore (inline — avoids dependency on parquet-data-format)
+    // ═══════════════════════════════════════════════════════════════
+
+    private static final java.lang.invoke.MethodHandle TS_CREATE;
+    private static final java.lang.invoke.MethodHandle TS_DESTROY;
+    private static final java.lang.invoke.MethodHandle TS_GET_BOX_PTR;
+    private static final java.lang.invoke.MethodHandle TS_DESTROY_BOX_PTR;
+
+    static {
+        var lib = org.opensearch.nativebridge.spi.NativeLibraryLoader.symbolLookup();
+        var linker = java.lang.foreign.Linker.nativeLinker();
+        TS_CREATE = linker.downcallHandle(
+            lib.find("ts_create_tiered_object_store").orElseThrow(),
+            java.lang.foreign.FunctionDescriptor.of(
+                java.lang.foreign.ValueLayout.JAVA_LONG,
+                java.lang.foreign.ValueLayout.JAVA_LONG,
+                java.lang.foreign.ValueLayout.JAVA_LONG
+            )
+        );
+        TS_DESTROY = linker.downcallHandle(
+            lib.find("ts_destroy_tiered_object_store").orElseThrow(),
+            java.lang.foreign.FunctionDescriptor.of(java.lang.foreign.ValueLayout.JAVA_LONG, java.lang.foreign.ValueLayout.JAVA_LONG)
+        );
+        TS_GET_BOX_PTR = linker.downcallHandle(
+            lib.find("ts_get_object_store_box_ptr").orElseThrow(),
+            java.lang.foreign.FunctionDescriptor.of(java.lang.foreign.ValueLayout.JAVA_LONG, java.lang.foreign.ValueLayout.JAVA_LONG)
+        );
+        TS_DESTROY_BOX_PTR = linker.downcallHandle(
+            lib.find("ts_destroy_object_store_box_ptr").orElseThrow(),
+            java.lang.foreign.FunctionDescriptor.of(java.lang.foreign.ValueLayout.JAVA_LONG, java.lang.foreign.ValueLayout.JAVA_LONG)
+        );
+    }
+
+    private static long createTieredObjectStore(long localPtr, long remotePtr) {
+        try {
+            return org.opensearch.nativebridge.spi.NativeLibraryLoader.checkResult((long) TS_CREATE.invokeExact(localPtr, remotePtr));
+        } catch (Throwable t) {
+            throw new RuntimeException("Failed to create TieredObjectStore", t);
+        }
+    }
+
+    private static void destroyTieredObjectStore(long ptr) {
+        try {
+            org.opensearch.nativebridge.spi.NativeLibraryLoader.checkResult((long) TS_DESTROY.invokeExact(ptr));
+        } catch (Throwable t) {
+            throw new RuntimeException("Failed to destroy TieredObjectStore", t);
+        }
+    }
+
+    private static long getObjectStoreBoxPtr(long tieredStorePtr) {
+        try {
+            return org.opensearch.nativebridge.spi.NativeLibraryLoader.checkResult((long) TS_GET_BOX_PTR.invokeExact(tieredStorePtr));
+        } catch (Throwable t) {
+            throw new RuntimeException("Failed to get object store box ptr", t);
+        }
+    }
+
+    private static void destroyObjectStoreBoxPtr(long ptr) {
+        try {
+            org.opensearch.nativebridge.spi.NativeLibraryLoader.checkResult((long) TS_DESTROY_BOX_PTR.invokeExact(ptr));
+        } catch (Throwable t) {
+            throw new RuntimeException("Failed to destroy object store box ptr", t);
+        }
     }
 }

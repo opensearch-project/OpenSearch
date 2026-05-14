@@ -124,6 +124,7 @@ pub unsafe extern "C" fn df_create_reader(
     files_len_ptr: *const i64,
     writer_generations_ptr: *const i64,
     files_count: i64,
+    store_ptr: i64,
 ) -> i64 {
     let table_path = str_from_raw(table_path_ptr, table_path_len)
         .map_err(|e| format!("df_create_reader: {}", e))?;
@@ -140,7 +141,7 @@ pub unsafe extern "C" fn df_create_reader(
         writer_generations.push(*writer_generations_ptr.add(i));
     }
     let mgr = get_rt_manager()?;
-    api::create_reader(table_path, filenames, writer_generations, &mgr).map_err(|e| e.to_string())
+    api::create_reader(table_path, filenames, writer_generations, &mgr, store_ptr).map_err(|e| e.to_string())
 }
 
 #[no_mangle]

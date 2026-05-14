@@ -33,7 +33,9 @@ import static org.opensearch.be.lucene.index.LuceneWriter.WRITER_GENERATION_ATTR
  * onto the merged segment's {@link org.apache.lucene.index.SegmentInfo} via
  * {@link #setMergeInfo(SegmentCommitInfo)}. Lucene's {@code IndexWriter.mergeMiddle} invokes
  * this hook immediately before calling {@code codec.segmentInfoFormat().write(...)} on the
- * merged segment
+ * merged segment, so the attribute is persisted to the {@code .si} file and survives a
+ * writer reopen. No codec, thread-local, or commit-data plumbing is needed.
+ *
  * @opensearch.experimental
  */
 @ExperimentalApi

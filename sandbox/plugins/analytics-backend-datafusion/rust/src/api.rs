@@ -52,7 +52,7 @@ use datafusion::execution::{SessionState, SessionStateBuilder};
 use datafusion::physical_plan::stream::RecordBatchStreamAdapter;
 use datafusion::prelude::SessionConfig;
 use futures::TryStreamExt;
-use object_store::ObjectStoreExt;
+use object_store::{ObjectStore, ObjectStoreExt};
 
 use crate::cancellation;
 use crate::cross_rt_stream::CrossRtStream;
@@ -156,6 +156,10 @@ pub struct ShardView {
     /// footers in production. Footer-kv reads, when they happen, are debug-only
     /// assertions.
     pub writer_generations: Arc<Vec<i64>>,
+    /// Per-shard object store. When a native store is provided (store_ptr > 0),
+    /// this routes reads through TieredObjectStore (local + remote).
+    /// When no store is provided, uses default LocalFileSystem.
+    pub store: Arc<dyn ObjectStore>,
 }
 
 /// Creates a DataFusion global runtime with the given resource limits.
@@ -266,11 +270,15 @@ pub unsafe fn set_memory_pool_limit(ptr: i64, new_limit: i64) -> Result<(), Stri
 ///
 /// # Ordering
 /// `filenames` are kept in the order supplied by the caller.
+///
+/// `store_ptr`: 0 = use default LocalFileSystem (hot path),
+/// >0 = Box<Arc<dyn ObjectStore>> pointer (routes reads through TieredObjectStore).
 pub fn create_reader(
     table_path: &str,
     filenames: Vec<String>,
     writer_generations: Vec<i64>,
     tokio_rt_manager: &RuntimeManager,
+    store_ptr: i64,
 ) -> Result<i64, DataFusionError> {
     if filenames.len() != writer_generations.len() {
         return Err(DataFusionError::Execution(format!(
@@ -283,9 +291,15 @@ pub fn create_reader(
     let table_url = ListingTableUrl::parse(table_path)
         .map_err(|e| DataFusionError::Execution(format!("Invalid table path: {}", e)))?;
 
-    // TODO: use global runtime's object store instead of building a throwaway RuntimeEnv
-    let default_rt = RuntimeEnvBuilder::new().build()?;
-    let store = default_rt.object_store(&table_url)?;
+    // Resolve the object store: if store_ptr > 0, clone the Arc from the boxed pointer.
+    // Otherwise use default LocalFileSystem.
+    let store: Arc<dyn ObjectStore> = if store_ptr > 0 {
+        let boxed = unsafe { &*(store_ptr as *const Arc<dyn ObjectStore>) };
+        Arc::clone(boxed)
+    } else {
+        let default_rt = RuntimeEnvBuilder::new().build()?;
+        default_rt.object_store(&table_url)?
+    };
 
     let object_metas = tokio_rt_manager.io_runtime.block_on(create_object_metas(
         store.as_ref(),
@@ -297,6 +311,7 @@ pub fn create_reader(
         table_path: table_url,
         object_metas: Arc::new(object_metas),
         writer_generations: Arc::new(writer_generations),
+        store,
     };
     Ok(Box::into_raw(Box::new(shard_view)) as i64)
 }
@@ -371,6 +386,7 @@ pub async unsafe fn execute_query(
                 cpu_executor,
                 query_memory_pool,
                 &query_config,
+                Arc::clone(&shard_view.store),
             ).await
         }
     };

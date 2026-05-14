@@ -128,7 +128,8 @@ public class ParquetMergeIntegrationTests extends OpenSearchTestCase {
         ParquetSortConfig sortConfig = new ParquetSortConfig(List.of("timestamp"), List.of(false), List.of(false));
 
         try (ArrowExport schemaExport = exportSchema()) {
-            NativeParquetWriter writer = new NativeParquetWriter(filePath, INDEX_NAME, schemaExport.getSchemaAddress(), sortConfig, 0L);
+            NativeParquetWriter writer = new NativeParquetWriter(filePath);
+            writer.initialize(INDEX_NAME, schemaExport.getSchemaAddress(), sortConfig, 0L);
 
             try (ArrowExport dataExport = exportData(timestamps, messages)) {
                 writer.write(dataExport.getArrayAddress(), dataExport.getSchemaAddress());

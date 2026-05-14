@@ -123,6 +123,12 @@ pub async fn execute_indexed_query(
         .build()
         .map_err(|e| DataFusionError::Execution(format!("runtime env: {}", e)))?;
 
+    // Register shard-specific object store on file:// scheme for this query.
+    runtime_env.register_object_store(
+        &url::Url::parse("file://").unwrap(),
+        Arc::clone(&shard_view.store),
+    );
+
     let mut config = SessionConfig::new();
     config.options_mut().execution.parquet.pushdown_filters = query_config.parquet_pushdown_filters;
     // Indexed path fans out via IndexedExec partitions (derived from
@@ -429,12 +435,10 @@ pub async unsafe fn execute_indexed_with_context(
     // with IndexedTableProvider after plan decoding.
     ctx.deregister_table(&table_name)?;
 
-    let store = ctx
-        .state()
-        .runtime_env()
-        .object_store(&table_path)?;
+    let state = ctx.state();
+    let store = state.runtime_env().object_store(&table_path)?;
 
-    let (segments, schema) = build_segments(Arc::clone(&store), object_metas.as_ref(), writer_generations.as_ref())
+    let (segments, schema) = build_segments(&state, Arc::clone(&store), object_metas.as_ref(), writer_generations.as_ref())
         .await
         .map_err(DataFusionError::Execution)?;
     for (i, seg) in segments.iter().enumerate() {

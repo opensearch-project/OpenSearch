@@ -107,6 +107,14 @@ pub async unsafe fn create_session_context(
         e
     })?;
 
+    // Register shard-specific object store on file:// scheme for this query.
+    // This is the instruction-based execution path (ShardScanInstructionHandler).
+    // Without this, queries use default LocalFileSystem and fail on warm.
+    runtime_env.register_object_store(
+        &url::Url::parse("file://").unwrap(),
+        Arc::clone(&shard_view.store),
+    );
+
     let mut config = SessionConfig::new();
     config.options_mut().execution.parquet.pushdown_filters = query_config.parquet_pushdown_filters;
     config.options_mut().execution.target_partitions = query_config.target_partitions;

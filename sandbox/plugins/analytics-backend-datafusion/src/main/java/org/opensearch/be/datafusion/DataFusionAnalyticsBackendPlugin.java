@@ -25,6 +25,7 @@ import org.opensearch.analytics.spi.FilterCapability;
 import org.opensearch.analytics.spi.FilterDelegationHandle;
 import org.opensearch.analytics.spi.FragmentConvertor;
 import org.opensearch.analytics.spi.FragmentInstructionHandlerFactory;
+import org.opensearch.analytics.spi.JoinCapability;
 import org.opensearch.analytics.spi.ProjectCapability;
 import org.opensearch.analytics.spi.ScalarFunction;
 import org.opensearch.analytics.spi.ScalarFunctionAdapter;
@@ -269,7 +270,17 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         // PPL `mvfind` returns INTEGER (the 0-based index of the first match, or NULL); backed
         // by a custom Rust UDF on the DataFusion session context (`udf::mvfind`), routed via
         // {@link MvfindAdapter}.
-        ScalarFunction.MVFIND
+        ScalarFunction.MVFIND,
+        // Logical connectives — emitted in projections where boolean expressions are composed:
+        // `case(a = 0 and b = 0, …)`, `eval x = a or b`, `eval x = NOT y`. DataFusion's substrait
+        // consumer handles them natively.
+        ScalarFunction.AND,
+        ScalarFunction.OR,
+        ScalarFunction.NOT,
+        ScalarFunction.MD5,
+        ScalarFunction.SHA1,
+        ScalarFunction.SHA2,
+        ScalarFunction.CRC32
     );
 
     /**
@@ -323,6 +334,24 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
             @Override
             public Set<EngineCapability> supportedEngineCapabilities() {
                 return ENGINE_CAPS;
+            }
+
+            @Override
+            public Set<JoinCapability> joinCapabilities() {
+                return Set.of(
+                    new JoinCapability(
+                        Set.of(
+                            JoinCapability.JoinKind.INNER,
+                            JoinCapability.JoinKind.LEFT,
+                            JoinCapability.JoinKind.RIGHT,
+                            JoinCapability.JoinKind.FULL,
+                            JoinCapability.JoinKind.SEMI,
+                            JoinCapability.JoinKind.ANTI,
+                            JoinCapability.JoinKind.CROSS
+                        ),
+                        Set.copyOf(plugin.getSupportedFormats())
+                    )
+                );
             }
 
             @Override
@@ -454,6 +483,7 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                     Map.entry(ScalarFunction.SCALAR_MIN, nameMapping(SqlLibraryOperators.LEAST)),
                     Map.entry(ScalarFunction.SECOND, second),
                     Map.entry(ScalarFunction.SECOND_OF_MINUTE, second),
+                    Map.entry(ScalarFunction.SHA2, new Sha2FunctionAdapter()),
                     Map.entry(ScalarFunction.SIGN, nameMapping(SignumFunction.FUNCTION)),
                     Map.entry(ScalarFunction.SINH, new HyperbolicOperatorAdapter(SqlLibraryOperators.SINH)),
                     Map.entry(ScalarFunction.STRCMP, new StrcmpFunctionAdapter()),
@@ -566,5 +596,10 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         // Install the handle as the FFM upcall target. All Rust callbacks
         // (createProvider, createCollector, collectDocs, release*) route to it.
         FilterTreeCallbacks.setHandle(handle);
+    }
+
+    @Override
+    public void setDelegationThreadTracker(org.opensearch.analytics.spi.DelegationThreadTracker tracker) {
+        FilterTreeCallbacks.setThreadTracker(tracker);
     }
 }

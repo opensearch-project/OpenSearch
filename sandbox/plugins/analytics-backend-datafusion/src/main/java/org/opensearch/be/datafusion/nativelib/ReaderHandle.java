@@ -10,6 +10,7 @@ package org.opensearch.be.datafusion.nativelib;
 
 import org.opensearch.analytics.backend.jni.NativeHandle;
 import org.opensearch.index.engine.exec.MonoFileWriterSet;
+import org.opensearch.plugins.NativeStoreHandle;
 
 import java.util.List;
 
@@ -27,9 +28,10 @@ public final class ReaderHandle extends NativeHandle {
      *
      * @param path the directory path containing data files
      * @param segments the per-segment file sets to read
+     * @param dataformatAwareStoreHandle per-format native store handle (null = local, live = use store pointer)
      */
-    public ReaderHandle(String path, List<MonoFileWriterSet> segments) {
-        super(NativeBridge.createDatafusionReader(path, segments));
+    public ReaderHandle(String path, List<MonoFileWriterSet> segments, NativeStoreHandle dataformatAwareStoreHandle) {
+        super(NativeBridge.createDatafusionReader(path, segments, dataformatAwareStoreHandle));
         this.ownsPointer = true;
     }
 
