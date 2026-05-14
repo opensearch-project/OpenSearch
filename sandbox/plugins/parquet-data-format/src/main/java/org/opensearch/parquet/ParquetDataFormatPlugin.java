@@ -28,7 +28,6 @@ import org.opensearch.index.engine.dataformat.StoreStrategy;
 import org.opensearch.index.store.PrecomputedChecksumStrategy;
 import org.opensearch.parquet.engine.ParquetDataFormat;
 import org.opensearch.parquet.engine.ParquetIndexingEngine;
-import org.opensearch.parquet.fields.ArrowSchemaBuilder;
 import org.opensearch.parquet.store.ParquetStoreStrategy;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.repositories.RepositoriesService;
@@ -103,7 +102,7 @@ public class ParquetDataFormatPlugin extends Plugin implements DataFormatPlugin 
             settings,
             PARQUET_DATA_FORMAT,
             engineConfig.store().shardPath(),
-            () -> ArrowSchemaBuilder.getSchema(engineConfig.mapperService()),
+            engineConfig.mapperService(),
             engineConfig.indexSettings(),
             threadPool,
             engineConfig.checksumStrategies().get(ParquetDataFormat.PARQUET_DATA_FORMAT_NAME)
