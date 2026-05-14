@@ -262,7 +262,6 @@ public final class StoreStrategyRegistry implements Closeable {
         if (remoteDirectory == null) {
             return;
         }
-        String basePath = remoteDirectory.getRemoteBasePath();
         Map<String, RemoteSegmentStoreDirectory.UploadedSegmentMetadata> uploaded = remoteDirectory.getSegmentsUploadedToRemoteStore();
         if (uploaded == null || uploaded.isEmpty()) {
             return;
@@ -284,6 +283,7 @@ public final class StoreStrategyRegistry implements Closeable {
                 continue;
             }
             String blobKey = entry.getValue().getUploadedFilename();
+            String basePath = remoteDirectory.getRemoteBasePath(owningFormat.name());
             String remotePath = owning.remotePath(owningFormat.name(), basePath, file, blobKey);
             // Use absolute path as key — matches what DataFusion uses for file:// lookups
             String absoluteKey = shardPath.getDataPath().resolve(file).toString();

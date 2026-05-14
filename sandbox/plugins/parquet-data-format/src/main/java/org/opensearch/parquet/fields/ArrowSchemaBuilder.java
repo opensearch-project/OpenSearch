@@ -37,23 +37,23 @@ public final class ArrowSchemaBuilder {
     /**
      * Creates an Arrow Schema from the MapperService.
      * @param mapperService the mapper service containing field mappings
+     * TODO - Get the mapping version while creating the schema
      */
     public static Schema getSchema(MapperService mapperService) {
         Objects.requireNonNull(mapperService, "MapperService cannot be null");
-        if (mapperService.documentMapper() == null) {
-            throw new IllegalStateException("DocumentMapper is not initialized");
-        }
         List<Field> fields = new ArrayList<>();
-        for (Mapper mapper : mapperService.documentMapper().mappers()) {
-            if (isUnsupportedMetadataField(mapper)) {
-                logger.debug("Skipping unsupported metadata field: [{}] of type [{}]", mapper.name(), mapper.typeName());
-                continue;
-            }
-            ParquetField parquetField = ArrowFieldRegistry.getParquetField(mapper.typeName());
-            if (parquetField != null) {
-                fields.add(new Field(mapper.name(), parquetField.getFieldType(), null));
-            } else {
-                logger.debug("No ParquetField registered for field: [{}] of type [{}]", mapper.name(), mapper.typeName());
+        if (mapperService.documentMapper() != null) {
+            for (Mapper mapper : mapperService.documentMapper().mappers()) {
+                if (isUnsupportedMetadataField(mapper)) {
+                    logger.debug("Skipping unsupported metadata field: [{}] of type [{}]", mapper.name(), mapper.typeName());
+                    continue;
+                }
+                ParquetField parquetField = ArrowFieldRegistry.getParquetField(mapper.typeName());
+                if (parquetField != null) {
+                    fields.add(new Field(mapper.name(), parquetField.getFieldType(), null));
+                } else {
+                    logger.debug("No ParquetField registered for field: [{}] of type [{}]", mapper.name(), mapper.typeName());
+                }
             }
         }
         // Add row ID field (long)

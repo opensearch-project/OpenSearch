@@ -25,7 +25,7 @@ import java.util.Optional;
  * <p>Provides a factory for the per-shard native file registry that tracks
  * parquet files for the Rust reader.
  */
-public final class ParquetStoreStrategy implements StoreStrategy {
+public final class ParquetStoreStrategy extends StoreStrategy {
 
     private static final DataFormatStoreHandlerFactory FACTORY = ParquetDataFormatStoreHandler::new;
 

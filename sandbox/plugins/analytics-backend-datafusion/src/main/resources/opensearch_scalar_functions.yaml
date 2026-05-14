@@ -571,3 +571,62 @@ scalar_functions:
           - { value: "varchar<L1>", name: "input" }
           - { value: "varchar<L2>", name: "format" }
         return: precision_timestamp<6>
+
+  - name: "md5"
+    description: "Return the 128-bit MD5 digest of the input string as a lowercase hex string."
+    impls:
+      - args:
+          - { name: input, value: "varchar<L1>" }
+        nullability: DECLARED_OUTPUT
+        return: "varchar<L1>"
+      - args:
+          - { name: input, value: "string" }
+        nullability: DECLARED_OUTPUT
+        return: string
+
+  - name: "digest"
+    description: "Compute the binary hash of the input using the given algorithm ('sha224'/'sha256'/'sha384'/'sha512' are used by the SHA2)."
+    impls:
+      - args:
+          - { name: input, value: "string" }
+          - { name: algorithm, value: "string" }
+        nullability: DECLARED_OUTPUT
+        return: binary
+      - args:
+          - { name: input, value: "varchar<L1>" }
+          - { name: algorithm, value: "string" }
+        nullability: DECLARED_OUTPUT
+        return: binary
+
+  - name: "encode"
+    description: "Encode a binary value to a string (format 'hex' used by the SHA2)."
+    impls:
+      - args:
+          - { name: input, value: "binary" }
+          - { name: format, value: "string" }
+        nullability: DECLARED_OUTPUT
+        return: string
+
+  - name: "sha1"
+    description: "Return the 160-bit SHA-1 digest of the input string as a lowercase hex string."
+    impls:
+      - args:
+          - { name: input, value: "varchar<L1>" }
+        nullability: DECLARED_OUTPUT
+        return: "varchar<L1>"
+      - args:
+          - { name: input, value: "string" }
+        nullability: DECLARED_OUTPUT
+        return: string
+
+  - name: "crc32"
+    description: "Return the CRC-32 checksum of the input string as a non-negative integer."
+    impls:
+      - args:
+          - { name: input, value: "varchar<L1>" }
+        nullability: DECLARED_OUTPUT
+        return: i64
+      - args:
+          - { name: input, value: "string" }
+        nullability: DECLARED_OUTPUT
+        return: i64

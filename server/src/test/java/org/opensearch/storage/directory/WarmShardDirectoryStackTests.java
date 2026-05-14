@@ -139,15 +139,20 @@ public class WarmShardDirectoryStackTests extends OpenSearchTestCase {
 
         RemoteSegmentStoreDirectory remoteDir = createRealRemoteDir(shardPath.getShardId());
 
+        StoreStrategyRegistry registry = StoreStrategyRegistry.open(
+            shardPath,
+            true,
+            NativeStoreRepository.EMPTY,
+            java.util.Map.of(),
+            remoteDir
+        );
         DataFormatAwareStoreDirectory storeDir = factory.newDataFormatAwareStoreDirectory(
             indexSettings,
             shardPath.getShardId(),
             shardPath,
             localDirFactory,
             java.util.Map.of(),
-            java.util.Map.of(),             // no strategies
-            NativeStoreRepository.EMPTY,
-            true,
+            registry,
             remoteDir,
             fileCache,
             null

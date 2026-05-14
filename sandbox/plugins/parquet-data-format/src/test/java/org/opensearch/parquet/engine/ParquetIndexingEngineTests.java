@@ -19,8 +19,10 @@ import org.opensearch.index.engine.dataformat.FileInfos;
 import org.opensearch.index.engine.dataformat.RefreshInput;
 import org.opensearch.index.engine.dataformat.RefreshResult;
 import org.opensearch.index.engine.dataformat.Writer;
+import org.opensearch.index.engine.dataformat.WriterConfig;
 import org.opensearch.index.mapper.KeywordFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
+import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.NumberFieldMapper;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.parquet.ParquetDataFormatPlugin;
@@ -37,6 +39,9 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class ParquetIndexingEngineTests extends OpenSearchTestCase {
 
@@ -78,7 +83,7 @@ public class ParquetIndexingEngineTests extends OpenSearchTestCase {
     }
 
     public void testCreateWriterAndFlush() throws Exception {
-        Writer<ParquetDocumentInput> writer = engine.createWriter(1L);
+        Writer<ParquetDocumentInput> writer = engine.createWriter(new WriterConfig(1L));
 
         for (int i = 0; i < 5; i++) {
             ParquetDocumentInput doc = engine.newDocumentInput();
@@ -97,7 +102,7 @@ public class ParquetIndexingEngineTests extends OpenSearchTestCase {
 
     public void testMultipleWriterGenerations() throws Exception {
         for (long gen = 1; gen <= 3; gen++) {
-            Writer<ParquetDocumentInput> writer = engine.createWriter(gen);
+            Writer<ParquetDocumentInput> writer = engine.createWriter(new WriterConfig(gen));
             ParquetDocumentInput doc = engine.newDocumentInput();
             doc.addField(idField, (int) gen);
             doc.addField(nameField, "user_" + gen);
@@ -156,7 +161,7 @@ public class ParquetIndexingEngineTests extends OpenSearchTestCase {
     }
 
     public void testFlushWithNoDocumentsReturnsEmpty() throws Exception {
-        Writer<ParquetDocumentInput> writer = engine.createWriter(1L);
+        Writer<ParquetDocumentInput> writer = engine.createWriter(new WriterConfig(1L));
         assertEquals(FileInfos.empty(), writer.flush());
     }
 
@@ -174,7 +179,14 @@ public class ParquetIndexingEngineTests extends OpenSearchTestCase {
                 .build();
             IndexMetadata indexMetadata = IndexMetadata.builder("test_index").settings(indexSettingsBuilder).build();
             IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
-            return new ParquetIndexingEngine(Settings.EMPTY, new ParquetDataFormat(), shardPath, () -> schema, indexSettings, threadPool);
+            return new ParquetIndexingEngine(
+                Settings.EMPTY,
+                new ParquetDataFormat(),
+                shardPath,
+                createMockMapperService(schema, indexSettings),
+                indexSettings,
+                threadPool
+            );
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
@@ -196,5 +208,12 @@ public class ParquetIndexingEngineTests extends OpenSearchTestCase {
             fields.add(new Field(ft.name(), pf.getFieldType(), null));
         }
         return new Schema(fields);
+    }
+
+    private MapperService createMockMapperService(Schema schema, IndexSettings indexSettings) {
+        MapperService mapperService = mock(MapperService.class);
+        when(mapperService.documentMapper()).thenReturn(null);
+        when(mapperService.getIndexSettings()).thenReturn(indexSettings);
+        return mapperService;
     }
 }

@@ -121,6 +121,7 @@ pub(crate) fn coerce_args(
 }
 
 pub mod convert_tz;
+pub mod crc32;
 pub mod date_format;
 pub mod extract;
 pub mod from_unixtime;
@@ -138,6 +139,7 @@ pub mod mvappend;
 pub mod mvfind;
 pub mod mvzip;
 pub(crate) mod mysql_format;
+pub mod sha1;
 pub mod str_to_date;
 pub mod strftime;
 pub mod time_format;
@@ -153,6 +155,7 @@ pub mod tostring;
 // and restart the OpenSearch JVM (the loaded dylib is JVM-cached).
 pub fn register_all(ctx: &SessionContext) {
     convert_tz::register_all(ctx);
+    crc32::register_all(ctx);
     date_format::register_all(ctx);
     extract::register_all(ctx);
     from_unixtime::register_all(ctx);
@@ -168,13 +171,14 @@ pub fn register_all(ctx: &SessionContext) {
     mvappend::register_all(ctx);
     mvfind::register_all(ctx);
     mvzip::register_all(ctx);
+    sha1::register_all(ctx);
     str_to_date::register_all(ctx);
     strftime::register_all(ctx);
     time_format::register_all(ctx);
     tonumber::register_all(ctx);
     tostring::register_all(ctx);
     log::info!(
-        "OpenSearch UDF register_all: convert_tz, date_format, extract, from_unixtime, json_append, json_array_length, json_delete, json_extend, json_extract, json_keys, json_set, makedate, maketime, mvappend, mvfind, mvzip, str_to_date, strftime, time_format, tonumber, tostring registered"
+        "OpenSearch UDF register_all: convert_tz, crc32, date_format, extract, from_unixtime, json_append, json_array_length, json_delete, json_extend, json_extract, json_keys, json_set, makedate, maketime, mvappend, mvfind, mvzip, sha1, str_to_date, strftime, time_format, tonumber, tostring registered"
     );
 }
 
