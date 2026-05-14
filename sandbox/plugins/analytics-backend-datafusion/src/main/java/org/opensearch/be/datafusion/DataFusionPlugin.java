@@ -67,11 +67,8 @@ public class DataFusionPlugin extends Plugin implements SearchBackEndPlugin<Data
      * Default value for {@link #DATAFUSION_MEMORY_POOL_LIMIT}. Set to {@code 50%} of non-heap
      * memory to give DataFusion a generous working set on AOS-standard heap configurations
      * (which use the 50% heap rule, leaving non-heap = total/2). On a 64&nbsp;GiB r7g.2xlarge
-     * with 32&nbsp;GiB heap that yields a 16&nbsp;GiB DF pool — comfortably past the diminishing-
-     * returns inflection point in the OFAT sweep at
-     * <a href="https://quip-amazon.com/baxtAdGoq6S9/Mustang-Memory-Tuning-Recommended-Defaults">
-     * Mustang Memory Tuning - Recommended Defaults</a>. Operators on memory-tight workloads
-     * who need more page cache can lower this dynamically via the cluster-settings API.
+     * with 32&nbsp;GiB heap that yields a 16&nbsp;GiB DF pool. Operators on memory-tight
+     * workloads who need more page cache can lower this dynamically via the cluster-settings API.
      */
     public static final String DEFAULT_MEMORY_POOL_LIMIT = "50%";
 
