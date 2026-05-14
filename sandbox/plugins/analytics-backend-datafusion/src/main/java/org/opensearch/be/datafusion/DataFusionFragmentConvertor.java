@@ -31,6 +31,7 @@ import org.apache.calcite.sql.fun.SqlStdOperatorTable;
 import org.apache.calcite.util.ImmutableBitSet;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.opensearch.analytics.planner.rel.OpenSearchBroadcastScan;
 import org.opensearch.analytics.planner.rel.OpenSearchStageInputScan;
 import org.opensearch.analytics.spi.DelegatedPredicateFunction;
 import org.opensearch.analytics.spi.FragmentConvertor;
@@ -269,7 +270,12 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
     @Override
     public byte[] convertShardScanFragment(String tableName, RelNode fragment) {
         LOGGER.debug("Converting shard scan fragment for table [{}]", tableName);
-        return convertToSubstrait(fragment);
+        // Rewrite any OpenSearchBroadcastScan leaves (M1 broadcast probe fragments
+        // carry Join(TableScan, BroadcastScan)) so isthmus sees a plain TableScan with
+        // qualified name "broadcast-<buildStageId>". OpenSearchStageInputScan does not
+        // appear in shard-scan fragments, so the rewriter is a no-op for M0 queries.
+        RelNode rewritten = rewriteStageInputScans(fragment);
+        return convertToSubstrait(rewritten);
     }
 
     @Override
@@ -447,19 +453,29 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
     }
 
     /**
-     * Rewrites every {@link OpenSearchStageInputScan} in the RelNode tree to a plain
-     * Calcite {@link TableScan} whose qualified name matches what the matching
-     * {@link DatafusionReduceSink} input partition registers on the native session.
+     * Rewrites every {@link OpenSearchStageInputScan} or {@link OpenSearchBroadcastScan} in
+     * the RelNode tree to a plain Calcite {@link TableScan} whose qualified name matches what
+     * the matching runtime component registers on the native session:
+     * <ul>
+     *   <li>{@code "input-<childStageId>"} for stage-input scans — registered as a partition
+     *       stream by {@link DatafusionReduceSink}, mirroring {@code AbstractDatafusionReduceSink.inputIdFor}.</li>
+     *   <li>{@code "broadcast-<buildStageId>"} for broadcast scans — registered as a
+     *       {@code MemTable} by {@code BroadcastInjectionHandler} before plan execution.</li>
+     * </ul>
      *
-     * <p>The table id is {@code "input-<childStageId>"}, mirroring
-     * {@code AbstractDatafusionReduceSink.inputIdFor}. For a single-input fragment the
-     * sole stage id (typically 0) reproduces the conventional {@code "input-0"} name; for
-     * multi-input shapes (Union) each branch refers to its own child stage id and the
-     * isthmus visitor emits one {@link NamedScan} per branch.
+     * <p>For single-input fragments the sole stage id (typically 0) reproduces the
+     * conventional {@code "input-0"} name; for multi-input shapes (Union, coord-centric Join)
+     * each branch refers to its own child stage id and the isthmus visitor emits one
+     * {@link NamedScan} per branch. For M1 broadcast, the probe fragment carries one
+     * {@code OpenSearchTableScan} and one {@link OpenSearchBroadcastScan} — the latter
+     * resolves to the broadcast memtable at execution time.
      */
     private static RelNode rewriteStageInputScans(RelNode node) {
         if (node instanceof OpenSearchStageInputScan scan) {
             return new StageInputTableScan(scan.getCluster(), scan.getTraitSet(), "input-" + scan.getChildStageId(), scan.getRowType());
+        }
+        if (node instanceof OpenSearchBroadcastScan scan) {
+            return new StageInputTableScan(scan.getCluster(), scan.getTraitSet(), scan.getNamedInputId(), scan.getRowType());
         }
         List<RelNode> newInputs = new ArrayList<>(node.getInputs().size());
         boolean changed = false;

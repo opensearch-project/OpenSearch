@@ -41,6 +41,7 @@ use arrow_array::ffi::FFI_ArrowArray;
 use arrow_array::RecordBatch;
 use arrow_array::{Array, StructArray};
 use arrow_schema::ffi::FFI_ArrowSchema;
+use arrow_schema::SchemaRef;
 use datafusion::common::DataFusionError;
 use datafusion::datasource::listing::ListingTableUrl;
 use datafusion::execution::disk_manager::{DiskManagerBuilder, DiskManagerMode};
@@ -729,6 +730,57 @@ pub unsafe fn register_memtable(
     array_ptrs: &[i64],
     schema_ptrs: &[i64],
 ) -> Result<(), DataFusionError> {
+    let (table_schema, batches) =
+        decode_imported_batches(input_id, schema_ipc, array_ptrs, schema_ptrs)?;
+    let session = &mut *(session_ptr as *mut LocalSession);
+    session.register_memtable(input_id, table_schema, batches)
+}
+
+/// Variant of [`register_memtable`] for the shard-scan path's `SessionContextHandle`. The
+/// probe-side `BroadcastInjectionHandler` runs against the same `SessionContextHandle` that
+/// `ShardScanInstructionHandler` produced; the M1 broadcast memtable lives alongside the
+/// listing-table-backed shard scan on the same session.
+///
+/// # Safety
+/// - `session_ctx_handle_ptr` must be a valid, non-zero pointer returned by
+///   `create_session_context` (or `create_session_context_indexed`).
+/// - `array_ptrs` and `schema_ptrs` must point to populated FFI structs owned
+///   by the caller; ownership transfers to Rust on success.
+pub unsafe fn register_memtable_on_session_context(
+    session_ctx_handle_ptr: i64,
+    input_id: &str,
+    schema_ipc: &[u8],
+    array_ptrs: &[i64],
+    schema_ptrs: &[i64],
+) -> Result<(), DataFusionError> {
+    let (table_schema, batches) =
+        decode_imported_batches(input_id, schema_ipc, array_ptrs, schema_ptrs)?;
+    let handle = &*(session_ctx_handle_ptr as *const crate::session_context::SessionContextHandle);
+    let table = datafusion::datasource::MemTable::try_new(table_schema, vec![batches])?;
+    handle
+        .ctx
+        .register_table(input_id, Arc::new(table))
+        .map_err(|e| {
+            DataFusionError::Execution(format!(
+                "Failed to register memtable '{}' on session context: {}",
+                input_id, e
+            ))
+        })?;
+    Ok(())
+}
+
+/// Shared decoding logic used by both [`register_memtable`] (LocalSession variant, used by
+/// the coord-reduce memtable sink) and [`register_memtable_on_session_context`] (probe-side
+/// broadcast injection variant). Imports each batch via Arrow C Data, aligns buffers to
+/// DataFusion's required alignment, and rebuilds each batch with the IPC schema as the
+/// schema-of-record (some IPC bodies disagree with the schema header in nullability /
+/// metadata; rebuilding keeps `MemTable::try_new`'s schema check happy without losing data).
+unsafe fn decode_imported_batches(
+    input_id: &str,
+    schema_ipc: &[u8],
+    array_ptrs: &[i64],
+    schema_ptrs: &[i64],
+) -> Result<(SchemaRef, Vec<RecordBatch>), DataFusionError> {
     if array_ptrs.len() != schema_ptrs.len() {
         return Err(DataFusionError::Execution(format!(
             "register_memtable: array_ptrs.len()={} != schema_ptrs.len()={}",
@@ -736,7 +788,6 @@ pub unsafe fn register_memtable(
             schema_ptrs.len()
         )));
     }
-    let session = &mut *(session_ptr as *mut LocalSession);
 
     let mut cursor = Cursor::new(schema_ipc);
     let reader = StreamReader::try_new(&mut cursor, None).map_err(|e| {
@@ -758,9 +809,15 @@ pub unsafe fn register_memtable(
     for (&array_ptr, &schema_ptr) in array_ptrs.iter().zip(schema_ptrs.iter()) {
         let ffi_array = FFI_ArrowArray::from_raw(array_ptr as *mut FFI_ArrowArray);
         let ffi_schema = FFI_ArrowSchema::from_raw(schema_ptr as *mut FFI_ArrowSchema);
-        let array_data = arrow_array::ffi::from_ffi(ffi_array, &ffi_schema).map_err(|e| {
+        let mut array_data = arrow_array::ffi::from_ffi(ffi_array, &ffi_schema).map_err(|e| {
             DataFusionError::Execution(format!("Failed to import Arrow C Data array: {}", e))
         })?;
+        // The build-side IPC payload arrives via Java's ArrowStreamReader, which produces
+        // batches whose buffers are 8-byte-aligned slices into the IPC body (per spec) but
+        // not the 64-byte alignment DataFusion's SIMD kernels require. align_buffers() is
+        // a no-op for already-aligned buffers and reallocates only the misaligned ones —
+        // mirrors the streaming sink path in attach_input_batch() above.
+        array_data.align_buffers();
         let struct_array = StructArray::from(array_data);
         let raw = RecordBatch::from(struct_array);
         let aligned = RecordBatch::try_new(Arc::clone(&table_schema), raw.columns().to_vec())
@@ -773,5 +830,5 @@ pub unsafe fn register_memtable(
         batches.push(aligned);
     }
 
-    session.register_memtable(input_id, table_schema, batches)
+    Ok((table_schema, batches))
 }

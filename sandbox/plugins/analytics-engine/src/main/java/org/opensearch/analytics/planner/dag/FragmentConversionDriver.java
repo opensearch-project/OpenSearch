@@ -19,6 +19,7 @@ import org.opensearch.analytics.planner.CapabilityRegistry;
 import org.opensearch.analytics.planner.RelNodeUtils;
 import org.opensearch.analytics.planner.rel.AggregateMode;
 import org.opensearch.analytics.planner.rel.OpenSearchAggregate;
+import org.opensearch.analytics.planner.rel.OpenSearchBroadcastScan;
 import org.opensearch.analytics.planner.rel.OpenSearchExchangeReducer;
 import org.opensearch.analytics.planner.rel.OpenSearchFilter;
 import org.opensearch.analytics.planner.rel.OpenSearchRelNode;
@@ -307,10 +308,14 @@ public class FragmentConversionDriver {
         throw new IllegalStateException("Unexpected reduce stage node: " + node.getClass().getSimpleName());
     }
 
-    /** Recursively strips annotations bottom-up. Keeps OpenSearchStageInputScan as-is. */
+    /** Recursively strips annotations bottom-up. Keeps OpenSearchStageInputScan and
+     * OpenSearchBroadcastScan as-is (backend-side rewriter maps them to NamedScans). */
     private static RelNode strip(RelNode node, IntraOperatorDelegationBytes delegationBytes) {
         if (node instanceof OpenSearchStageInputScan) {
             return node; // kept for schema inference at reduce stage
+        }
+        if (node instanceof OpenSearchBroadcastScan) {
+            return node; // kept for schema inference at probe stage; backend rewriter maps to NamedScan
         }
         if (node instanceof OpenSearchExchangeReducer) {
             return strip(node.getInputs().getFirst(), delegationBytes);
@@ -326,9 +331,31 @@ public class FragmentConversionDriver {
         return node;
     }
 
+    /**
+     * Walks down the fragment to find the leaf that drives stage classification — the
+     * {@link OpenSearchTableScan} or {@link OpenSearchStageInputScan} that determines whether
+     * this fragment is a shard-scan stage or a coordinator-reduce stage.
+     *
+     * <p>For binary-input nodes, prefers the input subtree that contains a real driving leaf
+     * over one whose first leaf is an {@link OpenSearchBroadcastScan} placeholder. The broadcast
+     * scan is a runtime-injected memtable input — it never drives stage targeting or
+     * instruction assembly, so a probe-side join with shape
+     * {@code Join(OpenSearchBroadcastScan, OpenSearchTableScan)} (build = left) must still
+     * route through the shard-scan path on the right.
+     */
     private static RelNode findLeaf(RelNode node) {
         if (node.getInputs().isEmpty()) {
             return node;
+        }
+        // For binary inputs (Join), prefer the side whose subtree's leaf is NOT an
+        // OpenSearchBroadcastScan placeholder. With one driving leaf and one broadcast-scan
+        // leaf the broadcast side is the runtime-injected one and must not classify the stage.
+        if (node.getInputs().size() == 2) {
+            RelNode leftLeaf = findLeaf(node.getInputs().get(0));
+            if (!(leftLeaf instanceof OpenSearchBroadcastScan)) {
+                return leftLeaf;
+            }
+            return findLeaf(node.getInputs().get(1));
         }
         return findLeaf(node.getInputs().getFirst());
     }

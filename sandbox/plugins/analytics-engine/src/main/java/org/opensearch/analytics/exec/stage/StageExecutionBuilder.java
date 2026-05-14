@@ -93,6 +93,19 @@ public class StageExecutionBuilder {
         return buildStageExecution(stage, sink, config);
     }
 
+    /**
+     * Builds a stage execution against a caller-supplied {@link ExchangeSink}. Used by
+     * multi-phase dispatch (e.g. M1 broadcast) where the caller drives a single stage in
+     * isolation and wants to intercept its output, rather than routing it through the normal
+     * walker-built {@link DataConsumer}/parent-sink chain.
+     *
+     * <p>No wrapping, no parent lookup — the scheduler registered for {@code stage}'s
+     * execution type is invoked directly with {@code sink}.
+     */
+    public StageExecution buildWithSink(Stage stage, ExchangeSink sink, QueryContext config) {
+        return buildStageExecution(stage, sink, config);
+    }
+
     // ── Internal dispatch ───────────────────────────────────────────────
 
     private StageExecution buildStageExecution(Stage stage, ExchangeSink sink, QueryContext config) {

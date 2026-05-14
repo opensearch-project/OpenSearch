@@ -32,7 +32,7 @@ import java.util.Set;
  * alternative is a sibling the scheduler chooses from based on cost, but termination is
  * the load-bearing property we want to pin for the Volcano trait/subset handling.
  *
- * <p>Codex P2 context: an earlier version of the rule guarded against re-fire by checking
+ * <p>Context: an earlier version of the rule guarded against re-fire by checking
  * {@code instanceof OpenSearchShuffleExchange} on the join's inputs. Volcano wraps inputs
  * in {@code RelSubset}s which are never {@code OpenSearchShuffleExchange}, so the guard
  * was ineffective and the rule looped until the test timed out. The current rule instead

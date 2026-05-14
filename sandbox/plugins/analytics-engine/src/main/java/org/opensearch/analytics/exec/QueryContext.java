@@ -42,8 +42,18 @@ public class QueryContext {
     private final int maxConcurrentShardRequests;
     private final long perQueryMemoryLimit;
     private final List<AnalyticsOperationListener> operationListeners;
-    private volatile BufferAllocator bufferAllocator;
-    private boolean closed;  // guarded by `this`
+    /**
+     * Allocator state shared across phased contexts. Instances produced by
+     * {@link #withDag(QueryDAG)} share the same mutable holder so the lazy allocator
+     * (and its {@link #closeBufferAllocator()} lifecycle) remain single-instance
+     * across all phases of the same query.
+     */
+    private final AllocatorHolder allocatorHolder;
+
+    private static final class AllocatorHolder {
+        volatile BufferAllocator bufferAllocator;
+        boolean closed;
+    }
 
     public QueryContext(QueryDAG dag, Executor searchExecutor, AnalyticsQueryTask parentTask) {
         this(dag, searchExecutor, parentTask, DEFAULT_MAX_CONCURRENT_SHARD_REQUESTS, DEFAULT_PER_QUERY_MEMORY_LIMIT, List.of());
@@ -71,12 +81,44 @@ public class QueryContext {
         long perQueryMemoryLimit,
         List<AnalyticsOperationListener> operationListeners
     ) {
+        this(dag, searchExecutor, parentTask, maxConcurrentShardRequests, perQueryMemoryLimit, operationListeners, new AllocatorHolder());
+    }
+
+    private QueryContext(
+        QueryDAG dag,
+        Executor searchExecutor,
+        AnalyticsQueryTask parentTask,
+        int maxConcurrentShardRequests,
+        long perQueryMemoryLimit,
+        List<AnalyticsOperationListener> operationListeners,
+        AllocatorHolder allocatorHolder
+    ) {
         this.dag = dag;
         this.searchExecutor = searchExecutor;
         this.parentTask = parentTask;
         this.maxConcurrentShardRequests = maxConcurrentShardRequests;
         this.perQueryMemoryLimit = perQueryMemoryLimit;
         this.operationListeners = operationListeners;
+        this.allocatorHolder = allocatorHolder;
+    }
+
+    /**
+     * Returns a derived context pointing at a different {@link QueryDAG} but sharing this
+     * context's buffer allocator, parent task, executor, and listener list. Used by multi-phase
+     * join dispatch (e.g. M1 broadcast) where pass 1 drives only the build stage and pass 2
+     * drives the probe + root; both phases belong to the same query and must share a single
+     * per-query allocator.
+     */
+    public QueryContext withDag(QueryDAG newDag) {
+        return new QueryContext(
+            newDag,
+            searchExecutor,
+            parentTask,
+            maxConcurrentShardRequests,
+            perQueryMemoryLimit,
+            operationListeners,
+            allocatorHolder
+        );
     }
 
     public QueryDAG dag() {
@@ -111,16 +153,16 @@ public class QueryContext {
      * the stage catches and transitions to FAILED.
      */
     public BufferAllocator bufferAllocator() {
-        BufferAllocator alloc = bufferAllocator;
+        BufferAllocator alloc = allocatorHolder.bufferAllocator;
         if (alloc == null) {
-            synchronized (this) {
-                alloc = bufferAllocator;
+            synchronized (allocatorHolder) {
+                alloc = allocatorHolder.bufferAllocator;
                 if (alloc == null) {
-                    if (closed) {
+                    if (allocatorHolder.closed) {
                         throw new IllegalStateException("QueryContext closed for query " + dag.queryId());
                     }
                     alloc = ArrowAllocatorProvider.newChildAllocator("query-" + dag.queryId(), perQueryMemoryLimit);
-                    bufferAllocator = alloc;
+                    allocatorHolder.bufferAllocator = alloc;
                 }
             }
         }
@@ -132,14 +174,18 @@ public class QueryContext {
      * serialized with {@link #bufferAllocator()} so close can't race with lazy
      * creation. After close, subsequent {@link #bufferAllocator()} calls throw
      * rather than silently creating a second allocator.
+     *
+     * <p>When multiple {@link QueryContext} instances share the same allocator holder (via
+     * {@link #withDag(QueryDAG)}), closing any one of them closes the shared allocator — the
+     * caller is responsible for calling this exactly once per query.
      */
     public void closeBufferAllocator() {
-        synchronized (this) {
-            if (closed) return;
-            closed = true;
-            if (bufferAllocator != null) {
-                bufferAllocator.close();
-                bufferAllocator = null;
+        synchronized (allocatorHolder) {
+            if (allocatorHolder.closed) return;
+            allocatorHolder.closed = true;
+            if (allocatorHolder.bufferAllocator != null) {
+                allocatorHolder.bufferAllocator.close();
+                allocatorHolder.bufferAllocator = null;
             }
         }
     }

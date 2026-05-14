@@ -67,6 +67,7 @@ public final class NativeBridge {
     private static final MethodHandle SENDER_SEND;
     private static final MethodHandle SENDER_CLOSE;
     private static final MethodHandle REGISTER_MEMTABLE;
+    private static final MethodHandle REGISTER_MEMTABLE_ON_SESSION_CONTEXT;
     private static final MethodHandle CREATE_CUSTOM_CACHE_MANAGER;
     private static final MethodHandle DESTROY_CUSTOM_CACHE_MANAGER;
     private static final MethodHandle CREATE_CACHE;
@@ -237,6 +238,22 @@ public final class NativeBridge {
         // array_ptrs, schema_ptrs, n_batches)
         REGISTER_MEMTABLE = linker.downcallHandle(
             lib.find("df_register_memtable").orElseThrow(),
+            FunctionDescriptor.of(
+                ValueLayout.JAVA_LONG,
+                ValueLayout.JAVA_LONG,
+                ValueLayout.ADDRESS,
+                ValueLayout.JAVA_LONG,
+                ValueLayout.ADDRESS,
+                ValueLayout.JAVA_LONG,
+                ValueLayout.ADDRESS,
+                ValueLayout.ADDRESS,
+                ValueLayout.JAVA_LONG
+            )
+        );
+
+        // Same signature as df_register_memtable but for SessionContextHandle (shard-scan path).
+        REGISTER_MEMTABLE_ON_SESSION_CONTEXT = linker.downcallHandle(
+            lib.find("df_register_memtable_on_session_context").orElseThrow(),
             FunctionDescriptor.of(
                 ValueLayout.JAVA_LONG,
                 ValueLayout.JAVA_LONG,
@@ -804,6 +821,43 @@ public final class NativeBridge {
             return call.invoke(
                 REGISTER_MEMTABLE,
                 sessionPtr,
+                id.segment(),
+                id.len(),
+                call.bytes(schemaIpc),
+                (long) schemaIpc.length,
+                call.longs(arrayPtrs),
+                call.longs(schemaPtrs),
+                (long) arrayPtrs.length
+            );
+        }
+    }
+
+    /**
+     * Variant of {@link #registerMemtable} for the shard-scan path. Takes the
+     * {@link SessionContextHandle} pointer instead of a {@code LocalSession} pointer, so the M1
+     * broadcast injection on the probe side can register its memtable on the same session that
+     * already has the listing-table-backed shard scan registered. Returns 0 on success; a
+     * non-zero return is interpreted by {@link NativeCall} as a Rust-side error (the message is
+     * thrown as a runtime exception by the caller).
+     */
+    public static long registerMemtableOnSessionContext(
+        long sessionContextHandlePtr,
+        String inputId,
+        byte[] schemaIpc,
+        long[] arrayPtrs,
+        long[] schemaPtrs
+    ) {
+        NativeHandle.validatePointer(sessionContextHandlePtr, "sessionContextHandle");
+        if (arrayPtrs.length != schemaPtrs.length) {
+            throw new IllegalArgumentException(
+                "arrayPtrs.length (" + arrayPtrs.length + ") != schemaPtrs.length (" + schemaPtrs.length + ")"
+            );
+        }
+        try (var call = new NativeCall()) {
+            var id = call.str(inputId);
+            return call.invoke(
+                REGISTER_MEMTABLE_ON_SESSION_CONTEXT,
+                sessionContextHandlePtr,
                 id.segment(),
                 id.len(),
                 call.bytes(schemaIpc),

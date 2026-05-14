@@ -33,30 +33,33 @@ public class JoinStrategyAdvisorTests extends BasePlannerRulesTests {
         RelNode marked = PlannerImpl.createPlan(stubScan(mockTable("test_index", "status", "size")), context);
         QueryDAG dag = DAGBuilder.build(marked, context.getCapabilityRegistry(), mockClusterService());
 
-        JoinStrategyAdvisor advisor = new JoinStrategyAdvisor(100);
+        JoinStrategyAdvisor advisor = new JoinStrategyAdvisor(100, 1_000_000L);
         assertEquals(JoinStrategy.COORDINATOR_CENTRIC, advisor.adviseAndTag(dag, context.getClusterState()));
     }
 
-    /** Binary equi-join on a single-shard mock → BROADCAST (shard count 1 ≤ threshold 2). */
-    public void testEquiJoinSmallShardsPicksBroadcast() {
+    /**
+     * Binary equi-join on a single-shard mock without a {@link org.opensearch.transport.client.Client}
+     * → {@code StatisticsCollector} cannot fetch row counts → fail-safe HASH_SHUFFLE. The shard
+     * gate passes (1 ≤ 2) but the row gate refuses because rowCount is unknown.
+     *
+     * <p>This is the unit-test equivalent of an environment where IndicesStats is unavailable
+     * (planner-level tests don't wire a Client). End-to-end tests in {@code qa/} cover the
+     * BROADCAST happy path with real row counts.
+     */
+    public void testEquiJoinSmallShardsRefusesBroadcastWhenRowsUnknown() {
         PlannerContext context = buildContext("parquet", 1, intFields());
         RelNode join = makeInnerEquiJoin();
         RelNode marked = PlannerImpl.createPlan(join, context);
         QueryDAG dag = DAGBuilder.build(marked, context.getCapabilityRegistry(), mockClusterService());
 
-        JoinStrategyAdvisor advisor = new JoinStrategyAdvisor(/* broadcastMaxShards */ 2);
+        JoinStrategyAdvisor advisor = new JoinStrategyAdvisor(/* broadcastMaxShards */ 2, /* broadcastMaxRows */ 1_000_000L);
         JoinStrategy strategy = advisor.adviseAndTag(dag, context.getClusterState());
-        assertEquals(JoinStrategy.BROADCAST, strategy);
+        assertEquals(JoinStrategy.HASH_SHUFFLE, strategy);
 
-        // Role tagging: root stage is COORDINATOR_REDUCE, one child BROADCAST_BUILD, one BROADCAST_PROBE.
+        // Role tagging only happens for BROADCAST. With rowCount=0 fail-safe, the advisor
+        // returns HASH_SHUFFLE and does not retag children.
         Stage root = dag.rootStage();
-        assertEquals(Stage.StageRole.COORDINATOR_REDUCE, root.getRole());
         assertEquals(2, root.getChildStages().size());
-        Set<Stage.StageRole> childRoles = Set.of(root.getChildStages().get(0).getRole(), root.getChildStages().get(1).getRole());
-        assertTrue(
-            "child roles must include BROADCAST_BUILD and BROADCAST_PROBE, got " + childRoles,
-            childRoles.contains(Stage.StageRole.BROADCAST_BUILD) && childRoles.contains(Stage.StageRole.BROADCAST_PROBE)
-        );
     }
 
     /** Binary equi-join on 10-shard mocks → HASH_SHUFFLE (10 > threshold 2). */
@@ -66,12 +69,12 @@ public class JoinStrategyAdvisorTests extends BasePlannerRulesTests {
         RelNode marked = PlannerImpl.createPlan(join, context);
         QueryDAG dag = DAGBuilder.build(marked, context.getCapabilityRegistry(), mockClusterService());
 
-        JoinStrategyAdvisor advisor = new JoinStrategyAdvisor(2);
+        JoinStrategyAdvisor advisor = new JoinStrategyAdvisor(2, 1_000_000L);
         assertEquals(JoinStrategy.HASH_SHUFFLE, advisor.adviseAndTag(dag, context.getClusterState()));
     }
 
     /**
-     * Codex P2 regression fix: if either join input is an aggregate / derived subquery,
+     * Regression: if either join input is an aggregate / derived subquery,
      * {@link JoinStrategyAdvisor#adviseAndTag} must fall back to
      * {@link JoinStrategy#COORDINATOR_CENTRIC} — an earlier version let {@code findSoleScanIndex}
      * chase through any unary operator, which misclassified {@code Agg → Project → Scan} inputs
@@ -96,7 +99,7 @@ public class JoinStrategyAdvisorTests extends BasePlannerRulesTests {
         RelNode marked = PlannerImpl.createPlan(join, context);
         QueryDAG dag = DAGBuilder.build(marked, context.getCapabilityRegistry(), mockClusterService());
 
-        JoinStrategyAdvisor advisor = new JoinStrategyAdvisor(2);
+        JoinStrategyAdvisor advisor = new JoinStrategyAdvisor(2, 1_000_000L);
         assertEquals(
             "Joins over derived/aggregated inputs must fall back to COORDINATOR_CENTRIC",
             JoinStrategy.COORDINATOR_CENTRIC,
@@ -111,8 +114,39 @@ public class JoinStrategyAdvisorTests extends BasePlannerRulesTests {
         RelNode marked = PlannerImpl.createPlan(join, context);
         QueryDAG dag = DAGBuilder.build(marked, context.getCapabilityRegistry(), mockClusterService());
 
-        JoinStrategyAdvisor advisor = new JoinStrategyAdvisor(2);
+        JoinStrategyAdvisor advisor = new JoinStrategyAdvisor(2, 1_000_000L);
         assertEquals(JoinStrategy.COORDINATOR_CENTRIC, advisor.adviseAndTag(dag, context.getClusterState()));
+    }
+
+    /**
+     * Regression: queries like {@code | inner join ... | sort ... | head N} produce a Sort wrapping
+     * the join at the root. The advisor must look through the wrappers — otherwise BROADCAST is
+     * never picked for any user query that has a top-level `| sort` or `| head`.
+     *
+     * <p>Without rows wired in, the test asserts that the advisor reaches the {@code OpenSearchJoin}
+     * (and lands on HASH_SHUFFLE because rowCount=0), rather than short-circuiting to
+     * {@code COORDINATOR_CENTRIC} on the wrong-type root check. The unit test catches the
+     * structural unwrap; the BROADCAST happy path is covered end-to-end in {@code BroadcastJoinIT}.
+     */
+    public void testAdvisorLooksThroughSortWrapper() {
+        PlannerContext context = buildContext("parquet", /* shardCount */ 1, intFields());
+        RelNode join = makeInnerEquiJoin();
+        RelNode wrapped = makeSort(join, /* fetch */ 50); // Sort + LIMIT 50
+        RelNode marked = PlannerImpl.createPlan(wrapped, context);
+        QueryDAG dag = DAGBuilder.build(marked, context.getCapabilityRegistry(), mockClusterService());
+
+        JoinStrategyAdvisor advisor = new JoinStrategyAdvisor(/* maxShards */ 2, /* maxRows */ 1_000_000L);
+        JoinStrategy strategy = advisor.adviseAndTag(dag, context.getClusterState());
+
+        // Without row counts the selector returns HASH_SHUFFLE (fail-safe). The point of this
+        // test is that we did NOT return COORDINATOR_CENTRIC: the advisor unwrapped the Sort,
+        // found the OpenSearchJoin, and ran the strategy selector against it.
+        assertNotEquals(
+            "Advisor must unwrap top-level Sort and inspect the underlying join, not short-circuit to COORDINATOR_CENTRIC",
+            JoinStrategy.COORDINATOR_CENTRIC,
+            strategy
+        );
+        assertEquals(JoinStrategy.HASH_SHUFFLE, strategy);
     }
 
     private RelNode makeInnerEquiJoin() {

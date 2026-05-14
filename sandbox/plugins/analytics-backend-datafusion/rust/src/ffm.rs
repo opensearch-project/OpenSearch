@@ -377,6 +377,48 @@ pub unsafe extern "C" fn df_register_memtable(
         .map_err(|e| e.to_string())
 }
 
+/// Variant of `df_register_memtable` for the shard-scan side. Takes a
+/// `SessionContextHandle` pointer (returned by `df_create_session_context`) instead of a
+/// `LocalSession` pointer (returned by `df_create_local_session`) — the M1 broadcast
+/// injection runs on the same shard-scan session that has the listing-table-backed
+/// probe scan registered, so the memtable lives alongside that table.
+#[ffm_safe]
+#[no_mangle]
+pub unsafe extern "C" fn df_register_memtable_on_session_context(
+    session_ctx_handle_ptr: i64,
+    input_id_ptr: *const u8,
+    input_id_len: i64,
+    schema_ipc_ptr: *const u8,
+    schema_ipc_len: i64,
+    array_ptrs: *const i64,
+    schema_ptrs: *const i64,
+    n_batches: i64,
+) -> i64 {
+    let input_id = str_from_raw(input_id_ptr, input_id_len)
+        .map_err(|e| format!("df_register_memtable_on_session_context: input_id: {}", e))?;
+    let schema_ipc = slice::from_raw_parts(schema_ipc_ptr, schema_ipc_len as usize);
+    let n = n_batches as usize;
+    let array_slice: &[i64] = if n == 0 {
+        &[]
+    } else {
+        slice::from_raw_parts(array_ptrs, n)
+    };
+    let schema_slice: &[i64] = if n == 0 {
+        &[]
+    } else {
+        slice::from_raw_parts(schema_ptrs, n)
+    };
+    api::register_memtable_on_session_context(
+        session_ctx_handle_ptr,
+        input_id,
+        schema_ipc,
+        array_slice,
+        schema_slice,
+    )
+    .map(|_| 0)
+    .map_err(|e| e.to_string())
+}
+
 #[ffm_safe]
 #[no_mangle]
 pub unsafe extern "C" fn df_create_cache(

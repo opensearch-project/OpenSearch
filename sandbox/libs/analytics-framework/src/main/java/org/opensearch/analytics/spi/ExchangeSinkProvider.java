@@ -54,4 +54,36 @@ public interface ExchangeSinkProvider {
                 + "Declare a DataTransferCapability(PRODUCER, ...) and override createPartitionedSink."
         );
     }
+
+    /**
+     * Creates a capture sink used by the M1 broadcast-join coordinator to buffer the build
+     * stage's output into Arrow IPC bytes. The returned sink must expose a
+     * {@code CompletableFuture<byte[]> ipcBytesFuture()} method that completes when
+     * {@link ExchangeSink#close()} finishes, delivering the full build-side payload. The
+     * dispatcher accesses that method reflectively to avoid a compile-time dependency from
+     * analytics-engine on any specific backend's sink class.
+     *
+     * <p>The {@code buildRowType} is the build stage's Calcite row type. The backend uses it
+     * as the fallback schema when the build stage emits zero batches — without it, an
+     * all-empty build side would register a zero-column memtable on the probe side and break
+     * the join's NamedScan binding. Each backend converts {@code RelDataType} to its Arrow
+     * representation in the way it already does for normal scan output.
+     *
+     * <p>The {@code maxBytes} cap is enforced at runtime: if the accumulated build-side buffer
+     * size exceeds it, the sink fails its {@code ipcBytesFuture()} so the dispatcher routes the
+     * failure through the query's terminal listener. Pass {@code Long.MAX_VALUE} to disable.
+     *
+     * <p>Default impl throws {@link UnsupportedOperationException} — backends that don't
+     * participate as the coordinator-side broadcast build collector do not need to opt in.
+     */
+    default ExchangeSink createBroadcastCaptureSink(
+        org.apache.arrow.memory.BufferAllocator allocator,
+        org.apache.calcite.rel.type.RelDataType buildRowType,
+        long maxBytes
+    ) {
+        throw new UnsupportedOperationException(
+            "Backend does not support broadcast-capture sinks. Override createBroadcastCaptureSink "
+                + "to return an ExchangeSink whose close() completes ipcBytesFuture() with the build-side Arrow IPC bytes."
+        );
+    }
 }

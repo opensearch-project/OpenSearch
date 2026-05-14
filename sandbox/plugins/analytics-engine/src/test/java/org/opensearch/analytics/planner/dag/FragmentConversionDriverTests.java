@@ -501,6 +501,68 @@ public class FragmentConversionDriverTests extends BasePlannerRulesTests {
         );
     }
 
+    // ---- Left-build broadcast conversion ----
+
+    /**
+     * Regression: probe-side fragment with shape {@code Join(OpenSearchBroadcastScan, OpenSearchTableScan)}
+     * (build = LEFT) must classify as a shard-scan stage, not throw "Unknown leaf type" on
+     * conversion. Earlier {@code findLeaf} returned the broadcast placeholder for the left
+     * input, leaving {@code convert()} unable to route the fragment.
+     */
+    public void testLeftBuildProbeFragmentRoutesToShardScanConversion() {
+        // Construct probe-stage fragment manually: Join(BroadcastScan, TableScan).
+        // We use a minimal cluster + scan to avoid driving the full advisor/rewriter chain —
+        // the goal is to exercise FragmentConversionDriver.convert against the new shape.
+        // The harness only knows test_index; reuse it for both probe and a placeholder
+        // build-side row type (any OpenSearchTableScan would do).
+        org.opensearch.analytics.planner.rel.OpenSearchTableScan probeScan =
+            (org.opensearch.analytics.planner.rel.OpenSearchTableScan) markScan(stubScan(mockTable("test_index", "status", "size")));
+        org.opensearch.analytics.planner.rel.OpenSearchBroadcastScan broadcastScan =
+            new org.opensearch.analytics.planner.rel.OpenSearchBroadcastScan(
+                probeScan.getCluster(),
+                probeScan.getTraitSet(),
+                /* buildStageId */ 0,
+                probeScan.getRowType(),
+                probeScan.getViableBackends()
+            );
+        int leftCols = broadcastScan.getRowType().getFieldCount();
+        RelDataType intType = typeFactory.createSqlType(SqlTypeName.INTEGER);
+        RexNode condition = rexBuilder.makeCall(
+            SqlStdOperatorTable.EQUALS,
+            rexBuilder.makeInputRef(intType, 0),
+            rexBuilder.makeInputRef(intType, leftCols)
+        );
+        org.opensearch.analytics.planner.rel.OpenSearchJoin probeJoin =
+            new org.opensearch.analytics.planner.rel.OpenSearchJoin(
+                probeScan.getCluster(),
+                probeScan.getTraitSet(),
+                broadcastScan,                  // build = LEFT input
+                probeScan,                      // probe scan = RIGHT input
+                condition,
+                JoinRelType.INNER,
+                probeScan.getViableBackends()
+            );
+
+        RecordingConvertor convertor = new RecordingConvertor();
+        FragmentConversionDriver.IntraOperatorDelegationBytes delegationBytes =
+            new FragmentConversionDriver.IntraOperatorDelegationBytes(
+                buildContext("parquet", 1, intFields(), List.of(dfWithConvertor(convertor))).getCapabilityRegistry()
+            );
+
+        // Must not throw "Unknown leaf type" — findLeaf must skip the broadcast placeholder
+        // and recurse into the right input (the probe scan).
+        byte[] bytes = FragmentConversionDriver.convert(probeJoin, convertor, delegationBytes);
+        assertNotNull(bytes);
+        assertTrue(convertor.shardScanCalled);
+        assertEquals("table name from probe scan, not broadcast placeholder", "test_index", convertor.shardScanTableName);
+    }
+
+    /** Mark a logical scan via the planner so it becomes OpenSearchTableScan. */
+    private RelNode markScan(RelNode logicalScan) {
+        org.opensearch.analytics.planner.PlannerContext ctx = buildContext("parquet", 1, intFields());
+        return runPlanner(logicalScan, ctx);
+    }
+
     // ---- Delegation tagging tests ----
 
     private static final SqlFunction MATCH_PHRASE_FUNCTION = new SqlFunction(

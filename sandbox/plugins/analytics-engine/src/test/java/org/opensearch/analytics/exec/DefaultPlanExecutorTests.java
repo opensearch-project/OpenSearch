@@ -257,4 +257,35 @@ public class DefaultPlanExecutorTests extends OpenSearchTestCase {
             out.add(iter.next());
         return out;
     }
+
+    // ---- MPP kill switch ----
+
+    /**
+     * The {@code analytics.mpp.enabled} setting is the operator-facing kill switch for MPP
+     * join dispatch. {@code DefaultPlanExecutor.executeInternal} reads it via
+     * {@code clusterService.getClusterSettings().get(...)} and routes any non-COORDINATOR_CENTRIC
+     * strategy through the M0 path when it's {@code false}. This test pins the setting's
+     * key, default, and dynamic property — the gate's actual dispatch effect is verified at
+     * the integration layer (it requires Guice-wired ClusterService / Scheduler).
+     */
+    public void testMppEnabledSettingShape() {
+        org.opensearch.common.settings.Setting<Boolean> s = org.opensearch.analytics.AnalyticsSettings.MPP_ENABLED;
+        assertEquals("analytics.mpp.enabled", s.getKey());
+        assertTrue("MPP enabled by default — kill switch is opt-out", s.getDefault(org.opensearch.common.settings.Settings.EMPTY));
+        assertTrue("must be dynamic so operators can flip without restart", s.isDynamic());
+        assertTrue(
+            "must have NodeScope so it applies cluster-wide via cluster settings",
+            s.getProperties().contains(org.opensearch.common.settings.Setting.Property.NodeScope)
+        );
+    }
+
+    public void testAnalyticsSettingsAllSettingsContainsMppEnabled() {
+        // AnalyticsPlugin.getSettings() returns AnalyticsSettings.ALL_SETTINGS — that's the
+        // single registration point. If a future setting is added without including it in the
+        // list, this test catches the omission for MPP_ENABLED specifically.
+        assertTrue(
+            "ALL_SETTINGS must include MPP_ENABLED",
+            org.opensearch.analytics.AnalyticsSettings.ALL_SETTINGS.contains(org.opensearch.analytics.AnalyticsSettings.MPP_ENABLED)
+        );
+    }
 }

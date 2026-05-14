@@ -89,7 +89,7 @@ public class OpenSearchShuffleExchange extends SingleRel implements OpenSearchRe
         // strategy-selection logging, but {@code findBestExp()} always resolves to the cheaper
         // SINGLETON-reducer alternative until conversion is wired.
         //
-        // Codex P1: without this bump Volcano's cost totals are tiny×N for both alternatives and
+        // Without this bump Volcano's cost totals are tiny×N for both alternatives and
         // the shuffle tree can beat the reducer tree by one node's worth of cost; {@code
         // FragmentConversionDriver.convertReduceNode()} then fails with "no Join rewire case in
         // DataFusionFragmentConvertor.replaceInput()" because the coordinator fragment shape
