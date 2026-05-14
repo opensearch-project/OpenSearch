@@ -11,6 +11,7 @@ package org.opensearch.analytics.qa;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.client.Response;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.test.rest.OpenSearchRestTestCase;
 
 import java.io.BufferedReader;
@@ -42,6 +43,10 @@ public abstract class AnalyticsRestTestCase extends OpenSearchRestTestCase {
     @Override
     protected boolean preserveIndicesUponCompletion() {
         return true;
+    }
+
+    protected final int numberOfNodes() {
+        return 1;
     }
 
     /**

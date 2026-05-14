@@ -45,6 +45,12 @@ public final class DatasetProvisioner {
     /**
      * Provision the dataset into the cluster with parquet as the primary data format.
      */
+    public static void provision(RestClient client, Dataset dataset, int numberOfShards) throws IOException {
+        for (String indexName : dataset.indexNames) {
+            provisionIndex(client, dataset, indexName, numberOfShards);
+        }
+    }
+
     public static void provision(RestClient client, Dataset dataset) throws IOException {
         provision(client, dataset, 0);
     }
@@ -54,16 +60,19 @@ public final class DatasetProvisioner {
      * Pass {@code 0} to keep the mapping's value. Used by tests that need multi-shard
      * coverage of planner paths (exchange insertion, sort split, etc.).
      */
-    public static void provision(RestClient client, Dataset dataset, int numberOfShards) throws IOException {
+    private static void provisionIndex(RestClient client, Dataset dataset, String indexName, int numberOfShards) throws IOException {
         // Delete if exists
         try {
-            client.performRequest(new Request("DELETE", "/" + dataset.indexName));
+            client.performRequest(new Request("DELETE", "/" + indexName));
         } catch (Exception e) {
             // index may not exist — ignore
         }
 
         // Load mapping, inject parquet settings, create index
-        String mapping = loadResource(dataset.mappingResourcePath());
+        String mappingPath = dataset.indexNames.size() == 1
+            ? dataset.mappingResourcePath()
+            : "datasets/" + dataset.name + "/mapping_" + indexName + ".json";
+        String mapping = loadResource(mappingPath);
         String indexBody = injectParquetSettings(mapping);
         if (numberOfShards > 0) {
             indexBody = overrideNumberOfShards(indexBody, numberOfShards);
@@ -73,8 +82,11 @@ public final class DatasetProvisioner {
         client.performRequest(createIndex);
 
         // Bulk ingest
-        String bulkBody = loadResource(dataset.bulkResourcePath());
-        Request bulkRequest = new Request("POST", "/" + dataset.indexName + "/_bulk");
+        String bulkPath = dataset.indexNames.size() == 1
+            ? dataset.bulkResourcePath()
+            : "datasets/" + dataset.name + "/bulk_" + indexName + ".json";
+        String bulkBody = loadResource(bulkPath);
+        Request bulkRequest = new Request("POST", "/" + indexName + "/_bulk");
         bulkRequest.setJsonEntity(bulkBody);
         bulkRequest.addParameter("refresh", "true");
         bulkRequest.setOptions(
@@ -83,18 +95,22 @@ public final class DatasetProvisioner {
         Response bulkResponse = client.performRequest(bulkRequest);
         assertEquals("Bulk insert failed", 200, bulkResponse.getStatusLine().getStatusCode());
 
+        // Log bulk response for debugging
+        String responseBody = new String(bulkResponse.getEntity().getContent().readAllBytes(), StandardCharsets.UTF_8);
+        logger.info("Bulk response for index [{}]: {}", indexName, responseBody);
+
         // Flush to commit parquet files to disk
-        Request flushRequest = new Request("POST", "/" + dataset.indexName + "/_flush");
+        Request flushRequest = new Request("POST", "/" + indexName + "/_flush");
         flushRequest.addParameter("force", "true");
         client.performRequest(flushRequest);
 
         // Wait for index health
-        Request healthRequest = new Request("GET", "/_cluster/health/" + dataset.indexName);
+        Request healthRequest = new Request("GET", "/_cluster/health/" + indexName);
         healthRequest.addParameter("wait_for_status", "yellow");
         healthRequest.addParameter("timeout", "60s");
         client.performRequest(healthRequest);
 
-        logger.info("Dataset [{}] provisioned into index [{}]", dataset.name, dataset.indexName);
+        logger.info("Dataset [{}] provisioned into index [{}]", dataset.name, indexName);
     }
 
     /**
