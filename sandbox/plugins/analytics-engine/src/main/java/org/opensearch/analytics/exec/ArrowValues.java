@@ -11,11 +11,14 @@ package org.opensearch.analytics.exec;
 import org.apache.arrow.vector.FieldVector;
 import org.apache.arrow.vector.VarCharVector;
 import org.apache.arrow.vector.complex.ListVector;
+import org.apache.arrow.vector.complex.MapVector;
 import org.apache.arrow.vector.util.Text;
 
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Helpers for reading Arrow vector cells as plain Java values at the
@@ -37,6 +40,26 @@ public final class ArrowValues {
         if (vector.isNull(index)) return null;
         if (vector instanceof VarCharVector v) {
             return new String(v.get(index), StandardCharsets.UTF_8);
+        }
+        // MapVector check must come before the ListVector branch because
+        // MapVector extends ListVector. Arrow Map is laid out as
+        // List<Struct{keys, values}>, so MapVector.getObject(i) returns a
+        // JsonStringArrayList of entry structs rather than a Map. Reassemble
+        // entries into a LinkedHashMap (insertion-order preserving) so the
+        // downstream ExprValueUtils tuple converter sees the same shape as a
+        // legacy v2 Map<String, Object> column. Routes the values through
+        // Text→String normalization so JSON serialization doesn't choke on
+        // Arrow's UTF-8 byte wrapper. First in-tree caller is the spath
+        // command's `json_extract_all` UDF on the analytics-engine route.
+        if (vector instanceof MapVector && vector.getObject(index) instanceof List<?> entries) {
+            LinkedHashMap<String, Object> map = new LinkedHashMap<>();
+            for (Object entry : entries) {
+                if (!(entry instanceof Map<?, ?> e)) continue;
+                Object k = e.get(MapVector.KEY_NAME);
+                Object v = e.get(MapVector.VALUE_NAME);
+                map.put(k instanceof Text t ? t.toString() : String.valueOf(k), v instanceof Text t ? t.toString() : v);
+            }
+            return map;
         }
         Object value = vector.getObject(index);
         if (vector instanceof ListVector && value instanceof List<?> raw) {
