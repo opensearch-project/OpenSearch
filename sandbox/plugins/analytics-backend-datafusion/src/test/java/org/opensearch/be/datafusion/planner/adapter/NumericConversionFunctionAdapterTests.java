@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.be.datafusion;
+package org.opensearch.be.datafusion.planner.adapter;
 
 import org.apache.calcite.jdbc.JavaTypeFactoryImpl;
 import org.apache.calcite.plan.RelOptCluster;
@@ -29,12 +29,12 @@ import org.opensearch.test.OpenSearchTestCase;
 import java.util.List;
 
 /**
- * Unit tests for {@link ConversionFunctionAdapter}. Verifies that the PPL
+ * Unit tests for {@link NumericConversionFunctionAdapter}. Verifies that the PPL
  * {@code num / auto / memk / rmcomma / rmunit} unary calls are rewritten to their
  * corresponding synthetic {@link SqlFunction} constants, that the input operand is coerced
  * to VARCHAR, and that the return type is preserved.
  */
-public class ConversionFunctionAdapterTests extends OpenSearchTestCase {
+public class NumericConversionFunctionAdapterTests extends OpenSearchTestCase {
 
     /** Synthetic PPL-side operator used to build the "original" call feeding the adapter. */
     private static final SqlFunction PPL_CALL = new SqlFunction(
@@ -64,7 +64,7 @@ public class ConversionFunctionAdapterTests extends OpenSearchTestCase {
         RelOptCluster cluster = cluster();
         RexCall original = callWithOperandType(cluster, SqlTypeName.VARCHAR);
 
-        RexNode rewritten = new ConversionFunctionAdapter(target).adapt(original, List.of(), cluster);
+        RexNode rewritten = new NumericConversionFunctionAdapter(target).adapt(original, List.of(), cluster);
 
         assertTrue("adapter must emit a RexCall, got " + rewritten, rewritten instanceof RexCall);
         RexCall out = (RexCall) rewritten;
@@ -75,31 +75,31 @@ public class ConversionFunctionAdapterTests extends OpenSearchTestCase {
     }
 
     public void testNumRewrites() {
-        assertRewritesTo(ConversionFunctionAdapter.NUM, "num");
+        assertRewritesTo(NumericConversionFunctionAdapter.NUM, "num");
     }
 
     public void testAutoRewrites() {
-        assertRewritesTo(ConversionFunctionAdapter.AUTO, "auto");
+        assertRewritesTo(NumericConversionFunctionAdapter.AUTO, "auto");
     }
 
     public void testMemkRewrites() {
-        assertRewritesTo(ConversionFunctionAdapter.MEMK, "memk");
+        assertRewritesTo(NumericConversionFunctionAdapter.MEMK, "memk");
     }
 
     public void testRmcommaRewrites() {
-        assertRewritesTo(ConversionFunctionAdapter.RMCOMMA, "rmcomma");
+        assertRewritesTo(NumericConversionFunctionAdapter.RMCOMMA, "rmcomma");
     }
 
     public void testRmunitRewrites() {
-        assertRewritesTo(ConversionFunctionAdapter.RMUNIT, "rmunit");
+        assertRewritesTo(NumericConversionFunctionAdapter.RMUNIT, "rmunit");
     }
 
     public void testDur2secRewrites() {
-        assertRewritesTo(ConversionFunctionAdapter.DUR2SEC, "dur2sec");
+        assertRewritesTo(NumericConversionFunctionAdapter.DUR2SEC, "dur2sec");
     }
 
     public void testMstimeRewrites() {
-        assertRewritesTo(ConversionFunctionAdapter.MSTIME, "mstime");
+        assertRewritesTo(NumericConversionFunctionAdapter.MSTIME, "mstime");
     }
 
     /** Numeric input should be wrapped in a CAST AS VARCHAR so the Rust UDF sees a string. */
@@ -107,7 +107,7 @@ public class ConversionFunctionAdapterTests extends OpenSearchTestCase {
         RelOptCluster cluster = cluster();
         RexCall original = callWithOperandType(cluster, SqlTypeName.INTEGER);
 
-        RexNode rewritten = new ConversionFunctionAdapter(ConversionFunctionAdapter.NUM).adapt(original, List.of(), cluster);
+        RexNode rewritten = new NumericConversionFunctionAdapter(NumericConversionFunctionAdapter.NUM).adapt(original, List.of(), cluster);
 
         RexCall out = (RexCall) rewritten;
         assertEquals("num", out.getOperator().getName());
@@ -124,7 +124,7 @@ public class ConversionFunctionAdapterTests extends OpenSearchTestCase {
         RelOptCluster cluster = cluster();
         RexCall original = callWithOperandType(cluster, SqlTypeName.VARCHAR);
 
-        RexNode rewritten = new ConversionFunctionAdapter(ConversionFunctionAdapter.NUM).adapt(original, List.of(), cluster);
+        RexNode rewritten = new NumericConversionFunctionAdapter(NumericConversionFunctionAdapter.NUM).adapt(original, List.of(), cluster);
 
         assertEquals(original.getType(), rewritten.getType());
     }
@@ -137,7 +137,7 @@ public class ConversionFunctionAdapterTests extends OpenSearchTestCase {
         RexNode arg2 = new RexInputRef(1, varcharType);
         RexCall twoArg = (RexCall) cluster.getRexBuilder().makeCall(PPL_CALL, List.of(arg1, arg2));
 
-        RexNode rewritten = new ConversionFunctionAdapter(ConversionFunctionAdapter.NUM).adapt(twoArg, List.of(), cluster);
+        RexNode rewritten = new NumericConversionFunctionAdapter(NumericConversionFunctionAdapter.NUM).adapt(twoArg, List.of(), cluster);
 
         assertSame(twoArg, rewritten);
     }

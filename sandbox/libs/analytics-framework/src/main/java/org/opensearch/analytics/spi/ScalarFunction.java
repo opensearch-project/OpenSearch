@@ -101,6 +101,12 @@ public enum ScalarFunction {
     REX_EXTRACT(Category.STRING, SqlKind.OTHER_FUNCTION),
     REX_EXTRACT_MULTI(Category.STRING, SqlKind.OTHER_FUNCTION),
     REX_OFFSET(Category.STRING, SqlKind.OTHER_FUNCTION),
+
+    // TODO: Frontend/lang-specific functions (NUM/AUTO/MEMK/MKTIME etc.) shouldn't
+    // live in the shared analytics-framework SPI — they couple the framework to PPL
+    // vocabulary. Replace with a registration-at-startup mechanism where each frontend
+    // supplies its own function set, keeping ScalarFunction to operators with
+    // cross-frontend semantics (CASE, COALESCE, comparisons, etc.).
     NUM(Category.SCALAR, SqlKind.OTHER_FUNCTION),
     AUTO(Category.SCALAR, SqlKind.OTHER_FUNCTION),
     MEMK(Category.SCALAR, SqlKind.OTHER_FUNCTION),

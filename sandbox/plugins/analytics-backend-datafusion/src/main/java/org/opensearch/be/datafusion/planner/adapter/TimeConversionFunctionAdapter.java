@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.be.datafusion;
+package org.opensearch.be.datafusion.planner.adapter;
 
 import org.apache.calcite.plan.RelOptCluster;
 import org.apache.calcite.rel.type.RelDataType;
@@ -42,19 +42,19 @@ import java.util.List;
  *
  * @opensearch.internal
  */
-class TimeConversionFunctionAdapter implements ScalarFunctionAdapter {
+public class TimeConversionFunctionAdapter implements ScalarFunctionAdapter {
 
-    static final String DEFAULT_FORMAT = "%m/%d/%Y %H:%M:%S";
+    public static final String DEFAULT_FORMAT = "%m/%d/%Y %H:%M:%S";
 
     /** Synthetic operator for {@code ctime(value, format) → varchar} */
-    static final SqlFunction CTIME = binaryUdf("ctime", ReturnTypes.VARCHAR_NULLABLE);
+    public static final SqlFunction CTIME = binaryUdf("ctime", ReturnTypes.VARCHAR_NULLABLE);
 
     /** Synthetic operator for {@code mktime(value, format) → fp64} */
-    static final SqlFunction MKTIME = binaryUdf("mktime", ReturnTypes.DOUBLE_NULLABLE);
+    public static final SqlFunction MKTIME = binaryUdf("mktime", ReturnTypes.DOUBLE_NULLABLE);
 
     private final SqlFunction target;
 
-    TimeConversionFunctionAdapter(SqlFunction target) {
+    public TimeConversionFunctionAdapter(SqlFunction target) {
         this.target = target;
     }
 

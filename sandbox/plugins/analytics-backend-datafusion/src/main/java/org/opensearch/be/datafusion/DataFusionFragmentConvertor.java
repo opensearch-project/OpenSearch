@@ -34,6 +34,8 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.analytics.planner.rel.OpenSearchStageInputScan;
 import org.opensearch.analytics.spi.DelegatedPredicateFunction;
 import org.opensearch.analytics.spi.FragmentConvertor;
+import org.opensearch.be.datafusion.planner.adapter.NumericConversionFunctionAdapter;
+import org.opensearch.be.datafusion.planner.adapter.TimeConversionFunctionAdapter;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -181,13 +183,13 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         FunctionMappings.s(RexExtractMultiAdapter.LOCAL_REX_EXTRACT_MULTI_OP, "rex_extract_multi"),
         FunctionMappings.s(RexOffsetAdapter.LOCAL_REX_OFFSET_OP, "rex_offset"),
         FunctionMappings.s(SqlLibraryOperators.ARRAY_LENGTH, "array_length"),
-        FunctionMappings.s(ConversionFunctionAdapter.NUM, "num"),
-        FunctionMappings.s(ConversionFunctionAdapter.AUTO, "auto"),
-        FunctionMappings.s(ConversionFunctionAdapter.MEMK, "memk"),
-        FunctionMappings.s(ConversionFunctionAdapter.RMCOMMA, "rmcomma"),
-        FunctionMappings.s(ConversionFunctionAdapter.RMUNIT, "rmunit"),
-        FunctionMappings.s(ConversionFunctionAdapter.DUR2SEC, "dur2sec"),
-        FunctionMappings.s(ConversionFunctionAdapter.MSTIME, "mstime"),
+        FunctionMappings.s(NumericConversionFunctionAdapter.NUM, "num"),
+        FunctionMappings.s(NumericConversionFunctionAdapter.AUTO, "auto"),
+        FunctionMappings.s(NumericConversionFunctionAdapter.MEMK, "memk"),
+        FunctionMappings.s(NumericConversionFunctionAdapter.RMCOMMA, "rmcomma"),
+        FunctionMappings.s(NumericConversionFunctionAdapter.RMUNIT, "rmunit"),
+        FunctionMappings.s(NumericConversionFunctionAdapter.DUR2SEC, "dur2sec"),
+        FunctionMappings.s(NumericConversionFunctionAdapter.MSTIME, "mstime"),
         FunctionMappings.s(TimeConversionFunctionAdapter.CTIME, "ctime"),
         FunctionMappings.s(TimeConversionFunctionAdapter.MKTIME, "mktime"),
         FunctionMappings.s(SqlStdOperatorTable.TRUNCATE, "trunc"),

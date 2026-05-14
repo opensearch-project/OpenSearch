@@ -35,18 +35,18 @@ use regex::Regex;
 /// Register every conversion UDF (`num`, `auto`, `memk`, `rmcomma`, `rmunit`,
 /// `dur2sec`, `mstime`) on a session.
 pub fn register_all(ctx: &SessionContext) {
-    ctx.register_udf(ScalarUDF::from(ConversionUdf::new(ConversionFn::Num)));
-    ctx.register_udf(ScalarUDF::from(ConversionUdf::new(ConversionFn::Auto)));
-    ctx.register_udf(ScalarUDF::from(ConversionUdf::new(ConversionFn::Memk)));
-    ctx.register_udf(ScalarUDF::from(ConversionUdf::new(ConversionFn::Rmcomma)));
-    ctx.register_udf(ScalarUDF::from(ConversionUdf::new(ConversionFn::Rmunit)));
-    ctx.register_udf(ScalarUDF::from(ConversionUdf::new(ConversionFn::Dur2sec)));
-    ctx.register_udf(ScalarUDF::from(ConversionUdf::new(ConversionFn::Mstime)));
+    ctx.register_udf(ScalarUDF::from(NumericConversionUdf::new(NumericConversionFn::Num)));
+    ctx.register_udf(ScalarUDF::from(NumericConversionUdf::new(NumericConversionFn::Auto)));
+    ctx.register_udf(ScalarUDF::from(NumericConversionUdf::new(NumericConversionFn::Memk)));
+    ctx.register_udf(ScalarUDF::from(NumericConversionUdf::new(NumericConversionFn::Rmcomma)));
+    ctx.register_udf(ScalarUDF::from(NumericConversionUdf::new(NumericConversionFn::Rmunit)));
+    ctx.register_udf(ScalarUDF::from(NumericConversionUdf::new(NumericConversionFn::Dur2sec)));
+    ctx.register_udf(ScalarUDF::from(NumericConversionUdf::new(NumericConversionFn::Mstime)));
 }
 
 /// Which conversion function this UDF instance implements.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-enum ConversionFn {
+enum NumericConversionFn {
     Num,
     Auto,
     Memk,
@@ -56,16 +56,16 @@ enum ConversionFn {
     Mstime,
 }
 
-impl ConversionFn {
+impl NumericConversionFn {
     fn name(self) -> &'static str {
         match self {
-            ConversionFn::Num => "num",
-            ConversionFn::Auto => "auto",
-            ConversionFn::Memk => "memk",
-            ConversionFn::Rmcomma => "rmcomma",
-            ConversionFn::Rmunit => "rmunit",
-            ConversionFn::Dur2sec => "dur2sec",
-            ConversionFn::Mstime => "mstime",
+            NumericConversionFn::Num => "num",
+            NumericConversionFn::Auto => "auto",
+            NumericConversionFn::Memk => "memk",
+            NumericConversionFn::Rmcomma => "rmcomma",
+            NumericConversionFn::Rmunit => "rmunit",
+            NumericConversionFn::Dur2sec => "dur2sec",
+            NumericConversionFn::Mstime => "mstime",
         }
     }
 
@@ -76,26 +76,26 @@ impl ConversionFn {
             return None;
         }
         match self {
-            ConversionFn::Num => convert_num(trimmed),
-            ConversionFn::Auto => convert_memk(trimmed).or_else(|| convert_num(trimmed)),
-            ConversionFn::Memk => convert_memk(trimmed),
-            ConversionFn::Rmcomma => convert_rmcomma(trimmed),
-            ConversionFn::Rmunit => convert_rmunit(trimmed),
-            ConversionFn::Dur2sec => convert_dur2sec(trimmed),
-            ConversionFn::Mstime => convert_mstime(trimmed),
+            NumericConversionFn::Num => convert_num(trimmed),
+            NumericConversionFn::Auto => convert_memk(trimmed).or_else(|| convert_num(trimmed)),
+            NumericConversionFn::Memk => convert_memk(trimmed),
+            NumericConversionFn::Rmcomma => convert_rmcomma(trimmed),
+            NumericConversionFn::Rmunit => convert_rmunit(trimmed),
+            NumericConversionFn::Dur2sec => convert_dur2sec(trimmed),
+            NumericConversionFn::Mstime => convert_mstime(trimmed),
         }
     }
 }
 
-/// Shared UDF type — one instance per function, keyed by `ConversionFn`.
+/// Shared UDF type — one instance per function, keyed by `NumericConversionFn`.
 #[derive(Debug)]
-pub struct ConversionUdf {
-    kind: ConversionFn,
+pub struct NumericConversionUdf {
+    kind: NumericConversionFn,
     signature: Signature,
 }
 
-impl ConversionUdf {
-    fn new(kind: ConversionFn) -> Self {
+impl NumericConversionUdf {
+    fn new(kind: NumericConversionFn) -> Self {
         Self {
             kind,
             signature: Signature::one_of(
@@ -110,20 +110,20 @@ impl ConversionUdf {
 }
 
 // ScalarUDFImpl requires DynEq+DynHash. Function identity is `kind` — two instances of the
-// same ConversionFn are semantically interchangeable.
-impl PartialEq for ConversionUdf {
+// same NumericConversionFn are semantically interchangeable.
+impl PartialEq for NumericConversionUdf {
     fn eq(&self, other: &Self) -> bool {
         self.kind == other.kind
     }
 }
-impl Eq for ConversionUdf {}
-impl Hash for ConversionUdf {
+impl Eq for NumericConversionUdf {}
+impl Hash for NumericConversionUdf {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.kind.hash(state);
     }
 }
 
-impl ScalarUDFImpl for ConversionUdf {
+impl ScalarUDFImpl for NumericConversionUdf {
     fn as_any(&self) -> &dyn Any {
         self
     }
@@ -386,18 +386,18 @@ mod tests {
     // ── auto ───────────────────────────────────────────────────────────────
     #[test]
     fn auto_prefers_memk_over_num() {
-        assert_eq!(ConversionFn::Auto.apply("1.5m"), Some(1536.0));
+        assert_eq!(NumericConversionFn::Auto.apply("1.5m"), Some(1536.0));
     }
 
     #[test]
     fn auto_falls_back_to_num() {
-        assert_eq!(ConversionFn::Auto.apply("1,234"), Some(1234.0));
-        assert_eq!(ConversionFn::Auto.apply("3.14"), Some(3.14));
+        assert_eq!(NumericConversionFn::Auto.apply("1,234"), Some(1234.0));
+        assert_eq!(NumericConversionFn::Auto.apply("3.14"), Some(3.14));
     }
 
     #[test]
     fn auto_rejects_when_both_paths_fail() {
-        assert_eq!(ConversionFn::Auto.apply("abc"), None);
+        assert_eq!(NumericConversionFn::Auto.apply("abc"), None);
     }
 
     // ── rmcomma ────────────────────────────────────────────────────────────
@@ -510,17 +510,17 @@ mod tests {
         assert_eq!(convert_mstime("1:2:3"), None);
     }
 
-    // ── empty / whitespace / null — dispatched at the ConversionFn level ──
+    // ── empty / whitespace / null — dispatched at the NumericConversionFn level ──
     #[test]
     fn empty_string_returns_none_for_every_fn() {
         for kind in [
-            ConversionFn::Num,
-            ConversionFn::Auto,
-            ConversionFn::Memk,
-            ConversionFn::Rmcomma,
-            ConversionFn::Rmunit,
-            ConversionFn::Dur2sec,
-            ConversionFn::Mstime,
+            NumericConversionFn::Num,
+            NumericConversionFn::Auto,
+            NumericConversionFn::Memk,
+            NumericConversionFn::Rmcomma,
+            NumericConversionFn::Rmunit,
+            NumericConversionFn::Dur2sec,
+            NumericConversionFn::Mstime,
         ] {
             assert_eq!(kind.apply(""), None, "{:?} should return None for empty", kind);
             assert_eq!(
