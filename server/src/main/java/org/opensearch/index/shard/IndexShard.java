@@ -4944,8 +4944,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         assert globalCheckpoint == getLastSyncedGlobalCheckpoint();
         synchronized (engineMutex) {
             verifyNotClosed();
-            // we must create both new read-only engine and new read-write engine under engineMutex to ensure snapshotStoreMetadata,
-            // acquireXXXCommit and close works.
+            // we must create both new read-only engine and new read-write engine under
+            // engineMutex to ensure snapshotStoreMetadata, acquireXXXCommit and close works.
+            // Delegates intentionally do NOT synchronize on engineMutex: doing so would
+            // deadlock because close holds engineMutex and waits for writeLock, while
+            // recoverFromTranslog holds readLock and a refresh listener calls a delegate.
+            // SetOnce is backed by AtomicReference so get() provides happens-before visibility.
             final Engine readOnlyEngine = new ReadOnlyEngine(
                 newEngineConfig(replicationTracker),
                 seqNoStats,
@@ -4956,33 +4960,30 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             ) {
                 @Override
                 public GatedCloseable<IndexCommit> acquireLastIndexCommit(boolean flushFirst) {
-                    synchronized (engineMutex) {
-                        if (newEngineReference.get() == null) {
-                            throw new AlreadyClosedException("engine was closed");
-                        }
-                        // ignore flushFirst since we flushed above and we do not want to interfere with ongoing translog replay
-                        return newEngineReference.get().acquireLastIndexCommit(false);
+                    Engine engine = newEngineReference.get();
+                    if (engine == null) {
+                        throw new AlreadyClosedException("engine was closed");
                     }
+                    // ignore flushFirst since we flushed above and we do not want to interfere with ongoing translog replay
+                    return engine.acquireLastIndexCommit(false);
                 }
 
                 @Override
                 public GatedCloseable<IndexCommit> acquireSafeIndexCommit() {
-                    synchronized (engineMutex) {
-                        if (newEngineReference.get() == null) {
-                            throw new AlreadyClosedException("engine was closed");
-                        }
-                        return newEngineReference.get().acquireSafeIndexCommit();
+                    Engine engine = newEngineReference.get();
+                    if (engine == null) {
+                        throw new AlreadyClosedException("engine was closed");
                     }
+                    return engine.acquireSafeIndexCommit();
                 }
 
                 @Override
                 public GatedCloseable<SegmentInfos> getSegmentInfosSnapshot() {
-                    synchronized (engineMutex) {
-                        if (newEngineReference.get() == null) {
-                            throw new AlreadyClosedException("engine was closed");
-                        }
-                        return newEngineReference.get().getSegmentInfosSnapshot();
+                    Engine engine = newEngineReference.get();
+                    if (engine == null) {
+                        throw new AlreadyClosedException("engine was closed");
                     }
+                    return engine.getSegmentInfosSnapshot();
                 }
 
                 @Override
@@ -5435,5 +5436,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             return shouldSeed ? REMOTE_MIGRATING_UNSEEDED : REMOTE_MIGRATING_SEEDED;
         }
         return ShardMigrationState.DOCREP_NON_MIGRATING;
+    }
+
+    // Visible for testing
+    Object getEngineMutex() {
+        return engineMutex;
     }
 }
