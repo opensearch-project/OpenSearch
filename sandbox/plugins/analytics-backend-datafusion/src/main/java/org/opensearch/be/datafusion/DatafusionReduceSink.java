@@ -12,11 +12,8 @@ import org.apache.arrow.c.ArrowArray;
 import org.apache.arrow.c.ArrowSchema;
 import org.apache.arrow.c.Data;
 import org.apache.arrow.memory.BufferAllocator;
-import org.apache.arrow.vector.FieldVector;
-import org.apache.arrow.vector.VarCharVector;
 import org.apache.arrow.vector.VectorSchemaRoot;
-import org.apache.arrow.vector.ViewVarCharVector;
-import org.apache.arrow.vector.types.pojo.ArrowType;
+import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.Schema;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -27,6 +24,7 @@ import org.opensearch.be.datafusion.nativelib.NativeBridge;
 import org.opensearch.be.datafusion.nativelib.StreamHandle;
 
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
@@ -200,10 +198,24 @@ public final class DatafusionReduceSink extends AbstractDatafusionReduceSink imp
             return;
         }
         BufferAllocator alloc = ctx.allocator();
-        // Bridge DataFusion's physical types (e.g. Utf8View for string group keys) to the
-        // coordinator's declared schema (Utf8) before handing the batch to Rust. Zero-copy
-        // fast path when schemas already match. See coerceToDeclaredSchema().
-        batch = coerceToDeclaredSchema(batch, declaredSchema, alloc);
+        // The wire schema is sourced from the data-node's prepared physical plan via
+        // FragmentConvertor#partialAggOutputSchema, so producer and consumer agree on
+        // physical types (e.g. Utf8View for string group keys) and no coercion is
+        // needed. This check guards against drift in case DataFusion's physical
+        // output diverges from what was prepared for schema derivation. Nullability
+        // is ignored — DataFusion stamps aggregate-result columns as non-null when
+        // it can prove a row will be produced, which is an advisory property and
+        // does not affect bytes.
+        if (!typesMatch(batch.getSchema(), declaredSchema)) {
+            batch.close();
+            throw new IllegalStateException(
+                "DatafusionReduceSink: batch schema types do not match declared schema. "
+                    + "declared="
+                    + declaredSchema
+                    + " batch="
+                    + batch.getSchema()
+            );
+        }
         ArrowArray array = ArrowArray.allocateNew(alloc);
         ArrowSchema arrowSchema = ArrowSchema.allocateNew(alloc);
         try {
@@ -242,66 +254,21 @@ public final class DatafusionReduceSink extends AbstractDatafusionReduceSink imp
     }
 
     /**
-     * Coerces {@code batch} to {@code declaredSchema} at the Java→Rust boundary.
-     * Bridges the impedance between DataFusion's physical types (e.g. {@code Utf8View}
-     * for string group keys, a non-configurable HashAggregate optimization) and
-     * substrait's logical "string" which the coordinator's FINAL plan consumes as
-     * {@code Utf8}. One place, explicit, grows per-case on observed mismatch.
-     *
-     * <p>Zero-copy fast path when schemas already match (numeric-only aggregates).
-     * Closes {@code batch} — caller drops its reference.
-     *
-     * <p><b>TODO (revisit):</b> this runtime coercer bridges a logical/physical type
-     * mismatch between Calcite's declared exchange schema and DataFusion's physical
-     * output. A cleaner fix would eliminate the mismatch upstream — for example, a Rust
-     * pass that casts {@code Utf8View} → {@code Utf8} at the PARTIAL plan's root using
-     * DataFusion's vectorized {@code CastExpr} (one columnar kernel per batch instead of
-     * per-cell Java copy), or a Substrait extension that carries view-vs-plain type
-     * information through the serialized plan. Until one of those lands, this Java-side
-     * coercer is the minimum correct bridge.
+     * Field-by-field type equality. Ignores nullability flags on each field — see the
+     * comment at the call site in {@link #feedToSender}.
      */
-    private static VectorSchemaRoot coerceToDeclaredSchema(VectorSchemaRoot batch, Schema declaredSchema, BufferAllocator alloc) {
-        if (batch.getSchema().equals(declaredSchema)) {
-            return batch;
+    private static boolean typesMatch(Schema actual, Schema declared) {
+        List<Field> a = actual.getFields();
+        List<Field> d = declared.getFields();
+        if (a.size() != d.size()) {
+            return false;
         }
-        VectorSchemaRoot out = VectorSchemaRoot.create(declaredSchema, alloc);
-        try {
-            out.allocateNew();
-            int rows = batch.getRowCount();
-            for (int col = 0; col < declaredSchema.getFields().size(); col++) {
-                FieldVector src = batch.getVector(col);
-                FieldVector dst = out.getVector(col);
-                if (src.getField().getType().equals(dst.getField().getType())) {
-                    src.makeTransferPair(dst).transfer();
-                    continue;
-                }
-                ArrowType.ArrowTypeID srcId = src.getField().getType().getTypeID();
-                ArrowType.ArrowTypeID dstId = dst.getField().getType().getTypeID();
-                if (srcId == ArrowType.ArrowTypeID.Utf8View && dstId == ArrowType.ArrowTypeID.Utf8) {
-                    ViewVarCharVector s = (ViewVarCharVector) src;
-                    VarCharVector d = (VarCharVector) dst;
-                    for (int r = 0; r < rows; r++) {
-                        if (s.isNull(r)) {
-                            d.setNull(r);
-                        } else {
-                            d.setSafe(r, s.get(r));
-                        }
-                    }
-                    d.setValueCount(rows);
-                    continue;
-                }
-                throw new IllegalStateException(
-                    "coerceToDeclaredSchema: unsupported " + srcId + " → " + dstId + " for column '" + dst.getField().getName() + "'"
-                );
+        for (int i = 0; i < a.size(); i++) {
+            if (!a.get(i).getType().equals(d.get(i).getType())) {
+                return false;
             }
-            out.setRowCount(rows);
-        } catch (RuntimeException e) {
-            out.close();
-            throw e;
-        } finally {
-            batch.close();
         }
-        return out;
+        return true;
     }
 
     /**

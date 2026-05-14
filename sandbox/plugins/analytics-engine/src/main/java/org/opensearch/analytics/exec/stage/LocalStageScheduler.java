@@ -8,6 +8,7 @@
 
 package org.opensearch.analytics.exec.stage;
 
+import org.apache.arrow.vector.types.pojo.Schema;
 import org.opensearch.analytics.exec.QueryContext;
 import org.opensearch.analytics.planner.dag.Stage;
 import org.opensearch.analytics.planner.dag.StageExecutionType;
@@ -132,13 +133,30 @@ final class LocalStageScheduler implements StageScheduler {
         }
         List<ExchangeSinkContext.ChildInput> inputs = new ArrayList<>(children.size());
         for (Stage child : children) {
-            inputs.add(
-                new ExchangeSinkContext.ChildInput(
-                    child.getStageId(),
-                    ArrowSchemaFromCalcite.arrowSchemaFromRowType(child.getFragment().getRowType())
-                )
-            );
+            inputs.add(new ExchangeSinkContext.ChildInput(child.getStageId(), childSchema(stage, child)));
         }
         return inputs;
+    }
+
+    /**
+     * Derives the Arrow exchange schema for a child stage. Asks the backend's
+     * {@link org.opensearch.analytics.spi.FragmentConvertor#partialAggOutputSchema} for
+     * the schema the data-node prepared physical plan will actually emit (so e.g. string
+     * group keys carry their physical {@code Utf8View} type through to the wire). Falls
+     * back to a Calcite-row-type derivation when the backend has no opinion or no plan
+     * bytes are available.
+     */
+    private static Schema childSchema(Stage parent, Stage child) {
+        var convertor = parent.getFragmentConvertor();
+        if (convertor != null) {
+            var alts = child.getPlanAlternatives();
+            if (!alts.isEmpty()) {
+                Schema fromBackend = convertor.partialAggOutputSchema(alts.getFirst().convertedBytes());
+                if (fromBackend != null) {
+                    return fromBackend;
+                }
+            }
+        }
+        return ArrowSchemaFromCalcite.arrowSchemaFromRowType(child.getFragment().getRowType());
     }
 }

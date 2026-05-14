@@ -59,6 +59,7 @@ public final class NativeBridge {
     private static final MethodHandle STREAM_NEXT;
     private static final MethodHandle STREAM_CLOSE;
     private static final MethodHandle SQL_TO_SUBSTRAIT;
+    private static final MethodHandle PARTIAL_PLAN_OUTPUT_SCHEMA;
     private static final MethodHandle REGISTER_FILTER_TREE_CALLBACKS;
     private static final MethodHandle CREATE_LOCAL_SESSION;
     private static final MethodHandle CLOSE_LOCAL_SESSION;
@@ -185,6 +186,19 @@ public final class NativeBridge {
                 ValueLayout.JAVA_LONG,
                 ValueLayout.ADDRESS,
                 ValueLayout.JAVA_LONG,
+                ValueLayout.JAVA_LONG,
+                ValueLayout.ADDRESS,
+                ValueLayout.JAVA_LONG,
+                ValueLayout.ADDRESS
+            )
+        );
+
+        // i64 df_partial_plan_output_schema(substrait_ptr, substrait_len, out_ptr, out_cap, out_len)
+        PARTIAL_PLAN_OUTPUT_SCHEMA = linker.downcallHandle(
+            lib.find("df_partial_plan_output_schema").orElseThrow(),
+            FunctionDescriptor.of(
+                ValueLayout.JAVA_LONG,
+                ValueLayout.ADDRESS,
                 ValueLayout.JAVA_LONG,
                 ValueLayout.ADDRESS,
                 ValueLayout.JAVA_LONG,
@@ -707,6 +721,28 @@ public final class NativeBridge {
                 query.segment(),
                 query.len(),
                 runtimePtr,
+                out.data(),
+                (long) out.capacity(),
+                out.lenOut()
+            );
+            return out.toByteArray();
+        }
+    }
+
+    /**
+     * Returns the Arrow IPC schema bytes for the output of the prepared physical
+     * plan corresponding to the given partial-aggregate Substrait plan. Used by
+     * the coordinator to declare the streaming-input wire schema in agreement
+     * with what the data-node DataFusion will actually emit (e.g. {@code Utf8View}
+     * for string group keys).
+     */
+    public static byte[] partialPlanOutputSchema(byte[] substrait) {
+        try (var call = new NativeCall()) {
+            var out = call.outBuffer(64 * 1024);
+            call.invoke(
+                PARTIAL_PLAN_OUTPUT_SCHEMA,
+                call.bytes(substrait),
+                (long) substrait.length,
                 out.data(),
                 (long) out.capacity(),
                 out.lenOut()

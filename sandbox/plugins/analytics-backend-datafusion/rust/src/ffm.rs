@@ -249,6 +249,35 @@ pub unsafe extern "C" fn df_sql_to_substrait(
 // `df_stream_close` paths unchanged.
 // ---------------------------------------------------------------------------
 
+/// Returns the Arrow IPC bytes for the output schema of the prepared physical plan
+/// for the given partial-aggregate Substrait plan. Mirrors the
+/// `df_sql_to_substrait` calling convention: caller-allocated buffer, length
+/// written back through `out_len`.
+#[ffm_safe]
+#[no_mangle]
+pub unsafe extern "C" fn df_partial_plan_output_schema(
+    substrait_ptr: *const u8,
+    substrait_len: i64,
+    out_ptr: *mut u8,
+    out_cap: i64,
+    out_len: *mut i64,
+) -> i64 {
+    let bytes = slice::from_raw_parts(substrait_ptr, substrait_len as usize);
+    let schema_ipc = api::partial_plan_output_schema(bytes).map_err(|e| e.to_string())?;
+    if schema_ipc.len() > out_cap as usize {
+        return Err(format!(
+            "partial-plan schema IPC size {} exceeds buffer capacity {}",
+            schema_ipc.len(),
+            out_cap
+        ));
+    }
+    std::ptr::copy_nonoverlapping(schema_ipc.as_ptr(), out_ptr, schema_ipc.len());
+    if !out_len.is_null() {
+        *out_len = schema_ipc.len() as i64;
+    }
+    Ok(0)
+}
+
 #[ffm_safe]
 #[no_mangle]
 pub unsafe extern "C" fn df_create_local_session(runtime_ptr: i64) -> i64 {

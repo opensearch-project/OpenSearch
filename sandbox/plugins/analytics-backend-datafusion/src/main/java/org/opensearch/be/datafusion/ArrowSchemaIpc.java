@@ -8,10 +8,13 @@
 
 package org.opensearch.be.datafusion;
 
+import org.apache.arrow.memory.RootAllocator;
+import org.apache.arrow.vector.ipc.ArrowStreamReader;
 import org.apache.arrow.vector.ipc.WriteChannel;
 import org.apache.arrow.vector.ipc.message.MessageSerializer;
 import org.apache.arrow.vector.types.pojo.Schema;
 
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.channels.Channels;
@@ -38,5 +41,22 @@ public final class ArrowSchemaIpc {
             throw new IllegalStateException("Failed to serialize Arrow schema to IPC bytes", e);
         }
         return baos.toByteArray();
+    }
+
+    /**
+     * Decodes an Arrow IPC stream byte buffer (whose only message is the schema
+     * header) into an Arrow {@link Schema}. Inverse of {@link #toBytes(Schema)};
+     * also accepts the empty-batch stream produced by Rust's
+     * {@code StreamWriter::try_new + finish()}.
+     */
+    public static Schema fromBytes(byte[] ipcBytes) {
+        try (
+            RootAllocator allocator = new RootAllocator();
+            ArrowStreamReader reader = new ArrowStreamReader(new ByteArrayInputStream(ipcBytes), allocator)
+        ) {
+            return reader.getVectorSchemaRoot().getSchema();
+        } catch (IOException e) {
+            throw new IllegalStateException("Failed to decode Arrow IPC schema bytes", e);
+        }
     }
 }

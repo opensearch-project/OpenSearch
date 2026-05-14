@@ -216,9 +216,71 @@ public class CoordinatorReduceIT extends AnalyticsRestTestCase {
         );
 
         @SuppressWarnings("unchecked")
+        List<String> columns = (List<String>) result.get("columns");
+        assertNotNull("columns must not be null", columns);
+        @SuppressWarnings("unchecked")
         List<List<Object>> rows = (List<List<Object>>) result.get("rows");
         assertNotNull("rows must not be null", rows);
-        assertFalse("should return at least one group", rows.isEmpty());
+        assertEquals("single-valued category column must produce exactly one group", 1, rows.size());
+        long actualCount = ((Number) rows.get(0).get(columns.indexOf("c"))).longValue();
+        assertEquals("count() across all docs", (long) NUM_SHARDS * DOCS_PER_SHARD, actualCount);
+        // The group key value round-trips Utf8View producer → wire → FINAL plan consumer.
+        // Validates the bytes themselves, not just shape — catches silent type/encoding
+        // corruption that a row-count check would miss.
+        Object key = rows.get(0).get(columns.indexOf("category"));
+        assertEquals("group-key value must round-trip through Utf8View exchange unchanged", "", key);
+    }
+
+    /**
+     * Multi-shard GROUP BY with a string key that produces multiple distinct groups.
+     * Specifically validates the Phase (i) Utf8View-on-the-wire fix: every shard's PARTIAL
+     * aggregate physically emits {@code Utf8View} for the {@code category} group key, the
+     * coordinator's StreamingTable is now declared with {@code Utf8View} (matching), and
+     * the FINAL aggregate must group correctly across the wire without any Java-side
+     * coercion. Distinct group keys catch any byte-level corruption that a single-group
+     * test would miss.
+     */
+    public void testGroupByCountMultiShard_multipleStringKeys() throws Exception {
+        createStringGroupIndex();
+        indexMultiCategoryDocs();
+
+        Map<String, Object> result = executePPL(
+            "source = " + STRING_GROUP_INDEX + " | stats count() as c by category | sort category"
+        );
+
+        @SuppressWarnings("unchecked")
+        List<String> columns = (List<String>) result.get("columns");
+        assertNotNull("columns must not be null", columns);
+        @SuppressWarnings("unchecked")
+        List<List<Object>> rows = (List<List<Object>>) result.get("rows");
+        assertNotNull("rows must not be null", rows);
+        assertEquals("expected three distinct categories: alpha, beta, gamma", 3, rows.size());
+
+        int categoryIdx = columns.indexOf("category");
+        int countIdx = columns.indexOf("c");
+        assertEquals("alpha", rows.get(0).get(categoryIdx));
+        assertEquals("beta", rows.get(1).get(categoryIdx));
+        assertEquals("gamma", rows.get(2).get(categoryIdx));
+        // Per-group counts: alpha=10, beta=6, gamma=4 — see indexMultiCategoryDocs.
+        assertEquals(10L, ((Number) rows.get(0).get(countIdx)).longValue());
+        assertEquals(6L, ((Number) rows.get(1).get(countIdx)).longValue());
+        assertEquals(4L, ((Number) rows.get(2).get(countIdx)).longValue());
+    }
+
+    private void indexMultiCategoryDocs() throws Exception {
+        // 10 alpha + 6 beta + 4 gamma = 20 docs (matches NUM_SHARDS × DOCS_PER_SHARD).
+        // Per-category counts are unique so column-position validation catches any group-key
+        // value mix-up after the wire crossing.
+        StringBuilder bulk = new StringBuilder();
+        String[] categories = new String[20];
+        for (int i = 0; i < 10; i++) categories[i] = "alpha";
+        for (int i = 10; i < 16; i++) categories[i] = "beta";
+        for (int i = 16; i < 20; i++) categories[i] = "gamma";
+        for (int i = 0; i < categories.length; i++) {
+            bulk.append("{\"index\": {\"_id\": \"m").append(i).append("\"}}\n");
+            bulk.append("{\"category\": \"").append(categories[i]).append("\", \"value\": ").append(i + 1).append("}\n");
+        }
+        bulkAndRefresh(STRING_GROUP_INDEX, bulk.toString());
     }
 
     private void createStringGroupIndex() throws Exception {

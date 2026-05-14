@@ -47,6 +47,7 @@ public class Stage {
     private final StageExecutionType executionType;
     private List<StagePlan> planAlternatives;
     private FragmentInstructionHandlerFactory instructionHandlerFactory;
+    private org.opensearch.analytics.spi.FragmentConvertor fragmentConvertor;
 
     public Stage(
         int stageId,
@@ -126,6 +127,15 @@ public class Stage {
 
     public void setInstructionHandlerFactory(FragmentInstructionHandlerFactory instructionHandlerFactory) {
         this.instructionHandlerFactory = instructionHandlerFactory;
+    }
+
+    /** The backend's {@link org.opensearch.analytics.spi.FragmentConvertor} for coordinator-reduce stages. */
+    public org.opensearch.analytics.spi.FragmentConvertor getFragmentConvertor() {
+        return fragmentConvertor;
+    }
+
+    public void setFragmentConvertor(org.opensearch.analytics.spi.FragmentConvertor fragmentConvertor) {
+        this.fragmentConvertor = fragmentConvertor;
     }
 
     private StageExecutionType setStageExecutionType(ExchangeSinkProvider exchangeSinkProvider, TargetResolver targetResolver) {

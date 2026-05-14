@@ -10,6 +10,7 @@ package org.opensearch.be.datafusion;
 
 import com.google.common.collect.ImmutableList;
 import com.google.protobuf.InvalidProtocolBufferException;
+import org.apache.arrow.vector.types.pojo.Schema;
 import org.apache.calcite.plan.RelOptCluster;
 import org.apache.calcite.plan.RelOptSchema;
 import org.apache.calcite.plan.RelOptTable;
@@ -34,6 +35,7 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.analytics.planner.rel.OpenSearchStageInputScan;
 import org.opensearch.analytics.spi.DelegatedPredicateFunction;
 import org.opensearch.analytics.spi.FragmentConvertor;
+import org.opensearch.be.datafusion.nativelib.NativeBridge;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -313,6 +315,12 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         // expressions out of sync with the rest of the plan and tripping DataFusion at
         // execution time. Same fix applied to attachPartialAggOnTop.
         return serializePlan(SubstraitPlanRewriter.rewrite(rewire(inner, wrapper, fieldNames(fragment))));
+    }
+
+    @Override
+    public Schema partialAggOutputSchema(byte[] partialAggBytes) {
+        byte[] schemaIpc = NativeBridge.partialPlanOutputSchema(partialAggBytes);
+        return ArrowSchemaIpc.fromBytes(schemaIpc);
     }
 
     // ── Core conversion helpers ─────────────────────────────────────────────────

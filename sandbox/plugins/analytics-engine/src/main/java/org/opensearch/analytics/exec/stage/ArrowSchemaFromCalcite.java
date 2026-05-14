@@ -67,8 +67,7 @@ final class ArrowSchemaFromCalcite {
             Field elementField = toArrowField("$data$", elementType);
             return new Field(name, new FieldType(true, ArrowType.List.INSTANCE, null), List.of(elementField));
         }
-        ArrowType arrowType = toArrowType(sqlTypeName);
-        return new Field(name, new FieldType(true, arrowType, null), null);
+        return new Field(name, new FieldType(true, toArrowType(sqlTypeName), null), null);
     }
 
     private static ArrowType toArrowType(SqlTypeName sqlTypeName) {

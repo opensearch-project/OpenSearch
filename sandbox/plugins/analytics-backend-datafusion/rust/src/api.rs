@@ -533,6 +533,140 @@ pub unsafe fn sql_to_substrait(
     })
 }
 
+/// Returns the Arrow IPC bytes of the output schema of the prepared physical plan
+/// for the given partial-aggregate Substrait plan.
+///
+/// The coordinator calls this at stage-setup time with each child stage's PARTIAL
+/// substrait bytes. We decode the plan, register an empty MemTable for every
+/// NamedTable reference (using the substrait `base_schema` carried alongside the
+/// read as the stub Arrow schema), lower to a physical plan, and serialize the
+/// output schema as Arrow IPC. The plan is dropped at function exit — only the
+/// schema is returned.
+///
+/// This lets the coordinator declare the streaming-input wire schema in agreement
+/// with what DataFusion will actually emit (e.g. `Utf8View` for string group keys),
+/// without any predictor logic on the Java side.
+pub fn partial_plan_output_schema(substrait_bytes: &[u8]) -> Result<Vec<u8>, DataFusionError> {
+    use arrow::ipc::writer::StreamWriter;
+    use datafusion::datasource::MemTable;
+    use datafusion::prelude::SessionContext;
+    use datafusion_substrait::extensions::Extensions;
+    use datafusion_substrait::logical_plan::consumer::{
+        from_substrait_named_struct, from_substrait_plan, DefaultSubstraitConsumer,
+    };
+    use prost::Message;
+    use substrait::proto::{read_rel::ReadType, Plan};
+
+    let plan = Plan::decode(substrait_bytes).map_err(|e| {
+        DataFusionError::Execution(format!("partial_plan_output_schema: decode failed: {}", e))
+    })?;
+
+    let state = SessionStateBuilder::new()
+        .with_config(SessionConfig::new())
+        .with_default_features()
+        .build();
+    let ctx = SessionContext::new_with_state(state);
+    crate::udf::register_all(&ctx);
+
+    // Mirror the data-node ParquetFormat reader's view-type promotion. The data-node
+    // session reads with `schema_force_view_types=true` (default in DF 53), turning
+    // every `Utf8`/`Binary` into `Utf8View`/`BinaryView` at the leaf. The substrait
+    // base_schema embedded in the partial plan still says `Utf8` (from Calcite's
+    // logical row type), so we apply the same transform here when building the stub
+    // MemTable schema. Otherwise the HashAggregate's group_fields would inherit
+    // `Utf8` from the MemTable and we'd report the wrong output type.
+    let view_types = ctx
+        .copied_config()
+        .options()
+        .execution
+        .parquet
+        .schema_force_view_types;
+
+    let extensions = Extensions::default();
+    let session_state = ctx.state();
+    let consumer = DefaultSubstraitConsumer::new(&extensions, &session_state);
+
+    let mut reads = Vec::new();
+    for plan_rel in &plan.relations {
+        if let Some(rel) = root_rel(plan_rel) {
+            collect_reads(&rel, &mut reads);
+        }
+    }
+    for read in &reads {
+        let Some(ReadType::NamedTable(nt)) = read.read_type.as_ref() else {
+            continue;
+        };
+        let table_name = nt.names.last().cloned().unwrap_or_default();
+        let base_schema = read.base_schema.as_ref().ok_or_else(|| {
+            DataFusionError::Execution("ReadRel missing base_schema".to_string())
+        })?;
+        let df_schema = from_substrait_named_struct(&consumer, base_schema)?;
+        let arrow_schema = df_schema.as_arrow().clone();
+        let arrow_schema = if view_types {
+            datafusion::datasource::file_format::parquet::transform_schema_to_view(&arrow_schema)
+        } else {
+            arrow_schema
+        };
+        let table = MemTable::try_new(Arc::new(arrow_schema), vec![vec![]])?;
+        // Duplicate registrations (same table scanned twice) just no-op.
+        let _ = ctx.register_table(&table_name, Arc::new(table));
+    }
+
+    let logical_plan = futures::executor::block_on(from_substrait_plan(&session_state, &plan))?;
+    let physical_plan = futures::executor::block_on(session_state.create_physical_plan(&logical_plan))?;
+    let schema = physical_plan.schema();
+
+    // Match the Java `MessageSerializer.serializeMetadata` framing that
+    // `register_partition_stream` (Rust-side StreamReader) consumes: an Arrow
+    // IPC stream whose only message is the schema header.
+    let mut buf: Vec<u8> = Vec::new();
+    {
+        let mut writer = StreamWriter::try_new(&mut buf, schema.as_ref())
+            .map_err(|e| DataFusionError::Execution(format!("StreamWriter::try_new: {}", e)))?;
+        writer
+            .finish()
+            .map_err(|e| DataFusionError::Execution(format!("StreamWriter::finish: {}", e)))?;
+    }
+    Ok(buf)
+}
+
+fn root_rel(root: &substrait::proto::PlanRel) -> Option<substrait::proto::Rel> {
+    match root.rel_type.as_ref()? {
+        substrait::proto::plan_rel::RelType::Rel(r) => Some(r.clone()),
+        substrait::proto::plan_rel::RelType::Root(rr) => rr.input.as_ref().cloned(),
+    }
+}
+
+fn collect_reads(rel: &substrait::proto::Rel, out: &mut Vec<substrait::proto::ReadRel>) {
+    use substrait::proto::rel::RelType;
+    match rel.rel_type.as_ref() {
+        Some(RelType::Read(r)) => out.push((**r).clone()),
+        Some(RelType::Filter(f)) => {
+            if let Some(input) = &f.input { collect_reads(input, out); }
+        }
+        Some(RelType::Project(p)) => {
+            if let Some(input) = &p.input { collect_reads(input, out); }
+        }
+        Some(RelType::Aggregate(a)) => {
+            if let Some(input) = &a.input { collect_reads(input, out); }
+        }
+        Some(RelType::Sort(s)) => {
+            if let Some(input) = &s.input { collect_reads(input, out); }
+        }
+        Some(RelType::Fetch(f)) => {
+            if let Some(input) = &f.input { collect_reads(input, out); }
+        }
+        Some(RelType::Join(j)) => {
+            if let Some(left) = &j.left { collect_reads(left, out); }
+            if let Some(right) = &j.right { collect_reads(right, out); }
+        }
+        Some(RelType::Set(s)) => {
+            for input in &s.inputs { collect_reads(input, out); }
+        }
+        _ => {}
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Coordinator-reduce local execution API
 //
