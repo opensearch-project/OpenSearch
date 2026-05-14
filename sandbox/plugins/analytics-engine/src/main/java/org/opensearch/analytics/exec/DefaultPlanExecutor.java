@@ -103,13 +103,12 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
 
     @Override
     public void execute(RelNode logicalFragment, Object context, ActionListener<Iterable<Object[]>> listener) {
-        // Fork the entire query lifecycle (planning, scheduling, cleanup) onto the SEARCH
-        // executor so the calling thread — which may be a transport thread — is freed
-        // immediately. The scheduler then drives execution asynchronously and fires
-        // {@code listener} once the query terminates; nothing on this path blocks.
         searchExecutor.execute(() -> {
             try {
-                executeInternal(logicalFragment, listener);
+                executeInternal(logicalFragment, false, ActionListener.wrap(
+                    result -> listener.onResponse(result.rows()),
+                    listener::onFailure
+                ));
             } catch (Exception e) {
                 listener.onFailure(e);
             }
@@ -122,10 +121,11 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
      * the caller alongside the result rows. The profile is populated on both success and
      * failure paths — whatever stages and tasks ran before the outcome are reflected.
      */
+    @Override
     public void executeWithProfile(RelNode logicalFragment, Object context, ActionListener<ProfiledResult> listener) {
         searchExecutor.execute(() -> {
             try {
-                executeInternalWithProfile(logicalFragment, listener);
+                executeInternal(logicalFragment, true, listener);
             } catch (Exception e) {
                 listener.onFailure(e);
             }
@@ -133,12 +133,12 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
     }
 
     /**
-     * Plans, registers the query task, and dispatches to the {@link Scheduler}. Runs on
-     * the SEARCH thread pool — never on a transport thread. The result (or failure) is
-     * delivered to {@code listener} by the scheduler; this method returns as soon as the
-     * scheduler has accepted the query.
+     * Unified planning + execution path. Runs on the SEARCH thread pool — never on a
+     * transport thread. When {@code profile} is true, captures the CBO plan text and
+     * snapshots per-stage timing into the {@link ProfiledResult}; when false, wraps
+     * rows into a ProfiledResult with null profile for uniform listener handling.
      */
-    private void executeInternal(RelNode logicalFragment, ActionListener<Iterable<Object[]>> listener) {
+    private void executeInternal(RelNode logicalFragment, boolean profile, ActionListener<ProfiledResult> listener) {
         // Calcite's RelMetadataQuery reads its handler provider from a ThreadLocal
         // (RelMetadataQueryBase.THREAD_PROVIDERS). The frontend seeds it on its own
         // thread, but execute() hops to the SEARCH executor where the ThreadLocal is
@@ -148,6 +148,9 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
         logicalFragment.getCluster().invalidateMetadataQuery();
 
         RelNode plan = PlannerImpl.createPlan(logicalFragment, new PlannerContext(capabilityRegistry, clusterService.state()));
+        // Capture the unified CBO output before DAGBuilder cuts it at exchange boundaries.
+        // This is what gets rendered in the "full_plan" field of the profile.
+        final String fullPlan = profile ? org.apache.calcite.plan.RelOptUtil.toString(plan) : null;
         QueryDAG dag = DAGBuilder.build(plan, capabilityRegistry, clusterService);
         PlanForker.forkAll(dag, capabilityRegistry);
         BackendPlanAdapter.adaptAll(dag, capabilityRegistry);
@@ -156,86 +159,33 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
 
         // Register coordinator-level query task with TaskManager (like SearchTask).
         // This gives us a proper unique ID, visibility in _tasks API, and cancellation support.
-        // TODO: accept a request type from FrontEnd including cancelAfterTimeInterval — set from cluster settings below, null in req.
         final AnalyticsQueryTask queryTask = (AnalyticsQueryTask) taskManager.register(
             "transport",
             "analytics_query",
             new AnalyticsQueryTaskRequest(dag.queryId(), null)
         );
         final QueryContext config = new QueryContext(dag, searchExecutor, queryTask);
-
-        // Per-query cleanup on terminal. Stage-execution cancellation on external
-        // task-cancel/timeout is wired inside the Scheduler — on this path the
-        // walker has already cascaded cancellations by the time we see the failure.
-        // Scheduler yields batches; we materialize rows at the API edge for callers
-        // that still consume Iterable<Object[]>.
-        ActionListener<Iterable<VectorSchemaRoot>> batchesListener = buildBatchesListener(listener, () -> {
-            try {
-                config.closeBufferAllocator();
-            } finally {
-                taskManager.unregister(queryTask);
-            }
-        });
-
-        TimeValue taskTimeout = queryTask.getCancelAfterTimeInterval();
-        TimeValue clusterTimeout = clusterService.getClusterSettings().get(SEARCH_CANCEL_AFTER_TIME_INTERVAL_SETTING);
-        if (taskTimeout != null || SearchService.NO_TIMEOUT.equals(clusterTimeout) == false) {
-            batchesListener = TimeoutTaskCancellationUtility.wrapWithCancellationListener(
-                client,
-                queryTask,
-                clusterTimeout,
-                batchesListener,
-                e -> {}
-            );
-        }
-
-        scheduler.execute(config, batchesListener);
-    }
-
-    /**
-     * Profile-enabled counterpart of {@link #executeInternal}. Duplicates its planning
-     * pipeline but wraps the listener so the final callback snapshots the walker's
-     * {@code ExecutionGraph} + {@code TaskTracker} into a {@link QueryProfile} before
-     * handing off to the caller. On the failure path the profile still captures whatever
-     * stages ran before the exception surfaced.
-     */
-    private void executeInternalWithProfile(RelNode logicalFragment, ActionListener<ProfiledResult> listener) {
-        RelMetadataQueryBase.THREAD_PROVIDERS.set(JaninoRelMetadataProvider.of(logicalFragment.getCluster().getMetadataProvider()));
-        logicalFragment.getCluster().invalidateMetadataQuery();
-
-        RelNode plan = PlannerImpl.createPlan(logicalFragment, new PlannerContext(capabilityRegistry, clusterService.state()));
-        // Capture the unified CBO output before DAGBuilder cuts it at exchange boundaries.
-        // This is what gets rendered in the "full_plan" field of the profile — users see
-        // the single plan tree the planner actually chose, annotated with backend decisions.
-        final String fullPlan = org.apache.calcite.plan.RelOptUtil.toString(plan);
-        QueryDAG dag = DAGBuilder.build(plan, capabilityRegistry, clusterService);
-        PlanForker.forkAll(dag, capabilityRegistry);
-        BackendPlanAdapter.adaptAll(dag, capabilityRegistry);
-        FragmentConversionDriver.convertAll(dag, capabilityRegistry);
-        logger.debug("[DefaultPlanExecutor] QueryDAG:\n{}", dag);
-
-        final AnalyticsQueryTask queryTask = (AnalyticsQueryTask) taskManager.register(
-            "transport",
-            "analytics_query",
-            new AnalyticsQueryTaskRequest(dag.queryId(), null)
-        );
-        final QueryContext config = new QueryContext(dag, searchExecutor, queryTask);
-
         final PlanWalker[] walkerRef = new PlanWalker[1];
 
-        // The batches listener converts VSRs -> rows, runs cleanup, then snapshots the
-        // profile. Both success and failure deliver a ProfiledResult via onResponse so
-        // the caller always gets the profile; the failure case carries the cause on
-        // ProfiledResult.failure and leaves rows null.
-        ActionListener<Iterable<Object[]>> rowsListener = ActionListener.wrap(rows -> {
-            QueryProfile profile = QueryProfileBuilder.snapshot(walkerRef[0].getGraph(), config, fullPlan);
-            listener.onResponse(new ProfiledResult(rows, null, profile));
-        }, e -> {
-            QueryProfile profile = walkerRef[0] != null && walkerRef[0].getGraph() != null
-                ? QueryProfileBuilder.snapshot(walkerRef[0].getGraph(), config, fullPlan)
-                : new QueryProfile(config.queryId(), java.util.List.of(), 0L, java.util.List.of());
-            listener.onResponse(new ProfiledResult(null, e, profile));
-        });
+        // Build the rows listener. Profile path snapshots the execution graph at terminal;
+        // non-profile path passes rows through with a null profile.
+        ActionListener<Iterable<Object[]>> rowsListener;
+        if (profile) {
+            rowsListener = ActionListener.wrap(rows -> {
+                QueryProfile qp = QueryProfileBuilder.snapshot(walkerRef[0].getGraph(), config, fullPlan);
+                listener.onResponse(new ProfiledResult(rows, null, qp));
+            }, e -> {
+                QueryProfile qp = walkerRef[0] != null && walkerRef[0].getGraph() != null
+                    ? QueryProfileBuilder.snapshot(walkerRef[0].getGraph(), config, fullPlan)
+                    : new QueryProfile(config.queryId(), java.util.List.of(), 0L, java.util.List.of());
+                listener.onResponse(new ProfiledResult(null, e, qp));
+            });
+        } else {
+            rowsListener = ActionListener.wrap(
+                rows -> listener.onResponse(new ProfiledResult(rows, null, null)),
+                listener::onFailure
+            );
+        }
 
         ActionListener<Iterable<VectorSchemaRoot>> batchesListener = buildBatchesListener(rowsListener, () -> {
             try {
