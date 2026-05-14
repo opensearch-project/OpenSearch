@@ -17,7 +17,10 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.analytics.EngineContext;
+import org.opensearch.analytics.exec.DefaultPlanExecutor;
 import org.opensearch.analytics.exec.QueryPlanExecutor;
+import org.opensearch.analytics.exec.profile.ProfiledResult;
+import org.opensearch.analytics.exec.profile.QueryProfile;
 import org.opensearch.sql.api.UnifiedQueryContext;
 import org.opensearch.sql.api.UnifiedQueryPlanner;
 import org.opensearch.sql.executor.QueryType;
@@ -120,6 +123,85 @@ public class UnifiedQueryService {
                 throw (RuntimeException) e;
             }
             throw new RuntimeException("Failed to execute PPL query: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Executes a PPL query with profiling enabled. Calls
+     * {@link DefaultPlanExecutor#executeWithProfile} which runs the full query and
+     * captures per-stage timing from the coordinator's perspective.
+     */
+    public PPLResponse executeWithProfile(String pplText) {
+        if ((planExecutor instanceof DefaultPlanExecutor) == false) {
+            throw new UnsupportedOperationException(
+                "executeWithProfile requires DefaultPlanExecutor, got " + planExecutor.getClass().getSimpleName()
+            );
+        }
+        DefaultPlanExecutor executor = (DefaultPlanExecutor) planExecutor;
+        RelNode logicalPlan = buildLogicalPlan(pplText);
+
+        PlainActionFuture<ProfiledResult> future = new PlainActionFuture<>();
+        executor.executeWithProfile(logicalPlan, null, future);
+        ProfiledResult result = future.actionGet();
+
+        if (result.isSuccess() == false) {
+            Throwable failure = result.failure();
+            if (failure instanceof RuntimeException re) throw re;
+            throw new RuntimeException("Query failed: " + failure.getMessage(), failure);
+        }
+
+        QueryProfile profile = result.profile();
+        logger.info("[UnifiedQueryService] Profile result:\n  query_id={}\n  total_elapsed_ms={}\n  stages={}",
+            profile.queryId(), profile.totalElapsedMs(), profile.stages().size());
+        for (var stage : profile.stages()) {
+            logger.info("  Stage {} [{}] state={} elapsed={}ms rows={} tasks={}",
+                stage.stageId(), stage.executionType(), stage.state(),
+                stage.elapsedMs(), stage.rowsProcessed(), stage.tasks().size());
+        }
+        if (profile.fullPlan() != null && profile.fullPlan().isEmpty() == false) {
+            logger.info("[UnifiedQueryService] Full plan:\n{}", String.join("\n", profile.fullPlan()));
+        }
+
+        // Build response with columns + rows + profile
+        List<RelDataTypeField> fields = logicalPlan.getRowType().getFieldList();
+        List<String> columns = new ArrayList<>(fields.size());
+        for (RelDataTypeField field : fields) {
+            columns.add(field.getName());
+        }
+        List<Object[]> rows = new ArrayList<>();
+        for (Object[] row : result.rows()) {
+            rows.add(row);
+        }
+
+        return new PPLResponse(columns, rows, profile);
+    }
+
+    private RelNode buildLogicalPlan(String pplText) {
+        SchemaPlus schemaPlus = engineContext.getSchema();
+        Map<String, Table> tableMap = new HashMap<>();
+        for (String tableName : schemaPlus.getTableNames()) {
+            tableMap.put(tableName, schemaPlus.getTable(tableName));
+        }
+        AbstractSchema flatSchema = new AbstractSchema() {
+            @Override
+            protected Map<String, Table> getTableMap() {
+                return tableMap;
+            }
+        };
+
+        try (
+            UnifiedQueryContext context = UnifiedQueryContext.builder()
+                .language(QueryType.PPL)
+                .catalog(DEFAULT_CATALOG, flatSchema)
+                .defaultNamespace(DEFAULT_CATALOG)
+                .setting("plugins.calcite.enabled", true)
+                .build()
+        ) {
+            UnifiedQueryPlanner planner = new UnifiedQueryPlanner(context);
+            return planner.plan(pplText);
+        } catch (Exception e) {
+            if (e instanceof RuntimeException re) throw re;
+            throw new RuntimeException("Failed to build logical plan", e);
         }
     }
 }
