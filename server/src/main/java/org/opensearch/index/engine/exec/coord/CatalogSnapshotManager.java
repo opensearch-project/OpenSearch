@@ -408,24 +408,25 @@ public class CatalogSnapshotManager implements Closeable {
      */
     private void onSnapshotDeleted(CatalogSnapshot snapshot) {
         catalogSnapshotMap.remove(snapshot.getGeneration());
+        Exception firstException = null;
         for (CatalogSnapshotLifecycleListener listener : snapshotListeners) {
             try {
                 listener.onDeleted(snapshot);
             } catch (IOException e) {
-                throw new RuntimeException("Failed to notify listener of snapshot deletion [gen=" + snapshot.getGeneration() + "]", e);
+                if (firstException == null) firstException = e;
+                else firstException.addSuppressed(e);
             }
+        }
+        if (firstException != null) {
+            throw new RuntimeException(
+                "Failed to notify listener of snapshot deletion [gen=" + snapshot.getGeneration() + "]",
+                firstException
+            );
         }
     }
 
     private void decRefAndMaybeDelete(CatalogSnapshot snapshot) {
-        if (snapshot.decRef()) {
-            onSnapshotDeleted(snapshot);
-            try {
-                indexFileDeleter.removeFileReferences(snapshot);
-            } catch (IOException e) {
-                throw new RuntimeException("Failed to clean up snapshot [gen=" + snapshot.getGeneration() + "]", e);
-            }
-        }
+        indexFileDeleter.decRefAndMaybeDelete(snapshot);
     }
 
     /**

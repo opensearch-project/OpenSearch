@@ -108,10 +108,7 @@ public class IndexFileDeleter {
         List<CatalogSnapshot> toDelete = deletionPolicy.onInit(committedSnapshots);
         for (CatalogSnapshot old : toDelete) {
             committedSnapshots.remove(old);
-            if (old.decRef()) {
-                onSnapshotDeletedCallback.accept(old);
-                removeFileReferences(old);
-            }
+            decRefAndMaybeDelete(old);
         }
 
         deleteOrphanedFiles(shardPath);
@@ -200,10 +197,7 @@ public class IndexFileDeleter {
         }
 
         for (CatalogSnapshot old : toDelete) {
-            if (old.decRef()) {
-                onSnapshotDeletedCallback.accept(old);
-                removeFileReferences(old);
-            }
+            decRefAndMaybeDelete(old);
         }
     }
 
@@ -223,10 +217,7 @@ public class IndexFileDeleter {
             }
         }
         for (CatalogSnapshot old : toDelete) {
-            if (old.decRef()) {
-                onSnapshotDeletedCallback.accept(old);
-                removeFileReferences(old);
-            }
+            decRefAndMaybeDelete(old);
         }
     }
 
@@ -308,6 +299,26 @@ public class IndexFileDeleter {
             FilesListener listener = filesListeners.get(entry.getKey());
             if (listener != null) {
                 listener.onFilesDeleted(entry.getValue());
+            }
+        }
+    }
+
+    void decRefAndMaybeDelete(CatalogSnapshot snapshot) {
+        if (snapshot.decRef()) {
+            Exception firstException = null;
+            try {
+                onSnapshotDeletedCallback.accept(snapshot);
+            } catch (Exception e) {
+                firstException = e;
+            }
+            try {
+                this.removeFileReferences(snapshot);
+            } catch (IOException e) {
+                if (firstException == null) firstException = e;
+                else firstException.addSuppressed(e);
+            }
+            if (firstException != null) {
+                throw new RuntimeException("Failed to clean up snapshot [gen=" + snapshot.getGeneration() + "]", firstException);
             }
         }
     }
