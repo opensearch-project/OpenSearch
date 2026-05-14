@@ -348,11 +348,7 @@ public class TaskCancellationMonitoringServiceTests extends OpenSearchTestCase {
         when(mockTaskManager.getCancellableTasks()).thenReturn(new java.util.HashMap<>());
 
         // Use the 3-arg constructor which passes null for the provider
-        TaskCancellationMonitoringService service = new TaskCancellationMonitoringService(
-            threadPool,
-            mockTaskManager,
-            settings
-        );
+        TaskCancellationMonitoringService service = new TaskCancellationMonitoringService(threadPool, mockTaskManager, settings);
 
         TaskCancellationStats stats = service.stats();
         assertNull(stats.getNativeStats());

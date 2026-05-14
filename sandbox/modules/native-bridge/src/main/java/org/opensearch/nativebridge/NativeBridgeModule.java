@@ -18,12 +18,12 @@ import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
-import org.opensearch.nativebridge.spi.FfmNativeMemoryService;
 import org.opensearch.nativebridge.spi.NativeAllocatorConfig;
 import org.opensearch.nativebridge.spi.NativeHeapProfiler;
 import org.opensearch.nativebridge.spi.NativeLibraryLoader;
-import org.opensearch.nativebridge.spi.NativeMemoryService;
-import org.opensearch.nativebridge.spi.NativeMemoryServiceProvider;
+import org.opensearch.nativebridge.spi.NativeMemoryFetcher;
+import org.opensearch.nativebridge.spi.NativeMemoryStats;
+import org.opensearch.nativebridge.spi.NativeStatsProvider;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.script.ScriptService;
@@ -43,13 +43,10 @@ import java.util.function.Supplier;
  * Also registers the NativeHeapProfiler JMX MBean for on-demand heap profiling via
  * the opensearch-heap-prof CLI tool.
  * <p>
- * Implements {@link NativeMemoryServiceProvider} so that {@code Node.java} can discover
- * the {@link FfmNativeMemoryService} via {@code filterPlugins()} without a direct compile
- * dependency on the JDK 25+ {@code dataformat-native} library.
+ * Implements {@link NativeStatsProvider} so that {@code Node.java} can discover
+ * native memory stats capability via {@code filterPlugins(NativeStatsProvider.class)}.
  */
-public class NativeBridgeModule extends Plugin implements NativeMemoryServiceProvider {
-
-    private volatile NativeMemoryService nativeMemoryService;
+public class NativeBridgeModule extends Plugin implements NativeStatsProvider {
 
     private static final Logger logger = LogManager.getLogger(NativeBridgeModule.class);
 
@@ -70,6 +67,14 @@ public class NativeBridgeModule extends Plugin implements NativeMemoryServicePro
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
+
+    @Override
+    public NativeMemoryStats memoryStats() {
+        if (!NativeLibraryLoader.isLoaded()) {
+            return null;
+        }
+        return NativeMemoryFetcher.fetch();
+    }
 
     @Override
     public Collection<Object> createComponents(
@@ -114,17 +119,7 @@ public class NativeBridgeModule extends Plugin implements NativeMemoryServicePro
             logger.warn("Native allocator config unavailable — native library may not be loaded", t);
         }
 
-        // Instantiate NativeMemoryService if native library is loaded
-        if (NativeLibraryLoader.isLoaded()) {
-            this.nativeMemoryService = new FfmNativeMemoryService(settings);
-        }
-
         return Collections.emptyList();
-    }
-
-    @Override
-    public NativeMemoryService getNativeMemoryService() {
-        return nativeMemoryService;
     }
 
     @Override

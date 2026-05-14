@@ -59,7 +59,13 @@ public class NativeMemoryStatsVersionGateTests extends OpenSearchTestCase {
 
                     assertNull(
                         "nativeMemoryStats should be null when deserialized from version < V_3_7_0, "
-                            + "iteration " + i + " with values [" + allocatedBytes + ", " + residentBytes + "]",
+                            + "iteration "
+                            + i
+                            + " with values ["
+                            + allocatedBytes
+                            + ", "
+                            + residentBytes
+                            + "]",
                         deserialized.getNativeMemoryStats()
                     );
                 }
@@ -94,8 +100,7 @@ public class NativeMemoryStatsVersionGateTests extends OpenSearchTestCase {
                     NodeStats deserialized = new NodeStats(in);
 
                     assertNotNull(
-                        "nativeMemoryStats should be non-null when deserialized from version >= V_3_7_0, "
-                            + "iteration " + i,
+                        "nativeMemoryStats should be non-null when deserialized from version >= V_3_7_0, " + "iteration " + i,
                         deserialized.getNativeMemoryStats()
                     );
                     assertEquals(
@@ -118,13 +123,7 @@ public class NativeMemoryStatsVersionGateTests extends OpenSearchTestCase {
      * Uses the current version for the DiscoveryNode.
      */
     private NodeStats createNodeStatsWithNativeMemory(NativeMemoryStats nativeMemoryStats) {
-        DiscoveryNode node = new DiscoveryNode(
-            "test_node",
-            buildNewFakeTransportAddress(),
-            emptyMap(),
-            emptySet(),
-            Version.CURRENT
-        );
+        DiscoveryNode node = new DiscoveryNode("test_node", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
 
         return new NodeStats(
             node,

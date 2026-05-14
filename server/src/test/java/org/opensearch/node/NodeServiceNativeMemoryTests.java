@@ -16,14 +16,19 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsFilter;
+import org.opensearch.common.xcontent.XContentHelper;
+import org.opensearch.common.xcontent.json.JsonXContent;
+import org.opensearch.core.common.Strings;
 import org.opensearch.core.indices.breaker.CircuitBreakerService;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
+import org.opensearch.core.xcontent.ToXContent;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.discovery.Discovery;
 import org.opensearch.index.IndexingPressureService;
 import org.opensearch.index.SegmentReplicationStatsTracker;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.ingest.IngestService;
 import org.opensearch.monitor.MonitorService;
-import org.opensearch.nativebridge.spi.NativeMemoryService;
 import org.opensearch.nativebridge.spi.NativeMemoryStats;
 import org.opensearch.plugins.PluginsService;
 import org.opensearch.ratelimitting.admissioncontrol.AdmissionControlService;
@@ -37,6 +42,8 @@ import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
 import java.util.Collections;
+import java.util.Map;
+import java.util.function.Supplier;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -44,13 +51,13 @@ import static org.mockito.Mockito.when;
 /**
  * Unit tests for NodeService native memory stats delegation logic.
  * <p>
- * Validates Requirements 5.3 and 5.4: NodeService correctly delegates to
- * NativeMemoryService when nativeMemory=true and the service is non-null,
+ * Validates that NodeService correctly delegates to the native memory stats
+ * supplier when nativeMemory=true and the supplier is non-null,
  * and returns null otherwise.
  */
 public class NodeServiceNativeMemoryTests extends OpenSearchTestCase {
 
-    private NodeService createNodeService(NativeMemoryService nativeMemoryService) {
+    private NodeService createNodeService(Supplier<NativeMemoryStats> nativeMemoryStatsSupplier) {
         TransportService transportService = mock(TransportService.class);
         DiscoveryNode localNode = new DiscoveryNode("test_node", buildNewFakeTransportAddress(), Version.CURRENT);
         when(transportService.getLocalNode()).thenReturn(localNode);
@@ -86,20 +93,19 @@ public class NodeServiceNativeMemoryTests extends OpenSearchTestCase {
             mock(RepositoriesService.class),
             mock(AdmissionControlService.class),
             null, // cacheService
-            nativeMemoryService
+            nativeMemoryStatsSupplier
         );
     }
 
     /**
-     * Tests that stats() with nativeMemory=true and a non-null NativeMemoryService
-     * returns the stats from the service.
+     * Tests that stats() with nativeMemory=true and a non-null supplier
+     * returns the stats from the supplier.
      */
     public void testStatsWithNativeMemoryTrueAndServicePresent() {
         NativeMemoryStats expectedStats = new NativeMemoryStats(1024L, 2048L);
-        NativeMemoryService nativeMemoryService = mock(NativeMemoryService.class);
-        when(nativeMemoryService.stats()).thenReturn(expectedStats);
+        Supplier<NativeMemoryStats> supplier = () -> expectedStats;
 
-        NodeService nodeService = createNodeService(nativeMemoryService);
+        NodeService nodeService = createNodeService(supplier);
 
         NodeStats nodeStats = nodeService.stats(
             CommonStatsFlags.NONE,
@@ -140,7 +146,7 @@ public class NodeServiceNativeMemoryTests extends OpenSearchTestCase {
     }
 
     /**
-     * Tests that stats() with nativeMemory=true and a null NativeMemoryService
+     * Tests that stats() with nativeMemory=true and a null supplier
      * returns null for the nativeMemoryStats field.
      */
     public void testStatsWithNativeMemoryTrueAndNullService() {
@@ -183,14 +189,13 @@ public class NodeServiceNativeMemoryTests extends OpenSearchTestCase {
 
     /**
      * Tests that stats() with nativeMemory=false returns null for the
-     * nativeMemoryStats field regardless of whether the service is present.
+     * nativeMemoryStats field regardless of whether the supplier is present.
      */
     public void testStatsWithNativeMemoryFalse() {
         NativeMemoryStats expectedStats = new NativeMemoryStats(4096L, 8192L);
-        NativeMemoryService nativeMemoryService = mock(NativeMemoryService.class);
-        when(nativeMemoryService.stats()).thenReturn(expectedStats);
+        Supplier<NativeMemoryStats> supplier = () -> expectedStats;
 
-        NodeService nodeService = createNodeService(nativeMemoryService);
+        NodeService nodeService = createNodeService(supplier);
 
         NodeStats nodeStats = nodeService.stats(
             CommonStatsFlags.NONE,
@@ -225,5 +230,115 @@ public class NodeServiceNativeMemoryTests extends OpenSearchTestCase {
         );
 
         assertNull(nodeStats.getNativeMemoryStats());
+    }
+
+    /**
+     * Integration test: verifies that the _nodes/stats/native_memory response format
+     * contains the expected "native_memory" object with "allocated_bytes" and "resident_bytes" fields.
+     * This ensures the response format is unchanged after the refactor.
+     */
+    @SuppressWarnings("unchecked")
+    public void testNativeMemoryResponseFormatUnchanged() throws Exception {
+        NativeMemoryStats stats = new NativeMemoryStats(123456789L, 987654321L);
+        Supplier<NativeMemoryStats> supplier = () -> stats;
+
+        NodeService nodeService = createNodeService(supplier);
+
+        NodeStats nodeStats = nodeService.stats(
+            CommonStatsFlags.NONE,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            true   // nativeMemory
+        );
+
+        assertNotNull("nativeMemoryStats should be present", nodeStats.getNativeMemoryStats());
+
+        // Render the NativeMemoryStats to JSON and verify the format
+        XContentBuilder builder = JsonXContent.contentBuilder();
+        builder.startObject();
+        nodeStats.getNativeMemoryStats().toXContent(builder, ToXContent.EMPTY_PARAMS);
+        builder.endObject();
+        String json = Strings.toString(MediaTypeRegistry.JSON, nodeStats.getNativeMemoryStats());
+
+        Map<String, Object> root = XContentHelper.convertToMap(JsonXContent.jsonXContent, json, false);
+
+        // Verify "native_memory" object is present
+        assertTrue("Response should contain 'native_memory' key", root.containsKey("native_memory"));
+
+        Map<String, Object> nativeMemory = (Map<String, Object>) root.get("native_memory");
+        assertNotNull("native_memory object should not be null", nativeMemory);
+
+        // Verify "allocated_bytes" and "resident_bytes" fields are present with correct values
+        assertTrue("native_memory should contain 'allocated_bytes'", nativeMemory.containsKey("allocated_bytes"));
+        assertTrue("native_memory should contain 'resident_bytes'", nativeMemory.containsKey("resident_bytes"));
+        assertEquals(123456789L, ((Number) nativeMemory.get("allocated_bytes")).longValue());
+        assertEquals(987654321L, ((Number) nativeMemory.get("resident_bytes")).longValue());
+    }
+
+    /**
+     * Integration test: verifies that when native stats are unavailable (null supplier),
+     * the response omits the native_memory object entirely.
+     */
+    public void testNativeMemoryOmittedWhenUnavailable() throws Exception {
+        NodeService nodeService = createNodeService(null);
+
+        NodeStats nodeStats = nodeService.stats(
+            CommonStatsFlags.NONE,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            true   // nativeMemory
+        );
+
+        assertNull("nativeMemoryStats should be null when supplier is null", nodeStats.getNativeMemoryStats());
     }
 }

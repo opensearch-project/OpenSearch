@@ -53,8 +53,8 @@ import org.opensearch.index.SegmentReplicationStatsTracker;
 import org.opensearch.index.store.remote.filecache.NodeCacheOrchestrator;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.ingest.IngestService;
-import org.opensearch.nativebridge.spi.NativeMemoryService;
 import org.opensearch.monitor.MonitorService;
+import org.opensearch.nativebridge.spi.NativeMemoryStats;
 import org.opensearch.node.remotestore.RemoteStoreNodeStats;
 import org.opensearch.plugins.PluginsService;
 import org.opensearch.ratelimitting.admissioncontrol.AdmissionControlService;
@@ -70,6 +70,7 @@ import org.opensearch.transport.TransportService;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 
 /**
  * Services exposed to nodes
@@ -105,7 +106,7 @@ public class NodeService implements Closeable {
     private final SegmentReplicationStatsTracker segmentReplicationStatsTracker;
     private final CacheService cacheService;
     @Nullable
-    private final NativeMemoryService nativeMemoryService;
+    private final Supplier<NativeMemoryStats> nativeMemoryStatsSupplier;
 
     NodeService(
         Settings settings,
@@ -134,7 +135,7 @@ public class NodeService implements Closeable {
         RepositoriesService repositoriesService,
         AdmissionControlService admissionControlService,
         CacheService cacheService,
-        @Nullable NativeMemoryService nativeMemoryService
+        @Nullable Supplier<NativeMemoryStats> nativeMemoryStatsSupplier
     ) {
         this.settings = settings;
         this.threadPool = threadPool;
@@ -164,7 +165,7 @@ public class NodeService implements Closeable {
         clusterService.addStateApplier(searchPipelineService);
         this.segmentReplicationStatsTracker = segmentReplicationStatsTracker;
         this.cacheService = cacheService;
-        this.nativeMemoryService = nativeMemoryService;
+        this.nativeMemoryStatsSupplier = nativeMemoryStatsSupplier;
     }
 
     public NodeInfo info(
@@ -285,7 +286,7 @@ public class NodeService implements Closeable {
             admissionControl ? this.admissionControlService.stats() : null,
             cacheService ? this.cacheService.stats(indices) : null,
             remoteStoreNodeStats ? new RemoteStoreNodeStats() : null,
-            nativeMemory && nativeMemoryService != null ? nativeMemoryService.stats() : null
+            nativeMemory && nativeMemoryStatsSupplier != null ? nativeMemoryStatsSupplier.get() : null
         );
     }
 

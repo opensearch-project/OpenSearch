@@ -46,14 +46,10 @@ public final class NativeNodeStatsLayout {
         assert LAYOUT.byteSize() == 32 : "NativeNodeStatsLayout size mismatch";
     }
 
-    private static final VarHandle SEARCH_TASK_CURRENT =
-        LAYOUT.varHandle(PathElement.groupElement("native_search_task_current"));
-    private static final VarHandle SEARCH_TASK_TOTAL =
-        LAYOUT.varHandle(PathElement.groupElement("native_search_task_total"));
-    private static final VarHandle SHARD_TASK_CURRENT =
-        LAYOUT.varHandle(PathElement.groupElement("native_search_shard_task_current"));
-    private static final VarHandle SHARD_TASK_TOTAL =
-        LAYOUT.varHandle(PathElement.groupElement("native_search_shard_task_total"));
+    private static final VarHandle SEARCH_TASK_CURRENT = LAYOUT.varHandle(PathElement.groupElement("native_search_task_current"));
+    private static final VarHandle SEARCH_TASK_TOTAL = LAYOUT.varHandle(PathElement.groupElement("native_search_task_total"));
+    private static final VarHandle SHARD_TASK_CURRENT = LAYOUT.varHandle(PathElement.groupElement("native_search_shard_task_current"));
+    private static final VarHandle SHARD_TASK_TOTAL = LAYOUT.varHandle(PathElement.groupElement("native_search_shard_task_total"));
 
     /**
      * Decode the 32-byte memory segment into a {@link DataFusionNativeNodeStats} instance.

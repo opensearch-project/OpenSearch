@@ -74,8 +74,6 @@ dependencies {
   api project(":libs:opensearch-telemetry")
   api project(":libs:opensearch-task-commons")
 
-  // Plugin stats SPI (BackendStatsProvider, DataFusionNativeNodeStats)
-  api project(':sandbox:libs:plugin-stats-spi')
 
   compileOnly project(":libs:agent-sm:bootstrap")
   compileOnly project(':libs:opensearch-plugin-classloader')

@@ -13,7 +13,6 @@ import org.opensearch.test.OpenSearchTestCase;
 
 import java.lang.foreign.Arena;
 import java.lang.foreign.ValueLayout;
-import java.nio.ByteOrder;
 
 /**
  * Unit and property-based tests for {@link NativeNodeStatsLayout}.
@@ -132,11 +131,7 @@ public class NativeNodeStatsLayoutTests extends OpenSearchTestCase {
                     searchTaskCurrent,
                     stats.getNativeSearchTaskCurrent()
                 );
-                assertEquals(
-                    "Iteration " + i + ": native_search_task_total mismatch",
-                    searchTaskTotal,
-                    stats.getNativeSearchTaskTotal()
-                );
+                assertEquals("Iteration " + i + ": native_search_task_total mismatch", searchTaskTotal, stats.getNativeSearchTaskTotal());
                 assertEquals(
                     "Iteration " + i + ": native_search_shard_task_current mismatch",
                     shardTaskCurrent,

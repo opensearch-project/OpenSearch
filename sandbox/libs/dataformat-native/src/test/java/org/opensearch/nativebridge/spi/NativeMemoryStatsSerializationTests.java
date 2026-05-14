@@ -45,14 +45,12 @@ public class NativeMemoryStatsSerializationTests extends OpenSearchTestCase {
                     NativeMemoryStats deserialized = new NativeMemoryStats(in);
 
                     assertEquals(
-                        "allocatedBytes mismatch on iteration " + i + " for values: ["
-                            + allocatedBytes + ", " + residentBytes + "]",
+                        "allocatedBytes mismatch on iteration " + i + " for values: [" + allocatedBytes + ", " + residentBytes + "]",
                         original.getAllocatedBytes(),
                         deserialized.getAllocatedBytes()
                     );
                     assertEquals(
-                        "residentBytes mismatch on iteration " + i + " for values: ["
-                            + allocatedBytes + ", " + residentBytes + "]",
+                        "residentBytes mismatch on iteration " + i + " for values: [" + allocatedBytes + ", " + residentBytes + "]",
                         original.getResidentBytes(),
                         deserialized.getResidentBytes()
                     );
@@ -99,8 +97,7 @@ public class NativeMemoryStatsSerializationTests extends OpenSearchTestCase {
             { Long.MIN_VALUE, Long.MAX_VALUE },
             { Long.MAX_VALUE, Long.MIN_VALUE },
             { 0L, Long.MAX_VALUE },
-            { Long.MIN_VALUE, 0L }
-        };
+            { Long.MIN_VALUE, 0L } };
 
         for (long[] pair : boundaryPairs) {
             NativeMemoryStats original = new NativeMemoryStats(pair[0], pair[1]);
