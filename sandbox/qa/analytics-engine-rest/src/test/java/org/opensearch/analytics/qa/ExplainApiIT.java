@@ -23,12 +23,21 @@ import java.util.Map;
 public class ExplainApiIT extends AnalyticsRestTestCase {
 
     private static final Dataset DATASET = new Dataset("calcs", "calcs");
+    private static final Dataset CLICKBENCH = ClickBenchTestHelper.DATASET;
     private static boolean dataProvisioned = false;
+    private static boolean clickBenchProvisioned = false;
 
     private void ensureDataProvisioned() throws IOException {
         if (dataProvisioned == false) {
             DatasetProvisioner.provision(client(), DATASET);
             dataProvisioned = true;
+        }
+    }
+
+    private void ensureClickBenchProvisioned() throws IOException {
+        if (clickBenchProvisioned == false) {
+            DatasetProvisioner.provision(client(), CLICKBENCH);
+            clickBenchProvisioned = true;
         }
     }
 
@@ -80,9 +89,9 @@ public class ExplainApiIT extends AnalyticsRestTestCase {
 
     @SuppressWarnings("unchecked")
     public void testExplainWithAggregationShowsMultipleStages() throws IOException {
-        ensureDataProvisioned();
+        ensureClickBenchProvisioned();
         Map<String, Object> result = executeExplain(
-            "source=" + DATASET.indexName + " | stats avg(num0) by str0"
+            "source=" + CLICKBENCH.indexName + " | stats avg(AdvEngineID) by RegionID"
         );
 
         Map<String, Object> profile = (Map<String, Object>) result.get("profile");
@@ -90,27 +99,49 @@ public class ExplainApiIT extends AnalyticsRestTestCase {
 
         List<Map<String, Object>> stages = (List<Map<String, Object>>) profile.get("stages");
         assertNotNull("stages present", stages);
-        assertFalse("at least one stage", stages.isEmpty());
+        // Multi-shard aggregation should produce at least 2 stages:
+        // SHARD_FRAGMENT (partial aggregate on data nodes) + COORDINATOR_REDUCE (final aggregate)
+        assertTrue("multi-shard aggregation produces multiple stages, got " + stages.size(), stages.size() >= 2);
 
-        // Verify stages have tasks with timing
-        boolean foundTasks = false;
+        // Verify we have both a SHARD_FRAGMENT and a COORDINATOR_REDUCE stage
+        boolean hasShardFragment = false;
+        boolean hasCoordinatorReduce = false;
         for (Map<String, Object> stage : stages) {
-            List<Map<String, Object>> tasks = (List<Map<String, Object>>) stage.get("tasks");
-            if (tasks != null && tasks.isEmpty() == false) {
-                foundTasks = true;
-                Map<String, Object> task = tasks.get(0);
-                assertNotNull("task has node", task.get("node"));
-                assertNotNull("task has state", task.get("state"));
-                assertNotNull("task has elapsed_ms", task.get("elapsed_ms"));
-            }
+            String execType = (String) stage.get("execution_type");
+            if ("SHARD_FRAGMENT".equals(execType)) hasShardFragment = true;
+            if ("COORDINATOR_REDUCE".equals(execType)) hasCoordinatorReduce = true;
         }
-        assertTrue("at least one stage has tasks", foundTasks);
+        assertTrue("has SHARD_FRAGMENT stage", hasShardFragment);
+        assertTrue("has COORDINATOR_REDUCE stage", hasCoordinatorReduce);
+    }
 
-        // Verify the plan contains aggregate operator
-        List<String> fullPlan = (List<String>) profile.get("full_plan");
-        assertNotNull("full_plan present", fullPlan);
-        String planText = String.join("\n", fullPlan);
-        assertTrue("plan mentions aggregate", planText.contains("Aggregate"));
+    @SuppressWarnings("unchecked")
+    public void testExplainMultiStageShardFragmentHasTasks() throws IOException {
+        ensureClickBenchProvisioned();
+        Map<String, Object> result = executeExplain(
+            "source=" + CLICKBENCH.indexName + " | stats avg(AdvEngineID) by RegionID"
+        );
+
+        Map<String, Object> profile = (Map<String, Object>) result.get("profile");
+        List<Map<String, Object>> stages = (List<Map<String, Object>>) profile.get("stages");
+
+        // Find the SHARD_FRAGMENT stage and verify it has tasks (one per shard)
+        Map<String, Object> shardStage = stages.stream()
+            .filter(s -> "SHARD_FRAGMENT".equals(s.get("execution_type")))
+            .findFirst()
+            .orElseThrow(() -> new AssertionError("no SHARD_FRAGMENT stage"));
+
+        List<Map<String, Object>> tasks = (List<Map<String, Object>>) shardStage.get("tasks");
+        assertNotNull("shard stage has tasks", tasks);
+        // clickbench index has 2 shards
+        assertTrue("shard stage has at least 2 tasks (one per shard), got " + tasks.size(), tasks.size() >= 2);
+
+        for (Map<String, Object> task : tasks) {
+            assertEquals("task finished", "FINISHED", task.get("state"));
+            assertNotNull("task has node", task.get("node"));
+            long elapsed = ((Number) task.get("elapsed_ms")).longValue();
+            assertTrue("task elapsed is non-negative", elapsed >= 0);
+        }
     }
 
     @SuppressWarnings("unchecked")
