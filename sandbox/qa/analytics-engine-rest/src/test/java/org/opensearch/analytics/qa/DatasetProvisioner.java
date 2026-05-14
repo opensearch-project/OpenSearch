@@ -46,6 +46,15 @@ public final class DatasetProvisioner {
      * Provision the dataset into the cluster with parquet as the primary data format.
      */
     public static void provision(RestClient client, Dataset dataset) throws IOException {
+        provision(client, dataset, 0);
+    }
+
+    /**
+     * Provision the dataset with {@code numberOfShards} overriding the value in the mapping.
+     * Pass {@code 0} to keep the mapping's value. Used by tests that need multi-shard
+     * coverage of planner paths (exchange insertion, sort split, etc.).
+     */
+    public static void provision(RestClient client, Dataset dataset, int numberOfShards) throws IOException {
         // Delete if exists
         try {
             client.performRequest(new Request("DELETE", "/" + dataset.indexName));
@@ -56,6 +65,9 @@ public final class DatasetProvisioner {
         // Load mapping, inject parquet settings, create index
         String mapping = loadResource(dataset.mappingResourcePath());
         String indexBody = injectParquetSettings(mapping);
+        if (numberOfShards > 0) {
+            indexBody = overrideNumberOfShards(indexBody, numberOfShards);
+        }
         Request createIndex = new Request("PUT", "/" + dataset.indexName);
         createIndex.setJsonEntity(indexBody);
         client.performRequest(createIndex);
@@ -83,6 +95,14 @@ public final class DatasetProvisioner {
         client.performRequest(healthRequest);
 
         logger.info("Dataset [{}] provisioned into index [{}]", dataset.name, dataset.indexName);
+    }
+
+    /**
+     * Replace the {@code number_of_shards} value in the mapping body. Matches the form
+     * {@code "number_of_shards": <int>} produced by the canonical dataset mappings.
+     */
+    private static String overrideNumberOfShards(String mappingBody, int numberOfShards) {
+        return mappingBody.replaceAll("\"number_of_shards\"\\s*:\\s*\\d+", "\"number_of_shards\": " + numberOfShards);
     }
 
     /**

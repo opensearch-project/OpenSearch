@@ -70,7 +70,8 @@ public class OpenSearchAggregateSplitRule extends RelOptRule {
             aggregate.getViableBackends()
         );
 
-        RelTraitSet singletonTraits = partial.getTraitSet().replace(context.getDistributionTraitDef().singleton());
+        // Request SINGLETON distribution — Volcano inserts Exchange automatically
+        RelTraitSet singletonTraits = partial.getTraitSet().replace(context.getDistributionTraitDef().coordSingleton());
         RelNode gathered = convert(partial, singletonTraits);
 
         OpenSearchAggregate finalAggregate = new OpenSearchAggregate(

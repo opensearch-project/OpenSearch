@@ -22,6 +22,7 @@ import org.opensearch.analytics.spi.FinalAggregateInstructionNode;
 import org.opensearch.analytics.spi.FragmentInstructionHandler;
 import org.opensearch.analytics.spi.FragmentInstructionHandlerFactory;
 import org.opensearch.analytics.spi.InstructionNode;
+import org.opensearch.analytics.spi.JoinCapability;
 import org.opensearch.analytics.spi.PartialAggregateInstructionNode;
 import org.opensearch.analytics.spi.ProjectCapability;
 import org.opensearch.analytics.spi.ScalarFunction;
@@ -74,6 +75,11 @@ abstract class MockBackend implements AnalyticsSearchBackendPlugin {
             }
 
             @Override
+            public Set<JoinCapability> joinCapabilities() {
+                return self.joinCapabilities();
+            }
+
+            @Override
             public Set<DelegationType> supportedDelegations() {
                 return self.supportedDelegations();
             }
@@ -113,6 +119,10 @@ abstract class MockBackend implements AnalyticsSearchBackendPlugin {
     }
 
     protected Set<ProjectCapability> projectCapabilities() {
+        return Set.of();
+    }
+
+    protected Set<JoinCapability> joinCapabilities() {
         return Set.of();
     }
 
