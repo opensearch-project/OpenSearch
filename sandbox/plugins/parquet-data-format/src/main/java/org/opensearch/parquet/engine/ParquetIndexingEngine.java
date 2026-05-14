@@ -18,14 +18,17 @@ import org.opensearch.index.engine.dataformat.Merger;
 import org.opensearch.index.engine.dataformat.RefreshInput;
 import org.opensearch.index.engine.dataformat.RefreshResult;
 import org.opensearch.index.engine.dataformat.Writer;
+import org.opensearch.index.engine.dataformat.WriterConfig;
 import org.opensearch.index.engine.exec.Segment;
 import org.opensearch.index.engine.exec.commit.IndexStoreProvider;
+import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.store.FormatChecksumStrategy;
 import org.opensearch.index.store.PrecomputedChecksumStrategy;
 import org.opensearch.parquet.ParquetSettings;
 import org.opensearch.parquet.bridge.NativeSettings;
 import org.opensearch.parquet.bridge.RustBridge;
+import org.opensearch.parquet.fields.ArrowSchemaBuilder;
 import org.opensearch.parquet.memory.ArrowBufferPool;
 import org.opensearch.parquet.merge.NativeParquetMergeStrategy;
 import org.opensearch.parquet.merge.ParquetMergeExecutor;
@@ -42,7 +45,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Supplier;
 
 import static org.opensearch.parquet.ParquetDataFormatPlugin.PARQUET_DATA_FORMAT;
 
@@ -72,7 +74,9 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
 
     private final ParquetDataFormat dataFormat;
     private final ShardPath shardPath;
-    private final Supplier<Schema> schemaSupplier;
+    private final MapperService mapperService;
+    private volatile long cachedSchemaVersion = -1;
+    private volatile Schema cachedSchema;
     private final ArrowBufferPool bufferPool;
     private final IndexSettings indexSettings;
     private final Settings nodeSettings;
@@ -86,7 +90,7 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
      * @param settings          the node-level settings
      * @param dataFormat        the Parquet data format descriptor
      * @param shardPath         the shard path for file storage
-     * @param schemaSupplier    supplier for the Arrow schema
+     * @param mapperService     the mapper service for schema resolution
      * @param indexSettings     the index-level settings
      * @param threadPool        the thread pool for background native writes
      */
@@ -94,24 +98,20 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
         Settings settings,
         ParquetDataFormat dataFormat,
         ShardPath shardPath,
-        Supplier<Schema> schemaSupplier,
+        MapperService mapperService,
         IndexSettings indexSettings,
         ThreadPool threadPool
     ) {
-        this(settings, dataFormat, shardPath, schemaSupplier, indexSettings, threadPool, new PrecomputedChecksumStrategy());
+        this(settings, dataFormat, shardPath, mapperService, indexSettings, threadPool, new PrecomputedChecksumStrategy());
     }
 
     /**
      * Creates a new ParquetIndexingEngine with an externally provided checksum strategy.
      *
-     * <p>Use this constructor when the checksum strategy is shared with the
-     * {@link org.opensearch.index.store.DataFormatAwareStoreDirectory} so that
-     * pre-computed CRC32 values registered during write are visible to the upload path.
-     *
      * @param settings          the node-level settings
      * @param dataFormat        the Parquet data format descriptor
      * @param shardPath         the shard path for file storage
-     * @param schemaSupplier    supplier for the Arrow schema
+     * @param mapperService     the mapper service for schema resolution
      * @param indexSettings     the index-level settings
      * @param threadPool        the thread pool for background native writes
      * @param checksumStrategy  the checksum strategy to use (shared with the directory)
@@ -120,14 +120,14 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
         Settings settings,
         ParquetDataFormat dataFormat,
         ShardPath shardPath,
-        Supplier<Schema> schemaSupplier,
+        MapperService mapperService,
         IndexSettings indexSettings,
         ThreadPool threadPool,
         FormatChecksumStrategy checksumStrategy
     ) {
         this.dataFormat = dataFormat;
         this.shardPath = shardPath;
-        this.schemaSupplier = schemaSupplier;
+        this.mapperService = mapperService;
         this.bufferPool = new ArrowBufferPool(settings);
         this.indexSettings = indexSettings;
         this.nodeSettings = settings;
@@ -182,13 +182,16 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
     }
 
     @Override
-    public Writer<ParquetDocumentInput> createWriter(long writerGeneration) {
-        Path filePath = buildParquetFilePath(shardPath, writerGeneration, null);
+    public Writer<ParquetDocumentInput> createWriter(WriterConfig config) {
+        long mappingVersion = mapperService.getIndexSettings().getIndexMetadata().getMappingVersion();
+        Schema schema = getOrBuildSchema(mappingVersion);
+        Path filePath = buildParquetFilePath(shardPath, config.writerGeneration(), null);
         return new ParquetWriter(
             filePath.toString(),
-            writerGeneration,
+            config.writerGeneration(),
+            mappingVersion,
             dataFormat,
-            schemaSupplier.get(),
+            schema,
             bufferPool,
             indexSettings,
             threadPool,
@@ -254,6 +257,15 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
     @Override
     public IndexStoreProvider getProvider() {
         return null;
+    }
+
+    private Schema getOrBuildSchema(long mappingVersion) {
+        if (cachedSchemaVersion == mappingVersion && cachedSchema != null) {
+            return cachedSchema;
+        }
+        cachedSchema = ArrowSchemaBuilder.getSchema(mapperService);
+        cachedSchemaVersion = mappingVersion;
+        return cachedSchema;
     }
 
     @Override

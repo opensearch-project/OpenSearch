@@ -10,6 +10,8 @@ package org.opensearch.parquet.vsr;
 
 import org.apache.arrow.c.ArrowSchema;
 import org.apache.arrow.vector.BigIntVector;
+import org.apache.arrow.vector.FieldVector;
+import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.Schema;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -116,7 +118,7 @@ public class VSRManager implements AutoCloseable {
         this.threadPool = threadPool;
         this.vsrRotationThread = runAsync ? ParquetDataFormatPlugin.PARQUET_THREAD_POOL_NAME : ThreadPool.Names.SAME;
         this.managedVSR.set(vsrPool.getActiveVSR());
-        initializeWriter();
+        this.writer = new NativeParquetWriter(fileName);
     }
 
     /**
@@ -127,13 +129,20 @@ public class VSRManager implements AutoCloseable {
      * @param doc the document input containing field-value pairs
      */
     public void addDocument(ParquetDocumentInput doc) throws IOException {
-        maybeRotateActiveVSR();
         ManagedVSR activeVSR = managedVSR.get();
         for (FieldValuePair pair : doc.getFinalInput()) {
             MappedFieldType fieldType = pair.getFieldType();
             ParquetField parquetField = ArrowFieldRegistry.getParquetField(fieldType.typeName());
             if (parquetField == null) {
                 continue;
+            }
+            // Dynamic field vector addition: create vector if not present in VSR
+            FieldVector vector = activeVSR.getVector(fieldType.name());
+            if (vector == null) {
+                Field field = new Field(fieldType.name(), parquetField.getFieldType(), null);
+                activeVSR.addFieldVector(field);
+                // Update pool schema so future VSRs include this field
+                vsrPool.updateSchema(activeVSR.getSchema());
             }
             parquetField.createField(fieldType, activeVSR, pair.getValue());
         }
@@ -143,6 +152,7 @@ public class VSRManager implements AutoCloseable {
             rowIdVector.setSafe(rowIndex, doc.getRowId());
         }
         activeVSR.setRowCount(rowIndex + 1);
+        maybeRotateActiveVSR();
     }
 
     /**
@@ -160,10 +170,13 @@ public class VSRManager implements AutoCloseable {
         ManagedVSR frozenVSR = vsrPool.getFrozenVSR();
         if (frozenVSR != null) {
             logger.debug("Writing frozen VSR {} ({} rows) for {}", frozenVSR.getId(), frozenVSR.getRowCount(), fileName);
+            maybeInitializeWriter(frozenVSR);
             Runnable writeTask = () -> {
-                try (ArrowExport export = frozenVSR.exportToArrow()) {
-                    rowCount.add(frozenVSR.getRowCount());
-                    writer.write(export.getArrayAddress(), export.getSchemaAddress());
+                try {
+                    try (ArrowExport export = frozenVSR.exportToArrow()) {
+                        rowCount.add(frozenVSR.getRowCount());
+                        writer.write(export.getArrayAddress(), export.getSchemaAddress());
+                    }
                 } catch (IOException e) {
                     throw new RuntimeException(e);
                 }
@@ -191,6 +204,7 @@ public class VSRManager implements AutoCloseable {
         if (currentVSR != null && currentVSR.getRowCount() > 0) {
             logger.info("Flushing {} rows for {}", currentVSR.getRowCount(), fileName);
             currentVSR.moveToFrozen();
+            maybeInitializeWriter(currentVSR);
             try (ArrowExport export = currentVSR.exportToArrow()) {
                 rowCount.add(currentVSR.getRowCount());
                 writer.write(export.getArrayAddress(), export.getSchemaAddress());
@@ -199,7 +213,7 @@ public class VSRManager implements AutoCloseable {
             managedVSR.set(null);
         }
         ParquetFileMetadata metadata = writer.flush();
-        assert metadata.numRows() == rowCount.sum() : "Row count mismatch between Java managed VSR and Rust writer";
+        assert metadata == null || metadata.numRows() == rowCount.sum() : "Row count mismatch between Java managed VSR and Rust writer";
         logger.debug("Flush completed for {} with metadata: {}", fileName, metadata);
         return metadata;
     }
@@ -227,18 +241,16 @@ public class VSRManager implements AutoCloseable {
         }
     }
 
-    private void initializeWriter() {
-        ParquetSortConfig sortConfig = new ParquetSortConfig(indexSettings);
-        String indexName = indexSettings.getIndex().getName();
-
-        ArrowSchema arrowSchema = managedVSR.get().exportSchema();
-        try {
-            writer = new NativeParquetWriter(fileName, indexName, arrowSchema.memoryAddress(), sortConfig, writerGeneration);
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to initialize Parquet writer: " + e.getMessage(), e);
-        } finally {
-            arrowSchema.release();
-            arrowSchema.close();
+    /**
+     * Initializes the native writer on first use, using the schema from the given VSR.
+     */
+    private void maybeInitializeWriter(ManagedVSR vsr) throws IOException {
+        if (writer.isInitialized() == false) {
+            String indexName = indexSettings.getIndex().getName();
+            ParquetSortConfig sortConfig = new ParquetSortConfig(indexSettings);
+            try (ArrowSchema schema = vsr.exportSchema()) {
+                writer.initialize(indexName, schema.memoryAddress(), sortConfig, writerGeneration);
+            }
         }
     }
 
@@ -269,6 +281,15 @@ public class VSRManager implements AutoCloseable {
         } finally {
             pendingWrite = null;
         }
+    }
+
+    /**
+     * Returns whether the schema can still evolve (native writer not yet initialized).
+     *
+     * @return true if the schema is mutable
+     */
+    public boolean isSchemaMutable() {
+        return writer.isInitialized() == false;
     }
 
     // Visible for testing only
