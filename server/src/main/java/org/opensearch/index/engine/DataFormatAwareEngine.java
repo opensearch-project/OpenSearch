@@ -1203,7 +1203,7 @@ public class DataFormatAwareEngine implements Indexer {
                         .values()
                         .stream()
                         .findFirst()
-                        .orElseGet(() -> new WriterFileSet("", -1L, Set.of(), 0))
+                        .orElseGet(() -> new WriterFileSet("", -1L, Set.of(), 0L, 0L))
                 )
                 .mapToLong(WriterFileSet::numRows)
                 .sum();

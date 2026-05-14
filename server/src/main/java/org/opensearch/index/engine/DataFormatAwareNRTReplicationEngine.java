@@ -369,25 +369,39 @@ public class DataFormatAwareNRTReplicationEngine implements Indexer {
             // committed userData (history UUID, checkpoints, ...). Matches DataFormatAwareEngine.flush().
             snapshot.setUserData(commitData, true);
 
-            // No IndexWriter — commit directly via store using synthetic SegmentInfos.
-            SegmentInfos syntheticInfos = new SegmentInfos(org.apache.lucene.util.Version.LATEST.major);
-            syntheticInfos.setNextWriteGeneration(snapshot.getLastCommitGeneration());
-            syntheticInfos.setUserData(commitData, false);
+            // Build the SegmentInfos to commit. If the primary's SegmentInfos is available
+            // (set by SegmentReplicationTarget during replication), clone it so the commit on
+            // disk contains the real Lucene segment entries. This is critical for primary
+            // promotion: when this replica is later promoted, the new IndexWriter must open on
+            // a commit that includes all Lucene segments. Without this, the IndexWriter sees an
+            // empty commit and any Lucene secondary-format files become orphans.
+            //
+            // Falls back to an empty SegmentInfos for edge cases (e.g., very early bootstrap
+            // before the first replication cycle).
+            SegmentInfos preservedInfos = (snapshot instanceof DataformatAwareCatalogSnapshot dfa) ? dfa.getCommitSegmentInfos() : null;
+            SegmentInfos commitInfos;
+            if (preservedInfos != null) {
+                commitInfos = preservedInfos.clone();
+            } else {
+                commitInfos = new SegmentInfos(org.apache.lucene.util.Version.LATEST.major);
+            }
+            commitInfos.setNextWriteGeneration(snapshot.getLastCommitGeneration());
+            // Replica-local userData (LOCAL_CHECKPOINT, MAX_SEQ_NO, etc.) overrides whatever
+            // came from the primary — the primary's checkpoints don't apply here.
+            commitInfos.setUserData(commitData, false);
             if (bumpSICounter) {
                 try {
-                    syntheticInfos.counter = store.readLastCommittedSegmentsInfo().counter + SI_COUNTER_INCREMENT;
+                    commitInfos.counter = store.readLastCommittedSegmentsInfo().counter + SI_COUNTER_INCREMENT;
                 } catch (IOException e) {
-                    syntheticInfos.counter = SI_COUNTER_INCREMENT;
+                    commitInfos.counter = SI_COUNTER_INCREMENT;
                 }
-                syntheticInfos.changed();
+                commitInfos.changed();
             }
-            store.commitSegmentInfos(syntheticInfos, localCheckpointTracker.getMaxSeqNo(), localCheckpointTracker.getProcessedCheckpoint());
+            store.commitSegmentInfos(commitInfos, localCheckpointTracker.getMaxSeqNo(), localCheckpointTracker.getProcessedCheckpoint());
 
             if (snapshot instanceof DataformatAwareCatalogSnapshot dfaSnapshot) {
-                // Synthetic SegmentInfos on a replica is assembled from the primary's upload;
-                // stamp it with the commit's Lucene version (long-encoded).
-                long version = LuceneVersionConverter.encode(syntheticInfos.getCommitLuceneVersion());
-                dfaSnapshot.setLastCommitInfo(syntheticInfos.getSegmentsFileName(), syntheticInfos.getGeneration(), version);
+                long version = LuceneVersionConverter.encode(commitInfos.getCommitLuceneVersion());
+                dfaSnapshot.setLastCommitInfo(commitInfos.getSegmentsFileName(), commitInfos.getGeneration(), version);
             }
 
             synchronized (lastCommittedSnapshotMutex) {

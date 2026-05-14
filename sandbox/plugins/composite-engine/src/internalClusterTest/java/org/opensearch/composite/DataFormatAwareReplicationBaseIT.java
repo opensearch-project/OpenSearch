@@ -17,6 +17,8 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 import org.opensearch.index.shard.IndexShard;
+import org.opensearch.index.store.FileMetadata;
+import org.opensearch.index.store.RemoteSegmentStoreDirectory.UploadedSegmentMetadata;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.parquet.ParquetDataFormatPlugin;
 import org.opensearch.plugins.Plugin;
@@ -27,6 +29,7 @@ import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
@@ -66,6 +69,66 @@ public abstract class DataFormatAwareReplicationBaseIT extends RemoteStoreBaseIn
             .put("index.composite.primary_data_format", "parquet")
             .putList("index.composite.secondary_data_formats", List.of())
             .build();
+    }
+
+    /**
+     * Returns the set of data formats this index variant uses. Override in subclasses that use
+     * a different format combination. Used by tests for format-aware assertions.
+     *
+     * <p>Lucene is always present (it underlies every DFA index regardless of secondary format
+     * configuration), so it's included by default. Subclasses with explicit Lucene as a
+     * secondary format have the same expected set.
+     */
+    protected Set<String> expectedFormats() {
+        return Set.of("parquet", "lucene");
+    }
+
+    /** Whether lucene is configured as a secondary data format (produces searchable segment files). */
+    protected boolean hasLuceneSecondary() {
+        return false;
+    }
+
+    /**
+     * Asserts that the index/ directory on the shard contains the expected Lucene files:
+     * - parquet-only: only segments_N (commit metadata)
+     * - parquet+lucene: segments_N plus additional segment data files (.si, .cfs, etc.)
+     */
+    protected void assertLuceneIndexDirContents(IndexShard shard) throws java.io.IOException {
+        java.nio.file.Path indexDir = shard.shardPath().resolveIndex();
+        assertTrue("index/ directory must exist", java.nio.file.Files.exists(indexDir));
+        java.util.Set<String> files;
+        try (var stream = java.nio.file.Files.list(indexDir)) {
+            files = stream.map(p -> p.getFileName().toString()).collect(java.util.stream.Collectors.toSet());
+        }
+        assertTrue("index/ must contain segments_N, got " + files, files.stream().anyMatch(f -> f.startsWith("segments_")));
+        java.util.Set<String> nonSegmentsFiles = files.stream()
+            .filter(f -> f.startsWith("segments_") == false && f.equals("write.lock") == false)
+            .collect(java.util.stream.Collectors.toSet());
+        if (hasLuceneSecondary()) {
+            assertFalse("parquet+lucene: index/ must have segment data files beyond segments_N, got " + files, nonSegmentsFiles.isEmpty());
+        } else {
+            assertTrue(
+                "parquet-only: index/ must have only segments_N (and write.lock), got extra: " + nonSegmentsFiles,
+                nonSegmentsFiles.isEmpty()
+            );
+        }
+    }
+
+    /**
+     * Asserts that for every format in {@link #expectedFormats()} (excluding lucene which lives
+     * under {@code index/}), a non-empty directory exists on the shard's data path. Validates
+     * that all configured formats actually produced files on disk.
+     */
+    protected void assertAllFormatDirsHaveFiles(IndexShard shard) throws java.io.IOException {
+        for (String format : expectedFormats()) {
+            // lucene files live in index/, not in a sibling format directory
+            if ("lucene".equals(format)) continue;
+            java.nio.file.Path dir = shard.shardPath().getDataPath().resolve(format);
+            assertTrue("format directory must exist: " + format, java.nio.file.Files.exists(dir));
+            try (var stream = java.nio.file.Files.list(dir)) {
+                assertTrue("format directory must have files: " + format, stream.findAny().isPresent());
+            }
+        }
     }
 
     protected void createDfaIndex(int replicaCount) throws Exception {
@@ -143,8 +206,10 @@ public abstract class DataFormatAwareReplicationBaseIT extends RemoteStoreBaseIn
                     IndexShard replica = getIndexShard(replicaNode, index);
                     Set<String> replicaFiles = DataFormatAwareITUtils.catalogFilesExcludingSegments(replica);
                     assertEquals("primary/replica catalog files must converge on node " + replicaNode, primaryFiles, replicaFiles);
+                    assertLuceneIndexDirContents(replica);
                 }
                 DataFormatAwareITUtils.assertCatalogMatchesLocalAndRemote(primary);
+                assertLuceneIndexDirContents(primary);
             } catch (org.apache.lucene.store.AlreadyClosedException e) {
                 // Engine can be transiently closed while a shard is being re-assigned after a
                 // promotion (old primary → new replica). Treat as assertBusy-retryable.
@@ -220,5 +285,10 @@ public abstract class DataFormatAwareReplicationBaseIT extends RemoteStoreBaseIn
             .add(new org.opensearch.cluster.routing.allocation.command.CancelAllocationCommand(index, shardId, nodeName, true))
             .execute()
             .actionGet();
+    }
+
+    /** Extract the set of distinct data formats from an uploaded-segments map. */
+    protected static Set<String> formatsOf(Map<String, UploadedSegmentMetadata> segments) {
+        return segments.keySet().stream().map(file -> new FileMetadata(file).dataFormat()).collect(Collectors.toSet());
     }
 }
