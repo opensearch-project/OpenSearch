@@ -8,7 +8,9 @@
 
 package org.opensearch.analytics.spi;
 
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 /**
  * SPI extension point for backend query engine plugins.

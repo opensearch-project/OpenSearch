@@ -52,12 +52,10 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EnumMap;
-import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 import java.util.function.DoubleSupplier;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
@@ -75,13 +73,13 @@ import static org.opensearch.search.backpressure.trackers.NativeMemoryUsageTrack
 public class SearchBackpressureService extends AbstractLifecycleComponent implements TaskCompletionListener {
     private static final Logger logger = LogManager.getLogger(SearchBackpressureService.class);
     // Tracker-apply rules:
-    //   - When native-memory duress is active, we run ONLY the native-memory and elapsed-time
-    //     trackers. CPU and heap trackers are intentionally skipped so that a runaway native
-    //     allocator doesn't trigger unrelated cancellation paths (heap is still low, CPU may
-    //     not be pegged). See the dedicated short-circuit in doRun().
-    //   - Otherwise, CPU and heap trackers run when their corresponding resource is in duress,
-    //     elapsed-time always runs, and the native-memory tracker runs only under its own
-    //     native-memory duress condition.
+    // - When native-memory duress is active, we run ONLY the native-memory and elapsed-time
+    // trackers. CPU and heap trackers are intentionally skipped so that a runaway native
+    // allocator doesn't trigger unrelated cancellation paths (heap is still low, CPU may
+    // not be pegged). See the dedicated short-circuit in doRun().
+    // - Otherwise, CPU and heap trackers run when their corresponding resource is in duress,
+    // elapsed-time always runs, and the native-memory tracker runs only under its own
+    // native-memory duress condition.
     private static final Map<TaskResourceUsageTrackerType, Function<NodeDuressTrackers, Boolean>> trackerApplyConditions = Map.of(
         TaskResourceUsageTrackerType.CPU_USAGE_TRACKER,
         (nodeDuressTrackers) -> nodeDuressTrackers.isResourceInDuress(ResourceType.CPU),
@@ -257,29 +255,33 @@ public class SearchBackpressureService extends AbstractLifecycleComponent implem
             );
         }
 
-         Map<Class<? extends SearchBackpressureTask>, List<CancellableTask>> cancellableTasks;
+        Map<Class<? extends SearchBackpressureTask>, List<CancellableTask>> cancellableTasks;
 
-            boolean isHeapUsageDominatedBySearchTasks = isHeapUsageDominatedBySearch(
-                searchTasks,
-                getSettings().getSearchTaskSettings().getTotalHeapPercentThreshold()
-            );
-            boolean isHeapUsageDominatedBySearchShardTasks = isHeapUsageDominatedBySearch(
-                searchShardTasks,
-                getSettings().getSearchShardTaskSettings().getTotalHeapPercentThreshold()
-            );
-            cancellableTasks = Map.of(
-                SearchTask.class,
-                isHeapUsageDominatedBySearchTasks ? searchTasks : Collections.emptyList(),
-                SearchShardTask.class,
-                isHeapUsageDominatedBySearchShardTasks ? searchShardTasks : Collections.emptyList()
-            );
+        boolean isHeapUsageDominatedBySearchTasks = isHeapUsageDominatedBySearch(
+            searchTasks,
+            getSettings().getSearchTaskSettings().getTotalHeapPercentThreshold()
+        );
+        boolean isHeapUsageDominatedBySearchShardTasks = isHeapUsageDominatedBySearch(
+            searchShardTasks,
+            getSettings().getSearchShardTaskSettings().getTotalHeapPercentThreshold()
+        );
+        cancellableTasks = Map.of(
+            SearchTask.class,
+            isHeapUsageDominatedBySearchTasks ? searchTasks : Collections.emptyList(),
+            SearchShardTask.class,
+            isHeapUsageDominatedBySearchShardTasks ? searchShardTasks : Collections.emptyList()
+        );
 
         if (inNativeMemoryDuress) {
-             cancellableTasks = Map.of(SearchTask.class, searchTasks, SearchShardTask.class, searchShardTasks);
+            cancellableTasks = Map.of(SearchTask.class, searchTasks, SearchShardTask.class, searchShardTasks);
             if (shouldApply(TaskResourceUsageTrackerType.NATIVE_MEMORY_USAGE_TRACKER)) {
-                logger.info("[nativemem-bp] doRun: refreshing tracker [{}]", TaskResourceUsageTrackerType.NATIVE_MEMORY_USAGE_TRACKER.getName());
+                logger.info(
+                    "[nativemem-bp] doRun: refreshing tracker [{}]",
+                    TaskResourceUsageTrackerType.NATIVE_MEMORY_USAGE_TRACKER.getName()
+                );
                 for (TaskResourceUsageTrackers trackers : taskTrackers.values()) {
-                    trackers.getTracker(TaskResourceUsageTrackerType.NATIVE_MEMORY_USAGE_TRACKER).ifPresent(TaskResourceUsageTracker::refresh);
+                    trackers.getTracker(TaskResourceUsageTrackerType.NATIVE_MEMORY_USAGE_TRACKER)
+                        .ifPresent(TaskResourceUsageTracker::refresh);
                 }
             }
         }
@@ -311,11 +313,7 @@ public class SearchBackpressureService extends AbstractLifecycleComponent implem
             .map(this::addSBPStateUpdateCallback)
             .filter(TaskCancellation::isEligibleForCancellation)
             .collect(Collectors.toList());
-        logger.info(
-            "[nativemem-bp] doRun: merged {} reasons -> {} eligible cancellations",
-            beforeMerge,
-            taskCancellations.size()
-        );
+        logger.info("[nativemem-bp] doRun: merged {} reasons -> {} eligible cancellations", beforeMerge, taskCancellations.size());
 
         for (TaskCancellation taskCancellation : taskCancellations) {
             logger.warn(

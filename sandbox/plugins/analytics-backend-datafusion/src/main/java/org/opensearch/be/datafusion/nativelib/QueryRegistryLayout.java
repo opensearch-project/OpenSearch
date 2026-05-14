@@ -11,12 +11,9 @@ package org.opensearch.be.datafusion.nativelib;
 import org.opensearch.analytics.spi.QueryExecutionMetrics;
 
 import java.lang.foreign.MemoryLayout;
-import java.lang.foreign.MemoryLayout.PathElement;
 import java.lang.foreign.MemorySegment;
-import java.lang.foreign.SequenceLayout;
 import java.lang.foreign.StructLayout;
 import java.lang.foreign.ValueLayout;
-import java.lang.invoke.VarHandle;
 
 /**
  * Mirrors the Rust {@code query_tracker::WireQueryMetric} {@code #[repr(C)]}
@@ -24,10 +21,12 @@ import java.lang.invoke.VarHandle;
  * directly into the SPI types consumed by
  * {@link org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin#getActiveQueryMetrics}.
  *
- * <p>This is the same idiom {@code StatsLayout} uses for the {@code df_stats}
- * call: a {@link StructLayout} describes the wire shape, cached
- * {@link VarHandle}s read individual fields, and the decoder produces the
- * caller's final type with no transport-only intermediate.
+ * <p>Decoder reads each row by slicing the segment to that row's 40-byte
+ * window. We deliberately avoid {@code SequenceLayout}-derived
+ * {@code VarHandle}s because their bounds check enforces the segment span
+ * the entire sequence layout, not just up to the requested row. With a
+ * generic {@code Long.MAX_VALUE / ENTRY_BYTES} sequence layout the read
+ * always fails an {@link IndexOutOfBoundsException}.
  *
  * <p>Buffer shape (populated by {@code df_query_registry_top_n_by_current}):
  * <pre>
@@ -49,18 +48,13 @@ public final class QueryRegistryLayout {
     /** Byte size of one wire entry. Matches {@code size_of::<WireQueryMetric>()} on the Rust side. */
     public static final long ENTRY_BYTES = ENTRY_LAYOUT.byteSize();
 
-    /**
-     * Sequence layout used to derive per-row {@link VarHandle}s. The first path
-     * element is a {@code sequenceElement()} (the array index), the second is
-     * the field name within {@code ENTRY_LAYOUT}.
-     */
-    private static final SequenceLayout ROWS = MemoryLayout.sequenceLayout(Long.MAX_VALUE / ENTRY_BYTES, ENTRY_LAYOUT);
-
-    private static final VarHandle CONTEXT_ID = rowHandle("context_id");
-    private static final VarHandle CURRENT_BYTES = rowHandle("current_bytes");
-    private static final VarHandle PEAK_BYTES = rowHandle("peak_bytes");
-    private static final VarHandle WALL_NANOS = rowHandle("wall_nanos");
-    private static final VarHandle COMPLETED = rowHandle("completed");
+    // Byte offsets within a single entry. Field order must match
+    // ENTRY_LAYOUT and the Rust #[repr(C)] WireQueryMetric struct.
+    private static final long OFF_CONTEXT_ID    = 0L;
+    private static final long OFF_CURRENT_BYTES = 8L;
+    private static final long OFF_PEAK_BYTES    = 16L;
+    private static final long OFF_WALL_NANOS    = 24L;
+    private static final long OFF_COMPLETED     = 32L;
 
     static {
         long expected = 5L * Long.BYTES;
@@ -78,7 +72,8 @@ public final class QueryRegistryLayout {
      * @param i   row index, must be {@code < written} returned by the FFI call
      */
     public static long readContextId(MemorySegment seg, int i) {
-        return (long) CONTEXT_ID.get(seg, 0L, (long) i);
+        long rowOffset = (long) i * ENTRY_BYTES;
+        return seg.get(ValueLayout.JAVA_LONG, rowOffset + OFF_CONTEXT_ID);
     }
 
     /**
@@ -89,19 +84,12 @@ public final class QueryRegistryLayout {
      * @param i   row index, must be {@code < written} returned by the FFI call
      */
     public static QueryExecutionMetrics readMetrics(MemorySegment seg, int i) {
-        long row = (long) i;
+        long rowOffset = (long) i * ENTRY_BYTES;
         return new QueryExecutionMetrics(
-            (long) CURRENT_BYTES.get(seg, 0L, row),
-            (long) PEAK_BYTES.get(seg, 0L, row),
-            (long) WALL_NANOS.get(seg, 0L, row),
-            (long) COMPLETED.get(seg, 0L, row) != 0L
+            seg.get(ValueLayout.JAVA_LONG, rowOffset + OFF_CURRENT_BYTES),
+            seg.get(ValueLayout.JAVA_LONG, rowOffset + OFF_PEAK_BYTES),
+            seg.get(ValueLayout.JAVA_LONG, rowOffset + OFF_WALL_NANOS),
+            seg.get(ValueLayout.JAVA_LONG, rowOffset + OFF_COMPLETED) != 0L
         );
-    }
-
-    private static VarHandle rowHandle(String field) {
-        // sequenceElement() leaves the row index as a free coordinate, so the
-        // returned VarHandle takes (segment, base, rowIndex) — we always pass
-        // base=0 because the FFM call writes at the start of the segment.
-        return ROWS.varHandle(PathElement.sequenceElement(), PathElement.groupElement(field));
     }
 }
