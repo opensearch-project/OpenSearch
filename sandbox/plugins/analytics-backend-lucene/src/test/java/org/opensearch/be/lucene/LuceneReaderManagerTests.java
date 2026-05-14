@@ -136,7 +136,8 @@ public class LuceneReaderManagerTests extends OpenSearchTestCase {
                         sci.info.dir.toString(),
                         gen,
                         new java.util.HashSet<>(sci.files()),
-                        sci.info.maxDoc()
+                        sci.info.maxDoc(),
+                        0L
                     );
                     result.add(Segment.builder(gen).addSearchableFiles(LuceneDataFormat.LUCENE_FORMAT_NAME, wfs).build());
                 }

@@ -66,6 +66,9 @@ public class DatafusionReaderManager implements EngineReaderManager<DatafusionRe
 
     @Override
     public DatafusionReader getReader(CatalogSnapshot catalogSnapshot) throws IOException {
+        if (catalogSnapshot == null) {
+            throw new IOException("catalogSnapshot must not be null");
+        }
         DatafusionReader reader = readers.get(catalogSnapshot.getVersion());
         if (reader == null) {
             throw new IOException("No DataFusion reader available for catalog snapshot [version=" + catalogSnapshot.getVersion() + "]");

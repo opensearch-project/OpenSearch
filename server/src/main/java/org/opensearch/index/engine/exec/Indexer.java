@@ -197,5 +197,5 @@ public interface Indexer
      * regardless of retention policy. Used for peer-recovery phase-1 metadata diffing.
      * Caller MUST close the returned handle to release the refcount.
      */
-    GatedCloseable<CatalogSnapshot> acquireLastCommittedSnapshot(boolean flushFirst) throws EngineException;
+    GatedCloseable<CatalogSnapshot> acquireLastCommittedSnapshot(boolean flushFirst) throws EngineException, IOException;
 }

@@ -259,7 +259,7 @@ public class EngineBackedIndexer implements Indexer {
     }
 
     @Override
-    public GatedCloseable<CatalogSnapshot> acquireLastCommittedSnapshot(boolean flushFirst) throws EngineException {
+    public GatedCloseable<CatalogSnapshot> acquireLastCommittedSnapshot(boolean flushFirst) throws EngineException, IOException {
         return engine.acquireLastCommittedSnapshot(flushFirst);
     }
 

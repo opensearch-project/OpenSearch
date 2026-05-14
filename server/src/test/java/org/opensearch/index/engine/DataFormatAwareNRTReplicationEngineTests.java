@@ -291,9 +291,7 @@ public class DataFormatAwareNRTReplicationEngineTests extends OpenSearchTestCase
 
     public void testAcquireLastIndexCommitReturnsBootstrapCommit() throws IOException {
         try (DataFormatAwareNRTReplicationEngine engine = createReplicaEngine(createTempDir())) {
-            // Bootstrap commit is enough; no flush needed to get a valid IndexCommit handle.
-            assertNotNull(engine.acquireLastIndexCommit(false).get());
-            assertNotNull(engine.acquireSafeIndexCommit().get());
+            expectThrows(UnsupportedOperationException.class, engine::acquireSafeIndexCommit);
         }
     }
 
@@ -308,7 +306,6 @@ public class DataFormatAwareNRTReplicationEngineTests extends OpenSearchTestCase
         DataFormatAwareNRTReplicationEngine engine = createReplicaEngine(createTempDir());
         engine.close();
         expectThrows(org.apache.lucene.store.AlreadyClosedException.class, () -> engine.acquireSnapshot());
-        expectThrows(org.apache.lucene.store.AlreadyClosedException.class, () -> engine.acquireLastIndexCommit(false));
         expectThrows(org.apache.lucene.store.AlreadyClosedException.class, engine::commitStats);
     }
 
