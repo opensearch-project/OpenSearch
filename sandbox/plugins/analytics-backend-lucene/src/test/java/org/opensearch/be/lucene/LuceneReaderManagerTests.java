@@ -40,7 +40,6 @@ import org.opensearch.index.engine.exec.Segment;
 import org.opensearch.index.engine.exec.WriterFileSet;
 import org.opensearch.index.engine.exec.commit.CommitterConfig;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
-import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.seqno.RetentionLeases;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.store.Store;
@@ -333,12 +332,7 @@ public class LuceneReaderManagerTests extends OpenSearchTestCase {
         LuceneCommitter committer = new LuceneCommitter(cs);
 
         try {
-            LuceneIndexingExecutionEngine engine = new LuceneIndexingExecutionEngine(
-                new LuceneDataFormat(),
-                committer,
-                mock(MapperService.class),
-                store
-            );
+            LuceneIndexingExecutionEngine engine = new LuceneIndexingExecutionEngine(new LuceneDataFormat(), committer, store);
             ReaderManagerConfig settings = new ReaderManagerConfig(
                 Optional.of(engine),
                 dataFormat,

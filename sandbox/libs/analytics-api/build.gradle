@@ -7,10 +7,10 @@
  */
 
 /*
- * Analytics Engine API surface consumable from JDK 21 code paths.
+ * Analytics Engine API surface.
  */
 
-java { sourceCompatibility = JavaVersion.toVersion(21); targetCompatibility = JavaVersion.toVersion(21) }
+java { sourceCompatibility = JavaVersion.toVersion(25); targetCompatibility = JavaVersion.toVersion(25) }
 
 // no test for now, so disable
 testingConventions.enabled = false

@@ -24,10 +24,14 @@ import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
+import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.dataformat.DataFormatRegistry;
 import org.opensearch.index.engine.dataformat.ReaderManagerConfig;
 import org.opensearch.index.engine.exec.EngineReaderManager;
+import org.opensearch.index.engine.exec.IndexReaderProvider;
+import org.opensearch.index.get.DocumentLookupResult;
 import org.opensearch.plugins.ActionPlugin;
+import org.opensearch.plugins.DocumentLookupProvider;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.SearchBackEndPlugin;
 import org.opensearch.repositories.RepositoriesService;
@@ -54,7 +58,12 @@ import io.substrait.extension.SimpleExtension;
  * Analytics query capabilities are declared in {@link DataFusionAnalyticsBackendPlugin},
  * which is SPI-discovered and receives this plugin instance via its constructor.
  */
-public class DataFusionPlugin extends Plugin implements SearchBackEndPlugin<DatafusionReader>, AnalyticsSearchBackendPlugin, ActionPlugin {
+public class DataFusionPlugin extends Plugin
+    implements
+        SearchBackEndPlugin<DatafusionReader>,
+        AnalyticsSearchBackendPlugin,
+        ActionPlugin,
+    DocumentLookupProvider {
 
     private static final Logger logger = LogManager.getLogger(DataFusionPlugin.class);
 
@@ -109,6 +118,8 @@ public class DataFusionPlugin extends Plugin implements SearchBackEndPlugin<Data
     private volatile SimpleExtension.ExtensionCollection substraitExtensions;
     private volatile ClusterService clusterService;
     private volatile DatafusionSettings datafusionSettings;
+    // DocumentLookupProvider implementation. Construction deferred until the DataFusion service is live.
+    private volatile GetService getService;
 
     /**
      * Creates the DataFusion plugin.
@@ -153,6 +164,7 @@ public class DataFusionPlugin extends Plugin implements SearchBackEndPlugin<Data
         this.datafusionSettings = new DatafusionSettings(clusterService);
 
         this.substraitExtensions = loadSubstraitExtensions();
+        this.getService = new GetService(this);
 
         return Collections.singletonList(dataFusionService);
     }
@@ -272,5 +284,19 @@ public class DataFusionPlugin extends Plugin implements SearchBackEndPlugin<Data
         if (dataFusionService != null) {
             dataFusionService.close();
         }
+    }
+
+    /**
+     * Non-Lucene get-by-id entry point. Delegates to {@link GetService}, which resolves the
+     * {@code _id} term via the sibling Lucene reader (accessed via data format registry), maps the
+     * hit to a parquet (generation, rowId) pair, and fetches the row through the native runtime.
+     */
+    @Override
+    public DocumentLookupResult getById(Engine.Get get, IndexReaderProvider.Reader reader, String indexName) throws IOException {
+        GetService service = this.getService;
+        if (service == null) {
+            throw new IllegalStateException("DataFusion get-by-id service not initialized — createComponents() has not been called");
+        }
+        return service.getById(get, reader, indexName);
     }
 }

@@ -206,6 +206,47 @@ public class LuceneWriterTests extends OpenSearchTestCase {
         }
     }
 
+    /**
+     * Enumerates the field names that actually reach the Lucene segment when a document
+     * carrying a mapped {@code _id} is written through {@link LuceneDocumentInput}. This
+     * pins the invariant that the id-field round-trips: the {@code get-by-id} path relies
+     * on a {@code TermQuery(IdFieldMapper.NAME, Uid.encodeId(id))} resolving a doc id,
+     * which requires the {@code _id} term to be indexed.
+     */
+    public void testIdFieldIsIndexedWhenRegistered() throws IOException {
+        Path baseDir = createTempDir();
+        MappedFieldType idField = mock(MappedFieldType.class);
+        when(idField.typeName()).thenReturn("_id");
+        when(idField.name()).thenReturn("_id");
+
+        try (LuceneWriter writer = new LuceneWriter(1L, dataFormat, baseDir, null, Codec.getDefault(), null)) {
+            LuceneDocumentInput input = new LuceneDocumentInput();
+            org.apache.lucene.util.BytesRef encoded = org.opensearch.index.mapper.Uid.encodeId("user-doc-42");
+            byte[] idBytes = new byte[encoded.length];
+            System.arraycopy(encoded.bytes, encoded.offset, idBytes, 0, encoded.length);
+            input.addField(idField, idBytes);
+            input.setRowId(LuceneDocumentInput.ROW_ID_FIELD, 0);
+            writer.addDoc(input);
+
+            FileInfos fileInfos = writer.flush();
+            WriterFileSet wfs = fileInfos.getWriterFileSet(dataFormat).get();
+
+            try (NIOFSDirectory dir = new NIOFSDirectory(Path.of(wfs.directory())); IndexReader reader = DirectoryReader.open(dir)) {
+                java.util.Set<String> fieldNames = new java.util.HashSet<>();
+                for (LeafReaderContext ctx : reader.leaves()) {
+                    for (org.apache.lucene.index.FieldInfo fi : ctx.reader().getFieldInfos()) {
+                        fieldNames.add(fi.name);
+                    }
+                }
+                assertTrue("Expected _id to be indexed; actual fields: " + fieldNames, fieldNames.contains("_id"));
+
+                IndexSearcher searcher = new IndexSearcher(reader);
+                int hits = searcher.count(new TermQuery(new Term("_id", org.opensearch.index.mapper.Uid.encodeId("user-doc-42"))));
+                assertThat("TermQuery on _id must match the indexed doc", hits, equalTo(1));
+            }
+        }
+    }
+
     public void testWriteAndFlushEndToEndWithTextAndKeyword() throws IOException {
         Path baseDir = createTempDir();
         MappedFieldType textField = mockTextField("body");

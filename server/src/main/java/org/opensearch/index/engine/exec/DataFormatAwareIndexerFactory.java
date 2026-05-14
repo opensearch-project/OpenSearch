@@ -8,8 +8,10 @@
 
 package org.opensearch.index.engine.exec;
 
+import org.opensearch.common.Nullable;
 import org.opensearch.index.engine.DataFormatAwareEngine;
 import org.opensearch.index.engine.EngineConfig;
+import org.opensearch.plugins.DocumentLookupProvider;
 
 /**
  * {@link IndexerFactory} that creates a {@link DataFormatAwareEngine},
@@ -19,8 +21,16 @@ import org.opensearch.index.engine.EngineConfig;
  */
 public class DataFormatAwareIndexerFactory implements IndexerFactory {
 
+    @Nullable
+    private DocumentLookupProvider documentLookupProvider;
+
+    /** Wires the optional {@link DocumentLookupProvider} used by {@link DataFormatAwareEngine#getById}. */
+    public void setGetByIdPlugin(@Nullable DocumentLookupProvider documentLookupProvider) {
+        this.documentLookupProvider = documentLookupProvider;
+    }
+
     @Override
     public Indexer createIndexer(EngineConfig config) {
-        return new DataFormatAwareEngine(config);
+        return new DataFormatAwareEngine(config, documentLookupProvider);
     }
 }

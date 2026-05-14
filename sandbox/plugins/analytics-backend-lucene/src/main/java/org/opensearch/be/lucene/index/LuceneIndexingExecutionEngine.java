@@ -35,7 +35,6 @@ import org.opensearch.index.engine.dataformat.Writer;
 import org.opensearch.index.engine.exec.Segment;
 import org.opensearch.index.engine.exec.WriterFileSet;
 import org.opensearch.index.engine.exec.commit.IndexStoreProvider;
-import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.store.Store;
 
 import java.io.IOException;
@@ -90,12 +89,7 @@ public class LuceneIndexingExecutionEngine implements IndexingExecutionEngine<Lu
      * @param luceneCommitter the committer that owns the shared IndexWriter
      * @param store           the shard's store
      */
-    public LuceneIndexingExecutionEngine(
-        LuceneDataFormat dataFormat,
-        LuceneCommitter luceneCommitter,
-        MapperService mapperService,
-        Store store
-    ) {
+    public LuceneIndexingExecutionEngine(LuceneDataFormat dataFormat, LuceneCommitter luceneCommitter, Store store) {
         if (luceneCommitter == null) {
             throw new IllegalArgumentException("LuceneCommitter must not be null");
         }

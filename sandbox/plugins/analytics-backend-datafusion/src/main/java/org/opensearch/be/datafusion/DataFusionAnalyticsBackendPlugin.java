@@ -38,6 +38,8 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
+import io.substrait.extension.SimpleExtension;
+
 /**
  * SPI extension discovered by analytics-engine via {@code META-INF/services}.
  * <p>
@@ -528,6 +530,24 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
     @Override
     public FragmentInstructionHandlerFactory getInstructionHandlerFactory() {
         return new DataFusionInstructionHandlerFactory(plugin);
+    }
+
+    /**
+     * Returns the Substrait extension collection used for plan construction.
+     * Exposed to peer plugins (analytics-engine) that hand-roll Substrait plans
+     * targeting this backend (e.g. non-SearchExecEngine get-by-id path).
+     */
+    public SimpleExtension.ExtensionCollection getSubstraitExtensions() {
+        return plugin.getSubstraitExtensions();
+    }
+
+    /**
+     * Returns the {@link DataFusionService} owned by the underlying {@link DataFusionPlugin}.
+     * Exposed so peer plugins that bypass the {@link SearchExecEngineProvider} path
+     * (e.g. the get-by-id lookup) can obtain the native runtime pointer.
+     */
+    public DataFusionService getDataFusionService() {
+        return plugin.getDataFusionService();
     }
 
     @Override

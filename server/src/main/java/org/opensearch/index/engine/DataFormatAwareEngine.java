@@ -56,17 +56,21 @@ import org.opensearch.index.engine.exec.FileDeleter;
 import org.opensearch.index.engine.exec.FilesListener;
 import org.opensearch.index.engine.exec.IndexReaderProvider;
 import org.opensearch.index.engine.exec.Indexer;
+import org.opensearch.index.engine.exec.PrimaryTermFieldType;
 import org.opensearch.index.engine.exec.Segment;
 import org.opensearch.index.engine.exec.WriterFileSet;
 import org.opensearch.index.engine.exec.commit.Committer;
 import org.opensearch.index.engine.exec.commit.CommitterConfig;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshotManager;
+import org.opensearch.index.get.DocumentLookupResult;
 import org.opensearch.index.mapper.DocumentMapperForType;
 import org.opensearch.index.mapper.IdFieldMapper;
 import org.opensearch.index.mapper.ParsedDocument;
+import org.opensearch.index.mapper.SeqNoFieldMapper;
 import org.opensearch.index.mapper.SourceToParse;
 import org.opensearch.index.mapper.Uid;
+import org.opensearch.index.mapper.VersionFieldMapper;
 import org.opensearch.index.merge.MergeStats;
 import org.opensearch.index.seqno.LocalCheckpointTracker;
 import org.opensearch.index.seqno.SeqNoStats;
@@ -83,6 +87,7 @@ import org.opensearch.index.translog.TranslogManager;
 import org.opensearch.index.translog.TranslogOperationHelper;
 import org.opensearch.index.translog.listener.TranslogEventListener;
 import org.opensearch.indices.pollingingest.PollingIngestStats;
+import org.opensearch.plugins.DocumentLookupProvider;
 import org.opensearch.search.suggest.completion.CompletionStats;
 
 import java.io.Closeable;
@@ -95,6 +100,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -143,6 +149,9 @@ public class DataFormatAwareEngine implements Indexer {
     private final CatalogSnapshotManager catalogSnapshotManager;
     private final Committer committer;
     private final List<ReferenceManager.RefreshListener> refreshListeners;
+
+    @Nullable
+    private final DocumentLookupProvider documentLookupProvider;
 
     // Translog for durability and recovery
     private final TranslogManager translogManager;
@@ -193,16 +202,27 @@ public class DataFormatAwareEngine implements Indexer {
     private final String historyUUID;
 
     /**
-     * Constructs a DataFormatBasedEngine.
+     * Constructs a DataFormatBasedEngine without a get-by-id plugin.
      *
      * @param engineConfig the engine configuration
      */
     public DataFormatAwareEngine(EngineConfig engineConfig) {
+        this(engineConfig, null);
+    }
+
+    /**
+     * Constructs a DataFormatBasedEngine.
+     *
+     * @param engineConfig   the engine configuration
+     * @param documentLookupProvider  the optional plugin powering {@link #getById(Engine.Get)}
+     */
+    public DataFormatAwareEngine(EngineConfig engineConfig, @Nullable DocumentLookupProvider documentLookupProvider) {
         this.logger = Loggers.getLogger(DataFormatAwareEngine.class, engineConfig.getShardId());
         this.engineConfig = engineConfig;
         this.shardId = engineConfig.getShardId();
         this.store = engineConfig.getStore();
         this.throttle = new IndexingThrottler();
+        this.documentLookupProvider = documentLookupProvider;
 
         List<ReferenceManager.RefreshListener> refreshListeners = new ArrayList<>();
         if (engineConfig.getInternalRefreshListener() != null) {
@@ -562,10 +582,15 @@ public class DataFormatAwareEngine implements Indexer {
         DefaultLockableHolder<Writer<?>> lockedWriter = writerPool.getAndLock();
         try {
             currentWriter = lockedWriter.get();
+
             // Writer pool must never return null — it creates on demand via the supplier
             assert currentWriter != null : "writer pool returned null writer";
             assert index.seqNo() >= 0 : "seqNo must be assigned before writing but was: " + index.seqNo();
             assert index.primaryTerm() > 0 : "primaryTerm must be positive but was: " + index.primaryTerm();
+            index.parsedDoc().getDocumentInput().addField(engineConfig.getMapperService().fieldType(VersionFieldMapper.NAME), plan.version);
+            index.parsedDoc().getDocumentInput().addField(engineConfig.getMapperService().fieldType(SeqNoFieldMapper.NAME), index.seqNo());
+            index.parsedDoc().getDocumentInput().addField(PrimaryTermFieldType.INSTANCE, index.primaryTerm());
+
             WriteResult result = currentWriter.addDoc(index.parsedDoc().getDocumentInput());
 
             if (result instanceof WriteResult.Success) {
@@ -1157,7 +1182,13 @@ public class DataFormatAwareEngine implements Indexer {
             long count = snapshot.get()
                 .getSegments()
                 .stream()
-                .flatMap(segment -> segment.dfGroupedSearchableFiles().values().stream())
+                .map(
+                    segment -> segment.dfGroupedSearchableFiles()
+                        .values()
+                        .stream()
+                        .findFirst()
+                        .orElseGet(() -> new WriterFileSet("", -1L, Set.of(), 0))
+                )
                 .mapToLong(WriterFileSet::numRows)
                 .sum();
             long totalSize = snapshot.get()
@@ -1330,6 +1361,22 @@ public class DataFormatAwareEngine implements Indexer {
         return catalogSnapshotManager.acquireSnapshot();
     }
 
+    /**
+     * Delegates get-by-id to the installed {@link DocumentLookupProvider}, acquiring a
+     * per-format reader on the current snapshot and passing it to the plugin.
+     * Throws {@link UnsupportedOperationException} if no plugin is wired.
+     */
+    @Override
+    public DocumentLookupResult getById(Engine.Get get) throws IOException {
+        ensureOpen();
+        if (documentLookupProvider == null) {
+            throw new UnsupportedOperationException("getById not supported: no DocumentLookupProvider installed");
+        }
+        try (GatedCloseable<Reader> readerRef = acquireReader()) {
+            return documentLookupProvider.getById(get, readerRef.get(), shardId.getIndexName());
+        }
+    }
+
     @Override
     public GatedCloseable<IndexCommit> acquireSafeIndexCommit() throws EngineException {
         // TODO: Implement when commit coordination is added
@@ -1419,7 +1466,7 @@ public class DataFormatAwareEngine implements Indexer {
     }
 
     private void triggerPossibleMerges() {
-        if (Booleans.parseBoolean(System.getProperty(MERGE_ENABLED_PROPERTY, Boolean.FALSE.toString())) == false) {
+        if (Booleans.parseBoolean(System.getProperty(MERGE_ENABLED_PROPERTY, Boolean.TRUE.toString())) == false) {
             logger.debug("Pluggable dataformat merge is disabled via system property [{}], skipping merge", MERGE_ENABLED_PROPERTY);
             return;
         }

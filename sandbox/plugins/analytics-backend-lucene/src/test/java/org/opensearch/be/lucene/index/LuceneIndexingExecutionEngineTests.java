@@ -154,7 +154,7 @@ public class LuceneIndexingExecutionEngineTests extends OpenSearchTestCase {
      */
     public void testRefreshIncorporatesLuceneSegments() throws IOException {
         LuceneDataFormat luceneDataFormat = new LuceneDataFormat();
-        LuceneIndexingExecutionEngine engine = new LuceneIndexingExecutionEngine(luceneDataFormat, committer, mapperService, store);
+        LuceneIndexingExecutionEngine engine = new LuceneIndexingExecutionEngine(luceneDataFormat, committer, store);
         IndexWriter writer = committer.getIndexWriter();
         assertEquals(0, writer.getDocStats().numDocs);
 
@@ -162,9 +162,7 @@ public class LuceneIndexingExecutionEngineTests extends OpenSearchTestCase {
 
         // Use LuceneWriter to create segments (which sets the writer_generation attribute via LuceneWriterCodec)
         Path tempBase = createTempDir();
-        MappedFieldType textField = mock(MappedFieldType.class);
-        when(textField.typeName()).thenReturn("text");
-        when(textField.name()).thenReturn("content");
+        MappedFieldType textField = new org.opensearch.index.mapper.KeywordFieldMapper.KeywordFieldType("content");
 
         long generation = 1L;
         try (LuceneWriter luceneWriter = new LuceneWriter(generation, luceneDataFormat, tempBase, null, Codec.getDefault(), null)) {
@@ -203,7 +201,7 @@ public class LuceneIndexingExecutionEngineTests extends OpenSearchTestCase {
      * Refresh skips WriterFileSets whose directory does not match the Lucene data format name.
      */
     public void testRefreshSkipsNonLuceneDirectories() throws IOException {
-        LuceneIndexingExecutionEngine engine = new LuceneIndexingExecutionEngine(new LuceneDataFormat(), committer, mapperService, store);
+        LuceneIndexingExecutionEngine engine = new LuceneIndexingExecutionEngine(new LuceneDataFormat(), committer, store);
         IndexWriter writer = committer.getIndexWriter();
 
         // Create a segment directory that looks like it has files but is keyed under "parquet"
@@ -222,7 +220,7 @@ public class LuceneIndexingExecutionEngineTests extends OpenSearchTestCase {
      * Refresh with no files skips addIndexes.
      */
     public void testRefreshWithNoLuceneFilesSkipsAddIndexes() throws IOException {
-        LuceneIndexingExecutionEngine engine = new LuceneIndexingExecutionEngine(new LuceneDataFormat(), committer, mapperService, store);
+        LuceneIndexingExecutionEngine engine = new LuceneIndexingExecutionEngine(new LuceneDataFormat(), committer, store);
 
         RefreshInput emptyInput = RefreshInput.builder().build();
         RefreshResult result = engine.refresh(emptyInput);
@@ -234,14 +232,14 @@ public class LuceneIndexingExecutionEngineTests extends OpenSearchTestCase {
      * Constructor with null committer throws IllegalArgumentException.
      */
     public void testConstructorWithNullCommitterThrows() {
-        expectThrows(IllegalArgumentException.class, () -> new LuceneIndexingExecutionEngine(null, null, null, null));
+        expectThrows(IllegalArgumentException.class, () -> new LuceneIndexingExecutionEngine(null, null, null));
     }
 
     /**
      * Refresh with null input returns empty result.
      */
     public void testRefreshWithNullInputReturnsEmpty() throws IOException {
-        LuceneIndexingExecutionEngine engine = new LuceneIndexingExecutionEngine(new LuceneDataFormat(), committer, mapperService, store);
+        LuceneIndexingExecutionEngine engine = new LuceneIndexingExecutionEngine(new LuceneDataFormat(), committer, store);
 
         RefreshResult result = engine.refresh(null);
         assertNotNull(result);
@@ -255,21 +253,16 @@ public class LuceneIndexingExecutionEngineTests extends OpenSearchTestCase {
      */
     public void testWriterCreationAndFlushThroughEngine() throws IOException {
         LuceneDataFormat luceneDataFormat = new LuceneDataFormat();
-        LuceneIndexingExecutionEngine engine = new LuceneIndexingExecutionEngine(luceneDataFormat, committer, mapperService, store);
+        LuceneIndexingExecutionEngine engine = new LuceneIndexingExecutionEngine(luceneDataFormat, committer, store);
         IndexWriter sharedWriter = committer.getIndexWriter();
         assertEquals(0, sharedWriter.getDocStats().numDocs);
 
         int numDocs = randomIntBetween(3, 15);
         long generation = 1L;
 
-        MappedFieldType textField = mock(MappedFieldType.class);
-        when(textField.typeName()).thenReturn("text");
-        when(textField.name()).thenReturn("content");
+        MappedFieldType textField = new org.opensearch.index.mapper.KeywordFieldMapper.KeywordFieldType("content");
 
-        MappedFieldType keywordField = mock(MappedFieldType.class);
-        when(keywordField.typeName()).thenReturn("keyword");
-        when(keywordField.name()).thenReturn("tag");
-        when(keywordField.hasDocValues()).thenReturn(true);
+        MappedFieldType keywordField = new org.opensearch.index.mapper.KeywordFieldMapper.KeywordFieldType("tag");
 
         // Create writer through the engine
         LuceneWriter writer = (LuceneWriter) engine.createWriter(generation);
@@ -314,12 +307,10 @@ public class LuceneIndexingExecutionEngineTests extends OpenSearchTestCase {
      */
     public void testMultipleWriterRefreshAccumulatesInSharedWriter() throws IOException {
         LuceneDataFormat luceneDataFormat = new LuceneDataFormat();
-        LuceneIndexingExecutionEngine engine = new LuceneIndexingExecutionEngine(luceneDataFormat, committer, mapperService, store);
+        LuceneIndexingExecutionEngine engine = new LuceneIndexingExecutionEngine(luceneDataFormat, committer, store);
         IndexWriter sharedWriter = committer.getIndexWriter();
 
-        MappedFieldType textField = mock(MappedFieldType.class);
-        when(textField.typeName()).thenReturn("text");
-        when(textField.name()).thenReturn("body");
+        MappedFieldType textField = new org.opensearch.index.mapper.KeywordFieldMapper.KeywordFieldType("body");
 
         long gen1 = 1L;
         long gen2 = 2L;
@@ -398,7 +389,7 @@ public class LuceneIndexingExecutionEngineTests extends OpenSearchTestCase {
      */
     public void testDeleteFilesIsNoOpForLuceneFormat() throws IOException {
         LuceneDataFormat luceneDataFormat = new LuceneDataFormat();
-        LuceneIndexingExecutionEngine engine = new LuceneIndexingExecutionEngine(luceneDataFormat, committer, mapperService, store);
+        LuceneIndexingExecutionEngine engine = new LuceneIndexingExecutionEngine(luceneDataFormat, committer, store);
         org.apache.lucene.store.Directory directory = store.directory();
 
         directory.createOutput("_0.cfs", org.apache.lucene.store.IOContext.DEFAULT).close();
@@ -416,7 +407,7 @@ public class LuceneIndexingExecutionEngineTests extends OpenSearchTestCase {
      */
     public void testDeleteFilesIgnoresNonLuceneFormat() throws IOException {
         LuceneDataFormat luceneDataFormat = new LuceneDataFormat();
-        LuceneIndexingExecutionEngine engine = new LuceneIndexingExecutionEngine(luceneDataFormat, committer, mapperService, store);
+        LuceneIndexingExecutionEngine engine = new LuceneIndexingExecutionEngine(luceneDataFormat, committer, store);
         engine.deleteFiles(java.util.Map.of("parquet", java.util.List.of("_0.parquet")));
     }
 }

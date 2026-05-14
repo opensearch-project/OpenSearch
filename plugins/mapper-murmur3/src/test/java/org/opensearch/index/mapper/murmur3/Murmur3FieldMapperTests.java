@@ -176,6 +176,11 @@ public class Murmur3FieldMapperTests extends MapperTestCase {
         public void setRowId(String rowIdFieldName, long rowId) {}
 
         @Override
+        public long getFieldCount(String fieldName) {
+            return 0;
+        }
+
+        @Override
         public void close() {}
 
         public List<Map.Entry<MappedFieldType, Object>> getCapturedFields() {

@@ -27,7 +27,11 @@ import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.FixedExecutorBuilder;
 import org.opensearch.threadpool.ThreadPool;
 
+import java.util.ArrayList;
 import java.util.List;
+
+import static org.opensearch.parquet.engine.ParquetIndexingEngineTests.metadataFields;
+import static org.opensearch.parquet.engine.ParquetIndexingEngineTests.populateMetadataFields;
 
 public class VSRManagerTests extends OpenSearchTestCase {
 
@@ -103,12 +107,19 @@ public class VSRManagerTests extends OpenSearchTestCase {
     }
 
     public void testAddDocument() throws Exception {
+        List<Field> fields = new ArrayList<>();
+        fields.addAll(metadataFields());
+        fields.add(new Field("val", FieldType.nullable(new ArrowType.Int(32, true)), null));
+        schema = new Schema(fields);
+
         String filePath = createTempDir().resolve("add-doc.parquet").toString();
         VSRManager manager = new VSRManager(filePath, indexSettings, schema, bufferPool, 50000, threadPool, 0L);
 
         NumberFieldMapper.NumberFieldType valField = new NumberFieldMapper.NumberFieldType("val", NumberFieldMapper.NumberType.INTEGER);
         ParquetDocumentInput doc = new ParquetDocumentInput();
+        populateMetadataFields(doc);
         doc.addField(valField, 42);
+        doc.setRowId("__row_id__", 0);
         manager.addDocument(doc);
 
         assertEquals(1, manager.getActiveManagedVSR().getRowCount());
