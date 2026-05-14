@@ -19,15 +19,20 @@
 //! registry's atomics and DashMap — no locks are held during I/O.
 
 use std::fmt;
+use std::ops::Range;
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use bytes::Bytes;
 use futures::stream::BoxStream;
 use futures::StreamExt;
 use object_store::{
     path::Path, CopyOptions, GetOptions, GetResult, ListResult, MultipartUpload, ObjectMeta,
     ObjectStore, PutMultipartOptions, PutOptions, PutPayload, PutResult, Result as OsResult,
 };
+
+use opensearch_block_cache::range_cache::range_cache_key;
+use opensearch_block_cache::traits::BlockCache;
 
 use crate::registry::traits::FileRegistry;
 use crate::registry::TieredStorageRegistry;
@@ -46,6 +51,8 @@ pub struct TieredObjectStore {
     registry: Arc<TieredStorageRegistry>,
     local: Arc<dyn ObjectStore>,
     remote: std::sync::OnceLock<Arc<dyn ObjectStore>>,
+    /// Optional node-level block cache. `None` on hot nodes or when disabled.
+    cache: Option<Arc<dyn BlockCache>>,
 }
 
 impl TieredObjectStore {
@@ -57,6 +64,7 @@ impl TieredObjectStore {
             registry,
             local,
             remote: std::sync::OnceLock::new(),
+            cache: None,
         }
     }
 
@@ -69,6 +77,13 @@ impl TieredObjectStore {
     /// Set the remote store (once). Subsequent calls are ignored.
     pub fn set_remote(&self, store: Arc<dyn ObjectStore>) {
         self.remote.set(store).ok(); // ignore if already set
+    }
+
+    /// Attach a block cache. Hot nodes skip this; `None` means no caching.
+    #[must_use]
+    pub fn with_cache(mut self, cache: Arc<dyn BlockCache>) -> Self {
+        self.cache = Some(cache);
+        self
     }
 
     /// Register a file in the registry. For Remote/Both locations, the caller
@@ -216,13 +231,14 @@ impl fmt::Debug for TieredObjectStore {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("TieredObjectStore")
             .field("file_count", &self.registry.len())
+            .field("cache", &self.cache.is_some())
             .finish()
     }
 }
 
 impl fmt::Display for TieredObjectStore {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "TieredObjectStore(files={})", self.registry.len())
+        write!(f, "TieredObjectStore(files={}, cache={})", self.registry.len(), self.cache.is_some())
     }
 }
 
@@ -296,16 +312,97 @@ impl ObjectStore for TieredObjectStore {
         result
     }
 
-    /// Delete stream: remove each path from registry only, NO local delete.
-    /// Local file deletion is handled by the Java layer.
+    /// Multi-range read with cache-first routing.
+    /// Probes cache per range; fetches only misses; populates cache on success.
+    async fn get_ranges(&self, location: &Path, ranges: &[Range<u64>]) -> OsResult<Vec<Bytes>> {
+        let path_str = location.as_ref();
+
+        // probe cache; collect hits and misses
+        let mut slots: Vec<Option<Bytes>> = Vec::with_capacity(ranges.len());
+        let mut miss_indices: Vec<usize> = Vec::new();
+        let mut miss_ranges: Vec<Range<u64>> = Vec::new();
+
+        if let Some(ref cache) = self.cache {
+            for (i, r) in ranges.iter().enumerate() {
+                let key = range_cache_key(path_str, r.start, r.end);
+                if let Some(cached) = cache.get(&key).await {
+                    slots.push(Some(cached));
+                } else {
+                    slots.push(None);
+                    miss_indices.push(i);
+                    miss_ranges.push(r.clone());
+                }
+            }
+            if miss_ranges.is_empty() {
+                native_bridge_common::log_info!(
+                    "TieredObjectStore: get_ranges FULL CACHE HIT path='{}' n={}",
+                    path_str, ranges.len()
+                );
+                return Ok(slots.into_iter().map(|o| o.unwrap()).collect());
+            }
+        } else {
+            for (i, r) in ranges.iter().enumerate() {
+                slots.push(None);
+                miss_indices.push(i);
+                miss_ranges.push(r.clone());
+            }
+        }
+
+        // fetch only misses
+        let fetched = if let Some((rp, store)) = self.resolve_remote(path_str) {
+            store.get_ranges(&rp, &miss_ranges).await?
+        } else {
+            let r = self.local.get_ranges(location, &miss_ranges).await;
+            match r {
+                Ok(b) => b,
+                Err(ref e) => {
+                    if let Some((rp, store)) = self.should_retry_remote(path_str, e) {
+                        store.get_ranges(&rp, &miss_ranges).await?
+                    } else {
+                        r?
+                    }
+                }
+            }
+        };
+
+        // log miss summary
+        native_bridge_common::log_info!(
+            "TieredObjectStore: get_ranges CACHE MISS path='{}' misses={}/{}",
+            path_str, miss_ranges.len(), ranges.len()
+        );
+
+        // populate cache and reassemble in original order
+        if let Some(ref cache) = self.cache {
+            for (fetched_bytes, (&slot_i, miss_range)) in
+                fetched.iter().zip(miss_indices.iter().zip(miss_ranges.iter()))
+            {
+                let key = range_cache_key(path_str, miss_range.start, miss_range.end);
+                cache.put(&key, fetched_bytes.clone());
+                slots[slot_i] = Some(fetched_bytes.clone());
+            }
+        } else {
+            for (fetched_bytes, &slot_i) in fetched.iter().zip(miss_indices.iter()) {
+                slots[slot_i] = Some(fetched_bytes.clone());
+            }
+        }
+
+        Ok(slots.into_iter().map(|o| o.unwrap()).collect())
+    }
+
+    /// Delete stream: remove each path from registry and evict cache entries.
     fn delete_stream(
         &self,
         locations: BoxStream<'static, OsResult<Path>>,
     ) -> BoxStream<'static, OsResult<Path>> {
         let registry = Arc::clone(&self.registry);
+        let cache = self.cache.clone();
         let mapped = locations.map(move |result| {
             if let Ok(ref path) = result {
-                registry.remove(path.as_ref(), true);
+                let path_str = path.as_ref();
+                registry.remove(path_str, true);
+                if let Some(ref c) = cache {
+                    c.evict_prefix(path_str);
+                }
             }
             result
         });

@@ -12,6 +12,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.plugins.BlockCache;
 import org.opensearch.plugins.BlockCacheStats;
+import org.opensearch.plugins.BuiltInBlockCaches;
+import org.opensearch.plugins.NativeCacheHandle;
 
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -19,18 +21,13 @@ import java.util.concurrent.atomic.AtomicBoolean;
 /**
  * Foyer-backed implementation of {@link BlockCache}.
  *
- * <p>Holds the native cache handle privately. Callers interact with this
- * class through the {@link BlockCache} interface. Native-aware callers that
- * need the underlying handle must cast to {@code FoyerBlockCache} and call
- * {@link #nativeCachePtr()}. Core code never performs that cast.
- *
  * @opensearch.experimental
  */
 public final class FoyerBlockCache implements BlockCache {
 
     private static final Logger logger = LogManager.getLogger(FoyerBlockCache.class);
 
-    /** Opaque native handle returned by {@code foyer_create_cache}. Always positive. */
+    /** Opaque {@code Box<Arc<dyn BlockCache>>} fat pointer returned by {@code foyer_create_cache}. Always positive. */
     private final long cachePtr;
 
     /** The configured disk capacity in bytes */
@@ -67,14 +64,9 @@ public final class FoyerBlockCache implements BlockCache {
         this.cachePtr = FoyerBridge.createCache(diskBytes, diskDir, blockSizeBytes, ioEngine);
     }
 
-    /**
-     * Returns the opaque handle to the underlying native cache instance.
-     *
-     * <p>Absent from {@link BlockCache} to confine native handle access to code
-     * that explicitly narrows the type to {@code FoyerBlockCache}.
-     */
-    public long nativeCachePtr() {
-        return cachePtr;
+    @Override
+    public String cacheName() {
+        return BuiltInBlockCaches.FOYER;
     }
 
     /**
@@ -113,8 +105,30 @@ public final class FoyerBlockCache implements BlockCache {
     }
 
     /**
+     * Returns a borrowed, non-owning {@link NativeCacheHandle} for this Foyer cache.
+     *
+     * <p>The handle wraps the raw fat pointer created by {@code foyer_create_cache}.
+     * It is valid for the entire lifetime of this {@code FoyerBlockCache} instance.
+     * {@code FoyerBlockCache} owns the cache and destroys it via
+     * {@code foyer_destroy_cache} in {@link #close()} — callers must never free the pointer.
+     *
+     * @return a borrowed handle; never {@code null}, always {@link NativeCacheHandle#isLive()}
+     */
+    @Override
+    public NativeCacheHandle nativeCacheHandle() {
+        return NativeCacheHandle.of(cachePtr);
+    }
+
+    /**
      * Destroys the native cache. Idempotent — safe to call multiple times.
      */
+    @Override
+    public void evictPrefix(String prefix) {
+        if (closed.get() == false) {
+            FoyerBridge.evictPrefix(cachePtr, prefix);
+        }
+    }
+
     @Override
     public void close() {
         if (closed.compareAndSet(false, true)) {

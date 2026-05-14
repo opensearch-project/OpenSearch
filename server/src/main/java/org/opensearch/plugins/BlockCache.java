@@ -52,4 +52,52 @@ public interface BlockCache extends Closeable {
      * @return counter snapshot; never {@code null}
      */
     BlockCacheStats stats();
+
+    /**
+     * Returns the unique name of this cache backend, or an empty string if unnamed.
+     * Used by {@link BlockCacheRegistry} to look up caches by name.
+     *
+     * @return cache name; never {@code null}
+     */
+    default String cacheName() {
+        return "";
+    }
+
+    /**
+     * Returns a <em>borrowed</em>, non-owning handle to the native cache backing
+     * this instance, or {@link NativeCacheHandle#EMPTY} if this cache has no
+     * native backing.
+     *
+     * <p>A {@link NativeCacheHandle} is intentionally non-closeable. The native
+     * cache resource is owned exclusively by the {@link BlockCache} instance and
+     * its lifecycle is managed by {@link #close()}. Callers must never attempt to
+     * free the underlying pointer.
+     *
+     * <p>The returned handle is valid for as long as this {@code BlockCache}
+     * is alive. Callers that hold a reference past that lifetime will have a
+     * dangling pointer.
+     *
+     * <p>Pure-Java implementations return {@link NativeCacheHandle#EMPTY}.
+     * Native storage components check {@link NativeCacheHandle#isLive()} and
+     * fall back to uncached behaviour when the handle is empty.
+     *
+     * @return a borrowed handle to the native cache; never {@code null}
+     */
+    default NativeCacheHandle nativeCacheHandle() {
+        return NativeCacheHandle.EMPTY;
+    }
+
+    /**
+     * Evict all cache entries whose key starts with the given path prefix.
+     *
+     * <p>Used by {@link org.opensearch.index.store.remote.filecache.NodeCacheOrchestratorCleaner}
+     * to deterministically remove all cached byte-range entries for a shard or index
+     * when it is deleted.
+     *
+     * <p>The default implementation is a no-op — pure-Java caches that do not
+     * support prefix eviction or have their own eviction mechanism may leave this unimplemented.
+     *
+     * @param prefix absolute path prefix; all entries whose key starts with this string are removed
+     */
+    default void evictPrefix(String prefix) {}
 }

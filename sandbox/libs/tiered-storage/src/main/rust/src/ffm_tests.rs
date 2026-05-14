@@ -7,7 +7,7 @@ fn test_destroy_null_returns_error() {
 
 #[test]
 fn test_create_and_destroy_no_leak() {
-    let store_ptr = ts_create_tiered_object_store(0, 0);
+    let store_ptr = ts_create_tiered_object_store(0, 0, 0);
     assert!(store_ptr > 0);
     assert_eq!(ts_destroy_tiered_object_store(store_ptr), 0);
 }
@@ -27,7 +27,7 @@ fn test_remove_file_null_store_returns_error() {
 
 #[test]
 fn test_register_files_and_remove_round_trip() {
-    let store_ptr = ts_create_tiered_object_store(0, 0);
+    let store_ptr = ts_create_tiered_object_store(0, 0, 0);
     assert!(store_ptr > 0);
 
     // Batch register: two files as Remote (triplets: path\nremotePath\nsize\n...)
@@ -44,7 +44,7 @@ fn test_register_files_and_remove_round_trip() {
 
 #[test]
 fn test_register_files_invalid_location_returns_error() {
-    let store_ptr = ts_create_tiered_object_store(0, 0);
+    let store_ptr = ts_create_tiered_object_store(0, 0, 0);
     assert!(store_ptr > 0);
 
     let entries = b"test.parquet\nremote/test.parquet\n2048";
@@ -66,7 +66,7 @@ fn test_destroy_object_store_box_ptr_null_returns_error() {
 
 #[test]
 fn test_get_and_destroy_object_store_box_ptr_round_trip() {
-    let store_ptr = ts_create_tiered_object_store(0, 0);
+    let store_ptr = ts_create_tiered_object_store(0, 0, 0);
     assert!(store_ptr > 0);
 
     // Get a boxed pointer — this increments the Arc refcount
@@ -83,7 +83,7 @@ fn test_get_and_destroy_object_store_box_ptr_round_trip() {
 
 #[test]
 fn test_get_object_store_box_ptr_multiple_calls() {
-    let store_ptr = ts_create_tiered_object_store(0, 0);
+    let store_ptr = ts_create_tiered_object_store(0, 0, 0);
     assert!(store_ptr > 0);
 
     // Multiple box pointers can coexist (simulates multiple reader managers)
@@ -109,8 +109,8 @@ fn test_create_with_remote_does_not_consume_pointer() {
     let remote_ptr = Box::into_raw(remote_box) as i64;
 
     // Create two TieredObjectStores sharing the same remote pointer
-    let store1 = ts_create_tiered_object_store(0, remote_ptr);
-    let store2 = ts_create_tiered_object_store(0, remote_ptr);
+    let store1 = ts_create_tiered_object_store(0, remote_ptr, 0);
+    let store2 = ts_create_tiered_object_store(0, remote_ptr, 0);
     assert!(store1 > 0);
     assert!(store2 > 0);
 
@@ -120,4 +120,60 @@ fn test_create_with_remote_does_not_consume_pointer() {
 
     // Clean up the remote Box (simulates repository.doClose())
     let _remote_box = unsafe { Box::from_raw(remote_ptr as *mut Arc<dyn ObjectStore>) };
+}
+
+// -- cache_box_ptr tests ------------------------------------------------
+
+/// ts_create_tiered_object_store with 0 cache_box_ptr creates a store without
+/// a cache. The store must still be functional for all registry and I/O operations.
+#[test]
+fn test_create_with_zero_cache_ptr_creates_uncached_store() {
+    let store_ptr = ts_create_tiered_object_store(0, 0, 0);
+    assert!(store_ptr > 0);
+
+    // Store is functional — register a file without error.
+    let entries = b"a.parquet\nremote/a.parquet\n512";
+    let result = ts_register_files(store_ptr, entries.as_ptr(), entries.len() as i64, 1, 1);
+    assert_eq!(result, 0);
+
+    assert_eq!(ts_destroy_tiered_object_store(store_ptr), 0);
+}
+
+/// ts_create_tiered_object_store with a valid cache_box_ptr wires the cache
+/// without consuming the Box — two stores can share the same cache pointer.
+#[test]
+fn test_create_with_cache_does_not_consume_pointer() {
+    use opensearch_block_cache::range_cache::CacheKey;
+    use opensearch_block_cache::traits::BlockCache;
+    use bytes::Bytes;
+
+    // Minimal no-op cache used only to construct a valid Box<Arc<dyn BlockCache>> pointer.
+    struct NoopCache;
+    impl BlockCache for NoopCache {
+        fn get(&self, _key: &CacheKey) -> impl std::future::Future<Output = Option<Bytes>> + Send {
+            std::future::ready(None)
+        }
+        fn put(&self, _key: &CacheKey, _data: Bytes) {}
+        fn evict_prefix(&self, _prefix: &str) {}
+        fn clear(&self) -> impl std::future::Future<Output = ()> + Send {
+            std::future::ready(())
+        }
+    }
+
+    let cache: Arc<dyn BlockCache> = Arc::new(NoopCache);
+    let cache_box = Box::new(Arc::clone(&cache));
+    let cache_ptr = Box::into_raw(cache_box) as i64;
+
+    // Create two stores sharing the same cache pointer.
+    let store1 = ts_create_tiered_object_store(0, 0, cache_ptr);
+    let store2 = ts_create_tiered_object_store(0, 0, cache_ptr);
+    assert!(store1 > 0);
+    assert!(store2 > 0);
+
+    // Both stores created — cache pointer not consumed (Arc strong count still valid).
+    assert_eq!(ts_destroy_tiered_object_store(store1), 0);
+    assert_eq!(ts_destroy_tiered_object_store(store2), 0);
+
+    // Clean up the cache Box (simulates FoyerBlockCache.close()).
+    let _cache_box = unsafe { Box::from_raw(cache_ptr as *mut Arc<dyn BlockCache>) };
 }

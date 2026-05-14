@@ -12,6 +12,10 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.engine.dataformat.DataFormatStoreHandler;
+import org.opensearch.plugins.BlockCache;
+import org.opensearch.plugins.BuiltInBlockCaches;
+import org.opensearch.plugins.BlockCacheRegistry;
+import org.opensearch.plugins.NativeCacheHandle;
 import org.opensearch.plugins.NativeStoreHandle;
 import org.opensearch.repositories.NativeStoreRepository;
 
@@ -40,25 +44,51 @@ import java.util.Map;
 public class ParquetDataFormatStoreHandler implements DataFormatStoreHandler {
 
     private static final Logger logger = LogManager.getLogger(ParquetDataFormatStoreHandler.class);
+
     private final NativeStoreHandle storeHandle;
     /** Cached native object store handle for DataFusion readers — created lazily, closed with the handler. */
     private volatile NativeStoreHandle nativeStoreForReader;
 
     /**
      * Creates a per-shard native file registry.
-     * On warm nodes with a live native store, creates a Rust TieredObjectStore via FFM.
-     * On hot nodes (or when native store is unavailable), creates an empty handle (no-op).
      *
-     * @param shardId the shard id (for logging)
-     * @param isWarm  true if the shard is on a warm node
-     * @param repo    the native remote store, or {@code NativeStoreRepository.EMPTY}
+     * <p>On warm nodes, creates a native store via FFM. The handler resolves
+     * {@link BuiltInBlockCaches#FOYER} from {@code cacheRegistry} and wires it into the
+     * store if available.
+     *
+     * <p>On hot nodes (or when the native store is unavailable), creates an empty
+     * handle (all operations are no-ops).
+     *
+     * @param shardId        the shard id (for logging)
+     * @param isWarm         true if the shard is on a warm node
+     * @param repo           the native remote store, or {@code NativeStoreRepository.EMPTY}
+     * @param cacheRegistry  registry for resolving the preferred block cache by name,
+     *                       or {@code null} if no block cache support is available
      */
-    public ParquetDataFormatStoreHandler(ShardId shardId, boolean isWarm, NativeStoreRepository repo) {
+    public ParquetDataFormatStoreHandler(
+        ShardId shardId,
+        boolean isWarm,
+        NativeStoreRepository repo,
+        BlockCacheRegistry cacheRegistry
+    ) {
         if (isWarm) {
             long remotePtr = (repo != null && repo.isLive()) ? repo.getPointer() : 0L;
-            long ptr = TieredStorageBridge.createTieredObjectStore(0L, remotePtr);
+
+            // Resolve preferred cache by name; EMPTY if unavailable (hot nodes or no matching cache).
+            // NativeCacheHandle is a borrowed, non-owning reference — the cache is owned by
+            // NodeCacheOrchestrator and must not be freed here.
+            NativeCacheHandle cacheHandle = (cacheRegistry != null)
+                ? cacheRegistry.get(BuiltInBlockCaches.FOYER)
+                    .map(BlockCache::nativeCacheHandle)
+                    .orElse(NativeCacheHandle.EMPTY)
+                : NativeCacheHandle.EMPTY;
+            long cachePtr = cacheHandle.isLive() ? cacheHandle.getPointer() : 0L;
+
+            long ptr = TieredStorageBridge.createTieredObjectStore(0L, remotePtr, cachePtr);
             this.storeHandle = new NativeStoreHandle(ptr, TieredStorageBridge::destroyTieredObjectStore);
-            logger.debug("[{}] Created ParquetDataFormatStoreHandler with native store, ptr={}", shardId, ptr);
+
+            logger.debug("[{}] ParquetDataFormatStoreHandler created: cache={}",
+                shardId, cacheHandle.isLive() ? BuiltInBlockCaches.FOYER : "none");
         } else {
             this.storeHandle = NativeStoreHandle.EMPTY;
         }

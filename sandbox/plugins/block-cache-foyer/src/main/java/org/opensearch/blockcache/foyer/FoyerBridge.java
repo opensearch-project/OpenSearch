@@ -23,17 +23,13 @@ import java.lang.invoke.MethodHandle;
 /**
  * FFM bridge for the Foyer block cache lifecycle.
  *
- * <p>Exposes two operations: {@link #createCache} and {@link #destroyCache}.
- * These map to the {@code foyer_create_cache} and {@code foyer_destroy_cache}
- * symbols exported by the native library.
+ * <p>Exposes three operations: {@link #createCache}, {@link #destroyCache},
+ * and {@link #snapshotStats}.
  *
- * <p>Cache access operations ({@code get}, {@code put}, {@code evict}) are not
- * exposed here — they are called directly from the native layer without
- * crossing the Java boundary.
- *
- * <p>{@link #createCache} returns an opaque {@code long} handle that represents
- * the native cache instance. The handle must be passed to {@link #destroyCache}
- * exactly once when the cache is no  longer needed.
+ * <p>{@link #createCache} returns an opaque {@code long} handle representing a
+ * {@code Box<Arc<dyn BlockCache>>} fat pointer. The handle is passed directly as
+ * {@code cache_box_ptr} to {@code ts_create_tiered_object_store} — no additional
+ * wrapping is needed.
  *
  * @opensearch.experimental
  */
@@ -44,18 +40,19 @@ public final class FoyerBridge {
     private static final MethodHandle FOYER_CREATE_CACHE;
     private static final MethodHandle FOYER_DESTROY_CACHE;
     private static final MethodHandle FOYER_SNAPSHOT_STATS;
+    private static final MethodHandle FOYER_EVICT_PREFIX;
 
     static {
         SymbolLookup lib = NativeLibraryLoader.symbolLookup();
         Linker linker = Linker.nativeLinker();
 
         // i64 foyer_create_cache(u64 disk_bytes, *const u8 dir_ptr, u64 dir_len,
-        // u64 block_size_bytes,
-        // *const u8 io_engine_ptr, u64 io_engine_len)
+        // u64 block_size_bytes, *const u8 io_engine_ptr, u64 io_engine_len)
+        // Returns Box<Arc<dyn BlockCache>> fat pointer.
         FOYER_CREATE_CACHE = linker.downcallHandle(
             lib.find("foyer_create_cache").orElseThrow(),
             FunctionDescriptor.of(
-                ValueLayout.JAVA_LONG,  // return: opaque i64 handle
+                ValueLayout.JAVA_LONG,  // return: opaque i64 fat pointer
                 ValueLayout.JAVA_LONG,  // disk_bytes: u64
                 ValueLayout.ADDRESS,    // dir_ptr: *const u8
                 ValueLayout.JAVA_LONG,  // dir_len: u64
@@ -75,9 +72,6 @@ public final class FoyerBridge {
         );
 
         // i64 foyer_snapshot_stats(i64 ptr, i64* out) — 0=success, <0=error
-        // Writes BlockCacheStats.Field.COUNT * 2 i64 values into out:
-        // overall section then block-level section.
-        // See BlockCacheStats.Field for the per-section field layout.
         FOYER_SNAPSHOT_STATS = linker.downcallHandle(
             lib.find("foyer_snapshot_stats").orElseThrow(),
             FunctionDescriptor.of(
@@ -87,18 +81,31 @@ public final class FoyerBridge {
             )
         );
 
-        logger.info("FFM downcall handles resolved: foyer_create_cache, foyer_destroy_cache, foyer_snapshot_stats");
+        // i64 foyer_evict_prefix(i64 ptr, *const u8 prefix_ptr, u64 prefix_len) — 0=success, <0=error
+        FOYER_EVICT_PREFIX = linker.downcallHandle(
+            lib.find("foyer_evict_prefix").orElseThrow(),
+            FunctionDescriptor.of(
+                ValueLayout.JAVA_LONG,  // return: 0=ok, <0=error
+                ValueLayout.JAVA_LONG,  // ptr: i64 cache handle
+                ValueLayout.ADDRESS,    // prefix_ptr: *const u8
+                ValueLayout.JAVA_LONG   // prefix_len: u64
+            )
+        );
+
+        logger.info("FFM downcall handles resolved: foyer_create_cache, foyer_destroy_cache, foyer_snapshot_stats, foyer_evict_prefix");
     }
 
     /**
      * Create a Foyer block cache.
      *
+     * <p>Returns a {@code Box<Arc<dyn BlockCache>>} fat pointer that can be passed
+     * directly as {@code cache_box_ptr} to {@code ts_create_tiered_object_store}.
+     *
      * @param diskBytes       maximum disk space the cache may use, in bytes
      * @param diskDir         path to the directory where Foyer stores cache data
-     * @param blockSizeBytes  Foyer disk block size in bytes (see {@code format_cache.block_size})
+     * @param blockSizeBytes  Foyer disk block size in bytes
      * @param ioEngine        I/O engine: {@code "auto"}, {@code "io_uring"}, or {@code "psync"}
-     *                        (see {@code format_cache.io_engine})
-     * @return an opaque handle representing the cache instance; always positive on success
+     * @return an opaque fat pointer representing the cache instance; always positive on success
      * @throws RuntimeException if the native call fails or the directory is invalid
      */
     public static long createCache(long diskBytes, String diskDir, long blockSizeBytes, String ioEngine) {
@@ -149,9 +156,7 @@ public final class FoyerBridge {
      * the Rust {@code foyer_snapshot_stats} implementation.
      */
     public static long[] snapshotStats(long ptr) {
-        // 7 counters per section (must match FoyerAggregatedStats.Field ordinals)
-        // × 2 sections (overall + block_level) = 14 longs total.
-        final int bufferSize = 14;
+        final int bufferSize = FoyerAggregatedStats.STATS_BUFFER_SIZE;
         try (Arena arena = Arena.ofConfined()) {
             // Arena.allocate(ValueLayout, count) is the Java 22+ replacement for
             // the removed Arena.allocateArray(ValueLayout, count).
@@ -176,6 +181,24 @@ public final class FoyerBridge {
         } catch (Exception e) {
             logger.warn("foyer_snapshot_stats failed: {}", e.getMessage());
             return new long[bufferSize];
+        }
+    }
+
+    /**
+     * Evict all cache entries whose key starts with the given prefix.
+     *
+     * <p>Called by {@code FoyerBlockCache.evictPrefix} during shard/index deletion.
+     * Best-effort: if the native call fails, the error is logged but not propagated.
+     *
+     * @param ptr    the cache handle returned by {@link #createCache}
+     * @param prefix absolute path prefix (e.g. shard data path)
+     */
+    public static void evictPrefix(long ptr, String prefix) {
+        try (var call = new NativeCall()) {
+            var p = call.str(prefix);
+            call.invoke(FOYER_EVICT_PREFIX, ptr, p.segment(), p.len());
+        } catch (Exception e) {
+            logger.warn("foyer_evict_prefix failed for prefix='{}': {}", prefix, e.getMessage());
         }
     }
 

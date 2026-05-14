@@ -408,10 +408,16 @@ fn ffm_create_destroy_lifecycle_no_leak() {
     }
 }
 
-// ── foyer_snapshot_stats ──────────────────────────────────────────────────────
 
+// ── foyer_snapshot_stats tests ───────────────────────────────────────────────
+
+use crate::foyer::ffm::foyer_snapshot_stats;
+
+/// foyer_snapshot_stats returns 0 on a valid cache pointer and writes 14 i64 values.
+/// The values at index 0 (overall hit_count) and index 7 (block_level hit_count) should
+/// be identical since Foyer is single-tier (both sections mirror each other).
 #[test]
-fn snapshot_stats_returns_zero_for_fresh_cache() {
+fn ffm_snapshot_stats_valid_ptr_returns_zero_and_fills_buffer() {
     let dir = TempDir::new().unwrap();
     let dir_str = dir.path().to_str().unwrap();
     let engine = IO_ENGINE.as_bytes();
@@ -439,6 +445,32 @@ fn snapshot_stats_returns_zero_for_fresh_cache() {
 
 #[test]
 fn snapshot_stats_returns_error_for_null_out_ptr() {
+    let mut buf = [i64::MIN; 14];
+    let result = unsafe { foyer_snapshot_stats(ptr, buf.as_mut_ptr()) };
+    assert_eq!(result, 0, "foyer_snapshot_stats must return 0 on success");
+
+    // No i64::MIN values — the buffer was fully written.
+    for (i, &v) in buf.iter().enumerate() {
+        assert_ne!(v, i64::MIN, "buf[{}] was not written", i);
+    }
+
+    // Both sections are identical (single-tier: overall mirrors block_level).
+    assert_eq!(&buf[..7], &buf[7..], "overall and block_level sections must be identical");
+
+    unsafe { foyer_destroy_cache(ptr) };
+}
+
+/// foyer_snapshot_stats with null ptr returns negative.
+#[test]
+fn ffm_snapshot_stats_null_ptr_returns_error() {
+    let mut buf = [0i64; 14];
+    let result = unsafe { foyer_snapshot_stats(0, buf.as_mut_ptr()) };
+    assert!(result < 0);
+}
+
+/// foyer_snapshot_stats with null out buffer returns negative.
+#[test]
+fn ffm_snapshot_stats_null_out_returns_error() {
     let dir = TempDir::new().unwrap();
     let dir_str = dir.path().to_str().unwrap();
     let engine = IO_ENGINE.as_bytes();
@@ -500,4 +532,75 @@ fn snapshot_stats_used_bytes_reflects_put() {
     // Verify it is reflected immediately (index 6 = used_bytes).
     let snap = cache.stats.snapshot();
     assert_eq!(snap[6], 1024, "used_bytes should be 1024 after a single 1KB put");
+    let result = unsafe { foyer_snapshot_stats(ptr, std::ptr::null_mut()) };
+    assert!(result < 0);
+
+    unsafe { foyer_destroy_cache(ptr) };
+}
+
+/// foyer_create_cache returns a fat Box<Arc<dyn BlockCache>> pointer.
+/// The pointer can be reinterpreted as Box<Arc<dyn BlockCache>> and the Arc's
+/// strong count is exactly 1 immediately after creation.
+#[test]
+fn ffm_create_cache_returns_fat_ptr_with_strong_count_one() {
+    use crate::traits::BlockCache;
+
+    let dir = TempDir::new().unwrap();
+    let dir_str = dir.path().to_str().unwrap();
+    let engine = IO_ENGINE.as_bytes();
+    let ptr = unsafe { foyer_create_cache(
+        16 * 1024 * 1024,
+        dir_str.as_ptr(), dir_str.len() as u64,
+        BLOCK_SIZE as u64,
+        engine.as_ptr(), engine.len() as u64,
+    )};
+    assert!(ptr > 0);
+
+    // Interpret as Box<Arc<dyn BlockCache>> — if the pointer type is wrong this will crash.
+    // Take ownership and immediately check the strong count via a clone probe.
+    let boxed: Box<Arc<dyn BlockCache>> = unsafe {
+        Box::from_raw(ptr as *mut Arc<dyn BlockCache>)
+    };
+    // Clone to bump strong count by 1 — original was 1, now 2.
+    let clone = Arc::clone(&*boxed);
+    assert_eq!(Arc::strong_count(&*boxed), 2);
+    drop(clone);
+    assert_eq!(Arc::strong_count(&*boxed), 1);
+    // Drop the box — this calls foyer_destroy internally via Arc drop.
+    drop(boxed);
+}
+
+/// foyer_create_cache returns a pointer that can be cloned (passed to multiple TieredObjectStores)
+/// without double-free. After all clones drop, the FoyerCache is freed exactly once.
+#[test]
+fn ffm_create_cache_ptr_cloneable_for_multiple_shards() {
+    use crate::traits::BlockCache;
+
+    let dir = TempDir::new().unwrap();
+    let dir_str = dir.path().to_str().unwrap();
+    let engine = IO_ENGINE.as_bytes();
+    let ptr = unsafe { foyer_create_cache(
+        16 * 1024 * 1024,
+        dir_str.as_ptr(), dir_str.len() as u64,
+        BLOCK_SIZE as u64,
+        engine.as_ptr(), engine.len() as u64,
+    )};
+    assert!(ptr > 0);
+
+    // Simulate 3 shards each cloning the Arc (as ts_create_tiered_object_store would).
+    let boxed = unsafe { &*(ptr as *const Arc<dyn BlockCache>) };
+    let shard1 = Arc::clone(boxed);
+    let shard2 = Arc::clone(boxed);
+    let shard3 = Arc::clone(boxed);
+    assert_eq!(Arc::strong_count(boxed), 4, "1 (box) + 3 shards");
+
+    // Shards close.
+    drop(shard1);
+    drop(shard2);
+    drop(shard3);
+    assert_eq!(Arc::strong_count(boxed), 1, "only the box remains");
+
+    // Node-level close: destroy the original Box.
+    let _box = unsafe { Box::from_raw(ptr as *mut Arc<dyn BlockCache>) };
+    // Drop _box — strong count reaches 0, FoyerCache freed.
 }

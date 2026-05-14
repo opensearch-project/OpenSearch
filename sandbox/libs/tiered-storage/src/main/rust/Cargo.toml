@@ -18,7 +18,7 @@ thiserror = { workspace = true }
 async-trait = { workspace = true }
 bytes = { workspace = true }
 native-bridge-common = { workspace = true }
-opensearch-block-cache = { path = "../../../../../plugins/block-cache-foyer/src/main/rust" }
+opensearch-block-cache = { path = "../../../../plugins/block-cache-foyer/src/main/rust" }
 
 [dev-dependencies]
 tempfile = { workspace = true }
