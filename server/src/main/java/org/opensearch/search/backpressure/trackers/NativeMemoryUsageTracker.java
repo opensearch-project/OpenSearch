@@ -135,6 +135,11 @@ public class NativeMemoryUsageTracker extends TaskResourceUsageTracker {
     private void setDefaultResourceUsageBreachEvaluator() {
         this.resourceUsageBreachEvaluator = (task) -> {
             if (task instanceof CancellableTask == false) {
+                logger.info(
+                    "[nativemem-bp] evaluate: task={} type={} not CancellableTask — skipping",
+                    task.getId(),
+                    task.getClass().getSimpleName()
+                );
                 return Optional.empty();
             }
             double fraction = nativeMemoryPercentThresholdSupplier.getAsDouble();
@@ -142,21 +147,42 @@ public class NativeMemoryUsageTracker extends TaskResourceUsageTracker {
             if (fraction <= 0.0d || budget <= 0L) {
                 // Feature disabled — either the operator hasn't set a threshold, or no
                 // backend has installed a budget supplier. Leave the tracker inert.
+                logger.info(
+                    "[nativemem-bp] evaluate: task={} inert — fraction={} budget={}B (one is 0; tracker disabled)",
+                    task.getId(),
+                    fraction,
+                    budget
+                );
                 return Optional.empty();
             }
             // Defensive clamp; the Setting validator already enforces [0.0, 1.0].
             double boundedFraction = Math.min(1.0d, fraction);
             long bytesThreshold = (long) (budget * boundedFraction);
             if (bytesThreshold <= 0L) {
+                logger.info(
+                    "[nativemem-bp] evaluate: task={} bytesThreshold=0 (budget={}B fraction={}) — skipping",
+                    task.getId(),
+                    budget,
+                    boundedFraction
+                );
                 return Optional.empty();
             }
             long currentUsage = bytesForTask(task);
             if (currentUsage < bytesThreshold) {
+                logger.info(
+                    "[nativemem-bp] evaluate: task={} below threshold — currentBytes={}B threshold={}B "
+                        + "(fraction={} budget={}B) — no cancellation",
+                    task.getId(),
+                    currentUsage,
+                    bytesThreshold,
+                    boundedFraction,
+                    budget
+                );
                 return Optional.empty();
             }
             int score = (int) Math.max(1L, currentUsage / Math.max(1L, bytesThreshold));
-            logger.debug(
-                "[nativemem-bp] evaluate: task={} exceeds threshold — currentBytes={}B, "
+            logger.warn(
+                "[nativemem-bp] evaluate: task={} EXCEEDS threshold — currentBytes={}B, "
                     + "threshold={}B (fraction={} of budget={}B), score={}",
                 task.getId(),
                 currentUsage,
@@ -197,12 +223,28 @@ public class NativeMemoryUsageTracker extends TaskResourceUsageTracker {
     @Override
     public void refresh() {
         Map<Long, Long> snapshot = snapshotSupplier.get();
-        bytesByTaskId = snapshot != null ? snapshot : Collections.emptyMap();
+        boolean nullSnapshot = (snapshot == null);
+        bytesByTaskId = nullSnapshot ? Collections.emptyMap() : snapshot;
+        if (nullSnapshot) {
+            logger.warn("[nativemem-bp] tracker.refresh: supplier returned null — using empty map");
+        }
         logger.info(
-            "[nativemem-bp] tracker.refresh: snapshot loaded, size={} taskIds={}",
+            "[nativemem-bp] tracker.refresh: snapshot loaded, size={} taskIds={} budget={}B",
             bytesByTaskId.size(),
-            bytesByTaskId.keySet()
+            bytesByTaskId.keySet(),
+            getNativeMemoryBudgetBytes()
         );
+        if (bytesByTaskId.size() > 0) {
+            // log the heaviest few so we can see whether registry has anything substantive
+            bytesByTaskId.entrySet().stream()
+                .sorted((a, b) -> Long.compare(b.getValue(), a.getValue()))
+                .limit(5)
+                .forEach(e -> logger.info(
+                    "[nativemem-bp] tracker.refresh:   taskId={} currentBytes={}",
+                    e.getKey(),
+                    e.getValue()
+                ));
+        }
     }
 
     /** Package-private for tests: look up a single task's bytes from the current snapshot. */

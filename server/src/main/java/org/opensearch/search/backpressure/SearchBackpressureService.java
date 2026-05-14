@@ -291,16 +291,31 @@ public class SearchBackpressureService extends AbstractLifecycleComponent implem
         List<TaskCancellation> taskCancellations = new ArrayList<>();
         for (TaskResourceUsageTrackerType trackerType : TaskResourceUsageTrackerType.values()) {
             if (shouldApply(trackerType)) {
+                int before = taskCancellations.size();
                 addResourceTrackerBasedCancellations(trackerType, taskCancellations, cancellableTasks);
+                int added = taskCancellations.size() - before;
+                logger.info(
+                    "[nativemem-bp] doRun: tracker [{}] applied — produced {} cancellation reason(s)",
+                    trackerType.getName(),
+                    added
+                );
+            } else {
+                logger.info("[nativemem-bp] doRun: tracker [{}] not applied (shouldApply=false)", trackerType.getName());
             }
         }
 
         // Since these cancellations might be duplicate due to multiple trackers causing cancellation for same task
         // We need to merge them
+        int beforeMerge = taskCancellations.size();
         taskCancellations = mergeTaskCancellations(taskCancellations).stream()
             .map(this::addSBPStateUpdateCallback)
             .filter(TaskCancellation::isEligibleForCancellation)
             .collect(Collectors.toList());
+        logger.info(
+            "[nativemem-bp] doRun: merged {} reasons -> {} eligible cancellations",
+            beforeMerge,
+            taskCancellations.size()
+        );
 
         for (TaskCancellation taskCancellation : taskCancellations) {
             logger.warn(
@@ -311,6 +326,11 @@ public class SearchBackpressureService extends AbstractLifecycleComponent implem
             );
 
             if (mode != SearchBackpressureMode.ENFORCED) {
+                logger.info(
+                    "[nativemem-bp] doRun: mode={} (not ENFORCED) — would-cancel task={} only logged, not actioned",
+                    mode.getName(),
+                    taskCancellation.getTask().getId()
+                );
                 continue;
             }
 
@@ -323,11 +343,24 @@ public class SearchBackpressureService extends AbstractLifecycleComponent implem
 
             // Stop cancelling tasks if there are no tokens in either of the two token buckets.
             if (rateLimitReached && ratioLimitReached) {
-                logger.debug("task cancellation limit reached");
+                logger.warn(
+                    "[nativemem-bp] doRun: cancellation limit reached for {} — task={} not cancelled (rateLimit={} ratioLimit={})",
+                    taskType.getSimpleName(),
+                    taskCancellation.getTask().getId(),
+                    rateLimitReached,
+                    ratioLimitReached
+                );
                 searchBackpressureState.incrementLimitReachedCount();
                 break;
             }
 
+            logger.info(
+                "[nativemem-bp] doRun: actioning cancellation — task={} type={} rateLimitOk={} ratioLimitOk={}",
+                taskCancellation.getTask().getId(),
+                taskType.getSimpleName(),
+                rateLimitReached == false,
+                ratioLimitReached == false
+            );
             taskCancellation.cancelTaskAndDescendants(taskManager);
         }
     }
