@@ -19,7 +19,7 @@ use std::sync::Arc;
 
 use datafusion::arrow::array::{ArrayRef, Float64Array, Float64Builder};
 
-use super::json_common::StringArrayView;
+use crate::udf::json_common::StringArrayView;
 use datafusion::arrow::datatypes::DataType;
 use datafusion::common::{exec_err, Result, ScalarValue};
 use datafusion::execution::context::SessionContext;

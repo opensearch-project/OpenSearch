@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.be.datafusion;
+package org.opensearch.be.datafusion.planner.adapter;
 
 import org.apache.calcite.jdbc.JavaTypeFactoryImpl;
 import org.apache.calcite.plan.RelOptCluster;

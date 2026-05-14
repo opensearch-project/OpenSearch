@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.be.datafusion;
+package org.opensearch.be.datafusion.planner.adapter;
 
 import org.apache.calcite.plan.RelOptCluster;
 import org.apache.calcite.rel.type.RelDataType;
@@ -35,32 +35,32 @@ import java.util.List;
  *
  * @opensearch.internal
  */
-class ConversionFunctionAdapter implements ScalarFunctionAdapter {
+public class NumericConversionFunctionAdapter implements ScalarFunctionAdapter {
 
     /** Synthetic operator for {@code num(x)}. Paired with extension name {@code "num"}. */
-    static final SqlFunction NUM = unaryDoubleUdf("num");
+    public static final SqlFunction NUM = unaryDoubleUdf("num");
 
     /** Synthetic operator for {@code auto(x)}. Paired with extension name {@code "auto"}. */
-    static final SqlFunction AUTO = unaryDoubleUdf("auto");
+    public static final SqlFunction AUTO = unaryDoubleUdf("auto");
 
     /** Synthetic operator for {@code memk(x)}. Paired with extension name {@code "memk"}. */
-    static final SqlFunction MEMK = unaryDoubleUdf("memk");
+    public static final SqlFunction MEMK = unaryDoubleUdf("memk");
 
     /** Synthetic operator for {@code rmcomma(x)}. Paired with extension name {@code "rmcomma"}. */
-    static final SqlFunction RMCOMMA = unaryDoubleUdf("rmcomma");
+    public static final SqlFunction RMCOMMA = unaryDoubleUdf("rmcomma");
 
     /** Synthetic operator for {@code rmunit(x)}. Paired with extension name {@code "rmunit"}. */
-    static final SqlFunction RMUNIT = unaryDoubleUdf("rmunit");
+    public static final SqlFunction RMUNIT = unaryDoubleUdf("rmunit");
 
     /** Synthetic operator for {@code dur2sec(x)}. Paired with extension name {@code "dur2sec"}. */
-    static final SqlFunction DUR2SEC = unaryDoubleUdf("dur2sec");
+    public static final SqlFunction DUR2SEC = unaryDoubleUdf("dur2sec");
 
     /** Synthetic operator for {@code mstime(x)}. Paired with extension name {@code "mstime"}. */
-    static final SqlFunction MSTIME = unaryDoubleUdf("mstime");
+    public static final SqlFunction MSTIME = unaryDoubleUdf("mstime");
 
     private final SqlFunction target;
 
-    ConversionFunctionAdapter(SqlFunction target) {
+    public NumericConversionFunctionAdapter(SqlFunction target) {
         this.target = target;
     }
 
