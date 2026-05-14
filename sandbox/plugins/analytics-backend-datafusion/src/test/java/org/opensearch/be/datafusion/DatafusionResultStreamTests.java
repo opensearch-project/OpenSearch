@@ -14,6 +14,7 @@ import org.opensearch.analytics.backend.EngineResultBatch;
 import org.opensearch.be.datafusion.nativelib.NativeBridge;
 import org.opensearch.be.datafusion.nativelib.ReaderHandle;
 import org.opensearch.core.action.ActionListener;
+import org.opensearch.plugins.NativeStoreHandle;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.lang.foreign.Arena;
@@ -35,6 +36,8 @@ public class DatafusionResultStreamTests extends OpenSearchTestCase {
     private RootAllocator testRootAllocator;
     private Arena configArena;
     private long queryConfigPtr;
+    private long tieredStorePtr;
+    private NativeStoreHandle storeHandle;
     private final java.util.List<BufferAllocator> allocatorsToClose = new java.util.ArrayList<>();
 
     @Override
@@ -46,10 +49,15 @@ public class DatafusionResultStreamTests extends OpenSearchTestCase {
         runtimeHandle = new NativeRuntimeHandle(ptr);
         testRootAllocator = new RootAllocator(Long.MAX_VALUE);
 
+        // Create a real TieredObjectStore (local-only) and wrap in NativeStoreHandle
+        tieredStorePtr = NativeStoreTestHelper.createTieredObjectStore(0L, 0L);
+        long boxPtr = NativeStoreTestHelper.getObjectStoreBoxPtr(tieredStorePtr);
+        storeHandle = new NativeStoreHandle(boxPtr, NativeStoreTestHelper::destroyObjectStoreBoxPtr);
+
         Path dataDir = createTempDir("data");
         Path testParquet = Path.of(getClass().getClassLoader().getResource("test.parquet").toURI());
         Files.copy(testParquet, dataDir.resolve("test.parquet"));
-        readerHandle = new ReaderHandle(dataDir.toString(), new String[] { "test.parquet" });
+        readerHandle = new ReaderHandle(dataDir.toString(), new String[] { "test.parquet" }, storeHandle);
 
         configArena = Arena.ofConfined();
         MemorySegment configSegment = configArena.allocate(WireConfigSnapshot.BYTE_SIZE);
@@ -61,6 +69,8 @@ public class DatafusionResultStreamTests extends OpenSearchTestCase {
     public void tearDown() throws Exception {
         configArena.close();
         readerHandle.close();
+        storeHandle.close();
+        NativeStoreTestHelper.destroyTieredObjectStore(tieredStorePtr);
         runtimeHandle.close();
         // Caller owns child allocators now (see DatafusionResultStream.close javadoc).
         // Close them in reverse registration order so child-before-parent invariants hold.

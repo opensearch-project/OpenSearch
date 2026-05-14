@@ -45,6 +45,7 @@ import org.opensearch.index.engine.dataformat.RefreshResult;
 import org.opensearch.index.engine.dataformat.RowIdAwareWriter;
 import org.opensearch.index.engine.dataformat.WriteResult;
 import org.opensearch.index.engine.dataformat.Writer;
+import org.opensearch.index.engine.dataformat.WriterConfig;
 import org.opensearch.index.engine.dataformat.merge.DataFormatAwareMergePolicy;
 import org.opensearch.index.engine.dataformat.merge.MergeFailedEngineException;
 import org.opensearch.index.engine.dataformat.merge.MergeHandler;
@@ -291,7 +292,7 @@ public class DataFormatAwareEngine implements Indexer {
             this.writerPool = new LockablePool<>(() -> {
                 long gen = writerGenerationCounter.incrementAndGet();
                 assert gen > 0 : "writer generation must be positive but was: " + gen;
-                Writer<?> writer = indexingExecutionEngine.createWriter(gen);
+                Writer<?> writer = indexingExecutionEngine.createWriter(new WriterConfig(gen));
                 deleteExecutionEngine.createDeleter(writer);
                 return DefaultLockableHolder.of(new RowIdAwareWriter<>(writer));
             }, LinkedList::new, Runtime.getRuntime().availableProcessors());
@@ -303,7 +304,8 @@ public class DataFormatAwareEngine implements Indexer {
                     Optional.ofNullable(indexingExecutionEngine.getProvider()),
                     indexingExecutionEngine.getDataFormat(),
                     registry,
-                    store.shardPath()
+                    store.shardPath(),
+                    store.getDataformatAwareStoreHandles()
                 )
             );
 
@@ -567,9 +569,13 @@ public class DataFormatAwareEngine implements Indexer {
 
         // Convert ParsedDocument to DocumentInput and write via the execution engine's writer
         Writer currentWriter = null;
-        DefaultLockableHolder<Writer<?>> lockedWriter = writerPool.getAndLock();
+        long mappingVersion = currentMappingVersion();
+        DefaultLockableHolder<Writer<?>> lockedWriter = writerPool.getAndLock(
+            h -> h.get().isSchemaMutable() || h.get().mappingVersion() >= mappingVersion
+        );
         try {
             currentWriter = lockedWriter.get();
+            currentWriter.updateMappingVersion(mappingVersion);
             // Writer pool must never return null — it creates on demand via the supplier
             assert currentWriter != null : "writer pool returned null writer";
             assert index.seqNo() >= 0 : "seqNo must be assigned before writing but was: " + index.seqNo();
@@ -1482,6 +1488,10 @@ public class DataFormatAwareEngine implements Indexer {
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }
+    }
+
+    private long currentMappingVersion() {
+        return engineConfig.getMapperService().getIndexSettings().getIndexMetadata().getMappingVersion();
     }
 
     private boolean failOnTragicEvent(AlreadyClosedException ex) {

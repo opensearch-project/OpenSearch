@@ -9,6 +9,7 @@
 package org.opensearch.be.datafusion.nativelib;
 
 import org.opensearch.analytics.backend.jni.NativeHandle;
+import org.opensearch.plugins.NativeStoreHandle;
 
 /**
  * Type-safe handle for native reader.
@@ -21,9 +22,10 @@ public final class ReaderHandle extends NativeHandle {
      * Creates a reader handle by allocating a native DataFusion reader for the given path and files.
      * @param path the directory path containing data files
      * @param files the array of file names to read
+     * @param dataformatAwareStoreHandle per-format native store handle (null = local, live = use store pointer)
      */
-    public ReaderHandle(String path, String[] files) {
-        super(NativeBridge.createDatafusionReader(path, files));
+    public ReaderHandle(String path, String[] files, NativeStoreHandle dataformatAwareStoreHandle) {
+        super(NativeBridge.createDatafusionReader(path, files, dataformatAwareStoreHandle));
         this.ownsPointer = true;
     }
 
