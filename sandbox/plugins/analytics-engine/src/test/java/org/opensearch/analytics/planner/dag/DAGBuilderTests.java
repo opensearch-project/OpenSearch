@@ -8,15 +8,22 @@
 
 package org.opensearch.analytics.planner.dag;
 
+import com.google.common.collect.ImmutableList;
+
 import org.apache.calcite.plan.RelOptUtil;
 import org.apache.calcite.rel.RelDistribution;
 import org.apache.calcite.rel.RelNode;
+import org.apache.calcite.rel.logical.LogicalValues;
+import org.apache.calcite.rel.type.RelDataType;
+import org.apache.calcite.rex.RexLiteral;
+import org.apache.calcite.sql.type.SqlTypeName;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.analytics.planner.BasePlannerRulesTests;
 import org.opensearch.analytics.planner.rel.OpenSearchExchangeReducer;
 import org.opensearch.analytics.planner.rel.OpenSearchStageInputScan;
 import org.opensearch.analytics.planner.rel.OpenSearchTableScan;
+import org.opensearch.analytics.planner.rel.OpenSearchValues;
 
 import java.util.List;
 
@@ -119,5 +126,34 @@ public class DAGBuilderTests extends BasePlannerRulesTests {
         QueryDAG dag = DAGBuilder.build(customReducer, context.getCapabilityRegistry(), mockClusterService());
         Stage child = dag.rootStage().getChildStages().get(0);
         assertEquals(customInfo, child.getExchangeInfo());
+    }
+
+    /**
+     * Literal-row source (LogicalValues / OpenSearchValues): a coordinator-local compute leaf
+     * with no TableScan in the fragment. DAGBuilder must (1) skip {@code ShardTargetResolver}
+     * attachment because there's no shard to target, and (2) still install a sink provider
+     * because the root stage executes a backend plan locally (LOCAL_COMPUTE).
+     */
+    public void testValuesRootHasNoTargetResolverButHasSink() {
+        RelDataType intType = typeFactory.createSqlType(SqlTypeName.INTEGER);
+        RelDataType rowType = typeFactory.builder().add("a", intType).build();
+        RexLiteral one = (RexLiteral) rexBuilder.makeLiteral(1, intType, true);
+        ImmutableList<ImmutableList<RexLiteral>> tuples = ImmutableList.of(ImmutableList.of(one));
+        RelNode plan = LogicalValues.create(cluster, rowType, tuples);
+
+        QueryDAG dag = buildDAG(2, plan);
+        assertEquals("Values is leaf — no child stages", 0, dag.rootStage().getChildStages().size());
+        assertTrue(
+            "root fragment must be OpenSearchValues",
+            dag.rootStage().getFragment() instanceof OpenSearchValues
+        );
+        assertNull(
+            "no TableScan → no ShardTargetResolver",
+            dag.rootStage().getTargetResolver()
+        );
+        assertNotNull(
+            "compute leaf needs a sink provider for its local backend output",
+            dag.rootStage().getExchangeSinkProvider()
+        );
     }
 }
