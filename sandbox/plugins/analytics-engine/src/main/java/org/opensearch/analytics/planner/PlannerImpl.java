@@ -73,6 +73,11 @@ public class PlannerImpl {
     public static RelNode markAndOptimize(RelNode rawRelNode, PlannerContext context) {
         LOGGER.info("Input RelNode:\n{}", RelOptUtil.toString(rawRelNode));
 
+        // Phase 0: PPL frontend folds. Scalar `where earliest("-7d", @ts)` /
+        // `where latest(...)` is rewritten to a plain timestamp comparison
+        // before the marking rules run.
+        rawRelNode = EarliestLatestAdapter.foldRelativeTimePredicates(rawRelNode);
+
         // Phase 1a: Pre-marking logical optimizations (constant expression reduction)
         HepProgramBuilder preBuilder = new HepProgramBuilder();
         preBuilder.addMatchOrder(HepMatchOrder.ARBITRARY);
