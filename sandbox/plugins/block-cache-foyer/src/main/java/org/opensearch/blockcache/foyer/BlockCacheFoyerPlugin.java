@@ -60,12 +60,7 @@ public class BlockCacheFoyerPlugin extends Plugin implements BlockCacheProvider 
     private volatile FoyerBlockCache cache;
     private volatile long reservedCapacityBytes;
 
-    /** No-arg constructor required by the plugin framework. */
-    public BlockCacheFoyerPlugin() {}
-
-    /**
-     * Settings constructor (alternate signature used by PluginsService).
-     */
+    /** Settings constructor required by the plugin framework. */
     public BlockCacheFoyerPlugin(final Settings settings) {}
 
     // ─── BlockCacheProvider ───────────────────────────────────────────────────

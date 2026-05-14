@@ -52,17 +52,6 @@ import org.opensearch.common.annotation.ExperimentalApi;
  * @opensearch.experimental
  */
 @ExperimentalApi
-public record BlockCacheStats(
-    long hits,
-    long misses,
-    long hitBytes,
-    long missBytes,
-    long evictions,
-    long evictionBytes,
-    long removed,
-    long removedBytes,
-    long memoryBytesUsed,
-    long diskBytesUsed,
-    long totalBytes
-) {
+public record BlockCacheStats(long hits, long misses, long hitBytes, long missBytes, long evictions, long evictionBytes, long removed,
+    long removedBytes, long memoryBytesUsed, long diskBytesUsed, long totalBytes) {
 }

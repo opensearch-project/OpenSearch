@@ -56,15 +56,8 @@ public class FsServiceProvider {
      */
     public FsService createFsService() {
         if (DiscoveryNode.isWarmNode(settings)) {
-            return new WarmFsService(
-                settings,
-                nodeEnvironment,
-                fileCacheSettings,
-                indicesService,
-                nodeCacheOrchestrator
-            );
+            return new WarmFsService(settings, nodeEnvironment, fileCacheSettings, indicesService, nodeCacheOrchestrator);
         }
-        return new FsService(settings, nodeEnvironment,
-            nodeCacheOrchestrator != null ? nodeCacheOrchestrator.fileCache() : null);
+        return new FsService(settings, nodeEnvironment, nodeCacheOrchestrator != null ? nodeCacheOrchestrator.fileCache() : null);
     }
 }

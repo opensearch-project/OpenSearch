@@ -52,12 +52,11 @@ public class WarmFsService extends FsService {
     public FsInfo stats() {
         final double dataToFileCacheRatio = fileCacheSettings.getRemoteDataRatio();
 
-        final long fileCacheCapacity  = nodeCacheOrchestrator.fileCache().capacity();
+        final long fileCacheCapacity = nodeCacheOrchestrator.fileCache().capacity();
         final long blockCacheCapacity = nodeCacheOrchestrator.blockCacheCapacityBytes();
         final long totalCacheCapacity = fileCacheCapacity + blockCacheCapacity;
 
-        final long totalBytes = (long) (dataToFileCacheRatio * fileCacheCapacity)
-                              + nodeCacheOrchestrator.virtualBlockCacheBytes();
+        final long totalBytes = (long) (dataToFileCacheRatio * fileCacheCapacity) + nodeCacheOrchestrator.virtualBlockCacheBytes();
 
         // Used bytes from primary shards
         long usedBytes = 0;
@@ -78,18 +77,22 @@ public class WarmFsService extends FsService {
         long freeBytes = Math.max(0, totalBytes - usedBytes);
 
         FsInfo.Path warmPath = new FsInfo.Path();
-        warmPath.path      = "/warm";
-        warmPath.mount     = "warm";
-        warmPath.type      = "warm";
-        warmPath.total     = adjustForHugeFilesystems(totalBytes);
-        warmPath.free      = adjustForHugeFilesystems(freeBytes);
+        warmPath.path = "/warm";
+        warmPath.mount = "warm";
+        warmPath.type = "warm";
+        warmPath.total = adjustForHugeFilesystems(totalBytes);
+        warmPath.free = adjustForHugeFilesystems(freeBytes);
         warmPath.available = adjustForHugeFilesystems(freeBytes);
-        warmPath.fileCacheReserved  = adjustForHugeFilesystems(totalCacheCapacity);
-        warmPath.fileCacheUtilized  = adjustForHugeFilesystems(nodeCacheOrchestrator.cacheUtilizedBytes());
+        warmPath.fileCacheReserved = totalCacheCapacity > 0 ? adjustForHugeFilesystems(totalCacheCapacity) : -1L;
+        warmPath.fileCacheUtilized = adjustForHugeFilesystems(nodeCacheOrchestrator.cacheUtilizedBytes());
 
         logger.trace(
             "Warm node disk usage — total: {}, used: {}, free: {}, cacheReserved: {}, cacheUtilized: {}",
-            totalBytes, usedBytes, freeBytes, totalCacheCapacity, warmPath.fileCacheUtilized
+            totalBytes,
+            usedBytes,
+            freeBytes,
+            totalCacheCapacity,
+            warmPath.fileCacheUtilized
         );
 
         FsInfo nodeFsInfo = super.stats();

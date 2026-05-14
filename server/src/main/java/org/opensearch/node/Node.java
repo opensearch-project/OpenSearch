@@ -36,7 +36,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.Constants;
 import org.opensearch.Build;
-import org.opensearch.ExceptionsHelper;
 import org.opensearch.OpenSearchException;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.OpenSearchTimeoutException;
@@ -115,7 +114,6 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.SettingUpgrader;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.settings.SettingsException;
 import org.opensearch.common.settings.SettingsModule;
 import org.opensearch.common.unit.RatioValue;
 import org.opensearch.common.unit.TimeValue;
@@ -128,7 +126,6 @@ import org.opensearch.core.common.breaker.CircuitBreaker;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.common.transport.BoundTransportAddress;
 import org.opensearch.core.common.transport.TransportAddress;
-import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.indices.breaker.CircuitBreakerService;
 import org.opensearch.core.indices.breaker.NoneCircuitBreakerService;
@@ -175,7 +172,6 @@ import org.opensearch.index.store.IndexStoreListener;
 import org.opensearch.index.store.RemoteSegmentStoreDirectoryFactory;
 import org.opensearch.index.store.remote.filecache.FileCache;
 import org.opensearch.index.store.remote.filecache.FileCacheCleaner;
-import org.opensearch.index.store.remote.filecache.FileCacheFactory;
 import org.opensearch.index.store.remote.filecache.FileCacheSettings;
 import org.opensearch.index.store.remote.filecache.NodeCacheOrchestrator;
 import org.opensearch.indices.IndicesModule;
@@ -204,7 +200,6 @@ import org.opensearch.ingest.SystemIngestPipelineCache;
 import org.opensearch.monitor.MonitorService;
 import org.opensearch.monitor.NodeRuntimeMetrics;
 import org.opensearch.monitor.fs.FsHealthService;
-import org.opensearch.monitor.fs.FsProbe;
 import org.opensearch.monitor.fs.FsServiceProvider;
 import org.opensearch.monitor.jvm.JvmInfo;
 import org.opensearch.monitor.os.OsProbe;
@@ -322,7 +317,6 @@ import javax.net.ssl.SNIHostName;
 import java.io.BufferedWriter;
 import java.io.Closeable;
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
@@ -344,7 +338,6 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ForkJoinPool;
-import java.util.concurrent.ForkJoinTask;
 import java.util.concurrent.ForkJoinWorkerThread;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -820,12 +813,12 @@ public class Node implements Closeable {
             );
 
             // Block-cache providers discovered once, reused for budget, registration, and capacity.
-            final List<org.opensearch.plugins.BlockCacheProvider> blockCacheProviders =
-                pluginsService.filterPlugins(org.opensearch.plugins.BlockCacheProvider.class);
+            final List<org.opensearch.plugins.BlockCacheProvider> blockCacheProviders = pluginsService.filterPlugins(
+                org.opensearch.plugins.BlockCacheProvider.class
+            );
 
             if (DiscoveryNode.isWarmNode(settings)) {
-                this.nodeCacheOrchestrator = NodeCacheOrchestrator.create(
-                    settings, nodeEnvironment, blockCacheProviders);
+                this.nodeCacheOrchestrator = NodeCacheOrchestrator.create(settings, nodeEnvironment, blockCacheProviders);
             }
 
             pluginsService.filterPlugins(CircuitBreakerPlugin.class).forEach(plugin -> {

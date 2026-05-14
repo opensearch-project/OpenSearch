@@ -41,7 +41,6 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.network.NetworkModule;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.settings.SettingsException;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.common.breaker.CircuitBreaker;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
@@ -398,8 +397,9 @@ public class NodeTests extends OpenSearchTestCase {
             )
             .build();
 
-        // Test exception thrown with configuration missing
-        assertThrows(SettingsException.class, () -> new MockNode(warmRoleSettings, plugins));
+        // Test exception thrown when computed cache budget is 0 (80% × 0 SSD in test env).
+        // NodeCacheOrchestrator.validate() throws IllegalArgumentException
+        assertThrows(IllegalArgumentException.class, () -> new MockNode(warmRoleSettings, plugins));
 
         // Test file cache is initialized
         try (MockNode mockNode = new MockNode(warmRoleSettingsWithConfig, plugins)) {

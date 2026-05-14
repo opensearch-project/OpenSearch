@@ -13,9 +13,6 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.OpenSearchException;
 import org.opensearch.OpenSearchParseException;
-import org.opensearch.plugins.BlockCache;
-import org.opensearch.plugins.BlockCacheProvider;
-import org.opensearch.plugins.BlockCacheStats;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.settings.Settings;
@@ -26,6 +23,9 @@ import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.monitor.fs.FsProbe;
 import org.opensearch.node.Node;
+import org.opensearch.plugins.BlockCache;
+import org.opensearch.plugins.BlockCacheProvider;
+import org.opensearch.plugins.BlockCacheStats;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -94,11 +94,8 @@ public class NodeCacheOrchestrator implements Closeable {
      *
      * @param providers all discovered {@link BlockCacheProvider} plugins
      */
-    public static NodeCacheOrchestrator create(
-        Settings settings,
-        NodeEnvironment nodeEnvironment,
-        List<BlockCacheProvider> providers
-    ) throws IOException {
+    public static NodeCacheOrchestrator create(Settings settings, NodeEnvironment nodeEnvironment, List<BlockCacheProvider> providers)
+        throws IOException {
         NodeEnvironment.NodePath fileCacheNodePath = nodeEnvironment.fileCacheNodePath();
         long totalSSDBytes = ExceptionsHelper.catchAsRuntimeException(() -> FsProbe.getTotalSize(fileCacheNodePath));
 
@@ -130,28 +127,17 @@ public class NodeCacheOrchestrator implements Closeable {
     /**
      * Sums the SSD bytes requested by all registered block-cache providers.
      */
-    public static long computeBlockCacheBudget(
-        List<BlockCacheProvider> providers,
-        Settings settings,
-        long totalBudgetBytes
-    ) {
-        return providers.stream()
-            .mapToLong(p -> p.requestedCapacityBytes(settings, totalBudgetBytes))
-            .sum();
+    public static long computeBlockCacheBudget(List<BlockCacheProvider> providers, Settings settings, long totalBudgetBytes) {
+        return providers.stream().mapToLong(p -> p.requestedCapacityBytes(settings, totalBudgetBytes)).sum();
     }
 
     /**
      * Computes the virtual data bytes that all block caches can serve, accounting
      * for each provider's data-to-cache amplification ratio.
      */
-    static long computeVirtualBlockCacheBytes(
-        List<BlockCacheProvider> providers,
-        Settings settings,
-        long totalBudgetBytes
-    ) {
+    static long computeVirtualBlockCacheBytes(List<BlockCacheProvider> providers, Settings settings, long totalBudgetBytes) {
         return providers.stream()
-            .mapToLong(p -> (long) (p.requestedCapacityBytes(settings, totalBudgetBytes)
-                * p.dataToCapacityRatio(settings)))
+            .mapToLong(p -> (long) (p.requestedCapacityBytes(settings, totalBudgetBytes) * p.dataToCapacityRatio(settings)))
             .sum();
     }
 
@@ -162,20 +148,19 @@ public class NodeCacheOrchestrator implements Closeable {
     static void validate(long fileCacheBytes, long blockCacheBytes, long totalSSDBytes) {
         if (totalSSDBytes <= 0) {
             throw new IllegalArgumentException(
-                "Unable to determine SSD capacity; got: " + totalSSDBytes
-                    + ". Ensure the filecache path is mounted and readable."
+                "Unable to determine SSD capacity; got: " + totalSSDBytes + ". Ensure the filecache path is mounted and readable."
             );
         }
         if (blockCacheBytes < 0) {
             throw new IllegalArgumentException(
-                "Block cache allocation must be >= 0; got: " + blockCacheBytes
-                    + ". Check block cache plugin configuration."
+                "Block cache allocation must be >= 0; got: " + blockCacheBytes + ". Check block cache plugin configuration."
             );
         }
 
         if (fileCacheBytes <= 0) {
             throw new IllegalArgumentException(
-                "After allocating " + new ByteSizeValue(blockCacheBytes)
+                "After allocating "
+                    + new ByteSizeValue(blockCacheBytes)
                     + " to block cache(s), no SSD budget remains for FileCache. "
                     + "Reduce block cache allocation or increase node.search.cache.size."
             );
@@ -184,9 +169,12 @@ public class NodeCacheOrchestrator implements Closeable {
         if (fileCacheBytes + blockCacheBytes > totalSSDBytes) {
             throw new IllegalArgumentException(
                 "Warm node SSD allocation exceeds available capacity. "
-                    + "file_cache=" + new ByteSizeValue(fileCacheBytes)
-                    + ", block_cache=" + new ByteSizeValue(blockCacheBytes)
-                    + ", total SSD=" + new ByteSizeValue(totalSSDBytes)
+                    + "file_cache="
+                    + new ByteSizeValue(fileCacheBytes)
+                    + ", block_cache="
+                    + new ByteSizeValue(blockCacheBytes)
+                    + ", total SSD="
+                    + new ByteSizeValue(totalSSDBytes)
                     + ". Reduce node.search.cache.size or block cache allocation."
             );
         }
@@ -211,8 +199,7 @@ public class NodeCacheOrchestrator implements Closeable {
     void addBlockCache(BlockCache blockCache) {
         if (blockCache == null) return;
         blockCaches.add(blockCache);
-        logger.info("Block cache registered (disk bytes used so far: {})",
-            new ByteSizeValue(blockCache.stats().diskBytesUsed()));
+        logger.info("Block cache registered (disk bytes used so far: {})", new ByteSizeValue(blockCache.stats().diskBytesUsed()));
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -299,7 +286,8 @@ public class NodeCacheOrchestrator implements Closeable {
                 merged.getRemoved().getBytes(),
                 merged.getCacheHits(),
                 merged.getCacheMisses(),
-                AggregateFileCacheStats.FileCacheStatsType.OVER_ALL_STATS),
+                AggregateFileCacheStats.FileCacheStatsType.OVER_ALL_STATS
+            ),
             merged.getFullFileCacheStats(),
             merged.getBlockFileCacheStats(),
             merged.getPinnedFileCacheStats()
@@ -325,32 +313,42 @@ public class NodeCacheOrchestrator implements Closeable {
             diskUsed += s.diskBytesUsed();
             totalCapacity += s.totalBytes();
         }
-        return new BlockCacheStats(hits, misses, hitBytes, missBytes,
-            evictions, evictionBytes, removed, removedBytes,
-            memoryUsed, diskUsed, totalCapacity);
+        return new BlockCacheStats(
+            hits,
+            misses,
+            hitBytes,
+            missBytes,
+            evictions,
+            evictionBytes,
+            removed,
+            removedBytes,
+            memoryUsed,
+            diskUsed,
+            totalCapacity
+        );
     }
 
     private static AggregateFileCacheStats mergeStats(AggregateFileCacheStats fc, BlockCacheStats bc) {
         FileCacheStats mergedOverall = new FileCacheStats(
             fc.getActive().getBytes(),
-            fc.getTotal().getBytes()   + bc.totalBytes(),
-            fc.getUsed().getBytes()    + bc.diskBytesUsed() + bc.memoryBytesUsed(),
+            fc.getTotal().getBytes() + bc.totalBytes(),
+            fc.getUsed().getBytes() + bc.diskBytesUsed() + bc.memoryBytesUsed(),
             fc.getPinnedUsage().getBytes(),
             fc.getEvicted().getBytes() + bc.evictionBytes(),
             fc.getRemoved().getBytes() + bc.removedBytes(),
-            fc.getCacheHits()          + bc.hits(),
-            fc.getCacheMisses()        + bc.misses(),
+            fc.getCacheHits() + bc.hits(),
+            fc.getCacheMisses() + bc.misses(),
             AggregateFileCacheStats.FileCacheStatsType.OVER_ALL_STATS
         );
         FileCacheStats fcBlock = fc.getBlockFileCacheStats();
         FileCacheStats mergedBlock = new FileCacheStats(
             fcBlock.getActive(),
-            fcBlock.getTotal()   + bc.totalBytes(),
-            fcBlock.getUsed()    + bc.diskBytesUsed() + bc.memoryBytesUsed(),
+            fcBlock.getTotal() + bc.totalBytes(),
+            fcBlock.getUsed() + bc.diskBytesUsed() + bc.memoryBytesUsed(),
             fcBlock.getPinnedUsage(),
             fcBlock.getEvicted() + bc.evictionBytes(),
             fcBlock.getRemoved() + bc.removedBytes(),
-            fcBlock.getCacheHits()   + bc.hits(),
+            fcBlock.getCacheHits() + bc.hits(),
             fcBlock.getCacheMisses() + bc.misses(),
             AggregateFileCacheStats.FileCacheStatsType.BLOCK_FILE_STATS
         );
@@ -380,11 +378,8 @@ public class NodeCacheOrchestrator implements Closeable {
     // Private helpers
     // ─────────────────────────────────────────────────────────────────────────
 
-    private static void restoreFileCacheFromDisk(
-        Settings settings,
-        NodeEnvironment.NodePath fileCacheNodePath,
-        FileCache fileCache
-    ) throws IOException {
+    private static void restoreFileCacheFromDisk(Settings settings, NodeEnvironment.NodePath fileCacheNodePath, FileCache fileCache)
+        throws IOException {
         ForkJoinPool loadFileCacheThreadpool = new ForkJoinPool(
             Runtime.getRuntime().availableProcessors(),
             Node.CustomForkJoinWorkerThread::new,
@@ -409,7 +404,6 @@ public class NodeCacheOrchestrator implements Closeable {
         }
     }
 
-
     /**
      * Computes the total warm-cache SSD budget in bytes.
      * Called by {@code Node.java} before plugins' {@code createComponents()} so that
@@ -417,8 +411,7 @@ public class NodeCacheOrchestrator implements Closeable {
      * the correct budget value.
      */
     public static long computeTotalBudgetBytes(Settings settings, NodeEnvironment nodeEnvironment) {
-        long totalSSDBytes = ExceptionsHelper.catchAsRuntimeException(
-            () -> FsProbe.getTotalSize(nodeEnvironment.fileCacheNodePath()));
+        long totalSSDBytes = ExceptionsHelper.catchAsRuntimeException(() -> FsProbe.getTotalSize(nodeEnvironment.fileCacheNodePath()));
         String warmCacheSizeRaw = Node.NODE_SEARCH_CACHE_SIZE_SETTING.get(settings);
         return calculateFileCacheSize(warmCacheSizeRaw, totalSSDBytes);
     }
