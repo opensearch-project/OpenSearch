@@ -114,7 +114,7 @@ public class LuceneReaderManagerTests extends OpenSearchTestCase {
      */
     private CatalogSnapshot stubSnapshot(long generation, List<Long> segmentGenerations) {
         List<Segment> segs = segmentGenerations.stream().map(g -> Segment.builder(g).build()).toList();
-        return new CatalogSnapshot("test", generation, 1) {
+        return new CatalogSnapshot("test", generation, generation) {
             @Override
             protected void closeInternal() {}
 

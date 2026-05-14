@@ -314,11 +314,12 @@ public class DataFormatAwareRemoteStoreRecoveryIT extends RemoteStoreBaseIntegTe
             .restoreRemoteStore(new RestoreRemoteStoreRequest().indices(INDEX_NAME).restoreAllShards(true), PlainActionFuture.newFuture());
         ensureGreen(INDEX_NAME);
 
-        // Verify doc count survived translog replay
+        // Verify doc count survived translog replay.
+        // Use stats API: DFA's standard search path is not wired through IndexShard.acquireSearcherSupplier.
         assertEquals(
             "doc count must match after translog-only recovery",
             docCount,
-            client().prepareSearch(INDEX_NAME).setSize(0).get().getHits().getTotalHits().value()
+            client().admin().indices().prepareStats(INDEX_NAME).clear().setDocs(true).get().getTotal().getDocs().getCount()
         );
 
         // Flush to materialize format files, then verify catalog + disk + remote upload
@@ -338,7 +339,9 @@ public class DataFormatAwareRemoteStoreRecoveryIT extends RemoteStoreBaseIntegTe
             // Format files on disk
             Path parquetDir = recovered.shardPath().getDataPath().resolve("parquet");
             assertTrue("parquet directory must exist after flush", Files.exists(parquetDir));
-            assertTrue("parquet directory must have files", Files.list(parquetDir).findAny().isPresent());
+            try (Stream<Path> entries = Files.list(parquetDir)) {
+                assertTrue("parquet directory must have files", entries.findAny().isPresent());
+            }
 
             // Remote store upload after recovery
             RemoteSegmentMetadata meta = recovered.getRemoteDirectory().readLatestMetadataFile();

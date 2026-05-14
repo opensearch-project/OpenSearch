@@ -819,12 +819,16 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                     input
                 );
             }
-            // throw exception if the file is corrupt
-            String checksum = Store.digestToString(CodecUtil.checksumEntireFile(input));
-            // throw exception if metadata is inconsistent
-            if (!checksum.equals(md.checksum())) {
+            // Use the same checksum strategy as loadMetadata's checksumFromFile so that the
+            // metadata-stored checksum and the verified checksum agree on every supported format.
+            // For non-DFA directories, fall back to the Lucene codec footer.
+            final DataFormatAwareStoreDirectory dfasd = DataFormatAwareStoreDirectory.unwrap(directory);
+            final String checksum = dfasd != null
+                ? digestToString(Long.parseLong(dfasd.calculateUploadChecksum(md.name())))
+                : Store.digestToString(CodecUtil.checksumEntireFile(input));
+            if (checksum.equals(md.checksum()) == false) {
                 throw new CorruptIndexException(
-                    "inconsistent metadata: lucene checksum=" + checksum + ", metadata checksum=" + md.checksum(),
+                    "inconsistent metadata: actual checksum=" + checksum + ", metadata checksum=" + md.checksum() + ", file=" + md.name(),
                     input
                 );
             }

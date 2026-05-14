@@ -16,7 +16,6 @@ import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.opensearch.OpenSearchException;
 import org.opensearch.common.Nullable;
@@ -37,6 +36,7 @@ import org.opensearch.index.engine.dataformat.DataFormatDescriptor;
 import org.opensearch.index.engine.dataformat.DataFormatRegistry;
 import org.opensearch.index.engine.dataformat.ReaderManagerConfig;
 import org.opensearch.index.engine.exec.CatalogSnapshotDeletionPolicy;
+import org.opensearch.index.engine.exec.CatalogSnapshotLifecycleListener;
 import org.opensearch.index.engine.exec.CommitFileManager;
 import org.opensearch.index.engine.exec.EngineReaderManager;
 import org.opensearch.index.engine.exec.FileDeleter;
@@ -71,6 +71,7 @@ import org.opensearch.search.suggest.completion.CompletionStats;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
@@ -146,8 +147,6 @@ public class DataFormatAwareNRTReplicationEngine implements Indexer {
     @Nullable
     private volatile String historyUUID;
     private volatile long lastWriteNanos = System.nanoTime();
-    private final List<ReferenceManager.RefreshListener> internalRefreshListeners;
-
     private final ReentrantReadWriteLock rwl = new ReentrantReadWriteLock();
     private final ReleasableLock readLock = new ReleasableLock(rwl.readLock());
     private final ReleasableLock writeLock = new ReleasableLock(rwl.writeLock());
@@ -217,22 +216,6 @@ public class DataFormatAwareNRTReplicationEngine implements Indexer {
                 ? List.of(createInitialSnapshot(0L, 0L, 0L, List.of(), -1L, userData))
                 : initialCommittedSnapshots;
 
-            catalogSnapshotManagerRef = new CatalogSnapshotManager(
-                committed,
-                CatalogSnapshotDeletionPolicy.KEEP_LATEST_ONLY,
-                compositeDeleter,
-                Map.of(),
-                List.of(),
-                store.shardPath(),
-                REPLICA_COMMIT_FILE_MANAGER
-            );
-
-            this.catalogSnapshotManager = catalogSnapshotManagerRef;
-
-            try (GatedCloseable<CatalogSnapshot> snapshotRef = catalogSnapshotManager.acquireSnapshot()) {
-                this.lastCommittedSnapshot = snapshotRef.get().clone();
-            }
-
             DataFormatRegistry registry = engineConfig.getDataFormatRegistry();
 
             Map<String, Supplier<DataFormatDescriptor>> allDescriptors = registry.getFormatDescriptors(engineConfig.getIndexSettings());
@@ -253,12 +236,31 @@ public class DataFormatAwareNRTReplicationEngine implements Indexer {
             }
             readerManagersRef = Map.copyOf(aggregated);
 
+            // Register reader managers as catalog snapshot lifecycle listeners so they are notified
+            // (via installSnapshot → afterRefresh) BEFORE latestCatalogSnapshot is swapped. This
+            // guarantees readers are updated before the snapshot becomes externally visible.
+            List<CatalogSnapshotLifecycleListener> snapshotListeners = new ArrayList<>(readerManagersRef.values());
+
+            catalogSnapshotManagerRef = new CatalogSnapshotManager(
+                committed,
+                CatalogSnapshotDeletionPolicy.KEEP_LATEST_ONLY,
+                compositeDeleter,
+                Map.of(),
+                snapshotListeners,
+                store.shardPath(),
+                REPLICA_COMMIT_FILE_MANAGER
+            );
+
+            this.catalogSnapshotManager = catalogSnapshotManagerRef;
+
+            try (GatedCloseable<CatalogSnapshot> snapshotRef = catalogSnapshotManager.acquireSnapshot()) {
+                this.lastCommittedSnapshot = snapshotRef.get().clone();
+            }
+
             final SequenceNumbers.CommitInfo seqNoInfo = SequenceNumbers.loadSeqNoInfoFromLuceneCommit(userData.entrySet());
             this.localCheckpointTracker = new LocalCheckpointTracker(seqNoInfo.maxSeqNo, seqNoInfo.localCheckpoint);
 
             this.readerManagers = readerManagersRef;
-
-            this.internalRefreshListeners = new ArrayList<>(engineConfig.getInternalRefreshListener());
 
             // Generate historyUUID if absent (fresh replica); primary will supply the correct one on first replication.
             this.historyUUID = userData.get(Engine.HISTORY_UUID_KEY);
@@ -323,8 +325,6 @@ public class DataFormatAwareNRTReplicationEngine implements Indexer {
                 this.historyUUID = incomingHistoryUUID;
             }
 
-            invokeRefreshListeners(true);
-
             if (incomingCommitGeneration != lastReceivedPrimaryCommitGen) {
                 flush(false, true);
                 translogManager.getDeletionPolicy().setLocalCheckpointOfSafeCommit(maxSeqNo);
@@ -335,33 +335,11 @@ public class DataFormatAwareNRTReplicationEngine implements Indexer {
         }
     }
 
-    /** Applies the incoming snapshot to the manager and notifies per-format readers. */
+    /** Applies the incoming snapshot to the manager. Reader managers are registered as
+     *  CatalogSnapshotLifecycleListeners, so they are notified (and refreshed) inside
+     *  applyReplicationSnapshot → installSnapshot before the snapshot becomes visible. */
     private void applySnapshotAndNotifyReaders(CatalogSnapshot incoming) throws IOException {
         catalogSnapshotManager.applyReplicationSnapshot(incoming);
-        try (GatedCloseable<CatalogSnapshot> newRef = catalogSnapshotManager.acquireSnapshot()) {
-            CatalogSnapshot newSnapshot = newRef.get();
-            for (EngineReaderManager<?> rm : readerManagers.values()) {
-                rm.afterRefresh(true, newSnapshot);
-            }
-        }
-    }
-
-    /** Notifies internal refresh listeners; called manually since per-format readers lack ReferenceManager hooks. */
-    private void invokeRefreshListeners(boolean didRefresh) {
-        for (ReferenceManager.RefreshListener listener : internalRefreshListeners) {
-            try {
-                listener.beforeRefresh();
-            } catch (Exception e) {
-                logger.warn("Failed to invoke beforeRefresh on listener", e);
-            }
-        }
-        for (ReferenceManager.RefreshListener listener : internalRefreshListeners) {
-            try {
-                listener.afterRefresh(didRefresh);
-            } catch (Exception e) {
-                logger.warn("Failed to invoke afterRefresh on listener", e);
-            }
-        }
     }
 
     /** Commits the current catalog snapshot to disk via a synthetic SegmentInfos with serialized CatalogSnapshot in userData. */
@@ -619,32 +597,13 @@ public class DataFormatAwareNRTReplicationEngine implements Indexer {
         String forceMergeUUID
     ) throws EngineException, IOException {}
 
-    // Reads SegmentInfos from disk because only CatalogSnapshot is held in memory.
-    public GatedCloseable<IndexCommit> acquireLastIndexCommit(boolean flushFirst) throws EngineException {
-        ensureOpen();
-        if (flushFirst) {
-            flush(false, true);
-        }
-        try {
-            synchronized (lastCommittedSnapshotMutex) {
-                final SegmentInfos lastCommittedSegmentInfos = store.readLastCommittedSegmentsInfo();
-                final IndexCommit indexCommit = Lucene.getIndexCommit(lastCommittedSegmentInfos, store.directory());
-                // Pin the live catalog snapshot so data-format files aren't cleaned up while peer
-                // recovery is reading. On the replica, physical file deletion is a no-op today
-                // (fileDeleters map is empty), but pinning keeps ref-counts consistent with future
-                // cleanup wiring.
-                final GatedCloseable<CatalogSnapshot> snapshotRef = catalogSnapshotManager.acquireSnapshot();
-                return new GatedCloseable<>(indexCommit, snapshotRef::close);
-            }
-        } catch (IOException e) {
-            throw new EngineException(shardId, "Unable to build latest IndexCommit", e);
-        }
-    }
-
+    /** DFA replicas operate on {@link CatalogSnapshot}, not Lucene {@link IndexCommit}.
+     *  Use {@link #acquireSafeCatalogSnapshot()} instead. */
     @Override
     public GatedCloseable<IndexCommit> acquireSafeIndexCommit() throws EngineException {
-        ensureOpen();
-        return acquireLastIndexCommit(false);
+        throw new UnsupportedOperationException(
+            "acquireSafeIndexCommit is not supported on DataFormatAwareNRTReplicationEngine; use acquireSafeCatalogSnapshot"
+        );
     }
 
     @Override
@@ -665,8 +624,11 @@ public class DataFormatAwareNRTReplicationEngine implements Indexer {
     @Override
     public SafeCommitInfo getSafeCommitInfo() {
         ensureOpen();
-        // TODO: Return actual doc count when CatalogSnapshot tracks document counts.
-        return new SafeCommitInfo(localCheckpointTracker.getProcessedCheckpoint(), 0);
+        try (GatedCloseable<CatalogSnapshot> snapshot = catalogSnapshotManager.acquireSnapshot()) {
+            return new SafeCommitInfo(localCheckpointTracker.getProcessedCheckpoint(), (int) snapshot.get().getNumDocs());
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
     }
 
     @Override
@@ -736,9 +698,7 @@ public class DataFormatAwareNRTReplicationEngine implements Indexer {
 
     @Override
     public MergeStats getMergeStats() {
-        MergeStats mergeStats = new MergeStats();
-        mergeStats.add(engineConfig.getMergedSegmentTransferTracker().stats());
-        return mergeStats;
+        return new MergeStats();
     }
 
     @Override
@@ -870,15 +830,7 @@ public class DataFormatAwareNRTReplicationEngine implements Indexer {
     @Override
     public DocsStats docStats() {
         try (GatedCloseable<CatalogSnapshot> snapshot = catalogSnapshotManager.acquireSnapshot()) {
-            // Row count: ONE format per segment (findFirst) — every format for the same
-            // segment holds the same numRows, so flatMap-summing would double-count multi-format segments.
-            long count = snapshot.get()
-                .getSegments()
-                .stream()
-                .mapToLong(
-                    segment -> segment.dfGroupedSearchableFiles().values().stream().findFirst().map(WriterFileSet::numRows).orElse(0L)
-                )
-                .sum();
+            long count = snapshot.get().getNumDocs();
             // Total size: sum across all format files — each format contributes distinct bytes on disk.
             long totalSize = snapshot.get()
                 .getSegments()
