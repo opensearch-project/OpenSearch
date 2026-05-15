@@ -80,7 +80,6 @@ public class FragmentConversionDriver {
         if (root.getExchangeSinkProvider() != null && !root.getPlanAlternatives().isEmpty()) {
             AnalyticsSearchBackendPlugin backend = registry.getBackend(root.getPlanAlternatives().getFirst().backendId());
             root.setInstructionHandlerFactory(backend.getInstructionHandlerFactory());
-            root.setFragmentConvertor(backend.getFragmentConvertor());
         }
     }
 
@@ -113,7 +112,6 @@ public class FragmentConversionDriver {
         if (stage.getExchangeSinkProvider() != null && !converted.isEmpty()) {
             AnalyticsSearchBackendPlugin backend = registry.getBackend(converted.getFirst().backendId());
             stage.setInstructionHandlerFactory(backend.getInstructionHandlerFactory());
-            stage.setFragmentConvertor(backend.getFragmentConvertor());
         }
     }
 

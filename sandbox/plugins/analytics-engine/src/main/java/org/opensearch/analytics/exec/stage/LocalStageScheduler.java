@@ -143,11 +143,11 @@ final class LocalStageScheduler implements StageScheduler {
      * Calcite row-type derivation when the backend has no opinion.
      */
     private static Schema childSchema(Stage parent, Stage child) {
-        var convertor = parent.getFragmentConvertor();
-        if (convertor != null) {
+        var provider = parent.getExchangeSinkProvider();
+        if (provider != null) {
             var alts = child.getPlanAlternatives();
             if (!alts.isEmpty()) {
-                Schema fromBackend = convertor.partialAggOutputSchema(alts.getFirst().convertedBytes());
+                Schema fromBackend = provider.partialAggOutputSchema(alts.getFirst().convertedBytes());
                 if (fromBackend != null) {
                     return fromBackend;
                 }

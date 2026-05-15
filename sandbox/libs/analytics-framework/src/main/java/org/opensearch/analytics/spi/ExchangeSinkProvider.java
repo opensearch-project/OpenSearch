@@ -8,6 +8,8 @@
 
 package org.opensearch.analytics.spi;
 
+import org.apache.arrow.vector.types.pojo.Schema;
+
 /**
  * Factory for creating a coordinator-side {@link ExchangeSink}.
  *
@@ -33,4 +35,15 @@ public interface ExchangeSinkProvider {
      *        {@code FinalAggregateInstructionHandler}), or {@code null} when no handler ran
      */
     ExchangeSink createSink(ExchangeSinkContext context, BackendExecutionContext backendContext);
+
+    /**
+     * Returns the Arrow schema the data-node prepared physical plan will emit
+     * for the given partial-aggregate plan bytes, or {@code null} if the backend
+     * has no opinion (caller falls back to a row-type-based derivation).
+     *
+     * @param partialAggBytes bytes from a prior {@link FragmentConvertor#attachPartialAggOnTop}
+     */
+    default Schema partialAggOutputSchema(byte[] partialAggBytes) {
+        return null;
+    }
 }

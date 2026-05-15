@@ -8,7 +8,6 @@
 
 package org.opensearch.analytics.spi;
 
-import org.apache.arrow.vector.types.pojo.Schema;
 import org.apache.calcite.rel.RelNode;
 
 /**
@@ -90,16 +89,5 @@ public interface FragmentConvertor {
      */
     default byte[] attachFragmentOnTop(RelNode fragment, byte[] innerBytes) {
         throw new UnsupportedOperationException("attachFragmentOnTop not implemented for this backend");
-    }
-
-    /**
-     * Returns the Arrow schema the data node's prepared physical plan will emit
-     * for the given partial-aggregate plan bytes, or {@code null} if the backend
-     * has no opinion (caller falls back to a row-type-based derivation).
-     *
-     * @param partialAggBytes bytes from a prior {@link #attachPartialAggOnTop}
-     */
-    default Schema partialAggOutputSchema(byte[] partialAggBytes) {
-        return null;
     }
 }

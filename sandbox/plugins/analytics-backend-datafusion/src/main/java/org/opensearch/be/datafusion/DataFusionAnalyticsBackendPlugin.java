@@ -8,6 +8,7 @@
 
 package org.opensearch.be.datafusion;
 
+import org.apache.arrow.vector.types.pojo.Schema;
 import org.apache.calcite.sql.SqlOperator;
 import org.apache.calcite.sql.fun.SqlLibraryOperators;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
@@ -19,6 +20,8 @@ import org.opensearch.analytics.spi.BackendCapabilityProvider;
 import org.opensearch.analytics.spi.BackendExecutionContext;
 import org.opensearch.analytics.spi.DelegationType;
 import org.opensearch.analytics.spi.EngineCapability;
+import org.opensearch.analytics.spi.ExchangeSink;
+import org.opensearch.analytics.spi.ExchangeSinkContext;
 import org.opensearch.analytics.spi.ExchangeSinkProvider;
 import org.opensearch.analytics.spi.FieldType;
 import org.opensearch.analytics.spi.FilterCapability;
@@ -35,6 +38,7 @@ import org.opensearch.analytics.spi.StdOperatorRewriteAdapter;
 import org.opensearch.analytics.spi.WindowCapability;
 import org.opensearch.analytics.spi.WindowFunction;
 import org.opensearch.be.datafusion.indexfilter.FilterTreeCallbacks;
+import org.opensearch.be.datafusion.nativelib.NativeBridge;
 import org.opensearch.index.engine.dataformat.DataFormatRegistry;
 
 import java.util.HashSet;
@@ -588,32 +592,41 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
 
     @Override
     public ExchangeSinkProvider getExchangeSinkProvider() {
-        return (ctx, backendContext) -> {
-            DataFusionService svc = plugin.getDataFusionService();
-            if (svc == null) {
-                throw new IllegalStateException("DataFusionService not initialized");
+        return new ExchangeSinkProvider() {
+            @Override
+            public ExchangeSink createSink(ExchangeSinkContext ctx, BackendExecutionContext backendContext) {
+                DataFusionService svc = plugin.getDataFusionService();
+                if (svc == null) {
+                    throw new IllegalStateException("DataFusionService not initialized");
+                }
+                // When the FinalAggregateInstructionHandler has already prepared a plan on the
+                // coordinator, it hands over a DataFusionReduceState carrying the session +
+                // registered senders. The sink drives executeLocalPreparedPlan against that
+                // state instead of re-decoding the fragment bytes.
+                DataFusionReduceState preparedState = backendContext instanceof DataFusionReduceState s ? s : null;
+                String mode = plugin.getClusterService() != null
+                    ? plugin.getClusterService().getClusterSettings().get(DataFusionPlugin.DATAFUSION_REDUCE_INPUT_MODE)
+                    : "streaming";
+                // Memtable mode is single-input only (DatafusionMemtableReduceSink registers
+                // exactly one MemTable at close time). Multi-input shapes (Union, future Join)
+                // need per-child input partitions, which only the streaming sink implements via
+                // MultiInputExchangeSink#sinkForChild. Auto-fall-back to streaming so end users
+                // don't have to flip the cluster setting per query. Also fall back when a
+                // prepared state is supplied (memtable sink does not yet support the
+                // prepared-plan path).
+                // TODO: lift this fallback once the memtable sink registers one MemTable per
+                // child stage (see DatafusionMemtableReduceSink class javadoc).
+                if ("memtable".equals(mode) && ctx.childInputs().size() == 1 && preparedState == null) {
+                    return new DatafusionMemtableReduceSink(ctx, svc.getNativeRuntime());
+                }
+                return new DatafusionReduceSink(ctx, svc.getNativeRuntime(), svc.getDrainExecutor(), preparedState);
             }
-            // When the FinalAggregateInstructionHandler has already prepared a plan on the
-            // coordinator, it hands over a DataFusionReduceState carrying the session +
-            // registered senders. The sink drives executeLocalPreparedPlan against that
-            // state instead of re-decoding the fragment bytes.
-            DataFusionReduceState preparedState = backendContext instanceof DataFusionReduceState s ? s : null;
-            String mode = plugin.getClusterService() != null
-                ? plugin.getClusterService().getClusterSettings().get(DataFusionPlugin.DATAFUSION_REDUCE_INPUT_MODE)
-                : "streaming";
-            // Memtable mode is single-input only (DatafusionMemtableReduceSink registers
-            // exactly one MemTable at close time). Multi-input shapes (Union, future Join)
-            // need per-child input partitions, which only the streaming sink implements via
-            // MultiInputExchangeSink#sinkForChild. Auto-fall-back to streaming so end users
-            // don't have to flip the cluster setting per query. Also fall back when a
-            // prepared state is supplied (memtable sink does not yet support the
-            // prepared-plan path).
-            // TODO: lift this fallback once the memtable sink registers one MemTable per
-            // child stage (see DatafusionMemtableReduceSink class javadoc).
-            if ("memtable".equals(mode) && ctx.childInputs().size() == 1 && preparedState == null) {
-                return new DatafusionMemtableReduceSink(ctx, svc.getNativeRuntime());
+
+            @Override
+            public Schema partialAggOutputSchema(byte[] partialAggBytes) {
+                byte[] schemaIpc = NativeBridge.partialPlanOutputSchema(partialAggBytes);
+                return ArrowSchemaIpc.fromBytes(schemaIpc);
             }
-            return new DatafusionReduceSink(ctx, svc.getNativeRuntime(), svc.getDrainExecutor(), preparedState);
         };
     }
 
