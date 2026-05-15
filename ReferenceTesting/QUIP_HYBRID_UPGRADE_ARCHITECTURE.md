@@ -469,3 +469,85 @@ StarTreeQueryHelper.getStarTreeValues()
 | 10 | `NoSuchFileException: _2_Lucene90_0.dvm` | Stale PerField attributes in merged FieldInfos | `perFieldSuffixedFileExists()` check | `Composite912DocValuesFormat.java` |
 | 11 | "flushes are disabled - pending translog recovery" | `pendingTranslogRecovery=true` never cleared | `skipTranslogRecovery()` after engine creation | `IndexShard.java` |
 | 12 | Merged star tree includes soft-deleted docs | `mergeState.liveDocs` only has hard deletes | Capture `__soft_deletes`, build bitset, skip-only filter | `Composite912DocValuesWriter.java` + `LiveDocsFilteredDocValuesProducer.java` |
+
+---
+
+## Parallel Star Tree Build
+
+### Change
+
+`StarTreeUpgradeService.buildStarTreeDataForSegments()` now builds star tree data for multiple segments concurrently using a fixed thread pool. Each segment's build is independent — they read from different segment files and write to different output files (named by segment).
+
+### Implementation
+
+```java
+int parallelism = Math.min(eligibleSegments.size(), Runtime.getRuntime().availableProcessors());
+ExecutorService executor = Executors.newFixedThreadPool(parallelism);
+for (SegmentCommitInfo commitInfo : eligibleSegments) {
+    futures.add(executor.submit(() -> buildStarTreeData(...)));
+}
+executor.shutdown();
+executor.awaitTermination(60, TimeUnit.MINUTES);
+```
+
+Falls back to sequential for single-segment or single-core cases.
+
+### Performance
+
+| Dataset | Segments | Sequential | Parallel | Speedup |
+|---------|----------|-----------|----------|---------|
+| 100k docs | 6 | ~5.4s | ~1.8s | 3x |
+| 1M docs + 50k deletes | 5-7 | ~27s | ~8-10s | ~3x |
+
+---
+
+## Delete Support Verification (End-to-End)
+
+### Problem
+
+When segments have `docValuesGen != -1` (soft deletes applied as in-place doc values updates), switching the codec to `Composite912Codec` causes a cascade of errors culminating in `AssertionError: softDeleteCount doesn't match`. Full error chain documented in `DELETE_SUPPORT_INVESTIGATION.md`.
+
+### Solution
+
+The hybrid approach handles both segment types:
+
+| Segment Type | Codec Switch | Star Tree Read Path |
+|-------------|-------------|-------------------|
+| `docValuesGen == -1` | ✅ Switch to Composite912Codec | Native `Composite912DocValuesReader` |
+| `docValuesGen != -1` | ❌ Skip | `StarTreeDirectReader` via cache |
+
+### Verification at 1M Scale
+
+Test: `test_1m_full_verification.sh` — 1M docs + 50k deletes
+
+Logs confirmed 7 segments with `docValuesGen=1` served via direct reader cache:
+```
+populateCache: segment=_b docValuesGen=1 codec=Lucene104
+populateCache: segment=_c docValuesGen=1 codec=Lucene104
+populateCache: segment=_l docValuesGen=1 codec=Lucene104
+populateCache: segment=_m docValuesGen=1 codec=Lucene104
+populateCache: segment=_n docValuesGen=1 codec=Lucene104
+populateCache: segment=_o docValuesGen=1 codec=Lucene104
+populateCache: segment=_p docValuesGen=1 codec=Lucene104
+```
+
+Results:
+- Upgrade: 7.5s (parallel), successful
+- Aggregation: ALL VALUES MATCH (before == after)
+- `terminated_early: True` — star tree active on all segments
+- 0 wrong values during concurrent reads
+- Doc count: 950,000 (correct)
+
+### Java Integration Test
+
+`StarTreeUpgradeWithDocValuesGenIT.testUpgradeWithDocValuesGenNotMinusOne()`:
+- Deterministically forces `docValuesGen != -1` via: ingest → flush → delete → flush
+- Asserts: upgrade succeeds, direct reader cache populated, star tree active, aggregation exact match
+
+### Reads During Upgrade with Deletes
+
+`test_reads_correctness_with_deletes.sh` — 100k docs + 5k deletes, concurrent reads:
+- 14/16 reads returned exact correct values
+- 2/16 reads returned empty (engine swap window)
+- 0 reads returned wrong values
+- Deleted docs never included in any response
