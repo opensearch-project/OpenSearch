@@ -27,8 +27,14 @@ import java.util.List;
 
 /**
  * Converts {@link TableScan} → {@link OpenSearchTableScan}.
- * Resolves backend from index data format settings and populates
- * per-column {@link FieldStorageInfo} from IndexMetadata mappings.
+ * Resolves backend from index data format settings and populates per-column
+ * {@link FieldStorageInfo} from IndexMetadata mappings.
+ *
+ * <p>Viability is computed only over the columns the scan currently exposes — its row
+ * type is narrowed to query-referenced columns by {@link OpenSearchScanFieldTrimmer}
+ * before this rule fires. Columns the query does not reference (e.g. an unread
+ * {@code geo_point} field on the same index) are not part of the row type at this
+ * point and therefore do not affect viability.
  *
  * @opensearch.internal
  */
@@ -59,8 +65,10 @@ public class OpenSearchTableScanRule extends RelOptRule {
         CapabilityRegistry registry = context.getCapabilityRegistry();
         FieldStorageResolver fieldStorageResolver = registry.resolveFieldStorage(indexMetadata);
 
-        // TODO : This expects the FrontEnds to attach the row type with all fields.
-        // TODO : How will they attach if we perform the index resolution
+        // Resolves storage for columns currently in the scan's row type — already narrowed to
+        // query-referenced columns by OpenSearchScanFieldTrimmer. Frontends are responsible
+        // for attaching the full row type at parse time; the trimmer narrows it before
+        // marking begins.
         List<String> fieldNames = scan.getRowType().getFieldList().stream().map(RelDataTypeField::getName).toList();
         List<FieldStorageInfo> fieldStorage = fieldStorageResolver.resolve(fieldNames);
 

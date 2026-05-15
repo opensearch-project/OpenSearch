@@ -35,6 +35,7 @@ import org.opensearch.analytics.planner.rules.OpenSearchFilterRule;
 import org.opensearch.analytics.planner.rules.OpenSearchJoinRule;
 import org.opensearch.analytics.planner.rules.OpenSearchJoinSplitRule;
 import org.opensearch.analytics.planner.rules.OpenSearchProjectRule;
+import org.opensearch.analytics.planner.rules.OpenSearchScanFieldTrimmer;
 import org.opensearch.analytics.planner.rules.OpenSearchSortRule;
 import org.opensearch.analytics.planner.rules.OpenSearchSortSplitRule;
 import org.opensearch.analytics.planner.rules.OpenSearchTableScanRule;
@@ -109,6 +110,18 @@ public class PlannerImpl {
         reducePlanner.setRoot(afterPre);
         RelNode afterReduce = reducePlanner.findBestExp();
 
+        // Phase 1b.5: Required-field propagation. Walks the plan top-down via Calcite's
+        // RelFieldTrimmer dispatch and at each TableScan narrows the scan's row type to
+        // just the columns the plan actually requires. Runs as its own pass before
+        // marking so OpenSearchTableScanRule sees the narrowed scan and computes
+        // viability over read columns only — unread columns whose mapping type lacks a
+        // viable scan backend (e.g. geo_point, date_nanos) no longer reject the index.
+        // Subclassing the trimmer (rather than running a tactical Project(TableScan)
+        // rule) covers Project, Filter, Aggregate, Sort, Join, SetOp, and Project-over-
+        // RexOver shapes uniformly through Calcite's existing dispatch.
+        RelBuilder trimBuilder = RelBuilder.proto(Contexts.empty()).create(rawRelNode.getCluster(), null);
+        RelNode afterTrim = new OpenSearchScanFieldTrimmer(context, trimBuilder).trim(afterReduce);
+
         // Phase 1c: Marking — convert LogicalXxx → OpenSearchXxx bottom-up
         // TODO: migrate rules from deprecated RelOptRule to RelRule<Config> once the planner
         // moves to its own Gradle module. The OpenSearch monorepo injects -proc:none globally,
@@ -130,7 +143,7 @@ public class PlannerImpl {
             )
         );
         HepPlanner markingPlanner = new HepPlanner(markBuilder.build());
-        markingPlanner.setRoot(afterReduce);
+        markingPlanner.setRoot(afterTrim);
         RelNode marked = markingPlanner.findBestExp();
 
         LOGGER.info("After marking:\n{}", RelOptUtil.toString(marked));

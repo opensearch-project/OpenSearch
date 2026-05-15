@@ -420,10 +420,14 @@ public class PlanShapeTests extends PlanShapeTestBase {
             List.of(countStarCall())
         );
         RelNode result = runPlanner(plan, perIndexContext(Map.of("left_idx", 2, "right_idx", 2)));
+        // Right scan is trimmed to its single join-key column by OpenSearchScanFieldTrimmer
+        // (the outer count-by-left.status query never reads any other right column), so the
+        // join condition's right-hand reference shifts from $2 (right.status @ position 2 in
+        // a 2-col-per-side join) to $1 (the only surviving right column).
         assertPlanShape(
             """
                 OpenSearchAggregate(group=[{0}], cnt=[COUNT(AGG_CALL_ANNOTATION(id=0, viableBackends=[mock-parquet]))], mode=[SINGLE], viableBackends=[[mock-parquet]])
-                  OpenSearchJoin(condition=[=($0, $2)], joinType=[inner], viableBackends=[[mock-parquet]])
+                  OpenSearchJoin(condition=[=($0, $1)], joinType=[inner], viableBackends=[[mock-parquet]])
                     OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
                       OpenSearchTableScan(table=[[left_idx]], viableBackends=[[mock-parquet]])
                     OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
