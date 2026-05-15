@@ -32,6 +32,8 @@ import org.opensearch.analytics.spi.ScalarFunctionAdapter;
 import org.opensearch.analytics.spi.ScanCapability;
 import org.opensearch.analytics.spi.SearchExecEngineProvider;
 import org.opensearch.analytics.spi.StdOperatorRewriteAdapter;
+import org.opensearch.analytics.spi.WindowCapability;
+import org.opensearch.analytics.spi.WindowFunction;
 import org.opensearch.be.datafusion.indexfilter.FilterTreeCallbacks;
 import org.opensearch.index.engine.dataformat.DataFormatRegistry;
 
@@ -359,6 +361,16 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
             }
 
             @Override
+            public Set<WindowCapability> windowCapabilities() {
+                return Set.of(
+                    new WindowCapability(
+                        Set.of(WindowFunction.SUM, WindowFunction.AVG, WindowFunction.COUNT, WindowFunction.MIN, WindowFunction.MAX),
+                        Set.copyOf(plugin.getSupportedFormats())
+                    )
+                );
+            }
+
+            @Override
             public Set<DelegationType> supportedDelegations() {
                 return Set.of(DelegationType.FILTER);
             }
@@ -601,7 +613,7 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
             if ("memtable".equals(mode) && ctx.childInputs().size() == 1 && preparedState == null) {
                 return new DatafusionMemtableReduceSink(ctx, svc.getNativeRuntime());
             }
-            return new DatafusionReduceSink(ctx, svc.getNativeRuntime(), preparedState);
+            return new DatafusionReduceSink(ctx, svc.getNativeRuntime(), svc.getDrainExecutor(), preparedState);
         };
     }
 

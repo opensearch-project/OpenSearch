@@ -114,18 +114,31 @@ public class WorkloadGroup extends AbstractDiffable<WorkloadGroup> implements To
         }
         final ResiliencyMode mode = Optional.ofNullable(mutableWorkloadGroupFragment.getResiliencyMode())
             .orElse(existingGroup.getResiliencyMode());
-        // Handle settings update:
-        // null = not specified (keep existing)
-        // empty Settings = explicitly clear (set to empty)
-        // non-empty Settings = replace with new values
+        // Handle settings update with merge semantics:
+        // null settings = not specified in request (keep existing)
+        // empty Settings = clear all settings
+        // non-empty Settings = merge with existing; keys with null values are removed
         final Settings mutableFragmentSettings = mutableWorkloadGroupFragment.getSettings();
         final Settings updatedSettings;
         if (mutableFragmentSettings == null) {
             // Not specified - keep existing
             updatedSettings = Settings.builder().put(existingGroup.getSettings()).build();
+        } else if (mutableFragmentSettings.isEmpty()) {
+            // Explicitly empty - clear all settings
+            updatedSettings = Settings.EMPTY;
         } else {
-            // Specified (empty or non-empty) - use the new value
-            updatedSettings = Settings.builder().put(mutableFragmentSettings).build();
+            // Merge: start with existing settings, overlay new values, remove null-valued keys
+            Settings.Builder builder = Settings.builder().put(existingGroup.getSettings());
+            for (String key : mutableFragmentSettings.keySet()) {
+                String value = mutableFragmentSettings.get(key);
+                if (value == null) {
+                    // null value means "clear this setting"
+                    builder.remove(key);
+                } else {
+                    builder.put(key, value);
+                }
+            }
+            updatedSettings = builder.build();
         }
         return new WorkloadGroup(
             existingGroup.getName(),
@@ -284,6 +297,11 @@ public class WorkloadGroup extends AbstractDiffable<WorkloadGroup> implements To
                         throw new IllegalArgumentException(fieldName + " is not a valid object in WorkloadGroup");
                     }
                     mutableWorkloadGroupFragment1.parseField(parser, fieldName);
+                } else if (token == XContentParser.Token.VALUE_NULL) {
+                    if (fieldName.equals(MutableWorkloadGroupFragment.SETTINGS_STRING)) {
+                        // "settings": null means clear all settings
+                        mutableWorkloadGroupFragment1.parseField(parser, fieldName);
+                    }
                 }
             }
             return builder.mutableWorkloadGroupFragment(mutableWorkloadGroupFragment1);

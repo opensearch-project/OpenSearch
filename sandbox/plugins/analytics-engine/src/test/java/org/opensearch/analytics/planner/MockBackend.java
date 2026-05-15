@@ -30,6 +30,7 @@ import org.opensearch.analytics.spi.ScalarFunctionAdapter;
 import org.opensearch.analytics.spi.ScanCapability;
 import org.opensearch.analytics.spi.ShardScanInstructionNode;
 import org.opensearch.analytics.spi.ShardScanWithDelegationInstructionNode;
+import org.opensearch.analytics.spi.WindowCapability;
 
 import java.util.List;
 import java.util.Map;
@@ -80,6 +81,11 @@ abstract class MockBackend implements AnalyticsSearchBackendPlugin {
             }
 
             @Override
+            public Set<WindowCapability> windowCapabilities() {
+                return self.windowCapabilities();
+            }
+
+            @Override
             public Set<DelegationType> supportedDelegations() {
                 return self.supportedDelegations();
             }
@@ -123,6 +129,10 @@ abstract class MockBackend implements AnalyticsSearchBackendPlugin {
     }
 
     protected Set<JoinCapability> joinCapabilities() {
+        return Set.of();
+    }
+
+    protected Set<WindowCapability> windowCapabilities() {
         return Set.of();
     }
 
