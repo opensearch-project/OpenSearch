@@ -32,6 +32,8 @@ import org.opensearch.analytics.spi.ScalarFunctionAdapter;
 import org.opensearch.analytics.spi.ScanCapability;
 import org.opensearch.analytics.spi.SearchExecEngineProvider;
 import org.opensearch.analytics.spi.StdOperatorRewriteAdapter;
+import org.opensearch.analytics.spi.WindowCapability;
+import org.opensearch.analytics.spi.WindowFunction;
 import org.opensearch.be.datafusion.indexfilter.FilterTreeCallbacks;
 import org.opensearch.index.engine.dataformat.DataFormatRegistry;
 
@@ -137,6 +139,10 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         ScalarFunction.REGEXP_CONTAINS,
         ScalarFunction.REPLACE,
         ScalarFunction.REGEXP_REPLACE,
+        ScalarFunction.TRANSLATE,
+        ScalarFunction.REX_EXTRACT,
+        ScalarFunction.REX_EXTRACT_MULTI,
+        ScalarFunction.REX_OFFSET,
         ScalarFunction.PLUS,
         ScalarFunction.TIMES,
         ScalarFunction.DIVIDE,
@@ -355,6 +361,16 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
             }
 
             @Override
+            public Set<WindowCapability> windowCapabilities() {
+                return Set.of(
+                    new WindowCapability(
+                        Set.of(WindowFunction.SUM, WindowFunction.AVG, WindowFunction.COUNT, WindowFunction.MIN, WindowFunction.MAX),
+                        Set.copyOf(plugin.getSupportedFormats())
+                    )
+                );
+            }
+
+            @Override
             public Set<DelegationType> supportedDelegations() {
                 return Set.of(DelegationType.FILTER);
             }
@@ -382,7 +398,14 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                 Set<String> formats = Set.copyOf(plugin.getSupportedFormats());
                 Set<ProjectCapability> caps = new HashSet<>();
                 for (ScalarFunction op : STANDARD_PROJECT_OPS) {
-                    caps.add(new ProjectCapability.Scalar(op, Set.copyOf(SUPPORTED_FIELD_TYPES), formats, true));
+                    // PPL rex extract-mode multi-match returns array<varchar>; the planner
+                    // keys capability lookups on the call's return type, so this op must be
+                    // registered against FieldType.ARRAY rather than the scalar set used by
+                    // every other op (UPPER, ABS, ...) — those genuinely don't return arrays.
+                    Set<FieldType> types = op == ScalarFunction.REX_EXTRACT_MULTI
+                        ? Set.of(FieldType.ARRAY)
+                        : Set.copyOf(SUPPORTED_FIELD_TYPES);
+                    caps.add(new ProjectCapability.Scalar(op, types, formats, true));
                 }
                 for (ScalarFunction op : ARRAY_RETURNING_PROJECT_OPS) {
                     caps.add(new ProjectCapability.Scalar(op, Set.of(FieldType.ARRAY), formats, true));
@@ -478,6 +501,9 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                     Map.entry(ScalarFunction.POSITION, new PositionAdapter()),
                     Map.entry(ScalarFunction.QUARTER, DatePartAdapters.quarter()),
                     Map.entry(ScalarFunction.REGEXP_REPLACE, new RegexpReplaceAdapter()),
+                    Map.entry(ScalarFunction.REX_EXTRACT, new RexExtractAdapter()),
+                    Map.entry(ScalarFunction.REX_EXTRACT_MULTI, new RexExtractMultiAdapter()),
+                    Map.entry(ScalarFunction.REX_OFFSET, new RexOffsetAdapter()),
                     Map.entry(ScalarFunction.SARG_PREDICATE, new SargAdapter()),
                     Map.entry(ScalarFunction.SCALAR_MAX, nameMapping(SqlLibraryOperators.GREATEST)),
                     Map.entry(ScalarFunction.SCALAR_MIN, nameMapping(SqlLibraryOperators.LEAST)),
@@ -587,7 +613,7 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
             if ("memtable".equals(mode) && ctx.childInputs().size() == 1 && preparedState == null) {
                 return new DatafusionMemtableReduceSink(ctx, svc.getNativeRuntime());
             }
-            return new DatafusionReduceSink(ctx, svc.getNativeRuntime(), preparedState);
+            return new DatafusionReduceSink(ctx, svc.getNativeRuntime(), svc.getDrainExecutor(), preparedState);
         };
     }
 

@@ -58,6 +58,25 @@ public class OpenSearchAggregateSplitRule extends RelOptRule {
         OpenSearchAggregate aggregate = call.rel(0);
         RelNode child = call.rel(1);
 
+        // SINGLE with input converted to SINGLETON. Volcano picks this when
+        // the child can offer SINGLETON cheaply — e.g. a windowed Project already gathers
+        // below it, so a follow-on Aggregate has no parallelism to gain from splitting.
+        // Mirrors the dual-alternative pattern in OpenSearchJoinSplitRule.
+        RelTraitSet singletonTraits = aggregate.getTraitSet().replace(context.getDistributionTraitDef().coordSingleton());
+        RelNode singletonChild = convert(child, singletonTraits);
+        OpenSearchAggregate singleOnSingleton = new OpenSearchAggregate(
+            aggregate.getCluster(),
+            singletonTraits,
+            singletonChild,
+            aggregate.getGroupSet(),
+            aggregate.getGroupSets(),
+            aggregate.getAggCallList(),
+            AggregateMode.SINGLE,
+            aggregate.getViableBackends()
+        );
+
+        // PARTIAL + ER + FINAL. Wins when child is shard-partitioned — the
+        // common case for an Aggregate directly above a Scan.
         RelTraitSet partialTraits = child.getTraitSet().replace(OpenSearchConvention.INSTANCE);
         OpenSearchAggregate partial = new OpenSearchAggregate(
             aggregate.getCluster(),
@@ -69,14 +88,11 @@ public class OpenSearchAggregateSplitRule extends RelOptRule {
             AggregateMode.PARTIAL,
             aggregate.getViableBackends()
         );
-
-        // Request SINGLETON distribution — Volcano inserts Exchange automatically
-        RelTraitSet singletonTraits = partial.getTraitSet().replace(context.getDistributionTraitDef().coordSingleton());
-        RelNode gathered = convert(partial, singletonTraits);
-
+        RelTraitSet finalTraits = partial.getTraitSet().replace(context.getDistributionTraitDef().coordSingleton());
+        RelNode gathered = convert(partial, finalTraits);
         OpenSearchAggregate finalAggregate = new OpenSearchAggregate(
             aggregate.getCluster(),
-            singletonTraits,
+            finalTraits,
             gathered,
             aggregate.getGroupSet(),
             aggregate.getGroupSets(),
@@ -85,6 +101,7 @@ public class OpenSearchAggregateSplitRule extends RelOptRule {
             aggregate.getViableBackends()
         );
 
+        call.getPlanner().ensureRegistered(singleOnSingleton, aggregate);
         call.transformTo(finalAggregate);
     }
 }

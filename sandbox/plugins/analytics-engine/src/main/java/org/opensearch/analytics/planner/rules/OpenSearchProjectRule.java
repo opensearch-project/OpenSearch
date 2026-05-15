@@ -15,6 +15,7 @@ import org.apache.calcite.rel.core.Project;
 import org.apache.calcite.rex.RexCall;
 import org.apache.calcite.rex.RexInputRef;
 import org.apache.calcite.rex.RexNode;
+import org.apache.calcite.rex.RexOver;
 import org.apache.calcite.sql.SqlFunction;
 import org.opensearch.analytics.planner.CapabilityRegistry;
 import org.opensearch.analytics.planner.PlannerContext;
@@ -25,9 +26,13 @@ import org.opensearch.analytics.planner.rel.OpenSearchRelNode;
 import org.opensearch.analytics.spi.DelegationType;
 import org.opensearch.analytics.spi.FieldType;
 import org.opensearch.analytics.spi.ScalarFunction;
+import org.opensearch.analytics.spi.WindowCapability;
+import org.opensearch.analytics.spi.WindowFunction;
 
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Converts {@link Project} → {@link OpenSearchProject}.
@@ -79,6 +84,15 @@ public class OpenSearchProjectRule extends RelOptRule {
             ? computeProjectViableBackends(annotatedExprs, childViableBackends)
             : childViableBackends;
 
+        // Window functions (RexOver): PPL `eventstats` / `appendcol` emit window calls inline
+        // on the projection. Narrow viable backends to those whose WindowCapability declares
+        // every required function. PARTITION BY is rejected up front — no shuffle exchange
+        // exists today.
+        Set<WindowFunction> requiredWindowFns = collectWindowFunctions(project.getProjects());
+        if (!requiredWindowFns.isEmpty()) {
+            viableBackends = narrowByWindowCapability(viableBackends, requiredWindowFns);
+        }
+
         if (viableBackends.isEmpty()) {
             throw new IllegalStateException("No backend can execute all project expressions among " + childViableBackends);
         }
@@ -96,6 +110,12 @@ public class OpenSearchProjectRule extends RelOptRule {
     }
 
     private RexNode annotateExpr(RexNode expr, List<String> childViableBackends) {
+        if (expr instanceof RexOver) {
+            // Window functions are narrowed separately by narrowByWindowCapability — skip the
+            // scalar path (RexOver's aggregate operator is not a scalar function). Leave the
+            // RexOver as-is so substrait conversion receives the unwrapped shape.
+            return expr;
+        }
         if (!(expr instanceof RexCall rexCall)) {
             // TODO: RexInputRef and RexLiteral are left unannotated — they are implicitly handled
             // by whichever backend executes the operator (pass-through for refs, constant for literals).
@@ -261,5 +281,51 @@ public class OpenSearchProjectRule extends RelOptRule {
 
     private boolean isOpaqueOperation(String funcName) {
         return context.getCapabilityRegistry().isOpaqueOperation(funcName);
+    }
+
+    /** Walks project expressions and collects the {@link WindowFunction}s used by any {@link RexOver}.
+     *  PARTITION BY is rejected — no shuffle exchange exists today. Unrecognized window SqlKinds
+     *  (LAG, LEAD, NTILE, etc.) also fail here. */
+    private static Set<WindowFunction> collectWindowFunctions(List<? extends RexNode> exprs) {
+        Set<WindowFunction> fns = new LinkedHashSet<>();
+        for (RexNode expr : exprs) {
+            expr.accept(new org.apache.calcite.rex.RexShuttle() {
+                @Override
+                public RexNode visitOver(RexOver over) {
+                    if (!over.getWindow().partitionKeys.isEmpty()) {
+                        throw new IllegalStateException(
+                            "Window OVER (PARTITION BY ...) is not supported — no shuffle exchange available yet"
+                        );
+                    }
+                    WindowFunction fn = WindowFunction.fromSqlKind(over.getAggOperator().getKind());
+                    if (fn == null) {
+                        throw new IllegalStateException("Window function [" + over.getAggOperator().getName() + "] is not supported");
+                    }
+                    fns.add(fn);
+                    return super.visitOver(over);
+                }
+            });
+        }
+        return fns;
+    }
+
+    /** Keep backends whose {@link WindowCapability} covers every {@link WindowFunction} used. */
+    private List<String> narrowByWindowCapability(List<String> candidates, Set<WindowFunction> required) {
+        List<String> out = new ArrayList<>();
+        for (String backend : candidates) {
+            Set<WindowCapability> caps = context.getCapabilityRegistry().getBackend(backend).getCapabilityProvider().windowCapabilities();
+            boolean covers = false;
+            for (WindowCapability cap : caps) {
+                if (cap.functions().containsAll(required)) {
+                    covers = true;
+                    break;
+                }
+            }
+            if (covers) out.add(backend);
+        }
+        if (out.isEmpty()) {
+            throw new IllegalStateException("No backend supports window functions " + required + " among " + candidates);
+        }
+        return out;
     }
 }
