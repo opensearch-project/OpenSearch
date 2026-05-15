@@ -32,18 +32,8 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
       - name: Install protobuf compiler
         run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
-      - name: Check out SQL repo (mustang-ppl-integration)
-        uses: actions/checkout@v6
-        with:
-          repository: opensearch-project/sql
-          ref: feature/mustang-ppl-integration
-          path: sql
-      - name: Publish unified-query artifacts to maven local
-        working-directory: sql
-        continue-on-error: true
-        run: ./gradlew publishUnifiedQueryPublicationToMavenLocal
       - name: Run sandbox check
-        run: ./gradlew check -p sandbox -Dsandbox.enabled=true -Drepos.mavenLocal=true -PrustDebug
+        run: ./gradlew check -p sandbox -Dsandbox.enabled=true -PrustDebug
       - name: Upload test results
         if: always()
         uses: actions/upload-artifact@v4
