@@ -68,7 +68,7 @@ serde_json = { workspace = true, features = ["preserve_order"] }
 # multi-path JSON-array output. Moving to 1.x is a follow-up once we can
 # reproduce that distinction against the new API surface.
 jsonpath-rust = "=0.7.5"
-# mvfind / rex_extract / rex_extract_multi / rex_offset UDFs — Java-Pattern-compatible
+# mvfind / parse / rex_extract / rex_extract_multi / rex_offset UDFs — Java-Pattern-compatible
 # regex matching. Same crate DataFusion's own regexp_replace / regexp_match are
 # built on, so semantics match the existing analytics-engine route's
 # `regex_match` operator (Operator::RegexMatch).

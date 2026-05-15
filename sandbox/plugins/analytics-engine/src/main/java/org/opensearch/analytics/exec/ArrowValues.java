@@ -11,11 +11,15 @@ package org.opensearch.analytics.exec;
 import org.apache.arrow.vector.FieldVector;
 import org.apache.arrow.vector.VarCharVector;
 import org.apache.arrow.vector.complex.ListVector;
+import org.apache.arrow.vector.complex.MapVector;
+import org.apache.arrow.vector.complex.StructVector;
 import org.apache.arrow.vector.util.Text;
 
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Helpers for reading Arrow vector cells as plain Java values at the
@@ -37,6 +41,26 @@ public final class ArrowValues {
         if (vector.isNull(index)) return null;
         if (vector instanceof VarCharVector v) {
             return new String(v.get(index), StandardCharsets.UTF_8);
+        }
+        if (vector instanceof MapVector mapVector) {
+            // Bypass MapVector.getObject() — it constructs a JsonStringHashMap
+            // whose <clinit> references jackson-datatype-jsr310's JavaTimeModule,
+            // which isn't on the arrow-flight-rpc parent plugin's classloader.
+            // Read offset buffer + inner key/value vectors directly. Insertion
+            // order is preserved via LinkedHashMap so observers see keys in the
+            // same order DataFusion emitted them.
+            int start = mapVector.getOffsetBuffer().getInt((long) index * MapVector.OFFSET_WIDTH);
+            int end = mapVector.getOffsetBuffer().getInt((long) (index + 1) * MapVector.OFFSET_WIDTH);
+            StructVector entries = (StructVector) mapVector.getDataVector();
+            FieldVector keyVector = entries.getChildrenFromFields().get(0);
+            FieldVector valueVector = entries.getChildrenFromFields().get(1);
+            Map<Object, Object> result = new LinkedHashMap<>(end - start);
+            for (int i = start; i < end; i++) {
+                Object key = toJavaValue(keyVector, i);
+                Object value = toJavaValue(valueVector, i);
+                result.put(key, value);
+            }
+            return result;
         }
         Object value = vector.getObject(index);
         if (vector instanceof ListVector && value instanceof List<?> raw) {

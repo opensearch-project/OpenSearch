@@ -410,6 +410,13 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                 for (ScalarFunction op : ARRAY_RETURNING_PROJECT_OPS) {
                     caps.add(new ProjectCapability.Scalar(op, Set.of(FieldType.ARRAY), formats, true));
                 }
+                // PPL parse — the planner's project rule checks the call's RETURN-type
+                // FieldType to choose a backend. PARSE returns MAP (no OS mapping match),
+                // so SUPPORTED_FIELD_TYPES doesn't carry it. Register PARSE explicitly
+                // for FieldType.MAP so the capability check finds DataFusion. The Rust
+                // UDF compiles the regex pattern (validated as a literal by ParseAdapter)
+                // and emits a uniform-schema map<utf8, utf8> per row.
+                caps.add(new ProjectCapability.Scalar(ScalarFunction.PARSE, Set.of(FieldType.MAP), formats, true));
                 return Set.copyOf(caps);
             }
 
@@ -498,6 +505,7 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                     Map.entry(ScalarFunction.MONTH_OF_YEAR, month),
                     Map.entry(ScalarFunction.NUMBER_TO_STRING, new ToStringFunctionAdapter()),
                     Map.entry(ScalarFunction.NOW, now),
+                    Map.entry(ScalarFunction.PARSE, new ParseAdapter()),
                     Map.entry(ScalarFunction.POSITION, new PositionAdapter()),
                     Map.entry(ScalarFunction.QUARTER, DatePartAdapters.quarter()),
                     Map.entry(ScalarFunction.REGEXP_REPLACE, new RegexpReplaceAdapter()),

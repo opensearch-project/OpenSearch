@@ -281,6 +281,35 @@ scalar_functions:
           - value: "string"
             name: "replacement"
         return: string
+  - name: "parse"
+    description: >-
+      PPL `parse <field> '<regex>'` — extract named regex groups into a
+      `map<varchar, varchar>` whose keys are the group names in pattern
+      definition order. The Rust UDF anchors the pattern with `^…$` so
+      semantics match Java's `Matcher.matches()` (whole-string match) used by
+      legacy `RegexExpression`. Method literal must be `regex`; `grok` /
+      `patterns` are rejected at plan time by `ParseAdapter`. Pattern + method
+      operands are validated as non-null string literals there too.
+    impls:
+      - args:
+          - { value: string, name: "input" }
+          - { value: string, name: "pattern" }
+          - { value: string, name: "method" }
+        return: "map<string, string>"
+  - name: "item"
+    description: >-
+      Map element accessor — extracts a value by key from a `map<string, string>`.
+      Lowering target for Calcite's `SqlStdOperatorTable.ITEM` on map operands
+      (PPL `parse` chains `ITEM(parse(...), 'group')` per named group). Returns
+      SQL NULL when the key is absent or the map cell is null. Only the
+      string-keyed / string-valued overload is declared; array indexing falls
+      off this signature and surfaces a clear "no implementation" error
+      before reaching DataFusion.
+    impls:
+      - args:
+          - { value: "map<string, string>", name: "map" }
+          - { value: string, name: "key" }
+        return: string
   - name: regexp_replace
     description: >-
       Regex string replacement — replace every match of `pattern` in `input`

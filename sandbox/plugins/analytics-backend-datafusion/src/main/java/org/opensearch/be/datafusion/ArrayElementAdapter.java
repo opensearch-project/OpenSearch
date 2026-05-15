@@ -70,6 +70,17 @@ class ArrayElementAdapter implements ScalarFunctionAdapter {
         RexBuilder rexBuilder = cluster.getRexBuilder();
         RelDataTypeFactory typeFactory = cluster.getTypeFactory();
         List<RexNode> operands = original.getOperands();
+        // Calcite's ITEM is polymorphic over arrays AND maps. PPL's `parse <field>
+        // '<regex>'` lowers to ITEM(map<varchar, varchar>, '<group>') per named
+        // group (see ParseAdapter); rewriting that to array_element would feed a
+        // map argument to DataFusion's array accessor and crash at runtime.
+        // Detect the map case via the first operand's SQL type and pass the
+        // call through unchanged — DataFusionFragmentConvertor maps the
+        // unrewritten ITEM operator to the "item" Substrait extension which
+        // routes to the Rust map[key] UDF.
+        if (!operands.isEmpty() && operands.get(0).getType().getSqlTypeName() == SqlTypeName.MAP) {
+            return original;
+        }
         if (operands.size() != 2) {
             return rexBuilder.makeCall(original.getType(), LOCAL_ARRAY_ELEMENT_OP, operands);
         }
