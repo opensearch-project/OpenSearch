@@ -146,6 +146,11 @@ dependencies {
 
   // Calcite bytecode references @Immutable from immutables — resolve at test compile time
   testCompileOnly 'org.immutables:value-annotations:2.8.8'
+
+  // CalciteCatalogReader's compile-time signature transitively requires Avatica's
+  // ConnectionConfigImpl (parent of CalciteConnectionConfigImpl). analytics-framework
+  // declares avatica-core as runtimeOnly only, so test compilation needs it explicitly.
+  testCompileOnly 'org.apache.calcite.avatica:avatica-core:1.27.0'
 }
 
 tasks.withType(JavaCompile).configureEach {
