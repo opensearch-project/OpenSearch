@@ -61,7 +61,7 @@ public class QueryScheduler implements Scheduler {
     }
 
     @Override
-    public void execute(QueryContext config, ActionListener<Iterable<VectorSchemaRoot>> listener) {
+    public PlanWalker execute(QueryContext config, ActionListener<Iterable<VectorSchemaRoot>> listener) {
         final String queryId = config.queryId();
         final long queryStartNanos = System.nanoTime();
         final AnalyticsOperationListener.CompositeListener opListener = new AnalyticsOperationListener.CompositeListener(
@@ -85,6 +85,7 @@ public class QueryScheduler implements Scheduler {
 
         logger.info("[QueryScheduler] ExecutionGraph built:\n{}", graph.explain());
         walker.start(graph);
+        return walker;
     }
 
     private PlanWalker createWalker(

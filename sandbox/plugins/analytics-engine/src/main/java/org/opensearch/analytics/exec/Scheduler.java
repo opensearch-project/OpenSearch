@@ -42,6 +42,9 @@ public interface Scheduler {
      * Arrow batches on success, {@code onFailure} with the captured cause on
      * failure or cancellation. The caller (e.g., {@code DefaultPlanExecutor})
      * is responsible for any row materialization needed at the external API.
+     *
+     * @return the {@link PlanWalker} driving this query, for post-execution inspection
+     *         (e.g. profiling). Callers that don't need it may ignore the return value.
      */
-    void execute(QueryContext config, ActionListener<Iterable<VectorSchemaRoot>> listener);
+    PlanWalker execute(QueryContext config, ActionListener<Iterable<VectorSchemaRoot>> listener);
 }

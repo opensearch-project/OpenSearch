@@ -10,6 +10,7 @@ package org.opensearch.analytics.exec;
 
 import org.apache.arrow.memory.BufferAllocator;
 import org.opensearch.analytics.backend.AnalyticsOperationListener;
+import org.opensearch.analytics.exec.stage.TaskTracker;
 import org.opensearch.analytics.exec.task.AnalyticsQueryTask;
 import org.opensearch.analytics.planner.dag.QueryDAG;
 import org.opensearch.arrow.flight.transport.ArrowAllocatorProvider;
@@ -42,6 +43,7 @@ public class QueryContext {
     private final int maxConcurrentShardRequests;
     private final long perQueryMemoryLimit;
     private final List<AnalyticsOperationListener> operationListeners;
+    private final TaskTracker taskTracker = new TaskTracker();
     private volatile BufferAllocator bufferAllocator;
     private boolean closed;  // guarded by `this`
 
@@ -105,6 +107,15 @@ public class QueryContext {
     }
 
     /**
+     * Per-query registry of every {@link org.opensearch.analytics.exec.stage.StageTask}
+     * across all stages. Populated by stage executions as they materialise their task
+     * lists at dispatch time; consumed by the scheduler to compute stage readiness.
+     */
+    public TaskTracker taskTracker() {
+        return taskTracker;
+    }
+
+    /**
      * Returns the per-query Arrow buffer allocator, creating it lazily on first access.
      * The allocator is a child of the shared root with a per-query memory limit.
      * When the limit is exceeded, Arrow throws {@code OutOfMemoryException} which
@@ -143,8 +154,6 @@ public class QueryContext {
             }
         }
     }
-
-    // ─── Test factories ────────────────────────────────────────────────
 
     /** Creates a test context with a synchronous executor. */
     public static QueryContext forTest(QueryDAG dag, AnalyticsQueryTask parentTask) {
