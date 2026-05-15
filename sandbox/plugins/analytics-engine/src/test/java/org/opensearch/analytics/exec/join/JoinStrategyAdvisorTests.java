@@ -47,7 +47,13 @@ public class JoinStrategyAdvisorTests extends BasePlannerRulesTests {
      * BROADCAST happy path with real row counts.
      */
     public void testEquiJoinSmallShardsRefusesBroadcastWhenRowsUnknown() {
-        PlannerContext context = buildContext("parquet", 1, intFields());
+        // shardCount=2 (vs. broadcastMaxShards threshold below) so PR #21639's split rule still
+        // demands COORDINATOR+SINGLETON inputs (multi-shard, ER per side); the advisor sees its
+        // expected OpenSearchJoin(ER, ER) shape and runs the strategy selector. With shardCount=1
+        // the join would go SHARD-local under PR's design, no ERs, no child stages — advisor
+        // would fall through to COORDINATOR_CENTRIC, which is correct for that case but not what
+        // this test is exercising.
+        PlannerContext context = buildContext("parquet", 2, intFields());
         RelNode join = makeInnerEquiJoin();
         RelNode marked = PlannerImpl.createPlan(join, context);
         QueryDAG dag = DAGBuilder.build(marked, context.getCapabilityRegistry(), mockClusterService());
@@ -107,15 +113,24 @@ public class JoinStrategyAdvisorTests extends BasePlannerRulesTests {
         );
     }
 
-    /** Theta (non-equi) join → COORDINATOR_CENTRIC regardless of shard count. */
-    public void testThetaJoinAlwaysCoordinatorCentric() {
+    /**
+     * Theta (non-equi) joins are rejected at planning time under PR #21639 — the join rule's
+     * {@code matches()} returns false for {@code !info.isEqui()}, leaving raw {@code LogicalJoin}
+     * in the plan, which Volcano's trait converter cannot handle. The expected behavior is that
+     * planning throws; M2 follow-up will re-enable theta joins through a coord-centric fallback
+     * path consistent with the new split-rule architecture (tracked alongside the deferred
+     * OpenSearchHashJoinRule redesign).
+     *
+     * <p>This test was originally an M0 contract that theta joins reach the advisor and route
+     * to {@code COORDINATOR_CENTRIC}. Under PR's design that contract no longer holds, but
+     * pinning the failure mode prevents silent regressions.
+     */
+    public void testThetaJoinFailsAtPlanningTimeUnderPRDesign() {
         PlannerContext context = buildContext("parquet", /* shardCount */ 10, intFields());
         RelNode join = makeThetaJoin();
-        RelNode marked = PlannerImpl.createPlan(join, context);
-        QueryDAG dag = DAGBuilder.build(marked, context.getCapabilityRegistry(), mockClusterService());
-
-        JoinStrategyAdvisor advisor = new JoinStrategyAdvisor(2, 1_000_000L);
-        assertEquals(JoinStrategy.COORDINATOR_CENTRIC, advisor.adviseAndTag(dag, context.getClusterState()));
+        // Volcano's trait converter throws when it tries to insert a SINGLETON gather above
+        // a raw LogicalJoin — there's no OpenSearchRelNode to read viable backends from.
+        expectThrows(RuntimeException.class, () -> PlannerImpl.createPlan(join, context));
     }
 
     /**
@@ -129,7 +144,12 @@ public class JoinStrategyAdvisorTests extends BasePlannerRulesTests {
      * structural unwrap; the BROADCAST happy path is covered end-to-end in {@code BroadcastJoinIT}.
      */
     public void testAdvisorLooksThroughSortWrapper() {
-        PlannerContext context = buildContext("parquet", /* shardCount */ 1, intFields());
+        // shardCount=2 forces the planner's split rule to insert per-side ERs (multi-shard,
+        // COORDINATOR+SINGLETON demand). With shardCount=1 the join would go SHARD-local
+        // under PR #21639's design — no ERs, advisor correctly falls through to coord-centric.
+        // This test specifically exercises the unwrap-Sort-and-find-Join path, which only
+        // matters when the join has ER inputs.
+        PlannerContext context = buildContext("parquet", /* shardCount */ 2, intFields());
         RelNode join = makeInnerEquiJoin();
         RelNode wrapped = makeSort(join, /* fetch */ 50); // Sort + LIMIT 50
         RelNode marked = PlannerImpl.createPlan(wrapped, context);

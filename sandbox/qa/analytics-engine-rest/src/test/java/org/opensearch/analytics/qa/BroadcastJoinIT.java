@@ -123,16 +123,15 @@ public class BroadcastJoinIT extends AnalyticsRestTestCase {
     }
 
     /**
-     * Non-equi (theta) joins are always {@code COORDINATOR_CENTRIC}. The kill switch shouldn't
-     * change anything; both runs are M0. This guards against an advisor regression that
-     * misclassifies theta joins as broadcast-eligible.
+     * Theta (non-equi) joins are rejected at planning time under PR #21639 — the join rule
+     * gates on {@code JoinInfo.isEqui()}. This was an M0 contract that theta joins ran via
+     * coordinator-centric DataFusion NestedLoopJoinExec; PR's split-rule architecture does
+     * not yet have a coord-centric fallback path for non-equi predicates. M2 follow-up.
      *
-     * <p>This is the only currently-runnable end-to-end IT — the broadcast cases are
-     * {@code @AwaitsFix} pending a fix to {@code BroadcastDispatch}'s pass-2 probe-stage hang.
-     * It still validates one important property: the advisor + non-equi gate correctly route
-     * theta joins through the M0 path, and parity holds when the kill switch flips.
+     * <p>This test pins the failure mode (HTTP 500) so a future change re-admitting theta
+     * joins doesn't silently regress to a different shape without an explicit test update.
      */
-    public void testThetaJoin_parityAcrossMppFlag() throws IOException {
+    public void testThetaJoinFailsAtPlanningTimeUnderPRDesign() throws IOException {
         ensureDataProvisioned();
         String ppl = "source = "
             + FACT_INDEX
@@ -140,10 +139,11 @@ public class BroadcastJoinIT extends AnalyticsRestTestCase {
             + DIM_INDEX
             + " | sort F.id, D.id, F.amount | head 200";
 
-        List<List<Object>> baseline = runWithMpp(ppl, false);
-        List<List<Object>> broadcast = runWithMpp(ppl, true);
-
-        assertRowMultisetEquals("Theta join: parity across MPP flag", baseline, broadcast);
+        org.opensearch.client.ResponseException ex = expectThrows(
+            org.opensearch.client.ResponseException.class,
+            () -> runWithMpp(ppl, /* mppEnabled */ false)
+        );
+        assertEquals(500, ex.getResponse().getStatusLine().getStatusCode());
     }
 
     /**

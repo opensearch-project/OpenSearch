@@ -116,8 +116,12 @@ public class BroadcastDAGRewriterTests extends BasePlannerRulesTests {
     }
 
     public void testRewriteRespectsRightTaggedAsBuild() {
-        PlannerContext context = buildContext("parquet", 1, intFields());
-        QueryDAG inputDag = taggedDag(1, makeInnerEquiJoin(), Stage.StageRole.BROADCAST_PROBE, Stage.StageRole.BROADCAST_BUILD);
+        // Multi-shard so PR #21639's split rule demands COORDINATOR+SINGLETON on each input,
+        // producing the OpenSearchJoin(ER, ER) shape the rewriter expects. Single-shard
+        // same-table joins go SHARD-local with no ERs and no child stages — the rewriter has
+        // no work to do there (broadcast is for multi-shard cases).
+        PlannerContext context = buildContext("parquet", 3, intFields());
+        QueryDAG inputDag = taggedDag(3, makeInnerEquiJoin(), Stage.StageRole.BROADCAST_PROBE, Stage.StageRole.BROADCAST_BUILD);
 
         QueryDAG rewritten = BroadcastDAGRewriter.rewrite(inputDag, context.getCapabilityRegistry(), mockClusterService());
 
@@ -132,9 +136,11 @@ public class BroadcastDAGRewriterTests extends BasePlannerRulesTests {
     }
 
     public void testRewriteRejectsMissingTags() {
-        PlannerContext context = buildContext("parquet", 1, intFields());
+        // Multi-shard so the planner produces OpenSearchJoin(ER, ER) with two child stages
+        // (see testRewriteRespectsRightTaggedAsBuild for context).
+        PlannerContext context = buildContext("parquet", 3, intFields());
         // Both children tagged as SHARD_SOURCE (the default) — advisor never ran for broadcast.
-        QueryDAG inputDag = taggedDag(1, makeInnerEquiJoin(), Stage.StageRole.SHARD_SOURCE, Stage.StageRole.SHARD_SOURCE);
+        QueryDAG inputDag = taggedDag(3, makeInnerEquiJoin(), Stage.StageRole.SHARD_SOURCE, Stage.StageRole.SHARD_SOURCE);
 
         IllegalStateException ex = expectThrows(
             IllegalStateException.class,

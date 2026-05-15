@@ -160,7 +160,11 @@ public class DAGBuilder {
             childStageId,
             childFragment,
             grandchildren,
-            ExchangeInfo.hash(shuffle.getHashKeys(), shuffle.getPartitionCount()),
+            // M2 follow-up: this branch is currently unreachable because OpenSearchHashJoinRule
+            // is no longer registered in PlannerImpl (incompatible with PR #21639's split-rule
+            // architecture — see PlannerImpl javadoc). The 2-arg ExchangeInfo here is a
+            // placeholder; M2 hash-shuffle redesign will need to add partitionCount back.
+            new ExchangeInfo(org.apache.calcite.rel.RelDistribution.Type.HASH_DISTRIBUTED, shuffle.getHashKeys()),
             /* sinkProvider */ null,
             new ShardTargetResolver(childFragment, clusterService)
         );

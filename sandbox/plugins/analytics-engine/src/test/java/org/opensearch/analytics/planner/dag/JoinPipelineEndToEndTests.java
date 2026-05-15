@@ -86,7 +86,10 @@ public class JoinPipelineEndToEndTests extends BasePlannerRulesTests {
      * Each child stage has a plan alternative narrowed to a single backend after {@code PlanForker}.
      */
     public void testInnerEquiJoinDagShapeAndAlternatives() {
-        QueryDAG dag = buildDagThroughAdapter(/* shards */ 1, makeInnerEquiJoin());
+        // Multi-shard so PR #21639's split rule demands COORDINATOR+SINGLETON on each input,
+        // producing OpenSearchJoin(ER(scan), ER(scan)) with two child stages. Single-shard
+        // same-table joins go SHARD-local under PR's design and don't have child stages.
+        QueryDAG dag = buildDagThroughAdapter(/* shards */ 3, makeInnerEquiJoin());
 
         // Root is the coordinator join stage.
         Stage root = dag.rootStage();
@@ -164,28 +167,17 @@ public class JoinPipelineEndToEndTests extends BasePlannerRulesTests {
     }
 
     /**
-     * Theta (non-equi) join still reaches end-to-end conversion: the planner admits it via the
-     * mock backend's join capability and the DAG/fragment-conversion passes treat it the same
-     * as an equi-join at this layer — the difference is that MPP shuffle/broadcast alternatives
-     * are never registered for theta joins (handled in {@code OpenSearchHashJoinRule}).
+     * Theta (non-equi) joins are rejected at planning time under PR #21639 — the join rule
+     * gates on {@code JoinInfo.isEqui()}. The expected behavior is a planning-time exception;
+     * the test pins that failure mode so a future change that re-admits theta joins (e.g. a
+     * coord-centric fallback rule under M2) doesn't silently regress to a different shape
+     * without an explicit test update.
+     *
+     * <p>This test was originally an M0 contract that theta joins reach the DAG/fragment
+     * adapter via coordinator-centric execution. PR #21639 inverted that contract.
      */
-    public void testThetaJoinReachesBackendAdapter() {
-        QueryDAG dag = buildDagThroughAdapter(/* shards */ 3, makeThetaJoin());
-
-        Stage root = dag.rootStage();
-        assertTrue(root.getFragment() instanceof OpenSearchJoin);
-        assertEquals(JoinRelType.INNER, ((OpenSearchJoin) root.getFragment()).getJoinType());
-        assertEquals(2, root.getChildStages().size());
-        for (Stage child : root.getChildStages()) {
-            assertFalse(child.getPlanAlternatives().isEmpty());
-            for (StagePlan alternative : child.getPlanAlternatives()) {
-                assertEquals(
-                    "Theta join's plan alternative must still resolve to the join-capable backend",
-                    MockDataFusionBackend.NAME,
-                    alternative.backendId()
-                );
-            }
-        }
+    public void testThetaJoinFailsAtPlanningTimeUnderPRDesign() {
+        expectThrows(RuntimeException.class, () -> buildDagThroughAdapter(/* shards */ 3, makeThetaJoin()));
     }
 
     // ---- Query builders (local to these pipeline tests) ----

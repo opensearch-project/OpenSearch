@@ -448,7 +448,11 @@ public class FragmentConversionDriverTests extends BasePlannerRulesTests {
      */
     public void testCoordinatorCentricJoinConversion() {
         RecordingConvertor convertor = new RecordingConvertor();
-        QueryDAG dag = buildAndConvert(1, makeInnerEquiJoin(), convertor);
+        // Multi-shard so PR #21639's split rule demands COORDINATOR+SINGLETON on each input,
+        // producing OpenSearchJoin(ER(scan), ER(scan)) with two child stages — the coord-centric
+        // shape this test was designed to verify. Single-shard same-table joins go SHARD-local
+        // under PR's design (one stage, no ERs) and don't exercise the coord-centric path.
+        QueryDAG dag = buildAndConvert(3, makeInnerEquiJoin(), convertor);
 
         assertEquals("Binary join → exactly two child stages", 2, dag.rootStage().getChildStages().size());
 

@@ -24,9 +24,9 @@ import java.util.List;
 /**
  * Hash-shuffle exchange: partitions the input stream by {@code hashKeys} into {@code partitionCount}
  * output partitions, each routed to a worker node. Produced by {@link OpenSearchDistributionTraitDef}
- * when Volcano's trait conversion encounters a HASH_DISTRIBUTED requirement, and by
- * {@link org.opensearch.analytics.planner.rules.OpenSearchHashJoinRule} which inserts explicit
- * shuffle exchanges above both join inputs with each side's key set.
+ * when Volcano's trait conversion encounters a HASH_DISTRIBUTED requirement. Currently unreachable
+ * because no rule emits HASH-distributed alternatives under PR #21639's split-rule design — kept
+ * for the M2 hash-shuffle redesign.
  *
  * <p>Sibling of {@link OpenSearchExchangeReducer} (SINGLETON gather). The {@code DAGBuilder} cuts
  * at this node to produce hash-shuffle scan stages (M2).

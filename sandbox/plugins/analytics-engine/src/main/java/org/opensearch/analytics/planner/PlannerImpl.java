@@ -32,7 +32,6 @@ import org.opensearch.analytics.planner.rules.OpenSearchAggregateRule;
 import org.opensearch.analytics.planner.rules.OpenSearchAggregateSplitRule;
 import org.opensearch.analytics.planner.rules.OpenSearchDistributionDeriveRule;
 import org.opensearch.analytics.planner.rules.OpenSearchFilterRule;
-import org.opensearch.analytics.planner.rules.OpenSearchHashJoinRule;
 import org.opensearch.analytics.planner.rules.OpenSearchJoinRule;
 import org.opensearch.analytics.planner.rules.OpenSearchJoinSplitRule;
 import org.opensearch.analytics.planner.rules.OpenSearchProjectRule;
@@ -150,10 +149,16 @@ public class PlannerImpl {
         volcanoPlanner.addRule(new OpenSearchJoinSplitRule(context));
         volcanoPlanner.addRule(new OpenSearchUnionSplitRule(context));
         volcanoPlanner.addRule(new OpenSearchDistributionDeriveRule(context));
-        // M0's HASH-shuffle alternative for equi-joins, sibling to the SHARD-local + COORD-local
-        // alternatives emitted by OpenSearchJoinSplitRule. Registered for M2-style hash-shuffle
-        // dispatch; today it competes by Volcano cost like the other split rules.
-        volcanoPlanner.addRule(new OpenSearchHashJoinRule(context));
+        // M0 also defined OpenSearchHashJoinRule (HASH-shuffle Volcano alternative for equi-joins)
+        // which we intentionally do NOT register here. That rule was written against the old
+        // architecture (ER insertion at HEP marking time); under PR #21639's split-rule design
+        // it loops with OpenSearchDistributionTraitDef.convert(): the hash rule emits HASH-keyed
+        // shuffle children, the trait def wraps them with an ER to satisfy SINGLETON, the hash
+        // rule re-fires on the resulting OpenSearchJoin, and the memo explodes (verified
+        // empirically — PlanShapeTests.testJoinThenSort_2shard hits 16+ minute suite timeout).
+        // M2 hash-shuffle support needs to be redesigned as a sibling split rule, modeled after
+        // OpenSearchJoinSplitRule, that emits HASH-localized join alternatives consistently
+        // with the new cost-gate semantics. Tracked as M2 follow-up.
         volcanoPlanner.addRule(AbstractConverter.ExpandConversionRule.INSTANCE);
 
         RelOptCluster volcanoCluster = RelOptCluster.create(volcanoPlanner, rawRelNode.getCluster().getRexBuilder());
