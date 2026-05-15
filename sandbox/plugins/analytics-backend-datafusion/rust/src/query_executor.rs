@@ -115,6 +115,7 @@ pub async fn execute_query(
             error!("Failed to infer schema: {}", e);
             e
         })?;
+    eprintln!("[DIAG] query_executor::execute_query schema inferred thread={:?}", std::thread::current().id());
 
     let table_config = ListingTableConfig::new(table_path)
         .with_listing_options(listing_options)
@@ -135,14 +136,22 @@ pub async fn execute_query(
         DataFusionError::Execution(format!("Failed to decode Substrait: {}", e))
     })?;
 
+    eprintln!("[DIAG] query_executor::execute_query substrait decoded thread={:?}", std::thread::current().id());
+
     let logical_plan = from_substrait_plan(&ctx.state(), &substrait_plan).await?;
+    eprintln!("[DIAG] query_executor::execute_query logical_plan created thread={:?}", std::thread::current().id());
+
     let dataframe = ctx.execute_logical_plan(logical_plan).await?;
+    eprintln!("[DIAG] query_executor::execute_query dataframe created thread={:?}", std::thread::current().id());
+
     let physical_plan = dataframe.create_physical_plan().await?;
+    eprintln!("[DIAG] query_executor::execute_query physical_plan created thread={:?}", std::thread::current().id());
 
     let df_stream = execute_stream(physical_plan, ctx.task_ctx()).map_err(|e| {
         error!("Failed to create execution stream: {}", e);
         e
     })?;
+    eprintln!("[DIAG] query_executor::execute_query stream created thread={:?}", std::thread::current().id());
 
     // Wrap in CrossRtStream — CPU work runs on DedicatedExecutor
     let cross_rt_stream =

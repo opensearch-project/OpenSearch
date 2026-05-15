@@ -62,21 +62,22 @@ impl ConcurrencyGate {
         let start = Instant::now();
         // Diagnostic: check if permits are available synchronously first
         let try_result = self.semaphore.clone().try_acquire_many_owned(n);
+        let pid = std::process::id();
         match try_result {
             Ok(permit) => {
                 // Permits were immediately available — no async wait needed
-                native_bridge_common::log_error!("[DIAG] ConcurrencyGate::acquire_many({}) succeeded via try_acquire (sync) thread={:?}",
-                    n, std::thread::current().id());
-                eprintln!("[DIAG] ConcurrencyGate::acquire_many({}) succeeded via try_acquire (sync) thread={:?}",
-                    n, std::thread::current().id());
+                native_bridge_common::log_error!("[DIAG pid={}] ConcurrencyGate::acquire_many({}) succeeded via try_acquire (sync) thread={:?}",
+                    pid, n, std::thread::current().id());
+                eprintln!("[DIAG pid={}] ConcurrencyGate::acquire_many({}) succeeded via try_acquire (sync) thread={:?}",
+                    pid, n, std::thread::current().id());
                 self.total_queries_admitted.fetch_add(1, Ordering::Relaxed);
                 return permit;
             }
             Err(e) => {
-                native_bridge_common::log_error!("[DIAG] ConcurrencyGate::acquire_many({}) try_acquire FAILED: {:?}, will .await thread={:?}",
-                    n, e, std::thread::current().id());
-                eprintln!("[DIAG] ConcurrencyGate::acquire_many({}) try_acquire FAILED: {:?}, will .await thread={:?}",
-                    n, e, std::thread::current().id());
+                native_bridge_common::log_error!("[DIAG pid={}] ConcurrencyGate::acquire_many({}) try_acquire FAILED: {:?}, will .await thread={:?}",
+                    pid, n, e, std::thread::current().id());
+                eprintln!("[DIAG pid={}] ConcurrencyGate::acquire_many({}) try_acquire FAILED: {:?}, will .await thread={:?}",
+                    pid, n, e, std::thread::current().id());
             }
         }
         let permit = self.semaphore.clone().acquire_many_owned(n).await
@@ -84,10 +85,10 @@ impl ConcurrencyGate {
         let elapsed_ms = start.elapsed().as_millis() as u64;
         self.total_wait_ms.fetch_add(elapsed_ms, Ordering::Relaxed);
         self.total_queries_admitted.fetch_add(1, Ordering::Relaxed);
-        native_bridge_common::log_error!("[DIAG] ConcurrencyGate::acquire_many({}) succeeded via .await after {}ms thread={:?}",
-            n, elapsed_ms, std::thread::current().id());
-        eprintln!("[DIAG] ConcurrencyGate::acquire_many({}) succeeded via .await after {}ms thread={:?}",
-            n, elapsed_ms, std::thread::current().id());
+        native_bridge_common::log_error!("[DIAG pid={}] ConcurrencyGate::acquire_many({}) succeeded via .await after {}ms thread={:?}",
+            pid, n, elapsed_ms, std::thread::current().id());
+        eprintln!("[DIAG pid={}] ConcurrencyGate::acquire_many({}) succeeded via .await after {}ms thread={:?}",
+            pid, n, elapsed_ms, std::thread::current().id());
         permit
     }
 
