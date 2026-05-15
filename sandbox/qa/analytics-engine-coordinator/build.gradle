@@ -32,6 +32,10 @@ dependencies {
   // Plugin under test
   internalClusterTestImplementation project(':sandbox:plugins:analytics-engine')
 
+  // QueryPlanExecutor / OpenSearchSchemaBuilder live in analytics-api; SqlPlanRunner pulls
+  // these directly without going through analytics-engine's internal classes.
+  internalClusterTestImplementation project(':sandbox:libs:analytics-api')
+
   // Arrow Flight streaming transport — provides the streaming TransportService.
   internalClusterTestImplementation project(':plugins:arrow-flight-rpc')
 
@@ -49,7 +53,10 @@ dependencies {
   // Guava is excluded from analytics-engine's runtime classpath (provided by
   // arrow-flight-rpc at runtime in production). The classpath-plugin test
   // launcher doesn't hydrate the extended-plugin classloader, so Guava must
-  // be on the test runtime classpath here.
+  // be on the test runtime classpath here. Calcite's FrameworkConfig also
+  // references ImmutableList in its compile-time API (SqlPlanRunner imports
+  // it), so include Guava on the IT compile classpath too.
+  internalClusterTestCompileOnly "com.google.guava:guava:33.3.1-jre"
   internalClusterTestRuntimeOnly "com.google.guava:guava:33.3.1-jre"
   internalClusterTestRuntimeOnly "com.google.guava:failureaccess:1.0.1"
 }
@@ -71,6 +78,11 @@ def guavaRuntimeJars = configurations.detachedConfiguration(
   dependencies.create("com.fasterxml.jackson.core:jackson-annotations:${versions.jackson_annotations}") { transitive = false }
 )
 sourceSets.internalClusterTest.runtimeClasspath += guavaRuntimeJars
+// SqlPlanRunner references org.apache.calcite.tools.FrameworkConfig, whose API surface
+// has com.google.common.collect.ImmutableList in its bytecode signatures. javac needs
+// Guava on the compile classpath to read those signatures even though no Guava type
+// appears in the harness source.
+sourceSets.internalClusterTest.compileClasspath += guavaRuntimeJars
 
 configurations.all {
   // okhttp-aws-signer is a transitive of unified-query-common, only published on JitPack.

@@ -61,6 +61,9 @@ public enum ScalarFunction {
     WILDCARD(Category.FULL_TEXT, SqlKind.OTHER_FUNCTION),
     REGEXP(Category.FULL_TEXT, SqlKind.OTHER_FUNCTION),
     REGEXP_CONTAINS(Category.FULL_TEXT, SqlKind.OTHER_FUNCTION),
+    WILDCARD_QUERY(Category.FULL_TEXT, SqlKind.OTHER_FUNCTION),
+    QUERY(Category.FULL_TEXT, SqlKind.OTHER_FUNCTION),
+    MATCHALL(Category.FULL_TEXT, SqlKind.OTHER_FUNCTION),
 
     // ── String ───────────────────────────────────────────────────────
     UPPER(Category.STRING, SqlKind.OTHER_FUNCTION),
@@ -94,6 +97,10 @@ public enum ScalarFunction {
     NUMBER_TO_STRING(Category.STRING, SqlKind.OTHER_FUNCTION), // Alias for TOSTRING
     TONUMBER(Category.STRING, SqlKind.OTHER_FUNCTION),
     STRCMP(Category.STRING, SqlKind.OTHER_FUNCTION),
+    TRANSLATE(Category.STRING, SqlKind.OTHER_FUNCTION),
+    REX_EXTRACT(Category.STRING, SqlKind.OTHER_FUNCTION),
+    REX_EXTRACT_MULTI(Category.STRING, SqlKind.OTHER_FUNCTION),
+    REX_OFFSET(Category.STRING, SqlKind.OTHER_FUNCTION),
 
     // ── Cryptographic hash ─────────────────────────────────────────────
     // md5(x), sha1(x), sha2(x, bitLen) with bitLen ∈ {224,256,384,512}, crc32(x).

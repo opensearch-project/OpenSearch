@@ -27,6 +27,7 @@ import org.opensearch.test.OpenSearchTestCase;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Unit tests for {@link ConversionUtils}.
@@ -350,5 +351,153 @@ public class ConversionUtilsTests extends OpenSearchTestCase {
         assertEquals("status", operands.fieldName());
         assertNull(operands.fields());
         assertEquals("hello", operands.query());
+    }
+
+    // --- Tests for extractOptionalParams ---
+
+    /**
+     * Tests that extractOptionalParams extracts multiple key-value pairs from MAP operands.
+     * Structure: MATCH(MAP('field', $0), MAP('query', 'hello'), MAP('operator', 'AND'), MAP('analyzer', 'standard'))
+     * extractOptionalParams(call, 2) should return {"operator": "AND", "analyzer": "standard"}.
+     * Validates Requirement 11.1.
+     */
+    public void testExtractOptionalParams_multipleKeyValuePairs() {
+        RelDataType varcharType = typeFactory.createSqlType(SqlTypeName.VARCHAR);
+
+        RexNode fieldMap = rexBuilder.makeCall(
+            SqlStdOperatorTable.MAP_VALUE_CONSTRUCTOR,
+            rexBuilder.makeLiteral("field"),
+            rexBuilder.makeInputRef(varcharType, 0)
+        );
+
+        RexNode queryMap = rexBuilder.makeCall(
+            SqlStdOperatorTable.MAP_VALUE_CONSTRUCTOR,
+            rexBuilder.makeLiteral("query"),
+            rexBuilder.makeLiteral("hello")
+        );
+
+        RexNode operatorMap = rexBuilder.makeCall(
+            SqlStdOperatorTable.MAP_VALUE_CONSTRUCTOR,
+            rexBuilder.makeLiteral("operator"),
+            rexBuilder.makeLiteral("AND")
+        );
+
+        RexNode analyzerMap = rexBuilder.makeCall(
+            SqlStdOperatorTable.MAP_VALUE_CONSTRUCTOR,
+            rexBuilder.makeLiteral("analyzer"),
+            rexBuilder.makeLiteral("standard")
+        );
+
+        RexCall topCall = (RexCall) rexBuilder.makeCall(MATCH_FUNCTION, fieldMap, queryMap, operatorMap, analyzerMap);
+
+        Map<String, String> params = ConversionUtils.extractOptionalParams(topCall, 2);
+
+        assertEquals(2, params.size());
+        assertEquals("AND", params.get("operator"));
+        assertEquals("standard", params.get("analyzer"));
+    }
+
+    /**
+     * Tests that extractOptionalParams returns an empty map when startIndex exceeds operand count.
+     * Validates Requirement 11.9.
+     */
+    public void testExtractOptionalParams_emptyWhenStartIndexExceedsOperandCount() {
+        RelDataType varcharType = typeFactory.createSqlType(SqlTypeName.VARCHAR);
+
+        RexNode fieldMap = rexBuilder.makeCall(
+            SqlStdOperatorTable.MAP_VALUE_CONSTRUCTOR,
+            rexBuilder.makeLiteral("field"),
+            rexBuilder.makeInputRef(varcharType, 0)
+        );
+
+        RexNode queryMap = rexBuilder.makeCall(
+            SqlStdOperatorTable.MAP_VALUE_CONSTRUCTOR,
+            rexBuilder.makeLiteral("query"),
+            rexBuilder.makeLiteral("hello")
+        );
+
+        RexCall topCall = (RexCall) rexBuilder.makeCall(MATCH_FUNCTION, fieldMap, queryMap);
+
+        Map<String, String> params = ConversionUtils.extractOptionalParams(topCall, 2);
+
+        assertTrue("Should return empty map when no optional params", params.isEmpty());
+    }
+
+    /**
+     * Tests that extractOptionalParams silently skips non-MAP operands (e.g. plain RexLiteral).
+     * Validates Requirement 11.10.
+     */
+    public void testExtractOptionalParams_skipsNonMapOperands() {
+        RelDataType varcharType = typeFactory.createSqlType(SqlTypeName.VARCHAR);
+
+        RexNode fieldMap = rexBuilder.makeCall(
+            SqlStdOperatorTable.MAP_VALUE_CONSTRUCTOR,
+            rexBuilder.makeLiteral("field"),
+            rexBuilder.makeInputRef(varcharType, 0)
+        );
+
+        RexNode queryMap = rexBuilder.makeCall(
+            SqlStdOperatorTable.MAP_VALUE_CONSTRUCTOR,
+            rexBuilder.makeLiteral("query"),
+            rexBuilder.makeLiteral("hello")
+        );
+
+        // A valid MAP param
+        RexNode operatorMap = rexBuilder.makeCall(
+            SqlStdOperatorTable.MAP_VALUE_CONSTRUCTOR,
+            rexBuilder.makeLiteral("operator"),
+            rexBuilder.makeLiteral("AND")
+        );
+
+        // A plain literal (not a MAP) — should be skipped
+        RexNode plainLiteral = rexBuilder.makeLiteral("stray_value");
+
+        RexCall topCall = (RexCall) rexBuilder.makeCall(MATCH_FUNCTION, fieldMap, queryMap, operatorMap, plainLiteral);
+
+        Map<String, String> params = ConversionUtils.extractOptionalParams(topCall, 2);
+
+        assertEquals("Should only extract the valid MAP param", 1, params.size());
+        assertEquals("AND", params.get("operator"));
+    }
+
+    /**
+     * Tests that extractOptionalParams silently skips MAP operands with non-literal children.
+     * Validates Requirement 11.10.
+     */
+    public void testExtractOptionalParams_skipsMapWithNonLiteralChildren() {
+        RelDataType varcharType = typeFactory.createSqlType(SqlTypeName.VARCHAR);
+
+        RexNode fieldMap = rexBuilder.makeCall(
+            SqlStdOperatorTable.MAP_VALUE_CONSTRUCTOR,
+            rexBuilder.makeLiteral("field"),
+            rexBuilder.makeInputRef(varcharType, 0)
+        );
+
+        RexNode queryMap = rexBuilder.makeCall(
+            SqlStdOperatorTable.MAP_VALUE_CONSTRUCTOR,
+            rexBuilder.makeLiteral("query"),
+            rexBuilder.makeLiteral("hello")
+        );
+
+        // MAP with a RexInputRef as value (not a literal) — should be skipped
+        RexNode mapWithRef = rexBuilder.makeCall(
+            SqlStdOperatorTable.MAP_VALUE_CONSTRUCTOR,
+            rexBuilder.makeLiteral("bad_param"),
+            rexBuilder.makeInputRef(varcharType, 0)
+        );
+
+        // A valid MAP param
+        RexNode validMap = rexBuilder.makeCall(
+            SqlStdOperatorTable.MAP_VALUE_CONSTRUCTOR,
+            rexBuilder.makeLiteral("analyzer"),
+            rexBuilder.makeLiteral("whitespace")
+        );
+
+        RexCall topCall = (RexCall) rexBuilder.makeCall(MATCH_FUNCTION, fieldMap, queryMap, mapWithRef, validMap);
+
+        Map<String, String> params = ConversionUtils.extractOptionalParams(topCall, 2);
+
+        assertEquals("Should only extract the valid MAP param", 1, params.size());
+        assertEquals("whitespace", params.get("analyzer"));
     }
 }
