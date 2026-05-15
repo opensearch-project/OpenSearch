@@ -68,8 +68,7 @@ public class DAGBuilder {
         // Root needs a shard target only if its fragment actually contains a TableScan.
         // OpenSearchValues (literal-row source) and other coord-only leaves have no scan
         // and run as LOCAL_COMPUTE on the coordinator.
-        boolean needsShardResolver = childStages.isEmpty()
-            && RelNodeUtils.findNode(rootFragment, OpenSearchTableScan.class) != null;
+        boolean needsShardResolver = childStages.isEmpty() && RelNodeUtils.findNode(rootFragment, OpenSearchTableScan.class) != null;
         TargetResolver rootTargetResolver = needsShardResolver ? new ShardTargetResolver(rootFragment, clusterService) : null;
 
         Stage rootStage = new Stage(counter[0]++, rootFragment, childStages, null, sinkProvider, rootTargetResolver);

@@ -9,7 +9,6 @@
 package org.opensearch.analytics.planner.dag;
 
 import com.google.common.collect.ImmutableList;
-
 import org.apache.calcite.plan.RelOptUtil;
 import org.apache.calcite.rel.RelDistribution;
 import org.apache.calcite.rel.RelNode;
@@ -143,17 +142,8 @@ public class DAGBuilderTests extends BasePlannerRulesTests {
 
         QueryDAG dag = buildDAG(2, plan);
         assertEquals("Values is leaf — no child stages", 0, dag.rootStage().getChildStages().size());
-        assertTrue(
-            "root fragment must be OpenSearchValues",
-            dag.rootStage().getFragment() instanceof OpenSearchValues
-        );
-        assertNull(
-            "no TableScan → no ShardTargetResolver",
-            dag.rootStage().getTargetResolver()
-        );
-        assertNotNull(
-            "compute leaf needs a sink provider for its local backend output",
-            dag.rootStage().getExchangeSinkProvider()
-        );
+        assertTrue("root fragment must be OpenSearchValues", dag.rootStage().getFragment() instanceof OpenSearchValues);
+        assertNull("no TableScan → no ShardTargetResolver", dag.rootStage().getTargetResolver());
+        assertNotNull("compute leaf needs a sink provider for its local backend output", dag.rootStage().getExchangeSinkProvider());
     }
 }

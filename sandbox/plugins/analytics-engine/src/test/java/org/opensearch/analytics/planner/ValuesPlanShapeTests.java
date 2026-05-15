@@ -9,7 +9,6 @@
 package org.opensearch.analytics.planner;
 
 import com.google.common.collect.ImmutableList;
-
 import org.apache.calcite.plan.RelOptTable;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.core.CorrelationId;
@@ -46,12 +45,9 @@ public class ValuesPlanShapeTests extends PlanShapeTestBase {
         ImmutableList<ImmutableList<RexLiteral>> tuples = ImmutableList.of(ImmutableList.of(one, two));
         RelNode plan = LogicalValues.create(cluster, rowType, tuples);
         RelNode result = runPlanner(plan, singleShardContext());
-        assertPlanShape(
-            """
-                OpenSearchValues(tuples=[[{ 1, 2 }]], viableBackends=[[mock-parquet]])
-                """,
-            result
-        );
+        assertPlanShape("""
+            OpenSearchValues(tuples=[[{ 1, 2 }]], viableBackends=[[mock-parquet]])
+            """, result);
     }
 
     /**
@@ -117,7 +113,12 @@ public class ValuesPlanShapeTests extends PlanShapeTestBase {
     }
 
     private PlannerContext unionAndValuesContext(String indexName, int shardCount) {
-        return buildContextPerIndex("parquet", Map.of(indexName, shardCount), intFields(), List.of(new UnionAndValuesCapableBackend(), LUCENE));
+        return buildContextPerIndex(
+            "parquet",
+            Map.of(indexName, shardCount),
+            intFields(),
+            List.of(new UnionAndValuesCapableBackend(), LUCENE)
+        );
     }
 
     /** Mock DF backend with both UNION and VALUES engine capabilities for tests that
@@ -142,13 +143,10 @@ public class ValuesPlanShapeTests extends PlanShapeTestBase {
         RexNode sum = rexBuilder.makeCall(SqlStdOperatorTable.PLUS, rexBuilder.makeInputRef(values, 0), rexBuilder.makeInputRef(values, 1));
         RelNode plan = LogicalProject.create(values, List.of(), List.of(sum), List.of("c"));
         RelNode result = runPlanner(plan, singleShardContext());
-        assertPlanShape(
-            """
-                OpenSearchProject(c=[ANNOTATED_PROJECT_EXPR(id=0, backends=[mock-parquet], +($0, $1))], viableBackends=[[mock-parquet]])
-                  OpenSearchValues(tuples=[[{ 1, 2 }]], viableBackends=[[mock-parquet]])
-                """,
-            result
-        );
+        assertPlanShape("""
+            OpenSearchProject(c=[ANNOTATED_PROJECT_EXPR(id=0, backends=[mock-parquet], +($0, $1))], viableBackends=[[mock-parquet]])
+              OpenSearchValues(tuples=[[{ 1, 2 }]], viableBackends=[[mock-parquet]])
+            """, result);
     }
 
 }

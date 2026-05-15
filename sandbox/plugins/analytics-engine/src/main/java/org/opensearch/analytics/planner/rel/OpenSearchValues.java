@@ -9,7 +9,6 @@
 package org.opensearch.analytics.planner.rel;
 
 import com.google.common.collect.ImmutableList;
-
 import org.apache.calcite.plan.RelOptCluster;
 import org.apache.calcite.plan.RelOptCost;
 import org.apache.calcite.plan.RelOptPlanner;
