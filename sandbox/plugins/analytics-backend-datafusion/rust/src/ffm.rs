@@ -49,13 +49,6 @@ fn get_rt_manager() -> Result<Arc<RuntimeManager>, String> {
 pub extern "C" fn df_init_runtime_manager(cpu_threads: i32) {
     eprintln!("[DIAG pid={}] df_init_runtime_manager cpu_threads={}", std::process::id(), cpu_threads);
     let mut guard = TOKIO_RUNTIME_MANAGER.write();
-    // Shut down the previous runtime manager (if any) before replacing.
-    // This ensures the DedicatedExecutor's driver thread is joined, preventing
-    // thread leak detection failures in unit tests where initTokioRuntimeManager
-    // is called multiple times in the same JVM.
-    if let Some(old) = guard.take() {
-        old.shutdown();
-    }
     *guard = Some(Arc::new(RuntimeManager::new(cpu_threads as usize)));
     eprintln!("[DIAG pid={}] df_init_runtime_manager DONE, gate max_permits={}",
         std::process::id(), cpu_threads);

@@ -8,9 +8,6 @@
 
 package org.opensearch.be.datafusion;
 
-import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
-import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope.Scope;
-
 import org.apache.arrow.c.ArrowArray;
 import org.apache.arrow.c.ArrowSchema;
 import org.apache.arrow.c.CDataDictionaryProvider;
@@ -39,7 +36,6 @@ import static org.apache.arrow.c.Data.importField;
  * Tests use sqlToSubstrait to generate plan bytes, then feed them through
  * the same executeQueryAsync path used in production.
  */
-@ThreadLeakScope(Scope.NONE)
 public class DataFusionQueryExecutionTests extends OpenSearchTestCase {
 
     private NativeRuntimeHandle runtimeHandle;

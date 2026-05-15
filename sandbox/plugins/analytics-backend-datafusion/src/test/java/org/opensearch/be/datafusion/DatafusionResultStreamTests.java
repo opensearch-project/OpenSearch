@@ -8,9 +8,6 @@
 
 package org.opensearch.be.datafusion;
 
-import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
-import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope.Scope;
-
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.memory.RootAllocator;
 import org.opensearch.analytics.backend.EngineResultBatch;
@@ -31,7 +28,6 @@ import java.util.concurrent.CompletableFuture;
 /**
  * Tests for DatafusionResultStream — resource lifecycle, leak detection, edge cases.
  */
-@ThreadLeakScope(Scope.NONE)
 public class DatafusionResultStreamTests extends OpenSearchTestCase {
 
     private ReaderHandle readerHandle;
