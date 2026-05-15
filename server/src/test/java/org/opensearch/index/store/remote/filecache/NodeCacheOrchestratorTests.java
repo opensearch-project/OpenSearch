@@ -391,4 +391,66 @@ public class NodeCacheOrchestratorTests extends OpenSearchTestCase {
         when(fc.usage()).thenReturn(used);
         return fc;
     }
+
+    // ── BlockCacheRegistry.get(name) ──────────────────────────────────────────
+
+    public void testGetByNameReturnsRegisteredBlockCache() {
+        FileCache fc = fileCacheWithStats(0L, 0L, 0L, 0L, 0L, 0L, 0L);
+        NodeCacheOrchestrator orc = new NodeCacheOrchestrator(fc, 0L);
+
+        BlockCache bc = mock(BlockCache.class);
+        BlockCacheStats stats = new BlockCacheStats(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 512L);
+        when(bc.stats()).thenReturn(stats);
+        when(bc.cacheName()).thenReturn("foyer");
+
+        orc.addBlockCache(bc);
+
+        assertTrue("get(foyer) should return the registered cache", orc.get("foyer").isPresent());
+        assertSame(bc, orc.get("foyer").get());
+    }
+
+    public void testGetByNameReturnsEmptyForUnknownName() {
+        FileCache fc = fileCacheWithStats(0L, 0L, 0L, 0L, 0L, 0L, 0L);
+        NodeCacheOrchestrator orc = new NodeCacheOrchestrator(fc, 0L);
+
+        assertFalse("get(unknown) should return empty Optional", orc.get("unknown").isPresent());
+    }
+
+    // ── close() propagation ───────────────────────────────────────────────────
+
+    public void testClosePropagatesToAllBlockCaches() throws Exception {
+        FileCache fc = fileCacheWithStats(0L, 0L, 0L, 0L, 0L, 0L, 0L);
+        NodeCacheOrchestrator orc = new NodeCacheOrchestrator(fc, 0L);
+
+        BlockCache bc1 = mock(BlockCache.class);
+        BlockCache bc2 = mock(BlockCache.class);
+        BlockCacheStats s = new BlockCacheStats(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1L);
+        when(bc1.stats()).thenReturn(s);
+        when(bc2.stats()).thenReturn(s);
+
+        orc.addBlockCache(bc1);
+        orc.addBlockCache(bc2);
+
+        orc.close();
+
+        org.mockito.Mockito.verify(bc1).close();
+        org.mockito.Mockito.verify(bc2).close();
+    }
+
+    // ── aggregateStats: removed / removedBytes ─────────────────────────────────
+
+    public void testAggregateStatsMergesRemovedCountFromBlockCache() {
+        long removed = 7L;
+        long removedBytes = 3500L;
+        FileCache fc = fileCacheWithStats(0L, 0L, 0L, 0L, 0L, 0L, 0L);
+        NodeCacheOrchestrator orc = new NodeCacheOrchestrator(fc, 0L);
+
+        BlockCache bc = mock(BlockCache.class);
+        when(bc.stats()).thenReturn(new BlockCacheStats(0, 0, 0, 0, 0, 0, removed, removedBytes, 0, 0, 100L));
+        orc.addBlockCache(bc);
+
+        AggregateFileCacheStats stats = orc.aggregateStats();
+        // removedBytes from block cache must be folded into the overall removed_in_bytes field
+        assertEquals(removedBytes, stats.getRemoved().getBytes());
+    }
 }

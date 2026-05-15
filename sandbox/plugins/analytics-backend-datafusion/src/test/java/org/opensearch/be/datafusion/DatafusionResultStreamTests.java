@@ -72,6 +72,7 @@ public class DatafusionResultStreamTests extends OpenSearchTestCase {
         storeHandle.close();
         NativeStoreTestHelper.destroyTieredObjectStore(tieredStorePtr);
         runtimeHandle.close();
+        NativeBridge.shutdownTokioRuntimeManager();
         // Caller owns child allocators now (see DatafusionResultStream.close javadoc).
         // Close them in reverse registration order so child-before-parent invariants hold.
         for (int i = allocatorsToClose.size() - 1; i >= 0; i--) {

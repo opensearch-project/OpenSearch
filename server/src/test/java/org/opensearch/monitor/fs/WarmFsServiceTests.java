@@ -465,6 +465,83 @@ public class WarmFsServiceTests extends OpenSearchTestCase {
         }
     }
 
+    public void testStatsWithBlockCacheCapacityAddedToReserved() throws Exception {
+        // Block cache SSD bytes should be included in fileCacheReserved alongside FileCache bytes.
+        double ratio = 5.0;
+        long fileCacheSSD = 100L * 1024 * 1024;   // 100 MB
+        long blockCacheSSD = 50L * 1024 * 1024;    // 50 MB
+        long expectedReserved = fileCacheSSD + blockCacheSSD;
+
+        when(fileCacheSettings.getRemoteDataRatio()).thenReturn(ratio);
+        when(fileCache.capacity()).thenReturn(fileCacheSSD);
+        when(fileCache.usage()).thenReturn(0L);
+        when(indicesService.iterator()).thenReturn(Collections.emptyIterator());
+
+        NodeCacheOrchestrator orc = mock(NodeCacheOrchestrator.class);
+        when(orc.fileCache()).thenReturn(fileCache);
+        when(orc.blockCacheCapacityBytes()).thenReturn(blockCacheSSD);
+        when(orc.virtualBlockCacheBytes()).thenReturn(0L);
+        when(orc.cacheUtilizedBytes()).thenReturn(0L);
+
+        try (var nodeEnv = newNodeEnvironment()) {
+            WarmFsService svc = new WarmFsService(settings, nodeEnv, fileCacheSettings, indicesService, orc);
+            FsInfo fsInfo = svc.stats();
+            FsInfo.Path warmPath = fsInfo.iterator().next();
+            assertEquals(expectedReserved, warmPath.fileCacheReserved);
+        }
+    }
+
+    public void testStatsWithVirtualBlockCacheBytesAddedToTotal() throws Exception {
+        // virtualBlockCacheBytes from block caches should contribute to the reported total capacity.
+        double ratio = 5.0;
+        long fileCacheSSD = 100L * 1024 * 1024;
+        long virtualBlockBytes = 200L * 1024 * 1024;  // block cache virtual capacity contribution
+        long expectedTotal = (long) (ratio * fileCacheSSD) + virtualBlockBytes;
+
+        when(fileCacheSettings.getRemoteDataRatio()).thenReturn(ratio);
+        when(fileCache.capacity()).thenReturn(fileCacheSSD);
+        when(fileCache.usage()).thenReturn(0L);
+        when(indicesService.iterator()).thenReturn(Collections.emptyIterator());
+
+        NodeCacheOrchestrator orc = mock(NodeCacheOrchestrator.class);
+        when(orc.fileCache()).thenReturn(fileCache);
+        when(orc.blockCacheCapacityBytes()).thenReturn(0L);
+        when(orc.virtualBlockCacheBytes()).thenReturn(virtualBlockBytes);
+        when(orc.cacheUtilizedBytes()).thenReturn(0L);
+
+        try (var nodeEnv = newNodeEnvironment()) {
+            WarmFsService svc = new WarmFsService(settings, nodeEnv, fileCacheSettings, indicesService, orc);
+            FsInfo fsInfo = svc.stats();
+            FsInfo.Path warmPath = fsInfo.iterator().next();
+            assertEquals(expectedTotal, warmPath.total);
+        }
+    }
+
+    public void testStatsWithBlockCacheUtilizationIncludedInCacheUtilized() throws Exception {
+        // cacheUtilizedBytes returned by the orchestrator includes block cache disk+memory usage.
+        double ratio = 5.0;
+        long fileCacheSSD = 100L * 1024 * 1024;
+        long totalCacheUtilized = 70L * 1024 * 1024;  // combined file + block cache usage
+
+        when(fileCacheSettings.getRemoteDataRatio()).thenReturn(ratio);
+        when(fileCache.capacity()).thenReturn(fileCacheSSD);
+        when(fileCache.usage()).thenReturn(20L * 1024 * 1024);
+        when(indicesService.iterator()).thenReturn(Collections.emptyIterator());
+
+        NodeCacheOrchestrator orc = mock(NodeCacheOrchestrator.class);
+        when(orc.fileCache()).thenReturn(fileCache);
+        when(orc.blockCacheCapacityBytes()).thenReturn(0L);
+        when(orc.virtualBlockCacheBytes()).thenReturn(0L);
+        when(orc.cacheUtilizedBytes()).thenReturn(totalCacheUtilized);
+
+        try (var nodeEnv = newNodeEnvironment()) {
+            WarmFsService svc = new WarmFsService(settings, nodeEnv, fileCacheSettings, indicesService, orc);
+            FsInfo fsInfo = svc.stats();
+            FsInfo.Path warmPath = fsInfo.iterator().next();
+            assertEquals(totalCacheUtilized, warmPath.fileCacheUtilized);
+        }
+    }
+
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     /**
