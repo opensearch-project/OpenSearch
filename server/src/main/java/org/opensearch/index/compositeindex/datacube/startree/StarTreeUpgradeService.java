@@ -45,12 +45,20 @@ import org.opensearch.index.mapper.DocCountFieldMapper;
 import org.opensearch.index.mapper.MapperService;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -146,43 +154,86 @@ public class StarTreeUpgradeService {
     public static Set<String> buildStarTreeDataForSegments(Directory directory, StarTreeField starTreeField, MapperService mapperService)
         throws IOException {
         SegmentInfos segmentInfos = SegmentInfos.readLatestCommit(directory);
-        Set<String> upgradedSegmentNames = new HashSet<>();
-        int skippedCount = 0;
-        int failedCount = 0;
+        Set<String> upgradedSegmentNames = ConcurrentHashMap.newKeySet();
+        AtomicInteger skippedCount = new AtomicInteger(0);
+        AtomicInteger failedCount = new AtomicInteger(0);
 
         logger.info("Starting star tree Phase 1 for {} segments", segmentInfos.size());
 
+        // Collect eligible segments
+        List<SegmentCommitInfo> eligibleSegments = new ArrayList<>();
         for (SegmentCommitInfo commitInfo : segmentInfos) {
             String codecName = commitInfo.info.getCodec().getName();
             if (Composite912Codec.COMPOSITE_INDEX_CODEC_NAME.equals(codecName)) {
                 logger.debug("Skipping segment [{}] — already uses Composite912Codec", commitInfo.info.name);
-                skippedCount++;
+                skippedCount.incrementAndGet();
                 continue;
             }
-            // Skip segments with no live docs (all documents deleted)
             int liveDocs = commitInfo.info.maxDoc() - commitInfo.getDelCount() - commitInfo.getSoftDelCount();
             if (liveDocs <= 0) {
                 logger.debug("Skipping segment [{}] — no live docs (maxDoc={}, delCount={}, softDelCount={})",
                     commitInfo.info.name, commitInfo.info.maxDoc(), commitInfo.getDelCount(), commitInfo.getSoftDelCount());
-                skippedCount++;
+                skippedCount.incrementAndGet();
                 continue;
             }
+            eligibleSegments.add(commitInfo);
+        }
+
+        // Build star tree data in parallel across segments
+        int parallelism = Math.min(eligibleSegments.size(), Runtime.getRuntime().availableProcessors());
+        if (parallelism > 1 && eligibleSegments.size() > 1) {
+            ExecutorService executor = Executors.newFixedThreadPool(parallelism);
+            List<Future<?>> futures = new ArrayList<>();
+            for (SegmentCommitInfo commitInfo : eligibleSegments) {
+                futures.add(executor.submit(() -> {
+                    try {
+                        logger.debug("Building star tree data for segment [{}]", commitInfo.info.name);
+                        buildStarTreeData(directory, commitInfo, starTreeField, mapperService);
+                        upgradedSegmentNames.add(commitInfo.info.name);
+                    } catch (Exception e) {
+                        failedCount.incrementAndGet();
+                        logger.error("Failed to build star tree data for segment [{}]: {}", commitInfo.info.name, e.getMessage(), e);
+                    }
+                }));
+            }
+            executor.shutdown();
             try {
-                logger.debug("Building star tree data for segment [{}] with codec [{}]", commitInfo.info.name, codecName);
-                buildStarTreeData(directory, commitInfo, starTreeField, mapperService);
-                upgradedSegmentNames.add(commitInfo.info.name);
-            } catch (Exception e) {
-                failedCount++;
-                logger.error("Failed to build star tree data for segment [{}]: {}", commitInfo.info.name, e.getMessage(), e);
+                executor.awaitTermination(60, TimeUnit.MINUTES);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new IOException("Star tree build interrupted", e);
+            }
+            // Check for exceptions
+            for (Future<?> future : futures) {
+                try {
+                    future.get();
+                } catch (ExecutionException e) {
+                    logger.error("Star tree build task failed: {}", e.getCause().getMessage());
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+            }
+        } else {
+            // Single segment or single core — sequential
+            for (SegmentCommitInfo commitInfo : eligibleSegments) {
+                try {
+                    logger.debug("Building star tree data for segment [{}]", commitInfo.info.name);
+                    buildStarTreeData(directory, commitInfo, starTreeField, mapperService);
+                    upgradedSegmentNames.add(commitInfo.info.name);
+                } catch (Exception e) {
+                    failedCount.incrementAndGet();
+                    logger.error("Failed to build star tree data for segment [{}]: {}", commitInfo.info.name, e.getMessage(), e);
+                }
             }
         }
 
         logger.info(
-            "Phase 1 complete — upgraded: {}, skipped: {}, failed: {} out of {} total segments",
+            "Phase 1 complete — upgraded: {}, skipped: {}, failed: {} out of {} total segments (parallelism={})",
             upgradedSegmentNames.size(),
-            skippedCount,
-            failedCount,
-            segmentInfos.size()
+            skippedCount.get(),
+            failedCount.get(),
+            segmentInfos.size(),
+            parallelism > 1 ? parallelism : 1
         );
         return upgradedSegmentNames;
     }

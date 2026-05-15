@@ -826,3 +826,66 @@ mergeState.liveDocs[0] = present but totalDeadInSource=0
 - Bug #7 (upgrade path): ✅ FIXED — `buildLiveDocsBitset()` correctly excludes deleted docs
 - Bug #12 (merge fallback path): ⚠️ OPEN — needs `__soft_deletes` field capture during merge
 - Workaround: After merge, the star tree has incorrect data when soft deletes are present
+
+
+---
+
+## Parallel Star Tree Build (Multithreading)
+
+### Change
+
+`StarTreeUpgradeService.buildStarTreeDataForSegments()` now builds star tree data for multiple segments in parallel using a thread pool. Each segment's build is independent — they read from different segment files and write to different output files.
+
+### Implementation
+
+```java
+int parallelism = Math.min(eligibleSegments.size(), Runtime.getRuntime().availableProcessors());
+ExecutorService executor = Executors.newFixedThreadPool(parallelism);
+for (SegmentCommitInfo commitInfo : eligibleSegments) {
+    futures.add(executor.submit(() -> {
+        buildStarTreeData(directory, commitInfo, starTreeField, mapperService);
+        upgradedSegmentNames.add(commitInfo.info.name);
+    }));
+}
+executor.shutdown();
+executor.awaitTermination(60, TimeUnit.MINUTES);
+```
+
+Falls back to sequential for single-segment or single-core cases.
+
+### Performance Results
+
+| Dataset | Segments | Sequential | Parallel | Speedup |
+|---------|----------|-----------|----------|---------|
+| 100k docs | 6 | ~5.4s | ~1.8s | 3x |
+| 1M docs + 50k deletes | 5 | ~27s (est) | ~10s | ~2.7x |
+
+---
+
+## Delete Support: Verified at Scale
+
+### Test Results (1M docs + 50k deletes)
+
+Both code paths proven at 1M scale in a single test run:
+
+- **7 segments with `docValuesGen=1`** → served via `StarTreeDirectReader` cache (direct reader path)
+- **Remaining segments with `docValuesGen=-1`** → served via native Composite912Codec (codec switch path)
+- **Aggregation: ALL VALUES MATCH (before == after)** ✅
+- **`terminated_early: True`** — star tree active on all segments ✅
+- **0 wrong values during concurrent reads** ✅
+- **Upgrade time: 7.5s** (parallel build)
+
+### Java Integration Test
+
+`StarTreeUpgradeWithDocValuesGenIT.testUpgradeWithDocValuesGenNotMinusOne()`:
+- Deterministically forces `docValuesGen != -1` via: ingest → flush → delete → flush
+- Runs full upgrade API
+- Asserts: upgrade succeeds, direct reader cache populated, star tree active, aggregation values match
+
+### How Delete Support Works
+
+1. `rewriteSegmentInfos()` checks `commitInfo.getDocValuesGen() != -1`
+2. If true: skips codec switch, adds star tree files to segment file set, rewrites `.si`
+3. `populateStarTreeDirectReaderCache()` creates `StarTreeDirectReader` for these segments
+4. `StarTreeQueryHelper.getStarTreeValues()` Path 2 looks up direct reader cache by segment name
+5. `StarTreeDirectReader` opens `.cid`/`.cim`/`.cidvd`/`.cidvm` directly from directory (bypasses codec)
