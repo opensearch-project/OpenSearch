@@ -60,7 +60,7 @@ import static org.opensearch.index.translog.Translog.EMPTY_TRANSLOG_SNAPSHOT;
  */
 public class IngestionEngine extends InternalEngine {
 
-    private StreamPoller streamPoller;
+    private volatile StreamPoller streamPoller;
     private final IngestionConsumerFactory ingestionConsumerFactory;
     private final Supplier<DocumentMapperForType> documentMapperForTypeSupplier;
     private final IngestService ingestService;
@@ -94,8 +94,6 @@ public class IngestionEngine extends InternalEngine {
         assert indexMetadata != null;
         IngestionSource ingestionSource = Objects.requireNonNull(indexMetadata.getIngestionSource());
 
-        // initialize the ingestion consumer factory
-        this.ingestionConsumerFactory.initialize(ingestionSource);
         String clientId = engineConfig.getIndexSettings().getNodeName()
             + "-"
             + engineConfig.getIndexSettings().getIndex().getName()
@@ -158,6 +156,7 @@ public class IngestionEngine extends InternalEngine {
             .mapperType(ingestionSource.getMapperType())
             .mapperSettings(ingestionSource.getMapperSettings())
             .warmupConfig(ingestionSource.getWarmupConfig())
+            .ingestionSource(ingestionSource)
             .build();
         registerStreamPollerListener();
 
