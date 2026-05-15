@@ -11,8 +11,8 @@ package org.opensearch.blockcache.foyer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.plugins.BlockCache;
+import org.opensearch.plugins.BlockCacheConstants;
 import org.opensearch.plugins.BlockCacheStats;
-import org.opensearch.plugins.BuiltInBlockCaches;
 import org.opensearch.plugins.NativeStoreHandle;
 
 import java.util.Objects;
@@ -66,7 +66,7 @@ public final class FoyerBlockCache implements BlockCache {
 
     @Override
     public String cacheName() {
-        return BuiltInBlockCaches.FOYER;
+        return BlockCacheConstants.DISK_CACHE;
     }
 
     /**

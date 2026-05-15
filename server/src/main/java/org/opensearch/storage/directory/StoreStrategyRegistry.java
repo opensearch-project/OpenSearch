@@ -97,7 +97,7 @@ public final class StoreStrategyRegistry implements Closeable {
      * @param strategies      the strategies that apply to this shard, keyed by data format
      * @param remoteDirectory the remote segment store directory used to seed initial state
      * @param cacheRegistry   registry for block cache lookup by name; each handler resolves its
-     *                        preferred cache via a {@link org.opensearch.plugins.BuiltInBlockCaches}
+     *                        preferred cache via a {@link org.opensearch.plugins.BlockCacheConstants}
      *                        constant. {@code null} when no block cache support is available.
      * @return a fully-initialised registry
      */

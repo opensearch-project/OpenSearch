@@ -13,8 +13,8 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.engine.dataformat.DataFormatStoreHandler;
 import org.opensearch.plugins.BlockCache;
+import org.opensearch.plugins.BlockCacheConstants;
 import org.opensearch.plugins.BlockCacheRegistry;
-import org.opensearch.plugins.BuiltInBlockCaches;
 import org.opensearch.plugins.NativeStoreHandle;
 import org.opensearch.repositories.NativeStoreRepository;
 
@@ -52,7 +52,7 @@ public class ParquetDataFormatStoreHandler implements DataFormatStoreHandler {
      * Creates a per-shard native file registry.
      *
      * <p>On warm nodes, creates a native store via FFM. The handler resolves
-     * {@link BuiltInBlockCaches#FOYER} from {@code cacheRegistry} and wires it into the
+     * {@link BlockCacheConstants#DISK_CACHE} from {@code cacheRegistry} and wires it into the
      * store if available.
      *
      * <p>On hot nodes (or when the native store is unavailable), creates an empty
@@ -71,7 +71,7 @@ public class ParquetDataFormatStoreHandler implements DataFormatStoreHandler {
             // Resolve preferred cache by name; EMPTY if unavailable (hot nodes or no matching cache).
             // owned by NodeCacheOrchestrator and must not be freed here.
             NativeStoreHandle cacheHandle = (cacheRegistry != null)
-                ? cacheRegistry.get(BuiltInBlockCaches.FOYER).map(BlockCache::nativeCacheHandle).orElse(NativeStoreHandle.EMPTY)
+                ? cacheRegistry.get(BlockCacheConstants.DISK_CACHE).map(BlockCache::nativeCacheHandle).orElse(NativeStoreHandle.EMPTY)
                 : NativeStoreHandle.EMPTY;
             long cachePtr = cacheHandle.isLive() ? cacheHandle.getPointer() : 0L;
 
@@ -81,7 +81,7 @@ public class ParquetDataFormatStoreHandler implements DataFormatStoreHandler {
             logger.debug(
                 "[{}] ParquetDataFormatStoreHandler created: cache={}",
                 shardId,
-                cacheHandle.isLive() ? BuiltInBlockCaches.FOYER : "none"
+                cacheHandle.isLive() ? BlockCacheConstants.DISK_CACHE : "none"
             );
         } else {
             this.storeHandle = NativeStoreHandle.EMPTY;

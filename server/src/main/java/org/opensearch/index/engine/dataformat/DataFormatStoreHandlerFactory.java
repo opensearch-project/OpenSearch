@@ -34,7 +34,7 @@ public interface DataFormatStoreHandlerFactory {
      * @param repo           the native remote store repository, or {@link NativeStoreRepository#EMPTY}
      *                       when no native store is available
      * @param cacheRegistry  registry for looking up block caches by name; the handler may use this
-     *                       to resolve its preferred cache via a {@link org.opensearch.plugins.BuiltInBlockCaches}
+     *                       to resolve its preferred cache via a {@link org.opensearch.plugins.BlockCacheConstants}
      *                       constant. {@code null} if no block cache support is available.
      * @return a live handler; the caller owns it and must close it
      */

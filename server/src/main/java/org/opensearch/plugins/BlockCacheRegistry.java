@@ -24,7 +24,7 @@ public interface BlockCacheRegistry {
      * Returns the registered {@link BlockCache} whose {@link BlockCache#cacheName()} equals
      * {@code name}, or {@link Optional#empty()} if no such cache is registered.
      *
-     * @param name the cache name; see constants in {@link BuiltInBlockCaches}
+     * @param name the cache name; see constants in {@link BlockCacheConstants}
      * @return the matching cache, or empty
      */
     Optional<BlockCache> get(String name);

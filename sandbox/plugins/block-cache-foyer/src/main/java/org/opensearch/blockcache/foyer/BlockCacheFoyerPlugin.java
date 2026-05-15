@@ -20,8 +20,8 @@ import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.plugins.BlockCache;
+import org.opensearch.plugins.BlockCacheConstants;
 import org.opensearch.plugins.BlockCacheProvider;
-import org.opensearch.plugins.BuiltInBlockCaches;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.script.ScriptService;
@@ -104,7 +104,7 @@ public class BlockCacheFoyerPlugin extends Plugin implements BlockCacheProvider 
 
     @Override
     public String cacheName() {
-        return BuiltInBlockCaches.FOYER;
+        return BlockCacheConstants.DISK_CACHE;
     }
 
     /**

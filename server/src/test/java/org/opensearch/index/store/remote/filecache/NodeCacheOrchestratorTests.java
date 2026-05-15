@@ -9,6 +9,7 @@
 package org.opensearch.index.store.remote.filecache;
 
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.settings.SettingsException;
 import org.opensearch.plugins.BlockCache;
 import org.opensearch.plugins.BlockCacheProvider;
 import org.opensearch.plugins.BlockCacheStats;
@@ -41,28 +42,28 @@ public class NodeCacheOrchestratorTests extends OpenSearchTestCase {
     }
 
     public void testValidateThrowsZeroTotalSSD() {
-        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> NodeCacheOrchestrator.validate(600L, 200L, 0L));
+        SettingsException ex = expectThrows(SettingsException.class, () -> NodeCacheOrchestrator.validate(600L, 200L, 0L));
         assertTrue(ex.getMessage().contains("SSD capacity"));
     }
 
     public void testValidateThrowsNegativeTotalSSD() {
-        expectThrows(IllegalArgumentException.class, () -> NodeCacheOrchestrator.validate(600L, 200L, -1L));
+        expectThrows(SettingsException.class, () -> NodeCacheOrchestrator.validate(600L, 200L, -1L));
     }
 
     public void testValidateThrowsNegativeBlockCacheBytes() {
-        expectThrows(IllegalArgumentException.class, () -> NodeCacheOrchestrator.validate(800L, -1L, 1000L));
+        expectThrows(SettingsException.class, () -> NodeCacheOrchestrator.validate(800L, -1L, 1000L));
     }
 
     public void testValidateThrowsFileCacheBytesZero() {
-        expectThrows(IllegalArgumentException.class, () -> NodeCacheOrchestrator.validate(0L, 1000L, 1000L));
+        expectThrows(SettingsException.class, () -> NodeCacheOrchestrator.validate(0L, 1000L, 1000L));
     }
 
     public void testValidateThrowsFileCacheBytesNegative() {
-        expectThrows(IllegalArgumentException.class, () -> NodeCacheOrchestrator.validate(-1L, 600L, 1000L));
+        expectThrows(SettingsException.class, () -> NodeCacheOrchestrator.validate(-1L, 600L, 1000L));
     }
 
     public void testValidateThrowsSumExceedsTotalSSD() {
-        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> NodeCacheOrchestrator.validate(700L, 400L, 1000L));
+        SettingsException ex = expectThrows(SettingsException.class, () -> NodeCacheOrchestrator.validate(700L, 400L, 1000L));
         assertTrue(ex.getMessage().contains("exceeds") || ex.getMessage().contains("Reduce"));
     }
 

@@ -16,6 +16,7 @@ import org.opensearch.OpenSearchParseException;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.settings.SettingsException;
 import org.opensearch.common.unit.RatioValue;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.common.unit.ByteSizeUnit;
@@ -158,18 +159,18 @@ public class NodeCacheOrchestrator implements Closeable, BlockCacheRegistry {
 
     static void validate(long fileCacheBytes, long blockCacheBytes, long totalSSDBytes) {
         if (totalSSDBytes <= 0) {
-            throw new IllegalArgumentException(
+            throw new SettingsException(
                 "Unable to determine SSD capacity; got: " + totalSSDBytes + ". Ensure the filecache path is mounted and readable."
             );
         }
         if (blockCacheBytes < 0) {
-            throw new IllegalArgumentException(
+            throw new SettingsException(
                 "Block cache allocation must be >= 0; got: " + blockCacheBytes + ". Check block cache plugin configuration."
             );
         }
 
         if (fileCacheBytes <= 0) {
-            throw new IllegalArgumentException(
+            throw new SettingsException(
                 "After allocating "
                     + new ByteSizeValue(blockCacheBytes)
                     + " to block cache(s), no SSD budget remains for FileCache. "
@@ -178,7 +179,7 @@ public class NodeCacheOrchestrator implements Closeable, BlockCacheRegistry {
         }
 
         if (fileCacheBytes + blockCacheBytes > totalSSDBytes) {
-            throw new IllegalArgumentException(
+            throw new SettingsException(
                 "Warm node SSD allocation exceeds available capacity. "
                     + "file_cache="
                     + new ByteSizeValue(fileCacheBytes)
