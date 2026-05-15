@@ -88,12 +88,7 @@ public class AnalyticsSearchService implements AutoCloseable {
 
     @Override
     public void close() {
-        try {
-            allocator.close();
-        } catch (IllegalStateException ignored) {
-            // Root may have already been closed by arrow-base's plugin shutdown, which cascades
-            // to children. Plugin close order is not guaranteed; swallow to stay idempotent.
-        }
+        allocator.close();
     }
 
     public void setTaskResourceTrackingService(TaskResourceTrackingService service) {

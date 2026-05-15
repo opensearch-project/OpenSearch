@@ -2205,7 +2205,11 @@ public class Node implements Closeable {
             toClose.add(() -> stopWatch.stop().start("plugin(" + plugin.getClass().getName() + ")"));
             toClose.add(plugin);
         }
-        toClose.addAll(pluginsService.filterPlugins(Plugin.class));
+        // Close plugins in reverse dependency order so dependents release resources before
+        // their dependencies (e.g. child allocators close before the root allocator owner).
+        List<Plugin> pluginsToClose = new ArrayList<>(pluginsService.filterPlugins(Plugin.class));
+        Collections.reverse(pluginsToClose);
+        toClose.addAll(pluginsToClose);
 
         toClose.add(() -> stopWatch.stop().start("script"));
         toClose.add(injector.getInstance(ScriptService.class));
