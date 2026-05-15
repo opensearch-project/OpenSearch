@@ -109,6 +109,147 @@ pub fn should_override(pool_limit_bytes: usize, context: OverrideContext) -> boo
     allocated < threshold_bytes
 }
 
+// ---------------------------------------------------------------------------
+// Disk spill budget: min(10% of available, hard_cap) with global tracking
+// ---------------------------------------------------------------------------
+
+/// Configurable disk spill limits, stored in atomics for runtime changes.
+static DISK_FRACTION_X1000: AtomicU64 = AtomicU64::new(100); // 10% = 100/1000
+static DISK_HARD_CAP_BYTES: AtomicU64 = AtomicU64::new(10 * 1024 * 1024 * 1024); // 10GB
+
+/// Tracks total spill bytes currently in use across all queries.
+/// Incremented when a query starts spilling, decremented when it completes.
+static TOTAL_SPILL_USED: AtomicU64 = AtomicU64::new(0);
+
+/// Stored spill directory path. Set once at runtime creation.
+static SPILL_DIR: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+
+/// Configurable spill disk limits.
+#[derive(Debug, Clone, Copy)]
+pub struct DiskSpillLimits {
+    /// Fraction of available disk space (0.0–1.0). Default: 0.10 (10%)
+    pub fraction: f64,
+    /// Absolute hard cap in bytes. Default: 10GB.
+    /// Per-query budget = min(fraction × available, hard_cap)
+    /// Total across all queries also capped at hard_cap.
+    pub hard_cap_bytes: u64,
+}
+
+impl Default for DiskSpillLimits {
+    fn default() -> Self {
+        Self {
+            fraction: 0.10,
+            hard_cap_bytes: 10 * 1024 * 1024 * 1024, // 10GB
+        }
+    }
+}
+
+/// Set disk spill limits at runtime. Thread-safe.
+pub fn set_disk_spill_limits(limits: DiskSpillLimits) {
+    DISK_FRACTION_X1000.store((limits.fraction * 1000.0) as u64, Ordering::Release);
+    DISK_HARD_CAP_BYTES.store(limits.hard_cap_bytes, Ordering::Release);
+}
+
+/// Read current disk spill limits.
+pub fn get_disk_spill_limits() -> DiskSpillLimits {
+    DiskSpillLimits {
+        fraction: DISK_FRACTION_X1000.load(Ordering::Acquire) as f64 / 1000.0,
+        hard_cap_bytes: DISK_HARD_CAP_BYTES.load(Ordering::Acquire),
+    }
+}
+
+/// Set the spill directory (called once from create_global_runtime).
+pub fn set_spill_dir(path: &str) {
+    let _ = SPILL_DIR.set(path.to_string());
+}
+
+/// Returns the per-query spill budget.
+///
+/// Formula: `min(10% of available_disk, hard_cap - total_already_used)`
+///
+/// Ensures:
+/// - No single query can use more than 10% of available disk
+/// - Total spill across all concurrent queries never exceeds hard_cap (10GB)
+/// - Returns None if no budget available (disk critically low or cap reached)
+///
+/// Cost: one `statvfs` syscall (~1µs). Called once per query at admission.
+pub fn per_query_spill_budget() -> Option<u64> {
+    let spill_dir = SPILL_DIR.get()?;
+    let available = available_disk_space(spill_dir)?;
+
+    let fraction_x1000 = DISK_FRACTION_X1000.load(Ordering::Acquire);
+    let hard_cap = DISK_HARD_CAP_BYTES.load(Ordering::Acquire);
+    let total_used = TOTAL_SPILL_USED.load(Ordering::Relaxed);
+
+    // Per-query: min(fraction × available, remaining_under_cap)
+    let fraction_budget = available * fraction_x1000 / 1000;
+    let remaining_cap = hard_cap.saturating_sub(total_used);
+    let budget = fraction_budget.min(remaining_cap);
+
+    if budget < 64 * 1024 * 1024 { // 64MB minimum viable spill
+        log::warn!(
+            "[disk-pressure] Spill budget too low: {} MB (available={} MB, used={} MB, cap={} MB)",
+            budget / (1024 * 1024),
+            available / (1024 * 1024),
+            total_used / (1024 * 1024),
+            hard_cap / (1024 * 1024),
+        );
+        return None;
+    }
+    Some(budget)
+}
+
+/// Reserve spill bytes for a query. Called at query start.
+/// Returns the reserved amount (may be less than requested if cap is close).
+pub fn reserve_spill_budget(bytes: u64) -> u64 {
+    let hard_cap = DISK_HARD_CAP_BYTES.load(Ordering::Acquire);
+    loop {
+        let current = TOTAL_SPILL_USED.load(Ordering::Relaxed);
+        let remaining = hard_cap.saturating_sub(current);
+        let actual = bytes.min(remaining);
+        if actual == 0 {
+            return 0;
+        }
+        if TOTAL_SPILL_USED
+            .compare_exchange(current, current + actual, Ordering::Relaxed, Ordering::Relaxed)
+            .is_ok()
+        {
+            return actual;
+        }
+    }
+}
+
+/// Release spill bytes when a query completes (spill files cleaned up).
+pub fn release_spill_budget(bytes: u64) {
+    TOTAL_SPILL_USED.fetch_sub(bytes, Ordering::Relaxed);
+}
+
+/// Current total spill usage across all queries.
+pub fn total_spill_used() -> u64 {
+    TOTAL_SPILL_USED.load(Ordering::Relaxed)
+}
+
+/// Query available disk space for the given path.
+#[cfg(unix)]
+pub fn available_disk_space(path: &str) -> Option<u64> {
+    use std::ffi::CString;
+    use std::mem::MaybeUninit;
+
+    let c_path = CString::new(path).ok()?;
+    let mut stat = MaybeUninit::<libc::statvfs>::uninit();
+    let ret = unsafe { libc::statvfs(c_path.as_ptr(), stat.as_mut_ptr()) };
+    if ret != 0 {
+        return None;
+    }
+    let stat = unsafe { stat.assume_init() };
+    Some(stat.f_bavail as u64 * stat.f_frsize as u64)
+}
+
+#[cfg(not(unix))]
+pub fn available_disk_space(_path: &str) -> Option<u64> {
+    None
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
