@@ -96,6 +96,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Update Jackson to 2.21.2 ([#20989](https://github.com/opensearch-project/OpenSearch/pull/20989))
 - Update Project Reactor to 3.8.5 and Reactor Netty to 1.3.5 ([#21414](https://github.com/opensearch-project/OpenSearch/pull/21414))
 - Update Apache HttpClient5 to 5.6.1 ([#21443](https://github.com/opensearch-project/OpenSearch/pull/21443))
+- Update OpenTelemetry to 1.62.0 and OpenTelemetry SemConv to 1.41.0 ([#21603](https://github.com/opensearch-project/OpenSearch/pull/21603))
 
 ### Removed
 
