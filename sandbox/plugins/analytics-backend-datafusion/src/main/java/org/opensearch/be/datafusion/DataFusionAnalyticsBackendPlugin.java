@@ -32,6 +32,8 @@ import org.opensearch.analytics.spi.ScalarFunctionAdapter;
 import org.opensearch.analytics.spi.ScanCapability;
 import org.opensearch.analytics.spi.SearchExecEngineProvider;
 import org.opensearch.analytics.spi.StdOperatorRewriteAdapter;
+import org.opensearch.analytics.spi.WindowCapability;
+import org.opensearch.analytics.spi.WindowFunction;
 import org.opensearch.be.datafusion.indexfilter.FilterTreeCallbacks;
 import org.opensearch.index.engine.dataformat.DataFormatRegistry;
 
@@ -353,6 +355,16 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                             JoinCapability.JoinKind.ANTI,
                             JoinCapability.JoinKind.CROSS
                         ),
+                        Set.copyOf(plugin.getSupportedFormats())
+                    )
+                );
+            }
+
+            @Override
+            public Set<WindowCapability> windowCapabilities() {
+                return Set.of(
+                    new WindowCapability(
+                        Set.of(WindowFunction.SUM, WindowFunction.AVG, WindowFunction.COUNT, WindowFunction.MIN, WindowFunction.MAX),
                         Set.copyOf(plugin.getSupportedFormats())
                     )
                 );
