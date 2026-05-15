@@ -19,6 +19,7 @@ import org.apache.calcite.rel.logical.LogicalFilter;
 import org.apache.calcite.rel.metadata.RelMetadataQuery;
 import org.apache.calcite.rex.RexCall;
 import org.apache.calcite.rex.RexNode;
+import org.apache.calcite.rex.RexUtil;
 import org.opensearch.analytics.planner.RelNodeUtils;
 import org.opensearch.analytics.spi.FieldStorageInfo;
 
@@ -102,7 +103,18 @@ public class OpenSearchFilter extends Filter implements OpenSearchRelNode {
 
     @Override
     public RelNode stripAnnotations(List<RelNode> strippedChildren, Function<OperatorAnnotation, RexNode> annotationResolver) {
-        return LogicalFilter.create(strippedChildren.getFirst(), resolveCondition(getCondition(), annotationResolver));
+        RexNode resolved = resolveCondition(getCondition(), annotationResolver);
+        // Defensive flatten just before LogicalFilter.<init> asserts isFlat on the condition.
+        // Two known re-nesting sources to guard against:
+        //   1. Calcite's SARG → AND/OR decomposition. A flat input like
+        //      AND(p1, p2, SEARCH(col, Sarg[100..5000])) gets expanded into
+        //      AND(p1, p2, AND(col>=100, col<=5000)) by downstream rules without re-flattening.
+        //   2. Annotation unwrap (resolveCondition above) when the unwrapped RexNode is itself
+        //      an AND/OR — e.g. when a function adapter rewrote a predicate into a conjunction.
+        // Both shapes pass the parent AND's clone() unchanged but trip the Filter constructor's
+        // assertion. RexUtil.flatten canonicalizes the tree so the assertion holds.
+        RexNode flattened = RexUtil.flatten(getCluster().getRexBuilder(), resolved);
+        return LogicalFilter.create(strippedChildren.getFirst(), flattened);
     }
 
     private RexNode replaceAnnotations(RexNode node, ListIterator<OperatorAnnotation> annotationIterator) {

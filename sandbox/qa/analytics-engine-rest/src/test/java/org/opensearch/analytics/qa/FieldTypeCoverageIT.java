@@ -165,9 +165,10 @@ public class FieldTypeCoverageIT extends AnalyticsRestTestCase {
 
     public void testBinary() throws IOException {
         // Scan binds as VARBINARY; the BinaryView → Binary rewrite happens in
-        // schema_coerce::coerce_for_substrait. Predicates on binary columns still fail at
-        // planning ("Unsupported conversion for Relational Data type: VARBINARY"), but
-        // count() / projections / group-by work.
+        // schema_coerce::coerce_for_substrait. Predicates on binary columns now work via the
+        // BINARY(varchar) placeholder (BinaryFunctionAdapter rewrites it into a VARBINARY
+        // literal that DataFusion compares natively). Filter coverage lives in testIpFilters
+        // — binary columns share the same code path.
         Map<String, Object> bulk = ingest("ft_binary", "binary", "\"YWxpY2U=\"", "\"Ym9i\"", "\"Y2Fyb2w=\"");
         assertBulkSucceeded(bulk, "ft_binary");
         assertScanSucceeds("ft_binary", 3);
@@ -176,11 +177,53 @@ public class FieldTypeCoverageIT extends AnalyticsRestTestCase {
     public void testIp() throws IOException {
         // Scan binds as VARBINARY; the BinaryView → Binary rewrite happens in
         // schema_coerce::coerce_for_substrait. Projections return raw 16-byte IPv6-mapped
-        // bytes. Predicates fail at planning until VARBINARY is wired through the PPL
-        // expression planner.
+        // bytes. Filter / aggregation coverage on `ip` columns is in testIpFilters.
         Map<String, Object> bulk = ingest("ft_ip", "ip", "\"192.168.1.1\"", "\"10.0.0.1\"", "\"172.16.0.1\"");
         assertBulkSucceeded(bulk, "ft_ip");
         assertScanSucceeds("ft_ip", 3);
+    }
+
+    /**
+     * End-to-end coverage of filter / aggregation shapes against an {@code ip} column.
+     * Each predicate shape exercises a different code path:
+     * <ul>
+     *   <li>{@code =} — comparator with VARBINARY column + VARCHAR literal, expanded via
+     *       {@code ExtendedRexBuilder.makeCast} to {@code BINARY(varchar)} and resolved by
+     *       {@code BinaryFunctionAdapter}.</li>
+     *   <li>{@code !=}, {@code >} — same path, different comparator.</li>
+     *   <li>{@code IN} — exercised the {@code OpenSearchTypeFactory.leastRestrictive} override
+     *       for VARBINARY ⇄ VARCHAR.</li>
+     *   <li>{@code BETWEEN} — same {@code leastRestrictive} path with a 3-arg shape.</li>
+     *   <li>{@code cidrmatch} — exercised the inline expansion in
+     *       {@code PPLFuncImpTable.populate} that rewrites cidr literals into byte-range AND.</li>
+     *   <li>{@code AND}-combination — exercised the {@code RexUtil.flatten} guard in
+     *       {@code OpenSearchFilter.stripAnnotations}.</li>
+     * </ul>
+     */
+    public void testIpFilters() throws IOException {
+        Map<String, Object> bulk = ingest("ft_ip_filters", "ip", "\"192.168.1.1\"", "\"10.0.0.1\"", "\"172.16.0.1\"");
+        assertBulkSucceeded(bulk, "ft_ip_filters");
+        assertScanSucceeds("ft_ip_filters", 3);
+
+        assertFilterRowCount("source=ft_ip_filters | where val = '192.168.1.1'", 1);
+        assertFilterRowCount("source=ft_ip_filters | where val != '192.168.1.1'", 2);
+        assertFilterRowCount("source=ft_ip_filters | where val > '10.0.0.50'", 2);
+        assertFilterRowCount("source=ft_ip_filters | where val < '172.16.0.1'", 1);
+        assertFilterRowCount("source=ft_ip_filters | where val in ('192.168.1.1', '10.0.0.1')", 2);
+        assertFilterRowCount("source=ft_ip_filters | where val between '10.0.0.0' and '10.255.255.255'", 1);
+
+        assertFilterRowCount("source=ft_ip_filters | where cidrmatch(val, '192.168.0.0/16')", 1);
+        assertFilterRowCount("source=ft_ip_filters | where cidrmatch(val, '10.0.0.0/8')", 1);
+        assertFilterRowCount("source=ft_ip_filters | where cidrmatch(val, '0.0.0.0/0')", 3);
+        assertFilterRowCount("source=ft_ip_filters | where NOT cidrmatch(val, '192.168.0.0/16')", 2);
+
+        // AND-combination exercises the flatten guard in OpenSearchFilter.stripAnnotations
+        // (>= 4 conjuncts after SARG/cidr expansion).
+        assertFilterRowCount(
+            "source=ft_ip_filters | where val > '10.0.0.0' AND val < '200.0.0.0'"
+                + " AND cidrmatch(val, '0.0.0.0/0')",
+            3
+        );
     }
 
     // ── Phase 1: Ingest ──────────────────────────────────────────────────────────
@@ -244,6 +287,19 @@ public class FieldTypeCoverageIT extends AnalyticsRestTestCase {
         List<List<Object>> rows = (List<List<Object>>) resp.get("rows");
         assertNotNull("source=" + index + " response missing rows", rows);
         assertEquals("source=" + index + " row count", expected, rows.size());
+    }
+
+    /**
+     * Runs a PPL query and asserts the row count matches {@code expected}. Used by tests
+     * that exercise filter / aggregation shapes (e.g. {@link #testIpFilters}) where the
+     * row count is the meaningful signal.
+     */
+    private void assertFilterRowCount(String ppl, int expected) throws IOException {
+        Map<String, Object> resp = executePpl(ppl);
+        @SuppressWarnings("unchecked")
+        List<List<Object>> rows = (List<List<Object>>) resp.get("rows");
+        assertNotNull("[" + ppl + "] response missing rows", rows);
+        assertEquals("[" + ppl + "] row count", expected, rows.size());
     }
 
     /**
