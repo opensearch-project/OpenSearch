@@ -169,20 +169,20 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
         // HASH_SHUFFLE intentionally falls through to coordinator-centric rather than throwing
         // — large-index equi-joins must keep working on the M0 path until M2 lands. The chosen
         // strategy is logged below for observability.
-        long broadcastMaxRows = clusterService.getClusterSettings().get(AnalyticsSettings.BROADCAST_MAX_ROWS);
-        JoinStrategyAdvisor advisor = new JoinStrategyAdvisor(DEFAULT_BROADCAST_MAX_SHARDS, broadcastMaxRows, client);
-        JoinStrategy joinStrategy = advisor.adviseAndTag(dag, clusterService.state());
-
         // Master kill switch — operators can disable MPP (broadcast / hash-shuffle) cluster-wide
         // and force every join through the coordinator-centric path. Useful as an incident
-        // response control or for A/B comparison.
+        // response control or for A/B comparison. Read first and short-circuit so the advisor's
+        // synchronous IndicesStats fan-out is skipped entirely when MPP is off — otherwise the
+        // kill switch leaves per-query stats load in place even though every join is forced
+        // back to coord-centric, defeating the purpose of the setting.
         final boolean mppEnabled = clusterService.getClusterSettings().get(AnalyticsSettings.MPP_ENABLED);
-        if (!mppEnabled && joinStrategy != JoinStrategy.COORDINATOR_CENTRIC) {
-            logger.info(
-                "[DefaultPlanExecutor] MPP disabled by setting {}=false; routing {} via coordinator-centric.",
-                AnalyticsSettings.MPP_ENABLED.getKey(),
-                joinStrategy
-            );
+        JoinStrategy joinStrategy;
+        if (mppEnabled) {
+            long broadcastMaxRows = clusterService.getClusterSettings().get(AnalyticsSettings.BROADCAST_MAX_ROWS);
+            JoinStrategyAdvisor advisor = new JoinStrategyAdvisor(DEFAULT_BROADCAST_MAX_SHARDS, broadcastMaxRows, client);
+            joinStrategy = advisor.adviseAndTag(dag, clusterService.state());
+        } else {
+            joinStrategy = JoinStrategy.COORDINATOR_CENTRIC;
         }
 
         final boolean dispatchBroadcast = mppEnabled && joinStrategy == JoinStrategy.BROADCAST && scheduler instanceof QueryScheduler;
