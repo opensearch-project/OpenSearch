@@ -670,9 +670,17 @@ public class WindowPlanShapeTests extends PlanShapeTestBase {
     }
 
     /**
-     * OVER (PARTITION BY ...) is rejected at marking time — no shuffle exchange yet.
+     * {@code SUM($1) OVER (PARTITION BY $0)} on a 2-shard scan. PARTITION BY is now accepted —
+     * the cost gate on {@link org.opensearch.analytics.planner.rel.OpenSearchProject} forces
+     * SINGLETON input on any RexOver-bearing project, so all rows in a partition arrive on the
+     * coordinator regardless of whether partition keys span shards. WindowAggExec on the
+     * coordinator then groups by the partition key and computes the window correctly.
+     *
+     * <p>The plan shape is identical to the empty-OVER case (gather then project) — partition
+     * keys are encoded inside the RexOver expression and don't affect the surrounding
+     * exchange shape.
      */
-    public void testRexOverPartitionBy_rejected() {
+    public void testRexOverPartitionBy_2shard() {
         RelOptTable table = mockTable("test_index", "status", "size");
         RelNode scan = stubScan(table);
         RexBuilder rb = scan.getCluster().getRexBuilder();
@@ -697,12 +705,15 @@ public class WindowPlanShapeTests extends PlanShapeTestBase {
             List.of(rb.makeInputRef(scan, 0), rb.makeInputRef(scan, 1), over),
             List.of("status", "size", "s")
         );
-        try {
-            runPlanner(plan, multiShardContext());
-            fail("Expected planner to reject PARTITION BY");
-        } catch (RuntimeException expected) {
-            // OK — rule rejected the RexOver.
-        }
+        RelNode result = runPlanner(plan, multiShardContext());
+        assertPlanShape(
+            """
+                OpenSearchProject(status=[$0], size=[$1], s=[SUM($1) OVER (PARTITION BY $0)], viableBackends=[[mock-parquet]])
+                  OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
+                    OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
+                """,
+            result
+        );
     }
 
     // ── Builders ──────────────────────────────────────────────────────────

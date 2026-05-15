@@ -383,9 +383,18 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
 
             @Override
             public Set<WindowCapability> windowCapabilities() {
+                // SUM/AVG/COUNT/MIN/MAX cover PPL eventstats; ROW_NUMBER covers the helper
+                // sequence column PPL streamstats … by … emits as __row_number_for_streamstats__.
                 return Set.of(
                     new WindowCapability(
-                        Set.of(WindowFunction.SUM, WindowFunction.AVG, WindowFunction.COUNT, WindowFunction.MIN, WindowFunction.MAX),
+                        Set.of(
+                            WindowFunction.SUM,
+                            WindowFunction.AVG,
+                            WindowFunction.COUNT,
+                            WindowFunction.MIN,
+                            WindowFunction.MAX,
+                            WindowFunction.ROW_NUMBER
+                        ),
                         Set.copyOf(plugin.getSupportedFormats())
                     )
                 );
