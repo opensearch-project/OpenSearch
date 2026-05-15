@@ -182,8 +182,10 @@ pub unsafe extern "C" fn df_execute_query(
     // all the work. The IO runtime still drives the outer `block_on`
     // (bridging the synchronous FFM call to the async spawn handle); only
     // the plan construction and stream wrapping hop to CPU.
+    log::error!("[DIAG] df_execute_query ENTER thread={:?}", std::thread::current().id());
     mgr.io_runtime
         .block_on(async move {
+            log::error!("[DIAG] df_execute_query inside block_on thread={:?}", std::thread::current().id());
             let inner_fut = crate::task_monitors::query_execution_monitor().instrument(async move {
                 api::execute_query(
                     shard_view_ptr,
@@ -196,6 +198,7 @@ pub unsafe extern "C" fn df_execute_query(
                 )
                 .await
             });
+            log::error!("[DIAG] df_execute_query BEFORE cpu_executor.spawn() thread={:?}", std::thread::current().id());
             match mgr_for_spawn.cpu_executor().spawn(inner_fut).await {
                 Ok(inner) => inner,
                 Err(e) => Err(datafusion::error::DataFusionError::Execution(format!(
@@ -746,15 +749,25 @@ pub unsafe extern "C" fn df_execute_with_context(
             })
             .map_err(|e| e.to_string())
     } else {
+        log::error!("[DIAG] df_execute_with_context ENTER thread={:?}", std::thread::current().id());
         mgr.io_runtime
             .block_on(async move {
+                log::error!("[DIAG] inside block_on, thread={:?}", std::thread::current().id());
                 // Acquire concurrency gate BEFORE spawning on CPU runtime.
                 // This blocks the IO runtime thread (and thus the Java search thread),
                 // creating backpressure at the Java threadpool level when the gate is full.
                 let partition_weight = session_handle.ctx.state().config().target_partitions().max(1) as u32;
                 let gate = mgr_for_spawn.cpu_executor().concurrency_gate().clone();
                 let max_p = gate.max_permits();
+                log::error!("[DIAG] BEFORE acquire_many({}) max_permits={} available={} thread={:?}",
+                    partition_weight.min(max_p),
+                    max_p,
+                    gate.available_permits(),
+                    std::thread::current().id());
                 let permit = gate.acquire_many(partition_weight.min(max_p)).await;
+                log::error!("[DIAG] AFTER acquire_many — got permit, available_now={} thread={:?}",
+                    gate.available_permits(),
+                    std::thread::current().id());
 
                 let inner_fut = crate::task_monitors::query_execution_monitor().instrument(async move {
                     crate::query_executor::execute_with_context(
@@ -765,12 +778,15 @@ pub unsafe extern "C" fn df_execute_with_context(
                     )
                     .await
                 });
-                match mgr_for_spawn.cpu_executor().spawn(inner_fut).await {
+                log::error!("[DIAG] BEFORE cpu_executor.spawn() thread={:?}", std::thread::current().id());
+                let result = match mgr_for_spawn.cpu_executor().spawn(inner_fut).await {
                     Ok(inner) => inner,
                     Err(e) => Err(datafusion::error::DataFusionError::Execution(format!(
                         "df_execute_with_context: CPU spawn failed: {e:?}"
                     ))),
-                }
+                };
+                log::error!("[DIAG] AFTER cpu_executor.spawn() completed thread={:?}", std::thread::current().id());
+                result
             })
             .map_err(|e| e.to_string())
     }

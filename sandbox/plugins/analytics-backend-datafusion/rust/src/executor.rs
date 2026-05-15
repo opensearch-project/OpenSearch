@@ -60,11 +60,28 @@ impl ConcurrencyGate {
     /// Acquire N permits (partition-weighted). Held for the entire query stream lifetime.
     pub async fn acquire_many(&self, n: u32) -> OwnedSemaphorePermit {
         let start = Instant::now();
+        // Diagnostic: check if permits are available synchronously first
+        let try_result = self.semaphore.clone().try_acquire_many_owned(n);
+        match try_result {
+            Ok(permit) => {
+                // Permits were immediately available — no async wait needed
+                log::error!("[DIAG] ConcurrencyGate::acquire_many({}) succeeded via try_acquire (sync) thread={:?}",
+                    n, std::thread::current().id());
+                self.total_queries_admitted.fetch_add(1, Ordering::Relaxed);
+                return permit;
+            }
+            Err(e) => {
+                log::error!("[DIAG] ConcurrencyGate::acquire_many({}) try_acquire FAILED: {:?}, will .await thread={:?}",
+                    n, e, std::thread::current().id());
+            }
+        }
         let permit = self.semaphore.clone().acquire_many_owned(n).await
             .expect("concurrency gate semaphore closed");
         let elapsed_ms = start.elapsed().as_millis() as u64;
         self.total_wait_ms.fetch_add(elapsed_ms, Ordering::Relaxed);
         self.total_queries_admitted.fetch_add(1, Ordering::Relaxed);
+        log::error!("[DIAG] ConcurrencyGate::acquire_many({}) succeeded via .await after {}ms thread={:?}",
+            n, elapsed_ms, std::thread::current().id());
         permit
     }
 
@@ -74,6 +91,10 @@ impl ConcurrencyGate {
 
     pub fn active_permits(&self) -> u32 {
         self.max_permits - self.semaphore.available_permits() as u32
+    }
+
+    pub fn available_permits(&self) -> u32 {
+        self.semaphore.available_permits() as u32
     }
 
     pub fn total_wait_ms(&self) -> u64 {
