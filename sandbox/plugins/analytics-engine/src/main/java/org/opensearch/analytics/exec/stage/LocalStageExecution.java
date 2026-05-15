@@ -16,6 +16,8 @@ import org.opensearch.analytics.planner.dag.Stage;
 import org.opensearch.analytics.spi.ExchangeSink;
 import org.opensearch.analytics.spi.MultiInputExchangeSink;
 
+import java.util.concurrent.atomic.AtomicBoolean;
+
 /**
  * {@link StageExecution} implementation for COORDINATOR_REDUCE stages. Holds a
  * backend-provided {@link ExchangeSink} (from {@link org.opensearch.analytics.spi.ExchangeSinkProvider})
@@ -32,6 +34,15 @@ final class LocalStageExecution extends AbstractStageExecution implements SinkPr
 
     private final ExchangeSink backendSink;
     private final ExchangeSink downstream;
+    /**
+     * Single-fire gate on {@link #backendSink}.close(). Failure paths
+     * ({@link #failFromChild}, {@link #cancel}) are reachable both from the
+     * cascade (sibling failures fan in via ChildToParentCascade) and from
+     * external cancellation, so the same stage can have its terminal close
+     * triggered twice. Streaming reduce sinks block on draining the native
+     * pipeline; concurrent closes serialize on the sink's feedLock.
+     */
+    private final AtomicBoolean backendSinkClosed = new AtomicBoolean(false);
 
     public LocalStageExecution(Stage stage, ExchangeSink backendSink, ExchangeSink downstream) {
         super(stage);
@@ -77,7 +88,11 @@ final class LocalStageExecution extends AbstractStageExecution implements SinkPr
         if (transitionTo(State.RUNNING) == false) return;
         logger.info("[LocalStage] start() stageId={}", stage.getStageId());
         try {
-            backendSink.close();
+            // Mark the gate before close so subsequent failure-path callers don't
+            // re-close. Close exceptions surface here so the catch routes to FAILED.
+            if (backendSinkClosed.compareAndSet(false, true)) {
+                backendSink.close();
+            }
             if (transitionTo(State.SUCCEEDED)) {
                 logger.info("[LocalStage] SUCCEEDED stageId={}", stage.getStageId());
             }
@@ -94,10 +109,13 @@ final class LocalStageExecution extends AbstractStageExecution implements SinkPr
     public boolean failFromChild(Exception cause) {
         logger.error(new ParameterizedMessage("[LocalStage] failFromChild stageId={}", stage.getStageId()), cause);
         captureFailure(cause);
+        // Close sink BEFORE transitioning. transitionTo fires the walker terminal
+        // listener inline, which tears down the per-query allocator — if the
+        // sink's drain task is still importing, it would race a closed allocator.
+        // Gated by backendSinkClosed so a sibling-failure cascade or a follow-up
+        // external cancel doesn't pile up concurrent closes on the same sink.
+        closeBackendSinkOnce();
         if (transitionTo(State.FAILED)) {
-            try {
-                backendSink.close();
-            } catch (Exception ignore) {}
             metrics.incrementTasksFailed();
             return true;
         }
@@ -107,7 +125,16 @@ final class LocalStageExecution extends AbstractStageExecution implements SinkPr
     @Override
     public void cancel(String reason) {
         logger.info("[LocalStage] cancel stageId={} reason={}", stage.getStageId(), reason);
-        if (transitionTo(State.CANCELLED)) {
+        closeBackendSinkOnce();
+        transitionTo(State.CANCELLED);
+    }
+
+    /**
+     * Single-fire close on the failure path. Swallows exceptions because callers
+     * cannot meaningfully react and the primary cause has already been captured.
+     */
+    private void closeBackendSinkOnce() {
+        if (backendSinkClosed.compareAndSet(false, true)) {
             try {
                 backendSink.close();
             } catch (Exception ignore) {}
