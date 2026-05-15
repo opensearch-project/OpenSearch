@@ -24,6 +24,10 @@ package org.opensearch.analytics.spi;
  */
 public record DataTransferCapability(Kind kind, String format) {
 
+    /**
+     * Direction of a data-transfer capability — declares whether the backend produces or
+     * consumes the transfer format. A single backend may declare both for the same format.
+     */
     public enum Kind {
         /** Backend can partition a local stream and ship partitions to remote consumers. */
         PRODUCER,
