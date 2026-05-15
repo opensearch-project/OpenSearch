@@ -238,7 +238,8 @@ mod tests {
         let store: Arc<dyn ObjectStore> = Arc::new(LocalFileSystem::new());
         let metas = object_metas(store.as_ref(), &[p0, p1]).await;
         let ctx = SessionContext::new();
-        let (segments, merged) = build_segments(&ctx.state(), Arc::clone(&store), &metas)
+        let gens: Vec<i64> = (0..metas.len() as i64).collect();
+        let (segments, merged) = build_segments(&ctx.state(), Arc::clone(&store), &metas, &gens)
             .await
             .unwrap();
 
@@ -287,7 +288,8 @@ mod tests {
         let store: Arc<dyn ObjectStore> = Arc::new(LocalFileSystem::new());
         let metas = object_metas(store.as_ref(), &[p0, p1]).await;
         let ctx = SessionContext::new();
-        let (_segments, merged) = build_segments(&ctx.state(), Arc::clone(&store), &metas)
+        let gens: Vec<i64> = (0..metas.len() as i64).collect();
+        let (_segments, merged) = build_segments(&ctx.state(), Arc::clone(&store), &metas, &gens)
             .await
             .unwrap();
 
@@ -344,10 +346,13 @@ mod tests {
         let metas_ab = object_metas(store.as_ref(), &[p0.clone(), p1.clone()]).await;
         let metas_ba = object_metas(store.as_ref(), &[p1, p0]).await;
 
-        let (_, schema_ab) = build_segments(&ctx.state(), Arc::clone(&store), &metas_ab)
+        let gens_ab: Vec<i64> = (0..metas_ab.len() as i64).collect();
+        let gens_ba: Vec<i64> = (0..metas_ba.len() as i64).collect();
+
+        let (_, schema_ab) = build_segments(&ctx.state(), Arc::clone(&store), &metas_ab, &gens_ab)
             .await
             .unwrap();
-        let (_, schema_ba) = build_segments(&ctx.state(), Arc::clone(&store), &metas_ba)
+        let (_, schema_ba) = build_segments(&ctx.state(), Arc::clone(&store), &metas_ba, &gens_ba)
             .await
             .unwrap();
 
@@ -392,7 +397,8 @@ mod tests {
         let store: Arc<dyn ObjectStore> = Arc::new(LocalFileSystem::new());
         let metas = object_metas(store.as_ref(), &[p0, p1]).await;
         let ctx = SessionContext::new();
-        let result = build_segments(&ctx.state(), Arc::clone(&store), &metas).await;
+        let gens: Vec<i64> = (0..metas.len() as i64).collect();
+        let result = build_segments(&ctx.state(), Arc::clone(&store), &metas, &gens).await;
         assert!(
             result.is_err(),
             "conflicting Int32 / Int64 on same field name must fail at schema-union time"
