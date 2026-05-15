@@ -174,9 +174,11 @@ pub async fn execute_with_context(
     handle: SessionContextHandle,
     plan_bytes: &[u8],
     cpu_executor: DedicatedExecutor,
-    permit: tokio::sync::OwnedSemaphorePermit,
+    permit: Option<tokio::sync::OwnedSemaphorePermit>,
+    effective_partitions: u32,
 ) -> Result<i64, DataFusionError> {
-    eprintln!("[DIAG pid={}] execute_with_context ENTER thread={:?}", std::process::id(), std::thread::current().id());
+    eprintln!("[DIAG pid={}] execute_with_context ENTER effective_partitions={} thread={:?}",
+        std::process::id(), effective_partitions, std::thread::current().id());
 
     let substrait_plan = Plan::decode(plan_bytes).map_err(|e| {
         DataFusionError::Execution(format!("Failed to decode Substrait: {}", e))
@@ -208,6 +210,6 @@ pub async fn execute_with_context(
         cross_rt_stream,
     );
 
-    let stream_handle = crate::api::QueryStreamHandle::with_session_context(wrapped, handle.query_context, handle.ctx, Some(permit));
+    let stream_handle = crate::api::QueryStreamHandle::with_session_context(wrapped, handle.query_context, handle.ctx, permit);
     Ok(Box::into_raw(Box::new(stream_handle)) as i64)
 }

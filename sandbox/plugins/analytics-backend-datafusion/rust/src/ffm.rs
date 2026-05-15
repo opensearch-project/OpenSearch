@@ -737,12 +737,10 @@ pub unsafe extern "C" fn df_execute_with_context(
         let ptr = Box::into_raw(Box::new(session_handle)) as i64;
         mgr.io_runtime
             .block_on(async move {
-                // Acquire concurrency gate BEFORE spawning on CPU runtime (same as vanilla).
-                // This blocks the IO runtime thread (and thus the Java search thread),
-                // creating backpressure at the Java threadpool level when the gate is full.
+                // Non-blocking adaptive acquire for indexed path.
                 let gate = mgr_for_spawn.cpu_executor().concurrency_gate().clone();
                 let max_p = gate.max_permits();
-                let permit = gate.acquire_many(partition_weight.min(max_p)).await;
+                let (_effective, permit) = gate.try_acquire_adaptive(partition_weight.min(max_p));
 
                 let inner_fut = crate::task_monitors::query_execution_monitor().instrument(async move {
                     crate::indexed_executor::execute_indexed_with_context(
@@ -767,29 +765,13 @@ pub unsafe extern "C" fn df_execute_with_context(
             .block_on(async move {
                 native_bridge_common::log_error!("[DIAG] inside block_on, thread={:?}", std::thread::current().id());
                 eprintln!("[DIAG] inside block_on, thread={:?}", std::thread::current().id());
-                // Acquire concurrency gate BEFORE spawning on CPU runtime.
-                // This blocks the IO runtime thread (and thus the Java search thread),
-                // creating backpressure at the Java threadpool level when the gate is full.
+                // Non-blocking adaptive acquire — degrade partition count under pressure.
                 let partition_weight = session_handle.ctx.state().config().target_partitions().max(1) as u32;
                 let gate = mgr_for_spawn.cpu_executor().concurrency_gate().clone();
                 let max_p = gate.max_permits();
-                native_bridge_common::log_error!("[DIAG] BEFORE acquire_many({}) max_permits={} available={} thread={:?}",
-                    partition_weight.min(max_p),
-                    max_p,
-                    gate.available_permits(),
-                    std::thread::current().id());
-                eprintln!("[DIAG] BEFORE acquire_many({}) max_permits={} available={} thread={:?}",
-                    partition_weight.min(max_p),
-                    max_p,
-                    gate.available_permits(),
-                    std::thread::current().id());
-                let permit = gate.acquire_many(partition_weight.min(max_p)).await;
-                native_bridge_common::log_error!("[DIAG] AFTER acquire_many got permit, available_now={} thread={:?}",
-                    gate.available_permits(),
-                    std::thread::current().id());
-                eprintln!("[DIAG] AFTER acquire_many got permit, available_now={} thread={:?}",
-                    gate.available_permits(),
-                    std::thread::current().id());
+                let (effective_partitions, permit) = gate.try_acquire_adaptive(partition_weight.min(max_p));
+                eprintln!("[DIAG] df_execute_with_context adaptive: requested={} effective={} has_permit={} thread={:?}",
+                    partition_weight.min(max_p), effective_partitions, permit.is_some(), std::thread::current().id());
 
                 let inner_fut = crate::task_monitors::query_execution_monitor().instrument(async move {
                     crate::query_executor::execute_with_context(
@@ -797,6 +779,7 @@ pub unsafe extern "C" fn df_execute_with_context(
                         &plan_vec,
                         cpu_for_cross,
                         permit,
+                        effective_partitions,
                     )
                     .await
                 });

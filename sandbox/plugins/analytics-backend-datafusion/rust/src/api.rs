@@ -333,19 +333,18 @@ pub async unsafe fn execute_query(
     let token = query_tracker::get_cancellation_token(context_id);
 
     // Acquire concurrency gate permit BEFORE executing the query.
-    // This blocks until partition budget is available, preventing
-    // unbounded partition task accumulation on the CPU runtime.
+    // Non-blocking adaptive acquire: if full budget unavailable, degrade partition
+    // count rather than blocking (which would deadlock under circular dependencies).
     let partition_weight = query_config.target_partitions.max(1) as u32;
     let max_p = cpu_executor.concurrency_gate().max_permits();
     let clamped = partition_weight.min(max_p);
-    eprintln!("[DIAG] api::execute_query BEFORE gate.acquire_many({}) max_permits={} available={} thread={:?}",
-        clamped,
-        max_p,
-        cpu_executor.concurrency_gate().available_permits(),
-        std::thread::current().id());
-    let permit = cpu_executor.concurrency_gate().acquire_many(clamped).await;
-    eprintln!("[DIAG] api::execute_query AFTER gate.acquire_many got permit thread={:?}",
-        std::thread::current().id());
+    let (effective_partitions, permit) = cpu_executor.concurrency_gate().try_acquire_adaptive(clamped);
+    eprintln!("[DIAG] api::execute_query adaptive acquire: requested={} effective={} has_permit={} thread={:?}",
+        clamped, effective_partitions, permit.is_some(), std::thread::current().id());
+
+    // Override target_partitions with effective value for degraded execution
+    let mut query_config = query_config;
+    query_config.target_partitions = effective_partitions as usize;
 
     let query_future = async {
         if is_indexed {
@@ -382,9 +381,9 @@ pub async unsafe fn execute_query(
 
     // Reconstruct the stream from the raw pointer returned by the executor.
     let stream = *Box::from_raw(stream_ptr as *mut RecordBatchStreamAdapter<CrossRtStream>);
-    let handle = QueryStreamHandle::new(stream, query_context, Some(permit));
-    eprintln!("[DIAG] api::execute_query returning QueryStreamHandle thread={:?}",
-        std::thread::current().id());
+    let handle = QueryStreamHandle::new(stream, query_context, permit);
+    eprintln!("[DIAG] api::execute_query returning QueryStreamHandle effective_partitions={} thread={:?}",
+        effective_partitions, std::thread::current().id());
     Ok(Box::into_raw(Box::new(handle)) as i64)
 }
 
@@ -647,13 +646,11 @@ pub async unsafe fn execute_local_plan(
     // `context_id` of 0 disables tracking (pool is not consulted).
     let query_context = QueryTrackingContext::new(context_id, session.memory_pool());
 
-    // Acquire concurrency gate permit BEFORE executing the plan.
-    // LocalSession uses DataFusion's default target_partitions (= num_cpus on the host).
-    // We use num_cpus as the weight since that's what DataFusion will spawn.
+    // Non-blocking adaptive acquire for local plan execution.
     let partition_weight = (num_cpus::get() as u32).max(1);
     let cpu_exec = manager.cpu_executor();
     let gate = cpu_exec.concurrency_gate();
-    let permit = gate.acquire_many(partition_weight.min(gate.max_permits())).await;
+    let (_, permit) = gate.try_acquire_adaptive(partition_weight.min(gate.max_permits()));
 
     let df_stream = session.execute_substrait(substrait_bytes).await?;
 
@@ -664,7 +661,7 @@ pub async unsafe fn execute_local_plan(
         CrossRtStream::new_with_df_error_stream(df_stream, manager.cpu_executor());
     let wrapped = RecordBatchStreamAdapter::new(cross_rt_stream.schema(), cross_rt_stream);
 
-    let handle = QueryStreamHandle::new(wrapped, query_context, Some(permit));
+    let handle = QueryStreamHandle::new(wrapped, query_context, permit);
     Ok(Box::into_raw(Box::new(handle)) as i64)
 }
 

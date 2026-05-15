@@ -96,6 +96,39 @@ impl ConcurrencyGate {
         self.max_permits
     }
 
+    /// Non-blocking adaptive acquire: try to get `requested` permits; if unavailable,
+    /// take whatever's free (min 1); if nothing's free, return (1, None).
+    /// Returns (effective_partitions, optional_permit).
+    /// The query should use `effective_partitions` as its `target_partitions` config.
+    /// Never blocks — deadlock-free by construction.
+    pub fn try_acquire_adaptive(&self, requested: u32) -> (u32, Option<OwnedSemaphorePermit>) {
+        let pid = std::process::id();
+        let clamped = requested.min(self.max_permits);
+
+        // Try full amount
+        if let Ok(permit) = self.semaphore.clone().try_acquire_many_owned(clamped) {
+            eprintln!("[DIAG pid={}] ConcurrencyGate::try_acquire_adaptive({}) FULL granted={} thread={:?}",
+                pid, requested, clamped, std::thread::current().id());
+            self.total_queries_admitted.fetch_add(1, Ordering::Relaxed);
+            return (clamped, Some(permit));
+        }
+
+        // Fallback: take whatever's available (TOCTOU race acceptable)
+        let available = (self.semaphore.available_permits() as u32).max(1);
+        if let Ok(permit) = self.semaphore.clone().try_acquire_many_owned(available) {
+            eprintln!("[DIAG pid={}] ConcurrencyGate::try_acquire_adaptive({}) PARTIAL granted={} thread={:?}",
+                pid, requested, available, std::thread::current().id());
+            self.total_queries_admitted.fetch_add(1, Ordering::Relaxed);
+            return (available, Some(permit));
+        }
+
+        // Nothing available — run degraded with 1 partition, no permit
+        eprintln!("[DIAG pid={}] ConcurrencyGate::try_acquire_adaptive({}) DEGRADED granted=0 effective=1 thread={:?}",
+            pid, requested, std::thread::current().id());
+        self.total_queries_admitted.fetch_add(1, Ordering::Relaxed);
+        (1, None)
+    }
+
     pub fn active_permits(&self) -> u32 {
         self.max_permits - self.semaphore.available_permits() as u32
     }
