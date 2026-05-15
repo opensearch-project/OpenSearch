@@ -82,9 +82,15 @@ final class DatetimeOutputCastRewriter {
     /**
      * PPL's documented timestamp output format (space separator). Mirrors the
      * format used by Calcite's reference planner so the analytics-engine path
-     * matches per-row output exactly.
+     * matches per-row output exactly. The trailing {@code %.f} is chrono's
+     * variable-length fractional-second specifier — a leading dot followed by
+     * 0-9 digits, omitted when the value has no sub-second precision. This
+     * matches PPL's legacy formatting for {@code date} and {@code date_nanos}
+     * fields where the displayed precision tracks the source value (e.g.
+     * {@code "2024-01-15 10:30:01.23456789"} for a date_nanos with 8 fractional
+     * digits, {@code "2025-08-01 03:47:41"} for a whole-second value).
      */
-    static final String PPL_TIMESTAMP_FORMAT = "%Y-%m-%d %H:%M:%S";
+    static final String PPL_TIMESTAMP_FORMAT = "%Y-%m-%d %H:%M:%S%.f";
 
     private DatetimeOutputCastRewriter() {}
 
