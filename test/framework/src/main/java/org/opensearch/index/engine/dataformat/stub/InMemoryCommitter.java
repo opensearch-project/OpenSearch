@@ -14,7 +14,10 @@ import org.opensearch.index.engine.exec.commit.Committer;
 import org.opensearch.index.store.Store;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
+import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
 /**
  * In-memory Committer for testing. Reads initial commit data from the store's
@@ -28,8 +31,14 @@ public class InMemoryCommitter implements Committer {
     }
 
     @Override
-    public CommitResult commit(Map<String, String> commitData) {
-        this.committedData = Map.copyOf(commitData);
+    public CommitResult commit(CommitInput commitData) {
+        this.committedData = StreamSupport.stream(commitData.userData().spliterator(), false)
+            .collect(Collectors.toMap(
+                Map.Entry::getKey,
+                Map.Entry::getValue,
+                (existing, replacement) -> replacement, // Merge function for duplicate keys
+                HashMap::new
+            ));
         return null;
     }
 

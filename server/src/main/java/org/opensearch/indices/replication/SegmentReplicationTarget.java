@@ -104,12 +104,6 @@ public class SegmentReplicationTarget extends AbstractSegmentReplicationTarget {
                 checkpointInfoResponse.getCheckpoint().getSegmentsGen()
             );
             CatalogSnapshot catalogSnapshot = Store.fromSegmentInfos(infos, store.shardFormatDirectoryResolver());
-            // For DFA snapshots, preserve the SegmentInfos so the replica's commit path can
-            // write a segments_N containing the real Lucene segment entries (needed for primary
-            // promotion). SegmentInfosCatalogSnapshot already wraps the real SegmentInfos directly.
-            if (catalogSnapshot instanceof org.opensearch.index.engine.exec.coord.DataformatAwareCatalogSnapshot dfa) {
-                dfa.setCommitSegmentInfos(infos);
-            }
             indexShard.finalizeReplication(catalogSnapshot);
         } catch (CorruptIndexException | IndexFormatTooNewException | IndexFormatTooOldException ex) {
             // this is a fatal exception at this stage.
