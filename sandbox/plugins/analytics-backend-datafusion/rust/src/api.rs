@@ -375,9 +375,14 @@ pub async unsafe fn execute_query(
         .await
         .map_err(|e| DataFusionError::Execution(e))?;
 
+    eprintln!("[DIAG] api::execute_query query_future COMPLETED, stream_ptr={} thread={:?}",
+        stream_ptr, std::thread::current().id());
+
     // Reconstruct the stream from the raw pointer returned by the executor.
     let stream = *Box::from_raw(stream_ptr as *mut RecordBatchStreamAdapter<CrossRtStream>);
     let handle = QueryStreamHandle::new(stream, query_context, Some(permit));
+    eprintln!("[DIAG] api::execute_query returning QueryStreamHandle thread={:?}",
+        std::thread::current().id());
     Ok(Box::into_raw(Box::new(handle)) as i64)
 }
 

@@ -202,12 +202,15 @@ pub unsafe extern "C" fn df_execute_query(
             });
             native_bridge_common::log_error!("[DIAG] df_execute_query BEFORE cpu_executor.spawn() thread={:?}", std::thread::current().id());
             eprintln!("[DIAG] df_execute_query BEFORE cpu_executor.spawn() thread={:?}", std::thread::current().id());
-            match mgr_for_spawn.cpu_executor().spawn(inner_fut).await {
+            let spawn_result = match mgr_for_spawn.cpu_executor().spawn(inner_fut).await {
                 Ok(inner) => inner,
                 Err(e) => Err(datafusion::error::DataFusionError::Execution(format!(
                     "df_execute_query: CPU spawn failed: {e:?}"
                 ))),
-            }
+            };
+            eprintln!("[DIAG] df_execute_query AFTER cpu_executor.spawn() completed, ok={} thread={:?}",
+                spawn_result.is_ok(), std::thread::current().id());
+            spawn_result
         })
         .map_err(|e| e.to_string())
 }
@@ -229,7 +232,9 @@ pub unsafe extern "C" fn df_stream_next(stream_ptr: i64) -> i64 {
 
 #[no_mangle]
 pub unsafe extern "C" fn df_stream_close(stream_ptr: i64) {
+    eprintln!("[DIAG] df_stream_close called ptr={} thread={:?}", stream_ptr, std::thread::current().id());
     api::stream_close(stream_ptr);
+    eprintln!("[DIAG] df_stream_close DONE, permits should be released thread={:?}", std::thread::current().id());
 }
 
 #[no_mangle]
