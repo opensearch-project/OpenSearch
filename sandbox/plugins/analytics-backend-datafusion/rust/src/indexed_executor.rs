@@ -701,6 +701,7 @@ pub async unsafe fn execute_indexed_with_context(
     let cross_rt_stream = CrossRtStream::new_with_df_error_stream(df_stream, cpu_executor);
     let schema = cross_rt_stream.schema();
     let wrapped = RecordBatchStreamAdapter::new(schema, cross_rt_stream);
-    let stream_handle = crate::api::QueryStreamHandle::with_session_context(wrapped, query_context, ctx, Some(permit));
+    let partition_weight = num_partitions as u32;
+    let stream_handle = crate::api::QueryStreamHandle::with_session_context(wrapped, query_context, ctx, partition_weight);
     Ok(Box::into_raw(Box::new(stream_handle)) as i64)
 }
