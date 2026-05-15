@@ -421,6 +421,20 @@ pub async unsafe fn execute_indexed_with_context(
     cpu_executor: DedicatedExecutor,
 ) -> Result<i64, DataFusionError> {
     let handle = *Box::from_raw(session_ctx_ptr as *mut crate::session_context::SessionContextHandle);
+    let context_id = handle.query_context.context_id();
+    let token = crate::query_tracker::get_cancellation_token(context_id);
+
+    let query_future = execute_indexed_with_context_inner(handle, substrait_bytes, cpu_executor);
+    crate::cancellation::cancellable(token.as_ref(), context_id, query_future)
+        .await
+        .map_err(DataFusionError::Execution)
+}
+
+async unsafe fn execute_indexed_with_context_inner(
+    handle: crate::session_context::SessionContextHandle,
+    substrait_bytes: Vec<u8>,
+    cpu_executor: DedicatedExecutor,
+) -> Result<i64, DataFusionError> {
     let classification_override = handle.indexed_config.map(|config| {
         // FilterTreeShape: 1 = CONJUNCTIVE → SingleCollector, 2 = INTERLEAVED → Tree.
         match (config.tree_shape, config.delegated_predicate_count) {

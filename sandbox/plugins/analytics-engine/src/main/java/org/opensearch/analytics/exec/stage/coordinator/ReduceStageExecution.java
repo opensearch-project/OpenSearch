@@ -15,6 +15,7 @@ import org.opensearch.analytics.exec.stage.SinkProvidingStageExecution;
 import org.opensearch.analytics.exec.stage.StageTask;
 import org.opensearch.analytics.exec.stage.StageTaskId;
 import org.opensearch.analytics.planner.dag.Stage;
+import org.opensearch.analytics.spi.CancellableExchangeSink;
 import org.opensearch.analytics.spi.ExchangeSink;
 import org.opensearch.analytics.spi.MultiInputExchangeSink;
 import org.opensearch.analytics.spi.ReducingExchangeSink;
@@ -78,6 +79,13 @@ public final class ReduceStageExecution extends AbstractStageExecution implement
 
     @Override
     protected void onTerminalTransition(State terminal) {
+        if (terminal == State.CANCELLED || terminal == State.FAILED) {
+            if (backendSink instanceof CancellableExchangeSink cancellable) {
+                try {
+                    cancellable.cancel();
+                } catch (Exception ignore) {}
+            }
+        }
         try {
             backendSink.close();
         } catch (Exception ignore) {}
