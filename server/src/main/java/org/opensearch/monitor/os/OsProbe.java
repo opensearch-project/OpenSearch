@@ -39,7 +39,6 @@ import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.io.PathUtils;
 import org.opensearch.monitor.Probes;
 
-import java.io.BufferedReader;
 import java.io.IOException;
 import java.lang.management.ManagementFactory;
 import java.lang.management.OperatingSystemMXBean;
@@ -259,40 +258,47 @@ public class OsProbe {
     }
 
     /**
-     * Reads the {@code RssAnon} field from {@code /proc/self/status}. Package-private so tests
-     * can override it with canned file contents.
+     * Reads the lines of {@code /proc/self/status}. Package-private so tests can override it
+     * with canned file contents.
+     *
+     * @return the lines of {@code /proc/self/status}
+     * @throws IOException if the file cannot be opened or read
+     */
+    @SuppressForbidden(reason = "access /proc/self/status")
+    List<String> readProcSelfStatus() throws IOException {
+        return Files.readAllLines(PathUtils.get("/proc/self/status"));
+    }
+
+    /**
+     * Reads the {@code RssAnon} field from {@code /proc/self/status}.
      *
      * @return the {@code RssAnon} value in bytes, or {@code -1L} when the line is missing or
      *         the value is unparseable/negative
      * @throws IOException if the file cannot be opened or read
      */
-    @SuppressForbidden(reason = "access /proc/self/status")
     long readRssAnonFromProcSelfStatus() throws IOException {
-        try (BufferedReader reader = Files.newBufferedReader(PathUtils.get("/proc/self/status"))) {
-            String line;
-            while ((line = reader.readLine()) != null) {
-                if (line.startsWith("RssAnon:")) {
-                    // Format: "RssAnon:\t 12345 kB"
-                    String[] parts = line.split("\\s+");
-                    if (parts.length >= 2) {
-                        try {
-                            long kb = Long.parseLong(parts[1]);
-                            if (kb < 0L) {
-                                return -1L;
-                            }
-                            return kb * 1024L;
-                        } catch (NumberFormatException nfe) {
-                            logger.warn("malformed RssAnon value in /proc/self/status", nfe);
+        for (final String line : readProcSelfStatus()) {
+            if (line.startsWith("RssAnon:")) {
+                // Format: "RssAnon:\t 12345 kB"
+                final String[] parts = line.split("\\s+");
+                if (parts.length >= 2) {
+                    try {
+                        final long kb = Long.parseLong(parts[1]);
+                        if (kb < 0L) {
                             return -1L;
                         }
+                        return kb * 1024L;
+                    } catch (NumberFormatException nfe) {
+                        logger.warn("malformed RssAnon value in /proc/self/status", nfe);
+                        return -1L;
                     }
-                    logger.warn("RssAnon line has unexpected shape: [{}]", line);
-                    return -1L;
                 }
+                logger.warn("RssAnon line has unexpected shape: [{}]", line);
+                return -1L;
             }
-            logger.warn("RssAnon line not found in /proc/self/status");
-            return -1L;
         }
+        logger.warn("RssAnon line not found in /proc/self/status");
+        return -1L;
     }
 
     public short getSystemCpuPercent() {
