@@ -177,8 +177,15 @@ pub fn create_global_runtime(
         )));
     }
 
+    let effective_spill_limit = if spill_limit == 0 {
+        // Auto-detect: use 80% of available disk space on the spill directory
+        resolve_dynamic_spill_limit(spill_dir)
+    } else {
+        spill_limit as u64
+    };
+
     let disk_manager = DiskManagerBuilder::default()
-        .with_max_temp_directory_size(spill_limit as u64)
+        .with_max_temp_directory_size(effective_spill_limit)
         .with_mode(DiskManagerMode::Directories(vec![PathBuf::from(spill_dir)]));
 
     let (dynamic_pool, dynamic_limit_handle) = DynamicLimitPool::new(memory_pool_limit as usize);
@@ -413,6 +420,57 @@ pub async unsafe fn execute_query(
 /// valid DataFusion identifier anywhere else a plan would naturally contain
 /// it; the failure mode is documented here to keep the dispatch contract
 /// explicit.
+/// Resolve the dynamic spill limit based on available disk space.
+/// Uses 80% of available space on the spill directory's filesystem.
+/// Falls back to 8GB if disk space cannot be determined.
+fn resolve_dynamic_spill_limit(spill_dir: &str) -> u64 {
+    const FRACTION: f64 = 0.80;
+    const FALLBACK: u64 = 8 * 1024 * 1024 * 1024; // 8GB
+
+    // Ensure the spill directory exists
+    let _ = std::fs::create_dir_all(spill_dir);
+
+    match available_disk_space(spill_dir) {
+        Some(available) => {
+            let limit = (available as f64 * FRACTION) as u64;
+            log::info!(
+                "Dynamic spill limit: {} bytes (80% of {} available on {})",
+                limit, available, spill_dir
+            );
+            limit
+        }
+        None => {
+            log::warn!(
+                "Could not determine disk space for '{}', using fallback {}GB",
+                spill_dir, FALLBACK / (1024 * 1024 * 1024)
+            );
+            FALLBACK
+        }
+    }
+}
+
+/// Query available disk space for the given path using platform-specific APIs.
+#[cfg(unix)]
+fn available_disk_space(path: &str) -> Option<u64> {
+    use std::ffi::CString;
+    use std::mem::MaybeUninit;
+
+    let c_path = CString::new(path).ok()?;
+    let mut stat = MaybeUninit::<libc::statvfs>::uninit();
+    let ret = unsafe { libc::statvfs(c_path.as_ptr(), stat.as_mut_ptr()) };
+    if ret != 0 {
+        return None;
+    }
+    let stat = unsafe { stat.assume_init() };
+    // f_bavail = blocks available to non-root, f_frsize = fragment size
+    Some(stat.f_bavail as u64 * stat.f_frsize as u64)
+}
+
+#[cfg(not(unix))]
+fn available_disk_space(_path: &str) -> Option<u64> {
+    None // Windows: fallback to default
+}
+
 fn plan_bytes_mentions_index_filter(plan_bytes: &[u8]) -> bool {
     const NEEDLE: &[u8] = b"index_filter";
     plan_bytes.windows(NEEDLE.len()).any(|w| w == NEEDLE)
