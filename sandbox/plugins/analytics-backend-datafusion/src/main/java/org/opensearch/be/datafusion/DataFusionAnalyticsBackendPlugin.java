@@ -280,6 +280,7 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         // by a custom Rust UDF on the DataFusion session context (`udf::mvfind`), routed via
         // {@link MvfindAdapter}.
         ScalarFunction.MVFIND,
+        ScalarFunction.BINARY,
         // Logical connectives — emitted in projections where boolean expressions are composed:
         // `case(a = 0 and b = 0, …)`, `eval x = a or b`, `eval x = NOT y`. DataFusion's substrait
         // consumer handles them natively.

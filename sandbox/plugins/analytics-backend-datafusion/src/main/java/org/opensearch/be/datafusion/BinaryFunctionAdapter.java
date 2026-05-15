@@ -79,8 +79,9 @@ class BinaryFunctionAdapter implements ScalarFunctionAdapter {
         }
 
         RexBuilder rexBuilder = cluster.getRexBuilder();
-        RelDataType varbinary = cluster.getTypeFactory().createSqlType(SqlTypeName.VARBINARY);
-        return rexBuilder.makeLiteral(new ByteString(bytes), varbinary, false);
+        RelDataType varbinary = cluster.getTypeFactory()
+            .createTypeWithNullability(cluster.getTypeFactory().createSqlType(SqlTypeName.VARBINARY), true);
+        return rexBuilder.makeAbstractCast(varbinary, rexBuilder.makeLiteral(new ByteString(bytes), varbinary, false), false);
     }
 
     /**

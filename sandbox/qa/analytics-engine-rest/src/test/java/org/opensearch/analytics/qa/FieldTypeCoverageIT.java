@@ -226,6 +226,29 @@ public class FieldTypeCoverageIT extends AnalyticsRestTestCase {
         );
     }
 
+    /**
+     * Project-side coverage of {@code BinaryFunctionAdapter}. PPL {@code eval if(col=lit, …)},
+     * {@code case(col=lit, …)}, and {@code count(eval(col=lit))} all lower to a
+     * {@code BINARY('lit':VARCHAR)} placeholder inside a {@code LogicalProject} (or a CASE in
+     * the project tree above an aggregate).
+     */
+    public void testIpAndBinaryProjectExpressions() throws IOException {
+        Map<String, Object> ipBulk = ingest("ft_ip_project", "ip", "\"192.168.1.1\"", "\"10.0.0.1\"", "\"172.16.0.1\"");
+        assertBulkSucceeded(ipBulk, "ft_ip_project");
+        assertFilterRowCount("source=ft_ip_project | eval is_local=if(val='192.168.1.1','y','n')", 3);
+        assertFilterRowCount(
+            "source=ft_ip_project | eval cls=case(val='192.168.1.1','a',val='10.0.0.1','b',true,'c')",
+            3
+        );
+        assertFilterRowCount("source=ft_ip_project | stats count(eval(val='192.168.1.1')) as cnt", 1);
+
+        Map<String, Object> binBulk = ingest("ft_binary_project", "binary", "\"YWxpY2U=\"", "\"Ym9i\"", "\"Y2Fyb2w=\"");
+        assertBulkSucceeded(binBulk, "ft_binary_project");
+        assertFilterRowCount("source=ft_binary_project | eval is_alice=if(val='YWxpY2U=','y','n')", 3);
+        assertFilterRowCount("source=ft_binary_project | stats count(eval(val='YWxpY2U=')) as c", 1);
+        assertFilterRowCount("source=ft_ip_project | where val='192.168.1.1' | fields val", 1);
+    }
+
     // ── Phase 1: Ingest ──────────────────────────────────────────────────────────
 
     /**
