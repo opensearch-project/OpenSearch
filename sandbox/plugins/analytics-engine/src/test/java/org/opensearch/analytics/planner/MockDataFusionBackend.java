@@ -138,9 +138,18 @@ public class MockDataFusionBackend extends MockBackend implements SearchBackEndP
 
     @Override
     protected Set<WindowCapability> windowCapabilities() {
+        // Mirrors DataFusionAnalyticsBackendPlugin.windowCapabilities — SUM/AVG/COUNT/MIN/MAX
+        // for eventstats, ROW_NUMBER for streamstats … by … helper sequence column.
         return Set.of(
             new WindowCapability(
-                Set.of(WindowFunction.SUM, WindowFunction.AVG, WindowFunction.COUNT, WindowFunction.MIN, WindowFunction.MAX),
+                Set.of(
+                    WindowFunction.SUM,
+                    WindowFunction.AVG,
+                    WindowFunction.COUNT,
+                    WindowFunction.MIN,
+                    WindowFunction.MAX,
+                    WindowFunction.ROW_NUMBER
+                ),
                 Set.of(PARQUET_DATA_FORMAT)
             )
         );
