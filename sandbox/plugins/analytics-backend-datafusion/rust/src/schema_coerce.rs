@@ -34,6 +34,11 @@
 //!     no arm for them today (DF 53). If it becomes available in DataFusion,
 //!     the `BinaryView → Binary` rewrite here can be removed.
 //!
+//!     TODO: every record batch goes through a `BinaryView → Binary` cast in the
+//!     SchemaAdapter (offset+data buffer copy), and downstream operators see
+//!     `Binary` rather than `BinaryView`. Drop this arm when we have a proper
+//!     solution.
+//!
 //!   - `(Int64, UInt64)` is a Substrait + Calcite gap. Substrait's integer
 //!     types are signed-only and Calcite has no unsigned `BIGINT`, so the
 //!     unsigned semantics are lost before the plan reaches DataFusion. Values

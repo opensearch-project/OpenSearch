@@ -117,6 +117,9 @@ public class OpenSearchSchemaBuilder {
                 return SqlTypeName.TIMESTAMP;
             case "ip":
             case "binary":
+                // TODO: differentiate ip and binary as separate UDTs instead of collapsing both
+                // to VARBINARY. With the type preserved, literals can be converted into the
+                // on-disk byte form the planner expects.
                 return SqlTypeName.VARBINARY;
             default:
                 throw new IllegalArgumentException("Unsupported OpenSearch field type: " + opensearchType);
