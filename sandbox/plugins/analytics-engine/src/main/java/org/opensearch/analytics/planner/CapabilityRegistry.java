@@ -80,6 +80,7 @@ public class CapabilityRegistry {
     private final Set<String> filterCapableBackends = new HashSet<>();
     private final Set<String> aggregateCapableBackends = new HashSet<>();
     private final Set<String> projectCapableBackends = new HashSet<>();
+    private final Set<String> joinCapableBackends = new HashSet<>();
 
     public CapabilityRegistry(
         List<AnalyticsSearchBackendPlugin> backends,
@@ -169,6 +170,13 @@ public class CapabilityRegistry {
                 }
                 projectCapableBackends.add(name);
             }
+            // PR #21639's JoinCapability is consumed directly by OpenSearchJoinRule via the
+            // backend's capability provider — no per-format indexing here. M0's Equi/Theta
+            // indexing scheme was tied to the old marking-time ER insertion path and is
+            // dead under the split-rule architecture.
+            if (!caps.joinCapabilities().isEmpty()) {
+                joinCapableBackends.add(name);
+            }
         }
     }
 
@@ -202,6 +210,10 @@ public class CapabilityRegistry {
 
     public Set<String> projectCapableBackends() {
         return projectCapableBackends;
+    }
+
+    public Set<String> joinCapableBackends() {
+        return joinCapableBackends;
     }
 
     // ---- Scan lookups ----

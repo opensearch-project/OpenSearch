@@ -38,6 +38,33 @@ import java.util.List;
  */
 public class Stage {
 
+    /**
+     * Semantic role of this stage within a potentially multi-stage join execution. Orthogonal to
+     * {@link StageExecutionType} (which describes *how* the stage runs); {@code StageRole}
+     * describes *why* the stage exists so the coordinator can route MPP-specific dispatch paths.
+     *
+     * <p>Defaults to {@link #SHARD_SOURCE} for every stage constructed by {@code DAGBuilder};
+     * MPP rewrites in {@code DefaultPlanExecutor} / {@code QueryScheduler} may re-tag stages as
+     * {@link #BROADCAST_BUILD} / {@link #BROADCAST_PROBE} / {@link #SHUFFLE_SCAN_LEFT} /
+     * {@link #SHUFFLE_SCAN_RIGHT} / {@link #SHUFFLE_WORKER} before dispatch.
+     */
+    public enum StageRole {
+        /** Data-node scan stage — default for anything built by the DAG cutter. */
+        SHARD_SOURCE,
+        /** Coordinator-side reduce/gather stage. */
+        COORDINATOR_REDUCE,
+        /** Broadcast-join build side — results are collected and re-dispatched as broadcast payload. */
+        BROADCAST_BUILD,
+        /** Broadcast-join probe side — each task carries the join plan plus broadcast data. */
+        BROADCAST_PROBE,
+        /** Hash-shuffle left scan — partitions and ships to workers (M2). */
+        SHUFFLE_SCAN_LEFT,
+        /** Hash-shuffle right scan — partitions and ships to workers (M2). */
+        SHUFFLE_SCAN_RIGHT,
+        /** Hash-shuffle worker stage — one task per shuffle partition, consumes two input streams (M2). */
+        SHUFFLE_WORKER
+    }
+
     private final int stageId;
     private final RelNode fragment;
     private final List<Stage> childStages;
@@ -47,6 +74,7 @@ public class Stage {
     private final StageExecutionType executionType;
     private List<StagePlan> planAlternatives;
     private FragmentInstructionHandlerFactory instructionHandlerFactory;
+    private StageRole role = StageRole.SHARD_SOURCE;
 
     public Stage(
         int stageId,
@@ -126,6 +154,16 @@ public class Stage {
 
     public void setInstructionHandlerFactory(FragmentInstructionHandlerFactory instructionHandlerFactory) {
         this.instructionHandlerFactory = instructionHandlerFactory;
+    }
+
+    /** Returns the semantic role tag. Defaults to {@link StageRole#SHARD_SOURCE}. */
+    public StageRole getRole() {
+        return role;
+    }
+
+    /** Re-tag this stage's role — called by MPP rewrites before dispatch. */
+    public void setRole(StageRole role) {
+        this.role = role;
     }
 
     private StageExecutionType setStageExecutionType(ExchangeSinkProvider exchangeSinkProvider, TargetResolver targetResolver) {

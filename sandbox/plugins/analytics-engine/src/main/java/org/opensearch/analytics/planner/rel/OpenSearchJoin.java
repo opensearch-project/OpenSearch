@@ -56,12 +56,19 @@ public class OpenSearchJoin extends Join implements OpenSearchRelNode {
     /**
      * Output field storage is the concatenation of left and right input storage —
      * matches Calcite's join row type ordering (left fields first, then right).
+     *
+     * <p>SEMI / ANTI joins project only the left side — Calcite's {@code Join#getRowType}
+     * exposes left fields only in those cases, so our storage metadata must mirror that or
+     * downstream walkers (e.g. {@code OpenSearchJoinRule.collectStorageFormats} on a wrapping
+     * outer join) index past the row and pick up phantom formats from the right.
      */
     @Override
     public List<FieldStorageInfo> getOutputFieldStorage() {
         List<FieldStorageInfo> result = new ArrayList<>();
         appendChildStorage(getLeft(), result);
-        appendChildStorage(getRight(), result);
+        if (getJoinType().projectsRight()) {
+            appendChildStorage(getRight(), result);
+        }
         return result;
     }
 

@@ -72,14 +72,27 @@ public class QueryScheduler implements Scheduler {
         walkerPool.put(queryId, walker);
 
         final AnalyticsQueryTask queryTask = config.parentTask();
+
+        // Build the graph BEFORE installing the cancel callback. PlanWalker.cancelAll() bails
+        // when the graph is null (it's the only state it can know to cascade cancels through),
+        // so installing the callback before build() lets a late-cancel replay run cancelAll()
+        // against a null graph — a silent no-op that allows the query to keep running.
+        // Installing the callback after build() means:
+        // - any cancel landing during build() has nothing installed yet → onCancelled is a
+        // no-op on the task side, but
+        // - setOnCancelCallback below sees isCancelled() and replays the new callback
+        // synchronously, which now has a real graph to cascade cancels through.
+        // The subsequent walker.start(graph) calls leaf.start() on each leaf; those that
+        // already saw cancelAll transition into CANCELLED and ShardFragmentStageExecution.start
+        // / LocalStageExecution.start treat transitionTo(RUNNING) failure as a no-op, so no
+        // dispatch happens for cancelled queries.
+        ExecutionGraph graph = walker.build();
+
         queryTask.setOnCancelCallback(() -> {
             String reason = "task cancelled: " + (queryTask.getReasonCancelled() != null ? queryTask.getReasonCancelled() : "unknown");
             logger.info("[QueryScheduler] AnalyticsQueryTask.onCancelled fired, reason={}", reason);
             walker.cancelAll(reason);
         });
-
-        // Two-phase: build graph, then start execution
-        ExecutionGraph graph = walker.build();
 
         opListener.onQueryStart(queryId, graph.stageCount());
 
@@ -104,6 +117,15 @@ public class QueryScheduler implements Scheduler {
             listener.onFailure(e);
         });
         return new PlanWalker(config, stageExecutionBuilder, wrapped);
+    }
+
+    /**
+     * Package-accessor for the underlying {@link StageExecutionBuilder}. Used by join-strategy
+     * dispatchers (e.g. M1 broadcast) that need to run a single stage in isolation with a
+     * caller-supplied output sink, bypassing the walker's parent-sink resolution chain.
+     */
+    public StageExecutionBuilder stageExecutionBuilder() {
+        return stageExecutionBuilder;
     }
 
     /** Pool-level lookup for observability / metrics. */

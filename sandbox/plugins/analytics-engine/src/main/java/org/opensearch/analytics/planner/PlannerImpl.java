@@ -89,6 +89,11 @@ public class PlannerImpl {
             List.of(
                 new ReduceExpressionsRule.FilterReduceExpressionsRule(Filter.class, RelBuilder.proto(Contexts.empty())),
                 new ReduceExpressionsRule.ProjectReduceExpressionsRule(Project.class, RelBuilder.proto(Contexts.empty()))
+                // Join reordering (JOIN_TO_MULTI_JOIN + MULTI_JOIN_OPTIMIZE_BUSHY) is deferred:
+                // running both in the same HEP ARBITRARY pass loops indefinitely (they invert
+                // each other's output). A follow-up should run them in a separate HEP program
+                // with explicit fixed-point policy, gated on multi-way-join detection. For now
+                // the LogicalJoin tree from the frontend is marked as-is.
             )
         );
         HepPlanner prePlanner = new HepPlanner(preBuilder.build());
@@ -143,6 +148,16 @@ public class PlannerImpl {
         volcanoPlanner.addRule(new OpenSearchJoinSplitRule(context));
         volcanoPlanner.addRule(new OpenSearchUnionSplitRule(context));
         volcanoPlanner.addRule(new OpenSearchDistributionDeriveRule(context));
+        // M0 also defined OpenSearchHashJoinRule (HASH-shuffle Volcano alternative for equi-joins)
+        // which we intentionally do NOT register here. That rule was written against the old
+        // architecture (ER insertion at HEP marking time); under PR #21639's split-rule design
+        // it loops with OpenSearchDistributionTraitDef.convert(): the hash rule emits HASH-keyed
+        // shuffle children, the trait def wraps them with an ER to satisfy SINGLETON, the hash
+        // rule re-fires on the resulting OpenSearchJoin, and the memo explodes (verified
+        // empirically — PlanShapeTests.testJoinThenSort_2shard hits 16+ minute suite timeout).
+        // M2 hash-shuffle support needs to be redesigned as a sibling split rule, modeled after
+        // OpenSearchJoinSplitRule, that emits HASH-localized join alternatives consistently
+        // with the new cost-gate semantics. Tracked as M2 follow-up.
         volcanoPlanner.addRule(AbstractConverter.ExpandConversionRule.INSTANCE);
 
         RelOptCluster volcanoCluster = RelOptCluster.create(volcanoPlanner, rawRelNode.getCluster().getRexBuilder());

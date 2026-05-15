@@ -13,7 +13,6 @@ import org.apache.calcite.plan.RelOptRuleCall;
 import org.apache.calcite.plan.RelTraitSet;
 import org.apache.calcite.plan.hep.HepRelVertex;
 import org.apache.calcite.rel.RelNode;
-import org.apache.calcite.rel.core.JoinInfo;
 import org.apache.calcite.rel.core.JoinRelType;
 import org.apache.calcite.rel.logical.LogicalJoin;
 import org.opensearch.analytics.planner.PlannerContext;
@@ -35,7 +34,10 @@ import java.util.Set;
  * SINGLETON inputs — Volcano inserts an {@link OpenSearchExchangeReducer} per side).
  *
  * <p>Accepts INNER / LEFT / RIGHT / FULL / SEMI / ANTI equi-joins. Cross joins match
- * via {@link JoinInfo#isEqui()}. Pure non-equi predicates are rejected.
+ * via {@link org.apache.calcite.rel.core.JoinInfo#isEqui()}. Pure non-equi predicates
+ * are rejected — they currently fail at plan time (Volcano's trait converter has no path
+ * for raw {@code LogicalJoin}). M2 follow-up: re-enable theta joins through a coord-centric
+ * fallback path consistent with the new split-rule architecture.
  *
  * @opensearch.internal
  */
@@ -52,9 +54,6 @@ public class OpenSearchJoinRule extends RelOptRule {
     public boolean matches(RelOptRuleCall call) {
         LogicalJoin join = call.rel(0);
         JoinRelType joinType = join.getJoinType();
-        // Accept INNER / LEFT / RIGHT / FULL / SEMI / ANTI equi-joins. FULL is needed
-        // by PPL's `appendcol` lowering (ROW_NUMBER pairing via a full outer join on the
-        // row numbers). Pure non-equi joins are rejected below via JoinInfo.isEqui().
         if (joinType != JoinRelType.INNER
             && joinType != JoinRelType.LEFT
             && joinType != JoinRelType.RIGHT
@@ -63,11 +62,7 @@ public class OpenSearchJoinRule extends RelOptRule {
             && joinType != JoinRelType.ANTI) {
             return false;
         }
-        // Accept equi-joins and cross joins (both satisfy JoinInfo.isEqui() — empty
-        // nonEquiConditions). A pure non-equi predicate (e.g. t1.a < t2.b) yields
-        // isEqui()=false and stays rejected — DataFusion would need a non-equi
-        // NestedLoopJoin path we don't enable yet.
-        JoinInfo info = join.analyzeCondition();
+        org.apache.calcite.rel.core.JoinInfo info = join.analyzeCondition();
         return info.isEqui();
     }
 

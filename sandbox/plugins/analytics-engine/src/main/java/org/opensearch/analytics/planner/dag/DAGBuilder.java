@@ -13,6 +13,7 @@ import org.opensearch.analytics.planner.CapabilityRegistry;
 import org.opensearch.analytics.planner.CapabilityResolutionUtils;
 import org.opensearch.analytics.planner.rel.OpenSearchExchangeReducer;
 import org.opensearch.analytics.planner.rel.OpenSearchRelNode;
+import org.opensearch.analytics.planner.rel.OpenSearchShuffleExchange;
 import org.opensearch.analytics.planner.rel.OpenSearchStageInputScan;
 import org.opensearch.analytics.spi.ExchangeSinkProvider;
 import org.opensearch.cluster.service.ClusterService;
@@ -73,6 +74,8 @@ public class DAGBuilder {
         for (RelNode input : node.getInputs()) {
             if (input instanceof OpenSearchExchangeReducer reducer) {
                 newInputs.add(cutAtExchange(reducer, counter, childStages, registry, clusterService));
+            } else if (input instanceof OpenSearchShuffleExchange shuffle) {
+                newInputs.add(cutShuffle(shuffle, counter, childStages, clusterService));
             } else {
                 newInputs.add(sever(input, counter, childStages, registry, clusterService));
             }
@@ -133,6 +136,56 @@ public class DAGBuilder {
             stageInput,
             reducer.getViableBackends(),
             reducer.getExchangeInfo()
+        );
+    }
+
+    /**
+     * Cut at a {@link OpenSearchShuffleExchange}. The subtree below the shuffle becomes a child
+     * stage with a SHUFFLE_SCAN role (the coordinator disambiguates left/right later). The parent
+     * fragment's view of the shuffle is preserved — its input is replaced with a
+     * {@link OpenSearchStageInputScan}. Exchange metadata on the child stage carries the shuffle
+     * keys and partition count so the scheduler can dispatch shuffle-producer tasks.
+     */
+    private static RelNode cutShuffle(
+        OpenSearchShuffleExchange shuffle,
+        int[] counter,
+        List<Stage> parentChildStages,
+        ClusterService clusterService
+    ) {
+        List<Stage> grandchildren = new ArrayList<>();
+        RelNode childFragment = shuffle.getInput();
+
+        int childStageId = counter[0]++;
+        Stage childStage = new Stage(
+            childStageId,
+            childFragment,
+            grandchildren,
+            // M2 follow-up: this branch is currently unreachable because OpenSearchHashJoinRule
+            // is no longer registered in PlannerImpl (incompatible with PR #21639's split-rule
+            // architecture — see PlannerImpl javadoc). The 2-arg ExchangeInfo here is a
+            // placeholder; M2 hash-shuffle redesign will need to add partitionCount back.
+            new ExchangeInfo(org.apache.calcite.rel.RelDistribution.Type.HASH_DISTRIBUTED, shuffle.getHashKeys()),
+            /* sinkProvider */ null,
+            new ShardTargetResolver(childFragment, clusterService)
+        );
+        // Tag as a shuffle scan — the coordinator picks LEFT / RIGHT before dispatch.
+        childStage.setRole(Stage.StageRole.SHUFFLE_SCAN_LEFT);
+        parentChildStages.add(childStage);
+
+        OpenSearchStageInputScan stageInput = new OpenSearchStageInputScan(
+            shuffle.getCluster(),
+            shuffle.getTraitSet(),
+            childStageId,
+            shuffle.getInput().getRowType(),
+            shuffle.getViableBackends()
+        );
+        return new OpenSearchShuffleExchange(
+            shuffle.getCluster(),
+            shuffle.getTraitSet(),
+            stageInput,
+            shuffle.getHashKeys(),
+            shuffle.getPartitionCount(),
+            shuffle.getViableBackends()
         );
     }
 }
