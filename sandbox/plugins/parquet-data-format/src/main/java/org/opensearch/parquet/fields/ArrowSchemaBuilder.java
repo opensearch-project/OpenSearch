@@ -18,6 +18,7 @@ import org.opensearch.index.mapper.IndexFieldMapper;
 import org.opensearch.index.mapper.Mapper;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.NestedPathFieldMapper;
+import org.opensearch.index.mapper.SeqNoFieldMapper;
 import org.opensearch.index.mapper.SourceFieldMapper;
 import org.opensearch.parquet.fields.core.data.number.LongParquetField;
 
@@ -57,8 +58,9 @@ public final class ArrowSchemaBuilder {
             }
         }
         // Add row ID field (long)
-        LongParquetField longField = new LongParquetField();
+        LongParquetField longField = new LongParquetField(false);
         fields.add(new Field(DocumentInput.ROW_ID_FIELD, longField.getFieldType(), null));
+        fields.add(new Field(SeqNoFieldMapper.PRIMARY_TERM_NAME, new LongParquetField(false).getFieldType(), null));
         return new Schema(fields);
     }
 
