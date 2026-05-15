@@ -533,19 +533,11 @@ pub unsafe fn sql_to_substrait(
     })
 }
 
-/// Returns the Arrow IPC bytes of the output schema of the prepared physical plan
-/// for the given partial-aggregate Substrait plan.
-///
-/// The coordinator calls this at stage-setup time with each child stage's PARTIAL
-/// substrait bytes. We decode the plan, register an empty MemTable for every
-/// NamedTable reference (using the substrait `base_schema` carried alongside the
-/// read as the stub Arrow schema), lower to a physical plan, and serialize the
-/// output schema as Arrow IPC. The plan is dropped at function exit — only the
-/// schema is returned.
-///
-/// This lets the coordinator declare the streaming-input wire schema in agreement
-/// with what DataFusion will actually emit (e.g. `Utf8View` for string group keys),
-/// without any predictor logic on the Java side.
+/// Returns the Arrow IPC bytes of the prepared physical plan's output schema
+/// for the given partial-aggregate Substrait plan. NamedTable references are
+/// resolved against an empty MemTable derived from the substrait base_schema,
+/// so no real parquet files are needed on the coordinator. The plan is dropped
+/// at function exit; only the schema bytes are returned.
 pub fn partial_plan_output_schema(substrait_bytes: &[u8]) -> Result<Vec<u8>, DataFusionError> {
     use arrow::ipc::writer::StreamWriter;
     use datafusion::datasource::MemTable;
@@ -568,13 +560,8 @@ pub fn partial_plan_output_schema(substrait_bytes: &[u8]) -> Result<Vec<u8>, Dat
     let ctx = SessionContext::new_with_state(state);
     crate::udf::register_all(&ctx);
 
-    // Mirror the data-node ParquetFormat reader's view-type promotion. The data-node
-    // session reads with `schema_force_view_types=true` (default in DF 53), turning
-    // every `Utf8`/`Binary` into `Utf8View`/`BinaryView` at the leaf. The substrait
-    // base_schema embedded in the partial plan still says `Utf8` (from Calcite's
-    // logical row type), so we apply the same transform here when building the stub
-    // MemTable schema. Otherwise the HashAggregate's group_fields would inherit
-    // `Utf8` from the MemTable and we'd report the wrong output type.
+    // Apply the same view-type promotion ParquetFormat performs on the data-node
+    // session, gated on the same `schema_force_view_types` flag.
     let view_types = ctx
         .copied_config()
         .options()
@@ -608,7 +595,7 @@ pub fn partial_plan_output_schema(substrait_bytes: &[u8]) -> Result<Vec<u8>, Dat
             arrow_schema
         };
         let table = MemTable::try_new(Arc::new(arrow_schema), vec![vec![]])?;
-        // Duplicate registrations (same table scanned twice) just no-op.
+        // Plan may scan the same table twice; the second register is a no-op.
         let _ = ctx.register_table(&table_name, Arc::new(table));
     }
 
@@ -616,9 +603,7 @@ pub fn partial_plan_output_schema(substrait_bytes: &[u8]) -> Result<Vec<u8>, Dat
     let physical_plan = futures::executor::block_on(session_state.create_physical_plan(&logical_plan))?;
     let schema = physical_plan.schema();
 
-    // Match the Java `MessageSerializer.serializeMetadata` framing that
-    // `register_partition_stream` (Rust-side StreamReader) consumes: an Arrow
-    // IPC stream whose only message is the schema header.
+    // Arrow IPC stream framing — matches what `register_partition_stream` reads.
     let mut buf: Vec<u8> = Vec::new();
     {
         let mut writer = StreamWriter::try_new(&mut buf, schema.as_ref())

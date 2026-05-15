@@ -93,7 +93,7 @@ pub(crate) fn coerce_slot(
             }
         },
         CoerceMode::Utf8 => match observed {
-            Utf8 | LargeUtf8 | Utf8View => Ok(Utf8),
+            Utf8 | LargeUtf8 | Utf8View => Ok(observed.clone()),
             other => plan_err!("{udf_name}: arg {slot_index} expected string, got {other:?}"),
         },
     }
@@ -300,10 +300,10 @@ mod tests {
 
     // ── Utf8 ───────────────────────────────────────────────────────────────
     #[test]
-    fn utf8_accepts_every_string_variant() {
+    fn utf8_passes_string_variant_through_unchanged() {
         for observed in [DataType::Utf8, DataType::LargeUtf8, DataType::Utf8View] {
             let result = coerce_slot("s", 0, &observed, CoerceMode::Utf8).unwrap();
-            assert_eq!(result, DataType::Utf8);
+            assert_eq!(result, observed, "CoerceMode::Utf8 should pass the variant through");
         }
     }
 

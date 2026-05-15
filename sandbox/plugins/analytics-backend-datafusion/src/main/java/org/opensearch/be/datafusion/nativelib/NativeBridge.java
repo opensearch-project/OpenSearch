@@ -731,10 +731,7 @@ public final class NativeBridge {
 
     /**
      * Returns the Arrow IPC schema bytes for the output of the prepared physical
-     * plan corresponding to the given partial-aggregate Substrait plan. Used by
-     * the coordinator to declare the streaming-input wire schema in agreement
-     * with what the data-node DataFusion will actually emit (e.g. {@code Utf8View}
-     * for string group keys).
+     * plan corresponding to the given partial-aggregate Substrait plan.
      */
     public static byte[] partialPlanOutputSchema(byte[] substrait) {
         try (var call = new NativeCall()) {

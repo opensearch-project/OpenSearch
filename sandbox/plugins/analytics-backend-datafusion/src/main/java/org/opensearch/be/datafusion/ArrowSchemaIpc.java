@@ -43,12 +43,7 @@ public final class ArrowSchemaIpc {
         return baos.toByteArray();
     }
 
-    /**
-     * Decodes an Arrow IPC stream byte buffer (whose only message is the schema
-     * header) into an Arrow {@link Schema}. Inverse of {@link #toBytes(Schema)};
-     * also accepts the empty-batch stream produced by Rust's
-     * {@code StreamWriter::try_new + finish()}.
-     */
+    /** Inverse of {@link #toBytes(Schema)}: decodes an Arrow IPC schema-only stream. */
     public static Schema fromBytes(byte[] ipcBytes) {
         try (
             RootAllocator allocator = new RootAllocator();

@@ -249,10 +249,8 @@ pub unsafe extern "C" fn df_sql_to_substrait(
 // `df_stream_close` paths unchanged.
 // ---------------------------------------------------------------------------
 
-/// Returns the Arrow IPC bytes for the output schema of the prepared physical plan
-/// for the given partial-aggregate Substrait plan. Mirrors the
-/// `df_sql_to_substrait` calling convention: caller-allocated buffer, length
-/// written back through `out_len`.
+/// FFI for [`api::partial_plan_output_schema`]; caller-allocated out buffer,
+/// length written back through `out_len`. Same convention as `df_sql_to_substrait`.
 #[ffm_safe]
 #[no_mangle]
 pub unsafe extern "C" fn df_partial_plan_output_schema(

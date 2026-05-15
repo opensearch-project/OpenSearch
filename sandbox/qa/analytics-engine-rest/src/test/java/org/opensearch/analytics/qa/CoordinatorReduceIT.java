@@ -233,12 +233,7 @@ public class CoordinatorReduceIT extends AnalyticsRestTestCase {
 
     /**
      * Multi-shard GROUP BY with a string key that produces multiple distinct groups.
-     * Specifically validates the Phase (i) Utf8View-on-the-wire fix: every shard's PARTIAL
-     * aggregate physically emits {@code Utf8View} for the {@code category} group key, the
-     * coordinator's StreamingTable is now declared with {@code Utf8View} (matching), and
-     * the FINAL aggregate must group correctly across the wire without any Java-side
-     * coercion. Distinct group keys catch any byte-level corruption that a single-group
-     * test would miss.
+     * Distinct keys catch any byte-level corruption a single-group test would miss.
      */
     public void testGroupByCountMultiShard_multipleStringKeys() throws Exception {
         createStringGroupIndex();
@@ -269,8 +264,7 @@ public class CoordinatorReduceIT extends AnalyticsRestTestCase {
 
     private void indexMultiCategoryDocs() throws Exception {
         // 10 alpha + 6 beta + 4 gamma = 20 docs (matches NUM_SHARDS × DOCS_PER_SHARD).
-        // Per-category counts are unique so column-position validation catches any group-key
-        // value mix-up after the wire crossing.
+        // Counts are unique per category so column-position checks catch any mix-up.
         StringBuilder bulk = new StringBuilder();
         String[] categories = new String[20];
         for (int i = 0; i < 10; i++) categories[i] = "alpha";

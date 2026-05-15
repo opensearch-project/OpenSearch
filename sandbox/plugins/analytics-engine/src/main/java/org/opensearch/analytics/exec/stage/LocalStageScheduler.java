@@ -139,12 +139,8 @@ final class LocalStageScheduler implements StageScheduler {
     }
 
     /**
-     * Derives the Arrow exchange schema for a child stage. Asks the backend's
-     * {@link org.opensearch.analytics.spi.FragmentConvertor#partialAggOutputSchema} for
-     * the schema the data-node prepared physical plan will actually emit (so e.g. string
-     * group keys carry their physical {@code Utf8View} type through to the wire). Falls
-     * back to a Calcite-row-type derivation when the backend has no opinion or no plan
-     * bytes are available.
+     * Asks the backend for the child's physical output schema; falls back to a
+     * Calcite row-type derivation when the backend has no opinion.
      */
     private static Schema childSchema(Stage parent, Stage child) {
         var convertor = parent.getFragmentConvertor();

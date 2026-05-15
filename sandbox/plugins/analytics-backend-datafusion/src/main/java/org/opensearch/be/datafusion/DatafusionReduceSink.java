@@ -198,14 +198,7 @@ public final class DatafusionReduceSink extends AbstractDatafusionReduceSink imp
             return;
         }
         BufferAllocator alloc = ctx.allocator();
-        // The wire schema is sourced from the data-node's prepared physical plan via
-        // FragmentConvertor#partialAggOutputSchema, so producer and consumer agree on
-        // physical types (e.g. Utf8View for string group keys) and no coercion is
-        // needed. This check guards against drift in case DataFusion's physical
-        // output diverges from what was prepared for schema derivation. Nullability
-        // is ignored — DataFusion stamps aggregate-result columns as non-null when
-        // it can prove a row will be produced, which is an advisory property and
-        // does not affect bytes.
+        // Type check only; nullability is advisory and ignored.
         if (!typesMatch(batch.getSchema(), declaredSchema)) {
             batch.close();
             throw new IllegalStateException(
@@ -253,10 +246,7 @@ public final class DatafusionReduceSink extends AbstractDatafusionReduceSink imp
         }
     }
 
-    /**
-     * Field-by-field type equality. Ignores nullability flags on each field — see the
-     * comment at the call site in {@link #feedToSender}.
-     */
+    /** Field-by-field type equality, ignoring nullability. */
     private static boolean typesMatch(Schema actual, Schema declared) {
         List<Field> a = actual.getFields();
         List<Field> d = declared.getFields();

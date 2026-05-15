@@ -93,18 +93,11 @@ public interface FragmentConvertor {
     }
 
     /**
-     * Returns the Arrow schema the data-node prepared physical plan will emit for
-     * the given partial-aggregate plan bytes. The coordinator uses this to declare
-     * its streaming-input wire schema in agreement with what the producer actually
-     * emits (e.g. {@code Utf8View} for string group keys), avoiding any Java-side
-     * coercion at the wire boundary.
+     * Returns the Arrow schema the data node's prepared physical plan will emit
+     * for the given partial-aggregate plan bytes, or {@code null} if the backend
+     * has no opinion (caller falls back to a row-type-based derivation).
      *
-     * <p>Default returns {@code null}, meaning the backend has no opinion and the
-     * caller should fall back to a row-type-based derivation.
-     *
-     * @param partialAggBytes serialized partial-aggregate plan bytes from a prior
-     *                        {@link #attachPartialAggOnTop} call
-     * @return the Arrow schema the data-node will emit, or {@code null}
+     * @param partialAggBytes bytes from a prior {@link #attachPartialAggOnTop}
      */
     default Schema partialAggOutputSchema(byte[] partialAggBytes) {
         return null;
