@@ -111,9 +111,9 @@ public class BaseRemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
             metadataFilename,
             getDummyMetadata("_0", 1),
             metadataFilename2,
-            getDummyMetadata("_0", 1),
+            getDummyMetadata("_0", 2),
             metadataFilename3,
-            getDummyMetadata("_0", 1)
+            getDummyMetadata("_0", 3)
         );
 
         when(remoteMetadataDirectory.getBlobStream(metadataFilename)).thenAnswer(
