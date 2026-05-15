@@ -589,6 +589,36 @@ scalar_functions:
         variadic: { min: 1 }
         return: string
 
+  - name: "map_extract"
+    description: >-
+      Return the list of values whose key matches `key` in `value`. DataFusion's
+      native `map_extract` returns a list because the underlying map permits
+      duplicate keys; the analytics-engine ITEM adapter wraps every
+      `map_extract` call in `array_element(..., 1)` to project back to a
+      scalar. Signature uses Substrait type variables (`any1`/`any2`) so a
+      single declaration covers every Calcite MAP variant — first caller is
+      PPL `spath`'s JSON_EXTRACT_ALL map (`map<string, string?>`).
+    impls:
+      - args: [{ value: "map<any1, any2>", name: "value" }, { value: any1, name: "key" }]
+        return: "list<any2>"
+
+  - name: "json_extract_all"
+    description: >-
+      Flatten a JSON document into a Map<string, string?> keyed by
+      dot-separated path. Objects flatten to dotted keys (`user.name`); arrays
+      append `{}` (`tags{}`); duplicate logical keys merge into a Java
+      `List.toString()` rendering (`[a, b, c]`); JSON nulls render as the
+      literal string `"null"`. Top-level scalar / null / empty / whitespace
+      input → NULL map; malformed JSON → empty map. Parity with the legacy
+      v2 / Calcite `JsonExtractAllFunctionImpl`. Return type is declared as
+      `any1` here so substrait's extension parser does not need a map-type
+      grammar — the actual call-site RelDataType (MAP<VARCHAR, VARCHAR>) is
+      what isthmus emits into the substrait IR, and the DataFusion-side UDF
+      registers its own concrete return type (`Map<Utf8, Utf8>`).
+    impls:
+      - args: [{ value: string, name: "value" }]
+        return: any1
+
   - name: "json_delete"
     description: "Remove PPL-path matches from a JSON document; missing paths are no-ops."
     impls:

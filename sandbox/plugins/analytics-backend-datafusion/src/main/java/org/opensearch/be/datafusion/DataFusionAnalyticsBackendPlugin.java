@@ -261,6 +261,9 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         ScalarFunction.JSON_DELETE,
         ScalarFunction.JSON_EXTEND,
         ScalarFunction.JSON_EXTRACT,
+        // JSON_EXTRACT_ALL — return type is MAP<VARCHAR, VARCHAR>, so its capability
+        // is registered separately via {@link #MAP_RETURNING_PROJECT_OPS} (keyed on
+        // FieldType.MAP rather than SUPPORTED_FIELD_TYPES, mirroring the ARRAY-return split).
         ScalarFunction.JSON_KEYS,
         ScalarFunction.JSON_SET,
         // Array functions whose RETURN type is element-typed (not ARRAY itself), so the
@@ -316,6 +319,22 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         // (`udf::mvappend`), routed via {@link MvappendAdapter}.
         ScalarFunction.MVAPPEND
     );
+
+    /**
+     * Project-side scalar functions whose return type is {@code MAP<VARCHAR, VARCHAR>}.
+     * Registered separately because the capability lookup at
+     * {@code OpenSearchProjectRule.resolveScalarViableBackends} keys on the call's return
+     * type, and for these the lookup resolves to {@link FieldType#MAP} — intentionally not
+     * in {@link #SUPPORTED_FIELD_TYPES} (filter / aggregate / sort operators have no
+     * meaningful semantics over map-typed values; the value-level type emerges after the
+     * {@code ITEM(map, key)} lookup that always follows a map-returning call).
+     *
+     * <p>{@code JSON_EXTRACT_ALL} flattens a JSON object to dot-path keys, returning a
+     * {@code MAP<VARCHAR, VARCHAR>}. First in-tree caller is PPL {@code spath}'s
+     * auto-extract mode; routes to the {@code json_extract_all} Rust UDF via
+     * {@link JsonFunctionAdapters.JsonExtractAllAdapter}.
+     */
+    private static final Set<ScalarFunction> MAP_RETURNING_PROJECT_OPS = Set.of(ScalarFunction.JSON_EXTRACT_ALL);
 
     private static final Set<AggregateFunction> AGG_FUNCTIONS = Set.of(
         AggregateFunction.SUM,
@@ -393,6 +412,16 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                     for (FieldType type : SUPPORTED_FIELD_TYPES) {
                         caps.add(new FilterCapability.Standard(op, Set.of(type), formats));
                     }
+                    // MAP-typed fields enter the filter rule when the predicate is
+                    // shape `ITEM(map_field, key) <op> literal` (PPL `where doc.user.name = 'John'`
+                    // after the spath auto-extract lowering). The filter-rule's field-index
+                    // collection sees the underlying MAP column, not the ITEM-extracted scalar,
+                    // so without this branch the WHERE rejects with
+                    // "No backend can evaluate filter predicate [...] on fields [<col>:MAP]".
+                    // Registering STANDARD_FILTER_OPS on MAP is sound because every viable
+                    // predicate against a MAP column is forced through an ITEM lookup that
+                    // emits a value-typed scalar before substrait emission.
+                    caps.add(new FilterCapability.Standard(op, Set.of(FieldType.MAP), formats));
                 }
                 return Set.copyOf(caps);
             }
@@ -413,6 +442,9 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                 }
                 for (ScalarFunction op : ARRAY_RETURNING_PROJECT_OPS) {
                     caps.add(new ProjectCapability.Scalar(op, Set.of(FieldType.ARRAY), formats, true));
+                }
+                for (ScalarFunction op : MAP_RETURNING_PROJECT_OPS) {
+                    caps.add(new ProjectCapability.Scalar(op, Set.of(FieldType.MAP), formats, true));
                 }
                 return Set.copyOf(caps);
             }
@@ -488,6 +520,7 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                     Map.entry(ScalarFunction.JSON_DELETE, new JsonFunctionAdapters.JsonDeleteAdapter()),
                     Map.entry(ScalarFunction.JSON_EXTEND, new JsonFunctionAdapters.JsonExtendAdapter()),
                     Map.entry(ScalarFunction.JSON_EXTRACT, new JsonFunctionAdapters.JsonExtractAdapter()),
+                    Map.entry(ScalarFunction.JSON_EXTRACT_ALL, new JsonFunctionAdapters.JsonExtractAllAdapter()),
                     Map.entry(ScalarFunction.JSON_KEYS, new JsonFunctionAdapters.JsonKeysAdapter()),
                     Map.entry(ScalarFunction.JSON_SET, new JsonFunctionAdapters.JsonSetAdapter()),
                     Map.entry(ScalarFunction.LIKE, new LikeAdapter()),

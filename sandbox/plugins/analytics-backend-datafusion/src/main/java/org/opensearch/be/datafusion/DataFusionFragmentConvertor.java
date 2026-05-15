@@ -198,6 +198,7 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         FunctionMappings.s(JsonFunctionAdapters.JsonDeleteAdapter.LOCAL_JSON_DELETE_OP, "json_delete"),
         FunctionMappings.s(JsonFunctionAdapters.JsonExtendAdapter.LOCAL_JSON_EXTEND_OP, "json_extend"),
         FunctionMappings.s(JsonFunctionAdapters.JsonExtractAdapter.LOCAL_JSON_EXTRACT_OP, "json_extract"),
+        FunctionMappings.s(JsonFunctionAdapters.JsonExtractAllAdapter.LOCAL_JSON_EXTRACT_ALL_OP, "json_extract_all"),
         FunctionMappings.s(JsonFunctionAdapters.JsonKeysAdapter.LOCAL_JSON_KEYS_OP, "json_keys"),
         FunctionMappings.s(JsonFunctionAdapters.JsonSetAdapter.LOCAL_JSON_SET_OP, "json_set"),
         FunctionMappings.s(SqlLibraryOperators.REGEXP_CONTAINS, "regex_match"),
@@ -216,6 +217,7 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         FunctionMappings.s(MakeArrayAdapter.LOCAL_MAKE_ARRAY_OP, "make_array"),
         FunctionMappings.s(ArrayToStringAdapter.LOCAL_ARRAY_TO_STRING_OP, "array_to_string"),
         FunctionMappings.s(ArrayElementAdapter.LOCAL_ARRAY_ELEMENT_OP, "array_element"),
+        FunctionMappings.s(ArrayElementAdapter.LOCAL_MAP_EXTRACT_OP, "map_extract"),
         FunctionMappings.s(MvzipAdapter.LOCAL_MVZIP_OP, "mvzip"),
         FunctionMappings.s(MvfindAdapter.LOCAL_MVFIND_OP, "mvfind"),
         FunctionMappings.s(MvappendAdapter.LOCAL_MVAPPEND_OP, "mvappend")
