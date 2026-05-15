@@ -473,10 +473,7 @@ public class FragmentConversionDriverTests extends BasePlannerRulesTests {
         LOGGER.info("Recorded reduce fragment:\n{}", recorded);
         assertDoesntContainOperators(convertor.reduceFragment, OPENSEARCH_OPERATORS);
         assertDoesntContainOperators(convertor.reduceFragment, ANNOTATION_MARKERS);
-        assertTrue(
-            "Recorded reduce fragment must be rooted at a LogicalJoin (got:\n" + recorded + ")",
-            recorded.contains("LogicalJoin")
-        );
+        assertTrue("Recorded reduce fragment must be rooted at a LogicalJoin (got:\n" + recorded + ")", recorded.contains("LogicalJoin"));
         assertTrue(
             "Recorded reduce fragment must carry two OpenSearchStageInputScan leaves (got:\n" + recorded + ")",
             recorded.split("OpenSearchStageInputScan", -1).length - 1 == 2
@@ -536,22 +533,20 @@ public class FragmentConversionDriverTests extends BasePlannerRulesTests {
             rexBuilder.makeInputRef(intType, 0),
             rexBuilder.makeInputRef(intType, leftCols)
         );
-        org.opensearch.analytics.planner.rel.OpenSearchJoin probeJoin =
-            new org.opensearch.analytics.planner.rel.OpenSearchJoin(
-                probeScan.getCluster(),
-                probeScan.getTraitSet(),
-                broadcastScan,                  // build = LEFT input
-                probeScan,                      // probe scan = RIGHT input
-                condition,
-                JoinRelType.INNER,
-                probeScan.getViableBackends()
-            );
+        org.opensearch.analytics.planner.rel.OpenSearchJoin probeJoin = new org.opensearch.analytics.planner.rel.OpenSearchJoin(
+            probeScan.getCluster(),
+            probeScan.getTraitSet(),
+            broadcastScan,                  // build = LEFT input
+            probeScan,                      // probe scan = RIGHT input
+            condition,
+            JoinRelType.INNER,
+            probeScan.getViableBackends()
+        );
 
         RecordingConvertor convertor = new RecordingConvertor();
-        FragmentConversionDriver.IntraOperatorDelegationBytes delegationBytes =
-            new FragmentConversionDriver.IntraOperatorDelegationBytes(
-                buildContext("parquet", 1, intFields(), List.of(dfWithConvertor(convertor))).getCapabilityRegistry()
-            );
+        FragmentConversionDriver.IntraOperatorDelegationBytes delegationBytes = new FragmentConversionDriver.IntraOperatorDelegationBytes(
+            buildContext("parquet", 1, intFields(), List.of(dfWithConvertor(convertor))).getCapabilityRegistry()
+        );
 
         // Must not throw "Unknown leaf type" — findLeaf must skip the broadcast placeholder
         // and recurse into the right input (the probe scan).

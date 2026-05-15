@@ -25,7 +25,11 @@ public final class BroadcastSizeExceededException extends RuntimeException {
     public BroadcastSizeExceededException(long observed, long limit) {
         super(
             "Broadcast build-side payload exceeded the configured limit "
-                + "(observed=" + observed + " bytes, limit=" + limit + " bytes). "
+                + "(observed="
+                + observed
+                + " bytes, limit="
+                + limit
+                + " bytes). "
                 + "Raise analytics.mpp.broadcast_max_bytes, narrow the query, or set analytics.mpp.enabled=false."
         );
     }

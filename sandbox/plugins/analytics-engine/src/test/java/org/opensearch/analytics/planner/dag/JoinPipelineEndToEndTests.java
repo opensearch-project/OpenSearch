@@ -103,37 +103,19 @@ public class JoinPipelineEndToEndTests extends BasePlannerRulesTests {
 
         OpenSearchJoin rootJoin = (OpenSearchJoin) root.getFragment();
         // Root join's inputs are reducer-wrapped StageInputScans (post-DAG-cut shape).
-        assertTrue(
-            "Root join left input must be ExchangeReducer",
-            rootJoin.getLeft() instanceof OpenSearchExchangeReducer
-        );
-        assertTrue(
-            "Root join right input must be ExchangeReducer",
-            rootJoin.getRight() instanceof OpenSearchExchangeReducer
-        );
+        assertTrue("Root join left input must be ExchangeReducer", rootJoin.getLeft() instanceof OpenSearchExchangeReducer);
+        assertTrue("Root join right input must be ExchangeReducer", rootJoin.getRight() instanceof OpenSearchExchangeReducer);
         OpenSearchExchangeReducer leftReducer = (OpenSearchExchangeReducer) rootJoin.getLeft();
         OpenSearchExchangeReducer rightReducer = (OpenSearchExchangeReducer) rootJoin.getRight();
-        assertTrue(
-            "Left reducer's input must be StageInputScan placeholder",
-            leftReducer.getInput() instanceof OpenSearchStageInputScan
-        );
-        assertTrue(
-            "Right reducer's input must be StageInputScan placeholder",
-            rightReducer.getInput() instanceof OpenSearchStageInputScan
-        );
+        assertTrue("Left reducer's input must be StageInputScan placeholder", leftReducer.getInput() instanceof OpenSearchStageInputScan);
+        assertTrue("Right reducer's input must be StageInputScan placeholder", rightReducer.getInput() instanceof OpenSearchStageInputScan);
 
         for (Stage child : root.getChildStages()) {
             assertNotNull("Child stage must have a shard target resolver", child.getTargetResolver());
-            assertTrue(
-                "Child stage fragment must be a scan",
-                child.getFragment() instanceof OpenSearchTableScan
-            );
+            assertTrue("Child stage fragment must be a scan", child.getFragment() instanceof OpenSearchTableScan);
             // PlanForker narrows viableBackends on plan alternatives, but Stage.fragment keeps
             // the pre-fork annotated tree (for replanning). Assertion lives on planAlternatives.
-            assertFalse(
-                "PlanForker must have produced at least one plan alternative per stage",
-                child.getPlanAlternatives().isEmpty()
-            );
+            assertFalse("PlanForker must have produced at least one plan alternative per stage", child.getPlanAlternatives().isEmpty());
             for (StagePlan alternative : child.getPlanAlternatives()) {
                 assertEquals(
                     "Mock DataFusion is the only join-capable backend in the harness",

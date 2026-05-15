@@ -119,10 +119,7 @@ public class BroadcastInjectionHandler implements FragmentInstructionHandler<Bro
             }
         } catch (Exception e) {
             releaseWrappers(arrays, schemas);
-            throw new RuntimeException(
-                "BroadcastInjectionHandler: failed to decode Arrow IPC payload for " + node.getNamedInputId(),
-                e
-            );
+            throw new RuntimeException("BroadcastInjectionHandler: failed to decode Arrow IPC payload for " + node.getNamedInputId(), e);
         }
 
         try {
@@ -136,7 +133,13 @@ public class BroadcastInjectionHandler implements FragmentInstructionHandler<Bro
             // SessionContextHandle (shard-scan path), not a LocalSession (coord-reduce path).
             // Registering against a LocalSession via a wrong-type pointer cast is a memory-safety
             // bug that hangs or crashes the JVM; the SessionContext variant is type-correct.
-            NativeBridge.registerMemtableOnSessionContext(sessionState.sessionContextHandle().getPointer(), node.getNamedInputId(), schemaIpc, arrayPtrs, schemaPtrs);
+            NativeBridge.registerMemtableOnSessionContext(
+                sessionState.sessionContextHandle().getPointer(),
+                node.getNamedInputId(),
+                schemaIpc,
+                arrayPtrs,
+                schemaPtrs
+            );
             LOGGER.debug(
                 "[BroadcastInjectionHandler] registered memtable {} ({} batches, buildSideIndex={})",
                 node.getNamedInputId(),

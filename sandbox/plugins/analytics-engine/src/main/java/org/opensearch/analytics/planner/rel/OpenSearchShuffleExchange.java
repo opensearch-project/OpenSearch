@@ -103,8 +103,7 @@ public class OpenSearchShuffleExchange extends SingleRel implements OpenSearchRe
 
     @Override
     public RelWriter explainTerms(RelWriter pw) {
-        return super.explainTerms(pw)
-            .item("hashKeys", hashKeys)
+        return super.explainTerms(pw).item("hashKeys", hashKeys)
             .item("partitionCount", partitionCount)
             .item("viableBackends", viableBackends);
     }
@@ -116,6 +115,13 @@ public class OpenSearchShuffleExchange extends SingleRel implements OpenSearchRe
 
     @Override
     public RelNode stripAnnotations(List<RelNode> strippedChildren) {
-        return new OpenSearchShuffleExchange(getCluster(), getTraitSet(), strippedChildren.getFirst(), hashKeys, partitionCount, viableBackends);
+        return new OpenSearchShuffleExchange(
+            getCluster(),
+            getTraitSet(),
+            strippedChildren.getFirst(),
+            hashKeys,
+            partitionCount,
+            viableBackends
+        );
     }
 }

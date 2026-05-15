@@ -78,9 +78,7 @@ public class CalciteToArrowSchemaTests extends OpenSearchTestCase {
     }
 
     public void testFieldsAreNullable() {
-        RelDataType rowType = typeFactory.builder()
-            .add("i", typeFactory.createSqlType(SqlTypeName.INTEGER))
-            .build();
+        RelDataType rowType = typeFactory.builder().add("i", typeFactory.createSqlType(SqlTypeName.INTEGER)).build();
         Schema schema = CalciteToArrowSchema.convert(rowType);
         assertTrue("fallback schema fields are nullable by design", schema.findField("i").isNullable());
     }

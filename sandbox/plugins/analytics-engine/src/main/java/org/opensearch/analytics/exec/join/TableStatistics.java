@@ -18,4 +18,5 @@ package org.opensearch.analytics.exec.join;
  *
  * @opensearch.internal
  */
-public record TableStatistics(String indexName, long rowCount, int shardCount) {}
+public record TableStatistics(String indexName, long rowCount, int shardCount) {
+}

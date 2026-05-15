@@ -34,14 +34,7 @@ public class AnalyticsShuffleDataRequest extends ActionRequest {
     private final byte[] data;
     private final boolean isLast;
 
-    public AnalyticsShuffleDataRequest(
-        String queryId,
-        int targetStageId,
-        String side,
-        int partitionIndex,
-        byte[] data,
-        boolean isLast
-    ) {
+    public AnalyticsShuffleDataRequest(String queryId, int targetStageId, String side, int partitionIndex, byte[] data, boolean isLast) {
         this.queryId = queryId;
         this.targetStageId = targetStageId;
         this.side = side;

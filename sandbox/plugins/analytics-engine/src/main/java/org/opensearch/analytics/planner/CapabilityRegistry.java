@@ -17,7 +17,6 @@ import org.opensearch.analytics.spi.EngineCapability;
 import org.opensearch.analytics.spi.FieldStorageInfo;
 import org.opensearch.analytics.spi.FieldType;
 import org.opensearch.analytics.spi.FilterCapability;
-import org.opensearch.analytics.spi.JoinCapability;
 import org.opensearch.analytics.spi.ProjectCapability;
 import org.opensearch.analytics.spi.ScalarFunction;
 import org.opensearch.analytics.spi.ScanCapability;
@@ -74,7 +73,7 @@ public class CapabilityRegistry {
     private final Map<DelegationType, List<String>> delegationAcceptors = new HashMap<>();
     private final Map<FullTextParamKey, Set<String>> fullTextParamIndex = new HashMap<>();
 
-private final Function<IndexMetadata, FieldStorageResolver> fieldStorageFactory;
+    private final Function<IndexMetadata, FieldStorageResolver> fieldStorageFactory;
 
     // Backends that declared any capability for each operator — O(1) membership check
     private final Set<String> scanCapableBackends = new HashSet<>();

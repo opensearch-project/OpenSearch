@@ -93,9 +93,8 @@ public class BroadcastDispatchTests extends OpenSearchTestCase {
      */
     public void testRunFailsTerminalWhenTaskCancelledBeforeRun() {
         // 1) Build a parent task that's already cancelled. setOnCancelCallback will then replay
-        //    synchronously — that's exactly the scenario this test exercises.
-        AnalyticsQueryTask cancelledTask = new AnalyticsQueryTask(
-            /* id */ 1L,
+        // synchronously — that's exactly the scenario this test exercises.
+        AnalyticsQueryTask cancelledTask = new AnalyticsQueryTask(/* id */ 1L,
             "transport",
             "analytics_query",
             "qid",
@@ -106,7 +105,7 @@ public class BroadcastDispatchTests extends OpenSearchTestCase {
         assertTrue("precondition: task must be cancelled", cancelledTask.isCancelled());
 
         // 2) Build a fake StageExecution that records listeners and translates cancel(...) into
-        //    a CANCELLED state-listener fire — the same contract AbstractStageExecution honors.
+        // a CANCELLED state-listener fire — the same contract AbstractStageExecution honors.
         FakeStageExecution buildExec = new FakeStageExecution(/* stageId */ 1);
         StageExecutionBuilder builder = mock(StageExecutionBuilder.class);
         when(builder.buildWithSink(any(Stage.class), any(ExchangeSink.class), any(QueryContext.class))).thenReturn(buildExec);
@@ -120,24 +119,15 @@ public class BroadcastDispatchTests extends OpenSearchTestCase {
         Stage root = newRoleStage(/* stageId */ 3, Stage.StageRole.COORDINATOR_REDUCE);
 
         AtomicReference<Throwable> failure = new AtomicReference<>();
-        ActionListener<Iterable<org.apache.arrow.vector.VectorSchemaRoot>> terminal = ActionListener.wrap(
-            v -> { throw new AssertionError("expected onFailure, got onResponse"); },
-            failure::set
-        );
+        ActionListener<Iterable<org.apache.arrow.vector.VectorSchemaRoot>> terminal = ActionListener.wrap(v -> {
+            throw new AssertionError("expected onFailure, got onResponse");
+        }, failure::set);
 
         // 3) Run dispatch. setOnCancelCallback should fire the cancel synchronously — but only
-        //    after the listener is installed, so the resulting CANCELLED transition fires the
-        //    listener and propagates to terminal.onFailure.
+        // after the listener is installed, so the resulting CANCELLED transition fires the
+        // listener and propagates to terminal.onFailure.
         QueryDAG rewritten = new QueryDAG("qid", root);
-        new BroadcastDispatch(builder, scheduler).run(
-            ctx,
-            rewritten,
-            build,
-            probe,
-            root,
-            () -> mock(ExchangeSink.class),
-            terminal
-        );
+        new BroadcastDispatch(builder, scheduler).run(ctx, rewritten, build, probe, root, () -> mock(ExchangeSink.class), terminal);
 
         assertNotNull(
             "terminal.onFailure must fire when the task was cancelled before BroadcastDispatch.run installed its callbacks; "

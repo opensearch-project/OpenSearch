@@ -76,7 +76,12 @@ public class ShuffleSenderRetryTests extends OpenSearchTestCase {
             listener.onFailure(new RuntimeException("node unreachable"));
         };
         List<Exception> failures = new ArrayList<>();
-        ShuffleSenderRetry.sendWithRetry(req(), sender, inlineScheduler(), ActionListener.wrap(r -> fail("should have failed"), failures::add));
+        ShuffleSenderRetry.sendWithRetry(
+            req(),
+            sender,
+            inlineScheduler(),
+            ActionListener.wrap(r -> fail("should have failed"), failures::add)
+        );
         assertEquals(1, sendAttempts.get());
         assertEquals(1, failures.size());
         assertTrue(failures.get(0).getMessage().contains("node unreachable"));

@@ -205,9 +205,9 @@ public final class BroadcastCaptureSink implements ExchangeSink {
     private byte[] serializeToIpc(Schema schemaSnapshot, List<VectorSchemaRoot> toSerialize) throws Exception {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         // Schema selection priority:
-        //   1. A real schema captured from a fed batch (preferred).
-        //   2. The fallback schema supplied at construction (build-side row type).
-        //   3. An empty schema as a last-resort header so the IPC stream is decodable.
+        // 1. A real schema captured from a fed batch (preferred).
+        // 2. The fallback schema supplied at construction (build-side row type).
+        // 3. An empty schema as a last-resort header so the IPC stream is decodable.
         // The fallback exists because RowResponseCodec turns a null shard payload into a
         // zero-column root, and the data-node serializer omits the schema header when it
         // emits no batches at all. Without a fallback, an all-empty build side would
@@ -220,8 +220,10 @@ public final class BroadcastCaptureSink implements ExchangeSink {
             }
         }
         int headerColumnCount = schemaSnapshot.getFields().size();
-        try (VectorSchemaRoot headerRoot = VectorSchemaRoot.create(schemaSnapshot, alloc);
-             ArrowStreamWriter writer = new ArrowStreamWriter(headerRoot, null, Channels.newChannel(out))) {
+        try (
+            VectorSchemaRoot headerRoot = VectorSchemaRoot.create(schemaSnapshot, alloc);
+            ArrowStreamWriter writer = new ArrowStreamWriter(headerRoot, null, Channels.newChannel(out))
+        ) {
             writer.start();
             // P2a — if the captured schema is empty (every fed batch was a zero-column root
             // from a null shard payload), emit header-only. On the probe side the broadcast

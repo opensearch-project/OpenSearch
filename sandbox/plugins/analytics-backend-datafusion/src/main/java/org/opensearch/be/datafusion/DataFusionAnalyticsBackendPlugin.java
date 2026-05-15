@@ -8,7 +8,6 @@
 
 package org.opensearch.be.datafusion;
 
-import org.apache.calcite.rel.core.JoinRelType;
 import org.apache.calcite.sql.SqlOperator;
 import org.apache.calcite.sql.fun.SqlLibraryOperators;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;

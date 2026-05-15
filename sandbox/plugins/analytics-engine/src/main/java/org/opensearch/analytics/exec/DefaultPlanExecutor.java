@@ -26,10 +26,9 @@ import org.opensearch.analytics.exec.join.BroadcastDispatch;
 import org.opensearch.analytics.exec.join.JoinStrategy;
 import org.opensearch.analytics.exec.join.JoinStrategyAdvisor;
 import org.opensearch.analytics.exec.join.JoinStrategyMetrics;
-import org.opensearch.analytics.planner.CapabilityResolutionUtils;
-import org.opensearch.analytics.planner.dag.Stage;
 import org.opensearch.analytics.exec.task.AnalyticsQueryTask;
 import org.opensearch.analytics.planner.CapabilityRegistry;
+import org.opensearch.analytics.planner.CapabilityResolutionUtils;
 import org.opensearch.analytics.planner.PlannerContext;
 import org.opensearch.analytics.planner.PlannerImpl;
 import org.opensearch.analytics.planner.dag.BackendPlanAdapter;
@@ -37,6 +36,7 @@ import org.opensearch.analytics.planner.dag.DAGBuilder;
 import org.opensearch.analytics.planner.dag.FragmentConversionDriver;
 import org.opensearch.analytics.planner.dag.PlanForker;
 import org.opensearch.analytics.planner.dag.QueryDAG;
+import org.opensearch.analytics.planner.dag.Stage;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.inject.Inject;
@@ -185,13 +185,9 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
             );
         }
 
-        final boolean dispatchBroadcast = mppEnabled
-            && joinStrategy == JoinStrategy.BROADCAST
-            && scheduler instanceof QueryScheduler;
+        final boolean dispatchBroadcast = mppEnabled && joinStrategy == JoinStrategy.BROADCAST && scheduler instanceof QueryScheduler;
         if (mppEnabled && joinStrategy == JoinStrategy.HASH_SHUFFLE) {
-            logger.info(
-                "[DefaultPlanExecutor] HASH_SHUFFLE not yet wired end-to-end; falling back to coordinator-centric."
-            );
+            logger.info("[DefaultPlanExecutor] HASH_SHUFFLE not yet wired end-to-end; falling back to coordinator-centric.");
         } else if (mppEnabled && joinStrategy == JoinStrategy.BROADCAST && !dispatchBroadcast) {
             logger.info(
                 "[DefaultPlanExecutor] BROADCAST selected but scheduler is {}, not QueryScheduler; falling back to coordinator-centric.",
@@ -277,15 +273,13 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
         Stage rewrittenRoot = rewritten.rootStage();
         if (rewrittenRoot.getChildStages().size() != 1) {
             throw new IllegalStateException(
-                "Rewritten broadcast DAG must have exactly one root child (the probe stage); got "
-                    + rewrittenRoot.getChildStages().size()
+                "Rewritten broadcast DAG must have exactly one root child (the probe stage); got " + rewrittenRoot.getChildStages().size()
             );
         }
         Stage probe = rewrittenRoot.getChildStages().get(0);
         if (probe.getChildStages().size() != 1) {
             throw new IllegalStateException(
-                "Rewritten broadcast DAG's probe stage must have exactly one child (the build stage); got "
-                    + probe.getChildStages().size()
+                "Rewritten broadcast DAG's probe stage must have exactly one child (the build stage); got " + probe.getChildStages().size()
             );
         }
         Stage build = probe.getChildStages().get(0);
@@ -313,9 +307,7 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
         // Runtime byte cap from settings — the sink fails the dispatcher's terminal listener
         // when accumulated buffer size exceeds this, preventing runaway broadcast payloads
         // from blowing up coordinator memory.
-        final long broadcastMaxBytes = clusterService.getClusterSettings()
-            .get(AnalyticsSettings.BROADCAST_MAX_BYTES)
-            .getBytes();
+        final long broadcastMaxBytes = clusterService.getClusterSettings().get(AnalyticsSettings.BROADCAST_MAX_BYTES).getBytes();
         dispatch.run(
             rewrittenCtx,
             rewritten,

@@ -209,12 +209,7 @@ public final class BroadcastDAGRewriter {
             rootJoin.getViableBackends()
         );
         RelTraitSet rootTraits = rootStageInput.getTraitSet();
-        RelNode rootBody = new OpenSearchExchangeReducer(
-            rootJoin.getCluster(),
-            rootTraits,
-            rootStageInput,
-            rootJoin.getViableBackends()
-        );
+        RelNode rootBody = new OpenSearchExchangeReducer(rootJoin.getCluster(), rootTraits, rootStageInput, rootJoin.getViableBackends());
 
         // Reapply the original root wrappers (Project / Sort / Filter) on top of the gathered
         // probe output, in their original outer-to-inner order, so the coordinator runs them
@@ -231,9 +226,7 @@ public final class BroadcastDAGRewriter {
         // logic for multi-stage shapes.
         List<String> reduceViable = CapabilityResolutionUtils.filterByReduceCapability(registry, rootJoin.getViableBackends());
         if (reduceViable.isEmpty()) {
-            throw new IllegalStateException(
-                "BroadcastDAGRewriter: no reduce-capable backend among " + rootJoin.getViableBackends()
-            );
+            throw new IllegalStateException("BroadcastDAGRewriter: no reduce-capable backend among " + rootJoin.getViableBackends());
         }
         ExchangeSinkProvider rootSinkProvider = registry.getBackend(reduceViable.getFirst()).getExchangeSinkProvider();
 

@@ -129,8 +129,7 @@ public class PlannerImpl {
                 new OpenSearchAggregateRule(context),
                 new OpenSearchJoinRule(context),
                 new OpenSearchSortRule(context),
-                new OpenSearchUnionRule(context),
-                new OpenSearchJoinRule(context)
+                new OpenSearchUnionRule(context)
             )
         );
         HepPlanner markingPlanner = new HepPlanner(markBuilder.build());

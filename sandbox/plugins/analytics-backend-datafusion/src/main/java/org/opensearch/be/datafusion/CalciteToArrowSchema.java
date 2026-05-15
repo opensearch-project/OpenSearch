@@ -56,7 +56,7 @@ final class CalciteToArrowSchema {
     private static FieldType toFieldType(RelDataType type) {
         boolean nullable = type.isNullable();
         return FieldType.nullable(toArrowType(type)); // nullable=true is safe; it's a fallback
-            // — see class javadoc. Override callers that care about non-null can do their own check.
+        // — see class javadoc. Override callers that care about non-null can do their own check.
     }
 
     private static ArrowType toArrowType(RelDataType type) {

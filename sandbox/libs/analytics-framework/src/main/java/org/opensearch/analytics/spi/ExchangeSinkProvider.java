@@ -44,11 +44,7 @@ public interface ExchangeSinkProvider {
      * support do not need to opt in. Backends that support shuffle must override AND declare
      * at least one {@link DataTransferCapability} with {@link DataTransferCapability.Kind#PRODUCER}.
      */
-    default ExchangeSink createPartitionedSink(
-        java.util.List<Integer> hashKeyChannels,
-        int partitionCount,
-        ExchangeSinkContext context
-    ) {
+    default ExchangeSink createPartitionedSink(java.util.List<Integer> hashKeyChannels, int partitionCount, ExchangeSinkContext context) {
         throw new UnsupportedOperationException(
             "Backend does not support hash-partitioned shuffle sinks. "
                 + "Declare a DataTransferCapability(PRODUCER, ...) and override createPartitionedSink."

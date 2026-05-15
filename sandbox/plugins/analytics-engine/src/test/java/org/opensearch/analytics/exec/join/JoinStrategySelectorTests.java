@@ -24,10 +24,7 @@ public class JoinStrategySelectorTests extends OpenSearchTestCase {
             LARGE_ROW_THRESHOLD,
             Map.of("a", new TableStatistics("a", 100, 10), "b", new TableStatistics("b", 100, 10))
         );
-        assertEquals(
-            JoinStrategy.COORDINATOR_CENTRIC,
-            selector.selectStrategy("a", "b", /* isEqui */ false, JoinRelType.INNER)
-        );
+        assertEquals(JoinStrategy.COORDINATOR_CENTRIC, selector.selectStrategy("a", "b", /* isEqui */ false, JoinRelType.INNER));
     }
 
     public void testInnerBroadcastWhenSmallerSideUnderThreshold() {
@@ -54,10 +51,7 @@ public class JoinStrategySelectorTests extends OpenSearchTestCase {
     public void testUnknownIndexTreatedAsLarge() {
         // Missing stats → shardCount Integer.MAX_VALUE + rowCount 0 → fail-safe HASH_SHUFFLE.
         JoinStrategySelector selector = new JoinStrategySelector(2, LARGE_ROW_THRESHOLD, Map.of());
-        assertEquals(
-            JoinStrategy.HASH_SHUFFLE,
-            selector.selectStrategy("unknown-left", "unknown-right", true, JoinRelType.INNER)
-        );
+        assertEquals(JoinStrategy.HASH_SHUFFLE, selector.selectStrategy("unknown-left", "unknown-right", true, JoinRelType.INNER));
     }
 
     public void testInnerBuildSideByRowCountWhenAvailable() {
@@ -91,10 +85,7 @@ public class JoinStrategySelectorTests extends OpenSearchTestCase {
             1_000_000L,            // 1M row cap
             Map.of("small", new TableStatistics("small", 50_000_000L, 1), "huge", new TableStatistics("huge", 100_000_000L, 5))
         );
-        assertEquals(
-            JoinStrategy.HASH_SHUFFLE,
-            selector.selectStrategy("small", "huge", true, JoinRelType.INNER)
-        );
+        assertEquals(JoinStrategy.HASH_SHUFFLE, selector.selectStrategy("small", "huge", true, JoinRelType.INNER));
     }
 
     /**
@@ -161,10 +152,7 @@ public class JoinStrategySelectorTests extends OpenSearchTestCase {
             selector.selectBuildSide("smallRowsManyShards", "moreRowsFewShards", JoinRelType.INNER)
         );
         // Argument order must not affect the decision.
-        assertEquals(
-            JoinStrategy.BROADCAST,
-            selector.selectStrategy("moreRowsFewShards", "smallRowsManyShards", true, JoinRelType.INNER)
-        );
+        assertEquals(JoinStrategy.BROADCAST, selector.selectStrategy("moreRowsFewShards", "smallRowsManyShards", true, JoinRelType.INNER));
         assertEquals(
             "build side flips when arg order flips",
             "left",

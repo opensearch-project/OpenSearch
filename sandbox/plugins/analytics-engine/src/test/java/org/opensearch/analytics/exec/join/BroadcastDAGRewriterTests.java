@@ -68,10 +68,7 @@ public class BroadcastDAGRewriterTests extends BasePlannerRulesTests {
             newRoot.getFragment() instanceof OpenSearchExchangeReducer
         );
         OpenSearchExchangeReducer reducer = (OpenSearchExchangeReducer) newRoot.getFragment();
-        assertTrue(
-            "reducer input must be StageInputScan pointing at probe stage",
-            reducer.getInput() instanceof OpenSearchStageInputScan
-        );
+        assertTrue("reducer input must be StageInputScan pointing at probe stage", reducer.getInput() instanceof OpenSearchStageInputScan);
 
         // Probe stage: OpenSearchJoin over (original probe scan, OpenSearchBroadcastScan).
         assertEquals("root has exactly one child — the probe stage", 1, newRoot.getChildStages().size());
@@ -88,10 +85,7 @@ public class BroadcastDAGRewriterTests extends BasePlannerRulesTests {
             "probe join left input must be OpenSearchBroadcastScan (build was tagged LEFT)",
             probeJoin.getLeft() instanceof OpenSearchBroadcastScan
         );
-        assertTrue(
-            "probe join right input must be the probe OpenSearchTableScan",
-            probeJoin.getRight() instanceof OpenSearchTableScan
-        );
+        assertTrue("probe join right input must be the probe OpenSearchTableScan", probeJoin.getRight() instanceof OpenSearchTableScan);
         OpenSearchBroadcastScan bc = (OpenSearchBroadcastScan) probeJoin.getLeft();
         assertTrue("namedInputId must start with broadcast-", bc.getNamedInputId().startsWith("broadcast-"));
 

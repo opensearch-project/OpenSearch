@@ -78,10 +78,10 @@ public class QueryScheduler implements Scheduler {
         // so installing the callback before build() lets a late-cancel replay run cancelAll()
         // against a null graph — a silent no-op that allows the query to keep running.
         // Installing the callback after build() means:
-        //   - any cancel landing during build() has nothing installed yet → onCancelled is a
-        //     no-op on the task side, but
-        //   - setOnCancelCallback below sees isCancelled() and replays the new callback
-        //     synchronously, which now has a real graph to cascade cancels through.
+        // - any cancel landing during build() has nothing installed yet → onCancelled is a
+        // no-op on the task side, but
+        // - setOnCancelCallback below sees isCancelled() and replays the new callback
+        // synchronously, which now has a real graph to cascade cancels through.
         // The subsequent walker.start(graph) calls leaf.start() on each leaf; those that
         // already saw cancelAll transition into CANCELLED and ShardFragmentStageExecution.start
         // / LocalStageExecution.start treat transitionTo(RUNNING) failure as a no-op, so no

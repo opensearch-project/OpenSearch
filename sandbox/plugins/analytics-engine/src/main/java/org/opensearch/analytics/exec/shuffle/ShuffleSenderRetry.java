@@ -97,15 +97,10 @@ public final class ShuffleSenderRetry {
                     request.getTargetStageId(),
                     request.getPartitionIndex()
                 );
-                scheduler.accept(backoff, () -> sendWithRetry(
-                    request,
-                    sender,
-                    scheduler,
-                    finalListener,
-                    maxAttempts,
-                    initialBackoffMillis,
-                    attempt + 1
-                ));
+                scheduler.accept(
+                    backoff,
+                    () -> sendWithRetry(request, sender, scheduler, finalListener, maxAttempts, initialBackoffMillis, attempt + 1)
+                );
             }
 
             @Override

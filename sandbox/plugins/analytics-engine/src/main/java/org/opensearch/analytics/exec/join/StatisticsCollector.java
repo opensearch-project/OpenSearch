@@ -10,10 +10,10 @@ package org.opensearch.analytics.exec.join;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.opensearch.action.admin.indices.stats.CommonStats;
+import org.opensearch.action.admin.indices.stats.IndexStats;
 import org.opensearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.opensearch.action.admin.indices.stats.IndicesStatsResponse;
-import org.opensearch.action.admin.indices.stats.IndexStats;
-import org.opensearch.action.admin.indices.stats.CommonStats;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.index.shard.DocsStats;

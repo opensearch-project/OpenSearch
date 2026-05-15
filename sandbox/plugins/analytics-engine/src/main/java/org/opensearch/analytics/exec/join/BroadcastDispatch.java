@@ -25,6 +25,8 @@ import org.opensearch.core.action.ActionListener;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.function.Supplier;
 
 /**
@@ -96,10 +98,8 @@ public final class BroadcastDispatch {
         Supplier<ExchangeSink> captureSinkFactory,
         ActionListener<Iterable<VectorSchemaRoot>> terminal
     ) {
-        assert buildStage.getRole() == Stage.StageRole.BROADCAST_BUILD
-            : "BroadcastDispatch: buildStage role must be BROADCAST_BUILD";
-        assert probeStage.getRole() == Stage.StageRole.BROADCAST_PROBE
-            : "BroadcastDispatch: probeStage role must be BROADCAST_PROBE";
+        assert buildStage.getRole() == Stage.StageRole.BROADCAST_BUILD : "BroadcastDispatch: buildStage role must be BROADCAST_BUILD";
+        assert probeStage.getRole() == Stage.StageRole.BROADCAST_PROBE : "BroadcastDispatch: probeStage role must be BROADCAST_PROBE";
 
         ExchangeSink captureSink = captureSinkFactory.get();
 
@@ -200,9 +200,7 @@ public final class BroadcastDispatch {
         // (already installed above) fires, and terminal.onFailure resolves the query.
         if (parentTask != null) {
             parentTask.setOnCancelCallback(() -> {
-                String reason = parentTask.getReasonCancelled() != null
-                    ? parentTask.getReasonCancelled()
-                    : "unknown";
+                String reason = parentTask.getReasonCancelled() != null ? parentTask.getReasonCancelled() : "unknown";
                 LOGGER.debug("[BroadcastDispatch] pass 1 cancel requested, reason={}", reason);
                 try {
                     buildExec.cancel("task cancelled: " + reason);
@@ -225,16 +223,44 @@ public final class BroadcastDispatch {
     }
 
     /**
+     * Tripwire timeout for the capture-sink contract. The dispatcher invokes
+     * {@link #extractIpcBytes} only after {@code captureSink.close()} has returned, and the
+     * SPI contract for capture sinks requires {@code close()} to settle {@code ipcBytesFuture}
+     * synchronously before returning. Healthy completion is therefore microseconds; this bound
+     * exists solely to surface a sink-contract violation (an async or buggy {@code close()}
+     * that returns without completing the future) instead of blocking the dispatcher
+     * indefinitely. 30s rides out worst-case GC pauses and scheduling jitter while still
+     * failing fast enough to be diagnosable.
+     */
+    private static final long EXTRACT_IPC_TIMEOUT_SECONDS = 30L;
+
+    /**
      * Extracts IPC bytes from the capture sink. Uses reflection to keep analytics-engine free
      * of a compile-time dependency on the DataFusion backend (the only current implementer of
      * {@code ipcBytesFuture()}). Expects the sink to implement a method
-     * {@code CompletableFuture<byte[]> ipcBytesFuture()}.
+     * {@code CompletableFuture<byte[]> ipcBytesFuture()}, completed synchronously by its
+     * {@code close()} (which the dispatcher has already invoked before calling this method).
      */
     @SuppressWarnings("unchecked")
     private byte[] extractIpcBytes(ExchangeSink captureSink) throws Exception {
         java.lang.reflect.Method m = captureSink.getClass().getMethod("ipcBytesFuture");
         java.util.concurrent.CompletableFuture<byte[]> fut = (java.util.concurrent.CompletableFuture<byte[]>) m.invoke(captureSink);
-        return fut.get();
+        try {
+            return fut.get(EXTRACT_IPC_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+        } catch (TimeoutException te) {
+            // Don't block the dispatcher forever on a sink that violates the contract.
+            // cancel(false) doesn't interrupt anything (no producer thread to interrupt) —
+            // it just marks the future done so any later listener doesn't leak.
+            fut.cancel(false);
+            throw new RuntimeException(
+                "BroadcastDispatch: capture sink did not complete ipcBytesFuture within "
+                    + EXTRACT_IPC_TIMEOUT_SECONDS
+                    + "s — likely a sink-contract violation "
+                    + "(close() must complete the future synchronously); sink="
+                    + captureSink.getClass().getName(),
+                te
+            );
+        }
     }
 
     /**
