@@ -176,13 +176,21 @@ pub async fn execute_with_context(
     cpu_executor: DedicatedExecutor,
     permit: tokio::sync::OwnedSemaphorePermit,
 ) -> Result<i64, DataFusionError> {
+    eprintln!("[DIAG pid={}] execute_with_context ENTER thread={:?}", std::process::id(), std::thread::current().id());
+
     let substrait_plan = Plan::decode(plan_bytes).map_err(|e| {
         DataFusionError::Execution(format!("Failed to decode Substrait: {}", e))
     })?;
+    eprintln!("[DIAG pid={}] execute_with_context substrait decoded thread={:?}", std::process::id(), std::thread::current().id());
 
     let logical_plan = from_substrait_plan(&handle.ctx.state(), &substrait_plan).await?;
+    eprintln!("[DIAG pid={}] execute_with_context logical_plan created thread={:?}", std::process::id(), std::thread::current().id());
+
     let dataframe = handle.ctx.execute_logical_plan(logical_plan).await?;
+    eprintln!("[DIAG pid={}] execute_with_context dataframe created thread={:?}", std::process::id(), std::thread::current().id());
+
     let physical_plan = dataframe.create_physical_plan().await?;
+    eprintln!("[DIAG pid={}] execute_with_context physical_plan created thread={:?}", std::process::id(), std::thread::current().id());
 
     // Permit was acquired by the caller (ffm.rs) before spawning on the CPU
     // runtime, so the Java search thread blocks at the gate. The permit is
@@ -192,6 +200,7 @@ pub async fn execute_with_context(
         error!("execute_with_context: failed to create stream: {}", e);
         e
     })?;
+    eprintln!("[DIAG pid={}] execute_with_context stream created thread={:?}", std::process::id(), std::thread::current().id());
 
     let cross_rt_stream = CrossRtStream::new_with_df_error_stream(df_stream, cpu_executor);
     let wrapped = datafusion::physical_plan::stream::RecordBatchStreamAdapter::new(

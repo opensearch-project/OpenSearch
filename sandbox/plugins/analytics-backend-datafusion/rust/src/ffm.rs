@@ -227,6 +227,7 @@ pub unsafe extern "C" fn df_stream_get_schema(stream_ptr: i64) -> i64 {
 #[ffm_safe]
 #[no_mangle]
 pub unsafe extern "C" fn df_stream_next(stream_ptr: i64) -> i64 {
+    eprintln!("[DIAG pid={}] df_stream_next called ptr={} thread={:?}", std::process::id(), stream_ptr, std::thread::current().id());
     let mgr = get_rt_manager()?;
     mgr.io_runtime
         .block_on(crate::task_monitors::stream_next_monitor().instrument(api::stream_next(stream_ptr)))

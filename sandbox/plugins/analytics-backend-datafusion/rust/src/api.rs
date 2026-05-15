@@ -336,12 +336,14 @@ pub async unsafe fn execute_query(
     // This blocks until partition budget is available, preventing
     // unbounded partition task accumulation on the CPU runtime.
     let partition_weight = query_config.target_partitions.max(1) as u32;
+    let max_p = cpu_executor.concurrency_gate().max_permits();
+    let clamped = partition_weight.min(max_p);
     eprintln!("[DIAG] api::execute_query BEFORE gate.acquire_many({}) max_permits={} available={} thread={:?}",
-        partition_weight,
-        cpu_executor.concurrency_gate().max_permits(),
+        clamped,
+        max_p,
         cpu_executor.concurrency_gate().available_permits(),
         std::thread::current().id());
-    let permit = cpu_executor.concurrency_gate().acquire_many(partition_weight).await;
+    let permit = cpu_executor.concurrency_gate().acquire_many(clamped).await;
     eprintln!("[DIAG] api::execute_query AFTER gate.acquire_many got permit thread={:?}",
         std::thread::current().id());
 
