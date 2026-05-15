@@ -12,6 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
@@ -54,7 +55,7 @@ final class LuceneFilterDelegationHandle implements FilterDelegationHandle {
     private final Map<Integer, Query> queriesByAnnotationId;
     private final DirectoryReader directoryReader;
     private final List<LeafReaderContext> leaves;
-    private final Map<Long, Integer> generationToLeaf;
+    private final Map<Long, String> generationToSegmentName;
 
     private final ConcurrentHashMap<Integer, Weight> weightsByProviderKey = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<Integer, ScorerHandle> scorersByCollectorKey = new ConcurrentHashMap<>();
@@ -72,7 +73,7 @@ final class LuceneFilterDelegationHandle implements FilterDelegationHandle {
         assert catalogSnapshot != null : "catalogSnapshot must not be null";
         this.directoryReader = luceneReader.directoryReader();
         this.leaves = directoryReader.leaves();
-        this.generationToLeaf = luceneReader.generationToLeaf();
+        this.generationToSegmentName = luceneReader.generationToSegmentName();
         this.queriesByAnnotationId = compileQueries(expressions, queryShardContext, namedWriteableRegistry);
     }
 
@@ -123,25 +124,40 @@ final class LuceneFilterDelegationHandle implements FilterDelegationHandle {
         if (weight == null) {
             return -1;
         }
-        Integer leafIdx = generationToLeaf.get(writerGeneration);
-        if (leafIdx == null) {
+        String segName = generationToSegmentName.get(writerGeneration);
+        if (segName == null) {
             LOGGER.error(
-                "createCollector: no Lucene leaf for writer_generation={} (providerKey={}). Known generations: {}",
+                "createCollector: no Lucene segment for writer_generation={} (providerKey={}). Known generations: {}",
                 writerGeneration,
                 providerKey,
-                generationToLeaf.keySet()
+                generationToSegmentName.keySet()
             );
             return -1;
         }
-        LeafReaderContext leaf = leaves.get(leafIdx);
+        LeafReaderContext leaf = null;
+        for (LeafReaderContext lrc : leaves) {
+            if (((SegmentReader) lrc.reader()).getSegmentInfo().info.name.equals(segName)) {
+                leaf = lrc;
+                break;
+            }
+        }
+        if (leaf == null) {
+            LOGGER.error(
+                "createCollector: segment name [{}] not found in leaves (writerGeneration={}, providerKey={})",
+                segName,
+                writerGeneration,
+                providerKey
+            );
+            return -1;
+        }
 
         int leafMaxDoc = leaf.reader().maxDoc();
         assert minDoc >= 0 && minDoc <= maxDoc && maxDoc <= leafMaxDoc : "createCollector(providerKey="
             + providerKey
             + ", writerGeneration="
             + writerGeneration
-            + " -> leafOrd="
-            + leafIdx
+            + " -> segment="
+            + segName
             + "): partition ["
             + minDoc
             + ","
@@ -156,7 +172,7 @@ final class LuceneFilterDelegationHandle implements FilterDelegationHandle {
             return collectorKey;
         } catch (IOException exception) {
             LOGGER.error(
-                "createCollector failed for providerKey=" + providerKey + ", writerGeneration=" + writerGeneration + ", leafOrd=" + leafIdx,
+                "createCollector failed for providerKey=" + providerKey + ", writerGeneration=" + writerGeneration + ", segment=" + segName,
                 exception
             );
             return -1;

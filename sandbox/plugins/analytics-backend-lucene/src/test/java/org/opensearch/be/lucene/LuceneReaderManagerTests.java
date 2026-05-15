@@ -274,7 +274,7 @@ public class LuceneReaderManagerTests extends OpenSearchTestCase {
         rm.afterRefresh(true, snap1);
         LuceneReader lr1 = rm.getReader(snap1);
         assertEquals(0, new IndexSearcher(lr1.directoryReader()).count(new MatchAllDocsQuery()));
-        assertTrue(lr1.generationToLeaf().isEmpty());
+        assertTrue(lr1.generationToSegmentName().isEmpty());
 
         // Add doc1 in generation 10, refresh.
         addDoc("doc1", 10L);
@@ -282,7 +282,7 @@ public class LuceneReaderManagerTests extends OpenSearchTestCase {
         rm.afterRefresh(true, snap2);
         LuceneReader lr2 = rm.getReader(snap2);
         assertEquals(1, new IndexSearcher(lr2.directoryReader()).count(new MatchAllDocsQuery()));
-        assertEquals(0, (int) lr2.generationToLeaf().get(10L));
+        assertNotNull(lr2.generationToSegmentName().get(10L));
 
         assertEquals(0, new IndexSearcher(lr1.directoryReader()).count(new MatchAllDocsQuery()));
 
@@ -292,7 +292,7 @@ public class LuceneReaderManagerTests extends OpenSearchTestCase {
         rm.afterRefresh(true, snap3);
         LuceneReader lr3 = rm.getReader(snap3);
         assertEquals(2, new IndexSearcher(lr3.directoryReader()).count(new MatchAllDocsQuery()));
-        assertEquals(2, lr3.generationToLeaf().size());
+        assertEquals(2, lr3.generationToSegmentName().size());
 
         assertNotSame(lr1, lr2);
         assertNotSame(lr2, lr3);

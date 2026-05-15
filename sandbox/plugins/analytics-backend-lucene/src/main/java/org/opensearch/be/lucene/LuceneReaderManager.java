@@ -88,36 +88,36 @@ public class LuceneReaderManager implements EngineReaderManager<LuceneReader> {
             currentReader = refreshed;
         }
 
-        Map<Long, Integer> generationToLeaf = buildGenerationToLeaf(catalogSnapshot, currentReader.leaves());
-        readers.put(catalogSnapshot, new LuceneReader(currentReader, generationToLeaf));
+        Map<Long, String> generationToSegmentName = buildGenerationToSegmentName(catalogSnapshot, currentReader.leaves());
+        readers.put(catalogSnapshot, new LuceneReader(currentReader, generationToSegmentName));
     }
 
-    private static Map<Long, Integer> buildGenerationToLeaf(CatalogSnapshot catalogSnapshot, List<LeafReaderContext> leaves) {
-        // Index leaves by their file set
-        Map<Set<String>, Integer> filesToLeaf = new HashMap<>(leaves.size());
+    private static Map<Long, String> buildGenerationToSegmentName(CatalogSnapshot catalogSnapshot, List<LeafReaderContext> leaves) {
+        // Index leaves by their file set → segment name
+        Map<Set<String>, String> filesToSegName = new HashMap<>(leaves.size());
         for (int i = 0; i < leaves.size(); i++) {
             SegmentReader sr = (SegmentReader) leaves.get(i).reader();
             try {
-                filesToLeaf.put(new HashSet<>(sr.getSegmentInfo().files()), i);
+                filesToSegName.put(new HashSet<>(sr.getSegmentInfo().files()), sr.getSegmentInfo().info.name);
             } catch (IOException e) {
                 throw new IllegalStateException("Failed to read files for leaf " + i, e);
             }
         }
 
         // Match catalog segments to leaves via file sets
-        Map<Long, Integer> out = new HashMap<>();
+        Map<Long, String> out = new HashMap<>();
         for (Segment seg : catalogSnapshot.getSegments()) {
             WriterFileSet wfs = seg.dfGroupedSearchableFiles().get(LuceneDataFormat.LUCENE_FORMAT_NAME);
             if (wfs == null) {
                 continue;
             }
-            Integer leafIdx = filesToLeaf.get(wfs.files());
-            if (leafIdx == null) {
+            String segName = filesToSegName.get(wfs.files());
+            if (segName == null) {
                 throw new IllegalStateException(
                     "Catalog segment gen=" + seg.generation() + " files=" + wfs.files() + " has no matching Lucene leaf"
                 );
             }
-            out.put(seg.generation(), leafIdx);
+            out.put(seg.generation(), segName);
         }
         return out;
     }
