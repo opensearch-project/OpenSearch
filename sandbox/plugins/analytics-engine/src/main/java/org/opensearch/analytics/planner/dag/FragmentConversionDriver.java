@@ -134,13 +134,7 @@ public class FragmentConversionDriver {
             } else {
                 factory.createShardScanNode().ifPresent(instructions::add);
             }
-            if (plan.resolvedFragment() instanceof OpenSearchAggregate agg && agg.getMode() == AggregateMode.PARTIAL) {
-                factory.createPartialAggregateNode().ifPresent(instructions::add);
-            }
-        } else if (leaf instanceof OpenSearchStageInputScan) {
-            factory.createFinalAggregateNode().ifPresent(instructions::add);
         }
-
         return instructions;
     }
 
@@ -247,18 +241,17 @@ public class FragmentConversionDriver {
      * (with StageInputScan as leaf for schema), then attaches any operators above it
      * (Sort, Project, etc.) via attachFragmentOnTop.
      *
-     * The node immediately above ExchangeReducer is the final agg — it goes to
-     * convertFinalAggFragment together with StageInputScan. Only operators strictly
-     * above the final agg use attachFragmentOnTop.
+     * <p>Single-input ancestors of a single gathered subtree (Sort/Project/Aggregate over
+     * a partial agg) reach convertFinalAggFragment as soon as we see a node whose inputs
+     * are all ExchangeReducers, and attach via attachFragmentOnTop on the way back up.
      *
-     * TODO: for joins, the coordinator fragment has a join node directly above two
-     * StageInputScan leaves (no ExchangeReducer between them). convertReduceNode
-     * currently only recognizes the ExchangeReducer boundary — add join handling
-     * when shuffle joins are implemented (check if all inputs are StageInputScan
-     * and dispatch to a dedicated convertJoinFragment method).
+     * <p>Multi-input nodes (Join, Union, Intersect, Minus) are converted as a single
+     * subtree via convertFinalAggFragment: isthmus handles all of them natively, and
+     * rewriting OpenSearchStageInputScan leaves to plain TableScans (inside the convertor)
+     * lets the whole gathered subtree serialize in one pass. No post-conversion
+     * substrait-level stitching is needed.
      */
     private static byte[] convertReduceFragment(RelNode node, FragmentConvertor convertor, IntraOperatorDelegationBytes delegationBytes) {
-        // Find the ExchangeReducer and collect operators above it
         return convertReduceNode(node, convertor, false, delegationBytes);
     }
 
@@ -269,8 +262,7 @@ public class FragmentConversionDriver {
         IntraOperatorDelegationBytes delegationBytes
     ) {
         if (node instanceof OpenSearchExchangeReducer) {
-            // Strip ExchangeReducer — StageInputScan below it is the schema source
-            // This should never be reached directly; handled by the parent (final agg)
+            // Strip ExchangeReducer — StageInputScan below it is the schema source.
             return convertor.convertFinalAggFragment(strip(node.getInputs().getFirst(), delegationBytes));
         }
         if (node instanceof OpenSearchRelNode openSearchNode) {
@@ -288,7 +280,7 @@ public class FragmentConversionDriver {
                 // respective input partitions.
                 boolean allChildrenAreExchangeReducer = !node.getInputs().isEmpty()
                     && node.getInputs().stream().allMatch(input -> input instanceof OpenSearchExchangeReducer);
-                if (allChildrenAreExchangeReducer) {
+                if (allChildrenAreExchangeReducer && node.getInputs().size() == 1) {
                     List<RelNode> finalAggInputs = new ArrayList<>(node.getInputs().size());
                     for (RelNode input : node.getInputs()) {
                         // Skip the ER, keep StageInputScan below it as the leaf for schema inference.
@@ -299,7 +291,16 @@ public class FragmentConversionDriver {
                 }
             }
 
-            // Operator above the final-fragment boundary — convert child first, then attach.
+            // Multi-input node (Join, Union, Intersect, Minus): isthmus handles all of them
+            // natively. The whole subtree — multi-input node + its branches + ERs +
+            // StageInputScans — serializes in one convertFinalAggFragment pass. The convertor's
+            // StageInputScan → plain TableScan rewrite makes the leaves isthmus-friendly without
+            // any post-conversion substrait-level stitching.
+            if (node.getInputs().size() >= 2) {
+                return convertor.convertFinalAggFragment(strip(node, delegationBytes));
+            }
+
+            // Single-input operator above the final-fragment boundary — convert child first, then attach.
             byte[] innerBytes = convertReduceNode(node.getInputs().getFirst(), convertor, false, delegationBytes);
             return convertor.attachFragmentOnTop(strippedNode, innerBytes);
         }

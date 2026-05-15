@@ -19,16 +19,14 @@
 //! registry's atomics and DashMap — no locks are held during I/O.
 
 use std::fmt;
-use std::ops::Range;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use bytes::Bytes;
 use futures::stream::BoxStream;
 use futures::StreamExt;
 use object_store::{
-    path::Path, GetOptions, GetResult, ListResult, MultipartUpload, ObjectMeta, ObjectStore,
-    PutMultipartOptions, PutOptions, PutPayload, PutResult, Result as OsResult,
+    path::Path, CopyOptions, GetOptions, GetResult, ListResult, MultipartUpload, ObjectMeta,
+    ObjectStore, PutMultipartOptions, PutOptions, PutPayload, PutResult, Result as OsResult,
 };
 
 use crate::registry::traits::FileRegistry;
@@ -164,6 +162,54 @@ impl TieredObjectStore {
             None
         }
     }
+
+    /// Fast-path head response from registry or directory existence check.
+    /// Returns `Some(GetResult)` if the head can be answered without I/O,
+    /// `None` if the caller should fall through to the normal get_opts path.
+    fn try_head_from_registry(&self, location: &Path, path_str: &str) -> Option<OsResult<GetResult>> {
+        // Check registry for cached file size
+        if let Some(guard) = self.registry.get(path_str) {
+            let size = guard.size();
+            if size > 0 {
+                let meta = ObjectMeta {
+                    location: location.clone(),
+                    last_modified: chrono::DateTime::<chrono::Utc>::default(),
+                    size,
+                    e_tag: None,
+                    version: None,
+                };
+                return Some(Ok(GetResult {
+                    payload: object_store::GetResultPayload::Stream(
+                        futures::stream::empty().boxed(),
+                    ),
+                    meta,
+                    range: 0..size,
+                    attributes: Default::default(),
+                }));
+            }
+        }
+        // Directory existence check: if path looks like a directory and registry
+        // has entries, return synthetic metadata. Handles DataFusion's ListingTable
+        // directory existence check on warm where no local directory exists.
+        if (!path_str.contains('.') || path_str.ends_with('/')) && self.registry.len() > 0 {
+            let meta = ObjectMeta {
+                location: location.clone(),
+                last_modified: chrono::DateTime::<chrono::Utc>::default(),
+                size: 0,
+                e_tag: None,
+                version: None,
+            };
+            return Some(Ok(GetResult {
+                payload: object_store::GetResultPayload::Stream(
+                    futures::stream::empty().boxed(),
+                ),
+                meta,
+                range: 0..0,
+                attributes: Default::default(),
+            }));
+        }
+        None
+    }
 }
 
 impl fmt::Debug for TieredObjectStore {
@@ -220,8 +266,18 @@ impl ObjectStore for TieredObjectStore {
 
     /// Primary read path: check registry for remote routing, otherwise local.
     /// If local read fails with NotFound and file transitioned to REMOTE, retries from remote.
+    ///
+    /// Also handles head requests (options.head == true) by returning cached
+    /// size from the registry when available — avoids I/O for the common case.
     async fn get_opts(&self, location: &Path, options: GetOptions) -> OsResult<GetResult> {
         let path_str = location.as_ref();
+
+        // Fast path for head: check registry/directory without I/O
+        if options.head {
+            if let Some(result) = self.try_head_from_registry(location, path_str) {
+                return result;
+            }
+        }
 
         if let Some((rp, store)) = self.resolve_remote(path_str) {
             native_bridge_common::log_debug!(
@@ -240,76 +296,20 @@ impl ObjectStore for TieredObjectStore {
         result
     }
 
-    /// Range read with local-fail-retry-remote.
-    async fn get_range(&self, location: &Path, range: Range<u64>) -> OsResult<Bytes> {
-        let path_str = location.as_ref();
-
-        if let Some((rp, store)) = self.resolve_remote(path_str) {
-            return store.get_range(&rp, range).await;
-        }
-
-        let result = self.local.get_range(location, range.clone()).await;
-        if let Err(ref e) = result {
-            if let Some((rp, store)) = self.should_retry_remote(path_str, e) {
-                return store.get_range(&rp, range).await;
+    /// Delete stream: remove each path from registry only, NO local delete.
+    /// Local file deletion is handled by the Java layer.
+    fn delete_stream(
+        &self,
+        locations: BoxStream<'static, OsResult<Path>>,
+    ) -> BoxStream<'static, OsResult<Path>> {
+        let registry = Arc::clone(&self.registry);
+        let mapped = locations.map(move |result| {
+            if let Ok(ref path) = result {
+                registry.remove(path.as_ref(), true);
             }
-        }
-        result
-    }
-
-    /// Multi-range read with local-fail-retry-remote.
-    async fn get_ranges(&self, location: &Path, ranges: &[Range<u64>]) -> OsResult<Vec<Bytes>> {
-        let path_str = location.as_ref();
-
-        if let Some((rp, store)) = self.resolve_remote(path_str) {
-            return store.get_ranges(&rp, ranges).await;
-        }
-
-        let result = self.local.get_ranges(location, ranges).await;
-        if let Err(ref e) = result {
-            if let Some((rp, store)) = self.should_retry_remote(path_str, e) {
-                return store.get_ranges(&rp, ranges).await;
-            }
-        }
-        result
-    }
-
-    /// Head: check registry first (cached size), then local, then remote.
-    /// Head: check registry for cached size first (no I/O), then route via resolve_remote.
-    async fn head(&self, location: &Path) -> OsResult<ObjectMeta> {
-        let path_str = location.as_ref();
-
-        // Check registry for cached size — return immediately if available
-        if let Some(guard) = self.registry.get(path_str) {
-            let size = guard.size();
-            if size > 0 {
-                return Ok(ObjectMeta {
-                    location: location.clone(),
-                    last_modified: chrono::DateTime::<chrono::Utc>::default(),
-                    size,
-                    e_tag: None,
-                    version: None,
-                });
-            }
-        }
-
-        // Size not cached — route via resolve_remote (REMOTE → remote store)
-        if let Some((rp, store)) = self.resolve_remote(path_str) {
-            return store.head(&rp).await;
-        }
-
-        // Not remote — try local
-        self.local.head(location).await
-    }
-
-    /// Delete: remove from registry only, NO local delete.
-    /// Local file deletion is handled by the Java layer
-    /// (TieredSubdirectoryAwareDirectory.deleteFile). Eviction (local copy
-    /// removal after sync) is a writable warm concern — not implemented.
-    async fn delete(&self, location: &Path) -> OsResult<()> {
-        let path_str = location.as_ref();
-        self.registry.remove(path_str, true);
-        Ok(())
+            result
+        });
+        Box::pin(mapped)
     }
 
     /// List: local entries first, then remote-only entries from registry (deduplicated).
@@ -364,21 +364,9 @@ impl ObjectStore for TieredObjectStore {
         Ok(result)
     }
 
-    async fn copy(&self, _from: &Path, _to: &Path) -> OsResult<()> {
+    async fn copy_opts(&self, _from: &Path, _to: &Path, _options: CopyOptions) -> OsResult<()> {
         Err(object_store::Error::NotSupported {
             source: "TieredObjectStore does not support copy".into(),
-        })
-    }
-
-    async fn copy_if_not_exists(&self, _from: &Path, _to: &Path) -> OsResult<()> {
-        Err(object_store::Error::NotSupported {
-            source: "TieredObjectStore does not support copy_if_not_exists".into(),
-        })
-    }
-
-    async fn rename_if_not_exists(&self, _from: &Path, _to: &Path) -> OsResult<()> {
-        Err(object_store::Error::NotSupported {
-            source: "TieredObjectStore does not support rename_if_not_exists".into(),
         })
     }
 }

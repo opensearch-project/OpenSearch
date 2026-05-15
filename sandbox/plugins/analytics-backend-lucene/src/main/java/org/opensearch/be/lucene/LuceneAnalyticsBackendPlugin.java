@@ -67,9 +67,17 @@ public class LuceneAnalyticsBackendPlugin implements AnalyticsSearchBackendPlugi
     private static final Set<ScalarFunction> FULL_TEXT_OPS = Set.of(
         ScalarFunction.MATCH,
         ScalarFunction.MATCH_PHRASE,
+        ScalarFunction.MATCH_BOOL_PREFIX,
+        ScalarFunction.MATCH_PHRASE_PREFIX,
+        ScalarFunction.MULTI_MATCH,
+        ScalarFunction.QUERY_STRING,
+        ScalarFunction.SIMPLE_QUERY_STRING,
         ScalarFunction.FUZZY,
         ScalarFunction.WILDCARD,
-        ScalarFunction.REGEXP
+        ScalarFunction.REGEXP,
+        ScalarFunction.WILDCARD_QUERY,
+        ScalarFunction.QUERY,
+        ScalarFunction.MATCHALL
     );
 
     private static final Set<FieldType> STANDARD_TYPES = new HashSet<>();

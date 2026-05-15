@@ -968,10 +968,12 @@ public class Node implements Closeable {
             dataFormatAwareStoreDirectoryFactories.put("default", new DefaultDataFormatAwareStoreDirectoryFactory());
 
             // Register tiered factory for warm+format indices
-            dataFormatAwareStoreDirectoryFactories.put(
-                TieredDataFormatAwareStoreDirectoryFactory.FACTORY_KEY,
-                new TieredDataFormatAwareStoreDirectoryFactory(tieredStoragePrefetchSettingsSupplier)
-            );
+            if (FeatureFlags.isEnabled(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)) {
+                dataFormatAwareStoreDirectoryFactories.put(
+                    TieredDataFormatAwareStoreDirectoryFactory.FACTORY_KEY,
+                    new TieredDataFormatAwareStoreDirectoryFactory(tieredStoragePrefetchSettingsSupplier)
+                );
+            }
 
             final Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories = pluginsService.filterPlugins(
                 IndexStorePlugin.class
@@ -1347,7 +1349,7 @@ public class Node implements Closeable {
             if (FeatureFlags.isEnabled(STREAM_TRANSPORT) && streamTransportSupplier == null) {
                 throw new IllegalStateException(STREAM_TRANSPORT + " is enabled but no stream transport supplier is provided");
             }
-            final Transport streamTransport = (streamTransportSupplier != null ? streamTransportSupplier.get() : null);
+            final Transport streamTransport = wrapStreamTransport(streamTransportSupplier != null ? streamTransportSupplier.get() : null);
 
             Set<String> taskHeaders = Stream.concat(
                 pluginsService.filterPlugins(ActionPlugin.class).stream().flatMap(p -> p.getTaskHeaders().stream()),
@@ -1830,6 +1832,18 @@ public class Node implements Closeable {
             taskHeaders,
             tracer
         );
+    }
+
+    /**
+     * Hook to wrap the stream transport before it is shared between the
+     * regular {@link TransportService} and {@link StreamTransportService}.
+     * Default returns its input unchanged. Test-framework subclasses (e.g.
+     * {@code MockNode}) override to install a stubbable wrapper so
+     * test-only request-handler interception works on the streaming path
+     * too.
+     */
+    protected Transport wrapStreamTransport(@Nullable Transport streamTransport) {
+        return streamTransport;
     }
 
     /**

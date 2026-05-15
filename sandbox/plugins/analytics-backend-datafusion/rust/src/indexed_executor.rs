@@ -32,7 +32,7 @@ use datafusion::{
     catalog::Session,
     common::tree_node::{TreeNode, TreeNodeRecursion},
     datasource::{TableProvider, TableType},
-    execution::cache::cache_manager::CacheManagerConfig,
+    execution::cache::cache_manager::{CacheManagerConfig, CachedFileList},
     execution::cache::{CacheAccessor, DefaultListFilesCache, TableScopedPath},
     execution::memory_pool::MemoryPool,
     execution::object_store::ObjectStoreUrl,
@@ -103,7 +103,7 @@ pub async fn execute_indexed_query(
         table: None,
         path: shard_view.table_path.prefix().clone(),
     };
-    list_file_cache.put(&table_scoped_path, shard_view.object_metas.clone());
+    list_file_cache.put(&table_scoped_path, CachedFileList::new(shard_view.object_metas.as_ref().clone()));
 
     let mut runtime_env_builder = RuntimeEnvBuilder::from_runtime_env(&runtime.runtime_env)
         .with_cache_manager(
@@ -122,6 +122,12 @@ pub async fn execute_indexed_query(
     let runtime_env = runtime_env_builder
         .build()
         .map_err(|e| DataFusionError::Execution(format!("runtime env: {}", e)))?;
+
+    // Register shard-specific object store on file:// scheme for this query.
+    runtime_env.register_object_store(
+        &url::Url::parse("file://").unwrap(),
+        Arc::clone(&shard_view.store),
+    );
 
     let mut config = SessionConfig::new();
     config.options_mut().execution.parquet.pushdown_filters = query_config.parquet_pushdown_filters;
@@ -427,12 +433,10 @@ pub async unsafe fn execute_indexed_with_context(
     // with IndexedTableProvider after plan decoding.
     ctx.deregister_table(&table_name)?;
 
-    let store = ctx
-        .state()
-        .runtime_env()
-        .object_store(&table_path)?;
+    let state = ctx.state();
+    let store = state.runtime_env().object_store(&table_path)?;
 
-    let (segments, schema) = build_segments(Arc::clone(&store), object_metas.as_ref())
+    let (segments, schema) = build_segments(&state, Arc::clone(&store), object_metas.as_ref())
         .await
         .map_err(DataFusionError::Execution)?;
     for (i, seg) in segments.iter().enumerate() {

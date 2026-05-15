@@ -34,7 +34,7 @@ public class VSRPool implements AutoCloseable {
 
     private static final Logger logger = LogManager.getLogger(VSRPool.class);
 
-    private final Schema schema;
+    private volatile Schema schema;
     private final ArrowBufferPool bufferPool;
     private final String poolId;
     private final AtomicReference<ManagedVSR> activeVSR;
@@ -168,6 +168,16 @@ public class VSRPool implements AutoCloseable {
         String vsrId = poolId + "-vsr-" + vsrCounter.incrementAndGet();
         BufferAllocator allocator = bufferPool.createChildAllocator(vsrId);
         return new ManagedVSR(vsrId, schema, allocator);
+    }
+
+    /**
+     * Updates the schema used for creating new VSRs. Called when dynamic fields
+     * are added to the active VSR so that subsequent VSRs include those fields.
+     *
+     * @param newSchema the updated schema
+     */
+    public void updateSchema(Schema newSchema) {
+        this.schema = newSchema;
     }
 
     private void freezeVSR(ManagedVSR vsr) {

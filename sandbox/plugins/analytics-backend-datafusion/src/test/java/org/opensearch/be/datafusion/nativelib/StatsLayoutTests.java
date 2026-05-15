@@ -8,7 +8,7 @@
 
 package org.opensearch.be.datafusion.nativelib;
 
-import org.opensearch.be.datafusion.stats.NativeExecutorsStats;
+import org.opensearch.be.datafusion.stats.RuntimeMetrics;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.lang.foreign.Arena;
@@ -73,7 +73,7 @@ public class StatsLayoutTests extends OpenSearchTestCase {
             assertEquals(0L, cpuWorkers);
 
             // Simulate the NativeBridge logic
-            NativeExecutorsStats.RuntimeMetrics cpuRuntime = null;
+            RuntimeMetrics cpuRuntime = null;
             if (cpuWorkers > 0) {
                 cpuRuntime = StatsLayout.readRuntimeMetrics(seg, "cpu_runtime");
             }
@@ -95,7 +95,7 @@ public class StatsLayoutTests extends OpenSearchTestCase {
             long cpuWorkers = StatsLayout.readField(seg, "cpu_runtime", "workers_count");
             assertEquals(5L, cpuWorkers);
 
-            NativeExecutorsStats.RuntimeMetrics cpuRuntime = null;
+            RuntimeMetrics cpuRuntime = null;
             if (cpuWorkers > 0) {
                 cpuRuntime = StatsLayout.readRuntimeMetrics(seg, "cpu_runtime");
             }

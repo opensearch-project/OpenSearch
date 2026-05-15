@@ -14,9 +14,8 @@
 //! usage independently.
 //!
 //! [`QueryTrackingContext`] owns the per-query pool and tracker, auto-registers
-//! in the global [`QueryRegistry`] on creation, and marks the query completed
-//! on [`Drop`]. The registry retains completed entries so Java can retrieve
-//! final metrics via JNI before explicitly draining them.
+//! in the global [`QueryRegistry`] on creation, and removes the entry
+//! on [`Drop`].
 
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, OnceLock};
@@ -154,14 +153,6 @@ impl QueryTracker {
 
 static QUERY_REGISTRY: Lazy<DashMap<i64, Arc<QueryTracker>>> = Lazy::new(DashMap::new);
 
-/// Remove a completed tracker from the registry and return it.
-/// Called from JNI after Java has consumed the metrics.
-pub fn drain_completed_query(context_id: i64) -> Option<Arc<QueryTracker>> {
-    QUERY_REGISTRY
-        .remove_if(&context_id, |_, t| t.is_completed())
-        .map(|(_, t)| t)
-}
-
 /// Fire the cancellation token for the given context_id.
 /// No-op for unknown or already-completed queries.
 pub fn cancel_query(context_id: i64) {
@@ -192,8 +183,7 @@ pub fn set_abort_handle(context_id: i64, handle: AbortHandle) {
 /// Per-query context that owns the memory pool and tracker.
 ///
 /// - On creation: registers the tracker in the global registry.
-/// - On [`Drop`]: marks the tracker completed and logs final metrics.
-///   The tracker stays in the registry for JNI retrieval.
+/// - On [`Drop`]: removes the tracker from the registry and logs final metrics.
 ///
 /// For `context_id == 0` (unset), no tracking is performed.
 #[derive(Debug)]
@@ -251,6 +241,7 @@ impl Drop for QueryTrackingContext {
                 tracker.memory_pool.current_bytes(),
                 tracker.memory_pool.peak_bytes(),
             );
+            QUERY_REGISTRY.remove(&tracker.context_id);
         }
     }
 }
@@ -338,7 +329,7 @@ mod tests {
     }
 
     #[test]
-    fn test_context_registers_in_registry() {
+    fn test_context_registers_and_removes_on_drop() {
         let global = make_global_pool(10_000);
         let ctx_id = 50_000;
         let ctx = QueryTrackingContext::new(ctx_id, global);
@@ -346,33 +337,22 @@ mod tests {
         assert!(QUERY_REGISTRY.contains_key(&ctx_id));
 
         drop(ctx);
-        // Still in registry after drop (completed, not drained)
-        assert!(QUERY_REGISTRY.contains_key(&ctx_id));
-        assert!(QUERY_REGISTRY.get(&ctx_id).unwrap().is_completed());
-
-        // Drain removes it
-        let drained = drain_completed_query(ctx_id);
-        assert!(drained.is_some());
+        // Removed from registry after drop
         assert!(!QUERY_REGISTRY.contains_key(&ctx_id));
     }
 
     #[test]
-    fn test_drop_marks_completed_and_freezes_wall_time() {
+    fn test_drop_removes_from_registry() {
         let global = make_global_pool(10_000);
         let ctx_id = 50_001;
         let ctx = QueryTrackingContext::new(ctx_id, global);
 
+        assert!(QUERY_REGISTRY.contains_key(&ctx_id));
         thread::sleep(Duration::from_millis(50));
         drop(ctx);
 
-        let tracker = QUERY_REGISTRY.get(&ctx_id).unwrap();
-        assert!(tracker.is_completed());
-        let frozen = tracker.wall_secs();
-        thread::sleep(Duration::from_millis(50));
-        assert!((tracker.wall_secs() - frozen).abs() < 0.001);
-
-        drop(tracker);
-        QUERY_REGISTRY.remove(&ctx_id);
+        // Entry is gone after drop
+        assert!(!QUERY_REGISTRY.contains_key(&ctx_id));
     }
 
     #[test]
@@ -387,26 +367,7 @@ mod tests {
         assert!(t2 - t1 >= 0.04);
 
         drop(_ctx);
-        QUERY_REGISTRY.remove(&ctx_id);
-    }
-
-    #[test]
-    fn test_drain_returns_none_for_active_query() {
-        let global = make_global_pool(10_000);
-        let ctx_id = 50_003;
-        let _ctx = QueryTrackingContext::new(ctx_id, global);
-
-        // Cannot drain while still active
-        assert!(drain_completed_query(ctx_id).is_none());
-        assert!(QUERY_REGISTRY.contains_key(&ctx_id));
-
-        drop(_ctx);
-        assert!(drain_completed_query(ctx_id).is_some());
-    }
-
-    #[test]
-    fn test_drain_nonexistent_is_none() {
-        assert!(drain_completed_query(99_999).is_none());
+        // drop removes from registry automatically
     }
 
     #[test]
@@ -430,21 +391,15 @@ mod tests {
         assert_eq!(qp.current_bytes(), 2000);
         assert_eq!(qp.peak_bytes(), 8000);
 
-        // Drop context — marks completed
+        // Drop context — removes from registry
         drop(ctx);
-        {
-            let tracker = QUERY_REGISTRY.get(&ctx_id).unwrap();
-            assert!(tracker.is_completed());
-            assert_eq!(tracker.memory_pool.peak_bytes(), 8000);
-            assert!(tracker.wall_secs() > 0.0);
-        }
+        assert!(!QUERY_REGISTRY.contains_key(&ctx_id));
 
-        // Drop reservation — current goes to 0, peak stays
-        drop(reservation);
-        assert_eq!(qp.current_bytes(), 0);
+        // Pool still works (Arc kept alive by qp)
         assert_eq!(qp.peak_bytes(), 8000);
 
-        QUERY_REGISTRY.remove(&ctx_id);
+        drop(reservation);
+        assert_eq!(qp.current_bytes(), 0);
     }
 
     #[test]
@@ -471,14 +426,13 @@ mod tests {
 
         // Drop one, other keeps running
         drop(ctx_a);
-        assert!(QUERY_REGISTRY.get(&ctx_a_id).unwrap().is_completed());
-        assert!(!QUERY_REGISTRY.get(&ctx_b_id).unwrap().is_completed());
+        assert!(!QUERY_REGISTRY.contains_key(&ctx_a_id));
+        assert!(QUERY_REGISTRY.contains_key(&ctx_b_id));
 
         drop(res_a);
         drop(res_b);
         drop(ctx_b);
-        QUERY_REGISTRY.remove(&ctx_a_id);
-        QUERY_REGISTRY.remove(&ctx_b_id);
+        assert!(!QUERY_REGISTRY.contains_key(&ctx_b_id));
     }
 
     // -----------------------------------------------------------------------
@@ -486,7 +440,7 @@ mod tests {
     // -----------------------------------------------------------------------
 
     #[test]
-    fn test_context_completes_on_normal_drop_with_stream() {
+    fn test_context_removes_on_normal_drop_with_stream() {
         // Simulates: query succeeds → stream is consumed → handle dropped
         let global = make_global_pool(1_000_000);
         let ctx_id = 50_010;
@@ -499,25 +453,21 @@ mod tests {
         // Simulate allocations during stream consumption
         reservation.try_grow(4000).unwrap();
         assert_eq!(qp.peak_bytes(), 4000);
-        assert!(!QUERY_REGISTRY.get(&ctx_id).unwrap().is_completed());
+        assert!(QUERY_REGISTRY.contains_key(&ctx_id));
 
         // Stream fully consumed — reservation and context dropped together
-        // (mirrors QueryStreamHandle being dropped in streamClose)
         drop(reservation);
         drop(ctx);
 
-        let tracker = QUERY_REGISTRY.get(&ctx_id).unwrap();
-        assert!(tracker.is_completed());
-        assert_eq!(tracker.memory_pool.peak_bytes(), 4000);
-        assert_eq!(tracker.memory_pool.current_bytes(), 0);
-        assert!(tracker.wall_secs() > 0.0);
-
-        drop(tracker);
-        QUERY_REGISTRY.remove(&ctx_id);
+        // Removed from registry
+        assert!(!QUERY_REGISTRY.contains_key(&ctx_id));
+        // Pool stats still accessible via Arc
+        assert_eq!(qp.peak_bytes(), 4000);
+        assert_eq!(qp.current_bytes(), 0);
     }
 
     #[test]
-    fn test_context_completes_on_error_drop() {
+    fn test_context_removes_on_error_drop() {
         // Simulates: query execution fails → context dropped without
         // explicit cleanup (the error path in executeQueryPhaseAsync)
         let global = make_global_pool(1_000_000);
@@ -526,18 +476,9 @@ mod tests {
         {
             let ctx = QueryTrackingContext::new(ctx_id, global);
             let _pool = ctx.memory_pool();
-            assert!(!QUERY_REGISTRY.get(&ctx_id).unwrap().is_completed());
+            assert!(QUERY_REGISTRY.contains_key(&ctx_id));
+        } // ctx dropped here — removes from registry
 
-            // Simulate error: context goes out of scope, no stream was created
-        } // ctx dropped here — should still mark completed
-
-        let tracker = QUERY_REGISTRY.get(&ctx_id).unwrap();
-        assert!(tracker.is_completed());
-        assert_eq!(tracker.memory_pool.peak_bytes(), 0);
-        assert_eq!(tracker.memory_pool.current_bytes(), 0);
-
-        drop(tracker);
-        let drained = drain_completed_query(ctx_id);
-        assert!(drained.is_some());
+        assert!(!QUERY_REGISTRY.contains_key(&ctx_id));
     }
 }

@@ -21,7 +21,6 @@ import org.opensearch.analytics.exec.QueryContext;
 import org.opensearch.analytics.exec.StreamingResponseListener;
 import org.opensearch.analytics.exec.action.FragmentExecutionArrowResponse;
 import org.opensearch.analytics.exec.action.FragmentExecutionRequest;
-import org.opensearch.analytics.exec.action.FragmentExecutionResponse;
 import org.opensearch.analytics.exec.task.AnalyticsQueryTask;
 import org.opensearch.analytics.planner.dag.ShardExecutionTarget;
 import org.opensearch.analytics.planner.dag.Stage;
@@ -30,7 +29,6 @@ import org.opensearch.analytics.spi.ExchangeSink;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.core.action.ActionResponse;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -72,7 +70,7 @@ public class ShardFragmentStageExecutionTests extends OpenSearchTestCase {
         AtomicReference<StreamingResponseListener<FragmentExecutionArrowResponse>> capturedListener = new AtomicReference<>();
         CapturingSink sink = new CapturingSink();
 
-        ShardFragmentStageExecution exec = buildExecution(sink, true, capturedListener);
+        ShardFragmentStageExecution exec = buildExecution(sink, capturedListener);
         exec.start();
 
         assertNotNull("listener should have been captured by dispatch", capturedListener.get());
@@ -98,7 +96,7 @@ public class ShardFragmentStageExecutionTests extends OpenSearchTestCase {
         AtomicReference<StreamingResponseListener<FragmentExecutionArrowResponse>> capturedListener = new AtomicReference<>();
         CapturingSink sink = new CapturingSink();
 
-        ShardFragmentStageExecution exec = buildExecution(sink, true, capturedListener);
+        ShardFragmentStageExecution exec = buildExecution(sink, capturedListener);
         exec.start();
 
         VectorSchemaRoot root = createTestBatch(3);
@@ -110,65 +108,24 @@ public class ShardFragmentStageExecutionTests extends OpenSearchTestCase {
         sink.close();
     }
 
-    /**
-     * Verifies that non-Arrow (row codec) responses don't crash
-     * the release path on cancellation (they hold no Arrow resources).
-     */
-    public void testRowResponseSafeOnCancellation() {
-        AtomicReference<StreamingResponseListener<FragmentExecutionResponse>> capturedListener = new AtomicReference<>();
-        CapturingSink sink = new CapturingSink();
-
-        ShardFragmentStageExecution exec = buildExecution(sink, false, capturedListener);
-        exec.start();
-
-        exec.cancel("test");
-
-        FragmentExecutionResponse response = new FragmentExecutionResponse(new byte[0], 0);
-        capturedListener.get().onStreamResponse(response, true);
-
-        assertTrue("sink should not have received anything post-cancel", sink.fed.isEmpty());
-    }
-
-    /**
-     * Verifies that RowResponseCodec rejects null allocator.
-     */
-    public void testRowResponseCodecRejectsNullAllocator() {
-        FragmentExecutionResponse response = new FragmentExecutionResponse(new byte[0], 0);
-        expectThrows(IllegalArgumentException.class, () -> RowResponseCodec.INSTANCE.decode(response, null));
-    }
-
     // ── helpers ──────────────────────────────────────────────────────────
 
-    @SuppressWarnings("unchecked")
-    private <T extends ActionResponse> ShardFragmentStageExecution buildExecution(
+    private ShardFragmentStageExecution buildExecution(
         CapturingSink sink,
-        boolean streaming,
-        AtomicReference<StreamingResponseListener<T>> listenerCapture
+        AtomicReference<StreamingResponseListener<FragmentExecutionArrowResponse>> listenerCapture
     ) {
         Stage stage = mockStage();
         QueryContext config = mockQueryContext();
         ClusterService clusterService = mockClusterService();
         AnalyticsSearchTransportService dispatcher = mock(AnalyticsSearchTransportService.class);
-        when(dispatcher.isStreamingEnabled()).thenReturn(streaming);
 
-        if (streaming) {
-            doAnswer(invocation -> {
-                StreamingResponseListener<T> listener = (StreamingResponseListener<T>) invocation.getArgument(2);
-                listenerCapture.set(listener);
-                return null;
-            }).when(dispatcher).dispatchFragmentStreaming(any(), any(), any(), any(), any());
-        } else {
-            doAnswer(invocation -> {
-                StreamingResponseListener<T> listener = (StreamingResponseListener<T>) invocation.getArgument(2);
-                listenerCapture.set(listener);
-                return null;
-            }).when(dispatcher).dispatchFragment(any(), any(), any(), any(), any());
-        }
-
-        ResponseCodec<FragmentExecutionResponse> codec = (resp, alloc) -> {
-            VectorSchemaRoot vsr = createTestBatch(resp.getRowCount());
-            return vsr;
-        };
+        doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            StreamingResponseListener<FragmentExecutionArrowResponse> listener = (StreamingResponseListener<
+                FragmentExecutionArrowResponse>) invocation.getArgument(2);
+            listenerCapture.set(listener);
+            return null;
+        }).when(dispatcher).dispatchFragmentStreaming(any(), any(), any(), any(), any());
 
         Function<ShardExecutionTarget, FragmentExecutionRequest> requestBuilder = target -> new FragmentExecutionRequest(
             "test-query",
@@ -177,7 +134,7 @@ public class ShardFragmentStageExecutionTests extends OpenSearchTestCase {
             List.of(new FragmentExecutionRequest.PlanAlternative("test-backend", new byte[0], List.of()))
         );
 
-        return new ShardFragmentStageExecution(stage, config, sink, clusterService, requestBuilder, dispatcher, codec);
+        return new ShardFragmentStageExecution(stage, config, sink, clusterService, requestBuilder, dispatcher);
     }
 
     private VectorSchemaRoot createTestBatch(int rows) {
