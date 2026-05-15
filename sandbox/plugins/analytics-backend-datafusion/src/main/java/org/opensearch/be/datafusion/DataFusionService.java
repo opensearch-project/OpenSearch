@@ -19,6 +19,9 @@ import org.opensearch.common.settings.ClusterSettings;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 /**
  * Node-level service managing the DataFusion native runtime lifecycle.
@@ -39,6 +42,8 @@ public class DataFusionService extends AbstractLifecycleComponent {
     private final int cpuThreads;
     private final ClusterSettings clusterSettings;
 
+    private volatile ExecutorService drainExecutor;
+
     /** Handle to the native DataFusion global runtime (memory pool + cache). */
     private volatile NativeRuntimeHandle runtimeHandle;
 
@@ -53,6 +58,14 @@ public class DataFusionService extends AbstractLifecycleComponent {
         this.clusterSettings = builder.clusterSettings;
     }
 
+    public Executor getDrainExecutor() {
+        ExecutorService exec = drainExecutor;
+        if (exec == null) {
+            throw new IllegalStateException("DataFusionService has not been started");
+        }
+        return exec;
+    }
+
     /** Creates a new builder. */
     public static Builder builder() {
         return new Builder();
@@ -62,6 +75,7 @@ public class DataFusionService extends AbstractLifecycleComponent {
     protected void doStart() {
         logger.debug("Starting DataFusion service");
         NativeBridge.initTokioRuntimeManager(cpuThreads);
+        this.drainExecutor = Executors.newThreadPerTaskExecutor(Thread.ofVirtual().name("analytics-reduce-drain-", 0).factory());
         logger.debug("Tokio runtime manager initialized with {} CPU threads", cpuThreads);
 
         long cacheManagerPtr = 0L;
@@ -85,7 +99,15 @@ public class DataFusionService extends AbstractLifecycleComponent {
         try {
             releaseRuntime();
         } finally {
-            NativeBridge.shutdownTokioRuntimeManager();
+            try {
+                ExecutorService exec = drainExecutor;
+                if (exec != null) {
+                    exec.shutdown();
+                    drainExecutor = null;
+                }
+            } finally {
+                NativeBridge.shutdownTokioRuntimeManager();
+            }
         }
         logger.debug("DataFusion service stopped");
     }
