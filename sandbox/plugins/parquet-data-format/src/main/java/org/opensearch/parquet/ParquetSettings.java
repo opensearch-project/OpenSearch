@@ -32,7 +32,7 @@ public final class ParquetSettings {
      * measurable latency cost is chosen, which leaves more headroom for the DataFusion pool and
      * OS page cache.
      */
-    public static final ByteSizeValue DEFAULT_CHILD_ALLOCATION = new ByteSizeValue(512, ByteSizeUnit.MB);
+    public static final ByteSizeValue DEFAULT_CHILD_ALLOCATION = new ByteSizeValue(1024, ByteSizeUnit.MB);
 
     /** Group setting prefix for all Parquet settings. */
     public static final Setting<Settings> PARQUET_SETTINGS = Setting.groupSetting("index.parquet.", Setting.Property.IndexScope);
