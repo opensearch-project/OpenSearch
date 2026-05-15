@@ -613,7 +613,7 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
             if ("memtable".equals(mode) && ctx.childInputs().size() == 1 && preparedState == null) {
                 return new DatafusionMemtableReduceSink(ctx, svc.getNativeRuntime());
             }
-            return new DatafusionReduceSink(ctx, svc.getNativeRuntime(), preparedState);
+            return new DatafusionReduceSink(ctx, svc.getNativeRuntime(), svc.getDrainExecutor(), preparedState);
         };
     }
 
