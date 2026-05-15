@@ -146,13 +146,18 @@ public class DataStreamFieldMapper extends MetadataFieldMapper {
         // 1. LongPoint (indexed = true; an indexed long field to allow fast range filters on the timestamp field value)
         // 2. SortedNumericDocValuesField (hasDocValues = true; allows sorting, aggregations and access to the timestamp field value)
 
-        Document document = context.doc();
-        IndexableField[] fields = document.getFields(timestampField.getName());
+        long numTimestampValues = 0L;
+        if (context.indexSettings().isPluggableDataFormatEnabled() == false) {
+            Document document = context.doc();
+            IndexableField[] fields = document.getFields(timestampField.getName());
 
-        // Documents must contain exactly one value for the timestamp field.
-        long numTimestampValues = Arrays.stream(fields)
-            .filter(field -> field.fieldType().docValuesType() == DocValuesType.SORTED_NUMERIC)
-            .count();
+            // Documents must contain exactly one value for the timestamp field.
+            numTimestampValues = Arrays.stream(fields)
+                .filter(field -> field.fieldType().docValuesType() == DocValuesType.SORTED_NUMERIC)
+                .count();
+        } else {
+            numTimestampValues = context.documentInput().getFieldCount(timestampField.getName());
+        }
 
         if (numTimestampValues != 1) {
             throw new IllegalArgumentException(

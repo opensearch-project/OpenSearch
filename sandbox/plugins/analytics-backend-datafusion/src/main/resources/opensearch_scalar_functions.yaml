@@ -47,6 +47,23 @@ scalar_functions:
           - { value: string, name: "part" }
           - { value: "date", name: "value" }
         return: fp64
+  - name: "date_trunc"
+    description: >-
+      Truncate a timestamp/date to the given unit. Lowering target for PPL's
+      time-based `span(field, 1<unit>)` (rewritten by `SpanAdapter`). Same arg
+      shape as `date_part` — string unit then precision_timestamp/date — for
+      the same isthmus matchKeys reason documented on `date_part`. Return type
+      mirrors the input timestamp precision; DataFusion's `date_trunc` returns
+      the same temporal kind as its input.
+    impls:
+      - args:
+          - { value: string, name: "unit" }
+          - { value: "precision_timestamp<P>", name: "value" }
+        return: precision_timestamp<P>
+      - args:
+          - { value: string, name: "unit" }
+          - { value: "date", name: "value" }
+        return: date
   - name: "convert_tz"
     description: >-
       Shift a timestamp from one timezone to another. IANA names and +/-HH:MM
@@ -519,6 +536,21 @@ scalar_functions:
           - { name: format, value: string }
         nullability: DECLARED_OUTPUT
         return: string
+      - args:
+          - { name: value, value: "precision_timestamp<P>" }
+          - { name: format, value: string }
+        nullability: DECLARED_OUTPUT
+        return: string
+
+  # to_char(value, format) — render a timestamp using a strftime-style format string.
+  # Bound here so that DatetimeOutputCastRewriter can rewrite the engine-output cast
+  # `CAST(<TIMESTAMP> AS VARCHAR)` to `to_char(<TIMESTAMP>, '%Y-%m-%d %H:%M:%S')` and
+  # have the call serialize through this extension instead of Calcite's stdlib URN.
+  # DataFusion exposes a native `to_char` scalar that consumes strftime tokens. See
+  # issue #5420 (engine-output format divergence between Calcite and DataFusion).
+  - name: "to_char"
+    description: "Render a timestamp using a strftime-style format string (engine-output cast target)."
+    impls:
       - args:
           - { name: value, value: "precision_timestamp<P>" }
           - { name: format, value: string }

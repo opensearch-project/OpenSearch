@@ -75,7 +75,10 @@ public class DataFusionFragmentConvertorTests extends OpenSearchTestCase {
             t.setContextClassLoader(DataFusionFragmentConvertorTests.class.getClassLoader());
             SimpleExtension.ExtensionCollection delegationExtensions = SimpleExtension.load(List.of("/delegation_functions.yaml"));
             SimpleExtension.ExtensionCollection aggregateExtensions = SimpleExtension.load(List.of("/opensearch_aggregate_functions.yaml"));
-            extensions = DefaultExtensionCatalog.DEFAULT_COLLECTION.merge(delegationExtensions).merge(aggregateExtensions);
+            SimpleExtension.ExtensionCollection scalarExtensions = SimpleExtension.load(List.of("/opensearch_scalar_functions.yaml"));
+            extensions = DefaultExtensionCatalog.DEFAULT_COLLECTION.merge(delegationExtensions)
+                .merge(aggregateExtensions)
+                .merge(scalarExtensions);
         } finally {
             t.setContextClassLoader(prev);
         }
@@ -576,6 +579,47 @@ public class DataFusionFragmentConvertorTests extends OpenSearchTestCase {
      * SUM aggregate is not affected by the rename map — its extension function
      * name remains unchanged.
      */
+    /**
+     * End-to-end: a {@code Project[CAST(ts AS VARCHAR)]} fragment must serialize
+     * with a {@code to_char} extension function, not a raw Substrait {@code cast},
+     * proving {@link DatetimeOutputCastRewriter} fires inside the convertor and
+     * the {@code to_char} declaration in {@code opensearch_scalar_functions.yaml}
+     * is reachable through {@code FunctionMappings}. See issue
+     * <a href="https://github.com/opensearch-project/sql/issues/5420">sql#5420</a>.
+     */
+    public void testProjectTimestampOutputCastEmitsToCharExtension() throws Exception {
+        RelDataTypeFactory.Builder b = typeFactory.builder();
+        b.add("ts", typeFactory.createTypeWithNullability(typeFactory.createSqlType(SqlTypeName.TIMESTAMP, 6), true));
+        RelNode scan = new DataFusionFragmentConvertor.StageInputTableScan(cluster, cluster.traitSet(), "test_index", b.build());
+
+        RelDataType varcharType = typeFactory.createTypeWithNullability(typeFactory.createSqlType(SqlTypeName.VARCHAR), true);
+        RexNode tsField = rexBuilder.makeInputRef(scan, 0);
+        RexNode castExpr = rexBuilder.makeCast(varcharType, tsField);
+        RelNode project = org.apache.calcite.rel.logical.LogicalProject.create(
+            scan,
+            List.of(),
+            List.of(castExpr),
+            List.of("ts_str"),
+            java.util.Set.of()
+        );
+
+        byte[] bytes = newConvertor().convertShardScanFragment("test_index", project);
+        Plan plan = decodeSubstrait(bytes);
+
+        boolean foundToChar = false;
+        for (SimpleExtensionDeclaration decl : plan.getExtensionsList()) {
+            if (decl.hasExtensionFunction()) {
+                String name = decl.getExtensionFunction().getName();
+                String baseName = name.contains(":") ? name.substring(0, name.indexOf(':')) : name;
+                if (baseName.equals("to_char")) {
+                    foundToChar = true;
+                    break;
+                }
+            }
+        }
+        assertTrue("CAST(<TIMESTAMP> AS VARCHAR) must serialize as the to_char extension, not a raw cast", foundToChar);
+    }
+
     public void testOtherFunctionsNotRenamed() throws Exception {
         RelNode scan = buildTableScan("test_index", "A");
         LogicalAggregate agg = buildSumAggregate(scan, 0);

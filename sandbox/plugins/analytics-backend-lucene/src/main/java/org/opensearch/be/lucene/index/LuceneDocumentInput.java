@@ -9,7 +9,9 @@
 package org.opensearch.be.lucene.index;
 
 import org.apache.lucene.document.Document;
+import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.SortedNumericDocValuesField;
+import org.apache.lucene.index.DocValuesType;
 import org.opensearch.be.lucene.LuceneFieldFactory;
 import org.opensearch.be.lucene.LuceneFieldFactoryRegistry;
 import org.opensearch.common.annotation.ExperimentalApi;
@@ -34,13 +36,6 @@ import org.opensearch.index.mapper.MappedFieldType;
  */
 @ExperimentalApi
 public class LuceneDocumentInput implements DocumentInput<Document> {
-
-    /**
-     * Name of the row ID field stored in each Lucene document.
-     * @deprecated Use {@link DocumentInput#ROW_ID_FIELD} instead.
-     */
-    @Deprecated
-    public static final String ROW_ID_FIELD = DocumentInput.ROW_ID_FIELD;
 
     private final Document document;
     private final LuceneFieldFactoryRegistry fieldFactoryRegistry;
@@ -82,17 +77,27 @@ public class LuceneDocumentInput implements DocumentInput<Document> {
      */
     @Override
     public void addField(MappedFieldType fieldType, Object value) {
-        if (value == null || fieldType == null) {
-            return;
-        }
-
-        String typeName = fieldType.typeName();
-        LuceneFieldFactory factory = fieldFactoryRegistry.get(typeName);
+        assert value != null : "Field value must not be null";
+        LuceneFieldFactory factory = fieldFactory(fieldType);
         if (factory == null) {
             return;
         }
+        FieldType luceneFieldType;
+        if (fieldType.getTextSearchInfo() != null && fieldType.getTextSearchInfo().getLuceneFieldType() != null) {
+            luceneFieldType = new FieldType(fieldType.getTextSearchInfo().getLuceneFieldType());
+            luceneFieldType.setDocValuesType(DocValuesType.NONE);
+            luceneFieldType.setStored(false);
+        } else {
+            luceneFieldType = null;
+        }
+        factory.addField(document, fieldType, value, luceneFieldType);
+    }
 
-        factory.addField(document, fieldType, value);
+    private LuceneFieldFactory fieldFactory(MappedFieldType fieldType) {
+        if (fieldType == null) {
+            throw new IllegalArgumentException("Field type and value must not be null");
+        }
+        return fieldFactoryRegistry.get(fieldType.typeName());
     }
 
     /**
@@ -105,6 +110,11 @@ public class LuceneDocumentInput implements DocumentInput<Document> {
     @Override
     public void setRowId(String rowIdFieldName, long rowId) {
         document.add(new SortedNumericDocValuesField(rowIdFieldName, rowId));
+    }
+
+    @Override
+    public long getFieldCount(String fieldName) {
+        return document.getFields(fieldName).length;
     }
 
     /** No-op — this document input holds no closeable resources. */
