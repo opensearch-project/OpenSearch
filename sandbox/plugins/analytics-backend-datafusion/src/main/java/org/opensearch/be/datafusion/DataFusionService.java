@@ -21,6 +21,9 @@ import org.opensearch.common.settings.ClusterSettings;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
@@ -42,6 +45,15 @@ public class DataFusionService extends AbstractLifecycleComponent {
     private final int cpuThreads;
     private final ClusterSettings clusterSettings;
 
+    /**
+     * Virtual-thread-per-task executor used for {@link DatafusionReduceSink}'s drain
+     * loop. Drain tasks park on {@code streamNext().join()} while the native side
+     * produces the next batch; on a virtual thread the park unmounts from its carrier
+     * so concurrent queries don't consume fixed platform-pool slots for the full
+     * query lifetime.
+     */
+    private volatile ExecutorService drainExecutor;
+
     /** Handle to the native DataFusion global runtime (memory pool + cache). */
     private volatile NativeRuntimeHandle runtimeHandle;
 
@@ -62,6 +74,20 @@ public class DataFusionService extends AbstractLifecycleComponent {
         this.clusterSettings = builder.clusterSettings;
     }
 
+    /**
+     * Returns the virtual-thread-per-task executor the coordinator-reduce sink uses for
+     * its drain loop. Tasks spawned here park on native futures; virtual threads unmount
+     * from their carriers during the park so concurrent queries don't consume fixed
+     * platform-pool slots for the query's full lifetime.
+     */
+    public Executor getDrainExecutor() {
+        ExecutorService exec = drainExecutor;
+        if (exec == null) {
+            throw new IllegalStateException("DataFusionService has not been started");
+        }
+        return exec;
+    }
+
     /** Creates a new builder. */
     public static Builder builder() {
         return new Builder();
@@ -72,6 +98,8 @@ public class DataFusionService extends AbstractLifecycleComponent {
         logger.debug("Starting DataFusion service");
         NativeBridge.initTokioRuntimeManager(cpuThreads);
         logger.debug("Tokio runtime manager initialized with {} CPU threads", cpuThreads);
+
+        this.drainExecutor = Executors.newThreadPerTaskExecutor(Thread.ofVirtual().name("analytics-reduce-drain-", 0).factory());
 
         long cacheManagerPtr = 0L;
         if (clusterSettings != null) {
@@ -101,7 +129,15 @@ public class DataFusionService extends AbstractLifecycleComponent {
                     rootAllocator = null;
                 }
             } finally {
-                NativeBridge.shutdownTokioRuntimeManager();
+                try {
+                    ExecutorService exec = drainExecutor;
+                    if (exec != null) {
+                        exec.shutdown();
+                        drainExecutor = null;
+                    }
+                } finally {
+                    NativeBridge.shutdownTokioRuntimeManager();
+                }
             }
         }
         logger.debug("DataFusion service stopped");

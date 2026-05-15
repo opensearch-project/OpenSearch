@@ -8,45 +8,18 @@
 
 package org.opensearch.plugin.kinesis;
 
-import org.opensearch.cluster.metadata.IngestionSource;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Assert;
 
-import java.util.HashMap;
-import java.util.Map;
-
 public class KinesisConsumerFactoryTests extends OpenSearchTestCase {
-    public void testConstructorAndGetters() {
+    public void testConstructor() {
         KinesisConsumerFactory factory = new KinesisConsumerFactory();
-        Assert.assertNull("Config should be null before initialization", factory.config);
+        Assert.assertNotNull("Factory should be created", factory);
     }
 
-    public void testInitializeWithValidParams() {
+    public void testCreateShardConsumerWithNullSource() {
         KinesisConsumerFactory factory = new KinesisConsumerFactory();
-        Map<String, Object> params = new HashMap<>();
-        params.put("region", "us-west-2");
-        params.put("stream", "testStream");
-        params.put("secret_key", "testSecretKey");
-        params.put("access_key", "testAccessKey");
-
-        factory.initialize(new IngestionSource.Builder("KINESIS").setParams(params).build());
-
-        Assert.assertNotNull("Config should be initialized", factory.config);
-        Assert.assertEquals("Region should be correctly initialized", "us-west-2", factory.config.getRegion());
-        Assert.assertEquals("Stream should be correctly initialized", "testStream", factory.config.getStream());
-    }
-
-    public void testInitializeWithNullParams() {
-        KinesisConsumerFactory factory = new KinesisConsumerFactory();
-        try {
-            factory.initialize(null);
-            Assert.fail("Initialization should throw an exception when params is null");
-        } catch (NullPointerException e) {
-            Assert.assertNotNull(
-                "Cannot invoke \"[org.opensearch.cluster.metadata.IngestionSource.params()\" because \"ingestionSource]\" is null",
-                e.getMessage()
-            );
-        }
+        expectThrows(NullPointerException.class, () -> factory.createShardConsumer("test-client", 0, null));
     }
 
     public void testParsePointerFromString() {

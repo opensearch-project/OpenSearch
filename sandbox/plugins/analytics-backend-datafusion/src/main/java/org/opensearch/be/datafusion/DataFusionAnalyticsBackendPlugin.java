@@ -25,12 +25,15 @@ import org.opensearch.analytics.spi.FilterCapability;
 import org.opensearch.analytics.spi.FilterDelegationHandle;
 import org.opensearch.analytics.spi.FragmentConvertor;
 import org.opensearch.analytics.spi.FragmentInstructionHandlerFactory;
+import org.opensearch.analytics.spi.JoinCapability;
 import org.opensearch.analytics.spi.ProjectCapability;
 import org.opensearch.analytics.spi.ScalarFunction;
 import org.opensearch.analytics.spi.ScalarFunctionAdapter;
 import org.opensearch.analytics.spi.ScanCapability;
 import org.opensearch.analytics.spi.SearchExecEngineProvider;
 import org.opensearch.analytics.spi.StdOperatorRewriteAdapter;
+import org.opensearch.analytics.spi.WindowCapability;
+import org.opensearch.analytics.spi.WindowFunction;
 import org.opensearch.be.datafusion.indexfilter.FilterTreeCallbacks;
 import org.opensearch.index.engine.dataformat.DataFormatRegistry;
 
@@ -136,6 +139,10 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         ScalarFunction.REGEXP_CONTAINS,
         ScalarFunction.REPLACE,
         ScalarFunction.REGEXP_REPLACE,
+        ScalarFunction.TRANSLATE,
+        ScalarFunction.REX_EXTRACT,
+        ScalarFunction.REX_EXTRACT_MULTI,
+        ScalarFunction.REX_OFFSET,
         ScalarFunction.PLUS,
         ScalarFunction.TIMES,
         ScalarFunction.DIVIDE,
@@ -269,7 +276,17 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         // PPL `mvfind` returns INTEGER (the 0-based index of the first match, or NULL); backed
         // by a custom Rust UDF on the DataFusion session context (`udf::mvfind`), routed via
         // {@link MvfindAdapter}.
-        ScalarFunction.MVFIND
+        ScalarFunction.MVFIND,
+        // Logical connectives — emitted in projections where boolean expressions are composed:
+        // `case(a = 0 and b = 0, …)`, `eval x = a or b`, `eval x = NOT y`. DataFusion's substrait
+        // consumer handles them natively.
+        ScalarFunction.AND,
+        ScalarFunction.OR,
+        ScalarFunction.NOT,
+        ScalarFunction.MD5,
+        ScalarFunction.SHA1,
+        ScalarFunction.SHA2,
+        ScalarFunction.CRC32
     );
 
     /**
@@ -326,6 +343,34 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
             }
 
             @Override
+            public Set<JoinCapability> joinCapabilities() {
+                return Set.of(
+                    new JoinCapability(
+                        Set.of(
+                            JoinCapability.JoinKind.INNER,
+                            JoinCapability.JoinKind.LEFT,
+                            JoinCapability.JoinKind.RIGHT,
+                            JoinCapability.JoinKind.FULL,
+                            JoinCapability.JoinKind.SEMI,
+                            JoinCapability.JoinKind.ANTI,
+                            JoinCapability.JoinKind.CROSS
+                        ),
+                        Set.copyOf(plugin.getSupportedFormats())
+                    )
+                );
+            }
+
+            @Override
+            public Set<WindowCapability> windowCapabilities() {
+                return Set.of(
+                    new WindowCapability(
+                        Set.of(WindowFunction.SUM, WindowFunction.AVG, WindowFunction.COUNT, WindowFunction.MIN, WindowFunction.MAX),
+                        Set.copyOf(plugin.getSupportedFormats())
+                    )
+                );
+            }
+
+            @Override
             public Set<DelegationType> supportedDelegations() {
                 return Set.of(DelegationType.FILTER);
             }
@@ -353,7 +398,14 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                 Set<String> formats = Set.copyOf(plugin.getSupportedFormats());
                 Set<ProjectCapability> caps = new HashSet<>();
                 for (ScalarFunction op : STANDARD_PROJECT_OPS) {
-                    caps.add(new ProjectCapability.Scalar(op, Set.copyOf(SUPPORTED_FIELD_TYPES), formats, true));
+                    // PPL rex extract-mode multi-match returns array<varchar>; the planner
+                    // keys capability lookups on the call's return type, so this op must be
+                    // registered against FieldType.ARRAY rather than the scalar set used by
+                    // every other op (UPPER, ABS, ...) — those genuinely don't return arrays.
+                    Set<FieldType> types = op == ScalarFunction.REX_EXTRACT_MULTI
+                        ? Set.of(FieldType.ARRAY)
+                        : Set.copyOf(SUPPORTED_FIELD_TYPES);
+                    caps.add(new ProjectCapability.Scalar(op, types, formats, true));
                 }
                 for (ScalarFunction op : ARRAY_RETURNING_PROJECT_OPS) {
                     caps.add(new ProjectCapability.Scalar(op, Set.of(FieldType.ARRAY), formats, true));
@@ -449,11 +501,15 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                     Map.entry(ScalarFunction.POSITION, new PositionAdapter()),
                     Map.entry(ScalarFunction.QUARTER, DatePartAdapters.quarter()),
                     Map.entry(ScalarFunction.REGEXP_REPLACE, new RegexpReplaceAdapter()),
+                    Map.entry(ScalarFunction.REX_EXTRACT, new RexExtractAdapter()),
+                    Map.entry(ScalarFunction.REX_EXTRACT_MULTI, new RexExtractMultiAdapter()),
+                    Map.entry(ScalarFunction.REX_OFFSET, new RexOffsetAdapter()),
                     Map.entry(ScalarFunction.SARG_PREDICATE, new SargAdapter()),
                     Map.entry(ScalarFunction.SCALAR_MAX, nameMapping(SqlLibraryOperators.GREATEST)),
                     Map.entry(ScalarFunction.SCALAR_MIN, nameMapping(SqlLibraryOperators.LEAST)),
                     Map.entry(ScalarFunction.SECOND, second),
                     Map.entry(ScalarFunction.SECOND_OF_MINUTE, second),
+                    Map.entry(ScalarFunction.SHA2, new Sha2FunctionAdapter()),
                     Map.entry(ScalarFunction.SIGN, nameMapping(SignumFunction.FUNCTION)),
                     Map.entry(ScalarFunction.SINH, new HyperbolicOperatorAdapter(SqlLibraryOperators.SINH)),
                     Map.entry(ScalarFunction.STRCMP, new StrcmpFunctionAdapter()),
@@ -557,7 +613,7 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
             if ("memtable".equals(mode) && ctx.childInputs().size() == 1 && preparedState == null) {
                 return new DatafusionMemtableReduceSink(ctx, svc.getNativeRuntime());
             }
-            return new DatafusionReduceSink(ctx, svc.getNativeRuntime(), preparedState);
+            return new DatafusionReduceSink(ctx, svc.getNativeRuntime(), svc.getDrainExecutor(), preparedState);
         };
     }
 
@@ -566,5 +622,10 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         // Install the handle as the FFM upcall target. All Rust callbacks
         // (createProvider, createCollector, collectDocs, release*) route to it.
         FilterTreeCallbacks.setHandle(handle);
+    }
+
+    @Override
+    public void setDelegationThreadTracker(org.opensearch.analytics.spi.DelegationThreadTracker tracker) {
+        FilterTreeCallbacks.setThreadTracker(tracker);
     }
 }

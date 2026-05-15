@@ -85,6 +85,24 @@ public class RowIdAwareWriter<P extends DocumentInput<?>> implements Writer<P> {
         return delegate.generation();
     }
 
+    /** {@inheritDoc} Delegates to the underlying writer. */
+    @Override
+    public boolean isSchemaMutable() {
+        return delegate.isSchemaMutable();
+    }
+
+    /** {@inheritDoc} Delegates to the underlying writer. */
+    @Override
+    public long mappingVersion() {
+        return delegate.mappingVersion();
+    }
+
+    /** {@inheritDoc} Delegates to the underlying writer. */
+    @Override
+    public void updateMappingVersion(long newVersion) {
+        delegate.updateMappingVersion(newVersion);
+    }
+
     /** {@inheritDoc} Closes the underlying writer. */
     @Override
     public void close() throws IOException {

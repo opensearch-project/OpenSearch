@@ -37,11 +37,11 @@ import java.util.EnumSet;
  * STDDEV/VAR additionally emit {@code MULTIPLY} (for {@code x*x}) and
  * {@code POWER(variance, 0.5)} (sqrt). The {@code SAMP} variants also emit a
  * {@code CASE WHEN count > 1 THEN sqrt(variance) ELSE NULL END} Bessel's-correction
- * guard — the {@code >} comparison operator is in
- * {@link OpenSearchProjectRule#BASELINE_SCALAR_OPS} so it flows through without being
- * wrapped in {@code AnnotatedProjectExpression}. All emitted aggregates are
- * SUM/COUNT primitives that the resolver decomposes through the standard single-field
- * path.
+ * guard. Every operator emitted by the reduction (MULTIPLY, POWER, DIVIDE, CAST,
+ * CASE, comparisons) is declared as a scalar capability by the DataFusion backend,
+ * so the post-reduction Project flows through capability resolution cleanly. All
+ * emitted aggregates are SUM/COUNT primitives that the resolver decomposes through
+ * the standard single-field path.
  *
  * @opensearch.internal
  */

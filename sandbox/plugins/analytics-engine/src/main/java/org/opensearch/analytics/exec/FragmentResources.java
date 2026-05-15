@@ -25,15 +25,26 @@ public final class FragmentResources implements AutoCloseable {
     private final GatedCloseable<Reader> gatedReader;
     private final SearchExecEngine<ShardScanExecutionContext, EngineResultStream> engine;
     private final EngineResultStream stream;
+    private final Runnable onClose;
 
     public FragmentResources(
         GatedCloseable<Reader> gatedReader,
         SearchExecEngine<ShardScanExecutionContext, EngineResultStream> engine,
         EngineResultStream stream
     ) {
+        this(gatedReader, engine, stream, null);
+    }
+
+    public FragmentResources(
+        GatedCloseable<Reader> gatedReader,
+        SearchExecEngine<ShardScanExecutionContext, EngineResultStream> engine,
+        EngineResultStream stream,
+        Runnable onClose
+    ) {
         this.gatedReader = gatedReader;
         this.engine = engine;
         this.stream = stream;
+        this.onClose = onClose;
     }
 
     public EngineResultStream stream() {
@@ -42,8 +53,15 @@ public final class FragmentResources implements AutoCloseable {
 
     @Override
     public void close() throws Exception {
-        Exception first;
-        first = closeQuietly(stream, null);
+        Exception first = null;
+        if (onClose != null) {
+            try {
+                onClose.run();
+            } catch (Exception e) {
+                first = e;
+            }
+        }
+        first = closeQuietly(stream, first);
         first = closeQuietly(engine, first);
         first = closeQuietly(gatedReader, first);
         if (first != null) throw first;

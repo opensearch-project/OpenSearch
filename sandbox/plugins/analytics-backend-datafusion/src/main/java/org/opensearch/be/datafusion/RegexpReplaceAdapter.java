@@ -43,6 +43,13 @@ import java.util.List;
  * changes. Calls without {@code \Q} in the pattern AND without bare {@code $N} in the
  * replacement pass through unchanged.
  *
+ * <p>Handles both 3-arg ({@code SqlLibraryOperators.REGEXP_REPLACE_3}) and 4-arg
+ * ({@code SqlLibraryOperators.REGEXP_REPLACE_PG_4}, with a trailing {@code flags} string)
+ * signatures. The pattern is at operand position 1 and replacement at position 2 in both —
+ * the rewrite logic is identical. The {@code flags} operand (when present) passes through
+ * verbatim. The 4-arg form is the lowering target for PPL {@code rex mode=sed} with
+ * {@code g}/{@code i} flags.
+ *
  * <p>Pattern faithful to {@link java.util.regex.Pattern} semantics: an unterminated
  * {@code \Q} (no closing {@code \E}) quotes through end-of-string. Replacement preserves
  * existing {@code ${…}} braces and the {@code $$} literal-dollar escape.
@@ -56,8 +63,12 @@ class RegexpReplaceAdapter implements ScalarFunctionAdapter {
 
     @Override
     public RexNode adapt(RexCall original, List<FieldStorageInfo> fieldStorage, RelOptCluster cluster) {
-        // REGEXP_REPLACE_3 has signature (input, pattern, replacement) — exactly 3 operands.
-        if (original.getOperands().size() != 3) {
+        // REGEXP_REPLACE has both 3-arg (input, pattern, replacement) and 4-arg
+        // (input, pattern, replacement, flags) signatures. Pattern is at position 1 and
+        // replacement at position 2 in both — the rewrite logic is identical regardless
+        // of whether a flags argument is appended. Operands beyond position 2 (e.g. the
+        // flags string) pass through unchanged.
+        if (original.getOperands().size() < 3 || original.getOperands().size() > 4) {
             return original;
         }
         RexNode patternOperand = original.getOperands().get(1);
@@ -93,10 +104,14 @@ class RegexpReplaceAdapter implements ScalarFunctionAdapter {
         // makeLiteral(String) infers a CHAR type sized to the rewritten string. Reusing the
         // original literal's type would right-pad to the OLD length (e.g. CHAR(23) → 8 trailing
         // spaces after a 15-char rewrite), corrupting the value at runtime.
-        List<RexNode> newOperands = new ArrayList<>(3);
+        List<RexNode> newOperands = new ArrayList<>(original.getOperands().size());
         newOperands.add(original.getOperands().get(0));
         newOperands.add(rewrittenPattern != null ? rexBuilder.makeLiteral(rewrittenPattern) : patternOperand);
         newOperands.add(rewrittenReplacement != null ? rexBuilder.makeLiteral(rewrittenReplacement) : replacementOperand);
+        // Append any trailing operand (the flags string in the 4-arg form) verbatim.
+        for (int i = 3; i < original.getOperands().size(); i++) {
+            newOperands.add(original.getOperands().get(i));
+        }
         return rexBuilder.makeCall(original.getType(), original.getOperator(), newOperands);
     }
 
