@@ -103,7 +103,7 @@ public final class MonoFileWriterSet extends WriterFileSet {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeLong(writerGeneration());
-        out.writeString(file);
+        out.writeStringCollection(files());
         out.writeLong(numRows());
     }
 

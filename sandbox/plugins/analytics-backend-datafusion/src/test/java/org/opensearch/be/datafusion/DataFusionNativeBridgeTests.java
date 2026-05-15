@@ -21,6 +21,7 @@ import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
 /**
@@ -174,7 +175,11 @@ public class DataFusionNativeBridgeTests extends OpenSearchTestCase {
         assertTrue("NativeStoreHandle should be live", storeHandle.isLive());
 
         // Create reader with the real store handle — this proves the full wiring
-        ReaderHandle readerHandle = new ReaderHandle(dataDir.toString(), new String[] { "test.parquet" }, storeHandle);
+        ReaderHandle readerHandle = new ReaderHandle(
+            dataDir.toString(),
+            List.of(MonoFileWriterSet.of(dataDir.toString(), 1L, "test.parquet", 0L)),
+            storeHandle
+        );
         assertTrue("Reader pointer should be non-zero", readerHandle.getPointer() != 0);
 
         // Clean up in reverse order
