@@ -35,6 +35,8 @@ import org.opensearch.analytics.spi.StdOperatorRewriteAdapter;
 import org.opensearch.analytics.spi.WindowCapability;
 import org.opensearch.analytics.spi.WindowFunction;
 import org.opensearch.be.datafusion.indexfilter.FilterTreeCallbacks;
+import org.opensearch.be.datafusion.planner.adapter.NumericConversionFunctionAdapter;
+import org.opensearch.be.datafusion.planner.adapter.TimeConversionFunctionAdapter;
 import org.opensearch.index.engine.dataformat.DataFormatRegistry;
 
 import java.util.HashSet;
@@ -256,6 +258,19 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         ScalarFunction.TOSTRING,
         ScalarFunction.NUMBER_TO_STRING,
         ScalarFunction.TONUMBER,
+        // PPL conversion family — all five route through ConversionFunctionAdapter to a
+        // dedicated Rust UDF (rust/src/udf/<name>.rs). Declared here so the analytics planner
+        // routes the calls to this backend; the actual rewrite shape is documented on the
+        // adapter class.
+        ScalarFunction.NUM,
+        ScalarFunction.AUTO,
+        ScalarFunction.MEMK,
+        ScalarFunction.RMCOMMA,
+        ScalarFunction.RMUNIT,
+        ScalarFunction.DUR2SEC,
+        ScalarFunction.MSTIME,
+        ScalarFunction.CTIME,
+        ScalarFunction.MKTIME,
         ScalarFunction.JSON_APPEND,
         ScalarFunction.JSON_ARRAY_LENGTH,
         ScalarFunction.JSON_DELETE,
@@ -523,6 +538,15 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                     Map.entry(ScalarFunction.TIMESTAMP, new TimestampFunctionAdapter()),
                     Map.entry(ScalarFunction.TONUMBER, new ToNumberFunctionAdapter()),
                     Map.entry(ScalarFunction.TOSTRING, new ToStringFunctionAdapter()),
+                    Map.entry(ScalarFunction.NUM, new NumericConversionFunctionAdapter(NumericConversionFunctionAdapter.NUM)),
+                    Map.entry(ScalarFunction.AUTO, new NumericConversionFunctionAdapter(NumericConversionFunctionAdapter.AUTO)),
+                    Map.entry(ScalarFunction.MEMK, new NumericConversionFunctionAdapter(NumericConversionFunctionAdapter.MEMK)),
+                    Map.entry(ScalarFunction.RMCOMMA, new NumericConversionFunctionAdapter(NumericConversionFunctionAdapter.RMCOMMA)),
+                    Map.entry(ScalarFunction.RMUNIT, new NumericConversionFunctionAdapter(NumericConversionFunctionAdapter.RMUNIT)),
+                    Map.entry(ScalarFunction.DUR2SEC, new NumericConversionFunctionAdapter(NumericConversionFunctionAdapter.DUR2SEC)),
+                    Map.entry(ScalarFunction.MSTIME, new NumericConversionFunctionAdapter(NumericConversionFunctionAdapter.MSTIME)),
+                    Map.entry(ScalarFunction.CTIME, new TimeConversionFunctionAdapter(TimeConversionFunctionAdapter.CTIME)),
+                    Map.entry(ScalarFunction.MKTIME, new TimeConversionFunctionAdapter(TimeConversionFunctionAdapter.MKTIME)),
                     Map.entry(ScalarFunction.UNIX_TIMESTAMP, new UnixTimestampAdapter()),
                     Map.entry(ScalarFunction.WEEK, week),
                     Map.entry(ScalarFunction.WEEK_OF_YEAR, week),
