@@ -8,7 +8,6 @@
 
 package org.opensearch.analytics.qa;
 
-import org.apache.lucene.tests.util.LuceneTestCase.AwaitsFix;
 import org.opensearch.client.Request;
 import org.opensearch.client.Response;
 
@@ -26,35 +25,17 @@ import java.util.Map;
  *
  * <p>{@code CountBinHandler} wraps {@code data_range} and {@code max_value} in
  * {@code MIN(field) OVER ()} / {@code MAX(field) OVER ()} empty-partition
- * window aggregates. #21668 added {@code OpenSearchWindow} + {@code WindowCapability}
- * for standalone {@code LogicalWindow} operators, but PPL's {@code bin} emits
- * the window aggregates nested inside the {@code Project} that wraps the
- * {@code width_bucket} call. DataFusion's substrait consumer accepts the
- * resulting logical plan but its physical planner errors with "Physical plan
- * does not support logical expression WindowFunction(...)" because the windows
- * are still embedded in the project.
- *
- * <p>Unblocking needs Calcite's {@code ProjectToWindowRule} registered in
- * {@code PlannerImpl}'s rule set so RexOvers are hoisted into a separate
- * {@code LogicalWindow} (which {@code OpenSearchWindowRule} can then mark)
- * before substrait emission. Tracked separately.
+ * window aggregates. End-to-end pushdown works once {@code OpenSearchProject}'s
+ * pre-substrait lift hoists the nested RexOver into a child Project — see the
+ * {@code liftNestedRexOver} helper for details. DataFusion's substrait consumer
+ * then auto-lifts the top-level WindowFunction into a {@code LogicalWindow}
+ * which the physical planner can handle.
  *
  * <p>Not the ISO-SQL {@code width_bucket}. This is PPL's VARCHAR-label
  * variant (returns e.g. {@code "0-100"}) via the OpenSearch nice-number
  * algorithm, documented extensively in
  * {@link org.opensearch.be.datafusion.WidthBucketAdapter}'s Javadoc.
  */
-@AwaitsFix(
-    bugUrl = "PPL `bin <f> bins=N` (CountBinHandler) emits `width_bucket(f, N, MAX(f) OVER () - "
-        + "MIN(f) OVER (), MAX(f) OVER ())` with the window aggregates nested inside the Project. "
-        + "#21668 added OpenSearchWindow + WindowCapability for standalone LogicalWindow operators, "
-        + "but Calcite's ProjectToWindowRule is not registered in PlannerImpl, so RexOvers stay "
-        + "embedded in the Project and DataFusion's substrait consumer fails with 'Physical plan "
-        + "does not support logical expression WindowFunction(...)'. Follow-up: register "
-        + "CoreRules.PROJECT_TO_LOGICAL_PROJECT_AND_WINDOW (or equivalent) in PlannerImpl so "
-        + "windows are hoisted into a LogicalWindow node, then OpenSearchWindowRule marks it and "
-        + "substrait emits a clean Window rel."
-)
 public class WidthBucketCommandIT extends AnalyticsRestTestCase {
 
     private static final Dataset DATASET = new Dataset("calcs", "calcs");
@@ -122,17 +103,29 @@ public class WidthBucketCommandIT extends AnalyticsRestTestCase {
     //
     // num0 has nulls from key07. `bin num0 bins=10` computes width from the
     // non-null range [-15.7, 15.7] → range=31.4. target_width = 3.14,
-    // exponent=1 → width=10. max=15.7 not on boundary → no bump. 2 > 10 false
-    // → width stays 10. first_bin_start = floor(-15.7/10)*10 = -20.
-    // Labels:
-    //   12.3 → adj=32.3, idx=3, bin=-20+30=10 → "10-20"
-    //  -12.3 → adj=7.7, idx=0, bin=-20 → "-20--10"
-    //   15.7 → adj=35.7, idx=3, bin=10 → "10-20"
-    //  -15.7 → adj=4.3, idx=0, bin=-20 → "-20--10"
-    //    3.5 → adj=19.2, idx=1, bin=-10 → "-10-0"
-    //   -3.5 → adj=12.2, idx=1, bin=-10 → "-10-0"
-    //    0   → adj=20, idx=2, bin=0 → "0-10"
-    //   null → null
+    // exponent=ceil(log10(3.14))=1 → width=10. max=15.7 not on boundary → no
+    // bump; actualBins = ceil(31.4/10) = 4 ≤ 10 so width stays 10.
+    //
+    // Per-row mapping uses the data-node UDF's per-value formula
+    // bin_start = floor(value / width) * width (rust/src/udf/width_bucket.rs).
+    // The min/max OVER () operands are inputs to optimal_width only — they
+    // determine `width`, not the bin offset. PPL's java-side WidthBucket
+    // function uses a different `adj = value - first_bin_start` form; both
+    // produce the same labels EXCEPT for values whose
+    // `floor(value/width)*width` differs from `first_bin_start + idx*width`
+    // when `first_bin_start` is not a multiple of `width`. For width=10 the
+    // formulae coincide (every multiple-of-10 boundary is also a
+    // floor(_/10)*10 boundary), so the labels listed below match both.
+    //
+    //   12.3 → floor(1.23)*10 = 10 → "10-20"
+    //  -12.3 → floor(-1.23)*10 = -20 → "-20--10"
+    //   15.7 → floor(1.57)*10 = 10 → "10-20"
+    //  -15.7 → floor(-1.57)*10 = -20 → "-20--10"
+    //    3.5 → floor(0.35)*10 = 0 → "0-10"
+    //   -3.5 → floor(-0.35)*10 = -10 → "-10-0"
+    //    0   → floor(0)*10    = 0 → "0-10"
+    //   null → null (preserved by UDF's null-input short-circuit)
+    //    10  → floor(1)*10 = 10 → "10-20"
     public void testBinBinsPreservesNullsInNullableField() throws IOException {
         assertRows(
             "source=" + DATASET.indexName + " | bin num0 bins=10 | fields num0 | head 10",
@@ -140,7 +133,7 @@ public class WidthBucketCommandIT extends AnalyticsRestTestCase {
             row("-20--10"),
             row("10-20"),
             row("-20--10"),
-            row("-10-0"),
+            row("0-10"),
             row("-10-0"),
             row("0-10"),
             row((Object) null),

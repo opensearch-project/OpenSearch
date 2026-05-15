@@ -8,7 +8,6 @@
 
 package org.opensearch.analytics.qa;
 
-import org.apache.lucene.tests.util.LuceneTestCase.AwaitsFix;
 import org.opensearch.client.Request;
 import org.opensearch.client.Response;
 
@@ -24,24 +23,12 @@ import java.util.Map;
  * {@code minspan_bucket} UDF (via
  * {@code org.opensearch.sql.calcite.utils.binning.handlers.MinSpanBinHandler}).
  *
- * <p><b>Blocked on empty-partition window aggregate pushdown.</b>
- * {@code MinSpanBinHandler} wraps the {@code data_range} and
- * {@code max_value} arguments in {@code MIN(field) OVER ()} and
- * {@code MAX(field) OVER ()} empty-partition window aggregates. The
- * DataFusion analytics-engine backend does not yet support that
- * capability, so {@code bin minspan=N} cannot route through the
- * {@code minspan_bucket} Rust UDF end-to-end. See
- * {@link WidthBucketCommandIT}'s @AwaitsFix rationale — same story.
- *
- * <p>The 18 Rust unit tests in {@code rust/src/udf/minspan_bucket.rs} and
- * the 2 {@code MinspanBucketAdapterTests} cases provide unit-level
- * correctness coverage until window pushdown lands.
+ * <p>{@code MinSpanBinHandler} wraps {@code data_range} and {@code max_value}
+ * in {@code MIN(field) OVER ()} / {@code MAX(field) OVER ()} empty-partition
+ * window aggregates. End-to-end pushdown works once {@code OpenSearchProject}'s
+ * pre-substrait lift hoists the nested RexOver into a child Project — see the
+ * {@code liftNestedRexOver} helper for details.
  */
-@AwaitsFix(
-    bugUrl = "PPL `bin <f> minspan=N` (MinSpanBinHandler) emits `minspan_bucket(f, N, MAX(f) OVER "
-        + "() - MIN(f) OVER (), MAX(f) OVER ())` with windows nested in the Project. Same root "
-        + "cause as WidthBucketCommandIT — see its bugUrl for the ProjectToWindowRule follow-up."
-)
 public class MinspanBucketCommandIT extends AnalyticsRestTestCase {
 
     private static final Dataset DATASET = new Dataset("calcs", "calcs");
@@ -93,10 +80,26 @@ public class MinspanBucketCommandIT extends AnalyticsRestTestCase {
 
     // ── Null-value propagation ──────────────────────────────────────────────
     //
-    // `bin num0 minspan=3` over num0's range [-15.7, 15.7] ≈ 31.4.
-    //   minspan_width=10, default_width=10, 10>=3 → width=10.
-    //   first_bin_start = floor(-15.7/10)*10 = -20.
-    // Same shape as WidthBucketCommandIT.testBinBinsPreservesNullsInNullableField.
+    // `bin num0 minspan=3` over num0's range [-15.7, 15.7] ≈ 31.4. The
+    // optimal_width helper picks width=10 (smallest power of 10 that is ≥
+    // minspan=3 and ≥ range/MAX_BINS).
+    //
+    // Per-row mapping uses the data-node UDF's per-value formula
+    // bin_start = floor(value / width) * width
+    // (rust/src/udf/minspan_bucket.rs). Same shape as
+    // WidthBucketCommandIT.testBinBinsPreservesNullsInNullableField — the
+    // min/max OVER () operands feed optimal_width only; bin offset comes
+    // from floor(value/width)*width.
+    //
+    //   12.3 →  10 → "10-20"
+    //  -12.3 → -20 → "-20--10"
+    //   15.7 →  10 → "10-20"
+    //  -15.7 → -20 → "-20--10"
+    //    3.5 →   0 → "0-10"
+    //   -3.5 → -10 → "-10-0"
+    //    0   →   0 → "0-10"
+    //   null → null
+    //   10   →  10 → "10-20"
     public void testBinMinspanPreservesNullsInNullableField() throws IOException {
         assertRows(
             "source=" + DATASET.indexName + " | bin num0 minspan=3 | fields num0 | head 10",
@@ -104,7 +107,7 @@ public class MinspanBucketCommandIT extends AnalyticsRestTestCase {
             row("-20--10"),
             row("10-20"),
             row("-20--10"),
-            row("-10-0"),
+            row("0-10"),
             row("-10-0"),
             row("0-10"),
             row((Object) null),

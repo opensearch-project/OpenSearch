@@ -8,7 +8,6 @@
 
 package org.opensearch.analytics.qa;
 
-import org.apache.lucene.tests.util.LuceneTestCase.AwaitsFix;
 import org.opensearch.client.Request;
 import org.opensearch.client.Response;
 
@@ -24,22 +23,12 @@ import java.util.Map;
  * {@code range_bucket} UDF (via
  * {@code org.opensearch.sql.calcite.utils.binning.handlers.RangeBinHandler}).
  *
- * <p><b>Blocked on empty-partition window aggregate pushdown.</b>
- * {@code RangeBinHandler} wraps the {@code data_min} and {@code data_max}
- * arguments in {@code MIN(field) OVER ()} and {@code MAX(field) OVER ()}
- * empty-partition window aggregates. The DataFusion analytics-engine
- * backend does not yet support that capability; same blocker as
- * {@link WidthBucketCommandIT} and {@link MinspanBucketCommandIT}.
- *
- * <p>The 17 Rust unit tests in {@code rust/src/udf/range_bucket.rs} and
- * the 2 {@code RangeBucketAdapterTests} cases provide unit-level
- * correctness coverage until window pushdown lands.
+ * <p>{@code RangeBinHandler} wraps {@code data_min} / {@code data_max} in
+ * {@code MIN(field) OVER ()} / {@code MAX(field) OVER ()} empty-partition
+ * window aggregates. End-to-end pushdown works once {@code OpenSearchProject}'s
+ * pre-substrait lift hoists the nested RexOver into a child Project — see the
+ * {@code liftNestedRexOver} helper for details.
  */
-@AwaitsFix(
-    bugUrl = "PPL `bin <f> start=X end=Y` (RangeBinHandler) emits `range_bucket(f, MIN(f) OVER (), "
-        + "MAX(f) OVER (), X, Y)` with windows nested in the Project. Same root cause as "
-        + "WidthBucketCommandIT — see its bugUrl for the ProjectToWindowRule follow-up."
-)
 public class RangeBucketCommandIT extends AnalyticsRestTestCase {
 
     private static final Dataset DATASET = new Dataset("calcs", "calcs");
