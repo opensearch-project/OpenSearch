@@ -28,6 +28,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
 
 /**
  * Tracks per-format file reference counts and coordinates file deletion
@@ -68,13 +69,23 @@ public class IndexFileDeleter {
      */
     private final Map<String, Set<String>> pendingDeletes;
 
+
+    /**
+     * Callback invoked when a CatalogSnapshot's refCount reaches 0 via the deletion policy
+     * path ({@link #onCommit}, {@link #revisitPolicy}, or init). Allows the owning
+     * {@link CatalogSnapshotManager} to perform cleanup (e.g., removing from its map,
+     * notifying lifecycle listeners to close readers).
+     */
+    private final Consumer<CatalogSnapshot> onSnapshotDeletedCallback;
+
     public IndexFileDeleter(
         CatalogSnapshotDeletionPolicy deletionPolicy,
         FileDeleter fileDeleter,
         Map<String, FilesListener> filesListeners,
         List<CatalogSnapshot> initialCommittedSnapshots,
         ShardPath shardPath,
-        CommitFileManager commitFileManager
+        CommitFileManager commitFileManager,
+        Consumer<CatalogSnapshot> onSnapshotDeletedCallback
     ) throws IOException {
         this.deletionPolicy = deletionPolicy;
         this.fileDeleter = fileDeleter;
@@ -83,6 +94,7 @@ public class IndexFileDeleter {
         this.committedSnapshots = new ArrayList<>();
         this.commitFileManager = commitFileManager;
         this.pendingDeletes = new HashMap<>();
+        this.onSnapshotDeletedCallback = onSnapshotDeletedCallback;
 
         for (CatalogSnapshot cs : initialCommittedSnapshots) {
             if (cs.tryIncRef() == false) {
@@ -97,9 +109,7 @@ public class IndexFileDeleter {
         List<CatalogSnapshot> toDelete = deletionPolicy.onInit(committedSnapshots);
         for (CatalogSnapshot old : toDelete) {
             committedSnapshots.remove(old);
-            if (old.decRef()) {
-                removeFileReferences(old);
-            }
+            decRefAndMaybeDelete(old);
         }
 
         deleteOrphanedFiles(shardPath);
@@ -188,9 +198,7 @@ public class IndexFileDeleter {
         }
 
         for (CatalogSnapshot old : toDelete) {
-            if (old.decRef()) {
-                removeFileReferences(old);
-            }
+            decRefAndMaybeDelete(old);
         }
     }
 
@@ -210,9 +218,7 @@ public class IndexFileDeleter {
             }
         }
         for (CatalogSnapshot old : toDelete) {
-            if (old.decRef()) {
-                removeFileReferences(old);
-            }
+            decRefAndMaybeDelete(old);
         }
     }
 
@@ -294,6 +300,26 @@ public class IndexFileDeleter {
             FilesListener listener = filesListeners.get(entry.getKey());
             if (listener != null) {
                 listener.onFilesDeleted(entry.getValue());
+            }
+        }
+    }
+
+    void decRefAndMaybeDelete(CatalogSnapshot snapshot) {
+        if (snapshot.decRef()) {
+            Exception firstException = null;
+            try {
+                onSnapshotDeletedCallback.accept(snapshot);
+            } catch (Exception e) {
+                firstException = e;
+            }
+            try {
+                this.removeFileReferences(snapshot);
+            } catch (IOException e) {
+                if (firstException == null) firstException = e;
+                else firstException.addSuppressed(e);
+            }
+            if (firstException != null) {
+                throw new RuntimeException("Failed to clean up snapshot [gen=" + snapshot.getGeneration() + "]", firstException);
             }
         }
     }

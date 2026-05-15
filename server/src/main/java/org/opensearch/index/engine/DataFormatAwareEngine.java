@@ -916,7 +916,10 @@ public class DataFormatAwareEngine implements Indexer {
                         assert Long.parseLong(commitData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)) >= -1
                             : "local checkpoint in commit data must be >= -1";
                         assert Long.parseLong(commitData.get(SequenceNumbers.MAX_SEQ_NO)) >= -1 : "max seq no in commit data must be >= -1";
-                        Committer.CommitResult commitResult = committer.commit(commitData);
+
+                        // We do an additional commit on engine start due to no catalog snapshot present in earlier commit during empty recovery
+                        Committer.CommitResult commitResult = committer.commit(new Committer.CommitInput(commitData.entrySet(), snapshot, 0));
+
                         if (commitResult != null && snapshot instanceof DataformatAwareCatalogSnapshot dfaSnapshot) {
                             dfaSnapshot.setLastCommitInfo(
                                 commitResult.commitFileName(),

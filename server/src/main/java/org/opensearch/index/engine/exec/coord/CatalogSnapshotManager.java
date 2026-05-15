@@ -118,7 +118,8 @@ public class CatalogSnapshotManager implements Closeable {
             filesListeners,
             committedSnapshots,
             shardPath,
-            commitFileManager
+            commitFileManager,
+            this::onSnapshotDeleted
         );
         this.snapshotSerializer = commitFileManager::serializeToCommitFormat;
 
@@ -255,31 +256,6 @@ public class CatalogSnapshotManager implements Closeable {
             throw e;
         }
 
-        installSnapshot(newSnapshot);
-    }
-
-    /**
-     * Validates snapshot invariants, registers file references, notifies listeners, and swaps
-     * the snapshot as latest. Shared by commitNewSnapshot and applyReplicationSnapshot.
-     */
-    private void installSnapshot(CatalogSnapshot newSnapshot) throws IOException {
-        long prevGen = latestCatalogSnapshot.getGeneration();
-
-        // New snapshot generation must be strictly greater than the previous
-        assert newSnapshot.getGeneration() > prevGen : "new snapshot generation ["
-            + newSnapshot.getGeneration()
-            + "] must be > previous ["
-            + prevGen
-            + "]";
-        // New snapshot ID must be strictly greater than the previous
-        assert newSnapshot.getId() > latestCatalogSnapshot.getId() : "new snapshot ID ["
-            + newSnapshot.getId()
-            + "] must be > previous ["
-            + latestCatalogSnapshot.getId()
-            + "]";
-
-        List<Segment> refreshedSegments = newSnapshot.getSegments();
-
         // Segment generation uniqueness: a generation that appeared in a previous snapshot
         // must not reappear with different files. This prevents generation overlap bugs
         // where a merge output reuses a writer generation, causing file identity confusion.
@@ -297,6 +273,30 @@ public class CatalogSnapshotManager implements Closeable {
         // Every WriterFileSet in every segment must have a positive row count
         assert refreshedSegments.stream().flatMap(s -> s.dfGroupedSearchableFiles().values().stream()).allMatch(wfs -> wfs.numRows() > 0)
             : "every WriterFileSet must have a positive row count";
+
+
+        installSnapshot(newSnapshot);
+    }
+
+    /**
+     * Validates snapshot invariants, registers file references, notifies listeners, and swaps
+     * the snapshot as latest. Shared by commitNewSnapshot and applyReplicationSnapshot.
+     */
+    private void installSnapshot(CatalogSnapshot newSnapshot) throws IOException {
+
+        // New snapshot generation must be strictly greater than the previous
+        assert newSnapshot.getGeneration() > latestCatalogSnapshot.getGeneration() : "new snapshot generation ["
+            + newSnapshot.getGeneration()
+            + "] must be > previous ["
+            + latestCatalogSnapshot.getGeneration()
+            + "]";
+
+        // New snapshot ID must be strictly greater than the previous
+        assert newSnapshot.getId() > latestCatalogSnapshot.getId() : "new snapshot ID ["
+            + newSnapshot.getId()
+            + "] must be > previous ["
+            + latestCatalogSnapshot.getId()
+            + "]";
 
         // Register file references BEFORE notifying listeners and swapping the snapshot.
         // This ensures that if addFileReferences fails, no listener has been told about
@@ -365,11 +365,30 @@ public class CatalogSnapshotManager implements Closeable {
         if (closed.get()) {
             throw new IllegalStateException("CatalogSnapshotManager is closed");
         }
-        if (incoming.getGeneration() <= latestCatalogSnapshot.getGeneration()) {
-            // Resend of an already-applied snapshot — skip to keep the call idempotent.
-            return;
+
+        for (CatalogSnapshotLifecycleListener listener : snapshotListeners) {
+            listener.beforeRefresh();
         }
-        installSnapshot(incoming);
+
+        // Generation, id and commit file details are local to the replica.
+        // We should honor the state management within CatalogSnapshotManager to ensure these values
+        // honor the associated invariants (e.g. increasing generaiton)
+        // Primary may switch and come up with an older segment infos while replica may be ahead in
+        // the commit it manages.
+        DataformatAwareCatalogSnapshot newSnapshot = new DataformatAwareCatalogSnapshot(
+            latestCatalogSnapshot.getId() + 1,
+            latestCatalogSnapshot.getGeneration() + 1,
+            latestCatalogSnapshot.getVersion() + 1,
+            incoming.getSegments(),
+            latestCatalogSnapshot.getLastWriterGeneration() + 1,
+            incoming.getUserData(),
+            latestCatalogSnapshot.getLastCommitFileName(),
+            latestCatalogSnapshot.getLastCommitGeneration(),
+            latestCatalogSnapshot.getCommitDataFormatVersion()
+        );
+        newSnapshot.setReplicatingCommitData(((DataformatAwareCatalogSnapshot) incoming).getReplicatingCommitData());
+
+        installSnapshot(newSnapshot);
     }
 
     // ---- Acquire path ----
@@ -447,31 +466,35 @@ public class CatalogSnapshotManager implements Closeable {
 
     // ---- Internal ----
 
-    private void decRefAndMaybeDelete(CatalogSnapshot snapshot) {
-        final long gen = snapshot.getGeneration();
-        if (snapshot.decRef()) {
-            catalogSnapshotMap.remove(gen);
-            Exception firstException = null;
+    /**
+     * Called when a CatalogSnapshot's refCount reaches 0 — either from this class
+     * (via {@link #decRefAndMaybeDelete}) or from {@link IndexFileDeleter} when the
+     * deletion policy triggers removal of a committed snapshot.
+     * <p>
+     * Removes the snapshot from the tracking map and notifies lifecycle listeners
+     * (e.g., to close readers).
+     */
+    private void onSnapshotDeleted(CatalogSnapshot snapshot) {
+        catalogSnapshotMap.remove(snapshot.getGeneration());
+        Exception firstException = null;
+        for (CatalogSnapshotLifecycleListener listener : snapshotListeners) {
             try {
-                indexFileDeleter.removeFileReferences(snapshot);
+                listener.onDeleted(snapshot);
             } catch (IOException e) {
-                firstException = e;
-            }
-            for (CatalogSnapshotLifecycleListener listener : snapshotListeners) {
-                try {
-                    listener.onDeleted(snapshot);
-                } catch (IOException e) {
-                    if (firstException == null) {
-                        firstException = e;
-                    } else {
-                        firstException.addSuppressed(e);
-                    }
-                }
-            }
-            if (firstException != null) {
-                throw new RuntimeException("Failed to clean up snapshot [gen=" + gen + "]", firstException);
+                if (firstException == null) firstException = e;
+                else firstException.addSuppressed(e);
             }
         }
+        if (firstException != null) {
+            throw new RuntimeException(
+                "Failed to notify listener of snapshot deletion [gen=" + snapshot.getGeneration() + "]",
+                firstException
+            );
+        }
+    }
+
+    private void decRefAndMaybeDelete(CatalogSnapshot snapshot) {
+        indexFileDeleter.decRefAndMaybeDelete(snapshot);
     }
 
     /**

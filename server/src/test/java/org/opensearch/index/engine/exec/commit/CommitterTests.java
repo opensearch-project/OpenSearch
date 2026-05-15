@@ -10,6 +10,7 @@ package org.opensearch.index.engine.exec.commit;
 
 import org.opensearch.index.engine.CommitStats;
 import org.opensearch.index.engine.SafeCommitInfo;
+import org.opensearch.index.engine.exec.commit.Committer.CommitInput;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
@@ -24,7 +25,7 @@ public class CommitterTests extends OpenSearchTestCase {
     private static Committer noOpCommitter() {
         return new Committer() {
             @Override
-            public CommitResult commit(Map<String, String> commitData) {
+            public CommitResult commit(CommitInput commitInput) {
                 return null;
             }
 
@@ -74,7 +75,7 @@ public class CommitterTests extends OpenSearchTestCase {
         AtomicBoolean closed = new AtomicBoolean(false);
         Committer committer = new Committer() {
             @Override
-            public CommitResult commit(Map<String, String> commitData) {
+            public CommitResult commit(CommitInput commitData) {
                 return null;
             }
 
@@ -124,7 +125,7 @@ public class CommitterTests extends OpenSearchTestCase {
         AtomicBoolean committed = new AtomicBoolean(false);
         Committer committer = new Committer() {
             @Override
-            public CommitResult commit(Map<String, String> commitData) {
+            public CommitResult commit(CommitInput commitData) {
                 committed.set(true);
                 return null;
             }
@@ -165,7 +166,7 @@ public class CommitterTests extends OpenSearchTestCase {
                 throw new UnsupportedOperationException("test stub does not serialize commits");
             }
         };
-        committer.commit(Map.of());
+        committer.commit(new CommitInput(Map.<String, String>of().entrySet(), null, 0));
         assertTrue("commit() should have been called", committed.get());
     }
 }

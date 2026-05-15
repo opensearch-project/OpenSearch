@@ -44,16 +44,34 @@ public class DataformatAwareCatalogSnapshot extends CatalogSnapshot {
     private final long lastWriterGeneration;
     private final long numDocs;
     private Map<String, String> userData;
+
     // Lazily built; racy construction is safe (idempotent result).
     private volatile Map<String, Long> fileToFormatVersion;
+
     private final AtomicBoolean closed = new AtomicBoolean(false);
+
     // Mutated via setCommitInfo after a flush from a different thread than
     // upload/recovery consumers; volatile ensures the latest commit is visible.
     private volatile String lastCommitFileName;
+
     private volatile long lastCommitGeneration = -1;
+
     // Long-encoded format version (see LuceneVersionConverter) that wrote the last commit.
     // Kept as raw long so this class has no dependency on Lucene's Version type.
     private volatile long lastCommitDataFormatVersion = 0L;
+
+    /**
+     * Transient {@link org.apache.lucene.index.SegmentInfos} that produced this snapshot, when
+     * available. Set by segment replication on the replica side so that the replica's commit
+     * path can write a {@code segments_N} containing the real Lucene segment entries (not an
+     * empty synthetic one). This guarantees that if the replica is later promoted to primary,
+     * the new {@code IndexWriter} opens on a valid commit with all Lucene segments visible.
+     *
+     * <p>Not serialized — only lives in memory during the replication cycle. Null on the
+     * primary's own snapshots and on snapshots loaded from disk.
+     */
+    private volatile Object replicatingCommitData;
+
 
     /**
      * Constructs a new DataformatAwareCatalogSnapshot.
@@ -377,23 +395,11 @@ public class DataformatAwareCatalogSnapshot extends CatalogSnapshot {
             + '}';
     }
 
-    /**
-     * Transient {@link org.apache.lucene.index.SegmentInfos} that produced this snapshot, when
-     * available. Set by segment replication on the replica side so that the replica's commit
-     * path can write a {@code segments_N} containing the real Lucene segment entries (not an
-     * empty synthetic one). This guarantees that if the replica is later promoted to primary,
-     * the new {@code IndexWriter} opens on a valid commit with all Lucene segments visible.
-     *
-     * <p>Not serialized — only lives in memory during the replication cycle. Null on the
-     * primary's own snapshots and on snapshots loaded from disk.
-     */
-    private volatile org.apache.lucene.index.SegmentInfos commitSegmentInfos;
-
-    public org.apache.lucene.index.SegmentInfos getCommitSegmentInfos() {
-        return commitSegmentInfos;
+    public Object getReplicatingCommitData() {
+        return replicatingCommitData;
     }
 
-    public void setCommitSegmentInfos(org.apache.lucene.index.SegmentInfos infos) {
-        this.commitSegmentInfos = infos;
+    public void setReplicatingCommitData(Object replicatingCommitData) {
+        this.replicatingCommitData = replicatingCommitData;
     }
 }
