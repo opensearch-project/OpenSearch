@@ -83,6 +83,11 @@ public class CompositeDocumentInput implements DocumentInput<List<? extends Docu
         }
     }
 
+    public long getFieldCount(String fieldName) {
+        // Return the field count from the primary document input
+        return primaryDocumentInput.getFieldCount(fieldName);
+    }
+
     @Override
     public List<? extends DocumentInput<?>> getFinalInput() {
         return null;

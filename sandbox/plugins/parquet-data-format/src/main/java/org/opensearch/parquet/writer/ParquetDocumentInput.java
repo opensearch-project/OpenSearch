@@ -9,7 +9,10 @@
 package org.opensearch.parquet.writer;
 
 import org.opensearch.index.engine.dataformat.DocumentInput;
+import org.opensearch.index.mapper.IdFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
+import org.opensearch.index.mapper.SeqNoFieldMapper;
+import org.opensearch.index.mapper.VersionFieldMapper;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -28,29 +31,53 @@ public class ParquetDocumentInput implements DocumentInput<List<FieldValuePair>>
 
     private final List<FieldValuePair> collectedFields = new ArrayList<>();
     private long rowId = -1;
+    private boolean isClosed = false;
 
     /** Creates a new ParquetDocumentInput. */
     public ParquetDocumentInput() {}
 
     @Override
     public void addField(MappedFieldType fieldType, Object value) {
+        ensureOpen();
         collectedFields.add(new FieldValuePair(fieldType, value));
     }
 
     @Override
     public void setRowId(String rowIdFieldName, long rowId) {
+        ensureOpen();
         this.rowId = rowId;
     }
 
     @Override
     public List<FieldValuePair> getFinalInput() {
+        if (!isClosed) {
+            assert rowId >= 0 : "Row ID must be set before calling getFinalInput";
+            // assertions for parquet primary
+            // TODO: once parquet is supported in secondary mode, this assertion would change
+            assert getFieldCount(IdFieldMapper.NAME) == 1;
+            assert getFieldCount(SeqNoFieldMapper.NAME) == 1;
+            assert getFieldCount(VersionFieldMapper.NAME) == 1;
+            assert getFieldCount(SeqNoFieldMapper.PRIMARY_TERM_NAME) == 1;
+        }
         return collectedFields;
     }
 
     @Override
+    public long getFieldCount(String fieldName) {
+        return collectedFields.stream().filter(fvp -> fvp.getFieldType().name().equals(fieldName)).count();
+    }
+
+    @Override
     public void close() {
+        isClosed = true;
         collectedFields.clear();
         rowId = -1;
+    }
+
+    private void ensureOpen() {
+        if (isClosed) {
+            throw new IllegalStateException("Cannot add more fields to a frozen document input");
+        }
     }
 
     /**
