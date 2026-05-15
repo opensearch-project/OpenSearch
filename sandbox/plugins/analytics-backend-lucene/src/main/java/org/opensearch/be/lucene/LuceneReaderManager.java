@@ -12,6 +12,7 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentReader;
+import org.opensearch.be.lucene.index.LuceneReplicaCommitter;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.exec.EngineReaderManager;
@@ -83,6 +84,7 @@ public class LuceneReaderManager implements EngineReaderManager<LuceneReader> {
         if (didRefresh == false || readers.containsKey(catalogSnapshot.getVersion())) {
             return;
         }
+        // Get segmeninfos for replica and apply them for searches: LuceneReplicaCommitter.getSegmentInfos(catalogSnapshot);
         DirectoryReader refreshed = DirectoryReader.openIfChanged(currentReader);
         if (refreshed != null) {
             assert readersAreSame(catalogSnapshot, refreshed);

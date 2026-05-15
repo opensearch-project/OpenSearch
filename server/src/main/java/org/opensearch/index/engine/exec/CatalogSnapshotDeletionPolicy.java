@@ -33,7 +33,7 @@ public interface CatalogSnapshotDeletionPolicy {
     CatalogSnapshotDeletionPolicy KEEP_LATEST_ONLY = new CatalogSnapshotDeletionPolicy() {
         @Override
         public List<CatalogSnapshot> onInit(List<CatalogSnapshot> commits) {
-            return Collections.emptyList();
+            return onCommit(commits);
         }
 
         @Override

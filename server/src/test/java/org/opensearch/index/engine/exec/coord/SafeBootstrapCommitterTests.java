@@ -57,7 +57,7 @@ public class SafeBootstrapCommitterTests extends OpenSearchTestCase {
         }
 
         @Override
-        public CommitResult commit(Map<String, String> commitData) {
+        public CommitResult commit(CommitInput commitData) {
             return null;
         }
 

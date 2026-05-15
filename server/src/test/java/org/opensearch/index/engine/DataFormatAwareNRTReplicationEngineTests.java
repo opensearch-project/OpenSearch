@@ -664,7 +664,7 @@ public class DataFormatAwareNRTReplicationEngineTests extends OpenSearchTestCase
                 org.apache.lucene.util.Version.LATEST.major
             );
             sis.setUserData(java.util.Map.of(), false);
-            incoming.setCommitSegmentInfos(sis);
+            incoming.setReplicatingCommitData(sis);
 
             engine.updateCatalogSnapshot(incoming);
             // After commit, a segments_N file with these bytes is written. A subsequent

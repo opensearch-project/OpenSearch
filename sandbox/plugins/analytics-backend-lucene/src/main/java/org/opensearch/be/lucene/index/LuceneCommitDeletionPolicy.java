@@ -49,6 +49,7 @@ class LuceneCommitDeletionPolicy extends IndexDeletionPolicy {
         // which will delete it once a CS commit exists.
         for (IndexCommit commit : commits) {
             if (commit.getUserData().get(CatalogSnapshot.CATALOG_SNAPSHOT_ID) == null) {
+                assert nonCatalogSnapshotCommit == null;
                 nonCatalogSnapshotCommit = commit;
             }
         }

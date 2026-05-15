@@ -26,6 +26,8 @@ import org.opensearch.index.engine.exec.CombinedCatalogSnapshotDeletionPolicy;
 import org.opensearch.index.engine.exec.FileDeleter;
 import org.opensearch.index.engine.exec.Segment;
 import org.opensearch.index.engine.exec.WriterFileSet;
+import org.opensearch.index.engine.exec.commit.Committer;
+import org.opensearch.index.engine.exec.commit.Committer.CommitInput;
 import org.opensearch.index.engine.exec.commit.CommitterConfig;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshotManager;
@@ -234,7 +236,7 @@ public class LuceneCommitterCSManagerIntegrationTests extends OpenSearchTestCase
             Map<String, String> cd = new HashMap<>(snapshot.getUserData());
             cd.put(CatalogSnapshot.CATALOG_SNAPSHOT_KEY, snapshot.serializeToString());
             cd.put(CatalogSnapshot.CATALOG_SNAPSHOT_ID, Long.toString(snapshot.getId()));
-            committer.commit(cd);
+            committer.commit(new CommitInput(cd.entrySet(), snapshot, 0));
             handle.markSuccess();
         }
     }
@@ -250,7 +252,7 @@ public class LuceneCommitterCSManagerIntegrationTests extends OpenSearchTestCase
         Map<String, String> cd = new HashMap<>(initial.getUserData());
         cd.put(CatalogSnapshot.CATALOG_SNAPSHOT_KEY, initial.serializeToString());
         cd.put(CatalogSnapshot.CATALOG_SNAPSHOT_ID, Long.toString(initial.getId()));
-        env.committer.commit(cd);
+        env.committer.commit(new CommitInput(cd.entrySet(), initial, 0));
         return new CatalogSnapshotManager(
             env.committer.listCommittedSnapshots(),
             policy,
@@ -513,7 +515,7 @@ public class LuceneCommitterCSManagerIntegrationTests extends OpenSearchTestCase
             Map<String, String> cd1 = new HashMap<>(cs1.getUserData());
             cd1.put(CatalogSnapshot.CATALOG_SNAPSHOT_KEY, cs1.serializeToString());
             cd1.put(CatalogSnapshot.CATALOG_SNAPSHOT_ID, Long.toString(cs1.getId()));
-            committer.commit(cd1);
+            committer.commit(new CommitInput(cd1.entrySet(), cs1, 0));
 
             lucene1 = ingestLuceneDocs(committer, store);
             Set<String> parquet1 = ingestParquetFiles(parquetDir, "_1.parquet");
@@ -528,7 +530,7 @@ public class LuceneCommitterCSManagerIntegrationTests extends OpenSearchTestCase
             Map<String, String> cd2 = new HashMap<>(cs2.getUserData());
             cd2.put(CatalogSnapshot.CATALOG_SNAPSHOT_KEY, cs2.serializeToString());
             cd2.put(CatalogSnapshot.CATALOG_SNAPSHOT_ID, Long.toString(cs2.getId()));
-            committer.commit(cd2);
+            committer.commit(new CommitInput(cd2.entrySet(), cs2, 0));
 
             lucene2 = ingestLuceneDocs(committer, store);
             Set<String> parquet2 = ingestParquetFiles(parquetDir, "_2.parquet");
@@ -547,7 +549,7 @@ public class LuceneCommitterCSManagerIntegrationTests extends OpenSearchTestCase
             Map<String, String> cd3 = new HashMap<>(cs3.getUserData());
             cd3.put(CatalogSnapshot.CATALOG_SNAPSHOT_KEY, cs3.serializeToString());
             cd3.put(CatalogSnapshot.CATALOG_SNAPSHOT_ID, Long.toString(cs3.getId()));
-            committer.commit(cd3);
+            committer.commit(new CommitInput(cd3.entrySet(), cs3, 0));
 
             assertEquals(3, DirectoryReader.listCommits(store.directory()).size());
             committer.close();
@@ -648,7 +650,7 @@ public class LuceneCommitterCSManagerIntegrationTests extends OpenSearchTestCase
             Map<String, String> cd1 = new HashMap<>(cs1.getUserData());
             cd1.put(CatalogSnapshot.CATALOG_SNAPSHOT_KEY, cs1.serializeToString());
             cd1.put(CatalogSnapshot.CATALOG_SNAPSHOT_ID, Long.toString(cs1.getId()));
-            committer.commit(cd1);
+            committer.commit(new CommitInput(cd1.entrySet(), cs1, 0));
 
             Set<String> lucene1 = ingestLuceneDocs(committer, store);
             Set<String> parquet1 = ingestParquetFiles(parquetDir, "_1.parquet");
@@ -663,7 +665,7 @@ public class LuceneCommitterCSManagerIntegrationTests extends OpenSearchTestCase
             Map<String, String> cd2 = new HashMap<>(cs2.getUserData());
             cd2.put(CatalogSnapshot.CATALOG_SNAPSHOT_KEY, cs2.serializeToString());
             cd2.put(CatalogSnapshot.CATALOG_SNAPSHOT_ID, Long.toString(cs2.getId()));
-            committer.commit(cd2);
+            committer.commit(new CommitInput(cd2.entrySet(), cs2, 0));
 
             committer.close();
             store.close();

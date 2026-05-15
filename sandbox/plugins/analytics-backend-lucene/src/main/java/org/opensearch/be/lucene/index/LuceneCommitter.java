@@ -67,7 +67,7 @@ import java.util.stream.Collectors;
  * {@code IndexWriter.addIndexes} during refresh in {@link LuceneIndexingExecutionEngine}.
  * <p>
  * Commit data (catalog snapshot, translog UUID, sequence numbers) is persisted atomically
- * via {@link #commit(Map)}, which sets the live commit data on the writer and calls
+ * via {@link #commit(org.opensearch.index.engine.exec.commit.Committer.CommitInput)}, which sets the live commit data on the writer and calls
  * {@link IndexWriter#commit()}.
  * <p>
  * The store reference is incremented on construction and decremented on {@link #close()}.
@@ -132,11 +132,12 @@ public class LuceneCommitter extends SafeBootstrapCommitter {
      * @throws IllegalStateException if this committer is closed
      */
     @Override
-    public synchronized CommitResult commit(Map<String, String> commitData) throws IOException {
+    public synchronized CommitResult commit(CommitInput commitData) throws IOException {
         ensureOpen();
-        indexWriter.setLiveCommitData(commitData.entrySet());
+        indexWriter.setLiveCommitData(commitData.userData());
         indexWriter.commit();
         SegmentInfos committed = SegmentInfos.readLatestCommit(indexWriter.getDirectory());
+
         // Encode writer's Lucene version as a long — keeps CatalogSnapshot Lucene-type-agnostic.
         long version = LuceneVersionConverter.encode(committed.getCommitLuceneVersion());
         return new CommitResult(committed.getSegmentsFileName(), committed.getGeneration(), version);

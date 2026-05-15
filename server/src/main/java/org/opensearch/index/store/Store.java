@@ -1034,6 +1034,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             DataformatAwareCatalogSnapshot dfa = DataformatAwareCatalogSnapshot.deserializeFromString(serialized, directoryResolver);
             long version = LuceneVersionConverter.encode(segmentInfos.getCommitLuceneVersion());
             dfa.setLastCommitInfo(segmentInfos.getSegmentsFileName(), segmentInfos.getGeneration(), version);
+            dfa.setReplicatingCommitData(segmentInfos);
             return dfa;
         }
         return new SegmentInfosCatalogSnapshot(segmentInfos);
@@ -1063,6 +1064,32 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             userData.put(LOCAL_CHECKPOINT_KEY, String.valueOf(processedCheckpoint));
             userData.put(SequenceNumbers.MAX_SEQ_NO, Long.toString(maxSeqNo));
             latestSegmentInfos.setUserData(userData, false);
+            latestSegmentInfos.commit(directory());
+            directory.sync(latestSegmentInfos.files(true));
+            directory.syncMetaData();
+        } finally {
+            metadataLock.writeLock().unlock();
+        }
+    }
+
+    /**
+     * This method should only be used with Segment Replication.
+     * Perform a commit from a live {@link SegmentInfos}.  Replica engines with segrep do not have an IndexWriter and Lucene does not currently
+     * have the ability to create a writer directly from a SegmentInfos object.  To promote the replica as a primary and avoid reindexing, we must first commit
+     * on the replica so that it can be opened with a writeable engine. Further, InternalEngine currently invokes `trimUnsafeCommits` which reverts the engine to a previous safeCommit where the max seqNo is less than or equal
+     * to the current global checkpoint. It is likely that the replica has a maxSeqNo that is higher than the global cp and a new commit will be wiped.
+     * <p>
+     * To get around these limitations, this method first creates an IndexCommit directly from SegmentInfos, it then
+     * uses an appending IW to create an IndexCommit from the commit created on SegmentInfos.
+     * This ensures that 1. All files in the new commit are fsynced and 2. Deletes older commit points so the only commit to start from is our new commit.
+     *
+     * @param latestSegmentInfos {@link SegmentInfos} The latest active infos
+     * @throws IOException when there is an IO error committing.
+     */
+    public void commitSegmentInfos(SegmentInfos latestSegmentInfos) throws IOException {
+        assert indexSettings.isSegRepEnabledOrRemoteNode() || indexSettings.isAssignedOnRemoteNode();
+        metadataLock.writeLock().lock();
+        try {
             latestSegmentInfos.commit(directory());
             directory.sync(latestSegmentInfos.files(true));
             directory.syncMetaData();

@@ -67,6 +67,8 @@ import java.util.UUID;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
 import static org.opensearch.index.engine.EngineTestCase.createParsedDoc;
 import static org.opensearch.index.engine.EngineTestCase.tombstoneDocSupplier;
@@ -143,7 +145,7 @@ public class DataFormatAwareEngineRecoveryTests extends OpenSearchTestCase {
         }
 
         @Override
-        public CommitResult commit(Map<String, String> commitData) throws IOException {
+        public CommitResult commit(CommitInput commitInput) throws IOException {
             try (
                 IndexWriter writer = new IndexWriter(
                     store.directory(),
@@ -151,12 +153,18 @@ public class DataFormatAwareEngineRecoveryTests extends OpenSearchTestCase {
                         .setOpenMode(IndexWriterConfig.OpenMode.APPEND)
                 )
             ) {
-                writer.setLiveCommitData(commitData.entrySet());
+                writer.setLiveCommitData(commitInput.userData());
                 writer.commit();
             }
-            this.committedData = Map.copyOf(commitData);
+            this.committedData = StreamSupport.stream(commitInput.userData().spliterator(), false)
+                .collect(Collectors.toMap(
+                    Map.Entry::getKey,
+                    Map.Entry::getValue,
+                    (existing, replacement) -> replacement, // Merge function for duplicate keys
+                    HashMap::new
+                ));
             // Store the catalog snapshot if present in commit data
-            String serialized = commitData.get(CatalogSnapshot.CATALOG_SNAPSHOT_KEY);
+            String serialized = committedData.get(CatalogSnapshot.CATALOG_SNAPSHOT_KEY);
             if (serialized != null) {
                 try {
                     this.lastCommittedSnapshot = DataformatAwareCatalogSnapshot.deserializeFromString(serialized, dir -> dir);

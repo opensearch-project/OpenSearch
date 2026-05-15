@@ -24,9 +24,12 @@ import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doReturn;
@@ -241,9 +244,15 @@ public class CompositeIndexingExecutionEngineTests extends OpenSearchTestCase {
         Map<String, String> lastCommitData = null;
 
         @Override
-        public CommitResult commit(Map<String, String> commitData) {
+        public CommitResult commit(CommitInput commitData) {
             commitCalled = true;
-            lastCommitData = commitData;
+            lastCommitData = StreamSupport.stream(commitData.userData().spliterator(), false)
+                .collect(Collectors.toMap(
+                    Map.Entry::getKey,
+                    Map.Entry::getValue,
+                    (existing, replacement) -> replacement, // Merge function for duplicate keys
+                    HashMap::new
+                ));
             return null;
         }
 
