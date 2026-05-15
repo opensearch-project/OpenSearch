@@ -525,6 +525,21 @@ scalar_functions:
         nullability: DECLARED_OUTPUT
         return: string
 
+  # to_char(value, format) — render a timestamp using a strftime-style format string.
+  # Bound here so that DatetimeOutputCastRewriter can rewrite the engine-output cast
+  # `CAST(<TIMESTAMP> AS VARCHAR)` to `to_char(<TIMESTAMP>, '%Y-%m-%d %H:%M:%S')` and
+  # have the call serialize through this extension instead of Calcite's stdlib URN.
+  # DataFusion exposes a native `to_char` scalar that consumes strftime tokens. See
+  # issue #5420 (engine-output format divergence between Calcite and DataFusion).
+  - name: "to_char"
+    description: "Render a timestamp using a strftime-style format string (engine-output cast target)."
+    impls:
+      - args:
+          - { name: value, value: "precision_timestamp<P>" }
+          - { name: format, value: string }
+        nullability: DECLARED_OUTPUT
+        return: string
+
   # tonumber(string, base) — parse `string` as a base-N integer
   - name: "tonumber"
     description: "Parse a string to a number in the given radix (2-36). Returns NULL on parse failure."
