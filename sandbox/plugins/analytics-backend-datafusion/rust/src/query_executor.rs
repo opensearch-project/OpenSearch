@@ -174,9 +174,9 @@ pub async fn execute_with_context(
     handle: SessionContextHandle,
     plan_bytes: &[u8],
     cpu_executor: DedicatedExecutor,
-    partition_weight: u32,
+    permit: tokio::sync::OwnedSemaphorePermit,
 ) -> Result<i64, DataFusionError> {
-    eprintln!("[DIAG pid={}] execute_with_context ENTER partition_weight={} thread={:?}", std::process::id(), partition_weight, std::thread::current().id());
+    eprintln!("[DIAG pid={}] execute_with_context ENTER thread={:?}", std::process::id(), std::thread::current().id());
 
     let substrait_plan = Plan::decode(plan_bytes).map_err(|e| {
         DataFusionError::Execution(format!("Failed to decode Substrait: {}", e))
@@ -192,6 +192,10 @@ pub async fn execute_with_context(
     let physical_plan = dataframe.create_physical_plan().await?;
     eprintln!("[DIAG pid={}] execute_with_context physical_plan created thread={:?}", std::process::id(), std::thread::current().id());
 
+    // Permit was acquired by the caller (ffm.rs) before spawning on the CPU
+    // runtime, so the Java search thread blocks at the gate. The permit is
+    // held until the QueryStreamHandle is dropped (query complete).
+
     let df_stream = execute_stream(physical_plan, handle.ctx.task_ctx()).map_err(|e| {
         error!("execute_with_context: failed to create stream: {}", e);
         e
@@ -204,6 +208,6 @@ pub async fn execute_with_context(
         cross_rt_stream,
     );
 
-    let stream_handle = crate::api::QueryStreamHandle::with_session_context(wrapped, handle.query_context, handle.ctx, partition_weight);
+    let stream_handle = crate::api::QueryStreamHandle::with_session_context(wrapped, handle.query_context, handle.ctx, Some(permit));
     Ok(Box::into_raw(Box::new(stream_handle)) as i64)
 }

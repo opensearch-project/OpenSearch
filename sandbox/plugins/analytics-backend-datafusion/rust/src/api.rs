@@ -74,22 +74,22 @@ pub struct QueryStreamHandle {
     /// The physical plan may reference state (e.g. RuntimeEnv, caches) owned
     /// by the session; dropping it prematurely causes use-after-free.
     _session_ctx: Option<datafusion::prelude::SessionContext>,
-    /// Number of partitions this query uses — passed to the concurrency gate
-    /// on each `stream_next` call for per-batch acquire/release.
-    partition_weight: u32,
+    /// Concurrency gate permit — held for the query's entire lifetime.
+    /// Released on drop, which frees partition budget for other queries.
+    _concurrency_permit: Option<tokio::sync::OwnedSemaphorePermit>,
 }
 
 impl QueryStreamHandle {
     pub fn new(
         stream: RecordBatchStreamAdapter<CrossRtStream>,
         query_context: QueryTrackingContext,
-        partition_weight: u32,
+        permit: Option<tokio::sync::OwnedSemaphorePermit>,
     ) -> Self {
         Self {
             stream,
             _query_tracking_context: query_context,
             _session_ctx: None,
-            partition_weight,
+            _concurrency_permit: permit,
         }
     }
 
@@ -97,18 +97,14 @@ impl QueryStreamHandle {
         stream: RecordBatchStreamAdapter<CrossRtStream>,
         query_context: QueryTrackingContext,
         ctx: datafusion::prelude::SessionContext,
-        partition_weight: u32,
+        permit: Option<tokio::sync::OwnedSemaphorePermit>,
     ) -> Self {
         Self {
             stream,
             _query_tracking_context: query_context,
             _session_ctx: Some(ctx),
-            partition_weight,
+            _concurrency_permit: permit,
         }
-    }
-
-    pub fn partition_weight(&self) -> u32 {
-        self.partition_weight
     }
 }
 
@@ -384,16 +380,11 @@ pub async unsafe fn execute_query(
     eprintln!("[DIAG] api::execute_query query_future COMPLETED, stream_ptr={} thread={:?}",
         stream_ptr, std::thread::current().id());
 
-    // Permit released after plan setup — per-batch acquire happens in df_stream_next.
-    drop(permit);
-    eprintln!("[DIAG] api::execute_query permit DROPPED after plan setup thread={:?}",
-        std::thread::current().id());
-
     // Reconstruct the stream from the raw pointer returned by the executor.
     let stream = *Box::from_raw(stream_ptr as *mut RecordBatchStreamAdapter<CrossRtStream>);
-    let handle = QueryStreamHandle::new(stream, query_context, clamped);
-    eprintln!("[DIAG] api::execute_query returning QueryStreamHandle partition_weight={} thread={:?}",
-        clamped, std::thread::current().id());
+    let handle = QueryStreamHandle::new(stream, query_context, Some(permit));
+    eprintln!("[DIAG] api::execute_query returning QueryStreamHandle thread={:?}",
+        std::thread::current().id());
     Ok(Box::into_raw(Box::new(handle)) as i64)
 }
 
@@ -666,9 +657,6 @@ pub async unsafe fn execute_local_plan(
 
     let df_stream = session.execute_substrait(substrait_bytes).await?;
 
-    // Permit released after plan setup — per-batch acquire happens in df_stream_next.
-    drop(permit);
-
     // Wrap the output in the same CrossRtStream + RecordBatchStreamAdapter
     // shape as `execute_query`, so existing `stream_next` / `stream_close`
     // drain this handle unchanged.
@@ -676,7 +664,7 @@ pub async unsafe fn execute_local_plan(
         CrossRtStream::new_with_df_error_stream(df_stream, manager.cpu_executor());
     let wrapped = RecordBatchStreamAdapter::new(cross_rt_stream.schema(), cross_rt_stream);
 
-    let handle = QueryStreamHandle::new(wrapped, query_context, partition_weight);
+    let handle = QueryStreamHandle::new(wrapped, query_context, Some(permit));
     Ok(Box::into_raw(Box::new(handle)) as i64)
 }
 

@@ -174,10 +174,7 @@ pub async fn execute_indexed_query(
     let max_p = gate.max_permits();
     let permit = gate.acquire_many(partition_weight.min(max_p)).await;
 
-    let result = unsafe { execute_indexed_with_context(ptr, substrait_bytes, cpu_executor, partition_weight.min(max_p)).await };
-    // permit dropped here — gate freed after plan setup completes.
-    drop(permit);
-    result
+    unsafe { execute_indexed_with_context(ptr, substrait_bytes, cpu_executor, permit).await }
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────
@@ -414,7 +411,7 @@ pub async unsafe fn execute_indexed_with_context(
     session_ctx_ptr: i64,
     substrait_bytes: Vec<u8>,
     cpu_executor: DedicatedExecutor,
-    partition_weight: u32,
+    permit: tokio::sync::OwnedSemaphorePermit,
 ) -> Result<i64, DataFusionError> {
     let handle = *Box::from_raw(session_ctx_ptr as *mut crate::session_context::SessionContextHandle);
     let classification_override = handle.indexed_config.map(|config| {
@@ -704,6 +701,6 @@ pub async unsafe fn execute_indexed_with_context(
     let cross_rt_stream = CrossRtStream::new_with_df_error_stream(df_stream, cpu_executor);
     let schema = cross_rt_stream.schema();
     let wrapped = RecordBatchStreamAdapter::new(schema, cross_rt_stream);
-    let stream_handle = crate::api::QueryStreamHandle::with_session_context(wrapped, query_context, ctx, partition_weight);
+    let stream_handle = crate::api::QueryStreamHandle::with_session_context(wrapped, query_context, ctx, Some(permit));
     Ok(Box::into_raw(Box::new(stream_handle)) as i64)
 }
