@@ -269,7 +269,19 @@ public enum ScalarFunction {
      * and preserves nulls, so the analytics-backend-datafusion plugin ships a
      * custom Rust UDF ({@code udf::mvappend}) registered on its session context.
      */
-    MVAPPEND(Category.SCALAR, SqlKind.OTHER_FUNCTION);
+    MVAPPEND(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    /**
+     * PPL {@code span(field, interval, unit?)} — bucket {@code field} into
+     * fixed-width buckets. PPL's {@code stats … by span(field, N)} lowers to
+     * a 3-arg call where the third argument is {@code NULL} for numeric
+     * buckets and a unit-name string ({@code "y"}, {@code "M"}, {@code "d"},
+     * …) for time buckets. Resolves through the SQL plugin's
+     * {@code SpanFunction} UDF named {@code "SPAN"}. The analytics-backend
+     * adapter rewrites numeric span to {@code floor(field/interval)*interval}
+     * and time span (interval=1) to {@code date_trunc(unit, field)} so the
+     * Substrait-emitted plan reaches DataFusion as standard primitives.
+     */
+    SPAN(Category.SCALAR, SqlKind.OTHER_FUNCTION);
 
     /**
      * Category of scalar function.
