@@ -175,11 +175,13 @@ pub fn create_global_runtime(
     }
 
     let effective_spill_limit = if spill_limit == 0 {
-        // Auto-detect: use 80% of available disk space on the spill directory
         resolve_dynamic_spill_limit(spill_dir)
     } else {
         spill_limit as u64
     };
+
+    // Register spill directory for per-query disk pressure checks
+    crate::memory_guard::set_spill_dir(spill_dir);
 
     let disk_manager = DiskManagerBuilder::default()
         .with_max_temp_directory_size(effective_spill_limit)
@@ -323,11 +325,22 @@ pub async unsafe fn execute_query(
         .memory_pool()
         .map(|p| p as Arc<dyn datafusion::execution::memory_pool::MemoryPool>);
 
+    // Check disk pressure: if spill space is critically low, reduce parallelism
+    // to minimize spill volume per query. One statvfs call (~1µs).
+    let disk_budget = crate::memory_guard::per_query_spill_budget();
+    let disk_capped_partitions = if disk_budget.is_none() {
+        // Critically low disk — minimize parallelism to reduce spill
+        1
+    } else {
+        query_config.target_partitions
+    };
+
     // Acquire memory budget: reserve phantom for untracked memory.
     // Best-effort from cached metadata (zero I/O). If not cached, skip budget
     // — first query warms the cache, subsequent queries benefit.
     let (effective_config, phantom_corrector) = {
         let mut cfg = query_config.clone();
+        cfg.target_partitions = disk_capped_partitions;
         let corrector = if let Some(budget) = try_acquire_budget_from_cache(shard_view, runtime, &global_pool, &cfg) {
             cfg.target_partitions = budget.target_partitions;
             cfg.batch_size = budget.batch_size;
@@ -412,10 +425,9 @@ fn resolve_dynamic_spill_limit(spill_dir: &str) -> u64 {
     const FRACTION: f64 = 0.80;
     const FALLBACK: u64 = 8 * 1024 * 1024 * 1024; // 8GB
 
-    // Ensure the spill directory exists
     let _ = std::fs::create_dir_all(spill_dir);
 
-    match available_disk_space(spill_dir) {
+    match crate::memory_guard::available_disk_space(spill_dir) {
         Some(available) => {
             let limit = (available as f64 * FRACTION) as u64;
             log::info!(
@@ -432,28 +444,6 @@ fn resolve_dynamic_spill_limit(spill_dir: &str) -> u64 {
             FALLBACK
         }
     }
-}
-
-/// Query available disk space for the given path using platform-specific APIs.
-#[cfg(unix)]
-fn available_disk_space(path: &str) -> Option<u64> {
-    use std::ffi::CString;
-    use std::mem::MaybeUninit;
-
-    let c_path = CString::new(path).ok()?;
-    let mut stat = MaybeUninit::<libc::statvfs>::uninit();
-    let ret = unsafe { libc::statvfs(c_path.as_ptr(), stat.as_mut_ptr()) };
-    if ret != 0 {
-        return None;
-    }
-    let stat = unsafe { stat.assume_init() };
-    // f_bavail = blocks available to non-root, f_frsize = fragment size
-    Some(stat.f_bavail as u64 * stat.f_frsize as u64)
-}
-
-#[cfg(not(unix))]
-fn available_disk_space(_path: &str) -> Option<u64> {
-    None // Windows: fallback to default
 }
 
 fn plan_bytes_mentions_index_filter(plan_bytes: &[u8]) -> bool {
