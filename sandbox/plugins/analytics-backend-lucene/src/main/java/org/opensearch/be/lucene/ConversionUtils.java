@@ -19,7 +19,9 @@ import org.opensearch.index.query.QueryBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Reusable utilities for extracting fields and values from PPL relevance function
@@ -29,7 +31,7 @@ import java.util.List;
  * {@code func(MAP('field', $ref), MAP('query', literal), [MAP('param', literal)]...)}
  * Each MAP has exactly 2 operands: key at index 0, value at index 1.
  */
-final class ConversionUtils {
+public final class ConversionUtils {
 
     /** MAP key for single-field relevance operands. */
     static final String KEY_FIELD = "field";
@@ -77,7 +79,7 @@ final class ConversionUtils {
     /**
      * Serializes a QueryBuilder into bytes using NamedWriteable protocol.
      */
-    static byte[] serializeQueryBuilder(QueryBuilder queryBuilder) {
+    public static byte[] serializeQueryBuilder(QueryBuilder queryBuilder) {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             output.writeNamedWriteable(queryBuilder);
             return BytesReference.toBytes(output.bytes());
@@ -102,12 +104,52 @@ final class ConversionUtils {
     }
 
     /**
+     * Extracts optional key-value parameters from MAP_VALUE_CONSTRUCTOR operands
+     * starting at the given index.
+     *
+     * <p>Each operand at index {@code startIndex} and beyond is expected to be a
+     * MAP_VALUE_CONSTRUCTOR with exactly 2 children: a string key literal at index 0
+     * and a string value literal at index 1.
+     *
+     * <p>Example: for {@code match(field, 'query', operator='AND', analyzer='standard')},
+     * operands 2 and 3 are MAP('operator','AND') and MAP('analyzer','standard').
+     * Calling {@code extractOptionalParams(call, 2)} returns
+     * {@code Map.of("operator", "AND", "analyzer", "standard")}.
+     *
+     * @param call       the relevance function RexCall
+     * @param startIndex the first operand index to inspect (typically 2)
+     * @return map of parameter key → string value; empty if no optional params present
+     */
+    public static Map<String, String> extractOptionalParams(RexCall call, int startIndex) {
+        List<RexNode> operands = call.getOperands();
+        if (startIndex >= operands.size()) {
+            return Map.of();
+        }
+        Map<String, String> params = new LinkedHashMap<>();
+        for (int i = startIndex; i < operands.size(); i++) {
+            RexNode operand = operands.get(i);
+            if (operand instanceof RexCall mapCall && mapCall.getOperands().size() == 2) {
+                RexNode keyNode = mapCall.getOperands().get(0);
+                RexNode valueNode = mapCall.getOperands().get(1);
+                if (keyNode instanceof RexLiteral keyLit && valueNode instanceof RexLiteral valueLit) {
+                    String key = keyLit.getValueAs(String.class);
+                    String value = valueLit.getValueAs(String.class);
+                    if (key != null && value != null) {
+                        params.put(key, value);
+                    }
+                }
+            }
+        }
+        return params;
+    }
+
+    /**
      * Extracted operands from a relevance function RexCall.
      * @param fieldName  single field name (null if not present or multi-field)
      * @param fields     multiple field names (null if not present)
      * @param query      the query string (null if not found)
      */
-    record RelevanceOperands(String fieldName, List<String> fields, String query) {
+    public record RelevanceOperands(String fieldName, List<String> fields, String query) {
     }
 
     /**
@@ -118,7 +160,7 @@ final class ConversionUtils {
      * @param fieldStorage per-column storage metadata for resolving field names
      * @return extracted operands
      */
-    static RelevanceOperands extractRelevanceOperands(RexCall call, List<FieldStorageInfo> fieldStorage) {
+    public static RelevanceOperands extractRelevanceOperands(RexCall call, List<FieldStorageInfo> fieldStorage) {
         String fieldName = null;
         List<String> fields = null;
         String query = null;
