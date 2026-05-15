@@ -71,7 +71,10 @@ public class LuceneAnalyticsBackendPlugin implements AnalyticsSearchBackendPlugi
         ScalarFunction.SIMPLE_QUERY_STRING,
         ScalarFunction.FUZZY,
         ScalarFunction.WILDCARD,
-        ScalarFunction.REGEXP
+        ScalarFunction.REGEXP,
+        ScalarFunction.WILDCARD_QUERY,
+        ScalarFunction.QUERY,
+        ScalarFunction.MATCHALL
     );
 
     private static final Set<FieldType> STANDARD_TYPES = new HashSet<>();

@@ -48,6 +48,28 @@ public interface BackendCapabilityProvider {
     }
 
     /**
+     * Join capabilities this backend can execute. Each {@link JoinCapability} declares a
+     * set of {@link JoinCapability.JoinKind}s (INNER, LEFT, etc.) and the storage formats
+     * those joins apply to. The planner narrows viable backends to those whose
+     * capabilities cover the query's required kind. An empty set means the backend cannot
+     * execute joins.
+     */
+    default Set<JoinCapability> joinCapabilities() {
+        return Set.of();
+    }
+
+    /**
+     * Window-function capabilities this backend can execute. Each {@link WindowCapability}
+     * declares a set of {@link WindowFunction}s (ROW_NUMBER, RANK, SUM/AVG/COUNT over a
+     * frame, etc.) and the storage formats those windows apply to. The planner narrows
+     * viable backends to those whose capabilities cover every required function. An empty
+     * set means the backend cannot execute window functions.
+     */
+    default Set<WindowCapability> windowCapabilities() {
+        return Set.of();
+    }
+
+    /**
      * Delegation types this backend can initiate — it has a custom physical operator
      * that calls Analytics Core's delegation API to offload work to another backend.
      */
