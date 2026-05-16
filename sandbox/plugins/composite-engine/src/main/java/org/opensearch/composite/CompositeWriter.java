@@ -221,19 +221,6 @@ class CompositeWriter implements Writer<CompositeDocumentInput> {
     }
 
     /**
-     * Searches primary and secondary formats by {@link DataFormat#name()}.
-     */
-    @Override
-    public Optional<Writer<?>> getWriterForFormat(String formatName) {
-        if (primaryFormat.name().equals(formatName)) return Optional.of(primaryWriter);
-        return secondaryWritersByFormat.entrySet()
-            .stream()
-            .filter(e -> e.getKey().name().equals(formatName))
-            .<Writer<?>>map(Map.Entry::getValue)
-            .findFirst();
-    }
-
-    /**
      * Returns the writer generation number.
      *
      * @return the writer generation

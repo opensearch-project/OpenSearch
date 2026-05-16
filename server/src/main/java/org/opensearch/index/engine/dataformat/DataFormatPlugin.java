@@ -10,7 +10,6 @@ package org.opensearch.index.engine.dataformat;
 
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.IndexSettings;
-import org.opensearch.index.engine.exec.commit.Committer;
 
 import java.util.Map;
 import java.util.function.Supplier;
@@ -82,16 +81,5 @@ public interface DataFormatPlugin {
      */
     default Map<DataFormat, StoreStrategy> getStoreStrategies(IndexSettings indexSettings, DataFormatRegistry dataFormatRegistry) {
         return Map.of();
-    }
-
-    /**
-     * Returns the delete execution engine for this data format, or {@code null} if this
-     * plugin does not support delete operations.
-     *
-     * @param committer the committer for durable delete tracking
-     * @return the delete execution engine, or {@code null}
-     */
-    default DeleteExecutionEngine<?> getDeleteExecutionEngine(Committer committer) {
-        return null;
     }
 }
