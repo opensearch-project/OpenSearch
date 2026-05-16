@@ -190,7 +190,7 @@ public class OpenSearchProject extends Project implements OpenSearchRelNode {
         // Lift nested RexOver expressions out of scalar calls into a child LogicalProject.
         // PPL's `bin` command lowers `bins=N` / `minspan=N` / `start=… end=…` to a single
         // top-level scalar call whose operands embed RexOver: e.g.
-        //     width_bucket(f, N, MAX(f) OVER () - MIN(f) OVER (), MAX(f) OVER ())
+        // width_bucket(f, N, MAX(f) OVER () - MIN(f) OVER (), MAX(f) OVER ())
         // DataFusion's substrait consumer auto-lifts *top-level* WindowFunction project
         // expressions into a LogicalWindow (datafusion-substrait
         // `from_project_rel`), but the nested RexOvers inside `width_bucket(...)` stay
@@ -201,7 +201,7 @@ public class OpenSearchProject extends Project implements OpenSearchRelNode {
         // into a child Project as its own top-level expression, and rewrite the original
         // expression to reference the hoisted column via RexInputRef. The child Project
         // becomes:
-        //     [input_field_0, input_field_1, ..., input_field_(n-1), MAX(f) OVER (), MIN(f) OVER ()]
+        // [input_field_0, input_field_1, ..., input_field_(n-1), MAX(f) OVER (), MIN(f) OVER ()]
         // and the outer Project's expressions reference those new columns by index.
         // DataFusion sees the WindowFunctions at the top level of the inner Project and
         // wraps them in a LogicalWindow as expected.
