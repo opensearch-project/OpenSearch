@@ -165,6 +165,9 @@ public enum ScalarFunction {
 
     EXTRACT(Category.SCALAR, SqlKind.EXTRACT),
 
+    // ── Conversion (placeholder UDFs rewritten by backend adapters) ──
+    BINARY(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+
     // ── Datetime ────────────────────────────────────────────────────
     // fromSqlFunction resolves via valueOf(name.toUpperCase()), so the enum name IS
     // the wire contract. Aliases each need their own entry; the adapter map points

@@ -518,6 +518,7 @@ pub unsafe fn sql_to_substrait(
         let schema = listing_options
             .infer_schema(&ctx.state(), &table_path)
             .await?;
+        let schema = crate::schema_coerce::coerce_inferred_schema(schema);
         let config = ListingTableConfig::new(table_path)
             .with_listing_options(listing_options)
             .with_schema(schema);

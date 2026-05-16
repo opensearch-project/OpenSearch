@@ -30,6 +30,7 @@ pub mod partition_stream;
 pub mod query_executor;
 pub mod query_tracker;
 pub mod runtime_manager;
+pub mod schema_coerce;
 pub mod session_context;
 pub mod statistics_cache;
 pub mod udf;

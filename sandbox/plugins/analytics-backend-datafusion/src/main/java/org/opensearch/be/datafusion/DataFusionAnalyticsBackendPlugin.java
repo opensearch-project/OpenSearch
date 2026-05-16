@@ -62,6 +62,9 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         SUPPORTED_FIELD_TYPES.addAll(FieldType.date());
         SUPPORTED_FIELD_TYPES.add(FieldType.BOOLEAN);
         SUPPORTED_FIELD_TYPES.add(FieldType.TEXT);
+        SUPPORTED_FIELD_TYPES.add(FieldType.BINARY);
+        SUPPORTED_FIELD_TYPES.add(FieldType.IP);
+        SUPPORTED_FIELD_TYPES.add(FieldType.MATCH_ONLY_TEXT);
     }
 
     // Filter-side scalar functions DataFusion can evaluate natively. Comparisons, arithmetic
@@ -277,6 +280,7 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         // by a custom Rust UDF on the DataFusion session context (`udf::mvfind`), routed via
         // {@link MvfindAdapter}.
         ScalarFunction.MVFIND,
+        ScalarFunction.BINARY,
         // Logical connectives — emitted in projections where boolean expressions are composed:
         // `case(a = 0 and b = 0, …)`, `eval x = a or b`, `eval x = NOT y`. DataFusion's substrait
         // consumer handles them natively.
@@ -469,6 +473,7 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                     Map.entry(ScalarFunction.MVFIND, new MvfindAdapter()),
                     Map.entry(ScalarFunction.MVZIP, new MvzipAdapter()),
                     Map.entry(ScalarFunction.MVAPPEND, new MvappendAdapter()),
+                    Map.entry(ScalarFunction.BINARY, new BinaryFunctionAdapter()),
                     Map.entry(ScalarFunction.CONCAT, new ConcatFunctionAdapter()),
                     Map.entry(ScalarFunction.CONVERT_TZ, new ConvertTzAdapter()),
                     Map.entry(ScalarFunction.COSH, new HyperbolicOperatorAdapter(SqlLibraryOperators.COSH)),
