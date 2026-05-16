@@ -21,7 +21,9 @@
 
 use std::sync::Arc;
 
+use native_bridge_common::log_debug;
 use datafusion::{
+    physical_plan::displayable,
     physical_plan::execute_stream,
     execution::SessionStateBuilder,
     execution::runtime_env::RuntimeEnvBuilder,
@@ -689,8 +691,10 @@ pub async unsafe fn execute_indexed_with_context(
     ctx.register_table(&table_name, provider)?;
 
     let logical_plan = from_substrait_plan(&ctx.state(), &plan).await?;
+    log_debug!("DataFusion logical plan:\n{}", logical_plan.display_indent());
     let dataframe = ctx.execute_logical_plan(logical_plan).await?;
     let physical_plan = dataframe.create_physical_plan().await?;
+    log_debug!("DataFusion physical plan:\n{}", displayable(physical_plan.as_ref()).indent(true));
     let df_stream = execute_stream(physical_plan, ctx.task_ctx())
         .map_err(|e| DataFusionError::Execution(format!("execute_stream: {}", e)))?;
 

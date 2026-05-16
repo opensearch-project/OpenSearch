@@ -231,6 +231,14 @@ public class FragmentConversionDriver {
             return convertReduceFragment(resolvedFragment, convertor, delegationBytes);
         }
 
+        if (leaf instanceof org.opensearch.analytics.planner.rel.OpenSearchValues) {
+            // Coord-only literal source — convert the whole fragment via the same isthmus
+            // path as reduce fragments. isthmus emits ReadRel.VirtualTable for the Values
+            // leaf; DataFusion executes it locally without any input partitions.
+            RelNode stripped = strip(resolvedFragment, delegationBytes);
+            return convertor.convertFinalAggFragment(stripped);
+        }
+
         throw new IllegalStateException(
             "Unknown leaf type [" + leaf.getClass().getSimpleName() + "]. " + "Add a FragmentConversionStrategy for this leaf type."
         );
