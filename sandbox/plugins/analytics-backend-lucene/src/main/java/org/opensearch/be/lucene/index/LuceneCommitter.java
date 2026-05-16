@@ -27,6 +27,7 @@ import org.apache.lucene.store.ByteBuffersDataOutput;
 import org.apache.lucene.store.ByteBuffersIndexOutput;
 import org.apache.lucene.util.Version;
 import org.opensearch.be.lucene.LuceneDataFormat;
+import org.opensearch.be.lucene.LuceneReader;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.engine.CommitStats;
 import org.opensearch.index.engine.EngineConfig;
@@ -98,7 +99,7 @@ public class LuceneCommitter extends SafeBootstrapCommitter {
     private final LuceneCommitDeletionPolicy deletionPolicy;
     private final AtomicBoolean isClosed = new AtomicBoolean();
     // Keyed by catalog snapshot generation — survives snapshot cloning at the upload boundary.
-    private final Map<Long, DirectoryReader> readers = new ConcurrentHashMap<>();
+    private final Map<Long, LuceneReader> readers = new ConcurrentHashMap<>();
 
     /**
      * Creates a new LuceneCommitter. Trims unsafe commits (via {@link SafeBootstrapCommitter}),
@@ -239,17 +240,18 @@ public class LuceneCommitter extends SafeBootstrapCommitter {
     @Override
     public byte[] serializeToCommitFormat(CatalogSnapshot catalogSnapshot) throws IOException {
         ensureOpen();
-        DirectoryReader reader = readers.get(catalogSnapshot.getVersion());
+        LuceneReader luceneReader = readers.get(catalogSnapshot.getId());
+        DirectoryReader reader = luceneReader == null ? null : luceneReader.directoryReader();
         SegmentInfos sis;
         if (reader == null) {
             assert catalogSnapshot.getDataFormats().contains(LuceneDataFormat.LUCENE_FORMAT_NAME) == false
-                : "Lucene is listed in catalog data formats but no reader was registered for version=" + catalogSnapshot.getVersion();
-            logger.info("No Lucene reader for catalog snapshot version={} — producing empty SegmentInfos", catalogSnapshot.getVersion());
+                : "Lucene is listed in catalog data formats but no reader was registered for version=" + catalogSnapshot.getId();
+            logger.info("No Lucene reader for catalog snapshot version={} — producing empty SegmentInfos", catalogSnapshot.getId());
             sis = new SegmentInfos(Version.LATEST.major);
         } else {
             if (reader instanceof StandardDirectoryReader == false) {
                 throw new IllegalStateException(
-                    "Reader for catalog snapshot version=" + catalogSnapshot.getVersion() + " is not a StandardDirectoryReader: " + reader
+                    "Reader for catalog snapshot version=" + catalogSnapshot.getId() + " is not a StandardDirectoryReader: " + reader
                 );
             }
             sis = ((StandardDirectoryReader) reader).getSegmentInfos().clone();
@@ -276,7 +278,7 @@ public class LuceneCommitter extends SafeBootstrapCommitter {
     }
 
     /** Returns the version-keyed reader map used by {@link #serializeToCommitFormat}. */
-    Map<Long, DirectoryReader> readers() {
+    Map<Long, LuceneReader> readers() {
         ensureOpen();
         return readers;
     }

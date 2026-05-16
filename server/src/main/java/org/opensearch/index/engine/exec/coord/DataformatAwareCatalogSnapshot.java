@@ -35,6 +35,14 @@ import java.util.function.Function;
  * Concrete implementation of {@link CatalogSnapshot} for the composite multi-format engine.
  * Holds segments grouped by data format, supports searchable file lookups across formats,
  * and tracks snapshot metadata including user data and writer generation.
+ *
+ * id                           - the unique id for this catalog snapshot. This should always increase.
+ *                                  Always local to the shard on which snapshot is created.
+ *                                  This is the only value guaranteed to be unique per catalog snapshot.
+ * version                      - If a catalog snapshot is build from another, this holds the version for that.
+ *                                  This is used to determine the
+ * generation                   - Current tracking generation [This is always local to the catalog snapshot]
+ * lastCommittedGeneration      - Generation of last committed file tracked for this catalog snapshot on local shard.
  */
 @ExperimentalApi
 public class DataformatAwareCatalogSnapshot extends CatalogSnapshot {
@@ -258,9 +266,9 @@ public class DataformatAwareCatalogSnapshot extends CatalogSnapshot {
             segments,
             lastWriterGeneration,
             userData,
-            this.getLastCommitFileName(),
-            this.lastCommitGeneration,
-            this.lastCommitDataFormatVersion
+            lastCommitFileName,
+            lastCommitGeneration,
+            lastCommitDataFormatVersion
         );
     }
 
@@ -325,10 +333,8 @@ public class DataformatAwareCatalogSnapshot extends CatalogSnapshot {
 
     @Override
     public long getLastCommitGeneration() {
-        if (lastCommitGeneration >= 0) {
-            return lastCommitGeneration;
-        }
-        return getGeneration();
+        assert lastCommitGeneration >= 0 : "Before this is obtained, at least one commit should have been obtained";
+        return lastCommitGeneration;
     }
 
     /**

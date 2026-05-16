@@ -52,7 +52,7 @@ import static org.opensearch.be.lucene.index.LuceneWriter.WRITER_GENERATION_ATTR
 public class LuceneReaderManager implements EngineReaderManager<LuceneReader> {
 
     private final DataFormat dataFormat;
-    private final Map<CatalogSnapshot, LuceneReader> readers;
+    private final Map<Long, LuceneReader> readers;
     private volatile DirectoryReader currentReader;
     private final CheckedBiFunction<DirectoryReader, SegmentInfos, DirectoryReader, IOException> readerRefresher;
 
@@ -63,7 +63,7 @@ public class LuceneReaderManager implements EngineReaderManager<LuceneReader> {
      * @param initialReader the initial DirectoryReader, must not be null
      * @throws NullPointerException if initialReader is null
      */
-    public LuceneReaderManager(DataFormat dataFormat, DirectoryReader initialReader, Map<CatalogSnapshot, LuceneReader> readers,
+    public LuceneReaderManager(DataFormat dataFormat, DirectoryReader initialReader, Map<Long, LuceneReader> readers,
                                CheckedBiFunction<DirectoryReader, SegmentInfos, DirectoryReader, IOException> readerRefresher) {
         this.dataFormat = dataFormat;
         Objects.requireNonNull(initialReader, "initialReader must not be null");
@@ -74,9 +74,9 @@ public class LuceneReaderManager implements EngineReaderManager<LuceneReader> {
 
     @Override
     public LuceneReader getReader(CatalogSnapshot catalogSnapshot) throws IOException {
-        LuceneReader reader = readers.get(catalogSnapshot);
+        LuceneReader reader = readers.get(catalogSnapshot.getId());
         if (reader == null) {
-            throw new IllegalStateException("No reader available for catalog snapshot [version=" + catalogSnapshot.getVersion() + "]");
+            throw new IllegalStateException("No reader available for catalog snapshot [version=" + catalogSnapshot.getId() + "]");
         }
         return reader;
     }
@@ -88,7 +88,7 @@ public class LuceneReaderManager implements EngineReaderManager<LuceneReader> {
 
     @Override
     public void afterRefresh(boolean didRefresh, CatalogSnapshot catalogSnapshot) throws IOException {
-        if (didRefresh == false || readers.containsKey(catalogSnapshot.getVersion())) {
+        if (didRefresh == false || readers.containsKey(catalogSnapshot.getId())) {
             return;
         }
         DirectoryReader refreshed = readerRefresher.apply(currentReader, LuceneReplicaCommitter.getSegmentInfos(catalogSnapshot));
@@ -106,7 +106,7 @@ public class LuceneReaderManager implements EngineReaderManager<LuceneReader> {
         assert readersAreSame(catalogSnapshot, currentReader);
 
         Map<Long, String> generationToSegmentName = buildGenerationToSegmentName(catalogSnapshot, currentReader.leaves());
-        readers.put(catalogSnapshot, new LuceneReader(currentReader, generationToSegmentName));
+        readers.put(catalogSnapshot.getId(), new LuceneReader(currentReader, generationToSegmentName));
     }
 
     private static Map<Long, String> buildGenerationToSegmentName(CatalogSnapshot catalogSnapshot, List<LeafReaderContext> leaves) {
@@ -184,7 +184,7 @@ public class LuceneReaderManager implements EngineReaderManager<LuceneReader> {
 
     @Override
     public void onDeleted(CatalogSnapshot catalogSnapshot) throws IOException {
-        LuceneReader reader = readers.remove(catalogSnapshot);
+        LuceneReader reader = readers.remove(catalogSnapshot.getId());
         if (reader != null) {
             reader.directoryReader().decRef();
         }

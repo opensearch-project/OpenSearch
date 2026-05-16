@@ -33,7 +33,7 @@ public interface CatalogSnapshotDeletionPolicy {
     CatalogSnapshotDeletionPolicy KEEP_LATEST_ONLY = new CatalogSnapshotDeletionPolicy() {
         @Override
         public List<CatalogSnapshot> onInit(List<CatalogSnapshot> commits) {
-            return onCommit(commits);
+            return Collections.emptyList();
         }
 
         @Override
@@ -82,3 +82,4 @@ public interface CatalogSnapshotDeletionPolicy {
         throw new UnsupportedOperationException("findSafeCommit not supported by this policy");
     }
 }
+

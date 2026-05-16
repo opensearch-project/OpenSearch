@@ -63,7 +63,7 @@ final class LuceneSearchBackEnd {
         IndexStoreProvider provider = settings.indexStoreProvider()
             .orElseThrow(() -> new IllegalStateException("IndexStoreProvider is required to create LuceneReaderManager"));
         DirectoryReader directoryReader;
-        Map<Long, DirectoryReader> readers = new ConcurrentHashMap<>();
+        Map<Long, LuceneReader> readers = new ConcurrentHashMap<>();
         CheckedBiFunction<DirectoryReader, SegmentInfos, DirectoryReader, IOException> readerRefresher = null;
         if (provider.getStore(settings.format()) instanceof LuceneIndexingExecutionEngine.LuceneFormatStore luceneProvider) {
             directoryReader = DirectoryReader.open(luceneProvider.writer());

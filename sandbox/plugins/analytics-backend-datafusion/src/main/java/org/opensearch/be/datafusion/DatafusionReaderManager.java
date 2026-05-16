@@ -69,16 +69,16 @@ public class DatafusionReaderManager implements EngineReaderManager<DatafusionRe
         if (catalogSnapshot == null) {
             throw new IOException("catalogSnapshot must not be null");
         }
-        DatafusionReader reader = readers.get(catalogSnapshot.getVersion());
+        DatafusionReader reader = readers.get(catalogSnapshot.getId());
         if (reader == null) {
-            throw new IOException("No DataFusion reader available for catalog snapshot [version=" + catalogSnapshot.getVersion() + "]");
+            throw new IOException("No DataFusion reader available for catalog snapshot [version=" + catalogSnapshot.getId() + "]");
         }
         return reader;
     }
 
     @Override
     public void onDeleted(CatalogSnapshot catalogSnapshot) throws IOException {
-        DatafusionReader removed = readers.remove(catalogSnapshot.getVersion());
+        DatafusionReader removed = readers.remove(catalogSnapshot.getId());
         if (removed != null) {
             removed.close();
         }
@@ -102,13 +102,13 @@ public class DatafusionReaderManager implements EngineReaderManager<DatafusionRe
     @Override
     public void afterRefresh(boolean didRefresh, CatalogSnapshot catalogSnapshot) throws IOException {
         if (didRefresh == false) return;
-        if (readers.containsKey(catalogSnapshot.getVersion())) return;
+        if (readers.containsKey(catalogSnapshot.getId())) return;
         DatafusionReader reader = new DatafusionReader(
             directoryPath,
             catalogSnapshot.getSearchableFiles(dataFormat.name()),
             dataformatAwareStoreHandle
         );
-        readers.put(catalogSnapshot.getVersion(), reader);
+        readers.put(catalogSnapshot.getId(), reader);
     }
 
     private Collection<String> toAbsolutePaths(Collection<String> fileNames) {

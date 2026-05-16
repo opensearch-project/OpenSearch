@@ -923,11 +923,10 @@ public class DataFormatAwareEngine implements Indexer {
                         Committer.CommitResult commitResult = committer.commit(new Committer.CommitInput(commitData.entrySet(), snapshot, 0));
 
                         if (commitResult != null && snapshot instanceof DataformatAwareCatalogSnapshot dfaSnapshot) {
-                            dfaSnapshot.setLastCommitInfo(
-                                commitResult.commitFileName(),
-                                commitResult.generation(),
-                                commitResult.commitDataFormatVersion()
-                            );
+                            // If the catalog snapshot changed during the flush, this will ensure the latest one
+                            // has the commit format.
+                            // Any new snapshots created post this should track this commit info.
+                            catalogSnapshotManager.updateLastCommitInfo(commitResult);
                         }
                         snapshotRef.markSuccess();
                         translogManager.trimUnreferencedReaders();

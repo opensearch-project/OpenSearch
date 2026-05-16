@@ -47,7 +47,6 @@ import org.opensearch.index.engine.exec.commit.CommitterConfig;
 import org.opensearch.index.engine.exec.commit.IndexStoreProvider;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshotManager;
-import org.opensearch.index.engine.exec.coord.DataformatAwareCatalogSnapshot;
 import org.opensearch.index.mapper.DocumentMapperForType;
 import org.opensearch.index.mapper.IdFieldMapper;
 import org.opensearch.index.mapper.ParsedDocument;
@@ -59,6 +58,7 @@ import org.opensearch.index.seqno.SeqNoStats;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.DocsStats;
 import org.opensearch.index.shard.ShardPath;
+import org.opensearch.index.store.FileMetadata;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.TranslogCorruptedException;
@@ -84,6 +84,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.Lock;
@@ -101,7 +102,6 @@ import java.util.function.Supplier;
 @ExperimentalApi
 public class DataFormatAwareNRTReplicationEngine implements Indexer {
 
-    private volatile CatalogSnapshot lastCommittedSnapshot;
     private final Map<DataFormat, EngineReaderManager<?>> readerManagers;
     private final LocalCheckpointTracker localCheckpointTracker;
     private final WriteOnlyTranslogManager translogManager;
@@ -192,7 +192,7 @@ public class DataFormatAwareNRTReplicationEngine implements Indexer {
 
             catalogSnapshotManagerRef = new CatalogSnapshotManager(
                 committed,
-                CatalogSnapshotDeletionPolicy.KEEP_LATEST_ONLY,
+                new ReplicaDeletionPolicy(),
                 compositeDeleter,
                 Map.of(),
                 snapshotListeners,
@@ -202,10 +202,6 @@ public class DataFormatAwareNRTReplicationEngine implements Indexer {
 
             this.catalogSnapshotManager = catalogSnapshotManagerRef;
             this.internalRefreshListeners = new ArrayList<>(engineConfig.getInternalRefreshListener());
-
-            try (GatedCloseable<CatalogSnapshot> snapshotRef = catalogSnapshotManager.acquireSnapshot()) {
-                this.lastCommittedSnapshot = snapshotRef.get();
-            }
 
             final SequenceNumbers.CommitInfo seqNoInfo = SequenceNumbers.loadSeqNoInfoFromLuceneCommit(userData.entrySet());
             this.localCheckpointTracker = new LocalCheckpointTracker(seqNoInfo.maxSeqNo, seqNoInfo.localCheckpoint);
@@ -258,7 +254,7 @@ public class DataFormatAwareNRTReplicationEngine implements Indexer {
     }
 
     /** Updates the catalog snapshot with a new snapshot received from the primary via replication. */
-    public void updateCatalogSnapshot(CatalogSnapshot incoming) throws IOException {
+    void updateCatalogSnapshot(CatalogSnapshot incoming) throws IOException {
         try (ReleasableLock lock = writeLock.acquire()) {
             ensureOpen();
             final long maxSeqNo = Long.parseLong(incoming.getUserData().get(SequenceNumbers.MAX_SEQ_NO));
@@ -313,11 +309,8 @@ public class DataFormatAwareNRTReplicationEngine implements Indexer {
             commitData.put(CatalogSnapshot.CATALOG_SNAPSHOT_KEY, snapshot.serializeToString());
 
             CommitResult commitResult = committer.commit(new CommitInput(commitData.entrySet(), snapshot, bumpSICounter ? SI_COUNTER_INCREMENT : 0));
-            if (snapshot instanceof DataformatAwareCatalogSnapshot dfaSnapshot) {
-                dfaSnapshot.setLastCommitInfo(commitResult.commitFileName(), commitResult.generation(), commitResult.commitDataFormatVersion());
-            }
+            catalogSnapshotManager.updateLastCommitInfo(commitResult);
             snapshotRef.markSuccess();
-            lastCommittedSnapshot = snapshot;
         }
         translogManager.syncTranslog();
     }
@@ -328,9 +321,13 @@ public class DataFormatAwareNRTReplicationEngine implements Indexer {
     // commit has run.
     @Override
     public String getHistoryUUID() {
-        final String fromCommit = lastCommittedSnapshot.getUserData().get(Engine.HISTORY_UUID_KEY);
-        if (fromCommit != null) {
-            return fromCommit;
+        try (GatedCloseable<CatalogSnapshot> ref = catalogSnapshotManager.acquireCommittedSnapshot(false)) {
+            final String fromCommit = ref.get().getUserData().get(Engine.HISTORY_UUID_KEY);
+            if (fromCommit != null) {
+                return fromCommit;
+            }
+        } catch (IOException ex) {
+            throw new UncheckedIOException(ex);
         }
         throw new IllegalStateException("commit doesn't contain history uuid");
     }
@@ -547,7 +544,7 @@ public class DataFormatAwareNRTReplicationEngine implements Indexer {
         if (flushFirst) {
             flush(false, true);
         }
-        return catalogSnapshotManager.acquireSnapshot();
+        return catalogSnapshotManager.acquireCommittedSnapshot(false);
     }
 
     @Override
@@ -955,7 +952,7 @@ public class DataFormatAwareNRTReplicationEngine implements Indexer {
                         continue;
                     }
                     try {
-                        store.directory().deleteFile(name);
+                        store.directory().deleteFile(FileMetadata.serialize(formatName, name));
                     } catch (NoSuchFileException ignored) {
                         // already gone — treat as success
                     } catch (IOException e) {
@@ -967,4 +964,48 @@ public class DataFormatAwareNRTReplicationEngine implements Indexer {
             return failed;
         };
     }
+
+    private static class ReplicaDeletionPolicy implements CatalogSnapshotDeletionPolicy {
+
+        private final List<CatalogSnapshot> acquiredSnapshots = new CopyOnWriteArrayList<>();
+        private CatalogSnapshot lastSnapshot;
+
+        @Override
+        public List<CatalogSnapshot> onInit(List<CatalogSnapshot> commits) {
+            return onCommit(commits);
+        }
+
+        @Override
+        public synchronized List<CatalogSnapshot> onCommit(List<CatalogSnapshot> commits) {
+            lastSnapshot = commits.getLast();
+            List<CatalogSnapshot> toDelete = new ArrayList<>();
+            for (int i = 0; i < commits.size() - 1; i ++) {
+                CatalogSnapshot currentCommit = commits.get(i);
+                if (!acquiredSnapshots.contains(currentCommit)) {
+                    toDelete.add(currentCommit);
+                }
+            }
+            return toDelete;
+        }
+
+        @Override
+        public synchronized GatedCloseable<CatalogSnapshot> acquireCommittedSnapshot(boolean acquiringSafe) {
+            acquiredSnapshots.add(lastSnapshot);
+            return new GatedCloseable<>(lastSnapshot, () -> {
+                acquiredSnapshots.remove(lastSnapshot);
+            });
+        }
+
+        /**
+         * Finds the safe commit from the given list using this policy's global checkpoint.
+         * Used during startup to trim unsafe commits before the policy is fully initialized.
+         *
+         * @param commits all committed snapshots, ordered oldest first
+         * @return the safe commit
+         */
+        @Override
+        public synchronized CatalogSnapshot findSafeCommit(List<CatalogSnapshot> commits) throws IOException {
+            return commits.getLast();
+        }
+    };
 }

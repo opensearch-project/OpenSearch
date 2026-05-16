@@ -24,6 +24,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.MMapDirectory;
 import org.opensearch.be.lucene.LuceneDataFormat;
 import org.opensearch.be.lucene.LuceneFieldFactoryRegistry;
+import org.opensearch.be.lucene.LuceneReader;
 import org.opensearch.be.lucene.merge.LuceneMerger;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.engine.dataformat.DataFormat;
@@ -78,7 +79,7 @@ public class LuceneIndexingExecutionEngine implements IndexingExecutionEngine<Lu
     private final LuceneDataFormat dataFormat;
     private final MergeIndexWriter sharedWriter;
     private final MapperService mapperService;
-    private final Map<Long, DirectoryReader> readers;
+    private final Map<Long, LuceneReader> readers;
     private final Store store;
     private final Path baseDirectory;
     private final Analyzer analyzer;
@@ -331,6 +332,6 @@ public class LuceneIndexingExecutionEngine implements IndexingExecutionEngine<Lu
      * @param store  the shard store
      * @param writer the shared index writer
      */
-    public static record LuceneFormatStore(Store store, IndexWriter writer, Map<Long, DirectoryReader> readers) implements FormatStore {
+    public static record LuceneFormatStore(Store store, IndexWriter writer, Map<Long, LuceneReader> readers) implements FormatStore {
     }
 }
