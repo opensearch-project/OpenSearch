@@ -8,21 +8,24 @@
 
 use std::sync::Arc;
 
+use native_bridge_common::log_debug;
 use datafusion::{
     common::DataFusionError,
     datasource::listing::{ListingOptions, ListingTable, ListingTableConfig, ListingTableUrl},
     execution::context::SessionContext,
     execution::runtime_env::RuntimeEnvBuilder,
     execution::SessionStateBuilder,
+    physical_plan::displayable,
     physical_plan::execute_stream,
     prelude::*,
 };
 use datafusion::datasource::file_format::parquet::ParquetFormat;
-use datafusion::execution::cache::cache_manager::CacheManagerConfig;
+use datafusion::execution::cache::cache_manager::{CacheManagerConfig, CachedFileList};
 use datafusion::execution::cache::{CacheAccessor, DefaultListFilesCache};
 use datafusion_substrait::logical_plan::consumer::from_substrait_plan;
 use log::error;
 use object_store::ObjectMeta;
+use object_store::ObjectStore;
 use prost::Message;
 use substrait::proto::Plan;
 
@@ -51,6 +54,7 @@ pub async fn execute_query(
     // wire up context_id correctly.
     query_memory_pool: Option<Arc<dyn datafusion::execution::memory_pool::MemoryPool>>,
     query_config: &crate::datafusion_query_config::DatafusionQueryConfig,
+    shard_store: Arc<dyn ObjectStore>,
 ) -> Result<i64, DataFusionError> {
     // Pre-populate the list-files cache so DataFusion doesn't re-list the directory
     let list_file_cache = Arc::new(DefaultListFilesCache::default());
@@ -58,7 +62,7 @@ pub async fn execute_query(
         table: None,
         path: table_path.prefix().clone(),
     };
-    list_file_cache.put(&table_scoped_path, object_metas);
+    list_file_cache.put(&table_scoped_path, CachedFileList::new(object_metas.as_ref().clone()));
 
     // Build a per-query RuntimeEnv sharing the global memory pool + caches,
     // but with a fresh list-files cache for this query's shard files.
@@ -86,6 +90,13 @@ pub async fn execute_query(
             error!("Failed to build runtime env: {}", e);
             e
         })?;
+
+    // Register shard-specific object store on file:// scheme for this query.
+    // Routes reads through TieredObjectStore (local + remote) or default LocalFileSystem.
+    runtime_env.register_object_store(
+        &url::Url::parse("file://").unwrap(),
+        shard_store,
+    );
 
     // Build a fresh session state per query. TODO : Tune this during planning per query
     let mut config = SessionConfig::new();
@@ -171,8 +182,10 @@ pub async fn execute_with_context(
     })?;
 
     let logical_plan = from_substrait_plan(&handle.ctx.state(), &substrait_plan).await?;
+    log_debug!("DataFusion logical plan:\n{}", logical_plan.display_indent());
     let dataframe = handle.ctx.execute_logical_plan(logical_plan).await?;
     let physical_plan = dataframe.create_physical_plan().await?;
+    log_debug!("DataFusion physical plan:\n{}", displayable(physical_plan.as_ref()).indent(true));
 
     let df_stream = execute_stream(physical_plan, handle.ctx.task_ctx()).map_err(|e| {
         error!("execute_with_context: failed to create stream: {}", e);

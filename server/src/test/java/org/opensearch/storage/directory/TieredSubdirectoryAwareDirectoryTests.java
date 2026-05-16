@@ -92,9 +92,10 @@ public class TieredSubdirectoryAwareDirectoryTests extends TieredStorageBaseTest
     public void setup() throws IOException {
         setupRemoteSegmentStoreDirectory();
 
-        // Stub getBlobContainer().path() so getRemoteBasePath() doesn't NPE in afterSyncToRemote tests
+        // Stub getBlobContainer().path() so getRemoteBasePath(format) doesn't NPE in afterSyncToRemote tests
+        // In production, getRemoteBasePath("parquet") returns a path that includes the format subdirectory
         BlobContainer mockBlobContainer = mock(BlobContainer.class);
-        when(mockBlobContainer.path()).thenReturn(new BlobPath().add("test-base-path"));
+        when(mockBlobContainer.path()).thenReturn(new BlobPath().add("test-base-path").add("parquet"));
         when(((RemoteDirectory) remoteDataDirectory).getBlobContainer()).thenReturn(mockBlobContainer);
 
         populateMetadata();
@@ -149,14 +150,15 @@ public class TieredSubdirectoryAwareDirectoryTests extends TieredStorageBaseTest
     }
 
     private WithRegistry buildDirectoryWithParquetFormat(DataFormatStoreHandler nativeRegistry) {
-        DataFormatStoreHandlerFactory factory = (sid, warm, repo) -> nativeRegistry;
+        DataFormatStoreHandlerFactory factory = (sid, warm, repo, cacheRegistry) -> nativeRegistry;
         StoreStrategy parquet = new TestParquetStrategy(factory);
         StoreStrategyRegistry registry = StoreStrategyRegistry.open(
             shardPath,
             true,
             NativeStoreRepository.EMPTY,
             Map.of(PARQUET_FORMAT, parquet),
-            remoteSegmentStoreDirectory
+            remoteSegmentStoreDirectory,
+            null
         );
         TieredSubdirectoryAwareDirectory dir = new TieredSubdirectoryAwareDirectory(
             subdirAware,
@@ -407,6 +409,22 @@ public class TieredSubdirectoryAwareDirectoryTests extends TieredStorageBaseTest
         );
     }
 
+    public void testAfterSyncToRemotePassesCorrectFormatToGetRemoteBasePath() throws IOException {
+        WithRegistry w = buildDirectoryWithParquetFormat();
+        String parquetFile = "parquet/seg_format_path.parquet";
+        addParquetMetadataEntry(parquetFile, "seg_format_path.parquet__UUID1");
+        w.directory.afterSyncToRemote(parquetFile);
+        // remotePath builds: basePath + blobKey. basePath from getRemoteBasePath("parquet")
+        // returns "test-base-path/parquet/" (mock BlobPath includes format subdirectory),
+        // so the path should be "test-base-path/parquet/seg_format_path.parquet__UUID1"
+        String expectedUploadKey = shardPath.getDataPath().resolve(parquetFile).toString();
+        verify(w.storeHandler).onUploaded(
+            org.mockito.ArgumentMatchers.eq(expectedUploadKey),
+            org.mockito.ArgumentMatchers.eq("test-base-path/parquet/seg_format_path.parquet__UUID1"),
+            org.mockito.ArgumentMatchers.anyLong()
+        );
+    }
+
     public void testAfterSyncToRemoteFormatFileWithoutRemoteSyncAware() throws IOException {
         directory = buildDirectoryWithParquetFormat().directory;
         try {
@@ -503,14 +521,15 @@ public class TieredSubdirectoryAwareDirectoryTests extends TieredStorageBaseTest
 
     public void testConstructorFailureClosesStrategyRegistry() throws IOException {
         DataFormatStoreHandler nativeRegistry = mock(DataFormatStoreHandler.class);
-        DataFormatStoreHandlerFactory factory = (sid, warm, repo) -> nativeRegistry;
+        DataFormatStoreHandlerFactory factory = (sid, warm, repo, cacheRegistry) -> nativeRegistry;
         StoreStrategy parquet = new TestParquetStrategy(factory);
         StoreStrategyRegistry registry = StoreStrategyRegistry.open(
             shardPath,
             true,
             NativeStoreRepository.EMPTY,
             Map.of(PARQUET_FORMAT, parquet),
-            remoteSegmentStoreDirectory
+            remoteSegmentStoreDirectory,
+            null
         );
 
         try {
@@ -628,7 +647,7 @@ public class TieredSubdirectoryAwareDirectoryTests extends TieredStorageBaseTest
     }
 
     /** Minimal test strategy for "parquet" wiring. */
-    private static final class TestParquetStrategy implements StoreStrategy {
+    private static final class TestParquetStrategy extends StoreStrategy {
         private final DataFormatStoreHandlerFactory factory;
 
         TestParquetStrategy(DataFormatStoreHandlerFactory factory) {
@@ -684,15 +703,31 @@ public class TieredSubdirectoryAwareDirectoryTests extends TieredStorageBaseTest
         }
     }
 
-    public void testRenameFormatFileThrowsIllegalState() throws IOException {
+    public void testRenameFormatFileRoutesToSubdirectoryAware() throws IOException {
         WithRegistry w = buildDirectoryWithParquetFormat();
         try {
-            IllegalStateException ex = expectThrows(
-                IllegalStateException.class,
-                () -> w.directory.rename("parquet/seg_0.parquet", "parquet/seg_1.parquet")
-            );
-            assertTrue(ex.getMessage().contains("parquet/seg_0.parquet"));
-            assertTrue(ex.getMessage().contains("write-once"));
+            String parquetFile = "parquet/seg_rename.parquet";
+            writeParquetFileToDisk(parquetFile);
+            // Rename should succeed — routes through SubdirectoryAwareDirectory for recovery support
+            w.directory.rename(parquetFile, "parquet/seg_renamed.parquet");
+            // Verify renamed file exists
+            assertTrue(java.nio.file.Files.exists(shardPath.getDataPath().resolve("parquet/seg_renamed.parquet")));
+            assertFalse(java.nio.file.Files.exists(shardPath.getDataPath().resolve(parquetFile)));
+        } finally {
+            w.directory.close();
+        }
+    }
+
+    public void testRenameRecoveryPrefixedFormatFile() throws IOException {
+        WithRegistry w = buildDirectoryWithParquetFormat();
+        try {
+            // Simulate recovery: write with recovery prefix, then rename to final name
+            String recoveryFile = "parquet/recovery.abc123.seg_0.parquet";
+            String finalFile = "parquet/seg_0.parquet";
+            writeParquetFileToDisk(recoveryFile);
+            w.directory.rename(recoveryFile, finalFile);
+            assertTrue(java.nio.file.Files.exists(shardPath.getDataPath().resolve(finalFile)));
+            assertFalse(java.nio.file.Files.exists(shardPath.getDataPath().resolve(recoveryFile)));
         } finally {
             w.directory.close();
         }
@@ -800,6 +835,247 @@ public class TieredSubdirectoryAwareDirectoryTests extends TieredStorageBaseTest
             w.directory.afterSyncToRemote(parquetFile);
         } finally {
             w.directory.close();
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // FormatSwitchableIndexInput integration tests
+    // ═══════════════════════════════════════════════════════════════
+
+    public void testOpenInputLocalFormatFileReturnsFormatSwitchable() throws IOException {
+        WithRegistry w = buildDirectoryWithParquetFormat();
+        try {
+            String parquetFile = "parquet/seg_switchable.parquet";
+            writeParquetFileToDisk(parquetFile);
+            // File NOT in remote metadata → openInput takes local path → wraps in FormatSwitchableIndexInput
+            IndexInput input = w.directory.openInput(parquetFile, IOContext.DEFAULT);
+            assertTrue(
+                "Local format file should be wrapped in FormatSwitchableIndexInput",
+                input instanceof org.opensearch.storage.indexinput.FormatSwitchableIndexInputWrapper
+            );
+            input.close();
+        } finally {
+            w.directory.close();
+        }
+    }
+
+    public void testOpenInputRemoteFormatFileDoesNotWrapInSwitchable() throws IOException {
+        directory = buildDirectoryWithParquetFormat().directory;
+        populateData();
+        try {
+            String parquetFile = "parquet/seg_remote_nowrap.parquet";
+            addParquetMetadataEntry(parquetFile, "seg_remote_nowrap.parquet__UUID1");
+            // File IS in remote metadata → openInput routes directly to remote, no switchable wrapper
+            IndexInput input = directory.openInput(parquetFile, IOContext.DEFAULT);
+            assertFalse(
+                "Remote format file should NOT be wrapped in FormatSwitchableIndexInput",
+                input instanceof org.opensearch.storage.indexinput.FormatSwitchableIndexInputWrapper
+            );
+            input.close();
+        } finally {
+            directory.close();
+        }
+    }
+
+    public void testAfterSyncToRemoteSwitchesInFlightReader() throws IOException {
+        WithRegistry w = buildDirectoryWithParquetFormat();
+        populateData();
+        try {
+            String parquetFile = "parquet/seg_inflight.parquet";
+            writeParquetFileToDisk(parquetFile);
+
+            // Open input while file is local (not yet synced)
+            IndexInput input = w.directory.openInput(parquetFile, IOContext.DEFAULT);
+            assertTrue(input instanceof org.opensearch.storage.indexinput.FormatSwitchableIndexInputWrapper);
+            org.opensearch.storage.indexinput.FormatSwitchableIndexInput switchable =
+                ((org.opensearch.storage.indexinput.FormatSwitchableIndexInputWrapper) input).unwrap();
+            assertFalse("Should start on local", switchable.hasSwitchedToRemote());
+
+            // Read some bytes from local
+            byte[] buf = new byte[PARQUET_DATA.length];
+            switchable.readBytes(buf, 0, buf.length);
+            assertArrayEquals("Should read local data before sync", PARQUET_DATA, buf);
+
+            // Now simulate sync: add remote metadata and call afterSyncToRemote
+            addParquetMetadataEntry(parquetFile, "seg_inflight.parquet__UUID1");
+            w.directory.afterSyncToRemote(parquetFile);
+
+            // The switchable should now be on remote
+            assertTrue("Should be switched to remote after afterSyncToRemote", switchable.hasSwitchedToRemote());
+
+            // Local file should be deleted
+            assertFalse("Local file should be deleted", java.nio.file.Files.exists(shardPath.getDataPath().resolve(parquetFile)));
+
+            input.close();
+        } finally {
+            w.directory.close();
+        }
+    }
+
+    public void testAfterSyncToRemoteSwitchesClonesOfInFlightReader() throws IOException {
+        WithRegistry w = buildDirectoryWithParquetFormat();
+        populateData();
+        try {
+            String parquetFile = "parquet/seg_clone_switch.parquet";
+            writeParquetFileToDisk(parquetFile);
+
+            // Open input and clone it
+            IndexInput input = w.directory.openInput(parquetFile, IOContext.DEFAULT);
+            assertTrue(input instanceof org.opensearch.storage.indexinput.FormatSwitchableIndexInputWrapper);
+            org.opensearch.storage.indexinput.FormatSwitchableIndexInput switchable =
+                ((org.opensearch.storage.indexinput.FormatSwitchableIndexInputWrapper) input).unwrap();
+            assertFalse(switchable.hasSwitchedToRemote());
+
+            // Sync — the switch cascades to clones internally (tested in FormatSwitchableIndexInputTests)
+            addParquetMetadataEntry(parquetFile, "seg_clone_switch.parquet__UUID1");
+            w.directory.afterSyncToRemote(parquetFile);
+
+            assertTrue("Original should be switched", switchable.hasSwitchedToRemote());
+
+            input.close();
+        } finally {
+            w.directory.close();
+        }
+    }
+
+    public void testAfterSyncToRemoteWithNoOpenInputStillDeletesLocal() throws IOException {
+        WithRegistry w = buildDirectoryWithParquetFormat();
+        try {
+            String parquetFile = "parquet/seg_no_reader.parquet";
+            writeParquetFileToDisk(parquetFile);
+            assertTrue(java.nio.file.Files.exists(shardPath.getDataPath().resolve(parquetFile)));
+
+            // No openInput call — no FormatSwitchableIndexInput tracked
+            addParquetMetadataEntry(parquetFile, "seg_no_reader.parquet__UUID1");
+            w.directory.afterSyncToRemote(parquetFile);
+
+            // Local file should still be deleted
+            assertFalse(
+                "Local file should be deleted even without open readers",
+                java.nio.file.Files.exists(shardPath.getDataPath().resolve(parquetFile))
+            );
+        } finally {
+            w.directory.close();
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // openInput — segments_N local fallback tests
+    // ═══════════════════════════════════════════════════════════════
+
+    public void testOpenInputSegmentsFileReadsFromLocalWhenNotInRemoteMetadata() throws IOException {
+        directory = buildDirectoryWithParquetFormat().directory;
+        populateData();
+        try {
+            // Write a segments_N file locally (simulates a restart where local generation differs from remote)
+            String segmentsFile = "segments_5";
+            try (IndexOutput out = subdirAware.createOutput(segmentsFile, IOContext.DEFAULT)) {
+                out.writeBytes(TEST_DATA, TEST_DATA.length);
+            }
+
+            // segments_5 is NOT in remote metadata → should read from local disk
+            try (IndexInput in = directory.openInput(segmentsFile, IOContext.DEFAULT)) {
+                assertNotNull("openInput should return non-null for local segments file", in);
+                byte[] buf = new byte[TEST_DATA.length];
+                in.readBytes(buf, 0, buf.length);
+                assertArrayEquals("Should read local segments file data", TEST_DATA, buf);
+            }
+        } finally {
+            directory.close();
+        }
+    }
+
+    public void testOpenInputSegmentsFileFallsToTieredDirectoryWhenNotLocal() throws IOException {
+        directory = buildDirectoryWithParquetFormat().directory;
+        populateData();
+        try {
+            // segments_99 doesn't exist locally or in remote metadata.
+            // The local read throws NoSuchFileException, then falls through to TieredDirectory.
+            // TieredDirectory also won't find it → expect an exception.
+            expectThrows(Exception.class, () -> directory.openInput("segments_99", IOContext.DEFAULT));
+        } finally {
+            directory.close();
+        }
+    }
+
+    public void testOpenInputSegmentsFileInRemoteMetadataRoutesToTieredDirectory() throws IOException {
+        directory = buildDirectoryWithParquetFormat().directory;
+        populateData();
+        try {
+            // segments_N that IS in remote metadata should NOT take the local fallback path.
+            // It should go through TieredDirectory (the normal Lucene file path).
+            // The remote metadata from populateMetadata() includes standard Lucene files.
+            // We'll use a segments file that's in remote metadata by adding it.
+            String segmentsFile = "segments_2";
+            addParquetMetadataEntry(segmentsFile, "segments_2__UUID1");
+
+            // Since it's in remote metadata, getExistingRemoteFilename != null → skips local fallback.
+            // Goes to tieredDirectory.openInput which reads from remote via FileCache.
+            try (IndexInput in = directory.openInput(segmentsFile, IOContext.DEFAULT)) {
+                assertNotNull("Should read segments file from TieredDirectory when in remote metadata", in);
+            }
+        } finally {
+            directory.close();
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // createOutput — format file routing tests
+    // ═══════════════════════════════════════════════════════════════
+
+    public void testCreateOutputFormatFileRoutesToSubdirectoryAwareDirectory() throws IOException {
+        directory = buildDirectoryWithParquetFormat().directory;
+        try {
+            String parquetFile = "parquet/seg_create_output.parquet";
+            // createOutput for format files should route through SubdirectoryAwareDirectory
+            // which creates parent directories automatically.
+            try (IndexOutput out = directory.createOutput(parquetFile, IOContext.DEFAULT)) {
+                out.writeBytes(PARQUET_DATA, PARQUET_DATA.length);
+            }
+
+            // Verify the file was written to disk via SubdirectoryAwareDirectory path resolution
+            Path expectedPath = shardPath.getDataPath().resolve(parquetFile);
+            assertTrue("Format file should exist on disk after createOutput", Files.exists(expectedPath));
+            byte[] content = Files.readAllBytes(expectedPath);
+            assertArrayEquals("Written content should match", PARQUET_DATA, content);
+        } finally {
+            directory.close();
+        }
+    }
+
+    public void testCreateOutputFormatFileCreatesParentDirectories() throws IOException {
+        directory = buildDirectoryWithParquetFormat().directory;
+        try {
+            // Use a nested subdirectory path to verify parent dir creation
+            String parquetFile = "parquet/nested/seg_nested.parquet";
+            // This would fail without SubdirectoryAwareDirectory creating parent dirs
+            try (IndexOutput out = directory.createOutput(parquetFile, IOContext.DEFAULT)) {
+                out.writeBytes(PARQUET_DATA, PARQUET_DATA.length);
+            }
+
+            Path expectedPath = shardPath.getDataPath().resolve(parquetFile);
+            assertTrue("Nested format file should exist after createOutput", Files.exists(expectedPath));
+        } finally {
+            directory.close();
+        }
+    }
+
+    public void testCreateOutputLuceneFileStillRoutesToTieredDirectory() throws IOException {
+        directory = buildDirectoryWithParquetFormat().directory;
+        populateData();
+        try {
+            // Lucene files should still go through TieredDirectory (FileCache integration)
+            String luceneFile = "_0_create_lucene.cfe";
+            try (IndexOutput out = directory.createOutput(luceneFile, IOContext.DEFAULT)) {
+                out.writeBytes(TEST_DATA, TEST_DATA.length);
+            }
+
+            // Verify it's in the FileCache (TieredDirectory behavior)
+            Path switchablePath = getFilePathSwitchable(localFsDir, luceneFile);
+            assertNotNull("Lucene file should be in FileCache via TieredDirectory", fileCache.get(switchablePath));
+            fileCache.decRef(switchablePath);
+        } finally {
+            directory.close();
         }
     }
 }

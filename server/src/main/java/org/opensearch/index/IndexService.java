@@ -106,7 +106,7 @@ import org.opensearch.index.store.FormatChecksumStrategy;
 import org.opensearch.index.store.RemoteSegmentStoreDirectory;
 import org.opensearch.index.store.RemoteSegmentStoreDirectoryFactory;
 import org.opensearch.index.store.Store;
-import org.opensearch.index.store.remote.filecache.FileCache;
+import org.opensearch.index.store.remote.filecache.NodeCacheOrchestrator;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.TranslogFactory;
 import org.opensearch.indices.ClusterMergeSchedulerConfig;
@@ -122,11 +122,13 @@ import org.opensearch.indices.replication.checkpoint.ReferencedSegmentsPublisher
 import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.node.remotestore.RemoteStoreNodeAttribute;
 import org.opensearch.plugins.IndexStorePlugin;
+import org.opensearch.plugins.NativeStoreHandle;
 import org.opensearch.repositories.NativeStoreRepository;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.RepositoryMissingException;
 import org.opensearch.script.ScriptService;
 import org.opensearch.search.aggregations.support.ValuesSourceRegistry;
+import org.opensearch.storage.directory.StoreStrategyRegistry;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.client.Client;
 
@@ -214,7 +216,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private final Supplier<Boolean> fixedRefreshIntervalSchedulingEnabled;
     private final RecoverySettings recoverySettings;
     private final RemoteStoreSettings remoteStoreSettings;
-    private final FileCache fileCache;
+    private final NodeCacheOrchestrator nodeCacheOrchestrator;
     private final CompositeIndexSettings compositeIndexSettings;
     private final Consumer<IndexShard> replicator;
     private final Function<ShardId, ReplicationStats> segmentReplicationStatsProvider;
@@ -265,14 +267,14 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         boolean shardLevelRefreshEnabled,
         RecoverySettings recoverySettings,
         RemoteStoreSettings remoteStoreSettings,
-        FileCache fileCache,
         CompositeIndexSettings compositeIndexSettings,
         Consumer<IndexShard> replicator,
         Function<ShardId, ReplicationStats> segmentReplicationStatsProvider,
         Supplier<Integer> clusterDefaultMaxMergeAtOnceSupplier,
         ClusterMergeSchedulerConfig clusterMergeSchedulerConfig,
         DataFormatRegistry dataFormatRegistry,
-        DataFormatAwareStoreDirectoryFactory dataFormatAwareStoreDirectoryFactory
+        DataFormatAwareStoreDirectoryFactory dataFormatAwareStoreDirectoryFactory,
+        NodeCacheOrchestrator nodeCacheOrchestrator
     ) {
         super(indexSettings);
         this.storeFactory = storeFactory;
@@ -372,7 +374,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         this.recoverySettings = recoverySettings;
         this.remoteStoreSettings = remoteStoreSettings;
         this.compositeIndexSettings = compositeIndexSettings;
-        this.fileCache = fileCache;
+        this.nodeCacheOrchestrator = nodeCacheOrchestrator;
         this.replicator = replicator;
         this.segmentReplicationStatsProvider = segmentReplicationStatsProvider;
         indexSettings.setDefaultMaxMergesAtOnce(clusterDefaultMaxMergeAtOnceSupplier.get());
@@ -476,11 +478,11 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             recoverySettings,
             remoteStoreSettings,
             null,
-            null,
             s -> {},
             (shardId) -> ReplicationStats.empty(),
             clusterDefaultMaxMergeAtOnce,
             clusterMergeSchedulerConfig,
+            null,
             null,
             null
         );
@@ -780,6 +782,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
 
             Directory directory = null;
             Map<String, FormatChecksumStrategy> checksumStrategies = Collections.emptyMap();
+            Map<DataFormat, NativeStoreHandle> dataformatAwareStoreHandles = Map.of();
             if (this.indexSettings.isPluggableDataFormatEnabled() && dataFormatRegistry != null) {
                 checksumStrategies = dataFormatRegistry.createChecksumStrategies(this.indexSettings);
             }
@@ -787,23 +790,36 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 && this.indexSettings.isWarmIndex()
                 && this.indexSettings.isPluggableDataFormatEnabled()
                 && this.dataFormatAwareStoreDirectoryFactory != null) {
-                // Warm + format-aware: resolve per-shard store strategies and native store,
-                // then let the factory build the StoreStrategyRegistry and directory stack.
+                // Warm + format-aware: create StoreStrategyRegistry here so we can
+                // extract native store handles for the Store before passing to the factory.
                 Map<DataFormat, StoreStrategy> storeStrategies = dataFormatRegistry.getStoreStrategies(this.indexSettings);
                 NativeStoreRepository nativeStore = resolveNativeStore(repositoriesService);
-                directory = dataFormatAwareStoreDirectoryFactory.newDataFormatAwareStoreDirectory(
-                    this.indexSettings,
-                    shardId,
-                    path,
-                    directoryFactory,
-                    checksumStrategies,
-                    storeStrategies,
-                    nativeStore,
-                    true,
-                    (RemoteSegmentStoreDirectory) remoteDirectory,
-                    fileCache,
-                    threadPool
-                );
+                StoreStrategyRegistry storeStrategyRegistry = null;
+                try {
+                    storeStrategyRegistry = StoreStrategyRegistry.open(
+                        path,
+                        true,
+                        nativeStore,
+                        storeStrategies,
+                        (RemoteSegmentStoreDirectory) remoteDirectory,
+                        nodeCacheOrchestrator
+                    );
+                    dataformatAwareStoreHandles = storeStrategyRegistry.getFormatStoreHandles();
+                    directory = dataFormatAwareStoreDirectoryFactory.newDataFormatAwareStoreDirectory(
+                        this.indexSettings,
+                        shardId,
+                        path,
+                        directoryFactory,
+                        checksumStrategies,
+                        storeStrategyRegistry,
+                        (RemoteSegmentStoreDirectory) remoteDirectory,
+                        nodeCacheOrchestrator != null ? nodeCacheOrchestrator.fileCache() : null,
+                        threadPool
+                    );
+                } catch (Exception e) {
+                    IOUtils.closeWhileHandlingException(storeStrategyRegistry);
+                    throw e;
+                }
             } else if (FeatureFlags.isEnabled(FeatureFlags.WRITABLE_WARM_INDEX_SETTING) &&
             // TODO : Need to remove this check after support for hot indices is added in Composite Directory
                 this.indexSettings.isWarmIndex()) {
@@ -812,7 +828,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                         path,
                         directoryFactory,
                         remoteDirectory,
-                        fileCache,
+                        nodeCacheOrchestrator != null ? nodeCacheOrchestrator.fileCache() : null,
                         threadPool
                     );
                 } else if (this.indexSettings.isPluggableDataFormatEnabled() == false) {
@@ -830,6 +846,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 path,
                 directoryFactory
             );
+            store.setDataformatAwareStoreHandles(dataformatAwareStoreHandles);
             eventListener.onStoreCreated(shardId);
             indexShard = new IndexShard(
                 routing,

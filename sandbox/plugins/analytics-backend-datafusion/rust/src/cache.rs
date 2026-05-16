@@ -8,11 +8,13 @@
 
 use std::sync::{Arc, Mutex};
 
-use datafusion::execution::cache::cache_manager::FileMetadataCache;
+use datafusion::execution::cache::cache_manager::{
+    CachedFileMetadataEntry, FileMetadataCache, FileMetadataCacheEntry,
+};
 use datafusion::execution::cache::cache_unit::DefaultFilesMetadataCache;
 use datafusion::execution::cache::CacheAccessor;
 use log::error;
-use object_store::ObjectMeta;
+use object_store::path::Path;
 
 // Cache type constants
 pub const CACHE_TYPE_METADATA: &str = "METADATA";
@@ -35,7 +37,7 @@ impl MutexFileMetadataCache {
         }
     }
 
-    pub fn clear(&self) {
+    pub fn clear_cache(&self) {
         if let Ok(cache) = self.inner.lock() {
             cache.clear();
         }
@@ -47,7 +49,7 @@ impl MutexFileMetadataCache {
         }
     }
 
-    pub fn cache_limit(&self) -> usize {
+    pub fn get_cache_limit(&self) -> usize {
         if let Ok(cache) = self.inner.lock() {
             cache.cache_limit()
         } else {
@@ -56,57 +58,54 @@ impl MutexFileMetadataCache {
     }
 }
 
-
-// Implement CacheAccessor which is required by FileMetadataCache
-impl CacheAccessor<ObjectMeta, Arc<dyn datafusion::execution::cache::cache_manager::FileMetadata>> for MutexFileMetadataCache {
-    type Extra = ObjectMeta;
-
-    fn get(&self, k: &ObjectMeta) -> Option<Arc<dyn datafusion::execution::cache::cache_manager::FileMetadata>> {
+impl CacheAccessor<Path, CachedFileMetadataEntry> for MutexFileMetadataCache {
+    fn get(&self, k: &Path) -> Option<CachedFileMetadataEntry> {
         match self.inner.lock() {
             Ok(cache) => cache.get(k),
-            Err(e) => { log_cache_error("get", &e.to_string()); None }
+            Err(e) => {
+                log_cache_error("get", &e.to_string());
+                None
+            }
         }
     }
 
-    fn get_with_extra(&self, k: &ObjectMeta, extra: &Self::Extra) -> Option<Arc<dyn datafusion::execution::cache::cache_manager::FileMetadata>> {
-        match self.inner.lock() {
-            Ok(cache) => cache.get_with_extra(k, extra),
-            Err(e) => { log_cache_error("get_with_extra", &e.to_string()); None }
-        }
-    }
-
-    fn put(&self, k: &ObjectMeta, v: Arc<dyn datafusion::execution::cache::cache_manager::FileMetadata>) -> Option<Arc<dyn datafusion::execution::cache::cache_manager::FileMetadata>> {
+    fn put(&self, k: &Path, v: CachedFileMetadataEntry) -> Option<CachedFileMetadataEntry> {
         match self.inner.lock() {
             Ok(cache) => cache.put(k, v),
-            Err(e) => { log_cache_error("put", &e.to_string()); None }
+            Err(e) => {
+                log_cache_error("put", &e.to_string());
+                None
+            }
         }
     }
 
-    fn put_with_extra(&self, k: &ObjectMeta, v: Arc<dyn datafusion::execution::cache::cache_manager::FileMetadata>, e: &Self::Extra) -> Option<Arc<dyn datafusion::execution::cache::cache_manager::FileMetadata>> {
-        match self.inner.lock() {
-            Ok(cache) => cache.put_with_extra(k, v, e),
-            Err(err) => { log_cache_error("put_with_extra", &err.to_string()); None }
-        }
-    }
-
-    fn remove(&self, k: &ObjectMeta) -> Option<Arc<dyn datafusion::execution::cache::cache_manager::FileMetadata>> {
+    fn remove(&self, k: &Path) -> Option<CachedFileMetadataEntry> {
         match self.inner.lock() {
             Ok(cache) => cache.remove(k),
-            Err(e) => { log_cache_error("remove", &e.to_string()); None }
+            Err(e) => {
+                log_cache_error("remove", &e.to_string());
+                None
+            }
         }
     }
 
-    fn contains_key(&self, k: &ObjectMeta) -> bool {
+    fn contains_key(&self, k: &Path) -> bool {
         match self.inner.lock() {
             Ok(cache) => cache.contains_key(k),
-            Err(e) => { log_cache_error("contains_key", &e.to_string()); false }
+            Err(e) => {
+                log_cache_error("contains_key", &e.to_string());
+                false
+            }
         }
     }
 
     fn len(&self) -> usize {
         match self.inner.lock() {
             Ok(cache) => cache.len(),
-            Err(e) => { log_cache_error("len", &e.to_string()); 0 }
+            Err(e) => {
+                log_cache_error("len", &e.to_string());
+                0
+            }
         }
     }
 
@@ -120,7 +119,10 @@ impl CacheAccessor<ObjectMeta, Arc<dyn datafusion::execution::cache::cache_manag
     fn name(&self) -> String {
         match self.inner.lock() {
             Ok(cache) => cache.name(),
-            Err(e) => { log_cache_error("name", &e.to_string()); "cache_error".to_string() }
+            Err(e) => {
+                log_cache_error("name", &e.to_string());
+                "cache_error".to_string()
+            }
         }
     }
 }
@@ -129,7 +131,10 @@ impl FileMetadataCache for MutexFileMetadataCache {
     fn cache_limit(&self) -> usize {
         match self.inner.lock() {
             Ok(cache) => cache.cache_limit(),
-            Err(e) => { log_cache_error("cache_limit", &e.to_string()); 0 }
+            Err(e) => {
+                log_cache_error("cache_limit", &e.to_string());
+                0
+            }
         }
     }
 
@@ -140,10 +145,13 @@ impl FileMetadataCache for MutexFileMetadataCache {
         }
     }
 
-    fn list_entries(&self) -> std::collections::HashMap<object_store::path::Path, datafusion::execution::cache::cache_manager::FileMetadataCacheEntry> {
+    fn list_entries(&self) -> std::collections::HashMap<Path, FileMetadataCacheEntry> {
         match self.inner.lock() {
             Ok(cache) => cache.list_entries(),
-            Err(e) => { log_cache_error("list_entries", &e.to_string()); std::collections::HashMap::new() }
+            Err(e) => {
+                log_cache_error("list_entries", &e.to_string());
+                std::collections::HashMap::new()
+            }
         }
     }
 }

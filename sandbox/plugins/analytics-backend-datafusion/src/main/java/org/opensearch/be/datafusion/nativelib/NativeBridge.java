@@ -11,9 +11,11 @@ package org.opensearch.be.datafusion.nativelib;
 import org.opensearch.analytics.backend.jni.NativeHandle;
 import org.opensearch.be.datafusion.stats.DataFusionStats;
 import org.opensearch.be.datafusion.stats.NativeExecutorsStats;
+import org.opensearch.be.datafusion.stats.TaskMonitorStats;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.nativebridge.spi.NativeCall;
 import org.opensearch.nativebridge.spi.NativeLibraryLoader;
+import org.opensearch.plugins.NativeStoreHandle;
 
 import java.lang.foreign.FunctionDescriptor;
 import java.lang.foreign.Linker;
@@ -139,6 +141,7 @@ public final class NativeBridge {
                 ValueLayout.JAVA_LONG,
                 ValueLayout.ADDRESS,
                 ValueLayout.ADDRESS,
+                ValueLayout.JAVA_LONG,
                 ValueLayout.JAVA_LONG
             )
         );
@@ -561,12 +564,25 @@ public final class NativeBridge {
     /**
      * Creates a native reader. Returns an opaque native pointer.
      * Freed by {@link #closeDatafusionReader}.
+     *
+     * @param path the directory path
+     * @param files the file names
+     * @param dataformatAwareStoreHandle per-format native store handle (null = local, live = use store pointer)
      */
-    public static long createDatafusionReader(String path, String[] files) {
+    public static long createDatafusionReader(String path, String[] files, NativeStoreHandle dataformatAwareStoreHandle) {
+        long storePtr = 0L;
+        if (dataformatAwareStoreHandle != null) {
+            try {
+                storePtr = dataformatAwareStoreHandle.getPointer();
+            } catch (IllegalStateException e) {
+                // Handle closed between check and extraction — use default (local)
+                storePtr = 0L;
+            }
+        }
         try (var call = new NativeCall()) {
             var p = call.str(path);
             var f = call.strArray(files);
-            return call.invoke(CREATE_READER, p.segment(), p.len(), f.ptrs(), f.lens(), f.count());
+            return call.invoke(CREATE_READER, p.segment(), p.len(), f.ptrs(), f.lens(), f.count(), storePtr);
         }
     }
 
@@ -665,7 +681,7 @@ public final class NativeBridge {
             var cpuRuntime = StatsLayout.readRuntimeMetrics(seg, "cpu_runtime");
 
             // Task monitors
-            var taskMonitors = new LinkedHashMap<String, NativeExecutorsStats.TaskMonitorStats>();
+            var taskMonitors = new LinkedHashMap<String, TaskMonitorStats>();
             for (NativeExecutorsStats.OperationType op : NativeExecutorsStats.OperationType.values()) {
                 taskMonitors.put(op.key(), StatsLayout.readTaskMonitor(seg, op.key()));
             }

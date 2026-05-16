@@ -74,6 +74,10 @@ public class HunspellTokenFilterFactory extends AbstractTokenFilterFactory {
     private final Dictionary dictionary;
     private final boolean dedup;
     private final boolean longestOnly;
+    private final AnalysisMode analysisMode;
+    private final HunspellService hunspellService;
+    private final String refPath;
+    private final String locale;
 
     public HunspellTokenFilterFactory(IndexSettings indexSettings, String name, Settings settings, HunspellService hunspellService) {
         super(indexSettings, name, settings);
@@ -81,6 +85,10 @@ public class HunspellTokenFilterFactory extends AbstractTokenFilterFactory {
         // Get both ref_path and locale parameters
         String refPath = settings.get("ref_path");
         String locale = settings.get("locale", settings.get("language", settings.get("lang", null)));
+
+        // Check for updateable flag
+        boolean updateable = settings.getAsBoolean("updateable", false);
+        this.analysisMode = updateable ? AnalysisMode.SEARCH_TIME : AnalysisMode.ALL;
 
         if (refPath != null) {
             // Directory-based loading: ref_path + locale (required)
@@ -106,6 +114,10 @@ public class HunspellTokenFilterFactory extends AbstractTokenFilterFactory {
             );
         }
 
+        this.hunspellService = hunspellService;
+        this.refPath = refPath;
+        this.locale = locale;
+
         dedup = settings.getAsBoolean("dedup", true);
         longestOnly = settings.getAsBoolean("longest_only", false);
     }
@@ -121,6 +133,29 @@ public class HunspellTokenFilterFactory extends AbstractTokenFilterFactory {
 
     public boolean longestOnly() {
         return longestOnly;
+    }
+
+    /**
+     * Returns the analysis mode for this filter.
+     * When {@code updateable: true} is set, returns {@code SEARCH_TIME} which enables hot-reload
+     * via the _refresh_search_analyzers API.
+     */
+    @Override
+    public AnalysisMode getAnalysisMode() {
+        return this.analysisMode;
+    }
+
+    /**
+     * Reloads this filter's hunspell dictionary from disk, atomically replacing the cached entry.
+     * The cache is never empty — the old dictionary is overwritten in place.
+     */
+    @Override
+    public void reloadCachedResources() {
+        if (refPath != null) {
+            hunspellService.reloadDictionaryFromRefPath(refPath, locale);
+        } else if (locale != null) {
+            hunspellService.reloadDictionary(locale);
+        }
     }
 
     /**

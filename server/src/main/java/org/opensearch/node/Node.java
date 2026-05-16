@@ -36,7 +36,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.Constants;
 import org.opensearch.Build;
-import org.opensearch.ExceptionsHelper;
 import org.opensearch.OpenSearchException;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.OpenSearchTimeoutException;
@@ -115,7 +114,6 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.SettingUpgrader;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.settings.SettingsException;
 import org.opensearch.common.settings.SettingsModule;
 import org.opensearch.common.unit.RatioValue;
 import org.opensearch.common.unit.TimeValue;
@@ -128,7 +126,6 @@ import org.opensearch.core.common.breaker.CircuitBreaker;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.common.transport.BoundTransportAddress;
 import org.opensearch.core.common.transport.TransportAddress;
-import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.indices.breaker.CircuitBreakerService;
 import org.opensearch.core.indices.breaker.NoneCircuitBreakerService;
@@ -174,9 +171,9 @@ import org.opensearch.index.store.DefaultDataFormatAwareStoreDirectoryFactory;
 import org.opensearch.index.store.IndexStoreListener;
 import org.opensearch.index.store.RemoteSegmentStoreDirectoryFactory;
 import org.opensearch.index.store.remote.filecache.FileCache;
-import org.opensearch.index.store.remote.filecache.FileCacheCleaner;
-import org.opensearch.index.store.remote.filecache.FileCacheFactory;
 import org.opensearch.index.store.remote.filecache.FileCacheSettings;
+import org.opensearch.index.store.remote.filecache.NodeCacheOrchestrator;
+import org.opensearch.index.store.remote.filecache.NodeCacheOrchestratorCleaner;
 import org.opensearch.indices.IndicesModule;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.RemoteStoreSettings;
@@ -203,7 +200,6 @@ import org.opensearch.ingest.SystemIngestPipelineCache;
 import org.opensearch.monitor.MonitorService;
 import org.opensearch.monitor.NodeRuntimeMetrics;
 import org.opensearch.monitor.fs.FsHealthService;
-import org.opensearch.monitor.fs.FsProbe;
 import org.opensearch.monitor.fs.FsServiceProvider;
 import org.opensearch.monitor.jvm.JvmInfo;
 import org.opensearch.monitor.os.OsProbe;
@@ -321,7 +317,6 @@ import javax.net.ssl.SNIHostName;
 import java.io.BufferedWriter;
 import java.io.Closeable;
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
@@ -343,7 +338,6 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ForkJoinPool;
-import java.util.concurrent.ForkJoinTask;
 import java.util.concurrent.ForkJoinWorkerThread;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -486,7 +480,8 @@ public class Node implements Closeable {
     private final MetricsRegistry metricsRegistry;
     final NamedWriteableRegistry namedWriteableRegistry;
     private final AtomicReference<RunnableTaskExecutionListener> runnableTaskListener;
-    private FileCache fileCache;
+    @Nullable
+    private NodeCacheOrchestrator nodeCacheOrchestrator;
     private final RemoteStoreStatsTrackerFactory remoteStoreStatsTrackerFactory;
     private final MergedSegmentWarmerFactory mergedSegmentWarmerFactory;
 
@@ -592,7 +587,8 @@ public class Node implements Closeable {
                 .map(IndexStorePlugin::getIndexStoreListener)
                 .filter(Optional::isPresent)
                 .map(Optional::get);
-            // FileCache is only initialized on warm nodes, so we only create FileCacheCleaner on warm nodes as well
+            // NodeCacheOrchestratorCleaner is only needed on warm nodes (where FileCache and
+            // BlockCaches are active). On hot nodes there is nothing to clean up.
             if (DiscoveryNode.isWarmNode(settings) == false) {
                 nodeEnvironment = new NodeEnvironment(
                     settings,
@@ -604,8 +600,10 @@ public class Node implements Closeable {
                     settings,
                     environment,
                     new IndexStoreListener.CompositeIndexStoreListener(
-                        Stream.concat(indexStoreListenerStream, Stream.of(new FileCacheCleaner(this::fileCache)))
-                            .collect(Collectors.toList())
+                        Stream.concat(
+                            indexStoreListenerStream,
+                            Stream.of(new NodeCacheOrchestratorCleaner(() -> this.nodeCacheOrchestrator))
+                        ).collect(Collectors.toList())
                     )
                 );
             }
@@ -817,7 +815,25 @@ public class Node implements Closeable {
                 settingsModule.getClusterSettings()
             );
 
-            initializeFileCache(settings);
+            // Block-cache providers discovered once, reused for budget, registration, and capacity.
+            // Collect providers into a map keyed by cache name for O(1) lookup
+            // and fail-fast detection of duplicate names at startup.
+            final Map<String, org.opensearch.plugins.BlockCacheProvider> blockCacheProviders = pluginsService.filterPlugins(
+                org.opensearch.plugins.BlockCacheProvider.class
+            ).stream().collect(java.util.stream.Collectors.toMap(org.opensearch.plugins.BlockCacheProvider::cacheName, p -> p, (a, b) -> {
+                throw new IllegalStateException(
+                    "Duplicate BlockCacheProvider for name ["
+                        + a.cacheName()
+                        + "]: "
+                        + a.getClass().getName()
+                        + " and "
+                        + b.getClass().getName()
+                );
+            }));
+
+            if (DiscoveryNode.isWarmNode(settings)) {
+                this.nodeCacheOrchestrator = NodeCacheOrchestrator.create(settings, nodeEnvironment, blockCacheProviders);
+            }
 
             pluginsService.filterPlugins(CircuitBreakerPlugin.class).forEach(plugin -> {
                 CircuitBreaker breaker = circuitBreakerService.getBreaker(plugin.getCircuitBreaker(settings).getName());
@@ -920,7 +936,7 @@ public class Node implements Closeable {
             final Map<String, IndexStorePlugin.DirectoryFactory> builtInDirectoryFactories = IndexModule.createBuiltInDirectoryFactories(
                 repositoriesServiceReference::get,
                 threadPool,
-                fileCache
+                fileCache()
             );
 
             final Map<String, IndexStorePlugin.DirectoryFactory> directoryFactories = new HashMap<>();
@@ -968,10 +984,12 @@ public class Node implements Closeable {
             dataFormatAwareStoreDirectoryFactories.put("default", new DefaultDataFormatAwareStoreDirectoryFactory());
 
             // Register tiered factory for warm+format indices
-            dataFormatAwareStoreDirectoryFactories.put(
-                TieredDataFormatAwareStoreDirectoryFactory.FACTORY_KEY,
-                new TieredDataFormatAwareStoreDirectoryFactory(tieredStoragePrefetchSettingsSupplier)
-            );
+            if (FeatureFlags.isEnabled(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)) {
+                dataFormatAwareStoreDirectoryFactories.put(
+                    TieredDataFormatAwareStoreDirectoryFactory.FACTORY_KEY,
+                    new TieredDataFormatAwareStoreDirectoryFactory(tieredStoragePrefetchSettingsSupplier)
+                );
+            }
 
             final Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories = pluginsService.filterPlugins(
                 IndexStorePlugin.class
@@ -1055,7 +1073,7 @@ public class Node implements Closeable {
                 recoverySettings,
                 cacheService,
                 remoteStoreSettings,
-                fileCache,
+                nodeCacheOrchestrator,
                 compositeIndexSettings,
                 segmentReplicator::startReplication,
                 segmentReplicator::getSegmentReplicationStats,
@@ -1079,7 +1097,7 @@ public class Node implements Closeable {
             final FsServiceProvider fsServiceProvider = new FsServiceProvider(
                 settings,
                 nodeEnvironment,
-                fileCache,
+                nodeCacheOrchestrator,
                 settingsModule.getClusterSettings(),
                 indicesService
             );
@@ -1194,6 +1212,10 @@ public class Node implements Closeable {
                 )
                 .collect(Collectors.toList());
             pluginComponents.addAll(searchBackEndPluginComponents);
+
+            if (nodeCacheOrchestrator != null) {
+                nodeCacheOrchestrator.registerProviders(blockCacheProviders);
+            }
 
             List<IdentityAwarePlugin> identityAwarePlugins = pluginsService.filterPlugins(IdentityAwarePlugin.class);
             identityService.initializeIdentityAwarePlugins(identityAwarePlugins);
@@ -1347,7 +1369,7 @@ public class Node implements Closeable {
             if (FeatureFlags.isEnabled(STREAM_TRANSPORT) && streamTransportSupplier == null) {
                 throw new IllegalStateException(STREAM_TRANSPORT + " is enabled but no stream transport supplier is provided");
             }
-            final Transport streamTransport = (streamTransportSupplier != null ? streamTransportSupplier.get() : null);
+            final Transport streamTransport = wrapStreamTransport(streamTransportSupplier != null ? streamTransportSupplier.get() : null);
 
             Set<String> taskHeaders = Stream.concat(
                 pluginsService.filterPlugins(ActionPlugin.class).stream().flatMap(p -> p.getTaskHeaders().stream()),
@@ -1567,7 +1589,7 @@ public class Node implements Closeable {
                 searchModule.getValuesSourceRegistry().getUsageService(),
                 searchBackpressureService,
                 searchPipelineService,
-                fileCache,
+                nodeCacheOrchestrator,
                 taskCancellationMonitoringService,
                 resourceUsageCollectorService,
                 segmentReplicationStatsTracker,
@@ -1659,6 +1681,7 @@ public class Node implements Closeable {
                 b.bind(PersistedClusterStateService.class).toInstance(lucenePersistedStateFactory);
                 b.bind(IndicesService.class).toInstance(indicesService);
                 b.bind(RemoteStoreStatsTrackerFactory.class).toInstance(remoteStoreStatsTrackerFactory);
+                FileCache fileCache = fileCache();
                 if (fileCache != null) {
                     b.bind(FileCache.class).toInstance(fileCache);
                 } else {
@@ -1830,6 +1853,18 @@ public class Node implements Closeable {
             taskHeaders,
             tracer
         );
+    }
+
+    /**
+     * Hook to wrap the stream transport before it is shared between the
+     * regular {@link TransportService} and {@link StreamTransportService}.
+     * Default returns its input unchanged. Test-framework subclasses (e.g.
+     * {@code MockNode}) override to install a stubbable wrapper so
+     * test-only request-handler interception works on the streaming path
+     * too.
+     */
+    protected Transport wrapStreamTransport(@Nullable Transport streamTransport) {
+        return streamTransport;
     }
 
     /**
@@ -2449,63 +2484,6 @@ public class Node implements Closeable {
     }
 
     /**
-     * Initializes the warm cache with a defined capacity.
-     * The capacity of the cache is based on user configuration for {@link Node#NODE_SEARCH_CACHE_SIZE_SETTING}.
-     * If the user doesn't configure the cache size, it fails if the node is a data + warm node.
-     * Else it configures the size to 80% of total capacity for a dedicated warm node, if not explicitly defined.
-     */
-    private void initializeFileCache(Settings settings) throws IOException {
-        if (DiscoveryNode.isWarmNode(settings) == false) {
-            return;
-        }
-
-        String capacityRaw = NODE_SEARCH_CACHE_SIZE_SETTING.get(settings);
-        logger.info("cache size [{}]", capacityRaw);
-        if (capacityRaw.equals(ZERO)) {
-            throw new SettingsException(
-                "Unable to initialize the "
-                    + DiscoveryNodeRole.WARM_ROLE.roleName()
-                    + "-"
-                    + DiscoveryNodeRole.DATA_ROLE.roleName()
-                    + " node: Missing value for configuration "
-                    + NODE_SEARCH_CACHE_SIZE_SETTING.getKey()
-            );
-        }
-
-        NodeEnvironment.NodePath fileCacheNodePath = nodeEnvironment.fileCacheNodePath();
-        long totalSpace = ExceptionsHelper.catchAsRuntimeException(() -> FsProbe.getTotalSize(fileCacheNodePath));
-        long capacity = calculateFileCacheSize(capacityRaw, totalSpace);
-        if (capacity <= 0 || totalSpace <= capacity) {
-            throw new SettingsException("Cache size must be larger than zero and less than total capacity");
-        }
-
-        this.fileCache = FileCacheFactory.createConcurrentLRUFileCache(capacity);
-        fileCacheNodePath.fileCacheReservedSize = new ByteSizeValue(this.fileCache.capacity(), ByteSizeUnit.BYTES);
-        ForkJoinPool loadFileCacheThreadpool = new ForkJoinPool(
-            Runtime.getRuntime().availableProcessors(),
-            Node.CustomForkJoinWorkerThread::new,
-            null,
-            false
-        );
-        SetOnce<UncheckedIOException> exception = new SetOnce<>();
-        ForkJoinTask<Void> fileCacheFilesLoadTask = loadFileCacheThreadpool.submit(
-            new FileCache.LoadTask(fileCacheNodePath.fileCachePath, this.fileCache, exception)
-        );
-        if (DiscoveryNode.isDedicatedWarmNode(settings)) {
-            ForkJoinTask<Void> indicesFilesLoadTask = loadFileCacheThreadpool.submit(
-                new FileCache.LoadTask(fileCacheNodePath.indicesPath, this.fileCache, exception)
-            );
-            indicesFilesLoadTask.join();
-        }
-        fileCacheFilesLoadTask.join();
-        loadFileCacheThreadpool.shutdown();
-        if (exception.get() != null) {
-            logger.error("File cache initialization failed.", exception.get());
-            throw new OpenSearchException(exception.get());
-        }
-    }
-
-    /**
      * Custom ForkJoinWorkerThread that preserves the context ClassLoader of the creating thread
      * to ensure proper resource loading in worker threads.
      */
@@ -2536,10 +2514,12 @@ public class Node implements Closeable {
     }
 
     /**
-     * Returns the {@link FileCache} instance for remote warm node
+     * Returns the {@link FileCache} instance for remote warm nodes, or {@code null} on non-warm nodes.
+     * Delegates to {@link NodeCacheOrchestrator} which owns the FileCache lifecycle.
      * Note: Visible for testing
      */
+    @Nullable
     public FileCache fileCache() {
-        return this.fileCache;
+        return nodeCacheOrchestrator != null ? nodeCacheOrchestrator.fileCache() : null;
     }
 }

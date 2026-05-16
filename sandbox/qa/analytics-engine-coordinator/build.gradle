@@ -1,0 +1,146 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ */
+
+/*
+ * Coordinator-level integration tests for analytics-engine. Lives outside
+ * the analytics-engine plugin so the test classpath can pull in the
+ * DataFusion backend, Arrow Flight, and the test-ppl frontend without
+ * dragging those deps onto the plugin's own classpath.
+ */
+
+apply plugin: 'opensearch.internal-cluster-test'
+
+java { sourceCompatibility = JavaVersion.toVersion(25); targetCompatibility = JavaVersion.toVersion(25) }
+
+// Calcite transitively brings Guava onto the test compile classpath; OpenSearch's
+// forbidden-dependencies check rejects Guava on compileClasspath. Allow it here for ITs.
+configurations {
+  compileClasspath { exclude group: 'com.google.guava' }
+  testCompileClasspath { exclude group: 'com.google.guava' }
+}
+
+dependencies {
+  // Test framework provides :server, JUnit, MockTransportService, MockCommitterEnginePlugin,
+  // OpenSearchIntegTestCase, and the rest of the IT infrastructure.
+  internalClusterTestImplementation project(':test:framework')
+
+  // Plugin under test
+  internalClusterTestImplementation project(':sandbox:plugins:analytics-engine')
+
+  // QueryPlanExecutor / OpenSearchSchemaBuilder live in analytics-api; SqlPlanRunner pulls
+  // these directly without going through analytics-engine's internal classes.
+  internalClusterTestImplementation project(':sandbox:libs:analytics-api')
+
+  // Arrow Flight streaming transport — provides the streaming TransportService.
+  internalClusterTestImplementation project(':plugins:arrow-flight-rpc')
+
+  // DataFusion backend exercised end-to-end. Test-only — production analytics-engine
+  // doesn't link against a specific backend.
+  internalClusterTestImplementation project(':sandbox:plugins:analytics-backend-datafusion')
+
+  // Parquet data format — primary data format for the resilience tests.
+  internalClusterTestImplementation project(':sandbox:plugins:parquet-data-format')
+  // Composite engine plugin — provides the composite format dispatcher.
+  internalClusterTestImplementation project(':sandbox:plugins:composite-engine')
+  // TestPPLPlugin + UnifiedPPL action for driving queries from ITs.
+  internalClusterTestImplementation project(':sandbox:plugins:test-ppl-frontend')
+
+  // Guava is excluded from analytics-engine's runtime classpath (provided by
+  // arrow-flight-rpc at runtime in production). The classpath-plugin test
+  // launcher doesn't hydrate the extended-plugin classloader, so Guava must
+  // be on the test runtime classpath here. Calcite's FrameworkConfig also
+  // references ImmutableList in its compile-time API (SqlPlanRunner imports
+  // it), so include Guava on the IT compile classpath too.
+  internalClusterTestCompileOnly "com.google.guava:guava:33.3.1-jre"
+  internalClusterTestRuntimeOnly "com.google.guava:guava:33.3.1-jre"
+  internalClusterTestRuntimeOnly "com.google.guava:failureaccess:1.0.1"
+}
+
+tasks.withType(JavaCompile).configureEach {
+  options.compilerArgs -= '-Werror'
+}
+
+// internalClusterTest runs on a flat classpath (no plugin classloader for the classpath
+// plugins). Calcite's SqlKind clinit pulls com.google.common.collect.Sets, so Guava MUST
+// be present. Hard-attach via a detached configuration that bypasses any inherited excludes.
+def guavaRuntimeJars = configurations.detachedConfiguration(
+  dependencies.create('com.google.guava:guava:33.3.1-jre') { transitive = false },
+  dependencies.create('com.google.guava:failureaccess:1.0.1') { transitive = false },
+  dependencies.create("org.slf4j:slf4j-api:${versions.slf4j}") { transitive = false },
+  dependencies.create("commons-codec:commons-codec:${versions.commonscodec}") { transitive = false },
+  dependencies.create("com.fasterxml.jackson.core:jackson-core:${versions.jackson}") { transitive = false },
+  dependencies.create("com.fasterxml.jackson.core:jackson-databind:${versions.jackson_databind}") { transitive = false },
+  dependencies.create("com.fasterxml.jackson.core:jackson-annotations:${versions.jackson_annotations}") { transitive = false }
+)
+sourceSets.internalClusterTest.runtimeClasspath += guavaRuntimeJars
+// SqlPlanRunner references org.apache.calcite.tools.FrameworkConfig, whose API surface
+// has com.google.common.collect.ImmutableList in its bytecode signatures. javac needs
+// Guava on the compile classpath to read those signatures even though no Guava type
+// appears in the harness source.
+sourceSets.internalClusterTest.compileClasspath += guavaRuntimeJars
+
+configurations.all {
+  // okhttp-aws-signer is a transitive of unified-query-common, only published on JitPack.
+  exclude group: 'com.github.babbel', module: 'okhttp-aws-signer'
+
+  resolutionStrategy {
+    force 'com.google.guava:guava:33.3.1-jre'
+    force 'com.google.guava:failureaccess:1.0.1'
+    force 'com.google.errorprone:error_prone_annotations:2.36.0'
+    force 'org.checkerframework:checker-qual:3.43.0'
+    force "com.fasterxml.jackson:jackson-bom:${versions.jackson}"
+    force "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
+    force "com.fasterxml.jackson.core:jackson-databind:${versions.jackson_databind}"
+    force "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson_annotations}"
+    force "com.fasterxml.jackson.datatype:jackson-datatype-jsr310:${versions.jackson}"
+    force "com.fasterxml.jackson.dataformat:jackson-dataformat-cbor:${versions.jackson}"
+    force "com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:${versions.jackson}"
+    force "org.slf4j:slf4j-api:${versions.slf4j}"
+    force "com.google.flatbuffers:flatbuffers-java:${versions.flatbuffers}"
+    force "org.locationtech.jts:jts-core:${versions.jts}"
+    force "commons-codec:commons-codec:${versions.commonscodec}"
+    force "joda-time:joda-time:2.12.7"
+    force "org.yaml:snakeyaml:2.4"
+    force "org.codehaus.janino:janino:3.1.12"
+    force "org.codehaus.janino:commons-compiler:3.1.12"
+    force "commons-io:commons-io:${versions.commonsio}"
+    force "org.apache.commons:commons-lang3:3.18.0"
+    force "org.apache.commons:commons-text:1.11.0"
+    force "commons-logging:commons-logging:1.3.5"
+    force "net.minidev:json-smart:2.5.2"
+    force "org.apache.httpcomponents.client5:httpclient5:5.6"
+    force "org.apache.httpcomponents.core5:httpcore5:5.4"
+    force "com.squareup.okhttp3:okhttp:4.12.0"
+    force "org.jetbrains.kotlin:kotlin-stdlib:1.8.21"
+    force "org.jetbrains.kotlin:kotlin-stdlib-jdk7:1.8.21"
+    force "org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.8.21"
+    force "org.jetbrains.kotlin:kotlin-stdlib-common:1.9.10"
+    force "org.apache.logging.log4j:log4j-api:${versions.log4j}"
+    force "org.apache.logging.log4j:log4j-core:${versions.log4j}"
+    // io.substrait:core (transitively via analytics-backend-datafusion) drags
+    // protobuf-java 3.25.8; project :server uses 3.25.9. Force the higher version.
+    force "com.google.protobuf:protobuf-java:3.25.9"
+  }
+}
+
+// Arrow/Flight requires these JVM flags. DataFusion backend requires the native lib
+// path so JNI can locate libopensearch_native.dylib built by dataformat-native.
+internalClusterTest {
+  jvmArgs '--add-opens=java.base/java.nio=ALL-UNNAMED'
+  jvmArgs '--add-opens=java.base/java.lang=ALL-UNNAMED'
+  jvmArgs '--add-opens=java.base/sun.nio.ch=ALL-UNNAMED'
+  jvmArgs '--enable-native-access=ALL-UNNAMED'
+  jvmArgs '-Darrow.memory.debug.allocator=false'
+  systemProperty 'io.netty.allocator.numDirectArenas', '1'
+  systemProperty 'io.netty.noUnsafe', 'false'
+  systemProperty 'io.netty.tryUnsafe', 'true'
+  systemProperty 'io.netty.tryReflectionSetAccessible', 'true'
+  systemProperty 'native.lib.path', project(':sandbox:libs:dataformat-native').ext.nativeLibPath.absolutePath
+  dependsOn ':sandbox:libs:dataformat-native:buildRustLibrary'
+  jvmArgs += ["--add-opens", "java.base/java.nio=org.apache.arrow.memory.core,ALL-UNNAMED"]
+}

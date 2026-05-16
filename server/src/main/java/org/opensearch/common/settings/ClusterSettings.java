@@ -123,7 +123,6 @@ import org.opensearch.index.autoforcemerge.ForceMergeManagerSettings;
 import org.opensearch.index.compositeindex.CompositeIndexSettings;
 import org.opensearch.index.remote.RemoteStorePressureSettings;
 import org.opensearch.index.remote.RemoteStoreStatsTrackerFactory;
-import org.opensearch.index.store.remote.filecache.BlockCacheSettings;
 import org.opensearch.index.store.remote.filecache.FileCacheSettings;
 import org.opensearch.indices.ClusterMergeSchedulerConfig;
 import org.opensearch.indices.IndexingMemoryController;
@@ -767,10 +766,6 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 TieringUtils.JVM_USAGE_TIERING_THRESHOLD_PERCENT,
                 TieringUtils.FILECACHE_ACTIVE_USAGE_TIERING_THRESHOLD_PERCENT,
 
-                // Settings related to block cache
-                BlockCacheSettings.BLOCK_SIZE_SETTING,
-                BlockCacheSettings.IO_ENGINE_SETTING,
-
                 // Settings related to Remote Refresh Segment Pressure
                 RemoteStorePressureSettings.REMOTE_REFRESH_SEGMENT_PRESSURE_ENABLED,
                 RemoteStorePressureSettings.BYTES_LAG_VARIANCE_FACTOR,
@@ -863,6 +858,12 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 // Composite index settings
                 CompositeIndexSettings.STAR_TREE_INDEX_ENABLED_SETTING,
                 CompositeIndexSettings.COMPOSITE_INDEX_MAX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING,
+
+                // Pluggable dataformat cluster defaults
+                IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_ENABLED_SETTING,
+                IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_VALUE_SETTING,
+                IndicesService.CLUSTER_RESTRICT_PLUGGABLE_DATAFORMAT_SETTING,
+                IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_RESTRICT_ALLOWLIST,
 
                 SystemTemplatesService.SETTING_APPLICATION_BASED_CONFIGURATION_TEMPLATES_ENABLED,
 

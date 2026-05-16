@@ -100,15 +100,21 @@ public class GracefulDegradationTests extends OpenSearchTestCase {
         );
 
         // Should not throw — graceful degradation
+        StoreStrategyRegistry registry = StoreStrategyRegistry.open(
+            shardPath,
+            true,
+            org.opensearch.repositories.NativeStoreRepository.EMPTY,
+            java.util.Map.of(),
+            remoteDir,
+            null
+        );
         DataFormatAwareStoreDirectory storeDir = factory.newDataFormatAwareStoreDirectory(
             indexSettings,
             shardId,
             shardPath,
             localDirFactory,
             Map.of(),
-            java.util.Map.of(),
-            org.opensearch.repositories.NativeStoreRepository.EMPTY,
-            true,
+            registry,
             remoteDir,
             fileCache,
             null
