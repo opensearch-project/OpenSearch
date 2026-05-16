@@ -281,7 +281,23 @@ public enum ScalarFunction {
      * and time span (interval=1) to {@code date_trunc(unit, field)} so the
      * Substrait-emitted plan reaches DataFusion as standard primitives.
      */
-    SPAN(Category.SCALAR, SqlKind.OTHER_FUNCTION);
+    SPAN(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+
+    // ── PPL bucketing label functions (return VARCHAR labels via Rust UDFs) ──
+    /** PPL span_bucket(value, span). Rust UDF returning a VARCHAR bucket label
+     *  like "10-20". NOT ISO SQL width_bucket. */
+    SPAN_BUCKET(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+
+    /** PPL width_bucket(value, num_bins, data_range, max_value). Returns a
+     *  VARCHAR bucket label via the OpenSearch nice-number algorithm. Name
+     *  collides with ISO-SQL WIDTH_BUCKET but semantics and signature differ. */
+    WIDTH_BUCKET(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+
+    /** PPL minspan_bucket(value, min_span, data_range, max_value). VARCHAR label. */
+    MINSPAN_BUCKET(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+
+    /** PPL range_bucket(value, data_min, data_max, start_param, end_param). VARCHAR label. */
+    RANGE_BUCKET(Category.SCALAR, SqlKind.OTHER_FUNCTION);
 
     /**
      * Category of scalar function.
@@ -347,7 +363,14 @@ public enum ScalarFunction {
     public static ScalarFunction fromSqlFunction(SqlFunction function) {
         // TODO: Add an explicit functionName field per enum constant instead of relying on
         // valueOf(toUpperCase). This couples enum constant naming to SQL function naming convention.
-        return ScalarFunction.valueOf(function.getName().toUpperCase(Locale.ROOT));
+        try {
+            return ScalarFunction.valueOf(function.getName().toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException e) {
+            // Callers (e.g. OpenSearchProjectRule) short-circuit on null — routing the
+            // function through the non-ScalarFunction path (opaque or YAML-alias based
+            // name lookup) rather than aborting Hep rule matching with an exception.
+            return null;
+        }
     }
 
     /**

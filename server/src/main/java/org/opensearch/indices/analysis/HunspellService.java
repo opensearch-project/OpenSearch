@@ -375,7 +375,7 @@ public class HunspellService {
         return defaults;
     }
 
-    // ==================== CACHE KEY UTILITIES ====================
+    // ==================== CACHE UTILITIES ====================
 
     /**
      * Builds the cache key for a directory-based dictionary.
@@ -387,6 +387,64 @@ public class HunspellService {
      */
     public static String buildRefPathCacheKey(String refPath, String locale) {
         return refPath + CACHE_KEY_SEPARATOR + locale;
+    }
+
+    /**
+     * Reloads a directory-based dictionary from disk and atomically replaces the cached entry.
+     * The cache key is never empty — the old entry is overwritten in a single put.
+     *
+     * @param refPath The ref_path (e.g., "analyzers/my-dict")
+     * @param locale The locale (e.g., "en_US")
+     * @return The freshly loaded Dictionary
+     * @throws IllegalStateException if reloading fails
+     */
+    public Dictionary reloadDictionaryFromRefPath(String refPath, String locale) {
+        if (Strings.isNullOrEmpty(refPath)) {
+            throw new IllegalArgumentException("refPath cannot be null or empty");
+        }
+        if (Strings.isNullOrEmpty(locale)) {
+            throw new IllegalArgumentException("locale cannot be null or empty");
+        }
+
+        String cacheKey = buildRefPathCacheKey(refPath, locale);
+
+        final Dictionary freshDictionary;
+        try {
+            freshDictionary = loadDictionaryFromRefPath(refPath, locale);
+        } catch (Exception e) {
+            throw new IllegalStateException(
+                String.format(Locale.ROOT, "Failed to reload hunspell dictionary for ref_path [%s] locale [%s]", refPath, locale),
+                e
+            );
+        }
+
+        dictionaries.put(cacheKey, freshDictionary);
+        logger.debug("Reloaded hunspell dictionary cache for key [{}]", cacheKey);
+        return freshDictionary;
+    }
+
+    /**
+     * Reloads a traditional locale-based dictionary from disk and atomically replaces the cached entry.
+     *
+     * @param locale The locale (e.g., "en_US")
+     * @return The freshly loaded Dictionary
+     * @throws IllegalStateException if reloading fails
+     */
+    public Dictionary reloadDictionary(String locale) {
+        if (Strings.isNullOrEmpty(locale)) {
+            throw new IllegalArgumentException("locale cannot be null or empty");
+        }
+
+        final Dictionary freshDictionary;
+        try {
+            freshDictionary = loadDictionary(locale, Settings.EMPTY, env, hunspellDir);
+        } catch (Exception e) {
+            throw new IllegalStateException(String.format(Locale.ROOT, "Failed to reload hunspell dictionary for locale [%s]", locale), e);
+        }
+
+        dictionaries.put(locale, freshDictionary);
+        logger.debug("Reloaded hunspell dictionary cache for locale [{}]", locale);
+        return freshDictionary;
     }
 
 }
