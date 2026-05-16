@@ -32,7 +32,7 @@ import org.opensearch.gradle.VersionProperties
 
 apply plugin: 'opensearch.testclusters'
 
-def numNodes = findProperty('numNodes') as Integer ?: 1
+def numNodes = findProperty('numNodes') as Integer ?: 3
 def numZones = findProperty('numZones') as Integer ?: 1
 
 testClusters {
@@ -99,6 +99,36 @@ testClusters {
           jvmArgs '--add-opens=java.base/java.nio=ALL-UNNAMED'
           jvmArgs '--enable-native-access=ALL-UNNAMED'
         }
+      }
+    }
+    plugin ':sandbox:plugins:native-repository-fs'
+    nodes.each { node ->
+      node.setting 'node.search.cache.size', '50%'
+      node.setting 'cluster.remote_store.index.path.type', 'fixed'
+      node.setting 'path.repo', '/tmp/remote-store-repo'
+      node.setting 'node.attr.remote_store.segment.repository', 'my-repository'
+      node.setting 'node.attr.remote_store.repository.my-repository.type', 'fs'
+      node.setting 'node.attr.remote_store.repository.my-repository.settings.location', '/tmp/remote-store-repo/seg'
+      node.setting 'node.attr.remote_store.translog.repository', 'my-repository-trans'
+      node.setting 'node.attr.remote_store.repository.my-repository-trans.type', 'fs'
+      node.setting 'node.attr.remote_store.repository.my-repository-trans.settings.location', '/tmp/remote-store-repo/trans'
+      node.setting 'node.attr.remote_store.state.repository', 'my-repository-state'
+      node.setting 'node.attr.remote_store.repository.my-repository-state.type', 'fs'
+      node.setting 'node.attr.remote_store.repository.my-repository-state.settings.location', '/tmp/remote-store-repo/state'
+      node.setting 'opensearch.experimental.feature.writable_warm_index.enabled', 'true'
+      node.setting 'discovery.seed_hosts', '["127.0.0.1:9300"]'
+      node.setting 'cluster.initial_cluster_manager_nodes', '["runTask-0"]'
+
+      if (node.name.endsWith("-0")) {
+        node.setting 'node.roles', '["cluster_manager", data]'
+      } else if (node.name.endsWith("-1")) {
+        node.setting 'node.roles', '["warm"]'
+      } else if (node.name.endsWith("-2")) {
+        node.setting 'node.roles', '["warm"]'
+      } else if (node.name.endsWith("-3")) {
+        node.setting 'node.roles', '["warm"]'
+      } else if (node.name.endsWith("-4")) {
+        node.setting 'node.roles', '["warm"]'
       }
     }
   }
