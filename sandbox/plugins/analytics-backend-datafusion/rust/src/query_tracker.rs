@@ -133,21 +133,6 @@ impl QueryTracker {
         }
     }
 
-    /// Wall-clock duration in nanoseconds, as an `i64` for FFM transport.
-    /// Returns the frozen snapshot if completed, otherwise live elapsed time.
-    /// Elapsed nanos is `u128` internally; saturates at `i64::MAX` (~292 years)
-    /// so it can always be represented as an `i64`.
-    pub fn elapsed_nanos(&self) -> i64 {
-        let frozen = self.wall_nanos.load(Ordering::Acquire);
-        if frozen > 0 {
-            // `AtomicU64` → `i64`: `frozen` was produced from `elapsed().as_nanos() as u64`
-            // so its high bit is effectively clear. Still clamp defensively.
-            frozen.min(i64::MAX as u64) as i64
-        } else {
-            self.start_time.elapsed().as_nanos().min(i64::MAX as u128) as i64
-        }
-    }
-
     pub fn is_completed(&self) -> bool {
         self.completed.load(Ordering::Acquire)
     }
@@ -166,29 +151,6 @@ impl QueryTracker {
 
 static QUERY_REGISTRY: Lazy<DashMap<i64, Arc<QueryTracker>>> = Lazy::new(DashMap::new);
 
-/// Remove a completed tracker from the registry and return it.
-/// Called from JNI after Java has consumed the metrics.
-pub fn drain_completed_query(context_id: i64) -> Option<Arc<QueryTracker>> {
-    let result = QUERY_REGISTRY
-        .remove_if(&context_id, |_, t| t.is_completed())
-        .map(|(_, t)| t);
-    match &result {
-        Some(t) => log_info!(
-            "[nativemem-bp] rust.drain_completed_query: drained ctx={} (peak_bytes={}, wall_secs={:.3}, registry_size_after={})",
-            context_id,
-            t.memory_pool.peak_bytes(),
-            t.wall_secs(),
-            QUERY_REGISTRY.len()
-        ),
-        None => log_info!(
-            "[nativemem-bp] rust.drain_completed_query: ctx={} not drained (absent or not completed) (registry_size={})",
-            context_id,
-            QUERY_REGISTRY.len()
-        ),
-    }
-    result
-}
-
 // ---------------------------------------------------------------------------
 // Registry snapshot — top-N FFM export
 // ---------------------------------------------------------------------------
@@ -202,19 +164,15 @@ pub fn drain_completed_query(context_id: i64) -> Option<Arc<QueryTracker>> {
 /// | context_id    | `QueryTracker::context_id`                                |
 /// | current_bytes | `QueryMemoryPool::current_bytes`, clamped to `i64::MAX`   |
 /// | peak_bytes    | `QueryMemoryPool::peak_bytes`, clamped to `i64::MAX`      |
-/// | wall_nanos    | live elapsed or frozen wall time (see `elapsed_nanos()`)  |
-/// | completed     | 1 if the tracker has been marked completed, else 0        |
 #[repr(C)]
 #[derive(Debug, Clone, Copy)]
 pub struct WireQueryMetric {
     pub context_id: i64,
     pub current_bytes: i64,
     pub peak_bytes: i64,
-    pub wall_nanos: i64,
-    pub completed: i64,
 }
 
-const _: () = assert!(std::mem::size_of::<WireQueryMetric>() == 5 * 8);
+const _: () = assert!(std::mem::size_of::<WireQueryMetric>() == 3 * 8);
 
 fn usize_to_i64_saturating(value: usize) -> i64 {
     if value > i64::MAX as usize {
@@ -230,8 +188,6 @@ impl WireQueryMetric {
             context_id: tracker.context_id,
             current_bytes: usize_to_i64_saturating(tracker.memory_pool.current_bytes()),
             peak_bytes: usize_to_i64_saturating(tracker.memory_pool.peak_bytes()),
-            wall_nanos: tracker.elapsed_nanos(),
-            completed: if tracker.is_completed() { 1 } else { 0 },
         }
     }
 }
@@ -250,8 +206,8 @@ impl WireQueryMetric {
 /// sorted. Callers that need a sorted view sort the prefix client-side.
 ///
 /// Filters applied on the Rust side, in this order:
-/// - completed trackers are skipped (they retain `current_bytes == 0` until
-///   `drain_completed_query` runs anyway, so this is mostly a fast path)
+/// - completed trackers are skipped (a completed query's `current_bytes`
+///   drops to zero on `Drop` anyway, so this is mostly a fast path)
 /// - `current_bytes == 0` is skipped (registered but un-allocated trackers
 ///   are not "heavy" candidates)
 ///
@@ -349,13 +305,11 @@ pub fn snapshot_top_n_by_current(out: &mut [WireQueryMetric]) -> usize {
         // and final values are independent point-in-time samples.
         out[written] = WireQueryMetric::from_tracker(&entry.tracker);
         log_info!(
-            "[nativemem-bp] rust.snapshot_top_n entry[{}]: ctx={}, current={}B, peak={}B, wall_ns={}, completed={}",
+            "[nativemem-bp] rust.snapshot_top_n entry[{}]: ctx={}, current={}B, peak={}B",
             written,
             out[written].context_id,
             out[written].current_bytes,
             out[written].peak_bytes,
-            out[written].wall_nanos,
-            out[written].completed,
         );
         written += 1;
     }
@@ -722,8 +676,6 @@ mod tests {
                 context_id: 0,
                 current_bytes: 0,
                 peak_bytes: 0,
-                wall_nanos: 0,
-                completed: 0,
             };
             n
         ]
@@ -841,8 +793,6 @@ mod tests {
             context_id: -1,
             current_bytes: -1,
             peak_bytes: -1,
-            wall_nanos: -1,
-            completed: -1,
         };
         let mut buf = vec![sentinel; 16];
         let written = snapshot_top_n_by_current(&mut buf);
