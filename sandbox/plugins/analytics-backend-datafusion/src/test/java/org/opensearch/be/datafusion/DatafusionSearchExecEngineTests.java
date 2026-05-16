@@ -63,6 +63,7 @@ public class DatafusionSearchExecEngineTests extends OpenSearchTestCase {
         storeHandle.close();
         NativeStoreTestHelper.destroyTieredObjectStore(tieredStorePtr);
         runtimeHandle.close();
+        NativeBridge.shutdownTokioRuntimeManager();
         super.tearDown();
     }
 

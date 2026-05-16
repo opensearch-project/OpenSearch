@@ -31,7 +31,7 @@ import java.util.List;
  * Unit tests for the JSON-function adapter inner classes in
  * {@link JsonFunctionAdapters}. Each inner adapter gets its own test method
  * (shape + {@code testAdaptedCallPreservesOriginalReturnType} regression
- * guard). See {@link YearAdapterTests} for the regression-guard rationale.
+ * guard). See {@link UnixTimestampAdapterTests} for the regression-guard rationale.
  */
 public class JsonFunctionAdaptersTests extends OpenSearchTestCase {
 
@@ -85,8 +85,8 @@ public class JsonFunctionAdaptersTests extends OpenSearchTestCase {
      * {@code ReturnTypes.INTEGER_NULLABLE} which would infer a different
      * typeFactory type instance and trip {@code Project.isValid}'s
      * {@code compatibleTypes} check during fragment conversion. See
-     * {@link YearAdapterTests#testAdaptedCallPreservesOriginalReturnType()} for
-     * the original incident.
+     * {@link UnixTimestampAdapterTests#testAdaptedCallPreservesOriginalReturnType()}
+     * for the original incident.
      */
     public void testJsonArrayLengthPreservesOriginalReturnType() {
         RelDataType varcharNullable = typeFactory.createTypeWithNullability(typeFactory.createSqlType(SqlTypeName.VARCHAR), true);

@@ -40,6 +40,7 @@ import org.opensearch.analytics.planner.rules.OpenSearchSortSplitRule;
 import org.opensearch.analytics.planner.rules.OpenSearchTableScanRule;
 import org.opensearch.analytics.planner.rules.OpenSearchUnionRule;
 import org.opensearch.analytics.planner.rules.OpenSearchUnionSplitRule;
+import org.opensearch.analytics.planner.rules.OpenSearchValuesRule;
 
 import java.util.List;
 
@@ -124,7 +125,8 @@ public class PlannerImpl {
                 new OpenSearchAggregateRule(context),
                 new OpenSearchJoinRule(context),
                 new OpenSearchSortRule(context),
-                new OpenSearchUnionRule(context)
+                new OpenSearchUnionRule(context),
+                new OpenSearchValuesRule(context)
             )
         );
         HepPlanner markingPlanner = new HepPlanner(markBuilder.build());

@@ -846,16 +846,36 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     public synchronized List<String> reloadSearchAnalyzers(AnalysisRegistry registry) throws IOException {
-        logger.info("reloading search analyzers");
-        // refresh indexAnalyzers and search analyzers
+        return reloadSearchAnalyzers(registry, false);
+    }
+
+    /**
+     * Reloads search analyzers, optionally reloading cached resources (e.g. hunspell dictionaries) first.
+     *
+     * @param registry The analysis registry
+     * @param reloadCachedResources If true, reloads cached resources (e.g. hunspell dictionaries) before rebuilding analyzers
+     * @return List of reloaded analyzer names
+     */
+    public synchronized List<String> reloadSearchAnalyzers(AnalysisRegistry registry, boolean reloadCachedResources) throws IOException {
+        logger.info("reloading search analyzers (reloadCachedResources={})", reloadCachedResources);
+
+        if (reloadCachedResources) {
+            // Reload cached resources BEFORE building new factories so they pick up fresh data
+            for (NamedAnalyzer namedAnalyzer : indexAnalyzers.getAnalyzers().values()) {
+                if (namedAnalyzer.analyzer() instanceof ReloadableCustomAnalyzer analyzer) {
+                    Arrays.stream(analyzer.getComponents().getTokenFilters()).forEach(TokenFilterFactory::reloadCachedResources);
+                }
+            }
+        }
+
+        // Build new factories — they will load fresh dictionaries from disk
         final Map<String, TokenizerFactory> tokenizerFactories = registry.buildTokenizerFactories(indexSettings);
         final Map<String, CharFilterFactory> charFilterFactories = registry.buildCharFilterFactories(indexSettings);
         final Map<String, TokenFilterFactory> tokenFilterFactories = registry.buildTokenFilterFactories(indexSettings);
         final Map<String, Settings> settings = indexSettings.getSettings().getGroups("index.analysis.analyzer");
         final List<String> reloadedAnalyzers = new ArrayList<>();
         for (NamedAnalyzer namedAnalyzer : indexAnalyzers.getAnalyzers().values()) {
-            if (namedAnalyzer.analyzer() instanceof ReloadableCustomAnalyzer) {
-                ReloadableCustomAnalyzer analyzer = (ReloadableCustomAnalyzer) namedAnalyzer.analyzer();
+            if (namedAnalyzer.analyzer() instanceof ReloadableCustomAnalyzer analyzer) {
                 String analyzerName = namedAnalyzer.name();
                 Settings analyzerSettings = settings.get(analyzerName);
                 analyzer.reload(analyzerName, analyzerSettings, tokenizerFactories, charFilterFactories, tokenFilterFactories);

@@ -378,6 +378,11 @@ public class DocumentMapperTests extends MapperServiceTestCase {
         }
 
         @Override
+        public long getFieldCount(String fieldName) {
+            return fields.containsKey(fieldName) ? 1 : 0;
+        }
+
+        @Override
         public void close() {}
     }
 }

@@ -88,7 +88,7 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
      *   <li>{@link DelegatedPredicateFunction} → {@code delegated_predicate} (delegation to a peer backend).</li>
      *   <li>{@link SqlLibraryOperators#ILIKE} → {@code ilike} (case-insensitive LIKE; resolved by
      *       DataFusion's substrait consumer to a case-insensitive {@code LikeExpr}).</li>
-     *   <li>{@link SqlLibraryOperators#DATE_PART} → {@code date_part} (target of YearAdapter's rewrite).</li>
+     *   <li>{@link SqlLibraryOperators#DATE_PART} → {@code date_part} (target of DatePartAdapters' rewrite).</li>
      *   <li>{@link ConvertTzAdapter#LOCAL_CONVERT_TZ_OP} → {@code convert_tz} (Rust UDF).</li>
      *   <li>{@link UnixTimestampAdapter#LOCAL_TO_UNIXTIME_OP} → {@code to_unixtime} (DF native).</li>
      *   <li>{@link JsonFunctionAdapters.JsonAppendAdapter#LOCAL_JSON_APPEND_OP} →
@@ -142,6 +142,11 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         FunctionMappings.s(SqlLibraryOperators.CONCAT_WS, "concat_ws"),
         FunctionMappings.s(SqlLibraryOperators.ILIKE, "ilike"),
         FunctionMappings.s(SqlLibraryOperators.DATE_PART, "date_part"),
+        // Engine-output cast rewrite target — see DatetimeOutputCastRewriter (issue #5420).
+        // Routes Calcite's TO_CHAR call to DataFusion's native `to_char` so PPL's
+        // documented space-separator timestamp output is preserved on the AE path.
+        FunctionMappings.s(SqlLibraryOperators.TO_CHAR, "to_char"),
+        FunctionMappings.s(SqlLibraryOperators.DATE_TRUNC, "date_trunc"),
         FunctionMappings.s(ConvertTzAdapter.LOCAL_CONVERT_TZ_OP, "convert_tz"),
         FunctionMappings.s(UnixTimestampAdapter.LOCAL_TO_UNIXTIME_OP, "to_unixtime"),
         // Niladic ops from DateTimeAdapters — each maps 1:1 to a DF builtin.
@@ -213,7 +218,15 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         FunctionMappings.s(ArrayElementAdapter.LOCAL_ARRAY_ELEMENT_OP, "array_element"),
         FunctionMappings.s(MvzipAdapter.LOCAL_MVZIP_OP, "mvzip"),
         FunctionMappings.s(MvfindAdapter.LOCAL_MVFIND_OP, "mvfind"),
-        FunctionMappings.s(MvappendAdapter.LOCAL_MVAPPEND_OP, "mvappend")
+        FunctionMappings.s(MvappendAdapter.LOCAL_MVAPPEND_OP, "mvappend"),
+        // PPL bucketing UDFs — see DataFusionAnalyticsBackendPlugin.STANDARD_PROJECT_OPS for
+        // capability registration and per-adapter Javadoc for semantics. Each LOCAL_*_OP is a
+        // locally-declared SqlFunction (see *Adapter.java) so isthmus's ScalarFunctionConverter
+        // binds the Sig by operator identity without importing sql/core's UDF declarations.
+        FunctionMappings.s(SpanBucketAdapter.LOCAL_SPAN_BUCKET_OP, "span_bucket"),
+        FunctionMappings.s(WidthBucketAdapter.LOCAL_WIDTH_BUCKET_OP, "width_bucket"),
+        FunctionMappings.s(MinspanBucketAdapter.LOCAL_MINSPAN_BUCKET_OP, "minspan_bucket"),
+        FunctionMappings.s(RangeBucketAdapter.LOCAL_RANGE_BUCKET_OP, "range_bucket")
     );
 
     /**
@@ -315,14 +328,16 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         return serializePlan(SubstraitPlanRewriter.rewrite(rewire(inner, wrapper, fieldNames(fragment))));
     }
 
-    // ── Core conversion helpers ─────────────────────────────────────────────────
-
     private byte[] convertToSubstrait(RelNode fragment) {
         // Rewrite SqlTypeName.NULL literals (Calcite's untyped null, emitted for the
         // implicit ELSE arm of CASE) to typed nulls — isthmus' TypeConverter rejects NULL
         // with "Unable to convert the type NULL". The widening only changes literal type
         // tags; semantics and field names (used by Plan.Root.names) are unchanged.
         RelNode preprocessed = UntypedNullPreprocessor.rewrite(fragment);
+        // Rewrite DatetimeOutputCastRule's CAST(<TIMESTAMP> AS VARCHAR) to to_char(...) so
+        // DataFusion emits PPL's space-separator timestamp format instead of Arrow's ISO-T.
+        // See issue #5420.
+        preprocessed = DatetimeOutputCastRewriter.rewrite(preprocessed);
         RelRoot root = RelRoot.of(preprocessed, SqlKind.SELECT);
         SubstraitRelVisitor visitor = createVisitor(preprocessed);
         Rel substraitRel;
@@ -364,6 +379,8 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         // wrapper conversion is just as susceptible to a SqlTypeName.NULL literal lurking in
         // a CASE call attached on top of an inner plan.
         RelNode preprocessed = UntypedNullPreprocessor.rewrite(operator);
+        // Same rationale as convertToSubstrait — issue #5420.
+        preprocessed = DatetimeOutputCastRewriter.rewrite(preprocessed);
         SubstraitRelVisitor visitor = createVisitor(preprocessed);
         return visitor.apply(preprocessed);
     }

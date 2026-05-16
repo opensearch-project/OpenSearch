@@ -23,6 +23,7 @@ import org.opensearch.analytics.planner.rel.OpenSearchProject;
 import org.opensearch.analytics.planner.rel.OpenSearchSort;
 import org.opensearch.analytics.planner.rel.OpenSearchTableScan;
 import org.opensearch.analytics.planner.rel.OpenSearchUnion;
+import org.opensearch.analytics.planner.rel.OpenSearchValues;
 
 import java.util.List;
 
@@ -101,6 +102,8 @@ public class RelNodeUtils {
             );
         } else if (node instanceof OpenSearchUnion union) {
             return new OpenSearchUnion(newCluster, newTraits, newInputs, union.all, union.getViableBackends());
+        } else if (node instanceof OpenSearchValues values) {
+            return new OpenSearchValues(newCluster, newTraits, values.getRowType(), values.getTuples(), values.getViableBackends());
         } else if (node instanceof OpenSearchExchangeReducer reducer) {
             return new OpenSearchExchangeReducer(
                 newCluster,
