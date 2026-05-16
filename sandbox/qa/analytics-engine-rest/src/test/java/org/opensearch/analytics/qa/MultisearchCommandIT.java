@@ -60,10 +60,8 @@ public class MultisearchCommandIT extends AnalyticsRestTestCase {
         // 6 null rows excluded by both predicates (5 + 6 + 6 = 17 total).
         // Verifies: Union over two same-schema projections + Aggregate(count by) on top —
         // the convertReduceFragment chain attachFragmentOnTop(Sort,
-        // attachFragmentOnTop(Aggregate, convertFinalAggFragment(Union))).
-        // Each branch projects to (int0, class) so the union row type is scalar-only —
-        // calcs has date/time/datetime columns whose TIMESTAMP Calcite SQL type
-        // ArrowSchemaFromCalcite doesn't yet handle (separate follow-up).
+        // attachFragmentOnTop(Aggregate, convertFragment(Union))).
+        // Each branch projects to (int0, class) so the union row type is scalar-only.
         assertRows(
             "| multisearch"
                 + "    [search source=" + DATASET.indexName + " | where int0 < 5  | eval class = \"low\"  | fields int0, class]"
@@ -83,8 +81,7 @@ public class MultisearchCommandIT extends AnalyticsRestTestCase {
         // Pre-fix: 500 with "Names list ... 2 uses for {row-type-width} names". Post-fix: the
         // wrapper aggregate's [count, bucket] names propagate end-to-end, plan deserializes,
         // DataFusion executes the Union+Aggregate.
-        // Each branch projects to (str0, bucket) — see testMultisearchTwoBranchesByCategory's
-        // comment for the reason.
+        // Each branch projects to (str0, bucket) so the union row type is scalar-only.
         assertRows(
             "| multisearch"
                 + "    [search source=" + DATASET.indexName + " | where str0 = \"FURNITURE\"       | eval bucket = \"F\" | fields str0, bucket]"

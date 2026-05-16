@@ -61,19 +61,11 @@ public class JoinCommandIT extends AnalyticsRestTestCase {
     }
 
     // ── join (direct LogicalJoin) ──────────────────────────────────────────────
-    //
-    // NOTE on schema narrowing: the calcs dataset carries date/time/datetime
-    // fields that map to Calcite TIMESTAMP / DATE types. The analytics-engine
-    // Arrow schema converter (ArrowSchemaFromCalcite) currently rejects those
-    // types, so every query below projects down to int/string/boolean columns
-    // via an explicit {@code fields …} or an aggregation before the join output
-    // surfaces to Arrow. Removing the projection surfaces
-    // {@code IllegalArgumentException: Unsupported Calcite SQL type: TIMESTAMP}.
 
     /**
      * Inner equi-join across two indices of the calcs dataset, grouped on
      * {@code str0}. Both sides are pre-aggregated to a narrow keyword-only
-     * schema so the join output has no TIMESTAMP/DATE columns.
+     * schema so the join output is scalar-only.
      */
     public void testInnerJoin() throws IOException {
         final String ppl = "source="
