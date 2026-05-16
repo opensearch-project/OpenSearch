@@ -325,11 +325,6 @@ public class DataFormatAwareEngine implements Indexer {
                 snapshotListeners.add(entry.getValue());
             }
             List<CatalogSnapshot> committedSnapshots = committer.listCommittedSnapshots();
-            boolean emptyRecovery = false;
-            if (committedSnapshots.isEmpty()) {
-                emptyRecovery = true;
-                committedSnapshots = List.of(CatalogSnapshotManager.createInitialSnapshot(0L, 0L, 0L, List.of(), -1L, userData));
-            }
             this.catalogSnapshotManager = new CatalogSnapshotManager(
                 committedSnapshots,
                 combinedPolicy,
@@ -341,9 +336,7 @@ public class DataFormatAwareEngine implements Indexer {
             );
             // Bump catalog generation on engine open so uploads from this primary do not collide
             // with a prior primary's uploads for the same shard. See method Javadoc for rationale.
-            if (!emptyRecovery) {
-                this.catalogSnapshotManager.bumpGenerationForNewEngineLifecycle();
-            }
+            this.catalogSnapshotManager.bumpGenerationForNewEngineLifecycle();
 
             this.lastRefreshedCheckpointListener = new LastRefreshedCheckpointListener(localCheckpointTracker);
             this.refreshListeners.add(this.lastRefreshedCheckpointListener);
