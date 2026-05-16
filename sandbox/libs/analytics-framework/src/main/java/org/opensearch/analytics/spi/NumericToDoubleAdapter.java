@@ -87,10 +87,7 @@ public class NumericToDoubleAdapter implements ScalarFunctionAdapter {
         if (type == SqlTypeName.DOUBLE) {
             return operand;
         }
-        if (SqlTypeName.INT_TYPES.contains(type)
-            || type == SqlTypeName.FLOAT
-            || type == SqlTypeName.REAL
-            || type == SqlTypeName.DECIMAL) {
+        if (SqlTypeName.INT_TYPES.contains(type) || type == SqlTypeName.FLOAT || type == SqlTypeName.REAL || type == SqlTypeName.DECIMAL) {
             RelDataTypeFactory factory = cluster.getTypeFactory();
             RelDataType doubleType = factory.createTypeWithNullability(
                 factory.createSqlType(SqlTypeName.DOUBLE),

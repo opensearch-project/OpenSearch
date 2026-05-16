@@ -16,60 +16,13 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * End-to-end coverage for PPL math/scalar functions on the analytics-engine route
- * (PPL → CalciteRelNodeVisitor → {@link org.opensearch.analytics.planner.dag.BackendPlanAdapter}
- * → Substrait → DataFusion).
- *
- * <p>Why these tests exist: substrait's standard {@code functions_arithmetic.yaml},
- * {@code functions_logarithmic.yaml}, {@code functions_rounding.yaml} declare each
- * math function for {@code i64 / fp32 / fp64} only. Calcite emits these calls with
- * {@code i32} args (PPL int literals, OpenSearch {@code integer}-mapped columns).
- * Without intervention isthmus throws {@code "Unable to convert call X(i32?)"} at
- * substrait conversion.
- *
- * <p>Two complementary fixes ship together:
- * <ul>
- *   <li>Transcendental fns ({@code EXP / LN / LOG / LOG10 / LOG2 / POWER}) — registered
- *       in {@code DataFusionAnalyticsBackendPlugin.scalarFunctionAdapters()} with
- *       {@link org.opensearch.analytics.spi.NumericToDoubleAdapter}. The adapter wraps
- *       integer/float/decimal operands in {@code CAST AS DOUBLE} before substrait
- *       conversion, so isthmus binds against the existing fp64 entries in the
- *       standard yaml. PPL documents these as returning DOUBLE regardless of input,
- *       so widening operands has no observable schema effect.</li>
- *   <li>Type-preserving fns ({@code CEIL / FLOOR / SIGN / TRUNCATE}) — i32 overloads in
- *       {@code opensearch_rounding_overloads.yaml} and {@code opensearch_scalar_functions.yaml}
- *       (under the standard substrait URN). PPL documents these as "same type as input",
- *       so widening to fp64 would break the return-type contract; explicit yaml
- *       overloads keep them at int width on the wire.</li>
- * </ul>
- *
- * <h2>Type coverage matrix</h2>
- * <table>
- *   <tr><th>Type</th><th>Source in PPL</th><th>Transcendental (EXP/LN/POW/…)</th><th>Type-preserving (CEIL/FLOOR/SIGN/TRUNC)</th></tr>
- *   <tr><td>i8 (byte)</td><td>{@code cast(x as byte)}, OS {@code byte} column</td><td>adapter widens to fp64</td><td><b>GAP</b> — yaml has only i32/fp32/fp64</td></tr>
- *   <tr><td>i16 (short)</td><td>{@code cast(x as short)}, OS {@code short} column</td><td>adapter widens to fp64</td><td><b>GAP</b> — same as above</td></tr>
- *   <tr><td>i32</td><td>int literal, {@code int} column</td><td>adapter widens to fp64</td><td>our yaml overload</td></tr>
- *   <tr><td>i64</td><td>{@code cast(x as long)}, {@code long} column</td><td>adapter widens to fp64</td><td><b>GAP</b> — yaml has only i32/fp32/fp64</td></tr>
- *   <tr><td>fp32</td><td>{@code cast(x as float)}, {@code float} column</td><td>adapter widens to fp64</td><td>standard yaml</td></tr>
- *   <tr><td>fp64</td><td>double literal, {@code double} column</td><td>passes through</td><td>standard yaml</td></tr>
- * </table>
- *
- * <h2>Two-arg mixed-type combinations ({@code POWER}, {@code TRUNCATE(value, scale)})</h2>
- * <p>For {@code POWER(x, y)} the adapter widens both operands uniformly, so every {@code (numeric, numeric)}
- * combination binds against the substrait {@code power(fp64, fp64)} impl. For {@code TRUNCATE(value, scale)}
- * the yaml overloads we kept cover {@code (i32, i32)}, {@code (fp32, i32)}, {@code (fp64, i32)} — i64-valued
- * variants are an explicit <b>GAP</b>.
- *
- * <h2>What's intentionally not tested here</h2>
- * <ul>
- *   <li>{@code rand(seed)} — DataFusion's native {@code random} is 0-arg only; the seeded
- *       form requires a Rust UDF that isn't in this PR. See {@code CalciteMathematicalFunctionIT.testRand}.</li>
- *   <li>{@code conv(value, fromBase, toBase)} — DataFusion has no general base-conversion
- *       function (only {@code to_hex} covers the {@code (10, 16)} special case). Pending
- *       UDF or Calcite-side rewrite.</li>
- *   <li>{@code expm1}, {@code log(base, value)} variant — substrait standard doesn't have
- *       direct names for these; pending separate adapter work.</li>
- * </ul>
+ * End-to-end coverage for PPL math functions on the analytics-engine route. Substrait's
+ * standard yaml declares math fns for {@code i64/fp32/fp64} only; Calcite emits them with
+ * {@code i32} args from PPL int literals and OS {@code integer} columns. Two fixes bridge
+ * the gap: {@link org.opensearch.analytics.spi.NumericToDoubleAdapter} widens transcendental
+ * operands ({@code EXP/LN/LOG/POWER}) before substrait, and i32 overloads in
+ * {@code opensearch_rounding_overloads.yaml} cover type-preserving fns ({@code CEIL/FLOOR/
+ * SIGN/TRUNCATE}) at native width.
  */
 public class MathFunctionIT extends AnalyticsRestTestCase {
 
