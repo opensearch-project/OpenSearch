@@ -46,8 +46,8 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.RoutingTable;
-import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.cluster.service.ClusterManagerTask;
+import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
@@ -629,47 +629,16 @@ public class PersistentTasksClusterServiceTests extends OpenSearchTestCase {
         PersistentTaskState newState = new TestPersistentTasksPlugin.State("updated");
 
         String newTaskId = UUIDs.base64UUID();
-        PersistentTasksClusterService.PersistentTaskUpdateEntry createEntry = new PersistentTasksClusterService.PersistentTaskUpdateEntry(
-            PersistentTasksClusterService.PersistentTaskUpdateEntry.OperationType.CREATE,
-            newTaskId,
-            0,
-            null,
-            ActionListener.wrap(r -> {}, e -> fail()),
-            TestPersistentTasksExecutor.NAME,
-            new TestParams("assign_me"),
-            null
-        );
-        PersistentTasksClusterService.PersistentTaskUpdateEntry updateEntry = new PersistentTasksClusterService.PersistentTaskUpdateEntry(
-            PersistentTasksClusterService.PersistentTaskUpdateEntry.OperationType.UPDATE_STATE,
-            taskToUpdate,
-            builtTasks.getTask(taskToUpdate).getAllocationId(),
-            newState,
-            ActionListener.wrap(r -> {}, e -> fail())
-        );
-        PersistentTasksClusterService.PersistentTaskUpdateEntry removeEntry = new PersistentTasksClusterService.PersistentTaskUpdateEntry(
-            PersistentTasksClusterService.PersistentTaskUpdateEntry.OperationType.REMOVE,
-            taskToRemove,
-            0,
-            null,
-            ActionListener.wrap(r -> {}, e -> fail())
-        );
-        PersistentTasksClusterService.PersistentTaskUpdateEntry completeEntry = new PersistentTasksClusterService.PersistentTaskUpdateEntry(
-            PersistentTasksClusterService.PersistentTaskUpdateEntry.OperationType.COMPLETE,
-            taskToComplete,
-            builtTasks.getTask(taskToComplete).getAllocationId(),
-            null,
-            ActionListener.wrap(r -> {}, e -> fail())
-        );
-        PersistentTasksClusterService.PersistentTaskUpdateEntry unassignEntry = new PersistentTasksClusterService.PersistentTaskUpdateEntry(
-            PersistentTasksClusterService.PersistentTaskUpdateEntry.OperationType.UNASSIGN,
-            taskToUnassign,
-            builtTasks.getTask(taskToUnassign).getAllocationId(),
-            null,
-            ActionListener.wrap(r -> {}, e -> fail()),
-            null,
-            null,
-            "unassignment test"
-        );
+        PersistentTasksClusterService.PersistentTaskUpdateEntry createEntry = PersistentTasksClusterService.PersistentTaskUpdateEntry
+            .create(newTaskId, TestPersistentTasksExecutor.NAME, new TestParams("assign_me"));
+        PersistentTasksClusterService.PersistentTaskUpdateEntry updateEntry = PersistentTasksClusterService.PersistentTaskUpdateEntry
+            .updateState(taskToUpdate, builtTasks.getTask(taskToUpdate).getAllocationId(), newState);
+        PersistentTasksClusterService.PersistentTaskUpdateEntry removeEntry = PersistentTasksClusterService.PersistentTaskUpdateEntry
+            .remove(taskToRemove);
+        PersistentTasksClusterService.PersistentTaskUpdateEntry completeEntry = PersistentTasksClusterService.PersistentTaskUpdateEntry
+            .complete(taskToComplete, builtTasks.getTask(taskToComplete).getAllocationId());
+        PersistentTasksClusterService.PersistentTaskUpdateEntry unassignEntry = PersistentTasksClusterService.PersistentTaskUpdateEntry
+            .unassign(taskToUnassign, builtTasks.getTask(taskToUnassign).getAllocationId(), "unassignment test");
 
         ClusterStateTaskExecutor.ClusterTasksResult<PersistentTasksClusterService.PersistentTaskUpdateEntry> result = executor.execute(
             clusterState,
@@ -724,21 +693,12 @@ public class PersistentTasksClusterServiceTests extends OpenSearchTestCase {
         PersistentTasksClusterService.PersistentTaskUpdateExecutor executor = service.new PersistentTaskUpdateExecutor();
 
         // First entry: remove a non-existent task (should fail)
-        PersistentTasksClusterService.PersistentTaskUpdateEntry failEntry = new PersistentTasksClusterService.PersistentTaskUpdateEntry(
-            PersistentTasksClusterService.PersistentTaskUpdateEntry.OperationType.REMOVE,
-            "non-existent-task",
-            0,
-            null,
-            ActionListener.wrap(r -> fail(), e -> {})
+        PersistentTasksClusterService.PersistentTaskUpdateEntry failEntry = PersistentTasksClusterService.PersistentTaskUpdateEntry.remove(
+            "non-existent-task"
         );
         // Second entry: remove an existing task (should succeed despite first failure)
-        PersistentTasksClusterService.PersistentTaskUpdateEntry successEntry = new PersistentTasksClusterService.PersistentTaskUpdateEntry(
-            PersistentTasksClusterService.PersistentTaskUpdateEntry.OperationType.REMOVE,
-            existingTask,
-            0,
-            null,
-            ActionListener.wrap(r -> {}, e -> fail())
-        );
+        PersistentTasksClusterService.PersistentTaskUpdateEntry successEntry = PersistentTasksClusterService.PersistentTaskUpdateEntry
+            .remove(existingTask);
 
         ClusterStateTaskExecutor.ClusterTasksResult<PersistentTasksClusterService.PersistentTaskUpdateEntry> result = executor.execute(
             clusterState,
@@ -773,12 +733,10 @@ public class PersistentTasksClusterServiceTests extends OpenSearchTestCase {
         PersistentTasksClusterService.PersistentTaskUpdateExecutor executor = service.new PersistentTaskUpdateExecutor();
 
         // Use a wrong allocation id - task exists but allocation id doesn't match
-        PersistentTasksClusterService.PersistentTaskUpdateEntry entry = new PersistentTasksClusterService.PersistentTaskUpdateEntry(
-            PersistentTasksClusterService.PersistentTaskUpdateEntry.OperationType.UPDATE_STATE,
+        PersistentTasksClusterService.PersistentTaskUpdateEntry entry = PersistentTasksClusterService.PersistentTaskUpdateEntry.updateState(
             taskId,
             999999L,
-            new TestPersistentTasksPlugin.State("test"),
-            ActionListener.wrap(r -> fail(), e -> {})
+            new TestPersistentTasksPlugin.State("test")
         );
 
         ClusterStateTaskExecutor.ClusterTasksResult<PersistentTasksClusterService.PersistentTaskUpdateEntry> result = executor.execute(
@@ -807,12 +765,10 @@ public class PersistentTasksClusterServiceTests extends OpenSearchTestCase {
         PersistentTasksClusterService service = createService((params, currentState) -> new Assignment("_node_1", "test"));
         PersistentTasksClusterService.PersistentTaskUpdateExecutor executor = service.new PersistentTaskUpdateExecutor();
 
-        PersistentTasksClusterService.PersistentTaskUpdateEntry entry = new PersistentTasksClusterService.PersistentTaskUpdateEntry(
-            PersistentTasksClusterService.PersistentTaskUpdateEntry.OperationType.UPDATE_STATE,
+        PersistentTasksClusterService.PersistentTaskUpdateEntry entry = PersistentTasksClusterService.PersistentTaskUpdateEntry.updateState(
             "non-existing-task",
             1L,
-            new TestPersistentTasksPlugin.State("test"),
-            ActionListener.wrap(r -> fail(), e -> {})
+            new TestPersistentTasksPlugin.State("test")
         );
 
         ClusterStateTaskExecutor.ClusterTasksResult<PersistentTasksClusterService.PersistentTaskUpdateEntry> result = executor.execute(
@@ -843,12 +799,9 @@ public class PersistentTasksClusterServiceTests extends OpenSearchTestCase {
         PersistentTasksClusterService service = createService((params, currentState) -> new Assignment("_node_1", "test"));
         PersistentTasksClusterService.PersistentTaskUpdateExecutor executor = service.new PersistentTaskUpdateExecutor();
 
-        PersistentTasksClusterService.PersistentTaskUpdateEntry entry = new PersistentTasksClusterService.PersistentTaskUpdateEntry(
-            PersistentTasksClusterService.PersistentTaskUpdateEntry.OperationType.COMPLETE,
+        PersistentTasksClusterService.PersistentTaskUpdateEntry entry = PersistentTasksClusterService.PersistentTaskUpdateEntry.complete(
             taskId,
-            999999L,
-            null,
-            ActionListener.wrap(r -> fail(), e -> {})
+            999999L
         );
 
         ClusterStateTaskExecutor.ClusterTasksResult<PersistentTasksClusterService.PersistentTaskUpdateEntry> result = executor.execute(
@@ -877,12 +830,9 @@ public class PersistentTasksClusterServiceTests extends OpenSearchTestCase {
         PersistentTasksClusterService service = createService((params, currentState) -> new Assignment("_node_1", "test"));
         PersistentTasksClusterService.PersistentTaskUpdateExecutor executor = service.new PersistentTaskUpdateExecutor();
 
-        PersistentTasksClusterService.PersistentTaskUpdateEntry entry = new PersistentTasksClusterService.PersistentTaskUpdateEntry(
-            PersistentTasksClusterService.PersistentTaskUpdateEntry.OperationType.COMPLETE,
+        PersistentTasksClusterService.PersistentTaskUpdateEntry entry = PersistentTasksClusterService.PersistentTaskUpdateEntry.complete(
             "non-existing-task",
-            1L,
-            null,
-            ActionListener.wrap(r -> fail(), e -> {})
+            1L
         );
 
         ClusterStateTaskExecutor.ClusterTasksResult<PersistentTasksClusterService.PersistentTaskUpdateEntry> result = executor.execute(
@@ -914,15 +864,10 @@ public class PersistentTasksClusterServiceTests extends OpenSearchTestCase {
         PersistentTasksClusterService.PersistentTaskUpdateExecutor executor = service.new PersistentTaskUpdateExecutor();
 
         // Try to create a task with the same id as an existing task
-        PersistentTasksClusterService.PersistentTaskUpdateEntry entry = new PersistentTasksClusterService.PersistentTaskUpdateEntry(
-            PersistentTasksClusterService.PersistentTaskUpdateEntry.OperationType.CREATE,
+        PersistentTasksClusterService.PersistentTaskUpdateEntry entry = PersistentTasksClusterService.PersistentTaskUpdateEntry.create(
             existingTaskId,
-            0,
-            null,
-            ActionListener.wrap(r -> fail(), e -> {}),
             TestPersistentTasksExecutor.NAME,
-            new TestParams("assign_me"),
-            null
+            new TestParams("assign_me")
         );
 
         ClusterStateTaskExecutor.ClusterTasksResult<PersistentTasksClusterService.PersistentTaskUpdateEntry> result = executor.execute(
@@ -952,15 +897,10 @@ public class PersistentTasksClusterServiceTests extends OpenSearchTestCase {
         PersistentTasksClusterService.PersistentTaskUpdateExecutor executor = service.new PersistentTaskUpdateExecutor();
 
         String newTaskId = UUIDs.base64UUID();
-        PersistentTasksClusterService.PersistentTaskUpdateEntry entry = new PersistentTasksClusterService.PersistentTaskUpdateEntry(
-            PersistentTasksClusterService.PersistentTaskUpdateEntry.OperationType.CREATE,
+        PersistentTasksClusterService.PersistentTaskUpdateEntry entry = PersistentTasksClusterService.PersistentTaskUpdateEntry.create(
             newTaskId,
-            0,
-            null,
-            ActionListener.wrap(r -> {}, e -> fail()),
             TestPersistentTasksExecutor.NAME,
-            new TestParams("assign_me"),
-            null
+            new TestParams("assign_me")
         );
 
         ClusterStateTaskExecutor.ClusterTasksResult<PersistentTasksClusterService.PersistentTaskUpdateEntry> result = executor.execute(
@@ -994,14 +934,9 @@ public class PersistentTasksClusterServiceTests extends OpenSearchTestCase {
         PersistentTasksClusterService service = createService((params, currentState) -> new Assignment("_node_1", "test"));
         PersistentTasksClusterService.PersistentTaskUpdateExecutor executor = service.new PersistentTaskUpdateExecutor();
 
-        PersistentTasksClusterService.PersistentTaskUpdateEntry entry = new PersistentTasksClusterService.PersistentTaskUpdateEntry(
-            PersistentTasksClusterService.PersistentTaskUpdateEntry.OperationType.UNASSIGN,
+        PersistentTasksClusterService.PersistentTaskUpdateEntry entry = PersistentTasksClusterService.PersistentTaskUpdateEntry.unassign(
             taskId,
             999999L,
-            null,
-            ActionListener.wrap(r -> fail(), e -> {}),
-            null,
-            null,
             "unassignment test"
         );
 
@@ -1245,21 +1180,22 @@ public class PersistentTasksClusterServiceTests extends OpenSearchTestCase {
 
         String taskId = UUIDs.base64UUID();
         AtomicBoolean completed = new AtomicBoolean(false);
-        service.createPersistentTask(taskId, TestPersistentTasksExecutor.NAME, new TestParams("dont_assign_me"), ActionListener.wrap(
-            task -> {
+        service.createPersistentTask(
+            taskId,
+            TestPersistentTasksExecutor.NAME,
+            new TestParams("dont_assign_me"),
+            ActionListener.wrap(task -> {
                 assertThat(task, is(notNullValue()));
                 assertThat(task.isAssigned(), is(false));
                 completed.set(true);
-            },
-            e -> fail("createPersistentTask should not fail: " + e.getMessage())
-        ));
+            }, e -> fail("createPersistentTask should not fail: " + e.getMessage()))
+        );
 
         assertBusy(() -> assertThat(completed.get(), is(true)));
         // The periodic rechecker should have been triggered because the task is unassigned
-        assertBusy(() -> assertTrue(
-            "periodic rechecker should be scheduled for unassigned task",
-            service.getPeriodicRechecker().isScheduled()
-        ));
+        assertBusy(
+            () -> assertTrue("periodic rechecker should be scheduled for unassigned task", service.getPeriodicRechecker().isScheduled())
+        );
     }
 
     /**
@@ -1325,25 +1261,15 @@ public class PersistentTasksClusterServiceTests extends OpenSearchTestCase {
         PersistentTasksClusterService.PersistentTaskUpdateExecutor executor = service.new PersistentTaskUpdateExecutor();
 
         // First entry: REMOVE the task (will succeed)
-        PersistentTasksClusterService.PersistentTaskUpdateEntry removeEntry = new PersistentTasksClusterService.PersistentTaskUpdateEntry(
-            PersistentTasksClusterService.PersistentTaskUpdateEntry.OperationType.REMOVE,
-            taskId,
-            0,
-            null,
-            ActionListener.wrap(r -> {}, e -> fail())
-        );
+        PersistentTasksClusterService.PersistentTaskUpdateEntry removeEntry = PersistentTasksClusterService.PersistentTaskUpdateEntry
+            .remove(taskId);
 
         // Second entry: COMPLETE the same task with wrong allocation ID
         // After the REMOVE, the task no longer exists, so this should hit the
         // "task wasn't found" branch, NOT the "different allocation id" branch.
         // This ensures no NPE from getTaskWithId().getTaskName() on a removed task.
-        PersistentTasksClusterService.PersistentTaskUpdateEntry completeEntry = new PersistentTasksClusterService.PersistentTaskUpdateEntry(
-            PersistentTasksClusterService.PersistentTaskUpdateEntry.OperationType.COMPLETE,
-            taskId,
-            999999L,
-            null,
-            ActionListener.wrap(r -> fail(), e -> {})
-        );
+        PersistentTasksClusterService.PersistentTaskUpdateEntry completeEntry = PersistentTasksClusterService.PersistentTaskUpdateEntry
+            .complete(taskId, 999999L);
 
         // This should NOT throw NPE
         ClusterStateTaskExecutor.ClusterTasksResult<PersistentTasksClusterService.PersistentTaskUpdateEntry> result = executor.execute(
