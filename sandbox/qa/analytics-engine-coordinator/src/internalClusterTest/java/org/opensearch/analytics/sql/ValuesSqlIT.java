@@ -153,6 +153,29 @@ public class ValuesSqlIT extends OpenSearchIntegTestCase {
         assertEquals("matched rows must be [1,1,2,2]", List.of(1, 1, 2, 2), vals);
     }
 
+    /**
+     * Literal-projection + aggregate + filter against {@code http_logs}: confirms
+     * a Project that mixes a constant ({@code 1 + 1 AS x}) with an aggregate column
+     * ({@code SUM(size)}) survives the planner end-to-end. The constant folds into
+     * the OpenSearchProject expression list — no Values rel is introduced for it —
+     * and the aggregate runs over the filtered scan output. Result: a single row
+     * {@code (2, total_size_of_GET_rows)}.
+     *
+     * <p>1-shard only for now — the multi-shard PARTIAL→FINAL path hits a separate
+     * Int32/Int64 width drift in {@code DatafusionReduceSink.coerceToDeclaredSchema}
+     * that's being fixed in another change.
+     */
+    public void testLiteralWithAggregateAndFilter_1shard() {
+        createAndSeedHttpLogsIndex(1);
+        SqlPlanRunner runner = sqlPlanRunner();
+        List<Object[]> rows = runner.executeSql("SELECT 1 + 1 AS x, SUM(size) FROM http_logs WHERE verb = 'GET'");
+        assertEquals("single aggregated row expected", 1, rows.size());
+        Object[] row = rows.getFirst();
+        assertEquals("x must be 1 + 1", 2, ((Number) row[0]).intValue());
+        // Seeded rows: GET/100, POST/50, GET/200, GET/300 → GET sum = 600
+        assertEquals("SUM(size) over verb='GET' rows", 600L, ((Number) row[1]).longValue());
+    }
+
     // ── Test infrastructure ─────────────────────────────────────────────────
 
     private SqlPlanRunner sqlPlanRunner() {
@@ -188,5 +211,32 @@ public class ValuesSqlIT extends OpenSearchIntegTestCase {
         }
         client().admin().indices().prepareRefresh(INDEX).get();
         client().admin().indices().prepareFlush(INDEX).get();
+    }
+
+    private void createAndSeedHttpLogsIndex(int shardCount) {
+        Settings indexSettings = Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, shardCount)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put("index.pluggable.dataformat.enabled", true)
+            .put("index.pluggable.dataformat", "composite")
+            .put("index.composite.primary_data_format", "parquet")
+            .putList("index.composite.secondary_data_formats")
+            .build();
+
+        CreateIndexResponse response = client().admin()
+            .indices()
+            .prepareCreate("http_logs")
+            .setSettings(indexSettings)
+            .setMapping("verb", "type=keyword", "size", "type=integer")
+            .get();
+        assertTrue("http_logs creation must be acknowledged", response.isAcknowledged());
+        ensureGreen("http_logs");
+
+        Object[][] docs = { { "GET", 100 }, { "POST", 50 }, { "GET", 200 }, { "GET", 300 } };
+        for (int i = 0; i < docs.length; i++) {
+            client().prepareIndex("http_logs").setId(String.valueOf(i)).setSource("verb", docs[i][0], "size", docs[i][1]).get();
+        }
+        client().admin().indices().prepareRefresh("http_logs").get();
+        client().admin().indices().prepareFlush("http_logs").get();
     }
 }

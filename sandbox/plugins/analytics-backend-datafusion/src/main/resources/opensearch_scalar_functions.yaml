@@ -213,7 +213,13 @@ scalar_functions:
     description: >-
       Pseudorandom fp64 in [0, 1). Resolves to DataFusion's built-in `random`
       scalar function. PPL surface name is `rand`; FunctionMappings maps
-      `SqlStdOperatorTable.RAND` to this extension name.
+      `SqlStdOperatorTable.RAND` to this extension name. Only the 0-arg form
+      is declared because DataFusion's native `random` UDF is registered as
+      NullAry only — adding a seeded i32 overload here makes isthmus bind
+      cleanly, but DF then errors at execute time ("expected zero argument
+      but received 1"). Seeded `rand(int)` needs a dedicated Rust UDF before
+      it can be added here. Until then, tests exercising `rand(seed)` are
+      skipped on the analytics path.
     impls:
       - args: []
         return: fp64
@@ -237,8 +243,13 @@ scalar_functions:
       Signum. DataFusion's built-in scalar function is named `signum`; PPL/Calcite
       surface name is `sign`. AbstractNameMappingAdapter retargets Calcite's `SIGN`
       at SignumFunction (yaml name `signum`) so isthmus emits the name DataFusion
-      resolves directly.
+      resolves directly. Integer overload returns the input width unchanged —
+      matches Calcite's SIGN type inference for `int` columns.
     impls:
+      - args:
+          - value: i32
+            name: x
+        return: i32
       - args:
           - value: fp32
             name: x
@@ -252,8 +263,14 @@ scalar_functions:
       Truncate toward zero. Resolves to DataFusion's built-in `trunc` scalar
       function. PPL's `truncate` — `SqlStdOperatorTable.TRUNCATE` — accepts
       both 1-arg and 2-arg (value, scale) forms per the
-      CompositeOperandTypeChecker; both are declared here.
+      CompositeOperandTypeChecker; both are declared here. Integer overloads
+      pass through unchanged (truncate of an int is a no-op) so `truncate(int)`
+      and `truncate(int, scale)` from PPL bind to a Substrait call.
     impls:
+      - args:
+          - value: i32
+            name: x
+        return: i32
       - args:
           - value: fp32
             name: x
@@ -262,6 +279,12 @@ scalar_functions:
           - value: fp64
             name: x
         return: fp64
+      - args:
+          - value: i32
+            name: x
+          - value: i32
+            name: scale
+        return: i32
       - args:
           - value: fp32
             name: x
