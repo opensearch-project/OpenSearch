@@ -125,14 +125,15 @@ public class BlockCacheFoyerPluginTests extends OpenSearchTestCase {
 
     // ── getSettings ───────────────────────────────────────────────────────────
 
-    public void testGetSettingsRegistersAllFourSettings() {
+    public void testGetSettingsRegistersAllSettings() {
         BlockCacheFoyerPlugin plugin = new BlockCacheFoyerPlugin(Settings.EMPTY);
         List<Setting<?>> settings = plugin.getSettings();
-        assertEquals(4, settings.size());
+        assertEquals(5, settings.size());
         assertTrue(settings.contains(FoyerBlockCacheSettings.CACHE_SIZE_SETTING));
         assertTrue(settings.contains(FoyerBlockCacheSettings.BLOCK_SIZE_SETTING));
         assertTrue(settings.contains(FoyerBlockCacheSettings.IO_ENGINE_SETTING));
         assertTrue(settings.contains(FoyerBlockCacheSettings.DATA_TO_CACHE_RATIO_SETTING));
+        assertTrue(settings.contains(FoyerBlockCacheSettings.KEY_INDEX_SWEEP_INTERVAL_SETTING));
     }
 
     public void testGetSettingsNoNulls() {

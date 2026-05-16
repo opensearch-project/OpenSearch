@@ -24,7 +24,8 @@ const IO_ENGINE:  &str  = "auto";
 
 fn test_cache() -> (FoyerCache, TempDir) {
     let dir = TempDir::new().expect("failed to create temp dir");
-    let cache = FoyerCache::new(64 * 1024 * 1024, dir.path(), BLOCK_SIZE, IO_ENGINE);
+    // sweep_interval_secs = 0 → use default 30s (tests use sweep_once() directly, not the timer)
+    let cache = FoyerCache::new(64 * 1024 * 1024, dir.path(), BLOCK_SIZE, IO_ENGINE, 0);
     (cache, dir)
 }
 
@@ -164,6 +165,40 @@ fn after_evict_prefix_new_put_is_retrievable() {
 // ── clear ─────────────────────────────────────────────────────────────────────
 
 #[test]
+fn clear_updates_removed_count_and_removed_bytes() {
+    // clear() must increment removed_count and removed_bytes from key_index
+    // and reset used_bytes to 0, mirroring FileCache.clear() recordRemoval semantics.
+    let (cache, _dir) = test_cache();
+
+    // Two files, one range each: 0-100 = 100 bytes, 0-200 = 200 bytes → total 300 bytes, 2 entries.
+    put_range(&cache, "/data/a.parquet", 0, 100, &vec![0u8; 100]);
+    put_range(&cache, "/data/b.parquet", 0, 200, &vec![0u8; 200]);
+
+    let removed_count_before = cache.stats.removed_count.load(std::sync::atomic::Ordering::Relaxed);
+    let removed_bytes_before = cache.stats.removed_bytes.load(std::sync::atomic::Ordering::Relaxed);
+
+    block_on(cache.clear());
+
+    let removed_count_after = cache.stats.removed_count.load(std::sync::atomic::Ordering::Relaxed);
+    let removed_bytes_after = cache.stats.removed_bytes.load(std::sync::atomic::Ordering::Relaxed);
+    let used_bytes_after = cache.stats.used_bytes.load(std::sync::atomic::Ordering::Relaxed);
+
+    assert_eq!(removed_count_after, removed_count_before + 2, "clear() must count 2 removed entries");
+    assert_eq!(removed_bytes_after, removed_bytes_before + 300, "clear() must count 100 + 200 = 300 removed bytes");
+    assert_eq!(used_bytes_after, 0, "clear() must reset used_bytes to 0");
+    assert!(cache.key_index.is_empty(), "key_index must be empty after clear()");
+}
+
+#[test]
+fn clear_on_empty_cache_does_not_change_removed_stats() {
+    let (cache, _dir) = test_cache();
+    let removed_before = cache.stats.removed_count.load(std::sync::atomic::Ordering::Relaxed);
+    block_on(cache.clear());
+    assert_eq!(cache.stats.removed_count.load(std::sync::atomic::Ordering::Relaxed), removed_before,
+        "clear() on empty cache must not increment removed_count");
+}
+
+#[test]
 fn clear_removes_all_entries() {
     let (cache, _dir) = test_cache();
     put_range(&cache, "/data/a.parquet", 0, 100, b"a");
@@ -278,7 +313,7 @@ fn concurrent_evict_and_put_does_not_panic() {
 #[test]
 fn put_and_get_work_after_cache_nears_capacity() {
     let dir = TempDir::new().unwrap();
-    let cache = FoyerCache::new(1 * 1024 * 1024, dir.path(), BLOCK_SIZE, IO_ENGINE);
+    let cache = FoyerCache::new(1 * 1024 * 1024, dir.path(), BLOCK_SIZE, IO_ENGINE, 0);
     let chunk = vec![0u8; 512 * 1024];
     for i in 0u64..4 {
         let key = range_cache_key("/data/file.parquet", i * 524288, (i + 1) * 524288);
@@ -293,9 +328,13 @@ fn put_and_get_work_after_cache_nears_capacity() {
 // ── KeyIndexListener behaviour ────────────────────────────────────────────────
 
 #[test]
-fn lru_eviction_removes_stale_keys_from_key_index() {
+fn lru_eviction_retains_keys_in_key_index() {
+    // Event::Evict fires when an entry leaves the 1-byte DRAM tier and is written to disk.
+    // It does NOT mean the entry is gone — it is still alive on disk.
+    // Therefore key_index must RETAIN all keys after DRAM eviction pressure.
+    // The background sweeper (future) handles truly-gone disk entries via inner.contains().
     let dir = TempDir::new().unwrap();
-    let cache = FoyerCache::new(1 * 1024 * 1024, dir.path(), BLOCK_SIZE, IO_ENGINE);
+    let cache = FoyerCache::new(1 * 1024 * 1024, dir.path(), BLOCK_SIZE, IO_ENGINE, 0);
     const CHUNK_SIZE: usize = 256 * 1024;
     const TOTAL_WRITES: usize = 8;
     let chunk = vec![0xABu8; CHUNK_SIZE];
@@ -305,20 +344,269 @@ fn lru_eviction_removes_stale_keys_from_key_index() {
     }
     std::thread::sleep(std::time::Duration::from_millis(500));
     let key_count = cache.key_index.get("data/big.parquet").map(|v| v.len()).unwrap_or(0);
-    assert!(key_count < TOTAL_WRITES, "expected < {} entries after LRU eviction; got {}", TOTAL_WRITES, key_count);
+    assert_eq!(
+        key_count, TOTAL_WRITES,
+        "all {} keys must remain in key_index after DRAM eviction (entries still on disk); got {}",
+        TOTAL_WRITES, key_count
+    );
 }
 
 #[test]
-fn replace_event_does_not_duplicate_key_in_key_index() {
+fn replace_event_key_index_retains_entry() {
+    // Event::Replace fires only when the old value is still in the 1-byte DRAM tier at
+    // overwrite time. With memory(1), this is near-zero frequency — entries are already
+    // on disk. key_index must retain the entry either way so evict_prefix() still works.
+    //
+    // used_bytes is a monotonically-increasing counter (total bytes ever inserted).
+    // No subtraction happens on replace because Event::Replace almost never fires.
     let (cache, _dir) = test_cache();
     let key = range_cache_key("/data/file.parquet", 0, 100);
     cache.put(&key, Bytes::from_static(b"version_1"));
+    let used_after_v1 = cache.stats.used_bytes.load(std::sync::atomic::Ordering::Relaxed);
     cache.put(&key, Bytes::from_static(b"version_2"));
     std::thread::sleep(std::time::Duration::from_millis(100));
+
     let count = cache.key_index.get("data/file.parquet").map(|v| v.len()).unwrap_or(0);
-    assert_eq!(count, 1, "same key put twice should result in 1 key_index entry; got {}", count);
+    assert!(count >= 1, "key must remain in key_index after overwrite; got {}", count);
+
+    // used_bytes grows monotonically: v2 was added on top of v1 (no reliable subtraction).
+    let used_after_v2 = cache.stats.used_bytes.load(std::sync::atomic::Ordering::Relaxed);
+    assert!(used_after_v2 >= used_after_v1, "used_bytes must not decrease on overwrite");
+
+    // Latest value must be readable.
     let result = block_on(cache.get(&key));
     assert_eq!(result.as_deref(), Some(b"version_2".as_slice()));
+
+    // evict_prefix must still clean up correctly and increment removed_count.
+    let removed_before = cache.stats.removed_count.load(std::sync::atomic::Ordering::Relaxed);
+    cache.evict_prefix("/data/file.parquet");
+    assert!(!cache.key_index.contains_key("data/file.parquet"));
+    let removed_after = cache.stats.removed_count.load(std::sync::atomic::Ordering::Relaxed);
+    assert!(removed_after > removed_before, "removed_count must increase after evict_prefix");
+}
+
+// ── Background sweeper tests ──────────────────────────────────────────────────
+
+#[test]
+fn sweep_once_returns_zero_when_all_entries_still_on_disk() {
+    // All entries were just put — they are on disk and inner.contains() returns true.
+    // Sweeper should remove nothing.
+    let (cache, _dir) = test_cache();
+    put_range(&cache, "/data/file.parquet", 0, 100, b"data");
+    put_range(&cache, "/data/file.parquet", 100, 200, b"more");
+    let removed = cache.sweep_once();
+    assert_eq!(removed, 0, "no stale entries expected immediately after put");
+    assert!(cache.key_index.contains_key("data/file.parquet"));
+}
+
+#[test]
+fn sweep_once_removes_stale_keys_and_updates_eviction_count() {
+    // Inject a fake key into key_index that doesn't exist in Foyer's disk index.
+    // Sweeper should remove it, increment eviction_count, update eviction_bytes, and
+    // decrement used_bytes.
+    //
+    // Fake key range: 99999–100000 = 1 byte. key_byte_size() parses this from the key string.
+    let (cache, _dir) = test_cache();
+
+    // Put a real key so the prefix bucket exists.
+    put_range(&cache, "/data/file.parquet", 0, 100, b"real");
+
+    // Inject a fake key that Foyer has never seen — inner.contains() will return false.
+    // Range: 99999-100000 → 1 byte, parseable by key_byte_size().
+    let fake_key = "data/file.parquet\x1F99999-100000".to_string();
+    cache.key_index
+        .entry("data/file.parquet".to_string())
+        .or_default()
+        .push(fake_key.clone());
+
+    let eviction_count_before = cache.stats.eviction_count.load(std::sync::atomic::Ordering::Relaxed);
+    let eviction_bytes_before = cache.stats.eviction_bytes.load(std::sync::atomic::Ordering::Relaxed);
+    let used_bytes_before = cache.stats.used_bytes.load(std::sync::atomic::Ordering::Relaxed);
+    let removed = cache.sweep_once();
+
+    assert_eq!(removed, 1, "sweeper should have removed the 1 fake/stale key");
+    assert_eq!(
+        cache.stats.eviction_count.load(std::sync::atomic::Ordering::Relaxed),
+        eviction_count_before + 1,
+        "eviction_count must be incremented for stale entries removed by sweeper"
+    );
+    // Fake key range 99999-100000 = 1 byte.
+    assert_eq!(
+        cache.stats.eviction_bytes.load(std::sync::atomic::Ordering::Relaxed),
+        eviction_bytes_before + 1,
+        "eviction_bytes must reflect the byte size of stale entries (parsed from key)"
+    );
+    assert_eq!(
+        cache.stats.used_bytes.load(std::sync::atomic::Ordering::Relaxed),
+        used_bytes_before - 1,
+        "used_bytes must be decremented by freed bytes when sweeper removes stale entries"
+    );
+
+    // Real key is still in key_index.
+    let remaining = cache.key_index.get("data/file.parquet").map(|v| v.len()).unwrap_or(0);
+    assert_eq!(remaining, 1, "real key must remain in key_index after sweep");
+}
+
+#[test]
+fn sweep_once_removes_empty_prefix_buckets() {
+    // When all keys under a prefix become stale, the prefix bucket itself should be removed.
+    let (cache, _dir) = test_cache();
+
+    // Inject only fake keys for a prefix — no real entries.
+    let fake1 = "data/gone.parquet\x1F0-100".to_string();
+    let fake2 = "data/gone.parquet\x1F100-200".to_string();
+    cache.key_index
+        .entry("data/gone.parquet".to_string())
+        .or_default()
+        .extend(vec![fake1, fake2]);
+
+    let removed = cache.sweep_once();
+    assert_eq!(removed, 2);
+    assert!(
+        !cache.key_index.contains_key("data/gone.parquet"),
+        "empty prefix bucket must be removed after sweep"
+    );
+}
+
+#[test]
+fn sweep_once_on_empty_cache_is_noop() {
+    let (cache, _dir) = test_cache();
+    let removed = cache.sweep_once();
+    assert_eq!(removed, 0);
+    assert!(cache.key_index.is_empty());
+}
+
+// ── evict_prefix stats correctness ───────────────────────────────────────────
+
+#[test]
+fn evict_prefix_updates_removed_bytes_and_used_bytes() {
+    // evict_prefix() must update removed_bytes and decrement used_bytes via key_byte_size().
+    // put_range stores exactly (end - start) bytes, so key_byte_size() == data.len().
+    let (cache, _dir) = test_cache();
+
+    // Two ranges: 0-100 = 100 bytes, 100-300 = 200 bytes → total 300 bytes.
+    put_range(&cache, "/data/file.parquet", 0,   100, &vec![0u8; 100]);
+    put_range(&cache, "/data/file.parquet", 100, 300, &vec![0u8; 200]);
+    std::thread::sleep(std::time::Duration::from_millis(100));
+
+    let used_before    = cache.stats.used_bytes.load(std::sync::atomic::Ordering::Relaxed);
+    let removed_count_before = cache.stats.removed_count.load(std::sync::atomic::Ordering::Relaxed);
+    let removed_bytes_before = cache.stats.removed_bytes.load(std::sync::atomic::Ordering::Relaxed);
+
+    cache.evict_prefix("/data/file.parquet");
+
+    let used_after    = cache.stats.used_bytes.load(std::sync::atomic::Ordering::Relaxed);
+    let removed_count = cache.stats.removed_count.load(std::sync::atomic::Ordering::Relaxed);
+    let removed_bytes = cache.stats.removed_bytes.load(std::sync::atomic::Ordering::Relaxed);
+
+    assert_eq!(removed_count, removed_count_before + 2, "removed_count: 2 entries evicted");
+    assert_eq!(removed_bytes, removed_bytes_before + 300, "removed_bytes: 100 + 200 = 300");
+    assert_eq!(used_after, used_before - 300, "used_bytes must decrease by 300 after eviction");
+}
+
+#[test]
+fn evict_prefix_on_nonexistent_prefix_does_not_change_stats() {
+    let (cache, _dir) = test_cache();
+    put_range(&cache, "/data/file.parquet", 0, 100, &vec![0u8; 100]);
+
+    let removed_before = cache.stats.removed_count.load(std::sync::atomic::Ordering::Relaxed);
+    let used_before    = cache.stats.used_bytes.load(std::sync::atomic::Ordering::Relaxed);
+
+    cache.evict_prefix("/data/other.parquet");
+
+    assert_eq!(cache.stats.removed_count.load(std::sync::atomic::Ordering::Relaxed), removed_before);
+    assert_eq!(cache.stats.used_bytes.load(std::sync::atomic::Ordering::Relaxed), used_before);
+}
+
+#[test]
+fn used_bytes_is_correct_after_put_then_evict() {
+    // used_bytes starts at 0, put adds size, evict_prefix subtracts — net result = 0.
+    let (cache, _dir) = test_cache();
+    assert_eq!(cache.stats.used_bytes.load(std::sync::atomic::Ordering::Relaxed), 0);
+
+    put_range(&cache, "/data/file.parquet", 0, 1024, &vec![0u8; 1024]);
+    assert_eq!(cache.stats.used_bytes.load(std::sync::atomic::Ordering::Relaxed), 1024);
+
+    cache.evict_prefix("/data/file.parquet");
+    assert_eq!(cache.stats.used_bytes.load(std::sync::atomic::Ordering::Relaxed), 0,
+        "used_bytes must return to 0 after evicting all entries");
+}
+
+// ── sweep idempotency and edge cases ─────────────────────────────────────────
+
+#[test]
+fn sweep_once_is_idempotent_for_real_entries() {
+    // Calling sweep_once() twice on live entries must not double-decrement stats.
+    let (cache, _dir) = test_cache();
+    put_range(&cache, "/data/file.parquet", 0, 1024, &vec![0u8; 1024]);
+
+    let removed1 = cache.sweep_once();
+    let eviction_bytes_after_1 = cache.stats.eviction_bytes.load(std::sync::atomic::Ordering::Relaxed);
+    let removed2 = cache.sweep_once();
+    let eviction_bytes_after_2 = cache.stats.eviction_bytes.load(std::sync::atomic::Ordering::Relaxed);
+
+    assert_eq!(removed1, 0, "no stale entries on first sweep");
+    assert_eq!(removed2, 0, "no stale entries on second sweep");
+    assert_eq!(eviction_bytes_after_1, 0);
+    assert_eq!(eviction_bytes_after_2, 0, "eviction_bytes must not change across two sweeps of live entries");
+}
+
+#[test]
+fn sweep_once_stale_key_with_malformed_range_does_not_panic() {
+    // A key without a parseable range (key_byte_size returns 0) must still be
+    // removed cleanly — no panic, no stats corruption.
+    let (cache, _dir) = test_cache();
+
+    // Inject a malformed stale key — no separator, Foyer has never seen it.
+    cache.key_index
+        .entry("data/bad.parquet".to_string())
+        .or_default()
+        .push("data/bad.parquet-not-a-range-key".to_string());
+
+    let eviction_bytes_before = cache.stats.eviction_bytes.load(std::sync::atomic::Ordering::Relaxed);
+    let removed = cache.sweep_once();
+
+    assert_eq!(removed, 1, "stale malformed key must be removed");
+    // key_byte_size returns 0 for malformed key — eviction_bytes unchanged.
+    assert_eq!(
+        cache.stats.eviction_bytes.load(std::sync::atomic::Ordering::Relaxed),
+        eviction_bytes_before,
+        "eviction_bytes must not change for malformed (size=0) key"
+    );
+    assert!(!cache.key_index.contains_key("data/bad.parquet"),
+        "empty prefix bucket must be removed");
+}
+
+#[test]
+fn sweep_once_removes_empty_prefix_buckets_and_updates_eviction_bytes() {
+    // Extended version of sweep_once_removes_empty_prefix_buckets that also checks bytes.
+    // Two fake keys: 0-100 (100 bytes) and 100-200 (100 bytes) = 200 bytes total.
+    let (cache, _dir) = test_cache();
+
+    let fake1 = "data/gone.parquet\x1F0-100".to_string();
+    let fake2 = "data/gone.parquet\x1F100-200".to_string();
+    cache.key_index
+        .entry("data/gone.parquet".to_string())
+        .or_default()
+        .extend(vec![fake1, fake2]);
+
+    let eviction_bytes_before = cache.stats.eviction_bytes.load(std::sync::atomic::Ordering::Relaxed);
+    let used_bytes_before = cache.stats.used_bytes.load(std::sync::atomic::Ordering::Relaxed);
+
+    let removed = cache.sweep_once();
+
+    assert_eq!(removed, 2);
+    assert!(!cache.key_index.contains_key("data/gone.parquet"));
+    assert_eq!(
+        cache.stats.eviction_bytes.load(std::sync::atomic::Ordering::Relaxed),
+        eviction_bytes_before + 200,
+        "eviction_bytes must reflect both stale keys (100 + 100 = 200)"
+    );
+    assert_eq!(
+        cache.stats.used_bytes.load(std::sync::atomic::Ordering::Relaxed),
+        used_bytes_before - 200,
+        "used_bytes must decrease by 200"
+    );
 }
 
 #[test]
@@ -345,6 +633,7 @@ fn ffm_create_returns_positive_pointer() {
         dir_str.as_ptr(), dir_str.len() as u64,
         BLOCK_SIZE as u64,
         engine.as_ptr(), engine.len() as u64,
+        0,
     )};
     assert!(ptr > 0);
     let result = unsafe { foyer_destroy_cache(ptr) };
@@ -359,6 +648,7 @@ fn ffm_create_with_null_ptr_returns_error() {
         std::ptr::null(), 10,
         BLOCK_SIZE as u64,
         engine.as_ptr(), engine.len() as u64,
+        0,
     )};
     assert!(ptr < 0);
     if ptr < 0 { unsafe { native_bridge_common::error::native_error_free(-ptr); } }
@@ -373,6 +663,7 @@ fn ffm_create_with_invalid_utf8_returns_error() {
         invalid_utf8.as_ptr(), invalid_utf8.len() as u64,
         BLOCK_SIZE as u64,
         engine.as_ptr(), engine.len() as u64,
+        0,
     )};
     assert!(ptr < 0);
     if ptr < 0 { unsafe { native_bridge_common::error::native_error_free(-ptr); } }
@@ -403,6 +694,7 @@ fn ffm_create_destroy_lifecycle_no_leak() {
             dir_str.as_ptr(), dir_str.len() as u64,
             BLOCK_SIZE as u64,
             engine.as_ptr(), engine.len() as u64,
+        0,
         )};
         assert!(ptr > 0);
         let result = unsafe { foyer_destroy_cache(ptr) };
@@ -428,6 +720,7 @@ fn ffm_snapshot_stats_valid_ptr_returns_zero_and_fills_buffer() {
         dir_str.as_ptr(), dir_str.len() as u64,
         BLOCK_SIZE as u64,
         engine.as_ptr(), engine.len() as u64,
+        0,
     )};
     assert!(ptr > 0);
 
@@ -457,6 +750,7 @@ fn snapshot_stats_returns_zero_for_fresh_cache() {
             dir_str.as_ptr(), dir_str.len() as u64,
             BLOCK_SIZE as u64,
             engine.as_ptr(), engine.len() as u64,
+        0,
         )
     };
     assert!(ptr > 0);
@@ -496,6 +790,7 @@ fn ffm_snapshot_stats_null_out_returns_error() {
         dir_str.as_ptr(), dir_str.len() as u64,
         BLOCK_SIZE as u64,
         engine.as_ptr(), engine.len() as u64,
+        0,
     )};
     assert!(ptr > 0);
 
@@ -580,6 +875,7 @@ fn ffm_create_cache_returns_fat_ptr_with_strong_count_one() {
         dir_str.as_ptr(), dir_str.len() as u64,
         BLOCK_SIZE as u64,
         engine.as_ptr(), engine.len() as u64,
+        0,
     )};
     assert!(ptr > 0);
 
@@ -611,6 +907,7 @@ fn ffm_create_cache_ptr_cloneable_for_multiple_shards() {
         dir_str.as_ptr(), dir_str.len() as u64,
         BLOCK_SIZE as u64,
         engine.as_ptr(), engine.len() as u64,
+        0,
     )};
     assert!(ptr > 0);
 
