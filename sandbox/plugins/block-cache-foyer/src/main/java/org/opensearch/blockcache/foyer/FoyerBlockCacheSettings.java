@@ -138,5 +138,18 @@ public final class FoyerBlockCacheSettings {
         Setting.Property.NodeScope
     );
 
+    /**
+     * How often (seconds) the background sweeper prunes stale key_index entries left
+     * by Foyer's disk reclaimer. {@code 0} uses the Rust-side default (30 s).
+     * Range: [0, 3600]. Configure via {@code block_cache.foyer.key_index_sweep_interval_seconds}.
+     */
+    public static final Setting<Long> KEY_INDEX_SWEEP_INTERVAL_SETTING = Setting.longSetting(
+        "block_cache.foyer.key_index_sweep_interval_seconds",
+        0L,    // 0 = use Rust-side default (30s)
+        0L,    // min: 0
+        3600L, // max: 1 hour
+        Setting.Property.NodeScope
+    );
+
     private FoyerBlockCacheSettings() {}
 }

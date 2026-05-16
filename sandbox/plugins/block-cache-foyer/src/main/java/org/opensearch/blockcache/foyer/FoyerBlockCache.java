@@ -39,16 +39,19 @@ public final class FoyerBlockCache implements BlockCache {
     /**
      * Create the native Foyer cache and acquire its handle.
      *
-     * @param diskBytes       maximum disk capacity in bytes; must be {@code > 0}
-     * @param diskDir         directory where Foyer stores cache data; must not be null or blank
-     * @param blockSizeBytes  Foyer disk block size in bytes; must be {@code > 0}
-     * @param ioEngine        I/O engine: {@code "auto"}, {@code "io_uring"}, or {@code "psync"}
+     * @param diskBytes             maximum disk capacity in bytes; must be {@code > 0}
+     * @param diskDir               directory where Foyer stores cache data; must not be null or blank
+     * @param blockSizeBytes        Foyer disk block size in bytes; must be {@code > 0}
+     * @param ioEngine              I/O engine: {@code "auto"}, {@code "io_uring"}, or {@code "psync"}
+     * @param sweepIntervalSecs     background key_index sweep interval in seconds;
+     *                              {@code 0} uses the Rust-side default (30 s).
+     *                              Maps to {@code block_cache.foyer.key_index_sweep_interval_seconds}.
      * @throws IllegalArgumentException if {@code diskBytes <= 0}, {@code blockSizeBytes <= 0},
-     *                                  or {@code diskDir} is blank
+     *                                  {@code sweepIntervalSecs < 0}, or {@code diskDir} is blank
      * @throws NullPointerException     if {@code diskDir} or {@code ioEngine} is null
      * @throws IllegalStateException    if the native call fails to return a valid handle
      */
-    public FoyerBlockCache(long diskBytes, String diskDir, long blockSizeBytes, String ioEngine) {
+    public FoyerBlockCache(long diskBytes, String diskDir, long blockSizeBytes, String ioEngine, long sweepIntervalSecs) {
         if (diskBytes <= 0) {
             throw new IllegalArgumentException("diskBytes must be > 0, got: " + diskBytes);
         }
@@ -60,8 +63,11 @@ public final class FoyerBlockCache implements BlockCache {
             throw new IllegalArgumentException("blockSizeBytes must be > 0, got: " + blockSizeBytes);
         }
         Objects.requireNonNull(ioEngine, "ioEngine must not be null");
+        if (sweepIntervalSecs < 0) {
+            throw new IllegalArgumentException("sweepIntervalSecs must be >= 0, got: " + sweepIntervalSecs);
+        }
         this.diskBytes = diskBytes;
-        this.cachePtr = FoyerBridge.createCache(diskBytes, diskDir, blockSizeBytes, ioEngine);
+        this.cachePtr = FoyerBridge.createCache(diskBytes, diskDir, blockSizeBytes, ioEngine, sweepIntervalSecs);
     }
 
     @Override

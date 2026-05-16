@@ -89,7 +89,8 @@ public class BlockCacheFoyerPlugin extends Plugin implements BlockCacheProvider 
             FoyerBlockCacheSettings.CACHE_SIZE_SETTING,
             FoyerBlockCacheSettings.BLOCK_SIZE_SETTING,
             FoyerBlockCacheSettings.IO_ENGINE_SETTING,
-            FoyerBlockCacheSettings.DATA_TO_CACHE_RATIO_SETTING
+            FoyerBlockCacheSettings.DATA_TO_CACHE_RATIO_SETTING,
+            FoyerBlockCacheSettings.KEY_INDEX_SWEEP_INTERVAL_SETTING
         );
     }
 
@@ -144,6 +145,7 @@ public class BlockCacheFoyerPlugin extends Plugin implements BlockCacheProvider 
         final Settings settings = clusterService.getSettings();
         final long blockSizeBytes = FoyerBlockCacheSettings.BLOCK_SIZE_SETTING.get(settings).getBytes();
         final String ioEngine = FoyerBlockCacheSettings.IO_ENGINE_SETTING.get(settings);
+        final long sweepIntervalSecs = FoyerBlockCacheSettings.KEY_INDEX_SWEEP_INTERVAL_SETTING.get(settings);
         // Use the exact capacity reserved by NodeCacheOrchestrator during budget phase.
         final long diskCapacityBytes = reservedCapacityBytes;
 
@@ -160,15 +162,16 @@ public class BlockCacheFoyerPlugin extends Plugin implements BlockCacheProvider 
         }
 
         try {
-            cache = new FoyerBlockCache(diskCapacityBytes, diskDir, blockSizeBytes, ioEngine);
+            cache = new FoyerBlockCache(diskCapacityBytes, diskDir, blockSizeBytes, ioEngine, sweepIntervalSecs);
         } catch (final Throwable t) {
             throw new IllegalStateException("Failed to initialise Foyer block cache (diskDir=" + diskDir + ")", t);
         }
         logger.info(
-            "BlockCacheFoyerPlugin created FoyerBlockCache (diskDir={}, blockSize={}, ioEngine={})",
+            "BlockCacheFoyerPlugin created FoyerBlockCache (diskDir={}, blockSize={}, ioEngine={}, sweepIntervalSecs={})",
             diskDir,
             blockSizeBytes,
-            ioEngine
+            ioEngine,
+            sweepIntervalSecs == 0 ? "default(30s)" : sweepIntervalSecs + "s"
         );
         return List.of(cache);
     }
