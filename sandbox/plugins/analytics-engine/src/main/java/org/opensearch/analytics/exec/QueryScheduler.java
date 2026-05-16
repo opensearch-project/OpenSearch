@@ -113,6 +113,18 @@ public class QueryScheduler implements Scheduler {
         return new PlanWalker(config, stageExecutionBuilder, wrapped);
     }
 
+    /**
+     * Returns the underlying {@link StageExecutionBuilder} so callers can register a
+     * custom {@link org.opensearch.analytics.exec.stage.StageScheduler} for a stage
+     * type (e.g. fault-injecting scheduler in resilience tests). Resolving via the
+     * singleton scheduler avoids a Guice JIT lookup that would re-instantiate
+     * {@link AnalyticsSearchTransportService} (whose ctor registers transport
+     * handlers, only legal once per node).
+     */
+    public StageExecutionBuilder getStageExecutionBuilder() {
+        return stageExecutionBuilder;
+    }
+
     /** Pool-level lookup for observability / metrics. */
     public PlanWalker walkerFor(String queryId) {
         return walkerPool.get(queryId);
