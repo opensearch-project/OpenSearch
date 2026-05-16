@@ -102,8 +102,11 @@ public class CoordinatorReduceStressIT extends OpenSearchTestCase {
         assertTrue("runtime ptr non-zero", runtimePtr != 0);
         this.runtimeHandle = new NativeRuntimeHandle(runtimePtr);
         this.alloc = new RootAllocator(Long.MAX_VALUE);
-        this.drainExecutor = Executors.newCachedThreadPool(
-            r -> { Thread t = new Thread(r, "df-reduce-drain-test"); t.setDaemon(true); return t; }
+        // DatafusionReduceSink.drainLoop asserts Thread.isVirtual() — match production
+        // (analytics-engine wires SEARCH pool's virtual-thread factory) so test
+        // executors don't trip the assertion.
+        this.drainExecutor = Executors.newThreadPerTaskExecutor(
+            Thread.ofVirtual().name("df-reduce-drain-test-", 0).factory()
         );
     }
 
