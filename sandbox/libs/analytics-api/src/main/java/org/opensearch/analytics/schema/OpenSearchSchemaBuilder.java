@@ -76,6 +76,7 @@ public class OpenSearchSchemaBuilder {
      *   <li>byte -> TINYINT</li>
      *   <li>double -> DOUBLE</li>
      *   <li>float -> REAL</li>
+     *   <li>half_float -> REAL</li>
      *   <li>scaled_float -> BIGINT</li>
      *   <li>boolean -> BOOLEAN</li>
      *   <li>date -> TIMESTAMP</li>
@@ -98,6 +99,8 @@ public class OpenSearchSchemaBuilder {
             case "unsigned_long":
                 // unsigned_long: values above 2^63 - 1 wrap into negatives because BIGINT is
                 // signed and Substrait has no unsigned integer types. Smaller values are safe.
+                // TODO: values above 2^63 - 1 wrap into negatives. Drop the UInt64 → Int64 narrowing
+                // (see schema_coerce.rs) when we have a proper solution.
             case "scaled_float":
                 return SqlTypeName.BIGINT;
             case "integer":
@@ -109,6 +112,13 @@ public class OpenSearchSchemaBuilder {
             case "double":
                 return SqlTypeName.DOUBLE;
             case "float":
+            case "half_float":
+                // half_float lands as Arrow Float16 on disk. Calcite has no fp16 type; widen to
+                // REAL so the planner sees the same shape as a regular float column. The parquet
+                // reader's SchemaAdapter casts Float16 → Float32 per batch.
+                // TODO: every record batch goes through a Float16 → Float32 cast (see
+                // schema_coerce.rs) and downstream operators see Float32. Drop the widening when
+                // we have a proper solution.
                 return SqlTypeName.REAL;
             case "boolean":
                 return SqlTypeName.BOOLEAN;

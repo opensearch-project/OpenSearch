@@ -23,6 +23,10 @@
 //!     Substrait integers are signed only — Calcite `BIGINT` serializes as
 //!     `i64`, which arrives as `DataType::Int64`.
 //!
+//!   - `Float16`     ← parquet emits this for `half_float` columns. Calcite has
+//!     no fp16 type; `OpenSearchSchemaBuilder` maps it to `REAL` which Substrait
+//!     serializes as `fp32`, arriving as `DataType::Float32`.
+//!
 //! `Utf8View` doesn't need coercing: DataFusion 53's
 //! `DFSchema::datatype_is_logically_equal` (in `datafusion-common/src/dfschema.rs`)
 //! has hardcoded match arms `(Utf8, Utf8View) => true` and `(Utf8View, Utf8) => true`,
@@ -46,6 +50,19 @@
 //!     `OpenSearchSchemaBuilder.mapFieldType`. Narrowing at the scan boundary
 //!     is the only fix until Substrait grows unsigned types (see Substrait
 //!     `proto/type.proto`).
+//!
+//!     TODO: values above `2^63 - 1` wrap into negatives. Drop this arm when we
+//!     have a proper solution.
+//!
+//!   - `(Float32, Float16)` is a Calcite-side gap: Calcite has no fp16 type, so
+//!     `half_float` columns are widened to `REAL` (fp32) at the Java planner.
+//!     Every record batch goes through a `Float16 → Float32` cast in the
+//!     SchemaAdapter, and downstream operators see `Float32` rather than
+//!     `Float16` — so we lose the half-precision storage benefit at compute time.
+//!
+//!     TODO: every record batch goes through a `Float16 → Float32` cast and
+//!     downstream operators see `Float32`. Drop this arm when we have a proper
+//!     solution.
 //!
 //! We rewrite the inferred schema at the table-provider boundary: substitute the
 //! Arrow-only types with their Substrait-compatible counterparts before handing
@@ -75,6 +92,7 @@ use datafusion::arrow::datatypes::{DataType, Field, Fields, Schema, SchemaRef};
 /// Rewrite the schema to forms Substrait can bind against:
 ///   - `BinaryView` → `Binary`
 ///   - `UInt64`     → `Int64`
+///   - `Float16`    → `Float32`
 ///
 /// Recurses into `List`, `LargeList`, `FixedSizeList`, `Map`, `Struct`,
 /// `Union`, and `Dictionary`. Returns the input unchanged when no rewrite is
@@ -101,7 +119,7 @@ fn schema_needs_coerce(schema: &Schema) -> bool {
 
 fn contains_incompatible(dt: &DataType) -> bool {
     match dt {
-        DataType::BinaryView | DataType::UInt64 => true,
+        DataType::BinaryView | DataType::UInt64 | DataType::Float16 => true,
         DataType::List(f) | DataType::LargeList(f) | DataType::FixedSizeList(f, _) => {
             contains_incompatible(f.data_type())
         }
@@ -123,6 +141,7 @@ fn rewrite_data_type(dt: &DataType) -> DataType {
     match dt {
         DataType::BinaryView => DataType::Binary,
         DataType::UInt64 => DataType::Int64,
+        DataType::Float16 => DataType::Float32,
         DataType::List(f) => DataType::List(Arc::new(rewrite_field(f))),
         DataType::LargeList(f) => DataType::LargeList(Arc::new(rewrite_field(f))),
         DataType::FixedSizeList(f, n) => DataType::FixedSizeList(Arc::new(rewrite_field(f)), *n),

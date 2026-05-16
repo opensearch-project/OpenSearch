@@ -39,10 +39,9 @@ public class FieldTypeCoverageIT extends AnalyticsRestTestCase {
     // ── Numeric ───────────────────────────────────────────────────────────────────
 
     public void testByte() throws IOException {
-        // Known bug: byte ingest fails at the parquet writer (ByteParquetField throws).
-        // The bulk response reports errors=true with unsupported_operation_exception.
         Map<String, Object> bulk = ingest("ft_byte", "byte", 1, 2, 3);
-        assertBulkErrored(bulk, "byte");
+        assertBulkSucceeded(bulk, "ft_byte");
+        assertScanSucceeds("ft_byte", 3);
     }
 
     public void testShort() throws IOException {
@@ -77,9 +76,12 @@ public class FieldTypeCoverageIT extends AnalyticsRestTestCase {
     }
 
     public void testHalfFloat() throws IOException {
-        // Known bug: half_float ingest fails (HalfFloatParquetField throws). Same shape as byte.
+        // half_float lands as Arrow Float16. OpenSearchSchemaBuilder maps it to REAL and
+        // schema_coerce widens Float16 → Float32 before substrait binds; SchemaAdapter
+        // inserts the IEEE half→single cast per batch on read.
         Map<String, Object> bulk = ingest("ft_half_float", "half_float", 47.6, 45.5, 52.1);
-        assertBulkErrored(bulk, "half_float");
+        assertBulkSucceeded(bulk, "ft_half_float");
+        assertScanSucceeds("ft_half_float", 3);
     }
 
     public void testFloat() throws IOException {
@@ -117,11 +119,6 @@ public class FieldTypeCoverageIT extends AnalyticsRestTestCase {
     }
 
     public void testMatchOnlyText() throws IOException {
-        // Scan unsupported: match_only_text has no doc_values, so the parquet writer skips
-        // the val column entirely (verified by inspecting the parquet footer schema). The
-        // value lives only in the Lucene secondary's inverted index, which is search-only
-        // — not readable as a column. PPL scan therefore fails at DataFusion with "No field
-        // named val". Coverage stops at ingest.
         Map<String, Object> bulk = ingest(
             "ft_match_only_text",
             "match_only_text",
@@ -130,7 +127,7 @@ public class FieldTypeCoverageIT extends AnalyticsRestTestCase {
             "tls handshake error"
         );
         assertBulkSucceeded(bulk, "ft_match_only_text");
-        assertScanFails("ft_match_only_text");
+        assertScanSucceeds("ft_match_only_text", 3);
     }
 
     // ── Temporal ─────────────────────────────────────────────────────────────────
