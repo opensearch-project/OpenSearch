@@ -52,7 +52,7 @@ public class CatalogSnapshotManager implements Closeable {
 
     private static final Logger logger = LogManager.getLogger(CatalogSnapshotManager.class);
 
-    private volatile CatalogSnapshot latestCatalogSnapshot;
+    private volatile DataformatAwareCatalogSnapshot latestCatalogSnapshot;
     private final AtomicBoolean closed = new AtomicBoolean(false);
     private final Map<Long, CatalogSnapshot> catalogSnapshotMap = new ConcurrentHashMap<>();
     private final IndexFileDeleter indexFileDeleter;
@@ -108,7 +108,7 @@ public class CatalogSnapshotManager implements Closeable {
         }
         this.deletionPolicy = deletionPolicy;
         this.snapshotListeners = snapshotListeners;
-        this.latestCatalogSnapshot = committedSnapshots.getLast();
+        this.latestCatalogSnapshot = (DataformatAwareCatalogSnapshot) committedSnapshots.getLast();
         for (CatalogSnapshot cs : committedSnapshots) {
             catalogSnapshotMap.put(cs.getGeneration(), cs);
         }
@@ -139,11 +139,9 @@ public class CatalogSnapshotManager implements Closeable {
     }
 
     /**
-     * Advances the catalog generation once at engine-open time so this engine's first commit
-     * lands strictly after any prior primary's last commit for the same shard.
-     * Prevents {@code RemoteStoreUtils#verifyNoMultipleWriters} collisions on primary relocation.
+     * Advances the catalog generation
      */
-    public synchronized void bumpGenerationForNewEngineLifecycle() throws IOException {
+    public synchronized void bumpGeneration() throws IOException {
         commitNewSnapshot(latestCatalogSnapshot.getSegments());
     }
 
@@ -243,6 +241,7 @@ public class CatalogSnapshotManager implements Closeable {
                 latestCatalogSnapshot.getLastCommitGeneration(),
                 latestCatalogSnapshot.getCommitDataFormatVersion()
             );
+            newSnapshot.setReplicatingCommitData(latestCatalogSnapshot.getReplicatingCommitData());
         } catch (Exception e) {
             // Construction failed (e.g., OOM) — notify listeners that the refresh did not produce a new snapshot
             // so they can reset any state prepared in beforeRefresh
@@ -282,7 +281,7 @@ public class CatalogSnapshotManager implements Closeable {
      * Validates snapshot invariants, registers file references, notifies listeners, and swaps
      * the snapshot as latest. Shared by commitNewSnapshot and applyReplicationSnapshot.
      */
-    private void installSnapshot(CatalogSnapshot newSnapshot) throws IOException {
+    private void installSnapshot(DataformatAwareCatalogSnapshot newSnapshot) throws IOException {
 
         // New snapshot generation must be strictly greater than the previous
         assert newSnapshot.getGeneration() > latestCatalogSnapshot.getGeneration() : "new snapshot generation ["
@@ -345,7 +344,7 @@ public class CatalogSnapshotManager implements Closeable {
 
         catalogSnapshotMap.put(newSnapshot.getGeneration(), newSnapshot);
 
-        CatalogSnapshot oldSnapshot = latestCatalogSnapshot;
+        DataformatAwareCatalogSnapshot oldSnapshot = latestCatalogSnapshot;
         latestCatalogSnapshot = newSnapshot;
 
         logger.debug("New Catalog Snapshot created: {}", latestCatalogSnapshot);
