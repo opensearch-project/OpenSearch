@@ -37,6 +37,7 @@ import org.opensearch.index.engine.exec.commit.Committer;
 import org.opensearch.index.engine.exec.commit.CommitterConfig;
 import org.opensearch.index.engine.exec.commit.SafeBootstrapCommitter;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
+import org.opensearch.index.engine.exec.coord.CatalogSnapshotManager;
 import org.opensearch.index.engine.exec.coord.DataformatAwareCatalogSnapshot;
 import org.opensearch.index.engine.exec.coord.LuceneVersionConverter;
 import org.opensearch.index.store.Store;
@@ -384,18 +385,23 @@ public class LuceneCommitter extends SafeBootstrapCommitter {
         LinkedHashMap<IndexCommit, CatalogSnapshot> result = new LinkedHashMap<>();
         for (IndexCommit ic : commits) {
             String serialized = ic.getUserData().get(CatalogSnapshot.CATALOG_SNAPSHOT_KEY);
+            DataformatAwareCatalogSnapshot dfa;
             if (serialized != null && serialized.isEmpty() == false) {
-                DataformatAwareCatalogSnapshot dfa = DataformatAwareCatalogSnapshot.deserializeFromString(serialized, resolver);
-                // Read the commit's SegmentInfos to get the writer's Lucene version.
-                SegmentInfos committed = SegmentInfos.readCommit(store.directory(), ic.getSegmentsFileName());
-                long version = LuceneVersionConverter.encode(committed.getCommitLuceneVersion());
-                dfa.setLastCommitInfo(ic.getSegmentsFileName(), ic.getGeneration(), version);
-                result.put(ic, dfa);
+                dfa = DataformatAwareCatalogSnapshot.deserializeFromString(serialized, resolver);
             } else {
-                // serialized can be null for the initial empty commit from store.createEmpty() during
-                // empty store recovery, since that commit has no CatalogSnapshot data.
-                result.put(ic, null);
+                // Initial empty commit from store.createEmpty() has no serialized catalog.
+                // Create an empty snapshot and seed its commit generation from the on-disk
+                // segments_N so that getLastCommitGeneration() returns a stable value before
+                // the first real flush — preventing the catalog generation fallback from
+                // leaking into ReplicationCheckpoint.segmentsGen.
+                dfa = (DataformatAwareCatalogSnapshot) CatalogSnapshotManager.createInitialSnapshot(
+                    0L, 0L, 0L, List.of(), -1L, ic.getUserData()
+                );
             }
+            SegmentInfos committed = SegmentInfos.readCommit(store.directory(), ic.getSegmentsFileName());
+            long version = LuceneVersionConverter.encode(committed.getCommitLuceneVersion());
+            dfa.setLastCommitInfo(ic.getSegmentsFileName(), ic.getGeneration(), version);
+            result.put(ic, dfa);
         }
         return result;
     }
