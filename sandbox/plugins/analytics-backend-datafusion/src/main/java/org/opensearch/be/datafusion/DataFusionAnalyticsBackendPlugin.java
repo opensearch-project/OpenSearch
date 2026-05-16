@@ -117,6 +117,9 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         // rejects the operator with "No backend supports scalar function [CASE] among [datafusion]"
         // before substrait emission.
         ScalarFunction.CASE,
+        ScalarFunction.IS_NULL,
+        ScalarFunction.IS_NOT_NULL,
+        ScalarFunction.NULLIF,
         // ABS / SUBSTRING — PPL sort-pushdown moves these into the project tree; DataFusion has
         // both natively and isthmus's default catalog binds them, so no adapter needed.
         ScalarFunction.ABS,
@@ -469,6 +472,7 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                     Map.entry(ScalarFunction.MVFIND, new MvfindAdapter()),
                     Map.entry(ScalarFunction.MVZIP, new MvzipAdapter()),
                     Map.entry(ScalarFunction.MVAPPEND, new MvappendAdapter()),
+                    Map.entry(ScalarFunction.COALESCE, new CoalesceAdapter()),
                     Map.entry(ScalarFunction.CONCAT, new ConcatFunctionAdapter()),
                     Map.entry(ScalarFunction.CONVERT_TZ, new ConvertTzAdapter()),
                     Map.entry(ScalarFunction.COSH, new HyperbolicOperatorAdapter(SqlLibraryOperators.COSH)),
