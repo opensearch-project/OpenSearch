@@ -35,6 +35,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -539,6 +540,116 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
         Thread.sleep(sleepTime);
 
         assertEquals(new FakeIngestionSource.FakeIngestionShardPointer(0), poller.getBatchStartPointer());
+        blockingQueueContainer.close();
+    }
+
+    public void testBatchStartPointerUsesFirstQueuedPointerWhenProcessorPointerIsNull() throws InterruptedException {
+        MessageProcessorRunnable processorRunnable = new MessageProcessorRunnable(
+            new ArrayBlockingQueue<>(5),
+            processor,
+            errorStrategy,
+            "test_index",
+            0
+        );
+        PartitionedBlockingQueueContainer blockingQueueContainer = new PartitionedBlockingQueueContainer(processorRunnable, 0);
+        DefaultStreamPoller poller = new DefaultStreamPoller(
+            new FakeIngestionSource.FakeIngestionShardPointer(0),
+            fakeConsumerFactory,
+            "",
+            0,
+            blockingQueueContainer,
+            StreamPoller.ResetState.NONE,
+            "",
+            errorStrategy,
+            StreamPoller.State.NONE,
+            1000,
+            1000,
+            10000,
+            indexSettings,
+            new DefaultIngestionMessageMapper(),
+            new IngestionSource.WarmupConfig(TimeValue.timeValueMillis(-1), 0),
+            new IngestionSource.Builder("FAKE").build()
+        );
+
+        blockingQueueContainer.add(createShardUpdateMessage(5, "1"));
+
+        assertNull(processorRunnable.getCurrentShardPointer());
+        assertEquals(new FakeIngestionSource.FakeIngestionShardPointer(5), poller.getBatchStartPointer());
+        blockingQueueContainer.close();
+        poller.close();
+    }
+
+    public void testFirstQueuedPointerIsClearedWhenQueuePutFails() throws InterruptedException {
+        ArrayBlockingQueue mockQueue = mock(ArrayBlockingQueue.class);
+        doThrow(new RuntimeException("put failed")).when(mockQueue).put(any());
+        MessageProcessorRunnable processorRunnable = new MessageProcessorRunnable(mockQueue, processor, errorStrategy, "test_index", 0);
+        PartitionedBlockingQueueContainer blockingQueueContainer = new PartitionedBlockingQueueContainer(processorRunnable, 0);
+
+        RuntimeException exception = expectThrows(
+            RuntimeException.class,
+            () -> blockingQueueContainer.add(createShardUpdateMessage(5, "1"))
+        );
+        assertEquals("put failed", exception.getMessage());
+        assertEquals(Collections.singletonList(null), blockingQueueContainer.getCurrentShardPointers());
+        blockingQueueContainer.close();
+    }
+
+    public void testConsumerReinitializationUsesRestartPointerCapturedBeforeClearingQueues() throws Exception {
+        ArrayBlockingQueue mockQueue = mock(ArrayBlockingQueue.class);
+        processorRunnable = new MessageProcessorRunnable(mockQueue, processor, errorStrategy, "test_index", 0);
+        PartitionedBlockingQueueContainer blockingQueueContainer = new PartitionedBlockingQueueContainer(processorRunnable, 0);
+
+        IngestionShardConsumer initialConsumer = mock(IngestionShardConsumer.class);
+        IngestionShardConsumer reinitializedConsumer = mock(IngestionShardConsumer.class);
+        when(initialConsumer.getShardId()).thenReturn(0);
+        when(reinitializedConsumer.getShardId()).thenReturn(0);
+
+        FakeIngestionSource.FakeIngestionShardPointer initialPointer = new FakeIngestionSource.FakeIngestionShardPointer(3);
+        FakeIngestionSource.FakeIngestionShardPointer queuedPointer = new FakeIngestionSource.FakeIngestionShardPointer(7);
+        FakeIngestionSource.FakeIngestionMessage message = new FakeIngestionSource.FakeIngestionMessage(
+            "{\"_id\":\"1\",\"_source\":{\"name\":\"bob\", \"age\": 24}}".getBytes(StandardCharsets.UTF_8)
+        );
+        List<
+            IngestionShardConsumer.ReadResult<
+                FakeIngestionSource.FakeIngestionShardPointer,
+                FakeIngestionSource.FakeIngestionMessage>> results = Collections.singletonList(
+                    new IngestionShardConsumer.ReadResult<>(queuedPointer, message)
+                );
+
+        when(initialConsumer.readNext(eq(initialPointer), eq(true), anyLong(), anyInt())).thenReturn(results);
+        when(initialConsumer.readNext(anyLong(), anyInt())).thenReturn(Collections.emptyList());
+        when(reinitializedConsumer.readNext(eq(queuedPointer), eq(true), anyLong(), anyInt())).thenReturn(Collections.emptyList());
+        when(reinitializedConsumer.readNext(anyLong(), anyInt())).thenReturn(Collections.emptyList());
+
+        IngestionConsumerFactory mockConsumerFactory = mock(IngestionConsumerFactory.class);
+        when(mockConsumerFactory.createShardConsumer(anyString(), anyInt(), any())).thenReturn(initialConsumer)
+            .thenReturn(reinitializedConsumer);
+
+        poller = new DefaultStreamPoller(
+            initialPointer,
+            mockConsumerFactory,
+            "",
+            0,
+            blockingQueueContainer,
+            StreamPoller.ResetState.NONE,
+            "",
+            errorStrategy,
+            StreamPoller.State.NONE,
+            1000,
+            1000,
+            10000,
+            indexSettings,
+            new DefaultIngestionMessageMapper(),
+            new IngestionSource.WarmupConfig(TimeValue.timeValueMillis(-1), 0),
+            new IngestionSource.Builder("FAKE").build()
+        );
+
+        poller.start();
+        assertBusy(() -> assertEquals(queuedPointer, poller.getBatchStartPointer()), 30, TimeUnit.SECONDS);
+
+        poller.requestConsumerReinitialization(new IngestionSource.Builder("FAKE").build());
+
+        assertBusy(() -> verify(reinitializedConsumer).readNext(eq(queuedPointer), eq(true), anyLong(), anyInt()), 30, TimeUnit.SECONDS);
         blockingQueueContainer.close();
     }
 
@@ -1199,5 +1310,18 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
         assertTrue(warmupPoller.isWarmupComplete());
 
         warmupPoller.close();
+    }
+
+    private
+        ShardUpdateMessage<FakeIngestionSource.FakeIngestionShardPointer, FakeIngestionSource.FakeIngestionMessage>
+        createShardUpdateMessage(long pointer, String id) {
+        byte[] payload = ("{\"_id\":\"" + id + "\",\"_source\":{\"name\":\"bob\", \"age\": 24}}").getBytes(StandardCharsets.UTF_8);
+        Map<String, Object> payloadMap = IngestionUtils.getParsedPayloadMap(payload);
+        return new ShardUpdateMessage<>(
+            new FakeIngestionSource.FakeIngestionShardPointer(pointer),
+            new FakeIngestionSource.FakeIngestionMessage(payload),
+            payloadMap,
+            -1
+        );
     }
 }

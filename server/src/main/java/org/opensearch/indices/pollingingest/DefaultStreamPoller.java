@@ -698,6 +698,7 @@ public class DefaultStreamPoller implements StreamPoller {
      * batchStartPointer if first time initialization, or from the latest available batchStartPointer on reinitialization.
      */
     private void handleConsumerInitialization() {
+        IngestionShardPointer restartPointer = getBatchStartPointer();
         closeConsumer();
         blockingQueueContainer.clearAllQueues();
         initializeConsumer();
@@ -710,11 +711,12 @@ public class DefaultStreamPoller implements StreamPoller {
         IngestionShardPointer resetShardPointer = getResetShardPointer();
         if (resetShardPointer != null) {
             initialBatchStartPointer = resetShardPointer;
+            restartPointer = resetShardPointer;
         }
 
         // Force the consumer to start from the batchStartPointer. This will be the initialBatchStartPointer for first
         // time initialization, or the latest batchStartPointer based on processed messages.
-        forcedShardPointer = getBatchStartPointer();
+        forcedShardPointer = restartPointer;
     }
 
     /**
