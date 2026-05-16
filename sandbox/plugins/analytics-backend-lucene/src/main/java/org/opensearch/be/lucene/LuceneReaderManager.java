@@ -66,9 +66,9 @@ public class LuceneReaderManager implements EngineReaderManager<DirectoryReader>
 
     @Override
     public DirectoryReader getReader(CatalogSnapshot catalogSnapshot) throws IOException {
-        DirectoryReader reader = readers.get(catalogSnapshot.getVersion());
+        DirectoryReader reader = readers.get(catalogSnapshot.getId());
         if (reader == null) {
-            throw new IllegalStateException("No reader available for catalog snapshot [version=" + catalogSnapshot.getVersion() + "]");
+            throw new IllegalStateException("No reader available for catalog snapshot [version=" + catalogSnapshot.getId() + "]");
         }
         return reader;
     }
@@ -80,7 +80,7 @@ public class LuceneReaderManager implements EngineReaderManager<DirectoryReader>
 
     @Override
     public void afterRefresh(boolean didRefresh, CatalogSnapshot catalogSnapshot) throws IOException {
-        if (didRefresh == false || readers.containsKey(catalogSnapshot.getVersion())) {
+        if (didRefresh == false || readers.containsKey(catalogSnapshot.getId())) {
             return;
         }
         DirectoryReader refreshed = readerRefresher.apply(currentReader, LuceneReplicaCommitter.getSegmentInfos(catalogSnapshot));
@@ -96,7 +96,7 @@ public class LuceneReaderManager implements EngineReaderManager<DirectoryReader>
             currentReader.incRef();
         }
         assert readersAreSame(catalogSnapshot, currentReader);
-        readers.put(catalogSnapshot.getVersion(), currentReader);
+        readers.put(catalogSnapshot.getId(), currentReader);
     }
 
     /**
@@ -144,7 +144,7 @@ public class LuceneReaderManager implements EngineReaderManager<DirectoryReader>
 
     @Override
     public void onDeleted(CatalogSnapshot catalogSnapshot) throws IOException {
-        DirectoryReader reader = readers.remove(catalogSnapshot.getVersion());
+        DirectoryReader reader = readers.remove(catalogSnapshot.getId());
         if (reader != null) {
             reader.decRef();
         }

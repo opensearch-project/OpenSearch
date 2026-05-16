@@ -24,6 +24,7 @@ import org.opensearch.index.engine.exec.FileDeleter;
 import org.opensearch.index.engine.exec.FilesListener;
 import org.opensearch.index.engine.exec.Segment;
 import org.opensearch.index.engine.exec.WriterFileSet;
+import org.opensearch.index.engine.exec.commit.Committer;
 import org.opensearch.index.shard.ShardPath;
 
 import java.io.Closeable;
@@ -35,6 +36,9 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
+
+import static org.opensearch.index.engine.exec.commit.Committer.*;
 
 /**
  * Manages the lifecycle of {@link CatalogSnapshot} instances for the composite multi-format engine
@@ -110,7 +114,7 @@ public class CatalogSnapshotManager implements Closeable {
         this.snapshotListeners = snapshotListeners;
         this.latestCatalogSnapshot = (DataformatAwareCatalogSnapshot) committedSnapshots.getLast();
         for (CatalogSnapshot cs : committedSnapshots) {
-            catalogSnapshotMap.put(cs.getGeneration(), cs);
+            catalogSnapshotMap.put(cs.getId(), cs);
         }
         this.indexFileDeleter = new IndexFileDeleter(
             deletionPolicy,
@@ -136,13 +140,6 @@ public class CatalogSnapshotManager implements Closeable {
      */
     public byte[] serializeToCommitFormat(CatalogSnapshot catalogSnapshot) throws IOException {
         return snapshotSerializer.apply(catalogSnapshot);
-    }
-
-    /**
-     * Advances the catalog generation
-     */
-    public synchronized void bumpGeneration() throws IOException {
-        commitNewSnapshot(latestCatalogSnapshot.getSegments());
     }
 
     /**
@@ -233,7 +230,7 @@ public class CatalogSnapshotManager implements Closeable {
             newSnapshot = new DataformatAwareCatalogSnapshot(
                 latestCatalogSnapshot.getId() + 1,
                 latestCatalogSnapshot.getGeneration() + 1,
-                latestCatalogSnapshot.getVersion() + 1,
+                latestCatalogSnapshot.getVersion() + 1,  // New changes so this version is changed.
                 refreshedSegments,
                 latestCatalogSnapshot.getLastWriterGeneration() + 1,
                 latestCatalogSnapshot.getUserData(),
@@ -275,6 +272,74 @@ public class CatalogSnapshotManager implements Closeable {
 
 
         installSnapshot(newSnapshot);
+    }
+
+
+    /**
+     * Replaces the current snapshot with one received from the primary via segment replication.
+     * Replica-only: does not fire beforeRefresh/afterRefresh since the catalog snapshot
+     * should only become visible after readers are notified by the engine. Idempotent —
+     * a resend of the same (or older) generation is a no-op.
+     */
+    public synchronized void applyReplicationSnapshot(CatalogSnapshot incoming) throws IOException {
+        if (closed.get()) {
+            throw new IllegalStateException("CatalogSnapshotManager is closed");
+        }
+
+        for (CatalogSnapshotLifecycleListener listener : snapshotListeners) {
+            listener.beforeRefresh();
+        }
+
+        // Generation, id and commit file details are local to the replica.
+        // We should honor the state management within CatalogSnapshotManager to ensure these values
+        // honor the associated invariants (e.g. increasing generaiton)
+        // Primary may switch and come up with an older segment infos while replica may be ahead in
+        // the commit it manages.
+        DataformatAwareCatalogSnapshot newSnapshot = new DataformatAwareCatalogSnapshot(
+            latestCatalogSnapshot.getId() + 1, // Increase this as this is always unique
+            latestCatalogSnapshot.getGeneration() + 1, //
+            incoming.getVersion(), // Honor the version from incoming. As replication would check this for changes.
+            incoming.getSegments(),
+            latestCatalogSnapshot.getLastWriterGeneration() + 1, // Not needed, can be removed.
+            incoming.getUserData(),
+            latestCatalogSnapshot.getLastCommitFileName(),
+            latestCatalogSnapshot.getLastCommitGeneration(),
+            latestCatalogSnapshot.getCommitDataFormatVersion()
+        );
+        newSnapshot.setReplicatingCommitData(((DataformatAwareCatalogSnapshot) incoming).getReplicatingCommitData());
+
+        installSnapshot(newSnapshot);
+    }
+
+    /**
+     * Advances the catalog generation
+     */
+    public synchronized void bumpGeneration() throws IOException {
+        if (closed.get()) {
+            throw new IllegalStateException("CatalogSnapshotManager is closed");
+        }
+
+        for (CatalogSnapshotLifecycleListener listener : snapshotListeners) {
+            listener.beforeRefresh();
+        }
+
+        DataformatAwareCatalogSnapshot newSnapshot = new DataformatAwareCatalogSnapshot(
+            latestCatalogSnapshot.getId() + 1,  // This is unique for each catalog snapshot managed by this manager.
+            latestCatalogSnapshot.getGeneration() + 1, // This is for commit generation tracking. So this should increase as well. Handles force flush cases
+            latestCatalogSnapshot.getVersion(), // This increases if there is an actual change in the snapshot.
+            latestCatalogSnapshot.getSegments(),
+            latestCatalogSnapshot.getLastWriterGeneration() + 1,
+            latestCatalogSnapshot.getUserData(),
+            latestCatalogSnapshot.getLastCommitFileName(),
+            latestCatalogSnapshot.getLastCommitGeneration(),
+            latestCatalogSnapshot.getCommitDataFormatVersion()
+        );
+
+        installSnapshot(newSnapshot);
+    }
+
+    public synchronized void updateLastCommitInfo(CommitResult commitResult) {
+        latestCatalogSnapshot.setLastCommitInfo(commitResult.commitFileName(), commitResult.generation(), commitResult.commitDataFormatVersion());
     }
 
     /**
@@ -354,42 +419,6 @@ public class CatalogSnapshotManager implements Closeable {
         decRefAndMaybeDelete(oldSnapshot);
     }
 
-    /**
-     * Replaces the current snapshot with one received from the primary via segment replication.
-     * Replica-only: does not fire beforeRefresh/afterRefresh since the catalog snapshot
-     * should only become visible after readers are notified by the engine. Idempotent —
-     * a resend of the same (or older) generation is a no-op.
-     */
-    public synchronized void applyReplicationSnapshot(CatalogSnapshot incoming) throws IOException {
-        if (closed.get()) {
-            throw new IllegalStateException("CatalogSnapshotManager is closed");
-        }
-
-        for (CatalogSnapshotLifecycleListener listener : snapshotListeners) {
-            listener.beforeRefresh();
-        }
-
-        // Generation, id and commit file details are local to the replica.
-        // We should honor the state management within CatalogSnapshotManager to ensure these values
-        // honor the associated invariants (e.g. increasing generaiton)
-        // Primary may switch and come up with an older segment infos while replica may be ahead in
-        // the commit it manages.
-        DataformatAwareCatalogSnapshot newSnapshot = new DataformatAwareCatalogSnapshot(
-            latestCatalogSnapshot.getId() + 1,
-            latestCatalogSnapshot.getGeneration() + 1,
-            latestCatalogSnapshot.getVersion() + 1,
-            incoming.getSegments(),
-            latestCatalogSnapshot.getLastWriterGeneration() + 1,
-            incoming.getUserData(),
-            latestCatalogSnapshot.getLastCommitFileName(),
-            latestCatalogSnapshot.getLastCommitGeneration(),
-            latestCatalogSnapshot.getCommitDataFormatVersion()
-        );
-        newSnapshot.setReplicatingCommitData(((DataformatAwareCatalogSnapshot) incoming).getReplicatingCommitData());
-
-        installSnapshot(newSnapshot);
-    }
-
     // ---- Acquire path ----
 
     /**
@@ -403,10 +432,7 @@ public class CatalogSnapshotManager implements Closeable {
         if (closed.get()) {
             throw new IllegalStateException("CatalogSnapshotManager is closed");
         }
-        final CatalogSnapshot snapshot = latestCatalogSnapshot;
-        if (snapshot.tryIncRef() == false) {
-            throw new IllegalStateException("CatalogSnapshot [gen=" + snapshot.getGeneration() + "] is already closed");
-        }
+        final CatalogSnapshot snapshot = acquireLatestSnapshot();
         return new GatedCloseable<>(snapshot, () -> decRefAndMaybeDelete(snapshot));
     }
 
@@ -427,10 +453,7 @@ public class CatalogSnapshotManager implements Closeable {
         if (closed.get()) {
             throw new IllegalStateException("CatalogSnapshotManager is closed");
         }
-        final CatalogSnapshot snapshot = latestCatalogSnapshot;
-        if (snapshot.tryIncRef() == false) {
-            throw new IllegalStateException("CatalogSnapshot [gen=" + snapshot.getGeneration() + "] is already closed");
-        }
+        final CatalogSnapshot snapshot = acquireLatestSnapshot();
         return new GatedConditionalCloseable<>(snapshot, () -> {
             try {
                 snapshot.markCommitted();
@@ -439,6 +462,14 @@ public class CatalogSnapshotManager implements Closeable {
                 throw new RuntimeException("Failed to register commit [gen=" + snapshot.getGeneration() + "]", e);
             }
         }, () -> decRefAndMaybeDelete(snapshot));
+    }
+
+    private CatalogSnapshot acquireLatestSnapshot() {
+        CatalogSnapshot snapshot;
+        do {
+            snapshot = latestCatalogSnapshot;
+        } while (!snapshot.tryIncRef());
+        return snapshot;
     }
 
     // ---- Snapshot protection for _snapshot API / peer recovery ----

@@ -239,17 +239,17 @@ public class LuceneCommitter extends SafeBootstrapCommitter {
     @Override
     public byte[] serializeToCommitFormat(CatalogSnapshot catalogSnapshot) throws IOException {
         ensureOpen();
-        DirectoryReader reader = readers.get(catalogSnapshot.getVersion());
+        DirectoryReader reader = readers.get(catalogSnapshot.getId());
         SegmentInfos sis;
         if (reader == null) {
             assert catalogSnapshot.getDataFormats().contains(LuceneDataFormat.LUCENE_FORMAT_NAME) == false
-                : "Lucene is listed in catalog data formats but no reader was registered for version=" + catalogSnapshot.getVersion();
-            logger.info("No Lucene reader for catalog snapshot version={} — producing empty SegmentInfos", catalogSnapshot.getVersion());
+                : "Lucene is listed in catalog data formats but no reader was registered for version=" + catalogSnapshot.getId();
+            logger.info("No Lucene reader for catalog snapshot version={} — producing empty SegmentInfos", catalogSnapshot.getId());
             sis = new SegmentInfos(Version.LATEST.major);
         } else {
             if (reader instanceof StandardDirectoryReader == false) {
                 throw new IllegalStateException(
-                    "Reader for catalog snapshot version=" + catalogSnapshot.getVersion() + " is not a StandardDirectoryReader: " + reader
+                    "Reader for catalog snapshot version=" + catalogSnapshot.getId() + " is not a StandardDirectoryReader: " + reader
                 );
             }
             sis = ((StandardDirectoryReader) reader).getSegmentInfos().clone();

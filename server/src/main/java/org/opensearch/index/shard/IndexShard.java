@@ -6154,6 +6154,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     @ExperimentalApi
     public org.opensearch.common.CheckedFunction<CatalogSnapshot, byte[], IOException> catalogSnapshotToRemoteMetadataSerializer() {
+        assert this.shardRouting.primary() : "This should only be invoked for primary shards";
         return cs -> getIndexer().serializeSnapshotToRemoteMetadata(cs);
     }
 
