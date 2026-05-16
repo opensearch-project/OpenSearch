@@ -75,6 +75,7 @@ class LuceneCommitDeletionPolicy extends IndexDeletionPolicy {
         // since it is no longer needed for recovery.
         if (hasCSCommit && nonCatalogSnapshotCommit != null) {
             nonCatalogSnapshotCommit.delete();
+            pendingDeletes.remove(0L);
             nonCatalogSnapshotCommit = null;
         }
     }
@@ -87,7 +88,7 @@ class LuceneCommitDeletionPolicy extends IndexDeletionPolicy {
      * @param snapshotId the CatalogSnapshot ID to purge
      */
     void purgeCommit(long snapshotId) {
-        assert trackedCommits.containsKey(snapshotId);
+        assert (snapshotId == 0L) || trackedCommits.containsKey(snapshotId);
         pendingDeletes.add(snapshotId);
     }
 }

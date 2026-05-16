@@ -19,7 +19,6 @@ import org.opensearch.index.engine.exec.commit.CommitterConfig;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 import org.opensearch.index.engine.exec.coord.DataformatAwareCatalogSnapshot;
 import org.opensearch.index.engine.exec.coord.LuceneVersionConverter;
-import org.opensearch.index.engine.exec.coord.SegmentInfosCatalogSnapshot;
 import org.opensearch.index.store.Store;
 
 import java.io.IOException;
@@ -54,15 +53,17 @@ public class LuceneReplicaCommitter implements Committer {
         // promotion: when this replica is later promoted, the new IndexWriter must open on
         // a commit that includes all Lucene segments. Without this, the IndexWriter sees an
         // empty commit and any Lucene secondary-format files become orphans.
-        SegmentInfos sis = getSegmentInfos(commitInput.catalogSnapshot()).clone();
+        SegmentInfos sis = getSegmentInfos(commitInput.catalogSnapshot());
         if (sis == null) {
             sis = lastCommittedSegmentInfos;
+        } else {
+            sis = sis.clone();
+            sis.updateGeneration(lastCommittedSegmentInfos);
         }
         Map<String, String> userData = new HashMap<>(sis.userData);
         for (Map.Entry<String, String> entries: commitInput.userData()) {
             userData.put(entries.getKey(), entries.getValue());
         }
-        sis.updateGeneration(lastCommittedSegmentInfos);
         sis.setUserData(userData, false);
 
         if (commitInput.bumpCounter() > 0) {
@@ -71,6 +72,7 @@ public class LuceneReplicaCommitter implements Committer {
         }
 
         store.commitSegmentInfos(sis);
+        store.directory().sync(commitInput.catalogSnapshot().getFiles(true));
 
         SegmentInfos committed = SegmentInfos.readLatestCommit(store.directory());
         assert sis.getGeneration() == committed.getGeneration() : "Committed generation is different from requested generation";

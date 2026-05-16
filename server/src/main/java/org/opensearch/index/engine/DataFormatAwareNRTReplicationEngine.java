@@ -44,6 +44,7 @@ import org.opensearch.index.engine.exec.commit.Committer;
 import org.opensearch.index.engine.exec.commit.Committer.CommitInput;
 import org.opensearch.index.engine.exec.commit.Committer.CommitResult;
 import org.opensearch.index.engine.exec.commit.CommitterConfig;
+import org.opensearch.index.engine.exec.commit.IndexStoreProvider;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshotManager;
 import org.opensearch.index.engine.exec.coord.DataformatAwareCatalogSnapshot;
@@ -163,7 +164,17 @@ public class DataFormatAwareNRTReplicationEngine implements Indexer {
                 aggregated.putAll(
                     registry.getReaderManager(
                         new ReaderManagerConfig(
-                            Optional.empty(),
+                            Optional.of(new IndexStoreProvider() {
+                                @Override
+                                public FormatStore getStore(DataFormat dataFormat) {
+                                    return new FormatStore() {
+                                        @Override
+                                        public Store store() {
+                                            return store;
+                                        }
+                                    };
+                                }
+                            }),
                             format,
                             registry,
                             store.shardPath(),
@@ -256,7 +267,7 @@ public class DataFormatAwareNRTReplicationEngine implements Indexer {
             applyCatalogSnapshot(incoming);
 
             if (incomingCommitGeneration != lastReceivedPrimaryCommitGen) {
-                flush(false, true);
+                flush(false, true, false);
                 translogManager.getDeletionPolicy().setLocalCheckpointOfSafeCommit(maxSeqNo);
                 translogManager.rollTranslogGeneration();
             }
@@ -469,6 +480,10 @@ public class DataFormatAwareNRTReplicationEngine implements Indexer {
 
     @Override
     public void flush(boolean force, boolean waitIfOngoing) {
+        flush(force, waitIfOngoing, true);
+    }
+
+    public void flush(boolean force, boolean waitIfOngoing, boolean bumpSnapshotGeneration) {
         ensureOpen();
         // Skip flushing for warm indices
         if (engineConfig.getIndexSettings().isWarmIndex()) {
@@ -483,6 +498,9 @@ public class DataFormatAwareNRTReplicationEngine implements Indexer {
                 flushLock.lock();
             }
             try {
+                if (bumpSnapshotGeneration) {
+                    catalogSnapshotManager.bumpGeneration();
+                }
                 commitCatalogSnapshot();
             } catch (IOException e) {
                 maybeFailEngine("flush", e);
