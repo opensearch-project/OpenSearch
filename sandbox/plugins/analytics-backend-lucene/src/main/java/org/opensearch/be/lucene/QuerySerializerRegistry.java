@@ -8,41 +8,44 @@
 
 package org.opensearch.be.lucene;
 
-import org.apache.calcite.rex.RexCall;
 import org.opensearch.analytics.spi.DelegatedPredicateSerializer;
-import org.opensearch.analytics.spi.FieldStorageInfo;
 import org.opensearch.analytics.spi.ScalarFunction;
-import org.opensearch.index.query.MatchQueryBuilder;
+import org.opensearch.be.lucene.serializers.MatchAllSerializer;
+import org.opensearch.be.lucene.serializers.MatchBoolPrefixSerializer;
+import org.opensearch.be.lucene.serializers.MatchPhrasePrefixSerializer;
+import org.opensearch.be.lucene.serializers.MatchPhraseSerializer;
+import org.opensearch.be.lucene.serializers.MatchSerializer;
+import org.opensearch.be.lucene.serializers.MultiMatchSerializer;
+import org.opensearch.be.lucene.serializers.QuerySerializer;
+import org.opensearch.be.lucene.serializers.QueryStringSerializer;
+import org.opensearch.be.lucene.serializers.SimpleQueryStringSerializer;
+import org.opensearch.be.lucene.serializers.WildcardQuerySerializer;
 
-import java.util.List;
 import java.util.Map;
 
 /**
  * Registry of per-function query serializers for delegated predicates.
  * Each serializer converts a Calcite RexCall into serialized QueryBuilder bytes
  * that the Lucene backend can deserialize at the data node.
- *
- * <p>TODO: add serializers for match_phrase, match_bool_prefix, match_phrase_prefix.
- * TODO: add multi-field relevance serializers for multi_match, query_string, simple_query_string.
  */
 final class QuerySerializerRegistry {
 
-    private static final Map<ScalarFunction, DelegatedPredicateSerializer> SERIALIZERS = Map.of(
-        ScalarFunction.MATCH,
-        QuerySerializerRegistry::serializeMatch
+    private static final Map<ScalarFunction, DelegatedPredicateSerializer> SERIALIZERS = Map.ofEntries(
+        Map.entry(ScalarFunction.MATCH, new MatchSerializer()),
+        Map.entry(ScalarFunction.MATCH_PHRASE, new MatchPhraseSerializer()),
+        Map.entry(ScalarFunction.MATCH_BOOL_PREFIX, new MatchBoolPrefixSerializer()),
+        Map.entry(ScalarFunction.MATCH_PHRASE_PREFIX, new MatchPhrasePrefixSerializer()),
+        Map.entry(ScalarFunction.MULTI_MATCH, new MultiMatchSerializer()),
+        Map.entry(ScalarFunction.QUERY_STRING, new QueryStringSerializer()),
+        Map.entry(ScalarFunction.SIMPLE_QUERY_STRING, new SimpleQueryStringSerializer()),
+        Map.entry(ScalarFunction.WILDCARD_QUERY, new WildcardQuerySerializer()),
+        Map.entry(ScalarFunction.QUERY, new QuerySerializer()),
+        Map.entry(ScalarFunction.MATCHALL, new MatchAllSerializer())
     );
 
     private QuerySerializerRegistry() {}
 
     static Map<ScalarFunction, DelegatedPredicateSerializer> getSerializers() {
         return SERIALIZERS;
-    }
-
-    private static byte[] serializeMatch(RexCall call, List<FieldStorageInfo> fieldStorage) {
-        String fieldName = ConversionUtils.extractFieldFromRelevanceMap(call, 0, fieldStorage);
-        String queryText = ConversionUtils.extractStringFromRelevanceMap(call, 1);
-        // TODO: extract optional params (operator, analyzer, fuzziness) from operands 2+
-        MatchQueryBuilder queryBuilder = new MatchQueryBuilder(fieldName, queryText);
-        return ConversionUtils.serializeQueryBuilder(queryBuilder);
     }
 }

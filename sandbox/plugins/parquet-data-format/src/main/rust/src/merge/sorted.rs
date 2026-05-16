@@ -214,6 +214,16 @@ pub fn merge_sorted(
                 if !cursors[file_id].advance_past_batch()? {
                     break;
                 }
+                // Check if cursor should yield after loading new batch
+                let val = cursor.current_sort_values()?;
+                if cmp_sort_values(&val, heap_top, reverse_sorts) == Ordering::Greater {
+                    heap.push(HeapItem {
+                        sort_values: val,
+                        file_id,
+                        reverse_sorts: Arc::clone(&reverse_sorts_arc),
+                    });
+                    break;
+                }
                 continue;
             }
 

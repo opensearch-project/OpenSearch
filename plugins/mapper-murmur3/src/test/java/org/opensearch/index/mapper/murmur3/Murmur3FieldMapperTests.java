@@ -40,20 +40,16 @@ import org.opensearch.common.hash.MurmurHash3;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.index.engine.dataformat.DocumentInput;
 import org.opensearch.index.mapper.DocumentMapper;
-import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.MapperTestCase;
 import org.opensearch.index.mapper.ParsedDocument;
 import org.opensearch.plugin.mapper.MapperMurmur3Plugin;
 import org.opensearch.plugins.Plugin;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
-import java.util.Map;
 
 public class Murmur3FieldMapperTests extends MapperTestCase {
 
@@ -92,7 +88,7 @@ public class Murmur3FieldMapperTests extends MapperTestCase {
     public void testPluggableDataFormatMurmur3() throws IOException {
         Settings pluggableSettings = Settings.builder().put(getIndexSettings()).put("index.pluggable.dataformat.enabled", true).build();
         DocumentMapper mapper = createDocumentMapper(pluggableSettings, fieldMapping(this::minimalMapping));
-        TestDocumentInput docInput = new TestDocumentInput();
+        CapturingDocumentInput docInput = new CapturingDocumentInput();
         mapper.parse(source(b -> b.field("field", "test_value")), docInput);
 
         boolean found = docInput.getCapturedFields().stream().anyMatch(e -> e.getKey().name().equals("field"));
@@ -103,7 +99,7 @@ public class Murmur3FieldMapperTests extends MapperTestCase {
     public void testPluggableDataFormatMurmur3NullSkipped() throws IOException {
         Settings pluggableSettings = Settings.builder().put(getIndexSettings()).put("index.pluggable.dataformat.enabled", true).build();
         DocumentMapper mapper = createDocumentMapper(pluggableSettings, fieldMapping(this::minimalMapping));
-        TestDocumentInput docInput = new TestDocumentInput();
+        CapturingDocumentInput docInput = new CapturingDocumentInput();
         mapper.parse(source(b -> b.nullField("field")), docInput);
 
         boolean hasField = docInput.getCapturedFields().stream().anyMatch(e -> e.getKey().name().equals("field"));
@@ -121,7 +117,7 @@ public class Murmur3FieldMapperTests extends MapperTestCase {
             IndexableField[] luceneFields = luceneDoc.rootDoc().getFields("field");
 
             DocumentMapper pluggableMapper = createDocumentMapper(pluggableSettings, fieldMapping(this::minimalMapping));
-            TestDocumentInput docInput = new TestDocumentInput();
+            CapturingDocumentInput docInput = new CapturingDocumentInput();
             pluggableMapper.parse(source(b -> b.field("field", "test_value")), docInput);
 
             assertTrue("Lucene path should produce field 'field'", luceneFields.length > 0);
@@ -136,7 +132,7 @@ public class Murmur3FieldMapperTests extends MapperTestCase {
             IndexableField[] luceneFields = luceneDoc.rootDoc().getFields("field");
 
             DocumentMapper pluggableMapper = createDocumentMapper(pluggableSettings, fieldMapping(this::minimalMapping));
-            TestDocumentInput docInput = new TestDocumentInput();
+            CapturingDocumentInput docInput = new CapturingDocumentInput();
             pluggableMapper.parse(source(b -> b.nullField("field")), docInput);
 
             assertEquals("Lucene path should produce no field 'field'", 0, luceneFields.length);
@@ -157,29 +153,5 @@ public class Murmur3FieldMapperTests extends MapperTestCase {
         BytesRef bytes2 = new BytesRef(testValue);
         long hash2 = MurmurHash3.hash128(bytes2.bytes, bytes2.offset, bytes2.length, 0, new MurmurHash3.Hash128()).h1;
         assertEquals("Hash should be consistent for same input", hash, hash2);
-    }
-
-    private static class TestDocumentInput implements DocumentInput<Object> {
-        private final List<Map.Entry<MappedFieldType, Object>> capturedFields = new ArrayList<>();
-
-        @Override
-        public Object getFinalInput() {
-            return null;
-        }
-
-        @Override
-        public void addField(MappedFieldType fieldType, Object value) {
-            capturedFields.add(Map.entry(fieldType, value));
-        }
-
-        @Override
-        public void setRowId(String rowIdFieldName, long rowId) {}
-
-        @Override
-        public void close() {}
-
-        public List<Map.Entry<MappedFieldType, Object>> getCapturedFields() {
-            return capturedFields;
-        }
     }
 }

@@ -9,7 +9,9 @@
 package org.opensearch.be.lucene.index;
 
 import org.apache.lucene.codecs.Codec;
+import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
@@ -24,7 +26,9 @@ import org.opensearch.index.engine.dataformat.FileInfos;
 import org.opensearch.index.engine.dataformat.WriteResult;
 import org.opensearch.index.engine.dataformat.Writer;
 import org.opensearch.index.engine.exec.WriterFileSet;
+import org.opensearch.index.mapper.KeywordFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
+import org.opensearch.index.mapper.TextFieldMapper;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.index.engine.dataformat.DeleteInput;
 import org.apache.lucene.util.BytesRef;
@@ -52,18 +56,17 @@ public class LuceneWriterTests extends OpenSearchTestCase {
     }
 
     private MappedFieldType mockTextField(String name) {
-        MappedFieldType ft = mock(MappedFieldType.class);
-        when(ft.typeName()).thenReturn("text");
-        when(ft.name()).thenReturn(name);
-        return ft;
+        return new TextFieldMapper.TextFieldType(name);
     }
 
     private MappedFieldType mockKeywordField(String name) {
-        MappedFieldType ft = mock(MappedFieldType.class);
-        when(ft.typeName()).thenReturn("keyword");
-        when(ft.name()).thenReturn(name);
-        when(ft.hasDocValues()).thenReturn(true);
-        return ft;
+        final FieldType keywordFieldType = new FieldType();
+        keywordFieldType.setTokenized(false);
+        keywordFieldType.setStored(false);
+        keywordFieldType.setOmitNorms(true);
+        keywordFieldType.setIndexOptions(IndexOptions.DOCS);
+        keywordFieldType.freeze();
+        return new KeywordFieldMapper.KeywordFieldType(name, keywordFieldType);
     }
 
     public void testAddDocAndFlushProducesSingleSegment() throws IOException {

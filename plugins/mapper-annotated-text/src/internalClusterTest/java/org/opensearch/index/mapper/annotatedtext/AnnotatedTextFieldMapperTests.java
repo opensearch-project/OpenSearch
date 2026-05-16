@@ -60,9 +60,7 @@ import org.opensearch.index.analysis.IndexAnalyzers;
 import org.opensearch.index.analysis.NamedAnalyzer;
 import org.opensearch.index.analysis.StandardTokenizerFactory;
 import org.opensearch.index.analysis.TokenFilterFactory;
-import org.opensearch.index.engine.dataformat.DocumentInput;
 import org.opensearch.index.mapper.DocumentMapper;
-import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.MapperParsingException;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.MapperTestCase;
@@ -72,13 +70,11 @@ import org.opensearch.plugin.mapper.AnnotatedTextPlugin;
 import org.opensearch.plugins.Plugin;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -619,7 +615,7 @@ public class AnnotatedTextFieldMapperTests extends MapperTestCase {
     @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
     public void testPluggableDataFormatAnnotatedText() throws IOException {
         DocumentMapper mapper = createDocumentMapper(pluggableSettings(), fieldMapping(this::minimalMapping));
-        TestDocumentInput docInput = new TestDocumentInput();
+        CapturingDocumentInput docInput = new CapturingDocumentInput();
         mapper.parse(source(b -> b.field("field", "some annotated text")), docInput);
 
         boolean found = docInput.getCapturedFields()
@@ -631,7 +627,7 @@ public class AnnotatedTextFieldMapperTests extends MapperTestCase {
     @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
     public void testPluggableDataFormatNullValueSkipped() throws IOException {
         DocumentMapper mapper = createDocumentMapper(pluggableSettings(), fieldMapping(this::minimalMapping));
-        TestDocumentInput docInput = new TestDocumentInput();
+        CapturingDocumentInput docInput = new CapturingDocumentInput();
         mapper.parse(source(b -> b.nullField("field")), docInput);
 
         boolean hasField = docInput.getCapturedFields().stream().anyMatch(e -> e.getKey().name().equals("field"));
@@ -648,7 +644,7 @@ public class AnnotatedTextFieldMapperTests extends MapperTestCase {
             b.endObject();
             b.endObject();
         }));
-        TestDocumentInput docInput = new TestDocumentInput();
+        CapturingDocumentInput docInput = new CapturingDocumentInput();
         mapper.parse(source(b -> b.field("text_field", "external_value")), docInput);
 
         boolean found = docInput.getCapturedFields()
@@ -666,7 +662,7 @@ public class AnnotatedTextFieldMapperTests extends MapperTestCase {
             IndexableField[] luceneFields = luceneDoc.rootDoc().getFields("field");
 
             DocumentMapper pluggableMapper = createDocumentMapper(pluggableSettings(), fieldMapping(this::minimalMapping));
-            TestDocumentInput docInput = new TestDocumentInput();
+            CapturingDocumentInput docInput = new CapturingDocumentInput();
             pluggableMapper.parse(source(b -> b.field("field", "some annotated text")), docInput);
 
             assertTrue("Lucene path should produce field 'field'", luceneFields.length > 0);
@@ -684,36 +680,12 @@ public class AnnotatedTextFieldMapperTests extends MapperTestCase {
             IndexableField[] luceneFields = luceneDoc.rootDoc().getFields("field");
 
             DocumentMapper pluggableMapper = createDocumentMapper(pluggableSettings(), fieldMapping(this::minimalMapping));
-            TestDocumentInput docInput = new TestDocumentInput();
+            CapturingDocumentInput docInput = new CapturingDocumentInput();
             pluggableMapper.parse(source(b -> b.nullField("field")), docInput);
 
             assertEquals("Lucene path should produce no field 'field'", 0, luceneFields.length);
             boolean pluggableHasField = docInput.getCapturedFields().stream().anyMatch(e -> e.getKey().name().equals("field"));
             assertFalse("Pluggable path should produce no field 'field'", pluggableHasField);
-        }
-    }
-
-    private static class TestDocumentInput implements DocumentInput<Object> {
-        private final List<Map.Entry<MappedFieldType, Object>> capturedFields = new ArrayList<>();
-
-        @Override
-        public Object getFinalInput() {
-            return null;
-        }
-
-        @Override
-        public void addField(MappedFieldType fieldType, Object value) {
-            capturedFields.add(Map.entry(fieldType, value));
-        }
-
-        @Override
-        public void setRowId(String rowIdFieldName, long rowId) {}
-
-        @Override
-        public void close() {}
-
-        public List<Map.Entry<MappedFieldType, Object>> getCapturedFields() {
-            return capturedFields;
         }
     }
 }

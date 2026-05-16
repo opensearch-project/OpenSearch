@@ -149,4 +149,11 @@ public interface TokenFilterFactory {
             return tokenStream;
         }
     };
+
+    /**
+     * Reloads any cached resources held by this filter factory from their source.
+     * Called during analyzer reload when cache refresh is requested.
+     * Default implementation is a no-op.
+     */
+    default void reloadCachedResources() {}
 }

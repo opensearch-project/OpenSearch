@@ -88,7 +88,7 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
      *   <li>{@link DelegatedPredicateFunction} → {@code delegated_predicate} (delegation to a peer backend).</li>
      *   <li>{@link SqlLibraryOperators#ILIKE} → {@code ilike} (case-insensitive LIKE; resolved by
      *       DataFusion's substrait consumer to a case-insensitive {@code LikeExpr}).</li>
-     *   <li>{@link SqlLibraryOperators#DATE_PART} → {@code date_part} (target of YearAdapter's rewrite).</li>
+     *   <li>{@link SqlLibraryOperators#DATE_PART} → {@code date_part} (target of DatePartAdapters' rewrite).</li>
      *   <li>{@link ConvertTzAdapter#LOCAL_CONVERT_TZ_OP} → {@code convert_tz} (Rust UDF).</li>
      *   <li>{@link UnixTimestampAdapter#LOCAL_TO_UNIXTIME_OP} → {@code to_unixtime} (DF native).</li>
      *   <li>{@link JsonFunctionAdapters.JsonAppendAdapter#LOCAL_JSON_APPEND_OP} →
@@ -114,6 +114,24 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
      *   <li>{@link SqlLibraryOperators#REGEXP_REPLACE_3} → {@code regexp_replace} (regex string
      *       replacement; lowering target for PPL `replace` command on wildcard patterns and for
      *       PPL `replace()` / `regexp_replace()` functions in `eval`).</li>
+     *   <li>{@link SqlLibraryOperators#REGEXP_REPLACE_PG_4} → {@code regexp_replace} (4-arg
+     *       PostgreSQL-style with flags string; lowering target for PPL `rex mode=sed` with
+     *       {@code g}/{@code i} flags. Reuses the same DataFusion {@code regexp_replace} UDF as
+     *       the 3-arg form.</li>
+     *   <li>{@link SqlLibraryOperators#TRANSLATE3} → {@code translate} (3-arg character
+     *       transliteration; lowering target for PPL `rex mode=sed` with {@code y/from/to/}
+     *       transliteration syntax). DataFusion's substrait consumer resolves the extension name
+     *       "translate" to its native {@code translate} UDF
+     *       (datafusion-functions/src/unicode/translate.rs).</li>
+     *   <li>{@link RexExtractAdapter#LOCAL_REX_EXTRACT_OP} → {@code rex_extract} (Rust UDF;
+     *       single-match named/numbered group extract). Lowering target for PPL
+     *       {@code rex field=f "(?<g>...)"} extract command.</li>
+     *   <li>{@link RexExtractMultiAdapter#LOCAL_REX_EXTRACT_MULTI_OP} → {@code rex_extract_multi}
+     *       (Rust UDF; multi-match named/numbered group extract returning {@code list<varchar>}).
+     *       Lowering target for PPL {@code rex ... max_match=N}.</li>
+     *   <li>{@link RexOffsetAdapter#LOCAL_REX_OFFSET_OP} → {@code rex_offset} (Rust UDF;
+     *       named-group position emission as a single string). Lowering target for PPL
+     *       {@code rex ... offset_field=name}.</li>
      * </ul>
      */
     private static final List<FunctionMappings.Sig> ADDITIONAL_SCALAR_SIGS = List.of(
@@ -124,6 +142,11 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         FunctionMappings.s(SqlLibraryOperators.CONCAT_WS, "concat_ws"),
         FunctionMappings.s(SqlLibraryOperators.ILIKE, "ilike"),
         FunctionMappings.s(SqlLibraryOperators.DATE_PART, "date_part"),
+        // Engine-output cast rewrite target — see DatetimeOutputCastRewriter (issue #5420).
+        // Routes Calcite's TO_CHAR call to DataFusion's native `to_char` so PPL's
+        // documented space-separator timestamp output is preserved on the AE path.
+        FunctionMappings.s(SqlLibraryOperators.TO_CHAR, "to_char"),
+        FunctionMappings.s(SqlLibraryOperators.DATE_TRUNC, "date_trunc"),
         FunctionMappings.s(ConvertTzAdapter.LOCAL_CONVERT_TZ_OP, "convert_tz"),
         FunctionMappings.s(UnixTimestampAdapter.LOCAL_TO_UNIXTIME_OP, "to_unixtime"),
         // Niladic ops from DateTimeAdapters — each maps 1:1 to a DF builtin.
@@ -147,8 +170,9 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         FunctionMappings.s(SqlLibraryOperators.REGEXP_CONTAINS, "regex_match"),
         FunctionMappings.s(SqlStdOperatorTable.REPLACE, "replace"),
         FunctionMappings.s(SqlLibraryOperators.REGEXP_REPLACE_3, "regexp_replace"),
-        FunctionMappings.s(SqlLibraryOperators.REGEXP_CONTAINS, "regex_match"),
+        FunctionMappings.s(SqlLibraryOperators.REGEXP_REPLACE_PG_4, "regexp_replace"),
         FunctionMappings.s(SqlLibraryOperators.REVERSE, "reverse"),
+        FunctionMappings.s(SqlLibraryOperators.TRANSLATE3, "translate"),
         FunctionMappings.s(PositionAdapter.STRPOS, "strpos"),
         FunctionMappings.s(StrftimeFunctionAdapter.STRFTIME, "strftime"),
         FunctionMappings.s(ToNumberFunctionAdapter.TONUMBER, "tonumber"),
@@ -158,6 +182,10 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         FunctionMappings.s(SqlLibraryOperators.CRC32, "crc32"),
         FunctionMappings.s(Sha2FunctionAdapter.DIGEST, "digest"),
         FunctionMappings.s(Sha2FunctionAdapter.ENCODE, "encode"),
+        FunctionMappings.s(RexExtractAdapter.LOCAL_REX_EXTRACT_OP, "rex_extract"),
+        FunctionMappings.s(RexExtractMultiAdapter.LOCAL_REX_EXTRACT_MULTI_OP, "rex_extract_multi"),
+        FunctionMappings.s(RexOffsetAdapter.LOCAL_REX_OFFSET_OP, "rex_offset"),
+        FunctionMappings.s(SqlLibraryOperators.ARRAY_LENGTH, "array_length"),
         FunctionMappings.s(SqlStdOperatorTable.TRUNCATE, "trunc"),
         FunctionMappings.s(SqlStdOperatorTable.CBRT, "cbrt"),
         FunctionMappings.s(SqlStdOperatorTable.COT, "cot"),
@@ -190,7 +218,15 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         FunctionMappings.s(ArrayElementAdapter.LOCAL_ARRAY_ELEMENT_OP, "array_element"),
         FunctionMappings.s(MvzipAdapter.LOCAL_MVZIP_OP, "mvzip"),
         FunctionMappings.s(MvfindAdapter.LOCAL_MVFIND_OP, "mvfind"),
-        FunctionMappings.s(MvappendAdapter.LOCAL_MVAPPEND_OP, "mvappend")
+        FunctionMappings.s(MvappendAdapter.LOCAL_MVAPPEND_OP, "mvappend"),
+        // PPL bucketing UDFs — see DataFusionAnalyticsBackendPlugin.STANDARD_PROJECT_OPS for
+        // capability registration and per-adapter Javadoc for semantics. Each LOCAL_*_OP is a
+        // locally-declared SqlFunction (see *Adapter.java) so isthmus's ScalarFunctionConverter
+        // binds the Sig by operator identity without importing sql/core's UDF declarations.
+        FunctionMappings.s(SpanBucketAdapter.LOCAL_SPAN_BUCKET_OP, "span_bucket"),
+        FunctionMappings.s(WidthBucketAdapter.LOCAL_WIDTH_BUCKET_OP, "width_bucket"),
+        FunctionMappings.s(MinspanBucketAdapter.LOCAL_MINSPAN_BUCKET_OP, "minspan_bucket"),
+        FunctionMappings.s(RangeBucketAdapter.LOCAL_RANGE_BUCKET_OP, "range_bucket")
     );
 
     /**
@@ -259,7 +295,7 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
             withAggregationPhase(wrapper, Expression.AggregationPhase.INITIAL_TO_INTERMEDIATE),
             fieldNames(partialAggFragment)
         );
-        return serializePlan(rewired);
+        return serializePlan(SubstraitPlanRewriter.rewrite(rewired));
     }
 
     @Override
@@ -282,10 +318,15 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         // the visitor still walks them top-down to build the wrapper rel.
         RelNode rewritten = rewriteStageInputScans(fragment);
         Rel wrapper = convertStandalone(rewritten);
-        return serializePlan(rewire(inner, wrapper, fieldNames(fragment)));
+        // SubstraitPlanRewriter must run on the assembled wrapper-over-inner plan, not
+        // just on the inner bytes (those came in already rewritten from the leaf path).
+        // The wrapper rel was just produced by isthmus and carries un-rewritten literals
+        // (e.g. timestamp precision 6 vs Parquet's 3) — without this pass the rewritten
+        // inner gets reattached under a non-rewritten wrapper, leaving the new wrapper
+        // expressions out of sync with the rest of the plan and tripping DataFusion at
+        // execution time. Same fix applied to attachPartialAggOnTop.
+        return serializePlan(SubstraitPlanRewriter.rewrite(rewire(inner, wrapper, fieldNames(fragment))));
     }
-
-    // ── Core conversion helpers ─────────────────────────────────────────────────
 
     private byte[] convertToSubstrait(RelNode fragment) {
         // Rewrite SqlTypeName.NULL literals (Calcite's untyped null, emitted for the
@@ -293,6 +334,10 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         // with "Unable to convert the type NULL". The widening only changes literal type
         // tags; semantics and field names (used by Plan.Root.names) are unchanged.
         RelNode preprocessed = UntypedNullPreprocessor.rewrite(fragment);
+        // Rewrite DatetimeOutputCastRule's CAST(<TIMESTAMP> AS VARCHAR) to to_char(...) so
+        // DataFusion emits PPL's space-separator timestamp format instead of Arrow's ISO-T.
+        // See issue #5420.
+        preprocessed = DatetimeOutputCastRewriter.rewrite(preprocessed);
         RelRoot root = RelRoot.of(preprocessed, SqlKind.SELECT);
         SubstraitRelVisitor visitor = createVisitor(preprocessed);
         Rel substraitRel;
@@ -334,6 +379,8 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         // wrapper conversion is just as susceptible to a SqlTypeName.NULL literal lurking in
         // a CASE call attached on top of an inner plan.
         RelNode preprocessed = UntypedNullPreprocessor.rewrite(operator);
+        // Same rationale as convertToSubstrait — issue #5420.
+        preprocessed = DatetimeOutputCastRewriter.rewrite(preprocessed);
         SubstraitRelVisitor visitor = createVisitor(preprocessed);
         return visitor.apply(preprocessed);
     }
@@ -341,17 +388,18 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
     /**
      * Rewires the Substrait {@code wrapper} rel to sit above the root relation of
      * {@code inner}. Returns a new {@link Plan} whose single root is
-     * {@code wrapper(inner.root)}. Supports the known single-input wrappers emitted
-     * by our four SPI methods ({@link Aggregate}, {@link Sort}, {@link Filter},
-     * {@link Project}).
+     * {@code wrapper(inner.root)} with {@code wrapperNames} attached as the root's
+     * names list. Supports the known single-input wrappers emitted by our SPI
+     * methods ({@link Aggregate}, {@link Sort}, {@link Filter}, {@link Project},
+     * {@link Fetch}).
      *
-     * <p>{@code wrapperNames} must be the wrapper's output column names — typically
-     * derived from the wrapper {@link RelNode}'s row type. For schema-preserving
-     * wrappers (Sort, Filter, Fetch) these match the inner plan's names; for
-     * schema-reshaping wrappers (Aggregate, Project) they don't, and using the
-     * inner's names there causes DataFusion's substrait consumer to reject the
-     * Plan with a "Names list must match exactly to nested schema" error in
-     * {@code make_renamed_schema}.
+     * <p>{@code wrapperNames} must describe the wrapper's output schema — one entry
+     * per leaf field in the wrapper's row type. For schema-preserving wrappers
+     * (Sort, Filter, Fetch) these match the inner plan's names; for schema-reshaping
+     * wrappers (Aggregate, Project) they don't. Using the inner's names where the
+     * wrapper reshapes the schema causes DataFusion to reject the Plan with
+     * "Names list must match exactly to nested schema" — surfaces with
+     * Aggregate-over-Join over exchange-gathered Scan.
      */
     static Plan rewire(Plan inner, Rel wrapper, List<String> wrapperNames) {
         if (inner.getRoots().isEmpty()) {
@@ -363,7 +411,7 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         return Plan.builder().addRoots(Plan.Root.builder().input(rewired).names(wrapperNames).build()).build();
     }
 
-    /** Extracts a wrapper's output column names from its Calcite row type. */
+    /** Wrapper's output column names from its Calcite row type. */
     private static List<String> fieldNames(RelNode fragment) {
         return fragment.getRowType().getFieldList().stream().map(RelDataTypeField::getName).toList();
     }

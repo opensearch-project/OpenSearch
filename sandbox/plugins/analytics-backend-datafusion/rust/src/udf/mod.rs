@@ -77,17 +77,15 @@ pub(crate) fn coerce_slot(
             ),
         },
         CoerceMode::Int64 => match observed {
-            Int8 | Int16 | Int32 | Int64 | UInt8 | UInt16 | UInt32 | UInt64 | Float32 | Float64 => {
-                Ok(Int64)
-            }
+            Int8 | Int16 | Int32 | Int64 | UInt8 | UInt16 | UInt32 | UInt64 | Float32 | Float64
+            | Decimal128(_, _) | Decimal256(_, _) => Ok(Int64),
             other => {
                 plan_err!("{udf_name}: arg {slot_index} expected integer or float, got {other:?}")
             }
         },
         CoerceMode::Float64 => match observed {
-            Int8 | Int16 | Int32 | Int64 | UInt8 | UInt16 | UInt32 | UInt64 | Float32 | Float64 => {
-                Ok(Float64)
-            }
+            Int8 | Int16 | Int32 | Int64 | UInt8 | UInt16 | UInt32 | UInt64 | Float32 | Float64
+            | Decimal128(_, _) | Decimal256(_, _) => Ok(Float64),
             other => {
                 plan_err!("{udf_name}: arg {slot_index} expected integer or float, got {other:?}")
             }
@@ -135,16 +133,23 @@ pub mod json_keys;
 pub mod json_set;
 pub mod makedate;
 pub mod maketime;
+pub mod minspan_bucket;
 pub mod mvappend;
 pub mod mvfind;
 pub mod mvzip;
 pub(crate) mod mysql_format;
+pub mod range_bucket;
+pub mod rex_extract;
+pub mod rex_extract_multi;
+pub mod rex_offset;
 pub mod sha1;
+pub mod span_bucket;
 pub mod str_to_date;
 pub mod strftime;
 pub mod time_format;
 pub mod tonumber;
 pub mod tostring;
+pub mod width_bucket;
 
 // Dev note: if a freshly added UDF here fails at runtime with
 // "Unsupported function name: <X>" despite the Java side being wired, the
@@ -168,17 +173,24 @@ pub fn register_all(ctx: &SessionContext) {
     json_set::register_all(ctx);
     makedate::register_all(ctx);
     maketime::register_all(ctx);
+    minspan_bucket::register_all(ctx);
     mvappend::register_all(ctx);
     mvfind::register_all(ctx);
     mvzip::register_all(ctx);
+    range_bucket::register_all(ctx);
+    rex_extract::register_all(ctx);
+    rex_extract_multi::register_all(ctx);
+    rex_offset::register_all(ctx);
     sha1::register_all(ctx);
+    span_bucket::register_all(ctx);
     str_to_date::register_all(ctx);
     strftime::register_all(ctx);
     time_format::register_all(ctx);
     tonumber::register_all(ctx);
     tostring::register_all(ctx);
+    width_bucket::register_all(ctx);
     log::info!(
-        "OpenSearch UDF register_all: convert_tz, crc32, date_format, extract, from_unixtime, json_append, json_array_length, json_delete, json_extend, json_extract, json_keys, json_set, makedate, maketime, mvappend, mvfind, mvzip, sha1, str_to_date, strftime, time_format, tonumber, tostring registered"
+        "OpenSearch UDF register_all: convert_tz, crc32, date_format, extract, from_unixtime, json_append, json_array_length, json_delete, json_extend, json_extract, json_keys, json_set, makedate, maketime, minspan_bucket, mvappend, mvfind, mvzip, range_bucket, rex_extract, rex_extract_multi, rex_offset, sha1, span_bucket, str_to_date, strftime, time_format, tonumber, tostring, width_bucket registered"
     );
 }
 
@@ -271,6 +283,17 @@ mod tests {
         assert!(err.to_string().contains("expected integer or float"));
     }
 
+    #[test]
+    fn int64_accepts_decimal_types() {
+        // PPL emits Decimal128(p,s) literals (e.g. `span=2.5` becomes
+        // Decimal128(2, 1)). The Int64 coerce-mode must accept and canonicalize.
+        for observed in [DataType::Decimal128(2, 1), DataType::Decimal256(10, 3)] {
+            let result = coerce_slot("i", 0, &observed, CoerceMode::Int64).unwrap();
+            assert_eq!(result, DataType::Int64);
+        }
+    }
+
+
     // ── Float64 ────────────────────────────────────────────────────────────
     #[test]
     fn float64_accepts_every_number() {
@@ -291,6 +314,16 @@ mod tests {
         let err = coerce_slot("f", 0, &DataType::Utf8, CoerceMode::Float64).unwrap_err();
         assert!(err.to_string().contains("expected integer or float"));
     }
+
+    #[test]
+    fn float64_accepts_decimal_types() {
+        // Decimal128 flows in for fractional literals like `span=2.5`.
+        for observed in [DataType::Decimal128(2, 1), DataType::Decimal256(10, 3)] {
+            let result = coerce_slot("f", 0, &observed, CoerceMode::Float64).unwrap();
+            assert_eq!(result, DataType::Float64);
+        }
+    }
+
 
     // ── Utf8 ───────────────────────────────────────────────────────────────
     #[test]
