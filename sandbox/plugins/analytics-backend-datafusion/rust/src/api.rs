@@ -506,10 +506,10 @@ fn try_acquire_budget_from_cache(
 
     // Look up metadata for the first file
     let first_meta = shard_view.object_metas.first()?;
-    let cached = cache.get(first_meta)?;
+    let cached = cache.get(&first_meta.location)?;
 
     // Downcast Arc<dyn FileMetadata> to ParquetMetaData
-    let parquet_meta = cached.as_any().downcast_ref::<ParquetMetaData>()?;
+    let parquet_meta = cached.file_metadata.as_any().downcast_ref::<ParquetMetaData>()?;
 
     // Extract Arrow schema (zero I/O — just struct conversion)
     let schema = parquet_to_arrow_schema(
