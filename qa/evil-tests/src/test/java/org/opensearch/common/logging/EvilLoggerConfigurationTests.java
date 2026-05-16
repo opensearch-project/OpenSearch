@@ -40,6 +40,7 @@ import org.apache.logging.log4j.core.LoggerContext;
 import org.apache.logging.log4j.core.config.Configuration;
 import org.apache.logging.log4j.core.config.Configurator;
 import org.apache.logging.log4j.core.config.LoggerConfig;
+import org.apache.logging.log4j.jul.Log4jBridgeHandler;
 import org.opensearch.cli.UserException;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.env.Environment;
@@ -47,7 +48,10 @@ import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.Map;
+import java.util.logging.Handler;
+import java.util.logging.LogManager;
 
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -193,6 +197,21 @@ public class EvilLoggerConfigurationTests extends OpenSearchTestCase {
         assertThat(loggerConfigs.get("bar").getLevel(), equalTo(barLevel));
 
         assertThat(ctx.getLogger(randomAlphaOfLength(16)).getLevel(), equalTo(rootLevel));
+    }
+
+    public void testJulBridgeIsInstalledAfterConfigure() throws IOException, UserException {
+        final Path configDir = getDataPath("minimal");
+        final Settings settings = Settings.builder()
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
+            .build();
+        final Environment environment = new Environment(settings, configDir);
+        LogConfigurator.configure(environment);
+
+        Handler[] handlers = LogManager.getLogManager().getLogger("").getHandlers();
+        assertTrue(
+            "LogConfigurator.configure() should install Log4jBridgeHandler on the JUL root logger",
+            Arrays.stream(handlers).anyMatch(h -> h instanceof Log4jBridgeHandler)
+        );
     }
 
 }
