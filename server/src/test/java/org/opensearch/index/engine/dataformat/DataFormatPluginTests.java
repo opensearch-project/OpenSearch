@@ -455,4 +455,20 @@ public class DataFormatPluginTests extends OpenSearchTestCase {
         assertEquals(1, rm.deletedFiles.size());
         assertTrue(rm.deletedFiles.contains("a.parquet"));
     }
+
+    public void testGetDeleteExecutionEngineDefaultReturnsNull() {
+        DataFormatPlugin plugin = new DataFormatPlugin() {
+            @Override
+            public DataFormat getDataFormat() {
+                return new MockDataFormat("test", 1L, Set.of());
+            }
+
+            @Override
+            public IndexingExecutionEngine<?, ?> indexingEngine(IndexingEngineConfig settings) {
+                return null;
+            }
+        };
+
+        assertNull(plugin.getDeleteExecutionEngine(mock(org.opensearch.index.engine.exec.commit.Committer.class)));
+    }
 }

@@ -34,6 +34,7 @@ import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.DataFormatRegistry;
+import org.opensearch.index.engine.dataformat.DeleteExecutionEngine;
 import org.opensearch.index.engine.dataformat.FileInfos;
 import org.opensearch.index.engine.dataformat.IndexingEngineConfig;
 import org.opensearch.index.engine.dataformat.IndexingExecutionEngine;
@@ -139,6 +140,7 @@ public class DataFormatAwareEngine implements Indexer {
     private final Store store;
 
     private final IndexingExecutionEngine indexingExecutionEngine;
+    private final DeleteExecutionEngine<?> deleteExecutionEngine;
     private final IndexingStrategyPlanner indexingStrategyPlanner;
     private final LockablePool<DefaultLockableHolder<Writer<?>>> writerPool;
     private final AtomicLong writerGenerationCounter;
@@ -276,6 +278,9 @@ public class DataFormatAwareEngine implements Indexer {
                 ),
                 registry.format(config().getIndexSettings().pluggableDataFormat())
             );
+
+            this.deleteExecutionEngine = registry.getDeleteExecutionEngine(committer);
+
             long maxGenFromCommit = 0L;
             try {
                 List<CatalogSnapshot> initSnapshots = committer.listCommittedSnapshots();
@@ -291,7 +296,9 @@ public class DataFormatAwareEngine implements Indexer {
             this.writerPool = new LockablePool<>(() -> {
                 long gen = writerGenerationCounter.incrementAndGet();
                 assert gen > 0 : "writer generation must be positive but was: " + gen;
-                return DefaultLockableHolder.of(new RowIdAwareWriter<>(indexingExecutionEngine.createWriter(new WriterConfig(gen))));
+                Writer<?> writer = indexingExecutionEngine.createWriter(new WriterConfig(gen));
+                deleteExecutionEngine.createDeleter(writer);
+                return DefaultLockableHolder.of(new RowIdAwareWriter<>(writer));
             }, LinkedList::new, Runtime.getRuntime().availableProcessors());
             // Create Reader managers
             // We will pass IndexStoreProvider to this, which would contain store
