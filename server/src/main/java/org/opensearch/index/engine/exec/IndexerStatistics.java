@@ -10,11 +10,14 @@ package org.opensearch.index.engine.exec;
 
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.engine.CommitStats;
+import org.opensearch.index.engine.Segment;
 import org.opensearch.index.engine.SegmentsStats;
 import org.opensearch.index.merge.MergeStats;
 import org.opensearch.index.shard.DocsStats;
 import org.opensearch.indices.pollingingest.PollingIngestStats;
 import org.opensearch.search.suggest.completion.CompletionStats;
+
+import java.util.List;
 
 /**
  * Statistics and metrics for the indexer.
@@ -100,5 +103,16 @@ public interface IndexerStatistics {
      */
     default long getNativeBytesUsed() {
         return 0;
+    }
+
+    /**
+     * Returns per-segment metadata for this indexer.
+     * Each segment includes committed/search state, doc count, and size.
+     *
+     * @param verbose if true, includes additional detail (ignored for non-Lucene engines)
+     * @return list of segments, sorted by generation
+     */
+    default List<org.opensearch.index.engine.Segment> segments(boolean verbose) {
+        return List.of();
     }
 }

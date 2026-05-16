@@ -31,6 +31,7 @@ import org.opensearch.core.xcontent.DeprecationHandler;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.IndexService;
+import org.opensearch.index.engine.DataFormatAwareEngine;
 import org.opensearch.index.engine.dataformat.DocumentInput;
 import org.opensearch.index.engine.exec.Segment;
 import org.opensearch.index.engine.exec.WriterFileSet;
@@ -820,6 +821,75 @@ public class CompositeMergeIT extends OpenSearchIntegTestCase {
         waitForMerge(refreshCycles);
         DataformatAwareCatalogSnapshot snapshot = getCatalogSnapshot();
         verifyRowCount(snapshot, totalDocs);
+    }
+
+    // ══════════════════════════════════════════════════════════════════════
+    // Merge stats tests
+    // ══════════════════════════════════════════════════════════════════════
+
+    /**
+     * Verifies that after a merge, getMergeStats() reports at least one completed merge
+     * and unreferencedFileCleanUpsPerformed > 0 (old segment files were cleaned up).
+     */
+    public void testMergeStatsAfterMerge() throws Exception {
+        client().admin()
+            .indices()
+            .prepareCreate(INDEX_NAME)
+            .setSettings(unsortedSettings())
+            .setMapping("name", "type=keyword", "age", "type=integer")
+            .get();
+        ensureGreen(INDEX_NAME);
+
+        int docsPerCycle = 5;
+        int refreshCycles = 15;
+        indexDocsAcrossMultipleRefreshes(refreshCycles, docsPerCycle);
+
+        waitForMerge(refreshCycles);
+
+        IndexShard shard = getPrimaryShard();
+        DataFormatAwareEngine engine = (DataFormatAwareEngine) org.opensearch.index.shard.IndexShardTestCase.getIndexer(shard);
+
+        org.opensearch.index.merge.MergeStats mergeStats = engine.getMergeStats();
+        assertNotNull("MergeStats should not be null", mergeStats);
+        assertTrue("Total merges should be > 0 after merge", mergeStats.getTotal() > 0);
+
+        long cleanups = engine.unreferencedFileCleanUpsPerformed();
+        assertTrue("unreferencedFileCleanUpsPerformed should be > 0 after merge, got: " + cleanups, cleanups > 0);
+    }
+
+    /**
+     * Verifies that merge stats via the indices stats API (_stats/merge) reflects
+     * unreferenced_file_cleanups_performed after a merge.
+     */
+    public void testMergeStatsViaApi() throws Exception {
+        client().admin()
+            .indices()
+            .prepareCreate(INDEX_NAME)
+            .setSettings(unsortedSettings())
+            .setMapping("name", "type=keyword", "age", "type=integer")
+            .get();
+        ensureGreen(INDEX_NAME);
+
+        int docsPerCycle = 5;
+        int refreshCycles = 15;
+        indexDocsAcrossMultipleRefreshes(refreshCycles, docsPerCycle);
+
+        waitForMerge(refreshCycles);
+
+        org.opensearch.action.admin.indices.stats.IndicesStatsResponse statsResponse = client().admin()
+            .indices()
+            .prepareStats(INDEX_NAME)
+            .clear()
+            .setMerge(true)
+            .get();
+
+        org.opensearch.index.merge.MergeStats mergeStats = statsResponse.getIndex(INDEX_NAME).getShards()[0].getStats().getMerge();
+        assertNotNull("MergeStats from API should not be null", mergeStats);
+        assertTrue("Total merges via API should be > 0", mergeStats.getTotal() > 0);
+        assertTrue(
+            "unreferencedFileCleanUpsPerformed via API should be > 0, got: " + mergeStats.getUnreferencedFileCleanUpsPerformed(),
+            mergeStats.getUnreferencedFileCleanUpsPerformed() > 0
+        );
     }
 
     // ── Helpers for randomized tests ──

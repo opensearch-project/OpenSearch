@@ -28,6 +28,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 
 /**
@@ -68,6 +69,7 @@ public class IndexFileDeleter {
      * or {@link #retryPendingDeletes} call.
      */
     private final Map<String, Set<String>> pendingDeletes;
+    private final AtomicLong cleanUpsPerformed = new AtomicLong(0);
 
     /**
      * Callback invoked when a CatalogSnapshot's refCount reaches 0 via the deletion policy
@@ -291,6 +293,7 @@ public class IndexFileDeleter {
         }
         if (allDeleted.isEmpty() == false) {
             notifyFilesDeleted(allDeleted);
+            cleanUpsPerformed.incrementAndGet();
         }
     }
 
@@ -393,6 +396,7 @@ public class IndexFileDeleter {
         }
         if (successfullyDeleted.isEmpty() == false) {
             notifyFilesDeleted(successfullyDeleted);
+            cleanUpsPerformed.incrementAndGet();
         }
     }
 
@@ -438,6 +442,13 @@ public class IndexFileDeleter {
         if (orphans.isEmpty() == false) {
             executeDeletesWithRetry(orphans);
         }
+    }
+
+    /**
+     * Returns the number of unreferenced file cleanup operations performed.
+     */
+    public long getCleanUpsPerformed() {
+        return cleanUpsPerformed.get();
     }
 
     /**
