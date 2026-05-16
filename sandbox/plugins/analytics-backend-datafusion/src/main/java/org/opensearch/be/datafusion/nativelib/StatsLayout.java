@@ -22,7 +22,7 @@ import java.lang.invoke.VarHandle;
  * Defines the {@code MemoryLayout.structLayout} mirroring the Rust {@code DfStatsBuffer}
  * and provides {@link VarHandle} accessors for each field via layout path navigation.
  *
- * <p>The layout contains 9 named groups (2 runtime × 9 fields + 7 task monitor × 3 fields = 39 longs = 312 bytes).
+ * <p>The layout contains 6 named groups (2 runtime × 9 fields + 4 task monitor × 3 fields = 30 longs = 240 bytes).
  */
 public final class StatsLayout {
 
@@ -46,18 +46,15 @@ public final class StatsLayout {
     public static final StructLayout LAYOUT = MemoryLayout.structLayout(
         runtimeGroup("io_runtime"),
         runtimeGroup("cpu_runtime"),
+        taskMonitorGroup("coordinator_reduce"),
         taskMonitorGroup("query_execution"),
         taskMonitorGroup("stream_next"),
-        taskMonitorGroup("fetch_phase"),
-        taskMonitorGroup("create_context"),
-        taskMonitorGroup("prepare_partial_plan"),
-        taskMonitorGroup("prepare_final_plan"),
-        taskMonitorGroup("sql_to_substrait")
+        taskMonitorGroup("plan_setup")
     );
 
     static {
-        if (LAYOUT.byteSize() != 39 * Long.BYTES) {
-            throw new AssertionError("StatsLayout size mismatch: expected " + (39 * Long.BYTES) + " but got " + LAYOUT.byteSize());
+        if (LAYOUT.byteSize() != 30 * Long.BYTES) {
+            throw new AssertionError("StatsLayout size mismatch: expected " + (30 * Long.BYTES) + " but got " + LAYOUT.byteSize());
         }
     }
 
@@ -83,6 +80,11 @@ public final class StatsLayout {
     private static final VarHandle CPU_SPAWNED_TASKS_COUNT = handle("cpu_runtime", "spawned_tasks_count");
     private static final VarHandle CPU_TOTAL_LOCAL_QUEUE_DEPTH = handle("cpu_runtime", "total_local_queue_depth");
 
+    // ---- VarHandles for coordinator_reduce fields ----
+    private static final VarHandle CR_TOTAL_POLL_DURATION_MS = handle("coordinator_reduce", "total_poll_duration_ms");
+    private static final VarHandle CR_TOTAL_SCHEDULED_DURATION_MS = handle("coordinator_reduce", "total_scheduled_duration_ms");
+    private static final VarHandle CR_TOTAL_IDLE_DURATION_MS = handle("coordinator_reduce", "total_idle_duration_ms");
+
     // ---- VarHandles for query_execution fields ----
     private static final VarHandle QE_TOTAL_POLL_DURATION_MS = handle("query_execution", "total_poll_duration_ms");
     private static final VarHandle QE_TOTAL_SCHEDULED_DURATION_MS = handle("query_execution", "total_scheduled_duration_ms");
@@ -93,30 +95,10 @@ public final class StatsLayout {
     private static final VarHandle SN_TOTAL_SCHEDULED_DURATION_MS = handle("stream_next", "total_scheduled_duration_ms");
     private static final VarHandle SN_TOTAL_IDLE_DURATION_MS = handle("stream_next", "total_idle_duration_ms");
 
-    // ---- VarHandles for fetch_phase fields ----
-    private static final VarHandle FP_TOTAL_POLL_DURATION_MS = handle("fetch_phase", "total_poll_duration_ms");
-    private static final VarHandle FP_TOTAL_SCHEDULED_DURATION_MS = handle("fetch_phase", "total_scheduled_duration_ms");
-    private static final VarHandle FP_TOTAL_IDLE_DURATION_MS = handle("fetch_phase", "total_idle_duration_ms");
-
-    // ---- VarHandles for create_context fields ----
-    private static final VarHandle CC_TOTAL_POLL_DURATION_MS = handle("create_context", "total_poll_duration_ms");
-    private static final VarHandle CC_TOTAL_SCHEDULED_DURATION_MS = handle("create_context", "total_scheduled_duration_ms");
-    private static final VarHandle CC_TOTAL_IDLE_DURATION_MS = handle("create_context", "total_idle_duration_ms");
-
-    // ---- VarHandles for prepare_partial_plan fields ----
-    private static final VarHandle PPP_TOTAL_POLL_DURATION_MS = handle("prepare_partial_plan", "total_poll_duration_ms");
-    private static final VarHandle PPP_TOTAL_SCHEDULED_DURATION_MS = handle("prepare_partial_plan", "total_scheduled_duration_ms");
-    private static final VarHandle PPP_TOTAL_IDLE_DURATION_MS = handle("prepare_partial_plan", "total_idle_duration_ms");
-
-    // ---- VarHandles for prepare_final_plan fields ----
-    private static final VarHandle PFP_TOTAL_POLL_DURATION_MS = handle("prepare_final_plan", "total_poll_duration_ms");
-    private static final VarHandle PFP_TOTAL_SCHEDULED_DURATION_MS = handle("prepare_final_plan", "total_scheduled_duration_ms");
-    private static final VarHandle PFP_TOTAL_IDLE_DURATION_MS = handle("prepare_final_plan", "total_idle_duration_ms");
-
-    // ---- VarHandles for sql_to_substrait fields ----
-    private static final VarHandle STS_TOTAL_POLL_DURATION_MS = handle("sql_to_substrait", "total_poll_duration_ms");
-    private static final VarHandle STS_TOTAL_SCHEDULED_DURATION_MS = handle("sql_to_substrait", "total_scheduled_duration_ms");
-    private static final VarHandle STS_TOTAL_IDLE_DURATION_MS = handle("sql_to_substrait", "total_idle_duration_ms");
+    // ---- VarHandles for plan_setup fields ----
+    private static final VarHandle PS_TOTAL_POLL_DURATION_MS = handle("plan_setup", "total_poll_duration_ms");
+    private static final VarHandle PS_TOTAL_SCHEDULED_DURATION_MS = handle("plan_setup", "total_scheduled_duration_ms");
+    private static final VarHandle PS_TOTAL_IDLE_DURATION_MS = handle("plan_setup", "total_idle_duration_ms");
 
     private StatsLayout() {}
 
@@ -133,7 +115,7 @@ public final class StatsLayout {
     }
 
     /**
-     * Read a runtime metrics group (8 fields) from the segment.
+     * Read a runtime metrics group (9 fields) from the segment.
      *
      * @param seg   the memory segment containing the DfStatsBuffer
      * @param group "io_runtime" or "cpu_runtime"
@@ -222,28 +204,16 @@ public final class StatsLayout {
 
     private static VarHandle[] taskMonitorHandles(String group) {
         return switch (group) {
+            case "coordinator_reduce" -> new VarHandle[] {
+                CR_TOTAL_POLL_DURATION_MS,
+                CR_TOTAL_SCHEDULED_DURATION_MS,
+                CR_TOTAL_IDLE_DURATION_MS };
             case "query_execution" -> new VarHandle[] {
                 QE_TOTAL_POLL_DURATION_MS,
                 QE_TOTAL_SCHEDULED_DURATION_MS,
                 QE_TOTAL_IDLE_DURATION_MS };
             case "stream_next" -> new VarHandle[] { SN_TOTAL_POLL_DURATION_MS, SN_TOTAL_SCHEDULED_DURATION_MS, SN_TOTAL_IDLE_DURATION_MS };
-            case "fetch_phase" -> new VarHandle[] { FP_TOTAL_POLL_DURATION_MS, FP_TOTAL_SCHEDULED_DURATION_MS, FP_TOTAL_IDLE_DURATION_MS };
-            case "create_context" -> new VarHandle[] {
-                CC_TOTAL_POLL_DURATION_MS,
-                CC_TOTAL_SCHEDULED_DURATION_MS,
-                CC_TOTAL_IDLE_DURATION_MS };
-            case "prepare_partial_plan" -> new VarHandle[] {
-                PPP_TOTAL_POLL_DURATION_MS,
-                PPP_TOTAL_SCHEDULED_DURATION_MS,
-                PPP_TOTAL_IDLE_DURATION_MS };
-            case "prepare_final_plan" -> new VarHandle[] {
-                PFP_TOTAL_POLL_DURATION_MS,
-                PFP_TOTAL_SCHEDULED_DURATION_MS,
-                PFP_TOTAL_IDLE_DURATION_MS };
-            case "sql_to_substrait" -> new VarHandle[] {
-                STS_TOTAL_POLL_DURATION_MS,
-                STS_TOTAL_SCHEDULED_DURATION_MS,
-                STS_TOTAL_IDLE_DURATION_MS };
+            case "plan_setup" -> new VarHandle[] { PS_TOTAL_POLL_DURATION_MS, PS_TOTAL_SCHEDULED_DURATION_MS, PS_TOTAL_IDLE_DURATION_MS };
             default -> throw new IllegalArgumentException("Unknown task monitor group: " + group);
         };
     }

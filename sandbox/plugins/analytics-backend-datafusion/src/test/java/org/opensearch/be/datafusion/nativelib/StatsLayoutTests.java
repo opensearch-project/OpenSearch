@@ -20,10 +20,10 @@ import java.lang.foreign.ValueLayout;
  */
 public class StatsLayoutTests extends OpenSearchTestCase {
 
-    /** 7.1: Layout byte size must be 312 (39 × 8). */
+    /** 7.1: Layout byte size must be 240 (30 × 8). */
     public void testLayoutByteSize() {
-        assertEquals(312L, StatsLayout.LAYOUT.byteSize());
-        assertEquals(39 * Long.BYTES, (int) StatsLayout.LAYOUT.byteSize());
+        assertEquals(240L, StatsLayout.LAYOUT.byteSize());
+        assertEquals(30 * Long.BYTES, (int) StatsLayout.LAYOUT.byteSize());
     }
 
     /** 7.2: readRuntimeMetrics decodes 9 known values from io_runtime group. */
@@ -48,16 +48,16 @@ public class StatsLayoutTests extends OpenSearchTestCase {
         }
     }
 
-    /** 7.3: readTaskMonitor decodes 3 known values from query_execution group. */
+    /** 7.3: readTaskMonitor decodes 3 known values from coordinator_reduce group. */
     public void testReadTaskMonitorFromSegment() {
         try (var arena = Arena.ofConfined()) {
             var seg = arena.allocate(StatsLayout.LAYOUT);
-            // query_execution starts at index 18 (2 runtime groups × 9 fields = 18)
+            // coordinator_reduce starts at index 18 (2 runtime groups × 9 fields = 18)
             seg.setAtIndex(ValueLayout.JAVA_LONG, 18, 100L);
             seg.setAtIndex(ValueLayout.JAVA_LONG, 19, 200L);
             seg.setAtIndex(ValueLayout.JAVA_LONG, 20, 300L);
 
-            var tm = StatsLayout.readTaskMonitor(seg, "query_execution");
+            var tm = StatsLayout.readTaskMonitor(seg, "coordinator_reduce");
             assertEquals(100L, tm.totalPollDurationMs);
             assertEquals(200L, tm.totalScheduledDurationMs);
             assertEquals(300L, tm.totalIdleDurationMs);

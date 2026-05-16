@@ -335,7 +335,7 @@ pub unsafe extern "C" fn df_execute_local_plan(
     // The IO runtime still drives the outer block_on (bridging the synchronous FFI
     // call to the async spawn handle).
     mgr.io_runtime
-        .block_on(crate::task_monitors::fetch_phase_monitor().instrument(async move {
+        .block_on(crate::task_monitors::coordinator_reduce_monitor().instrument(async move {
             let inner_fut = async move {
                 unsafe { api::execute_local_plan(session_ptr, &bytes_vec, &mgr_for_inner, 0).await }
             };
@@ -519,7 +519,7 @@ pub unsafe extern "C" fn df_create_session_context(
         crate::datafusion_query_config::DatafusionQueryConfig::from_ffm_ptr(query_config_ptr);
     let mgr = get_rt_manager()?;
     mgr.io_runtime
-        .block_on(crate::task_monitors::create_context_monitor().instrument(
+        .block_on(crate::task_monitors::plan_setup_monitor().instrument(
             crate::session_context::create_session_context(
                 runtime_ptr,
                 shard_view_ptr,
@@ -549,7 +549,7 @@ pub unsafe extern "C" fn df_create_session_context_indexed(
         crate::datafusion_query_config::DatafusionQueryConfig::from_ffm_ptr(query_config_ptr);
     let mgr = get_rt_manager()?;
     mgr.io_runtime
-        .block_on(crate::task_monitors::create_context_monitor().instrument(
+        .block_on(crate::task_monitors::plan_setup_monitor().instrument(
             crate::session_context::create_session_context_indexed(
                 runtime_ptr, shard_view_ptr, table_name, context_id, tree_shape, delegated_predicate_count, query_config,
             )
@@ -739,17 +739,15 @@ pub unsafe extern "C" fn df_execute_with_context(
 
 /// Collects all native executor metrics into a caller-provided byte buffer.
 ///
-/// The buffer must have capacity for at least `size_of::<DfStatsBuffer>()` bytes (312).
+/// The buffer must have capacity for at least `size_of::<DfStatsBuffer>()` bytes (240).
 /// Returns 0 on success.
 #[ffm_safe]
 #[no_mangle]
 pub unsafe extern "C" fn df_stats(out_ptr: *mut u8, out_cap: i64) -> i64 {
     use crate::stats::{layout, pack_runtime_metrics, pack_task_monitor, DfStatsBuffer, RuntimeMetricsRepr};
     use crate::task_monitors::{
-        query_execution_monitor, stream_next_monitor,
-        fetch_phase_monitor, create_context_monitor,
-        prepare_partial_plan_monitor, prepare_final_plan_monitor,
-        sql_to_substrait_monitor,
+        coordinator_reduce_monitor, query_execution_monitor,
+        stream_next_monitor, plan_setup_monitor,
     };
 
     if out_cap < 0 || (out_cap as usize) < layout::BUFFER_BYTE_SIZE {
@@ -778,13 +776,10 @@ pub unsafe extern "C" fn df_stats(out_ptr: *mut u8, out_cap: i64) -> i64 {
     let buf = DfStatsBuffer {
         io_runtime,
         cpu_runtime,
+        coordinator_reduce: pack_task_monitor(coordinator_reduce_monitor()),
         query_execution: pack_task_monitor(query_execution_monitor()),
         stream_next: pack_task_monitor(stream_next_monitor()),
-        fetch_phase: pack_task_monitor(fetch_phase_monitor()),
-        create_context: pack_task_monitor(create_context_monitor()),
-        prepare_partial_plan: pack_task_monitor(prepare_partial_plan_monitor()),
-        prepare_final_plan: pack_task_monitor(prepare_final_plan_monitor()),
-        sql_to_substrait: pack_task_monitor(sql_to_substrait_monitor()),
+        plan_setup: pack_task_monitor(plan_setup_monitor()),
     };
 
     // Copy struct bytes to caller buffer
@@ -822,7 +817,7 @@ pub unsafe extern "C" fn df_prepare_partial_plan(
     let bytes = slice::from_raw_parts(bytes_ptr, bytes_len);
     let mgr = get_rt_manager()?;
     mgr.io_runtime
-        .block_on(crate::task_monitors::prepare_partial_plan_monitor().instrument(
+        .block_on(crate::task_monitors::plan_setup_monitor().instrument(
             crate::session_context::prepare_partial_plan(handle, bytes)
         ))
         .map_err(|e| e.to_string())?;
@@ -851,7 +846,7 @@ pub unsafe extern "C" fn df_prepare_final_plan(
     let bytes = slice::from_raw_parts(bytes_ptr, bytes_len);
     let mgr = get_rt_manager()?;
     mgr.io_runtime
-        .block_on(crate::task_monitors::prepare_final_plan_monitor().instrument(
+        .block_on(crate::task_monitors::plan_setup_monitor().instrument(
             session.prepare_final_plan(bytes)
         ))
         .map_err(|e| e.to_string())?;
