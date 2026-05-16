@@ -9,10 +9,12 @@
 package org.opensearch.composite;
 
 import org.opensearch.index.engine.dataformat.FileInfos;
+import org.opensearch.index.engine.dataformat.Writer;
 import org.opensearch.index.engine.dataformat.WriterConfig;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
+import java.util.Optional;
 
 /**
  * Tests for {@link CompositeWriter}.
@@ -128,4 +130,27 @@ public class CompositeWriterTests extends OpenSearchTestCase {
         writer.close();
     }
 
+    public void testGetWriterForFormatReturnsLuceneWriter() throws IOException {
+        CompositeWriter writer = new CompositeWriter(engine, new WriterConfig(1L));
+        Optional<Writer<?>> result = writer.getWriterForFormat("lucene");
+
+        assertTrue("Should return present for 'lucene'", result.isPresent());
+        assertEquals("Returned writer generation should match", 1L, result.get().generation());
+    }
+
+    public void testGetWriterForFormatReturnsParquetWriter() throws IOException {
+        CompositeWriter writer = new CompositeWriter(engine, new WriterConfig(1L));
+        Optional<Writer<?>> result = writer.getWriterForFormat("parquet");
+
+        assertTrue("Should return present for 'parquet'", result.isPresent());
+        assertEquals("Returned writer generation should match", 1L, result.get().generation());
+    }
+
+    public void testGetWriterForFormatReturnsEmptyForUnknownFormat() throws IOException {
+        CompositeWriter writer = new CompositeWriter(engine, new WriterConfig(1L));
+        Optional<Writer<?>> result = writer.getWriterForFormat("unknown");
+
+        assertFalse("Should return empty for unknown format", result.isPresent());
+        assertEquals("Writer generation should still be accessible", 1L, writer.generation());
+    }
 }

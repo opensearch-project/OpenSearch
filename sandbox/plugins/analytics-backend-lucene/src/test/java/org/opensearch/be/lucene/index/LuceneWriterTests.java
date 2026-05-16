@@ -21,9 +21,12 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.NIOFSDirectory;
+import org.apache.lucene.util.BytesRef;
 import org.opensearch.be.lucene.LuceneDataFormat;
+import org.opensearch.index.engine.dataformat.DeleteInput;
 import org.opensearch.index.engine.dataformat.FileInfos;
 import org.opensearch.index.engine.dataformat.WriteResult;
+import org.opensearch.index.engine.dataformat.Writer;
 import org.opensearch.index.engine.exec.WriterFileSet;
 import org.opensearch.index.mapper.KeywordFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
@@ -32,6 +35,7 @@ import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.Optional;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
@@ -314,5 +318,41 @@ public class LuceneWriterTests extends OpenSearchTestCase {
             writer1.close();
             writer2.close();
         }
+    }
+
+    public void testGetWriterForFormatReturnsItselfForLucene() throws IOException {
+        Path baseDir = createTempDir();
+        try (LuceneWriter writer = new LuceneWriter(1L, 0L, dataFormat, baseDir, null, Codec.getDefault(), null)) {
+            Optional<Writer<?>> result = writer.getWriterForFormat("lucene");
+
+            assertTrue("Should return present for 'lucene'", result.isPresent());
+            assertSame("Should return itself", writer, result.get());
+        }
+    }
+
+    public void testGetWriterForFormatReturnsEmptyForOtherFormats() throws IOException {
+        Path baseDir = createTempDir();
+        try (LuceneWriter writer = new LuceneWriter(1L, 0L, dataFormat, baseDir, null, Codec.getDefault(), null)) {
+            Optional<Writer<?>> parquetResult = writer.getWriterForFormat("parquet");
+            Optional<Writer<?>> nullResult = writer.getWriterForFormat(null);
+
+            assertFalse("Should return empty for non-lucene format", parquetResult.isPresent());
+            assertFalse("Should return empty for null format", nullResult.isPresent());
+        }
+    }
+
+    public void testWriterDefaultGetWriterForFormatReturnsEmpty() {
+        Writer<?> writer = mock(Writer.class, org.mockito.Mockito.CALLS_REAL_METHODS);
+        Optional<Writer<?>> result = writer.getWriterForFormat("any");
+        assertFalse(result.isPresent());
+    }
+
+    public void testWriterDefaultDeleteDocumentThrowsUnsupported() {
+        Writer<?> writer = mock(Writer.class, org.mockito.Mockito.CALLS_REAL_METHODS);
+        UnsupportedOperationException e = expectThrows(
+            UnsupportedOperationException.class,
+            () -> writer.deleteDocument(new DeleteInput("_id", new BytesRef("1"), 1L))
+        );
+        assertTrue(e.getMessage().contains("deleteDocument is not supported"));
     }
 }
