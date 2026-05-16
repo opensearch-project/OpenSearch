@@ -15,7 +15,7 @@ import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.plugin.stats.DataFusionNativeNodeStats;
+import org.opensearch.plugin.stats.AnalyticsBackendTaskCancellationStats;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -28,7 +28,7 @@ public class TaskCancellationStats implements ToXContentFragment, Writeable {
     private final SearchTaskCancellationStats searchTaskCancellationStats;
     private final SearchShardTaskCancellationStats searchShardTaskCancellationStats;
     @Nullable
-    private final DataFusionNativeNodeStats nativeStats;
+    private final AnalyticsBackendTaskCancellationStats nativeStats;
 
     /**
      * Backward-compatible constructor without native stats.
@@ -50,7 +50,7 @@ public class TaskCancellationStats implements ToXContentFragment, Writeable {
     public TaskCancellationStats(
         SearchTaskCancellationStats searchTaskCancellationStats,
         SearchShardTaskCancellationStats searchShardTaskCancellationStats,
-        @Nullable DataFusionNativeNodeStats nativeStats
+        @Nullable AnalyticsBackendTaskCancellationStats nativeStats
     ) {
         this.searchTaskCancellationStats = searchTaskCancellationStats;
         this.searchShardTaskCancellationStats = searchShardTaskCancellationStats;
@@ -66,7 +66,7 @@ public class TaskCancellationStats implements ToXContentFragment, Writeable {
         searchShardTaskCancellationStats = new SearchShardTaskCancellationStats(in);
         if (in.getVersion().onOrAfter(Version.V_3_7_0)) {
             if (in.readBoolean()) {
-                nativeStats = new DataFusionNativeNodeStats(in);
+                nativeStats = new AnalyticsBackendTaskCancellationStats(in);
             } else {
                 nativeStats = null;
             }
@@ -87,7 +87,7 @@ public class TaskCancellationStats implements ToXContentFragment, Writeable {
 
     // package private for testing
     @Nullable
-    protected DataFusionNativeNodeStats getNativeStats() {
+    protected AnalyticsBackendTaskCancellationStats getNativeStats() {
         return this.nativeStats;
     }
 

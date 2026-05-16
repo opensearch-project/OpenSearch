@@ -214,7 +214,7 @@ import org.opensearch.persistent.PersistentTasksClusterService;
 import org.opensearch.persistent.PersistentTasksExecutor;
 import org.opensearch.persistent.PersistentTasksExecutorRegistry;
 import org.opensearch.persistent.PersistentTasksService;
-import org.opensearch.plugin.stats.BackendStatsProvider;
+import org.opensearch.plugin.stats.AnalyticsBackendTaskCancellationStats;
 import org.opensearch.plugins.ActionPlugin;
 import org.opensearch.plugins.AnalysisPlugin;
 import org.opensearch.plugins.CachePlugin;
@@ -1575,9 +1575,10 @@ public class Node implements Closeable {
                 settings,
                 clusterService.getClusterSettings()
             );
-            final BackendStatsProvider backendStatsProvider = pluginsService.filterPlugins(SearchBackEndPlugin.class)
+            final Supplier<AnalyticsBackendTaskCancellationStats> analyticsTaskCancellationStatsSupplier = pluginsService
+                .filterPlugins(SearchBackEndPlugin.class)
                 .stream()
-                .map(SearchBackEndPlugin::getBackendStatsProvider)
+                .map(SearchBackEndPlugin::getAnalyticsBackendTaskCancellationStats)
                 .filter(Objects::nonNull)
                 .findFirst()
                 .orElse(null);
@@ -1585,7 +1586,7 @@ public class Node implements Closeable {
                 threadPool,
                 transportService.getTaskManager(),
                 taskCancellationMonitoringSettings,
-                backendStatsProvider
+                analyticsTaskCancellationStatsSupplier
             );
 
             final NativeStatsProvider nativeStatsProvider = pluginsService.filterPlugins(NativeStatsProvider.class)

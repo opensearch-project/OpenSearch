@@ -15,7 +15,7 @@ import org.opensearch.be.datafusion.stats.TaskMonitorStats;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.nativebridge.spi.NativeCall;
 import org.opensearch.nativebridge.spi.NativeLibraryLoader;
-import org.opensearch.plugin.stats.DataFusionNativeNodeStats;
+import org.opensearch.plugin.stats.AnalyticsBackendTaskCancellationStats;
 import org.opensearch.plugins.NativeStoreHandle;
 
 import java.lang.foreign.FunctionDescriptor;
@@ -712,10 +712,10 @@ public final class NativeBridge {
      * Reads native task cancellation counters via {@code df_native_node_stats} FFM call.
      * Independent of {@link #stats()} which calls {@code df_stats} for plugin stats.
      *
-     * @return a populated {@link DataFusionNativeNodeStats}
+     * @return a populated {@link AnalyticsBackendTaskCancellationStats}
      * @throws IllegalStateException if the FFM function returns a non-zero error code
      */
-    public static DataFusionNativeNodeStats nativeNodeStats() {
+    public static AnalyticsBackendTaskCancellationStats nativeNodeStats() {
         try (var call = new NativeCall()) {
             var seg = call.buf(32);
             call.invoke(DF_NATIVE_NODE_STATS, seg, 32L);

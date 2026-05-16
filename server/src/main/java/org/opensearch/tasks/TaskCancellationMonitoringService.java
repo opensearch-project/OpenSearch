@@ -15,9 +15,9 @@ import org.opensearch.action.search.SearchTask;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
 import org.opensearch.common.metrics.CounterMetric;
-import org.opensearch.plugin.stats.BackendStatsProvider;
-import org.opensearch.plugin.stats.DataFusionNativeNodeStats;
-import org.opensearch.plugin.stats.PluginStats;
+import org.opensearch.plugin.stats.AnalyticsBackendTaskCancellationStats;
+
+import java.util.function.Supplier;
 import org.opensearch.threadpool.Scheduler;
 import org.opensearch.threadpool.ThreadPool;
 
@@ -59,7 +59,7 @@ public class TaskCancellationMonitoringService extends AbstractLifecycleComponen
     private final Map<Class<? extends CancellableTask>, TaskCancellationStatsHolder> cancellationStatsHolder;
     private final TaskCancellationMonitoringSettings taskCancellationMonitoringSettings;
     @Nullable
-    private final BackendStatsProvider backendStatsProvider;
+    private final Supplier<AnalyticsBackendTaskCancellationStats> nativeStatsSupplier;
 
     public TaskCancellationMonitoringService(
         ThreadPool threadPool,
@@ -73,12 +73,12 @@ public class TaskCancellationMonitoringService extends AbstractLifecycleComponen
         ThreadPool threadPool,
         TaskManager taskManager,
         TaskCancellationMonitoringSettings taskCancellationMonitoringSettings,
-        @Nullable BackendStatsProvider backendStatsProvider
+        @Nullable Supplier<AnalyticsBackendTaskCancellationStats> nativeStatsSupplier
     ) {
         this.threadPool = threadPool;
         this.taskManager = taskManager;
         this.taskCancellationMonitoringSettings = taskCancellationMonitoringSettings;
-        this.backendStatsProvider = backendStatsProvider;
+        this.nativeStatsSupplier = nativeStatsSupplier;
         this.cancelledTaskTracker = new ConcurrentHashMap<>();
         cancellationStatsHolder = TASKS_TO_TRACK.stream()
             .collect(Collectors.toConcurrentMap(task -> task, task -> new TaskCancellationStatsHolder()));
@@ -163,8 +163,7 @@ public class TaskCancellationMonitoringService extends AbstractLifecycleComponen
         Map<Class<? extends CancellableTask>, List<CancellableTask>> currentRunningCancelledTasks =
             getCurrentRunningTasksPostCancellation();
 
-        // Fetch native stats on-demand
-        DataFusionNativeNodeStats nativeStats = fetchNativeStats();
+        AnalyticsBackendTaskCancellationStats nativeStats = fetchNativeStats();
 
         return new TaskCancellationStats(
             new SearchTaskCancellationStats(
@@ -180,18 +179,14 @@ public class TaskCancellationMonitoringService extends AbstractLifecycleComponen
     }
 
     @Nullable
-    private DataFusionNativeNodeStats fetchNativeStats() {
-        if (backendStatsProvider == null) {
+    private AnalyticsBackendTaskCancellationStats fetchNativeStats() {
+        if (nativeStatsSupplier == null) {
             return null;
         }
         try {
-            PluginStats pluginStats = backendStatsProvider.getBackendStats();
-            if (pluginStats instanceof DataFusionNativeNodeStats) {
-                return (DataFusionNativeNodeStats) pluginStats;
-            }
-            return null;
+            return nativeStatsSupplier.get();
         } catch (Exception e) {
-            logger.debug("Failed to fetch native node stats", e);
+            logger.debug("Failed to fetch native task cancellation stats", e);
             return null;
         }
     }
