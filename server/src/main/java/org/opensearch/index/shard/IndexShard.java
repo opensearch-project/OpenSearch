@@ -1774,7 +1774,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     public org.apache.lucene.util.Version minimumCompatibleVersion() {
         org.apache.lucene.util.Version luceneVersion = null;
-        for (Segment segment : applyOnEngine(getIndexer(), engine -> engine.segments(false))) {
+        for (Segment segment : getIndexer().segments(false)) {
+            if (segment.getVersion() == null) continue; // DFAE segments have no Lucene version
             if (luceneVersion == null || luceneVersion.onOrAfter(segment.getVersion())) {
                 luceneVersion = segment.getVersion();
             }
@@ -3542,7 +3543,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public List<Segment> segments(boolean verbose) {
-        return applyOnEngine(getIndexer(), engine -> engine.segments(verbose));
+        return getIndexer().segments(verbose);
     }
 
     public String getHistoryUUID() {

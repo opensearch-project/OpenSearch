@@ -19,6 +19,7 @@ import org.opensearch.index.engine.exec.Indexer;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 import org.opensearch.index.engine.exec.coord.SegmentInfosCatalogSnapshot;
 import org.opensearch.index.mapper.DocumentMapperForType;
+import org.opensearch.index.engine.Segment;
 import org.opensearch.index.mapper.SourceToParse;
 import org.opensearch.index.merge.MergeStats;
 import org.opensearch.index.seqno.SeqNoStats;
@@ -30,6 +31,7 @@ import org.opensearch.search.suggest.completion.CompletionStats;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.List;
 
 /**
  * An indexer implementation that uses an engine to perform indexing operations.
@@ -279,6 +281,11 @@ public class EngineBackedIndexer implements Indexer {
     @Override
     public SegmentsStats segmentsStats(boolean includeSegmentFileSizes, boolean includeUnloadedSegments) {
         return engine.segmentsStats(includeSegmentFileSizes, includeUnloadedSegments);
+    }
+
+    @Override
+    public List<Segment> segments(boolean verbose) {
+        return engine.segments(verbose);
     }
 
     @Override
