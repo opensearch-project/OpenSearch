@@ -33,7 +33,13 @@ public class RuleProfilingListenerTests extends BasePlannerRulesTests {
 
     private static final Logger LOGGER = LogManager.getLogger(RuleProfilingListenerTests.class);
 
-    private static final List<String> EXPECTED_PHASES = List.of("calcite-core-rules", "aggregate-decompose", "marking", "cbo");
+    private static final List<String> EXPECTED_PHASES = List.of(
+        "reduce-expressions",
+        "pushdown-rules",
+        "aggregate-decompose",
+        "marking",
+        "cbo"
+    );
 
     public void testProfilePureScan() {
         runAndAssertRules(
@@ -133,7 +139,7 @@ public class RuleProfilingListenerTests extends BasePlannerRulesTests {
      * Runs the SQL through {@link PlannerImpl#runAllOptimizations} with profiling enabled,
      * then asserts:
      * <ul>
-     *   <li>All four optimization phases ran in declared order with non-negative durations.</li>
+     *   <li>All optimization phases ran in declared order with non-negative durations.</li>
      *   <li>The set of fired rules matches {@code expectedProductionsByRule.keySet()} exactly.</li>
      *   <li>Each rule's {@code productions} equals the expected value in the map.</li>
      *   <li>Per-rule sanity: {@code attempts > 0}, {@code productions <= attempts},
@@ -150,7 +156,7 @@ public class RuleProfilingListenerTests extends BasePlannerRulesTests {
         RuleProfilingListener.PlannerProfile profile = context.getProfilingResults();
         assertNotNull("Profiling enabled — profile must be recorded", profile);
 
-        assertEquals("All four optimization phases must run in declared order", EXPECTED_PHASES, profile.phases());
+        assertEquals("All optimization phases must run in declared order", EXPECTED_PHASES, profile.phases());
 
         for (String phase : EXPECTED_PHASES) {
             Long durationNs = profile.phaseDurationsNs().get(phase);

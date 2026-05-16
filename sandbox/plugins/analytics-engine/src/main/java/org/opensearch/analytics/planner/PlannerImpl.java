@@ -87,7 +87,8 @@ public class PlannerImpl {
         RuleProfilingListener listener = context.isProfilingEnabled() ? new RuleProfilingListener() : null;
 
         RelNode modifiedRelNode = rawRelNode;
-        modifiedRelNode = calciteCoreRules(modifiedRelNode, listener);
+        modifiedRelNode = reduceExpressions(modifiedRelNode, listener);
+        modifiedRelNode = pushdownRules(modifiedRelNode, listener);
         modifiedRelNode = decomposeAggregates(modifiedRelNode, listener);
         modifiedRelNode = mark(modifiedRelNode, context, listener);
         LOGGER.info("After marking:\n{}", RelOptUtil.toString(modifiedRelNode));
@@ -103,33 +104,57 @@ public class PlannerImpl {
     }
 
     /**
-     * Phase 1a: Calcite core rules. Pre-marking constant-expression reduction and Filter
-     * pushdown past Project / Aggregate / Join. Running pre-marking means transposes emit
-     * plain {@code Logical*} nodes, then marking lowers the canonical post-pushdown shape
-     * in one pass — no marking-loss problem from rule output.
+     * Phase 1a: constant-expression reduction on Filter and Project predicates. Kept in
+     * its own phase so {@code ProjectReduceExpressionsRule} cannot use a downstream
+     * Filter's predicates (introduced by {@link #pushdownRules} in Phase 1b) to rewrite
+     * Project expressions. Co-locating the reducer with the transposes lets Calcite
+     * simplify e.g. {@code m = (int0 <= 4)} into {@code m = IS NOT NULL(int0)} once the
+     * Filter sits below the Project — semantically correct but emits operators the
+     * Project may not have backend support for.
      */
-    private static RelNode calciteCoreRules(RelNode input, RuleProfilingListener listener) {
+    private static RelNode reduceExpressions(RelNode input, RuleProfilingListener listener) {
         HepProgramBuilder builder = new HepProgramBuilder();
         builder.addMatchOrder(HepMatchOrder.BOTTOM_UP);
         builder.addRuleCollection(
             List.of(
                 new ReduceExpressionsRule.FilterReduceExpressionsRule(Filter.class, RelBuilder.proto(Contexts.empty())),
-                new ReduceExpressionsRule.ProjectReduceExpressionsRule(Project.class, RelBuilder.proto(Contexts.empty())),
-                CoreRules.FILTER_PROJECT_TRANSPOSE,
-                CoreRules.FILTER_AGGREGATE_TRANSPOSE,
-                CoreRules.FILTER_INTO_JOIN
+                new ReduceExpressionsRule.ProjectReduceExpressionsRule(Project.class, RelBuilder.proto(Contexts.empty()))
             )
         );
         HepPlanner planner = new HepPlanner(builder.build());
         if (listener != null) {
             planner.addListener(listener);
-            listener.beginPhase("calcite-core-rules");
+            listener.beginPhase("reduce-expressions");
         }
         try {
             planner.setRoot(input);
             return planner.findBestExp();
         } finally {
-            if (listener != null) listener.endPhase("calcite-core-rules");
+            if (listener != null) listener.endPhase("reduce-expressions");
+        }
+    }
+
+    /**
+     * Phase 1b: Filter pushdown past Project / Aggregate / Join via Calcite's transpose rules.
+     * Pre-marking placement keeps marking single-pass — transposes emit plain {@code Logical*}
+     * nodes, then marking lowers the canonical post-pushdown shape in one go.
+     */
+    private static RelNode pushdownRules(RelNode input, RuleProfilingListener listener) {
+        HepProgramBuilder builder = new HepProgramBuilder();
+        builder.addMatchOrder(HepMatchOrder.BOTTOM_UP);
+        builder.addRuleCollection(
+            List.of(CoreRules.FILTER_PROJECT_TRANSPOSE, CoreRules.FILTER_AGGREGATE_TRANSPOSE, CoreRules.FILTER_INTO_JOIN)
+        );
+        HepPlanner planner = new HepPlanner(builder.build());
+        if (listener != null) {
+            planner.addListener(listener);
+            listener.beginPhase("pushdown-rules");
+        }
+        try {
+            planner.setRoot(input);
+            return planner.findBestExp();
+        } finally {
+            if (listener != null) listener.endPhase("pushdown-rules");
         }
     }
 
