@@ -162,8 +162,7 @@ public class ValuesSqlIT extends OpenSearchIntegTestCase {
      * {@code (2, total_size_of_GET_rows)}.
      *
      * <p>1-shard only for now — the multi-shard PARTIAL→FINAL path hits a separate
-     * Int32/Int64 width drift in {@code DatafusionReduceSink.coerceToDeclaredSchema}
-     * that's being fixed in another change.
+     * Int32/Int64 width drift in the reduce sink that's being fixed in another change.
      */
     public void testLiteralWithAggregateAndFilter_1shard() {
         createAndSeedHttpLogsIndex(1);

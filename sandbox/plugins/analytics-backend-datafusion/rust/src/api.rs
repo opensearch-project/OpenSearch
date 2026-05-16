@@ -31,12 +31,10 @@
 //! - `stream_get_schema`, `stream_close` must NOT be called
 //!   concurrently on the same stream pointer.
 
-use std::io::Cursor;
 use std::num::NonZeroUsize;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use arrow::ipc::reader::StreamReader;
 use arrow_array::ffi::FFI_ArrowArray;
 use arrow_array::RecordBatch;
 use arrow_array::{Array, StructArray};
@@ -534,6 +532,186 @@ pub unsafe fn sql_to_substrait(
     })
 }
 
+/// Lowers a partial-aggregate Substrait plan against a throwaway session and
+/// returns its physical output schema. NamedTable references are resolved
+/// against empty MemTables built from the substrait base_schema — the plan
+/// itself is the source of truth for the producer side, so no view-type or
+/// timestamp-precision rewrites are applied here. The plan is dropped at
+/// function exit; only the schema is returned.
+fn derive_schema_from_partial_plan(
+    substrait_bytes: &[u8],
+) -> Result<arrow::datatypes::SchemaRef, DataFusionError> {
+    use datafusion::datasource::MemTable;
+    use datafusion::prelude::SessionContext;
+    use datafusion_substrait::extensions::Extensions;
+    use datafusion_substrait::logical_plan::consumer::{
+        from_substrait_named_struct, from_substrait_plan, DefaultSubstraitConsumer,
+    };
+    use prost::Message;
+    use substrait::proto::{read_rel::ReadType, Plan};
+
+    let plan = Plan::decode(substrait_bytes).map_err(|e| {
+        DataFusionError::Execution(format!("derive_schema_from_partial_plan: decode failed: {}", e))
+    })?;
+
+    let state = SessionStateBuilder::new()
+        .with_config(SessionConfig::new())
+        .with_default_features()
+        .build();
+    let ctx = SessionContext::new_with_state(state);
+    crate::udf::register_all(&ctx);
+
+    let extensions = Extensions::default();
+    let session_state = ctx.state();
+    let consumer = DefaultSubstraitConsumer::new(&extensions, &session_state);
+
+    let mut reads = Vec::new();
+    for plan_rel in &plan.relations {
+        if let Some(rel) = root_rel(plan_rel) {
+            collect_reads(&rel, &mut reads);
+        }
+    }
+    for read in &reads {
+        let Some(ReadType::NamedTable(nt)) = read.read_type.as_ref() else {
+            continue;
+        };
+        let table_name = nt.names.last().cloned().unwrap_or_default();
+        let base_schema = read.base_schema.as_ref().ok_or_else(|| {
+            DataFusionError::Execution("ReadRel missing base_schema".to_string())
+        })?;
+        let df_schema = from_substrait_named_struct(&consumer, base_schema)?;
+        let arrow_schema = df_schema.as_arrow().clone();
+
+        // Mirror the two transformations the data-node session applies to its
+        // parquet-read leaf, so the synthetic leaf we register here matches.
+        // Without these, HashAggregateExec lowers over Utf8 / Timestamp(Second)
+        // on this throwaway session while the real data-node session lowers
+        // over Utf8View / Timestamp(Millisecond) — same plan, divergent
+        // physical outputs, runtime schema-mismatch on the wire.
+        //
+        // No data conversion happens at runtime — these only configure the
+        // coordinator's StreamingTable so it accepts the producer's batches
+        // without reinterpretation. Long-term plan: have the data node embed
+        // its lowered output schema as substrait extension metadata so the
+        // coordinator skips this throwaway lowering and both mirrors evaporate.
+        let view_types = ctx
+            .copied_config()
+            .options()
+            .execution
+            .parquet
+            .schema_force_view_types;
+        let arrow_schema = if view_types {
+            datafusion::datasource::file_format::parquet::transform_schema_to_view(&arrow_schema)
+        } else {
+            arrow_schema
+        };
+        let arrow_schema = coerce_unsupported_timestamp_precision(&arrow_schema);
+
+        let table = MemTable::try_new(Arc::new(arrow_schema), vec![vec![]])?;
+        // Plan may scan the same table twice; the second register is a no-op.
+        let _ = ctx.register_table(&table_name, Arc::new(table));
+    }
+
+    let logical_plan = futures::executor::block_on(from_substrait_plan(&session_state, &plan))?;
+    let physical_plan = futures::executor::block_on(session_state.create_physical_plan(&logical_plan))?;
+    Ok(physical_plan.schema())
+}
+
+/// Encodes a Schema as Arrow IPC stream-format bytes (a schema-only message
+/// followed by the stream EOS marker). This is the wire format Java reads via
+/// `MessageChannelReader` / `ArrowStreamReader`.
+fn schema_to_ipc_bytes(schema: &arrow::datatypes::Schema) -> Result<Vec<u8>, DataFusionError> {
+    use arrow::ipc::writer::StreamWriter;
+    let mut buf: Vec<u8> = Vec::new();
+    {
+        let mut writer = StreamWriter::try_new(&mut buf, schema)
+            .map_err(|e| DataFusionError::Execution(format!("StreamWriter::try_new: {}", e)))?;
+        writer
+            .finish()
+            .map_err(|e| DataFusionError::Execution(format!("StreamWriter::finish: {}", e)))?;
+    }
+    Ok(buf)
+}
+
+/// Mirror parquet's coercion of Arrow Timestamp precisions it cannot
+/// represent in its logical type system. Parquet's TIMESTAMP supports
+/// MILLIS / MICROS / NANOS only — `Timestamp(Second)` is silently
+/// promoted to `Timestamp(Millisecond)` by the data-node parquet round
+/// trip (Arrow's `TimeUnit` enum is closed at four variants, so this
+/// is the only precision that needs coercion).
+fn coerce_unsupported_timestamp_precision(
+    schema: &arrow::datatypes::Schema,
+) -> arrow::datatypes::Schema {
+    use arrow::datatypes::{DataType, Field, TimeUnit};
+    let fields: Vec<Field> = schema
+        .fields()
+        .iter()
+        .map(|f| match f.data_type() {
+            DataType::Timestamp(TimeUnit::Second, tz) => Field::new(
+                f.name(),
+                DataType::Timestamp(TimeUnit::Millisecond, tz.clone()),
+                f.is_nullable(),
+            )
+            .with_metadata(f.metadata().clone()),
+            _ => f.as_ref().clone(),
+        })
+        .collect();
+    arrow::datatypes::Schema::new_with_metadata(fields, schema.metadata().clone())
+}
+
+fn root_rel(root: &substrait::proto::PlanRel) -> Option<substrait::proto::Rel> {
+    match root.rel_type.as_ref()? {
+        substrait::proto::plan_rel::RelType::Rel(r) => Some(r.clone()),
+        substrait::proto::plan_rel::RelType::Root(rr) => rr.input.as_ref().cloned(),
+    }
+}
+
+fn collect_reads(rel: &substrait::proto::Rel, out: &mut Vec<substrait::proto::ReadRel>) {
+    use substrait::proto::rel::RelType;
+    match rel.rel_type.as_ref() {
+        Some(RelType::Read(r)) => out.push((**r).clone()),
+        Some(RelType::Filter(f)) => {
+            if let Some(input) = &f.input {
+                collect_reads(input, out);
+            }
+        }
+        Some(RelType::Project(p)) => {
+            if let Some(input) = &p.input {
+                collect_reads(input, out);
+            }
+        }
+        Some(RelType::Aggregate(a)) => {
+            if let Some(input) = &a.input {
+                collect_reads(input, out);
+            }
+        }
+        Some(RelType::Sort(s)) => {
+            if let Some(input) = &s.input {
+                collect_reads(input, out);
+            }
+        }
+        Some(RelType::Fetch(f)) => {
+            if let Some(input) = &f.input {
+                collect_reads(input, out);
+            }
+        }
+        Some(RelType::Join(j)) => {
+            if let Some(left) = &j.left {
+                collect_reads(left, out);
+            }
+            if let Some(right) = &j.right {
+                collect_reads(right, out);
+            }
+        }
+        Some(RelType::Set(s)) => {
+            for input in &s.inputs {
+                collect_reads(input, out);
+            }
+        }
+        _ => {}
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Coordinator-reduce local execution API
 //
@@ -570,18 +748,15 @@ pub unsafe fn close_local_session(ptr: i64) {
     }
 }
 
-/// Registers a streaming input on the session under `input_id`, using the
-/// Arrow schema decoded from the IPC stream bytes.
+/// Registers a streaming input on the session under `input_id`. The schema is
+/// derived by lowering `partial_plan_bytes` (the producer side's substrait) to
+/// a physical plan and reading its output schema — that is the schema the
+/// producer will actually emit, so we eliminate any divergence between
+/// declared and physical types.
 ///
-/// The IPC bytes are expected to be a single schema message produced by
-/// Arrow's streaming IPC writer (e.g. Java's `MessageSerializer.serializeMetadata`
-/// or an `ArrowStreamWriter` flush of just the schema). Only the schema is
-/// read — any payload in the buffer is ignored.
-///
-/// Returns a heap-allocated pointer (as i64) to a [`PartitionStreamSender`].
-/// Caller must call `sender_close` exactly once to free it (closing the
-/// sender signals EOF to the receiver side, so the native execute driver
-/// naturally completes).
+/// Returns `(sender_ptr, schema_ipc_bytes)`. The IPC bytes are written so the
+/// Java tripwire (`typesMatch` in DatafusionReduceSink) can validate batches
+/// against the same schema the native session is registered with.
 ///
 /// # Safety
 /// `session_ptr` must be a valid, non-zero pointer returned by
@@ -589,19 +764,13 @@ pub unsafe fn close_local_session(ptr: i64) {
 pub unsafe fn register_partition_stream(
     session_ptr: i64,
     input_id: &str,
-    schema_ipc: &[u8],
-) -> Result<i64, DataFusionError> {
+    partial_plan_bytes: &[u8],
+) -> Result<(i64, Vec<u8>), DataFusionError> {
     let session = &mut *(session_ptr as *mut LocalSession);
-    let mut cursor = Cursor::new(schema_ipc);
-    let reader = StreamReader::try_new(&mut cursor, None).map_err(|e| {
-        DataFusionError::Execution(format!(
-            "Failed to decode Arrow IPC schema for '{}': {}",
-            input_id, e
-        ))
-    })?;
-    let schema = reader.schema();
+    let schema = derive_schema_from_partial_plan(partial_plan_bytes)?;
+    let schema_ipc = schema_to_ipc_bytes(schema.as_ref())?;
     let sender = session.register_partition(input_id, schema)?;
-    Ok(Box::into_raw(Box::new(sender)) as i64)
+    Ok((Box::into_raw(Box::new(sender)) as i64, schema_ipc))
 }
 
 /// Executes a Substrait plan against a `LocalSession` and returns a
@@ -710,6 +879,10 @@ pub unsafe fn sender_close(sender_ptr: i64) {
 /// Imports a batch of Arrow C Data structures into a [`Vec<RecordBatch>`] and
 /// registers them as an in-memory table on the given session under `input_id`.
 ///
+/// The schema is derived by lowering `partial_plan_bytes` (the producer side's
+/// substrait) the same way `register_partition_stream` does. Returns the
+/// schema as IPC bytes so the Java side can validate fed batches against it.
+///
 /// The Java side has accumulated all shard responses, exported each
 /// `VectorSchemaRoot` to a paired `FFI_ArrowArray` / `FFI_ArrowSchema`, and
 /// passed the raw pointers as two parallel slices. Rust takes ownership of
@@ -726,10 +899,10 @@ pub unsafe fn sender_close(sender_ptr: i64) {
 pub unsafe fn register_memtable(
     session_ptr: i64,
     input_id: &str,
-    schema_ipc: &[u8],
+    partial_plan_bytes: &[u8],
     array_ptrs: &[i64],
     schema_ptrs: &[i64],
-) -> Result<(), DataFusionError> {
+) -> Result<Vec<u8>, DataFusionError> {
     if array_ptrs.len() != schema_ptrs.len() {
         return Err(DataFusionError::Execution(format!(
             "register_memtable: array_ptrs.len()={} != schema_ptrs.len()={}",
@@ -739,22 +912,13 @@ pub unsafe fn register_memtable(
     }
     let session = &mut *(session_ptr as *mut LocalSession);
 
-    let mut cursor = Cursor::new(schema_ipc);
-    let reader = StreamReader::try_new(&mut cursor, None).map_err(|e| {
-        DataFusionError::Execution(format!(
-            "Failed to decode Arrow IPC schema for '{}': {}",
-            input_id, e
-        ))
-    })?;
-    let table_schema = reader.schema();
+    let table_schema = derive_schema_from_partial_plan(partial_plan_bytes)?;
+    let schema_ipc = schema_to_ipc_bytes(table_schema.as_ref())?;
 
-    // The IPC schema is what the substrait plan was compiled against — same as the streaming
-    // sink registers. The exported VSRs may arrive with batch-level schemas that differ in
-    // nullability/metadata/field-naming details; the streaming sink tolerates this because
-    // DataFusion's streaming source addresses columns by index. `MemTable::try_new` instead
-    // checks each batch's schema against the table schema. To stay compatible with both
-    // shapes, rebuild each imported batch with `table_schema` — the column data is reused
-    // verbatim, but the schema header is the planner's.
+    // Exported VSRs may arrive with batch-level schemas that differ in
+    // nullability/metadata/field-naming details; rebuild each imported batch
+    // with `table_schema` so MemTable::try_new sees uniform headers. Column
+    // data is reused verbatim.
     let mut batches = Vec::with_capacity(array_ptrs.len());
     for (&array_ptr, &schema_ptr) in array_ptrs.iter().zip(schema_ptrs.iter()) {
         let ffi_array = FFI_ArrowArray::from_raw(array_ptr as *mut FFI_ArrowArray);
@@ -774,5 +938,6 @@ pub unsafe fn register_memtable(
         batches.push(aligned);
     }
 
-    session.register_memtable(input_id, table_schema, batches)
+    session.register_memtable(input_id, table_schema, batches)?;
+    Ok(schema_ipc)
 }

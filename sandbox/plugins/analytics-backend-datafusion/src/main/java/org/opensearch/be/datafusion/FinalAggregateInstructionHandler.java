@@ -8,6 +8,7 @@
 
 package org.opensearch.be.datafusion;
 
+import org.apache.arrow.vector.types.pojo.Schema;
 import org.opensearch.analytics.spi.BackendExecutionContext;
 import org.opensearch.analytics.spi.CommonExecutionContext;
 import org.opensearch.analytics.spi.ExchangeSinkContext;
@@ -44,12 +45,17 @@ public class FinalAggregateInstructionHandler implements FragmentInstructionHand
 
         DatafusionLocalSession session = new DatafusionLocalSession(runtimeHandle.get());
         List<DatafusionPartitionSender> senders = new ArrayList<>(ctx.childInputs().size());
+        List<Schema> inputSchemas = new ArrayList<>(ctx.childInputs().size());
         try {
             for (ExchangeSinkContext.ChildInput child : ctx.childInputs()) {
                 String inputId = "input-" + child.childStageId();
-                byte[] schemaIpc = ArrowSchemaIpc.toBytes(child.schema());
-                long senderPtr = NativeBridge.registerPartitionStream(session.getPointer(), inputId, schemaIpc);
-                senders.add(new DatafusionPartitionSender(senderPtr));
+                NativeBridge.RegisteredInput registered = NativeBridge.registerPartitionStream(
+                    session.getPointer(),
+                    inputId,
+                    child.producerPlanBytes()
+                );
+                senders.add(new DatafusionPartitionSender(registered.pointer()));
+                inputSchemas.add(ArrowSchemaIpc.fromBytes(registered.schemaIpc()));
             }
             NativeBridge.prepareFinalPlan(session.getPointer(), ctx.fragmentBytes());
         } catch (RuntimeException e) {
@@ -61,6 +67,6 @@ public class FinalAggregateInstructionHandler implements FragmentInstructionHand
             session.close();
             throw e;
         }
-        return new DataFusionReduceState(session, runtimeHandle, senders);
+        return new DataFusionReduceState(session, runtimeHandle, senders, inputSchemas);
     }
 }

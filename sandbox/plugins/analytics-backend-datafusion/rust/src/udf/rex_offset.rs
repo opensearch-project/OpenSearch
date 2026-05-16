@@ -33,10 +33,12 @@
 use std::any::Any;
 use std::sync::Arc;
 
-use datafusion::arrow::array::{Array, ArrayRef, StringArray, StringBuilder};
+use datafusion::arrow::array::{ArrayRef, StringBuilder};
+
+use super::json_common::StringArrayView;
 use datafusion::arrow::datatypes::DataType;
 use datafusion::common::{plan_err, ScalarValue};
-use datafusion::error::{DataFusionError, Result};
+use datafusion::error::Result;
 use datafusion::execution::context::SessionContext;
 use datafusion::logical_expr::{
     ColumnarValue, ScalarFunctionArgs, ScalarUDF, ScalarUDFImpl, Signature, Volatility,
@@ -107,35 +109,28 @@ impl ScalarUDFImpl for RexOffsetUdf {
             None => None,
         };
 
-        let input = args.args[0].clone().into_array(n)?;
-        let input = input
-            .as_any()
-            .downcast_ref::<StringArray>()
-            .ok_or_else(|| {
-                DataFusionError::Internal(format!(
-                    "rex_offset: expected Utf8 input, got {:?}",
-                    input.data_type()
-                ))
-            })?;
+        let input_arr = args.args[0].clone().into_array(n)?;
+        let input = StringArrayView::from_array(&input_arr)?;
 
         let pattern_arr_ref: Option<ArrayRef> = if pattern_scalar.is_none() && matches!(&args.args[1], ColumnarValue::Array(_)) {
             Some(args.args[1].clone().into_array(n)?)
         } else {
             None
         };
-        let pattern_array: Option<&StringArray> = pattern_arr_ref.as_ref().and_then(|a| a.as_any().downcast_ref::<StringArray>());
+        let pattern_array: Option<StringArrayView<'_>> =
+            pattern_arr_ref.as_ref().map(StringArrayView::from_array).transpose()?;
 
         let mut builder = StringBuilder::with_capacity(n, n * 32);
         for i in 0..n {
-            if input.is_null(i) {
+            let Some(input_value) = input.cell(i) else {
                 builder.append_null();
                 continue;
-            }
+            };
             let regex_owned;
-            let regex: &Regex = match (&scalar_regex, pattern_array) {
+            let regex: &Regex = match (&scalar_regex, pattern_array.as_ref().and_then(|a| a.cell(i))) {
                 (Some(r), _) => r,
-                (None, Some(arr)) if !arr.is_null(i) => {
-                    regex_owned = compile_pattern(arr.value(i))?;
+                (None, Some(s)) => {
+                    regex_owned = compile_pattern(s)?;
                     &regex_owned
                 }
                 _ => {
@@ -144,7 +139,7 @@ impl ScalarUDFImpl for RexOffsetUdf {
                 }
             };
 
-            match calculate_offsets(regex, input.value(i)) {
+            match calculate_offsets(regex, input_value) {
                 Some(s) => builder.append_value(s),
                 None => builder.append_null(),
             }
