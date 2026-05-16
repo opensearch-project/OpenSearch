@@ -105,7 +105,8 @@ public class GracefulDegradationTests extends OpenSearchTestCase {
             true,
             org.opensearch.repositories.NativeStoreRepository.EMPTY,
             java.util.Map.of(),
-            remoteDir
+            remoteDir,
+            null
         );
         DataFormatAwareStoreDirectory storeDir = factory.newDataFormatAwareStoreDirectory(
             indexSettings,
