@@ -12,7 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
 import org.opensearch.be.datafusion.action.DataFusionStatsAction;
-import org.opensearch.be.datafusion.stats.DataFusionBackendStatsProvider;
+import org.opensearch.plugin.stats.AnalyticsBackendTaskCancellationStats;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.service.ClusterService;
@@ -28,7 +28,6 @@ import org.opensearch.env.NodeEnvironment;
 import org.opensearch.index.engine.dataformat.DataFormatRegistry;
 import org.opensearch.index.engine.dataformat.ReaderManagerConfig;
 import org.opensearch.index.engine.exec.EngineReaderManager;
-import org.opensearch.plugin.stats.BackendStatsProvider;
 import org.opensearch.plugins.ActionPlugin;
 import org.opensearch.plugins.NativeStoreHandle;
 import org.opensearch.plugins.Plugin;
@@ -281,8 +280,14 @@ public class DataFusionPlugin extends Plugin implements SearchBackEndPlugin<Data
     }
 
     @Override
-    public BackendStatsProvider getBackendStatsProvider() {
-        return new DataFusionBackendStatsProvider();
+    public Supplier<AnalyticsBackendTaskCancellationStats> getAnalyticsBackendTaskCancellationStats() {
+        return () -> {
+            try {
+                return NativeBridge.nativeNodeStats();
+            } catch (Exception e) {
+                return new AnalyticsBackendTaskCancellationStats(0, 0, 0, 0);
+            }
+        };
     }
 
     @Override

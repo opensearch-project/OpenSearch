@@ -18,17 +18,17 @@ import org.opensearch.test.OpenSearchTestCase;
 import java.io.IOException;
 
 /**
- * Tests for {@link DataFusionNativeNodeStats} covering serialization round-trip (property test),
+ * Tests for {@link AnalyticsBackendTaskCancellationStats} covering serialization round-trip (property test),
  * constructor correctness, XContent output, and equals/hashCode contract.
  */
-public class DataFusionNativeNodeStatsTests extends OpenSearchTestCase {
+public class AnalyticsBackendTaskCancellationStatsTests extends OpenSearchTestCase {
 
     // ─── Property Test: Serialization Round-Trip (Property 3) ───────────────────
 
     /**
-     * Property 3: DataFusionNativeNodeStats serialization round-trip.
+     * Property 3: AnalyticsBackendTaskCancellationStats serialization round-trip.
      *
-     * For any valid long values for all 4 fields, constructing a DataFusionNativeNodeStats,
+     * For any valid long values for all 4 fields, constructing a AnalyticsBackendTaskCancellationStats,
      * serializing via writeTo, and deserializing via the StreamInput constructor SHALL produce
      * an equal instance.
      *
@@ -44,7 +44,7 @@ public class DataFusionNativeNodeStatsTests extends OpenSearchTestCase {
             long shardTaskCurrent = randomNonNegativeLong();
             long shardTaskTotal = randomNonNegativeLong();
 
-            DataFusionNativeNodeStats original = new DataFusionNativeNodeStats(
+            AnalyticsBackendTaskCancellationStats original = new AnalyticsBackendTaskCancellationStats(
                 searchTaskCurrent,
                 searchTaskTotal,
                 shardTaskCurrent,
@@ -54,7 +54,7 @@ public class DataFusionNativeNodeStatsTests extends OpenSearchTestCase {
             try (BytesStreamOutput out = new BytesStreamOutput()) {
                 original.writeTo(out);
                 try (StreamInput in = out.bytes().streamInput()) {
-                    DataFusionNativeNodeStats deserialized = new DataFusionNativeNodeStats(in);
+                    AnalyticsBackendTaskCancellationStats deserialized = new AnalyticsBackendTaskCancellationStats(in);
                     assertEquals(
                         "Round-trip failed for values: ["
                             + searchTaskCurrent
@@ -82,12 +82,12 @@ public class DataFusionNativeNodeStatsTests extends OpenSearchTestCase {
      * Validates: Requirement 6.3
      */
     public void testConstructorStoresFieldsCorrectly() {
-        DataFusionNativeNodeStats stats = new DataFusionNativeNodeStats(10, 20, 30, 40);
+        AnalyticsBackendTaskCancellationStats stats = new AnalyticsBackendTaskCancellationStats(10, 20, 30, 40);
 
-        assertEquals(10, stats.getNativeSearchTaskCurrent());
-        assertEquals(20, stats.getNativeSearchTaskTotal());
-        assertEquals(30, stats.getNativeSearchShardTaskCurrent());
-        assertEquals(40, stats.getNativeSearchShardTaskTotal());
+        assertEquals(10, stats.getSearchTaskCurrent());
+        assertEquals(20, stats.getSearchTaskTotal());
+        assertEquals(30, stats.getSearchShardTaskCurrent());
+        assertEquals(40, stats.getSearchShardTaskTotal());
     }
 
     /**
@@ -97,7 +97,7 @@ public class DataFusionNativeNodeStatsTests extends OpenSearchTestCase {
      * Validates: Requirement 6.6
      */
     public void testToXContentProducesExpectedJsonStructure() throws IOException {
-        DataFusionNativeNodeStats stats = new DataFusionNativeNodeStats(2, 147, 5, 892);
+        AnalyticsBackendTaskCancellationStats stats = new AnalyticsBackendTaskCancellationStats(2, 147, 5, 892);
 
         XContentBuilder builder = XContentFactory.jsonBuilder();
         builder.startObject();
@@ -118,7 +118,7 @@ public class DataFusionNativeNodeStatsTests extends OpenSearchTestCase {
      * Validates: Requirement 6.6
      */
     public void testToXContentWithZeroValues() throws IOException {
-        DataFusionNativeNodeStats stats = new DataFusionNativeNodeStats(0, 0, 0, 0);
+        AnalyticsBackendTaskCancellationStats stats = new AnalyticsBackendTaskCancellationStats(0, 0, 0, 0);
 
         XContentBuilder builder = XContentFactory.jsonBuilder();
         builder.startObject();
@@ -138,8 +138,8 @@ public class DataFusionNativeNodeStatsTests extends OpenSearchTestCase {
      * Validates: Requirement 6.7
      */
     public void testEqualsWithSameValues() {
-        DataFusionNativeNodeStats stats1 = new DataFusionNativeNodeStats(1, 2, 3, 4);
-        DataFusionNativeNodeStats stats2 = new DataFusionNativeNodeStats(1, 2, 3, 4);
+        AnalyticsBackendTaskCancellationStats stats1 = new AnalyticsBackendTaskCancellationStats(1, 2, 3, 4);
+        AnalyticsBackendTaskCancellationStats stats2 = new AnalyticsBackendTaskCancellationStats(1, 2, 3, 4);
 
         assertEquals(stats1, stats2);
         assertEquals(stats2, stats1);
@@ -151,7 +151,7 @@ public class DataFusionNativeNodeStatsTests extends OpenSearchTestCase {
      * Validates: Requirement 6.7
      */
     public void testEqualsReflexive() {
-        DataFusionNativeNodeStats stats = new DataFusionNativeNodeStats(5, 10, 15, 20);
+        AnalyticsBackendTaskCancellationStats stats = new AnalyticsBackendTaskCancellationStats(5, 10, 15, 20);
         assertEquals(stats, stats);
     }
 
@@ -161,13 +161,13 @@ public class DataFusionNativeNodeStatsTests extends OpenSearchTestCase {
      * Validates: Requirement 6.7
      */
     public void testEqualsWithDifferentValues() {
-        DataFusionNativeNodeStats stats1 = new DataFusionNativeNodeStats(1, 2, 3, 4);
+        AnalyticsBackendTaskCancellationStats stats1 = new AnalyticsBackendTaskCancellationStats(1, 2, 3, 4);
 
         // Differ in each field
-        assertNotEquals(stats1, new DataFusionNativeNodeStats(99, 2, 3, 4));
-        assertNotEquals(stats1, new DataFusionNativeNodeStats(1, 99, 3, 4));
-        assertNotEquals(stats1, new DataFusionNativeNodeStats(1, 2, 99, 4));
-        assertNotEquals(stats1, new DataFusionNativeNodeStats(1, 2, 3, 99));
+        assertNotEquals(stats1, new AnalyticsBackendTaskCancellationStats(99, 2, 3, 4));
+        assertNotEquals(stats1, new AnalyticsBackendTaskCancellationStats(1, 99, 3, 4));
+        assertNotEquals(stats1, new AnalyticsBackendTaskCancellationStats(1, 2, 99, 4));
+        assertNotEquals(stats1, new AnalyticsBackendTaskCancellationStats(1, 2, 3, 99));
     }
 
     /**
@@ -176,7 +176,7 @@ public class DataFusionNativeNodeStatsTests extends OpenSearchTestCase {
      * Validates: Requirement 6.7
      */
     public void testEqualsNullAndDifferentType() {
-        DataFusionNativeNodeStats stats = new DataFusionNativeNodeStats(1, 2, 3, 4);
+        AnalyticsBackendTaskCancellationStats stats = new AnalyticsBackendTaskCancellationStats(1, 2, 3, 4);
         assertNotEquals(null, stats);
         assertNotEquals("not a stats object", stats);
     }
@@ -187,8 +187,8 @@ public class DataFusionNativeNodeStatsTests extends OpenSearchTestCase {
      * Validates: Requirement 6.7
      */
     public void testHashCodeConsistentWithEquals() {
-        DataFusionNativeNodeStats stats1 = new DataFusionNativeNodeStats(7, 14, 21, 28);
-        DataFusionNativeNodeStats stats2 = new DataFusionNativeNodeStats(7, 14, 21, 28);
+        AnalyticsBackendTaskCancellationStats stats1 = new AnalyticsBackendTaskCancellationStats(7, 14, 21, 28);
+        AnalyticsBackendTaskCancellationStats stats2 = new AnalyticsBackendTaskCancellationStats(7, 14, 21, 28);
 
         assertEquals(stats1, stats2);
         assertEquals(stats1.hashCode(), stats2.hashCode());
@@ -200,8 +200,8 @@ public class DataFusionNativeNodeStatsTests extends OpenSearchTestCase {
      * Validates: Requirement 6.7
      */
     public void testHashCodeDiffersForDifferentValues() {
-        DataFusionNativeNodeStats stats1 = new DataFusionNativeNodeStats(1, 2, 3, 4);
-        DataFusionNativeNodeStats stats2 = new DataFusionNativeNodeStats(5, 6, 7, 8);
+        AnalyticsBackendTaskCancellationStats stats1 = new AnalyticsBackendTaskCancellationStats(1, 2, 3, 4);
+        AnalyticsBackendTaskCancellationStats stats2 = new AnalyticsBackendTaskCancellationStats(5, 6, 7, 8);
 
         // While not strictly required by the contract, different values should produce different hashes
         assertNotEquals(stats1.hashCode(), stats2.hashCode());

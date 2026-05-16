@@ -16,7 +16,7 @@ import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.plugin.stats.DataFusionNativeNodeStats;
+import org.opensearch.plugin.stats.AnalyticsBackendTaskCancellationStats;
 import org.opensearch.test.AbstractWireSerializingTestCase;
 
 import java.io.IOException;
@@ -40,8 +40,8 @@ public class TaskCancellationStatsTests extends AbstractWireSerializingTestCase<
         );
     }
 
-    private static DataFusionNativeNodeStats randomNativeStats() {
-        return new DataFusionNativeNodeStats(
+    private static AnalyticsBackendTaskCancellationStats randomNativeStats() {
+        return new AnalyticsBackendTaskCancellationStats(
             randomNonNegativeLong(),
             randomNonNegativeLong(),
             randomNonNegativeLong(),
@@ -66,7 +66,7 @@ public class TaskCancellationStatsTests extends AbstractWireSerializingTestCase<
             TaskCancellationStats original = new TaskCancellationStats(
                 SearchTaskCancellationStatsTests.randomInstance(),
                 SearchShardTaskCancellationStatsTests.randomInstance(),
-                new DataFusionNativeNodeStats(
+                new AnalyticsBackendTaskCancellationStats(
                     randomNonNegativeLong(),
                     randomNonNegativeLong(),
                     randomNonNegativeLong(),
@@ -126,7 +126,7 @@ public class TaskCancellationStatsTests extends AbstractWireSerializingTestCase<
     public void testToXContentWithNativeStats() throws IOException {
         SearchTaskCancellationStats searchStats = new SearchTaskCancellationStats(3, 10);
         SearchShardTaskCancellationStats shardStats = new SearchShardTaskCancellationStats(5, 20);
-        DataFusionNativeNodeStats nativeStats = new DataFusionNativeNodeStats(2, 147, 5, 892);
+        AnalyticsBackendTaskCancellationStats nativeStats = new AnalyticsBackendTaskCancellationStats(2, 147, 5, 892);
 
         TaskCancellationStats stats = new TaskCancellationStats(searchStats, shardStats, nativeStats);
 
@@ -187,7 +187,7 @@ public class TaskCancellationStatsTests extends AbstractWireSerializingTestCase<
     public void testSerializationBackwardCompatibility() throws IOException {
         SearchTaskCancellationStats searchStats = new SearchTaskCancellationStats(3, 10);
         SearchShardTaskCancellationStats shardStats = new SearchShardTaskCancellationStats(5, 20);
-        DataFusionNativeNodeStats nativeStats = new DataFusionNativeNodeStats(2, 147, 5, 892);
+        AnalyticsBackendTaskCancellationStats nativeStats = new AnalyticsBackendTaskCancellationStats(2, 147, 5, 892);
 
         TaskCancellationStats original = new TaskCancellationStats(searchStats, shardStats, nativeStats);
 

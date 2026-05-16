@@ -8,7 +8,7 @@
 
 package org.opensearch.be.datafusion.nativelib;
 
-import org.opensearch.plugin.stats.DataFusionNativeNodeStats;
+import org.opensearch.plugin.stats.AnalyticsBackendTaskCancellationStats;
 
 import java.lang.foreign.MemoryLayout;
 import java.lang.foreign.MemoryLayout.PathElement;
@@ -52,13 +52,13 @@ public final class NativeNodeStatsLayout {
     private static final VarHandle SHARD_TASK_TOTAL = LAYOUT.varHandle(PathElement.groupElement("native_search_shard_task_total"));
 
     /**
-     * Decode the 32-byte memory segment into a {@link DataFusionNativeNodeStats} instance.
+     * Decode the 32-byte memory segment into a {@link AnalyticsBackendTaskCancellationStats} instance.
      *
      * @param seg the memory segment containing the output of {@code df_native_node_stats}
-     * @return a populated {@link DataFusionNativeNodeStats}
+     * @return a populated {@link AnalyticsBackendTaskCancellationStats}
      */
-    public static DataFusionNativeNodeStats readNativeNodeStats(MemorySegment seg) {
-        return new DataFusionNativeNodeStats(
+    public static AnalyticsBackendTaskCancellationStats readNativeNodeStats(MemorySegment seg) {
+        return new AnalyticsBackendTaskCancellationStats(
             (long) SEARCH_TASK_CURRENT.get(seg, 0L),
             (long) SEARCH_TASK_TOTAL.get(seg, 0L),
             (long) SHARD_TASK_CURRENT.get(seg, 0L),

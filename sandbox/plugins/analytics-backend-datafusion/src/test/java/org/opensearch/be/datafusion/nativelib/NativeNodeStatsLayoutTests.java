@@ -8,7 +8,7 @@
 
 package org.opensearch.be.datafusion.nativelib;
 
-import org.opensearch.plugin.stats.DataFusionNativeNodeStats;
+import org.opensearch.plugin.stats.AnalyticsBackendTaskCancellationStats;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.lang.foreign.Arena;
@@ -48,12 +48,12 @@ public class NativeNodeStatsLayoutTests extends OpenSearchTestCase {
             seg.setAtIndex(ValueLayout.JAVA_LONG, 2, 7L);    // offset 16: native_search_shard_task_current
             seg.setAtIndex(ValueLayout.JAVA_LONG, 3, 999L);  // offset 24: native_search_shard_task_total
 
-            DataFusionNativeNodeStats stats = NativeNodeStatsLayout.readNativeNodeStats(seg);
+            AnalyticsBackendTaskCancellationStats stats = NativeNodeStatsLayout.readNativeNodeStats(seg);
 
-            assertEquals(42L, stats.getNativeSearchTaskCurrent());
-            assertEquals(100L, stats.getNativeSearchTaskTotal());
-            assertEquals(7L, stats.getNativeSearchShardTaskCurrent());
-            assertEquals(999L, stats.getNativeSearchShardTaskTotal());
+            assertEquals(42L, stats.getSearchTaskCurrent());
+            assertEquals(100L, stats.getSearchTaskTotal());
+            assertEquals(7L, stats.getSearchShardTaskCurrent());
+            assertEquals(999L, stats.getSearchShardTaskTotal());
         }
     }
 
@@ -66,12 +66,12 @@ public class NativeNodeStatsLayoutTests extends OpenSearchTestCase {
             var seg = arena.allocate(NativeNodeStatsLayout.LAYOUT);
             // All zeros by default after allocation
 
-            DataFusionNativeNodeStats stats = NativeNodeStatsLayout.readNativeNodeStats(seg);
+            AnalyticsBackendTaskCancellationStats stats = NativeNodeStatsLayout.readNativeNodeStats(seg);
 
-            assertEquals(0L, stats.getNativeSearchTaskCurrent());
-            assertEquals(0L, stats.getNativeSearchTaskTotal());
-            assertEquals(0L, stats.getNativeSearchShardTaskCurrent());
-            assertEquals(0L, stats.getNativeSearchShardTaskTotal());
+            assertEquals(0L, stats.getSearchTaskCurrent());
+            assertEquals(0L, stats.getSearchTaskTotal());
+            assertEquals(0L, stats.getSearchShardTaskCurrent());
+            assertEquals(0L, stats.getSearchShardTaskTotal());
         }
     }
 
@@ -88,12 +88,12 @@ public class NativeNodeStatsLayoutTests extends OpenSearchTestCase {
             seg.setAtIndex(ValueLayout.JAVA_LONG, 2, Long.MAX_VALUE);
             seg.setAtIndex(ValueLayout.JAVA_LONG, 3, Long.MAX_VALUE);
 
-            DataFusionNativeNodeStats stats = NativeNodeStatsLayout.readNativeNodeStats(seg);
+            AnalyticsBackendTaskCancellationStats stats = NativeNodeStatsLayout.readNativeNodeStats(seg);
 
-            assertEquals(Long.MAX_VALUE, stats.getNativeSearchTaskCurrent());
-            assertEquals(Long.MAX_VALUE, stats.getNativeSearchTaskTotal());
-            assertEquals(Long.MAX_VALUE, stats.getNativeSearchShardTaskCurrent());
-            assertEquals(Long.MAX_VALUE, stats.getNativeSearchShardTaskTotal());
+            assertEquals(Long.MAX_VALUE, stats.getSearchTaskCurrent());
+            assertEquals(Long.MAX_VALUE, stats.getSearchTaskTotal());
+            assertEquals(Long.MAX_VALUE, stats.getSearchShardTaskCurrent());
+            assertEquals(Long.MAX_VALUE, stats.getSearchShardTaskTotal());
         }
     }
 
@@ -124,23 +124,23 @@ public class NativeNodeStatsLayoutTests extends OpenSearchTestCase {
                 seg.setAtIndex(ValueLayout.JAVA_LONG, 2, shardTaskCurrent);    // offset 16
                 seg.setAtIndex(ValueLayout.JAVA_LONG, 3, shardTaskTotal);      // offset 24
 
-                DataFusionNativeNodeStats stats = NativeNodeStatsLayout.readNativeNodeStats(seg);
+                AnalyticsBackendTaskCancellationStats stats = NativeNodeStatsLayout.readNativeNodeStats(seg);
 
                 assertEquals(
                     "Iteration " + i + ": native_search_task_current mismatch",
                     searchTaskCurrent,
-                    stats.getNativeSearchTaskCurrent()
+                    stats.getSearchTaskCurrent()
                 );
-                assertEquals("Iteration " + i + ": native_search_task_total mismatch", searchTaskTotal, stats.getNativeSearchTaskTotal());
+                assertEquals("Iteration " + i + ": native_search_task_total mismatch", searchTaskTotal, stats.getSearchTaskTotal());
                 assertEquals(
                     "Iteration " + i + ": native_search_shard_task_current mismatch",
                     shardTaskCurrent,
-                    stats.getNativeSearchShardTaskCurrent()
+                    stats.getSearchShardTaskCurrent()
                 );
                 assertEquals(
                     "Iteration " + i + ": native_search_shard_task_total mismatch",
                     shardTaskTotal,
-                    stats.getNativeSearchShardTaskTotal()
+                    stats.getSearchShardTaskTotal()
                 );
             }
         }

@@ -18,7 +18,7 @@ import org.opensearch.env.NodeEnvironment;
 import org.opensearch.index.engine.dataformat.DataFormatRegistry;
 import org.opensearch.index.engine.dataformat.ReaderManagerConfig;
 import org.opensearch.index.engine.exec.EngineReaderManager;
-import org.opensearch.plugin.stats.BackendStatsProvider;
+import org.opensearch.plugin.stats.AnalyticsBackendTaskCancellationStats;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.script.ScriptService;
 import org.opensearch.threadpool.ThreadPool;
@@ -105,14 +105,14 @@ public interface SearchBackEndPlugin<R> {
     }
 
     /**
-     * Returns the backend's stats provider, or {@code null} if not available.
+     * Returns a supplier for native task cancellation stats, or {@code null} if not available.
      * <p>
-     * The server uses this to discover stats providers from backend plugins
-     * (e.g., for native task cancellation counters).
+     * The server calls this supplier on each {@code _nodes/stats} request to fetch
+     * native task cancellation counters from the execution engine.
      *
-     * @return the backend stats provider, or null
+     * @return a supplier of native task cancellation stats, or null
      */
-    default @Nullable BackendStatsProvider getBackendStatsProvider() {
+    default @Nullable Supplier<AnalyticsBackendTaskCancellationStats> getAnalyticsBackendTaskCancellationStats() {
         return null;
     }
 }
