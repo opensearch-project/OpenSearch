@@ -105,6 +105,10 @@ public class OpenSearchSchemaBuilder {
             case "boolean":
                 return SqlTypeName.BOOLEAN;
             case "date":
+            case "date_nanos":
+                // date_nanos columns surface in DataFusion as Timestamp(ns); declaring them
+                // VARCHAR via the default branch produces a Substrait/Arrow type mismatch
+                // at execution time (Field 'X' Utf8 ≠ table schema Timestamp(ns)).
                 return SqlTypeName.TIMESTAMP;
             default:
                 return SqlTypeName.VARCHAR;
@@ -144,6 +148,16 @@ public class OpenSearchSchemaBuilder {
             }
             // Nested type (array-of-sub-docs) is a different beast — deferred.
             if ("nested".equals(fieldType)) {
+                continue;
+            }
+            // TEMP: IP columns surface in DataFusion as Arrow BinaryView while the Calcite
+            // VARCHAR mapping below makes Substrait declare Utf8. The schema mismatch fails
+            // every scan over an index containing any ip-typed leaf — even when the query
+            // doesn't project that column. Skipping ip fields here unblocks the rest of the
+            // schema until a proper BinaryView ↔ Utf8 conversion lands in the DataFusion
+            // scan path; queries that explicitly reference the column will surface as "field
+            // not found" instead of the much-deeper Substrait-validation crash.
+            if ("ip".equals(fieldType)) {
                 continue;
             }
             SqlTypeName sqlType = mapFieldType(fieldType);

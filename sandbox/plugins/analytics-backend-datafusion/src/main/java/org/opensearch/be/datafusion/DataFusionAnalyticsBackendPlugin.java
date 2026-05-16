@@ -62,6 +62,9 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         SUPPORTED_FIELD_TYPES.addAll(FieldType.date());
         SUPPORTED_FIELD_TYPES.add(FieldType.BOOLEAN);
         SUPPORTED_FIELD_TYPES.add(FieldType.TEXT);
+        SUPPORTED_FIELD_TYPES.add(FieldType.BINARY);
+        SUPPORTED_FIELD_TYPES.add(FieldType.IP);
+        SUPPORTED_FIELD_TYPES.add(FieldType.MATCH_ONLY_TEXT);
     }
 
     // Filter-side scalar functions DataFusion can evaluate natively. Comparisons, arithmetic
@@ -217,11 +220,15 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         // see a real time/date type and Isthmus serializes accordingly.
         ScalarFunction.TIME,
         ScalarFunction.DATE,
+        // PPL `timestamp(expr)` — parse a string into a TIMESTAMP, also used by
+        // the analyzer to coerce string literals when comparing against TIMESTAMP
+        // columns (e.g. `@timestamp="2024-01-15T..."`). The
+        // TimestampFunctionAdapter already wires the call shape; the missing
+        // capability entry was blocking the project rule from accepting the
+        // operator even though DataFusion executes it via `to_timestamp`.
+        ScalarFunction.TIMESTAMP,
         // PPL `datetime(expr)` — parse/cast into a TIMESTAMP. Routes to DF's
-        // builtin `to_timestamp` via DatetimeAdapter. The single-arg
-        // `timestamp(expr)` form shares these semantics but its ScalarFunction
-        // slot is already bound to TimestampFunctionAdapter for VARCHAR literal
-        // folding, so it stays on the legacy engine.
+        // builtin `to_timestamp` via DatetimeAdapter.
         ScalarFunction.DATETIME,
         // PPL extract / make* / format / from_unixtime are implemented as Rust UDFs
         // to preserve MySQL semantics that DataFusion builtins don't match: EXTRACT
