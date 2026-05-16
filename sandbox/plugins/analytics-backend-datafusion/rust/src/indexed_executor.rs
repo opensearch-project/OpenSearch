@@ -125,12 +125,6 @@ pub async fn execute_indexed_query(
         .build()
         .map_err(|e| DataFusionError::Execution(format!("runtime env: {}", e)))?;
 
-    // Register shard-specific object store on file:// scheme for this query.
-    runtime_env.register_object_store(
-        &url::Url::parse("file://").unwrap(),
-        Arc::clone(&shard_view.store),
-    );
-
     let mut config = SessionConfig::new();
     config.options_mut().execution.parquet.pushdown_filters = query_config.parquet_pushdown_filters;
     // Indexed path fans out via IndexedExec partitions (derived from
@@ -177,13 +171,8 @@ pub async fn execute_indexed_query(
     };
     let ptr = Box::into_raw(Box::new(handle)) as i64;
 
-    // Acquire permit from cpu_executor's concurrency gate (same formula as FFM entry point).
-    let partition_weight = num_partitions.max(1) as u32;
-    let gate = cpu_executor.concurrency_gate().clone();
-    let max_p = gate.max_permits();
-    let permit = gate.acquire_many(partition_weight.min(max_p)).await;
-
-    unsafe { execute_indexed_with_context(ptr, substrait_bytes, cpu_executor, permit).await }
+    // No gate here — execute_indexed_with_context acquires the gate internally.
+    unsafe { execute_indexed_with_context(ptr, substrait_bytes, cpu_executor).await }
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────
@@ -420,9 +409,16 @@ pub async unsafe fn execute_indexed_with_context(
     session_ctx_ptr: i64,
     substrait_bytes: Vec<u8>,
     cpu_executor: DedicatedExecutor,
-    permit: tokio::sync::OwnedSemaphorePermit,
 ) -> Result<i64, DataFusionError> {
     let handle = *Box::from_raw(session_ctx_ptr as *mut crate::session_context::SessionContextHandle);
+
+    // Acquire concurrency gate — this is always a data-node fragment execution.
+    // Blocking here is safe: no coordinator on this node holds permits from this gate.
+    let partition_weight = handle.query_config.target_partitions.max(1) as u32;
+    let gate = cpu_executor.concurrency_gate().clone();
+    let max_p = gate.max_permits();
+    let permit = gate.acquire_many(partition_weight.min(max_p)).await;
+
     let classification_override = handle.indexed_config.map(|config| {
         match (config.tree_shape, config.delegated_predicate_count) {
             (1, 1) => FilterClass::SingleCollector,
@@ -444,9 +440,12 @@ pub async unsafe fn execute_indexed_with_context(
     // with IndexedTableProvider after plan decoding.
     ctx.deregister_table(&table_name)?;
 
-    let state = ctx.state();
-    let store = state.runtime_env().object_store(&table_path)?;
+    let store = ctx
+        .state()
+        .runtime_env()
+        .object_store(&table_path)?;
 
+    let state = ctx.state();
     let (segments, schema) = build_segments(&state, Arc::clone(&store), object_metas.as_ref())
         .await
         .map_err(DataFusionError::Execution)?;

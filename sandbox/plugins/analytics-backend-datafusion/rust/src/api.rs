@@ -345,11 +345,10 @@ pub async unsafe fn execute_query(
     // Register cancellation token.
     let token = query_tracker::get_cancellation_token(context_id);
 
-    // Acquire concurrency gate permit BEFORE executing the query.
-    // This blocks until partition budget is available, preventing
-    // unbounded partition task accumulation on the CPU runtime.
-    let partition_weight = query_config.target_partitions.max(1) as u32;
-    let permit = cpu_executor.concurrency_gate().acquire_many(partition_weight).await;
+    // No concurrency gate here — this is the coordinator/legacy path.
+    // Gating happens inside the executor functions (execute_query / execute_indexed_query)
+    // which are always data-node work. Keeping the coordinator ungated avoids deadlock
+    // in single-JVM test topologies where coordinator and data node share a gate.
 
     let query_future = async {
         if is_indexed {
@@ -384,7 +383,7 @@ pub async unsafe fn execute_query(
 
     // Reconstruct the stream from the raw pointer returned by the executor.
     let stream = *Box::from_raw(stream_ptr as *mut RecordBatchStreamAdapter<CrossRtStream>);
-    let handle = QueryStreamHandle::new(stream, query_context, Some(permit));
+    let handle = QueryStreamHandle::new(stream, query_context, None);
     Ok(Box::into_raw(Box::new(handle)) as i64)
 }
 
@@ -819,13 +818,12 @@ pub async unsafe fn execute_local_plan(
     // `context_id` of 0 disables tracking (pool is not consulted).
     let query_context = QueryTrackingContext::new(context_id, session.memory_pool());
 
-    // Acquire concurrency gate permit BEFORE executing the plan.
-    // LocalSession uses DataFusion's default target_partitions (= num_cpus on the host).
-    // We use num_cpus as the weight since that's what DataFusion will spawn.
+    // Acquire coordinator concurrency gate — limits concurrent reduce executions.
+    // Uses a separate gate from the datanode to avoid deadlock (shard streams hold
+    // datanode permits while coordinator reduce runs concurrently on single-node).
     let partition_weight = (num_cpus::get() as u32).max(1);
-    let cpu_exec = manager.cpu_executor();
-    let gate = cpu_exec.concurrency_gate();
-    let permit = gate.acquire_many(partition_weight.min(gate.max_permits())).await;
+    let coord_gate = manager.coordinator_gate().clone();
+    let permit = coord_gate.acquire_many(partition_weight.min(coord_gate.max_permits())).await;
 
     let df_stream = session.execute_substrait(substrait_bytes).await?;
 

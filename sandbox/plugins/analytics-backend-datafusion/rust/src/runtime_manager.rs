@@ -5,7 +5,7 @@
  * this file be licensed under the Apache-2.0 license or a
  * compatible open source license.
  */
-use crate::executor::DedicatedExecutor;
+use crate::executor::{ConcurrencyGate, DedicatedExecutor};
 use crate::io::register_io_runtime;
 use log::info;
 use std::sync::Arc;
@@ -18,6 +18,10 @@ pub struct RuntimeManager {
     pub cpu_executor: DedicatedExecutor,
     pub io_monitor: RuntimeMonitor,
     pub cpu_monitor: Option<RuntimeMonitor>,
+    /// Separate concurrency gate for coordinator-reduce execution.
+    /// Independent from the datanode gate (on DedicatedExecutor) to avoid
+    /// deadlock when shard streams and coordinator reduce run concurrently.
+    coordinator_gate: Arc<ConcurrencyGate>,
 }
 
 impl RuntimeManager {
@@ -60,16 +64,23 @@ impl RuntimeManager {
             .handle()
             .map(|h| RuntimeMonitor::new(&h));
 
+        let coordinator_gate = Arc::new(ConcurrencyGate::new(max_concurrent));
+
         Self {
             io_runtime,
             cpu_executor,
             io_monitor,
             cpu_monitor,
+            coordinator_gate,
         }
     }
 
     pub fn cpu_executor(&self) -> DedicatedExecutor {
         self.cpu_executor.clone()
+    }
+
+    pub fn coordinator_gate(&self) -> &Arc<ConcurrencyGate> {
+        &self.coordinator_gate
     }
 
     pub fn shutdown(&self) {
