@@ -235,6 +235,10 @@ grant {
   permission java.io.FilePermission "/proc/self/mountinfo", "read";
   permission java.io.FilePermission "/proc/diskstats", "read";
 
+  // process memory stats on Linux (used by OsProbe for free physical memory and RssAnon)
+  permission java.io.FilePermission "/proc/meminfo", "read";
+  permission java.io.FilePermission "/proc/self/status", "read";
+
   // control group stats on Linux
   // TODO: update later when wildcard is supported in policy
   // https://github.com/opensearch-project/OpenSearch/pull/18987

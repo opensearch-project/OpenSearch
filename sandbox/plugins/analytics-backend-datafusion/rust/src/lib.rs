@@ -13,6 +13,14 @@
 
 pub(crate) mod agg_mode;
 pub mod api;
+
+// Re-export the native logging bridge macros so this crate's modules can emit logs
+// that flow through `RustLoggerBridge` into the Java/Log4j sink. The standard
+// `log` crate macros (`log::info!`, `log::debug!`, …) are no-ops here because no
+// global `log` dispatcher is registered — using these macros instead is the same
+// pattern the `parquet-data-format` crate uses.
+pub use native_bridge_common::{log_debug, log_error, log_info};
+
 pub mod cache;
 pub mod cancellation;
 pub mod cross_rt_stream;

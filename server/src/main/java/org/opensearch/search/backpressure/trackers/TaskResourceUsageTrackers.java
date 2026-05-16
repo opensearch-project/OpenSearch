@@ -87,6 +87,17 @@ public class TaskResourceUsageTrackers {
         }
 
         /**
+         * Rebuild any cached state this tracker maintains (e.g. a snapshot of per-task usage
+         * pulled across an FFI boundary). Called by the backpressure service once per
+         * cancellation-iteration per task class, immediately before {@link #getTaskCancellations}
+         * runs. Default is a no-op — override when the tracker wants to batch an expensive read
+         * instead of doing it per-task.
+         */
+        public void refresh() {
+            // no-op by default
+        }
+
+        /**
          * Returns a unique name for this tracker.
          */
         public abstract String name();

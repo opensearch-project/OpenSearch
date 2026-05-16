@@ -395,4 +395,155 @@ public class OsProbeTests extends OpenSearchTestCase {
         };
     }
 
+    // ---- /proc/meminfo parsing ----
+
+    public void testParseMeminfoLineBytes_valid() {
+        assertEquals(123456L * 1024L, OsProbe.parseMeminfoLineBytes("MemAvailable:   123456 kB"));
+        assertEquals(0L, OsProbe.parseMeminfoLineBytes("MemFree:        0 kB"));
+        // No unit column — tolerate the trimmed form.
+        assertEquals(42L * 1024L, OsProbe.parseMeminfoLineBytes("MemAvailable: 42"));
+        // Unusual but well-formed whitespace.
+        assertEquals(7L * 1024L, OsProbe.parseMeminfoLineBytes("MemTotal:\t7 kB"));
+    }
+
+    public void testParseMeminfoLineBytes_malformed() {
+        assertEquals(-1L, OsProbe.parseMeminfoLineBytes(""));
+        assertEquals(-1L, OsProbe.parseMeminfoLineBytes("MemAvailable"));
+        assertEquals(-1L, OsProbe.parseMeminfoLineBytes("MemAvailable:"));
+        assertEquals(-1L, OsProbe.parseMeminfoLineBytes("MemAvailable: not-a-number kB"));
+        assertEquals(-1L, OsProbe.parseMeminfoLineBytes("MemAvailable: -5 kB"));
+    }
+
+    public void testGetFreePhysicalMemorySizeFromProcMeminfo_usesMemAvailableWhenPresent() {
+        assumeThat("requires Linux to exercise the /proc/meminfo path", Constants.LINUX, is(true));
+        OsProbe probe = new OsProbe() {
+            @Override
+            List<String> readProcMeminfo() {
+                return Arrays.asList(
+                    "MemTotal:        16384000 kB",
+                    "MemFree:            10000 kB",
+                    // MemAvailable wins even when MemFree appears earlier in some layouts.
+                    "MemAvailable:     5242880 kB",
+                    "Buffers:             1234 kB"
+                );
+            }
+        };
+        assertEquals(5242880L * 1024L, probe.getFreePhysicalMemorySizeFromProcMeminfo());
+    }
+
+    public void testGetFreePhysicalMemorySizeFromProcMeminfo_fallsBackToMemFree() {
+        assumeThat("requires Linux to exercise the /proc/meminfo path", Constants.LINUX, is(true));
+        OsProbe probe = new OsProbe() {
+            @Override
+            List<String> readProcMeminfo() {
+                return Arrays.asList("MemTotal:        16384000 kB", "MemFree:          1048576 kB", "Buffers:             4096 kB");
+            }
+        };
+        assertEquals(1048576L * 1024L, probe.getFreePhysicalMemorySizeFromProcMeminfo());
+    }
+
+    public void testGetFreePhysicalMemorySizeFromProcMeminfo_returnsNegativeOnIoError() {
+        assumeThat("requires Linux to exercise the /proc/meminfo path", Constants.LINUX, is(true));
+        OsProbe probe = new OsProbe() {
+            @Override
+            List<String> readProcMeminfo() throws IOException {
+                throw new IOException("synthetic");
+            }
+        };
+        assertEquals(-1L, probe.getFreePhysicalMemorySizeFromProcMeminfo());
+    }
+
+    public void testGetFreePhysicalMemorySizeFromProcMeminfo_negativeOnNonLinux() {
+        assumeThat("only meaningful on non-Linux platforms", Constants.LINUX, is(false));
+        assertEquals(-1L, OsProbe.getInstance().getFreePhysicalMemorySizeFromProcMeminfo());
+    }
+
+    // ---- /proc/self/status RssAnon parsing ----
+
+    public void testGetProcessRssAnonBytes_presentField() {
+        assumeThat("requires Linux to exercise the /proc/self/status path", Constants.LINUX, is(true));
+        OsProbe probe = new OsProbe() {
+            @Override
+            List<String> readProcSelfStatus() {
+                return Arrays.asList(
+                    "Name:\topensearch",
+                    "State:\tS (sleeping)",
+                    "VmPeak:\t 12345 kB",
+                    "VmRSS:\t 65536 kB",
+                    "RssAnon:\t 32768 kB",
+                    "RssFile:\t 20000 kB",
+                    "RssShmem:\t   0 kB"
+                );
+            }
+        };
+        assertEquals(32768L * 1024L, probe.getProcessRssAnonBytes());
+    }
+
+    public void testGetProcessRssAnonBytes_missingFieldReturnsNegative() {
+        assumeThat("requires Linux to exercise the /proc/self/status path", Constants.LINUX, is(true));
+        OsProbe probe = new OsProbe() {
+            @Override
+            List<String> readProcSelfStatus() {
+                // RssAnon was added in kernel 4.5; pre-4.5 kernels expose only VmRSS.
+                return Arrays.asList("Name:\topensearch", "State:\tS (sleeping)", "VmRSS:\t 65536 kB");
+            }
+        };
+        assertEquals(-1L, probe.getProcessRssAnonBytes());
+    }
+
+    public void testGetProcessRssAnonBytes_returnsNegativeOnIoError() {
+        assumeThat("requires Linux to exercise the /proc/self/status path", Constants.LINUX, is(true));
+        OsProbe probe = new OsProbe() {
+            @Override
+            List<String> readProcSelfStatus() throws IOException {
+                throw new IOException("synthetic");
+            }
+        };
+        assertEquals(-1L, probe.getProcessRssAnonBytes());
+    }
+
+    public void testGetProcessRssAnonBytes_negativeOnNonLinux() {
+        assumeThat("only meaningful on non-Linux platforms", Constants.LINUX, is(false));
+        assertEquals(-1L, OsProbe.getInstance().getProcessRssAnonBytes());
+    }
+
+    // ---- getProcessNativeMemoryBytes (RssAnon - heapMax, clamped) ----
+
+    public void testGetProcessNativeMemoryBytes_returnsNegativeWhenRssAnonUnavailable() {
+        // Override getProcessRssAnonBytes to return -1 (the "not supported" sentinel). The
+        // method must propagate that signal upward without subtracting from -1.
+        OsProbe probe = new OsProbe() {
+            @Override
+            public long getProcessRssAnonBytes() {
+                return -1L;
+            }
+        };
+        assertEquals(-1L, probe.getProcessNativeMemoryBytes());
+    }
+
+    public void testGetProcessNativeMemoryBytes_subtractsHeapMaxAndClampsAtZero() {
+        // RssAnon below heapMax (early process lifetime, before heap pages are committed).
+        // The method must clamp at 0 instead of returning a negative.
+        OsProbe probe = new OsProbe() {
+            @Override
+            public long getProcessRssAnonBytes() {
+                return 1L; // way below any real -Xmx setting
+            }
+        };
+        assertEquals(0L, probe.getProcessNativeMemoryBytes());
+    }
+
+    public void testGetProcessNativeMemoryBytes_returnsDifferenceWhenRssAnonExceedsHeap() {
+        // RssAnon clearly larger than the JVM heap max — the difference is reported back.
+        long heapMax = org.opensearch.monitor.jvm.JvmStats.jvmStats().getMem().getHeapMax().getBytes();
+        long rssAnon = heapMax + 64L * 1024L * 1024L;
+        OsProbe probe = new OsProbe() {
+            @Override
+            public long getProcessRssAnonBytes() {
+                return rssAnon;
+            }
+        };
+        assertEquals(64L * 1024L * 1024L, probe.getProcessNativeMemoryBytes());
+    }
+
 }

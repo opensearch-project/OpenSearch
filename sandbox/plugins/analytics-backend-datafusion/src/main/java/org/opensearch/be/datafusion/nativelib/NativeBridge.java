@@ -9,6 +9,7 @@
 package org.opensearch.be.datafusion.nativelib;
 
 import org.opensearch.analytics.backend.jni.NativeHandle;
+import org.opensearch.analytics.spi.QueryExecutionMetrics;
 import org.opensearch.be.datafusion.stats.DataFusionStats;
 import org.opensearch.be.datafusion.stats.NativeExecutorsStats;
 import org.opensearch.be.datafusion.stats.TaskMonitorStats;
@@ -22,7 +23,9 @@ import java.lang.foreign.Linker;
 import java.lang.foreign.SymbolLookup;
 import java.lang.foreign.ValueLayout;
 import java.lang.invoke.MethodHandle;
+import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.Map;
 
 /**
  * FFM bridge to native DataFusion library.
@@ -83,6 +86,7 @@ public final class NativeBridge {
     private static final MethodHandle EXECUTE_WITH_CONTEXT;
     private static final MethodHandle CANCEL_QUERY;
     private static final MethodHandle STATS;
+    private static final MethodHandle QUERY_REGISTRY_TOP_N_BY_CURRENT;
     private static final MethodHandle PREPARE_PARTIAL_PLAN;
     private static final MethodHandle PREPARE_FINAL_PLAN;
     private static final MethodHandle EXECUTE_LOCAL_PREPARED_PLAN;
@@ -395,6 +399,12 @@ public final class NativeBridge {
             FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG)
         );
 
+        // i64 df_query_registry_top_n_by_current(out_ptr, cap_entries)
+        QUERY_REGISTRY_TOP_N_BY_CURRENT = linker.downcallHandle(
+            lib.find("df_query_registry_top_n_by_current").orElseThrow(),
+            FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG)
+        );
+
         // ── Distributed aggregate: prepare partial/final plans ──
         // i64 df_prepare_partial_plan(handle_ptr, bytes_ptr, bytes_len)
         PREPARE_PARTIAL_PLAN = linker.downcallHandle(
@@ -687,6 +697,61 @@ public final class NativeBridge {
             }
 
             return new DataFusionStats(new NativeExecutorsStats(ioRuntime, cpuRuntime, taskMonitors));
+        }
+    }
+
+    // ---- Per-query registry top-N snapshot ----
+
+    /**
+     * Snapshot the {@code n} heaviest live queries by {@code current_bytes}.
+     *
+     * <p>One FFM call: Java allocates an {@code n × ENTRY_BYTES} segment, Rust
+     * runs a bounded min-heap of size {@code n} over its registry and writes
+     * the survivors as {@link QueryRegistryLayout} entries. Completed and
+     * zero-byte trackers are filtered on the Rust side. Order within the
+     * buffer is unspecified.
+     *
+     * <p>Mirrors the {@link #stats()} pattern: the layout class decodes
+     * directly into the caller's final type ({@link QueryExecutionMetrics})
+     * with no transport-only intermediate.
+     *
+     * @param n maximum entries to return; must be non-negative. Zero short-circuits
+     *          without crossing the FFM boundary.
+     * @return a non-null map of {@code contextId → metrics}, possibly empty,
+     *         with at most {@code n} entries.
+     * @throws IllegalArgumentException if {@code n} is negative or implies a
+     *         buffer larger than {@link Integer#MAX_VALUE} bytes
+     */
+    public static Map<Long, QueryExecutionMetrics> queryRegistryTopN(int n) {
+        if (n < 0) {
+            throw new IllegalArgumentException("n must be non-negative: " + n);
+        }
+        if (n == 0) {
+            return Collections.emptyMap();
+        }
+        long bytes = (long) n * QueryRegistryLayout.ENTRY_BYTES;
+        if (bytes > Integer.MAX_VALUE) {
+            throw new IllegalArgumentException("n too large for a single snapshot: " + n);
+        }
+        try (var call = new NativeCall()) {
+            var seg = call.buf((int) bytes);
+            long written = call.invoke(QUERY_REGISTRY_TOP_N_BY_CURRENT, seg, (long) n);
+            if (written == 0L) {
+                return Collections.emptyMap();
+            }
+            // Defensive: Rust contract is `written <= cap_entries`. A higher value
+            // would mean the buffer was overrun, so refuse to decode past `n`.
+            int rows = (int) Math.min(written, (long) n);
+            // LinkedHashMap preserves the heap-drain order Rust used so logs and
+            // tests see stable iteration; values are O(1) regardless.
+            Map<Long, QueryExecutionMetrics> out = new LinkedHashMap<>(rows);
+            for (int i = 0; i < rows; i++) {
+                long ctxId = QueryRegistryLayout.readContextId(seg, i);
+                // putIfAbsent guards against context_id reuse, which is a Rust-side
+                // caller bug but cheap to defend against here.
+                out.putIfAbsent(ctxId, QueryRegistryLayout.readMetrics(seg, i));
+            }
+            return Collections.unmodifiableMap(out);
         }
     }
 

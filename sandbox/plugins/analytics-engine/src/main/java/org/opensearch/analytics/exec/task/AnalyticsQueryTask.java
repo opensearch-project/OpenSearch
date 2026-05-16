@@ -15,11 +15,10 @@ import org.opensearch.action.search.SearchTask;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.tasks.TaskId;
-import org.opensearch.tasks.CancellableTask;
-import org.opensearch.tasks.SearchBackpressureTask;
 
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
 
 /**
  * Coordinator-level cancellable task representing a running analytics query.
@@ -28,7 +27,7 @@ import java.util.concurrent.atomic.AtomicReference;
  *
  * @opensearch.internal
  */
-public class AnalyticsQueryTask extends CancellableTask implements SearchBackpressureTask {
+public class AnalyticsQueryTask extends SearchTask {
 
     private static final Logger logger = LogManager.getLogger(AnalyticsQueryTask.class);
 
@@ -49,7 +48,7 @@ public class AnalyticsQueryTask extends CancellableTask implements SearchBackpre
             id,
             type,
             action,
-            "queryId[" + queryId + "]",
+            (Supplier<String>) () -> "queryId[" + queryId + "]",
             parentTaskId,
             headers,
             cancelAfterTimeInterval != null ? cancelAfterTimeInterval : TimeValue.MINUS_ONE
