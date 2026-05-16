@@ -66,33 +66,27 @@ public class ArrowBufferPoolTests extends OpenSearchTestCase {
     }
 
     public void testApplyLimitsUpdatesRootAndChildCaps() {
-        // Start with an absolute root size so percentage-resolution paths don't depend on host
-        // memory sizing. Floor 1mb keeps the resolver happy if a percentage is ever supplied.
-        Settings initial = Settings.builder()
-            .put(ParquetSettings.MAX_NATIVE_ALLOCATION.getKey(), "8mb")
-            .put(ParquetSettings.CHILD_ALLOCATION.getKey(), "2mb")
-            .build();
+        // Use absolute root sizes so resolution doesn't depend on host memory. The per-child cap
+        // is derived as root / 10, so an 80mb root yields an 8mb child.
+        Settings initial = Settings.builder().put(ParquetSettings.MAX_NATIVE_ALLOCATION.getKey(), "80mb").build();
         try (ArrowBufferPool pool = new ArrowBufferPool(initial)) {
-            assertEquals(8L * 1024 * 1024, pool.getRootLimit());
-            assertEquals(2L * 1024 * 1024, pool.getMaxChildAllocation());
+            assertEquals(80L * 1024 * 1024, pool.getRootLimit());
+            assertEquals(8L * 1024 * 1024, pool.getMaxChildAllocation());
 
             BufferAllocator childA = pool.createChildAllocator("child-a");
-            assertEquals(2L * 1024 * 1024, childA.getLimit());
+            assertEquals(8L * 1024 * 1024, childA.getLimit());
 
-            // Bump both limits at runtime.
-            Settings updated = Settings.builder()
-                .put(ParquetSettings.MAX_NATIVE_ALLOCATION.getKey(), "16mb")
-                .put(ParquetSettings.CHILD_ALLOCATION.getKey(), "4mb")
-                .build();
+            // Bump the root at runtime; child cap follows as root / 10.
+            Settings updated = Settings.builder().put(ParquetSettings.MAX_NATIVE_ALLOCATION.getKey(), "160mb").build();
             pool.applyLimits(updated);
 
-            assertEquals("root limit must be pushed to live RootAllocator", 16L * 1024 * 1024, pool.getRootLimit());
-            assertEquals("child cap field tracks new value", 4L * 1024 * 1024, pool.getMaxChildAllocation());
-            assertEquals("live child allocator must see new cap", 4L * 1024 * 1024, childA.getLimit());
+            assertEquals("root limit must be pushed to live RootAllocator", 160L * 1024 * 1024, pool.getRootLimit());
+            assertEquals("child cap derives from root / 10", 16L * 1024 * 1024, pool.getMaxChildAllocation());
+            assertEquals("live child allocator must see new cap", 16L * 1024 * 1024, childA.getLimit());
 
             // New children created after applyLimits must also see the new cap.
             BufferAllocator childB = pool.createChildAllocator("child-b");
-            assertEquals(4L * 1024 * 1024, childB.getLimit());
+            assertEquals(16L * 1024 * 1024, childB.getLimit());
 
             childA.close();
             childB.close();
@@ -100,19 +94,13 @@ public class ArrowBufferPoolTests extends OpenSearchTestCase {
     }
 
     public void testApplyLimitsLowerThanCurrentUsageDoesNotReclaim() {
-        Settings initial = Settings.builder()
-            .put(ParquetSettings.MAX_NATIVE_ALLOCATION.getKey(), "16mb")
-            .put(ParquetSettings.CHILD_ALLOCATION.getKey(), "4mb")
-            .build();
+        Settings initial = Settings.builder().put(ParquetSettings.MAX_NATIVE_ALLOCATION.getKey(), "160mb").build();
         try (ArrowBufferPool pool = new ArrowBufferPool(initial)) {
             BufferAllocator child = pool.createChildAllocator("c");
-            ArrowBuf buf = child.buffer(2L * 1024 * 1024); // 2mb in flight
+            ArrowBuf buf = child.buffer(2L * 1024 * 1024); // 2mb in flight, well under the 16mb child cap
 
-            // Lower the root limit below current allocated memory.
-            Settings tightened = Settings.builder()
-                .put(ParquetSettings.MAX_NATIVE_ALLOCATION.getKey(), "1mb")
-                .put(ParquetSettings.CHILD_ALLOCATION.getKey(), "1mb")
-                .build();
+            // Lower the root limit. New child cap = 1mb (< current 2mb usage).
+            Settings tightened = Settings.builder().put(ParquetSettings.MAX_NATIVE_ALLOCATION.getKey(), "10mb").build();
             pool.applyLimits(tightened);
 
             // Existing buffer is unaffected — Arrow does not reclaim already-allocated memory.
@@ -126,10 +114,7 @@ public class ArrowBufferPoolTests extends OpenSearchTestCase {
     }
 
     public void testApplyLimitsIsNoopWhenValuesUnchanged() {
-        Settings settings = Settings.builder()
-            .put(ParquetSettings.MAX_NATIVE_ALLOCATION.getKey(), "8mb")
-            .put(ParquetSettings.CHILD_ALLOCATION.getKey(), "2mb")
-            .build();
+        Settings settings = Settings.builder().put(ParquetSettings.MAX_NATIVE_ALLOCATION.getKey(), "80mb").build();
         try (ArrowBufferPool pool = new ArrowBufferPool(settings)) {
             long rootBefore = pool.getRootLimit();
             long childBefore = pool.getMaxChildAllocation();

@@ -26,14 +26,6 @@ public final class ParquetSettings {
     public static final String DEFAULT_MAX_NATIVE_ALLOCATION = "10%";
     public static final int DEFAULT_MAX_ROWS_PER_VSR = 50000;
 
-    /**
-     * Default per-VSR child allocator cap. Bounds memory a single in-flight VectorSchemaRoot can
-     * hold so one writer cannot monopolize the root allocator. The smallest value with no
-     * measurable latency cost is chosen, which leaves more headroom for the DataFusion pool and
-     * OS page cache.
-     */
-    public static final ByteSizeValue DEFAULT_CHILD_ALLOCATION = new ByteSizeValue(1024, ByteSizeUnit.MB);
-
     /** Group setting prefix for all Parquet settings. */
     public static final Setting<Settings> PARQUET_SETTINGS = Setting.groupSetting("index.parquet.", Setting.Property.IndexScope);
 
@@ -116,23 +108,6 @@ public final class ParquetSettings {
         "parquet.max_native_allocation",
         DEFAULT_MAX_NATIVE_ALLOCATION,
         ParquetSettings::validateMemorySizeOrPercentage,
-        Setting.Property.NodeScope,
-        Setting.Property.Dynamic
-    );
-
-    /**
-     * Per-VSR child allocator cap. Bounds memory a single in-flight VectorSchemaRoot can hold,
-     * preventing one writer from monopolizing the root allocator.
-     * <p>
-     * Dynamic: changes are pushed to live child allocators via {@code BaseAllocator.setLimit}
-     * and to all children created subsequently. As with the root allocator, lowering below
-     * current usage rejects future allocations rather than reclaiming memory.
-     */
-    public static final Setting<ByteSizeValue> CHILD_ALLOCATION = Setting.byteSizeSetting(
-        "parquet.arrow.child_allocation",
-        DEFAULT_CHILD_ALLOCATION,
-        new ByteSizeValue(1, ByteSizeUnit.MB),
-        new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES),
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
@@ -226,7 +201,6 @@ public final class ParquetSettings {
             BLOOM_FILTER_FPP,
             BLOOM_FILTER_NDV,
             MAX_NATIVE_ALLOCATION,
-            CHILD_ALLOCATION,
             MAX_ROWS_PER_VSR,
             SORT_IN_MEMORY_THRESHOLD,
             SORT_BATCH_SIZE,

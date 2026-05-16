@@ -28,50 +28,30 @@ public class ArrowBufferPoolRegistryTests extends OpenSearchTestCase {
     private ClusterSettings buildClusterSettings(Settings nodeSettings) {
         Set<org.opensearch.common.settings.Setting<?>> all = new HashSet<>(BUILT_IN_CLUSTER_SETTINGS);
         all.add(ParquetSettings.MAX_NATIVE_ALLOCATION);
-        all.add(ParquetSettings.CHILD_ALLOCATION);
         return new ClusterSettings(nodeSettings, all);
     }
 
     public void testPutOnMaxNativeAllocationUpdatesRegisteredPool() {
-        Settings nodeSettings = Settings.builder()
-            .put(ParquetSettings.MAX_NATIVE_ALLOCATION.getKey(), "8mb")
-            .put(ParquetSettings.CHILD_ALLOCATION.getKey(), "2mb")
-            .build();
+        Settings nodeSettings = Settings.builder().put(ParquetSettings.MAX_NATIVE_ALLOCATION.getKey(), "80mb").build();
         ClusterSettings clusterSettings = buildClusterSettings(nodeSettings);
         ArrowBufferPoolRegistry registry = new ArrowBufferPoolRegistry(clusterSettings);
 
         try (ArrowBufferPool pool = new ArrowBufferPool(nodeSettings)) {
             registry.register(pool);
             assertEquals(1, registry.trackedPoolCount());
-            assertEquals(8L * 1024 * 1024, pool.getRootLimit());
+            assertEquals(80L * 1024 * 1024, pool.getRootLimit());
+            assertEquals("child cap is root / 10", 8L * 1024 * 1024, pool.getMaxChildAllocation());
 
             // Simulate an operator PUT to the cluster settings API.
-            clusterSettings.applySettings(Settings.builder().put(ParquetSettings.MAX_NATIVE_ALLOCATION.getKey(), "32mb").build());
+            clusterSettings.applySettings(Settings.builder().put(ParquetSettings.MAX_NATIVE_ALLOCATION.getKey(), "320mb").build());
 
-            assertEquals("PUT must propagate through registry to the live pool", 32L * 1024 * 1024, pool.getRootLimit());
-        }
-    }
-
-    public void testPutOnChildAllocationUpdatesPool() {
-        Settings nodeSettings = Settings.builder()
-            .put(ParquetSettings.MAX_NATIVE_ALLOCATION.getKey(), "8mb")
-            .put(ParquetSettings.CHILD_ALLOCATION.getKey(), "2mb")
-            .build();
-        ClusterSettings clusterSettings = buildClusterSettings(nodeSettings);
-        ArrowBufferPoolRegistry registry = new ArrowBufferPoolRegistry(clusterSettings);
-
-        try (ArrowBufferPool pool = new ArrowBufferPool(nodeSettings)) {
-            registry.register(pool);
-            assertEquals(2L * 1024 * 1024, pool.getMaxChildAllocation());
-
-            clusterSettings.applySettings(Settings.builder().put(ParquetSettings.CHILD_ALLOCATION.getKey(), "4mb").build());
-
-            assertEquals(4L * 1024 * 1024, pool.getMaxChildAllocation());
+            assertEquals("PUT must propagate through registry to the live pool", 320L * 1024 * 1024, pool.getRootLimit());
+            assertEquals("child cap follows root / 10 after PUT", 32L * 1024 * 1024, pool.getMaxChildAllocation());
         }
     }
 
     public void testUnregisteredPoolDoesNotReceiveUpdates() {
-        Settings nodeSettings = Settings.builder().put(ParquetSettings.MAX_NATIVE_ALLOCATION.getKey(), "8mb").build();
+        Settings nodeSettings = Settings.builder().put(ParquetSettings.MAX_NATIVE_ALLOCATION.getKey(), "80mb").build();
         ClusterSettings clusterSettings = buildClusterSettings(nodeSettings);
         ArrowBufferPoolRegistry registry = new ArrowBufferPoolRegistry(clusterSettings);
 
@@ -80,14 +60,14 @@ public class ArrowBufferPoolRegistryTests extends OpenSearchTestCase {
             registry.unregister(pool);
             assertEquals(0, registry.trackedPoolCount());
 
-            clusterSettings.applySettings(Settings.builder().put(ParquetSettings.MAX_NATIVE_ALLOCATION.getKey(), "32mb").build());
+            clusterSettings.applySettings(Settings.builder().put(ParquetSettings.MAX_NATIVE_ALLOCATION.getKey(), "320mb").build());
 
-            assertEquals("unregistered pool must not receive updates", 8L * 1024 * 1024, pool.getRootLimit());
+            assertEquals("unregistered pool must not receive updates", 80L * 1024 * 1024, pool.getRootLimit());
         }
     }
 
     public void testMultiplePoolsAllReceiveUpdate() {
-        Settings nodeSettings = Settings.builder().put(ParquetSettings.MAX_NATIVE_ALLOCATION.getKey(), "8mb").build();
+        Settings nodeSettings = Settings.builder().put(ParquetSettings.MAX_NATIVE_ALLOCATION.getKey(), "80mb").build();
         ClusterSettings clusterSettings = buildClusterSettings(nodeSettings);
         ArrowBufferPoolRegistry registry = new ArrowBufferPoolRegistry(clusterSettings);
 
@@ -96,10 +76,10 @@ public class ArrowBufferPoolRegistryTests extends OpenSearchTestCase {
             registry.register(poolB);
             assertEquals(2, registry.trackedPoolCount());
 
-            clusterSettings.applySettings(Settings.builder().put(ParquetSettings.MAX_NATIVE_ALLOCATION.getKey(), "16mb").build());
+            clusterSettings.applySettings(Settings.builder().put(ParquetSettings.MAX_NATIVE_ALLOCATION.getKey(), "160mb").build());
 
-            assertEquals(16L * 1024 * 1024, poolA.getRootLimit());
-            assertEquals(16L * 1024 * 1024, poolB.getRootLimit());
+            assertEquals(160L * 1024 * 1024, poolA.getRootLimit());
+            assertEquals(160L * 1024 * 1024, poolB.getRootLimit());
         }
     }
 }

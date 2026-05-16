@@ -12,7 +12,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.parquet.ParquetSettings;
 
 import java.util.Collections;
@@ -20,9 +19,10 @@ import java.util.Set;
 import java.util.WeakHashMap;
 
 /**
- * Plugin-scoped tracker for live {@link ArrowBufferPool} instances. Registers cluster-settings
- * listeners on the two allocation knobs once, then fans dynamic updates out to every pool
- * created since the listener registered.
+ * Plugin-scoped tracker for live {@link ArrowBufferPool} instances. Registers a cluster-settings
+ * listener on {@link ParquetSettings#MAX_NATIVE_ALLOCATION} once, then fans dynamic updates out
+ * to every pool created since the listener registered. The per-child allocator cap is derived
+ * from the root inside {@link ArrowBufferPool}, so no second listener is needed.
  *
  * <p>Pools are held via a synchronized {@link WeakHashMap}-backed set so closed/GC'd pools drop
  * out automatically — there is no {@code removeSettingsUpdateConsumer} API to deregister
@@ -32,33 +32,11 @@ public class ArrowBufferPoolRegistry {
 
     private static final Logger logger = LogManager.getLogger(ArrowBufferPoolRegistry.class);
 
-    private final ClusterSettings clusterSettings;
     private final Set<ArrowBufferPool> pools = Collections.newSetFromMap(Collections.synchronizedMap(new WeakHashMap<>()));
-    /**
-     * Latest known values for the two allocation knobs. Each listener updates one field then
-     * fans out an {@link ArrowBufferPool#applyLimits(Settings)} call. We track them locally
-     * because {@link ClusterSettings#get(org.opensearch.common.settings.Setting)} reads from
-     * {@code lastSettingsApplied} which is written only after all updaters run.
-     */
-    private volatile String maxNativeAllocation;
-    private volatile ByteSizeValue childAllocation;
 
-    /** Creates the registry, snapshots current setting values, and wires the listeners. */
+    /** Creates the registry and wires the listener for the root allocator setting. */
     public ArrowBufferPoolRegistry(ClusterSettings clusterSettings) {
-        this.clusterSettings = clusterSettings;
-        // Snapshot initial values from the registered defaults so the first PUT sees a coherent
-        // settings view. Subsequent listener fires update only the field that changed.
-        this.maxNativeAllocation = clusterSettings.get(ParquetSettings.MAX_NATIVE_ALLOCATION);
-        this.childAllocation = clusterSettings.get(ParquetSettings.CHILD_ALLOCATION);
-
-        clusterSettings.addSettingsUpdateConsumer(ParquetSettings.MAX_NATIVE_ALLOCATION, v -> {
-            this.maxNativeAllocation = v;
-            applyToAllPools();
-        });
-        clusterSettings.addSettingsUpdateConsumer(ParquetSettings.CHILD_ALLOCATION, v -> {
-            this.childAllocation = v;
-            applyToAllPools();
-        });
+        clusterSettings.addSettingsUpdateConsumer(ParquetSettings.MAX_NATIVE_ALLOCATION, this::applyToAllPools);
     }
 
     /** Registers a pool to receive future limit updates. Safe to call from any thread. */
@@ -78,13 +56,10 @@ public class ArrowBufferPoolRegistry {
         }
     }
 
-    /** Visible for tests — returns the underlying {@link ClusterSettings}. */
-    ClusterSettings getClusterSettings() {
-        return clusterSettings;
-    }
-
-    private void applyToAllPools() {
-        Settings nodeSettings = currentSettings();
+    private void applyToAllPools(String maxNativeAllocation) {
+        // Build a Settings view from the listener-supplied value rather than ClusterSettings.get,
+        // which reads lastSettingsApplied — written only after all update consumers run.
+        Settings nodeSettings = Settings.builder().put(ParquetSettings.MAX_NATIVE_ALLOCATION.getKey(), maxNativeAllocation).build();
         // Snapshot under the synchronized lock to avoid CME during iteration; applyLimits itself
         // touches Arrow allocator state and shouldn't be held under the lock.
         ArrowBufferPool[] snapshot;
@@ -98,17 +73,5 @@ public class ArrowBufferPoolRegistry {
                 logger.warn("Failed to apply Arrow allocator limits to a pool; continuing with others", e);
             }
         }
-    }
-
-    /**
-     * Builds a {@link Settings} view from the locally-tracked field values rather than from
-     * {@link ClusterSettings#get}, which reads {@code lastSettingsApplied} — written only after
-     * all update consumers run.
-     */
-    private Settings currentSettings() {
-        return Settings.builder()
-            .put(ParquetSettings.MAX_NATIVE_ALLOCATION.getKey(), maxNativeAllocation)
-            .put(ParquetSettings.CHILD_ALLOCATION.getKey(), childAllocation.getStringRep())
-            .build();
     }
 }
