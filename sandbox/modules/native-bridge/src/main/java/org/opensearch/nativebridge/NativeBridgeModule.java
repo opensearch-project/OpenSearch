@@ -17,6 +17,7 @@ import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.nativebridge.spi.NativeAllocatorConfig;
+import org.opensearch.nativebridge.spi.NativeHeapProfiler;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.script.ScriptService;
@@ -33,6 +34,8 @@ import java.util.function.Supplier;
  * Always-loaded module that manages runtime tuning for the native (Rust/FFM) layer.
  * <p>
  * Registers dynamic cluster settings and applies changes at runtime via the FFM bridge.
+ * Also registers the NativeHeapProfiler JMX MBean for on-demand heap profiling via
+ * the opensearch-heap-prof CLI tool.
  */
 public class NativeBridgeModule extends Plugin {
 
@@ -70,9 +73,24 @@ public class NativeBridgeModule extends Plugin {
     ) {
         Settings settings = environment.settings();
 
-        // Apply initial values (handles opensearch.yml overrides of the compile-time malloc_conf defaults)
+        // Apply initial values (handles config overrides of the compile-time malloc_conf defaults)
         NativeAllocatorConfig.setDirtyDecayMs(JEMALLOC_DIRTY_DECAY_MS.get(settings));
         NativeAllocatorConfig.setMuzzyDecayMs(JEMALLOC_MUZZY_DECAY_MS.get(settings));
+
+        // Register the heap profiler MBean for JMX-based profiling via opensearch-heap-prof CLI
+        java.util.List<String> allowedDirs = new java.util.ArrayList<>();
+        allowedDirs.add(environment.dataFiles()[0].toAbsolutePath().toString());
+        // Additional paths configurable via system property (set in jvm.options)
+        String extraPaths = System.getProperty("native.heap_prof.allowed_paths", "");
+        if (!extraPaths.isEmpty()) {
+            for (String p : extraPaths.split(",")) {
+                if (!p.trim().isEmpty()) {
+                    allowedDirs.add(p.trim());
+                }
+            }
+        }
+        NativeHeapProfiler.setAllowedDumpDirs(allowedDirs);
+        NativeHeapProfiler.register();
 
         // Register dynamic update listeners
         clusterService.getClusterSettings().addSettingsUpdateConsumer(JEMALLOC_DIRTY_DECAY_MS, NativeAllocatorConfig::setDirtyDecayMs);
