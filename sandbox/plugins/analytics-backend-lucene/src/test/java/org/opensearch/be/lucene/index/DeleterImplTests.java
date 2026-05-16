@@ -9,20 +9,12 @@
 package org.opensearch.be.lucene.index;
 
 import org.apache.lucene.codecs.Codec;
-import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.Term;
-import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.TermQuery;
-import org.apache.lucene.store.NIOFSDirectory;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.be.lucene.LuceneDataFormat;
 import org.opensearch.index.engine.dataformat.DeleteInput;
 import org.opensearch.index.engine.dataformat.DeleteResult;
 import org.opensearch.index.engine.dataformat.DeleterImpl;
-import org.opensearch.index.engine.dataformat.FileInfos;
-import org.opensearch.index.engine.exec.WriterFileSet;
-import org.opensearch.index.mapper.MappedFieldType;
+import org.opensearch.index.engine.dataformat.DocumentInput;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
@@ -48,21 +40,20 @@ public class DeleterImplTests extends OpenSearchTestCase {
         return new LuceneWriter(generation, 0L, dataFormat, baseDir, null, Codec.getDefault(), null);
     }
 
-    private void addDoc(LuceneWriter writer, String id) throws IOException {
-        MappedFieldType keywordField = mock(MappedFieldType.class);
-        when(keywordField.typeName()).thenReturn("keyword");
-        when(keywordField.name()).thenReturn("_id");
-        when(keywordField.hasDocValues()).thenReturn(false);
-
+    private void addDoc(LuceneWriter writer, String id, int rowId) throws IOException {
         LuceneDocumentInput input = new LuceneDocumentInput();
-        input.addField(keywordField, id);
-        input.setRowId(LuceneDocumentInput.ROW_ID_FIELD, 0);
+        org.opensearch.index.mapper.MappedFieldType idField = mock(org.opensearch.index.mapper.MappedFieldType.class);
+        when(idField.typeName()).thenReturn("_id");
+        when(idField.name()).thenReturn("_id");
+        when(idField.hasDocValues()).thenReturn(false);
+        input.addField(idField, id.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        input.setRowId(DocumentInput.ROW_ID_FIELD, rowId);
         writer.addDoc(input);
     }
 
     private LuceneWriter createWriterWithDoc(Path baseDir, long generation, String id) throws IOException {
         LuceneWriter writer = createWriter(baseDir, generation);
-        addDoc(writer, id);
+        addDoc(writer, id, 0);
         return writer;
     }
 
