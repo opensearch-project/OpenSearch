@@ -42,14 +42,14 @@ public class DatafusionCacheManagerTests extends OpenSearchTestCase {
         clusterSettingsToAdd.add(CacheSettings.STATISTICS_CACHE_SIZE_LIMIT);
         clusterSettingsToAdd.add(CacheSettings.STATISTICS_CACHE_EVICTION_TYPE);
         clusterSettingsToAdd.add(DataFusionPlugin.DATAFUSION_MEMORY_POOL_LIMIT);
-        clusterSettingsToAdd.add(DataFusionPlugin.DATAFUSION_SPILL_MEMORY_LIMIT);
+        clusterSettingsToAdd.add(DataFusionPlugin.DATAFUSION_DISK_SPILL_LIMIT);
 
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, clusterSettingsToAdd);
         Path spillDir = createTempDir("spill");
 
         service = DataFusionService.builder()
             .memoryPoolLimit(64 * 1024 * 1024)
-            .spillMemoryLimit(32 * 1024 * 1024)
+            .diskSpillLimit(32 * 1024 * 1024)
             .spillDirectory(spillDir.toString())
             .cpuThreads(2)
             .clusterSettings(clusterSettings)

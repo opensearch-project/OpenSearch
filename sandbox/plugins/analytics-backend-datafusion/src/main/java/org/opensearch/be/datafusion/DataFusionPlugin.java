@@ -44,6 +44,9 @@ import org.opensearch.transport.client.Client;
 import org.opensearch.watcher.ResourceWatcherService;
 
 import java.io.IOException;
+import java.nio.file.FileStore;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -72,8 +75,14 @@ public class DataFusionPlugin extends Plugin implements SearchBackEndPlugin<Data
      */
     public static final String DEFAULT_MEMORY_POOL_LIMIT = "50%";
 
-    /** Default value for {@link #DATAFUSION_SPILL_MEMORY_LIMIT}. */
-    public static final String DEFAULT_SPILL_MEMORY_LIMIT = "50%";
+    /**
+     * Default value for {@link #DATAFUSION_DISK_SPILL_LIMIT}. {@code 20%} of the spill
+     * directory's usable disk space at startup. Disk-relative because the cap bounds
+     * temporary on-disk spill files, not memory; sizing it against non-heap RAM (the
+     * earlier behavior) under-allocated on data-heavy workloads where a single
+     * group-by can spill more than the entire RAM of the host.
+     */
+    public static final String DEFAULT_DISK_SPILL_LIMIT = "20%";
 
     /**
      * Memory pool limit for the DataFusion runtime. Accepts a percentage of non-heap memory
@@ -88,7 +97,7 @@ public class DataFusionPlugin extends Plugin implements SearchBackEndPlugin<Data
      * than a percentage.
      */
     public static final Setting<String> DATAFUSION_MEMORY_POOL_LIMIT = Setting.simpleString(
-        "datafusion.memory_pool_limit_bytes",
+        "datafusion.memory_pool_limit",
         DEFAULT_MEMORY_POOL_LIMIT,
         DataFusionPlugin::validateMemorySizeOrPercentage,
         Setting.Property.NodeScope,
@@ -96,17 +105,18 @@ public class DataFusionPlugin extends Plugin implements SearchBackEndPlugin<Data
     );
 
     /**
-     * Spill memory limit — when exceeded, DataFusion spills to disk. Accepts a percentage of
-     * non-heap memory or an absolute byte size.
+     * Disk spill limit — caps the total bytes DataFusion may write to its spill directory.
+     * Accepts a percentage of usable disk in the spill directory's filesystem (e.g.
+     * {@code "20%"}) or an absolute byte size (e.g. {@code "100gb"}).
      * <p>
      * Static (NodeScope only). DataFusion's {@code DiskManager} stores the spill cap as a plain
      * {@code u64} and only exposes a setter behind {@code Arc::get_mut}, which fails as soon as
      * any query holds a strong reference to the runtime. Until upstream offers a thread-safe
      * setter we treat this as a startup setting; change it in {@code opensearch.yml} and restart.
      */
-    public static final Setting<String> DATAFUSION_SPILL_MEMORY_LIMIT = Setting.simpleString(
-        "datafusion.spill_memory_limit_bytes",
-        DEFAULT_SPILL_MEMORY_LIMIT,
+    public static final Setting<String> DATAFUSION_DISK_SPILL_LIMIT = Setting.simpleString(
+        "datafusion.disk_spill_limit",
+        DEFAULT_DISK_SPILL_LIMIT,
         DataFusionPlugin::validateMemorySizeOrPercentage,
         Setting.Property.NodeScope
     );
@@ -165,17 +175,17 @@ public class DataFusionPlugin extends Plugin implements SearchBackEndPlugin<Data
         this.clusterService = clusterService;
         Settings settings = environment.settings();
         long memoryPoolLimit = resolveMemoryPoolBytes(settings);
-        long spillMemoryLimit = resolveSpillMemoryBytes(settings);
-        String spillDir = environment.dataFiles()[0].getParent().resolve("tmp").toAbsolutePath().toString();
+        Path spillDir = environment.dataFiles()[0].getParent().resolve("tmp").toAbsolutePath();
+        long diskSpillLimit = resolveDiskSpillBytes(settings, spillDir);
 
         dataFusionService = DataFusionService.builder()
             .memoryPoolLimit(memoryPoolLimit)
-            .spillMemoryLimit(spillMemoryLimit)
-            .spillDirectory(spillDir)
+            .diskSpillLimit(diskSpillLimit)
+            .spillDirectory(spillDir.toString())
             .clusterSettings(clusterService.getClusterSettings())
             .build();
         dataFusionService.start();
-        logger.debug("DataFusion plugin initialized — memory pool {}B, spill limit {}B", memoryPoolLimit, spillMemoryLimit);
+        logger.debug("DataFusion plugin initialized — memory pool {}B, disk spill {}B", memoryPoolLimit, diskSpillLimit);
 
         // Wire the memory pool limit setting to the native runtime so cluster-settings PUTs take
         // effect without restarting the node.
@@ -247,11 +257,70 @@ public class DataFusionPlugin extends Plugin implements SearchBackEndPlugin<Data
     }
 
     /**
-     * Resolves {@link #DATAFUSION_SPILL_MEMORY_LIMIT}. Percentages apply against
-     * {@code totalPhysicalMemory - configuredMaxHeap}; absolute byte sizes are used as-is.
+     * Resolves {@link #DATAFUSION_DISK_SPILL_LIMIT} against the spill directory's filesystem.
+     * Percentages apply against {@code getUsableSpace()} on the FileStore hosting
+     * {@code spillDir}; absolute byte sizes are used as-is.
+     * <p>
+     * The spill directory may not yet exist at resolve time (DataFusion creates it lazily),
+     * so we walk up to the closest existing parent on the same filesystem.
      */
-    static long resolveSpillMemoryBytes(Settings settings) {
-        return resolveBytes(DATAFUSION_SPILL_MEMORY_LIMIT.get(settings), DATAFUSION_SPILL_MEMORY_LIMIT.getKey());
+    static long resolveDiskSpillBytes(Settings settings, Path spillDir) {
+        String configured = DATAFUSION_DISK_SPILL_LIMIT.get(settings);
+        String key = DATAFUSION_DISK_SPILL_LIMIT.getKey();
+        if (configured.endsWith("%")) {
+            long usable = resolveUsableDiskBytes(spillDir, key);
+            RatioValue ratio = RatioValue.parseRatioValue(configured);
+            return (long) (usable * ratio.getAsRatio());
+        }
+        return ByteSizeValue.parseBytesSizeValue(configured, key).getBytes();
+    }
+
+    /**
+     * Returns usable bytes on the filesystem hosting {@code spillDir}, walking up to the
+     * closest existing ancestor so the lookup works before DataFusion creates the temp dir.
+     * Uses {@link Environment#getFileStore(Path)} (not raw {@link Files#getFileStore}) so the
+     * JDK-8162520 negative-overflow workaround applies — without it, certain large or quirky
+     * filesystems return -1 and we'd misclassify them as "unmeasurable."
+     */
+    private static long resolveUsableDiskBytes(Path spillDir, String settingKey) {
+        Path probe = spillDir;
+        while (probe != null && !Files.exists(probe)) {
+            probe = probe.getParent();
+        }
+        if (probe == null) {
+            // Defensive — on POSIX `/` always exists, so this branch is essentially unreachable
+            // in production. We keep it for esoteric NIO providers that report null parents.
+            throw new IllegalStateException(
+                "Spill directory ["
+                    + spillDir
+                    + "] has no existing ancestor for setting ["
+                    + settingKey
+                    + "]; configure an absolute byte size (e.g. \"100gb\") instead of a percentage."
+            );
+        }
+        try {
+            FileStore store = Environment.getFileStore(probe);
+            long usable = store.getUsableSpace();
+            if (usable <= 0) {
+                throw new IllegalStateException(
+                    "Usable disk space not measurable on ["
+                        + probe
+                        + "] for setting ["
+                        + settingKey
+                        + "]; configure an absolute byte size (e.g. \"100gb\") instead of a percentage."
+                );
+            }
+            return usable;
+        } catch (IOException e) {
+            throw new IllegalStateException(
+                "Failed to read filesystem info for ["
+                    + probe
+                    + "] when resolving setting ["
+                    + settingKey
+                    + "]; configure an absolute byte size (e.g. \"100gb\") instead of a percentage.",
+                e
+            );
+        }
     }
 
     /**
@@ -291,8 +360,8 @@ public class DataFusionPlugin extends Plugin implements SearchBackEndPlugin<Data
      * Validates that {@code value} is either a percentage ({@code "25%"}) or an absolute byte
      * size accepted by {@link ByteSizeValue#parseBytesSizeValue(String, String)}. Used as the
      * setting-time validator for {@link #DATAFUSION_MEMORY_POOL_LIMIT} and
-     * {@link #DATAFUSION_SPILL_MEMORY_LIMIT} so that malformed values fail at update time rather
-     * than at the next read inside {@link #resolveBytes}.
+     * {@link #DATAFUSION_DISK_SPILL_LIMIT} so that malformed values fail at update time rather
+     * than at the next read inside the per-setting resolvers.
      */
     private static void validateMemorySizeOrPercentage(String value) {
         try {

@@ -40,7 +40,7 @@ public class DataFusionService extends AbstractLifecycleComponent {
     private static final Logger logger = LogManager.getLogger(DataFusionService.class);
 
     private final long memoryPoolLimit;
-    private final long spillMemoryLimit;
+    private final long diskSpillLimit;
     private final String spillDirectory;
     private final int cpuThreads;
     private final ClusterSettings clusterSettings;
@@ -68,7 +68,7 @@ public class DataFusionService extends AbstractLifecycleComponent {
 
     private DataFusionService(Builder builder) {
         this.memoryPoolLimit = builder.memoryPoolLimit;
-        this.spillMemoryLimit = builder.spillMemoryLimit;
+        this.diskSpillLimit = builder.diskSpillLimit;
         this.spillDirectory = builder.spillDirectory;
         this.cpuThreads = builder.cpuThreads;
         this.clusterSettings = builder.clusterSettings;
@@ -106,7 +106,7 @@ public class DataFusionService extends AbstractLifecycleComponent {
             cacheManagerPtr = CacheUtils.createCacheConfig(clusterSettings);
         }
 
-        long ptr = NativeBridge.createGlobalRuntime(memoryPoolLimit, cacheManagerPtr, spillDirectory, spillMemoryLimit);
+        long ptr = NativeBridge.createGlobalRuntime(memoryPoolLimit, cacheManagerPtr, spillDirectory, diskSpillLimit);
         this.runtimeHandle = new NativeRuntimeHandle(ptr);
         this.rootAllocator = new RootAllocator(memoryPoolLimit);
 
@@ -114,7 +114,7 @@ public class DataFusionService extends AbstractLifecycleComponent {
             this.cacheManager = new CacheManager(runtimeHandle);
         }
 
-        logger.debug("DataFusion service started — memory pool {}B, spill limit {}B", memoryPoolLimit, spillMemoryLimit);
+        logger.debug("DataFusion service started — memory pool {}B, spill limit {}B", memoryPoolLimit, diskSpillLimit);
     }
 
     @Override
@@ -262,7 +262,7 @@ public class DataFusionService extends AbstractLifecycleComponent {
      */
     public static class Builder {
         private long memoryPoolLimit = Runtime.getRuntime().maxMemory() / 4;
-        private long spillMemoryLimit = Runtime.getRuntime().maxMemory() / 8;
+        private long diskSpillLimit = Runtime.getRuntime().maxMemory() / 8;
         private String spillDirectory = System.getProperty("java.io.tmpdir");
         private int cpuThreads = Runtime.getRuntime().availableProcessors();
         private ClusterSettings clusterSettings;
@@ -282,8 +282,8 @@ public class DataFusionService extends AbstractLifecycleComponent {
          * Sets the maximum bytes before spilling to disk.
          * @param bytes spill limit
          */
-        public Builder spillMemoryLimit(long bytes) {
-            this.spillMemoryLimit = bytes;
+        public Builder diskSpillLimit(long bytes) {
+            this.diskSpillLimit = bytes;
             return this;
         }
 

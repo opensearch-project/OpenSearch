@@ -28,7 +28,7 @@ public class DynamicMemoryPoolTests extends OpenSearchTestCase {
         Path spillDir = createTempDir("datafusion-spill");
         service = DataFusionService.builder()
             .memoryPoolLimit(64 * 1024 * 1024) // 64MB
-            .spillMemoryLimit(32 * 1024 * 1024)
+            .diskSpillLimit(32 * 1024 * 1024)
             .spillDirectory(spillDir.toString())
             .cpuThreads(2)
             .build();

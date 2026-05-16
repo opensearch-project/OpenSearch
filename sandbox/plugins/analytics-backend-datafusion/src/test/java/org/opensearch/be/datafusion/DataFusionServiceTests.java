@@ -36,7 +36,7 @@ public class DataFusionServiceTests extends OpenSearchTestCase {
         Path spillDir = createTempDir("spill");
         DataFusionService service = DataFusionService.builder()
             .memoryPoolLimit(64 * 1024 * 1024)
-            .spillMemoryLimit(32 * 1024 * 1024)
+            .diskSpillLimit(32 * 1024 * 1024)
             .spillDirectory(spillDir.toString())
             .cpuThreads(2)
             .build();
@@ -88,7 +88,7 @@ public class DataFusionServiceTests extends OpenSearchTestCase {
         Path spillDir = createTempDir("spill");
         DataFusionService service = DataFusionService.builder()
             .memoryPoolLimit(64 * 1024 * 1024)
-            .spillMemoryLimit(32 * 1024 * 1024)
+            .diskSpillLimit(32 * 1024 * 1024)
             .spillDirectory(spillDir.toString())
             .cpuThreads(2)
             .build();
@@ -110,7 +110,7 @@ public class DataFusionServiceTests extends OpenSearchTestCase {
 
         DataFusionService service = DataFusionService.builder()
             .memoryPoolLimit(64 * 1024 * 1024)
-            .spillMemoryLimit(32 * 1024 * 1024)
+            .diskSpillLimit(32 * 1024 * 1024)
             .spillDirectory(spillDir.toString())
             .cpuThreads(2)
             .clusterSettings(clusterSettings)
@@ -130,7 +130,7 @@ public class DataFusionServiceTests extends OpenSearchTestCase {
 
         DataFusionService service = DataFusionService.builder()
             .memoryPoolLimit(64 * 1024 * 1024)
-            .spillMemoryLimit(32 * 1024 * 1024)
+            .diskSpillLimit(32 * 1024 * 1024)
             .spillDirectory(spillDir.toString())
             .cpuThreads(2)
             .build();
@@ -188,7 +188,7 @@ public class DataFusionServiceTests extends OpenSearchTestCase {
         all.add(CacheSettings.STATISTICS_CACHE_SIZE_LIMIT);
         all.add(CacheSettings.STATISTICS_CACHE_EVICTION_TYPE);
         all.add(DataFusionPlugin.DATAFUSION_MEMORY_POOL_LIMIT);
-        all.add(DataFusionPlugin.DATAFUSION_SPILL_MEMORY_LIMIT);
+        all.add(DataFusionPlugin.DATAFUSION_DISK_SPILL_LIMIT);
         return new ClusterSettings(settings, all);
     }
 }
