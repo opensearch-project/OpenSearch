@@ -53,7 +53,7 @@ import java.util.Set;
  */
 public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendPlugin {
 
-    private static final Set<EngineCapability> ENGINE_CAPS = Set.of(EngineCapability.SORT, EngineCapability.UNION);
+    private static final Set<EngineCapability> ENGINE_CAPS = Set.of(EngineCapability.SORT, EngineCapability.UNION, EngineCapability.VALUES);
 
     private static final Set<FieldType> SUPPORTED_FIELD_TYPES = new HashSet<>();
     static {
@@ -286,7 +286,21 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         ScalarFunction.MD5,
         ScalarFunction.SHA1,
         ScalarFunction.SHA2,
-        ScalarFunction.CRC32
+        ScalarFunction.CRC32,
+        // PPL `span(field, interval, unit?)` — bucketing for `stats … by span(...)`. Numeric
+        // span lowers to {@code floor(field/interval)*interval}; time span (interval=1) to
+        // {@code date_trunc(unit, field)}. Both targets are substrait-default operators.
+        ScalarFunction.SPAN,
+        // PPL bucketing label functions — Rust UDFs returning VARCHAR labels (e.g. "0-100").
+        // SPAN_BUCKET reachable today via `bin <f> span=N`. WIDTH_BUCKET / MINSPAN_BUCKET /
+        // RANGE_BUCKET reach through `bin <f> bins=N` / `minspan=N` / `start=X end=Y`, which
+        // lower to MIN/MAX OVER () empty-partition window aggregates — exercised end-to-end
+        // by the bucket IT suites once the window-pushdown follow-up (#21668) lands. See
+        // per-adapter Javadoc for semantics + collision notes.
+        ScalarFunction.SPAN_BUCKET,
+        ScalarFunction.WIDTH_BUCKET,
+        ScalarFunction.MINSPAN_BUCKET,
+        ScalarFunction.RANGE_BUCKET
     );
 
     /**
@@ -491,6 +505,7 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                     Map.entry(ScalarFunction.MAKEDATE, new RustUdfDateTimeAdapters.MakedateAdapter()),
                     Map.entry(ScalarFunction.MAKETIME, new RustUdfDateTimeAdapters.MaketimeAdapter()),
                     Map.entry(ScalarFunction.MICROSECOND, DatePartAdapters.microsecond()),
+                    Map.entry(ScalarFunction.MINSPAN_BUCKET, new MinspanBucketAdapter()),
                     Map.entry(ScalarFunction.MINUTE, minute),
                     Map.entry(ScalarFunction.MINUTE_OF_HOUR, minute),
                     Map.entry(ScalarFunction.MOD, new StdOperatorRewriteAdapter("MOD", SqlStdOperatorTable.MOD)),
@@ -500,6 +515,7 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                     Map.entry(ScalarFunction.NOW, now),
                     Map.entry(ScalarFunction.POSITION, new PositionAdapter()),
                     Map.entry(ScalarFunction.QUARTER, DatePartAdapters.quarter()),
+                    Map.entry(ScalarFunction.RANGE_BUCKET, new RangeBucketAdapter()),
                     Map.entry(ScalarFunction.REGEXP_REPLACE, new RegexpReplaceAdapter()),
                     Map.entry(ScalarFunction.REX_EXTRACT, new RexExtractAdapter()),
                     Map.entry(ScalarFunction.REX_EXTRACT_MULTI, new RexExtractMultiAdapter()),
@@ -512,6 +528,8 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                     Map.entry(ScalarFunction.SHA2, new Sha2FunctionAdapter()),
                     Map.entry(ScalarFunction.SIGN, nameMapping(SignumFunction.FUNCTION)),
                     Map.entry(ScalarFunction.SINH, new HyperbolicOperatorAdapter(SqlLibraryOperators.SINH)),
+                    Map.entry(ScalarFunction.SPAN, new SpanAdapter()),
+                    Map.entry(ScalarFunction.SPAN_BUCKET, new SpanBucketAdapter()),
                     Map.entry(ScalarFunction.STRCMP, new StrcmpFunctionAdapter()),
                     Map.entry(ScalarFunction.STRFTIME, new StrftimeFunctionAdapter()),
                     Map.entry(ScalarFunction.STR_TO_DATE, new RustUdfDateTimeAdapters.StrToDateAdapter()),
@@ -526,6 +544,7 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                     Map.entry(ScalarFunction.UNIX_TIMESTAMP, new UnixTimestampAdapter()),
                     Map.entry(ScalarFunction.WEEK, week),
                     Map.entry(ScalarFunction.WEEK_OF_YEAR, week),
+                    Map.entry(ScalarFunction.WIDTH_BUCKET, new WidthBucketAdapter()),
                     Map.entry(ScalarFunction.YEAR, DatePartAdapters.year())
                 );
             }

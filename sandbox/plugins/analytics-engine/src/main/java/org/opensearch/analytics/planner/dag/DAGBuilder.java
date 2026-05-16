@@ -11,9 +11,12 @@ package org.opensearch.analytics.planner.dag;
 import org.apache.calcite.rel.RelNode;
 import org.opensearch.analytics.planner.CapabilityRegistry;
 import org.opensearch.analytics.planner.CapabilityResolutionUtils;
+import org.opensearch.analytics.planner.RelNodeUtils;
 import org.opensearch.analytics.planner.rel.OpenSearchExchangeReducer;
 import org.opensearch.analytics.planner.rel.OpenSearchRelNode;
 import org.opensearch.analytics.planner.rel.OpenSearchStageInputScan;
+import org.opensearch.analytics.planner.rel.OpenSearchTableScan;
+import org.opensearch.analytics.planner.rel.OpenSearchValues;
 import org.opensearch.analytics.spi.ExchangeSinkProvider;
 import org.opensearch.cluster.service.ClusterService;
 
@@ -47,8 +50,14 @@ public class DAGBuilder {
             rootFragment = sever(cboOutput, counter, childStages, registry, clusterService);
         }
 
+        // Sink provider is needed whenever the root stage runs a backend plan locally —
+        // either because it gathers child output (COORDINATOR_REDUCE) or because it's a
+        // coord-only compute leaf like LogicalValues (LOCAL_COMPUTE). Pure shard root
+        // (single-stage scan) and pure pass-through root (no children, no compute leaf)
+        // don't need a backend sink.
+        boolean hasComputeLeaf = RelNodeUtils.findNode(rootFragment, OpenSearchValues.class) != null;
         ExchangeSinkProvider sinkProvider = null;
-        if (!childStages.isEmpty()) {
+        if (!childStages.isEmpty() || hasComputeLeaf) {
             List<String> reduceViable = CapabilityResolutionUtils.filterByReduceCapability(
                 registry,
                 ((OpenSearchRelNode) cboOutput).getViableBackends()
@@ -56,7 +65,11 @@ public class DAGBuilder {
             sinkProvider = registry.getBackend(reduceViable.getFirst()).getExchangeSinkProvider();
         }
 
-        TargetResolver rootTargetResolver = childStages.isEmpty() ? new ShardTargetResolver(rootFragment, clusterService) : null;
+        // Root needs a shard target only if its fragment actually contains a TableScan.
+        // OpenSearchValues (literal-row source) and other coord-only leaves have no scan
+        // and run as LOCAL_COMPUTE on the coordinator.
+        boolean needsShardResolver = childStages.isEmpty() && RelNodeUtils.findNode(rootFragment, OpenSearchTableScan.class) != null;
+        TargetResolver rootTargetResolver = needsShardResolver ? new ShardTargetResolver(rootFragment, clusterService) : null;
 
         Stage rootStage = new Stage(counter[0]++, rootFragment, childStages, null, sinkProvider, rootTargetResolver);
         return new QueryDAG(UUID.randomUUID().toString(), rootStage);
