@@ -11,7 +11,13 @@ package org.opensearch.be.datafusion;
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.memory.RootAllocator;
 import org.apache.arrow.vector.BigIntVector;
+import org.apache.arrow.vector.TimeStampMicroTZVector;
+import org.apache.arrow.vector.TimeStampMilliTZVector;
+import org.apache.arrow.vector.TimeStampMilliVector;
+import org.apache.arrow.vector.TimeStampNanoVector;
+import org.apache.arrow.vector.TimeStampSecVector;
 import org.apache.arrow.vector.VectorSchemaRoot;
+import org.apache.arrow.vector.types.TimeUnit;
 import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.FieldType;
@@ -65,6 +71,166 @@ public class DatafusionReduceSinkTests extends OpenSearchTestCase {
 
     public void testInputIdConstantMatchesDesign() {
         assertEquals("Single-input reduce uses the synthetic id 'input-0'", "input-0", DatafusionReduceSink.INPUT_ID);
+    }
+
+    // ── rescaleTimestamp ───────────────────────────────────────────────────────────────
+
+    public void testRescaleTimestampIdentityWhenUnitsMatch() {
+        assertEquals(1_234L, DatafusionReduceSink.rescaleTimestamp(1_234L, TimeUnit.MILLISECOND, TimeUnit.MILLISECOND));
+        assertEquals(0L, DatafusionReduceSink.rescaleTimestamp(0L, TimeUnit.NANOSECOND, TimeUnit.NANOSECOND));
+        assertEquals(-42L, DatafusionReduceSink.rescaleTimestamp(-42L, TimeUnit.SECOND, TimeUnit.SECOND));
+    }
+
+    public void testRescaleTimestampUpscale() {
+        // SECOND → MILLI: ×1_000
+        assertEquals(5_000L, DatafusionReduceSink.rescaleTimestamp(5L, TimeUnit.SECOND, TimeUnit.MILLISECOND));
+        // MILLI → MICRO: ×1_000
+        assertEquals(2_000L, DatafusionReduceSink.rescaleTimestamp(2L, TimeUnit.MILLISECOND, TimeUnit.MICROSECOND));
+        // MILLI → NANO: ×1_000_000
+        assertEquals(7_000_000L, DatafusionReduceSink.rescaleTimestamp(7L, TimeUnit.MILLISECOND, TimeUnit.NANOSECOND));
+        // SECOND → NANO: ×1_000_000_000
+        assertEquals(3_000_000_000L, DatafusionReduceSink.rescaleTimestamp(3L, TimeUnit.SECOND, TimeUnit.NANOSECOND));
+        // Negative values preserved
+        assertEquals(-1_500L, DatafusionReduceSink.rescaleTimestamp(-1500L, TimeUnit.MILLISECOND, TimeUnit.MILLISECOND));
+        assertEquals(-2_000L, DatafusionReduceSink.rescaleTimestamp(-2L, TimeUnit.MILLISECOND, TimeUnit.MICROSECOND));
+    }
+
+    public void testRescaleTimestampDownscaleTruncatesTowardNegativeInfinity() {
+        // NANO → MILLI: ÷1_000_000
+        assertEquals(1L, DatafusionReduceSink.rescaleTimestamp(1_000_000L, TimeUnit.NANOSECOND, TimeUnit.MILLISECOND));
+        assertEquals(1L, DatafusionReduceSink.rescaleTimestamp(1_999_999L, TimeUnit.NANOSECOND, TimeUnit.MILLISECOND));
+        // Math.floorDiv: -1 (not 0) for -1ns truncated to millis. Matches Arrow/DataFusion semantics.
+        assertEquals(-1L, DatafusionReduceSink.rescaleTimestamp(-1L, TimeUnit.NANOSECOND, TimeUnit.MILLISECOND));
+        assertEquals(-1L, DatafusionReduceSink.rescaleTimestamp(-999_999L, TimeUnit.NANOSECOND, TimeUnit.MILLISECOND));
+        // MICRO → SECOND
+        assertEquals(2L, DatafusionReduceSink.rescaleTimestamp(2_500_000L, TimeUnit.MICROSECOND, TimeUnit.SECOND));
+    }
+
+    public void testRescaleTimestampOverflowThrows() {
+        // 2^63-1 in MILLI cannot be upscaled to MICRO without overflow.
+        expectThrows(
+            ArithmeticException.class,
+            () -> DatafusionReduceSink.rescaleTimestamp(Long.MAX_VALUE / 100L, TimeUnit.MILLISECOND, TimeUnit.MICROSECOND)
+        );
+    }
+
+    // ── describeType ───────────────────────────────────────────────────────────────────
+
+    public void testDescribeTypeRendersTimestampUnitAndTimezone() {
+        assertEquals("Timestamp(MILLISECOND,UTC)", DatafusionReduceSink.describeType(new ArrowType.Timestamp(TimeUnit.MILLISECOND, "UTC")));
+        assertEquals("Timestamp(MICROSECOND,null)", DatafusionReduceSink.describeType(new ArrowType.Timestamp(TimeUnit.MICROSECOND, null)));
+    }
+
+    public void testDescribeTypeFallsBackToTypeIdForOtherTypes() {
+        assertEquals("Int", DatafusionReduceSink.describeType(new ArrowType.Int(64, true)));
+        assertEquals("Utf8", DatafusionReduceSink.describeType(new ArrowType.Utf8()));
+    }
+
+    // ── coerceToDeclaredSchema: Timestamp → Timestamp ─────────────────────────────────
+
+    public void testCoerceTimestampMilliUtcToMicroUtc() {
+        try (BufferAllocator alloc = new RootAllocator(Long.MAX_VALUE)) {
+            Schema srcSchema = singleField("ts", new ArrowType.Timestamp(TimeUnit.MILLISECOND, "UTC"));
+            Schema dstSchema = singleField("ts", new ArrowType.Timestamp(TimeUnit.MICROSECOND, "UTC"));
+            VectorSchemaRoot srcRoot = VectorSchemaRoot.create(srcSchema, alloc);
+            srcRoot.allocateNew();
+            TimeStampMilliTZVector srcVec = (TimeStampMilliTZVector) srcRoot.getVector(0);
+            srcVec.setSafe(0, 1L);
+            srcVec.setNull(1);
+            srcVec.setSafe(2, 1_700_000_000_000L);
+            srcRoot.setRowCount(3);
+
+            // invokeCoerce takes ownership of srcRoot and closes it before returning.
+            try (VectorSchemaRoot out = invokeCoerce(srcRoot, dstSchema, alloc)) {
+                TimeStampMicroTZVector outVec = (TimeStampMicroTZVector) out.getVector(0);
+                assertEquals(3, out.getRowCount());
+                assertEquals(1_000L, outVec.get(0));
+                assertTrue("row 1 stays null", outVec.isNull(1));
+                assertEquals(1_700_000_000_000_000L, outVec.get(2));
+            }
+        }
+    }
+
+    public void testCoerceTimestampSecondToMillisecond() {
+        try (BufferAllocator alloc = new RootAllocator(Long.MAX_VALUE)) {
+            Schema srcSchema = singleField("ts", new ArrowType.Timestamp(TimeUnit.SECOND, null));
+            Schema dstSchema = singleField("ts", new ArrowType.Timestamp(TimeUnit.MILLISECOND, "UTC"));
+            VectorSchemaRoot srcRoot = VectorSchemaRoot.create(srcSchema, alloc);
+            srcRoot.allocateNew();
+            TimeStampSecVector srcVec = (TimeStampSecVector) srcRoot.getVector(0);
+            srcVec.setSafe(0, 1L);
+            srcVec.setSafe(1, 0L);
+            srcRoot.setRowCount(2);
+
+            try (VectorSchemaRoot out = invokeCoerce(srcRoot, dstSchema, alloc)) {
+                TimeStampMilliTZVector outVec = (TimeStampMilliTZVector) out.getVector(0);
+                assertEquals(1_000L, outVec.get(0));
+                assertEquals(0L, outVec.get(1));
+            }
+        }
+    }
+
+    public void testCoerceTimestampNanoToMilliTruncates() {
+        try (BufferAllocator alloc = new RootAllocator(Long.MAX_VALUE)) {
+            Schema srcSchema = singleField("ts", new ArrowType.Timestamp(TimeUnit.NANOSECOND, null));
+            Schema dstSchema = singleField("ts", new ArrowType.Timestamp(TimeUnit.MILLISECOND, "UTC"));
+            VectorSchemaRoot srcRoot = VectorSchemaRoot.create(srcSchema, alloc);
+            srcRoot.allocateNew();
+            TimeStampNanoVector srcVec = (TimeStampNanoVector) srcRoot.getVector(0);
+            srcVec.setSafe(0, 1_999_999L);
+            srcVec.setSafe(1, 2_500_000L);
+            srcRoot.setRowCount(2);
+
+            try (VectorSchemaRoot out = invokeCoerce(srcRoot, dstSchema, alloc)) {
+                TimeStampMilliTZVector outVec = (TimeStampMilliTZVector) out.getVector(0);
+                // 1_999_999 ns = 1.999999 ms → truncates toward 0 → 1
+                assertEquals(1L, outVec.get(0));
+                // 2_500_000 ns = 2.5 ms → truncates toward 0 → 2
+                assertEquals(2L, outVec.get(1));
+            }
+        }
+    }
+
+    public void testCoerceTimestampNoTimezoneToTimezoneTreatedAsValuePreserving() {
+        try (BufferAllocator alloc = new RootAllocator(Long.MAX_VALUE)) {
+            Schema srcSchema = singleField("ts", new ArrowType.Timestamp(TimeUnit.MILLISECOND, null));
+            Schema dstSchema = singleField("ts", new ArrowType.Timestamp(TimeUnit.MILLISECOND, "UTC"));
+            VectorSchemaRoot srcRoot = VectorSchemaRoot.create(srcSchema, alloc);
+            srcRoot.allocateNew();
+            TimeStampMilliVector srcVec = (TimeStampMilliVector) srcRoot.getVector(0);
+            srcVec.setSafe(0, 1_700_000_000_000L);
+            srcRoot.setRowCount(1);
+
+            try (VectorSchemaRoot out = invokeCoerce(srcRoot, dstSchema, alloc)) {
+                TimeStampMilliTZVector outVec = (TimeStampMilliTZVector) out.getVector(0);
+                assertEquals(1_700_000_000_000L, outVec.get(0));
+            }
+        }
+    }
+
+    public void testCoerceErrorMessageRendersTimestampPrecisionAndTimezone() {
+        try (BufferAllocator alloc = new RootAllocator(Long.MAX_VALUE)) {
+            // Force an unsupported (Timestamp → Int) pair to confirm describeType renders the
+            // full Timestamp(unit,tz) shape rather than the indistinguishable bare type ID.
+            Schema srcSchema = singleField("ts", new ArrowType.Timestamp(TimeUnit.MICROSECOND, "UTC"));
+            Schema dstSchema = singleField("ts", new ArrowType.Int(64, true));
+            VectorSchemaRoot srcRoot = VectorSchemaRoot.create(srcSchema, alloc);
+            srcRoot.allocateNew();
+            srcRoot.setRowCount(0);
+            IllegalStateException e = expectThrows(IllegalStateException.class, () -> invokeCoerce(srcRoot, dstSchema, alloc));
+            assertTrue(
+                "error message should include Timestamp(unit,tz): " + e.getMessage(),
+                e.getMessage().contains("Timestamp(MICROSECOND,UTC)")
+            );
+        }
+    }
+
+    private static Schema singleField(String name, ArrowType type) {
+        return new Schema(List.of(new Field(name, FieldType.nullable(type), null)));
+    }
+
+    private static VectorSchemaRoot invokeCoerce(VectorSchemaRoot batch, Schema declared, BufferAllocator alloc) {
+        return DatafusionReduceSink.coerceToDeclaredSchema(batch, declared, alloc);
     }
 
     /**

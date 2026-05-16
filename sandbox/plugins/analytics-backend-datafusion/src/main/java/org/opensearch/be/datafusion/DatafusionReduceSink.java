@@ -12,10 +12,20 @@ import org.apache.arrow.c.ArrowArray;
 import org.apache.arrow.c.ArrowSchema;
 import org.apache.arrow.c.Data;
 import org.apache.arrow.memory.BufferAllocator;
+import org.apache.arrow.vector.BaseFixedWidthVector;
 import org.apache.arrow.vector.FieldVector;
+import org.apache.arrow.vector.TimeStampMicroTZVector;
+import org.apache.arrow.vector.TimeStampMicroVector;
+import org.apache.arrow.vector.TimeStampMilliTZVector;
+import org.apache.arrow.vector.TimeStampMilliVector;
+import org.apache.arrow.vector.TimeStampNanoTZVector;
+import org.apache.arrow.vector.TimeStampNanoVector;
+import org.apache.arrow.vector.TimeStampSecTZVector;
+import org.apache.arrow.vector.TimeStampSecVector;
 import org.apache.arrow.vector.VarCharVector;
 import org.apache.arrow.vector.VectorSchemaRoot;
 import org.apache.arrow.vector.ViewVarCharVector;
+import org.apache.arrow.vector.types.TimeUnit;
 import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.Schema;
 import org.apache.logging.log4j.LogManager;
@@ -260,7 +270,10 @@ public final class DatafusionReduceSink extends AbstractDatafusionReduceSink imp
      * information through the serialized plan. Until one of those lands, this Java-side
      * coercer is the minimum correct bridge.
      */
-    private static VectorSchemaRoot coerceToDeclaredSchema(VectorSchemaRoot batch, Schema declaredSchema, BufferAllocator alloc) {
+    // Package-private only so DatafusionReduceSinkTests can exercise this method directly
+    // without reflection (forbidden by the sandbox's forbiddenApis ruleset). Treat as
+    // private outside the test seam.
+    static VectorSchemaRoot coerceToDeclaredSchema(VectorSchemaRoot batch, Schema declaredSchema, BufferAllocator alloc) {
         if (batch.getSchema().equals(declaredSchema)) {
             return batch;
         }
@@ -275,8 +288,10 @@ public final class DatafusionReduceSink extends AbstractDatafusionReduceSink imp
                     src.makeTransferPair(dst).transfer();
                     continue;
                 }
-                ArrowType.ArrowTypeID srcId = src.getField().getType().getTypeID();
-                ArrowType.ArrowTypeID dstId = dst.getField().getType().getTypeID();
+                ArrowType srcType = src.getField().getType();
+                ArrowType dstType = dst.getField().getType();
+                ArrowType.ArrowTypeID srcId = srcType.getTypeID();
+                ArrowType.ArrowTypeID dstId = dstType.getTypeID();
                 if (srcId == ArrowType.ArrowTypeID.Utf8View && dstId == ArrowType.ArrowTypeID.Utf8) {
                     ViewVarCharVector s = (ViewVarCharVector) src;
                     VarCharVector d = (VarCharVector) dst;
@@ -290,8 +305,18 @@ public final class DatafusionReduceSink extends AbstractDatafusionReduceSink imp
                     d.setValueCount(rows);
                     continue;
                 }
+                if (srcId == ArrowType.ArrowTypeID.Timestamp && dstId == ArrowType.ArrowTypeID.Timestamp) {
+                    coerceTimestamp(src, dst, rows, (ArrowType.Timestamp) srcType, (ArrowType.Timestamp) dstType);
+                    continue;
+                }
                 throw new IllegalStateException(
-                    "coerceToDeclaredSchema: unsupported " + srcId + " → " + dstId + " for column '" + dst.getField().getName() + "'"
+                    "coerceToDeclaredSchema: unsupported "
+                        + describeType(srcType)
+                        + " → "
+                        + describeType(dstType)
+                        + " for column '"
+                        + dst.getField().getName()
+                        + "'"
                 );
             }
             out.setRowCount(rows);
@@ -302,6 +327,106 @@ public final class DatafusionReduceSink extends AbstractDatafusionReduceSink imp
             batch.close();
         }
         return out;
+    }
+
+    /**
+     * Rescales a {@code Timestamp} vector to the declared precision unit. Arrow stores every
+     * timestamp variant as an 8-byte epoch offset in its declared unit; the timezone metadata
+     * is descriptive only — the underlying long is always an offset from the Unix epoch in
+     * UTC. We therefore convert by rescaling the unit and ignore timezone metadata changes,
+     * which matches OpenSearch {@code date}-field semantics where the value is always stored
+     * as UTC milliseconds regardless of how the mapping (or default dynamic typing) labels
+     * the Arrow timezone string.
+     *
+     * <p>Downscaling (e.g. NANO → MILLI) uses {@link Math#floorDiv} to round toward negative
+     * infinity, matching Arrow / DataFusion's truncation semantics. Upscaling uses
+     * {@link Math#multiplyExact} so a value out of range surfaces an immediate failure rather
+     * than silent wraparound.
+     */
+    private static void coerceTimestamp(
+        FieldVector src,
+        FieldVector dst,
+        int rows,
+        ArrowType.Timestamp srcType,
+        ArrowType.Timestamp dstType
+    ) {
+        BaseFixedWidthVector s = (BaseFixedWidthVector) src;
+        BaseFixedWidthVector d = (BaseFixedWidthVector) dst;
+        TimeUnit srcUnit = srcType.getUnit();
+        TimeUnit dstUnit = dstType.getUnit();
+        for (int r = 0; r < rows; r++) {
+            if (s.isNull(r)) {
+                d.setNull(r);
+            } else {
+                long raw = s.getDataBuffer().getLong((long) r * Long.BYTES);
+                long scaled = rescaleTimestamp(raw, srcUnit, dstUnit);
+                setTimestampValue(d, r, scaled);
+            }
+        }
+        d.setValueCount(rows);
+    }
+
+    /** Rescales {@code value} from {@code srcUnit} to {@code dstUnit}. */
+    static long rescaleTimestamp(long value, TimeUnit srcUnit, TimeUnit dstUnit) {
+        if (srcUnit == dstUnit) {
+            return value;
+        }
+        long srcNanos = nanosPerUnit(srcUnit);
+        long dstNanos = nanosPerUnit(dstUnit);
+        if (srcNanos > dstNanos) {
+            return Math.multiplyExact(value, srcNanos / dstNanos);
+        }
+        return Math.floorDiv(value, dstNanos / srcNanos);
+    }
+
+    private static long nanosPerUnit(TimeUnit u) {
+        return switch (u) {
+            case SECOND -> 1_000_000_000L;
+            case MILLISECOND -> 1_000_000L;
+            case MICROSECOND -> 1_000L;
+            case NANOSECOND -> 1L;
+        };
+    }
+
+    /**
+     * Writes a long timestamp value into a concrete Arrow timestamp vector via the per-type
+     * {@code setSafe(int,long)} API. {@link BaseFixedWidthVector} does not expose this method
+     * polymorphically, so we dispatch on the concrete vector class once per row.
+     */
+    private static void setTimestampValue(BaseFixedWidthVector v, int r, long value) {
+        if (v instanceof TimeStampSecVector x) {
+            x.setSafe(r, value);
+        } else if (v instanceof TimeStampSecTZVector x) {
+            x.setSafe(r, value);
+        } else if (v instanceof TimeStampMilliVector x) {
+            x.setSafe(r, value);
+        } else if (v instanceof TimeStampMilliTZVector x) {
+            x.setSafe(r, value);
+        } else if (v instanceof TimeStampMicroVector x) {
+            x.setSafe(r, value);
+        } else if (v instanceof TimeStampMicroTZVector x) {
+            x.setSafe(r, value);
+        } else if (v instanceof TimeStampNanoVector x) {
+            x.setSafe(r, value);
+        } else if (v instanceof TimeStampNanoTZVector x) {
+            x.setSafe(r, value);
+        } else {
+            throw new IllegalStateException("Unexpected timestamp vector class: " + v.getClass().getSimpleName());
+        }
+    }
+
+    /**
+     * Renders an {@link ArrowType} for the error message produced by
+     * {@link #coerceToDeclaredSchema}. The default {@code toString()} of {@link ArrowType.Timestamp}
+     * elides unit + timezone, so an unsupported {@code Timestamp(MILLI,UTC) → Timestamp(MICRO,UTC)}
+     * formerly logged as the indistinguishable {@code Timestamp → Timestamp}. We render the
+     * full {@code Timestamp(unit,tz)} shape for the case any future precision pair is missed.
+     */
+    static String describeType(ArrowType type) {
+        if (type instanceof ArrowType.Timestamp ts) {
+            return "Timestamp(" + ts.getUnit() + "," + ts.getTimezone() + ")";
+        }
+        return type.getTypeID().name();
     }
 
     /**
