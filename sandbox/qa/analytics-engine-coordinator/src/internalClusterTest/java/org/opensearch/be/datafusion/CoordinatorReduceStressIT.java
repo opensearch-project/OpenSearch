@@ -156,7 +156,7 @@ public class CoordinatorReduceStressIT extends OpenSearchTestCase {
             0,
             substrait,
             alloc,
-            List.of(new ExchangeSinkContext.ChildInput(0, inputSchema)),
+            List.of(new ExchangeSinkContext.ChildInput(0, buildPassthroughSubstrait(INPUT_ID))),
             downstream
         );
 
@@ -194,7 +194,7 @@ public class CoordinatorReduceStressIT extends OpenSearchTestCase {
             0,
             substrait,
             alloc,
-            List.of(new ExchangeSinkContext.ChildInput(0, inputSchema)),
+            List.of(new ExchangeSinkContext.ChildInput(0, buildPassthroughSubstrait(INPUT_ID))),
             downstream
         );
 
@@ -274,7 +274,7 @@ public class CoordinatorReduceStressIT extends OpenSearchTestCase {
             0,
             substrait,
             alloc,
-            List.of(new ExchangeSinkContext.ChildInput(0, inputSchema)),
+            List.of(new ExchangeSinkContext.ChildInput(0, buildPassthroughSubstrait(INPUT_ID))),
             downstream
         );
 
@@ -375,7 +375,7 @@ public class CoordinatorReduceStressIT extends OpenSearchTestCase {
             0,
             substrait,
             alloc,
-            List.of(new ExchangeSinkContext.ChildInput(0, inputSchema)),
+            List.of(new ExchangeSinkContext.ChildInput(0, buildPassthroughSubstrait(INPUT_ID))),
             downstream
         );
 
@@ -470,7 +470,7 @@ public class CoordinatorReduceStressIT extends OpenSearchTestCase {
                             0,
                             substrait,
                             alloc,
-                            List.of(new ExchangeSinkContext.ChildInput(0, inputSchema)),
+                            List.of(new ExchangeSinkContext.ChildInput(0, buildPassthroughSubstrait(INPUT_ID))),
                             downstream
                         );
                         DatafusionReduceSink sink = new DatafusionReduceSink(ctx, runtimeHandle, drainExecutor);
@@ -563,7 +563,7 @@ public class CoordinatorReduceStressIT extends OpenSearchTestCase {
             0,
             substrait,
             alloc,
-            List.of(new ExchangeSinkContext.ChildInput(0, inputSchema)),
+            List.of(new ExchangeSinkContext.ChildInput(0, buildPassthroughSubstrait(INPUT_ID))),
             downstream
         );
         DatafusionReduceSink sink = new DatafusionReduceSink(ctx, runtimeHandle, drainExecutor);
@@ -600,7 +600,7 @@ public class CoordinatorReduceStressIT extends OpenSearchTestCase {
             0,
             substrait,
             alloc,
-            List.of(new ExchangeSinkContext.ChildInput(0, inputSchema)),
+            List.of(new ExchangeSinkContext.ChildInput(0, buildPassthroughSubstrait(INPUT_ID))),
             downstream
         );
 
@@ -639,7 +639,7 @@ public class CoordinatorReduceStressIT extends OpenSearchTestCase {
                 0,
                 substrait,
                 alloc,
-                List.of(new ExchangeSinkContext.ChildInput(0, inputSchema)),
+                List.of(new ExchangeSinkContext.ChildInput(0, buildPassthroughSubstrait(INPUT_ID))),
                 downstream
             );
             DatafusionMemtableReduceSink sink = new DatafusionMemtableReduceSink(ctx, runtimeHandle);
@@ -674,7 +674,10 @@ public class CoordinatorReduceStressIT extends OpenSearchTestCase {
             0,
             buildSumSubstrait(),
             alloc,
-            List.of(new ExchangeSinkContext.ChildInput(0, schemaA), new ExchangeSinkContext.ChildInput(1, schemaB)),
+            List.of(
+                new ExchangeSinkContext.ChildInput(0, buildPassthroughSubstrait("input-0")),
+                new ExchangeSinkContext.ChildInput(1, buildPassthroughSubstrait("input-1"))
+            ),
             new CapturingSink()
         );
 
@@ -707,7 +710,10 @@ public class CoordinatorReduceStressIT extends OpenSearchTestCase {
             0,
             substrait,
             alloc,
-            List.of(new ExchangeSinkContext.ChildInput(0, inputSchema), new ExchangeSinkContext.ChildInput(1, inputSchema)),
+            List.of(
+                new ExchangeSinkContext.ChildInput(0, buildPassthroughSubstrait("input-0")),
+                new ExchangeSinkContext.ChildInput(1, buildPassthroughSubstrait("input-1"))
+            ),
             downstream
         );
 
@@ -763,7 +769,10 @@ public class CoordinatorReduceStressIT extends OpenSearchTestCase {
             0,
             substrait,
             alloc,
-            List.of(new ExchangeSinkContext.ChildInput(0, inputSchema), new ExchangeSinkContext.ChildInput(1, inputSchema)),
+            List.of(
+                new ExchangeSinkContext.ChildInput(0, buildPassthroughSubstrait("input-0")),
+                new ExchangeSinkContext.ChildInput(1, buildPassthroughSubstrait("input-1"))
+            ),
             downstream
         );
 
@@ -818,6 +827,23 @@ public class CoordinatorReduceStressIT extends OpenSearchTestCase {
     // ── Helpers ──────────────────────────────────────────────────────────────
 
     /**
+     * Bare {@code SELECT * FROM <inputId>} substrait whose lowered output schema is the
+     * single BIGINT column {@code x} — used as the producer-side plan in
+     * {@link ExchangeSinkContext.ChildInput#producerPlanBytes()}. Tests across this file
+     * all use a single-column BIGINT input shape, so one builder serves every call site.
+     */
+    private static byte[] buildPassthroughSubstrait(String inputId) {
+        RelDataTypeFactory typeFactory = new JavaTypeFactoryImpl();
+        RexBuilder rexBuilder = new RexBuilder(typeFactory);
+        HepPlanner hepPlanner = new HepPlanner(new HepProgramBuilder().build());
+        RelOptCluster cluster = RelOptCluster.create(hepPlanner, rexBuilder);
+        RelDataType bigintNullable = typeFactory.createTypeWithNullability(typeFactory.createSqlType(SqlTypeName.BIGINT), true);
+        RelDataType rowType = typeFactory.builder().add("x", bigintNullable).build();
+        RelNode scan = new DataFusionFragmentConvertor.StageInputTableScan(cluster, cluster.traitSet(), inputId, rowType);
+        return new DataFusionFragmentConvertor(loadExtensions()).convertFragment(scan);
+    }
+
+    /**
      * Builds Substrait bytes for {@code SELECT SUM(x) FROM "input-0"}. Same shape
      * as {@code DatafusionReduceSinkTests.buildSumSubstraitBytes}.
      */
@@ -831,7 +857,7 @@ public class CoordinatorReduceStressIT extends OpenSearchTestCase {
         RelNode scan = new DataFusionFragmentConvertor.StageInputTableScan(cluster, cluster.traitSet(), INPUT_ID, rowType);
         AggregateCall sumCall = AggregateCall.create(SqlStdOperatorTable.SUM, false, List.of(0), -1, bigintNullable, "total");
         LogicalAggregate agg = LogicalAggregate.create(scan, List.of(), ImmutableBitSet.of(), null, List.of(sumCall));
-        return new DataFusionFragmentConvertor(loadExtensions()).convertFinalAggFragment(agg);
+        return new DataFusionFragmentConvertor(loadExtensions()).convertFragment(agg);
     }
 
     /**
@@ -851,7 +877,7 @@ public class CoordinatorReduceStressIT extends OpenSearchTestCase {
         LogicalUnion union = LogicalUnion.create(List.of(scanA, scanB), true);
         AggregateCall sumCall = AggregateCall.create(SqlStdOperatorTable.SUM, false, List.of(0), -1, bigintNullable, "total");
         LogicalAggregate agg = LogicalAggregate.create(union, List.of(), ImmutableBitSet.of(), null, List.of(sumCall));
-        return new DataFusionFragmentConvertor(loadExtensions()).convertFinalAggFragment(agg);
+        return new DataFusionFragmentConvertor(loadExtensions()).convertFragment(agg);
     }
 
     private static SimpleExtension.ExtensionCollection loadExtensions() {
