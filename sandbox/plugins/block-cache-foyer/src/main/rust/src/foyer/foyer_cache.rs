@@ -10,15 +10,16 @@
 
 use std::path::PathBuf;
 use std::sync::Arc;
-use std::sync::atomic::Ordering;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::time::Duration;
 use bytes::Bytes;
 use dashmap::DashMap;
-use foyer::{BlockEngineConfig, DeviceBuilder, Event, EventListener, FsDeviceBuilder,
-            HybridCache, HybridCacheBuilder, IoEngineConfig, PsyncIoEngineConfig};
+use foyer::{BlockEngineConfig, DeviceBuilder, FsDeviceBuilder,
+            HybridCache, HybridCacheBuilder, IoEngineConfig, PsyncIoEngineConfig, RecoverMode};
 #[cfg(target_os = "linux")]
 use foyer::UringIoEngineConfig;
 
-use crate::range_cache::{CacheKey, SEPARATOR};
+use crate::range_cache::{CacheKey, SEPARATOR, key_byte_size};
 use crate::stats::FoyerStatsCounter;
 use crate::traits::BlockCache;
 
@@ -92,141 +93,39 @@ fn build_io_engine_config(choice: &str) -> Box<dyn IoEngineConfig> {
     }
 }
 
-// ── Key index eviction listener ───────────────────────────────────────────────
-
-/// Foyer event listener that removes evicted keys from the key index
-/// and updates the shared [`FoyerStatsCounter`] counters.
-///
-/// Shared between [`FoyerCache`] and Foyer via `Arc`. When Foyer evicts,
-/// replaces, or removes an entry, `on_leave` is called, which:
-/// 1. Removes the key from the prefix-to-keys index (prevents unbounded growth).
-/// 2. Updates the appropriate stats counters.
-///
-/// # Key index prefix extraction
-///
-/// The index key is derived by splitting each cache key on [`SEPARATOR`].
-/// Keys that contain `SEPARATOR` (range entries) use everything before it as
-/// the index key.
-struct KeyIndexListener {
-    key_index: Arc<DashMap<String, Vec<String>>>,
-    /// Shared stats counters — updated here for eviction/remove/clear events.
-    stats: Arc<FoyerStatsCounter>,
-}
-
-impl EventListener for KeyIndexListener {
-    type Key   = String;
-    type Value = Vec<u8>;
-
-    fn on_leave(&self, reason: Event, key: &String, value: &Vec<u8>) {
-        let size = value.len() as i64;
-        native_bridge_common::log_debug!(
-            "[block-cache] on_leave reason={:?} key='{}' size={} key_index_len={}",
-            reason, key, size, self.key_index.len()
-        );
-
-        match reason {
-            Event::Evict => {
-                let raw_idx = if let Some(sep_pos) = key.find(SEPARATOR) { &key[..sep_pos] } else { key.as_str() };
-                let index_key = raw_idx.trim_start_matches('/');
-                if let Some(mut keys) = self.key_index.get_mut(index_key) {
-                    let before = keys.len();
-                    keys.retain(|k| k != key);
-                    let after = keys.len();
-                    native_bridge_common::log_debug!(
-                        "[block-cache] on_leave Evict: index_key='{}' keys_before={} keys_after={}",
-                        index_key, before, after
-                    );
-                    if keys.is_empty() {
-                        drop(keys);
-                        self.key_index.remove(index_key);
-                        native_bridge_common::log_debug!("[block-cache] on_leave Evict: removed index_key='{}' from index", index_key);
-                    }
-                }
-                self.stats.eviction_count.fetch_add(1, Ordering::Relaxed);
-                self.stats.eviction_bytes.fetch_add(size, Ordering::Relaxed);
-                self.stats.used_bytes.fetch_add(-size, Ordering::Relaxed);
-                native_bridge_common::log_info!(
-                    "[block-cache] EVICT key='{}' size={} total_evictions={} used_bytes={}",
-                    key, size,
-                    self.stats.eviction_count.load(Ordering::Relaxed),
-                    self.stats.used_bytes.load(Ordering::Relaxed)
-                );
-            }
-            Event::Remove => {
-                // Explicit deletion — e.g. evict_prefix() called on shard/index removal.
-                let raw_idx = if let Some(sep_pos) = key.find(SEPARATOR) { &key[..sep_pos] } else { key.as_str() };
-                let index_key = raw_idx.trim_start_matches('/');
-                if let Some(mut keys) = self.key_index.get_mut(index_key) {
-                    keys.retain(|k| k != key);
-                    if keys.is_empty() {
-                        drop(keys);
-                        self.key_index.remove(index_key);
-                    }
-                }
-                self.stats.removed_count.fetch_add(1, Ordering::Relaxed);
-                self.stats.removed_bytes.fetch_add(size, Ordering::Relaxed);
-                self.stats.used_bytes.fetch_add(-size, Ordering::Relaxed);
-                native_bridge_common::log_debug!(
-                    "[block-cache] Remove key='{}' size={} used_bytes={}",
-                    key, size, self.stats.used_bytes.load(Ordering::Relaxed)
-                );
-            }
-            Event::Replace => {
-                // Overwrite by a newer put — old entry leaves, new entry arrives via put().
-                let raw_idx = if let Some(sep_pos) = key.find(SEPARATOR) { &key[..sep_pos] } else { key.as_str() };
-                let index_key = raw_idx.trim_start_matches('/');
-                if let Some(mut keys) = self.key_index.get_mut(index_key) {
-                    keys.retain(|k| k != key);
-                    if keys.is_empty() {
-                        drop(keys);
-                        self.key_index.remove(index_key);
-                    }
-                }
-                // Only subtract old size — put() will add the new size.
-                self.stats.used_bytes.fetch_add(-size, Ordering::Relaxed);
-                native_bridge_common::log_debug!(
-                    "[block-cache] Replace key='{}' old_size={} used_bytes={}",
-                    key, size, self.stats.used_bytes.load(Ordering::Relaxed)
-                );
-            }
-            Event::Clear => {
-                native_bridge_common::log_info!("[block-cache] CLEAR event — key_index and used_bytes reset externally");
-            }
-        }
-    }
-}
-
 // ── FoyerCache ────────────────────────────────────────────────────────────────
 
 /// Disk block cache with prefix-based eviction support backed by Foyer.
 ///
-/// Wraps a Foyer [`HybridCache`] configured as a disk-only store, together
-/// with a concurrent key index that maps each index prefix to its cached entry
-/// keys, and a set of [`FoyerStatsCounter`] atomic counters.
+/// Wraps a Foyer [`HybridCache`] configured as a disk-only store (memory tier = 1 byte),
+/// a concurrent key index that maps each index prefix to its cached entry keys,
+/// and a set of [`FoyerStatsCounter`] atomic counters.
 ///
 /// The key index allows removing all cached entries sharing a common prefix
 /// in O(n) without requiring Foyer to support prefix-scan semantics.
 ///
-/// Stats are updated on every hot-path operation:
-/// - `get()` → hit_count / miss_count
-/// - `put()` → used_bytes
-/// - `KeyIndexListener::on_leave()` → eviction_count, eviction_bytes, used_bytes
-///
-/// Stats are exposed via [`FoyerCache::stats`] and read by the
-/// `foyer_snapshot_stats` FFM function at most once per `_nodes/stats` request.
-///
-/// Thread-safe: both [`HybridCache`] and [`DashMap`] are `Send + Sync`;
-/// all stats fields are [`AtomicI64`].
+/// Stats: `get()` → hit/miss counts; `put()` → `used_bytes`; `evict_prefix()` → `removed_count`;
+/// background sweeper → `eviction_count` for disk-reclaimer evictions. Thread-safe.
 pub struct FoyerCache {
     inner: HybridCache<String, Vec<u8>>,
     /// Maps each index prefix to the list of Foyer keys stored under that prefix.
-    /// Shared with [`KeyIndexListener`] for automatic stale-key removal.
+    ///
+    /// Append-only from `put()`. Entries removed by `evict_prefix()` and `clear()`.
+    /// Disk-evicted keys become stale until the sweeper prunes them via `inner.contains(key)`
+    /// (in-RAM index lookup, no disk I/O; false positives on hash collision are harmless).
     pub(crate) key_index: Arc<DashMap<String, Vec<String>>>,
     /// Keeps the Tokio runtime alive for the lifetime of the cache.
     _runtime: Arc<tokio::runtime::Runtime>,
-    /// Atomic stats counters. Shared with [`KeyIndexListener`].
-    /// Exposed for FFM read via `foyer_snapshot_stats`.
+    /// Atomic stats counters. Exposed for FFM read via `foyer_snapshot_stats`.
     pub(crate) stats: Arc<FoyerStatsCounter>,
+    /// Signals the background sweeper to stop when `FoyerCache` is dropped.
+    shutdown: Arc<AtomicBool>,
+}
+
+impl Drop for FoyerCache {
+    fn drop(&mut self) {
+        self.shutdown.store(true, Ordering::Relaxed);
+    }
 }
 
 impl FoyerCache {
@@ -236,9 +135,12 @@ impl FoyerCache {
     /// - `disk_bytes` — total disk capacity for this cache.
     /// - `disk_dir` — directory on the local SSD where Foyer stores its data files.
     /// - `block_size_bytes` — Foyer disk block size. Must be ≥ the largest entry ever
-    ///   put into the cache. Configurable via `format_cache.block_size`.
+    ///   put into the cache. Configurable via `block_cache.foyer.block_size`.
     /// - `io_engine` — I/O engine selection: `"auto"`, `"io_uring"`, or `"psync"`.
-    ///   Configurable via `format_cache.io_engine`.
+    ///   Configurable via `block_cache.foyer.io_engine`.
+    /// - `sweep_interval_secs` — how often (in seconds) the background sweeper prunes
+    ///   stale key_index entries left by the disk reclaimer. `0` uses the default (30 s).
+    ///   Configurable via `block_cache.foyer.key_index_sweep_interval_seconds`.
     ///
     /// # Panics
     /// Panics if the Tokio runtime cannot be created or if Foyer fails to
@@ -248,14 +150,11 @@ impl FoyerCache {
         disk_dir: impl Into<PathBuf>,
         block_size_bytes: usize,
         io_engine: &str,
+        sweep_interval_secs: u64,
     ) -> Self {
         let disk_dir = disk_dir.into();
         let key_index: Arc<DashMap<String, Vec<String>>> = Arc::new(DashMap::new());
         let stats = FoyerStatsCounter::new();
-        let listener = Arc::new(KeyIndexListener {
-            key_index: Arc::clone(&key_index),
-            stats: Arc::clone(&stats),
-        });
 
         let rt = tokio::runtime::Runtime::new()
             .expect("[block-cache] failed to create Tokio runtime");
@@ -265,20 +164,28 @@ impl FoyerCache {
         let inner = rt.block_on(async move {
             HybridCacheBuilder::<String, Vec<u8>>::new()
                 .with_name("block-cache")
-                .with_event_listener(listener)
                 .memory(1)
                     // Disable the in-memory tier — this cache is disk-only.
                     // Foyer is a hybrid (DRAM + disk) cache; setting the memory capacity
                     // to 1 byte opts out of DRAM caching. All entries go directly to the
                     // disk tier (FsDevice) below.
                 .storage()
+                // On restart Foyer would recover disk data into its internal Indexer, but
+                // key_index is in-memory and always starts empty. get() never populates
+                // key_index — only put() does — so evict_prefix() would silently miss all
+                // recovered entries, leaving stale data on disk after shard deletion.
+                // RecoverMode::None skips recovery so disk and key_index start consistent.
+                // (Rebuilding key_index from recovered state is not possible: HybridCache
+                // exposes no iterator over recovered entries, and the internal Indexer is
+                // keyed by u64 hash so original key strings cannot be recovered from it.)
+                .with_recover_mode(RecoverMode::None)
                 .with_io_engine_config(build_io_engine_config(&io_engine))
                 .with_engine_config(
                     // block_size must be >= the largest entry ever put into the cache.
                     // DataFusion reads Parquet row groups of up to 64 MB; Lucene blocks are
                     // also 64 MB. A block_size smaller than the entry causes a silent drop
                     // (put succeeds but entry is not stored, resulting in a cache miss).
-                    // Configurable via format_cache.block_size (default: 64 MB).
+                    // Configurable via block_cache.foyer.block_size (default: 64 MB).
                     BlockEngineConfig::new(
                         FsDeviceBuilder::new(dir_clone)
                             .with_capacity(disk_bytes)
@@ -295,7 +202,99 @@ impl FoyerCache {
             "[block-cache] ready: disk={}B, block_size={}B, io_engine={}, dir={}",
             disk_bytes, block_size_bytes, io_engine_for_log, disk_dir.display()
         );
-        Self { inner, key_index, _runtime: Arc::new(rt), stats }
+
+        let shutdown = Arc::new(AtomicBool::new(false));
+
+        // Spawn the background key_index sweeper: removes entries silently evicted by Foyer's
+        // disk reclaimer. inner.contains() is an in-RAM index lookup (no disk I/O).
+        const DEFAULT_SWEEP_SECS: u64 = 30;
+        let effective_sweep_secs = if sweep_interval_secs == 0 { DEFAULT_SWEEP_SECS } else { sweep_interval_secs };
+        native_bridge_common::log_info!(
+            "[block-cache] key_index_sweep_interval={}s ({})",
+            effective_sweep_secs,
+            if sweep_interval_secs == 0 { "default" } else { "operator config" }
+        );
+        {
+            let sweep_inner = inner.clone();
+            let sweep_key_index = Arc::clone(&key_index);
+            let sweep_stats = Arc::clone(&stats);
+            let sweep_shutdown = Arc::clone(&shutdown);
+            let sweep_interval = Duration::from_secs(effective_sweep_secs);
+
+            rt.spawn(async move {
+                loop {
+                    tokio::time::sleep(sweep_interval).await;
+                    if sweep_shutdown.load(Ordering::Relaxed) {
+                        native_bridge_common::log_debug!("[block-cache] sweeper: shutdown signal received, exiting");
+                        break;
+                    }
+
+                    let mut stale_removed = 0usize;
+                    let mut freed_bytes = 0i64;
+                    for mut entry in sweep_key_index.iter_mut() {
+                        let before = entry.value().len();
+                        entry.value_mut().retain(|k| {
+                            if sweep_inner.contains(k) {
+                                true
+                            } else {
+                                freed_bytes += key_byte_size(k); // "path\x1Fstart-end" → end-start = data.len()
+                                false
+                            }
+                        });
+                        stale_removed += before - entry.value().len();
+                    }
+                    // Remove empty prefix buckets.
+                    sweep_key_index.retain(|_, v| !v.is_empty());
+
+                    if stale_removed > 0 {
+                        // Stale entries = disk reclaimer capacity evictions (RemovalReason::CAPACITY).
+                        sweep_stats.eviction_count.fetch_add(stale_removed as i64, Ordering::Relaxed);
+                        sweep_stats.eviction_bytes.fetch_add(freed_bytes, Ordering::Relaxed);
+                        sweep_stats.used_bytes.fetch_add(-freed_bytes, Ordering::Relaxed);
+                        native_bridge_common::log_info!(
+                            "[block-cache] key_index_sweep: stale_removed={} freed_bytes={} key_index_size={}",
+                            stale_removed, freed_bytes, sweep_key_index.len()
+                        );
+                    } else {
+                        native_bridge_common::log_debug!(
+                            "[block-cache] key_index_sweep: no stale entries, key_index_size={}",
+                            sweep_key_index.len()
+                        );
+                    }
+                }
+            });
+        }
+
+        Self { inner, key_index, _runtime: Arc::new(rt), stats, shutdown }
+    }
+
+    /// Run one sweep of the key_index, removing entries whose underlying disk data is gone.
+    ///
+    /// Used in tests to trigger the sweep without waiting 30s.
+    /// In production the background task calls this logic automatically.
+    #[cfg(test)]
+    pub(crate) fn sweep_once(&self) -> usize {
+        let mut stale_removed = 0usize;
+        let mut freed_bytes = 0i64;
+        for mut entry in self.key_index.iter_mut() {
+            let before = entry.value().len();
+            entry.value_mut().retain(|k| {
+                if self.inner.contains(k) {
+                    true
+                } else {
+                    freed_bytes += key_byte_size(k);
+                    false
+                }
+            });
+            stale_removed += before - entry.value().len();
+        }
+        self.key_index.retain(|_, v| !v.is_empty());
+        if stale_removed > 0 {
+            self.stats.eviction_count.fetch_add(stale_removed as i64, Ordering::Relaxed);
+            self.stats.eviction_bytes.fetch_add(freed_bytes, Ordering::Relaxed);
+            self.stats.used_bytes.fetch_add(-freed_bytes, Ordering::Relaxed);
+        }
+        stale_removed
     }
 
     /// Derive the normalized index key from a cache key.
@@ -353,12 +352,27 @@ impl BlockCache for FoyerCache {
             .collect();
 
         let mut total_evicted = 0usize;
+        let mut removed_bytes = 0i64;
         for idx_key in &matching {
             if let Some((_, keys)) = self.key_index.remove(idx_key) {
                 total_evicted += keys.len();
-                for k in keys { self.inner.remove(&k); }
+                for k in keys {
+                    // Derive byte size from key before removing: "path\x1Fstart-end" → end-start.
+                    removed_bytes += key_byte_size(&k);
+                    self.inner.remove(&k);
+                }
             }
         }
+
+        // Update stats here — NOT via Event::Remove — because with memory(1) entries are already
+        // on disk when evict_prefix() is called, so memory.remove() returns None and Event::Remove
+        // never fires.
+        if total_evicted > 0 {
+            self.stats.removed_count.fetch_add(total_evicted as i64, Ordering::Relaxed);
+            self.stats.removed_bytes.fetch_add(removed_bytes, Ordering::Relaxed);
+            self.stats.used_bytes.fetch_add(-removed_bytes, Ordering::Relaxed);
+        }
+
         native_bridge_common::log_info!(
             "[block-cache] EVICT_PREFIX prefix='{}' matched_index_keys={} evicted_entries={} key_index_len={}",
             prefix, matching.len(), total_evicted, self.key_index.len()
@@ -367,8 +381,24 @@ impl BlockCache for FoyerCache {
 
     fn clear(&self) -> std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send + '_>> {
         Box::pin(async move {
+        // Accumulate removed stats from key_index before wiping.
+        // Slightly inaccurate: stale entries (disk-reclaimer-evicted but not yet swept)
+        // are counted as removed here rather than as evictions. Acceptable — mirrors how
+        // FileCache.clear() uses recordRemoval() per entry.
+        let mut total_removed = 0i64;
+        let mut total_removed_bytes = 0i64;
+        for entry in self.key_index.iter() {
+            for k in entry.value() {
+                total_removed += 1;
+                total_removed_bytes += key_byte_size(k);
+            }
+        }
         self.key_index.clear();
         self.stats.used_bytes.store(0, Ordering::Relaxed);
+        if total_removed > 0 {
+            self.stats.removed_count.fetch_add(total_removed, Ordering::Relaxed);
+            self.stats.removed_bytes.fetch_add(total_removed_bytes, Ordering::Relaxed);
+        }
         let _ = self.inner.clear().await;
         })
     }
