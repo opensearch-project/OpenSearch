@@ -419,13 +419,9 @@ public class TransportClusterHealthAction extends TransportClusterManagerNodeRea
             }
         }
         if (CollectionUtils.isEmpty(request.indices()) == false) {
-            try {
-                indexNameExpressionResolver.concreteIndexNames(clusterState, IndicesOptions.strictExpand(), request);
-                waitForCounter++;
-            } catch (IndexNotFoundException e) {
-                response.setStatus(ClusterHealthStatus.RED); // no indices, make sure its RED
-                // missing indices, wait a bit more...
-            }
+            indexNameExpressionResolver.concreteIndexNames(clusterState, IndicesOptions.strictExpand(), request);
+            waitForCounter++;
+
         }
         if (!request.waitForNodes().isEmpty()) {
             if (request.waitForNodes().startsWith(">=")) {
