@@ -8,7 +8,7 @@
 
 package org.opensearch.be.datafusion;
 
-import org.opensearch.action.search.SearchShardTask;
+import org.opensearch.analytics.exec.task.AnalyticsShardTask;
 import org.opensearch.core.tasks.TaskId;
 import org.opensearch.tasks.Task;
 import org.opensearch.test.OpenSearchTestCase;
@@ -20,8 +20,8 @@ import static org.mockito.Mockito.when;
 
 public class DatafusionContextCancellationTests extends OpenSearchTestCase {
 
-    private SearchShardTask createTask() {
-        return new SearchShardTask(1L, "type", "action", "desc", TaskId.EMPTY_TASK_ID, Collections.emptyMap());
+    private AnalyticsShardTask createTask() {
+        return new AnalyticsShardTask(1L, "type", "action", "desc", TaskId.EMPTY_TASK_ID, Collections.emptyMap());
     }
 
     private DatafusionContext createContext(Task task) {
@@ -31,13 +31,13 @@ public class DatafusionContextCancellationTests extends OpenSearchTestCase {
     }
 
     public void testIsCancelledReturnsFalseWhenTaskNotCancelled() {
-        SearchShardTask task = createTask();
+        AnalyticsShardTask task = createTask();
         DatafusionContext ctx = createContext(task);
         assertFalse(ctx.isCancelled());
     }
 
     public void testIsCancelledReturnsTrueWhenTaskCancelled() {
-        SearchShardTask task = createTask();
+        AnalyticsShardTask task = createTask();
         DatafusionContext ctx = createContext(task);
         task.cancel("test");
         assertTrue(ctx.isCancelled());
@@ -48,7 +48,7 @@ public class DatafusionContextCancellationTests extends OpenSearchTestCase {
         assertFalse(ctx.isCancelled());
     }
 
-    public void testIsCancelledReturnsFalseWhenTaskIsNotSearchShardTask() {
+    public void testIsCancelledReturnsFalseWhenTaskIsNotCancellable() {
         Task plainTask = new Task(1L, "type", "action", "desc", TaskId.EMPTY_TASK_ID, Collections.emptyMap());
         DatafusionContext ctx = createContext(plainTask);
         assertFalse(ctx.isCancelled());

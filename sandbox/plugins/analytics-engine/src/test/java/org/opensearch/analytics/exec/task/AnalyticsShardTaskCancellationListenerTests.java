@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.action.search;
+package org.opensearch.analytics.exec.task;
 
 import org.opensearch.core.tasks.TaskId;
 import org.opensearch.test.OpenSearchTestCase;
@@ -14,14 +14,14 @@ import org.opensearch.test.OpenSearchTestCase;
 import java.util.Collections;
 import java.util.concurrent.atomic.AtomicInteger;
 
-public class SearchShardTaskCancellationListenerTests extends OpenSearchTestCase {
+public class AnalyticsShardTaskCancellationListenerTests extends OpenSearchTestCase {
 
-    private SearchShardTask createTask() {
-        return new SearchShardTask(1L, "type", "action", "description", TaskId.EMPTY_TASK_ID, Collections.emptyMap());
+    private AnalyticsShardTask createTask() {
+        return new AnalyticsShardTask(1L, "type", "action", "description", TaskId.EMPTY_TASK_ID, Collections.emptyMap());
     }
 
     public void testListenerFiresOnCancellation() {
-        SearchShardTask task = createTask();
+        AnalyticsShardTask task = createTask();
         AtomicInteger callCount = new AtomicInteger();
         task.setCancellationListener(callCount::incrementAndGet);
 
@@ -31,7 +31,7 @@ public class SearchShardTaskCancellationListenerTests extends OpenSearchTestCase
     }
 
     public void testListenerFiresImmediatelyIfAlreadyCancelled() {
-        SearchShardTask task = createTask();
+        AnalyticsShardTask task = createTask();
         task.cancel("already cancelled");
 
         AtomicInteger callCount = new AtomicInteger();
@@ -41,7 +41,7 @@ public class SearchShardTaskCancellationListenerTests extends OpenSearchTestCase
     }
 
     public void testClearListenerPreventsCallback() {
-        SearchShardTask task = createTask();
+        AnalyticsShardTask task = createTask();
         AtomicInteger callCount = new AtomicInteger();
         task.setCancellationListener(callCount::incrementAndGet);
         task.clearCancellationListener();
@@ -52,13 +52,12 @@ public class SearchShardTaskCancellationListenerTests extends OpenSearchTestCase
     }
 
     public void testNullListenerDoesNotThrowOnCancellation() {
-        SearchShardTask task = createTask();
-        // No listener set — should not throw
+        AnalyticsShardTask task = createTask();
         task.cancel("test reason");
     }
 
     public void testSetListenerReplacesExisting() {
-        SearchShardTask task = createTask();
+        AnalyticsShardTask task = createTask();
         AtomicInteger first = new AtomicInteger();
         AtomicInteger second = new AtomicInteger();
 

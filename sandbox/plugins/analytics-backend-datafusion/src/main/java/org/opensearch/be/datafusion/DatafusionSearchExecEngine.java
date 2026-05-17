@@ -9,10 +9,10 @@
 package org.opensearch.be.datafusion;
 
 import org.apache.arrow.memory.BufferAllocator;
-import org.opensearch.action.search.SearchShardTask;
 import org.opensearch.analytics.backend.EngineResultStream;
 import org.opensearch.analytics.backend.SearchExecEngine;
 import org.opensearch.analytics.backend.ShardScanExecutionContext;
+import org.opensearch.analytics.exec.task.AnalyticsShardTask;
 import org.opensearch.be.datafusion.nativelib.NativeBridge;
 import org.opensearch.be.datafusion.nativelib.StreamHandle;
 import org.opensearch.common.annotation.ExperimentalApi;
@@ -52,9 +52,9 @@ public class DatafusionSearchExecEngine implements SearchExecEngine<ShardScanExe
         // Register cancellation hook so HTTP disconnect / _tasks/_cancel / timeout
         // immediately fires the Rust CancellationToken.
         long contextId = datafusionContext.getContextId();
-        SearchShardTask sst = datafusionContext.task() instanceof SearchShardTask t ? t : null;
-        if (sst != null) {
-            sst.setCancellationListener(() -> NativeBridge.cancelQuery(contextId));
+        AnalyticsShardTask shardTask = datafusionContext.task() instanceof AnalyticsShardTask t ? t : null;
+        if (shardTask != null) {
+            shardTask.setCancellationListener(() -> NativeBridge.cancelQuery(contextId));
         }
 
         try {
@@ -64,8 +64,8 @@ public class DatafusionSearchExecEngine implements SearchExecEngine<ShardScanExe
             return new DatafusionResultStream(handle, allocator);
         } finally {
             // Clear the listener so the task doesn't hold a reference after the query.
-            if (sst != null) {
-                sst.clearCancellationListener();
+            if (shardTask != null) {
+                shardTask.clearCancellationListener();
             }
         }
     }

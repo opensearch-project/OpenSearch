@@ -8,8 +8,8 @@
 
 package org.opensearch.be.datafusion;
 
-import org.opensearch.action.search.SearchShardTask;
 import org.opensearch.be.datafusion.nativelib.NativeBridge;
+import org.opensearch.tasks.CancellableTask;
 import org.opensearch.be.datafusion.nativelib.SessionContextHandle;
 import org.opensearch.be.datafusion.nativelib.StreamHandle;
 import org.opensearch.common.annotation.ExperimentalApi;
@@ -78,7 +78,7 @@ public class DatafusionContext implements SearchExecutionContext<DatafusionSearc
 
     /** Returns true if the underlying task has been cancelled. */
     public boolean isCancelled() {
-        return task instanceof SearchShardTask sst && sst.isCancelled();
+        return task instanceof CancellableTask ct && ct.isCancelled();
     }
 
     /** Returns the context ID for this query, or 0 if not set. */
