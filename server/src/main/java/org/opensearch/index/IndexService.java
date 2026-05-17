@@ -1263,6 +1263,10 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
 
     @Override
     public synchronized void updateMetadata(final IndexMetadata currentIndexMetadata, final IndexMetadata newIndexMetadata) {
+        final boolean wasSearchOnly = currentIndexMetadata != null
+            && IndexMetadata.INDEX_BLOCKS_SEARCH_ONLY_SETTING.get(currentIndexMetadata.getSettings());
+        final boolean isSearchOnly = IndexMetadata.INDEX_BLOCKS_SEARCH_ONLY_SETTING.get(newIndexMetadata.getSettings());
+        final boolean becameSearchOnly = wasSearchOnly == false && isSearchOnly;
         final boolean updateIndexSettings = indexSettings.updateIndexMetadata(newIndexMetadata);
 
         if (Assertions.ENABLED && currentIndexMetadata != null) {
@@ -1294,18 +1298,21 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             }
             onRefreshIntervalChange();
             updateFsyncTaskIfNecessary();
-            updateReplicationTask();
+            updateReplicationTask(becameSearchOnly);
             updatePublishReferencedSegmentsTask();
         }
 
         metadataListeners.forEach(c -> c.accept(newIndexMetadata));
     }
 
-    private void updateReplicationTask() {
+    private void updateReplicationTask(boolean forceSync) {
         try {
             asyncReplicationTask.close();
         } finally {
             asyncReplicationTask = new AsyncReplicationTask(this);
+            if (forceSync) {
+                asyncReplicationTask.forceSyncSegments();
+            }
         }
     }
 
@@ -1696,6 +1703,25 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             if (shouldRun()) {
                 indexService.maybeSyncSegments(false);
             }
+        }
+
+        void forceSyncSegments() {
+            if (mustReschedule() == false) {
+                return;
+            }
+            threadPool.executor(getThreadPool()).execute(new AbstractRunnable() {
+                @Override
+                public void onFailure(Exception e) {
+                    logger.warn(() -> new ParameterizedMessage("failed to run forced task {}", AsyncReplicationTask.this), e);
+                }
+
+                @Override
+                protected void doRun() {
+                    if (mustReschedule()) {
+                        indexService.maybeSyncSegments(true);
+                    }
+                }
+            });
         }
 
         @Override
