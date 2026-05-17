@@ -45,6 +45,7 @@ import org.apache.lucene.queries.spans.SpanQuery;
 import org.apache.lucene.queryparser.classic.ParseException;
 import org.apache.lucene.queryparser.classic.Token;
 import org.apache.lucene.queryparser.classic.XQueryParser;
+import org.apache.lucene.search.AutomatonQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BoostAttribute;
 import org.apache.lucene.search.BoostQuery;
@@ -58,6 +59,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.automaton.CompiledAutomaton;
 import org.apache.lucene.util.automaton.RegExp;
 import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
 import org.opensearch.common.lucene.search.Queries;
@@ -733,13 +735,15 @@ public class QueryStringQueryParser extends XQueryParser {
             }
             if (forceAnalyzer != null && (analyzeWildcard || currentFieldType.getTextSearchInfo().isTokenized())) {
                 setAnalyzer(forceAnalyzer);
-                return super.getWildcardQuery(currentFieldType.name(), termStr);
+                Query query = super.getWildcardQuery(currentFieldType.name(), termStr);
+                return rejectAnalyzerInducedMatchAll(termStr, query);
             }
             if (getAllowLeadingWildcard() == false && (termStr.startsWith("*") || termStr.startsWith("?"))) {
                 throw new ParseException("'*' or '?' not allowed as first character in WildcardQuery");
             }
             // query string query is always normalized
-            return currentFieldType.normalizedWildcardQuery(termStr, getMultiTermRewriteMethod(), context);
+            Query query = currentFieldType.normalizedWildcardQuery(termStr, getMultiTermRewriteMethod(), context);
+            return rejectAnalyzerInducedMatchAll(termStr, query);
         } catch (RuntimeException e) {
             if (lenient) {
                 return newLenientFieldQuery(field, e);
@@ -748,6 +752,21 @@ public class QueryStringQueryParser extends XQueryParser {
         } finally {
             setAnalyzer(oldAnalyzer);
         }
+    }
+
+    /**
+     * If the analyzer strips every literal of the wildcard (e.g. *asdf* through a
+     * digits-only filter), Lucene compiles the result into a match-all automaton and
+     * the query silently widens to "exists". Treat that as no match, unless the user
+     * actually typed a match-all pattern such as ** or ***. See #21280.
+     */
+    private static Query rejectAnalyzerInducedMatchAll(String termStr, Query query) {
+        if (query instanceof AutomatonQuery automatonQuery
+            && automatonQuery.getCompiled().type == CompiledAutomaton.AUTOMATON_TYPE.ALL
+            && termStr.chars().allMatch(c -> c == '*') == false) {
+            return Queries.newMatchNoDocsQuery("Wildcard pattern normalized to match-all by analyzer");
+        }
+        return query;
     }
 
     private Analyzer getSearchAnalyzer(MappedFieldType currentFieldType) {
