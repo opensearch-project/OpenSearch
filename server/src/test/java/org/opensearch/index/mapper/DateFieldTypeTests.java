@@ -90,7 +90,9 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import java.util.function.BiFunction;
 
+import static org.opensearch.index.mapper.DateFieldMapper.getDefaultDateTimeFormatter;
 import static org.apache.lucene.document.LongPoint.pack;
 
 public class DateFieldTypeTests extends FieldTypeTestCase {
@@ -107,29 +109,61 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
         );
     }
 
-    public void testIsFieldWithinQueryDateMillis() throws IOException {
+    public void testIsFieldWithinQueryDateMillisBasedPointIndex() throws IOException {
         DateFieldType ft = new DateFieldType("my_date", Resolution.MILLISECONDS);
-        isFieldWithinRangeTestCase(ft);
+        isFieldWithinRangeTestCase(ft, LongPoint::new);
     }
 
-    public void testIsFieldWithinQueryDateNanos() throws IOException {
+    public void testIsFieldWithinQueryDateNanosBasedPointIndex() throws IOException {
         DateFieldType ft = new DateFieldType("my_date", Resolution.NANOSECONDS);
-        isFieldWithinRangeTestCase(ft);
+        isFieldWithinRangeTestCase(ft, LongPoint::new);
     }
 
-    public void isFieldWithinRangeTestCase(DateFieldType ft) throws IOException {
+    public void testIsFieldWithinQueryDateMillisBasedDVSkipper() throws IOException {
+        DateFieldType ft = new DateFieldType(
+            "my_date",
+            false,
+            false,
+            true,
+            true,
+            getDefaultDateTimeFormatter(),
+            Resolution.MILLISECONDS,
+            null,
+            Collections.emptyMap()
+        );
+        isFieldWithinRangeTestCase(ft, SortedNumericDocValuesField::indexedField);
+    }
+
+    public void testIsFieldWithinQueryDateNanosBasedDVSkipper() throws IOException {
+        DateFieldType ft = new DateFieldType(
+            "my_date",
+            false,
+            false,
+            true,
+            true,
+            getDefaultDateTimeFormatter(),
+            Resolution.NANOSECONDS,
+            null,
+            Collections.emptyMap()
+        );
+        isFieldWithinRangeTestCase(ft, SortedNumericDocValuesField::indexedField);
+    }
+
+    public void isFieldWithinRangeTestCase(DateFieldType ft, BiFunction<String, Long, IndexableField> fieldBuilder) throws IOException {
 
         Directory dir = newDirectory();
         IndexWriter w = new IndexWriter(dir, new IndexWriterConfig(null));
         Document doc = new Document();
-        LongPoint field = new LongPoint("my_date", ft.parse("2015-10-12"));
+        IndexableField field = fieldBuilder.apply("my_date", ft.parse("2015-10-12"));
         doc.add(field);
         w.addDocument(doc);
-        field.setLongValue(ft.parse("2016-04-03"));
+        doc = new Document();
+        field = fieldBuilder.apply("my_date", ft.parse("2016-04-03"));
+        doc.add(field);
         w.addDocument(doc);
         DirectoryReader reader = DirectoryReader.open(w);
 
-        DateMathParser alternateFormat = DateFieldMapper.getDefaultDateTimeFormatter().toDateMathParser();
+        DateMathParser alternateFormat = getDefaultDateTimeFormatter().toDateMathParser();
         doTestIsFieldWithinQuery(ft, reader, null, null);
         doTestIsFieldWithinQuery(ft, reader, null, alternateFormat);
         doTestIsFieldWithinQuery(ft, reader, DateTimeZone.UTC, null);
@@ -180,23 +214,21 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
 
     public void testValueFormat() {
         MappedFieldType ft = new DateFieldType("field");
-        long instant = DateFormatters.from(DateFieldMapper.getDefaultDateTimeFormatter().parse("2015-10-12T14:10:55"))
-            .toInstant()
-            .toEpochMilli();
+        long instant = DateFormatters.from(getDefaultDateTimeFormatter().parse("2015-10-12T14:10:55")).toInstant().toEpochMilli();
 
         assertEquals("2015-10-12T14:10:55.000Z", ft.docValueFormat(null, ZoneOffset.UTC).format(instant));
         assertEquals("2015-10-12T15:10:55.000+01:00", ft.docValueFormat(null, ZoneOffset.ofHours(1)).format(instant));
         assertEquals("2015", new DateFieldType("field").docValueFormat("YYYY", ZoneOffset.UTC).format(instant));
         assertEquals(instant, ft.docValueFormat(null, ZoneOffset.UTC).parseLong("2015-10-12T14:10:55", false, null));
         assertEquals(instant + 999, ft.docValueFormat(null, ZoneOffset.UTC).parseLong("2015-10-12T14:10:55", true, null));
-        long i = DateFormatters.from(DateFieldMapper.getDefaultDateTimeFormatter().parse("2015-10-13")).toInstant().toEpochMilli();
+        long i = DateFormatters.from(getDefaultDateTimeFormatter().parse("2015-10-13")).toInstant().toEpochMilli();
         assertEquals(i - 1, ft.docValueFormat(null, ZoneOffset.UTC).parseLong("2015-10-12||/d", true, null));
     }
 
     public void testValueForSearch() {
         MappedFieldType ft = new DateFieldType("field");
         String date = "2015-10-12T12:09:55.000Z";
-        long instant = DateFieldMapper.getDefaultDateTimeFormatter().parseMillis(date);
+        long instant = getDefaultDateTimeFormatter().parseMillis(date);
         assertEquals(date, ft.valueForDisplay(instant));
     }
 
@@ -227,7 +259,7 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
         );
         MappedFieldType ft = new DateFieldType("field");
         String date = "2015-10-12T14:10:55";
-        long instant = DateFormatters.from(DateFieldMapper.getDefaultDateTimeFormatter().parse(date)).toInstant().toEpochMilli();
+        long instant = DateFormatters.from(getDefaultDateTimeFormatter().parse(date)).toInstant().toEpochMilli();
         Query expected = new ApproximateScoreQuery(
             new IndexOrDocValuesQuery(
                 LongPoint.newRangeQuery("field", instant, instant + 999),
@@ -248,7 +280,8 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
             false,
             false,
             false,
-            DateFieldMapper.getDefaultDateTimeFormatter(),
+            false,
+            getDefaultDateTimeFormatter(),
             Resolution.MILLISECONDS,
             null,
             Collections.emptyMap()
@@ -285,8 +318,8 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
         MappedFieldType ft = new DateFieldType("field");
         String date1 = "2015-10-12T14:10:55";
         String date2 = "2016-04-28T11:33:52";
-        long instant1 = DateFormatters.from(DateFieldMapper.getDefaultDateTimeFormatter().parse(date1)).toInstant().toEpochMilli();
-        long instant2 = DateFormatters.from(DateFieldMapper.getDefaultDateTimeFormatter().parse(date2)).toInstant().toEpochMilli() + 999;
+        long instant1 = DateFormatters.from(getDefaultDateTimeFormatter().parse(date1)).toInstant().toEpochMilli();
+        long instant2 = DateFormatters.from(getDefaultDateTimeFormatter().parse(date2)).toInstant().toEpochMilli() + 999;
         ApproximatePointRangeQuery approximatePointRangeQuery = new ApproximatePointRangeQuery(
             "field",
             pack(new long[] { instant1 }).bytes,
@@ -331,7 +364,8 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
             false,
             false,
             false,
-            DateFieldMapper.getDefaultDateTimeFormatter(),
+            false,
+            getDefaultDateTimeFormatter(),
             Resolution.MILLISECONDS,
             null,
             Collections.emptyMap()
@@ -377,8 +411,8 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
         MappedFieldType ft = new DateFieldType("field");
         String date1 = "2015-10-12T14:10:55";
         String date2 = "2016-04-28T11:33:52";
-        long instant1 = DateFormatters.from(DateFieldMapper.getDefaultDateTimeFormatter().parse(date1)).toInstant().toEpochMilli();
-        long instant2 = DateFormatters.from(DateFieldMapper.getDefaultDateTimeFormatter().parse(date2)).toInstant().toEpochMilli() + 999;
+        long instant1 = DateFormatters.from(getDefaultDateTimeFormatter().parse(date1)).toInstant().toEpochMilli();
+        long instant2 = DateFormatters.from(getDefaultDateTimeFormatter().parse(date2)).toInstant().toEpochMilli() + 999;
 
         Query dvQuery = SortedNumericDocValuesField.newSlowRangeQuery("field", instant1, instant2);
         Query expected = new ApproximateScoreQuery(
@@ -429,7 +463,7 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
 
     private static DateFieldType fieldType(Resolution resolution, String format, String nullValue) {
         DateFormatter formatter = DateFormatter.forPattern(format);
-        return new DateFieldType("field", true, false, true, formatter, resolution, nullValue, Collections.emptyMap());
+        return new DateFieldType("field", true, false, true, false, formatter, resolution, nullValue, Collections.emptyMap());
     }
 
     public void testFetchSourceValue() throws IOException {
@@ -481,6 +515,7 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
             true,
             true,
             true,
+            false,
             DateFormatter.forPattern("yyyy-MM-dd HH:mm:ss||yyyy-MM-dd||epoch_millis||strict_date_optional_time"),
             Resolution.MILLISECONDS,
             null,
@@ -579,6 +614,7 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
             true,
             true,
             true,
+            false,
             DateFormatter.forPattern("yyyy-MM-dd HH:mm:ss||yyyy-MM-dd||epoch_millis||strict_date_optional_time"),
             Resolution.MILLISECONDS,
             "2020-01-01T00:00:00Z",
@@ -598,6 +634,7 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
             true,
             true,
             true,
+            false,
             DateFormatter.forPattern("yyyy-MM-dd HH:mm:ss||yyyy-MM-dd||epoch_millis||date_optional_time"),
             Resolution.MILLISECONDS,
             null,
