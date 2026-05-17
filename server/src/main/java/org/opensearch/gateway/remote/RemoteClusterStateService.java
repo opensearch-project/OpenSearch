@@ -835,7 +835,24 @@ public class RemoteClusterStateService implements Closeable {
 
         try {
             if (latch.await(remoteGlobalMetadataManager.getGlobalMetadataUploadTimeout().millis(), TimeUnit.MILLISECONDS) == false) {
-                // TODO: We should add metrics where transfer is timing out. [Issue: #10687]
+                // Emit metrics for metadata upload timeout
+                int timedOutIndexCount = 0;
+                int timedOutGlobalCount = 0;
+                for (String uploadTask : uploadTasks) {
+                    if (results.containsKey(uploadTask) == false) {
+                        if (indexToUpload.stream().anyMatch(idx -> idx.getIndex().getName().equals(uploadTask))) {
+                            timedOutIndexCount++;
+                        } else {
+                            timedOutGlobalCount++;
+                        }
+                    }
+                }
+                if (timedOutIndexCount > 0) {
+                    remoteStateStats.indexMetadataUploadTimedOut();
+                }
+                if (timedOutGlobalCount > 0) {
+                    remoteStateStats.metadataUploadTimedOut();
+                }
                 RemoteStateTransferException ex = new RemoteStateTransferException(
                     String.format(
                         Locale.ROOT,
