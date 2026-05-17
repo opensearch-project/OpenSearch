@@ -174,6 +174,7 @@ pub async fn execute_indexed_query(
         query_config: Arc::unwrap_or_clone(query_config),
         aggregate_mode: crate::agg_mode::Mode::Default,
         prepared_plan: None,
+        phantom_reservation: None,
     };
     let ptr = Box::into_raw(Box::new(handle)) as i64;
     unsafe { execute_indexed_with_context(ptr, substrait_bytes, cpu_executor).await }

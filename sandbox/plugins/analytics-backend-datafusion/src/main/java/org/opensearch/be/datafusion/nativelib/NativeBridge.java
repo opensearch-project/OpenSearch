@@ -8,6 +8,8 @@
 
 package org.opensearch.be.datafusion.nativelib;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.analytics.backend.jni.NativeHandle;
 import org.opensearch.be.datafusion.stats.DataFusionStats;
 import org.opensearch.be.datafusion.stats.NativeExecutorsStats;
@@ -17,6 +19,7 @@ import org.opensearch.nativebridge.spi.NativeCall;
 import org.opensearch.nativebridge.spi.NativeLibraryLoader;
 import org.opensearch.plugins.NativeStoreHandle;
 
+import java.lang.foreign.Arena;
 import java.lang.foreign.FunctionDescriptor;
 import java.lang.foreign.Linker;
 import java.lang.foreign.SymbolLookup;
@@ -45,12 +48,15 @@ import java.util.LinkedHashMap;
  */
 public final class NativeBridge {
 
+    private static final Logger logger = LogManager.getLogger(NativeBridge.class);
+
     private static final MethodHandle INIT_RUNTIME_MANAGER;
     private static final MethodHandle SHUTDOWN_RUNTIME_MANAGER;
     private static final MethodHandle CREATE_GLOBAL_RUNTIME;
     private static final MethodHandle CLOSE_GLOBAL_RUNTIME;
     private static final MethodHandle GET_MEMORY_POOL_USAGE;
     private static final MethodHandle GET_MEMORY_POOL_LIMIT;
+    private static final MethodHandle GET_MEMORY_POOL_STATS;
     private static final MethodHandle SET_MEMORY_POOL_LIMIT;
     private static final MethodHandle CREATE_READER;
     private static final MethodHandle CLOSE_READER;
@@ -126,6 +132,11 @@ public final class NativeBridge {
         GET_MEMORY_POOL_LIMIT = linker.downcallHandle(
             lib.find("df_get_memory_pool_limit").orElseThrow(),
             FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG)
+        );
+
+        GET_MEMORY_POOL_STATS = linker.downcallHandle(
+            lib.find("df_get_memory_pool_stats").orElseThrow(),
+            FunctionDescriptor.ofVoid(ValueLayout.JAVA_LONG, ValueLayout.ADDRESS)
         );
 
         SET_MEMORY_POOL_LIMIT = linker.downcallHandle(
@@ -559,6 +570,18 @@ public final class NativeBridge {
     public static long getMemoryPoolLimit(long runtimePtr) {
         try (var call = new NativeCall()) {
             return call.invoke(GET_MEMORY_POOL_LIMIT, runtimePtr);
+        }
+    }
+
+    /** Returns memory pool stats: [usage_bytes, tripped_count]. Single FFM call. */
+    public static long[] getMemoryPoolStats(long runtimePtr) {
+        try (var arena = Arena.ofConfined()) {
+            var buf = arena.allocate(ValueLayout.JAVA_LONG, 2);
+            GET_MEMORY_POOL_STATS.invokeExact(runtimePtr, buf);
+            return new long[] { buf.getAtIndex(ValueLayout.JAVA_LONG, 0), buf.getAtIndex(ValueLayout.JAVA_LONG, 1) };
+        } catch (Throwable t) {
+            logger.debug("Failed to read native memory pool stats", t);
+            return new long[] { 0, 0 };
         }
     }
 

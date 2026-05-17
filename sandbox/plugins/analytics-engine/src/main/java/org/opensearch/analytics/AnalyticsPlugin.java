@@ -90,7 +90,6 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
         Supplier<RepositoriesService> repositoriesServiceSupplier
     ) {
         operatorTable = aggregateOperatorTables();
-        DefaultEngineContext ctx = new DefaultEngineContext(clusterService, operatorTable);
         CapabilityRegistry capabilityRegistry = new CapabilityRegistry(backEnds, FieldStorageResolver::new);
 
         Map<String, AnalyticsSearchBackendPlugin> backEndsByName = new LinkedHashMap<>();
@@ -98,6 +97,7 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
             backEndsByName.put(be.name(), be);
         }
         searchService = new AnalyticsSearchService(backEndsByName, namedWriteableRegistry);
+        DefaultEngineContext ctx = new DefaultEngineContext(clusterService, operatorTable, backEndsByName);
 
         // Returned as components so Guice can inject them into DefaultPlanExecutor
         // (a HandledTransportAction registered via getActions() — constructed by Guice
@@ -141,11 +141,24 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
     /**
      * Default implementation of {@link EngineContext}.
      */
-    record DefaultEngineContext(ClusterService clusterService, SqlOperatorTable operatorTable) implements EngineContext {
+    record DefaultEngineContext(ClusterService clusterService, SqlOperatorTable operatorTable, Map<
+        String,
+        AnalyticsSearchBackendPlugin> backends) implements EngineContext {
 
         @Override
         public SchemaPlus getSchema() {
             return OpenSearchSchemaBuilder.buildSchema(clusterService.state());
+        }
+
+        @Override
+        public Exception convertException(Exception e) {
+            for (AnalyticsSearchBackendPlugin backend : backends.values()) {
+                Exception converted = backend.convertException(e);
+                if (converted != e) {
+                    return converted;
+                }
+            }
+            return e;
         }
     }
 }

@@ -175,6 +175,11 @@ public class DataFusionService extends AbstractLifecycleComponent {
         return NativeBridge.getMemoryPoolLimit(getNativeRuntime().get());
     }
 
+    /** Returns [usage_bytes, tripped_count] from the native memory pool. Single FFM call. */
+    public long[] getMemoryPoolStats() {
+        return NativeBridge.getMemoryPoolStats(getNativeRuntime().get());
+    }
+
     /**
      * Sets the memory pool limit at runtime. Takes effect for new allocations only.
      * Existing reservations that exceed the new limit are NOT reclaimed.

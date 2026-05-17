@@ -75,6 +75,7 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
     private final Executor searchExecutor;
     private final TaskManager taskManager;
     private final NodeClient client;
+    private final EngineContext engineContext;
 
     @Inject
     public DefaultPlanExecutor(
@@ -96,6 +97,7 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
         this.taskManager = transportService.getTaskManager();
         this.client = client;
         this.scheduler = scheduler;
+        this.engineContext = engineContext;
     }
 
     @Override
@@ -104,11 +106,17 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
         // executor so the calling thread — which may be a transport thread — is freed
         // immediately. The scheduler then drives execution asynchronously and fires
         // {@code listener} once the query terminates; nothing on this path blocks.
+        // The listener is wrapped to convert backend-specific exceptions (e.g., native memory
+        // errors arriving as StreamException from gRPC) into proper OpenSearch exception types.
+        ActionListener<Iterable<Object[]>> convertingListener = ActionListener.wrap(
+            listener::onResponse,
+            e -> listener.onFailure(e instanceof Exception ex ? engineContext.convertException(ex) : e)
+        );
         searchExecutor.execute(() -> {
             try {
-                executeInternal(logicalFragment, listener);
+                executeInternal(logicalFragment, convertingListener);
             } catch (Exception e) {
-                listener.onFailure(e);
+                convertingListener.onFailure(e);
             }
         });
     }

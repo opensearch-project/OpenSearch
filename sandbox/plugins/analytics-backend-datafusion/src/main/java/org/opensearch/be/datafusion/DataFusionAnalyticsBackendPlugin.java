@@ -668,4 +668,8 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
     public void setDelegationThreadTracker(org.opensearch.analytics.spi.DelegationThreadTracker tracker) {
         FilterTreeCallbacks.setThreadTracker(tracker);
     }
+
+    public Exception convertException(Exception original) {
+        return NativeErrorConverter.convert(original);
+    }
 }
