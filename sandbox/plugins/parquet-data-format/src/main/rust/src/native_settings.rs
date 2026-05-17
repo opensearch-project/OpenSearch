@@ -32,6 +32,7 @@ pub struct NativeSettings {
     pub sort_batch_size: Option<usize>,
     pub merge_batch_size: Option<usize>,
     pub row_group_max_rows: Option<usize>,
+    pub row_group_max_bytes: Option<usize>,
     pub merge_rayon_threads: Option<usize>,
     pub merge_io_threads: Option<usize>,
 }
@@ -95,6 +96,10 @@ impl NativeSettings {
 
     pub fn get_row_group_max_rows(&self) -> usize {
         self.row_group_max_rows.unwrap_or(1_000_000)
+    }
+
+    pub fn get_row_group_max_bytes(&self) -> usize {
+        self.row_group_max_bytes.unwrap_or(128 * 1024 * 1024)
     }
 
     pub fn get_merge_rayon_threads(&self) -> Option<usize> {

@@ -15,10 +15,15 @@ package org.opensearch.parquet.bridge;
  * Contains the Parquet format version, total row count, the creator identifier string
  * embedded in the file footer, and the whole-file CRC32 checksum computed during write.
  *
- * @param version   Parquet format version number
- * @param numRows   total number of rows written to the file
- * @param createdBy creator string from the Parquet file footer metadata
- * @param crc32     whole-file CRC32 checksum (computed by the Rust writer during write)
+ * @param version      Parquet format version number
+ * @param numRows      total number of rows written to the file
+ * @param createdBy    creator string from the Parquet file footer metadata
+ * @param crc32        whole-file CRC32 checksum (computed by the Rust writer during write)
+ * @param numRowGroups number of row groups in the file
  */
-public record ParquetFileMetadata(int version, long numRows, String createdBy, long crc32) {
+public record ParquetFileMetadata(int version, long numRows, String createdBy, long crc32, int numRowGroups) {
+
+    public ParquetFileMetadata(int version, long numRows, String createdBy, long crc32) {
+        this(version, numRows, createdBy, crc32, 0);
+    }
 }
