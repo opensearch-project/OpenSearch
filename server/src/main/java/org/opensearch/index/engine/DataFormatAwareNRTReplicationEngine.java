@@ -988,8 +988,9 @@ public class DataFormatAwareNRTReplicationEngine implements Indexer {
 
         @Override
         public synchronized GatedCloseable<CatalogSnapshot> acquireCommittedSnapshot(boolean acquiringSafe) {
-            acquiredSnapshots.add(lastSnapshot);
-            return new GatedCloseable<>(lastSnapshot, () -> { acquiredSnapshots.remove(lastSnapshot); });
+            final CatalogSnapshot snapshot = lastSnapshot;
+            acquiredSnapshots.add(snapshot);
+            return new GatedCloseable<>(snapshot, () -> { acquiredSnapshots.remove(snapshot); });
         }
 
         /**
