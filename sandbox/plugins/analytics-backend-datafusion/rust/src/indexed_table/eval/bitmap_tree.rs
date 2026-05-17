@@ -348,6 +348,19 @@ fn prefetch_node(
                 page_prune_metrics,
             ))
         }
+        ResolvedNode::DelegationPossible { .. } => {
+            // Invariant: DelegationPossible must never appear under OR or NOT.
+            // The Java planner narrows performance peers off any AnnotatedPredicate
+            // sitting under an OR/NOT ancestor — the leaf becomes single-viable on
+            // the operator's backend and the resolver unwraps it natively (plain
+            // Predicate on the Rust side). Reaching this arm means that contract
+            // was violated: a planner bug, not an evaluator gap. Fail loud so the
+            // bug is visible instead of silently giving wrong-shape candidates.
+            unimplemented!(
+                "invariant violation: DelegationPossible reached the Tree-path evaluator. \
+                 Planner must drop performance peers under OR/NOT before fragment conversion."
+            )
+        }
     }
 }
 
@@ -391,6 +404,14 @@ fn collect_collector_leaves(
         ResolvedNode::Predicate(_) => {
             *dfs += 1;
         }
+        ResolvedNode::DelegationPossible { .. } => {
+            // Invariant: see prefetch_node arm. Same contract: planner must
+            // strip performance peers under OR/NOT.
+            unimplemented!(
+                "invariant violation: DelegationPossible reached collect_collector_leaves. \
+                 Planner must drop performance peers under OR/NOT before fragment conversion."
+            )
+        }
     }
     Ok(())
 }
@@ -409,6 +430,13 @@ fn skip_dfs(node: &ResolvedNode, dfs: &mut usize) {
         }
         ResolvedNode::Not(child) => skip_dfs(child, dfs),
         ResolvedNode::Collector { .. } | ResolvedNode::Predicate(_) => *dfs += 1,
+        ResolvedNode::DelegationPossible { .. } => {
+            // Invariant: see prefetch_node arm. Same contract.
+            unimplemented!(
+                "invariant violation: DelegationPossible reached skip_dfs. \
+                 Planner must drop performance peers under OR/NOT before fragment conversion."
+            )
+        }
     }
 }
 
@@ -632,6 +660,13 @@ pub(crate) fn subtree_cost(
             .iter()
             .map(|c| subtree_cost(c, ctx, page_pruner, pruning_predicates))
             .sum(),
+        ResolvedNode::DelegationPossible { .. } => {
+            // Invariant: see prefetch_node arm. Same contract.
+            unimplemented!(
+                "invariant violation: DelegationPossible reached subtree_cost. \
+                 Planner must drop performance peers under OR/NOT before fragment conversion."
+            )
+        }
     }
 }
 
@@ -644,6 +679,13 @@ fn subtree_has_predicate(node: &ResolvedNode) -> bool {
         ResolvedNode::Collector { .. } => false,
         ResolvedNode::And(cs) | ResolvedNode::Or(cs) => cs.iter().any(subtree_has_predicate),
         ResolvedNode::Not(c) => subtree_has_predicate(c),
+        ResolvedNode::DelegationPossible { .. } => {
+            // Invariant: see prefetch_node arm. Same contract.
+            unimplemented!(
+                "invariant violation: DelegationPossible reached subtree_has_predicate. \
+                 Planner must drop performance peers under OR/NOT before fragment conversion."
+            )
+        }
     }
 }
 
@@ -756,6 +798,13 @@ fn on_batch_node(
             ))
         }
         ResolvedNode::Predicate(expr) => predicate_to_batch_mask(batch, expr),
+        ResolvedNode::DelegationPossible { .. } => {
+            // Invariant: see prefetch_node arm. Same contract.
+            unimplemented!(
+                "invariant violation: DelegationPossible reached on_batch_node. \
+                 Planner must drop performance peers under OR/NOT before fragment conversion."
+            )
+        }
     }
 }
 
@@ -894,7 +943,13 @@ fn evaluate_via_df(
         }
     }
 
-    let result = expr
+    // Reseat Column indices to the batch's projected schema by name.
+    // Substrait-decoded predicates carry indices into the full table schema;
+    // delivered batches are projected (only predicate columns), so the
+    // indices need to be remapped before `evaluate(batch)` reads them.
+    let remapped = super::remap_expr_to_batch(expr, batch)?;
+
+    let result = remapped
         .evaluate(batch)
         .map_err(|e| format!("expr.evaluate: {}", e))?;
     match result {

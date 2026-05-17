@@ -130,8 +130,8 @@ pub async unsafe fn create_session_context(
     // df_execute_with_context reuses this handle's ctx instead of building a fresh one.
     crate::udf::register_all(&ctx);
 
-    // Register default ListingTable for parquet scans
-    let listing_options = ListingOptions::new(Arc::new(ParquetFormat::new()))
+    // Register default ListingTable for parquet scans.
+    let listing_options = ListingOptions::new(Arc::new(ParquetFormat::default()))
         .with_file_extension(".parquet")
         .with_collect_stat(true);
 
@@ -214,6 +214,7 @@ pub async unsafe fn create_session_context_indexed(
     // Augment with indexed config and UDF registration
     let handle = &mut *(ptr as *mut SessionContextHandle);
     handle.ctx.register_udf(crate::indexed_table::substrait_to_tree::create_index_filter_udf());
+    handle.ctx.register_udf(crate::indexed_table::substrait_to_tree::create_delegation_possible_udf());
     handle.indexed_config = Some(IndexedExecutionConfig {
         tree_shape,
         delegated_predicate_count,

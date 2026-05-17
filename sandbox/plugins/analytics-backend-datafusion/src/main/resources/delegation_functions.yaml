@@ -9,3 +9,12 @@ scalar_functions:
           - name: annotationId
             value: i32
         return: boolean
+  - name: delegation_possible
+    description: Wraps a dual-viable predicate so the driving backend may opportunistically consult a peer backend at runtime (per-RG decision). Returns the value of the original predicate; the annotationId identifies the peer-side compiled query.
+    impls:
+      - args:
+          - name: original
+            value: boolean?
+          - name: annotationId
+            value: i32
+        return: boolean

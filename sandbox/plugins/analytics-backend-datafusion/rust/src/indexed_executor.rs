@@ -146,6 +146,7 @@ pub async fn execute_indexed_query(
         .build();
     let ctx = SessionContext::new_with_state(state);
     ctx.register_udf(create_index_filter_udf());
+    ctx.register_udf(crate::indexed_table::substrait_to_tree::create_delegation_possible_udf());
     crate::udf::register_all(&ctx);
 
     // Register default ListingTable so substrait consumer can resolve the table
@@ -191,6 +192,10 @@ fn collect_predicate_exprs(tree: &BoolNode, out: &mut Vec<Arc<dyn PhysicalExpr>>
         }
         BoolNode::Not(inner) => collect_predicate_exprs(inner, out),
         BoolNode::Collector { .. } => {}
+        // Performance-delegated leaves contribute their original expression to the
+        // PruningPredicate cache exactly like a plain Predicate — DF prunes pages
+        // using the original expr; only the per-RG decision differs.
+        BoolNode::DelegationPossible { original_expr, .. } => out.push(Arc::clone(original_expr)),
         BoolNode::Predicate(expr) => out.push(Arc::clone(expr)),
     }
 }
@@ -458,7 +463,7 @@ pub async unsafe fn execute_indexed_with_context(
     let extraction = match filter_expr {
         None => None,
         Some(ref expr) => Some(
-            expr_to_bool_tree(expr, &schema)
+            expr_to_bool_tree(expr, &schema, &state)
                 .map_err(|e| DataFusionError::Execution(format!("expr_to_bool_tree: {}", e)))?,
         ),
     };
@@ -510,14 +515,35 @@ pub async unsafe fn execute_indexed_with_context(
                     "classify_filter returned SingleCollector but extraction is None".into(),
                 )
             })?;
-            let annotation_id = single_collector_id(&extraction.tree).ok_or_else(|| {
-                DataFusionError::Internal(
-                    "SingleCollector classified but leaf extraction failed".into(),
-                )
-            })?;
-            let provider =
-                Arc::new(create_provider(annotation_id).map_err(|e| DataFusionError::External(e.into()))?);
             let schema_for_pruner = schema.clone();
+
+            // Correctness-delegated provider (eager). `None` when the query has only
+            // performance-delegated leaves and no Collector at all.
+            let correctness_provider: Option<Arc<ProviderHandle>> =
+                match single_collector_id(&extraction.tree) {
+                    Some(annotation_id) => Some(Arc::new(
+                        create_provider(annotation_id)
+                            .map_err(|e| DataFusionError::External(e.into()))?,
+                    )),
+                    None => None,
+                };
+
+            // Performance-delegated provider locks (lazy). Built ONCE per query,
+            // shared across all per-(segment×chunk) closures via Arc::clone — so
+            // multiple DataFusion threads racing to populate the same Lucene
+            // Weight do so once per (query × annotation_id), not per chunk.
+            // Drop releases the Lucene Weight via `releaseProvider`.
+            let performance_provider_locks: Arc<
+                std::collections::HashMap<i32, Arc<std::sync::OnceLock<ProviderHandle>>>,
+            > = {
+                let leaves = extraction.tree.delegation_possible_leaves();
+                let mut map = std::collections::HashMap::with_capacity(leaves.len());
+                for (annotation_id, _expr) in &leaves {
+                    map.entry(*annotation_id)
+                        .or_insert_with(|| Arc::new(std::sync::OnceLock::new()));
+                }
+                Arc::new(map)
+            };
 
             // Extract the residual (non-Collector children of top-level
             // AND) as a BoolNode and convert to PhysicalExpr. Used for:
@@ -525,10 +551,11 @@ pub async unsafe fn execute_indexed_with_context(
             //   - Parquet `with_predicate` pushdown in row-granular mode.
             //   - `on_batch_mask` refinement in block-granular mode.
             //
-            // SingleCollector is always AND(Collector, residual...) so
-            // the residual has zero Collectors — no Literal(true)
-            // substitution needed (unlike bool_tree_to_pruning_expr
-            // which handles arbitrary trees).
+            // SingleCollector is AND(Collector?, DelegationPossible*, residual*) so
+            // the residual has zero Collectors — no Literal(true) substitution
+            // needed (unlike bool_tree_to_pruning_expr which handles arbitrary
+            // trees). DelegationPossible leaves contribute their original_expr
+            // to the residual so DF gets to evaluate them natively.
             let residual_bool = extract_single_collector_residual(&extraction.tree);
             let residual_expr = residual_bool
                 .as_ref()
@@ -540,35 +567,43 @@ pub async unsafe fn execute_indexed_with_context(
             let call_strategy = query_config.single_collector_strategy;
             Arc::new(
                 move |segment: &SegmentFileInfo, chunk, stream_metrics: &StreamMetrics| {
-                    let collector = FfmSegmentCollector::create(
-                        provider.key(),
-                        segment.segment_ord,
-                        chunk.doc_min,
-                        chunk.doc_max,
-                    )
-                        .map_err(|e| {
-                            format!(
-                                "FfmSegmentCollector::create(provider={}, seg={}, doc_range=[{},{})): {}",
+                    let collector_opt: Option<Arc<dyn RowGroupDocsCollector>> = match &correctness_provider {
+                        Some(provider) => {
+                            let collector = FfmSegmentCollector::create(
                                 provider.key(),
                                 segment.segment_ord,
                                 chunk.doc_min,
                                 chunk.doc_max,
-                                e
                             )
-                        })?;
+                            .map_err(|e| {
+                                format!(
+                                    "FfmSegmentCollector::create(provider={}, seg={}, doc_range=[{},{})): {}",
+                                    provider.key(),
+                                    segment.segment_ord,
+                                    chunk.doc_min,
+                                    chunk.doc_max,
+                                    e
+                                )
+                            })?;
+                            Some(Arc::new(collector) as Arc<dyn RowGroupDocsCollector>)
+                        }
+                        None => None,
+                    };
                     let pruner = Arc::new(PagePruner::new(
                         &schema_for_pruner,
                         Arc::clone(&segment.metadata),
                     ));
                     let eval: Arc<dyn RowGroupBitsetSource> =
                         Arc::new(SingleCollectorEvaluator::new(
-                            Arc::new(collector) as Arc<dyn RowGroupDocsCollector>,
+                            collector_opt,
                             pruner,
                             residual_pruning_predicate.clone(),
                             residual_expr.clone(),
                             Some(PagePruneMetrics::from_stream_metrics(stream_metrics)),
                             stream_metrics.ffm_collector_calls.clone(),
                             call_strategy,
+                            Arc::clone(&performance_provider_locks),
+                            segment.segment_ord,
                         ));
                     Ok(eval)
                 },

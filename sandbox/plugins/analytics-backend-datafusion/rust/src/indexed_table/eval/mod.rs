@@ -48,6 +48,36 @@ use datafusion::arrow::array::BooleanArray;
 use datafusion::arrow::record_batch::RecordBatch;
 use roaring::RoaringBitmap;
 
+/// Rewrite Column indices in a PhysicalExpr to match the delivered batch's
+/// schema by name. Substrait-decoded predicates carry indices into the full
+/// table schema; the delivered batch is projected (only predicate-referenced
+/// columns) so the indices need to be reseated. Both the SingleCollector
+/// residual eval and the BitmapTree predicate eval-via-DF path need this —
+/// shared here to avoid duplication.
+pub(super) fn remap_expr_to_batch(
+    expr: &Arc<dyn datafusion::physical_expr::PhysicalExpr>,
+    batch: &RecordBatch,
+) -> Result<Arc<dyn datafusion::physical_expr::PhysicalExpr>, String> {
+    use datafusion::common::tree_node::TreeNode;
+    use datafusion::physical_expr::expressions::Column;
+
+    expr.clone()
+        .transform(|e| {
+            if let Some(col) = e.as_any().downcast_ref::<Column>() {
+                if let Ok(new_idx) = batch.schema().index_of(col.name()) {
+                    if new_idx != col.index() {
+                        let remapped = Arc::new(Column::new(col.name(), new_idx))
+                            as Arc<dyn datafusion::physical_expr::PhysicalExpr>;
+                        return Ok(datafusion::common::tree_node::Transformed::yes(remapped));
+                    }
+                }
+            }
+            Ok(datafusion::common::tree_node::Transformed::no(e))
+        })
+        .map(|t| t.data)
+        .map_err(|e| format!("remap_expr_to_batch: {}", e))
+}
+
 use super::bool_tree::ResolvedNode;
 use super::page_pruner::PagePruneMetrics;
 use super::page_pruner::PagePruner;
@@ -571,6 +601,16 @@ fn collect_unique_collector_nodes<'a>(
             }
         }
         ResolvedNode::Predicate(_) => {}
+        ResolvedNode::DelegationPossible { .. } => {
+            // Invariant: planner drops performance peers under OR/NOT before
+            // fragment conversion, so DelegationPossible should never reach the
+            // Tree-path evaluator. Reaching this is a planner-contract violation.
+            unimplemented!(
+                "invariant violation: DelegationPossible reached \
+                 collect_unique_collector_nodes. Planner must drop performance peers \
+                 under OR/NOT before fragment conversion."
+            )
+        }
     }
 }
 

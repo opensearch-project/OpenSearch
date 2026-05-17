@@ -46,6 +46,14 @@ final class LuceneFilterDelegationHandle implements FilterDelegationHandle {
 
     private static final Logger LOGGER = LogManager.getLogger(LuceneFilterDelegationHandle.class);
 
+    // TODO: lazy query compilation for performance-delegated predicates. Today
+    // every delegated expression is compiled (QueryBuilder → Lucene Query) at
+    // ctor time. For correctness-delegated predicates (always called) this is
+    // fine. For performance-delegated predicates that DF page-pruning may never
+    // consult, the compile cost is wasted. Deferring needs a way to distinguish
+    // the two kinds (e.g. add a kind field on DelegatedExpression) and clear
+    // semantics for compile-failure timing (eager = fail at ctor, lazy = fail
+    // at first use). Revisit if this surfaces as a real cost — needs revisiting.
     private final Map<Integer, Query> queriesByAnnotationId;
     private final DirectoryReader directoryReader;
     private final List<LeafReaderContext> leaves;
@@ -91,6 +99,11 @@ final class LuceneFilterDelegationHandle implements FilterDelegationHandle {
         return queries;
     }
 
+    // TODO: switch the LOGGER.info calls in createProvider/createCollector/collectDocs back
+    // to debug before merging. Bumped to info temporarily so QA tests can verify Lucene
+    // was actually consulted by inspecting log output. Replace with a counter-based
+    // assertion (test plugin + REST endpoint) once that infrastructure exists.
+
     @Override
     public int createProvider(int annotationId) {
         Query query = queriesByAnnotationId.get(annotationId);
@@ -102,6 +115,7 @@ final class LuceneFilterDelegationHandle implements FilterDelegationHandle {
             Weight weight = searcher.createWeight(searcher.rewrite(query), ScoreMode.COMPLETE_NO_SCORES, 1.0f);
             int providerKey = nextProviderKey.getAndIncrement();
             weightsByProviderKey.put(providerKey, weight);
+            LOGGER.info("[scf] createProvider annotationId={} → providerKey={}", annotationId, providerKey);
             return providerKey;
         } catch (IOException exception) {
             LOGGER.error("createProvider failed for annotationId=" + annotationId, exception);
@@ -121,6 +135,14 @@ final class LuceneFilterDelegationHandle implements FilterDelegationHandle {
             Scorer scorer = weight.scorer(leaf);
             int collectorKey = nextCollectorKey.getAndIncrement();
             scorersByCollectorKey.put(collectorKey, new ScorerHandle(scorer, minDoc, maxDoc));
+            LOGGER.info(
+                "[scf] createCollector providerKey={} segmentOrd={} range=[{},{}) → collectorKey={}",
+                providerKey,
+                segmentOrd,
+                minDoc,
+                maxDoc,
+                collectorKey
+            );
             return collectorKey;
         } catch (IOException exception) {
             LOGGER.error("createCollector failed for providerKey=" + providerKey + ", seg=" + segmentOrd, exception);
@@ -167,6 +189,14 @@ final class LuceneFilterDelegationHandle implements FilterDelegationHandle {
         long[] words = bits.getBits();
         int wordCount = (span + 63) >>> 6;
         MemorySegment.copy(words, 0, out, ValueLayout.JAVA_LONG, 0, wordCount);
+        LOGGER.info(
+            "[scf] collectDocs collectorKey={} range=[{},{}) → cardinality={} words={}",
+            collectorKey,
+            minDoc,
+            maxDoc,
+            bits.cardinality(),
+            wordCount
+        );
         return wordCount;
     }
 

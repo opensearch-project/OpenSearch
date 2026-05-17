@@ -87,7 +87,7 @@ pub async fn build_segments(
     //      primitives (recursively merged for Struct/List/Union).
     //   5. Apply `binary_as_string` and `force_view_types` transforms
     //      if configured.
-    let format = ParquetFormat::new();
+    let format = ParquetFormat::default();
     let schema = FileFormat::infer_schema(&format, state, &store, object_metas)
         .await
         .map_err(|e| format!("infer_schema union: {}", e))?;
