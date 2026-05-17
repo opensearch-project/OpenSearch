@@ -8,12 +8,15 @@
 
 package org.opensearch.composite;
 
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
+
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
 import org.opensearch.action.admin.indices.flush.FlushResponse;
 import org.opensearch.be.datafusion.DataFusionPlugin;
 import org.opensearch.be.lucene.LucenePlugin;
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
@@ -22,6 +25,7 @@ import org.opensearch.index.IndexService;
 import org.opensearch.index.engine.CommitStats;
 import org.opensearch.index.engine.DataFormatAwareEngine;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
+import org.opensearch.index.engine.exec.coord.DataformatAwareCatalogSnapshot;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardTestCase;
@@ -45,10 +49,29 @@ import java.util.stream.Stream;
  * Integration tests for commit deletion behavior in DataFormatAwareEngine
  * with composite (Lucene + Parquet) data format.
  */
+@ThreadLeakScope(ThreadLeakScope.Scope.NONE)
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 1)
 public class CompositeCommitDeletionIT extends OpenSearchIntegTestCase {
 
     private static final String INDEX_NAME = "test-commit-deletion";
+    private static final String MERGE_ENABLED_PROPERTY = "opensearch.pluggable.dataformat.merge.enabled";
+
+    @Override
+    public void setUp() throws Exception {
+        enableMerge();
+        super.setUp();
+    }
+
+    @Override
+    public void tearDown() throws Exception {
+        try {
+            client().admin().indices().prepareDelete(INDEX_NAME).get();
+        } catch (Exception e) {
+            // index may not exist if test failed before creation
+        }
+        super.tearDown();
+        disableMerge();
+    }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -63,6 +86,16 @@ public class CompositeCommitDeletionIT extends OpenSearchIntegTestCase {
             .build();
     }
 
+    @SuppressForbidden(reason = "enable pluggable dataformat merge for integration testing")
+    private static void enableMerge() {
+        System.setProperty(MERGE_ENABLED_PROPERTY, "true");
+    }
+
+    @SuppressForbidden(reason = "restore pluggable dataformat merge property after test")
+    private static void disableMerge() {
+        System.clearProperty(MERGE_ENABLED_PROPERTY);
+    }
+
     private void createCompositeIndex() {
         client().admin()
             .indices()
@@ -74,9 +107,9 @@ public class CompositeCommitDeletionIT extends OpenSearchIntegTestCase {
                     .put("index.pluggable.dataformat.enabled", true)
                     .put("index.pluggable.dataformat", "composite")
                     .put("index.composite.primary_data_format", "parquet")
-                    .putList("index.composite.secondary_data_formats")
+                    .putList("index.composite.secondary_data_formats", "lucene")
             )
-            .setMapping("field", "type=keyword")
+            .setMapping("name", "type=keyword", "value", "type=integer")
             .get();
         ensureGreen(INDEX_NAME);
     }
@@ -85,7 +118,12 @@ public class CompositeCommitDeletionIT extends OpenSearchIntegTestCase {
         for (int i = startId; i < startId + count; i++) {
             assertEquals(
                 RestStatus.CREATED,
-                client().prepareIndex().setIndex(INDEX_NAME).setId(String.valueOf(i)).setSource("field", "value_" + i).get().status()
+                client().prepareIndex()
+                    .setIndex(INDEX_NAME)
+                    .setId(String.valueOf(i))
+                    .setSource("name", "doc_" + i, "value", i)
+                    .get()
+                    .status()
             );
         }
     }
@@ -111,6 +149,21 @@ public class CompositeCommitDeletionIT extends OpenSearchIntegTestCase {
         try (Stream<Path> stream = Files.list(dir)) {
             return stream.map(p -> p.getFileName().toString()).collect(Collectors.toSet());
         }
+    }
+
+    private Set<String> listParquetFiles(Path dir) throws IOException {
+        if (!Files.exists(dir)) return Set.of();
+        try (Stream<Path> stream = Files.list(dir)) {
+            return stream.map(p -> p.getFileName().toString()).filter(f -> f.endsWith(".parquet")).collect(Collectors.toSet());
+        }
+    }
+
+    /** Returns the set of unique segment prefixes (the N in _N.cfs, _N_xxx.dvd, etc.) */
+    private Set<String> getSegmentPrefixes(Path luceneDir) throws IOException {
+        return listFiles(luceneDir).stream()
+            .filter(f -> f.startsWith("_") && !f.startsWith("__"))
+            .map(f -> f.substring(1).split("[_.]")[0])
+            .collect(Collectors.toSet());
     }
 
     private int commitCount(IndexShard shard) throws IOException {
@@ -189,37 +242,68 @@ public class CompositeCommitDeletionIT extends OpenSearchIntegTestCase {
 
         IndexShard shard = getPrimaryShard();
         DataFormatAwareEngine engine = getEngine(shard);
-        Path dataPath = shard.shardPath().getDataPath();
+        Path parquetDir = shard.shardPath().getDataPath().resolve("parquet");
+        Path luceneDir = shard.shardPath().resolveIndex();
 
-        // Acquire snapshot — holds a ref on the current catalog snapshot
+        // Acquire snapshot — holds a ref on gen 1 catalog snapshot
         GatedCloseable<CatalogSnapshot> snapshotHold = engine.acquireSnapshot();
-        Set<String> filesBeforeMoreFlushes = listFiles(dataPath.resolve("index"));
+        Set<String> parquetFilesHeld = listParquetFiles(parquetDir);
+        Set<String> luceneSegmentPrefixesHeld = getSegmentPrefixes(luceneDir);
+        assertFalse("Should have parquet files from gen 1", parquetFilesHeld.isEmpty());
+        assertFalse("Should have lucene segments from gen 1", luceneSegmentPrefixesHeld.isEmpty());
 
-        // Index more and flush multiple times
+        // Index more batches and flush
         indexDocs(10, 10);
         flush();
         indexDocs(10, 20);
         flush();
 
-        // Files from the held snapshot should still exist (snapshot hold prevents deletion)
-        Set<String> filesAfterFlushes = listFiles(dataPath.resolve("index"));
-        for (String f : filesBeforeMoreFlushes) {
-            if (f.startsWith("segments_") || f.equals("write.lock")) continue;
-            assertTrue("File should survive due to snapshot hold: " + f, filesAfterFlushes.contains(f));
+        // Force merge to 1 segment
+        client().admin().indices().prepareForceMerge(INDEX_NAME).setMaxNumSegments(1).get();
+
+        // Wait for merge to complete
+        assertBusy(() -> {
+            DataFormatAwareEngine eng = getEngine(shard);
+            try (GatedCloseable<CatalogSnapshot> ref = eng.acquireSnapshot()) {
+                DataformatAwareCatalogSnapshot snap = (DataformatAwareCatalogSnapshot) ref.get();
+                assertEquals("Merge should reduce to 1 segment", 1, snap.getSegments().size());
+            }
+        });
+
+        // Wait for GCP, flush to trigger deletion policy
+        assertBusy(() -> assertEquals(shard.getLocalCheckpoint(), shard.getLastSyncedGlobalCheckpoint()));
+        flush();
+
+        // Old parquet files should still exist — snapshot hold prevents deletion
+        Set<String> parquetFilesAfterMerge = listParquetFiles(parquetDir);
+        for (String f : parquetFilesHeld) {
+            assertTrue("Parquet file should survive due to snapshot hold: " + f, parquetFilesAfterMerge.contains(f));
+        }
+
+        // Old lucene segments should still exist — snapshot hold prevents deletion
+        Set<String> lucenePrefixesAfterMerge = getSegmentPrefixes(luceneDir);
+        for (String prefix : luceneSegmentPrefixesHeld) {
+            assertTrue("Lucene segment prefix should survive due to snapshot hold: _" + prefix, lucenePrefixesAfterMerge.contains(prefix));
         }
 
         // Release snapshot
         snapshotHold.close();
 
-        // Flush again to trigger cleanup
-        indexDocs(5, 30);
+        // Flush to trigger cleanup of now-unreferenced files
         flush();
 
-        // Wait for GCP to catch up, then flush to trigger deletion policy
-        assertBusy(() -> assertEquals(shard.getLocalCheckpoint(), shard.getLastSyncedGlobalCheckpoint()));
-        flush();
+        // Old parquet files should now be deleted — only merged file remains
+        Set<String> parquetFilesFinal = listParquetFiles(parquetDir);
+        assertEquals("Only 1 merged parquet file should remain, got: " + parquetFilesFinal, 1, parquetFilesFinal.size());
+        for (String f : parquetFilesHeld) {
+            assertFalse("Old parquet file should be deleted after snapshot release: " + f, parquetFilesFinal.contains(f));
+        }
 
-        assertEquals("Old commits should be cleaned after release", 1, commitCount(shard));
+        // Lucene: only one segment generation should remain
+        Set<String> lucenePrefixesFinal = getSegmentPrefixes(luceneDir);
+        assertEquals("Only 1 lucene segment generation should remain, got: " + lucenePrefixesFinal, 1, lucenePrefixesFinal.size());
+
+        assertEquals("Only latest commit should remain", 1, commitCount(shard));
     }
 
     // ---- Test 4: acquireSnapshot returns latest state ----
@@ -252,36 +336,88 @@ public class CompositeCommitDeletionIT extends OpenSearchIntegTestCase {
         }
     }
 
-    // ---- Test 5: Multi-format file cleanup ----
+    // ---- Test 5: Force merge deletes old segment files across both formats ----
 
-    public void testMultiFormatFilesCleanedUpOnDeletion() throws Exception {
+    public void testForceMergeDeletesOldSegmentFiles() throws Exception {
         createCompositeIndex();
 
+        // 3 batches → 3 flush cycles → 3 parquet generations + 3 lucene segment sets
         indexDocs(10, 0);
         flush();
-
-        IndexShard shard = getPrimaryShard();
-        Path dataPath = shard.shardPath().getDataPath();
-        Path indexDir = dataPath.resolve("index");
-
-        Set<String> luceneFilesAfterCS1 = listFiles(indexDir);
-        assertFalse("Lucene files should exist after flush", luceneFilesAfterCS1.isEmpty());
-
-        // Create more commits
         indexDocs(10, 10);
         flush();
         indexDocs(10, 20);
         flush();
 
-        // After GCP advances and old commits are deleted:
-        Set<String> luceneFilesNow = listFiles(indexDir);
-        assertFalse("Lucene files should still exist", luceneFilesNow.isEmpty());
+        IndexShard shard = getPrimaryShard();
+        Path dataPath = shard.shardPath().getDataPath();
+        Path parquetDir = dataPath.resolve("parquet");
+        Path luceneDir = shard.shardPath().resolveIndex();
 
-        // Only latest commits should remain (safe + last, which may be the same)
+        // Before merge: should have 3 parquet files (one per generation)
+        Set<String> parquetFilesBefore = listParquetFiles(parquetDir);
+        assertTrue("Should have multiple parquet files before merge, got: " + parquetFilesBefore, parquetFilesBefore.size() >= 3);
+
+        // Before merge: lucene dir should have files from multiple generations
+        Set<String> luceneFilesBefore = listFiles(luceneDir);
+        assertFalse("Lucene dir should have files before merge", luceneFilesBefore.isEmpty());
+
+        // Force merge to 1 segment
+        client().admin().indices().prepareForceMerge(INDEX_NAME).setMaxNumSegments(1).get();
+
+        // Wait for merge to complete (refresh happens internally during merge)
+        assertBusy(() -> {
+            DataFormatAwareEngine eng = getEngine(shard);
+            try (GatedCloseable<CatalogSnapshot> ref = eng.acquireSnapshot()) {
+                DataformatAwareCatalogSnapshot snap = (DataformatAwareCatalogSnapshot) ref.get();
+                assertEquals("Merge should reduce to 1 segment", 1, snap.getSegments().size());
+            }
+        });
+
+        // Wait for GCP to catch up, then flush to trigger deletion policy
         assertBusy(() -> assertEquals(shard.getLocalCheckpoint(), shard.getLastSyncedGlobalCheckpoint()));
         flush();
 
-        assertEquals("Only latest commit remains", 1, commitCount(shard));
+        // After merge committed: only 1 parquet file should survive
+        Set<String> parquetFilesAfter = listParquetFiles(parquetDir);
+        assertEquals("Only 1 merged parquet file should remain, got: " + parquetFilesAfter, 1, parquetFilesAfter.size());
+
+        // Lucene: all segment files should belong to a single generation
+        Set<String> lucenePrefixesAfter = getSegmentPrefixes(luceneDir);
+        assertEquals(
+            "All lucene segment files should belong to one generation, got prefixes: " + lucenePrefixesAfter,
+            1,
+            lucenePrefixesAfter.size()
+        );
+
+        // Only 1 commit should remain
+        assertEquals("Only latest commit should remain", 1, commitCount(shard));
+
+        // Verify catalog snapshot has both formats in the merged segment
+        DataFormatAwareEngine engine = getEngine(shard);
+        try (GatedCloseable<CatalogSnapshot> snapshotRef = engine.acquireSnapshot()) {
+            DataformatAwareCatalogSnapshot dfSnapshot = (DataformatAwareCatalogSnapshot) snapshotRef.get();
+            assertTrue(
+                "Segment should have parquet files",
+                dfSnapshot.getSegments().get(0).dfGroupedSearchableFiles().containsKey("parquet")
+            );
+            assertTrue(
+                "Segment should have lucene files",
+                dfSnapshot.getSegments().get(0).dfGroupedSearchableFiles().containsKey("lucene")
+            );
+        }
+
+        // Verify total indexed doc count = 30 via stats API
+        long indexCount = client().admin()
+            .indices()
+            .prepareStats(INDEX_NAME)
+            .clear()
+            .setIndexing(true)
+            .get()
+            .getIndex(INDEX_NAME)
+            .getShards()[0].getStats().indexing.getTotal()
+            .getIndexCount();
+        assertEquals("Total indexed docs should be 30", 30, indexCount);
     }
 
     // ---- Test 6: Translog recovery after node restart ----
