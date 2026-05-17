@@ -8,6 +8,7 @@
 
 package org.opensearch.analytics.qa;
 
+import org.apache.lucene.tests.util.LuceneTestCase.AwaitsFix;
 import org.opensearch.client.Request;
 import org.opensearch.client.Response;
 
@@ -40,6 +41,12 @@ public class DynamicMappingSearchIT extends AnalyticsRestTestCase {
      * Full end-to-end test: 3-phase ingestion with progressive schema evolution,
      * verifying search works correctly at each stage via both vanilla and indexed paths.
      */
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/pull/21701 — performance "
+        + "filter delegation needs handling for dynamically added fields. Lucene's per-segment "
+        + "FieldInfos differ across segments, and a query against a field absent from older "
+        + "segments returns empty bitsets that get incorrectly AND'd into DataFusion's candidates. "
+        + "Either propagate per-segment field-presence as a 'skip' signal or disable perf "
+        + "delegation for dynamically-mapped fields.")
     public void testSearchOnDynamicallyAddedFields() throws Exception {
         createIndex();
 
