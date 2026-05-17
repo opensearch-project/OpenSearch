@@ -27,6 +27,7 @@ import org.opensearch.indices.pollingingest.mappers.IngestionMessageMapper;
 
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -74,6 +75,12 @@ public class DefaultStreamPoller implements StreamPoller {
     private String consumerClientId;
     private int shardId;
 
+    // Source partitions assigned to this shard. Empty = single-partition 1:1 fallback (legacy plugin path).
+    // Size 1 keeps the single-partition consumer; size > 1 triggers the multi-partition consumer.
+    private final List<Integer> assignedPartitions;
+    // Per-partition recovery pointers read from Lucene commit user data. Empty on fresh start.
+    private final Map<Integer, IngestionShardPointer> perPartitionStartPointers;
+
     private ExecutorService consumerThread;
 
     // start of the batch, inclusive
@@ -118,7 +125,9 @@ public class DefaultStreamPoller implements StreamPoller {
         IngestionMessageMapper.MapperType mapperType,
         Map<String, Object> mapperSettings,
         IngestPipelineExecutor pipelineExecutor,
-        IngestionSource.WarmupConfig warmupConfig
+        IngestionSource.WarmupConfig warmupConfig,
+        List<Integer> assignedPartitions,
+        Map<Integer, IngestionShardPointer> perPartitionStartPointers
     ) {
         this(
             startPointer,
@@ -142,7 +151,9 @@ public class DefaultStreamPoller implements StreamPoller {
             pointerBasedLagUpdateIntervalMs,
             ingestionEngine.config().getIndexSettings(),
             IngestionMessageMapper.create(mapperType.getName(), shardId, mapperSettings),
-            warmupConfig
+            warmupConfig,
+            assignedPartitions,
+            perPartitionStartPointers
         );
     }
 
@@ -164,7 +175,9 @@ public class DefaultStreamPoller implements StreamPoller {
         long pointerBasedLagUpdateIntervalMs,
         IndexSettings indexSettings,
         IngestionMessageMapper messageMapper,
-        IngestionSource.WarmupConfig warmupConfig
+        IngestionSource.WarmupConfig warmupConfig,
+        List<Integer> assignedPartitions,
+        Map<Integer, IngestionShardPointer> perPartitionStartPointers
     ) {
         this.consumerFactory = Objects.requireNonNull(consumerFactory);
         this.consumerClientId = Objects.requireNonNull(consumerClientId);
@@ -184,6 +197,12 @@ public class DefaultStreamPoller implements StreamPoller {
         this.indexName = indexSettings.getIndex().getName();
         this.messageMapper = Objects.requireNonNull(messageMapper);
         this.warmupConfig = Objects.requireNonNull(warmupConfig);
+        this.assignedPartitions = assignedPartitions == null || assignedPartitions.isEmpty()
+            ? Collections.emptyList()
+            : List.copyOf(assignedPartitions);
+        this.perPartitionStartPointers = perPartitionStartPointers == null || perPartitionStartPointers.isEmpty()
+            ? Collections.emptyMap()
+            : Map.copyOf(perPartitionStartPointers);
 
         // handle initial poller states
         this.paused = initialState == State.PAUSED;
@@ -715,15 +734,68 @@ public class DefaultStreamPoller implements StreamPoller {
             return;
         }
 
-        // Handle consumer offset reset the first time an index is created. The reset offset takes precedence if available.
-        IngestionShardPointer resetShardPointer = getResetShardPointer();
-        if (resetShardPointer != null) {
-            initialBatchStartPointer = resetShardPointer;
+        if (assignedPartitions.size() > 1) {
+            // Multi-partition mode: the single-pointer reset/seek path is unsupported because
+            // earliestPointer()/latestPointer()/readNext(pointer,...) all throw on a multi-partition consumer
+            // (no single pointer can represent N partitions). Use partition-aware seek operations instead and
+            // do NOT set forcedShardPointer (readNext(forcedShardPointer,...) would crash on the next poll).
+            switch (resetState) {
+                case EARLIEST:
+                    consumer.seekToBeginning();
+                    resetState = ResetState.NONE;
+                    break;
+                case LATEST:
+                    consumer.seekToEnd();
+                    resetState = ResetState.NONE;
+                    break;
+                case RESET_BY_OFFSET:
+                case RESET_BY_TIMESTAMP:
+                    // Single-value reset is ambiguous across multiple source partitions. The management API
+                    // for per-partition resets (planned PR7.5) is the right tool. For now, skip the reset and
+                    // let the consumer's auto.offset.reset config decide initial positions.
+                    //
+                    // TODO(observability): the WARN fires on every reinit (settings changes, etc.) so it can flood
+                    // logs and operators can't easily tell that their configured reset is being silently ignored.
+                    // Add a `skippedResetCount` counter to PollingIngestStats so the silent skip is queryable
+                    // without log scraping. Track with the PR7.5 management-API work that also adds per-partition
+                    // reset semantics for these modes.
+                    logger.warn(
+                        "reset state [{}] is not supported in multi-partition mode for shard {}; skipping. "
+                            + "Use the per-partition reset management API once available.",
+                        resetState,
+                        shardId
+                    );
+                    resetState = ResetState.NONE;
+                    break;
+                case NONE:
+                default:
+                    // No explicit reset. Merge live processor progress with the recovery seed: live wins where
+                    // available, recovery covers partitions the processors have not yet observed. Using the
+                    // static perPartitionStartPointers field alone would silently re-seek startup values on
+                    // every reinit (e.g. settings change) and replay everything between recovery and live.
+                    // Mirrors single-partition's getBatchStartPointer() which already returns live-with-fallback.
+                    //
+                    // TODO(observability): expose `reinitSeekCount` (incremented every time this seek fires) and
+                    // `reinitSeekPointers` (a snapshot Map of the per-partition target offsets) on PollingIngestStats.
+                    // Useful for diagnosing surprise reprocessing: ops can correlate elevated polled-count after a
+                    // reinit with the actual seek targets to confirm whether recovery positioned correctly. Track
+                    // alongside the PR7.5 management-API work.
+                    Map<Integer, IngestionShardPointer> seekTo = new HashMap<>(perPartitionStartPointers);
+                    seekTo.putAll(blockingQueueContainer.getCurrentPartitionPointers());
+                    if (seekTo.isEmpty() == false) {
+                        consumer.seekToPartitionOffsets(seekTo);
+                    }
+                    break;
+            }
+        } else {
+            // Single-partition path (SIMPLE, MODULO-with-1-partition, or legacy plugins with -1 partition count).
+            // Behavior unchanged.
+            IngestionShardPointer resetShardPointer = getResetShardPointer();
+            if (resetShardPointer != null) {
+                initialBatchStartPointer = resetShardPointer;
+            }
+            forcedShardPointer = getBatchStartPointer();
         }
-
-        // Force the consumer to start from the batchStartPointer. This will be the initialBatchStartPointer for first
-        // time initialization, or the latest batchStartPointer based on processed messages.
-        forcedShardPointer = getBatchStartPointer();
     }
 
     /**
@@ -733,7 +805,13 @@ public class DefaultStreamPoller implements StreamPoller {
     private synchronized void initializeConsumer() {
         try {
             reinitializeConsumer = false;
-            this.consumer = consumerFactory.createShardConsumer(consumerClientId, shardId);
+            if (assignedPartitions.size() <= 1) {
+                // Single-partition path: SIMPLE strategy, MODULO with numSourcePartitions==numShards, or legacy
+                // plugins where getSourcePartitionCount() returned -1. Preserves existing consumer behavior.
+                this.consumer = consumerFactory.createShardConsumer(consumerClientId, shardId);
+            } else {
+                this.consumer = consumerFactory.createMultiPartitionShardConsumer(consumerClientId, shardId, assignedPartitions);
+            }
             logger.info("Successfully initialized consumer for shard {}", shardId);
         } catch (Exception e) {
             logger.warn("Failed to create consumer for shard {}: {}", shardId, e.getMessage());
@@ -784,6 +862,8 @@ public class DefaultStreamPoller implements StreamPoller {
         private IngestPipelineExecutor pipelineExecutor;
         // Warmup configuration - default matches IndexMetadata settings
         private IngestionSource.WarmupConfig warmupConfig = new IngestionSource.WarmupConfig(TimeValue.timeValueMillis(-1), 100L);
+        private List<Integer> assignedPartitions = Collections.emptyList();
+        private Map<Integer, IngestionShardPointer> perPartitionStartPointers = Collections.emptyMap();
 
         /**
          * Initialize the builder with mandatory parameters
@@ -908,6 +988,24 @@ public class DefaultStreamPoller implements StreamPoller {
         }
 
         /**
+         * Set the source partition IDs this shard should consume. Size > 1 triggers the multi-partition consumer.
+         * Empty list (default) means single-partition 1:1 fallback for legacy plugins that don't report partition count.
+         */
+        public Builder assignedPartitions(List<Integer> assignedPartitions) {
+            this.assignedPartitions = assignedPartitions != null ? assignedPartitions : Collections.emptyList();
+            return this;
+        }
+
+        /**
+         * Set per-partition recovery pointers read from Lucene commit data. Drives {@link IngestionShardConsumer#seekToPartitionOffsets}
+         * during consumer initialization. Empty map (default) means no per-partition recovery (fresh start or legacy single-pointer path).
+         */
+        public Builder perPartitionStartPointers(Map<Integer, IngestionShardPointer> perPartitionStartPointers) {
+            this.perPartitionStartPointers = perPartitionStartPointers != null ? perPartitionStartPointers : Collections.emptyMap();
+            return this;
+        }
+
+        /**
          * Build the DefaultStreamPoller instance
          */
         public DefaultStreamPoller build() {
@@ -929,7 +1027,9 @@ public class DefaultStreamPoller implements StreamPoller {
                 mapperType,
                 mapperSettings,
                 pipelineExecutor,
-                warmupConfig
+                warmupConfig,
+                assignedPartitions,
+                perPartitionStartPointers
             );
         }
     }

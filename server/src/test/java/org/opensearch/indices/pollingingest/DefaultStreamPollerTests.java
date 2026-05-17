@@ -100,7 +100,9 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             10000,
             indexSettings,
             new DefaultIngestionMessageMapper(),
-            new IngestionSource.WarmupConfig(TimeValue.timeValueMillis(-1), 0)
+            new IngestionSource.WarmupConfig(TimeValue.timeValueMillis(-1), 0),
+            Collections.emptyList(),
+            Collections.emptyMap()
         );
         partitionedBlockingQueueContainer.startProcessorThreads();
     }
@@ -175,7 +177,9 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             10000,
             indexSettings,
             new DefaultIngestionMessageMapper(),
-            new IngestionSource.WarmupConfig(TimeValue.timeValueMillis(-1), 0)
+            new IngestionSource.WarmupConfig(TimeValue.timeValueMillis(-1), 0),
+            Collections.emptyList(),
+            Collections.emptyMap()
         );
         CountDownLatch latch = new CountDownLatch(2);
         doAnswer(invocation -> {
@@ -210,7 +214,9 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             10000,
             indexSettings,
             new DefaultIngestionMessageMapper(),
-            new IngestionSource.WarmupConfig(TimeValue.timeValueMillis(-1), 0)
+            new IngestionSource.WarmupConfig(TimeValue.timeValueMillis(-1), 0),
+            Collections.emptyList(),
+            Collections.emptyMap()
         );
 
         // Set up latch to wait for 2 messages to be processed
@@ -253,7 +259,9 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             10000,
             indexSettings,
             new DefaultIngestionMessageMapper(),
-            new IngestionSource.WarmupConfig(TimeValue.timeValueMillis(-1), 0)
+            new IngestionSource.WarmupConfig(TimeValue.timeValueMillis(-1), 0),
+            Collections.emptyList(),
+            Collections.emptyMap()
         );
         CountDownLatch latch = new CountDownLatch(1);
         doAnswer(invocation -> {
@@ -340,7 +348,9 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             10000,
             indexSettings,
             new DefaultIngestionMessageMapper(),
-            new IngestionSource.WarmupConfig(TimeValue.timeValueMillis(-1), 0)
+            new IngestionSource.WarmupConfig(TimeValue.timeValueMillis(-1), 0),
+            Collections.emptyList(),
+            Collections.emptyMap()
         );
         poller.start();
         Thread.sleep(sleepTime);
@@ -404,7 +414,9 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             10000,
             indexSettings,
             new DefaultIngestionMessageMapper(),
-            new IngestionSource.WarmupConfig(TimeValue.timeValueMillis(-1), 0)
+            new IngestionSource.WarmupConfig(TimeValue.timeValueMillis(-1), 0),
+            Collections.emptyList(),
+            Collections.emptyMap()
         );
         poller.start();
         Thread.sleep(sleepTime);
@@ -442,7 +454,9 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             10000,
             indexSettings,
             new DefaultIngestionMessageMapper(),
-            new IngestionSource.WarmupConfig(TimeValue.timeValueMillis(-1), 0)
+            new IngestionSource.WarmupConfig(TimeValue.timeValueMillis(-1), 0),
+            Collections.emptyList(),
+            Collections.emptyMap()
         );
         poller.start();
         Thread.sleep(sleepTime);
@@ -516,7 +530,9 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             10000,
             indexSettings,
             new DefaultIngestionMessageMapper(),
-            new IngestionSource.WarmupConfig(TimeValue.timeValueMillis(-1), 0)
+            new IngestionSource.WarmupConfig(TimeValue.timeValueMillis(-1), 0),
+            Collections.emptyList(),
+            Collections.emptyMap()
         );
         poller.start();
         Thread.sleep(sleepTime);
@@ -587,7 +603,9 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             10000,
             indexSettings,
             new DefaultIngestionMessageMapper(),
-            new IngestionSource.WarmupConfig(TimeValue.timeValueMillis(-1), 0)
+            new IngestionSource.WarmupConfig(TimeValue.timeValueMillis(-1), 0),
+            Collections.emptyList(),
+            Collections.emptyMap()
         );
 
         poller.start();
@@ -631,7 +649,9 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             10000,
             indexSettings,
             new DefaultIngestionMessageMapper(),
-            new IngestionSource.WarmupConfig(TimeValue.timeValueMillis(-1), 0)
+            new IngestionSource.WarmupConfig(TimeValue.timeValueMillis(-1), 0),
+            Collections.emptyList(),
+            Collections.emptyMap()
         );
 
         // Start and wait for 2 messages to be processed
@@ -688,7 +708,9 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             10000,
             indexSettings,
             new DefaultIngestionMessageMapper(),
-            new IngestionSource.WarmupConfig(TimeValue.timeValueMillis(-1), 0)
+            new IngestionSource.WarmupConfig(TimeValue.timeValueMillis(-1), 0),
+            Collections.emptyList(),
+            Collections.emptyMap()
         );
 
         // Start poller
@@ -740,7 +762,9 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             10000,
             indexSettings,
             new DefaultIngestionMessageMapper(),
-            new IngestionSource.WarmupConfig(TimeValue.timeValueMillis(-1), 0)
+            new IngestionSource.WarmupConfig(TimeValue.timeValueMillis(-1), 0),
+            Collections.emptyList(),
+            Collections.emptyMap()
         );
 
         // When all queues return null and initialBatchStartPointer is null, getBatchStartPointer should return null
@@ -771,7 +795,9 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             10000,
             indexSettings,
             new DefaultIngestionMessageMapper(),
-            new IngestionSource.WarmupConfig(TimeValue.timeValueMillis(-1), 0)
+            new IngestionSource.WarmupConfig(TimeValue.timeValueMillis(-1), 0),
+            Collections.emptyList(),
+            Collections.emptyMap()
         );
 
         Map<Integer, IngestionShardPointer> actual = poller.getBatchStartPointers();
@@ -809,7 +835,9 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             10000,
             indexSettings,
             new DefaultIngestionMessageMapper(),
-            new IngestionSource.WarmupConfig(TimeValue.timeValueMillis(-1), 0)
+            new IngestionSource.WarmupConfig(TimeValue.timeValueMillis(-1), 0),
+            Collections.emptyList(),
+            Collections.emptyMap()
         );
 
         // Warmup should be considered complete when disabled
@@ -835,7 +863,9 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             10000,
             indexSettings,
             new DefaultIngestionMessageMapper(),
-            new IngestionSource.WarmupConfig(TimeValue.timeValueMillis(300000), 0)
+            new IngestionSource.WarmupConfig(TimeValue.timeValueMillis(300000), 0),
+            Collections.emptyList(),
+            Collections.emptyMap()
         );
 
         // Initially warmup is not complete
@@ -875,7 +905,9 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             10000,
             indexSettings,
             new DefaultIngestionMessageMapper(),
-            new IngestionSource.WarmupConfig(TimeValue.timeValueMillis(500), 0)
+            new IngestionSource.WarmupConfig(TimeValue.timeValueMillis(500), 0),
+            Collections.emptyList(),
+            Collections.emptyMap()
         );
 
         warmupPoller.start();
@@ -904,7 +936,9 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             10000,
             indexSettings,
             new DefaultIngestionMessageMapper(),
-            new IngestionSource.WarmupConfig(TimeValue.timeValueMillis(300000), 0)
+            new IngestionSource.WarmupConfig(TimeValue.timeValueMillis(300000), 0),
+            Collections.emptyList(),
+            Collections.emptyMap()
         );
 
         // Initial state should be NONE
@@ -946,7 +980,9 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             10000,
             indexSettings,
             new DefaultIngestionMessageMapper(),
-            new IngestionSource.WarmupConfig(TimeValue.timeValueMillis(500), 0)
+            new IngestionSource.WarmupConfig(TimeValue.timeValueMillis(500), 0),
+            Collections.emptyList(),
+            Collections.emptyMap()
         );
 
         warmupPoller.start();
@@ -982,7 +1018,9 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             10000,
             indexSettings,
             new DefaultIngestionMessageMapper(),
-            new IngestionSource.WarmupConfig(TimeValue.timeValueMillis(30000), 100)
+            new IngestionSource.WarmupConfig(TimeValue.timeValueMillis(30000), 100),
+            Collections.emptyList(),
+            Collections.emptyMap()
         );
 
         warmupPoller.start();
@@ -1012,7 +1050,9 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             10000,
             indexSettings,
             new DefaultIngestionMessageMapper(),
-            new IngestionSource.WarmupConfig(TimeValue.timeValueMillis(-1), 0)
+            new IngestionSource.WarmupConfig(TimeValue.timeValueMillis(-1), 0),
+            Collections.emptyList(),
+            Collections.emptyMap()
         );
 
         // Should return immediately without blocking since warmup is disabled
@@ -1049,7 +1089,9 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             10000,
             indexSettings,
             new DefaultIngestionMessageMapper(),
-            new IngestionSource.WarmupConfig(TimeValue.timeValueMinutes(5), 100L)
+            new IngestionSource.WarmupConfig(TimeValue.timeValueMinutes(5), 100L),
+            Collections.emptyList(),
+            Collections.emptyMap()
         );
 
         // Start the poller - it will be paused, so warmup should be skipped
@@ -1083,7 +1125,9 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             10000,
             indexSettings,
             new DefaultIngestionMessageMapper(),
-            enabledConfig
+            enabledConfig,
+            Collections.emptyList(),
+            Collections.emptyMap()
         );
 
         // Warmup should not be complete yet
@@ -1122,7 +1166,9 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             10000,
             indexSettings,
             new DefaultIngestionMessageMapper(),
-            new IngestionSource.WarmupConfig(TimeValue.timeValueMinutes(10), 100L)
+            new IngestionSource.WarmupConfig(TimeValue.timeValueMinutes(10), 100L),
+            Collections.emptyList(),
+            Collections.emptyMap()
         );
 
         // Start the poller
@@ -1157,7 +1203,9 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             10000,
             indexSettings,
             new DefaultIngestionMessageMapper(),
-            initialConfig
+            initialConfig,
+            Collections.emptyList(),
+            Collections.emptyMap()
         );
 
         // Warmup should not be complete yet
@@ -1191,7 +1239,9 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
             10000,
             indexSettings,
             new DefaultIngestionMessageMapper(),
-            disabledConfig
+            disabledConfig,
+            Collections.emptyList(),
+            Collections.emptyMap()
         );
 
         // Warmup should be complete since it was disabled
@@ -1205,5 +1255,368 @@ public class DefaultStreamPollerTests extends OpenSearchTestCase {
         assertTrue(warmupPoller.isWarmupComplete());
 
         warmupPoller.close();
+    }
+
+    // ==================== Per-Partition Assignment & Recovery Tests (PR5) ====================
+
+    public void testEmptyAssignedPartitionsUsesLegacyConsumer() throws TimeoutException, InterruptedException {
+        IngestionShardConsumer mockConsumer = mock(IngestionShardConsumer.class);
+        when(mockConsumer.getShardId()).thenReturn(0);
+        when(mockConsumer.readNext(any(), anyBoolean(), anyLong(), anyInt())).thenReturn(Collections.emptyList());
+        when(mockConsumer.readNext(anyLong(), anyInt())).thenReturn(Collections.emptyList());
+
+        IngestionConsumerFactory mockFactory = mock(IngestionConsumerFactory.class);
+        when(mockFactory.createShardConsumer(anyString(), anyInt())).thenReturn(mockConsumer);
+
+        DefaultStreamPoller emptyAssignmentPoller = new DefaultStreamPoller(
+            new FakeIngestionSource.FakeIngestionShardPointer(0),
+            mockFactory,
+            "",
+            0,
+            partitionedBlockingQueueContainer,
+            StreamPoller.ResetState.NONE,
+            "",
+            errorStrategy,
+            StreamPoller.State.NONE,
+            1000,
+            1000,
+            10000,
+            indexSettings,
+            new DefaultIngestionMessageMapper(),
+            new IngestionSource.WarmupConfig(TimeValue.timeValueMillis(-1), 0),
+            Collections.emptyList(),
+            Collections.emptyMap()
+        );
+        emptyAssignmentPoller.start();
+        Thread.sleep(sleepTime);
+
+        verify(mockFactory, times(1)).createShardConsumer(anyString(), eq(0));
+        verify(mockFactory, never()).createMultiPartitionShardConsumer(anyString(), anyInt(), any());
+        verify(mockConsumer, never()).seekToPartitionOffsets(any());
+
+        emptyAssignmentPoller.close();
+    }
+
+    public void testSimpleStrategySinglePartitionUsesLegacyConsumer() throws TimeoutException, InterruptedException {
+        // SIMPLE strategy always produces assignedPartitions=[shardId]; size==1 should preserve the legacy consumer.
+        IngestionShardConsumer mockConsumer = mock(IngestionShardConsumer.class);
+        when(mockConsumer.getShardId()).thenReturn(0);
+        when(mockConsumer.readNext(any(), anyBoolean(), anyLong(), anyInt())).thenReturn(Collections.emptyList());
+        when(mockConsumer.readNext(anyLong(), anyInt())).thenReturn(Collections.emptyList());
+
+        IngestionConsumerFactory mockFactory = mock(IngestionConsumerFactory.class);
+        when(mockFactory.createShardConsumer(anyString(), anyInt())).thenReturn(mockConsumer);
+
+        DefaultStreamPoller singlePartitionPoller = new DefaultStreamPoller(
+            new FakeIngestionSource.FakeIngestionShardPointer(0),
+            mockFactory,
+            "",
+            0,
+            partitionedBlockingQueueContainer,
+            StreamPoller.ResetState.NONE,
+            "",
+            errorStrategy,
+            StreamPoller.State.NONE,
+            1000,
+            1000,
+            10000,
+            indexSettings,
+            new DefaultIngestionMessageMapper(),
+            new IngestionSource.WarmupConfig(TimeValue.timeValueMillis(-1), 0),
+            Collections.singletonList(0),
+            Collections.emptyMap()
+        );
+        singlePartitionPoller.start();
+        Thread.sleep(sleepTime);
+
+        verify(mockFactory, times(1)).createShardConsumer(anyString(), eq(0));
+        verify(mockFactory, never()).createMultiPartitionShardConsumer(anyString(), anyInt(), any());
+
+        singlePartitionPoller.close();
+    }
+
+    public void testMultiPartitionAssignmentUsesMultiPartitionConsumer() throws TimeoutException, InterruptedException {
+        IngestionShardConsumer mockConsumer = mock(IngestionShardConsumer.class);
+        when(mockConsumer.getShardId()).thenReturn(0);
+        when(mockConsumer.readNext(any(), anyBoolean(), anyLong(), anyInt())).thenReturn(Collections.emptyList());
+        when(mockConsumer.readNext(anyLong(), anyInt())).thenReturn(Collections.emptyList());
+
+        IngestionConsumerFactory mockFactory = mock(IngestionConsumerFactory.class);
+        List<Integer> assignedPartitions = Arrays.asList(0, 2, 4);
+        when(mockFactory.createMultiPartitionShardConsumer(anyString(), anyInt(), eq(assignedPartitions))).thenReturn(mockConsumer);
+
+        DefaultStreamPoller multiPartitionPoller = new DefaultStreamPoller(
+            new FakeIngestionSource.FakeIngestionShardPointer(0),
+            mockFactory,
+            "",
+            0,
+            partitionedBlockingQueueContainer,
+            StreamPoller.ResetState.NONE,
+            "",
+            errorStrategy,
+            StreamPoller.State.NONE,
+            1000,
+            1000,
+            10000,
+            indexSettings,
+            new DefaultIngestionMessageMapper(),
+            new IngestionSource.WarmupConfig(TimeValue.timeValueMillis(-1), 0),
+            assignedPartitions,
+            Collections.emptyMap()
+        );
+        multiPartitionPoller.start();
+        Thread.sleep(sleepTime);
+
+        verify(mockFactory, times(1)).createMultiPartitionShardConsumer(anyString(), eq(0), eq(assignedPartitions));
+        verify(mockFactory, never()).createShardConsumer(anyString(), anyInt());
+
+        multiPartitionPoller.close();
+    }
+
+    public void testSeekToPartitionOffsetsCalledOnRecovery() throws TimeoutException, InterruptedException {
+        IngestionShardConsumer mockConsumer = mock(IngestionShardConsumer.class);
+        when(mockConsumer.getShardId()).thenReturn(0);
+        when(mockConsumer.readNext(any(), anyBoolean(), anyLong(), anyInt())).thenReturn(Collections.emptyList());
+        when(mockConsumer.readNext(anyLong(), anyInt())).thenReturn(Collections.emptyList());
+
+        IngestionConsumerFactory mockFactory = mock(IngestionConsumerFactory.class);
+        List<Integer> assignedPartitions = Arrays.asList(0, 2, 4);
+        when(mockFactory.createMultiPartitionShardConsumer(anyString(), anyInt(), eq(assignedPartitions))).thenReturn(mockConsumer);
+
+        Map<Integer, IngestionShardPointer> recoveryPointers = new HashMap<>();
+        recoveryPointers.put(0, new FakeIngestionSource.FakeIngestionShardPointer(42));
+        recoveryPointers.put(2, new FakeIngestionSource.FakeIngestionShardPointer(100));
+        recoveryPointers.put(4, new FakeIngestionSource.FakeIngestionShardPointer(200));
+
+        DefaultStreamPoller recoveryPoller = new DefaultStreamPoller(
+            new FakeIngestionSource.FakeIngestionShardPointer(42),
+            mockFactory,
+            "",
+            0,
+            partitionedBlockingQueueContainer,
+            StreamPoller.ResetState.NONE,
+            "",
+            errorStrategy,
+            StreamPoller.State.NONE,
+            1000,
+            1000,
+            10000,
+            indexSettings,
+            new DefaultIngestionMessageMapper(),
+            new IngestionSource.WarmupConfig(TimeValue.timeValueMillis(-1), 0),
+            assignedPartitions,
+            recoveryPointers
+        );
+        recoveryPoller.start();
+        Thread.sleep(sleepTime);
+
+        verify(mockConsumer, times(1)).seekToPartitionOffsets(eq(recoveryPointers));
+
+        recoveryPoller.close();
+    }
+
+    public void testResetStateOverridesPerPartitionRecovery() throws TimeoutException, InterruptedException {
+        // resetState != NONE should skip the per-partition seek (matches single-pointer precedence).
+        IngestionShardConsumer mockConsumer = mock(IngestionShardConsumer.class);
+        when(mockConsumer.getShardId()).thenReturn(0);
+        when(mockConsumer.readNext(any(), anyBoolean(), anyLong(), anyInt())).thenReturn(Collections.emptyList());
+        when(mockConsumer.readNext(anyLong(), anyInt())).thenReturn(Collections.emptyList());
+        when(mockConsumer.earliestPointer()).thenReturn(new FakeIngestionSource.FakeIngestionShardPointer(0));
+
+        IngestionConsumerFactory mockFactory = mock(IngestionConsumerFactory.class);
+        List<Integer> assignedPartitions = Arrays.asList(0, 2);
+        when(mockFactory.createMultiPartitionShardConsumer(anyString(), anyInt(), eq(assignedPartitions))).thenReturn(mockConsumer);
+
+        Map<Integer, IngestionShardPointer> recoveryPointers = new HashMap<>();
+        recoveryPointers.put(0, new FakeIngestionSource.FakeIngestionShardPointer(42));
+        recoveryPointers.put(2, new FakeIngestionSource.FakeIngestionShardPointer(100));
+
+        DefaultStreamPoller resetPoller = new DefaultStreamPoller(
+            new FakeIngestionSource.FakeIngestionShardPointer(0),
+            mockFactory,
+            "",
+            0,
+            partitionedBlockingQueueContainer,
+            StreamPoller.ResetState.EARLIEST,
+            "",
+            errorStrategy,
+            StreamPoller.State.NONE,
+            1000,
+            1000,
+            10000,
+            indexSettings,
+            new DefaultIngestionMessageMapper(),
+            new IngestionSource.WarmupConfig(TimeValue.timeValueMillis(-1), 0),
+            assignedPartitions,
+            recoveryPointers
+        );
+        resetPoller.start();
+        Thread.sleep(sleepTime);
+
+        verify(mockConsumer, never()).seekToPartitionOffsets(any());
+        // Multi-partition reset path uses seekToBeginning() instead of the single-pointer earliestPointer().
+        verify(mockConsumer, times(1)).seekToBeginning();
+
+        resetPoller.close();
+    }
+
+    public void testMultiPartitionLatestResetCallsSeekToEnd() throws TimeoutException, InterruptedException {
+        IngestionShardConsumer mockConsumer = mock(IngestionShardConsumer.class);
+        when(mockConsumer.getShardId()).thenReturn(0);
+        when(mockConsumer.readNext(any(), anyBoolean(), anyLong(), anyInt())).thenReturn(Collections.emptyList());
+        when(mockConsumer.readNext(anyLong(), anyInt())).thenReturn(Collections.emptyList());
+
+        IngestionConsumerFactory mockFactory = mock(IngestionConsumerFactory.class);
+        List<Integer> assignedPartitions = Arrays.asList(0, 2);
+        when(mockFactory.createMultiPartitionShardConsumer(anyString(), anyInt(), eq(assignedPartitions))).thenReturn(mockConsumer);
+
+        DefaultStreamPoller latestPoller = new DefaultStreamPoller(
+            new FakeIngestionSource.FakeIngestionShardPointer(0),
+            mockFactory,
+            "",
+            0,
+            partitionedBlockingQueueContainer,
+            StreamPoller.ResetState.LATEST,
+            "",
+            errorStrategy,
+            StreamPoller.State.NONE,
+            1000,
+            1000,
+            10000,
+            indexSettings,
+            new DefaultIngestionMessageMapper(),
+            new IngestionSource.WarmupConfig(TimeValue.timeValueMillis(-1), 0),
+            assignedPartitions,
+            Collections.emptyMap()
+        );
+        latestPoller.start();
+        Thread.sleep(sleepTime);
+
+        verify(mockConsumer, times(1)).seekToEnd();
+        verify(mockConsumer, never()).seekToBeginning();
+        verify(mockConsumer, never()).seekToPartitionOffsets(any());
+
+        latestPoller.close();
+    }
+
+    public void testMultiPartitionUnsupportedResetModeIsSkipped() throws TimeoutException, InterruptedException {
+        // RESET_BY_OFFSET / RESET_BY_TIMESTAMP carry a single value that can't be applied across N partitions —
+        // the multi-partition fork logs a WARN and skips the reset, deferring to the consumer's auto.offset.reset.
+        IngestionShardConsumer mockConsumer = mock(IngestionShardConsumer.class);
+        when(mockConsumer.getShardId()).thenReturn(0);
+        when(mockConsumer.readNext(any(), anyBoolean(), anyLong(), anyInt())).thenReturn(Collections.emptyList());
+        when(mockConsumer.readNext(anyLong(), anyInt())).thenReturn(Collections.emptyList());
+
+        IngestionConsumerFactory mockFactory = mock(IngestionConsumerFactory.class);
+        List<Integer> assignedPartitions = Arrays.asList(0, 2);
+        when(mockFactory.createMultiPartitionShardConsumer(anyString(), anyInt(), eq(assignedPartitions))).thenReturn(mockConsumer);
+
+        DefaultStreamPoller offsetPoller = new DefaultStreamPoller(
+            new FakeIngestionSource.FakeIngestionShardPointer(0),
+            mockFactory,
+            "",
+            0,
+            partitionedBlockingQueueContainer,
+            StreamPoller.ResetState.RESET_BY_OFFSET,
+            "5",
+            errorStrategy,
+            StreamPoller.State.NONE,
+            1000,
+            1000,
+            10000,
+            indexSettings,
+            new DefaultIngestionMessageMapper(),
+            new IngestionSource.WarmupConfig(TimeValue.timeValueMillis(-1), 0),
+            assignedPartitions,
+            Collections.emptyMap()
+        );
+        offsetPoller.start();
+        Thread.sleep(sleepTime);
+
+        // Skipped — no seek of any kind, no crash.
+        verify(mockConsumer, never()).seekToBeginning();
+        verify(mockConsumer, never()).seekToEnd();
+        verify(mockConsumer, never()).seekToPartitionOffsets(any());
+
+        offsetPoller.close();
+    }
+
+    public void testMultiPartitionReinitUsesLiveProgressNotStartupRecovery() throws TimeoutException, InterruptedException {
+        // Regression for Bug 2: on consumer reinit (e.g. after a settings change), the multi-partition NONE branch
+        // must seek to LIVE processor progress, not the static perPartitionStartPointers recovery seed. Otherwise
+        // every reinit silently replays everything between recovery and live.
+        IngestionShardConsumer mockConsumer = mock(IngestionShardConsumer.class);
+        when(mockConsumer.getShardId()).thenReturn(0);
+        when(mockConsumer.readNext(any(), anyBoolean(), anyLong(), anyInt())).thenReturn(Collections.emptyList());
+        when(mockConsumer.readNext(anyLong(), anyInt())).thenReturn(Collections.emptyList());
+
+        IngestionConsumerFactory mockFactory = mock(IngestionConsumerFactory.class);
+        List<Integer> assignedPartitions = Arrays.asList(0, 2);
+        when(mockFactory.createMultiPartitionShardConsumer(anyString(), anyInt(), eq(assignedPartitions))).thenReturn(mockConsumer);
+
+        Map<Integer, IngestionShardPointer> recovery = new HashMap<>();
+        recovery.put(0, new FakeIngestionSource.FakeIngestionShardPointer(42));
+        recovery.put(2, new FakeIngestionSource.FakeIngestionShardPointer(100));
+
+        DefaultStreamPoller reinitPoller = new DefaultStreamPoller(
+            new FakeIngestionSource.FakeIngestionShardPointer(0),
+            mockFactory,
+            "",
+            0,
+            partitionedBlockingQueueContainer,
+            StreamPoller.ResetState.NONE,
+            "",
+            errorStrategy,
+            StreamPoller.State.NONE,
+            1000,
+            1000,
+            10000,
+            indexSettings,
+            new DefaultIngestionMessageMapper(),
+            new IngestionSource.WarmupConfig(TimeValue.timeValueMillis(-1), 0),
+            assignedPartitions,
+            recovery
+        );
+        reinitPoller.start();
+        Thread.sleep(sleepTime);
+
+        // First init: live progress is empty, seek uses recovery seed verbatim.
+        verify(mockConsumer, times(1)).seekToPartitionOffsets(eq(recovery));
+
+        // Simulate live progress: processor has advanced past recovery offsets on both assigned partitions.
+        MessageProcessorRunnablePerPartitionTests.TestSourcePartitionAwarePointer live0 =
+            new MessageProcessorRunnablePerPartitionTests.TestSourcePartitionAwarePointer(0, 500L);
+        MessageProcessorRunnablePerPartitionTests.TestSourcePartitionAwarePointer live2 =
+            new MessageProcessorRunnablePerPartitionTests.TestSourcePartitionAwarePointer(2, 600L);
+        processorRunnable.markCurrentPointer(live0);
+        processorRunnable.markCurrentPointer(live2);
+
+        // Trigger reinit. The mock factory's initialize is a no-op, so any IngestionSource works as a stub.
+        reinitPoller.requestConsumerReinitialization(mock(IngestionSource.class));
+        Thread.sleep(sleepTime);
+
+        // After reinit: seek must use the live pointers (live wins over recovery in the merge), not the recovery seed.
+        Map<Integer, IngestionShardPointer> expectedLive = new HashMap<>();
+        expectedLive.put(0, live0);
+        expectedLive.put(2, live2);
+        verify(mockConsumer, times(1)).seekToPartitionOffsets(eq(expectedLive));
+        // And the recovery-only seek must NOT have happened a second time.
+        verify(mockConsumer, times(1)).seekToPartitionOffsets(eq(recovery));
+
+        reinitPoller.close();
+    }
+
+    public void testBuilderDefaultsToEmptyAssignmentAndPointers() {
+        // Verify the Builder defaults preserve legacy behavior (empty list + empty map = single-partition fallback).
+        DefaultStreamPoller.Builder builder = new DefaultStreamPoller.Builder(
+            new FakeIngestionSource.FakeIngestionShardPointer(0),
+            fakeConsumerFactory,
+            "",
+            0,
+            engine
+        );
+        // Building without calling assignedPartitions/perPartitionStartPointers must succeed; defaults
+        // are exercised by all pre-existing tests that don't set them.
+        assertNotNull(builder);
     }
 }

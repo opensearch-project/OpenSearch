@@ -172,18 +172,10 @@ public class KafkaMultiPartitionConsumer implements IngestionShardConsumer<Kafka
     }
 
     /**
-     * Seeks all assigned partitions to the beginning. Used for RESET_TO_EARLIEST.
-     * <p>
-     * TODO: Promote {@code seekToBeginning()} / {@code seekToEnd()} to default methods on
-     * {@link IngestionShardConsumer} when the management API for resets lands. Today, the
-     * multi-partition consumer's {@link #earliestPointer()} and {@link #readNext(KafkaOffset, boolean, long, int)}
-     * throw {@code UnsupportedOperationException}, so callers cannot use the fixed
-     * {@code earliestPointer() + readNext(offset, ...)} pattern that
-     * {@code DefaultStreamPoller.getResetShardPointer()} relies on for single-partition mode.
-     * The multi-partition reset path must call {@code seekToBeginning()} directly via an
-     * {@code instanceof KafkaMultiPartitionConsumer} cast in the poller — promoting these methods
-     * to interface defaults would eliminate the cast.
+     * Seeks all assigned partitions to the beginning. Used for RESET_TO_EARLIEST in the multi-partition
+     * reset path — overrides the no-op default on {@link IngestionShardConsumer}.
      */
+    @Override
     public void seekToBeginning() {
         AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
             consumer.seekToBeginning(assignedPartitions);
@@ -193,8 +185,10 @@ public class KafkaMultiPartitionConsumer implements IngestionShardConsumer<Kafka
     }
 
     /**
-     * Seeks all assigned partitions to the end. Used for RESET_TO_LATEST.
+     * Seeks all assigned partitions to the end. Used for RESET_TO_LATEST in the multi-partition
+     * reset path — overrides the no-op default on {@link IngestionShardConsumer}.
      */
+    @Override
     public void seekToEnd() {
         AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
             consumer.seekToEnd(assignedPartitions);

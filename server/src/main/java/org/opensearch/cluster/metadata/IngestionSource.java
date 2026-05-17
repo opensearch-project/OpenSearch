@@ -221,10 +221,39 @@ public class IngestionSource {
 
     /**
      * Strategy for mapping source stream partitions to OpenSearch shards.
+     * <p>
+     * This setting is {@code Property.Final} (see {@code IndexMetadata.INGESTION_SOURCE_PARTITION_STRATEGY_SETTING})
+     * — it cannot be changed in-place after index creation. To switch strategies, create a new index and reindex
+     * from the source stream.
      */
     @PublicApi(since = "3.7.0")
     public enum SourcePartitionStrategy {
+        /**
+         * One-to-one mapping: shard {@code N} consumes source partition {@code N}. The default; preserves the
+         * pre-V_3_7_0 behavior. When {@code numSourcePartitions > numShards}, the excess partitions are silently
+         * never consumed (the engine logs a WARN). When {@code numSourcePartitions < numShards}, shards beyond
+         * {@code numSourcePartitions-1} fail to initialize.
+         */
         SIMPLE("simple"),
+        /**
+         * Modulo mapping: shard {@code N} consumes every source partition {@code P} where {@code P % numShards == N}.
+         * Lets a single shard consume from multiple source partitions, eliminating the need to pre-repartition the
+         * source stream to match the OpenSearch shard count.
+         * <p>
+         * <b>Downgrade caveat:</b> indexes created with {@code modulo} cannot be safely downgraded to a pre-V_3_7_0
+         * cluster. Older nodes do not recognize the {@code source_partition_strategy} setting and default to
+         * {@code SIMPLE} (1:1), so they would silently stop consuming the partitions assigned by modulo. Lucene commit
+         * data also omits the legacy {@code batch_start} key in multi-partition mode, so older nodes would have no
+         * recoverable checkpoint either.
+         * <p>
+         * <b>Split-brain caveat (multi-shard indexes only):</b> when {@code numberOfShards > 1} and the source topic
+         * gains partitions over time, the same document {@code _id} can rehash to a different source partition and
+         * end up consumed by a different OpenSearch shard than the one that originally indexed it — producing
+         * duplicates across shards. Single-shard indexes ({@code numberOfShards == 1}) are immune because every
+         * source partition is owned by the same shard regardless of count. The routing-value filter (planned
+         * follow-up PR) discards documents whose routing hash does not match the consuming shard, eliminating this
+         * risk for the multi-shard case.
+         */
         MODULO("modulo");
 
         private final String name;

@@ -131,4 +131,28 @@ public interface IngestionShardConsumer<T extends IngestionShardPointer, M exten
     default void seekToPartitionOffsets(Map<Integer, ? extends IngestionShardPointer> partitionOffsets) {
         // no-op for single-partition consumers
     }
+
+    /**
+     * Seek every assigned partition to its earliest available offset. Used by the poller's reset path
+     * in multi-partition mode where the single-pointer {@link #earliestPointer()} is undefined.
+     * <p>
+     * The default implementation is a no-op. Single-partition consumers continue to use
+     * {@link #earliestPointer()} for the reset path; multi-partition consumers override this method
+     * to seek all assigned partitions atomically.
+     */
+    default void seekToBeginning() {
+        // no-op for single-partition consumers; reset goes through earliestPointer() instead
+    }
+
+    /**
+     * Seek every assigned partition to its latest available offset. Used by the poller's reset path
+     * in multi-partition mode where the single-pointer {@link #latestPointer()} is undefined.
+     * <p>
+     * The default implementation is a no-op. Single-partition consumers continue to use
+     * {@link #latestPointer()} for the reset path; multi-partition consumers override this method
+     * to seek all assigned partitions atomically.
+     */
+    default void seekToEnd() {
+        // no-op for single-partition consumers; reset goes through latestPointer() instead
+    }
 }

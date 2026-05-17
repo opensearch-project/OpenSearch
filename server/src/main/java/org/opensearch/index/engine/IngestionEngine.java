@@ -8,6 +8,8 @@
 
 package org.opensearch.index.engine;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.Term;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.OpenSearchException;
@@ -23,6 +25,7 @@ import org.opensearch.common.util.concurrent.ReleasableLock;
 import org.opensearch.core.common.Strings;
 import org.opensearch.index.IngestionConsumerFactory;
 import org.opensearch.index.IngestionShardPointer;
+import org.opensearch.index.SourcePartitionAwarePointer;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.mapper.DocumentMapperForType;
 import org.opensearch.index.mapper.IdFieldMapper;
@@ -41,10 +44,12 @@ import org.opensearch.indices.pollingingest.IngestPipelineExecutor;
 import org.opensearch.indices.pollingingest.IngestionErrorStrategy;
 import org.opensearch.indices.pollingingest.IngestionSettings;
 import org.opensearch.indices.pollingingest.PollingIngestStats;
+import org.opensearch.indices.pollingingest.SourcePartitionAssignment;
 import org.opensearch.indices.pollingingest.StreamPoller;
 import org.opensearch.ingest.IngestService;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -60,6 +65,10 @@ import static org.opensearch.index.translog.Translog.EMPTY_TRANSLOG_SNAPSHOT;
  * IngestionEngine is an engine that ingests data from a stream source.
  */
 public class IngestionEngine extends InternalEngine {
+
+    // Dedicated static logger for the package-private static helpers below. The inherited instance `logger`
+    // (from Engine) cannot be referenced from a static context.
+    private static final Logger STATIC_LOGGER = LogManager.getLogger(IngestionEngine.class);
 
     private StreamPoller streamPoller;
     private final IngestionConsumerFactory ingestionConsumerFactory;
@@ -130,6 +139,75 @@ public class IngestionEngine extends InternalEngine {
             resetValue = resetValueOverride;
         }
 
+        // Per-partition checkpoint recovery: enumerate batch_start_p<N> keys written by previous commits.
+        Map<Integer, IngestionShardPointer> perPartitionStart = parsePerPartitionStartPointers(commitData, ingestionConsumerFactory);
+
+        // Multi-partition recovery (Option A path): commits in multi-partition mode skip the legacy batch_start key,
+        // so the earlier single-pointer recovery branch was not hit. If we have per-partition keys, treat this as a
+        // recovery: signal "no reset" to the poller and use the min as the initialBatchStartPointer fallback.
+        if (perPartitionStart.isEmpty() == false
+            && commitData.containsKey(StreamPoller.BATCH_START) == false
+            && forceResetPoller == false) {
+            startPointer = perPartitionStart.values().stream().min(java.util.Comparator.naturalOrder()).orElse(null);
+            resetState = StreamPoller.ResetState.NONE;
+        }
+
+        // Discover source partition count and compute the partition assignment for this shard. When the consumer
+        // factory does not report a count (legacy plugins return -1), fall back to single-partition 1:1 mode.
+        int numSourcePartitions = ingestionConsumerFactory.getSourcePartitionCount();
+        List<Integer> assignedPartitions = Collections.emptyList();
+        IngestionSource.SourcePartitionStrategy strategy = ingestionSource.getSourcePartitionStrategy();
+        int shardId = engineConfig.getShardId().getId();
+        if (numSourcePartitions <= 0) {
+            logger.info(
+                "Consumer factory [{}] does not report source partition count; using single-partition 1:1 mapping for shard {}",
+                ingestionSource.getType(),
+                shardId
+            );
+        } else {
+            int numShards = engineConfig.getIndexSettings().getNumberOfShards();
+            assignedPartitions = SourcePartitionAssignment.assignSourcePartitions(shardId, numShards, numSourcePartitions, strategy);
+            if (strategy == IngestionSource.SourcePartitionStrategy.SIMPLE && numSourcePartitions > numShards) {
+                logger.warn(
+                    "source_partition_strategy=simple with numSourcePartitions [{}] > numShards [{}]: "
+                        + "source partitions [{}..{}] will never be consumed. Use modulo to map multiple partitions per shard.",
+                    numSourcePartitions,
+                    numShards,
+                    numShards,
+                    numSourcePartitions - 1
+                );
+            }
+            // Migrate legacy single-partition checkpoint to the per-partition map when a previously single-partition
+            // shard is now multi-partition (e.g. the source topic added partitions since the last commit). See
+            // {@link #maybeMigrateLegacyCheckpoint} for the full rationale.
+            maybeMigrateLegacyCheckpoint(perPartitionStart, commitData, startPointer, assignedPartitions, shardId, forceResetPoller);
+            // Partition-expansion detection: some assigned partitions had checkpoints from previous commits but
+            // others do not. Most likely cause: the source topic gained partitions since the last commit. The
+            // newly-assigned partitions have no recovery offset and will fall through to the consumer's
+            // auto.offset.reset, which can silently lose historical data (default "latest") or trigger a massive
+            // replay ("earliest"). The per-partition reset management API (planned PR7.5) is the right tool to
+            // explicitly position newly added partitions; until then, surface a warning so operators notice.
+            //
+            // TODO(observability): a WARN alone is insufficient for production monitoring — ops can't programmatically
+            // query "how many partitions lack a checkpoint." Expose `missingCheckpointPartitionCount` as a per-shard
+            // counter in PollingIngestStats so dashboards/alerts can trigger on partition-expansion events without
+            // log scraping. Track in the PR7.5 management-API work since that PR already touches PollingIngestStats.
+            if (perPartitionStart.isEmpty() == false) {
+                java.util.Set<Integer> missing = new java.util.HashSet<>(assignedPartitions);
+                missing.removeAll(perPartitionStart.keySet());
+                if (missing.isEmpty() == false) {
+                    logger.warn(
+                        "shard {} assigned source partitions {} have no checkpoint in commit data — initial position "
+                            + "for these partitions will fall through to the consumer's auto.offset.reset. "
+                            + "Likely cause: source topic partitions were added since the last commit. "
+                            + "Data loss (auto.offset.reset=latest) or reprocessing (auto.offset.reset=earliest) is possible.",
+                        shardId,
+                        missing
+                    );
+                }
+            }
+        }
+
         IngestionErrorStrategy ingestionErrorStrategy = IngestionErrorStrategy.create(
             ingestionSource.getErrorStrategy(),
             ingestionSource.getType()
@@ -160,11 +238,138 @@ public class IngestionEngine extends InternalEngine {
             .mapperSettings(ingestionSource.getMapperSettings())
             .pipelineExecutor(pipelineExecutor)
             .warmupConfig(ingestionSource.getWarmupConfig())
+            .assignedPartitions(assignedPartitions)
+            .perPartitionStartPointers(perPartitionStart)
             .build();
         registerStreamPollerListener();
 
         // start the polling loop
         streamPoller.start();
+    }
+
+    /**
+     * Enumerates per-partition recovery pointers from Lucene commit user data. Reads keys of the form
+     * {@code batch_start_p<N>} where {@code N} is a non-negative integer partition ID, parses the value via
+     * {@link IngestionConsumerFactory#parsePointerFromString(String)}, and returns the resulting map.
+     * <p>
+     * The legacy {@link StreamPoller#BATCH_START} key is explicitly skipped: it is a string prefix of
+     * {@link StreamPoller#BATCH_START_PREFIX} so a naive {@code startsWith} would otherwise admit it.
+     * Malformed keys (empty suffix or non-numeric partition ID) are logged at WARN and skipped — a corrupt
+     * entry should not fail the entire recovery.
+     * <p>
+     * Visible for testing.
+     */
+    static Map<Integer, IngestionShardPointer> parsePerPartitionStartPointers(
+        Map<String, String> commitData,
+        IngestionConsumerFactory<?, ?> consumerFactory
+    ) {
+        Map<Integer, IngestionShardPointer> result = new HashMap<>();
+        for (Map.Entry<String, String> entry : commitData.entrySet()) {
+            String key = entry.getKey();
+            if (key.equals(StreamPoller.BATCH_START)) {
+                continue;
+            }
+            if (key.startsWith(StreamPoller.BATCH_START_PREFIX) == false) {
+                continue;
+            }
+            String suffix = key.substring(StreamPoller.BATCH_START_PREFIX.length());
+            if (suffix.isEmpty()) {
+                continue;
+            }
+            int partitionId;
+            try {
+                partitionId = Integer.parseInt(suffix);
+            } catch (NumberFormatException nfe) {
+                STATIC_LOGGER.warn("ignoring malformed per-partition commit data key [{}] (non-numeric suffix)", key);
+                continue;
+            }
+            // parsePointerFromString is plugin-supplied; defend against any RuntimeException (NFE, IAE, etc.) and
+            // against unexpectedly-null returns. A single corrupt entry should not fail the entire recovery.
+            IngestionShardPointer pointer;
+            try {
+                pointer = consumerFactory.parsePointerFromString(entry.getValue());
+            } catch (RuntimeException re) {
+                STATIC_LOGGER.warn("ignoring per-partition commit data key [{}]: parsePointerFromString threw [{}]", key, re.toString());
+                continue;
+            }
+            if (pointer == null) {
+                STATIC_LOGGER.warn("ignoring per-partition commit data key [{}]: parsePointerFromString returned null", key);
+                continue;
+            }
+            result.put(partitionId, pointer);
+        }
+        return result;
+    }
+
+    /**
+     * Detect and repair the single-partition → multi-partition migration case: a previous incarnation of this shard
+     * ran in single-partition mode and wrote only the legacy {@link StreamPoller#BATCH_START} key (no
+     * {@code batch_start_p<N>} keys). After a restart in which the source topic has more partitions than before,
+     * the shard now has multiple assigned partitions but {@code perPartitionStart} is empty. Without intervention,
+     * the multi-partition seek path would not seek any partition, and every partition (including partition
+     * {@code shardId} that already had progress) would fall through to {@code auto.offset.reset} — silently losing
+     * or replaying the messages covered by the legacy checkpoint.
+     * <p>
+     * The fix attributes the legacy pointer to partition {@code shardId}. This is safe because both SIMPLE (always
+     * assigns {@code [shardId]}) and MODULO (since {@code shardId % numShards == shardId} for any valid shardId)
+     * place partition {@code shardId} in the shard's assignment in the pre-expansion single-partition state — so
+     * the legacy checkpoint must have been tracking partition {@code shardId}.
+     * <p>
+     * Mutates {@code perPartitionStart} in place.
+     * <p>
+     * Visible for testing.
+     */
+    static void maybeMigrateLegacyCheckpoint(
+        Map<Integer, IngestionShardPointer> perPartitionStart,
+        Map<String, String> commitData,
+        @Nullable IngestionShardPointer legacyStartPointer,
+        List<Integer> assignedPartitions,
+        int shardId,
+        boolean forceResetPoller
+    ) {
+        if (perPartitionStart.isEmpty() == false) {
+            return; // already have per-partition recovery; no migration needed
+        }
+        if (commitData.containsKey(StreamPoller.BATCH_START) == false) {
+            return; // no legacy checkpoint to migrate
+        }
+        if (forceResetPoller) {
+            return; // explicit reset overrides recovery; nothing to migrate
+        }
+        if (assignedPartitions.size() <= 1) {
+            return; // still single-partition mode; legacy path handles seeking via forcedShardPointer
+        }
+        if (assignedPartitions.contains(shardId) == false) {
+            return; // safety: only attribute if shardId is in the assignment
+        }
+        if (legacyStartPointer == null) {
+            return; // legacy parse produced nothing
+        }
+        if (legacyStartPointer instanceof SourcePartitionAwarePointer) {
+            // The legacy BATCH_START key is supposed to hold a non-partition-aware pointer (the format pre-PR2/3).
+            // A partition-aware value here means commit data was hand-edited, a future format change broke the
+            // invariant, or a plugin's parsePointerFromString returned the wrong type. Attributing it to key shardId
+            // would silently seek the wrong partition (key picks the partition, value's getSourcePartition() is
+            // ignored by the seek code). Refuse to migrate and let the partition fall through to auto.offset.reset
+            // — operators will see the WARN and the partition-expansion WARN below.
+            STATIC_LOGGER.warn(
+                "legacy BATCH_START value [{}] is partition-aware (instance of SourcePartitionAwarePointer) — refusing "
+                    + "to migrate to partition {} for shard {} to avoid wrong-partition attribution. Inspect commit data "
+                    + "for corruption or a misbehaving parsePointerFromString.",
+                legacyStartPointer.asString(),
+                shardId,
+                shardId
+            );
+            return;
+        }
+        perPartitionStart.put(shardId, legacyStartPointer);
+        STATIC_LOGGER.info(
+            "Migrated legacy single-partition checkpoint [{}] to source partition {} for shard {} "
+                + "(source topic likely added partitions since the last commit).",
+            legacyStartPointer.asString(),
+            shardId,
+            shardId
+        );
     }
 
     private void registerStreamPollerListener() {
@@ -379,6 +584,7 @@ public class IngestionEngine extends InternalEngine {
         try {
             final long localCheckpoint = localCheckpointTracker.getProcessedCheckpoint();
             final IngestionShardPointer batchStartPointer = streamPoller.getBatchStartPointer();
+            final Map<Integer, IngestionShardPointer> perPartitionPointers = streamPoller.getBatchStartPointers();
             writer.setLiveCommitData(() -> {
                 /*
                  * The user data captured above (e.g. local checkpoint) contains data that must be evaluated *before* Lucene flushes
@@ -389,7 +595,7 @@ public class IngestionEngine extends InternalEngine {
                  * {@link IndexWriter#commit()} call flushes all documents, we defer computation of the maximum sequence number to the time
                  * of invocation of the commit data iterator (which occurs after all documents have been flushed to Lucene).
                  */
-                final Map<String, String> commitData = new HashMap<>(7);
+                final Map<String, String> commitData = new HashMap<>(7 + perPartitionPointers.size());
                 commitData.put(Translog.TRANSLOG_UUID_KEY, translogUUID);
                 commitData.put(SequenceNumbers.LOCAL_CHECKPOINT_KEY, Long.toString(localCheckpoint));
                 commitData.put(SequenceNumbers.MAX_SEQ_NO, Long.toString(localCheckpointTracker.getMaxSeqNo()));
@@ -401,11 +607,23 @@ public class IngestionEngine extends InternalEngine {
                  * Ingestion engine needs to record batch start pointer.
                  * Batch start pointer can be null at index creation time, if flush is called before the stream
                  * poller has been completely initialized.
+                 *
+                 * Legacy {@code batch_start} is only written in single-partition mode. In multi-partition mode the
+                 * value would be the multi-partition pointer format (e.g. "0:42") which pre-PR2/3 parsers reject
+                 * as NumberFormatException. Even with a downgrade-safe format, a pre-V_3_7_0 node cannot operate
+                 * a multi-partition index correctly (it would default to 1:1 SIMPLE and silently ignore the other
+                 * partitions assigned by modulo). Multi-partition indexes are not safely downgradable.
                  */
-                if (batchStartPointer != null) {
-                    commitData.put(StreamPoller.BATCH_START, batchStartPointer.asString());
-                } else {
-                    logger.warn("ignore null batch start pointer");
+                if (perPartitionPointers.isEmpty()) {
+                    if (batchStartPointer != null) {
+                        commitData.put(StreamPoller.BATCH_START, batchStartPointer.asString());
+                    } else {
+                        logger.warn("ignore null batch start pointer");
+                    }
+                }
+                // Per-partition recovery checkpoints for multi-partition consumption.
+                for (Map.Entry<Integer, IngestionShardPointer> entry : perPartitionPointers.entrySet()) {
+                    commitData.put(StreamPoller.BATCH_START_PREFIX + entry.getKey(), entry.getValue().asString());
                 }
                 final String currentForceMergeUUID = forceMergeUUID;
                 if (currentForceMergeUUID != null) {
