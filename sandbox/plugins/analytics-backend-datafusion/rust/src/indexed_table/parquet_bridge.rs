@@ -22,16 +22,17 @@ use std::sync::Arc;
 
 use datafusion::arrow::datatypes::SchemaRef;
 use datafusion::common::Result;
+use datafusion::datasource::physical_plan::parquet::metadata::DFParquetMetadata;
 use datafusion::datasource::physical_plan::parquet::{
     ParquetAccessPlan, ParquetFileMetrics, ParquetFileReaderFactory, RowGroupAccess,
 };
 use datafusion::datasource::physical_plan::ParquetSource;
+use datafusion::execution::cache::cache_manager::FileMetadataCache;
 use datafusion::execution::object_store::ObjectStoreUrl;
 use datafusion::execution::SendableRecordBatchStream;
-use datafusion::parquet::arrow::arrow_reader::{
-    ArrowReaderMetadata, ArrowReaderOptions, RowSelection,
-};
+use datafusion::parquet::arrow::arrow_reader::{ArrowReaderOptions, RowSelection};
 use datafusion::parquet::arrow::async_reader::AsyncFileReader;
+use datafusion::parquet::arrow::parquet_to_arrow_schema;
 use datafusion::parquet::file::metadata::ParquetMetaData;
 use datafusion::physical_plan::metrics::ExecutionPlanMetricsSet;
 use datafusion::physical_plan::ExecutionPlan;
@@ -45,28 +46,30 @@ use prost::bytes::Bytes;
 
 // ── Parquet Metadata Loading ─────────────────────────────────────────
 
-/// Load parquet metadata with page index over the object store.
+/// Load parquet metadata via DataFusion's `DFParquetMetadata`, consulting the
+/// caller-supplied `FileMetadataCache`.
 pub async fn load_parquet_metadata(
     store: Arc<dyn ObjectStore>,
     location: &object_store::path::Path,
+    metadata_cache: Arc<dyn FileMetadataCache>,
 ) -> std::result::Result<(SchemaRef, u64, Arc<ParquetMetaData>), String> {
     let meta = store
         .head(location)
         .await
         .map_err(|e| format!("object-store head {}: {}", location, e))?;
     let size = meta.size;
-    let mut reader =
-        datafusion::parquet::arrow::async_reader::ParquetObjectReader::new(store, location.clone())
-            .with_file_size(size);
-    let options = ArrowReaderOptions::new().with_page_index(true);
-    let arrow_metadata = ArrowReaderMetadata::load_async(&mut reader, options)
+
+    let pq_meta = DFParquetMetadata::new(&*store, &meta)
+        .with_file_metadata_cache(Some(metadata_cache))
+        .fetch_metadata()
         .await
         .map_err(|e| format!("load parquet metadata {}: {}", location, e))?;
-    Ok((
-        arrow_metadata.schema().clone(),
-        size,
-        arrow_metadata.metadata().clone(),
-    ))
+
+    let file_meta = pq_meta.file_metadata();
+    let schema = parquet_to_arrow_schema(file_meta.schema_descr(), file_meta.key_value_metadata())
+        .map_err(|e| format!("parquet_to_arrow_schema {}: {}", location, e))?;
+
+    Ok((Arc::new(schema), size, pq_meta))
 }
 
 /// Configuration for creating a per-row-group parquet stream.

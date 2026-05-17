@@ -73,6 +73,9 @@ pub async fn execute_query(
                 .with_file_metadata_cache(Some(
                     runtime.runtime_env.cache_manager.get_file_metadata_cache(),
                 ))
+                .with_metadata_cache_limit(
+                    runtime.runtime_env.cache_manager.get_metadata_cache_limit(),
+                )
                 .with_files_statistics_cache(
                     runtime.runtime_env.cache_manager.get_file_statistic_cache(),
                 ),
@@ -132,10 +135,16 @@ pub async fn execute_query(
         .with_listing_options(listing_options)
         .with_schema(resolved_schema);
 
-    let provider = Arc::new(ListingTable::try_new(table_config).map_err(|e| {
-        error!("Failed to create listing table: {}", e);
-        e
-    })?);
+    // Wire the global statistics cache into the ListingTable.
+    let stats_cache = runtime.runtime_env.cache_manager.get_file_statistic_cache();
+    let provider = Arc::new(
+        ListingTable::try_new(table_config)
+            .map_err(|e| {
+                error!("Failed to create listing table: {}", e);
+                e
+            })?
+            .with_cache(stats_cache),
+    );
 
     ctx.register_table(&table_name, provider).map_err(|e| {
         error!("Failed to register table: {}", e);

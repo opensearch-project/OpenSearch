@@ -496,6 +496,9 @@ pub unsafe fn sql_to_substrait(
                     .with_file_metadata_cache(Some(
                         runtime.runtime_env.cache_manager.get_file_metadata_cache(),
                     ))
+                    .with_metadata_cache_limit(
+                        runtime.runtime_env.cache_manager.get_metadata_cache_limit(),
+                    )
                     .with_files_statistics_cache(
                         runtime.runtime_env.cache_manager.get_file_statistic_cache(),
                     ),

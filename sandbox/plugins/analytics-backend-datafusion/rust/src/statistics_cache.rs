@@ -109,6 +109,13 @@ impl StatisticsMemorySize for Statistics {
     }
 }
 
+/// Combined memory state: per-key sizes + total.
+/// Protected by a single mutex to eliminate nested-lock deadlock risk.
+struct MemoryState {
+    tracker: HashMap<String, usize>,
+    total: usize,
+}
+
 /// Combined memory tracking and policy-based eviction cache
 ///
 /// This cache leverages DashMap's built-in concurrency from DefaultFileStatisticsCache
@@ -122,10 +129,8 @@ pub struct CustomStatisticsCache {
     size_limit: AtomicUsize,
     /// Eviction threshold (0.0 to 1.0)
     eviction_threshold: f64,
-    /// Memory usage tracker - maps cache keys to their memory consumption (thread-safe)
-    memory_tracker: Arc<Mutex<HashMap<String, usize>>>,
-    /// Total memory consumed by all entries (thread-safe)
-    total_memory: Arc<Mutex<usize>>,
+    /// Combined memory tracking state
+    memory_state: Arc<Mutex<MemoryState>>,
     /// Cache hit count (thread-safe)
     hit_count: Arc<Mutex<usize>>,
     /// Cache miss count (thread-safe)
@@ -140,8 +145,10 @@ impl CustomStatisticsCache {
             policy: Arc::new(Mutex::new(create_policy(policy_type))),
             size_limit: AtomicUsize::new(size_limit),
             eviction_threshold,
-            memory_tracker: Arc::new(Mutex::new(HashMap::new())),
-            total_memory: Arc::new(Mutex::new(0)),
+            memory_state: Arc::new(Mutex::new(MemoryState {
+                tracker: HashMap::new(),
+                total: 0,
+            })),
             hit_count: Arc::new(Mutex::new(0)),
             miss_count: Arc::new(Mutex::new(0)),
         }
@@ -159,7 +166,7 @@ impl CustomStatisticsCache {
 
     /// Get total memory consumed by all cached statistics
     pub fn memory_consumed(&self) -> usize {
-        self.total_memory.lock().map(|guard| *guard).unwrap_or(0)
+        self.memory_state.lock().map(|guard| guard.total).unwrap_or(0)
     }
 
     /// Get cache hit count
@@ -208,14 +215,18 @@ impl CustomStatisticsCache {
 
     /// Switch to a different eviction policy
     pub fn set_policy(&self, policy_type: PolicyType) -> CacheResult<()> {
+        let entries: Vec<(String, usize)> = {
+            let state = self.memory_state.lock().map_err(|e| CacheError::PolicyLockError {
+                reason: format!("Failed to acquire memory_state lock: {}", e),
+            })?;
+            state.tracker.iter().map(|(k, v)| (k.clone(), *v)).collect()
+        };
         let mut policy_guard = self.policy.lock().map_err(|e| CacheError::PolicyLockError {
             reason: format!("Failed to acquire policy lock: {}", e),
         })?;
         let mut new_policy = create_policy(policy_type);
-        if let Ok(tracker) = self.memory_tracker.lock() {
-            for (key, size) in tracker.iter() {
-                new_policy.on_insert(key, *size);
-            }
+        for (key, size) in entries {
+            new_policy.on_insert(&key, size);
         }
         *policy_guard = new_policy;
         Ok(())
@@ -247,18 +258,19 @@ impl CustomStatisticsCache {
 
         let mut freed_size = 0;
         for key in candidates {
-            let entry_size = if let Ok(tracker) = self.memory_tracker.lock() {
-                tracker.get(&key).copied().unwrap_or(0)
-            } else { 0 };
+            let entry_size = {
+                let state = self.memory_state.lock().map_err(|e| CacheError::PolicyLockError {
+                    reason: format!("Failed to acquire memory_state lock: {}", e),
+                })?;
+                state.tracker.get(&key).copied().unwrap_or(0)
+            };
 
             if entry_size > 0 {
                 if let Ok(path) = self.parse_key_to_path(&key) {
                     if self.inner_cache.remove(&path).is_some() {
-                        if let Ok(mut tracker) = self.memory_tracker.lock() {
-                            if let Ok(mut total) = self.total_memory.lock() {
-                                tracker.remove(&key);
-                                *total = total.saturating_sub(entry_size);
-                            }
+                        if let Ok(mut state) = self.memory_state.lock() {
+                            state.tracker.remove(&key);
+                            state.total = state.total.saturating_sub(entry_size);
                         }
                         if let Ok(mut policy_guard) = self.policy.lock() {
                             policy_guard.on_remove(&key);
@@ -298,11 +310,9 @@ impl CustomStatisticsCache {
         let key = k.to_string();
         let result = self.inner_cache.remove(k);
         if result.is_some() {
-            if let Ok(mut tracker) = self.memory_tracker.lock() {
-                if let Ok(mut total) = self.total_memory.lock() {
-                    if let Some(old_size) = tracker.remove(&key) {
-                        *total = total.saturating_sub(old_size);
-                    }
+            if let Ok(mut state) = self.memory_state.lock() {
+                if let Some(old_size) = state.tracker.remove(&key) {
+                    state.total = state.total.saturating_sub(old_size);
                 }
             }
             if let Ok(mut policy_guard) = self.policy.lock() {
@@ -321,9 +331,10 @@ impl CacheAccessor<Path, CachedFileMetadata> for CustomStatisticsCache {
         if result.is_some() {
             if let Ok(mut hits) = self.hit_count.lock() { *hits += 1; }
             let key = k.to_string();
-            let memory_size = if let Ok(tracker) = self.memory_tracker.lock() {
-                tracker.get(&key).copied().unwrap_or(0)
-            } else { 0 };
+            let memory_size = {
+                let state = self.memory_state.lock();
+                state.map(|s| s.tracker.get(&key).copied().unwrap_or(0)).unwrap_or(0)
+            };
             if let Ok(mut policy_guard) = self.policy.lock() {
                 policy_guard.on_access(&key, memory_size);
             }
@@ -338,19 +349,20 @@ impl CacheAccessor<Path, CachedFileMetadata> for CustomStatisticsCache {
         let key = k.to_string();
         let memory_size = v.statistics.memory_size();
 
-        let eviction_candidates = if let Ok(_tracker) = self.memory_tracker.lock() {
-            if let Ok(total) = self.total_memory.lock() {
-                let current_size = *total;
-                let size_limit = self.size_limit.load(Ordering::Relaxed);
-                let threshold = (size_limit as f64 * self.eviction_threshold) as usize;
-                if current_size + memory_size > threshold {
-                    let target_eviction = (current_size + memory_size) - (size_limit as f64 * 0.6) as usize;
-                    if let Ok(policy_guard) = self.policy.lock() {
-                        policy_guard.select_for_eviction(target_eviction)
-                    } else { vec![] }
+        let current_size = self.memory_state.lock()
+            .map(|s| s.total)
+            .unwrap_or(0);
+
+        let eviction_candidates = {
+            let size_limit = self.size_limit.load(Ordering::Relaxed);
+            let threshold = (size_limit as f64 * self.eviction_threshold) as usize;
+            if current_size + memory_size > threshold {
+                let target_eviction = (current_size + memory_size) - (size_limit as f64 * 0.6) as usize;
+                if let Ok(policy_guard) = self.policy.lock() {
+                    policy_guard.select_for_eviction(target_eviction)
                 } else { vec![] }
             } else { vec![] }
-        } else { vec![] };
+        };
 
         for candidate_key in eviction_candidates {
             if let Ok(path) = self.parse_key_to_path(&candidate_key) {
@@ -360,14 +372,12 @@ impl CacheAccessor<Path, CachedFileMetadata> for CustomStatisticsCache {
 
         let result = self.inner_cache.insert(k.clone(), v);
 
-        if let Ok(mut tracker) = self.memory_tracker.lock() {
-            if let Ok(mut total) = self.total_memory.lock() {
-                if let Some(old_size) = tracker.get(&key) {
-                    *total = total.saturating_sub(*old_size);
-                }
-                tracker.insert(key.clone(), memory_size);
-                *total += memory_size;
+        if let Ok(mut state) = self.memory_state.lock() {
+            if let Some(old_size) = state.tracker.get(&key) {
+                state.total = state.total.saturating_sub(*old_size);
             }
+            state.tracker.insert(key.clone(), memory_size);
+            state.total += memory_size;
         }
 
         if let Ok(mut policy_guard) = self.policy.lock() {
@@ -381,11 +391,9 @@ impl CacheAccessor<Path, CachedFileMetadata> for CustomStatisticsCache {
         let key = k.to_string();
         let result = self.inner_cache.remove(k);
         if result.is_some() {
-            if let Ok(mut tracker) = self.memory_tracker.lock() {
-                if let Ok(mut total) = self.total_memory.lock() {
-                    if let Some(old_size) = tracker.remove(&key) {
-                        *total = total.saturating_sub(old_size);
-                    }
+            if let Ok(mut state) = self.memory_state.lock() {
+                if let Some(old_size) = state.tracker.remove(&key) {
+                    state.total = state.total.saturating_sub(old_size);
                 }
             }
             if let Ok(mut policy_guard) = self.policy.lock() {
@@ -400,13 +408,15 @@ impl CacheAccessor<Path, CachedFileMetadata> for CustomStatisticsCache {
     }
 
     fn len(&self) -> usize {
-        self.memory_tracker.lock().map(|t| t.len()).unwrap_or(0)
+        self.memory_state.lock().map(|s| s.tracker.len()).unwrap_or(0)
     }
 
     fn clear(&self) {
         self.inner_cache.clear();
-        if let Ok(mut tracker) = self.memory_tracker.lock() { tracker.clear(); }
-        if let Ok(mut total) = self.total_memory.lock() { *total = 0; }
+        if let Ok(mut state) = self.memory_state.lock() {
+            state.tracker.clear();
+            state.total = 0;
+        }
         if let Ok(mut policy_guard) = self.policy.lock() { policy_guard.clear(); }
         self.reset_stats();
     }
