@@ -21,11 +21,12 @@ import java.io.IOException;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 /**
- * Tests for StreamChannelActionListener streaming functionality
+ * Tests for {@link StreamSearchChannelListener}.
  */
 public class StreamSearchChannelListenerTests extends OpenSearchTestCase {
 
@@ -73,6 +74,16 @@ public class StreamSearchChannelListenerTests extends OpenSearchTestCase {
         listener.onFailure(exception);
 
         verify(channel).sendResponse(exception);
+    }
+
+    public void testFailureDoesNotCompleteStreamWhenSendingErrorFails() throws Exception {
+        RuntimeException exception = new RuntimeException("test failure");
+        doThrow(new IOException("boom")).when(channel).sendResponse(exception);
+
+        listener.onFailure(exception);
+
+        verify(channel).sendResponse(exception);
+        verifyNoMoreInteractions(channel);
     }
 
     /**

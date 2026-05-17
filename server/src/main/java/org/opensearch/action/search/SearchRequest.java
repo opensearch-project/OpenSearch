@@ -129,6 +129,8 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
 
     private Boolean phaseTook = null;
 
+    private String streamingSearchMode = null;
+
     public SearchRequest() {
         this.localClusterAlias = null;
         this.absoluteStartMillis = DEFAULT_ABSOLUTE_START_MILLIS;
@@ -146,6 +148,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             searchRequest.absoluteStartMillis,
             searchRequest.finalReduce
         );
+        this.streamingSearchMode = searchRequest.streamingSearchMode;
     }
 
     /**
@@ -234,6 +237,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         this.finalReduce = finalReduce;
         this.cancelAfterTimeInterval = searchRequest.cancelAfterTimeInterval;
         this.phaseTook = searchRequest.phaseTook;
+        this.streamingSearchMode = searchRequest.streamingSearchMode;
     }
 
     /**
@@ -281,6 +285,12 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         if (in.getVersion().onOrAfter(Version.V_2_12_0)) {
             phaseTook = in.readOptionalBoolean();
         }
+
+        if (in.getVersion().onOrAfter(Version.V_3_3_0)) {
+            streamingSearchMode = in.readOptionalString();
+        } else {
+            streamingSearchMode = null;
+        }
     }
 
     @Override
@@ -314,6 +324,10 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         }
         if (out.getVersion().onOrAfter(Version.V_2_12_0)) {
             out.writeOptionalBoolean(phaseTook);
+        }
+
+        if (out.getVersion().onOrAfter(Version.V_3_3_0)) {
+            out.writeOptionalString(streamingSearchMode);
         }
     }
 
@@ -706,6 +720,22 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
     }
 
     /**
+     * Sets the streaming search mode for this request.
+     * @param mode The streaming search mode to use
+     */
+    public void setStreamingSearchMode(String mode) {
+        this.streamingSearchMode = mode;
+    }
+
+    /**
+     * Gets the streaming search mode for this request.
+     * @return The streaming search mode, or null if not set
+     */
+    public String getStreamingSearchMode() {
+        return streamingSearchMode;
+    }
+
+    /**
      * Returns a threshold that enforces a pre-filter roundtrip to pre-filter search shards based on query rewriting if the number of shards
      * the search request expands to exceeds the threshold, or <code>null</code> if the threshold is unspecified.
      * This filter roundtrip can limit the number of shards significantly if for
@@ -816,7 +846,8 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             && ccsMinimizeRoundtrips == that.ccsMinimizeRoundtrips
             && Objects.equals(cancelAfterTimeInterval, that.cancelAfterTimeInterval)
             && Objects.equals(pipeline, that.pipeline)
-            && Objects.equals(phaseTook, that.phaseTook);
+            && Objects.equals(phaseTook, that.phaseTook)
+            && Objects.equals(streamingSearchMode, that.streamingSearchMode);
     }
 
     @Override
@@ -838,7 +869,8 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             absoluteStartMillis,
             ccsMinimizeRoundtrips,
             cancelAfterTimeInterval,
-            phaseTook
+            phaseTook,
+            streamingSearchMode
         );
     }
 

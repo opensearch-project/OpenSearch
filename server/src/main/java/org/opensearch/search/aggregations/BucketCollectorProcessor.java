@@ -97,12 +97,12 @@ public class BucketCollectorProcessor {
         collectors.offer(collectorTree);
         while (!collectors.isEmpty()) {
             Collector currentCollector = collectors.poll();
-            if (currentCollector instanceof InternalProfileCollector internalProfileCollector) {
-                collectors.offer(internalProfileCollector.getCollector());
-            } else if (currentCollector instanceof MinimumScoreCollector minimumScoreCollector) {
-                collectors.offer(minimumScoreCollector.getCollector());
-            } else if (currentCollector instanceof MultiCollector multiCollector) {
-                for (Collector innerCollector : multiCollector.getCollectors()) {
+            if (currentCollector instanceof InternalProfileCollector) {
+                collectors.offer(((InternalProfileCollector) currentCollector).getCollector());
+            } else if (currentCollector instanceof MinimumScoreCollector) {
+                collectors.offer(((MinimumScoreCollector) currentCollector).getCollector());
+            } else if (currentCollector instanceof MultiCollector) {
+                for (Collector innerCollector : ((MultiCollector) currentCollector).getCollectors()) {
                     collectors.offer(innerCollector);
                 }
             } else if (currentCollector instanceof BucketCollector bucketCollector) {
@@ -136,16 +136,31 @@ public class BucketCollectorProcessor {
         final Deque<Collector> allCollectors = new LinkedList<>(collectors);
         while (!allCollectors.isEmpty()) {
             final Collector currentCollector = allCollectors.pop();
-            if (currentCollector instanceof Aggregator aggregator) {
-                aggregators.add(aggregator);
-            } else if (currentCollector instanceof InternalProfileCollector internalProfileCollector) {
-                if (internalProfileCollector.getCollector() instanceof Aggregator aggregator) {
-                    aggregators.add(aggregator);
-                } else if (internalProfileCollector.getCollector() instanceof MultiBucketCollector multiBucketCollector) {
-                    allCollectors.addAll(Arrays.asList(multiBucketCollector.getCollectors()));
+            if (currentCollector instanceof Aggregator) {
+                aggregators.add((Aggregator) currentCollector);
+            } else if (currentCollector instanceof InternalProfileCollector) {
+                if (((InternalProfileCollector) currentCollector).getCollector() instanceof Aggregator) {
+                    aggregators.add((Aggregator) ((InternalProfileCollector) currentCollector).getCollector());
+                } else if (((InternalProfileCollector) currentCollector).getCollector() instanceof MultiBucketCollector) {
+                    Collector[] subCollectors = ((MultiBucketCollector) ((InternalProfileCollector) currentCollector).getCollector())
+                        .getCollectors();
+                    if (subCollectors != null) {
+                        for (Collector subCollector : subCollectors) {
+                            if (subCollector != null) {
+                                allCollectors.add(subCollector);
+                            }
+                        }
+                    }
                 }
-            } else if (currentCollector instanceof MultiBucketCollector multiBucketCollector) {
-                allCollectors.addAll(Arrays.asList(multiBucketCollector.getCollectors()));
+            } else if (currentCollector instanceof MultiBucketCollector) {
+                Collector[] subCollectors = ((MultiBucketCollector) currentCollector).getCollectors();
+                if (subCollectors != null) {
+                    for (Collector subCollector : subCollectors) {
+                        if (subCollector != null) {
+                            allCollectors.add(subCollector);
+                        }
+                    }
+                }
             }
         }
         return aggregators;

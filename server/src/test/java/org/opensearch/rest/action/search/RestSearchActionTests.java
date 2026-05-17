@@ -12,16 +12,22 @@ import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionType;
 import org.opensearch.action.search.SearchAction;
 import org.opensearch.action.search.SearchRequest;
+import org.opensearch.action.search.SearchType;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.search.StreamSearchAction;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.settings.ClusterSettings;
+import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.action.ActionResponse;
+import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.rest.RestRequest;
+import org.opensearch.search.SearchModule;
 import org.opensearch.search.aggregations.AggregationBuilders;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.tasks.Task;
@@ -30,6 +36,11 @@ import org.opensearch.test.client.NoOpNodeClient;
 import org.opensearch.test.rest.FakeRestChannel;
 import org.opensearch.test.rest.FakeRestRequest;
 import org.opensearch.transport.client.node.NodeClient;
+
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
 
 import static org.opensearch.action.search.StreamSearchTransportService.STREAM_SEARCH_ENABLED;
 import static org.opensearch.common.util.FeatureFlags.STREAM_TRANSPORT;
@@ -57,9 +68,32 @@ public class RestSearchActionTests extends OpenSearchTestCase {
         };
     }
 
+    private NodeClient createMockNodeClient(SetOnce<ActionType<?>> capturedActionType, SetOnce<SearchRequest> capturedRequest) {
+        return new NoOpNodeClient(this.getTestName()) {
+            @Override
+            public <Request extends ActionRequest, Response extends ActionResponse> Task executeLocally(
+                ActionType<Response> action,
+                Request request,
+                ActionListener<Response> listener
+            ) {
+                capturedActionType.set(action);
+                capturedRequest.set((SearchRequest) request);
+                listener.onResponse(null);
+                return new Task(1L, "test", action.name(), "test task", null, null);
+            }
+
+            @Override
+            public String getLocalNodeId() {
+                return "test-node";
+            }
+        };
+    }
+
     private ClusterSettings createClusterSettingsWithStreamSearchEnabled() {
         Settings settings = Settings.builder().put(STREAM_SEARCH_ENABLED.getKey(), true).build();
-        return new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        Set<Setting<?>> settingSet = new HashSet<>(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        settingSet.add(STREAM_SEARCH_ENABLED);
+        return new ClusterSettings(settings, settingSet);
     }
 
     private SearchRequest createSearchRequestWithTermsAggregation() {
@@ -68,6 +102,10 @@ public class RestSearchActionTests extends OpenSearchTestCase {
         source.aggregation(AggregationBuilders.terms("test_terms").field("category"));
         searchRequest.source(source);
         return searchRequest;
+    }
+
+    private NamedXContentRegistry searchXContentRegistry() {
+        return new NamedXContentRegistry(new SearchModule(Settings.EMPTY, Collections.emptyList()).getNamedXContents());
     }
 
     public void testWithSearchStreamDisabled() throws Exception {
@@ -82,17 +120,77 @@ public class RestSearchActionTests extends OpenSearchTestCase {
         }
     }
 
-    // When stream search is enabled but STREAM_TRANSPORT is disabled, should throw exception
-    public void testWithStreamSearchEnabledButStreamTransportDisabled() {
+    public void testStreamScoringModeParamRejected() {
         try (NodeClient nodeClient = new NoOpNodeClient(this.getTestName())) {
-            RestRequest restRequest = new FakeRestRequest.Builder(xContentRegistry()).build();
-            FakeRestChannel channel = new FakeRestChannel(restRequest, false, 0);
+            RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withParams(Map.of("stream_scoring_mode", "no_scoring"))
+                .build();
+            FakeRestChannel channel = new FakeRestChannel(request, false, 0);
 
             Exception e = expectThrows(
                 IllegalArgumentException.class,
-                () -> new RestSearchAction(createClusterSettingsWithStreamSearchEnabled()).handleRequest(restRequest, channel, nodeClient)
+                () -> new RestSearchAction().handleRequest(request, channel, nodeClient)
             );
-            assertThat(e.getMessage(), equalTo("You need to enable stream transport first to use stream search."));
+            assertThat(e.getMessage(), equalTo("stream_scoring_mode is no longer supported. Use streaming_mode=no_scoring."));
+        }
+    }
+
+    @LockFeatureFlag(STREAM_TRANSPORT)
+    public void testStreamingModeNoScoringAccepted() throws Exception {
+        ClusterSettings clusterSettings = createClusterSettingsWithStreamSearchEnabled();
+        SetOnce<ActionType<?>> capturedActionType = new SetOnce<>();
+        SetOnce<SearchRequest> capturedRequest = new SetOnce<>();
+        try (NodeClient nodeClient = createMockNodeClient(capturedActionType, capturedRequest)) {
+            RestRequest request = new FakeRestRequest.Builder(searchXContentRegistry())
+                .withParams(Map.of("streaming_mode", "no_scoring"))
+                .withContent(
+                    new BytesArray("{\"aggs\":{\"test_terms\":{\"terms\":{\"field\":\"category\"}}}}"),
+                    MediaTypeRegistry.JSON
+                )
+                .build();
+            FakeRestChannel channel = new FakeRestChannel(request, false, 0);
+
+            new RestSearchAction(clusterSettings).handleRequest(request, channel, nodeClient);
+
+            assertThat(capturedActionType.get(), equalTo(StreamSearchAction.INSTANCE));
+            assertThat(capturedRequest.get().getStreamingSearchMode(), equalTo("no_scoring"));
+        }
+    }
+
+    @LockFeatureFlag(STREAM_TRANSPORT)
+    public void testInvalidStreamingModeRejected() {
+        ClusterSettings clusterSettings = createClusterSettingsWithStreamSearchEnabled();
+        try (NodeClient nodeClient = new NoOpNodeClient(this.getTestName())) {
+            RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
+                .withParams(Map.of("streaming_mode", "full_scoring"))
+                .build();
+            FakeRestChannel channel = new FakeRestChannel(request, false, 0);
+
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> new RestSearchAction(clusterSettings).handleRequest(request, channel, nodeClient)
+            );
+            assertThat(e.getMessage(), equalTo("Unsupported streaming_mode [full_scoring]. Only [no_scoring] is supported."));
+        }
+    }
+
+    @LockFeatureFlag(STREAM_TRANSPORT)
+    public void testStreamingModeRejectedWithDfsQueryThenFetch() {
+        ClusterSettings clusterSettings = createClusterSettingsWithStreamSearchEnabled();
+        try (NodeClient nodeClient = new NoOpNodeClient(this.getTestName())) {
+            RestRequest request = new FakeRestRequest.Builder(searchXContentRegistry())
+                .withParams(Map.of("streaming_mode", "no_scoring", "search_type", "dfs_query_then_fetch"))
+                .withContent(
+                    new BytesArray("{\"aggs\":{\"test_terms\":{\"terms\":{\"field\":\"category\"}}}}"),
+                    MediaTypeRegistry.JSON
+                )
+                .build();
+            FakeRestChannel channel = new FakeRestChannel(request, false, 0);
+
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> new RestSearchAction(clusterSettings).handleRequest(request, channel, nodeClient)
+            );
+            assertThat(e.getMessage(), equalTo("Stream search is not supported with search type [dfs_query_then_fetch]"));
         }
     }
 

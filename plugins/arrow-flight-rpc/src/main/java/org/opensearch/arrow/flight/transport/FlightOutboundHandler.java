@@ -9,8 +9,6 @@
 package org.opensearch.arrow.flight.transport;
 
 import org.apache.arrow.flight.FlightRuntimeException;
-import org.apache.arrow.vector.FieldVector;
-import org.apache.arrow.vector.VectorSchemaRoot;
 import org.opensearch.Version;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.io.stream.BytesStreamOutput;
@@ -167,8 +165,6 @@ class FlightOutboundHandler extends ProtocolOutboundHandler {
             } else {
                 out = VectorStreamOutput.create(flightChannel.getAllocator(), flightChannel.getRoot());
                 task.response().writeTo(out);
-            }
-            try (out) {
                 flightChannel.sendBatch(getHeaderBuffer(task.requestId(), task.nodeVersion(), task.features()), out);
                 messageListener.onResponseSent(task.requestId(), task.action(), task.response());
             }

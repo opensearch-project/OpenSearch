@@ -72,7 +72,7 @@ public class SubAggregationIT extends ParameterizedDynamicSettingsOpenSearchInte
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(FlightStreamPlugin.class, InternalSettingsPlugin.class);
+        return Collections.singleton(FlightStreamPlugin.class);
     }
 
     @Override
@@ -97,7 +97,10 @@ public class SubAggregationIT extends ParameterizedDynamicSettingsOpenSearchInte
             .put("index.number_of_shards", NUM_SHARDS)    // Number of primary shards
             .put("index.number_of_replicas", 0)  // Number of replica shards
             .put("index.search.concurrent_segment_search.mode", "none")
-            .put("index.merge.enabled", false) // Disable merges to keep individual segments
+            // Disable segment merging to keep individual segments
+            .put("index.merge.policy.max_merged_segment", "1kb") // Keep segments small
+            .put("index.merge.policy.segments_per_tier", "20") // Allow many segments per tier
+            .put("index.merge.scheduler.max_thread_count", "1") // Limit merge threads
             .build();
 
         CreateIndexRequest createIndexRequest = new CreateIndexRequest("index").settings(indexSettings);
@@ -285,8 +288,8 @@ public class SubAggregationIT extends ParameterizedDynamicSettingsOpenSearchInte
 
     @LockFeatureFlag(STREAM_TRANSPORT)
     public void testStreamingAggregationUsed() throws Exception {
-        // This test validates streaming aggregation with 3 shards, each with at least 3 segments
-        // Use existsQuery to avoid match-all optimization that would disable streaming
+        // This test validates streaming aggregation with 3 shards, each with at least 3
+        // segments
         TermsAggregationBuilder agg = terms("agg1").field("field1").subAggregation(AggregationBuilders.max("agg2").field("field2"));
         ActionFuture<SearchResponse> future = client().prepareStreamSearch("index")
             .setQuery(existsQuery("field1"))

@@ -817,7 +817,8 @@ public final class SearchPhaseController {
         SearchProgressListener listener,
         SearchRequest request,
         int numShards,
-        Consumer<Exception> onPartialMergeFailure
+        Consumer<Exception> onPartialMergeFailure,
+        BooleanSupplier isTaskCancelled
     ) {
         return new StreamQueryPhaseResultConsumer(
             request,
@@ -827,7 +828,8 @@ public final class SearchPhaseController {
             listener,
             namedWriteableRegistry,
             numShards,
-            onPartialMergeFailure
+            onPartialMergeFailure,
+            isTaskCancelled
         );
     }
 

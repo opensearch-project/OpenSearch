@@ -139,9 +139,8 @@ import static org.opensearch.search.sort.FieldSortBuilder.hasPrimaryFieldSort;
  *
  * @opensearch.internal
  */
-public class TransportSearchAction extends HandledTransportAction<SearchRequest, SearchResponse>
-    implements
-        TransportIndicesResolvingAction<SearchRequest> {
+public class TransportSearchAction extends HandledTransportAction<SearchRequest, SearchResponse> {
+    // Streaming search integrated via streamingSearchMode in SearchRequest
 
     /** The maximum number of shards for a single search request. */
     public static final Setting<Long> SHARD_COUNT_LIMIT_SETTING = Setting.longSetting(
@@ -319,6 +318,10 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
     @Override
     protected void doExecute(Task task, SearchRequest searchRequest, ActionListener<SearchResponse> listener) {
+        if (searchRequest.getStreamingSearchMode() != null && searchRequest.searchType() == SearchType.DFS_QUERY_THEN_FETCH) {
+            throw new IllegalArgumentException("Stream search is not supported with search type [dfs_query_then_fetch]");
+        }
+
         // searchStatusStatsUpdateListener will execute the logic within the original listener but
         // also track the response status of the searchResponse.
         ActionListener<SearchResponse> searchStatusStatsUpdateListener;
@@ -1012,7 +1015,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         return remoteShardIterators;
     }
 
-    @Override
     public ResolvedIndices resolveIndices(SearchRequest searchRequest) {
         ClusterState clusterState = clusterService.state();
         OriginalIndicesAndSearchContextId requestedIndices = extractRequestedIndices(searchRequest, clusterState);

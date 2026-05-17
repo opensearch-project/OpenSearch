@@ -1309,6 +1309,8 @@ public class StreamStringTermsAggregatorTests extends AggregatorTestCase {
 
                     assertThat(thirdBucket.getKeyAsString(), equalTo("clothing"));
 
+                    // Verify that electronics and books are the first two (order may vary for equal
+                    // counts)
                     assertTrue(
                         "First two buckets should be electronics and books",
                         (firstBucket.getKeyAsString().equals("electronics") || firstBucket.getKeyAsString().equals("books"))

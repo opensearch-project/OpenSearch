@@ -39,6 +39,7 @@ import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.search.SearchAction;
 import org.opensearch.action.search.SearchContextId;
 import org.opensearch.action.search.SearchRequest;
+import org.opensearch.action.search.SearchType;
 import org.opensearch.action.search.StreamSearchAction;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.common.Booleans;
@@ -47,6 +48,7 @@ import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.http.HttpChannel;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;
@@ -150,24 +152,47 @@ public class RestSearchAction extends BaseRestHandler {
             parser -> parseSearchRequest(searchRequest, request, parser, client.getNamedWriteableRegistry(), setSize)
         );
 
-        if (clusterSettings != null && clusterSettings.get(STREAM_SEARCH_ENABLED)) {
-            if (FeatureFlags.isEnabled(FeatureFlags.STREAM_TRANSPORT)) {
-                if (canUseStreamSearch(searchRequest)) {
-                    return channel -> {
-                        RestCancellableNodeClient cancelClient = new RestCancellableNodeClient(client, request.getHttpChannel());
-                        cancelClient.execute(StreamSearchAction.INSTANCE, searchRequest, new RestStatusToXContentListener<>(channel));
-                    };
-                } else {
-                    logger.debug("Stream search requested but search contains unsupported aggregations. Falling back to normal search.");
-                }
-            } else {
+        if (request.hasParam("stream_scoring_mode")) {
+            throw new IllegalArgumentException("stream_scoring_mode is no longer supported. Use streaming_mode=no_scoring.");
+        }
+
+        final boolean streamModeRequested = searchRequest.getStreamingSearchMode() != null;
+        final boolean streamTransportEnabled = FeatureFlags.isEnabled(FeatureFlags.STREAM_TRANSPORT);
+        final boolean streamSearchEnabled = streamTransportEnabled && clusterSettings != null && clusterSettings.get(STREAM_SEARCH_ENABLED);
+        if (streamModeRequested || streamSearchEnabled) {
+            if (streamTransportEnabled == false) {
                 throw new IllegalArgumentException("You need to enable stream transport first to use stream search.");
             }
+            if (streamModeRequested && streamSearchEnabled == false) {
+                throw new IllegalArgumentException("Stream search is disabled. Enable [stream.search.enabled] to use stream search.");
+            }
+            if (streamModeRequested && "no_scoring".equals(searchRequest.getStreamingSearchMode()) == false) {
+                throw new IllegalArgumentException(
+                    "Unsupported streaming_mode [" + searchRequest.getStreamingSearchMode() + "]. Only [no_scoring] is supported."
+                );
+            }
+            if (canUseStreamSearch(searchRequest)) {
+                if (streamModeRequested == false && searchRequest.getStreamingSearchMode() == null) {
+                    searchRequest.setStreamingSearchMode("no_scoring");
+                }
+                if (searchRequest.searchType() == SearchType.DFS_QUERY_THEN_FETCH) {
+                    throw new IllegalArgumentException("Stream search is not supported with search type [dfs_query_then_fetch]");
+                }
+                return channel -> {
+                    RestCancellableNodeClient cancelClient = createRestCancellableNodeClient(client, request.getHttpChannel());
+                    cancelClient.execute(StreamSearchAction.INSTANCE, searchRequest, new RestStatusToXContentListener<>(channel));
+                };
+            }
+            logger.debug("Stream search requested but search contains unsupported aggregations. Falling back to normal search.");
         }
         return channel -> {
-            RestCancellableNodeClient cancelClient = new RestCancellableNodeClient(client, request.getHttpChannel());
+            RestCancellableNodeClient cancelClient = createRestCancellableNodeClient(client, request.getHttpChannel());
             cancelClient.execute(SearchAction.INSTANCE, searchRequest, new RestStatusToXContentListener<>(channel));
         };
+    }
+
+    protected RestCancellableNodeClient createRestCancellableNodeClient(NodeClient client, HttpChannel httpChannel) {
+        return new RestCancellableNodeClient(client, httpChannel);
     }
 
     /**
@@ -241,6 +266,10 @@ public class RestSearchAction extends BaseRestHandler {
         searchRequest.preference(request.param("preference"));
         searchRequest.indicesOptions(IndicesOptions.fromRequest(request, searchRequest.indicesOptions()));
         searchRequest.pipeline(request.param("search_pipeline", searchRequest.source().pipeline()));
+
+        if (request.hasParam("streaming_mode")) {
+            searchRequest.setStreamingSearchMode(request.param("streaming_mode"));
+        }
 
         checkRestTotalHits(request, searchRequest);
         request.paramAsBoolean(INCLUDE_NAMED_QUERIES_SCORE_PARAM, false);

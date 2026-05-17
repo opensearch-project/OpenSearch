@@ -66,11 +66,6 @@ public class StreamSearchChannelListener<Response extends TransportResponse, Req
 
     @Override
     public void onFailure(Exception e) {
-        try {
-            channel.sendResponse(e);
-        } catch (IOException exc) {
-            channel.completeStream();
-            throw new RuntimeException(exc);
-        }
+        TransportChannel.sendErrorResponse(channel, actionName, request, e);
     }
 }

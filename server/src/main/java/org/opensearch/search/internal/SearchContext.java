@@ -80,6 +80,7 @@ import org.opensearch.search.fetch.subphase.highlight.SearchHighlightContext;
 import org.opensearch.search.profile.Profilers;
 import org.opensearch.search.query.QuerySearchResult;
 import org.opensearch.search.query.ReduceableSearchResult;
+import org.opensearch.search.query.StreamingSearchMode;
 import org.opensearch.search.rescore.RescoreContext;
 import org.opensearch.search.sort.SortAndFormats;
 import org.opensearch.search.streaming.FlushMode;
@@ -578,18 +579,32 @@ public abstract class SearchContext implements Releasable {
     }
 
     @ExperimentalApi
-    public void setStreamChannelListener(StreamSearchChannelListener<SearchPhaseResult, ShardSearchRequest> listener) {
-        throw new IllegalStateException("Set search channel listener should be implemented for stream search");
-    }
+    public void setStreamChannelListener(StreamSearchChannelListener<SearchPhaseResult, ShardSearchRequest> listener) {}
 
     @ExperimentalApi
     public StreamSearchChannelListener<SearchPhaseResult, ShardSearchRequest> getStreamChannelListener() {
-        throw new IllegalStateException("Get search channel listener should be implemented for stream search");
+        return null;
     }
 
     @ExperimentalApi
     public boolean isStreamSearch() {
         return false;
+    }
+
+    public StreamingSearchMode getStreamingMode() {
+        return null;
+    }
+
+    public void setStreamingMode(StreamingSearchMode mode) {
+        // no-op
+    }
+
+    public boolean isStreamingSearch() {
+        return getStreamingMode() != null;
+    }
+
+    public int getStreamingBatchSize() {
+        return SearchService.STREAMING_SEARCH_BATCH_SIZE.getDefault(Settings.EMPTY);
     }
 
     /**

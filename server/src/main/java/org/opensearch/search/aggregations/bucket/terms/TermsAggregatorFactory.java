@@ -32,6 +32,8 @@
 
 package org.opensearch.search.aggregations.bucket.terms;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.search.IndexSearcher;
@@ -77,6 +79,7 @@ import java.util.function.Function;
  * @opensearch.internal
  */
 public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory implements StreamingCostEstimable {
+    private static final Logger logger = LogManager.getLogger(TermsAggregatorFactory.class);
     static Boolean REMAP_GLOBAL_ORDS, COLLECT_SEGMENT_ORDS;
 
     static void registerAggregators(ValuesSourceRegistry.Builder builder) {
@@ -127,21 +130,6 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory implem
                     execution = ExecutionMode.MAP;
                 }
                 if (execution == null) {
-                    if (context.isStreamSearch() && context.getFlushMode() == FlushMode.PER_SEGMENT) {
-                        return createStreamStringTermsAggregator(
-                            name,
-                            factories,
-                            valuesSource,
-                            order,
-                            format,
-                            bucketCountThresholds,
-                            context,
-                            parent,
-                            showTermDocCountError,
-                            computeSegmentTopN(context, bucketCountThresholds, order),
-                            metadata
-                        );
-                    }
                     execution = ExecutionMode.GLOBAL_ORDINALS;
                 }
                 final long maxOrd = execution == ExecutionMode.GLOBAL_ORDINALS ? getMaxOrd(valuesSource, context.searcher()) : -1;
