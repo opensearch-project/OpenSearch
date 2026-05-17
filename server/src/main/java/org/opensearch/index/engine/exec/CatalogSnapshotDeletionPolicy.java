@@ -82,4 +82,3 @@ public interface CatalogSnapshotDeletionPolicy {
         throw new UnsupportedOperationException("findSafeCommit not supported by this policy");
     }
 }
-

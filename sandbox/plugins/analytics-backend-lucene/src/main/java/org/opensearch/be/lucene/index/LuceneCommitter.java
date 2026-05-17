@@ -396,7 +396,12 @@ public class LuceneCommitter extends SafeBootstrapCommitter {
                 // the first real flush — preventing the catalog generation fallback from
                 // leaking into ReplicationCheckpoint.segmentsGen.
                 dfa = (DataformatAwareCatalogSnapshot) CatalogSnapshotManager.createInitialSnapshot(
-                    0L, 0L, 0L, List.of(), -1L, ic.getUserData()
+                    0L,
+                    0L,
+                    0L,
+                    List.of(),
+                    -1L,
+                    ic.getUserData()
                 );
             }
             SegmentInfos committed = SegmentInfos.readCommit(store.directory(), ic.getSegmentsFileName());

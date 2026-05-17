@@ -24,7 +24,7 @@ import org.opensearch.index.engine.exec.FileDeleter;
 import org.opensearch.index.engine.exec.FilesListener;
 import org.opensearch.index.engine.exec.Segment;
 import org.opensearch.index.engine.exec.WriterFileSet;
-import org.opensearch.index.engine.exec.commit.Committer;
+import org.opensearch.index.engine.exec.commit.Committer.CommitResult;
 import org.opensearch.index.shard.ShardPath;
 
 import java.io.Closeable;
@@ -36,9 +36,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicReference;
-
-import static org.opensearch.index.engine.exec.commit.Committer.*;
 
 /**
  * Manages the lifecycle of {@link CatalogSnapshot} instances for the composite multi-format engine
@@ -270,10 +267,8 @@ public class CatalogSnapshotManager implements Closeable {
         assert refreshedSegments.stream().flatMap(s -> s.dfGroupedSearchableFiles().values().stream()).allMatch(wfs -> wfs.numRows() > 0)
             : "every WriterFileSet must have a positive row count";
 
-
         installSnapshot(newSnapshot);
     }
-
 
     /**
      * Replaces the current snapshot with one received from the primary via segment replication.
@@ -325,7 +320,8 @@ public class CatalogSnapshotManager implements Closeable {
 
         DataformatAwareCatalogSnapshot newSnapshot = new DataformatAwareCatalogSnapshot(
             latestCatalogSnapshot.getId() + 1,  // This is unique for each catalog snapshot managed by this manager.
-            latestCatalogSnapshot.getGeneration() + 1, // This is for commit generation tracking. So this should increase as well. Handles force flush cases
+            latestCatalogSnapshot.getGeneration() + 1, // This is for commit generation tracking. So this should increase as well. Handles
+                                                       // force flush cases
             latestCatalogSnapshot.getVersion(), // This increases if there is an actual change in the snapshot.
             latestCatalogSnapshot.getSegments(),
             latestCatalogSnapshot.getLastWriterGeneration() + 1,
@@ -338,8 +334,20 @@ public class CatalogSnapshotManager implements Closeable {
         installSnapshot(newSnapshot);
     }
 
+    /**
+     * Updates the latest catalog snapshot with commit metadata from a successful flush.
+     * Called by the engine after {@link org.opensearch.index.engine.exec.commit.Committer#commit}
+     * returns a non-null result, recording the segments file name, Lucene generation, and
+     * data format version so that replicas and recovery can identify the commit point.
+     *
+     * @param commitResult the result of the commit containing the segments_N filename, generation, and format version
+     */
     public synchronized void updateLastCommitInfo(CommitResult commitResult) {
-        latestCatalogSnapshot.setLastCommitInfo(commitResult.commitFileName(), commitResult.generation(), commitResult.commitDataFormatVersion());
+        latestCatalogSnapshot.setLastCommitInfo(
+            commitResult.commitFileName(),
+            commitResult.generation(),
+            commitResult.commitDataFormatVersion()
+        );
     }
 
     /**

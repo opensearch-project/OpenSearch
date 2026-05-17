@@ -69,7 +69,6 @@ public class IndexFileDeleter {
      */
     private final Map<String, Set<String>> pendingDeletes;
 
-
     /**
      * Callback invoked when a CatalogSnapshot's refCount reaches 0 via the deletion policy
      * path ({@link #onCommit}, {@link #revisitPolicy}, or init). Allows the owning
@@ -77,6 +76,17 @@ public class IndexFileDeleter {
      * notifying lifecycle listeners to close readers).
      */
     private final Consumer<CatalogSnapshot> onSnapshotDeletedCallback;
+
+    public IndexFileDeleter(
+        CatalogSnapshotDeletionPolicy deletionPolicy,
+        FileDeleter fileDeleter,
+        Map<String, FilesListener> filesListeners,
+        List<CatalogSnapshot> initialCommittedSnapshots,
+        ShardPath shardPath,
+        CommitFileManager commitFileManager
+    ) throws IOException {
+        this(deletionPolicy, fileDeleter, filesListeners, initialCommittedSnapshots, shardPath, commitFileManager, s -> {});
+    }
 
     public IndexFileDeleter(
         CatalogSnapshotDeletionPolicy deletionPolicy,
