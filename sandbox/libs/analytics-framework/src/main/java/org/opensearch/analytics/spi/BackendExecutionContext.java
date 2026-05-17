@@ -21,7 +21,7 @@ import java.io.IOException;
  * <h2>Lifecycle</h2>
  * <p>Extends {@link AutoCloseable} with a narrowed {@code throws IOException} signature so
  * backends can attach native / resource-holding handles to the context and rely on the
- * orchestrator (e.g. {@code AnalyticsSearchService} or {@code LocalStageScheduler}) to
+ * orchestrator (e.g. {@code AnalyticsSearchService} or {@code LocalStageExecutionFactory}) to
  * close it if the fragment aborts before ownership is transferred to the
  * {@code SearchExecEngine}. Implementations that hold no resources should leave the default
  * no-op {@link #close()}. {@code close()} must be idempotent; in particular it must

@@ -14,13 +14,13 @@ import org.opensearch.analytics.spi.ExchangeSink;
 
 /**
  * Factory for creating {@link StageExecution} instances for a specific
- * stage execution type. Registered in {@link StageExecutionBuilder}'s
- * scheduler registry keyed by {@link org.opensearch.analytics.planner.dag.StageExecutionType}.
+ * stage execution type. Registered in {@link StageExecutionBuilder}'s factory
+ * registry keyed by {@link org.opensearch.analytics.planner.dag.StageExecutionType}.
  *
  * @opensearch.internal
  */
 @FunctionalInterface
-public interface StageScheduler {
+public interface StageExecutionFactory {
 
     /**
      * Creates a stage execution for the given stage, writing output into

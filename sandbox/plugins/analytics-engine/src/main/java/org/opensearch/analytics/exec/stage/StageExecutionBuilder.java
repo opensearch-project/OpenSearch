@@ -26,17 +26,17 @@ import java.util.Map;
 /**
  * Builds {@link StageExecution} instances for the walker. Resolves the
  * row-data output sink from each stage's parent via the {@link DataConsumer}
- * contract, then delegates to the scheduler registered for the stage's
+ * contract, then delegates to the factory registered for the stage's
  * {@link StageExecutionType} to construct the concrete execution.
  *
- * <p>{@code PlanWalker} never sees schedulers or output targets. It calls
+ * <p>{@code QueryExecution} never sees factories or output targets. It calls
  * {@link #buildRootExecution} for the root stage and {@link #buildExecution}
  * for every child. Both methods delegate to the same internal dispatch logic;
  * the only difference is where the output sink comes from (fresh for root,
  * parent-provided for children).
  *
  * <p>Shuffle-write and broadcast-write are not yet modeled. When they land
- * they will add new {@link StageExecutionType} values with their own scheduler
+ * they will add new {@link StageExecutionType} values with their own factory
  * registrations and (most likely) a separate manifest-receiver contract.
  *
  * @opensearch.internal
@@ -45,42 +45,54 @@ public class StageExecutionBuilder {
 
     private static final Logger logger = LogManager.getLogger(StageExecutionBuilder.class);
 
-    private final Map<StageExecutionType, StageScheduler> schedulers;
+    private final Map<StageExecutionType, StageExecutionFactory> factories;
 
     /**
-     * Guice-injected constructor. Registers default schedulers for every value
+     * Guice-injected constructor. Registers default factories for every value
      * of {@link StageExecutionType}.
      */
     @Inject
     public StageExecutionBuilder(ClusterService clusterService, AnalyticsSearchTransportService dispatcher) {
-        this.schedulers = new HashMap<>();
-        registerScheduler(StageExecutionType.SHARD_FRAGMENT, new ShardFragmentStageScheduler(clusterService, dispatcher));
-        registerScheduler(StageExecutionType.COORDINATOR_REDUCE, new LocalStageScheduler());
-        registerScheduler(StageExecutionType.LOCAL_PASSTHROUGH, (stage, sink, config) -> new PassThroughStageExecution(stage, sink));
-        registerScheduler(StageExecutionType.LOCAL_COMPUTE, new LocalComputeStageScheduler());
+        this.factories = new HashMap<>();
+        registerFactory(StageExecutionType.SHARD_FRAGMENT, new ShardFragmentStageExecutionFactory(clusterService, dispatcher));
+        registerFactory(StageExecutionType.COORDINATOR_REDUCE, new LocalStageExecutionFactory());
+        registerFactory(StageExecutionType.LOCAL_PASSTHROUGH, (stage, sink, config) -> new PassThroughStageExecution(stage, config, sink));
+        registerFactory(StageExecutionType.LOCAL_COMPUTE, new LocalComputeStageExecutionFactory());
     }
 
     /**
-     * Registers a scheduler for a stage execution type, replacing any prior registration.
-     * Returns the previously-registered scheduler for {@code type}, or {@code null} —
-     * useful for tests that swap in a faulting scheduler and restore on teardown.
+     * Registers a factory for a stage execution type, replacing any prior registration.
+     * Returns the previously-registered factory for {@code type}, or {@code null} —
+     * useful for tests that swap in a faulting factory and restore on teardown.
      */
-    public StageScheduler registerScheduler(StageExecutionType type, StageScheduler scheduler) {
-        return schedulers.put(type, scheduler);
+    public StageExecutionFactory registerFactory(StageExecutionType type, StageExecutionFactory factory) {
+        return factories.put(type, factory);
     }
 
     /**
      * Builds the root stage's execution. The root accumulates into a fresh
-     * {@link RowProducingSink}; the walker reads the final result via the
-     * stage's {@code outputSource()} contract.
+     * {@link RowProducingSink}; the query execution reads the final result via
+     * the stage's {@code outputSource()} contract — the root must therefore
+     * implement {@link DataProducer}, enforced here as a fail-fast invariant
+     * rather than a runtime cast at every terminal listener fire.
      */
     public StageExecution buildRootExecution(Stage rootStage, QueryContext config) {
         // TODO: Update to read directly from back-end provided ExchangeSource when the root stage has a fragment
-        return buildStageExecution(rootStage, new RowProducingSink(), config);
+        StageExecution rootExec = buildStageExecution(rootStage, new RowProducingSink(), config);
+        if ((rootExec instanceof DataProducer) == false) {
+            throw new IllegalStateException(
+                "Root execution "
+                    + rootExec.getClass().getSimpleName()
+                    + " (stage "
+                    + rootStage.getStageId()
+                    + ") does not implement DataProducer"
+            );
+        }
+        return rootExec;
     }
 
     /**
-     * Builds a child stage's execution by dispatching to the scheduler registered
+     * Builds a child stage's execution by dispatching to the factory registered
      * for the stage's {@link StageExecutionType}. All stage types today are
      * row-producing — the sink is resolved from {@code parentExec}'s
      * {@link DataConsumer} contract.
@@ -98,13 +110,13 @@ public class StageExecutionBuilder {
     // ── Internal dispatch ───────────────────────────────────────────────
 
     private StageExecution buildStageExecution(Stage stage, ExchangeSink sink, QueryContext config) {
-        StageScheduler scheduler = schedulers.get(stage.getExecutionType());
-        if (scheduler == null) {
+        StageExecutionFactory factory = factories.get(stage.getExecutionType());
+        if (factory == null) {
             throw new IllegalStateException(
-                "No scheduler registered for execution type " + stage.getExecutionType() + " — stage " + stage.getStageId()
+                "No factory registered for execution type " + stage.getExecutionType() + " — stage " + stage.getStageId()
             );
         }
-        return scheduler.createExecution(stage, sink, config);
+        return factory.createExecution(stage, sink, config);
     }
 
     /**
