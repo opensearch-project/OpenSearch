@@ -10,24 +10,24 @@ package org.opensearch.nativebridge.spi;
 
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.core.common.io.stream.StreamInput;
-import org.opensearch.plugin.stats.NativeMemoryStats;
+import org.opensearch.plugin.stats.AnalyticsBackendNativeMemoryStats;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 
 /**
- * Property-based tests for {@link NativeMemoryStats} serialization round-trip.
+ * Property-based tests for {@link AnalyticsBackendNativeMemoryStats} serialization round-trip.
  *
  * Uses randomized testing to verify that serialization via {@code writeTo} followed by
  * deserialization via the {@code StreamInput} constructor produces an object with identical
  * field values for all valid long inputs.
  */
-public class NativeMemoryStatsSerializationTests extends OpenSearchTestCase {
+public class AnalyticsBackendNativeMemoryStatsSerializationTests extends OpenSearchTestCase {
 
     /**
      * Property 1: Serialization round-trip.
      *
-     * For any valid NativeMemoryStats object (with any long values for allocatedBytes and
+     * For any valid AnalyticsBackendNativeMemoryStats object (with any long values for allocatedBytes and
      * residentBytes), serializing via writeTo then deserializing via the StreamInput constructor
      * SHALL produce an object with identical field values.
      *
@@ -38,12 +38,12 @@ public class NativeMemoryStatsSerializationTests extends OpenSearchTestCase {
             long allocatedBytes = randomLongBetween(Long.MIN_VALUE, Long.MAX_VALUE);
             long residentBytes = randomLongBetween(Long.MIN_VALUE, Long.MAX_VALUE);
 
-            NativeMemoryStats original = new NativeMemoryStats(allocatedBytes, residentBytes);
+            AnalyticsBackendNativeMemoryStats original = new AnalyticsBackendNativeMemoryStats(allocatedBytes, residentBytes);
 
             try (BytesStreamOutput out = new BytesStreamOutput()) {
                 original.writeTo(out);
                 try (StreamInput in = out.bytes().streamInput()) {
-                    NativeMemoryStats deserialized = new NativeMemoryStats(in);
+                    AnalyticsBackendNativeMemoryStats deserialized = new AnalyticsBackendNativeMemoryStats(in);
 
                     assertEquals(
                         "allocatedBytes mismatch on iteration " + i + " for values: [" + allocatedBytes + ", " + residentBytes + "]",
@@ -69,12 +69,12 @@ public class NativeMemoryStatsSerializationTests extends OpenSearchTestCase {
      * Validates: Requirements 2.3, 2.4, 2.5
      */
     public void testSerializationRoundTripWithErrorState() throws IOException {
-        NativeMemoryStats original = new NativeMemoryStats(-1, -1);
+        AnalyticsBackendNativeMemoryStats original = new AnalyticsBackendNativeMemoryStats(-1, -1);
 
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             original.writeTo(out);
             try (StreamInput in = out.bytes().streamInput()) {
-                NativeMemoryStats deserialized = new NativeMemoryStats(in);
+                AnalyticsBackendNativeMemoryStats deserialized = new AnalyticsBackendNativeMemoryStats(in);
 
                 assertEquals(-1L, deserialized.getAllocatedBytes());
                 assertEquals(-1L, deserialized.getResidentBytes());
@@ -101,12 +101,12 @@ public class NativeMemoryStatsSerializationTests extends OpenSearchTestCase {
             { Long.MIN_VALUE, 0L } };
 
         for (long[] pair : boundaryPairs) {
-            NativeMemoryStats original = new NativeMemoryStats(pair[0], pair[1]);
+            AnalyticsBackendNativeMemoryStats original = new AnalyticsBackendNativeMemoryStats(pair[0], pair[1]);
 
             try (BytesStreamOutput out = new BytesStreamOutput()) {
                 original.writeTo(out);
                 try (StreamInput in = out.bytes().streamInput()) {
-                    NativeMemoryStats deserialized = new NativeMemoryStats(in);
+                    AnalyticsBackendNativeMemoryStats deserialized = new AnalyticsBackendNativeMemoryStats(in);
 
                     assertEquals(
                         "allocatedBytes mismatch for boundary values: [" + pair[0] + ", " + pair[1] + "]",

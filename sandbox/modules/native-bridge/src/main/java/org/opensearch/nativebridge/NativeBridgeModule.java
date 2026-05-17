@@ -22,8 +22,7 @@ import org.opensearch.nativebridge.spi.NativeAllocatorConfig;
 import org.opensearch.nativebridge.spi.NativeHeapProfiler;
 import org.opensearch.nativebridge.spi.NativeLibraryLoader;
 import org.opensearch.nativebridge.spi.NativeMemoryFetcher;
-import org.opensearch.plugin.stats.NativeMemoryStats;
-import org.opensearch.plugin.stats.NativeStatsProvider;
+import org.opensearch.plugin.stats.AnalyticsBackendNativeMemoryStats;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.script.ScriptService;
@@ -42,11 +41,8 @@ import java.util.function.Supplier;
  * Registers dynamic cluster settings and applies changes at runtime via the FFM bridge.
  * Also registers the NativeHeapProfiler JMX MBean for on-demand heap profiling via
  * the opensearch-heap-prof CLI tool.
- * <p>
- * Implements {@link NativeStatsProvider} so that {@code Node.java} can discover
- * native memory stats capability via {@code filterPlugins(NativeStatsProvider.class)}.
  */
-public class NativeBridgeModule extends Plugin implements NativeStatsProvider {
+public class NativeBridgeModule extends Plugin {
 
     private static final Logger logger = LogManager.getLogger(NativeBridgeModule.class);
 
@@ -68,8 +64,7 @@ public class NativeBridgeModule extends Plugin implements NativeStatsProvider {
         Setting.Property.Dynamic
     );
 
-    @Override
-    public NativeMemoryStats memoryStats() {
+    public AnalyticsBackendNativeMemoryStats memoryStats() {
         if (!NativeLibraryLoader.isLoaded()) {
             return null;
         }

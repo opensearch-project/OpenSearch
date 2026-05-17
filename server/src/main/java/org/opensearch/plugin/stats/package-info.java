@@ -16,8 +16,7 @@
  * <p>Key types:
  * <ul>
  *   <li>{@link org.opensearch.plugin.stats.AnalyticsBackendTaskCancellationStats} — task cancellation counters from the analytics backend</li>
- *   <li>{@link org.opensearch.plugin.stats.NativeMemoryStats} — immutable stats POJO for jemalloc memory metrics</li>
- *   <li>{@link org.opensearch.plugin.stats.NativeStatsProvider} — plugin extension point for native stats discovery</li>
+ *   <li>{@link org.opensearch.plugin.stats.AnalyticsBackendNativeMemoryStats} — immutable stats POJO for jemalloc memory metrics</li>
  * </ul>
  */
 package org.opensearch.plugin.stats;

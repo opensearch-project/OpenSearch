@@ -10,7 +10,7 @@ package org.opensearch.nativebridge.spi;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.opensearch.plugin.stats.NativeMemoryStats;
+import org.opensearch.plugin.stats.AnalyticsBackendNativeMemoryStats;
 
 import java.lang.foreign.FunctionDescriptor;
 import java.lang.foreign.Linker;
@@ -40,21 +40,21 @@ public class NativeMemoryFetcher {
     private NativeMemoryFetcher() {}
 
     /**
-     * Performs FFM downcalls and returns a fresh NativeMemoryStats snapshot.
-     * Returns NativeMemoryStats(-1, -1) on error or negative values.
+     * Performs FFM downcalls and returns a fresh AnalyticsBackendNativeMemoryStats snapshot.
+     * Returns AnalyticsBackendNativeMemoryStats(-1, -1) on error or negative values.
      */
-    public static NativeMemoryStats fetch() {
+    public static AnalyticsBackendNativeMemoryStats fetch() {
         try {
             long allocated = (long) ALLOCATED.invokeExact();
             long resident = (long) RESIDENT.invokeExact();
             if (allocated < 0 || resident < 0) {
                 logger.warn("Native memory stats returned error: allocated={}, resident={}", allocated, resident);
-                return new NativeMemoryStats(-1, -1);
+                return new AnalyticsBackendNativeMemoryStats(-1, -1);
             }
-            return new NativeMemoryStats(allocated, resident);
+            return new AnalyticsBackendNativeMemoryStats(allocated, resident);
         } catch (Throwable t) {
             logger.warn("Error fetching native memory stats", t);
-            return new NativeMemoryStats(-1, -1);
+            return new AnalyticsBackendNativeMemoryStats(-1, -1);
         }
     }
 }

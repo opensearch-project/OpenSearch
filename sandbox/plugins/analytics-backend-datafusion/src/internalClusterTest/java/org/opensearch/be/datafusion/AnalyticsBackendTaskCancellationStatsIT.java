@@ -135,9 +135,9 @@ public class AnalyticsBackendTaskCancellationStatsIT extends OpenSearchIntegTest
 
         assertFalse(nodesStatsResponse.getNodes().isEmpty());
         NodeStats nodeStats = nodesStatsResponse.getNodes().get(0);
-        assertThat("native_memory stats should be present", nodeStats.getNativeMemoryStats(), notNullValue());
-        assertThat(nodeStats.getNativeMemoryStats().getAllocatedBytes(), greaterThanOrEqualTo(0L));
-        assertThat(nodeStats.getNativeMemoryStats().getResidentBytes(), greaterThanOrEqualTo(0L));
+        assertThat("native_memory stats should be present", nodeStats.getAnalyticsBackendNativeMemoryStats(), notNullValue());
+        assertThat(nodeStats.getAnalyticsBackendNativeMemoryStats().getAllocatedBytes(), greaterThanOrEqualTo(0L));
+        assertThat(nodeStats.getAnalyticsBackendNativeMemoryStats().getResidentBytes(), greaterThanOrEqualTo(0L));
     }
 
     @SuppressWarnings("unchecked")

@@ -54,7 +54,7 @@ import org.opensearch.index.store.remote.filecache.NodeCacheOrchestrator;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.ingest.IngestService;
 import org.opensearch.monitor.MonitorService;
-import org.opensearch.plugin.stats.NativeMemoryStats;
+import org.opensearch.plugin.stats.AnalyticsBackendNativeMemoryStats;
 import org.opensearch.node.remotestore.RemoteStoreNodeStats;
 import org.opensearch.plugins.PluginsService;
 import org.opensearch.ratelimitting.admissioncontrol.AdmissionControlService;
@@ -106,7 +106,7 @@ public class NodeService implements Closeable {
     private final SegmentReplicationStatsTracker segmentReplicationStatsTracker;
     private final CacheService cacheService;
     @Nullable
-    private final Supplier<NativeMemoryStats> nativeMemoryStatsSupplier;
+    private final Supplier<AnalyticsBackendNativeMemoryStats> nativeMemoryStatsSupplier;
 
     NodeService(
         Settings settings,
@@ -135,7 +135,7 @@ public class NodeService implements Closeable {
         RepositoriesService repositoriesService,
         AdmissionControlService admissionControlService,
         CacheService cacheService,
-        @Nullable Supplier<NativeMemoryStats> nativeMemoryStatsSupplier
+        @Nullable Supplier<AnalyticsBackendNativeMemoryStats> nativeMemoryStatsSupplier
     ) {
         this.settings = settings;
         this.threadPool = threadPool;

@@ -29,7 +29,7 @@ import org.opensearch.index.SegmentReplicationStatsTracker;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.ingest.IngestService;
 import org.opensearch.monitor.MonitorService;
-import org.opensearch.plugin.stats.NativeMemoryStats;
+import org.opensearch.plugin.stats.AnalyticsBackendNativeMemoryStats;
 import org.opensearch.plugins.PluginsService;
 import org.opensearch.ratelimitting.admissioncontrol.AdmissionControlService;
 import org.opensearch.repositories.RepositoriesService;
@@ -57,7 +57,7 @@ import static org.mockito.Mockito.when;
  */
 public class NodeServiceNativeMemoryTests extends OpenSearchTestCase {
 
-    private NodeService createNodeService(Supplier<NativeMemoryStats> nativeMemoryStatsSupplier) {
+    private NodeService createNodeService(Supplier<AnalyticsBackendNativeMemoryStats> nativeMemoryStatsSupplier) {
         TransportService transportService = mock(TransportService.class);
         DiscoveryNode localNode = new DiscoveryNode("test_node", buildNewFakeTransportAddress(), Version.CURRENT);
         when(transportService.getLocalNode()).thenReturn(localNode);
@@ -102,8 +102,8 @@ public class NodeServiceNativeMemoryTests extends OpenSearchTestCase {
      * returns the stats from the supplier.
      */
     public void testStatsWithNativeMemoryTrueAndServicePresent() {
-        NativeMemoryStats expectedStats = new NativeMemoryStats(1024L, 2048L);
-        Supplier<NativeMemoryStats> supplier = () -> expectedStats;
+        AnalyticsBackendNativeMemoryStats expectedStats = new AnalyticsBackendNativeMemoryStats(1024L, 2048L);
+        Supplier<AnalyticsBackendNativeMemoryStats> supplier = () -> expectedStats;
 
         NodeService nodeService = createNodeService(supplier);
 
@@ -139,10 +139,10 @@ public class NodeServiceNativeMemoryTests extends OpenSearchTestCase {
             true   // nativeMemory
         );
 
-        assertNotNull(nodeStats.getNativeMemoryStats());
-        assertSame(expectedStats, nodeStats.getNativeMemoryStats());
-        assertEquals(1024L, nodeStats.getNativeMemoryStats().getAllocatedBytes());
-        assertEquals(2048L, nodeStats.getNativeMemoryStats().getResidentBytes());
+        assertNotNull(nodeStats.getAnalyticsBackendNativeMemoryStats());
+        assertSame(expectedStats, nodeStats.getAnalyticsBackendNativeMemoryStats());
+        assertEquals(1024L, nodeStats.getAnalyticsBackendNativeMemoryStats().getAllocatedBytes());
+        assertEquals(2048L, nodeStats.getAnalyticsBackendNativeMemoryStats().getResidentBytes());
     }
 
     /**
@@ -184,7 +184,7 @@ public class NodeServiceNativeMemoryTests extends OpenSearchTestCase {
             true   // nativeMemory
         );
 
-        assertNull(nodeStats.getNativeMemoryStats());
+        assertNull(nodeStats.getAnalyticsBackendNativeMemoryStats());
     }
 
     /**
@@ -192,8 +192,8 @@ public class NodeServiceNativeMemoryTests extends OpenSearchTestCase {
      * nativeMemoryStats field regardless of whether the supplier is present.
      */
     public void testStatsWithNativeMemoryFalse() {
-        NativeMemoryStats expectedStats = new NativeMemoryStats(4096L, 8192L);
-        Supplier<NativeMemoryStats> supplier = () -> expectedStats;
+        AnalyticsBackendNativeMemoryStats expectedStats = new AnalyticsBackendNativeMemoryStats(4096L, 8192L);
+        Supplier<AnalyticsBackendNativeMemoryStats> supplier = () -> expectedStats;
 
         NodeService nodeService = createNodeService(supplier);
 
@@ -229,7 +229,7 @@ public class NodeServiceNativeMemoryTests extends OpenSearchTestCase {
             false  // nativeMemory
         );
 
-        assertNull(nodeStats.getNativeMemoryStats());
+        assertNull(nodeStats.getAnalyticsBackendNativeMemoryStats());
     }
 
     /**
@@ -239,8 +239,8 @@ public class NodeServiceNativeMemoryTests extends OpenSearchTestCase {
      */
     @SuppressWarnings("unchecked")
     public void testNativeMemoryResponseFormatUnchanged() throws Exception {
-        NativeMemoryStats stats = new NativeMemoryStats(123456789L, 987654321L);
-        Supplier<NativeMemoryStats> supplier = () -> stats;
+        AnalyticsBackendNativeMemoryStats stats = new AnalyticsBackendNativeMemoryStats(123456789L, 987654321L);
+        Supplier<AnalyticsBackendNativeMemoryStats> supplier = () -> stats;
 
         NodeService nodeService = createNodeService(supplier);
 
@@ -276,14 +276,14 @@ public class NodeServiceNativeMemoryTests extends OpenSearchTestCase {
             true   // nativeMemory
         );
 
-        assertNotNull("nativeMemoryStats should be present", nodeStats.getNativeMemoryStats());
+        assertNotNull("nativeMemoryStats should be present", nodeStats.getAnalyticsBackendNativeMemoryStats());
 
-        // Render the NativeMemoryStats to JSON and verify the format
+        // Render the AnalyticsBackendNativeMemoryStats to JSON and verify the format
         XContentBuilder builder = JsonXContent.contentBuilder();
         builder.startObject();
-        nodeStats.getNativeMemoryStats().toXContent(builder, ToXContent.EMPTY_PARAMS);
+        nodeStats.getAnalyticsBackendNativeMemoryStats().toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
-        String json = Strings.toString(MediaTypeRegistry.JSON, nodeStats.getNativeMemoryStats());
+        String json = Strings.toString(MediaTypeRegistry.JSON, nodeStats.getAnalyticsBackendNativeMemoryStats());
 
         Map<String, Object> root = XContentHelper.convertToMap(JsonXContent.jsonXContent, json, false);
 
@@ -339,6 +339,6 @@ public class NodeServiceNativeMemoryTests extends OpenSearchTestCase {
             true   // nativeMemory
         );
 
-        assertNull("nativeMemoryStats should be null when supplier is null", nodeStats.getNativeMemoryStats());
+        assertNull("nativeMemoryStats should be null when supplier is null", nodeStats.getAnalyticsBackendNativeMemoryStats());
     }
 }

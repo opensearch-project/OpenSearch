@@ -12,24 +12,24 @@ import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
-import org.opensearch.plugin.stats.NativeMemoryStats;
+import org.opensearch.plugin.stats.AnalyticsBackendNativeMemoryStats;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.Map;
 
 /**
- * Property-based tests for {@link NativeMemoryStats} XContent rendering correctness.
+ * Property-based tests for {@link AnalyticsBackendNativeMemoryStats} XContent rendering correctness.
  *
  * Uses randomized testing to verify that {@code toXContent} produces a JSON object with
  * the correct structure and field values for all valid long inputs, including the error
  * sentinel value (-1).
  */
-public class NativeMemoryStatsXContentTests extends OpenSearchTestCase {
+public class AnalyticsBackendNativeMemoryStatsXContentTests extends OpenSearchTestCase {
 
     /**
      * Property 2: XContent rendering correctness.
      *
-     * For any valid NativeMemoryStats object (including error state where fields are -1),
+     * For any valid AnalyticsBackendNativeMemoryStats object (including error state where fields are -1),
      * calling toXContent SHALL produce a JSON object with key "native_memory" containing
      * exactly two fields: "allocated_bytes" with the correct long value and "resident_bytes"
      * with the correct long value.
@@ -42,7 +42,7 @@ public class NativeMemoryStatsXContentTests extends OpenSearchTestCase {
             long allocatedBytes = randomBoolean() ? -1L : randomLongBetween(Long.MIN_VALUE, Long.MAX_VALUE);
             long residentBytes = randomBoolean() ? -1L : randomLongBetween(Long.MIN_VALUE, Long.MAX_VALUE);
 
-            NativeMemoryStats stats = new NativeMemoryStats(allocatedBytes, residentBytes);
+            AnalyticsBackendNativeMemoryStats stats = new AnalyticsBackendNativeMemoryStats(allocatedBytes, residentBytes);
 
             // Render to JSON string via Strings.toString (wraps fragment in root object)
             String json = Strings.toString(MediaTypeRegistry.JSON, stats);
@@ -95,7 +95,7 @@ public class NativeMemoryStatsXContentTests extends OpenSearchTestCase {
      * Validates: Requirements 2.2, 6.1, 6.2, 6.3
      */
     public void testXContentRenderingWithErrorState() throws Exception {
-        NativeMemoryStats stats = new NativeMemoryStats(-1, -1);
+        AnalyticsBackendNativeMemoryStats stats = new AnalyticsBackendNativeMemoryStats(-1, -1);
 
         String json = Strings.toString(MediaTypeRegistry.JSON, stats);
         Map<String, Object> root = XContentHelper.convertToMap(JsonXContent.jsonXContent, json, false);
@@ -115,7 +115,7 @@ public class NativeMemoryStatsXContentTests extends OpenSearchTestCase {
      * Validates: Requirements 2.2, 6.1, 6.2, 6.3
      */
     public void testXContentRenderingWithZeroValues() throws Exception {
-        NativeMemoryStats stats = new NativeMemoryStats(0L, 0L);
+        AnalyticsBackendNativeMemoryStats stats = new AnalyticsBackendNativeMemoryStats(0L, 0L);
 
         String json = Strings.toString(MediaTypeRegistry.JSON, stats);
         Map<String, Object> root = XContentHelper.convertToMap(JsonXContent.jsonXContent, json, false);
