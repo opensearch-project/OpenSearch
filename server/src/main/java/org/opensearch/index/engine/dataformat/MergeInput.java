@@ -13,24 +13,39 @@ import org.opensearch.index.engine.exec.Segment;
 import org.opensearch.index.engine.exec.WriterFileSet;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 /**
  * input data for a merge operation.
  * Use {@link Builder} to construct instances.
  *
+ * <p>{@code liveDocsPerSegment} is keyed by {@link Segment#generation()}. Values are packed
+ * bitsets in Lucene {@code FixedBitSet#getBits()} layout (bit {@code i} set means row
+ * {@code i} is alive). Absent key = all rows alive. The snapshot is taken once at merge
+ * start; mid-merge deletes are not reflected.</p>
+ *
  * @opensearch.experimental
  */
 @ExperimentalApi
-public record MergeInput(List<Segment> segments, RowIdMapping rowIdMapping, long newWriterGeneration) {
+public record MergeInput(List<Segment> segments, RowIdMapping rowIdMapping, long newWriterGeneration, Map<
+    Long,
+    long[]> liveDocsPerSegment) {
 
     public MergeInput {
         segments = List.copyOf(segments);
+        liveDocsPerSegment = Map.copyOf(liveDocsPerSegment);
     }
 
     private MergeInput(Builder builder) {
-        this(new ArrayList<>(builder.segments), builder.rowIdMapping, builder.newWriterGeneration);
+        this(
+            new ArrayList<>(builder.segments),
+            builder.rowIdMapping,
+            builder.newWriterGeneration,
+            new HashMap<>(builder.liveDocsPerSegment)
+        );
     }
 
     /**
@@ -41,6 +56,14 @@ public record MergeInput(List<Segment> segments, RowIdMapping rowIdMapping, long
      */
     public List<WriterFileSet> getFilesForFormat(String formatName) {
         return segments.stream().map(seg -> seg.dfGroupedSearchableFiles().get(formatName)).filter(Objects::nonNull).toList();
+    }
+
+    /**
+     * Returns the live-docs bitset for the given segment generation, or {@code null} if all
+     * rows in that segment are alive.
+     */
+    public long[] getLiveDocsForSegment(long generation) {
+        return liveDocsPerSegment.get(generation);
     }
 
     /**
@@ -60,6 +83,7 @@ public record MergeInput(List<Segment> segments, RowIdMapping rowIdMapping, long
         private List<Segment> segments = new ArrayList<>();
         private RowIdMapping rowIdMapping;
         private long newWriterGeneration;
+        private Map<Long, long[]> liveDocsPerSegment = Map.of();
 
         private Builder() {}
 
@@ -104,6 +128,14 @@ public record MergeInput(List<Segment> segments, RowIdMapping rowIdMapping, long
          */
         public Builder newWriterGeneration(long newWriterGeneration) {
             this.newWriterGeneration = newWriterGeneration;
+            return this;
+        }
+
+        /**
+         * Sets the per-segment live-docs bitsets. See class javadoc for the contract.
+         */
+        public Builder liveDocsPerSegment(Map<Long, long[]> liveDocsPerSegment) {
+            this.liveDocsPerSegment = Objects.requireNonNull(liveDocsPerSegment, "liveDocsPerSegment must not be null");
             return this;
         }
 

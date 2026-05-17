@@ -116,7 +116,7 @@ fn test_unsorted_merge_real_files() {
     let output_str = output.to_string_lossy().to_string();
 
     // Empty sort columns → unsorted merge
-    merge_unsorted(&files, &output_str, "test-index").unwrap();
+    merge_unsorted(&files, &output_str, "test-index", &[]).unwrap();
 
     assert!(output.exists(), "Output file was not created");
     let actual_rows = count_rows(&output_str);
@@ -174,7 +174,7 @@ fn test_sorted_merge_real_files() {
     let reverse = vec![false];
     let nulls_first = vec![false];
 
-    merge_sorted(&files, &output_str, "test-index", &sort_cols, &reverse, &nulls_first)
+    merge_sorted(&files, &output_str, "test-index", &sort_cols, &reverse, &nulls_first, &[])
         .unwrap();
 
     assert!(output.exists(), "Output file was not created");

@@ -65,6 +65,36 @@ unsafe fn bool_array_from_raw(
     (0..n).map(|i| *vals.add(i) != 0).collect()
 }
 
+/// Decode a parallel array of (pointer, length) pairs into a vector of owned `u64` bitsets.
+/// Each entry corresponds to one input file. Null pointer or zero length ⇒ "all alive".
+/// Bitsets use Lucene `FixedBitSet#getBits()` layout.
+unsafe fn live_bits_array_from_raw(
+    ptrs: *const *const i64,
+    lens: *const i64,
+    count: i64,
+) -> Vec<Option<Vec<u64>>> {
+    if count == 0 || lens.is_null() {
+        return vec![];
+    }
+    let n = count as usize;
+    let mut out = Vec::with_capacity(n);
+    for i in 0..n {
+        let l = *lens.add(i);
+        if l <= 0 || ptrs.is_null() {
+            out.push(None);
+            continue;
+        }
+        let p = *ptrs.add(i);
+        if p.is_null() {
+            out.push(None);
+            continue;
+        }
+        let slice = slice::from_raw_parts(p as *const u64, l as usize);
+        out.push(Some(slice.to_vec()));
+    }
+    out
+}
+
 // ---------------------------------------------------------------------------
 // Writer lifecycle
 // ---------------------------------------------------------------------------
@@ -303,6 +333,11 @@ pub unsafe extern "C" fn parquet_merge_files(
     out_gen_offsets_ptr: *mut i64,
     out_gen_sizes_ptr: *mut i64,
     out_gen_count: *mut i64,
+    // Per-input live-docs bitsets (parallel to input_ptrs) in Lucene `FixedBitSet#getBits()`
+    // layout. Pass `live_bits_count == 0`, or per-file length 0, for "all alive".
+    live_bits_ptrs: *const *const i64,
+    live_bits_lens: *const i64,
+    live_bits_count: i64,
 ) -> i64 {
     let input_files = str_array_from_raw(input_ptrs, input_lens, input_count)
         .map_err(|e| format!("parquet_merge_files inputs: {}", e))?;
@@ -310,6 +345,12 @@ pub unsafe extern "C" fn parquet_merge_files(
         .map_err(|e| format!("parquet_merge_files output: {}", e))?;
     let index_name = str_from_raw(index_name_ptr, index_name_len)
         .map_err(|e| format!("parquet_merge_files index_name: {}", e))?;
+
+    // Decode live-docs; pad with None to cover every input file.
+    let mut live_docs = live_bits_array_from_raw(live_bits_ptrs, live_bits_lens, live_bits_count);
+    if live_docs.len() < input_files.len() {
+        live_docs.resize(input_files.len(), None);
+    }
 
     let (sort_cols, reverse_flags, nulls_first_flags) = match SETTINGS_STORE.get(index_name) {
         Some(s) => {
@@ -331,7 +372,7 @@ pub unsafe extern "C" fn parquet_merge_files(
     };
 
     let result = if sort_cols.is_empty() {
-        merge::merge_unsorted(&input_files, output_path, index_name)
+        merge::merge_unsorted(&input_files, output_path, index_name, &live_docs)
     } else {
         merge::merge_sorted(
             &input_files,
@@ -340,6 +381,7 @@ pub unsafe extern "C" fn parquet_merge_files(
             &sort_cols,
             &reverse_flags,
             &nulls_first_flags,
+            &live_docs,
         )
     }
     .map_err(|e| format!("{}", e))?;
@@ -482,4 +524,111 @@ pub unsafe extern "C" fn parquet_read_as_json(
     std::ptr::copy_nonoverlapping(bytes.as_ptr(), out_buf, bytes.len());
     *out_len = bytes.len() as i64;
     Ok(0)
+}
+
+// ---------------------------------------------------------------------------
+// Tests
+// ---------------------------------------------------------------------------
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // ===== live_bits_array_from_raw =====
+
+    #[test]
+    fn live_bits_array_from_raw_zero_count_returns_empty() {
+        let result = unsafe { live_bits_array_from_raw(std::ptr::null(), std::ptr::null(), 0) };
+        assert!(result.is_empty());
+    }
+
+    #[test]
+    fn live_bits_array_from_raw_null_lens_returns_empty() {
+        let invalid_ptr: *const i64 = usize::MAX as *const i64;
+        let invalid_ptrs: *const *const i64 = &invalid_ptr;
+        let result = unsafe { live_bits_array_from_raw(invalid_ptrs, std::ptr::null(), 1) };
+        assert!(result.is_empty());
+    }
+
+    #[test]
+    fn live_bits_array_from_raw_decodes_single_input() {
+        let bits: Vec<i64> = vec![0xFFFF_FFFF_FFFF_FFFEu64 as i64];
+        let ptr = bits.as_ptr();
+        let ptrs: Vec<*const i64> = vec![ptr];
+        let lens: Vec<i64> = vec![bits.len() as i64];
+
+        let result = unsafe { live_bits_array_from_raw(ptrs.as_ptr(), lens.as_ptr(), 1) };
+
+        assert_eq!(result.len(), 1);
+        let decoded = result[0].as_ref().expect("expected non-None entry");
+        assert_eq!(decoded.len(), 1);
+        // i64 0xFFFF_FFFF_FFFF_FFFE reinterpreted as u64 ⇒ 0xFFFF_FFFF_FFFF_FFFE
+        assert_eq!(decoded[0], 0xFFFF_FFFF_FFFF_FFFEu64);
+    }
+
+    #[test]
+    fn live_bits_array_from_raw_zero_length_entry_yields_none() {
+        let lens: Vec<i64> = vec![0];
+        let ptrs: Vec<*const i64> = vec![std::ptr::null()];
+
+        let result = unsafe { live_bits_array_from_raw(ptrs.as_ptr(), lens.as_ptr(), 1) };
+
+        assert_eq!(result.len(), 1);
+        assert!(result[0].is_none());
+    }
+
+    #[test]
+    fn live_bits_array_from_raw_negative_length_entry_yields_none() {
+        let lens: Vec<i64> = vec![-1];
+        let ptrs: Vec<*const i64> = vec![std::ptr::null()];
+
+        let result = unsafe { live_bits_array_from_raw(ptrs.as_ptr(), lens.as_ptr(), 1) };
+
+        assert_eq!(result.len(), 1);
+        assert!(result[0].is_none());
+    }
+
+    #[test]
+    fn live_bits_array_from_raw_null_inner_ptr_yields_none() {
+        let lens: Vec<i64> = vec![1];
+        let ptrs: Vec<*const i64> = vec![std::ptr::null()];
+
+        let result = unsafe { live_bits_array_from_raw(ptrs.as_ptr(), lens.as_ptr(), 1) };
+
+        assert_eq!(result.len(), 1);
+        assert!(result[0].is_none(), "null pointer with positive length should yield None");
+    }
+
+    #[test]
+    fn live_bits_array_from_raw_mixed_some_none() {
+        let bits_a: Vec<i64> = vec![0x0000_0000_0000_000Fi64];
+        let bits_c: Vec<i64> = vec![0x00FF_FF00_0000_0000u64 as i64];
+
+        let ptrs: Vec<*const i64> = vec![bits_a.as_ptr(), std::ptr::null(), bits_c.as_ptr()];
+        let lens: Vec<i64> = vec![bits_a.len() as i64, 0, bits_c.len() as i64];
+
+        let result = unsafe { live_bits_array_from_raw(ptrs.as_ptr(), lens.as_ptr(), 3) };
+
+        assert_eq!(result.len(), 3);
+        assert!(result[0].is_some());
+        assert!(result[1].is_none(), "middle entry with len=0 should be None");
+        assert!(result[2].is_some());
+        assert_eq!(result[0].as_ref().unwrap()[0], 0x0000_0000_0000_000Fu64);
+        assert_eq!(result[2].as_ref().unwrap()[0], 0x00FF_FF00_0000_0000u64);
+    }
+
+    #[test]
+    fn live_bits_array_from_raw_multi_word_bitmap() {
+        let bits: Vec<i64> = vec![1i64, 0i64, 0x0123_4567i64];
+        let ptrs: Vec<*const i64> = vec![bits.as_ptr()];
+        let lens: Vec<i64> = vec![bits.len() as i64];
+
+        let result = unsafe { live_bits_array_from_raw(ptrs.as_ptr(), lens.as_ptr(), 1) };
+
+        let decoded = result[0].as_ref().expect("expected Some");
+        assert_eq!(decoded.len(), 3);
+        assert_eq!(decoded[0], 1u64);
+        assert_eq!(decoded[1], 0u64);
+        assert_eq!(decoded[2], 0x0123_4567u64);
+    }
 }

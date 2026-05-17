@@ -28,13 +28,18 @@ import java.util.Set;
  * @opensearch.experimental
  */
 @ExperimentalApi
-public record MergePlan(long mergedWriterGeneration, DataFormat primaryFormat, List<DataFormat> secondaryFormats, Map<
-    DataFormat,
-    List<WriterFileSet>> filesByFormat) {
+public record MergePlan(
+    long mergedWriterGeneration,
+    DataFormat primaryFormat,
+    List<DataFormat> secondaryFormats,
+    Map<DataFormat, List<WriterFileSet>> filesByFormat,
+    Map<Long, long[]> liveDocsPerSegment
+) {
 
     public MergePlan {
         secondaryFormats = List.copyOf(secondaryFormats);
         filesByFormat = Map.copyOf(filesByFormat);
+        liveDocsPerSegment = Map.copyOf(liveDocsPerSegment);
     }
 
     /** Files for a given format, empty list if the format has no files. */
@@ -48,9 +53,16 @@ public record MergePlan(long mergedWriterGeneration, DataFormat primaryFormat, L
     }
 
     /**
-     * Builds a plan from a merge operation, a primary format, secondary formats, and a generation.
+     * Builds a plan from a merge operation, a primary format, secondary formats, a generation,
+     * and per-segment live-docs bitsets.
      */
-    public static MergePlan from(OneMerge oneMerge, DataFormat primaryFormat, List<DataFormat> secondaryFormats, long generation) {
+    public static MergePlan from(
+        OneMerge oneMerge,
+        DataFormat primaryFormat,
+        List<DataFormat> secondaryFormats,
+        long generation,
+        Map<Long, long[]> liveDocsPerSegment
+    ) {
         Set<DataFormat> allFormats = new LinkedHashSet<>();
         allFormats.add(primaryFormat);
         allFormats.addAll(secondaryFormats);
@@ -66,6 +78,6 @@ public record MergePlan(long mergedWriterGeneration, DataFormat primaryFormat, L
             }
             filesByFormat.put(format, List.copyOf(files));
         }
-        return new MergePlan(generation, primaryFormat, secondaryFormats, filesByFormat);
+        return new MergePlan(generation, primaryFormat, secondaryFormats, filesByFormat, liveDocsPerSegment);
     }
 }

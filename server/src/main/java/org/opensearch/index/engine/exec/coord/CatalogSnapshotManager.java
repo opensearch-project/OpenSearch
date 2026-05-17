@@ -151,9 +151,9 @@ public class CatalogSnapshotManager implements Closeable {
                 + segmentToAdd.generation()
                 + "] collides with a retained segment generation";
 
-        // Row count conservation: merged output must have the same total rows as the inputs
+        // Row count conservation: merged output must not exceed sum of input rows (compaction may drop rows)
         assert assertRowCountConservation(segmentsToRemove, segmentToAdd)
-            : "merged segment row count must equal sum of source segment row counts";
+            : "merged segment row count must not exceed sum of source segment row counts";
 
         boolean inserted = false;
         int newSegIdx = 0;
@@ -485,9 +485,10 @@ public class CatalogSnapshotManager implements Closeable {
     }
 
     /**
-     * Asserts that the total row count across all formats in the merged segment equals
-     * the total row count across all formats in the source segments. This catches bugs
-     * where rows are silently dropped or duplicated during merge.
+     * Asserts that the total row count across all formats in the merged segment does not
+     * exceed the total row count across all formats in the source segments. Catches bugs
+     * where rows are duplicated during merge. Rows may be legitimately dropped when the
+     * merger compacts deleted rows (see {@code MergeInput#liveDocsPerSegment}).
      */
     private boolean assertRowCountConservation(Set<Segment> sourceSegments, Segment mergedSegment) {
         long sourceRows = 0;
@@ -500,7 +501,7 @@ public class CatalogSnapshotManager implements Closeable {
         for (WriterFileSet wfs : mergedSegment.dfGroupedSearchableFiles().values()) {
             mergedRows += wfs.numRows();
         }
-        if (sourceRows != mergedRows) {
+        if (mergedRows > sourceRows) {
             logger.error("Row count mismatch: source segments have {} rows but merged segment has {} rows", sourceRows, mergedRows);
             return false;
         }

@@ -25,6 +25,7 @@ import org.opensearch.index.engine.dataformat.DeleteResult;
 import org.opensearch.index.engine.dataformat.Deleter;
 import org.opensearch.index.engine.dataformat.DocumentInput;
 import org.opensearch.index.engine.dataformat.Writer;
+import org.opensearch.index.engine.exec.Segment;
 import org.opensearch.index.engine.exec.commit.CommitterConfig;
 import org.opensearch.index.seqno.RetentionLeases;
 import org.opensearch.index.store.Store;
@@ -38,6 +39,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.mockito.Mockito.mock;
@@ -49,7 +51,6 @@ import static org.mockito.Mockito.when;
 public class LuceneDeleteExecutionEngineTests extends OpenSearchTestCase {
 
     private LuceneCommitter committer;
-    private LuceneDataFormat dataFormat;
     private Store store;
     private LuceneDeleteExecutionEngine deleteEngine;
     private Path baseDir;
@@ -76,7 +77,6 @@ public class LuceneDeleteExecutionEngineTests extends OpenSearchTestCase {
 
         committer = (LuceneCommitter) new LuceneCommitterFactory().getCommitter(new CommitterConfig(engineConfig, () -> {}));
         deleteEngine = new LuceneDeleteExecutionEngine(new LuceneDataFormat(), committer);
-        dataFormat = new LuceneDataFormat();
     }
 
     @Override
@@ -96,7 +96,7 @@ public class LuceneDeleteExecutionEngineTests extends OpenSearchTestCase {
     private LuceneWriter createLuceneWriter(long generation) throws IOException {
         Path writerDir = baseDir.resolve("writers");
         Files.createDirectories(writerDir);
-        return new LuceneWriter(generation, 0L, dataFormat, baseDir, null, Codec.getDefault(), null);
+        return new LuceneWriter(generation, 0L, new LuceneDataFormat(), writerDir, null, Codec.getDefault(), null);
     }
 
     private Writer<?> createMockCompositeWriter(long generation, boolean hasLucene, boolean hasParquet) {
@@ -214,5 +214,163 @@ public class LuceneDeleteExecutionEngineTests extends OpenSearchTestCase {
 
             assertTrue("Should return success via deleter", result instanceof DeleteResult.Success);
         }
+    }
+
+    // ---- getLiveDocsForSegments ----
+
+    private Segment writeAndAddIndexes(long generation, int numDocs) throws IOException {
+        try (LuceneWriter writer = createLuceneWriter(generation)) {
+            for (int i = 0; i < numDocs; i++) {
+                addDoc(writer, "gen" + generation + "_doc" + i, i);
+            }
+            writer.flush();
+            try (NIOFSDirectory segDir = new NIOFSDirectory(segmentDir(generation))) {
+                committer.getIndexWriter().addIndexes(segDir);
+            }
+        }
+        return Segment.builder(generation).build();
+    }
+
+    private Path segmentDir(long generation) {
+        return baseDir.resolve("writers").resolve("lucene_gen_" + generation);
+    }
+
+    public void testGetLiveDocsForSegmentsEmptyInputReturnsEmptyMap() throws IOException {
+        Map<Long, long[]> result = deleteEngine.getLiveDocsForSegments(List.of());
+        assertTrue("Empty input should return empty map", result.isEmpty());
+    }
+
+    public void testGetLiveDocsForSegmentsNoDeletesReturnsEmptyMap() throws IOException {
+        Segment seg = writeAndAddIndexes(1L, 10);
+
+        Map<Long, long[]> result = deleteEngine.getLiveDocsForSegments(List.of(seg));
+
+        assertTrue("Segments without deletes should be absent from the map", result.isEmpty());
+    }
+
+    public void testGetLiveDocsForSegmentsWithSingleDelete() throws IOException {
+        Segment seg = writeAndAddIndexes(1L, 10);
+
+        DeleteResult deleteResult = deleteEngine.deleteDocument(new DeleteInput("_id", new BytesRef("gen1_doc3"), 1L));
+        assertTrue(deleteResult instanceof DeleteResult.Success);
+
+        Map<Long, long[]> result = deleteEngine.getLiveDocsForSegments(List.of(seg));
+
+        assertEquals("Should return one segment entry", 1, result.size());
+        long[] bits = result.get(1L);
+        assertNotNull("Segment 1 should have a bitmap", bits);
+        assertFalse("Deleted row 3 should be marked dead", isAlive(bits, 3));
+        for (int i = 0; i < 10; i++) {
+            if (i == 3) continue;
+            assertTrue("Row " + i + " should still be alive", isAlive(bits, i));
+        }
+    }
+
+    public void testGetLiveDocsForSegmentsWithMultipleDeletes() throws IOException {
+        Segment seg = writeAndAddIndexes(1L, 20);
+
+        int[] deleted = { 2, 7, 13, 19 };
+        for (int row : deleted) {
+            deleteEngine.deleteDocument(new DeleteInput("_id", new BytesRef("gen1_doc" + row), 1L));
+        }
+
+        Map<Long, long[]> result = deleteEngine.getLiveDocsForSegments(List.of(seg));
+
+        long[] bits = result.get(1L);
+        assertNotNull(bits);
+        for (int row : deleted) {
+            assertFalse("Row " + row + " should be dead", isAlive(bits, row));
+        }
+        int liveCount = 0;
+        for (int i = 0; i < 20; i++) {
+            if (isAlive(bits, i)) liveCount++;
+        }
+        assertEquals("20 rows minus 4 deletes", 16, liveCount);
+    }
+
+    public void testGetLiveDocsForSegmentsReflectsInflightNRTDeletes() throws IOException {
+        Segment seg = writeAndAddIndexes(1L, 5);
+
+        // First delete is flushed to disk; second stays in the IndexWriter's in-memory buffer.
+        deleteEngine.deleteDocument(new DeleteInput("_id", new BytesRef("gen1_doc0"), 1L));
+        committer.commit(Map.of());
+        deleteEngine.deleteDocument(new DeleteInput("_id", new BytesRef("gen1_doc1"), 1L));
+
+        Map<Long, long[]> result = deleteEngine.getLiveDocsForSegments(List.of(seg));
+
+        long[] bits = result.get(1L);
+        assertNotNull(bits);
+        assertFalse("Committed delete must be visible", isAlive(bits, 0));
+        assertFalse("Uncommitted delete must be visible via NRT snapshot", isAlive(bits, 1));
+    }
+
+    public void testGetLiveDocsForSegmentsIgnoresSegmentsNotInRequest() throws IOException {
+        Segment seg1 = writeAndAddIndexes(1L, 5);
+        Segment seg2 = writeAndAddIndexes(2L, 5);
+
+        deleteEngine.deleteDocument(new DeleteInput("_id", new BytesRef("gen1_doc0"), 1L));
+        deleteEngine.deleteDocument(new DeleteInput("_id", new BytesRef("gen2_doc0"), 2L));
+
+        Map<Long, long[]> result = deleteEngine.getLiveDocsForSegments(List.of(seg1));
+
+        assertEquals("Should only contain requested generation", 1, result.size());
+        assertTrue(result.containsKey(1L));
+        assertFalse("Generation 2 was not requested", result.containsKey(2L));
+    }
+
+    public void testGetLiveDocsForSegmentsIgnoresUnknownGenerations() throws IOException {
+        writeAndAddIndexes(1L, 5);
+        Segment unknown = Segment.builder(99L).build();
+
+        Map<Long, long[]> result = deleteEngine.getLiveDocsForSegments(List.of(unknown));
+
+        assertTrue("Unknown generation should not appear in result", result.isEmpty());
+    }
+
+    public void testGetLiveDocsForSegmentsMultipleSegmentsAtOnce() throws IOException {
+        Segment seg1 = writeAndAddIndexes(1L, 5);
+        Segment seg2 = writeAndAddIndexes(2L, 5);
+
+        deleteEngine.deleteDocument(new DeleteInput("_id", new BytesRef("gen1_doc1"), 1L));
+        deleteEngine.deleteDocument(new DeleteInput("_id", new BytesRef("gen2_doc3"), 2L));
+
+        Map<Long, long[]> result = deleteEngine.getLiveDocsForSegments(List.of(seg1, seg2));
+
+        assertEquals(2, result.size());
+        assertFalse(isAlive(result.get(1L), 1));
+        assertFalse(isAlive(result.get(2L), 3));
+    }
+
+    public void testGetLiveDocsForSegmentsSnapshotIndependence() throws IOException {
+        Segment seg = writeAndAddIndexes(1L, 10);
+        deleteEngine.deleteDocument(new DeleteInput("_id", new BytesRef("gen1_doc2"), 1L));
+
+        Map<Long, long[]> first = deleteEngine.getLiveDocsForSegments(List.of(seg));
+        long[] firstBits = first.get(1L);
+
+        deleteEngine.deleteDocument(new DeleteInput("_id", new BytesRef("gen1_doc5"), 1L));
+
+        Map<Long, long[]> second = deleteEngine.getLiveDocsForSegments(List.of(seg));
+        long[] secondBits = second.get(1L);
+
+        assertTrue("First snapshot must not observe later deletes", isAlive(firstBits, 5));
+        assertFalse("First snapshot already had row 2 dead", isAlive(firstBits, 2));
+        assertFalse(isAlive(secondBits, 2));
+        assertFalse(isAlive(secondBits, 5));
+    }
+
+    public void testGetLiveDocsForSegmentsBitsetLengthMatchesMaxDoc() throws IOException {
+        Segment seg = writeAndAddIndexes(1L, 100);
+        deleteEngine.deleteDocument(new DeleteInput("_id", new BytesRef("gen1_doc0"), 1L));
+
+        Map<Long, long[]> result = deleteEngine.getLiveDocsForSegments(List.of(seg));
+
+        long[] bits = result.get(1L);
+        // ceil(100 / 64)
+        assertEquals("bitset word count", 2, bits.length);
+    }
+
+    private static boolean isAlive(long[] bits, int row) {
+        return (bits[row / 64] & (1L << (row % 64))) != 0L;
     }
 }
