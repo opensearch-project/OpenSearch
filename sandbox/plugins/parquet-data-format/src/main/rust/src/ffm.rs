@@ -174,11 +174,14 @@ pub unsafe extern "C" fn parquet_get_file_metadata(
     created_by_buf: *mut u8,
     created_by_buf_len: i64,
     created_by_len_out: *mut i64,
+    num_row_groups_out: *mut i64,
 ) -> i64 {
     let filename = str_from_raw(file_ptr, file_len).map_err(|e| format!("parquet_get_file_metadata: {}", e))?.to_string();
-    let fm = NativeParquetWriter::get_file_metadata(filename).map_err(|e| e.to_string())?;
+    let metadata = NativeParquetWriter::get_file_metadata(filename).map_err(|e| e.to_string())?;
+    let fm = metadata.file_metadata();
     if !version_out.is_null() { *version_out = fm.version(); }
     if !num_rows_out.is_null() { *num_rows_out = fm.num_rows(); }
+    if !num_row_groups_out.is_null() { *num_row_groups_out = metadata.num_row_groups() as i64; }
     if let Some(cb) = fm.created_by() {
         if !created_by_buf.is_null() && created_by_buf_len > 0 {
             let bytes = cb.as_bytes();
@@ -223,6 +226,7 @@ pub unsafe extern "C" fn parquet_on_settings_update(
     sort_in_memory_threshold_bytes: i64,
     sort_batch_size: i64,
     row_group_max_rows: i64,
+    row_group_max_bytes: i64,
     merge_batch_size: i64,
     merge_rayon_threads: i64,
     merge_io_threads: i64,
@@ -316,6 +320,7 @@ pub unsafe extern "C" fn parquet_on_settings_update(
         sort_in_memory_threshold_bytes: opt_u64(sort_in_memory_threshold_bytes),
         sort_batch_size: opt_usize(sort_batch_size),
         row_group_max_rows: opt_usize(row_group_max_rows),
+        row_group_max_bytes: opt_usize(row_group_max_bytes),
         merge_batch_size: opt_usize(merge_batch_size),
         merge_rayon_threads: opt_usize(merge_rayon_threads),
         merge_io_threads: opt_usize(merge_io_threads),

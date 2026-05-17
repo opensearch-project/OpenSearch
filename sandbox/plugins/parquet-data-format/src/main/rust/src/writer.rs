@@ -557,11 +557,12 @@ impl NativeParquetWriter {
         Ok(total_memory)
     }
 
-    pub fn get_file_metadata(filename: String) -> Result<parquet::file::metadata::FileMetaData, Box<dyn std::error::Error>> {
+    pub fn get_file_metadata(filename: String) -> Result<parquet::file::metadata::ParquetMetaData, Box<dyn std::error::Error>> {
         let file = File::open(&filename)?;
         let reader = SerializedFileReader::new(file)?;
-        let file_metadata = reader.metadata().file_metadata().clone();
-        log_debug!("Metadata for {}: version={}, num_rows={}", filename, file_metadata.version(), file_metadata.num_rows());
-        Ok(file_metadata)
+        let metadata = reader.metadata().clone();
+        log_debug!("Metadata for {}: version={}, num_rows={}, num_row_groups={}",
+            filename, metadata.file_metadata().version(), metadata.file_metadata().num_rows(), metadata.num_row_groups());
+        Ok(metadata)
     }
 }

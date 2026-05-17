@@ -130,6 +130,13 @@ public final class ParquetSettings {
         Setting.Property.IndexScope
     );
 
+    /** Maximum byte size per row group (default 128MB). */
+    public static final Setting<ByteSizeValue> ROW_GROUP_MAX_BYTES = Setting.byteSizeSetting(
+        "index.parquet.row_group_max_bytes",
+        new ByteSizeValue(128, ByteSizeUnit.MB),
+        Setting.Property.IndexScope
+    );
+
     /** Batch size for reading records during merge (default 100000 rows). */
     public static final Setting<Integer> MERGE_BATCH_SIZE = Setting.intSetting(
         "index.parquet.merge_batch_size",
@@ -384,6 +391,7 @@ public final class ParquetSettings {
             SORT_IN_MEMORY_THRESHOLD,
             SORT_BATCH_SIZE,
             ROW_GROUP_MAX_ROWS,
+            ROW_GROUP_MAX_BYTES,
             MERGE_BATCH_SIZE,
             MERGE_RAYON_THREADS,
             MERGE_IO_THREADS,

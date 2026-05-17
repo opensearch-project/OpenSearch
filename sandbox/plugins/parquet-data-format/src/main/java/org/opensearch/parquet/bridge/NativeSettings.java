@@ -30,6 +30,7 @@ public class NativeSettings {
     private final Long sortInMemoryThresholdBytes;
     private final Integer sortBatchSize;
     private final Integer rowGroupMaxRows;
+    private final Long rowGroupMaxBytes;
     private final Integer mergeBatchSize;
     private final Integer mergeRayonThreads;
     private final Integer mergeIoThreads;
@@ -51,6 +52,7 @@ public class NativeSettings {
         this.sortInMemoryThresholdBytes = builder.sortInMemoryThresholdBytes;
         this.sortBatchSize = builder.sortBatchSize;
         this.rowGroupMaxRows = builder.rowGroupMaxRows;
+        this.rowGroupMaxBytes = builder.rowGroupMaxBytes;
         this.mergeBatchSize = builder.mergeBatchSize;
         this.mergeRayonThreads = builder.mergeRayonThreads;
         this.mergeIoThreads = builder.mergeIoThreads;
@@ -112,6 +114,10 @@ public class NativeSettings {
         return rowGroupMaxRows;
     }
 
+    public Long getRowGroupMaxBytes() {
+        return rowGroupMaxBytes;
+    }
+
     public Integer getMergeBatchSize() {
         return mergeBatchSize;
     }
@@ -157,6 +163,7 @@ public class NativeSettings {
         private Long sortInMemoryThresholdBytes;
         private Integer sortBatchSize;
         private Integer rowGroupMaxRows;
+        private Long rowGroupMaxBytes;
         private Integer mergeBatchSize;
         private Integer mergeRayonThreads;
         private Integer mergeIoThreads;
@@ -222,6 +229,11 @@ public class NativeSettings {
 
         public Builder rowGroupMaxRows(Integer v) {
             this.rowGroupMaxRows = v;
+            return this;
+        }
+
+        public Builder rowGroupMaxBytes(Long v) {
+            this.rowGroupMaxBytes = v;
             return this;
         }
 
