@@ -101,4 +101,12 @@ public interface BlockCache extends Closeable {
      * @param prefix absolute path prefix; all entries whose key starts with this string are removed
      */
     default void evictPrefix(String prefix) {}
+
+    /**
+     * Remove all entries from this cache.
+     *
+     * <p>The default implementation is a no-op. Implementations that support
+     * full cache clearing should override this method.
+     */
+    default void clear() {}
 }

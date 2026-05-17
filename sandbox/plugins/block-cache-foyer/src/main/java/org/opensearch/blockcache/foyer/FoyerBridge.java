@@ -41,6 +41,7 @@ public final class FoyerBridge {
     private static final MethodHandle FOYER_DESTROY_CACHE;
     private static final MethodHandle FOYER_SNAPSHOT_STATS;
     private static final MethodHandle FOYER_EVICT_PREFIX;
+    private static final MethodHandle FOYER_CLEAR_CACHE;
 
     static {
         SymbolLookup lib = NativeLibraryLoader.symbolLookup();
@@ -92,7 +93,16 @@ public final class FoyerBridge {
             )
         );
 
-        logger.info("FFM downcall handles resolved: foyer_create_cache, foyer_destroy_cache, foyer_snapshot_stats, foyer_evict_prefix");
+        // i64 foyer_clear_cache(i64 ptr) — 0=success, <0=error
+        FOYER_CLEAR_CACHE = linker.downcallHandle(
+            lib.find("foyer_clear_cache").orElseThrow(),
+            FunctionDescriptor.of(
+                ValueLayout.JAVA_LONG,  // return: 0=ok, <0=error
+                ValueLayout.JAVA_LONG   // ptr: i64 cache handle
+            )
+        );
+
+        logger.info("FFM downcall handles resolved: foyer_create_cache, foyer_destroy_cache, foyer_snapshot_stats, foyer_evict_prefix, foyer_clear_cache");
     }
 
     /**
@@ -199,6 +209,22 @@ public final class FoyerBridge {
             call.invoke(FOYER_EVICT_PREFIX, ptr, p.segment(), p.len());
         } catch (Exception e) {
             logger.warn("foyer_evict_prefix failed for prefix='{}': {}", prefix, e.getMessage());
+        }
+    }
+
+    /**
+     * Clear all entries from the cache.
+     *
+     * <p>Best-effort: if the native call fails, the error is logged but not propagated.
+     *
+     * @param ptr the cache handle returned by {@link #createCache}
+     */
+    public static void clearCache(long ptr) {
+        try (var call = new NativeCall()) {
+            call.invoke(FOYER_CLEAR_CACHE, ptr);
+            logger.info("Foyer block cache cleared");
+        } catch (Exception e) {
+            logger.warn("foyer_clear_cache failed: {}", e.getMessage());
         }
     }
 

@@ -48,6 +48,8 @@ import org.opensearch.action.admin.cluster.decommission.awareness.put.Decommissi
 import org.opensearch.action.admin.cluster.decommission.awareness.put.TransportDecommissionAction;
 import org.opensearch.action.admin.cluster.filecache.PruneFileCacheAction;
 import org.opensearch.action.admin.cluster.filecache.TransportPruneFileCacheAction;
+import org.opensearch.action.admin.cluster.blockcache.PruneBlockCacheAction;
+import org.opensearch.action.admin.cluster.blockcache.TransportPruneBlockCacheAction;
 import org.opensearch.action.admin.cluster.health.ClusterHealthAction;
 import org.opensearch.action.admin.cluster.health.TransportClusterHealthAction;
 import org.opensearch.action.admin.cluster.node.hotthreads.NodesHotThreadsAction;
@@ -382,6 +384,7 @@ import org.opensearch.rest.action.admin.cluster.RestNodesStatsAction;
 import org.opensearch.rest.action.admin.cluster.RestNodesUsageAction;
 import org.opensearch.rest.action.admin.cluster.RestPendingClusterTasksAction;
 import org.opensearch.rest.action.admin.cluster.RestPruneCacheAction;
+import org.opensearch.rest.action.admin.cluster.RestPruneBlockCacheAction;
 import org.opensearch.rest.action.admin.cluster.RestPutRepositoryAction;
 import org.opensearch.rest.action.admin.cluster.RestPutStoredScriptAction;
 import org.opensearch.rest.action.admin.cluster.RestReloadSecureSettingsAction;
@@ -687,6 +690,7 @@ public class ActionModule extends AbstractModule {
         actions.register(ClusterSearchShardsAction.INSTANCE, TransportClusterSearchShardsAction.class);
         actions.register(PendingClusterTasksAction.INSTANCE, TransportPendingClusterTasksAction.class);
         actions.register(PruneFileCacheAction.INSTANCE, TransportPruneFileCacheAction.class);
+        actions.register(PruneBlockCacheAction.INSTANCE, TransportPruneBlockCacheAction.class);
         actions.register(PutRepositoryAction.INSTANCE, TransportPutRepositoryAction.class);
         actions.register(GetRepositoriesAction.INSTANCE, TransportGetRepositoriesAction.class);
         actions.register(DeleteRepositoryAction.INSTANCE, TransportDeleteRepositoryAction.class);
@@ -907,6 +911,7 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestPendingClusterTasksAction());
         // FileCache API
         registerHandler.accept(new RestPruneCacheAction());
+        registerHandler.accept(new RestPruneBlockCacheAction());
         registerHandler.accept(new RestPutRepositoryAction());
         registerHandler.accept(new RestGetRepositoriesAction(settingsFilter));
         registerHandler.accept(new RestDeleteRepositoryAction());

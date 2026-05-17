@@ -124,6 +124,32 @@ pub unsafe extern "C" fn foyer_snapshot_stats(ptr: i64, out: *mut i64) -> i64 {
     0
 }
 
+/// Clear all entries from the cache.
+///
+/// Equivalent to calling `evict_prefix` with an empty prefix, but more efficient
+/// as it clears the key index and the underlying Foyer cache in one operation.
+///
+/// # Returns
+/// `0` on success; `< 0` if `ptr` is invalid.
+///
+/// # Safety
+/// `ptr` must be a valid handle from [`foyer_create_cache`], not yet destroyed.
+#[ffm_safe]
+#[no_mangle]
+pub unsafe extern "C" fn foyer_clear_cache(ptr: i64) -> i64 {
+    if ptr <= 0 {
+        return Err(format!("foyer_clear_cache: invalid ptr {}", ptr));
+    }
+    let boxed = &*(ptr as *const Arc<dyn crate::traits::BlockCache>);
+    let foyer = match boxed.as_any().downcast_ref::<FoyerCache>() {
+        Some(f) => f,
+        None => return Err("foyer_clear_cache: downcast to FoyerCache failed".to_string()),
+    };
+    foyer.clear_sync();
+    native_bridge_common::log_info!("ffm: foyer_clear_cache completed");
+    Ok(0)
+}
+
 /// Evict all cache entries whose key starts with `prefix`.
 ///
 /// Called by Java's `NodeCacheOrchestratorCleaner` on shard/index deletion.
