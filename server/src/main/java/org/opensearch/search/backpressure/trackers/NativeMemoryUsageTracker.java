@@ -16,13 +16,13 @@ import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.monitor.os.OsProbe;
+import org.opensearch.search.backpressure.NativeMemoryUsageService;
 import org.opensearch.search.backpressure.trackers.TaskResourceUsageTrackers.TaskResourceUsageTracker;
 import org.opensearch.tasks.CancellableTask;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskCancellation;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -43,39 +43,29 @@ import static org.opensearch.search.backpressure.trackers.TaskResourceUsageTrack
  * gates on that).
  *
  * <p>The per-task threshold is expressed as a fraction of the backend-installed native-memory
- * budget (see {@link #setNativeMemoryBudgetSupplier}), mirroring the heap tracker's
- * {@code heap_percent_threshold}. Effective per-task byte threshold is
- * {@code budget * fraction}.
+ * budget, mirroring the heap tracker's {@code heap_percent_threshold}. Effective per-task
+ * byte threshold is {@code budget * fraction}.
  *
  * <h2>Snapshot-per-tick model</h2>
  * <p>Native-memory values come from a backend (e.g. DataFusion) over an FFI boundary. Per-task
  * FFI reads don't scale: the backpressure service iterates every candidate task inside
- * {@code doRun()}, and stats() iterates every live task twice (max + avg). Instead, the
- * tracker holds a {@code Map<taskId, bytes>} that is rebuilt in one shot by {@link #refresh()}.
- * {@code SearchBackpressureService} calls {@code refresh()} once per cancellation-iteration
- * (and once per {@code nodeStats()} call) before any per-task lookup runs. Between refreshes
- * every task lookup is an O(1) hash probe.
+ * {@code doRun()}, and stats() iterates every live task twice (max + avg). The shared
+ * {@link NativeMemoryUsageService} holds a single {@code Map<taskId, bytes>} that the SBP
+ * service refreshes once per tick. Per-task lookups are then O(1) hash probes into a stable
+ * map reference.
  *
- * <p>The snapshot source is a {@link Supplier} installed by the backend plugin — typically
- * calling the plugin's own {@code getActiveQueryMetrics()} equivalent and projecting the map
- * down to {@code contextId -> currentBytes}.
+ * <p>This tracker is a thin consumer of the service: {@code bytesForTask(Task)} delegates to
+ * {@code NativeMemoryUsageService#currentBytes(long)}. The service's {@code refresh()} is
+ * called by {@code SearchBackpressureService.doRun()} once per tick before per-task evaluation
+ * begins — this tracker does not own the refresh lifecycle. The static setters retained on
+ * this class are kept as delegators so existing call sites (backend plugin
+ * {@code createComponents}, tracker tests) don't have to migrate at the same time as the
+ * service extraction.
  *
  * @opensearch.internal
  */
 public class NativeMemoryUsageTracker extends TaskResourceUsageTracker {
     private static final Logger logger = LogManager.getLogger(NativeMemoryUsageTracker.class);
-
-    /** Empty map used when no supplier is installed or the supplier returns {@code null}. */
-    private static final Supplier<Map<Long, Long>> DEFAULT_EMPTY_SUPPLIER = Collections::emptyMap;
-    private static volatile Supplier<Map<Long, Long>> snapshotSupplier = DEFAULT_EMPTY_SUPPLIER;
-
-    /**
-     * Source of the total native-memory budget in bytes (e.g. DataFusion's
-     * configured pool limit). Installed by a backend plugin via
-     * {@link #setNativeMemoryBudgetSupplier(LongSupplier)}; defaults to {@code 0}
-     * which keeps the tracker inert until a backend wires up a real budget.
-     */
-    private static volatile LongSupplier nativeMemoryBudgetSupplier = () -> 0L;
 
     /**
      * Per-task threshold expressed as a fraction of the installed native-memory budget,
@@ -86,44 +76,49 @@ public class NativeMemoryUsageTracker extends TaskResourceUsageTracker {
      * <p>Effective per-task byte threshold = {@code budget * fraction}.
      */
     private final DoubleSupplier nativeMemoryPercentThresholdSupplier;
-    // Volatile so the map reference publishes safely from refresh() (called from the
-    // backpressure scheduler thread) to the per-task evaluate() path (same thread today,
-    // but also hit from nodeStats() which may run on a different thread).
-    private volatile Map<Long, Long> bytesByTaskId = Collections.emptyMap();
+
+    /**
+     * Singleton service that owns the snapshot map and the budget supplier. Held as a
+     * field rather than read via {@link NativeMemoryUsageService#getInstance()} on every
+     * call so tests can substitute (via reflection or future package-private constructor).
+     */
+    private final NativeMemoryUsageService service;
 
     public NativeMemoryUsageTracker(DoubleSupplier nativeMemoryPercentThresholdSupplier) {
+        this(nativeMemoryPercentThresholdSupplier, NativeMemoryUsageService.getInstance());
+    }
+
+    /** Package-private for tests that want to inject a service instance. */
+    NativeMemoryUsageTracker(DoubleSupplier nativeMemoryPercentThresholdSupplier, NativeMemoryUsageService service) {
         this.nativeMemoryPercentThresholdSupplier = nativeMemoryPercentThresholdSupplier;
+        this.service = service;
         setDefaultResourceUsageBreachEvaluator();
     }
 
-    /**
-     * Install the snapshot source. Called once from a backend plugin's {@code createComponents}.
-     * Last writer wins; backends that want to cooperate should compose around the previous
-     * value rather than overwriting.
-     */
+    // ---------------------------------------------------------------------
+    // Static delegators — preserved so existing callers (backend plugin
+    // wiring, NativeMemoryUsageTrackerTests) keep compiling. New code should
+    // prefer NativeMemoryUsageService directly.
+    // ---------------------------------------------------------------------
+
+    /** @see NativeMemoryUsageService#setSnapshotSupplier(Supplier) */
     public static void setSnapshotSupplier(Supplier<Map<Long, Long>> supplier) {
-        if (supplier != null) {
-            snapshotSupplier = supplier;
-            logger.info("[nativemem-bp] tracker.setSnapshotSupplier: installed supplier [{}]", supplier.getClass().getName());
-        }
+        NativeMemoryUsageService.getInstance().setSnapshotSupplier(supplier);
     }
 
-    /**
-     * Install the native-memory budget source. A backend plugin (e.g. DataFusion) calls
-     * this from {@code createComponents} with a supplier reading its configured pool
-     * limit. Last writer wins. Pass a supplier returning {@code 0} (or never call this)
-     * to keep the tracker inert.
-     */
+    /** @see NativeMemoryUsageService#setBudgetSupplier(LongSupplier) */
     public static void setNativeMemoryBudgetSupplier(LongSupplier supplier) {
-        if (supplier != null) {
-            nativeMemoryBudgetSupplier = supplier;
-            logger.info("[nativemem-bp] tracker.setNativeMemoryBudgetSupplier: installed");
-        }
+        NativeMemoryUsageService.getInstance().setBudgetSupplier(supplier);
     }
 
-    /** Current native-memory budget in bytes; {@code 0} when no backend has installed a supplier. */
+    /** @see NativeMemoryUsageService#getBudgetBytes() */
     public static long getNativeMemoryBudgetBytes() {
-        return Math.max(0L, nativeMemoryBudgetSupplier.getAsLong());
+        return NativeMemoryUsageService.getInstance().getBudgetBytes();
+    }
+
+    /** @see NativeMemoryUsageService#hasSnapshotProvider() */
+    public static boolean hasSnapshotProvider() {
+        return NativeMemoryUsageService.getInstance().hasSnapshotProvider();
     }
 
     /**
@@ -135,62 +130,36 @@ public class NativeMemoryUsageTracker extends TaskResourceUsageTracker {
     private void setDefaultResourceUsageBreachEvaluator() {
         this.resourceUsageBreachEvaluator = (task) -> {
             if (task instanceof CancellableTask == false) {
-                logger.info(
-                    "[nativemem-bp] evaluate: task={} type={} not CancellableTask — skipping",
-                    task.getId(),
-                    task.getClass().getSimpleName()
-                );
                 return Optional.empty();
             }
             double fraction = nativeMemoryPercentThresholdSupplier.getAsDouble();
-            long budget = getNativeMemoryBudgetBytes();
+            long budget = service.getBudgetBytes();
             if (fraction <= 0.0d || budget <= 0L) {
                 // Feature disabled — either the operator hasn't set a threshold, or no
                 // backend has installed a budget supplier. Leave the tracker inert.
-                logger.info(
-                    "[nativemem-bp] evaluate: task={} inert — fraction={} budget={}B (one is 0; tracker disabled)",
-                    task.getId(),
-                    fraction,
-                    budget
-                );
                 return Optional.empty();
             }
             // Defensive clamp; the Setting validator already enforces [0.0, 1.0].
             double boundedFraction = Math.min(1.0d, fraction);
             long bytesThreshold = (long) (budget * boundedFraction);
             if (bytesThreshold <= 0L) {
-                logger.info(
-                    "[nativemem-bp] evaluate: task={} bytesThreshold=0 (budget={}B fraction={}) — skipping",
-                    task.getId(),
-                    budget,
-                    boundedFraction
-                );
                 return Optional.empty();
             }
             long currentUsage = bytesForTask(task);
             if (currentUsage < bytesThreshold) {
-                logger.info(
-                    "[nativemem-bp] evaluate: task={} below threshold — currentBytes={}B threshold={}B "
-                        + "(fraction={} budget={}B) — no cancellation",
-                    task.getId(),
-                    currentUsage,
-                    bytesThreshold,
-                    boundedFraction,
-                    budget
-                );
                 return Optional.empty();
             }
             int score = (int) Math.max(1L, currentUsage / Math.max(1L, bytesThreshold));
-            logger.warn(
-                "[nativemem-bp] evaluate: task={} EXCEEDS threshold — currentBytes={}B, "
-                    + "threshold={}B (fraction={} of budget={}B), score={}",
-                task.getId(),
-                currentUsage,
-                bytesThreshold,
-                boundedFraction,
-                budget,
-                score
-            );
+            if (logger.isDebugEnabled()) {
+                logger.debug(
+                    "native memory threshold exceeded for task [{}]: currentBytes={}B, threshold={}B ({}% of budget={}B)",
+                    task.getId(),
+                    currentUsage,
+                    bytesThreshold,
+                    (int) (boundedFraction * 100),
+                    budget
+                );
+            }
             return Optional.of(
                 new TaskCancellation.Reason(
                     "native memory usage exceeded [" + new ByteSizeValue(currentUsage) + " >= " + new ByteSizeValue(bytesThreshold) + "]",
@@ -211,51 +180,12 @@ public class NativeMemoryUsageTracker extends TaskResourceUsageTracker {
         // intentionally empty
     }
 
-    /**
-     * Pull a fresh snapshot from the installed supplier and swap it in. Exactly one FFI
-     * call per invocation — callers (backpressure service) invoke this once per tick
-     * before per-task evaluation begins.
-     */
-    @Override
-    public void refresh() {
-        Map<Long, Long> snapshot = snapshotSupplier.get();
-        boolean nullSnapshot = (snapshot == null);
-        bytesByTaskId = nullSnapshot ? Collections.emptyMap() : snapshot;
-        if (nullSnapshot) {
-            logger.warn("[nativemem-bp] tracker.refresh: supplier returned null — using empty map");
-        }
-        logger.info(
-            "[nativemem-bp] tracker.refresh: snapshot loaded, size={} taskIds={} budget={}B",
-            bytesByTaskId.size(),
-            bytesByTaskId.keySet(),
-            getNativeMemoryBudgetBytes()
-        );
-        if (bytesByTaskId.size() > 0) {
-            // log the heaviest few so we can see whether registry has anything substantive
-            bytesByTaskId.entrySet()
-                .stream()
-                .sorted((a, b) -> Long.compare(b.getValue(), a.getValue()))
-                .limit(5)
-                .forEach(e -> logger.info("[nativemem-bp] tracker.refresh:   taskId={} currentBytes={}", e.getKey(), e.getValue()));
-        }
-    }
-
     /** Package-private for tests: look up a single task's bytes from the current snapshot. */
     long bytesForTask(Task task) {
         if (task == null) {
             return 0L;
         }
-        Long bytes = bytesByTaskId.get(task.getId());
-        return bytes == null ? 0L : bytes;
-    }
-
-    /**
-     * Returns true if a backend plugin has installed a snapshot supplier. False if no
-     * backend with native-memory tracking is loaded, in which case registering this
-     * tracker would just produce empty refreshes every tick.
-     */
-    public static boolean hasSnapshotProvider() {
-        return snapshotSupplier != DEFAULT_EMPTY_SUPPLIER;
+        return service.currentBytes(task.getId());
     }
 
     /**
@@ -326,6 +256,17 @@ public class NativeMemoryUsageTracker extends TaskResourceUsageTracker {
         @Override
         public int hashCode() {
             return Objects.hash(cancellationCount, currentMax, currentAvg);
+        }
+
+        @Override
+        public String toString() {
+            return "NativeMemoryUsageTracker.Stats{cancellationCount="
+                + cancellationCount
+                + ", currentMax="
+                + currentMax
+                + ", currentAvg="
+                + currentAvg
+                + "}";
         }
     }
 }

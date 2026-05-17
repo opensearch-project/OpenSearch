@@ -13,6 +13,7 @@ import org.opensearch.action.search.SearchTask;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.tasks.TaskId;
+import org.opensearch.search.backpressure.NativeMemoryUsageService;
 import org.opensearch.tasks.CancellableTask;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskCancellation;
@@ -20,37 +21,32 @@ import org.opensearch.test.OpenSearchTestCase;
 import org.junit.After;
 import org.junit.Before;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.Supplier;
 
-import static org.opensearch.search.backpressure.SearchBackpressureTestHelpers.createMockTaskWithResourceStats;
-
 /**
  * Unit tests for {@link NativeMemoryUsageTracker}.
  *
- * <p>The tracker maintains static suppliers (snapshot + budget) that survive across tests
- * because they're installed by backend plugins at boot time. {@link #setUp()} and
- * {@link #tearDown()} reset them to their defaults so every test starts from a known
- * "no backend installed" state.
+ * <p>The tracker is a thin wrapper over {@link NativeMemoryUsageService}, which is a
+ * process-wide singleton. The service holds the snapshot supplier and budget supplier
+ * that backend plugins install at boot. Each test must reset the singleton in
+ * {@link #setUp()}/{@link #tearDown()} so leftover suppliers from a prior test (or from
+ * production code paths exercised by another suite) don't leak.
  */
 public class NativeMemoryUsageTrackerTests extends OpenSearchTestCase {
 
     @Before
-    public void resetStaticsBefore() {
-        // Static suppliers are package-shared with the production wiring; clear before every test
-        // so each test owns its own supplier surface and doesn't see leftover state from a prior
-        // test (or from production code paths exercised by another suite).
-        NativeMemoryUsageTracker.setSnapshotSupplier(java.util.Collections::emptyMap);
-        NativeMemoryUsageTracker.setNativeMemoryBudgetSupplier(() -> 0L);
+    public void resetServiceBefore() {
+        NativeMemoryUsageService.getInstance().resetForTesting();
     }
 
     @After
-    public void resetStaticsAfter() {
-        NativeMemoryUsageTracker.setSnapshotSupplier(java.util.Collections::emptyMap);
-        NativeMemoryUsageTracker.setNativeMemoryBudgetSupplier(() -> 0L);
+    public void resetServiceAfter() {
+        NativeMemoryUsageService.getInstance().resetForTesting();
     }
 
     public void testNameMatchesEnum() {
@@ -58,33 +54,25 @@ public class NativeMemoryUsageTrackerTests extends OpenSearchTestCase {
         assertEquals(TaskResourceUsageTrackerType.NATIVE_MEMORY_USAGE_TRACKER.getName(), tracker.name());
     }
 
-    public void testRefreshEmptySnapshotIsSafe() {
+    public void testBytesForTaskWithEmptySnapshot() {
+        // No supplier installed — the service's default empty snapshot must yield 0 for any task id.
         NativeMemoryUsageTracker tracker = new NativeMemoryUsageTracker(() -> 0.5);
-        // No supplier installed — default empty map should be picked up.
-        tracker.refresh();
-        Task task = createMockTaskWithResourceStats(SearchTask.class, 1, 1, randomNonNegativeLong());
-        // bytesForTask must be 0 when no entry is in the snapshot.
+        Task task = createMockTask(SearchTask.class, randomNonNegativeLong());
         assertEquals(0L, tracker.bytesForTask(task));
     }
 
-    public void testRefreshNullSnapshotFallsBackToEmpty() {
-        // A misbehaving backend that returns null must not propagate NPE through the refresh path.
-        NativeMemoryUsageTracker.setSnapshotSupplier(() -> null);
-        NativeMemoryUsageTracker tracker = new NativeMemoryUsageTracker(() -> 0.5);
-        tracker.refresh();
-        Task task = createMockTaskWithResourceStats(SearchTask.class, 1, 1, 42L);
-        assertEquals(0L, tracker.bytesForTask(task));
-    }
-
-    public void testBytesForTaskAfterRefreshReadsSnapshot() {
+    public void testBytesForTaskAfterServiceRefresh() {
         long taskId = 12345L;
         long bytes = 8L * 1024 * 1024;
         Map<Long, Long> snapshot = new HashMap<>();
         snapshot.put(taskId, bytes);
         NativeMemoryUsageTracker.setSnapshotSupplier(() -> snapshot);
+
         NativeMemoryUsageTracker tracker = new NativeMemoryUsageTracker(() -> 0.5);
-        tracker.refresh();
-        Task task = mockTaskWithId(SearchTask.class, taskId);
+        // Refresh is now owned by the service; the tracker reads what the service publishes.
+        NativeMemoryUsageService.getInstance().refresh();
+
+        Task task = createMockTask(SearchTask.class, taskId);
         assertEquals(bytes, tracker.bytesForTask(task));
     }
 
@@ -94,21 +82,21 @@ public class NativeMemoryUsageTrackerTests extends OpenSearchTestCase {
     }
 
     public void testHasSnapshotProviderReflectsInstallation() {
-        // Once a backend installs a snapshot supplier, hasSnapshotProvider() must report true
-        // even when the supplier itself returns an empty map. The contract is "is something
-        // wired up", not "does the wired thing currently have data".
-        Supplier<Map<Long, Long>> supplier = java.util.Collections::emptyMap;
-        NativeMemoryUsageTracker.setSnapshotSupplier(supplier);
+        // Before any backend installs a supplier, the predicate is false.
+        assertFalse(NativeMemoryUsageTracker.hasSnapshotProvider());
+
+        // Once installed, hasSnapshotProvider must return true even when the supplier itself
+        // returns an empty map. Contract is "is something wired up?", not "does it have data?".
+        NativeMemoryUsageTracker.setSnapshotSupplier(Collections::emptyMap);
         assertTrue(NativeMemoryUsageTracker.hasSnapshotProvider());
     }
 
     public void testNullSnapshotSupplierIgnored() {
-        // Existing supplier should be retained when caller passes null.
-        Supplier<Map<Long, Long>> good = java.util.Collections::emptyMap;
+        Supplier<Map<Long, Long>> good = Collections::emptyMap;
         NativeMemoryUsageTracker.setSnapshotSupplier(good);
         assertTrue(NativeMemoryUsageTracker.hasSnapshotProvider());
+        // Passing null must not erase a working installation.
         NativeMemoryUsageTracker.setSnapshotSupplier(null);
-        // Still installed because null is a no-op.
         assertTrue(NativeMemoryUsageTracker.hasSnapshotProvider());
     }
 
@@ -131,26 +119,24 @@ public class NativeMemoryUsageTrackerTests extends OpenSearchTestCase {
     public void testEvaluateInertWhenFractionZero() {
         // Operator hasn't opted in (fraction=0): tracker MUST NOT cancel even with budget + heavy task.
         NativeMemoryUsageTracker.setNativeMemoryBudgetSupplier(() -> 1_000L);
-        Map<Long, Long> snapshot = new HashMap<>();
         long taskId = 1L;
-        snapshot.put(taskId, 999L);
-        NativeMemoryUsageTracker.setSnapshotSupplier(() -> snapshot);
+        NativeMemoryUsageTracker.setSnapshotSupplier(() -> Map.of(taskId, 999L));
+        NativeMemoryUsageService.getInstance().refresh();
+
         NativeMemoryUsageTracker tracker = new NativeMemoryUsageTracker(() -> 0.0);
-        tracker.refresh();
-        Task task = mockTaskWithId(SearchTask.class, taskId);
+        Task task = createMockTask(SearchTask.class, taskId);
         Optional<TaskCancellation.Reason> reason = tracker.checkAndMaybeGetCancellationReason(task);
         assertFalse(reason.isPresent());
     }
 
     public void testEvaluateInertWhenBudgetZero() {
         // No backend installed budget: tracker MUST NOT cancel even with a fraction set.
-        Map<Long, Long> snapshot = new HashMap<>();
         long taskId = 1L;
-        snapshot.put(taskId, 999L);
-        NativeMemoryUsageTracker.setSnapshotSupplier(() -> snapshot);
+        NativeMemoryUsageTracker.setSnapshotSupplier(() -> Map.of(taskId, 999L));
+        NativeMemoryUsageService.getInstance().refresh();
+
         NativeMemoryUsageTracker tracker = new NativeMemoryUsageTracker(() -> 0.5);
-        tracker.refresh();
-        Task task = mockTaskWithId(SearchTask.class, taskId);
+        Task task = createMockTask(SearchTask.class, taskId);
         Optional<TaskCancellation.Reason> reason = tracker.checkAndMaybeGetCancellationReason(task);
         assertFalse(reason.isPresent());
     }
@@ -158,26 +144,27 @@ public class NativeMemoryUsageTrackerTests extends OpenSearchTestCase {
     public void testEvaluateNonCancellableTaskSkipped() {
         NativeMemoryUsageTracker.setNativeMemoryBudgetSupplier(() -> 1_000L);
         NativeMemoryUsageTracker.setSnapshotSupplier(() -> Map.of(1L, 999L));
+        NativeMemoryUsageService.getInstance().refresh();
+
         NativeMemoryUsageTracker tracker = new NativeMemoryUsageTracker(() -> 0.5);
-        tracker.refresh();
-        // Plain Task (not a CancellableTask) should be ignored.
-        Task task = new Task(1L, "type", "action", "description", TaskId.EMPTY_TASK_ID, java.util.Collections.emptyMap());
+        // Plain Task (not a CancellableTask) must be ignored by the evaluator.
+        Task task = new Task(1L, "type", "action", "description", TaskId.EMPTY_TASK_ID, Collections.emptyMap());
         Optional<TaskCancellation.Reason> reason = tracker.checkAndMaybeGetCancellationReason(task);
         assertFalse(reason.isPresent());
     }
 
-    public void testEvaluateBelowThreshold() {
+    public void testEvaluateBelowThresholdNoCancellation() {
         long budget = 1_000L;
         double fraction = 0.5;
         long taskId = 7L;
-        // 400 < 500 (budget*fraction)
+        // 400 < 500 (budget * fraction)
         NativeMemoryUsageTracker.setNativeMemoryBudgetSupplier(() -> budget);
         NativeMemoryUsageTracker.setSnapshotSupplier(() -> Map.of(taskId, 400L));
+        NativeMemoryUsageService.getInstance().refresh();
+
         NativeMemoryUsageTracker tracker = new NativeMemoryUsageTracker(() -> fraction);
-        tracker.refresh();
-        Task task = mockTaskWithId(SearchTask.class, taskId);
-        Optional<TaskCancellation.Reason> reason = tracker.checkAndMaybeGetCancellationReason(task);
-        assertFalse(reason.isPresent());
+        Task task = createMockTask(SearchTask.class, taskId);
+        assertFalse(tracker.checkAndMaybeGetCancellationReason(task).isPresent());
     }
 
     public void testEvaluateAtAndAboveThresholdReturnsReason() {
@@ -185,51 +172,54 @@ public class NativeMemoryUsageTrackerTests extends OpenSearchTestCase {
         double fraction = 0.5;
         long thresholdBytes = (long) (budget * fraction);
         long taskId = 7L;
-        long usage = thresholdBytes + 1L; // strictly above to keep score > 1
+        long usage = thresholdBytes + 1L;
         NativeMemoryUsageTracker.setNativeMemoryBudgetSupplier(() -> budget);
         NativeMemoryUsageTracker.setSnapshotSupplier(() -> Map.of(taskId, usage));
+        NativeMemoryUsageService.getInstance().refresh();
+
         NativeMemoryUsageTracker tracker = new NativeMemoryUsageTracker(() -> fraction);
-        tracker.refresh();
-        Task task = mockTaskWithId(SearchShardTask.class, taskId);
+        Task task = createMockTask(SearchShardTask.class, taskId);
         Optional<TaskCancellation.Reason> reason = tracker.checkAndMaybeGetCancellationReason(task);
-        assertTrue(reason.isPresent());
+        assertTrue("usage above threshold must yield a cancellation reason", reason.isPresent());
         assertTrue("score must be at least 1", reason.get().getCancellationScore() >= 1);
         assertTrue(
-            "reason message should mention native memory usage",
+            "reason message should mention native memory",
             reason.get().getMessage().toLowerCase(java.util.Locale.ROOT).contains("native memory")
         );
     }
 
     public void testEvaluateScoreScalesWithUsage() {
-        // Score is floor(usage / threshold) per tracker's evaluator.
+        // Score is floor(usage / threshold) per the tracker's evaluator.
         long budget = 1_000L;
         double fraction = 0.1; // threshold = 100
         long taskId = 9L;
         NativeMemoryUsageTracker.setNativeMemoryBudgetSupplier(() -> budget);
         NativeMemoryUsageTracker.setSnapshotSupplier(() -> Map.of(taskId, 350L)); // 3x threshold
+        NativeMemoryUsageService.getInstance().refresh();
+
         NativeMemoryUsageTracker tracker = new NativeMemoryUsageTracker(() -> fraction);
-        tracker.refresh();
-        Task task = mockTaskWithId(SearchTask.class, taskId);
+        Task task = createMockTask(SearchTask.class, taskId);
         Optional<TaskCancellation.Reason> reason = tracker.checkAndMaybeGetCancellationReason(task);
         assertTrue(reason.isPresent());
         assertEquals(3, reason.get().getCancellationScore());
     }
 
     public void testEvaluateFractionClampedToOne() {
-        // Fraction > 1.0 should be clamped to 1.0 — only tasks at or above the full budget cancel.
+        // Fraction > 1.0 must be clamped to 1.0 — only tasks at or above the full budget cancel.
         long budget = 1_000L;
         long taskId = 1L;
         NativeMemoryUsageTracker.setNativeMemoryBudgetSupplier(() -> budget);
         NativeMemoryUsageTracker.setSnapshotSupplier(() -> Map.of(taskId, 999L));
+        NativeMemoryUsageService.getInstance().refresh();
+
         NativeMemoryUsageTracker tracker = new NativeMemoryUsageTracker(() -> 5.0);
-        tracker.refresh();
-        Task task = mockTaskWithId(SearchTask.class, taskId);
-        // 999 < 1000 (clamped threshold) — must NOT cancel
+        Task task = createMockTask(SearchTask.class, taskId);
+        // 999 < 1000 (clamped threshold) — must NOT cancel.
         assertFalse(tracker.checkAndMaybeGetCancellationReason(task).isPresent());
 
         NativeMemoryUsageTracker.setSnapshotSupplier(() -> Map.of(taskId, 1_000L));
-        tracker.refresh();
-        // 1000 >= 1000 — cancel
+        NativeMemoryUsageService.getInstance().refresh();
+        // 1000 >= 1000 — must cancel.
         assertTrue(tracker.checkAndMaybeGetCancellationReason(task).isPresent());
     }
 
@@ -239,23 +229,22 @@ public class NativeMemoryUsageTrackerTests extends OpenSearchTestCase {
         snapshot.put(2L, 200L);
         snapshot.put(3L, 300L);
         NativeMemoryUsageTracker.setSnapshotSupplier(() -> snapshot);
-        NativeMemoryUsageTracker tracker = new NativeMemoryUsageTracker(() -> 0.5);
-        tracker.refresh();
+        NativeMemoryUsageService.getInstance().refresh();
 
+        NativeMemoryUsageTracker tracker = new NativeMemoryUsageTracker(() -> 0.5);
         List<? extends Task> tasks = List.of(
-            mockTaskWithId(SearchTask.class, 1L),
-            mockTaskWithId(SearchTask.class, 2L),
-            mockTaskWithId(SearchTask.class, 3L)
+            createMockTask(SearchTask.class, 1L),
+            createMockTask(SearchTask.class, 2L),
+            createMockTask(SearchTask.class, 3L)
         );
         NativeMemoryUsageTracker.Stats stats = (NativeMemoryUsageTracker.Stats) tracker.stats(tasks);
-        // Cancellation count is zero — no checkAndMaybeGetCancellationReason invocations counted yet.
+        // No checkAndMaybeGetCancellationReason invocations — cancellation count stays at zero.
         NativeMemoryUsageTracker.Stats expected = new NativeMemoryUsageTracker.Stats(0L, 300L, 200L);
         assertEquals(expected, stats);
     }
 
     public void testStatsEmptyTaskList() {
         NativeMemoryUsageTracker tracker = new NativeMemoryUsageTracker(() -> 0.5);
-        tracker.refresh();
         NativeMemoryUsageTracker.Stats stats = (NativeMemoryUsageTracker.Stats) tracker.stats(List.of());
         assertEquals(new NativeMemoryUsageTracker.Stats(0L, 0L, 0L), stats);
     }
@@ -284,39 +273,45 @@ public class NativeMemoryUsageTrackerTests extends OpenSearchTestCase {
         assertEquals(a.hashCode(), b.hashCode());
     }
 
-    public void testIsNativeTrackingSupportedRequiresProvider() {
-        // isNativeTrackingSupported() returns false when no backend has installed a real
-        // supplier. Because the static supplier is a process-wide singleton, this assertion
-        // is best-effort: on Linux with prior installation it may be true, but on every
-        // platform it should agree with hasSnapshotProvider() AND a positive total memory
-        // reading. We verify the predicate is consistent with its inputs rather than
-        // hard-coding a value.
-        boolean supported = NativeMemoryUsageTracker.isNativeTrackingSupported();
-        if (supported) {
-            assertTrue(NativeMemoryUsageTracker.hasSnapshotProvider());
-            assertTrue(org.apache.lucene.util.Constants.LINUX);
-        }
-        // The negative direction always holds: non-Linux MUST report unsupported.
+    public void testIsNativeTrackingSupportedNonLinuxAlwaysFalse() {
+        // Negative direction always holds: non-Linux MUST report unsupported regardless of state.
         if (org.apache.lucene.util.Constants.LINUX == false) {
-            assertFalse(supported);
+            assertFalse(NativeMemoryUsageTracker.isNativeTrackingSupported());
         }
+    }
+
+    public void testIsNativeTrackingSupportedRequiresProvider() {
+        // Without a snapshot provider the predicate must be false even on Linux.
+        // (resetForTesting() in @Before clears any previously installed supplier.)
+        assertFalse(NativeMemoryUsageTracker.isNativeTrackingSupported());
     }
 
     public void testUpdateIsNoOp() {
         // update() is documented as a no-op; calling it must not throw or change snapshot state.
         NativeMemoryUsageTracker.setSnapshotSupplier(() -> Map.of(1L, 100L));
+        NativeMemoryUsageService.getInstance().refresh();
+
         NativeMemoryUsageTracker tracker = new NativeMemoryUsageTracker(() -> 0.5);
-        tracker.refresh();
-        Task task = mockTaskWithId(SearchTask.class, 1L);
+        Task task = createMockTask(SearchTask.class, 1L);
         tracker.update(task);
         assertEquals(100L, tracker.bytesForTask(task));
     }
 
+    public void testTrackerAcceptsInjectedService() {
+        // Package-private constructor lets a test isolate the service from the singleton.
+        NativeMemoryUsageService isolated = NativeMemoryUsageService.getInstance();
+        NativeMemoryUsageTracker tracker = new NativeMemoryUsageTracker(() -> 0.5, isolated);
+        assertNotNull(tracker);
+        assertEquals(TaskResourceUsageTrackerType.NATIVE_MEMORY_USAGE_TRACKER.getName(), tracker.name());
+    }
+
     /**
-     * Build a {@link CancellableTask} mock whose {@code getId()} returns the given id.
-     * The test-framework helper randomizes ids, which doesn't fit a snapshot-keyed test.
+     * Build a {@link CancellableTask} mock whose {@code getId()} returns the given id. The
+     * {@link org.opensearch.search.backpressure.SearchBackpressureTestHelpers#createMockTaskWithResourceStats}
+     * helper randomizes the id, which doesn't fit a snapshot-keyed test where evaluator
+     * lookups must hit a specific entry.
      */
-    private <T extends CancellableTask> T mockTaskWithId(Class<T> type, long id) {
+    private <T extends CancellableTask> T createMockTask(Class<T> type, long id) {
         T task = org.mockito.Mockito.mock(type);
         org.mockito.Mockito.when(task.getId()).thenReturn(id);
         org.mockito.Mockito.when(task.getTotalResourceStats())

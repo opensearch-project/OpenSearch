@@ -11,12 +11,11 @@ package org.opensearch.analytics.spi;
 /**
  * Snapshot of per-query execution metrics reported by an analytics backend.
  *
- * <p>The context id (the map key in {@link AnalyticsSearchBackendPlugin#getActiveQueryMetrics()})
+ * <p>The context id (the map key in {@link AnalyticsSearchBackendPlugin#getTopQueriesByMemory()})
  * is not repeated here — this record holds only the memory accounting fields.
  *
  * @param currentBytes bytes currently reserved by the query's memory pool
- * @param peakBytes    high-water mark of bytes reserved during the query's lifetime
  *
  * @opensearch.internal
  */
-public record QueryExecutionMetrics(long currentBytes, long peakBytes) {}
+public record QueryExecutionMetrics(long currentBytes) {}

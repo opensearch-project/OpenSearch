@@ -237,7 +237,6 @@ pub unsafe extern "C" fn df_query_registry_top_n_by_current(
         return Err(format!("negative capacity: {cap_entries}"));
     }
     if cap_entries == 0 {
-        info!("[nativemem-bp] ffm.df_query_registry_top_n_by_current: capacity=0, nothing to write");
         return Ok(0);
     }
     if out_ptr.is_null() {
@@ -246,10 +245,6 @@ pub unsafe extern "C" fn df_query_registry_top_n_by_current(
     let out: &mut [WireQueryMetric] =
         slice::from_raw_parts_mut(out_ptr as *mut WireQueryMetric, cap_entries as usize);
     let written = snapshot_top_n_by_current(out);
-    info!(
-        "[nativemem-bp] ffm.df_query_registry_top_n_by_current: wrote {} entries (capacity {})",
-        written, cap_entries
-    );
     Ok(written as i64)
 }
 

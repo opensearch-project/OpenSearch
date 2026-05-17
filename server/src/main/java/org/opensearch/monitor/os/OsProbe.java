@@ -238,6 +238,18 @@ public class OsProbe {
     }
 
     /**
+     * Reads the contents of {@code /proc/self/status} as a list of lines, one per key.
+     * Package-private so tests can override with a synthetic file layout.
+     *
+     * @return the lines from {@code /proc/self/status}
+     * @throws IOException if an I/O exception occurs reading the file
+     */
+    @SuppressForbidden(reason = "access /proc/self/status")
+    List<String> readProcSelfStatus() throws IOException {
+        return Files.readAllLines(PathUtils.get("/proc/self/status"));
+    }
+
+    /**
      * Reads the {@code RssAnon} field (anonymous resident memory) of the current process from
      * {@code /proc/self/status} and returns it in bytes. Returns {@code -1L} when the host is
      * not Linux, when {@code /proc/self/status} cannot be read, or when the {@code RssAnon:}
@@ -256,18 +268,6 @@ public class OsProbe {
             logger.warn("failed to read /proc/self/status", e);
             return -1L;
         }
-    }
-
-    /**
-     * Reads the lines of {@code /proc/self/status}. Package-private so tests can override it
-     * with canned file contents.
-     *
-     * @return the lines of {@code /proc/self/status}
-     * @throws IOException if the file cannot be opened or read
-     */
-    @SuppressForbidden(reason = "access /proc/self/status")
-    List<String> readProcSelfStatus() throws IOException {
-        return Files.readAllLines(PathUtils.get("/proc/self/status"));
     }
 
     /**
@@ -302,33 +302,8 @@ public class OsProbe {
         return -1L;
     }
 
-    /**
-     * Estimates the process's native (off-heap) anonymous memory footprint in bytes —
-     * {@link #getProcessRssAnonBytes()} minus the JVM heap maximum, clamped at zero.
-     *
-     * <p>{@code RssAnon} on Linux includes both committed JVM heap pages and native
-     * allocator pages (malloc, Rust allocator, direct buffers, metaspace). Subtracting
-     * {@code -Xmx} gives a rough "everything outside the heap" view that's useful for
-     * detecting native-side pressure without watching mmapped index files.
-     *
-     * <p>The result is approximate by construction:
-     * <ul>
-     *   <li>Early in a process's life, RssAnon can be lower than {@code -Xmx} because
-     *       not every heap page has been touched / committed yet — the clamp avoids a
-     *       negative reading.</li>
-     *   <li>Heap pages that have been swapped out or unmapped also depress the
-     *       reading, biasing the estimate low.</li>
-     * </ul>
-     *
-     * <p>On non-Linux platforms or older kernels where {@code RssAnon} isn't exposed,
-     * returns {@code -1} so callers can detect unsupported environments rather than
-     * treating the absence as zero pressure.
-     *
-     * @return estimated native (off-heap anonymous) bytes, or {@code -1} if the
-     *         underlying RssAnon signal is unavailable on this platform / kernel
-     */
     public long getProcessNativeMemoryBytes() {
-        long rssAnon = getProcessRssAnonBytes();
+        long rssAnon = getProcessRssAnon();
         if (rssAnon < 0L) {
             return -1L;
         }

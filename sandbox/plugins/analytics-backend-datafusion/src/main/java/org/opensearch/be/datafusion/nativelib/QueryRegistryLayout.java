@@ -1,4 +1,4 @@
-/*
+    /*
  * SPDX-License-Identifier: Apache-2.0
  *
  * The OpenSearch Contributors require contributions made to
@@ -17,11 +17,11 @@ import java.lang.foreign.ValueLayout;
 
 /**
  * Mirrors the Rust {@code query_tracker::WireQueryMetric} {@code #[repr(C)]}
- * struct (3 × i64 = 24 bytes) and decodes a strided buffer of those structs
+ * struct (2 × i64 = 16 bytes) and decodes a strided buffer of those structs
  * directly into the SPI types consumed by
- * {@link org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin#getActiveQueryMetrics}.
+ * {@link org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin#getTopQueriesByMemory}.
  *
- * <p>Decoder reads each row by slicing the segment to that row's 24-byte
+ * <p>Decoder reads each row by slicing the segment to that row's 16-byte
  * window. We deliberately avoid {@code SequenceLayout}-derived
  * {@code VarHandle}s because their bounds check enforces the segment span
  * the entire sequence layout, not just up to the requested row. With a
@@ -31,7 +31,7 @@ import java.lang.foreign.ValueLayout;
  * <p>Buffer shape (populated by {@code df_query_registry_top_n_by_current}):
  * <pre>
  *   [ entry 0 ][ entry 1 ] ... [ entry N-1 ]
- *   each entry = { context_id, current_bytes, peak_bytes } (3 × i64)
+ *   each entry = { context_id, current_bytes } (2 × i64)
  * </pre>
  */
 public final class QueryRegistryLayout {
@@ -39,8 +39,7 @@ public final class QueryRegistryLayout {
     /** Layout of a single wire entry. */
     public static final StructLayout ENTRY_LAYOUT = MemoryLayout.structLayout(
         ValueLayout.JAVA_LONG.withName("context_id"),
-        ValueLayout.JAVA_LONG.withName("current_bytes"),
-        ValueLayout.JAVA_LONG.withName("peak_bytes")
+        ValueLayout.JAVA_LONG.withName("current_bytes")
     );
 
     /** Byte size of one wire entry. Matches {@code size_of::<WireQueryMetric>()} on the Rust side. */
@@ -50,10 +49,9 @@ public final class QueryRegistryLayout {
     // ENTRY_LAYOUT and the Rust #[repr(C)] WireQueryMetric struct.
     private static final long OFF_CONTEXT_ID    = 0L;
     private static final long OFF_CURRENT_BYTES = 8L;
-    private static final long OFF_PEAK_BYTES    = 16L;
 
     static {
-        long expected = 3L * Long.BYTES;
+        long expected = 2L * Long.BYTES;
         if (ENTRY_BYTES != expected) {
             throw new AssertionError("QueryRegistryLayout entry size mismatch: expected " + expected + " but got " + ENTRY_BYTES);
         }
@@ -81,9 +79,6 @@ public final class QueryRegistryLayout {
      */
     public static QueryExecutionMetrics readMetrics(MemorySegment seg, int i) {
         long rowOffset = (long) i * ENTRY_BYTES;
-        return new QueryExecutionMetrics(
-            seg.get(ValueLayout.JAVA_LONG, rowOffset + OFF_CURRENT_BYTES),
-            seg.get(ValueLayout.JAVA_LONG, rowOffset + OFF_PEAK_BYTES)
-        );
+        return new QueryExecutionMetrics(seg.get(ValueLayout.JAVA_LONG, rowOffset + OFF_CURRENT_BYTES));
     }
 }

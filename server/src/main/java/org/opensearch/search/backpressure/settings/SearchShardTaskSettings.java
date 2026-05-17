@@ -38,8 +38,7 @@ public class SearchShardTaskSettings {
         // inert until an operator or backend plugin opts in by setting a non-zero threshold.
         // The per-task threshold is a fraction of the backend-installed native memory budget,
         // mirroring HEAP_PERCENT_THRESHOLD.
-        private static final long TOTAL_NATIVE_MEMORY_BYTES_THRESHOLD = 0L;
-        private static final double NATIVE_MEMORY_PERCENT_THRESHOLD = 0.0;
+        private static final double NATIVE_MEMORY_PERCENT_THRESHOLD = 0.05;
     }
 
     /**
@@ -168,25 +167,11 @@ public class SearchShardTaskSettings {
     );
 
     /**
-     * Defines the native-memory threshold (in bytes) for the sum of native-memory usages across
-     * all search shard tasks before in-flight cancellation is applied. {@code 0} disables the
-     * check.
-     */
-    private volatile long totalNativeMemoryBytesThreshold;
-    public static final Setting<Long> SETTING_TOTAL_NATIVE_MEMORY_BYTES_THRESHOLD = Setting.longSetting(
-        "search_backpressure.search_shard_task.total_native_memory_bytes_threshold",
-        Defaults.TOTAL_NATIVE_MEMORY_BYTES_THRESHOLD,
-        0L,
-        Setting.Property.Dynamic,
-        Setting.Property.NodeScope
-    );
-
-    /**
      * Defines the native-memory threshold (as a fraction of the backend-installed native-memory
      * budget, in {@code [0.0, 1.0]}) for an individual search shard task before it is considered
      * for cancellation. The effective per-task byte threshold is {@code budget * fraction}, where
      * {@code budget} is the value installed via
-     * {@link org.opensearch.search.backpressure.trackers.NativeMemoryUsageTracker#setNativeMemoryBudgetSupplier}.
+     * {@link org.opensearch.search.backpressure.NativeMemoryUsageService#setBudgetSupplier}.
      * {@code 0.0} disables the check.
      */
     private volatile double nativeMemoryPercentThreshold;
@@ -209,7 +194,6 @@ public class SearchShardTaskSettings {
         this.cancellationRatio = SETTING_CANCELLATION_RATIO.get(settings);
         this.cancellationRate = SETTING_CANCELLATION_RATE.get(settings);
         this.cancellationBurst = SETTING_CANCELLATION_BURST.get(settings);
-        this.totalNativeMemoryBytesThreshold = SETTING_TOTAL_NATIVE_MEMORY_BYTES_THRESHOLD.get(settings);
         this.nativeMemoryPercentThreshold = SETTING_NATIVE_MEMORY_PERCENT_THRESHOLD.get(settings);
 
         clusterSettings.addSettingsUpdateConsumer(SETTING_TOTAL_HEAP_PERCENT_THRESHOLD, this::setTotalHeapPercentThreshold);
@@ -221,7 +205,6 @@ public class SearchShardTaskSettings {
         clusterSettings.addSettingsUpdateConsumer(SETTING_CANCELLATION_RATIO, this::setCancellationRatio);
         clusterSettings.addSettingsUpdateConsumer(SETTING_CANCELLATION_RATE, this::setCancellationRate);
         clusterSettings.addSettingsUpdateConsumer(SETTING_CANCELLATION_BURST, this::setCancellationBurst);
-        clusterSettings.addSettingsUpdateConsumer(SETTING_TOTAL_NATIVE_MEMORY_BYTES_THRESHOLD, this::setTotalNativeMemoryBytesThreshold);
         clusterSettings.addSettingsUpdateConsumer(SETTING_NATIVE_MEMORY_PERCENT_THRESHOLD, this::setNativeMemoryPercentThreshold);
     }
 
@@ -271,14 +254,6 @@ public class SearchShardTaskSettings {
 
     public void setHeapMovingAverageWindowSize(int heapMovingAverageWindowSize) {
         this.heapMovingAverageWindowSize = heapMovingAverageWindowSize;
-    }
-
-    public long getTotalNativeMemoryBytesThreshold() {
-        return totalNativeMemoryBytesThreshold;
-    }
-
-    private void setTotalNativeMemoryBytesThreshold(long totalNativeMemoryBytesThreshold) {
-        this.totalNativeMemoryBytesThreshold = totalNativeMemoryBytesThreshold;
     }
 
     public double getNativeMemoryPercentThreshold() {

@@ -612,89 +612,99 @@ public class SearchBackpressureServiceTests extends OpenSearchTestCase {
         // which today requires Linux + a readable /proc/meminfo. Non-Linux test hosts cannot
         // exercise this short-circuit regardless of how the fixtures are wired.
         assumeTrue("native memory tracking is only supported on Linux", org.apache.lucene.util.Constants.LINUX);
-        // When native-memory duress is active, heap/CPU trackers MUST NOT run. We install
-        // "always cancel" mocks for CPU and heap, and confirm nothing trips from them; the
-        // native-memory tracker is the only one that should contribute cancellations.
-        TaskManager mockTaskManager = spy(taskManager);
-        TaskResourceTrackingService mockTaskResourceTrackingService = mock(TaskResourceTrackingService.class);
-        AtomicLong mockTime = new AtomicLong(0);
-        LongSupplier mockTimeNanosSupplier = mockTime::get;
+        // isNativeTrackingSupported() also gates on whether a backend has installed a
+        // snapshot provider on NativeMemoryUsageService. The mock tracker in this test
+        // doesn't go through that path, so we install a sentinel non-empty supplier here
+        // and reset it in finally so other tests don't see leftover state.
+        org.opensearch.search.backpressure.NativeMemoryUsageService.getInstance().setSnapshotSupplier(java.util.Collections::emptyMap);
+        try {
+            // When native-memory duress is active, heap/CPU trackers MUST NOT run. We install
+            // "always cancel" mocks for CPU and heap, and confirm nothing trips from them; the
+            // native-memory tracker is the only one that should contribute cancellations.
+            TaskManager mockTaskManager = spy(taskManager);
+            TaskResourceTrackingService mockTaskResourceTrackingService = mock(TaskResourceTrackingService.class);
+            AtomicLong mockTime = new AtomicLong(0);
+            LongSupplier mockTimeNanosSupplier = mockTime::get;
 
-        // CPU/heap ResourceType duress both OFF — only the native-memory probe is firing.
-        EnumMap<ResourceType, NodeDuressTracker> duressTrackers = new EnumMap<>(ResourceType.class) {
-            {
-                put(MEMORY, new NodeDuressTracker(() -> false, () -> 3));
-                put(CPU, new NodeDuressTracker(() -> false, () -> 3));
-                put(ResourceType.NATIVE_MEMORY, new NodeDuressTracker(() -> true, () -> 3));
-            }
-        };
-        NodeDuressTrackers nodeDuressTrackers = new NodeDuressTrackers(duressTrackers, resourceCacheExpiryChecker);
-
-        // Unconditionally-cancelling CPU + heap trackers. These should never be consulted.
-        TaskResourceUsageTracker cpuUsageTracker = getMockedTaskResourceUsageTracker(
-            TaskResourceUsageTrackerType.CPU_USAGE_TRACKER,
-            (task) -> Optional.of(new TaskCancellation.Reason("cpu (should not fire)", 10))
-        );
-        TaskResourceUsageTracker heapUsageTracker = getMockedTaskResourceUsageTracker(
-            TaskResourceUsageTrackerType.HEAP_USAGE_TRACKER,
-            (task) -> Optional.of(new TaskCancellation.Reason("heap (should not fire)", 10))
-        );
-        // Native-memory tracker: cancels tasks whose memory bytes exceed a modest threshold.
-        TaskResourceUsageTracker nativeMemoryTracker = getMockedTaskResourceUsageTracker(
-            TaskResourceUsageTrackerType.NATIVE_MEMORY_USAGE_TRACKER,
-            (task) -> {
-                if (task.getTotalResourceStats().getMemoryInBytes() < 500) {
-                    return Optional.empty();
+            // CPU/heap ResourceType duress both OFF — only the native-memory probe is firing.
+            EnumMap<ResourceType, NodeDuressTracker> duressTrackers = new EnumMap<>(ResourceType.class) {
+                {
+                    put(MEMORY, new NodeDuressTracker(() -> false, () -> 3));
+                    put(CPU, new NodeDuressTracker(() -> false, () -> 3));
+                    put(ResourceType.NATIVE_MEMORY, new NodeDuressTracker(() -> true, () -> 3));
                 }
-                return Optional.of(new TaskCancellation.Reason("native memory exceeded", 5));
+            };
+            NodeDuressTrackers nodeDuressTrackers = new NodeDuressTrackers(duressTrackers, resourceCacheExpiryChecker);
+
+            // Unconditionally-cancelling CPU + heap trackers. These should never be consulted.
+            TaskResourceUsageTracker cpuUsageTracker = getMockedTaskResourceUsageTracker(
+                TaskResourceUsageTrackerType.CPU_USAGE_TRACKER,
+                (task) -> Optional.of(new TaskCancellation.Reason("cpu (should not fire)", 10))
+            );
+            TaskResourceUsageTracker heapUsageTracker = getMockedTaskResourceUsageTracker(
+                TaskResourceUsageTrackerType.HEAP_USAGE_TRACKER,
+                (task) -> Optional.of(new TaskCancellation.Reason("heap (should not fire)", 10))
+            );
+            // Native-memory tracker: cancels tasks whose memory bytes exceed a modest threshold.
+            TaskResourceUsageTracker nativeMemoryTracker = getMockedTaskResourceUsageTracker(
+                TaskResourceUsageTrackerType.NATIVE_MEMORY_USAGE_TRACKER,
+                (task) -> {
+                    if (task.getTotalResourceStats().getMemoryInBytes() < 500) {
+                        return Optional.empty();
+                    }
+                    return Optional.of(new TaskCancellation.Reason("native memory exceeded", 5));
+                }
+            );
+            // Elapsed-time tracker left silent so the cancellation count is unambiguously from
+            // the native-memory tracker.
+            TaskResourceUsageTracker elapsedTimeTracker = getMockedTaskResourceUsageTracker(
+                TaskResourceUsageTrackerType.ELAPSED_TIME_TRACKER,
+                (task) -> Optional.empty()
+            );
+
+            TaskResourceUsageTrackers taskResourceUsageTrackers = new TaskResourceUsageTrackers();
+            taskResourceUsageTrackers.addTracker(cpuUsageTracker, TaskResourceUsageTrackerType.CPU_USAGE_TRACKER);
+            taskResourceUsageTrackers.addTracker(heapUsageTracker, TaskResourceUsageTrackerType.HEAP_USAGE_TRACKER);
+            taskResourceUsageTrackers.addTracker(nativeMemoryTracker, TaskResourceUsageTrackerType.NATIVE_MEMORY_USAGE_TRACKER);
+            taskResourceUsageTrackers.addTracker(elapsedTimeTracker, TaskResourceUsageTrackerType.ELAPSED_TIME_TRACKER);
+
+            SearchBackpressureSettings settings = getBackpressureSettings("enforced", 0.1, 0.003, 10.0);
+            SearchBackpressureService service = new SearchBackpressureService(
+                settings,
+                mockTaskResourceTrackingService,
+                threadPool,
+                mockTimeNanosSupplier,
+                nodeDuressTrackers,
+                taskResourceUsageTrackers,
+                new TaskResourceUsageTrackers(),
+                mockTaskManager,
+                workloadGroupService
+            );
+
+            when(workloadGroupService.shouldSBPHandle(any())).thenReturn(true);
+
+            // Prime the native-memory duress streak (consecutive-breach window is 3).
+            service.doRun();
+            service.doRun();
+
+            // Load 20 tasks; 4 are heavy (mem >= 500) so exactly 4 are native-memory cancellation
+            // candidates. Heap/CPU would want to cancel all 20 — verifying this test's whole point.
+            Map<Long, WorkloadGroupTask> activeSearchTasks = new HashMap<>();
+            for (long i = 0; i < 20; i++) {
+                long memoryBytes = (i % 5 == 0) ? 800 : 100;
+                activeSearchTasks.put(i, createMockTaskWithResourceStats(SearchTask.class, 100, memoryBytes, i));
             }
-        );
-        // Elapsed-time tracker left silent so the cancellation count is unambiguously from
-        // the native-memory tracker.
-        TaskResourceUsageTracker elapsedTimeTracker = getMockedTaskResourceUsageTracker(
-            TaskResourceUsageTrackerType.ELAPSED_TIME_TRACKER,
-            (task) -> Optional.empty()
-        );
+            activeSearchTasks.values().forEach(task -> task.setWorkloadGroupId(threadPool.getThreadContext()));
+            doReturn(activeSearchTasks).when(mockTaskResourceTrackingService).getResourceAwareTasks();
 
-        TaskResourceUsageTrackers taskResourceUsageTrackers = new TaskResourceUsageTrackers();
-        taskResourceUsageTrackers.addTracker(cpuUsageTracker, TaskResourceUsageTrackerType.CPU_USAGE_TRACKER);
-        taskResourceUsageTrackers.addTracker(heapUsageTracker, TaskResourceUsageTrackerType.HEAP_USAGE_TRACKER);
-        taskResourceUsageTrackers.addTracker(nativeMemoryTracker, TaskResourceUsageTrackerType.NATIVE_MEMORY_USAGE_TRACKER);
-        taskResourceUsageTrackers.addTracker(elapsedTimeTracker, TaskResourceUsageTrackerType.ELAPSED_TIME_TRACKER);
-
-        SearchBackpressureSettings settings = getBackpressureSettings("enforced", 0.1, 0.003, 10.0);
-        SearchBackpressureService service = new SearchBackpressureService(
-            settings,
-            mockTaskResourceTrackingService,
-            threadPool,
-            mockTimeNanosSupplier,
-            nodeDuressTrackers,
-            taskResourceUsageTrackers,
-            new TaskResourceUsageTrackers(),
-            mockTaskManager,
-            workloadGroupService
-        );
-
-        when(workloadGroupService.shouldSBPHandle(any())).thenReturn(true);
-
-        // Prime the native-memory duress streak (consecutive-breach window is 3).
-        service.doRun();
-        service.doRun();
-
-        // Load 20 tasks; 4 are heavy (mem >= 500) so exactly 4 are native-memory cancellation
-        // candidates. Heap/CPU would want to cancel all 20 — verifying this test's whole point.
-        Map<Long, WorkloadGroupTask> activeSearchTasks = new HashMap<>();
-        for (long i = 0; i < 20; i++) {
-            long memoryBytes = (i % 5 == 0) ? 800 : 100;
-            activeSearchTasks.put(i, createMockTaskWithResourceStats(SearchTask.class, 100, memoryBytes, i));
+            service.doRun();
+            // Exactly the heavy tasks were cancelled — no extras from the "always cancel" CPU/heap mocks.
+            verify(mockTaskManager, times(4)).cancelTaskAndDescendants(any(), anyString(), anyBoolean(), any());
+            assertEquals(4, service.getSearchBackpressureState(SearchTask.class).getCancellationCount());
+        } finally {
+            // Don't leak the sentinel supplier into other tests in this suite.
+            org.opensearch.search.backpressure.NativeMemoryUsageService.getInstance().resetForTesting();
         }
-        activeSearchTasks.values().forEach(task -> task.setWorkloadGroupId(threadPool.getThreadContext()));
-        doReturn(activeSearchTasks).when(mockTaskResourceTrackingService).getResourceAwareTasks();
-
-        service.doRun();
-        // Exactly the heavy tasks were cancelled — no extras from the "always cancel" CPU/heap mocks.
-        verify(mockTaskManager, times(4)).cancelTaskAndDescendants(any(), anyString(), anyBoolean(), any());
-        assertEquals(4, service.getSearchBackpressureState(SearchTask.class).getCancellationCount());
     }
 
     private TaskResourceUsageTracker getMockedTaskResourceUsageTracker(
