@@ -148,7 +148,7 @@ public class KafkaPartitionConsumer implements IngestionShardConsumer<KafkaOffse
      * @throws TimeoutException
      */
     @Override
-    public List<ReadResult<KafkaOffset, KafkaMessage>> readNext(
+    public synchronized List<ReadResult<KafkaOffset, KafkaMessage>> readNext(
         KafkaOffset offset,
         boolean includeStart,
         long maxMessages,
@@ -168,7 +168,7 @@ public class KafkaPartitionConsumer implements IngestionShardConsumer<KafkaOffse
      * @throws TimeoutException
      */
     @Override
-    public List<ReadResult<KafkaOffset, KafkaMessage>> readNext(long maxMessages, int timeoutMillis) throws TimeoutException {
+    public synchronized List<ReadResult<KafkaOffset, KafkaMessage>> readNext(long maxMessages, int timeoutMillis) throws TimeoutException {
         List<ReadResult<KafkaOffset, KafkaMessage>> records = AccessController.doPrivileged(
             (PrivilegedAction<List<ReadResult<KafkaOffset, KafkaMessage>>>) () -> fetch(lastFetchedOffset, false, timeoutMillis)
         );
@@ -176,7 +176,7 @@ public class KafkaPartitionConsumer implements IngestionShardConsumer<KafkaOffse
     }
 
     @Override
-    public IngestionShardPointer earliestPointer() {
+    public synchronized IngestionShardPointer earliestPointer() {
         long startOffset = AccessController.doPrivileged(
             (PrivilegedAction<Long>) () -> consumer.beginningOffsets(Collections.singletonList(topicPartition))
                 .getOrDefault(topicPartition, 0L)
@@ -185,7 +185,7 @@ public class KafkaPartitionConsumer implements IngestionShardConsumer<KafkaOffse
     }
 
     @Override
-    public IngestionShardPointer latestPointer() {
+    public synchronized IngestionShardPointer latestPointer() {
         long endOffset = AccessController.doPrivileged(
             (PrivilegedAction<Long>) () -> consumer.endOffsets(Collections.singletonList(topicPartition)).getOrDefault(topicPartition, 0L)
         );
@@ -193,7 +193,7 @@ public class KafkaPartitionConsumer implements IngestionShardConsumer<KafkaOffse
     }
 
     @Override
-    public IngestionShardPointer pointerFromTimestampMillis(long timestampMillis) {
+    public synchronized IngestionShardPointer pointerFromTimestampMillis(long timestampMillis) {
         long offset = AccessController.doPrivileged((PrivilegedAction<Long>) () -> {
             Map<TopicPartition, OffsetAndTimestamp> position = consumer.offsetsForTimes(
                 Collections.singletonMap(topicPartition, timestampMillis)
@@ -263,14 +263,12 @@ public class KafkaPartitionConsumer implements IngestionShardConsumer<KafkaOffse
 
     /**
      * Compute Kafka offset based lag as the difference between latest available offset and last consumed offset.
-     * Note: This method is not thread-safe and should only be called from the poller thread to avoid multi-threaded
-     * access to KafkaConsumer.
      *
      * @param expectedStartPointer the pointer where ingestion would start if no messages have been consumed yet
      * @return offset based lag. -1 is returned if errors are encountered.
      */
     @Override
-    public long getPointerBasedLag(IngestionShardPointer expectedStartPointer) {
+    public synchronized long getPointerBasedLag(IngestionShardPointer expectedStartPointer) {
         try {
             // Get the end offset for the partition
             long endOffset = consumer.endOffsets(Collections.singletonList(topicPartition)).getOrDefault(topicPartition, 0L);
@@ -291,7 +289,7 @@ public class KafkaPartitionConsumer implements IngestionShardConsumer<KafkaOffse
     }
 
     @Override
-    public void close() throws IOException {
+    public synchronized void close() throws IOException {
         consumer.close();
     }
 

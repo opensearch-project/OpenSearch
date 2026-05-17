@@ -135,12 +135,7 @@ public class PartitionedBlockingQueueContainer {
         );
         try {
             partitionToQueueMap.get(partition).put(shardUpdateMessage);
-        } catch (InterruptedException e) {
-            if (previousFirstQueuedPointer == null) {
-                partitionToFirstQueuedPointerMap.remove(partition, shardUpdateMessage.pointer());
-            }
-            throw e;
-        } catch (RuntimeException e) {
+        } catch (InterruptedException | RuntimeException e) {
             if (previousFirstQueuedPointer == null) {
                 partitionToFirstQueuedPointerMap.remove(partition, shardUpdateMessage.pointer());
             }
@@ -190,7 +185,8 @@ public class PartitionedBlockingQueueContainer {
     }
 
     /**
-     * Returns the current shard pointers from each message processor thread.
+     * Returns the list of lowest/first shard pointer per partition that is in-flight or already processed.
+     * If the processor thread is yet to process the very first message, the first queued pointer for the partition is considered.
      */
     public List<IngestionShardPointer> getCurrentShardPointers() {
         return partitionToMessageProcessorMap.entrySet().stream().map(entry -> {
