@@ -100,7 +100,8 @@ impl MergeContext {
             .get(index_name)
             .map(|r| r.clone())
             .unwrap_or_default();
-        let writer_props = Arc::new(WriterPropertiesBuilder::build(&config));
+        let writer_props = Arc::new(WriterPropertiesBuilder::build(&config, &output_schema)
+            .map_err(|e| MergeError::Logic(format!("Invalid encoding/compression config: {}", e)))?);
 
         let writer = SerializedFileWriter::new(crc_writer, parquet_root, writer_props)?;
         let rg_writer_factory = ArrowRowGroupWriterFactory::new(&writer, output_schema.clone());

@@ -104,7 +104,8 @@ public class RustBridge {
                 ValueLayout.ADDRESS,
                 ValueLayout.ADDRESS,
                 ValueLayout.JAVA_LONG,
-                ValueLayout.ADDRESS
+                ValueLayout.ADDRESS,
+                ValueLayout.ADDRESS   // num_row_groups_out
             )
         );
         GET_FILTERED_BYTES = linker.downcallHandle(
@@ -129,9 +130,33 @@ public class RustBridge {
                 ValueLayout.JAVA_LONG,                        // sort_in_memory_threshold_bytes
                 ValueLayout.JAVA_LONG,                        // sort_batch_size
                 ValueLayout.JAVA_LONG,                        // row_group_max_rows
+                ValueLayout.JAVA_LONG,                        // row_group_max_bytes
                 ValueLayout.JAVA_LONG,                        // merge_batch_size
                 ValueLayout.JAVA_LONG,                        // merge_rayon_threads
-                ValueLayout.JAVA_LONG                         // merge_io_threads
+                ValueLayout.JAVA_LONG,                        // merge_io_threads
+                ValueLayout.ADDRESS,
+                ValueLayout.ADDRESS,
+                ValueLayout.ADDRESS,
+                ValueLayout.ADDRESS,
+                ValueLayout.JAVA_LONG,   // field_name_ptrs, field_name_lens, field_encoding_ptrs, field_encoding_lens, field_count
+                ValueLayout.ADDRESS,
+                ValueLayout.ADDRESS,
+                ValueLayout.ADDRESS,
+                ValueLayout.ADDRESS,
+                ValueLayout.JAVA_LONG,   // field_compression_name_ptrs, field_compression_name_lens, field_compression_value_ptrs,
+                                         // field_compression_value_lens, field_compression_count
+                ValueLayout.ADDRESS,
+                ValueLayout.ADDRESS,
+                ValueLayout.ADDRESS,
+                ValueLayout.ADDRESS,
+                ValueLayout.JAVA_LONG,   // type_encoding_name_ptrs, type_encoding_name_lens, type_encoding_value_ptrs,
+                                         // type_encoding_value_lens, type_encoding_count
+                ValueLayout.ADDRESS,
+                ValueLayout.ADDRESS,
+                ValueLayout.ADDRESS,
+                ValueLayout.ADDRESS,
+                ValueLayout.JAVA_LONG    // type_compression_name_ptrs, type_compression_name_lens, type_compression_value_ptrs,
+                                         // type_compression_value_lens, type_compression_count
             )
         );
         REMOVE_SETTINGS = linker.downcallHandle(
@@ -266,8 +291,9 @@ public class RustBridge {
             var f = call.str(file);
             var versionOut = call.intOut();
             var numRowsOut = call.longOut();
+            var numRowGroupsOut = call.longOut();
             var out = call.outBuffer(1024);
-            call.invokeIO(GET_FILE_METADATA, f.segment(), f.len(), versionOut, numRowsOut, out.data(), (long) out.capacity(), out.lenOut());
+            call.invokeIO(GET_FILE_METADATA, f.segment(), f.len(), versionOut, numRowsOut, out.data(), (long) out.capacity(), out.lenOut(), numRowGroupsOut);
             int createdByLen = out.actualLength();
             return new ParquetFileMetadata(
                 versionOut.get(ValueLayout.JAVA_INT, 0),
@@ -275,7 +301,8 @@ public class RustBridge {
                 createdByLen >= 0
                     ? new String(out.data().asSlice(0, createdByLen).toArray(ValueLayout.JAVA_BYTE), StandardCharsets.UTF_8)
                     : null,
-                0L
+                0L,
+                (int) numRowGroupsOut.get(ValueLayout.JAVA_LONG, 0)
             );
         }
     }
@@ -291,6 +318,12 @@ public class RustBridge {
         try (var call = new NativeCall()) {
             var idx = call.str(nativeSettings.getIndexName());
             var ct = nativeSettings.getCompressionType() != null ? call.str(nativeSettings.getCompressionType()) : null;
+
+            var fieldEncodings = toNativeArrays(call, nativeSettings.getFieldEncodings());
+            var fieldCompressions = toNativeArrays(call, nativeSettings.getFieldCompressions());
+            var typeEncodings = toNativeArrays(call, nativeSettings.getTypeEncodings());
+            var typeCompressions = toNativeArrays(call, nativeSettings.getTypeCompressions());
+
             call.invokeIO(
                 ON_SETTINGS_UPDATE,
                 idx.segment(),
@@ -307,9 +340,30 @@ public class RustBridge {
                 nativeSettings.getSortInMemoryThresholdBytes() != null ? nativeSettings.getSortInMemoryThresholdBytes() : -1L,
                 nativeSettings.getSortBatchSize() != null ? (long) nativeSettings.getSortBatchSize() : -1L,
                 nativeSettings.getRowGroupMaxRows() != null ? (long) nativeSettings.getRowGroupMaxRows() : -1L,
+                nativeSettings.getRowGroupMaxBytes() != null ? nativeSettings.getRowGroupMaxBytes() : -1L,
                 nativeSettings.getMergeBatchSize() != null ? (long) nativeSettings.getMergeBatchSize() : -1L,
                 nativeSettings.getMergeRayonThreads() != null ? (long) nativeSettings.getMergeRayonThreads() : -1L,
-                nativeSettings.getMergeIoThreads() != null ? (long) nativeSettings.getMergeIoThreads() : -1L
+                nativeSettings.getMergeIoThreads() != null ? (long) nativeSettings.getMergeIoThreads() : -1L,
+                fieldEncodings.keys().ptrs(),
+                fieldEncodings.keys().lens(),
+                fieldEncodings.values().ptrs(),
+                fieldEncodings.values().lens(),
+                fieldEncodings.keys().count(),
+                fieldCompressions.keys().ptrs(),
+                fieldCompressions.keys().lens(),
+                fieldCompressions.values().ptrs(),
+                fieldCompressions.values().lens(),
+                fieldCompressions.keys().count(),
+                typeEncodings.keys().ptrs(),
+                typeEncodings.keys().lens(),
+                typeEncodings.values().ptrs(),
+                typeEncodings.values().lens(),
+                typeEncodings.keys().count(),
+                typeCompressions.keys().ptrs(),
+                typeCompressions.keys().lens(),
+                typeCompressions.values().ptrs(),
+                typeCompressions.values().lens(),
+                typeCompressions.keys().count()
             );
         }
     }
@@ -459,6 +513,18 @@ public class RustBridge {
             int len = (int) outLen.get(ValueLayout.JAVA_LONG, 0);
             return new String(outBuf.asSlice(0, len).toArray(ValueLayout.JAVA_BYTE), StandardCharsets.UTF_8);
         }
+    }
+
+    private record MapArrays(NativeCall.StrArray keys, NativeCall.StrArray values) {
+    }
+
+    private static MapArrays toNativeArrays(NativeCall call, Map<String, String> map) {
+        String[] keys = map.keySet().toArray(new String[0]);
+        String[] values = new String[keys.length];
+        for (int i = 0; i < keys.length; i++) {
+            values[i] = map.get(keys[i]);
+        }
+        return new MapArrays(call.strArray(keys), call.strArray(values));
     }
 
     private RustBridge() {}

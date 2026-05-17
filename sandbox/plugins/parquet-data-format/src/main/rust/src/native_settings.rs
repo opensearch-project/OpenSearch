@@ -19,6 +19,8 @@ pub struct NativeSettings {
     pub page_row_limit: Option<usize>,
     pub dict_size_bytes: Option<usize>,
     pub field_configs: Option<HashMap<String, FieldConfig>>,
+    pub type_encoding_configs: Option<HashMap<String, String>>,
+    pub type_compression_configs: Option<HashMap<String, String>>,
     pub custom_settings: Option<HashMap<String, String>>,
     pub bloom_filter_enabled: Option<bool>,
     pub bloom_filter_fpp: Option<f64>,
@@ -30,6 +32,7 @@ pub struct NativeSettings {
     pub sort_batch_size: Option<usize>,
     pub merge_batch_size: Option<usize>,
     pub row_group_max_rows: Option<usize>,
+    pub row_group_max_bytes: Option<usize>,
     pub merge_rayon_threads: Option<usize>,
     pub merge_io_threads: Option<usize>,
 }
@@ -95,6 +98,10 @@ impl NativeSettings {
         self.row_group_max_rows.unwrap_or(1_000_000)
     }
 
+    pub fn get_row_group_max_bytes(&self) -> usize {
+        self.row_group_max_bytes.unwrap_or(128 * 1024 * 1024)
+    }
+
     pub fn get_merge_rayon_threads(&self) -> Option<usize> {
         self.merge_rayon_threads
     }
@@ -137,6 +144,7 @@ mod tests {
         field_configs.insert("timestamp".to_string(), FieldConfig {
             compression_type: Some("SNAPPY".to_string()),
             compression_level: None,
+            encoding_type: None,
         });
         let config = NativeSettings {
             compression_type: Some("ZSTD".to_string()),
