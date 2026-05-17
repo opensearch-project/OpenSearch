@@ -32,10 +32,6 @@
 
 package org.opensearch.cli;
 
-import joptsimple.NonOptionArgumentSpec;
-import joptsimple.OptionSet;
-import joptsimple.OptionSpec;
-import joptsimple.util.KeyValuePair;
 import org.opensearch.common.util.io.IOUtils;
 
 import java.io.IOException;
@@ -44,26 +40,44 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+import picocli.CommandLine.Option;
+import picocli.CommandLine.Parameters;
+
 /**
- * A cli tool which is made up of multiple subcommands.
+ * A CLI tool made up of multiple subcommands.
+ *
+ * Behavior:
+ *  - leading positional selects the subcommand
+ *  - remaining positionals are forwarded to that subcommand
+ *  - -E key=value pairs are forwarded to the subcommand as "-Ekey=value"
+ *  - prints a "Commands" list in additional help
  */
+@picocli.CommandLine.Command(name = "", // the actual name is typically set by the launcher
+    mixinStandardHelpOptions = true, usageHelpAutoWidth = true, description = "Run one of the available sub-commands.")
 public class MultiCommand extends Command {
 
     protected final Map<String, Command> subcommands = new LinkedHashMap<>();
 
-    private final NonOptionArgumentSpec<String> arguments = parser.nonOptions("command");
-    private final OptionSpec<KeyValuePair> settingOption;
+    /** First positional: the subcommand name */
+    @Parameters(index = "0", arity = "0..1", paramLabel = "command", description = "The subcommand to run")
+    private String subcommandName;
+
+    /** Remaining positionals: args for the subcommand */
+    @Parameters(index = "1..*", arity = "0..*", paramLabel = "args", description = "Arguments passed to the subcommand")
+    private List<String> remainingArgs = new ArrayList<>();
+
+    /** -E key=value settings to forward to the subcommand */
+    @Option(names = "-E", paramLabel = "key=value", arity = "1..*", description = "Configure a setting (may be specified multiple times)")
+    private List<String> settings = new ArrayList<>();
 
     /**
      * Construct the multi-command with the specified command description and runnable to execute before main is invoked.
      *
      * @param description the multi-command description
-     * @param beforeMain the before-main runnable
+     * @param beforeMain  the before-main runnable
      */
     public MultiCommand(final String description, final Runnable beforeMain) {
         super(description, beforeMain);
-        this.settingOption = parser.accepts("E", "Configure a setting").withRequiredArg().ofType(KeyValuePair.class);
-        parser.posixlyCorrect(true);
     }
 
     @Override
@@ -73,40 +87,44 @@ public class MultiCommand extends Command {
         }
         terminal.println("Commands");
         terminal.println("--------");
-        for (Map.Entry<String, Command> subcommand : subcommands.entrySet()) {
-            terminal.println(subcommand.getKey() + " - " + subcommand.getValue().description);
+        for (Map.Entry<String, Command> sub : subcommands.entrySet()) {
+            terminal.println(sub.getKey() + " - " + sub.getValue().description);
         }
         terminal.println("");
     }
 
     @Override
-    protected void execute(Terminal terminal, OptionSet options) throws Exception {
+    protected void execute(Terminal terminal) throws Exception {
         if (subcommands.isEmpty()) {
             throw new IllegalStateException("No subcommands configured");
         }
 
-        // .values(...) returns an unmodifiable list
-        final List<String> args = new ArrayList<>(arguments.values(options));
-        if (args.isEmpty()) {
+        if (subcommandName == null || subcommandName.isEmpty()) {
             throw new UserException(ExitCodes.USAGE, "Missing command");
         }
 
-        String subcommandName = args.remove(0);
-        Command subcommand = subcommands.get(subcommandName);
-        if (subcommand == null) {
+        Command sub = subcommands.get(subcommandName);
+        if (sub == null) {
             throw new UserException(ExitCodes.USAGE, "Unknown command [" + subcommandName + "]");
         }
 
-        for (final KeyValuePair pair : this.settingOption.values(options)) {
-            args.add("-E" + pair);
+        // Rebuild argv for the subcommand:
+        // <remainingArgs> plus "-Ekey=value" for each -E occurrence
+        List<String> childArgs = new ArrayList<>(remainingArgs);
+
+        for (String kv : settings) {
+            if (kv == null || kv.isEmpty() || kv.indexOf('=') < 1) {
+                throw new UserException(ExitCodes.USAGE, "Invalid -E setting [" + kv + "], expected key=value");
+            }
+            childArgs.add("-E" + kv);
         }
 
-        subcommand.mainWithoutErrorHandling(args.toArray(new String[0]), terminal);
+        // Delegate to the subcommand, preserving our error-handling contract
+        sub.mainWithoutErrorHandling(childArgs.toArray(new String[0]), terminal);
     }
 
     @Override
     public void close() throws IOException {
         IOUtils.close(subcommands.values());
     }
-
 }

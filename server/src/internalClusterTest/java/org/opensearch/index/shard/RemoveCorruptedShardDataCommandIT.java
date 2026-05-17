@@ -33,8 +33,6 @@ package org.opensearch.index.shard;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 
-import joptsimple.OptionParser;
-import joptsimple.OptionSet;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
@@ -103,6 +101,8 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
+import picocli.CommandLine;
+
 import static org.opensearch.action.admin.cluster.node.stats.NodesStatsRequest.Metric.FS;
 import static org.opensearch.core.common.util.CollectionUtils.iterableAsArrayList;
 import static org.opensearch.index.query.QueryBuilders.matchAllQuery;
@@ -161,18 +161,19 @@ public class RemoveCorruptedShardDataCommandIT extends OpenSearchIntegTestCase {
 
         final RemoveCorruptedShardDataCommand command = new RemoveCorruptedShardDataCommand();
         final MockTerminal terminal = new MockTerminal();
-        final OptionParser parser = command.getParser();
 
         final Settings nodePathSettings = internalCluster().dataPathSettings(node);
 
         final Environment environment = TestEnvironment.newEnvironment(
             Settings.builder().put(internalCluster().getDefaultSettings()).put(nodePathSettings).build()
         );
-        final OptionSet options = parser.parse("-index", indexName, "-shard-id", "0");
+
+        // Parse args (picocli)
+        new CommandLine(command).parseArgs("--index", indexName, "--shard-id", "0");
 
         // Try running it before the node is stopped (and shard is closed)
         try {
-            command.execute(terminal, options, environment);
+            command.execute(terminal, environment);
             fail("expected the command to fail as node is locked");
         } catch (Exception e) {
             assertThat(
@@ -186,9 +187,9 @@ public class RemoveCorruptedShardDataCommandIT extends OpenSearchIntegTestCase {
         internalCluster().restartNode(node, new InternalTestCluster.RestartCallback() {
             @Override
             public Settings onNodeStopped(String nodeName) throws Exception {
-                // Try running it before the shard is corrupted, it should flip out because there is no corruption file marker
+                // Try running it before the shard is corrupted, it should fail because there is no corruption file marker
                 try {
-                    command.execute(terminal, options, environment);
+                    command.execute(terminal, environment);
                     fail("expected the command to fail as there is no corruption file marker");
                 } catch (Exception e) {
                     assertThat(e.getMessage(), startsWith("Shard does not seem to be corrupted at"));
@@ -222,8 +223,7 @@ public class RemoveCorruptedShardDataCommandIT extends OpenSearchIntegTestCase {
             @Override
             public Settings onNodeStopped(String nodeName) throws Exception {
                 terminal.addTextInput("y");
-                command.execute(terminal, options, environment);
-
+                command.execute(terminal, environment);
                 return super.onNodeStopped(nodeName);
             }
         });
@@ -341,7 +341,6 @@ public class RemoveCorruptedShardDataCommandIT extends OpenSearchIntegTestCase {
 
         RemoveCorruptedShardDataCommand command = new RemoveCorruptedShardDataCommand();
         MockTerminal terminal = new MockTerminal();
-        OptionParser parser = command.getParser();
 
         if (randomBoolean() && numDocsToTruncate > 0) {
             // flush the replica, so it will have more docs than what the primary will have
@@ -409,9 +408,10 @@ public class RemoveCorruptedShardDataCommandIT extends OpenSearchIntegTestCase {
                 );
 
                 terminal.addTextInput("y");
-                OptionSet options = parser.parse("-d", translogDir.toAbsolutePath().toString());
+                // parse --dir with picocli
+                new CommandLine(command).parseArgs("--dir", translogDir.toAbsolutePath().toString());
                 logger.info("--> running command for [{}]", translogDir.toAbsolutePath());
-                command.execute(terminal, options, environment);
+                command.execute(terminal, environment);
                 logger.info("--> output:\n{}", terminal.getOutput());
 
                 return super.onNodeStopped(nodeName);
@@ -573,15 +573,14 @@ public class RemoveCorruptedShardDataCommandIT extends OpenSearchIntegTestCase {
         // check replica corruption
         final RemoveCorruptedShardDataCommand command = new RemoveCorruptedShardDataCommand();
         final MockTerminal terminal = new MockTerminal();
-        final OptionParser parser = command.getParser();
 
         final Environment environment = TestEnvironment.newEnvironment(
             Settings.builder().put(internalCluster().getDefaultSettings()).put(node2PathSettings).build()
         );
         terminal.addTextInput("y");
-        OptionSet options = parser.parse("-d", translogDir.toAbsolutePath().toString());
+        new CommandLine(command).parseArgs("--dir", translogDir.toAbsolutePath().toString());
         logger.info("--> running command for [{}]", translogDir.toAbsolutePath());
-        command.execute(terminal, options, environment);
+        command.execute(terminal, environment);
         logger.info("--> output:\n{}", terminal.getOutput());
 
         logger.info("--> starting the replica node to test recovery");
@@ -601,7 +600,7 @@ public class RemoveCorruptedShardDataCommandIT extends OpenSearchIntegTestCase {
             .filter(recoveryState -> recoveryState.getPrimary() == false)
             .findFirst()
             .get();
-        // the replica translog was disabled so it doesn't know what hte global checkpoint is and thus can't do ops based recovery
+        // the replica translog was disabled so it doesn't know what the global checkpoint is and thus can't do ops based recovery
         assertThat(replicaRecoveryState.getIndex().toString(), replicaRecoveryState.getIndex().recoveredFileCount(), greaterThan(0));
         // Ensure that the global checkpoint and local checkpoint are restored from the max seqno of the last commit.
         final SeqNoStats seqNoStats = getSeqNoStats(indexName, 0);
@@ -639,7 +638,6 @@ public class RemoveCorruptedShardDataCommandIT extends OpenSearchIntegTestCase {
         final ShardId shardId = shardRouting.shardId();
 
         final RemoveCorruptedShardDataCommand command = new RemoveCorruptedShardDataCommand();
-        final OptionParser parser = command.getParser();
 
         final Map<String, Path> indexPathByNodeName = new HashMap<>();
         final Map<String, Environment> environmentByNodeName = new HashMap<>();
@@ -658,9 +656,9 @@ public class RemoveCorruptedShardDataCommandIT extends OpenSearchIntegTestCase {
 
         for (String nodeName : nodeNames) {
             final Path indexPath = indexPathByNodeName.get(nodeName);
-            final OptionSet options = parser.parse("--dir", indexPath.toAbsolutePath().toString());
+            // set --dir on the command then call helper
+            new CommandLine(command).parseArgs("--dir", indexPath.toAbsolutePath().toString());
             command.findAndProcessShardPath(
-                options,
                 environmentByNodeName.get(nodeName),
                 Stream.of(environmentByNodeName.get(nodeName).dataFiles())
                     .map(path -> NodeEnvironment.resolveNodePath(path, 0))

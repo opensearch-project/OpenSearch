@@ -32,8 +32,6 @@
 
 package org.opensearch.tools.cli.keystore;
 
-import joptsimple.OptionSet;
-import joptsimple.OptionSpec;
 import org.opensearch.cli.ExitCodes;
 import org.opensearch.cli.Terminal;
 import org.opensearch.cli.UserException;
@@ -44,51 +42,52 @@ import org.opensearch.env.Environment;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.List;
 
+import picocli.CommandLine.Command;
+import picocli.CommandLine.Parameters;
+
 /**
- * A subcommand for the keystore cli which adds a file setting.
+ * A subcommand for the keystore CLI which adds a file setting.
  */
+@Command(name = "add-file", description = "Add a file setting to the keystore (provide pairs: <setting> <path> ...)", mixinStandardHelpOptions = true, usageHelpAutoWidth = true)
 class AddFileKeyStoreCommand extends BaseKeyStoreCommand {
 
-    private final OptionSpec<String> arguments;
+    /**
+     * Expect positional arguments in pairs: setting path [setting path]...
+     * We collect them raw and validate the pairing ourselves to preserve original behavior/messages.
+     */
+    @Parameters(arity = "0..*", paramLabel = "setting path", description = "Pairs of <setting> <path> to add")
+    private List<String> argPairs = new ArrayList<>();
 
     AddFileKeyStoreCommand() {
+        // BaseKeyStoreCommand already exposes --force/-f and handles keystore creation/prompting.
         super("Add a file setting to the keystore", false);
-        this.forceOption = parser.acceptsAll(
-            Arrays.asList("f", "force"),
-            "Overwrite existing setting without prompting, creating keystore if necessary"
-        );
-        // jopt simple has issue with multiple non options, so we just get one set of them here
-        // and convert to File when necessary
-        // see https://github.com/jopt-simple/jopt-simple/issues/103
-        this.arguments = parser.nonOptions("(setting path)+");
     }
 
     @Override
-    protected void executeCommand(Terminal terminal, OptionSet options, Environment env) throws Exception {
-        final List<String> argumentValues = arguments.values(options);
-        if (argumentValues.size() == 0) {
+    protected void executeCommand(Terminal terminal, Environment env) throws Exception {
+        if (argPairs.isEmpty()) {
             throw new UserException(ExitCodes.USAGE, "Missing setting name");
         }
-        if (argumentValues.size() % 2 != 0) {
+        if (argPairs.size() % 2 != 0) {
             throw new UserException(ExitCodes.USAGE, "settings and filenames must come in pairs");
         }
 
         final KeyStoreWrapper keyStore = getKeyStore();
 
-        for (int i = 0; i < argumentValues.size(); i += 2) {
-            final String setting = argumentValues.get(i);
+        for (int i = 0; i < argPairs.size(); i += 2) {
+            final String setting = argPairs.get(i);
 
-            if (keyStore.getSettingNames().contains(setting) && options.has(forceOption) == false) {
+            if (keyStore.getSettingNames().contains(setting) && !force) {
                 if (terminal.promptYesNo("Setting " + setting + " already exists. Overwrite?", false) == false) {
                     terminal.println("Exiting without modifying keystore.");
                     return;
                 }
             }
 
-            final Path file = getPath(argumentValues.get(i + 1));
+            final Path file = getPath(argPairs.get(i + 1));
             if (Files.exists(file) == false) {
                 throw new UserException(ExitCodes.IO_ERROR, "File [" + file.toString() + "] does not exist");
             }
@@ -103,5 +102,4 @@ class AddFileKeyStoreCommand extends BaseKeyStoreCommand {
     private Path getPath(String file) {
         return PathUtils.get(file);
     }
-
 }
