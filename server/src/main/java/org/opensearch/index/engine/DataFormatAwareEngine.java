@@ -382,7 +382,10 @@ public class DataFormatAwareEngine implements Indexer {
                 this::applyMergeChanges,
                 shardId,
                 engineConfig.getIndexSettings(),
-                engineConfig.getThreadPool()
+                engineConfig.getThreadPool(),
+                this::activateThrottling,
+                this::deactivateThrottling,
+                this::releaseRefreshLockIfHeld
             );
 
             success = true;
@@ -1435,6 +1438,30 @@ public class DataFormatAwareEngine implements Indexer {
             }
             throw new MergeFailedEngineException(shardId, ex);
         } finally {
+            refreshLock.unlock();
+        }
+    }
+
+    /**
+     * Releases {@link #refreshLock} if it is currently held by the calling thread.
+     *
+     * <p>Wired into {@link MergeScheduler} as the merge-failure cleanup hook. Ownership of
+     * {@code refreshLock} normally transfers from the pre-merge-commit hook (acquired by the
+     * Lucene committer's {@code MergedSegmentWarmer} between {@code mergeMiddle} and
+     * {@code commitMerge}) to {@link #applyMergeChanges}, which always unlocks in a {@code finally}.
+     * If {@code doMerge} throws after the warmer has fired but before {@code applyMergeChanges}
+     * runs (for example a {@code commitMerge} failure or disk-full IO error), the scheduler
+     * routes the exception to its catch block and never reaches {@code applyMergeChanges},
+     * which would leave the lock held by a dead executor task and deadlock every subsequent
+     * refresh as well as engine shutdown. This callback closes that gap by releasing the lock
+     * exactly once on the same thread that acquired it.
+     *
+     * <p>The {@code isHeldByCurrentThread} guard makes it safe for the failure paths that did
+     * not run the hook (for example pre-{@code doMerge} validation failures or exceptions on
+     * pure-Parquet merges where the warmer never fires).
+     */
+    private void releaseRefreshLockIfHeld() {
+        if (refreshLock.isHeldByCurrentThread()) {
             refreshLock.unlock();
         }
     }
