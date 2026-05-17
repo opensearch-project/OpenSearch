@@ -72,7 +72,7 @@ public final class FoyerBlockCache implements BlockCache {
 
     @Override
     public String cacheName() {
-        return BlockCacheConstants.DISK_CACHE;
+        return BlockCacheConstants.FOYER;
     }
 
     /**
