@@ -48,11 +48,17 @@ public class NativeMemoryCachePropertyTests extends OpenSearchTestCase {
 
             AtomicInteger refreshCount = new AtomicInteger(0);
 
-            SingleObjectCache<AnalyticsBackendNativeMemoryStats> cache = new SingleObjectCache<AnalyticsBackendNativeMemoryStats>(ttl, initialStats) {
+            SingleObjectCache<AnalyticsBackendNativeMemoryStats> cache = new SingleObjectCache<AnalyticsBackendNativeMemoryStats>(
+                ttl,
+                initialStats
+            ) {
                 @Override
                 protected AnalyticsBackendNativeMemoryStats refresh() {
                     refreshCount.incrementAndGet();
-                    return new AnalyticsBackendNativeMemoryStats(randomLongBetween(0, Long.MAX_VALUE), randomLongBetween(0, Long.MAX_VALUE));
+                    return new AnalyticsBackendNativeMemoryStats(
+                        randomLongBetween(0, Long.MAX_VALUE),
+                        randomLongBetween(0, Long.MAX_VALUE)
+                    );
                 }
             };
 
@@ -104,7 +110,10 @@ public class NativeMemoryCachePropertyTests extends OpenSearchTestCase {
                 @Override
                 protected AnalyticsBackendNativeMemoryStats refresh() {
                     refreshCount.incrementAndGet();
-                    return new AnalyticsBackendNativeMemoryStats(randomLongBetween(0, Long.MAX_VALUE), randomLongBetween(0, Long.MAX_VALUE));
+                    return new AnalyticsBackendNativeMemoryStats(
+                        randomLongBetween(0, Long.MAX_VALUE),
+                        randomLongBetween(0, Long.MAX_VALUE)
+                    );
                 }
             };
 

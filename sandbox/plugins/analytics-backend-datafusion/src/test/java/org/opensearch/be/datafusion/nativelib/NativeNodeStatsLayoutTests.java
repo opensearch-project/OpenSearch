@@ -126,11 +126,7 @@ public class NativeNodeStatsLayoutTests extends OpenSearchTestCase {
 
                 AnalyticsBackendTaskCancellationStats stats = NativeNodeStatsLayout.readNativeNodeStats(seg);
 
-                assertEquals(
-                    "Iteration " + i + ": native_search_task_current mismatch",
-                    searchTaskCurrent,
-                    stats.getSearchTaskCurrent()
-                );
+                assertEquals("Iteration " + i + ": native_search_task_current mismatch", searchTaskCurrent, stats.getSearchTaskCurrent());
                 assertEquals("Iteration " + i + ": native_search_task_total mismatch", searchTaskTotal, stats.getSearchTaskTotal());
                 assertEquals(
                     "Iteration " + i + ": native_search_shard_task_current mismatch",
