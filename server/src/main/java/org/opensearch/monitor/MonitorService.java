@@ -39,6 +39,7 @@ import org.opensearch.monitor.fs.FsServiceProvider;
 import org.opensearch.monitor.jvm.JvmGcMonitorService;
 import org.opensearch.monitor.jvm.JvmService;
 import org.opensearch.monitor.memory.MemoryReportingService;
+import org.opensearch.monitor.memory.NativeMemoryService;
 import org.opensearch.monitor.os.OsService;
 import org.opensearch.monitor.process.ProcessService;
 import org.opensearch.threadpool.ThreadPool;
@@ -65,7 +66,7 @@ public class MonitorService extends AbstractLifecycleComponent {
         this.processService = new ProcessService(settings);
         this.jvmService = new JvmService(settings);
         this.fsService = fsServiceProvider.createFsService();
-        this.memoryReportingService = new MemoryReportingService(settings, jvmService);
+        this.memoryReportingService = new MemoryReportingService(jvmService, new NativeMemoryService(settings));
     }
 
     public OsService osService() {
