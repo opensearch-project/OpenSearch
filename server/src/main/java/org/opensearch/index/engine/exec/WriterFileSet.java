@@ -47,8 +47,15 @@ public record WriterFileSet(String directory, long writerGeneration, Set<String>
      * No pre-3.7 wire format exists, so no version gate is needed here.
      */
     public WriterFileSet(StreamInput in, String directory, long version) throws IOException {
-        this(directory, in.readLong(), new HashSet<>(in.readStringList()), in.readLong(),
-            version == DataformatAwareCatalogSnapshot.SERIALIZATION_VERSION_ONE ? in.readLong() : LuceneVersionConverter.encode(Version.LATEST));
+        this(
+            directory,
+            in.readLong(),
+            new HashSet<>(in.readStringList()),
+            in.readLong(),
+            version == DataformatAwareCatalogSnapshot.SERIALIZATION_VERSION_ONE
+                ? in.readLong()
+                : LuceneVersionConverter.encode(Version.LATEST)
+        );
     }
 
     public long getTotalSize() {
