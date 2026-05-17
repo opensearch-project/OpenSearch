@@ -1,0 +1,84 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ */
+
+opensearchplugin {
+    description = 'Unified Arrow-backed native memory allocator for all Arrow-consuming plugins.'
+    classname = 'org.opensearch.arrow.allocator.NativeAllocatorArrowPlugin'
+    hasClientJar = false
+}
+
+dependencies {
+    api project(':libs:opensearch-arrow-spi')
+    api "org.apache.arrow:arrow-memory-core:${versions.arrow}"
+    api "org.apache.arrow:arrow-memory-netty:${versions.arrow}"
+    api "org.apache.arrow:arrow-memory-netty-buffer-patch:${versions.arrow}"
+    compileOnly 'org.checkerframework:checker-qual:3.44.0'
+    api "org.slf4j:slf4j-api:${versions.slf4j}"
+    api "io.netty:netty-buffer:${versions.netty}"
+    api "io.netty:netty-common:${versions.netty}"
+}
+
+test {
+    jvmArgs += ["--add-opens", "java.base/java.nio=org.apache.arrow.memory.core,ALL-UNNAMED"]
+    systemProperty 'io.netty.allocator.numDirectArenas', '1'
+    systemProperty 'io.netty.noUnsafe', 'false'
+    systemProperty 'io.netty.tryUnsafe', 'true'
+    systemProperty 'io.netty.tryReflectionSetAccessible', 'true'
+}
+
+tasks.named('thirdPartyAudit').configure {
+    ignoreMissingClasses(
+        'org.apache.commons.logging.Log',
+        'org.apache.commons.logging.LogFactory',
+        'org.apache.log4j.Level',
+        'org.apache.log4j.Logger',
+        'reactor.blockhound.BlockHound$Builder',
+        'reactor.blockhound.integration.BlockHoundIntegration'
+    )
+    ignoreViolations(
+        'org.apache.arrow.memory.util.MemoryUtil',
+        'org.apache.arrow.memory.util.MemoryUtil$1',
+        'io.netty.buffer.AbstractAllocatorEvent',
+        'io.netty.buffer.AbstractBufferEvent',
+        'io.netty.buffer.AbstractChunkEvent',
+        'io.netty.buffer.AdaptivePoolingAllocator$AdaptiveByteBuf',
+        'io.netty.buffer.AdaptivePoolingAllocator$Chunk',
+        'io.netty.buffer.AllocateBufferEvent',
+        'io.netty.buffer.AllocateChunkEvent',
+        'io.netty.buffer.FreeBufferEvent',
+        'io.netty.buffer.FreeChunkEvent',
+        'io.netty.buffer.PooledByteBufAllocator',
+        'io.netty.buffer.ReallocateBufferEvent',
+        'io.netty.util.internal.PlatformDependent0',
+        'io.netty.util.internal.PlatformDependent0$1',
+        'io.netty.util.internal.PlatformDependent0$2',
+        'io.netty.util.internal.PlatformDependent0$3',
+        'io.netty.util.internal.PlatformDependent0$5',
+        'io.netty.util.internal.shaded.org.jctools.queues.BaseLinkedQueueConsumerNodeRef',
+        'io.netty.util.internal.shaded.org.jctools.queues.BaseLinkedQueueProducerNodeRef',
+        'io.netty.util.internal.shaded.org.jctools.queues.BaseMpscLinkedArrayQueueColdProducerFields',
+        'io.netty.util.internal.shaded.org.jctools.queues.BaseMpscLinkedArrayQueueConsumerFields',
+        'io.netty.util.internal.shaded.org.jctools.queues.BaseMpscLinkedArrayQueueProducerFields',
+        'io.netty.util.internal.shaded.org.jctools.queues.LinkedQueueNode',
+        'io.netty.util.internal.shaded.org.jctools.queues.MpmcArrayQueueConsumerIndexField',
+        'io.netty.util.internal.shaded.org.jctools.queues.MpmcArrayQueueProducerIndexField',
+        'io.netty.util.internal.shaded.org.jctools.queues.MpscArrayQueueConsumerIndexField',
+        'io.netty.util.internal.shaded.org.jctools.queues.MpscArrayQueueProducerIndexField',
+        'io.netty.util.internal.shaded.org.jctools.queues.MpscArrayQueueProducerLimitField',
+        'io.netty.util.internal.shaded.org.jctools.queues.unpadded.MpscUnpaddedArrayQueueConsumerIndexField',
+        'io.netty.util.internal.shaded.org.jctools.queues.unpadded.MpscUnpaddedArrayQueueProducerIndexField',
+        'io.netty.util.internal.shaded.org.jctools.queues.unpadded.MpscUnpaddedArrayQueueProducerLimitField',
+        'io.netty.util.internal.shaded.org.jctools.util.UnsafeAccess',
+        'io.netty.util.internal.shaded.org.jctools.util.UnsafeLongArrayAccess',
+        'io.netty.util.internal.shaded.org.jctools.util.UnsafeRefArrayAccess'
+    )
+}
+
+tasks.named("dependencyLicenses").configure {
+    mapping from: /netty-.*/, to: 'netty'
+}
