@@ -39,19 +39,19 @@ import static org.opensearch.index.store.remote.utils.FileTypeUtils.INDICES_FOLD
  *
  * @opensearch.internal
  */
-public class NodeCacheOrchestratorCleaner implements IndexStoreListener {
+public class NodeCacheServiceCleaner implements IndexStoreListener {
 
-    private static final Logger logger = LogManager.getLogger(NodeCacheOrchestratorCleaner.class);
+    private static final Logger logger = LogManager.getLogger(NodeCacheServiceCleaner.class);
 
-    private final Supplier<NodeCacheOrchestrator> orchestratorSupplier;
+    private final Supplier<NodeCacheService> nodeCacheServiceSupplier;
 
     /**
-     * @param orchestratorSupplier lazy supplier — evaluated on first cleanup call,
-     *                             after {@code NodeCacheOrchestrator} is fully initialized.
-     *                             Pass {@code () -> this.nodeCacheOrchestrator} from {@code Node}.
+     * @param nodeCacheServiceSupplier lazy supplier — evaluated on first cleanup call,
+     *                             after {@code NodeCacheService} is fully initialized.
+     *                             Pass {@code () -> this.nodeCacheService} from {@code Node}.
      */
-    public NodeCacheOrchestratorCleaner(Supplier<NodeCacheOrchestrator> orchestratorSupplier) {
-        this.orchestratorSupplier = orchestratorSupplier;
+    public NodeCacheServiceCleaner(Supplier<NodeCacheService> nodeCacheServiceSupplier) {
+        this.nodeCacheServiceSupplier = nodeCacheServiceSupplier;
     }
 
     /**
@@ -86,8 +86,8 @@ public class NodeCacheOrchestratorCleaner implements IndexStoreListener {
      * all byte-range keys for every file that belonged to this shard.
      */
     private void cleanupShardCaches(ShardPath shardPath, boolean isWarmIndex, boolean isRemoteSnapshot) {
-        final NodeCacheOrchestrator nco = orchestratorSupplier.get();
-        assert nco != null : "NodeCacheOrchestrator must be initialized before cache cleanup";
+        final NodeCacheService ncs = nodeCacheServiceSupplier.get();
+        assert ncs != null : "NodeCacheService must be initialized before cache cleanup";
 
         // ── FileCache (Lucene LRU block-file cache) ───────────────────────────
         try {
@@ -102,7 +102,7 @@ public class NodeCacheOrchestratorCleaner implements IndexStoreListener {
 
             try (DirectoryStream<Path> ds = Files.newDirectoryStream(localStorePath)) {
                 for (Path subPath : ds) {
-                    nco.fileCache().remove(subPath.toRealPath());
+                    ncs.fileCache().remove(subPath.toRealPath());
                 }
             }
         } catch (IOException ioe) {
@@ -118,9 +118,9 @@ public class NodeCacheOrchestratorCleaner implements IndexStoreListener {
         }
 
         // ── BlockCaches (byte-range cache, e.g. Foyer) ───────────────────────
-        if (isWarmIndex && !nco.blockCaches().isEmpty()) {
+        if (isWarmIndex && !ncs.blockCaches().isEmpty()) {
             final String prefix = shardPath.getDataPath().toString();
-            for (BlockCache cache : nco.blockCaches()) {
+            for (BlockCache cache : ncs.blockCaches()) {
                 cache.evictPrefix(prefix);
             }
         }
@@ -166,10 +166,10 @@ public class NodeCacheOrchestratorCleaner implements IndexStoreListener {
             // Defensively evict all block cache entries for this index.
             // beforeShardPathDeleted evicts per-shard, but this catches any stragglers
             // if a shard was absent or deletion was partial.
-            final NodeCacheOrchestrator nco = orchestratorSupplier.get();
-            if (nco != null && !nco.blockCaches().isEmpty()) {
+            final NodeCacheService ncs = nodeCacheServiceSupplier.get();
+            if (ncs != null && !ncs.blockCaches().isEmpty()) {
                 final String indexPrefix = indicesPathInCache.toString();
-                for (BlockCache cache : nco.blockCaches()) {
+                for (BlockCache cache : ncs.blockCaches()) {
                     cache.evictPrefix(indexPrefix);
                 }
             }

@@ -133,7 +133,7 @@ pub unsafe extern "C" fn foyer_snapshot_stats(ptr: i64, out: *mut i64) -> i64 {
 
 /// Evict all cache entries whose key starts with `prefix`.
 ///
-/// Called by Java's `NodeCacheOrchestratorCleaner` on shard/index deletion.
+/// Called by Java's `NodeCacheServiceCleaner` on shard/index deletion.
 ///
 /// # Safety
 /// - `ptr` must be a valid handle from [`foyer_create_cache`], not yet destroyed.

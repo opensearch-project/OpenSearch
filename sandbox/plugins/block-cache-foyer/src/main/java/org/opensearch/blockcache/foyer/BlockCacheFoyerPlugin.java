@@ -114,7 +114,7 @@ public class BlockCacheFoyerPlugin extends Plugin implements BlockCacheProvider 
 
     @Override
     public String cacheName() {
-        return BlockCacheConstants.DISK_CACHE;
+        return BlockCacheConstants.FOYER;
     }
 
     /**
@@ -155,7 +155,7 @@ public class BlockCacheFoyerPlugin extends Plugin implements BlockCacheProvider 
         final long blockSizeBytes = FoyerBlockCacheSettings.BLOCK_SIZE_SETTING.get(settings).getBytes();
         final String ioEngine = FoyerBlockCacheSettings.IO_ENGINE_SETTING.get(settings);
         final long sweepIntervalSecs = FoyerBlockCacheSettings.KEY_INDEX_SWEEP_INTERVAL_SETTING.get(settings);
-        // Use the exact capacity reserved by NodeCacheOrchestrator during budget phase.
+        // Use the exact capacity reserved by NodeCacheService during budget phase.
         final long diskCapacityBytes = reservedCapacityBytes;
 
         final String diskDir;

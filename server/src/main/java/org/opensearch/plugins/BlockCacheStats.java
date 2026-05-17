@@ -29,20 +29,20 @@ import org.opensearch.common.annotation.ExperimentalApi;
  *       (bytes that had to be read from the backing store).</li>
  *   <li>{@code evictions}       — cumulative count of LRU / capacity-driven eviction events.</li>
  *   <li>{@code evictionBytes}   — cumulative bytes displaced by evictions.
- *       Used by {@code NodeCacheOrchestrator.mergeStats()} to populate
+ *       Used by {@code NodeCacheService.mergeStats()} to populate
  *       {@code evictions_in_bytes} in the REST output.</li>
  *   <li>{@code removed}         — cumulative count of explicit invalidations
  *       (e.g. delete-index, segment rename, merge completion).
  *       Mirrors the {@code removed} field in {@code FileCacheStats}.</li>
  *   <li>{@code removedBytes}    — cumulative bytes explicitly removed.
- *       Used by {@code NodeCacheOrchestrator.mergeStats()} to populate
+ *       Used by {@code NodeCacheService.mergeStats()} to populate
  *       {@code removed_in_bytes} in the REST output.</li>
  *   <li>{@code memoryBytesUsed} — current bytes occupied in the in-memory tier
  *       (zero for disk-only implementations such as Foyer).</li>
  *   <li>{@code diskBytesUsed}   — current bytes occupied in the on-disk tier
  *       (zero for memory-only implementations).</li>
  *   <li>{@code totalBytes}      — configured total capacity (memory + disk).
- *       Used by {@code NodeCacheOrchestrator.mergeStats()} to populate
+ *       Used by {@code NodeCacheService.mergeStats()} to populate
  *       {@code total_in_bytes} in the REST output.</li>
  *   <li>{@code activeInBytes}   — current bytes of reads in-flight (gauge, not cumulative).
  *       Represents the byte volume of cache lookups currently executing concurrently.
