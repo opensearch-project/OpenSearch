@@ -64,32 +64,31 @@ public class OpenSearchSchemaBuilder {
     }
 
     /**
-     * Maps an OpenSearch field type string to a Calcite SqlTypeName.
+     * Maps an OpenSearch field type string to a Calcite SqlTypeName, or {@code null} when the type
+     * has no scalar Calcite representation here (geo_point, geo_shape, nested, completion, …) or
+     * is unrecognized. Callers omit the column from the schema so a query referencing it surfaces
+     * a Calcite "column not found" via the validator rather than a planner-time crash.
      *
      * <p>Type mapping:
      * <ul>
      *   <li>keyword/text/match_only_text -> VARCHAR</li>
-     *   <li>long -> BIGINT</li>
-     *   <li>unsigned_long -> BIGINT</li>
-     *   <li>integer -> INTEGER</li>
-     *   <li>short -> SMALLINT</li>
-     *   <li>byte -> TINYINT</li>
-     *   <li>double -> DOUBLE</li>
-     *   <li>float -> REAL</li>
-     *   <li>half_float -> REAL</li>
-     *   <li>scaled_float -> BIGINT</li>
+     *   <li>long/unsigned_long/scaled_float -> BIGINT</li>
+     *   <li>integer -> INTEGER, short -> SMALLINT, byte -> TINYINT</li>
+     *   <li>double -> DOUBLE, float/half_float -> REAL</li>
      *   <li>boolean -> BOOLEAN</li>
-     *   <li>date -> TIMESTAMP</li>
-     *   <li>date_nanos -> TIMESTAMP</li>
-     *   <li>ip -> VARBINARY</li>
-     *   <li>binary -> VARBINARY</li>
-     *   <li>nested/object -> skip (not mapped)</li>
-     *   <li>unknown -> throws IllegalArgumentException</li>
+     *   <li>date/date_nanos -> TIMESTAMP</li>
+     *   <li>ip/binary -> VARBINARY</li>
+     *   <li>everything else (geo_point, geo_shape, nested, object, flat_object, completion,
+     *       constant_keyword, wildcard, alias, dense_vector, sparse_vector, percolator,
+     *       *_range, token_count, version, plus genuinely unknown plugin types) -> {@code null}</li>
      * </ul>
      *
      * @param opensearchType the OpenSearch field type string
      */
     public static SqlTypeName mapFieldType(String opensearchType) {
+        if (opensearchType == null) {
+            return null;
+        }
         switch (opensearchType) {
             case "keyword":
             case "text":
@@ -132,7 +131,7 @@ public class OpenSearchSchemaBuilder {
                 // on-disk byte form the planner expects.
                 return SqlTypeName.VARBINARY;
             default:
-                throw new IllegalArgumentException("Unsupported OpenSearch field type: " + opensearchType);
+                return null;
         }
     }
 
@@ -172,6 +171,12 @@ public class OpenSearchSchemaBuilder {
                 continue;
             }
             SqlTypeName sqlType = mapFieldType(fieldType);
+            if (sqlType == null) {
+                // Unsupported (geo_point/shape/completion/…) or unknown plugin type. Drop the
+                // column; a query referencing it surfaces a Calcite "column not found" via the
+                // validator rather than a planning-time IllegalArgumentException.
+                continue;
+            }
             builder.add(fieldName, typeFactory.createTypeWithNullability(typeFactory.createSqlType(sqlType), true));
         }
     }
