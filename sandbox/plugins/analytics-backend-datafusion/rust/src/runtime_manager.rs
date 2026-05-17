@@ -25,7 +25,7 @@ pub struct RuntimeManager {
 }
 
 impl RuntimeManager {
-    pub fn new(cpu_threads: usize) -> Self {
+    pub fn new(cpu_threads: usize, datanode_multiplier: f64, coordinator_multiplier: f64) -> Self {
         let io_threads = cpu_threads * 2;
 
         let io_runtime = Arc::new(
@@ -51,20 +51,19 @@ impl RuntimeManager {
                 register_io_runtime(Some(io_handle.clone()));
             });
 
-        // Concurrency gate multiplier: controls how many concurrent query partitions
-        // can execute simultaneously on the CPU runtime. Higher values allow more
-        // parallelism but increase scheduling contention. Benchmarked sweet spot is
-        // 1.0x-1.5x cpu_threads. Currently set to 1.0x based on saturation benchmarks
-        // showing best latency at low-to-mid concurrency levels.
-        const CONCURRENCY_MULTIPLIER: f64 = 1.0;
-        let max_concurrent = (cpu_threads as f64 * CONCURRENCY_MULTIPLIER) as usize;
-        let cpu_executor = DedicatedExecutor::new("datafusion-cpu", cpu_runtime_builder, max_concurrent);
+        // Datanode concurrency gate: limits concurrent partition tasks from shard scans.
+        let datanode_max_concurrent = (cpu_threads as f64 * datanode_multiplier).max(1.0) as usize;
+        let cpu_executor = DedicatedExecutor::new("datafusion-cpu", cpu_runtime_builder, datanode_max_concurrent);
 
         let cpu_monitor = cpu_executor
             .handle()
             .map(|h| RuntimeMonitor::new(&h));
 
-        let coordinator_gate = Arc::new(ConcurrencyGate::new(max_concurrent));
+        // Coordinator concurrency gate: limits concurrent partition tasks from reduce execution.
+        // Separate from datanode gate to avoid deadlock (shard streams hold datanode permits
+        // while coordinator reduce runs concurrently on single-node clusters).
+        let coordinator_max_concurrent = (cpu_threads as f64 * coordinator_multiplier).max(1.0) as usize;
+        let coordinator_gate = Arc::new(ConcurrencyGate::new(coordinator_max_concurrent));
 
         Self {
             io_runtime,
@@ -100,7 +99,7 @@ mod tests {
     use super::*;
 
     fn test_mgr() -> RuntimeManager {
-        RuntimeManager::new(1)
+        RuntimeManager::new(1, 1.0, 1.0)
     }
 
     #[tokio::test]

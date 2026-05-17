@@ -98,8 +98,17 @@ public class DataFusionStatsPropertyTests {
             }
             return rt;
         });
-        return Combinators.combine(runtimeMetrics(), cpuRuntime, taskMonitorStats(), taskMonitorStats(), taskMonitorStats(), taskMonitorStats(), taskMonitorStats(), taskMonitorStats())
-            .as((io, cpu, qe, sn, fp, cc, ppp, pfp) -> new Object[]{io, cpu, qe, sn, fp, cc, ppp, pfp})
+        return Combinators.combine(
+            runtimeMetrics(),
+            cpuRuntime,
+            taskMonitorStats(),
+            taskMonitorStats(),
+            taskMonitorStats(),
+            taskMonitorStats(),
+            taskMonitorStats(),
+            taskMonitorStats()
+        )
+            .as((io, cpu, qe, sn, fp, cc, ppp, pfp) -> new Object[] { io, cpu, qe, sn, fp, cc, ppp, pfp })
             .flatMap(arr -> taskMonitorStats().map(sts -> {
                 RuntimeMetrics io = (RuntimeMetrics) arr[0];
                 RuntimeMetrics cpu = (RuntimeMetrics) arr[1];
@@ -118,18 +127,26 @@ public class DataFusionStatsPropertyTests {
     /** DataFusionStats with CPU runtime absent (null). */
     @Provide
     Arbitrary<DataFusionStats> dataFusionStatsCpuAbsent() {
-        return Combinators.combine(runtimeMetrics(), taskMonitorStats(), taskMonitorStats(), taskMonitorStats(), taskMonitorStats(), taskMonitorStats(), taskMonitorStats(), taskMonitorStats())
-            .as((io, qe, sn, fp, cc, ppp, pfp, sts) -> {
-                Map<String, TaskMonitorStats> monitors = new LinkedHashMap<>();
-                monitors.put("query_execution", qe);
-                monitors.put("stream_next", sn);
-                monitors.put("fetch_phase", fp);
-                monitors.put("create_context", cc);
-                monitors.put("prepare_partial_plan", ppp);
-                monitors.put("prepare_final_plan", pfp);
-                monitors.put("sql_to_substrait", sts);
-                return new DataFusionStats(new NativeExecutorsStats(io, null, monitors), null);
-            });
+        return Combinators.combine(
+            runtimeMetrics(),
+            taskMonitorStats(),
+            taskMonitorStats(),
+            taskMonitorStats(),
+            taskMonitorStats(),
+            taskMonitorStats(),
+            taskMonitorStats(),
+            taskMonitorStats()
+        ).as((io, qe, sn, fp, cc, ppp, pfp, sts) -> {
+            Map<String, TaskMonitorStats> monitors = new LinkedHashMap<>();
+            monitors.put("query_execution", qe);
+            monitors.put("stream_next", sn);
+            monitors.put("fetch_phase", fp);
+            monitors.put("create_context", cc);
+            monitors.put("prepare_partial_plan", ppp);
+            monitors.put("prepare_final_plan", pfp);
+            monitors.put("sql_to_substrait", sts);
+            return new DataFusionStats(new NativeExecutorsStats(io, null, monitors), null);
+        });
     }
 
     @Provide

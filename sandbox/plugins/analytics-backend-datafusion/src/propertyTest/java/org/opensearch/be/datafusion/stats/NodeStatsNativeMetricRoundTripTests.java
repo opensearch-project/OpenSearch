@@ -82,14 +82,13 @@ public class NodeStatsNativeMetricRoundTripTests {
 
     @Provide
     Arbitrary<NativeExecutorsStats> nativeExecutorsStatsNoCpu() {
-        return Combinators.combine(runtimeMetrics(), taskMonitorValues(), taskMonitorValues(), taskMonitorValues())
-            .as((io, qe, sn, fp) -> {
-                Map<String, TaskMonitorStats> monitors = new LinkedHashMap<>();
-                monitors.put("query_execution", qe);
-                monitors.put("stream_next", sn);
-                monitors.put("fetch_phase", fp);
-                return new NativeExecutorsStats(io, null, monitors);
-            });
+        return Combinators.combine(runtimeMetrics(), taskMonitorValues(), taskMonitorValues(), taskMonitorValues()).as((io, qe, sn, fp) -> {
+            Map<String, TaskMonitorStats> monitors = new LinkedHashMap<>();
+            monitors.put("query_execution", qe);
+            monitors.put("stream_next", sn);
+            monitors.put("fetch_phase", fp);
+            return new NativeExecutorsStats(io, null, monitors);
+        });
     }
 
     // ---- Round-trip property tests ----

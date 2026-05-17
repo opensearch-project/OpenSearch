@@ -38,8 +38,7 @@ public class PartitionGateStatsPropertyTests {
     @Provide
     Arbitrary<PartitionGateStats> partitionGateStats() {
         Arbitrary<Long> nonNegLong = Arbitraries.longs().between(0, Long.MAX_VALUE / 2);
-        return Combinators.combine(nonNegLong, nonNegLong, nonNegLong, nonNegLong)
-            .as(PartitionGateStats::new);
+        return Combinators.combine(nonNegLong, nonNegLong, nonNegLong, nonNegLong).as(PartitionGateStats::new);
     }
 
     // ---- Property: StreamOutput/StreamInput round trip produces equal object ----

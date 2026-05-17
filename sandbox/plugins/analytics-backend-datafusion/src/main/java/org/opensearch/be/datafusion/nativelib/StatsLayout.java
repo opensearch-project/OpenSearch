@@ -266,10 +266,22 @@ public final class StatsLayout {
                 QE_TOTAL_IDLE_DURATION_MS };
             case "stream_next" -> new VarHandle[] { SN_TOTAL_POLL_DURATION_MS, SN_TOTAL_SCHEDULED_DURATION_MS, SN_TOTAL_IDLE_DURATION_MS };
             case "fetch_phase" -> new VarHandle[] { FP_TOTAL_POLL_DURATION_MS, FP_TOTAL_SCHEDULED_DURATION_MS, FP_TOTAL_IDLE_DURATION_MS };
-            case "create_context" -> new VarHandle[] { CC_TOTAL_POLL_DURATION_MS, CC_TOTAL_SCHEDULED_DURATION_MS, CC_TOTAL_IDLE_DURATION_MS };
-            case "prepare_partial_plan" -> new VarHandle[] { PPP_TOTAL_POLL_DURATION_MS, PPP_TOTAL_SCHEDULED_DURATION_MS, PPP_TOTAL_IDLE_DURATION_MS };
-            case "prepare_final_plan" -> new VarHandle[] { PFP_TOTAL_POLL_DURATION_MS, PFP_TOTAL_SCHEDULED_DURATION_MS, PFP_TOTAL_IDLE_DURATION_MS };
-            case "sql_to_substrait" -> new VarHandle[] { STS_TOTAL_POLL_DURATION_MS, STS_TOTAL_SCHEDULED_DURATION_MS, STS_TOTAL_IDLE_DURATION_MS };
+            case "create_context" -> new VarHandle[] {
+                CC_TOTAL_POLL_DURATION_MS,
+                CC_TOTAL_SCHEDULED_DURATION_MS,
+                CC_TOTAL_IDLE_DURATION_MS };
+            case "prepare_partial_plan" -> new VarHandle[] {
+                PPP_TOTAL_POLL_DURATION_MS,
+                PPP_TOTAL_SCHEDULED_DURATION_MS,
+                PPP_TOTAL_IDLE_DURATION_MS };
+            case "prepare_final_plan" -> new VarHandle[] {
+                PFP_TOTAL_POLL_DURATION_MS,
+                PFP_TOTAL_SCHEDULED_DURATION_MS,
+                PFP_TOTAL_IDLE_DURATION_MS };
+            case "sql_to_substrait" -> new VarHandle[] {
+                STS_TOTAL_POLL_DURATION_MS,
+                STS_TOTAL_SCHEDULED_DURATION_MS,
+                STS_TOTAL_IDLE_DURATION_MS };
             default -> throw new IllegalArgumentException("Unknown task monitor group: " + group);
         };
     }

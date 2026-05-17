@@ -46,9 +46,9 @@ fn get_rt_manager() -> Result<Arc<RuntimeManager>, String> {
 }
 
 #[no_mangle]
-pub extern "C" fn df_init_runtime_manager(cpu_threads: i32) {
+pub extern "C" fn df_init_runtime_manager(cpu_threads: i32, datanode_multiplier: f64, coordinator_multiplier: f64) {
     let mut guard = TOKIO_RUNTIME_MANAGER.write();
-    *guard = Some(Arc::new(RuntimeManager::new(cpu_threads as usize)));
+    *guard = Some(Arc::new(RuntimeManager::new(cpu_threads as usize, datanode_multiplier, coordinator_multiplier)));
 }
 
 #[no_mangle]
