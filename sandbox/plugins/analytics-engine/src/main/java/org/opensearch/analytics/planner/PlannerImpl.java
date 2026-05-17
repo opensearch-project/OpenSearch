@@ -92,6 +92,15 @@ public class PlannerImpl {
         modifiedRelNode = decomposeAggregates(modifiedRelNode, listener);
         modifiedRelNode = mark(modifiedRelNode, context, listener);
         LOGGER.info("After marking:\n{}", RelOptUtil.toString(modifiedRelNode));
+        // TODO(combine-delegated-predicates): a post-marking HEP rule should fuse same-backend
+        // AND-sibling AnnotatedPredicates into one combined predicate per group, collapsing N
+        // FFM round-trips per RG into one. Blocked on two open design points:
+        //   1. Substrait wire representation for a fused {original = AND(call1, call2, ...)}
+        //      leaf — today the resolver requires a SqlFunction operator on the original.
+        //   2. Receiving-backend (Lucene) needs a way to turn the combined payload back into
+        //      a single BooleanQuery / Weight without polluting ScalarFunction with AND.
+        // Revisit once those are designed. The rule would also strip performance peers from
+        // AnnotatedPredicates under OR/NOT (Lucene call buys nothing in those positions).
         modifiedRelNode = cbo(modifiedRelNode, rawRelNode, context, listener);
         LOGGER.info("After CBO:\n{}", RelOptUtil.toString(modifiedRelNode));
 

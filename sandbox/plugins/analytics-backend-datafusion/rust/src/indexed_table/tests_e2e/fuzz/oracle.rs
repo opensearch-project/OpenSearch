@@ -115,6 +115,9 @@ fn eval_row(node: &BoolNode, corpus: &Corpus, row: i32, collector_sets: &[HashSe
             }
         }
         BoolNode::Predicate(expr) => eval_predicate(expr, corpus, row as usize),
+        BoolNode::DelegationPossible { .. } => {
+            unreachable!("fuzz tree generator does not produce DelegationPossible leaves")
+        }
     }
 }
 
