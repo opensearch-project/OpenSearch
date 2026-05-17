@@ -14,6 +14,7 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.blobstore.BlobPath;
+import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.logging.Loggers;
@@ -32,6 +33,7 @@ import org.opensearch.index.translog.transfer.TranslogTransferManager;
 import org.opensearch.index.translog.transfer.TranslogTransferMetadata;
 import org.opensearch.index.translog.transfer.listener.TranslogTransferListener;
 import org.opensearch.indices.RemoteStoreSettings;
+import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.repositories.Repository;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.threadpool.ThreadPool;
@@ -41,7 +43,9 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
@@ -98,6 +102,7 @@ public class RemoteFsTranslog extends Translog {
     protected final AtomicBoolean pauseSync = new AtomicBoolean(false);
     private final boolean isTranslogMetadataEnabled;
     private final boolean isServerSideEncryptionEnabled;
+    private final RecoverySettings recoverySettings;
 
     public RemoteFsTranslog(
         TranslogConfig config,
@@ -115,6 +120,42 @@ public class RemoteFsTranslog extends Translog {
         ChannelFactory channelFactory,
         boolean isServerSideEncryptionEnabled
     ) throws IOException {
+        this(
+            config,
+            translogUUID,
+            deletionPolicy,
+            globalCheckpointSupplier,
+            primaryTermSupplier,
+            persistedSequenceNumberConsumer,
+            blobStoreRepository,
+            threadPool,
+            startedPrimarySupplier,
+            remoteTranslogTransferTracker,
+            remoteStoreSettings,
+            translogOperationHelper,
+            channelFactory,
+            isServerSideEncryptionEnabled,
+            null
+        );
+    }
+
+    public RemoteFsTranslog(
+        TranslogConfig config,
+        String translogUUID,
+        TranslogDeletionPolicy deletionPolicy,
+        LongSupplier globalCheckpointSupplier,
+        LongSupplier primaryTermSupplier,
+        LongConsumer persistedSequenceNumberConsumer,
+        BlobStoreRepository blobStoreRepository,
+        ThreadPool threadPool,
+        BooleanSupplier startedPrimarySupplier,
+        RemoteTranslogTransferTracker remoteTranslogTransferTracker,
+        RemoteStoreSettings remoteStoreSettings,
+        TranslogOperationHelper translogOperationHelper,
+        ChannelFactory channelFactory,
+        boolean isServerSideEncryptionEnabled,
+        RecoverySettings recoverySettings
+    ) throws IOException {
         super(
             config,
             translogUUID,
@@ -131,6 +172,7 @@ public class RemoteFsTranslog extends Translog {
         fileTransferTracker = new FileTransferTracker(shardId, remoteTranslogTransferTracker);
         isTranslogMetadataEnabled = indexSettings().isTranslogMetadataEnabled();
         this.isServerSideEncryptionEnabled = isServerSideEncryptionEnabled;
+        this.recoverySettings = recoverySettings;
         this.translogTransferManager = buildTranslogTransferManager(
             blobStoreRepository,
             threadPool,
@@ -144,7 +186,8 @@ public class RemoteFsTranslog extends Translog {
         );
         try {
             if (config.downloadRemoteTranslogOnInit()) {
-                download(translogTransferManager, location, logger, config.shouldSeedRemote(), 0);
+                int maxConcurrentStreams = recoverySettings != null ? recoverySettings.getMaxConcurrentTranslogDownloadStreams() : 1;
+                download(translogTransferManager, location, logger, config.shouldSeedRemote(), 0, maxConcurrentStreams);
             }
             Checkpoint checkpoint = readCheckpoint(location);
             logger.info("Downloaded data from remote translog till maxSeqNo = {}", checkpoint.maxSeqNo);
@@ -202,6 +245,36 @@ public class RemoteFsTranslog extends Translog {
         long timestamp,
         boolean isServerSideEncryptionEnabled
     ) throws IOException {
+        download(
+            repository,
+            shardId,
+            threadPool,
+            location,
+            pathStrategy,
+            remoteStoreSettings,
+            logger,
+            seedRemote,
+            isTranslogMetadataEnabled,
+            timestamp,
+            isServerSideEncryptionEnabled,
+            1
+        );
+    }
+
+    public static void download(
+        Repository repository,
+        ShardId shardId,
+        ThreadPool threadPool,
+        Path location,
+        RemoteStorePathStrategy pathStrategy,
+        RemoteStoreSettings remoteStoreSettings,
+        Logger logger,
+        boolean seedRemote,
+        boolean isTranslogMetadataEnabled,
+        long timestamp,
+        boolean isServerSideEncryptionEnabled,
+        int maxConcurrentTranslogDownloadStreams
+    ) throws IOException {
         assert repository instanceof BlobStoreRepository : String.format(
             Locale.ROOT,
             "%s repository should be instance of BlobStoreRepository",
@@ -223,13 +296,25 @@ public class RemoteFsTranslog extends Translog {
             isTranslogMetadataEnabled,
             isServerSideEncryptionEnabled
         );
-        RemoteFsTranslog.download(translogTransferManager, location, logger, seedRemote, timestamp);
+        RemoteFsTranslog.download(translogTransferManager, location, logger, seedRemote, timestamp, maxConcurrentTranslogDownloadStreams);
         logger.trace(remoteTranslogTransferTracker.toString());
     }
 
     // Visible for testing
     static void download(TranslogTransferManager translogTransferManager, Path location, Logger logger, boolean seedRemote, long timestamp)
         throws IOException {
+        download(translogTransferManager, location, logger, seedRemote, timestamp, 1);
+    }
+
+    // Visible for testing
+    static void download(
+        TranslogTransferManager translogTransferManager,
+        Path location,
+        Logger logger,
+        boolean seedRemote,
+        long timestamp,
+        int maxConcurrentTranslogDownloadStreams
+    ) throws IOException {
         /*
         In Primary to Primary relocation , there can be concurrent upload and download of translog.
         While translog files are getting downloaded by new primary, it might hence be deleted by the primary
@@ -242,7 +327,7 @@ public class RemoteFsTranslog extends Translog {
             boolean success = false;
             long startTimeMs = System.currentTimeMillis();
             try {
-                downloadOnce(translogTransferManager, location, logger, seedRemote, timestamp);
+                downloadOnce(translogTransferManager, location, logger, seedRemote, timestamp, maxConcurrentTranslogDownloadStreams);
                 success = true;
                 return;
             } catch (FileNotFoundException | NoSuchFileException e) {
@@ -261,7 +346,8 @@ public class RemoteFsTranslog extends Translog {
         Path location,
         Logger logger,
         boolean seedRemote,
-        long timestamp
+        long timestamp,
+        int maxConcurrentTranslogDownloadStreams
     ) throws IOException {
         logger.debug("Downloading translog files from remote");
         RemoteTranslogTransferTracker statsTracker = translogTransferManager.getRemoteTranslogTransferTracker();
@@ -279,10 +365,12 @@ public class RemoteFsTranslog extends Translog {
             }
 
             Map<String, String> generationToPrimaryTermMapper = translogMetadata.getGenerationToPrimaryTermMapper();
+            List<Tuple<String, String>> generationPrimaryTermPairs = new ArrayList<>();
             for (long i = translogMetadata.getGeneration(); i >= translogMetadata.getMinTranslogGeneration(); i--) {
                 String generation = Long.toString(i);
-                translogTransferManager.downloadTranslog(generationToPrimaryTermMapper.get(generation), generation, location);
+                generationPrimaryTermPairs.add(new Tuple<>(generationToPrimaryTermMapper.get(generation), generation));
             }
+            translogTransferManager.downloadTranslogsParallel(generationPrimaryTermPairs, location, maxConcurrentTranslogDownloadStreams);
             logger.info(
                 "Downloaded translog and checkpoint files from={} to={}",
                 translogMetadata.getMinTranslogGeneration(),
@@ -369,7 +457,8 @@ public class RemoteFsTranslog extends Translog {
             fileTransferTracker,
             tracker,
             remoteStoreSettings,
-            isTranslogMetadataEnabled
+            isTranslogMetadataEnabled,
+            threadPool
         );
     }
 
