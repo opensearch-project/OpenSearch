@@ -186,6 +186,14 @@ public abstract class MappedFieldType {
     }
 
     /**
+     * Returns true if this field has a skip-list index on doc values
+     * for accelerated range filtering.
+     */
+    public boolean hasSkipList() {
+        return false;
+    }
+
+    /**
      * If the field supports using the indexed data to speed up operations related to ordering of data, such as sorting or aggs, return
      * a function for doing that.  If it is unsupported for this field type, there is no need to override this method.
      *
