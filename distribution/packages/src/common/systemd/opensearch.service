@@ -145,6 +145,9 @@ ReadOnlyPaths=-/etc/os-release -/usr/lib/os-release -/etc/system-release
 ## Allow read access to Linux IO stats
 ReadOnlyPaths=/proc/self/mountinfo /proc/diskstats
 
+## Allow read access to native memory stats (RssAnon via /proc/self/status)
+ReadOnlyPaths=/proc/self/status
+
 ## Allow read access to control group stats
 ReadOnlyPaths=/proc/self/cgroup /sys/fs/cgroup/cpu /sys/fs/cgroup/cpu/-
 ReadOnlyPaths=/sys/fs/cgroup/cpuacct /sys/fs/cgroup/cpuacct/- /sys/fs/cgroup/memory /sys/fs/cgroup/memory/-

@@ -17,6 +17,7 @@ import org.opensearch.node.ResourceUsageCollectorService;
 import org.opensearch.ratelimitting.admissioncontrol.controllers.AdmissionController;
 import org.opensearch.ratelimitting.admissioncontrol.controllers.CpuBasedAdmissionController;
 import org.opensearch.ratelimitting.admissioncontrol.controllers.IoBasedAdmissionController;
+import org.opensearch.ratelimitting.admissioncontrol.controllers.NativeMemoryBasedAdmissionController;
 import org.opensearch.ratelimitting.admissioncontrol.enums.AdmissionControlActionType;
 import org.opensearch.ratelimitting.admissioncontrol.stats.AdmissionControlStats;
 import org.opensearch.ratelimitting.admissioncontrol.stats.AdmissionControllerStats;
@@ -29,6 +30,7 @@ import java.util.concurrent.ConcurrentMap;
 
 import static org.opensearch.ratelimitting.admissioncontrol.controllers.CpuBasedAdmissionController.CPU_BASED_ADMISSION_CONTROLLER;
 import static org.opensearch.ratelimitting.admissioncontrol.controllers.IoBasedAdmissionController.IO_BASED_ADMISSION_CONTROLLER;
+import static org.opensearch.ratelimitting.admissioncontrol.controllers.NativeMemoryBasedAdmissionController.NATIVE_MEMORY_BASED_ADMISSION_CONTROLLER;
 
 /**
  * Admission control Service that bootstraps and manages all the Admission Controllers in OpenSearch.
@@ -72,6 +74,7 @@ public class AdmissionControlService {
         registerAdmissionController(CPU_BASED_ADMISSION_CONTROLLER);
         if (Constants.LINUX) {
             registerAdmissionController(IO_BASED_ADMISSION_CONTROLLER);
+            registerAdmissionController(NATIVE_MEMORY_BASED_ADMISSION_CONTROLLER);
         }
     }
 
@@ -109,6 +112,13 @@ public class AdmissionControlService {
                 );
             case IO_BASED_ADMISSION_CONTROLLER:
                 return new IoBasedAdmissionController(
+                    admissionControllerName,
+                    this.resourceUsageCollectorService,
+                    this.clusterService,
+                    this.settings
+                );
+            case NATIVE_MEMORY_BASED_ADMISSION_CONTROLLER:
+                return new NativeMemoryBasedAdmissionController(
                     admissionControllerName,
                     this.resourceUsageCollectorService,
                     this.clusterService,
