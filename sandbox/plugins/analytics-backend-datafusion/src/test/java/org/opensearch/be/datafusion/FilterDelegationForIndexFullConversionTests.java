@@ -240,7 +240,7 @@ public class FilterDelegationForIndexFullConversionTests extends OpenSearchTestC
         LogicalFilter filter = LogicalFilter.create(new TableScan(cluster, cluster.traitSet(), List.of(), table) {
         }, condition);
 
-        RelNode marked = PlannerImpl.markAndOptimize(filter, context);
+        RelNode marked = PlannerImpl.runAllOptimizations(filter, context);
         QueryDAG dag = DAGBuilder.build(marked, context.getCapabilityRegistry(), mockClusterService());
         PlanForker.forkAll(dag, context.getCapabilityRegistry());
         FragmentConversionDriver.convertAll(dag, context.getCapabilityRegistry());
