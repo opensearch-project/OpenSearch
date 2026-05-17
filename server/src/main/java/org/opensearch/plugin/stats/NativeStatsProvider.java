@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.nativebridge.spi;
+package org.opensearch.plugin.stats;
 
 /**
  * Plugin extension point for native runtime statistics.

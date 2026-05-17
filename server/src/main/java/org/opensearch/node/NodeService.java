@@ -54,7 +54,7 @@ import org.opensearch.index.store.remote.filecache.NodeCacheOrchestrator;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.ingest.IngestService;
 import org.opensearch.monitor.MonitorService;
-import org.opensearch.nativebridge.spi.NativeMemoryStats;
+import org.opensearch.plugin.stats.NativeMemoryStats;
 import org.opensearch.node.remotestore.RemoteStoreNodeStats;
 import org.opensearch.plugins.PluginsService;
 import org.opensearch.ratelimitting.admissioncontrol.AdmissionControlService;

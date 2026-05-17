@@ -12,7 +12,7 @@ import org.opensearch.Version;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.core.common.io.stream.StreamInput;
-import org.opensearch.nativebridge.spi.NativeMemoryStats;
+import org.opensearch.plugin.stats.NativeMemoryStats;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
