@@ -19,6 +19,8 @@ import org.opensearch.analytics.spi.BackendCapabilityProvider;
 import org.opensearch.analytics.spi.BackendExecutionContext;
 import org.opensearch.analytics.spi.DelegationType;
 import org.opensearch.analytics.spi.EngineCapability;
+import org.opensearch.analytics.spi.ExchangeSink;
+import org.opensearch.analytics.spi.ExchangeSinkContext;
 import org.opensearch.analytics.spi.ExchangeSinkProvider;
 import org.opensearch.analytics.spi.FieldType;
 import org.opensearch.analytics.spi.FilterCapability;
@@ -26,6 +28,7 @@ import org.opensearch.analytics.spi.FilterDelegationHandle;
 import org.opensearch.analytics.spi.FragmentConvertor;
 import org.opensearch.analytics.spi.FragmentInstructionHandlerFactory;
 import org.opensearch.analytics.spi.JoinCapability;
+import org.opensearch.analytics.spi.NumericToDoubleAdapter;
 import org.opensearch.analytics.spi.ProjectCapability;
 import org.opensearch.analytics.spi.ScalarFunction;
 import org.opensearch.analytics.spi.ScalarFunctionAdapter;
@@ -62,6 +65,9 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         SUPPORTED_FIELD_TYPES.addAll(FieldType.date());
         SUPPORTED_FIELD_TYPES.add(FieldType.BOOLEAN);
         SUPPORTED_FIELD_TYPES.add(FieldType.TEXT);
+        SUPPORTED_FIELD_TYPES.add(FieldType.BINARY);
+        SUPPORTED_FIELD_TYPES.add(FieldType.IP);
+        SUPPORTED_FIELD_TYPES.add(FieldType.MATCH_ONLY_TEXT);
     }
 
     // Filter-side scalar functions DataFusion can evaluate natively. Comparisons, arithmetic
@@ -277,6 +283,7 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         // by a custom Rust UDF on the DataFusion session context (`udf::mvfind`), routed via
         // {@link MvfindAdapter}.
         ScalarFunction.MVFIND,
+        ScalarFunction.BINARY,
         // Logical connectives — emitted in projections where boolean expressions are composed:
         // `case(a = 0 and b = 0, …)`, `eval x = a or b`, `eval x = NOT y`. DataFusion's substrait
         // consumer handles them natively.
@@ -469,6 +476,7 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                     Map.entry(ScalarFunction.MVFIND, new MvfindAdapter()),
                     Map.entry(ScalarFunction.MVZIP, new MvzipAdapter()),
                     Map.entry(ScalarFunction.MVAPPEND, new MvappendAdapter()),
+                    Map.entry(ScalarFunction.BINARY, new BinaryFunctionAdapter()),
                     Map.entry(ScalarFunction.CONCAT, new ConcatFunctionAdapter()),
                     Map.entry(ScalarFunction.CONVERT_TZ, new ConvertTzAdapter()),
                     Map.entry(ScalarFunction.COSH, new HyperbolicOperatorAdapter(SqlLibraryOperators.COSH)),
@@ -488,6 +496,11 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                     Map.entry(ScalarFunction.DAY_OF_YEAR, dayOfYear),
                     Map.entry(ScalarFunction.DIVIDE, new StdOperatorRewriteAdapter("DIVIDE", SqlStdOperatorTable.DIVIDE)),
                     Map.entry(ScalarFunction.E, new EConstantAdapter()),
+                    // Math functions whose substrait yaml impls are fp64-only — wrap integer/float
+                    // operands in CAST(DOUBLE) before substrait conversion so isthmus can bind. See
+                    // NumericToDoubleAdapter javadoc for the type-widening rules. Without these the
+                    // path fails with "Unable to convert call EXP(i32?)" / "POWER(i32?, fp64)" etc.
+                    Map.entry(ScalarFunction.EXP, new NumericToDoubleAdapter(SqlStdOperatorTable.EXP)),
                     Map.entry(ScalarFunction.EXPM1, new Expm1Adapter()),
                     Map.entry(ScalarFunction.EXTRACT, new RustUdfDateTimeAdapters.ExtractAdapter()),
                     Map.entry(ScalarFunction.FROM_UNIXTIME, new RustUdfDateTimeAdapters.FromUnixtimeAdapter()),
@@ -501,7 +514,11 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                     Map.entry(ScalarFunction.JSON_KEYS, new JsonFunctionAdapters.JsonKeysAdapter()),
                     Map.entry(ScalarFunction.JSON_SET, new JsonFunctionAdapters.JsonSetAdapter()),
                     Map.entry(ScalarFunction.LIKE, new LikeAdapter()),
+                    Map.entry(ScalarFunction.LN, new NumericToDoubleAdapter(SqlStdOperatorTable.LN)),
                     Map.entry(ScalarFunction.LOCATE, new PositionAdapter()),
+                    Map.entry(ScalarFunction.LOG, new NumericToDoubleAdapter(SqlLibraryOperators.LOG)),
+                    Map.entry(ScalarFunction.LOG10, new NumericToDoubleAdapter(SqlStdOperatorTable.LOG10)),
+                    Map.entry(ScalarFunction.LOG2, new NumericToDoubleAdapter(SqlLibraryOperators.LOG2)),
                     Map.entry(ScalarFunction.MAKEDATE, new RustUdfDateTimeAdapters.MakedateAdapter()),
                     Map.entry(ScalarFunction.MAKETIME, new RustUdfDateTimeAdapters.MaketimeAdapter()),
                     Map.entry(ScalarFunction.MICROSECOND, DatePartAdapters.microsecond()),
@@ -514,6 +531,7 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                     Map.entry(ScalarFunction.NUMBER_TO_STRING, new ToStringFunctionAdapter()),
                     Map.entry(ScalarFunction.NOW, now),
                     Map.entry(ScalarFunction.POSITION, new PositionAdapter()),
+                    Map.entry(ScalarFunction.POWER, new NumericToDoubleAdapter(SqlStdOperatorTable.POWER)),
                     Map.entry(ScalarFunction.QUARTER, DatePartAdapters.quarter()),
                     Map.entry(ScalarFunction.RANGE_BUCKET, new RangeBucketAdapter()),
                     Map.entry(ScalarFunction.REGEXP_REPLACE, new RegexpReplaceAdapter()),
@@ -607,32 +625,35 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
 
     @Override
     public ExchangeSinkProvider getExchangeSinkProvider() {
-        return (ctx, backendContext) -> {
-            DataFusionService svc = plugin.getDataFusionService();
-            if (svc == null) {
-                throw new IllegalStateException("DataFusionService not initialized");
+        return new ExchangeSinkProvider() {
+            @Override
+            public ExchangeSink createSink(ExchangeSinkContext ctx, BackendExecutionContext backendContext) {
+                DataFusionService svc = plugin.getDataFusionService();
+                if (svc == null) {
+                    throw new IllegalStateException("DataFusionService not initialized");
+                }
+                // When the FinalAggregateInstructionHandler has already prepared a plan on the
+                // coordinator, it hands over a DataFusionReduceState carrying the session +
+                // registered senders. The sink drives executeLocalPreparedPlan against that
+                // state instead of re-decoding the fragment bytes.
+                DataFusionReduceState preparedState = backendContext instanceof DataFusionReduceState s ? s : null;
+                String mode = plugin.getClusterService() != null
+                    ? plugin.getClusterService().getClusterSettings().get(DataFusionPlugin.DATAFUSION_REDUCE_INPUT_MODE)
+                    : "streaming";
+                // Memtable mode is single-input only (DatafusionMemtableReduceSink registers
+                // exactly one MemTable at close time). Multi-input shapes (Union, future Join)
+                // need per-child input partitions, which only the streaming sink implements via
+                // MultiInputExchangeSink#sinkForChild. Auto-fall-back to streaming so end users
+                // don't have to flip the cluster setting per query. Also fall back when a
+                // prepared state is supplied (memtable sink does not yet support the
+                // prepared-plan path).
+                // TODO: lift this fallback once the memtable sink registers one MemTable per
+                // child stage (see DatafusionMemtableReduceSink class javadoc).
+                if ("memtable".equals(mode) && ctx.childInputs().size() == 1 && preparedState == null) {
+                    return new DatafusionMemtableReduceSink(ctx, svc.getNativeRuntime());
+                }
+                return new DatafusionReduceSink(ctx, svc.getNativeRuntime(), svc.getDrainExecutor(), preparedState);
             }
-            // When the FinalAggregateInstructionHandler has already prepared a plan on the
-            // coordinator, it hands over a DataFusionReduceState carrying the session +
-            // registered senders. The sink drives executeLocalPreparedPlan against that
-            // state instead of re-decoding the fragment bytes.
-            DataFusionReduceState preparedState = backendContext instanceof DataFusionReduceState s ? s : null;
-            String mode = plugin.getClusterService() != null
-                ? plugin.getClusterService().getClusterSettings().get(DataFusionPlugin.DATAFUSION_REDUCE_INPUT_MODE)
-                : "streaming";
-            // Memtable mode is single-input only (DatafusionMemtableReduceSink registers
-            // exactly one MemTable at close time). Multi-input shapes (Union, future Join)
-            // need per-child input partitions, which only the streaming sink implements via
-            // MultiInputExchangeSink#sinkForChild. Auto-fall-back to streaming so end users
-            // don't have to flip the cluster setting per query. Also fall back when a
-            // prepared state is supplied (memtable sink does not yet support the
-            // prepared-plan path).
-            // TODO: lift this fallback once the memtable sink registers one MemTable per
-            // child stage (see DatafusionMemtableReduceSink class javadoc).
-            if ("memtable".equals(mode) && ctx.childInputs().size() == 1 && preparedState == null) {
-                return new DatafusionMemtableReduceSink(ctx, svc.getNativeRuntime());
-            }
-            return new DatafusionReduceSink(ctx, svc.getNativeRuntime(), svc.getDrainExecutor(), preparedState);
         };
     }
 

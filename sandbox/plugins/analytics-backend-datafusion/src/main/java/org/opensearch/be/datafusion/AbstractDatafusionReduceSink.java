@@ -43,8 +43,11 @@ import java.util.function.Consumer;
  * </ul>
  *
  * <p>Multi-input shapes (Union, future Join) are supported at this base by exposing
- * {@link #childInputs} (childStageId → schemaIpc) for subclasses to register one
- * native partition per child stage. The {@link #INPUT_ID} constant remains as the
+ * {@link #childInputs} (childStageId → producer-side plan bytes) for subclasses to register
+ * one native partition per child stage. The native call returns the IPC-encoded schema the
+ * session settled on after lowering; subclasses populate {@link #childSchemas} from those
+ * returns so the {@code typesMatch} tripwire validates batches against the same schema the
+ * native session is registered with. The {@link #INPUT_ID} constant remains as the
  * conventional name for the single-input case (childStageId=0); the per-child id is
  * computed via {@link #inputIdFor(int)}.
  *
@@ -75,16 +78,18 @@ abstract class AbstractDatafusionReduceSink implements ExchangeSink {
      */
     protected final DataFusionReduceState preparedState;
     /**
-     * Per-child Arrow schema IPC bytes, keyed by childStageId. Iteration order matches
+     * Per-child producer-side plan bytes, keyed by childStageId. Iteration order matches
      * the order of {@code ctx.childInputs()} so subclasses get deterministic registration.
+     * Subclasses pass each entry to the native registration call, which lowers the plan
+     * and returns the schema the session settled on.
      */
     protected final Map<Integer, byte[]> childInputs;
 
     /**
-     * Declared Arrow {@link org.apache.arrow.vector.types.pojo.Schema} per childStageId,
-     * parallel to {@link #childInputs}. Used by sinks to coerce incoming batches when
-     * the shard's actual emit type diverges from the declaration (e.g. DataFusion's
-     * {@code Utf8View} for string group keys vs. declared {@code Utf8}).
+     * Declared Arrow {@link org.apache.arrow.vector.types.pojo.Schema} per childStageId.
+     * Populated lazily by subclasses from the IPC bytes the native registration call
+     * returns — i.e. the schema the native session itself derived from the producer plan.
+     * Used by sinks to validate incoming batches via the {@code typesMatch} tripwire.
      */
     protected final Map<Integer, Schema> childSchemas;
 
@@ -108,13 +113,11 @@ abstract class AbstractDatafusionReduceSink implements ExchangeSink {
         this.preparedState = preparedState;
         this.session = preparedState != null ? preparedState.session() : new DatafusionLocalSession(runtimeHandle.get());
         Map<Integer, byte[]> inputs = new LinkedHashMap<>(ctx.childInputs().size());
-        Map<Integer, Schema> schemas = new LinkedHashMap<>(ctx.childInputs().size());
         for (ExchangeSinkContext.ChildInput child : ctx.childInputs()) {
-            inputs.put(child.childStageId(), ArrowSchemaIpc.toBytes(child.schema()));
-            schemas.put(child.childStageId(), child.schema());
+            inputs.put(child.childStageId(), child.producerPlanBytes());
         }
         this.childInputs = inputs;
-        this.childSchemas = schemas;
+        this.childSchemas = new LinkedHashMap<>(ctx.childInputs().size());
     }
 
     /** DataFusion table name for an input partition associated with the given child stage id. */

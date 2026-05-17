@@ -26,12 +26,12 @@
 use std::any::Any;
 use std::sync::Arc;
 
-use datafusion::arrow::array::{
-    Array, ArrayRef, Int32Array, ListBuilder, StringArray, StringBuilder,
-};
+use datafusion::arrow::array::{Array, ArrayRef, Int32Array, ListBuilder, StringBuilder};
+
+use super::json_common::StringArrayView;
 use datafusion::arrow::datatypes::{DataType, Field};
 use datafusion::common::{plan_err, ScalarValue};
-use datafusion::error::{DataFusionError, Result};
+use datafusion::error::Result;
 use datafusion::execution::context::SessionContext;
 use datafusion::logical_expr::{
     ColumnarValue, ScalarFunctionArgs, ScalarUDF, ScalarUDFImpl, Signature, Volatility,
@@ -112,16 +112,8 @@ impl ScalarUDFImpl for RexExtractMultiUdf {
             None => None,
         };
 
-        let input = args.args[0].clone().into_array(n)?;
-        let input = input
-            .as_any()
-            .downcast_ref::<StringArray>()
-            .ok_or_else(|| {
-                DataFusionError::Internal(format!(
-                    "rex_extract_multi: expected Utf8 input, got {:?}",
-                    input.data_type()
-                ))
-            })?;
+        let input_arr = args.args[0].clone().into_array(n)?;
+        let input = StringArrayView::from_array(&input_arr)?;
 
         let pattern_arr_ref: Option<ArrayRef> = if pattern_scalar.is_none() && matches!(&args.args[1], ColumnarValue::Array(_)) {
             Some(args.args[1].clone().into_array(n)?)
@@ -138,8 +130,10 @@ impl ScalarUDFImpl for RexExtractMultiUdf {
         } else {
             None
         };
-        let pattern_array: Option<&StringArray> = pattern_arr_ref.as_ref().and_then(|a| a.as_any().downcast_ref::<StringArray>());
-        let group_array: Option<&StringArray> = group_arr_ref.as_ref().and_then(|a| a.as_any().downcast_ref::<StringArray>());
+        let pattern_array: Option<StringArrayView<'_>> =
+            pattern_arr_ref.as_ref().map(StringArrayView::from_array).transpose()?;
+        let group_array: Option<StringArrayView<'_>> =
+            group_arr_ref.as_ref().map(StringArrayView::from_array).transpose()?;
         // After coerce_types(Int64) the array may arrive as Int32 in some plans;
         // accept either by widening on read.
         let max_match_array_i32: Option<&Int32Array> = max_match_arr_ref
@@ -152,16 +146,16 @@ impl ScalarUDFImpl for RexExtractMultiUdf {
         )));
 
         for i in 0..n {
-            if input.is_null(i) {
+            let Some(input_value) = input.cell(i) else {
                 builder.append_null();
                 continue;
-            }
+            };
 
             let regex_owned;
-            let regex: &Regex = match (&scalar_regex, pattern_array) {
+            let regex: &Regex = match (&scalar_regex, pattern_array.as_ref().and_then(|a| a.cell(i))) {
                 (Some(r), _) => r,
-                (None, Some(arr)) if !arr.is_null(i) => {
-                    regex_owned = compile_pattern(arr.value(i))?;
+                (None, Some(s)) => {
+                    regex_owned = compile_pattern(s)?;
                     &regex_owned
                 }
                 _ => {
@@ -170,9 +164,9 @@ impl ScalarUDFImpl for RexExtractMultiUdf {
                 }
             };
 
-            let group_name: &str = match (&group_scalar, group_array) {
+            let group_name: &str = match (&group_scalar, group_array.as_ref().and_then(|a| a.cell(i))) {
                 (Some(g), _) => g.as_str(),
-                (None, Some(arr)) if !arr.is_null(i) => arr.value(i),
+                (None, Some(s)) => s,
                 _ => {
                     builder.append_null();
                     continue;
@@ -188,7 +182,7 @@ impl ScalarUDFImpl for RexExtractMultiUdf {
                 }
             };
 
-            let matches = collect_matches(regex, input.value(i), group_name, max_match);
+            let matches = collect_matches(regex, input_value, group_name, max_match);
             if matches.is_empty() {
                 builder.append_null();
             } else {
