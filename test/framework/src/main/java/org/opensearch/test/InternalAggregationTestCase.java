@@ -367,10 +367,16 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
         int size = between(1, 200);
         List<T> inputs = randomResultsToReduce(name, size);
         assertThat(inputs, hasSize(size));
+        // Create a deep copy of inputs for verification, since reduce may mutate buckets in-place
+        List<T> inputsForVerification = new ArrayList<>();
+        for (T input : inputs) {
+            inputsForVerification.add(copyNamedWriteable(input, getNamedWriteableRegistry(), categoryClass()));
+        }
         List<InternalAggregation> toReduce = new ArrayList<>();
         toReduce.addAll(inputs);
         // Sort aggs so that unmapped come last. This mimicks the behavior of InternalAggregations.reduce()
         inputs.sort(INTERNAL_AGG_COMPARATOR);
+        inputsForVerification.sort(INTERNAL_AGG_COMPARATOR);
         ScriptService mockScriptService = mockScriptService();
         MockBigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
         if (randomBoolean() && toReduce.size() > 1) {
@@ -418,7 +424,7 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
         @SuppressWarnings("unchecked")
         T reduced = (T) inputs.get(0).reduce(toReduce, context);
         doAssertReducedMultiBucketConsumer(reduced, bucketConsumer);
-        assertReduced(reduced, inputs);
+        assertReduced(reduced, inputsForVerification);
     }
 
     protected void doAssertReducedMultiBucketConsumer(Aggregation agg, MultiBucketConsumerService.MultiBucketConsumer bucketConsumer) {
