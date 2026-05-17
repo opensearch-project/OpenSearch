@@ -55,6 +55,7 @@ import org.opensearch.indices.IndicesService;
 import org.opensearch.ingest.IngestService;
 import org.opensearch.monitor.MonitorService;
 import org.opensearch.node.remotestore.RemoteStoreNodeStats;
+import org.opensearch.plugins.BlockCacheStats;
 import org.opensearch.plugins.PluginsService;
 import org.opensearch.ratelimitting.admissioncontrol.AdmissionControlService;
 import org.opensearch.repositories.RepositoriesService;
@@ -237,6 +238,7 @@ public class NodeService implements Closeable {
         boolean clusterManagerThrottling,
         boolean weightedRoutingStats,
         boolean fileCacheStats,
+        boolean fileCacheDetailed,
         boolean taskCancellation,
         boolean searchPipelineStats,
         boolean resourceUsageStats,
@@ -272,6 +274,8 @@ public class NodeService implements Closeable {
             clusterManagerThrottling ? this.clusterService.getClusterManagerService().getThrottlingStats() : null,
             weightedRoutingStats ? WeightedRoutingStats.getInstance() : null,
             fileCacheStats && nodeCacheOrchestrator != null ? nodeCacheOrchestrator.aggregateStats() : null,
+            fileCacheStats && fileCacheDetailed && nodeCacheOrchestrator != null ? nodeCacheOrchestrator.fileCacheStatsOnly() : null,
+            fileCacheStats && fileCacheDetailed && nodeCacheOrchestrator != null ? buildCombinedBlockCacheStats() : null,
             taskCancellation ? this.taskCancellationMonitoringService.stats() : null,
             searchPipelineStats ? this.searchPipelineService.stats() : null,
             segmentReplicationTrackerStats ? this.segmentReplicationStatsTracker.getTotalRejectionStats() : null,
@@ -279,6 +283,39 @@ public class NodeService implements Closeable {
             admissionControl ? this.admissionControlService.stats() : null,
             cacheService ? this.cacheService.stats(indices) : null,
             remoteStoreNodeStats ? new RemoteStoreNodeStats() : null
+        );
+    }
+
+    private BlockCacheStats buildCombinedBlockCacheStats() {
+        long hits = 0, misses = 0, hitBytes = 0, missBytes = 0;
+        long evictions = 0, evictionBytes = 0, removed = 0, removedBytes = 0;
+        long memUsed = 0, diskUsed = 0, total = 0;
+        for (org.opensearch.plugins.BlockCache bc : nodeCacheOrchestrator.blockCaches()) {
+            BlockCacheStats s = bc.stats();
+            hits += s.hits();
+            misses += s.misses();
+            hitBytes += s.hitBytes();
+            missBytes += s.missBytes();
+            evictions += s.evictions();
+            evictionBytes += s.evictionBytes();
+            removed += s.removed();
+            removedBytes += s.removedBytes();
+            memUsed += s.memoryBytesUsed();
+            diskUsed += s.diskBytesUsed();
+            total += s.totalBytes();
+        }
+        return new BlockCacheStats(
+            hits,
+            misses,
+            hitBytes,
+            missBytes,
+            evictions,
+            evictionBytes,
+            removed,
+            removedBytes,
+            memUsed,
+            diskUsed,
+            total
         );
     }
 

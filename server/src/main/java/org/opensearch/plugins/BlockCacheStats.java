@@ -9,6 +9,13 @@
 package org.opensearch.plugins;
 
 import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.common.io.stream.Writeable;
+import org.opensearch.core.xcontent.ToXContentFragment;
+import org.opensearch.core.xcontent.XContentBuilder;
+
+import java.io.IOException;
 
 /**
  * Point-in-time snapshot of {@link BlockCache} counters.
@@ -53,5 +60,51 @@ import org.opensearch.common.annotation.ExperimentalApi;
  */
 @ExperimentalApi
 public record BlockCacheStats(long hits, long misses, long hitBytes, long missBytes, long evictions, long evictionBytes, long removed,
-    long removedBytes, long memoryBytesUsed, long diskBytesUsed, long totalBytes) {
+    long removedBytes, long memoryBytesUsed, long diskBytesUsed, long totalBytes) implements Writeable, ToXContentFragment {
+
+    public BlockCacheStats(StreamInput in) throws IOException {
+        this(
+            in.readLong(),
+            in.readLong(),
+            in.readLong(),
+            in.readLong(),
+            in.readLong(),
+            in.readLong(),
+            in.readLong(),
+            in.readLong(),
+            in.readLong(),
+            in.readLong(),
+            in.readLong()
+        );
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeLong(hits);
+        out.writeLong(misses);
+        out.writeLong(hitBytes);
+        out.writeLong(missBytes);
+        out.writeLong(evictions);
+        out.writeLong(evictionBytes);
+        out.writeLong(removed);
+        out.writeLong(removedBytes);
+        out.writeLong(memoryBytesUsed);
+        out.writeLong(diskBytesUsed);
+        out.writeLong(totalBytes);
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject("block_cache");
+        builder.field("hit_count", hits);
+        builder.field("miss_count", misses);
+        builder.field("hit_bytes", hitBytes);
+        builder.field("miss_bytes", missBytes);
+        builder.field("used_in_bytes", diskBytesUsed + memoryBytesUsed);
+        builder.field("total_in_bytes", totalBytes);
+        builder.field("evictions_in_bytes", evictionBytes);
+        builder.field("removed_in_bytes", removedBytes);
+        builder.endObject();
+        return builder;
+    }
 }

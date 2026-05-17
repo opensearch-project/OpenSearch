@@ -278,6 +278,14 @@ public class NodeCacheOrchestrator implements Closeable, BlockCacheRegistry {
     // ─────────────────────────────────────────────────────────────────────────
 
     /**
+     * Returns FileCache-only stats with no block cache contribution.
+     * Used by {@code _nodes/stats/file_cache?detailed} to return FileCache-only stats.
+     */
+    public AggregateFileCacheStats fileCacheStatsOnly() {
+        return fileCache.fileCacheStats();
+    }
+
+    /**
      * Returns aggregate stats across all caches for {@code _nodes/stats aggregate_file_cache}.
      *
      * <p>Block cache counters are folded into the merged overall/block sections so that
