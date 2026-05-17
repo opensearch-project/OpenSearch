@@ -178,6 +178,13 @@ pub async fn execute_with_context(
     plan_bytes: &[u8],
     cpu_executor: DedicatedExecutor,
 ) -> Result<i64, DataFusionError> {
+    // Acquire concurrency gate — this is always a data-node fragment execution.
+    // Blocking here is safe: no coordinator on this node holds permits from this gate.
+    let partition_weight = handle.ctx.state().config().target_partitions().max(1) as u32;
+    let gate = cpu_executor.concurrency_gate().clone();
+    let max_p = gate.max_permits();
+    let permit = gate.acquire_many(partition_weight.min(max_p)).await;
+
     let substrait_plan = Plan::decode(plan_bytes).map_err(|e| {
         DataFusionError::Execution(format!("Failed to decode Substrait: {}", e))
     })?;
@@ -187,6 +194,8 @@ pub async fn execute_with_context(
     let dataframe = handle.ctx.execute_logical_plan(logical_plan).await?;
     let physical_plan = dataframe.create_physical_plan().await?;
     log_debug!("DataFusion physical plan:\n{}", displayable(physical_plan.as_ref()).indent(true));
+
+    // Permit is held until the QueryStreamHandle is dropped (query complete).
 
     let df_stream = execute_stream(physical_plan, handle.ctx.task_ctx()).map_err(|e| {
         error!("execute_with_context: failed to create stream: {}", e);
@@ -199,6 +208,6 @@ pub async fn execute_with_context(
         cross_rt_stream,
     );
 
-    let stream_handle = crate::api::QueryStreamHandle::with_session_context(wrapped, handle.query_context, handle.ctx);
+    let stream_handle = crate::api::QueryStreamHandle::with_session_context(wrapped, handle.query_context, handle.ctx, Some(permit));
     Ok(Box::into_raw(Box::new(stream_handle)) as i64)
 }

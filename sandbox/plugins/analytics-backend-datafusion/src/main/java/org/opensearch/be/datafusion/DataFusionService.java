@@ -43,6 +43,8 @@ public class DataFusionService extends AbstractLifecycleComponent {
     private final long spillMemoryLimit;
     private final String spillDirectory;
     private final int cpuThreads;
+    private final double datanodeMultiplier;
+    private final double coordinatorMultiplier;
     private final ClusterSettings clusterSettings;
 
     /**
@@ -71,6 +73,8 @@ public class DataFusionService extends AbstractLifecycleComponent {
         this.spillMemoryLimit = builder.spillMemoryLimit;
         this.spillDirectory = builder.spillDirectory;
         this.cpuThreads = builder.cpuThreads;
+        this.datanodeMultiplier = builder.datanodeMultiplier;
+        this.coordinatorMultiplier = builder.coordinatorMultiplier;
         this.clusterSettings = builder.clusterSettings;
     }
 
@@ -96,8 +100,13 @@ public class DataFusionService extends AbstractLifecycleComponent {
     @Override
     protected void doStart() {
         logger.debug("Starting DataFusion service");
-        NativeBridge.initTokioRuntimeManager(cpuThreads);
-        logger.debug("Tokio runtime manager initialized with {} CPU threads", cpuThreads);
+        NativeBridge.initTokioRuntimeManager(cpuThreads, datanodeMultiplier, coordinatorMultiplier);
+        logger.debug(
+            "Tokio runtime manager initialized with {} CPU threads, datanode multiplier {}, coordinator multiplier {}",
+            cpuThreads,
+            datanodeMultiplier,
+            coordinatorMultiplier
+        );
 
         this.drainExecutor = Executors.newThreadPerTaskExecutor(Thread.ofVirtual().name("analytics-reduce-drain-", 0).factory());
 
@@ -265,6 +274,8 @@ public class DataFusionService extends AbstractLifecycleComponent {
         private long spillMemoryLimit = Runtime.getRuntime().maxMemory() / 8;
         private String spillDirectory = System.getProperty("java.io.tmpdir");
         private int cpuThreads = Runtime.getRuntime().availableProcessors();
+        private double datanodeMultiplier = 1.0;
+        private double coordinatorMultiplier = 1.0;
         private ClusterSettings clusterSettings;
 
         private Builder() {}
@@ -302,6 +313,18 @@ public class DataFusionService extends AbstractLifecycleComponent {
          */
         public Builder cpuThreads(int threads) {
             this.cpuThreads = threads;
+            return this;
+        }
+
+        /** Sets the datanode concurrency gate multiplier. */
+        public Builder datanodeMultiplier(double multiplier) {
+            this.datanodeMultiplier = multiplier;
+            return this;
+        }
+
+        /** Sets the coordinator concurrency gate multiplier. */
+        public Builder coordinatorMultiplier(double multiplier) {
+            this.coordinatorMultiplier = multiplier;
             return this;
         }
 

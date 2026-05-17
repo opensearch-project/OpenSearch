@@ -86,11 +86,14 @@ public class DataFusionStatsActionTests extends OpenSearchTestCase {
         RuntimeMetrics io = new RuntimeMetrics(1, 2, 3, 4, 5, 6, 7, 8, 0);
         RuntimeMetrics cpu = new RuntimeMetrics(9, 10, 11, 12, 13, 14, 15, 16, 0);
         Map<String, TaskMonitorStats> taskMonitors = new LinkedHashMap<>();
-        taskMonitors.put("coordinator_reduce", new TaskMonitorStats(17, 18, 19));
-        taskMonitors.put("query_execution", new TaskMonitorStats(20, 21, 22));
-        taskMonitors.put("stream_next", new TaskMonitorStats(23, 24, 25));
-        taskMonitors.put("plan_setup", new TaskMonitorStats(26, 27, 28));
-        DataFusionStats stats = new DataFusionStats(new NativeExecutorsStats(io, cpu, taskMonitors));
+        taskMonitors.put("query_execution", new TaskMonitorStats(17, 18, 19));
+        taskMonitors.put("stream_next", new TaskMonitorStats(20, 21, 22));
+        taskMonitors.put("fetch_phase", new TaskMonitorStats(23, 24, 25));
+        taskMonitors.put("create_context", new TaskMonitorStats(26, 27, 28));
+        taskMonitors.put("prepare_partial_plan", new TaskMonitorStats(29, 30, 31));
+        taskMonitors.put("prepare_final_plan", new TaskMonitorStats(32, 33, 34));
+        taskMonitors.put("sql_to_substrait", new TaskMonitorStats(35, 36, 37));
+        DataFusionStats stats = new DataFusionStats(new NativeExecutorsStats(io, cpu, taskMonitors), null, null);
 
         DataFusionService mockService = mock(DataFusionService.class);
         when(mockService.getStats()).thenReturn(stats);

@@ -162,6 +162,26 @@ public final class DatafusionSettings {
         Setting.Property.Dynamic
     );
 
+    // ── Concurrency gate settings ──
+
+    /** Datanode concurrency gate multiplier: max concurrent partition-equivalents = cpu_threads × multiplier. */
+    public static final Setting<Double> CONCURRENCY_DATANODE_MULTIPLIER = Setting.doubleSetting(
+        "datafusion.concurrency.datanode_multiplier",
+        1.0,
+        0.1,
+        10.0,
+        Setting.Property.NodeScope
+    );
+
+    /** Coordinator concurrency gate multiplier: max concurrent partition-equivalents = cpu_threads × multiplier. */
+    public static final Setting<Double> CONCURRENCY_COORDINATOR_MULTIPLIER = Setting.doubleSetting(
+        "datafusion.concurrency.coordinator_multiplier",
+        1.0,
+        0.1,
+        10.0,
+        Setting.Property.NodeScope
+    );
+
     // ── All settings registered by the plugin ──
 
     public static final List<Setting<?>> ALL_SETTINGS = List.of(
@@ -178,6 +198,10 @@ public final class DatafusionSettings {
         CacheSettings.STATISTICS_CACHE_EVICTION_TYPE,
         CacheSettings.METADATA_CACHE_ENABLED,
         CacheSettings.STATISTICS_CACHE_ENABLED,
+
+        // Concurrency gate settings
+        CONCURRENCY_DATANODE_MULTIPLIER,
+        CONCURRENCY_COORDINATOR_MULTIPLIER,
 
         // Indexed query settings — per-query tuning knobs for the indexed execution path
         INDEXED_BATCH_SIZE,

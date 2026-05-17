@@ -21,20 +21,23 @@ import java.util.Map;
  * Unit tests for {@link DataFusionStats} constructed via direct constructors.
  *
  * <p>Layout: IO RuntimeMetrics (9 fields), optional CPU RuntimeMetrics (9 fields),
- * 4 TaskMonitorStats (3 fields each).
+ * 3 TaskMonitorStats (3 fields each).
  */
 public class DataFusionStatsTests extends OpenSearchTestCase {
 
-    /** Build a DataFusionStats with sequential values for deterministic field verification. */
+    /** Build a DataFusionStats with sequential values 1..25 for deterministic field verification. */
     private static DataFusionStats sequentialStats() {
         RuntimeMetrics io = new RuntimeMetrics(1, 2, 3, 4, 5, 6, 7, 8, 0);
         RuntimeMetrics cpu = new RuntimeMetrics(9, 10, 11, 12, 13, 14, 15, 16, 0);
         Map<String, TaskMonitorStats> taskMonitors = new LinkedHashMap<>();
-        taskMonitors.put("coordinator_reduce", new TaskMonitorStats(17, 18, 19));
-        taskMonitors.put("query_execution", new TaskMonitorStats(20, 21, 22));
-        taskMonitors.put("stream_next", new TaskMonitorStats(23, 24, 25));
-        taskMonitors.put("plan_setup", new TaskMonitorStats(26, 27, 28));
-        return new DataFusionStats(new NativeExecutorsStats(io, cpu, taskMonitors));
+        taskMonitors.put("query_execution", new TaskMonitorStats(17, 18, 19));
+        taskMonitors.put("stream_next", new TaskMonitorStats(20, 21, 22));
+        taskMonitors.put("fetch_phase", new TaskMonitorStats(23, 24, 25));
+        taskMonitors.put("create_context", new TaskMonitorStats(26, 27, 28));
+        taskMonitors.put("prepare_partial_plan", new TaskMonitorStats(29, 30, 31));
+        taskMonitors.put("prepare_final_plan", new TaskMonitorStats(32, 33, 34));
+        taskMonitors.put("sql_to_substrait", new TaskMonitorStats(35, 36, 37));
+        return new DataFusionStats(new NativeExecutorsStats(io, cpu, taskMonitors), null, null);
     }
 
     private static String toJsonString(DataFusionStats stats) throws IOException {
@@ -78,31 +81,49 @@ public class DataFusionStatsTests extends OpenSearchTestCase {
 
         // Task monitors
         Map<String, TaskMonitorStats> monitors = nes.getTaskMonitors();
-        assertEquals(4, monitors.size());
-
-        TaskMonitorStats cr = monitors.get("coordinator_reduce");
-        assertNotNull(cr);
-        assertEquals(17L, cr.totalPollDurationMs);
-        assertEquals(18L, cr.totalScheduledDurationMs);
-        assertEquals(19L, cr.totalIdleDurationMs);
+        assertEquals(7, monitors.size());
 
         TaskMonitorStats qe = monitors.get("query_execution");
         assertNotNull(qe);
-        assertEquals(20L, qe.totalPollDurationMs);
-        assertEquals(21L, qe.totalScheduledDurationMs);
-        assertEquals(22L, qe.totalIdleDurationMs);
+        assertEquals(17L, qe.totalPollDurationMs);
+        assertEquals(18L, qe.totalScheduledDurationMs);
+        assertEquals(19L, qe.totalIdleDurationMs);
 
         TaskMonitorStats sn = monitors.get("stream_next");
         assertNotNull(sn);
-        assertEquals(23L, sn.totalPollDurationMs);
-        assertEquals(24L, sn.totalScheduledDurationMs);
-        assertEquals(25L, sn.totalIdleDurationMs);
+        assertEquals(20L, sn.totalPollDurationMs);
+        assertEquals(21L, sn.totalScheduledDurationMs);
+        assertEquals(22L, sn.totalIdleDurationMs);
 
-        TaskMonitorStats ps = monitors.get("plan_setup");
-        assertNotNull(ps);
-        assertEquals(26L, ps.totalPollDurationMs);
-        assertEquals(27L, ps.totalScheduledDurationMs);
-        assertEquals(28L, ps.totalIdleDurationMs);
+        TaskMonitorStats fp = monitors.get("fetch_phase");
+        assertNotNull(fp);
+        assertEquals(23L, fp.totalPollDurationMs);
+        assertEquals(24L, fp.totalScheduledDurationMs);
+        assertEquals(25L, fp.totalIdleDurationMs);
+
+        TaskMonitorStats cc = monitors.get("create_context");
+        assertNotNull(cc);
+        assertEquals(26L, cc.totalPollDurationMs);
+        assertEquals(27L, cc.totalScheduledDurationMs);
+        assertEquals(28L, cc.totalIdleDurationMs);
+
+        TaskMonitorStats ppp = monitors.get("prepare_partial_plan");
+        assertNotNull(ppp);
+        assertEquals(29L, ppp.totalPollDurationMs);
+        assertEquals(30L, ppp.totalScheduledDurationMs);
+        assertEquals(31L, ppp.totalIdleDurationMs);
+
+        TaskMonitorStats pfp = monitors.get("prepare_final_plan");
+        assertNotNull(pfp);
+        assertEquals(32L, pfp.totalPollDurationMs);
+        assertEquals(33L, pfp.totalScheduledDurationMs);
+        assertEquals(34L, pfp.totalIdleDurationMs);
+
+        TaskMonitorStats sts = monitors.get("sql_to_substrait");
+        assertNotNull(sts);
+        assertEquals(35L, sts.totalPollDurationMs);
+        assertEquals(36L, sts.totalScheduledDurationMs);
+        assertEquals(37L, sts.totalIdleDurationMs);
     }
 
     // ---- Test: CPU runtime null → cpuRuntime absent in JSON ----
@@ -110,22 +131,20 @@ public class DataFusionStatsTests extends OpenSearchTestCase {
     public void testCpuRuntimeAbsentWhenNull() throws IOException {
         RuntimeMetrics io = new RuntimeMetrics(100, 101, 102, 103, 104, 105, 106, 107, 0);
         Map<String, TaskMonitorStats> taskMonitors = new LinkedHashMap<>();
-        taskMonitors.put("coordinator_reduce", new TaskMonitorStats(14, 15, 16));
-        taskMonitors.put("query_execution", new TaskMonitorStats(17, 18, 19));
-        taskMonitors.put("stream_next", new TaskMonitorStats(20, 21, 22));
-        taskMonitors.put("plan_setup", new TaskMonitorStats(23, 24, 25));
+        taskMonitors.put("query_execution", new TaskMonitorStats(14, 15, 16));
+        taskMonitors.put("stream_next", new TaskMonitorStats(17, 18, 19));
+        taskMonitors.put("fetch_phase", new TaskMonitorStats(20, 21, 22));
 
-        DataFusionStats stats = new DataFusionStats(new NativeExecutorsStats(io, null, taskMonitors));
+        DataFusionStats stats = new DataFusionStats(new NativeExecutorsStats(io, null, taskMonitors), null, null);
         assertNull(stats.getNativeExecutorsStats().getCpuRuntime());
 
         String json = toJsonString(stats);
         assertFalse("cpu_runtime should be omitted when null", json.contains("cpu_runtime"));
         assertTrue("io_runtime should still be present", json.contains("io_runtime"));
         // Task monitors are at top level (flat structure, no "task_monitors" wrapper)
-        assertTrue("coordinator_reduce should still be present", json.contains("coordinator_reduce"));
         assertTrue("query_execution should still be present", json.contains("query_execution"));
         assertTrue("stream_next should still be present", json.contains("stream_next"));
-        assertTrue("plan_setup should still be present", json.contains("plan_setup"));
+        assertTrue("fetch_phase should still be present", json.contains("fetch_phase"));
     }
 
     // ---- Test: non-null CPU runtime → cpuRuntime present in JSON ----
@@ -164,10 +183,9 @@ public class DataFusionStatsTests extends OpenSearchTestCase {
         assertFalse(json.contains("\"task_monitors\""));
 
         // Task monitors at top level
-        assertTrue(json.contains("\"coordinator_reduce\""));
         assertTrue(json.contains("\"query_execution\""));
         assertTrue(json.contains("\"stream_next\""));
-        assertTrue(json.contains("\"plan_setup\""));
+        assertTrue(json.contains("\"fetch_phase\""));
 
         String[] taskFields = { "total_poll_duration_ms", "total_scheduled_duration_ms", "total_idle_duration_ms" };
         for (String field : taskFields) {
@@ -176,7 +194,7 @@ public class DataFusionStatsTests extends OpenSearchTestCase {
 
         // IO runtime: workers_count = 1
         assertTrue(json.contains("\"workers_count\":1"));
-        // coordinator_reduce: total_poll_duration_ms = 17
+        // query_execution: total_poll_duration_ms = 17
         assertTrue(json.contains("\"total_poll_duration_ms\":17"));
     }
 
@@ -185,32 +203,33 @@ public class DataFusionStatsTests extends OpenSearchTestCase {
     public void testToXContentCpuRuntimeOmitted() throws IOException {
         RuntimeMetrics io = new RuntimeMetrics(100, 101, 102, 103, 104, 105, 106, 107, 0);
         Map<String, TaskMonitorStats> taskMonitors = new LinkedHashMap<>();
-        taskMonitors.put("coordinator_reduce", new TaskMonitorStats(14, 15, 16));
-        taskMonitors.put("query_execution", new TaskMonitorStats(17, 18, 19));
-        taskMonitors.put("stream_next", new TaskMonitorStats(20, 21, 22));
-        taskMonitors.put("plan_setup", new TaskMonitorStats(23, 24, 25));
+        taskMonitors.put("query_execution", new TaskMonitorStats(14, 15, 16));
+        taskMonitors.put("stream_next", new TaskMonitorStats(17, 18, 19));
+        taskMonitors.put("fetch_phase", new TaskMonitorStats(20, 21, 22));
 
-        DataFusionStats stats = new DataFusionStats(new NativeExecutorsStats(io, null, taskMonitors));
+        DataFusionStats stats = new DataFusionStats(new NativeExecutorsStats(io, null, taskMonitors), null, null);
         String json = toJsonString(stats);
 
         assertTrue(json.contains("\"io_runtime\""));
         assertFalse("cpu_runtime should not appear", json.contains("\"cpu_runtime\""));
         // Task monitors at top level (no wrapper)
-        assertTrue(json.contains("\"coordinator_reduce\""));
         assertTrue(json.contains("\"query_execution\""));
-        assertTrue(json.contains("\"plan_setup\""));
+        assertTrue(json.contains("\"fetch_phase\""));
     }
 
-    // ---- Test: exactly 4 task monitor keys ----
+    // ---- Test: exactly 7 task monitor keys ----
 
-    public void testExactlyFourTaskMonitors() {
+    public void testExactlySevenTaskMonitors() {
         DataFusionStats stats = sequentialStats();
         Map<String, TaskMonitorStats> monitors = stats.getNativeExecutorsStats().getTaskMonitors();
 
-        assertEquals(4, monitors.size());
-        assertTrue(monitors.containsKey("coordinator_reduce"));
+        assertEquals(7, monitors.size());
         assertTrue(monitors.containsKey("query_execution"));
         assertTrue(monitors.containsKey("stream_next"));
-        assertTrue(monitors.containsKey("plan_setup"));
+        assertTrue(monitors.containsKey("fetch_phase"));
+        assertTrue(monitors.containsKey("create_context"));
+        assertTrue(monitors.containsKey("prepare_partial_plan"));
+        assertTrue(monitors.containsKey("prepare_final_plan"));
+        assertTrue(monitors.containsKey("sql_to_substrait"));
     }
 }

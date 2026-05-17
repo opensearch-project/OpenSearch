@@ -33,14 +33,24 @@ import java.util.Objects;
 public class DataFusionStats implements PluginStats, Writeable, ToXContentFragment {
 
     private final NativeExecutorsStats nativeExecutorsStats; // nullable
+    private final PartitionGateStats datanodeGateStats; // nullable
+    private final PartitionGateStats coordinatorGateStats; // nullable
 
     /**
      * Construct from components.
      *
-     * @param nativeExecutorsStats the native executor metrics (nullable)
+     * @param nativeExecutorsStats  the native executor metrics (nullable)
+     * @param datanodeGateStats     the datanode partition gate metrics (nullable)
+     * @param coordinatorGateStats  the coordinator partition gate metrics (nullable)
      */
-    public DataFusionStats(NativeExecutorsStats nativeExecutorsStats) {
+    public DataFusionStats(
+        NativeExecutorsStats nativeExecutorsStats,
+        PartitionGateStats datanodeGateStats,
+        PartitionGateStats coordinatorGateStats
+    ) {
         this.nativeExecutorsStats = nativeExecutorsStats;
+        this.datanodeGateStats = datanodeGateStats;
+        this.coordinatorGateStats = coordinatorGateStats;
     }
 
     /**
@@ -51,17 +61,27 @@ public class DataFusionStats implements PluginStats, Writeable, ToXContentFragme
      */
     public DataFusionStats(StreamInput in) throws IOException {
         this.nativeExecutorsStats = in.readOptionalWriteable(NativeExecutorsStats::new);
+        this.datanodeGateStats = in.readOptionalWriteable(PartitionGateStats::new);
+        this.coordinatorGateStats = in.readOptionalWriteable(PartitionGateStats::new);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalWriteable(nativeExecutorsStats);
+        out.writeOptionalWriteable(datanodeGateStats);
+        out.writeOptionalWriteable(coordinatorGateStats);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         if (nativeExecutorsStats != null) {
             nativeExecutorsStats.toXContent(builder, params);
+        }
+        if (datanodeGateStats != null) {
+            datanodeGateStats.toXContent(builder, params);
+        }
+        if (coordinatorGateStats != null) {
+            coordinatorGateStats.toXContent(builder, params);
         }
         return builder;
     }
@@ -73,16 +93,32 @@ public class DataFusionStats implements PluginStats, Writeable, ToXContentFragme
         return nativeExecutorsStats;
     }
 
+    /**
+     * Returns the datanode partition gate metrics, or {@code null} if absent.
+     */
+    public PartitionGateStats getDatanodeGateStats() {
+        return datanodeGateStats;
+    }
+
+    /**
+     * Returns the coordinator partition gate metrics, or {@code null} if absent.
+     */
+    public PartitionGateStats getCoordinatorGateStats() {
+        return coordinatorGateStats;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         DataFusionStats that = (DataFusionStats) o;
-        return Objects.equals(nativeExecutorsStats, that.nativeExecutorsStats);
+        return Objects.equals(nativeExecutorsStats, that.nativeExecutorsStats)
+            && Objects.equals(datanodeGateStats, that.datanodeGateStats)
+            && Objects.equals(coordinatorGateStats, that.coordinatorGateStats);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(nativeExecutorsStats);
+        return Objects.hash(nativeExecutorsStats, datanodeGateStats, coordinatorGateStats);
     }
 }
