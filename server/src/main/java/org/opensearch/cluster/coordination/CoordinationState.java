@@ -51,6 +51,7 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Consumer;
 
 import static org.opensearch.cluster.coordination.Coordinator.ZEN1_BWC_TERM;
 import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.isRemoteStoreClusterStateEnabled;
@@ -111,6 +112,14 @@ public class CoordinationState {
 
     public ClusterState getLastAcceptedState() {
         return persistedStateRegistry.getPersistedState(PersistedStateType.LOCAL).getLastAcceptedState();
+    }
+
+    public int getLastAcceptedIndexMetadataVersion() {
+        return persistedStateRegistry.getPersistedState(PersistedStateType.LOCAL).getLastUpdatedIndexMetadataVersion();
+    }
+
+    public void setLastSeenIndexMetadataManifestObjectVersion(String lastSeenIndexMetadataManifestObjectVersion) {
+       persistedStateRegistry.getPersistedState(PersistedStateType.LOCAL).setLastSeenIndexMetadataManifestObjectVersion(lastSeenIndexMetadataManifestObjectVersion);
     }
 
     public long getLastAcceptedTerm() {
@@ -583,7 +592,24 @@ public class CoordinationState {
         // recover the cluster.
         if (isRemoteStateEnabled) {
             assert persistedStateRegistry.getPersistedState(PersistedStateType.REMOTE) != null : "Remote state has not been initialized";
-            persistedStateRegistry.getPersistedState(PersistedStateType.REMOTE).setLastAcceptedState(clusterState);
+            String lastSeenIndexMetadataManifestObjectVersion = persistedStateRegistry.getPersistedState(PersistedStateType.LOCAL).getLastSeenIndexMetadataManifestObjectVersion();
+            persistedStateRegistry.getPersistedState(PersistedStateType.REMOTE).setLastAcceptedState(clusterState, lastSeenIndexMetadataManifestObjectVersion);
+        }
+    }
+
+
+    public void uploadIndexMetadataState(ClusterState clusterState, int indexMetadataVersion) {
+        assert persistedStateRegistry.getPersistedState(PersistedStateType.REMOTE) != null : "Remote state has not been initialized";
+        String lastSeenIndexMetadataManifestObjectVersion = persistedStateRegistry.getPersistedState(PersistedStateType.LOCAL).getLastSeenIndexMetadataManifestObjectVersion();
+        persistedStateRegistry.getPersistedState(PersistedStateType.REMOTE).updateIndexMetadataState(clusterState, indexMetadataVersion, lastSeenIndexMetadataManifestObjectVersion);
+    }
+
+
+
+    public void commitIndexMetadataState(ClusterState clusterState, int indexMetadataVersion) {
+        persistedStateRegistry.getPersistedState(PersistedStateType.LOCAL).commitAndUpdateIndexMetadataState(clusterState, indexMetadataVersion);
+        if (persistedStateRegistry.getPersistedState(PersistedStateType.REMOTE) != null) {
+            persistedStateRegistry.getPersistedState(PersistedStateType.REMOTE).commitAndUpdateIndexMetadataState(clusterState, indexMetadataVersion);
         }
     }
 
@@ -673,6 +699,18 @@ public class CoordinationState {
         void setLastAcceptedState(ClusterState clusterState);
 
         /**
+         * Sets a new last accepted cluster state.
+         * After a successful call to this method, {@link #getLastAcceptedState()} should return the last cluster state that was set.
+         * The value returned by {@link #getCurrentTerm()} should not be influenced by calls to this method.
+         */
+        default void setLastAcceptedState(ClusterState clusterState, String lastSeenIndexMetadataManifestObjectVersion) {}
+
+        void setLastSeenIndexMetadataManifestObjectVersion(String lastSeenIndexMetadataManifestObjectVersion);
+
+        String getLastSeenIndexMetadataManifestObjectVersion();
+
+
+        /**
          * Returns the stats for the persistence layer for {@link CoordinationState}.
          * @return PersistedStateStats
          */
@@ -688,6 +726,8 @@ public class CoordinationState {
             // return null by default, this method needs to be overridden wherever required
             return null;
         }
+
+        int getLastUpdatedIndexMetadataVersion();
 
         /**
          * Sets the last accepted {@link ClusterMetadataManifest}.
@@ -725,6 +765,18 @@ public class CoordinationState {
             if (metadataBuilder != null) {
                 setLastAcceptedState(ClusterState.builder(lastAcceptedState).metadata(metadataBuilder).build());
             }
+        }
+
+        default void updateIndexMetadataState(ClusterState clusterState, int indexMetadataVersion) {
+            throw new  UnsupportedOperationException("updateIndexMetadataState is not supported");
+        }
+
+        default void updateIndexMetadataState(ClusterState clusterState, int indexMetadataVersion, String lastSeenIndexMetadataManifestObjectVersion) {
+            throw new  UnsupportedOperationException("updateIndexMetadataState is not supported");
+        }
+
+        default void commitAndUpdateIndexMetadataState(ClusterState clusterState, int indexMetadataVersion) {
+            throw new  UnsupportedOperationException("updateIndexMetadataState is not supported");
         }
 
         default Metadata.Builder commitVotingConfiguration(ClusterState lastAcceptedState) {

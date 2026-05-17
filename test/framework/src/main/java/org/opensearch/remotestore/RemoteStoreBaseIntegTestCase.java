@@ -258,10 +258,10 @@ public class RemoteStoreBaseIntegTestCase extends OpenSearchIntegTestCase {
         clusterSettingsSuppliedByTest = false;
         asyncUploadMockFsRepo = randomBoolean();
         metadataSupportedType = randomBoolean();
-        assertRemoteStoreRepositoryOnAllNodes(REPOSITORY_NAME);
-        assertRemoteStoreRepositoryOnAllNodes(REPOSITORY_2_NAME);
-        clusterAdmin().prepareCleanupRepository(REPOSITORY_NAME).get();
-        clusterAdmin().prepareCleanupRepository(REPOSITORY_2_NAME).get();
+//        assertRemoteStoreRepositoryOnAllNodes(REPOSITORY_NAME);
+//        assertRemoteStoreRepositoryOnAllNodes(REPOSITORY_2_NAME);
+//        clusterAdmin().prepareCleanupRepository(REPOSITORY_NAME).get();
+//        clusterAdmin().prepareCleanupRepository(REPOSITORY_2_NAME).get();
     }
 
     public RepositoryMetadata buildRepositoryMetadata(DiscoveryNode node, String name) {

@@ -35,6 +35,7 @@ package org.opensearch.repositories.s3;
 import software.amazon.awssdk.core.ResponseInputStream;
 import software.amazon.awssdk.core.async.AsyncResponseTransformer;
 import software.amazon.awssdk.core.exception.SdkException;
+import software.amazon.awssdk.services.s3.model.S3Exception;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3AsyncClient;
 import software.amazon.awssdk.services.s3.model.AbortMultipartUploadRequest;
@@ -79,6 +80,8 @@ import org.opensearch.common.blobstore.stream.read.ReadContext;
 import org.opensearch.common.blobstore.stream.write.WriteContext;
 import org.opensearch.common.blobstore.stream.write.WritePriority;
 import org.opensearch.common.blobstore.support.AbstractBlobContainer;
+import org.opensearch.common.blobstore.versioned.VersionedBlobContainer;
+import org.opensearch.common.blobstore.versioned.VersionedInputStream;
 import org.opensearch.common.blobstore.support.PlainBlobMetadata;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.io.InputStreamContainer;
@@ -117,7 +120,7 @@ import static org.opensearch.repositories.s3.S3Repository.MAX_FILE_SIZE_USING_MU
 import static org.opensearch.repositories.s3.S3Repository.MIN_PART_SIZE_USING_MULTIPART;
 import static org.opensearch.repositories.s3.utils.SseKmsUtil.configureEncryptionSettings;
 
-class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamBlobContainer {
+class S3BlobContainer extends VersionedBlobContainer implements AsyncMultiStreamBlobContainer {
 
     private static final Logger logger = LogManager.getLogger(S3BlobContainer.class);
     private static final long DEFAULT_OPERATION_TIMEOUT = TimeUnit.SECONDS.toSeconds(30);
@@ -983,6 +986,147 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
                 });
         } catch (Exception e) {
             completionListener.onFailure(new IOException("Failed to initiate async blob deletion", e));
+        }
+    }
+
+    /**
+     * Writes a blob with conditional version support.
+     *
+     * @param blobName        the name of the blob
+     * @param inputStream     the input stream to write
+     * @param blobSize        the size of the blob
+     * @param expectedVersion the expected version for conditional write
+     * @return VersionedInputStream containing the new version
+     * @throws IOException if write fails or version mismatch
+     */
+    @Override
+    public String conditionallyWriteBlobWithVersion(String blobName, InputStream inputStream, long blobSize, String expectedVersion) throws IOException {
+        PutObjectRequest.Builder builder = PutObjectRequest.builder()
+            .bucket(blobStore.bucket())
+            .key(buildKey(blobName))
+            .contentLength(blobSize)
+            .storageClass(blobStore.getStorageClass())
+            .acl(blobStore.getCannedACL())
+            .expectedBucketOwner(blobStore.expectedBucketOwner())
+            .ifMatch(expectedVersion);
+
+        configureEncryptionSettings(builder, blobStore);
+
+        try (AmazonS3Reference clientReference = blobStore.clientReference()) {
+            final InputStream requestInputStream = blobStore.isUploadRetryEnabled()
+                ? new BufferedInputStream(inputStream, (int) (blobSize + 1))
+                : inputStream;
+
+            var response = AccessController.doPrivileged(() ->
+                clientReference.get().putObject(
+                    builder.build(),
+                    RequestBody.fromInputStream(requestInputStream, blobSize)
+                )
+            );
+            return response.eTag();
+        } catch (S3Exception e) {
+            if (e.statusCode() == 412) {
+                throw new IOException("Version conflict: expected version '" + expectedVersion + "' but remote version differs", e);
+            }
+            throw new IOException("Failed to write blob with version check", e);
+        } catch (SdkException e) {
+            throw new IOException("Failed to write blob with version check", e);
+        }
+    }
+
+
+
+    /**
+     * Writes a blob only if it does not already exist.
+     *
+     * @param blobName    the name of the blob
+     * @param inputStream the input stream to write
+     * @param blobSize    the size of the blob
+     * @return VersionedInputStream containing the new version, or null if blob already exists
+     * @throws IOException if write fails
+     */
+    @Override
+    public String writeVersionedBlobIfNotExists(String blobName, InputStream inputStream, long blobSize) throws IOException {
+        PutObjectRequest.Builder builder = PutObjectRequest.builder()
+            .bucket(blobStore.bucket())
+            .key(buildKey(blobName))
+            .contentLength(blobSize)
+            .storageClass(blobStore.getStorageClass())
+            .acl(blobStore.getCannedACL())
+            .expectedBucketOwner(blobStore.expectedBucketOwner())
+            .ifNoneMatch("*");
+
+        configureEncryptionSettings(builder, blobStore);
+
+        try (AmazonS3Reference clientReference = blobStore.clientReference()) {
+            final InputStream requestInputStream = blobStore.isUploadRetryEnabled()
+                ? new BufferedInputStream(inputStream, (int) (blobSize + 1))
+                : inputStream;
+
+            var response = AccessController.doPrivileged(() ->
+                clientReference.get().putObject(
+                    builder.build(),
+                    RequestBody.fromInputStream(requestInputStream, blobSize)
+                )
+            );
+            return response.eTag();
+        } catch (S3Exception e) {
+            if (e.statusCode() == 412) {
+                throw new IOException("Blob already exists: " + blobName, e);
+            }
+            throw new IOException("Failed to write blob if not exists", e);
+        } catch (SdkException e) {
+            throw new IOException("Failed to write blob if not exists", e);
+        }
+    }
+
+    /**
+     * Reads a versioned blob
+     *
+     * @param blobName the name of the blob
+     * @return VersionedInputStream containing the input stream and version
+     * @throws IOException if read fails
+     */
+    @Override
+    public VersionedInputStream readVersionedBlob(String blobName) throws IOException {
+        GetObjectRequest request = GetObjectRequest.builder()
+            .bucket(blobStore.bucket())
+            .key(buildKey(blobName))
+            .expectedBucketOwner(blobStore.expectedBucketOwner())
+            .build();
+
+        try (AmazonS3Reference clientReference = blobStore.clientReference()) {
+            var response = AccessController.doPrivileged(() ->
+                clientReference.get().getObject(request)
+            );
+            return new VersionedInputStream(response.response().eTag(), response);
+        } catch (SdkException e) {
+            throw new IOException("Failed to read versioned blob: " + blobName, e);
+        }
+    }
+
+    /**
+     * Gets the current version of a blob without reading its content.
+     *
+     * @param blobName the name of the blob
+     * @return the current version
+     * @throws IOException if blob doesn't exist or operation fails
+     */
+    @Override
+    public String getVersion(String blobName) throws IOException {
+        HeadObjectRequest request = HeadObjectRequest.builder()
+            .bucket(blobStore.bucket())
+            .key(buildKey(blobName))
+            .expectedBucketOwner(blobStore.expectedBucketOwner())
+            .build();
+
+        try (AmazonS3Reference clientReference = blobStore.clientReference()) {
+            var response = AccessController.doPrivileged(() ->
+                clientReference.get().headObject(request)
+            );
+            return response.eTag();
+        } catch (SdkException e) {
+            throw new IOException("Failed to get version for blob: " + blobName, e);
         }
     }
 }

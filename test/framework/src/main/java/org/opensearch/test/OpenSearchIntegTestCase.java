@@ -2964,6 +2964,24 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
         @NonNull String routingTableRepoName,
         @NonNull String routingTableRepoType
     ) {
+        return buildRemotePublicationNodeAttributes(
+            remoteStateRepoName,
+            remoteStateRepoType,
+            randomRepoPath(),
+            routingTableRepoName,
+            routingTableRepoType,
+            randomRepoPath()
+        );
+    }
+
+    protected Settings buildRemotePublicationNodeAttributes(
+        String remoteStateRepoName,
+        String remoteStateRepoType,
+        Path remoteStateRepoPath,
+        String routingTableRepoName,
+        String routingTableRepoType,
+        Path routingTableRepoPath
+    ) {
         String remoteStateRepositoryTypeAttributeKey = String.format(
             Locale.getDefault(),
             "node.attr." + REMOTE_STORE_REPOSITORY_TYPE_ATTRIBUTE_KEY_FORMAT,
@@ -2990,8 +3008,8 @@ public abstract class OpenSearchIntegTestCase extends OpenSearchTestCase {
             .put("node.attr." + REMOTE_STORE_ROUTING_TABLE_REPOSITORY_NAME_ATTRIBUTE_KEY, routingTableRepoName)
             .put(remoteStateRepositoryTypeAttributeKey, remoteStateRepoType)
             .put(routingTableRepositoryTypeAttributeKey, routingTableRepoType)
-            .put(remoteStateRepositorySettingsAttributeKeyPrefix + "location", randomRepoPath().toAbsolutePath())
-            .put(routingTableRepositorySettingsAttributeKeyPrefix + "location", randomRepoPath().toAbsolutePath())
+            .put(remoteStateRepositorySettingsAttributeKeyPrefix + "location", remoteStateRepoPath.toAbsolutePath())
+            .put(routingTableRepositorySettingsAttributeKeyPrefix + "location", routingTableRepoPath.toAbsolutePath())
             .build();
     }
 
