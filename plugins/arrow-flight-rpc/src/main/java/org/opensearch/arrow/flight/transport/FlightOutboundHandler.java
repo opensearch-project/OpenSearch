@@ -12,6 +12,8 @@ import org.apache.arrow.flight.FlightRuntimeException;
 import org.apache.arrow.vector.FieldVector;
 import org.apache.arrow.vector.VectorSchemaRoot;
 import org.opensearch.Version;
+import org.opensearch.arrow.transport.ArrowBatchResponse;
+import org.opensearch.arrow.transport.VectorTransfer;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.core.common.bytes.BytesReference;
@@ -161,7 +163,7 @@ class FlightOutboundHandler extends ProtocolOutboundHandler {
                     }
                     streamRoot = VectorSchemaRoot.create(arrowResponse.getRoot().getSchema(), fieldVectors.getFirst().getAllocator());
                 }
-                FlightUtils.transferRoot(arrowResponse.getRoot(), streamRoot);
+                VectorTransfer.transferRoot(arrowResponse.getRoot(), streamRoot);
                 arrowResponse.getRoot().close();
                 out = VectorStreamOutput.forNativeArrow(streamRoot);
             } else {

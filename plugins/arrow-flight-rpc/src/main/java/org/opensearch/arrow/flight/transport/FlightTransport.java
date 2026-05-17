@@ -22,6 +22,7 @@ import org.opensearch.Version;
 import org.opensearch.arrow.flight.bootstrap.ServerConfig;
 import org.opensearch.arrow.flight.bootstrap.tls.SslContextProvider;
 import org.opensearch.arrow.flight.stats.FlightStatsCollector;
+import org.opensearch.arrow.memory.ArrowAllocatorService;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.network.NetworkAddress;
 import org.opensearch.common.network.NetworkService;
@@ -100,6 +101,7 @@ class FlightTransport extends TcpTransport {
 
     private final NamedWriteableRegistry namedWriteableRegistry;
     private final FlightStatsCollector statsCollector;
+    private final ArrowAllocatorService allocatorService;
     private final FlightTransportConfig config = new FlightTransportConfig();
 
     final FlightServerMiddleware.Key<ServerHeaderMiddleware> SERVER_HEADER_KEY = FlightServerMiddleware.Key.of(
@@ -116,7 +118,8 @@ class FlightTransport extends TcpTransport {
         NetworkService networkService,
         Tracer tracer,
         SslContextProvider sslContextProvider,
-        FlightStatsCollector statsCollector
+        FlightStatsCollector statsCollector,
+        ArrowAllocatorService allocatorService
     ) {
         super(settings, version, threadPool, pageCacheRecycler, circuitBreakerService, namedWriteableRegistry, networkService, tracer);
         this.portRange = SETTING_FLIGHT_PORTS.get(settings);
@@ -124,6 +127,7 @@ class FlightTransport extends TcpTransport {
         this.publishHosts = SETTING_FLIGHT_PUBLISH_HOST.get(settings).toArray(new String[0]);
         this.sslContextProvider = sslContextProvider;
         this.statsCollector = statsCollector;
+        this.allocatorService = allocatorService;
         this.bossEventLoopGroup = createEventLoopGroup("os-grpc-boss-ELG", 1);
         this.workerEventLoopGroup = createEventLoopGroup("os-grpc-worker-ELG", Runtime.getRuntime().availableProcessors());
         this.serverExecutor = threadPool.executor(ServerConfig.GRPC_EXECUTOR_THREAD_POOL_NAME);
@@ -143,7 +147,7 @@ class FlightTransport extends TcpTransport {
     protected void doStart() {
         boolean success = false;
         try {
-            flightAllocator = ArrowAllocatorProvider.newChildAllocator("flight", Integer.MAX_VALUE);
+            flightAllocator = allocatorService.newChildAllocator("flight", Integer.MAX_VALUE);
             serverAllocator = flightAllocator.newChildAllocator("server", 0, flightAllocator.getLimit());
             clientAllocator = flightAllocator.newChildAllocator("client", 0, flightAllocator.getLimit());
             if (statsCollector != null) {

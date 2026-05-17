@@ -25,6 +25,7 @@ import org.opensearch.analytics.planner.CapabilityRegistry;
 import org.opensearch.analytics.planner.FieldStorageResolver;
 import org.opensearch.analytics.schema.OpenSearchSchemaBuilder;
 import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
+import org.opensearch.arrow.memory.ArrowAllocatorService;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Module;
@@ -37,6 +38,7 @@ import org.opensearch.env.NodeEnvironment;
 import org.opensearch.plugins.ActionPlugin;
 import org.opensearch.plugins.ExtensiblePlugin;
 import org.opensearch.plugins.Plugin;
+import org.opensearch.plugins.PluginComponentRegistry;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.script.ScriptService;
 import org.opensearch.threadpool.ThreadPool;
@@ -87,8 +89,12 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
         NodeEnvironment nodeEnvironment,
         NamedWriteableRegistry namedWriteableRegistry,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        Supplier<RepositoriesService> repositoriesServiceSupplier
+        Supplier<RepositoriesService> repositoriesServiceSupplier,
+        PluginComponentRegistry pluginComponentRegistry
     ) {
+        ArrowAllocatorService allocatorService = pluginComponentRegistry.getComponent(ArrowAllocatorService.class)
+            .orElseThrow(() -> new IllegalStateException("ArrowAllocatorService not available; arrow-base plugin must be installed"));
+
         operatorTable = aggregateOperatorTables();
         DefaultEngineContext ctx = new DefaultEngineContext(clusterService, operatorTable);
         CapabilityRegistry capabilityRegistry = new CapabilityRegistry(backEnds, FieldStorageResolver::new);
@@ -97,11 +103,8 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
         for (AnalyticsSearchBackendPlugin be : backEnds) {
             backEndsByName.put(be.name(), be);
         }
-        searchService = new AnalyticsSearchService(backEndsByName, namedWriteableRegistry);
+        searchService = new AnalyticsSearchService(backEndsByName, allocatorService, namedWriteableRegistry);
 
-        // Returned as components so Guice can inject them into DefaultPlanExecutor
-        // (a HandledTransportAction registered via getActions() — constructed by Guice
-        // after createComponents) and into AnalyticsSearchTransportService.
         return List.of(searchService, ctx, capabilityRegistry);
     }
 
@@ -148,4 +151,5 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
             return OpenSearchSchemaBuilder.buildSchema(clusterService.state());
         }
     }
+
 }

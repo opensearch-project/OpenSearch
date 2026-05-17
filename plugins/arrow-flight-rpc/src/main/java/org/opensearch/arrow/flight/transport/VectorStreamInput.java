@@ -10,6 +10,10 @@ package org.opensearch.arrow.flight.transport;
 
 import org.apache.arrow.vector.VarBinaryVector;
 import org.apache.arrow.vector.VectorSchemaRoot;
+import org.opensearch.arrow.transport.ArrowBatchResponse;
+import org.opensearch.arrow.transport.ArrowBatchResponseHandler;
+import org.opensearch.arrow.transport.ArrowStreamInput;
+import org.opensearch.arrow.transport.VectorTransfer;
 import org.opensearch.core.common.io.stream.NamedWriteable;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -20,20 +24,21 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 
 /**
- * A {@link StreamInput} backed by a {@link VectorSchemaRoot} from the Flight transport.
+ * Flight's {@link StreamInput} backed by a {@link VectorSchemaRoot}.
  *
- * <p>Two factories, mirroring {@link VectorStreamOutput}:
+ * <p>Two factories:
  * <ul>
  *   <li>{@link #forByteSerialized} — reads bytes directly from the stream root. Used when the
  *       response is not an {@link ArrowBatchResponse}: {@code handler.read()} copies bytes into
  *       the response's Java fields, so no ownership transfer is needed.</li>
  *   <li>{@link #forNativeArrow} — zero-copy transfers the stream root's vectors into a
  *       consumer root before reading, so the returned {@link ArrowBatchResponse} is
- *       independent of the FlightStream lifecycle.</li>
+ *       independent of the Flight stream's lifecycle.</li>
  * </ul>
  *
- * <p>The caller ({@link FlightTransportResponse#nextResponse}) picks the factory based on whether
- * the registered handler is an {@link ArrowBatchResponseHandler}.
+ * <p>Flight picks the factory based on whether the registered handler is an
+ * {@link ArrowBatchResponseHandler}. Native inputs implement {@link ArrowStreamInput} so
+ * {@code ArrowBatchResponse} can claim the batch without knowing about Flight.
  *
  * @opensearch.internal
  */
@@ -49,8 +54,7 @@ abstract class VectorStreamInput extends StreamInput {
 
     /**
      * Byte-serialized path: the stream root carries a single {@code VarBinary} column of chunked
-     * bytes written by {@link VectorStreamOutput.ByteSerialized}. Reads are over the stream root;
-     * FlightStream retains ownership.
+     * bytes written by the transport. Reads are over the stream root; FlightStream retains ownership.
      */
     static VectorStreamInput forByteSerialized(VectorSchemaRoot streamRoot, NamedWriteableRegistry registry) {
         return new ByteSerialized(streamRoot, registry);
@@ -58,8 +62,8 @@ abstract class VectorStreamInput extends StreamInput {
 
     /**
      * Transfers the stream root's vectors into a consumer root so the returned response
-     * outlives the next FlightStream batch. The consumer root is released by {@link NativeArrow#close()}
-     * unless the response takes ownership via {@link NativeArrow#claimOwnership()}.
+     * outlives the next Flight batch. Released by {@link NativeArrow#close()} unless the
+     * response takes ownership via {@link NativeArrow#claimOwnership()}.
      */
     static VectorStreamInput forNativeArrow(VectorSchemaRoot streamRoot, NamedWriteableRegistry registry) {
         if (streamRoot.getFieldVectors().isEmpty()) {
@@ -70,7 +74,7 @@ abstract class VectorStreamInput extends StreamInput {
             streamRoot.getFieldVectors().getFirst().getAllocator()
         );
         try {
-            FlightUtils.transferRoot(streamRoot, consumerRoot);
+            VectorTransfer.transferRoot(streamRoot, consumerRoot);
         } catch (Throwable t) {
             consumerRoot.close();
             throw t;
@@ -114,16 +118,14 @@ abstract class VectorStreamInput extends StreamInput {
         throw new UnsupportedOperationException();
     }
 
-    /**
-     * No-op: bounds checks happen at read time, not as a pre-check.
-     * {@link ByteSerialized#readByte} and {@link ByteSerialized#readBytes} throw
-     * {@link EOFException} when the column is exhausted.
-     */
+    // No-op: bounds checks happen at read time in ByteSerialized, which throws
+    // EOFException when the column is exhausted.
     @Override
     protected void ensureCanReadBytes(int length) {}
 
     // ── Byte serialization ──
 
+    /** Byte-serialized input: reads bytes from the stream root's single {@code VarBinary} column. */
     static final class ByteSerialized extends VectorStreamInput {
         private final VarBinaryVector vector;
         private int row = 0;
@@ -188,8 +190,8 @@ abstract class VectorStreamInput extends StreamInput {
         }
 
         /**
-         * No-op: the stream root belongs to {@link org.apache.arrow.flight.FlightStream}, which
-         * clears the vectors on the next {@code next()} and closes them on stream close.
+         * No-op: the stream root is owned by the transport, which resets its vectors between
+         * batches and closes them when the stream ends.
          */
         @Override
         public void close() {}
@@ -197,7 +199,8 @@ abstract class VectorStreamInput extends StreamInput {
 
     // ── Native Arrow ──
 
-    static final class NativeArrow extends VectorStreamInput {
+    /** Native Arrow input: consumer root carrying vectors transferred from the Flight stream. */
+    static final class NativeArrow extends VectorStreamInput implements ArrowStreamInput {
         private boolean transferred = false;
 
         NativeArrow(VectorSchemaRoot root, NamedWriteableRegistry registry) {
@@ -214,8 +217,8 @@ abstract class VectorStreamInput extends StreamInput {
             throw new UnsupportedOperationException("Native Arrow responses read vectors directly from getRoot()");
         }
 
-        /** Response claims the consumer root; {@link #close()} becomes a no-op. */
-        void claimOwnership() {
+        @Override
+        public void claimOwnership() {
             transferred = true;
         }
 

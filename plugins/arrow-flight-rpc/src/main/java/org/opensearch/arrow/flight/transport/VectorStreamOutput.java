@@ -14,6 +14,7 @@ import org.apache.arrow.vector.VectorSchemaRoot;
 import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.FieldType;
+import org.opensearch.arrow.transport.ArrowBatchResponse;
 import org.opensearch.core.common.io.stream.StreamOutput;
 
 import java.io.IOException;

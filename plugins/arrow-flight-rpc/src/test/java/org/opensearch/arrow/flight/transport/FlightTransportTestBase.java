@@ -10,9 +10,12 @@ package org.opensearch.arrow.flight.transport;
 
 import org.apache.arrow.flight.FlightClient;
 import org.apache.arrow.flight.Location;
+import org.apache.arrow.memory.BufferAllocator;
+import org.apache.arrow.memory.RootAllocator;
 import org.opensearch.Version;
 import org.opensearch.arrow.flight.bootstrap.ServerConfig;
 import org.opensearch.arrow.flight.stats.FlightStatsCollector;
+import org.opensearch.arrow.memory.ArrowAllocatorService;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.settings.Settings;
@@ -91,6 +94,23 @@ public abstract class FlightTransportTestBase extends OpenSearchTestCase {
         namedWriteableRegistry = new NamedWriteableRegistry(Collections.emptyList());
         statsCollector = new FlightStatsCollector();
 
+        RootAllocator testRoot = new RootAllocator(Long.MAX_VALUE);
+        ArrowAllocatorService testAllocatorService = new ArrowAllocatorService() {
+            @Override
+            public BufferAllocator newChildAllocator(String name, long limit) {
+                return testRoot.newChildAllocator(name, 0, limit);
+            }
+
+            @Override
+            public long getAllocatedMemory() {
+                return testRoot.getAllocatedMemory();
+            }
+
+            @Override
+            public long getPeakMemoryAllocation() {
+                return testRoot.getPeakMemoryAllocation();
+            }
+        };
         flightTransport = new FlightTransport(
             settings,
             Version.CURRENT,
@@ -101,7 +121,8 @@ public abstract class FlightTransportTestBase extends OpenSearchTestCase {
             new NetworkService(Collections.emptyList()),
             mock(Tracer.class),
             null,
-            statsCollector
+            statsCollector,
+            testAllocatorService
         );
         flightTransport.start();
         TransportService transportService = mock(TransportService.class);

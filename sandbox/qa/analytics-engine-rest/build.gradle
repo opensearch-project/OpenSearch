@@ -36,6 +36,9 @@ dependencies {
 // All test clusters share the same plugin set and JVM flags; only node count
 // and feature-specific settings differ per task.
 def configureAnalyticsCluster = { cluster ->
+    // arrow-base must precede any plugin that declares it in extendedPlugins —
+    // opensearch-plugin install runs in list order and fails jarHell otherwise.
+    cluster.plugin ':plugins:arrow-base'
     cluster.plugin ':plugins:arrow-flight-rpc'
     cluster.plugin ':sandbox:plugins:analytics-engine'
     cluster.plugin ':sandbox:plugins:analytics-backend-datafusion'

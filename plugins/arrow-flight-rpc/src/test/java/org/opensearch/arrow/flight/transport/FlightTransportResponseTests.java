@@ -8,6 +8,8 @@
 
 package org.opensearch.arrow.flight.transport;
 
+import org.opensearch.arrow.transport.ArrowBatchResponse;
+import org.opensearch.arrow.transport.ArrowBatchResponseHandler;
 import org.opensearch.core.transport.TransportResponse;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.transport.StreamTransportResponseHandler;

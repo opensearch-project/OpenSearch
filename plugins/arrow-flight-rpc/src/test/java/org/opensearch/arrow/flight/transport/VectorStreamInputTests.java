@@ -17,7 +17,9 @@ import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.FieldType;
 import org.apache.arrow.vector.types.pojo.Schema;
+import org.opensearch.arrow.transport.ArrowBatchResponse;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.After;
 import org.junit.Before;
@@ -94,7 +96,7 @@ public class VectorStreamInputTests extends OpenSearchTestCase {
         VectorStreamInput input = VectorStreamInput.forByteSerialized(shared, registry);
         input.close();
 
-        // Shared root must remain fully usable — FlightStream owns its lifecycle.
+        // Shared root must remain fully usable — the transport owns its lifecycle.
         assertEquals(1, shared.getRowCount());
         assertEquals(3, ((VarBinaryVector) shared.getVector("0")).get(0).length);
         shared.close();
@@ -294,6 +296,50 @@ public class VectorStreamInputTests extends OpenSearchTestCase {
             assertArrayEquals(new byte[] { 20, 30, 40 }, out);
         }
         shared.close();
+    }
+
+    // ArrowBatchResponse integration — verifies NativeArrow satisfies ArrowStreamInput.
+
+    static class TestResponse extends ArrowBatchResponse {
+        TestResponse(VectorSchemaRoot root) {
+            super(root);
+        }
+
+        TestResponse(StreamInput in) throws IOException {
+            super(in);
+        }
+    }
+
+    public void testArrowBatchResponseClaimsNativeArrowInput() throws IOException {
+        VectorSchemaRoot shared = newNativeArrowRoot();
+        IntVector vec = (IntVector) shared.getVector("val");
+        vec.allocateNew();
+        vec.setSafe(0, 42);
+        vec.setValueCount(1);
+        shared.setRowCount(1);
+
+        VectorStreamInput.NativeArrow in = (VectorStreamInput.NativeArrow) VectorStreamInput.forNativeArrow(shared, registry);
+        VectorSchemaRoot consumerRoot = in.getRoot();
+
+        TestResponse response = new TestResponse(in);
+        assertSame(consumerRoot, response.getRoot());
+
+        // claimOwnership must have fired — close() is a no-op, consumer root survives.
+        in.close();
+        assertEquals(42, ((IntVector) response.getRoot().getVector("val")).get(0));
+
+        response.getRoot().close();
+        shared.close();
+    }
+
+    public void testArrowBatchResponseRejectsByteSerializedInput() throws IOException {
+        VectorSchemaRoot shared = newByteSerializedRoot();
+        try (VectorStreamInput in = VectorStreamInput.forByteSerialized(shared, registry)) {
+            IllegalStateException e = expectThrows(IllegalStateException.class, () -> new TestResponse(in));
+            assertTrue("message should point at skipsDeserialization()", e.getMessage().contains("skipsDeserialization"));
+        } finally {
+            shared.close();
+        }
     }
 
     private VectorSchemaRoot newByteSerializedRoot() {

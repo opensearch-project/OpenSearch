@@ -8,8 +8,6 @@
 
 package org.opensearch.be.datafusion;
 
-import org.apache.arrow.memory.BufferAllocator;
-import org.apache.arrow.memory.RootAllocator;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.be.datafusion.cache.CacheManager;
@@ -24,7 +22,6 @@ import java.util.Collection;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Node-level service managing the DataFusion native runtime lifecycle.
@@ -45,26 +42,13 @@ public class DataFusionService extends AbstractLifecycleComponent {
     private final int cpuThreads;
     private final ClusterSettings clusterSettings;
 
-    /**
-     * Virtual-thread-per-task executor used for {@link DatafusionReduceSink}'s drain
-     * loop. Drain tasks park on {@code streamNext().join()} while the native side
-     * produces the next batch; on a virtual thread the park unmounts from its carrier
-     * so concurrent queries don't consume fixed platform-pool slots for the full
-     * query lifetime.
-     */
     private volatile ExecutorService drainExecutor;
 
     /** Handle to the native DataFusion global runtime (memory pool + cache). */
     private volatile NativeRuntimeHandle runtimeHandle;
 
-    /** Shared Arrow allocator for all DataFusion result streams on this node. */
-    private volatile RootAllocator rootAllocator;
-
     /** Cache manager for pre-warming and managing native caches. */
     private volatile CacheManager cacheManager;
-
-    /** Counter for generating unique child allocator names. */
-    private final AtomicLong allocatorCounter = new AtomicLong();
 
     private DataFusionService(Builder builder) {
         this.memoryPoolLimit = builder.memoryPoolLimit;
@@ -74,12 +58,6 @@ public class DataFusionService extends AbstractLifecycleComponent {
         this.clusterSettings = builder.clusterSettings;
     }
 
-    /**
-     * Returns the virtual-thread-per-task executor the coordinator-reduce sink uses for
-     * its drain loop. Tasks spawned here park on native futures; virtual threads unmount
-     * from their carriers during the park so concurrent queries don't consume fixed
-     * platform-pool slots for the query's full lifetime.
-     */
     public Executor getDrainExecutor() {
         ExecutorService exec = drainExecutor;
         if (exec == null) {
@@ -97,9 +75,8 @@ public class DataFusionService extends AbstractLifecycleComponent {
     protected void doStart() {
         logger.debug("Starting DataFusion service");
         NativeBridge.initTokioRuntimeManager(cpuThreads);
-        logger.debug("Tokio runtime manager initialized with {} CPU threads", cpuThreads);
-
         this.drainExecutor = Executors.newThreadPerTaskExecutor(Thread.ofVirtual().name("analytics-reduce-drain-", 0).factory());
+        logger.debug("Tokio runtime manager initialized with {} CPU threads", cpuThreads);
 
         long cacheManagerPtr = 0L;
         if (clusterSettings != null) {
@@ -108,7 +85,6 @@ public class DataFusionService extends AbstractLifecycleComponent {
 
         long ptr = NativeBridge.createGlobalRuntime(memoryPoolLimit, cacheManagerPtr, spillDirectory, spillMemoryLimit);
         this.runtimeHandle = new NativeRuntimeHandle(ptr);
-        this.rootAllocator = new RootAllocator(memoryPoolLimit);
 
         if (clusterSettings != null) {
             this.cacheManager = new CacheManager(runtimeHandle);
@@ -124,20 +100,13 @@ public class DataFusionService extends AbstractLifecycleComponent {
             releaseRuntime();
         } finally {
             try {
-                if (rootAllocator != null) {
-                    rootAllocator.close();
-                    rootAllocator = null;
+                ExecutorService exec = drainExecutor;
+                if (exec != null) {
+                    exec.shutdown();
+                    drainExecutor = null;
                 }
             } finally {
-                try {
-                    ExecutorService exec = drainExecutor;
-                    if (exec != null) {
-                        exec.shutdown();
-                        drainExecutor = null;
-                    }
-                } finally {
-                    NativeBridge.shutdownTokioRuntimeManager();
-                }
+                NativeBridge.shutdownTokioRuntimeManager();
             }
         }
         logger.debug("DataFusion service stopped");
@@ -199,21 +168,6 @@ public class DataFusionService extends AbstractLifecycleComponent {
         return NativeBridge.stats();
     }
     // Cache management (node-level, delegates to native runtime)
-
-    /**
-     * Creates a new child allocator from the shared root allocator.
-     * Each child has independent accounting but shares the root's memory limit.
-     *
-     * @return a new child {@link BufferAllocator}
-     * @throws IllegalStateException if the service has not been started
-     */
-    public BufferAllocator newChildAllocator() {
-        RootAllocator alloc = rootAllocator;
-        if (alloc == null) {
-            throw new IllegalStateException("DataFusionService has not been started");
-        }
-        return alloc.newChildAllocator("datafusion-stream-" + allocatorCounter.getAndIncrement(), 0, alloc.getLimit());
-    }
 
     /**
      * Returns the cache manager, or null if caching is not configured.

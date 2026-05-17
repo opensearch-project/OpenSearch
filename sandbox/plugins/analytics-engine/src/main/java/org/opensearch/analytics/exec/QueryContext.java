@@ -9,10 +9,11 @@
 package org.opensearch.analytics.exec;
 
 import org.apache.arrow.memory.BufferAllocator;
+import org.apache.arrow.memory.RootAllocator;
 import org.opensearch.analytics.backend.AnalyticsOperationListener;
 import org.opensearch.analytics.exec.task.AnalyticsQueryTask;
 import org.opensearch.analytics.planner.dag.QueryDAG;
-import org.opensearch.arrow.flight.transport.ArrowAllocatorProvider;
+import org.opensearch.arrow.memory.ArrowAllocatorService;
 
 import java.util.List;
 import java.util.concurrent.Executor;
@@ -42,15 +43,20 @@ public class QueryContext {
     private final int maxConcurrentShardRequests;
     private final long perQueryMemoryLimit;
     private final List<AnalyticsOperationListener> operationListeners;
+    private final ArrowAllocatorService allocatorService;
     private volatile BufferAllocator bufferAllocator;
     private boolean closed;  // guarded by `this`
 
-    public QueryContext(QueryDAG dag, Executor searchExecutor, AnalyticsQueryTask parentTask) {
-        this(dag, searchExecutor, parentTask, DEFAULT_MAX_CONCURRENT_SHARD_REQUESTS, DEFAULT_PER_QUERY_MEMORY_LIMIT, List.of());
-    }
-
-    public QueryContext(QueryDAG dag, Executor searchExecutor, AnalyticsQueryTask parentTask, int maxConcurrentShardRequests) {
-        this(dag, searchExecutor, parentTask, maxConcurrentShardRequests, DEFAULT_PER_QUERY_MEMORY_LIMIT, List.of());
+    public QueryContext(QueryDAG dag, Executor searchExecutor, AnalyticsQueryTask parentTask, ArrowAllocatorService allocatorService) {
+        this(
+            dag,
+            searchExecutor,
+            parentTask,
+            DEFAULT_MAX_CONCURRENT_SHARD_REQUESTS,
+            DEFAULT_PER_QUERY_MEMORY_LIMIT,
+            List.of(),
+            allocatorService
+        );
     }
 
     public QueryContext(
@@ -58,9 +64,9 @@ public class QueryContext {
         Executor searchExecutor,
         AnalyticsQueryTask parentTask,
         int maxConcurrentShardRequests,
-        long perQueryMemoryLimit
+        ArrowAllocatorService allocatorService
     ) {
-        this(dag, searchExecutor, parentTask, maxConcurrentShardRequests, perQueryMemoryLimit, List.of());
+        this(dag, searchExecutor, parentTask, maxConcurrentShardRequests, DEFAULT_PER_QUERY_MEMORY_LIMIT, List.of(), allocatorService);
     }
 
     public QueryContext(
@@ -69,7 +75,19 @@ public class QueryContext {
         AnalyticsQueryTask parentTask,
         int maxConcurrentShardRequests,
         long perQueryMemoryLimit,
-        List<AnalyticsOperationListener> operationListeners
+        ArrowAllocatorService allocatorService
+    ) {
+        this(dag, searchExecutor, parentTask, maxConcurrentShardRequests, perQueryMemoryLimit, List.of(), allocatorService);
+    }
+
+    public QueryContext(
+        QueryDAG dag,
+        Executor searchExecutor,
+        AnalyticsQueryTask parentTask,
+        int maxConcurrentShardRequests,
+        long perQueryMemoryLimit,
+        List<AnalyticsOperationListener> operationListeners,
+        ArrowAllocatorService allocatorService
     ) {
         this.dag = dag;
         this.searchExecutor = searchExecutor;
@@ -77,6 +95,7 @@ public class QueryContext {
         this.maxConcurrentShardRequests = maxConcurrentShardRequests;
         this.perQueryMemoryLimit = perQueryMemoryLimit;
         this.operationListeners = operationListeners;
+        this.allocatorService = allocatorService;
     }
 
     public QueryDAG dag() {
@@ -119,7 +138,7 @@ public class QueryContext {
                     if (closed) {
                         throw new IllegalStateException("QueryContext closed for query " + dag.queryId());
                     }
-                    alloc = ArrowAllocatorProvider.newChildAllocator("query-" + dag.queryId(), perQueryMemoryLimit);
+                    alloc = allocatorService.newChildAllocator("query-" + dag.queryId(), perQueryMemoryLimit);
                     bufferAllocator = alloc;
                 }
             }
@@ -146,9 +165,38 @@ public class QueryContext {
 
     // ─── Test factories ────────────────────────────────────────────────
 
+    /** Test-only: wraps a fresh {@link RootAllocator} as an {@link ArrowAllocatorService}. */
+    private static ArrowAllocatorService testAllocatorService() {
+        return new ArrowAllocatorService() {
+            private final RootAllocator root = new RootAllocator(Long.MAX_VALUE);
+
+            @Override
+            public BufferAllocator newChildAllocator(String name, long limit) {
+                return root.newChildAllocator(name, 0, limit);
+            }
+
+            @Override
+            public long getAllocatedMemory() {
+                return root.getAllocatedMemory();
+            }
+
+            @Override
+            public long getPeakMemoryAllocation() {
+                return root.getPeakMemoryAllocation();
+            }
+        };
+    }
+
     /** Creates a test context with a synchronous executor. */
     public static QueryContext forTest(QueryDAG dag, AnalyticsQueryTask parentTask) {
-        return new QueryContext(dag, Runnable::run, parentTask, DEFAULT_MAX_CONCURRENT_SHARD_REQUESTS, Long.MAX_VALUE);
+        return new QueryContext(
+            dag,
+            Runnable::run,
+            parentTask,
+            DEFAULT_MAX_CONCURRENT_SHARD_REQUESTS,
+            Long.MAX_VALUE,
+            testAllocatorService()
+        );
     }
 
     /** Creates a test context with a stub DAG. */
@@ -158,7 +206,8 @@ public class QueryContext {
             Runnable::run,
             parentTask,
             DEFAULT_MAX_CONCURRENT_SHARD_REQUESTS,
-            Long.MAX_VALUE
+            Long.MAX_VALUE,
+            testAllocatorService()
         );
     }
 }
