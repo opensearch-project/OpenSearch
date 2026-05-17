@@ -32,6 +32,8 @@
 
 package org.opensearch.core.indices.breaker;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -50,6 +52,8 @@ import java.util.Locale;
  */
 @PublicApi(since = "1.0.0")
 public class CircuitBreakerStats implements Writeable, ToXContentObject {
+
+    private static final Logger logger = LogManager.getLogger(CircuitBreakerStats.class);
 
     /** The name of the circuit breaker */
     private final String name;
@@ -158,7 +162,7 @@ public class CircuitBreakerStats implements Writeable, ToXContentObject {
         builder.field(Fields.LIMIT, limit);
         builder.field(Fields.LIMIT_HUMAN, new ByteSizeValue(limit));
         builder.field(Fields.ESTIMATED, estimated);
-        builder.field(Fields.ESTIMATED_HUMAN, new ByteSizeValue(estimated));
+        builder.field(Fields.ESTIMATED_HUMAN, new ByteSizeValue(sanitizeEstimated()));
         builder.field(Fields.OVERHEAD, overhead);
         builder.field(Fields.TRIPPED_COUNT, trippedCount);
         builder.endObject();
@@ -180,12 +184,31 @@ public class CircuitBreakerStats implements Writeable, ToXContentObject {
             + ",estimated="
             + this.estimated
             + "/"
-            + new ByteSizeValue(this.estimated)
+            + new ByteSizeValue(sanitizeEstimated())
             + ",overhead="
             + this.overhead
             + ",tripped="
             + this.trippedCount
             + "]";
+    }
+
+    /**
+     * Returns the estimated value clamped to 0 if negative. Circuit breaker accounting can
+     * underflow due to race conditions in concurrent addWithoutBreaking() calls, producing
+     * negative values that crash ByteSizeValue serialization and break /_nodes/stats API
+     * for the entire cluster.
+     */
+    private long sanitizeEstimated() {
+        if (estimated < 0) {
+            logger.warn(
+                "Circuit breaker [{}] has negative estimated bytes [{}], clamping to 0. "
+                    + "This indicates a bug in circuit breaker accounting.",
+                name,
+                estimated
+            );
+            return 0;
+        }
+        return estimated;
     }
 
     /**
