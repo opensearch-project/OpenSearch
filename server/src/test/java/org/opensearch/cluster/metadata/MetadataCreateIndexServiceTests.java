@@ -4421,4 +4421,55 @@ public class MetadataCreateIndexServiceTests extends OpenSearchTestCase {
 
         MetadataCreateIndexService.validateIngestionSourceSettings(settings, state);
     }
+
+    public void testValidateDynamicTemplatesMerge() throws Exception {
+        CompressedXContent template_1 = new CompressedXContent(
+            "{\""
+                + MapperService.SINGLE_MAPPING_NAME
+                + "\":{"
+                + "\"dynamic_templates\":["
+                + "{\"strings\":{"
+                + "\"match\":\"s_*\","
+                + "\"match_mapping_type\":\"*\","
+                + "\"mapping\":{\"type\":\"text\"}"
+                + "}}"
+                + "]}}"
+        );
+
+        // Template 2 (order 0): matches fields starting with "f_" as float
+        CompressedXContent template_2 = new CompressedXContent(
+            "{\""
+                + MapperService.SINGLE_MAPPING_NAME
+                + "\":{"
+                + "\"dynamic_templates\":["
+                + "{\"floats\":{"
+                + "\"match\":\"f_*\","
+                + "\"match_mapping_type\":\"*\","
+                + "\"mapping\":{\"type\":\"float\"}"
+                + "}}"
+                + "]}}"
+        );
+
+        List<CompressedXContent> templates = Arrays.asList(template_1, template_2);
+        Map<String, Object> result = MetadataCreateIndexService.parseV1Mappings("",
+            templates,
+            NamedXContentRegistry.EMPTY);
+
+        Map<String, Object> doc = (Map<String, Object>) result.get(MapperService.SINGLE_MAPPING_NAME);
+        List<?> dynamicTemplates = (List<?>) doc.get("dynamic_templates");
+
+        assertNotNull("dynamic_templates should not be null after merge", dynamicTemplates);
+        assertEquals("dynamic_templates from multiple legacy templates should be merged", 2, dynamicTemplates.size());
+
+        // Verify both template rules are present regardless of order
+        boolean hasStrings = false;
+        boolean hasFloats = false;
+        for (Object entry : dynamicTemplates) {
+            Map<?, ?> templateMap = (Map<?, ?>) entry;
+            if (templateMap.containsKey("strings")) hasStrings = true;
+            if (templateMap.containsKey("floats")) hasFloats = true;
+        }
+        assertTrue("Expected 'strings' dynamic template from template1", hasStrings);
+        assertTrue("Expected 'floats' dynamic template from template2", hasFloats);
+    }
 }

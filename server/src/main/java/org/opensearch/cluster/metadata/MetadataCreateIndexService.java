@@ -1011,6 +1011,18 @@ public class MetadataCreateIndexService {
             if (!target.containsKey(key)) {
                 // Key doesn't exist in target, add it
                 target.put(key, sourceValue);
+            } else if (key.equals("dynamic_templates")
+                && sourceValue instanceof List
+                && target.get(key) instanceof List) {
+                // Special handling for dynamic_templates — it is a List, so combine both lists
+                // instead of overwriting. Fixes: https://github.com/opensearch-project/OpenSearch/issues/21430
+                @SuppressWarnings("unchecked")
+                List<Object> targetList = (List<Object>) target.get(key);
+                @SuppressWarnings("unchecked")
+                List<Object> sourceList = (List<Object>) sourceValue;
+                List<Object> combined = new ArrayList<>(targetList);
+                combined.addAll(sourceList);
+                target.put(key, combined);
             } else if (key.equals("properties") && sourceValue instanceof Map && target.get(key) instanceof Map) {
                 // Special handling for "properties" section - merge field definitions with replacement
                 @SuppressWarnings("unchecked")
