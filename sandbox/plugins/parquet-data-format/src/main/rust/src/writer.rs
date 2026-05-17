@@ -89,8 +89,12 @@ struct SortingChunkedWriter {
     completed_chunks: Vec<String>,
     /// Row IDs captured from each sorted chunk (for permutation building).
     chunk_row_ids: Vec<Vec<i64>>,
+    /// CRC32 values for each completed sorted Parquet chunk file.
+    chunk_crcs: Vec<u32>,
     /// Total rows written across all chunks.
     total_rows: usize,
+    /// Writer generation propagated into Parquet file metadata for each chunk.
+    writer_generation: i64,
 }
 
 impl SortingChunkedWriter {
@@ -102,6 +106,7 @@ impl SortingChunkedWriter {
         sort_columns: Vec<String>,
         reverse_sorts: Vec<bool>,
         nulls_first: Vec<bool>,
+        writer_generation: i64,
     ) -> Result<Self, Box<dyn std::error::Error>> {
         let mut writer = Self {
             base_path,
@@ -117,7 +122,9 @@ impl SortingChunkedWriter {
             chunk_idx: 0,
             completed_chunks: Vec::new(),
             chunk_row_ids: Vec::new(),
+            chunk_crcs: Vec::new(),
             total_rows: 0,
+            writer_generation,
         };
         writer.open_new_ipc()?;
         Ok(writer)
@@ -248,9 +255,9 @@ impl SortingChunkedWriter {
         )?;
         drop(combined); // free unsorted data
 
-        // Capture row IDs for permutation building
+        // Capture original row IDs for permutation building, then rewrite to sequential 0..N
         let row_id_col_idx = self.schema.fields().iter().position(|f| f.name() == ROW_ID_COLUMN_NAME);
-        if let Some(idx) = row_id_col_idx {
+        let final_batch = if let Some(idx) = row_id_col_idx {
             let row_id_array = sorted_batch.column(idx)
                 .as_any()
                 .downcast_ref::<Int64Array>()
@@ -259,15 +266,26 @@ impl SortingChunkedWriter {
                 .map(|i| row_id_array.value(i))
                 .collect();
             self.chunk_row_ids.push(ids);
-        }
+
+            // Rewrite ___row_id to sequential 0..N so the chunk file is self-consistent
+            let sequential_ids = Int64Array::from_iter_values(
+                (0..sorted_batch.num_rows() as i64).map(|x| x)
+            );
+            let mut columns = sorted_batch.columns().to_vec();
+            columns[idx] = Arc::new(sequential_ids);
+            RecordBatch::try_new(self.schema.clone(), columns)?
+        } else {
+            sorted_batch
+        };
 
         // Write sorted chunk as Parquet
         let chunk_path = self.sorted_chunk_path(self.chunk_idx);
-        NativeParquetWriter::write_final_file(
-            &chunk_path, &self.index_name, &sorted_batch, self.schema.clone(), Some(self.chunk_idx as i64),
+        let crc32 = NativeParquetWriter::write_final_file(
+            &chunk_path, &self.index_name, &final_batch, self.schema.clone(), Some(self.writer_generation),
         )?;
 
         self.completed_chunks.push(chunk_path);
+        self.chunk_crcs.push(crc32);
         self.chunk_idx += 1;
 
         // Delete the IPC staging file and open a fresh one
@@ -276,8 +294,8 @@ impl SortingChunkedWriter {
         Ok(())
     }
 
-    /// Finalize: flush remaining IPC data (sort + write) and return chunk paths + row IDs.
-    fn finish(mut self) -> Result<(Vec<String>, Vec<Vec<i64>>), Box<dyn std::error::Error>> {
+    /// Finalize: flush remaining IPC data (sort + write) and return chunk paths + row IDs + CRCs.
+    fn finish(mut self) -> Result<(Vec<String>, Vec<Vec<i64>>, Vec<u32>), Box<dyn std::error::Error>> {
         if self.current_rows > 0 {
             self.flush_and_sort_chunk()?;
         }
@@ -286,7 +304,7 @@ impl SortingChunkedWriter {
             writer.finish()?;
         }
         let _ = std::fs::remove_file(&self.ipc_staging_path());
-        Ok((self.completed_chunks, self.chunk_row_ids))
+        Ok((self.completed_chunks, self.chunk_row_ids, self.chunk_crcs))
     }
 
     fn total_rows(&self) -> usize {
@@ -404,6 +422,7 @@ impl NativeParquetWriter {
                 settings.sort_columns.clone(),
                 settings.reverse_sorts.clone(),
                 settings.nulls_first.clone(),
+                writer_generation,
             )?;
             (WriterVariant::Ipc(Arc::new(Mutex::new(chunked_writer))), None)
         } else {
@@ -484,14 +503,14 @@ impl NativeParquetWriter {
                             let chunked_writer = mutex.into_inner().unwrap();
                             let total_rows = chunked_writer.total_rows();
                             let schema = chunked_writer.schema.clone();
-                            let (chunk_paths, chunk_row_ids) = chunked_writer.finish()?;
+                            let (chunk_paths, chunk_row_ids, chunk_crcs) = chunked_writer.finish()?;
                             log_info!(
                                 "Successfully closed sorting chunked writer for: {}, total_rows={}, chunks={}",
                                 temp_filename, total_rows, chunk_paths.len()
                             );
 
                             let (crc32, row_id_mapping) = Self::finalize_sorted_chunks(
-                                &chunk_paths, &chunk_row_ids, &filename, index_name,
+                                &chunk_paths, &chunk_row_ids, &chunk_crcs, &filename, index_name,
                                 &settings.sort_columns, &settings.reverse_sorts, &settings.nulls_first,
                                 writer_generation, schema.clone(),
                             )?;
@@ -566,6 +585,7 @@ impl NativeParquetWriter {
     fn finalize_sorted_chunks(
         chunk_paths: &[String],
         chunk_row_ids: &[Vec<i64>],
+        chunk_crcs: &[u32],
         output_filename: &str,
         index_name: &str,
         sort_columns: &[String],
@@ -592,6 +612,9 @@ impl NativeParquetWriter {
             log_info!("finalize_sorted_chunks: single chunk, renaming to final output");
             std::fs::rename(&chunk_paths[0], output_filename)?;
 
+            // Use the CRC computed when the chunk was written
+            let crc32 = chunk_crcs.first().copied().unwrap_or(0);
+
             // Build permutation from the single chunk's row IDs
             let row_id_mapping = if !chunk_row_ids.is_empty() && !chunk_row_ids[0].is_empty() {
                 let ids = &chunk_row_ids[0];
@@ -608,7 +631,7 @@ impl NativeParquetWriter {
                 None
             };
 
-            return Ok((0, row_id_mapping));
+            return Ok((crc32, row_id_mapping));
         }
 
         // Multiple chunks: k-way merge
@@ -662,485 +685,7 @@ impl NativeParquetWriter {
             "finalize_sorted_chunks: DONE file={}, chunks={}, merge_duration={:?}",
             output_filename, chunk_paths.len(), merge_duration
         );
-        Ok((0, row_id_mapping))
-    }
-
-    fn sort_and_rewrite_parquet(
-        temp_filename: &str,
-        output_filename: &str,
-        index_name: &str,
-        sort_columns: &[String],
-        reverse_sorts: &[bool],
-        nulls_first: &[bool],
-        writer_generation: i64,
-    ) -> Result<(u32, Option<Vec<i64>>), Box<dyn std::error::Error>> {
-        log_debug!(
-            "sort_and_rewrite_parquet: temp={}, output={}, sort_columns={:?}, reverse_sorts={:?}, nulls_first={:?}",
-            temp_filename, output_filename, sort_columns, reverse_sorts, nulls_first
-        );
-
-        let config = SETTINGS_STORE
-            .get(index_name)
-            .map(|r| r.clone())
-            .unwrap_or_default();
-
-        let file_size = std::fs::metadata(temp_filename)?.len();
-
-        if file_size <= config.get_sort_in_memory_threshold_bytes() {
-            Self::sort_small_file(temp_filename, output_filename, index_name, sort_columns, reverse_sorts, nulls_first, writer_generation)
-        } else {
-            Self::sort_large_file(temp_filename, output_filename, index_name, sort_columns, reverse_sorts, nulls_first, config.get_sort_batch_size())
-        }
-    }
-
-    /// Sort and rewrite Parquet from pre-chunked IPC files.
-    /// Each chunk file already contains at most sort_batch_size rows (chunked during write).
-    /// - If there are no chunks (empty data), write an empty Parquet file.
-    /// - If there's only 1 chunk (small data), use in-memory sort.
-    /// - If there are multiple chunks, sort each chunk individually and k-way merge.
-    fn sort_and_rewrite_parquet_from_chunks(
-        chunk_paths: &[String],
-        output_filename: &str,
-        index_name: &str,
-        sort_columns: &[String],
-        reverse_sorts: &[bool],
-        nulls_first: &[bool],
-        writer_generation: i64,
-        settings: &NativeSettings,
-        schema: Arc<arrow::datatypes::Schema>,
-    ) -> Result<(u32, Option<Vec<i64>>), Box<dyn std::error::Error>> {
-        use arrow::array::Int64Array;
-
-        if chunk_paths.is_empty() {
-            log_info!("sort_and_rewrite_parquet_from_chunks: no chunks, writing empty Parquet file");
-            let config = SETTINGS_STORE
-                .get(index_name)
-                .map(|r| r.clone())
-                .unwrap_or_default();
-            let props = WriterPropertiesBuilder::build_with_generation(&config, Some(writer_generation));
-            let file = File::create(output_filename)?;
-            let writer = ArrowWriter::try_new(file, schema, Some(props))?;
-            writer.close()?;
-            return Ok((0, None));
-        }
-
-        // If only 1 chunk, use the small-file (in-memory) path
-        if chunk_paths.len() == 1 {
-            log_info!("sort_and_rewrite_parquet_from_chunks: single chunk, using in-memory sort");
-            return Self::sort_small_file(
-                &chunk_paths[0], output_filename, index_name,
-                sort_columns, reverse_sorts, nulls_first, writer_generation,
-            );
-        }
-
-        // Multiple chunks: sort each chunk, write as Parquet, then k-way merge
-        let overall_start = std::time::Instant::now();
-        log_info!(
-            "sort_and_rewrite_parquet_from_chunks: {} chunks, sorting each and merging",
-            chunk_paths.len()
-        );
-
-        let row_id_col_idx = schema.fields().iter().position(|f| f.name() == ROW_ID_COLUMN_NAME);
-        let mut sorted_chunk_paths: Vec<String> = Vec::new();
-        let mut chunk_row_ids: Vec<Vec<i64>> = Vec::new();
-        let mut total_rows: usize = 0;
-        let mut total_sort_duration = std::time::Duration::ZERO;
-        let mut total_chunk_write_duration = std::time::Duration::ZERO;
-        let mut total_ipc_read_duration = std::time::Duration::ZERO;
-
-        let output_stem = Path::new(output_filename)
-            .file_stem()
-            .unwrap_or_default()
-            .to_string_lossy()
-            .to_string();
-        let chunk_dir = Path::new(output_filename).parent().unwrap_or_else(|| Path::new("."));
-
-        for (chunk_idx, ipc_chunk_path) in chunk_paths.iter().enumerate() {
-            // Read the IPC chunk
-            let ipc_read_start = std::time::Instant::now();
-            let file = File::open(ipc_chunk_path)?;
-            let reader = IpcFileReader::try_new(file, None)?;
-            let mut batches: Vec<RecordBatch> = Vec::new();
-            for batch_result in reader {
-                let batch = batch_result?;
-                if batch.num_rows() > 0 {
-                    batches.push(batch);
-                }
-            }
-            total_ipc_read_duration += ipc_read_start.elapsed();
-
-            if batches.is_empty() {
-                continue;
-            }
-
-            let combined = concat_batches(&schema, &batches)?;
-            total_rows += combined.num_rows();
-
-            // Sort the chunk
-            let sort_start = std::time::Instant::now();
-            let sorted_batch = Self::sort_batch(&combined, sort_columns, reverse_sorts, nulls_first)?;
-            total_sort_duration += sort_start.elapsed();
-
-            // Capture row IDs
-            if let Some(idx) = row_id_col_idx {
-                let row_id_array = sorted_batch.column(idx)
-                    .as_any()
-                    .downcast_ref::<Int64Array>()
-                    .expect("___row_id column must be Int64");
-                let ids: Vec<i64> = (0..row_id_array.len())
-                    .map(|i| row_id_array.value(i))
-                    .collect();
-                chunk_row_ids.push(ids);
-            }
-
-            // Write sorted chunk as Parquet
-            let sorted_chunk_filename = chunk_dir
-                .join(format!("temp_sort_chunk_{}_{}_{}.parquet", output_stem, chunk_idx, std::process::id()))
-                .to_string_lossy()
-                .to_string();
-
-            let write_start = std::time::Instant::now();
-            Self::write_final_file(&sorted_chunk_filename, index_name, &sorted_batch, schema.clone(), Some(chunk_idx as i64))?;
-            total_chunk_write_duration += write_start.elapsed();
-
-            sorted_chunk_paths.push(sorted_chunk_filename);
-        }
-
-        let chunking_duration = overall_start.elapsed();
-        log_info!(
-            "sort_and_rewrite_parquet_from_chunks: chunking phase complete: total_rows={}, chunks_sorted={}, \
-             duration={:?} (ipc_read={:?}, sort={:?}, chunk_write={:?})",
-            total_rows, sorted_chunk_paths.len(),
-            chunking_duration, total_ipc_read_duration, total_sort_duration, total_chunk_write_duration
-        );
-
-        if sorted_chunk_paths.is_empty() {
-            return Ok((0, None));
-        }
-
-        // K-way merge
-        let merge_start = std::time::Instant::now();
-        let merge_output = merge_sorted(
-            &sorted_chunk_paths,
-            output_filename,
-            index_name,
-            sort_columns,
-            reverse_sorts,
-            nulls_first,
-        )
-        .map_err(|e| -> Box<dyn std::error::Error> {
-            format!("Streaming merge failed: {}", e).into()
-        })?;
-        let merge_duration = merge_start.elapsed();
-        log_info!(
-            "sort_and_rewrite_parquet_from_chunks: k-way merge complete: {} chunks merged, duration={:?}",
-            sorted_chunk_paths.len(), merge_duration
-        );
-
-        // Build the flat permutation
-        let row_id_mapping = if !merge_output.mapping.is_empty() && !chunk_row_ids.is_empty() {
-            let total = merge_output.mapping.len();
-            let mut flat_mapping = vec![0i64; total];
-            for i in 0..total {
-                flat_mapping[i] = i as i64;
-            }
-            let mut pos = 0usize;
-            for chunk_ids in &chunk_row_ids {
-                for &original_row_id in chunk_ids {
-                    let orig_idx = original_row_id as usize;
-                    if orig_idx < total && pos < total {
-                        flat_mapping[orig_idx] = merge_output.mapping[pos];
-                    }
-                    pos += 1;
-                }
-            }
-            log_info!("sort_and_rewrite_parquet_from_chunks: produced {} permutation entries", flat_mapping.len());
-            Some(flat_mapping)
-        } else {
-            None
-        };
-
-        // Clean up sorted Parquet chunk files
-        for path in &sorted_chunk_paths {
-            let _ = std::fs::remove_file(path);
-        }
-
-        let overall_duration = overall_start.elapsed();
-        log_info!(
-            "sort_and_rewrite_parquet_from_chunks: DONE file={}, total_rows={}, chunks={}, total_duration={:?} \
-             (chunking={:?}, merge={:?})",
-            output_filename, total_rows, chunk_paths.len(), overall_duration,
-            chunking_duration, merge_duration
-        );
-        Ok((0, row_id_mapping))
-    }
-
-
-    /// In-memory sort for small files: read all batches, concat, sort, rewrite row IDs, write.
-    pub(crate) fn sort_small_file(
-        temp_filename: &str,
-        output_filename: &str,
-        index_name: &str,
-        sort_columns: &[String],
-        reverse_sorts: &[bool],
-        nulls_first: &[bool],
-        writer_generation: i64,
-    ) -> Result<(u32, Option<Vec<i64>>), Box<dyn std::error::Error>> {
-        let overall_start = std::time::Instant::now();
-        log_info!(
-            "sort_small_file: START file={}, sort_columns={:?}, writer_generation={}",
-            temp_filename, sort_columns, writer_generation
-        );
-
-        let read_start = std::time::Instant::now();
-        let file = File::open(temp_filename)?;
-        let reader = IpcFileReader::try_new(file, None)?;
-        let schema = reader.schema();
-
-        let mut all_batches: Vec<RecordBatch> = Vec::new();
-        let mut total_rows_read: usize = 0;
-        let mut batch_count: usize = 0;
-        for batch_result in reader {
-            let batch = batch_result?;
-            if batch.num_rows() > 0 {
-                total_rows_read += batch.num_rows();
-                batch_count += 1;
-                all_batches.push(batch);
-            }
-        }
-        let read_duration = read_start.elapsed();
-        log_info!(
-            "sort_small_file: IPC read complete: {} batches, {} total rows, duration={:?}",
-            batch_count, total_rows_read, read_duration
-        );
-
-        if all_batches.is_empty() {
-            log_info!("No data in temp file: {}", temp_filename);
-            let props = WriterPropertiesBuilder::build_with_generation(
-                &SETTINGS_STORE.get(index_name).map(|r| r.clone()).unwrap_or_default(),
-                Some(writer_generation),
-            );
-            let file = File::create(output_filename)?;
-            let writer = ArrowWriter::try_new(file, schema, Some(props))?;
-            writer.close()?;
-            return Ok((0, None));
-        }
-
-        let concat_start = std::time::Instant::now();
-        let combined_batch = concat_batches(&schema, &all_batches)?;
-        let concat_duration = concat_start.elapsed();
-        log_info!(
-            "sort_small_file: concat complete: {} rows, duration={:?}",
-            combined_batch.num_rows(), concat_duration
-        );
-
-        let sort_start = std::time::Instant::now();
-        let sorted_batch = Self::sort_batch(&combined_batch, sort_columns, reverse_sorts, nulls_first)?;
-        let sort_duration = sort_start.elapsed();
-        log_info!("sort_small_file: sort complete: {} rows, duration={:?}", sorted_batch.num_rows(), sort_duration);
-
-        let rewrite_start = std::time::Instant::now();
-        let (final_batch, permutation) = Self::rewrite_row_ids(&sorted_batch, &schema)?;
-        let rewrite_duration = rewrite_start.elapsed();
-        log_info!("sort_small_file: rewrite_row_ids complete: duration={:?}", rewrite_duration);
-
-        let write_start = std::time::Instant::now();
-        let crc32 = Self::write_final_file(output_filename, index_name, &final_batch, schema, Some(writer_generation))?;
-        let write_duration = write_start.elapsed();
-        log_info!("sort_small_file: Parquet write complete: duration={:?}", write_duration);
-
-        let row_id_mapping = if !permutation.is_empty() {
-            log_info!("sort_small_file: produced {} permutation entries for {}", permutation.len(), output_filename);
-            Some(permutation)
-        } else {
-            None
-        };
-
-        let overall_duration = overall_start.elapsed();
-        log_info!(
-            "sort_small_file: DONE file={}, total_rows={}, total_duration={:?} (read={:?}, concat={:?}, sort={:?}, rewrite_ids={:?}, write={:?})",
-            output_filename, final_batch.num_rows(), overall_duration,
-            read_duration, concat_duration, sort_duration, rewrite_duration, write_duration
-        );
-        Ok((crc32, row_id_mapping))
-    }
-
-    pub(crate) fn sort_large_file(
-        temp_filename: &str,
-        output_filename: &str,
-        index_name: &str,
-        sort_columns: &[String],
-        reverse_sorts: &[bool],
-        nulls_first: &[bool],
-        batch_size: usize,
-    ) -> Result<(u32, Option<Vec<i64>>), Box<dyn std::error::Error>> {
-        use arrow::array::Int64Array;
-
-        let overall_start = std::time::Instant::now();
-        let file_size = std::fs::metadata(temp_filename).map(|m| m.len()).unwrap_or(0);
-        log_info!(
-            "sort_large_file: START file={}, file_size={} bytes, batch_size={}, sort_columns={:?}",
-            temp_filename, file_size, batch_size, sort_columns
-        );
-
-        let read_start = std::time::Instant::now();
-        let file = File::open(temp_filename)?;
-        let reader = IpcFileReader::try_new(file, None)?;
-        let schema = reader.schema();
-
-        let mut chunk_paths: Vec<String> = Vec::new();
-        let mut batch_count: i64 = 0;
-        let mut total_rows_read: usize = 0;
-        let mut total_ipc_batches: usize = 0;
-        let output_stem = Path::new(output_filename)
-            .file_stem()
-            .unwrap_or_default()
-            .to_string_lossy()
-            .to_string();
-        let chunk_dir = Path::new(output_filename).parent().unwrap_or_else(|| Path::new("."));
-
-        // Capture the ___row_id values from each sorted chunk (in sorted order).
-        // After merge, we use these to map sorted-positions back to original row IDs.
-        let mut chunk_row_ids: Vec<Vec<i64>> = Vec::new();
-
-        // Find the ___row_id column index in the schema
-        let row_id_col_idx = schema.fields().iter().position(|f| f.name() == ROW_ID_COLUMN_NAME);
-
-        let mut total_sort_duration = std::time::Duration::ZERO;
-        let mut total_chunk_write_duration = std::time::Duration::ZERO;
-        let mut total_ipc_read_duration = std::time::Duration::ZERO;
-        let mut total_rowid_capture_duration = std::time::Duration::ZERO;
-
-        let mut reader_iter = reader.into_iter();
-        loop {
-            let ipc_read_start = std::time::Instant::now();
-            let batch_opt = reader_iter.next();
-            total_ipc_read_duration += ipc_read_start.elapsed();
-
-            let batch = match batch_opt {
-                Some(Ok(b)) => b,
-                Some(Err(e)) => return Err(e.into()),
-                None => break,
-            };
-            if batch.num_rows() == 0 {
-                continue;
-            }
-            total_ipc_batches += 1;
-            total_rows_read += batch.num_rows();
-
-            // IpcFileReader returns batches at whatever size they were written.
-            // Slice into batch_size chunks to bound memory during sort.
-            let mut offset = 0;
-            while offset < batch.num_rows() {
-                let len = std::cmp::min(batch_size, batch.num_rows() - offset);
-                let slice = batch.slice(offset, len);
-                offset += len;
-
-                let sort_start = std::time::Instant::now();
-                let sorted_batch = Self::sort_batch(&slice, sort_columns, reverse_sorts, nulls_first)?;
-                total_sort_duration += sort_start.elapsed();
-
-                // Capture ___row_id values from the sorted batch (these are the original row IDs
-                // in the order they appear after per-chunk sort)
-                if let Some(idx) = row_id_col_idx {
-                    let rowid_start = std::time::Instant::now();
-                    let row_id_array = sorted_batch.column(idx)
-                        .as_any()
-                        .downcast_ref::<Int64Array>()
-                        .expect("___row_id column must be Int64");
-                    let ids: Vec<i64> = (0..row_id_array.len())
-                        .map(|i| row_id_array.value(i))
-                        .collect();
-                    chunk_row_ids.push(ids);
-                    total_rowid_capture_duration += rowid_start.elapsed();
-                }
-
-                let chunk_filename = chunk_dir
-                    .join(format!("temp_sort_chunk_{}_{}_{}.parquet", output_stem, batch_count, std::process::id()))
-                    .to_string_lossy()
-                    .to_string();
-
-                let write_start = std::time::Instant::now();
-                // Write chunk with batch_count as writer_generation so merge_sorted can track it
-                Self::write_final_file(&chunk_filename, index_name, &sorted_batch, schema.clone(), Some(batch_count))?;
-                total_chunk_write_duration += write_start.elapsed();
-
-                chunk_paths.push(chunk_filename);
-                batch_count += 1;
-            }
-        }
-        let chunking_duration = read_start.elapsed();
-        log_info!(
-            "sort_large_file: chunking phase complete: ipc_batches_read={}, total_rows={}, chunks_created={}, \
-             chunking_duration={:?} (ipc_read={:?}, sort={:?}, rowid_capture={:?}, chunk_write={:?})",
-            total_ipc_batches, total_rows_read, batch_count,
-            chunking_duration, total_ipc_read_duration, total_sort_duration,
-            total_rowid_capture_duration, total_chunk_write_duration
-        );
-
-        if chunk_paths.is_empty() {
-            log_info!("sort_large_file: no data to sort in file: {}", temp_filename);
-            return Ok((0, None));
-        }
-
-        let merge_start = std::time::Instant::now();
-        let merge_output = merge_sorted(
-            &chunk_paths,
-            output_filename,
-            index_name,
-            sort_columns,
-            reverse_sorts,
-            nulls_first,
-        )
-        .map_err(|e| -> Box<dyn std::error::Error> {
-            format!("Streaming merge failed: {}", e).into()
-        })?;
-        let merge_duration = merge_start.elapsed();
-        log_info!(
-            "sort_large_file: k-way merge complete: {} chunks merged, duration={:?}",
-            batch_count, merge_duration
-        );
-
-        // Build the flat permutation: result[original_row_id] = new_row_id
-        let permutation_start = std::time::Instant::now();
-        let row_id_mapping = if !merge_output.mapping.is_empty() && !chunk_row_ids.is_empty() {
-            let total_rows = merge_output.mapping.len();
-            let mut flat_mapping = vec![0i64; total_rows];
-            for i in 0..total_rows {
-                flat_mapping[i] = i as i64;
-            }
-
-            let mut pos = 0usize;
-            for chunk_ids in &chunk_row_ids {
-                for &original_row_id in chunk_ids {
-                    let orig_idx = original_row_id as usize;
-                    if orig_idx < total_rows && pos < total_rows {
-                        flat_mapping[orig_idx] = merge_output.mapping[pos];
-                    }
-                    pos += 1;
-                }
-            }
-
-            log_info!("sort_large_file: produced {} permutation entries for {}", flat_mapping.len(), output_filename);
-            Some(flat_mapping)
-        } else {
-            None
-        };
-        let permutation_duration = permutation_start.elapsed();
-
-        // Clean up temp chunk files
-        for path in &chunk_paths {
-            let _ = std::fs::remove_file(path);
-        }
-
-        let overall_duration = overall_start.elapsed();
-        log_info!(
-            "sort_large_file: DONE file={}, total_rows={}, chunks={}, total_duration={:?} \
-             (chunking={:?}, merge={:?}, permutation_build={:?})",
-            output_filename, total_rows_read, batch_count, overall_duration,
-            chunking_duration, merge_duration, permutation_duration
-        );
-        Ok((0, row_id_mapping))
+        Ok((merge_output.crc32, row_id_mapping))
     }
 
     /// Sort a batch using RowConverter: converts sort columns into compact
@@ -1189,59 +734,6 @@ impl NativeParquetWriter {
             .collect();
 
         Ok(RecordBatch::try_new(batch.schema(), sorted_columns?)?)
-    }
-
-    /// If a ___row_id column exists, rewrite it with sequential values 0..N.
-    /// Also returns the sort permutation as a flat mapping Vec<i64> where mapping[old_row_id] = new_row_id.
-    fn rewrite_row_ids(
-        batch: &RecordBatch,
-        schema: &Arc<arrow::datatypes::Schema>,
-    ) -> Result<(RecordBatch, Vec<i64>), Box<dyn std::error::Error>> {
-        use arrow::array::Int64Array;
-
-        // Log all column names present in the schema
-        let column_names: Vec<&str> = schema.fields().iter().map(|f| f.name().as_str()).collect();
-        log_info!("[RUST] rewrite_row_ids: schema has {} columns: {:?}", column_names.len(), column_names);
-        log_info!("[RUST] rewrite_row_ids: looking for ROW_ID_COLUMN_NAME = '{}'", ROW_ID_COLUMN_NAME);
-        log_info!("[RUST] rewrite_row_ids: batch num_rows = {}, num_columns = {}", batch.num_rows(), batch.num_columns());
-
-        if let Some(row_id_idx) = schema.fields().iter().position(|f| f.name() == ROW_ID_COLUMN_NAME) {
-            log_info!("rewrite_row_ids: FOUND ___row_id at column index {}", row_id_idx);
-            log_debug!("rewrite_row_ids: rewriting ___row_id with sequential values 0..{}", batch.num_rows());
-
-            // Capture the sort permutation as flat mapping: mapping[old_row_id] = new_row_id
-            let old_row_ids = batch.column(row_id_idx)
-                .as_any()
-                .downcast_ref::<Int64Array>()
-                .ok_or("___row_id column is not Int64")?;
-
-            let num_rows = batch.num_rows();
-            let mut mapping = vec![0i64; num_rows];
-            // Initialize with identity
-            for i in 0..num_rows {
-                mapping[i] = i as i64;
-            }
-            for new_pos in 0..num_rows {
-                let old_row_id = old_row_ids.value(new_pos) as usize;
-                if old_row_id < num_rows {
-                    mapping[old_row_id] = new_pos as i64;
-                }
-            }
-
-            log_debug!("rewrite_row_ids: captured flat mapping with {} entries", mapping.len());
-
-            let sequential_ids = Int64Array::from_iter_values(
-                (0..batch.num_rows() as u64).map(|x| x as i64)
-            );
-            let mut new_columns = batch.columns().to_vec();
-            new_columns[row_id_idx] = Arc::new(sequential_ids);
-            log_info!("[RUST] rewrite_row_ids: successfully rewrote ___row_id with sequential 0..{}", batch.num_rows());
-            Ok((RecordBatch::try_new(schema.clone(), new_columns)?, mapping))
-        } else {
-            log_info!("[RUST] rewrite_row_ids: ___row_id column NOT FOUND in schema — returning empty permutation");
-            log_info!("[RUST] rewrite_row_ids: available columns are: {:?}", column_names);
-            Ok((batch.clone(), Vec::new()))
-        }
     }
 
     fn write_final_file(
