@@ -45,7 +45,14 @@ final class FilterTreeShapeDeriver {
 
     private static Result walk(RexNode node, String drivingBackendId) {
         if (node instanceof AnnotatedPredicate predicate) {
-            boolean isDelegated = !predicate.getViableBackends().getFirst().equals(drivingBackendId);
+            // Two flavors of delegation count toward "hasDelegated":
+            // 1. Correctness — viableBackends differs from operator backend (the only backend
+            // that can evaluate is the peer).
+            // 2. Performance — operator backend can evaluate natively, but a peer was also
+            // viable and is available for opportunistic per-RG consultation.
+            boolean isCorrectness = !predicate.getViableBackends().getFirst().equals(drivingBackendId);
+            boolean isPerformance = !predicate.getPerformanceDelegationBackends().isEmpty();
+            boolean isDelegated = isCorrectness || isPerformance;
             return new Result(isDelegated, false, !isDelegated);
         }
         if (node instanceof RexCall call) {

@@ -47,6 +47,7 @@ import org.opensearch.analytics.planner.rel.OpenSearchTableScan;
 import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
 import org.opensearch.analytics.spi.DelegatedPredicateFunction;
 import org.opensearch.analytics.spi.DelegatedPredicateSerializer;
+import org.opensearch.analytics.spi.DelegationPossibleFunction;
 import org.opensearch.analytics.spi.DelegationType;
 import org.opensearch.analytics.spi.EngineCapability;
 import org.opensearch.analytics.spi.FieldStorageInfo;
@@ -468,6 +469,9 @@ public class FragmentConversionDriverTests extends BasePlannerRulesTests {
                 map.put(ScalarFunction.MATCH, serializer);
                 map.put(ScalarFunction.WILDCARD, serializer);
                 map.put(ScalarFunction.REGEXP, serializer);
+                // EQUALS registered for performance-delegation tests (dual-viable predicate that
+                // stays on the operator backend but is also serializable by the Lucene peer).
+                map.put(ScalarFunction.EQUALS, serializer);
                 return map;
             }
         };
@@ -505,15 +509,30 @@ public class FragmentConversionDriverTests extends BasePlannerRulesTests {
         );
     }
 
-    /** Two-field delegation helper (integer status + keyword message). */
+    /**
+     * Three-field delegation helper:
+     *   - field 0 = status   (integer, indexed) — DUAL-VIABLE for Lucene + DataFusion.
+     *   - field 1 = message  (keyword, indexed) — DUAL-VIABLE for full-text + DataFusion.
+     *   - field 2 = amount   (integer, NOT indexed) — SINGLE-VIABLE to DataFusion only;
+     *     Lucene declares EQUALS as a capability for indexed numerics, so an index=false
+     *     field is the simplest way to test the truly-native code path without touching
+     *     {@link MockLuceneBackend}'s capability declarations.
+     */
     private QueryDAG buildTwoFieldDelegationDag(RexNode condition, RecordingConvertor dfConvertor, RecordingSerializer serializer) {
         return buildDelegationDag(
             condition,
             dfConvertor,
             serializer,
-            new String[] { "status", "message" },
-            new SqlTypeName[] { SqlTypeName.INTEGER, SqlTypeName.VARCHAR },
-            Map.of("status", Map.of("type", "integer", "index", true), "message", Map.of("type", "keyword", "index", true))
+            new String[] { "status", "message", "amount" },
+            new SqlTypeName[] { SqlTypeName.INTEGER, SqlTypeName.VARCHAR, SqlTypeName.INTEGER },
+            Map.of(
+                "status",
+                Map.of("type", "integer", "index", true),
+                "message",
+                Map.of("type", "keyword", "index", true),
+                "amount",
+                Map.of("type", "integer", "index", false)
+            )
         );
     }
 
@@ -597,23 +616,69 @@ public class FragmentConversionDriverTests extends BasePlannerRulesTests {
         assertDelegationResult(plan, dfConvertor, serializer, 1, true, false, List.of("MATCH_PHRASE"), FilterTreeShape.CONJUNCTIVE);
     }
 
-    /** Single native equals — no delegation, empty delegatedQueries. */
+    /** Single native equals on a non-indexed field — single-viable to DataFusion, no delegation. */
     public void testSingleNativePredicate() {
         RecordingConvertor dfConvertor = new RecordingConvertor();
         RecordingSerializer serializer = new RecordingSerializer();
-        QueryDAG dag = buildTwoFieldDelegationDag(makeEquals(0, SqlTypeName.INTEGER, 200), dfConvertor, serializer);
+        // amount is index=false → only DataFusion can evaluate, Lucene is not viable.
+        QueryDAG dag = buildTwoFieldDelegationDag(makeEquals(2, SqlTypeName.INTEGER, 200), dfConvertor, serializer);
         StagePlan plan = leafStage(dag).getPlanAlternatives().getFirst();
         assertDelegationResult(plan, dfConvertor, serializer, 0, false, true, List.of(), FilterTreeShape.NO_DELEGATION);
     }
 
+    /**
+     * Single dual-viable equals on an indexed integer field — DataFusion narrows the operator
+     * but Lucene was also viable, so FragmentConversion wraps the predicate with the
+     * {@code delegation_possible(original, annotationId)} marker for opportunistic per-RG
+     * consultation. Asserts one delegated entry, CONJUNCTIVE shape, and that the original
+     * predicate survives in the plan alongside the wrapper (unlike correctness delegation,
+     * which replaces the original with a {@code delegated_predicate} placeholder).
+     */
+    public void testSinglePerformanceDelegatedPredicate() {
+        RecordingConvertor dfConvertor = new RecordingConvertor();
+        RecordingSerializer serializer = new RecordingSerializer();
+        // status is index=true → both DataFusion and Lucene viable → performance-delegation.
+        QueryDAG dag = buildTwoFieldDelegationDag(makeEquals(0, SqlTypeName.INTEGER, 200), dfConvertor, serializer);
+        StagePlan plan = leafStage(dag).getPlanAlternatives().getFirst();
+
+        // Wire-shape: one delegated expression (for the peer to compile lazily), serialized
+        // by the recording serializer. Operator name comes from SqlBinaryOperator.getName() = "=".
+        assertEquals("delegatedQueries count", 1, plan.delegatedExpressions().size());
+        assertEquals("serializer call count", 1, serializer.callCount);
+        assertEquals("serialized functions", List.of("="), serializer.serializedFunctions);
+
+        // Tree shape carries CONJUNCTIVE so the driving backend knows about the performance leaf.
+        ShardScanWithDelegationInstructionNode delegationInstruction = (ShardScanWithDelegationInstructionNode) plan.instructions()
+            .stream()
+            .filter(node -> node.type() == InstructionType.SETUP_SHARD_SCAN_WITH_DELEGATION)
+            .findFirst()
+            .orElseThrow(() -> new AssertionError("performance-delegation plan must have SHARD_SCAN_WITH_DELEGATION"));
+        assertEquals("FilterTreeShape", FilterTreeShape.CONJUNCTIVE, delegationInstruction.getTreeShape());
+        assertEquals("delegatedPredicateCount", 1, delegationInstruction.getDelegatedPredicateCount());
+
+        // Plan-shape: delegation_possible wraps the original; native = survives.
+        // (Correctness delegation would replace with delegated_predicate placeholder; perf preserves.)
+        String strippedPlan = RelOptUtil.toString(dfConvertor.shardScanFragment);
+        assertTrue(
+            "Stripped plan should contain " + DelegationPossibleFunction.NAME,
+            strippedPlan.contains(DelegationPossibleFunction.NAME)
+        );
+        assertFalse(
+            "Stripped plan should NOT contain " + DelegatedPredicateFunction.NAME + " (this is performance, not correctness)",
+            strippedPlan.contains(DelegatedPredicateFunction.NAME)
+        );
+        assertTrue("Stripped plan should still contain the native '=' (preserved by the wrapper)", strippedPlan.contains("="));
+        assertDoesntContainOperators(dfConvertor.shardScanFragment, ANNOTATION_MARKERS);
+    }
+
     // ---- AND conditions ----
 
-    /** AND(native, delegated) — equals unwrapped, MATCH_PHRASE replaced. */
+    /** AND(native, delegated) — equals on non-indexed amount stays native; MATCH_PHRASE replaced. */
     public void testAndNativeAndDelegated() {
         RecordingConvertor dfConvertor = new RecordingConvertor();
         RecordingSerializer serializer = new RecordingSerializer();
         QueryDAG dag = buildTwoFieldDelegationDag(
-            makeAnd(makeEquals(0, SqlTypeName.INTEGER, 200), makeFullTextCall(MATCH_PHRASE_FUNCTION, 1, "timeout error")),
+            makeAnd(makeEquals(2, SqlTypeName.INTEGER, 200), makeFullTextCall(MATCH_PHRASE_FUNCTION, 1, "timeout error")),
             dfConvertor,
             serializer
         );
@@ -645,14 +710,14 @@ public class FragmentConversionDriverTests extends BasePlannerRulesTests {
 
     // ---- OR conditions ----
 
-    /** OR(native, delegated) — structure preserved, delegated replaced. */
+    /** OR(native, delegated) — equals on non-indexed amount stays native; MATCH_PHRASE replaced. */
     public void testOrNativeAndDelegated() {
         RecordingConvertor dfConvertor = new RecordingConvertor();
         RecordingSerializer serializer = new RecordingSerializer();
         QueryDAG dag = buildTwoFieldDelegationDag(
             rexBuilder.makeCall(
                 org.apache.calcite.sql.fun.SqlStdOperatorTable.OR,
-                makeEquals(0, SqlTypeName.INTEGER, 200),
+                makeEquals(2, SqlTypeName.INTEGER, 200),
                 makeFullTextCall(MATCH_PHRASE_FUNCTION, 1, "timeout error")
             ),
             dfConvertor,
@@ -687,7 +752,8 @@ public class FragmentConversionDriverTests extends BasePlannerRulesTests {
             makeFullTextCall(MATCH_PHRASE_FUNCTION, 1, "timeout error"),
             notFuzzy
         );
-        RexNode condition = makeAnd(makeEquals(0, SqlTypeName.INTEGER, 200), orClause);
+        // amount is index=false → equals stays native; only MATCH_PHRASE + FUZZY get delegated.
+        RexNode condition = makeAnd(makeEquals(2, SqlTypeName.INTEGER, 200), orClause);
         QueryDAG dag = buildTwoFieldDelegationDag(condition, dfConvertor, serializer);
         StagePlan plan = leafStage(dag).getPlanAlternatives().getFirst();
         assertDelegationResult(plan, dfConvertor, serializer, 2, true, true, List.of("MATCH_PHRASE", "FUZZY"), FilterTreeShape.CONJUNCTIVE);

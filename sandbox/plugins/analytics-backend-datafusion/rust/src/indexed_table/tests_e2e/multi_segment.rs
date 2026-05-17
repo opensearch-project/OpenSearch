@@ -153,8 +153,10 @@ async fn run_two_segment_query(
                 let pruner = Arc::new(PagePruner::new(&schema, Arc::clone(&segment.metadata)));
                 let eval: Arc<dyn RowGroupBitsetSource> = Arc::new(
                 crate::indexed_table::eval::single_collector::SingleCollectorEvaluator::new(
-                    collector, pruner, None, None, None, None,
+                    Some(collector), pruner, None, None, None, None,
                     crate::indexed_table::eval::single_collector::CollectorCallStrategy::FullRange,
+                    std::sync::Arc::new(std::collections::HashMap::new()),
+                    segment.segment_ord,
                 ),
             );
                 Ok(eval)
@@ -351,8 +353,10 @@ async fn run_segments(specs: Vec<SegSpec>, num_partitions: usize) -> Vec<(i32, S
                 let pruner = Arc::new(PagePruner::new(&schema, Arc::clone(&segment.metadata)));
                 let eval: Arc<dyn RowGroupBitsetSource> = Arc::new(
                 crate::indexed_table::eval::single_collector::SingleCollectorEvaluator::new(
-                    collector, pruner, None, None, None, None,
+                    Some(collector), pruner, None, None, None, None,
                     crate::indexed_table::eval::single_collector::CollectorCallStrategy::FullRange,
+                    std::sync::Arc::new(std::collections::HashMap::new()),
+                    segment.segment_ord,
                 ),
             );
                 Ok(eval)

@@ -293,6 +293,7 @@ fn wire_large_rec(node: &BoolNode, out: &mut Vec<Arc<dyn RowGroupDocsCollector>>
             out.push(large_collector_for(tag));
         }
         BoolNode::Predicate(_) => {}
+        BoolNode::DelegationPossible { .. } => {}
     }
 }
 

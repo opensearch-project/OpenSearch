@@ -282,6 +282,7 @@ fn wire_null_rec(
             }));
         }
         BoolNode::Predicate(_) => {}
+        BoolNode::DelegationPossible { .. } => {}
     }
 }
 

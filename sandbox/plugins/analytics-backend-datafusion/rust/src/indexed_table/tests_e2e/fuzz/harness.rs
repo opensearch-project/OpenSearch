@@ -381,7 +381,7 @@ pub(in crate::indexed_table::tests_e2e) async fn execute_tree_single_collector(
         Arc::new(move |segment, _chunk, stream_metrics| {
             let pruner = Arc::new(PagePruner::new(&schema, Arc::clone(&segment.metadata)));
             let eval: Arc<dyn RowGroupBitsetSource> = Arc::new(SingleCollectorEvaluator::new(
-                Arc::clone(&collector),
+                Some(Arc::clone(&collector)),
                 pruner,
                 residual_pp.clone(),
                 residual_physical.clone(),
@@ -392,6 +392,8 @@ pub(in crate::indexed_table::tests_e2e) async fn execute_tree_single_collector(
                 ),
                 stream_metrics.ffm_collector_calls.clone(),
                 call_strategy,
+                std::sync::Arc::new(std::collections::HashMap::new()),
+                segment.segment_ord,
             ));
             let _ = segment;
             Ok(eval)
@@ -614,6 +616,7 @@ fn bool_to_logical(node: &BoolNode) -> Option<datafusion::logical_expr::Expr> {
         }
         BoolNode::Collector { .. } => None,
         BoolNode::Predicate(expr) => lift_phys_to_logical(expr),
+        BoolNode::DelegationPossible { original_expr, .. } => lift_phys_to_logical(original_expr),
     }
 }
 
@@ -707,6 +710,7 @@ fn collect_predicate_exprs_harness(
         BoolNode::Not(inner) => collect_predicate_exprs_harness(inner, out),
         BoolNode::Collector { .. } => {}
         BoolNode::Predicate(expr) => out.push(Arc::clone(expr)),
+        BoolNode::DelegationPossible { original_expr, .. } => out.push(Arc::clone(original_expr)),
     }
 }
 
