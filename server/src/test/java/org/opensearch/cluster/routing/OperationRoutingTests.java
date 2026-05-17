@@ -32,6 +32,7 @@
 package org.opensearch.cluster.routing;
 
 import org.opensearch.Version;
+import org.opensearch.action.NoShardAvailableActionException;
 import org.opensearch.action.support.replication.ClusterStateCreationUtils;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -62,6 +63,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
@@ -672,6 +674,58 @@ public class OperationRoutingTests extends OpenSearchTestCase {
         terminate(threadPool);
     }
 
+    public void testSearchExceptionWithoutSearchOnlyReplicas() throws Exception {
+        final int numIndices = 1;
+        final String[] indexNames = new String[numIndices];
+        for (int i = 0; i < numIndices; i++) {
+            indexNames[i] = "test" + i;
+        }
+        ClusterState state = ClusterStateCreationUtils.stateWithAssignedPrimariesAndReplicas(indexNames, 1, 1);
+        OperationRouting opRouting = new OperationRouting(
+            Settings.EMPTY,
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+        );
+        opRouting.setUseAdaptiveReplicaSelection(true);
+        TestThreadPool threadPool = new TestThreadPool("testThatOnlyNodesSupportNodeIds");
+        ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);
+        ResponseCollectorService collector = new ResponseCollectorService(clusterService);
+        Map<String, Long> outstandingRequests = new HashMap<>();
+        Throwable throwable = assertThrows(
+            NoShardAvailableActionException.class,
+            () -> opRouting.searchShards(state, indexNames, null, Preference.SEARCH_REPLICA.type(), collector, outstandingRequests, null)
+        );
+
+        assertEquals(
+            String.format(
+                Locale.ROOT,
+                "Strictly require querying search only shards, but the number of search only replicas for index %s is 0",
+                "test0"
+            ),
+            throwable.getMessage()
+        );
+
+        ClusterState newState = ClusterStateCreationUtils.stateWithAssignedPrimariesAndReplicas(
+            indexNames,
+            1,
+            1,
+            0,
+            Settings.builder().put(IndexMetadata.INDEX_BLOCKS_SEARCH_ONLY_SETTING.getKey(), true).build()
+        );
+
+        throwable = assertThrows(
+            NoShardAvailableActionException.class,
+            () -> opRouting.searchShards(newState, indexNames, null, null, collector, outstandingRequests, null)
+        );
+
+        assertEquals(
+            String.format(Locale.ROOT, "The index %s is in the scale down state, and the number of search only shards is 0", "test0"),
+            throwable.getMessage()
+        );
+
+        IOUtils.close(clusterService);
+        terminate(threadPool);
+    }
+
     // Regression test to ignore awareness attributes. This test creates shards in different zones and simulates stress
     // on nodes in one zone to test if Adapative Replica Selection smartly routes the request to a node in different zone
     // by ignoring the zone awareness attributes.
@@ -1139,7 +1193,8 @@ public class OperationRoutingTests extends OpenSearchTestCase {
                 indexNames,
                 numShards,
                 numReplicas,
-                numSearchReplicas
+                numSearchReplicas,
+                Settings.EMPTY
             );
             IndexShardRoutingTable indexShardRoutingTable = state.getRoutingTable().index(indexName).getShards().get(0);
             ShardId shardId = indexShardRoutingTable.searchOnlyReplicas().get(0).shardId();
@@ -1216,7 +1271,8 @@ public class OperationRoutingTests extends OpenSearchTestCase {
                 indexNames,
                 numShards,
                 numReplicas,
-                numSearchReplicas
+                numSearchReplicas,
+                Settings.EMPTY
             );
             IndexShardRoutingTable indexShardRoutingTable = state.getRoutingTable().index(indexName).getShards().get(0);
             ShardId shardId = indexShardRoutingTable.searchOnlyReplicas().get(0).shardId();
