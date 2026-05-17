@@ -452,6 +452,13 @@ public class CatalogSnapshotManager implements Closeable {
     }
 
     /**
+     * Returns the number of unreferenced file cleanup operations performed.
+     */
+    public long getUnreferencedFileCleanUpsPerformed() {
+        return indexFileDeleter.getCleanUpsPerformed();
+    }
+
+    /**
      * Asserts that no segment generation in the new snapshot conflicts with a different
      * file set in any existing tracked snapshot. This catches generation overlap bugs
      * where a merge or writer reuses a generation number, causing the catalog to track
