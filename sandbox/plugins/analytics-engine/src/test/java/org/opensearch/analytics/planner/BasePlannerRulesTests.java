@@ -91,7 +91,7 @@ public abstract class BasePlannerRulesTests extends OpenSearchTestCase {
     // ---- Plan execution ----
 
     protected RelNode runPlanner(RelNode input, PlannerContext context) {
-        return PlannerImpl.markAndOptimize(input, context);
+        return PlannerImpl.runAllOptimizations(input, context);
     }
 
     protected RelNode unwrapExchange(RelNode node) {

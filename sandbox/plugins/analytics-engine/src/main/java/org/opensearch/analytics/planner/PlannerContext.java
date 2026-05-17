@@ -23,13 +23,34 @@ public class PlannerContext {
     private final CapabilityRegistry capabilityRegistry;
     private final ClusterState clusterState;
     private final OpenSearchDistributionTraitDef distributionTraitDef;
+    private final boolean profilingEnabled;
     private int annotationIdCounter;
+    private RuleProfilingListener.PlannerProfile lastProfile;
 
     public PlannerContext(CapabilityRegistry capabilityRegistry, ClusterState clusterState) {
+        this(capabilityRegistry, clusterState, false);
+    }
+
+    public PlannerContext(CapabilityRegistry capabilityRegistry, ClusterState clusterState, boolean profilingEnabled) {
         this.capabilityRegistry = capabilityRegistry;
         this.clusterState = clusterState;
         this.distributionTraitDef = new OpenSearchDistributionTraitDef(this);
+        this.profilingEnabled = profilingEnabled;
         this.annotationIdCounter = 0;
+    }
+
+    /** True when {@link PlannerImpl#runAllOptimizations} should attach a {@link RuleProfilingListener}. */
+    public boolean isProfilingEnabled() {
+        return profilingEnabled;
+    }
+
+    /** Stash the snapshot taken at the end of {@code runAllOptimizations}. Null when profiling was disabled. */
+    public void recordProfilingResults(RuleProfilingListener.PlannerProfile profile) {
+        this.lastProfile = profile;
+    }
+
+    public RuleProfilingListener.PlannerProfile getProfilingResults() {
+        return lastProfile;
     }
 
     /** Returns a unique annotation ID for marking phase. */
