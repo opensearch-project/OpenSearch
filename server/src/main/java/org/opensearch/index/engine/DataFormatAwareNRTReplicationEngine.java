@@ -109,6 +109,8 @@ public class DataFormatAwareNRTReplicationEngine implements Indexer {
 
     private volatile long lastReceivedPrimaryCommitGen = SequenceNumbers.NO_OPS_PERFORMED;
 
+    private volatile String historyUUID;
+
     private static final int SI_COUNTER_INCREMENT = 100000;
 
     // Fields that Engine subclasses inherit; Indexer implementations must declare directly.
@@ -142,7 +144,8 @@ public class DataFormatAwareNRTReplicationEngine implements Indexer {
         boolean success = false;
         Committer constructingCommitter = null;
         try {
-            this.committer = constructingCommitter = engineConfig.getCommitterFactory().getCommitter(new CommitterConfig(engineConfig, () -> {}, true));
+            this.committer = constructingCommitter = engineConfig.getCommitterFactory()
+                .getCommitter(new CommitterConfig(engineConfig, () -> {}, true));
             // Bootstrap an empty commit if no segments file exists (fresh replica).
             Map<String, String> userData = committer.getLastCommittedData();
 
@@ -161,27 +164,17 @@ public class DataFormatAwareNRTReplicationEngine implements Indexer {
             Map<DataFormat, EngineReaderManager<?>> aggregated = new HashMap<>();
             for (String formatName : allDescriptors.keySet()) {
                 DataFormat format = registry.format(formatName);
-                aggregated.putAll(
-                    registry.getReaderManager(
-                        new ReaderManagerConfig(
-                            Optional.of(new IndexStoreProvider() {
-                                @Override
-                                public FormatStore getStore(DataFormat dataFormat) {
-                                    return new FormatStore() {
-                                        @Override
-                                        public Store store() {
-                                            return store;
-                                        }
-                                    };
-                                }
-                            }),
-                            format,
-                            registry,
-                            store.shardPath(),
-                            store.getDataformatAwareStoreHandles()
-                        )
-                    )
-                );
+                aggregated.putAll(registry.getReaderManager(new ReaderManagerConfig(Optional.of(new IndexStoreProvider() {
+                    @Override
+                    public FormatStore getStore(DataFormat dataFormat) {
+                        return new FormatStore() {
+                            @Override
+                            public Store store() {
+                                return store;
+                            }
+                        };
+                    }
+                }), format, registry, store.shardPath(), store.getDataformatAwareStoreHandles())));
             }
             readerManagersRef = Map.copyOf(aggregated);
 
@@ -205,6 +198,7 @@ public class DataFormatAwareNRTReplicationEngine implements Indexer {
 
             final SequenceNumbers.CommitInfo seqNoInfo = SequenceNumbers.loadSeqNoInfoFromLuceneCommit(userData.entrySet());
             this.localCheckpointTracker = new LocalCheckpointTracker(seqNoInfo.maxSeqNo, seqNoInfo.localCheckpoint);
+            this.historyUUID = Objects.requireNonNull(userData.get(Engine.HISTORY_UUID_KEY));
 
             this.readerManagers = readerManagersRef;
 
@@ -260,6 +254,12 @@ public class DataFormatAwareNRTReplicationEngine implements Indexer {
             final long maxSeqNo = Long.parseLong(incoming.getUserData().get(SequenceNumbers.MAX_SEQ_NO));
             final long incomingCommitGeneration = incoming.getLastCommitGeneration();
 
+            // Update historyUUID if the incoming snapshot carries one (replicated from primary).
+            String incomingHistoryUUID = incoming.getUserData().get(Engine.HISTORY_UUID_KEY);
+            if (incomingHistoryUUID != null) {
+                this.historyUUID = incomingHistoryUUID;
+            }
+
             applyCatalogSnapshot(incoming);
 
             if (incomingCommitGeneration != lastReceivedPrimaryCommitGen) {
@@ -304,32 +304,26 @@ public class DataFormatAwareNRTReplicationEngine implements Indexer {
             // Required by DataFormatAwareEngine ctor if this replica is later promoted to primary.
             // Replicas don't track auto-id timestamps; -1 matches a fresh primary's startup value.
             commitData.put(Engine.MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID, Long.toString(-1L));
+            // Preserve HISTORY_UUID so that replicated history UUIDs survive commit round-trips.
+            commitData.put(Engine.HISTORY_UUID_KEY, historyUUID);
             // Mirror the commit data onto the snapshot so `lastCommittedSnapshot` reflects the committed userData
             snapshot.setUserData(commitData, true);
             commitData.put(CatalogSnapshot.CATALOG_SNAPSHOT_KEY, snapshot.serializeToString());
 
-            CommitResult commitResult = committer.commit(new CommitInput(commitData.entrySet(), snapshot, bumpSICounter ? SI_COUNTER_INCREMENT : 0));
-            catalogSnapshotManager.updateLastCommitInfo(commitResult);
+            CommitResult commitResult = committer.commit(
+                new CommitInput(commitData.entrySet(), snapshot, bumpSICounter ? SI_COUNTER_INCREMENT : 0)
+            );
+            if (commitResult != null) {
+                catalogSnapshotManager.updateLastCommitInfo(commitResult);
+            }
             snapshotRef.markSuccess();
         }
         translogManager.syncTranslog();
     }
 
-    // Primary supplies historyUUID via the CATALOG_SNAPSHOT_KEY commit data; we read it from the
-    // last-committed snapshot so re-committed / newly-replicated primaries with a fresh UUID
-    // propagate correctly. Falls back to the fresh-replica ctor-supplied UUID before the first
-    // commit has run.
     @Override
     public String getHistoryUUID() {
-        try (GatedCloseable<CatalogSnapshot> ref = catalogSnapshotManager.acquireCommittedSnapshot(false)) {
-            final String fromCommit = ref.get().getUserData().get(Engine.HISTORY_UUID_KEY);
-            if (fromCommit != null) {
-                return fromCommit;
-            }
-        } catch (IOException ex) {
-            throw new UncheckedIOException(ex);
-        }
-        throw new IllegalStateException("commit doesn't contain history uuid");
+        return historyUUID;
     }
 
     @Override
@@ -882,7 +876,11 @@ public class DataFormatAwareNRTReplicationEngine implements Indexer {
      * {@link org.opensearch.index.engine.exec.coord}.
      */
     // Visible for testing.
-    static Map<String, FileDeleter> buildReplicaFileDeleters(ShardPath shardPath, DataFormatRegistry registry, CommitFileManager commitFileManager) {
+    static Map<String, FileDeleter> buildReplicaFileDeleters(
+        ShardPath shardPath,
+        DataFormatRegistry registry,
+        CommitFileManager commitFileManager
+    ) {
         Map<String, FileDeleter> deleters = new HashMap<>();
         for (DataFormat format : registry.getRegisteredFormats()) {
             final String formatName = format.name();
@@ -979,7 +977,7 @@ public class DataFormatAwareNRTReplicationEngine implements Indexer {
         public synchronized List<CatalogSnapshot> onCommit(List<CatalogSnapshot> commits) {
             lastSnapshot = commits.getLast();
             List<CatalogSnapshot> toDelete = new ArrayList<>();
-            for (int i = 0; i < commits.size() - 1; i ++) {
+            for (int i = 0; i < commits.size() - 1; i++) {
                 CatalogSnapshot currentCommit = commits.get(i);
                 if (!acquiredSnapshots.contains(currentCommit)) {
                     toDelete.add(currentCommit);
@@ -991,9 +989,7 @@ public class DataFormatAwareNRTReplicationEngine implements Indexer {
         @Override
         public synchronized GatedCloseable<CatalogSnapshot> acquireCommittedSnapshot(boolean acquiringSafe) {
             acquiredSnapshots.add(lastSnapshot);
-            return new GatedCloseable<>(lastSnapshot, () -> {
-                acquiredSnapshots.remove(lastSnapshot);
-            });
+            return new GatedCloseable<>(lastSnapshot, () -> { acquiredSnapshots.remove(lastSnapshot); });
         }
 
         /**

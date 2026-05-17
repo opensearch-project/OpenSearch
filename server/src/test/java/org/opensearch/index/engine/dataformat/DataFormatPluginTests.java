@@ -287,6 +287,11 @@ public class DataFormatPluginTests extends OpenSearchTestCase {
             mock(CommitFileManager.class)
         );
 
+        // Simulate the engine's commit of the initial snapshot so commitNewSnapshot can proceed
+        try (GatedCloseable<CatalogSnapshot> ref = manager.acquireSnapshot()) {
+            ((DataformatAwareCatalogSnapshot) ref.get()).setLastCommitInfo("segments_1", 1L, 0L);
+        }
+
         MockReaderManager readerManager = new MockReaderManager(format.name());
         try (GatedCloseable<CatalogSnapshot> ref = manager.acquireSnapshot()) {
             readerManager.afterRefresh(true, ref.get());

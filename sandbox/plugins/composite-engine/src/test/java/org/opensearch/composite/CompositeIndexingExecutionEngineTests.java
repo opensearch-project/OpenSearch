@@ -247,12 +247,14 @@ public class CompositeIndexingExecutionEngineTests extends OpenSearchTestCase {
         public CommitResult commit(CommitInput commitData) {
             commitCalled = true;
             lastCommitData = StreamSupport.stream(commitData.userData().spliterator(), false)
-                .collect(Collectors.toMap(
-                    Map.Entry::getKey,
-                    Map.Entry::getValue,
-                    (existing, replacement) -> replacement, // Merge function for duplicate keys
-                    HashMap::new
-                ));
+                .collect(
+                    Collectors.toMap(
+                        Map.Entry::getKey,
+                        Map.Entry::getValue,
+                        (existing, replacement) -> replacement, // Merge function for duplicate keys
+                        HashMap::new
+                    )
+                );
             return null;
         }
 

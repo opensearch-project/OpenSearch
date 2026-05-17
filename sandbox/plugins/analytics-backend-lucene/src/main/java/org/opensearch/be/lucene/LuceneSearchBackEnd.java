@@ -17,7 +17,6 @@ import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.StandardDirectoryReader;
 import org.opensearch.be.lucene.index.LuceneIndexingExecutionEngine;
 import org.opensearch.common.CheckedBiFunction;
-import org.opensearch.common.CheckedTriFunction;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.engine.dataformat.ReaderManagerConfig;
 import org.opensearch.index.engine.exec.EngineReaderManager;
@@ -25,12 +24,9 @@ import org.opensearch.index.engine.exec.commit.IndexStoreProvider;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-
-import static org.opensearch.index.engine.NRTReplicationReaderManager.unwrapStandardReader;
 
 /**
  * Static helpers for creating Lucene-based {@link EngineReaderManager} instances.
@@ -78,7 +74,7 @@ final class LuceneSearchBackEnd {
     }
 
     private static DirectoryReader buildReader(DirectoryReader oldReader, SegmentInfos newSis) throws IOException {
-        if (newSis == null || ((StandardDirectoryReader)oldReader).getSegmentInfos().version == newSis.version) {
+        if (newSis == null || ((StandardDirectoryReader) oldReader).getSegmentInfos().version == newSis.version) {
             return null;
         }
         final List<LeafReader> subs = new ArrayList<>();
@@ -87,12 +83,6 @@ final class LuceneSearchBackEnd {
         }
         // Segment_n here is ignored because it is either already committed on disk as part of previous commit point or
         // does not yet exist on store (not yet committed)
-        return StandardDirectoryReader.open(
-            oldReader.directory(),
-            newSis,
-            subs,
-            null,
-            null
-        );
+        return StandardDirectoryReader.open(oldReader.directory(), newSis, subs, null, null);
     }
 }

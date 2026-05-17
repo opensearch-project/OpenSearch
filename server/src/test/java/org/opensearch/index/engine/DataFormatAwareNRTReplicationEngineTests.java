@@ -225,7 +225,7 @@ public class DataFormatAwareNRTReplicationEngineTests extends OpenSearchTestCase
         if (historyUUID != null) {
             userData.put(Engine.HISTORY_UUID_KEY, historyUUID);
         }
-        return (DataformatAwareCatalogSnapshot) CatalogSnapshotManager.createInitialSnapshot(
+        DataformatAwareCatalogSnapshot snapshot = (DataformatAwareCatalogSnapshot) CatalogSnapshotManager.createInitialSnapshot(
             id,
             gen,
             gen,
@@ -233,6 +233,9 @@ public class DataFormatAwareNRTReplicationEngineTests extends OpenSearchTestCase
             gen,
             userData
         );
+        // Simulate the primary having committed this snapshot (sets lastCommitGeneration).
+        snapshot.setLastCommitInfo("segments_" + gen, gen, 0L);
+        return snapshot;
     }
 
     // ---------- Tests ----------
@@ -337,7 +340,12 @@ public class DataFormatAwareNRTReplicationEngineTests extends OpenSearchTestCase
         java.nio.file.Files.createDirectories(parquetDir);
         ShardPath shardPath = new ShardPath(false, root, root, shardId);
 
-        Map<String, FileDeleter> deleters = DataFormatAwareNRTReplicationEngine.buildReplicaFileDeleters(shardPath, registry);
+        bootstrapStoreWithMetadata(store, UUID.randomUUID().toString());
+        Map<String, FileDeleter> deleters = DataFormatAwareNRTReplicationEngine.buildReplicaFileDeleters(
+            shardPath,
+            registry,
+            new InMemoryCommitter(store)
+        );
 
         assertTrue("parquet deleter must be present", deleters.containsKey("parquet"));
         assertTrue("lucene deleter must be present", deleters.containsKey("lucene"));

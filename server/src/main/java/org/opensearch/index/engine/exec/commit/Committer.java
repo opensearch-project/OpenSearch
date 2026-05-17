@@ -48,6 +48,14 @@ public interface Committer extends CommitFileManager, Closeable {
     record CommitResult(String commitFileName, long generation, long commitDataFormatVersion) {
     }
 
+    /**
+     * Input to a commit operation, bundling the user data to persist, the associated catalog snapshot,
+     * and a bump counter for generation advancement without content changes (e.g., force flush).
+     *
+     * @param userData         key-value pairs to persist as commit metadata
+     * @param catalogSnapshot  the catalog snapshot associated with this commit, or {@code null} for lightweight commits
+     * @param bumpCounter      number of generation bumps to apply; 0 for normal commits
+     */
     @ExperimentalApi
     record CommitInput(Iterable<Map.Entry<String, String>> userData, CatalogSnapshot catalogSnapshot, int bumpCounter) {
 
@@ -98,4 +106,3 @@ public interface Committer extends CommitFileManager, Closeable {
      */
     List<CatalogSnapshot> listCommittedSnapshots() throws IOException;
 }
-
