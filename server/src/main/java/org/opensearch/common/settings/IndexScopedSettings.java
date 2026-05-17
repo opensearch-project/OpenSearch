@@ -51,6 +51,7 @@ import org.opensearch.index.MergeSchedulerConfig;
 import org.opensearch.index.SearchSlowLog;
 import org.opensearch.index.TieredMergePolicyProvider;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeIndexSettings;
+import org.opensearch.index.engine.DataFormatAwareEngine;
 import org.opensearch.index.engine.EngineConfig;
 import org.opensearch.index.fielddata.IndexFieldDataService;
 import org.opensearch.index.mapper.FieldMapper;
@@ -337,8 +338,10 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                         }
                     }
                 }, Property.IndexScope), // this allows similarity settings to be passed
-                Setting.groupSetting("index.analysis.", Property.IndexScope) // this allows analysis settings to be passed
+                Setting.groupSetting("index.analysis.", Property.IndexScope), // this allows analysis settings to be passed
 
+                // DataFormatAwareEngine settings
+                DataFormatAwareEngine.MAX_DOCS_PER_WRITER_SETTING
             )
         )
     );

@@ -93,11 +93,13 @@ import org.opensearch.index.translog.TranslogOperationHelper;
 import org.opensearch.index.translog.listener.TranslogEventListener;
 import org.opensearch.indices.pollingingest.PollingIngestStats;
 import org.opensearch.search.suggest.completion.CompletionStats;
+import org.opensearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
@@ -105,6 +107,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
@@ -113,6 +116,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -193,6 +197,18 @@ public class DataFormatAwareEngine implements Indexer {
     // Merge
     private final MergeScheduler mergeScheduler;
 
+    // Flush-on-addDoc threshold
+    private volatile long maxDocsPerWriter;
+
+    // Segments flushed inline by indexing threads (flush-on-addDoc) that are pending
+    // registration in the catalog. Drained by the next refresh() call.
+    private final ConcurrentLinkedQueue<Segment> pendingSegments = new ConcurrentLinkedQueue<>();
+
+    // Writers that have been flushed inline but not yet closed. Their Lucene temp
+    // directories must remain on disk until refresh incorporates them via addIndexes.
+    // Closed after refresh completes.
+    private final ConcurrentLinkedQueue<Writer<?>> pendingWritersToClose = new ConcurrentLinkedQueue<>();
+
     /**
      * System property to enable or disable pluggable dataformat merge operations.
      * Set to "true" to enable merges (e.g., {@code -Dopensearch.pluggable.dataformat.merge.enabled=true}).
@@ -204,45 +220,18 @@ public class DataFormatAwareEngine implements Indexer {
     static final String MERGE_ENABLED_PROPERTY = "opensearch.pluggable.dataformat.merge.enabled";
 
     /**
-     * Maximum number of threads used to flush writers in parallel during refresh.
-     * Defaults to half the available processors (min 1). Dynamically updatable.
+     * Maximum number of documents a single writer can accumulate before the indexing
+     * thread flushes it inline (Lucene-style flush-on-addDoc). This bounds per-writer
+     * segment size and prevents the snowball effect where refresh takes progressively
+     * longer. Defaults to 150,000. Dynamically updatable.
      */
-    public static final Setting<Integer> WRITER_FLUSH_THREADS_SETTING = Setting.intSetting(
-        "index.dataformat.writer_flush_threads",
-        Math.max(1, Runtime.getRuntime().availableProcessors() / 2),
-        1,
+    public static final Setting<Long> MAX_DOCS_PER_WRITER_SETTING = Setting.longSetting(
+        "index.dataformat.max_docs_per_writer",
+        150_000L,
+        1L,
         Setting.Property.IndexScope,
         Setting.Property.Dynamic
     );
-
-    /**
-     * Node-level shared thread pool for parallel writer flush during refresh.
-     * Shared across all indices/shards on this node to avoid thread bloat.
-     */
-    private static volatile ExecutorService writerFlushExecutor;
-    private static final Object FLUSH_EXECUTOR_LOCK = new Object();
-
-    private static ExecutorService getOrCreateFlushExecutor(int maxThreads, ThreadContext threadContext) {
-        ExecutorService executor = writerFlushExecutor;
-        if (executor == null || executor.isShutdown()) {
-            synchronized (FLUSH_EXECUTOR_LOCK) {
-                executor = writerFlushExecutor;
-                if (executor == null || executor.isShutdown()) {
-                    executor = OpenSearchExecutors.newScaling(
-                        "opensearch[writer_flush]",
-                        1,
-                        maxThreads,
-                        60L,
-                        TimeUnit.SECONDS,
-                        OpenSearchExecutors.daemonThreadFactory("opensearch[writer_flush]"),
-                        threadContext
-                    );
-                    writerFlushExecutor = executor;
-                }
-            }
-        }
-        return executor;
-    }
 
     @Nullable
     private final String historyUUID;
@@ -437,6 +426,7 @@ public class DataFormatAwareEngine implements Indexer {
             );
 
             success = true;
+            this.maxDocsPerWriter = MAX_DOCS_PER_WRITER_SETTING.get(engineConfig.getIndexSettings().getSettings());
             logger.trace("created new DataFormatBasedEngine");
         } catch (IOException | TranslogCorruptedException e) {
             throw new EngineCreationFailureException(shardId, "failed to create engine", e);
@@ -644,6 +634,17 @@ public class DataFormatAwareEngine implements Indexer {
                     + "] must match operation seq no ["
                     + index.seqNo()
                     + "]";
+
+                // Flush-on-addDoc: if this writer has exceeded the per-writer doc count
+                // threshold, flush it inline on the indexing thread (like Lucene does
+                // internally). This prevents writers from growing unboundedly between
+                // refresh cycles and distributes flush work across indexing threads.
+                if (currentWriter instanceof RowIdAwareWriter<?> rowIdWriter
+                    && rowIdWriter.docCount() >= maxDocsPerWriter) {
+                    maybeFlushWriter(lockedWriter);
+                    lockedWriter = null; // prevent double-release in finally
+                    currentWriter = null;
+                }
             } else {
                 WriteResult.Failure f = (WriteResult.Failure) result;
                 indexResult = new Engine.IndexResult(f.cause(), plan.version, index.primaryTerm(), index.seqNo());
@@ -651,7 +652,7 @@ public class DataFormatAwareEngine implements Indexer {
         } catch (Exception e) {
             indexResult = new Engine.IndexResult(e, plan.version, index.primaryTerm(), index.seqNo());
         } finally {
-            if (currentWriter != null) {
+            if (lockedWriter != null && currentWriter != null) {
                 writerPool.releaseAndUnlock(lockedWriter);
             }
         }
@@ -820,32 +821,42 @@ public class DataFormatAwareEngine implements Indexer {
 
                         // Flush all writers in parallel — each writer's composite flush is independent
                         // and I/O-bound, so parallelizing reduces total wall-clock time.
-                        int flushThreads = WRITER_FLUSH_THREADS_SETTING.get(engineConfig.getIndexSettings().getSettings());
-                        ExecutorService flushExecutor = getOrCreateFlushExecutor(
-                            flushThreads, engineConfig.getThreadPool().getThreadContext()
-                        );
-                        List<Future<ChildWriterFlushResult>> flushFutures = new ArrayList<>(writerCount);
+                        ExecutorService flushExecutor = engineConfig.getThreadPool().executor(ThreadPool.Names.FLUSH);
+                        List<ChildWriterFlushResult> flushResults = Collections.synchronizedList(new ArrayList<>(writerCount));
+                        AtomicReference<Exception> firstFlushFailure = new AtomicReference<>();
+                        CountDownLatch flushLatch = new CountDownLatch(writerCount);
+
                         for (var lockable : writers) {
                             Writer<?> writer = lockable.get();
-                            flushFutures.add(flushExecutor.submit(() -> {
-                                final long writerFlushStartNanos = System.nanoTime();
-                                FileInfos fileInfos = writer.flush(FlushInput.EMPTY);
-                                final long writerFlushElapsedMs = TimeValue.nsecToMSec(System.nanoTime() - writerFlushStartNanos);
-                                return new ChildWriterFlushResult(writer, fileInfos, writerFlushElapsedMs);
-                            }));
+                            flushExecutor.execute(() -> {
+                                try {
+                                    final long writerFlushStartNanos = System.nanoTime();
+                                    FileInfos fileInfos = writer.flush(FlushInput.EMPTY);
+                                    final long writerFlushElapsedMs = TimeValue.nsecToMSec(System.nanoTime() - writerFlushStartNanos);
+                                    flushResults.add(new ChildWriterFlushResult(writer, fileInfos, writerFlushElapsedMs));
+                                } catch (Exception e) {
+                                    firstFlushFailure.compareAndSet(null, e);
+                                } finally {
+                                    flushLatch.countDown();
+                                }
+                            });
                         }
 
-                        // Wait for all flush tasks to complete and collect results.
-                        for (Future<ChildWriterFlushResult> future : flushFutures) {
-                            ChildWriterFlushResult childWriterFlushResult;
-                            try {
-                                childWriterFlushResult = future.get();
-                            } catch (ExecutionException e) {
-                                throw new IOException("Writer flush failed", e.getCause());
-                            } catch (InterruptedException e) {
-                                Thread.currentThread().interrupt();
-                                throw new IOException("Writer flush interrupted", e);
-                            }
+                        // Wait for all flush tasks to complete
+                        try {
+                            flushLatch.await();
+                        } catch (InterruptedException e) {
+                            Thread.currentThread().interrupt();
+                            throw new IOException("Writer flush interrupted", e);
+                        }
+
+                        // Propagate first failure if any
+                        if (firstFlushFailure.get() != null) {
+                            throw new IOException("Child writer flush failed", firstFlushFailure.get());
+                        }
+
+                        // Collect results
+                        for (ChildWriterFlushResult childWriterFlushResult : flushResults) {
                             Writer<?> writer = childWriterFlushResult.writer;
                             FileInfos fileInfos = childWriterFlushResult.fileInfos;
                             Segment.Builder segmentBuilder = Segment.builder(writer.generation());
@@ -874,6 +885,19 @@ public class DataFormatAwareEngine implements Indexer {
                             refreshed |= hasFiles;
                         }
                         final long flushAllElapsedMs = TimeValue.nsecToMSec(System.nanoTime() - flushAllStartNanos);
+
+                        // Drain any segments flushed inline by indexing threads (flush-on-addDoc)
+                        Segment pendingSeg;
+                        while ((pendingSeg = pendingSegments.poll()) != null) {
+                            newSegments.add(pendingSeg);
+                            refreshed = true;
+                        }
+                        // Drain pending writers so they get closed after addIndexes incorporates their files
+                        Writer<?> pendingWriter;
+                        while ((pendingWriter = pendingWritersToClose.poll()) != null) {
+                            toClose.add(pendingWriter);
+                        }
+
                         logger.debug(
                             "refresh[{}]: flushed {} writers producing {} new segments in [{}ms]",
                             source,
@@ -920,7 +944,7 @@ public class DataFormatAwareEngine implements Indexer {
                             final long commitStartNanos = System.nanoTime();
                             catalogSnapshotManager.commitNewSnapshot(result.refreshedSegments());
                             final long commitElapsedMs = TimeValue.nsecToMSec(System.nanoTime() - commitStartNanos);
-                            logger.debug("refresh[{}]: catalogSnapshot commit took [{}ms]", source, commitElapsedMs);
+                            logger.trace("refresh[{}]: catalogSnapshot commit took [{}ms]", source, commitElapsedMs);
                         } else if ("flush".equals(source)) {
                             catalogSnapshotManager.bumpGeneration();
                         }
@@ -949,7 +973,7 @@ public class DataFormatAwareEngine implements Indexer {
             throw new RefreshFailedEngineException(shardId, ex);
         }
         final long totalRefreshElapsedMs = TimeValue.nsecToMSec(System.nanoTime() - refreshStartNanos);
-        logger.info("refresh[{}]: total time to make documents searchable [{}ms] refreshed={}", source, totalRefreshElapsedMs, refreshed);
+        logger.debug("refresh[{}]: total time to make documents searchable [{}ms] refreshed={}", source, totalRefreshElapsedMs, refreshed);
     }
 
     private void notifyRefreshListenersBefore() throws IOException {
@@ -1683,6 +1707,54 @@ public class DataFormatAwareEngine implements Indexer {
             this.writer = writer;
             this.fileInfos = fileInfos;
             this.elapsedMs = elapsedMs;
+        }
+    }
+
+    /**
+     * Flushes a writer inline on the indexing thread when it exceeds the doc count threshold.
+     * The writer is removed from the pool (not released back), flushed, and the resulting
+     * segment is queued for registration in the catalog at the next refresh. This avoids
+     * acquiring refreshLock on the indexing thread (which would deadlock with checkoutAll).
+     *
+     * <p>The writer is NOT closed here — its Lucene temp directory must remain on disk
+     * until the next refresh incorporates the segment via addIndexes. The writer is added
+     * to {@code pendingWritersToClose} and closed after refresh completes.
+     *
+     * @param lockedWriter the locked writer holder to flush and retire
+     */
+    private void maybeFlushWriter(DefaultLockableHolder<Writer<?>> lockedWriter) {
+        Writer<?> writer = lockedWriter.get();
+        try {
+            final long flushStartNanos = System.nanoTime();
+            FileInfos fileInfos = writer.flush(FlushInput.EMPTY);
+            final long flushElapsedMs = TimeValue.nsecToMSec(System.nanoTime() - flushStartNanos);
+
+            if (fileInfos.writerFilesMap().isEmpty() == false) {
+                Segment.Builder segmentBuilder = Segment.builder(writer.generation());
+                for (Map.Entry<DataFormat, WriterFileSet> entry : fileInfos.writerFilesMap().entrySet()) {
+                    segmentBuilder.addSearchableFiles(entry.getKey(), entry.getValue());
+                }
+                // Queue the segment for registration at the next refresh — do NOT
+                // acquire refreshLock here to avoid deadlock with checkoutAll.
+                pendingSegments.add(segmentBuilder.build());
+            }
+
+            // Do NOT close the writer yet — its Lucene temp directory must remain
+            // on disk until refresh incorporates it via addIndexes. Queue for deferred close.
+            pendingWritersToClose.add(writer);
+
+            logger.debug(
+                "flush-on-addDoc: writer gen={} flushed inline, docs={}, took [{}ms]",
+                writer.generation(),
+                writer instanceof RowIdAwareWriter<?> r ? r.docCount() : "?",
+                flushElapsedMs
+            );
+        } catch (Exception e) {
+            logger.warn("flush-on-addDoc failed for writer gen={}", writer.generation(), e);
+            IOUtils.closeWhileHandlingException(writer);
+        } finally {
+            // Remove from pool so it's never reused for new docs
+            writerPool.discard(lockedWriter);
         }
     }
 

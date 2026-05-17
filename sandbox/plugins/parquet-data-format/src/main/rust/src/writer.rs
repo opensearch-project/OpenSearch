@@ -463,7 +463,7 @@ impl NativeParquetWriter {
                 let record_batch = RecordBatch::try_new(schema, struct_array.columns().to_vec())?;
                 log_debug!("Created RecordBatch with {} rows and {} columns", record_batch.num_rows(), record_batch.num_columns());
 
-                if let Some(mut state) = WRITERS.get_mut(&temp_filename) {
+                if let Some(state) = WRITERS.get_mut(&temp_filename) {
                     match &state.variant {
                         WriterVariant::Ipc(writer_arc) => {
                             log_debug!("Writing RecordBatch to IPC staging file");

@@ -1647,3 +1647,1214 @@ fn test_chunked_writer_crc32_differs_for_different_data() {
     SETTINGS_STORE.remove(index_name1);
     SETTINGS_STORE.remove(index_name2);
 }
+
+// ===== Batch slicing path tests =====
+// These tests exercise the code path in SortingChunkedWriter::write() where a single
+// incoming batch exceeds memory_threshold_bytes and must be sliced into smaller pieces,
+// with each piece flushed independently.
+
+/// Test: A single large batch that exceeds the memory threshold is sliced and produces
+/// correct sorted output with sequential row IDs and valid permutation.
+#[test]
+fn test_chunked_writer_batch_slicing_large_batch() {
+    let (_temp_dir, filename) = get_temp_file_path("slice_large.parquet");
+    let index_name = "test-slice-large";
+
+    // Set threshold to 1 byte — every batch will exceed it and trigger slicing.
+    // With 1 byte threshold, rows_per_slice = max(1, 1/bytes_per_row) = 1,
+    // so each row becomes its own chunk.
+    let mut settings = NativeSettings::default();
+    settings.sort_columns = vec!["age".to_string()];
+    settings.reverse_sorts = vec![false];
+    settings.nulls_first = vec![false];
+    settings.sort_in_memory_threshold_bytes = Some(1); // Extremely small — forces per-row slicing
+    SETTINGS_STORE.insert(index_name.to_string(), settings);
+
+    let (_schema, schema_ptr) = create_row_id_schema_ptr();
+    NativeParquetWriter::create_writer(
+        filename.clone(), index_name.to_string(), schema_ptr,
+        vec!["age".to_string()], vec![false], vec![false], 0,
+    ).unwrap();
+
+    // Write a batch with 8 rows — each row will be sliced individually
+    let (ap, sp) = create_ffi_data_with_row_id(
+        vec![80, 20, 60, 40, 10, 70, 30, 50],
+        vec![Some("H"), Some("B"), Some("F"), Some("D"), Some("A"),
+             Some("G"), Some("C"), Some("E")],
+        vec![0, 1, 2, 3, 4, 5, 6, 7],
+    );
+    NativeParquetWriter::write_data(filename.clone(), ap, sp).unwrap();
+
+    let finalize_result = NativeParquetWriter::finalize_writer(filename.clone()).unwrap().unwrap();
+
+    // Verify output is sorted
+    let ages = read_ages_from_parquet(&filename);
+    assert_eq!(ages, vec![10, 20, 30, 40, 50, 60, 70, 80],
+        "Output should be sorted by age ASC even with per-row slicing");
+
+    // Verify sequential row IDs
+    let row_ids = read_row_ids_from_parquet(&filename);
+    let expected_sequential: Vec<i64> = (0..8).collect();
+    assert_eq!(row_ids, expected_sequential,
+        "__row_id__ should be sequential 0..7");
+
+    // Verify permutation
+    let mapping = finalize_result.row_id_mapping.expect("Should have mapping");
+    assert_eq!(mapping.len(), 8);
+    // Original: age=[80,20,60,40,10,70,30,50], row_ids=[0..7]
+    // Sorted:   age=[10,20,30,40,50,60,70,80]
+    // mapping[0]=7(80→pos7), mapping[1]=1(20→pos1), mapping[2]=5(60→pos5),
+    // mapping[3]=3(40→pos3), mapping[4]=0(10→pos0), mapping[5]=6(70→pos6),
+    // mapping[6]=2(30→pos2), mapping[7]=4(50→pos4)
+    assert_eq!(mapping, vec![7, 1, 5, 3, 0, 6, 2, 4]);
+
+    // Verify CRC is valid
+    let actual_crc = compute_file_crc32(&filename);
+    assert_eq!(finalize_result.crc32, actual_crc,
+        "CRC should match file content after batch slicing");
+
+    SETTINGS_STORE.remove(index_name);
+}
+
+/// Test: Batch slicing with a threshold that allows exactly 2 rows per slice.
+/// Verifies that partial slices are handled correctly at boundaries.
+#[test]
+fn test_chunked_writer_batch_slicing_two_rows_per_slice() {
+    let (_temp_dir, filename) = get_temp_file_path("slice_two.parquet");
+    let index_name = "test-slice-two";
+
+    // We need a threshold that allows ~2 rows. A single Int32 + Utf8 + Int64 row
+    // is roughly 40-80 bytes in Arrow memory. Set threshold to allow ~2 rows.
+    let mut settings = NativeSettings::default();
+    settings.sort_columns = vec!["age".to_string()];
+    settings.reverse_sorts = vec![false];
+    settings.nulls_first = vec![false];
+    settings.sort_in_memory_threshold_bytes = Some(100); // ~2 rows fit
+    SETTINGS_STORE.insert(index_name.to_string(), settings);
+
+    let (_schema, schema_ptr) = create_row_id_schema_ptr();
+    NativeParquetWriter::create_writer(
+        filename.clone(), index_name.to_string(), schema_ptr,
+        vec!["age".to_string()], vec![false], vec![false], 0,
+    ).unwrap();
+
+    // Write 10 rows — should be sliced into ~5 chunks of 2 rows each
+    let (ap, sp) = create_ffi_data_with_row_id(
+        vec![90, 10, 70, 30, 50, 80, 20, 60, 40, 100],
+        vec![Some("I"), Some("A"), Some("G"), Some("C"), Some("E"),
+             Some("H"), Some("B"), Some("F"), Some("D"), Some("J")],
+        vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
+    );
+    NativeParquetWriter::write_data(filename.clone(), ap, sp).unwrap();
+
+    let finalize_result = NativeParquetWriter::finalize_writer(filename.clone()).unwrap().unwrap();
+
+    // Verify sorted output
+    let ages = read_ages_from_parquet(&filename);
+    assert_eq!(ages, vec![10, 20, 30, 40, 50, 60, 70, 80, 90, 100],
+        "Output should be globally sorted despite batch slicing");
+
+    // Verify sequential row IDs
+    let row_ids = read_row_ids_from_parquet(&filename);
+    let expected_sequential: Vec<i64> = (0..10).collect();
+    assert_eq!(row_ids, expected_sequential);
+
+    // Verify permutation is valid
+    let mapping = finalize_result.row_id_mapping.expect("Should have mapping");
+    assert_eq!(mapping.len(), 10);
+    let mut sorted_mapping = mapping.clone();
+    sorted_mapping.sort();
+    assert_eq!(sorted_mapping, expected_sequential, "Mapping should be a valid permutation");
+
+    // Verify permutation correctness
+    let original_ages = vec![90, 10, 70, 30, 50, 80, 20, 60, 40, 100];
+    for i in 0..10 {
+        let new_pos = mapping[i] as usize;
+        assert_eq!(ages[new_pos], original_ages[i],
+            "original_ages[{}]={} should be at sorted position {}", i, original_ages[i], new_pos);
+    }
+
+    SETTINGS_STORE.remove(index_name);
+}
+
+/// Test: Batch slicing with descending sort — verifies slicing doesn't break sort direction.
+#[test]
+fn test_chunked_writer_batch_slicing_descending() {
+    let (_temp_dir, filename) = get_temp_file_path("slice_desc.parquet");
+    let index_name = "test-slice-desc";
+
+    let mut settings = NativeSettings::default();
+    settings.sort_columns = vec!["age".to_string()];
+    settings.reverse_sorts = vec![true]; // descending
+    settings.nulls_first = vec![false];
+    settings.sort_in_memory_threshold_bytes = Some(1); // Force per-row slicing
+    SETTINGS_STORE.insert(index_name.to_string(), settings);
+
+    let (_schema, schema_ptr) = create_row_id_schema_ptr();
+    NativeParquetWriter::create_writer(
+        filename.clone(), index_name.to_string(), schema_ptr,
+        vec!["age".to_string()], vec![true], vec![false], 0,
+    ).unwrap();
+
+    let (ap, sp) = create_ffi_data_with_row_id(
+        vec![10, 50, 30, 20, 40],
+        vec![Some("A"), Some("E"), Some("C"), Some("B"), Some("D")],
+        vec![0, 1, 2, 3, 4],
+    );
+    NativeParquetWriter::write_data(filename.clone(), ap, sp).unwrap();
+
+    let finalize_result = NativeParquetWriter::finalize_writer(filename.clone()).unwrap().unwrap();
+
+    // Verify descending sort
+    let ages = read_ages_from_parquet(&filename);
+    assert_eq!(ages, vec![50, 40, 30, 20, 10],
+        "Output should be sorted by age DESC with batch slicing");
+
+    // Verify sequential row IDs
+    let row_ids = read_row_ids_from_parquet(&filename);
+    assert_eq!(row_ids, vec![0, 1, 2, 3, 4]);
+
+    // Verify permutation
+    let mapping = finalize_result.row_id_mapping.expect("Should have mapping");
+    // Original: age=[10,50,30,20,40], row_ids=[0..4]
+    // Sorted DESC: age=[50,40,30,20,10] → original row_ids [1,4,2,3,0]
+    // mapping[0]=4, mapping[1]=0, mapping[2]=2, mapping[3]=3, mapping[4]=1
+    assert_eq!(mapping, vec![4, 0, 2, 3, 1]);
+
+    SETTINGS_STORE.remove(index_name);
+}
+
+/// Test: Multiple write_data calls where each batch individually exceeds the threshold.
+/// Verifies that slicing works correctly across multiple write calls.
+#[test]
+fn test_chunked_writer_batch_slicing_multiple_writes() {
+    let (_temp_dir, filename) = get_temp_file_path("slice_multi_write.parquet");
+    let index_name = "test-slice-multi-write";
+
+    let mut settings = NativeSettings::default();
+    settings.sort_columns = vec!["age".to_string()];
+    settings.reverse_sorts = vec![false];
+    settings.nulls_first = vec![false];
+    settings.sort_in_memory_threshold_bytes = Some(1); // Force slicing on every batch
+    SETTINGS_STORE.insert(index_name.to_string(), settings);
+
+    let (_schema, schema_ptr) = create_row_id_schema_ptr();
+    NativeParquetWriter::create_writer(
+        filename.clone(), index_name.to_string(), schema_ptr,
+        vec!["age".to_string()], vec![false], vec![false], 0,
+    ).unwrap();
+
+    // First batch: rows 0..4
+    let (ap1, sp1) = create_ffi_data_with_row_id(
+        vec![50, 10, 30],
+        vec![Some("E"), Some("A"), Some("C")],
+        vec![0, 1, 2],
+    );
+    NativeParquetWriter::write_data(filename.clone(), ap1, sp1).unwrap();
+
+    // Second batch: rows 3..6
+    let (ap2, sp2) = create_ffi_data_with_row_id(
+        vec![40, 20, 60],
+        vec![Some("D"), Some("B"), Some("F")],
+        vec![3, 4, 5],
+    );
+    NativeParquetWriter::write_data(filename.clone(), ap2, sp2).unwrap();
+
+    let finalize_result = NativeParquetWriter::finalize_writer(filename.clone()).unwrap().unwrap();
+
+    // Verify globally sorted
+    let ages = read_ages_from_parquet(&filename);
+    assert_eq!(ages, vec![10, 20, 30, 40, 50, 60],
+        "Output should be globally sorted across sliced multi-write batches");
+
+    // Verify sequential row IDs
+    let row_ids = read_row_ids_from_parquet(&filename);
+    let expected_sequential: Vec<i64> = (0..6).collect();
+    assert_eq!(row_ids, expected_sequential);
+
+    // Verify permutation
+    let mapping = finalize_result.row_id_mapping.expect("Should have mapping");
+    assert_eq!(mapping.len(), 6);
+    // Original: age=[50,10,30,40,20,60], row_ids=[0,1,2,3,4,5]
+    // Sorted:   age=[10,20,30,40,50,60]
+    // mapping[0]=4(50→pos4), mapping[1]=0(10→pos0), mapping[2]=2(30→pos2),
+    // mapping[3]=3(40→pos3), mapping[4]=1(20→pos1), mapping[5]=5(60→pos5)
+    assert_eq!(mapping, vec![4, 0, 2, 3, 1, 5]);
+
+    SETTINGS_STORE.remove(index_name);
+}
+
+// ===== Schema without __row_id__ column tests =====
+// These tests verify that the sorted chunked writer works correctly when the schema
+// does NOT contain a __row_id__ column. In this case, flush_and_sort_chunk should
+// skip the row ID capture/rewrite logic and finalize_writer should return no permutation.
+
+/// Helper: creates FFI schema pointer for a schema WITHOUT __row_id__ (age: Int32, name: Utf8).
+fn create_no_row_id_schema_ptr() -> (Arc<arrow::datatypes::Schema>, i64) {
+    use arrow::datatypes::{DataType, Field, Schema};
+
+    let schema = Arc::new(Schema::new(vec![
+        Field::new("age", DataType::Int32, false),
+        Field::new("name", DataType::Utf8, true),
+    ]));
+    let ffi_schema = arrow::ffi::FFI_ArrowSchema::try_from(schema.as_ref()).unwrap();
+    let schema_ptr = Box::into_raw(Box::new(ffi_schema)) as i64;
+    (schema, schema_ptr)
+}
+
+/// Helper: creates FFI data WITHOUT __row_id__ column.
+fn create_ffi_data_no_row_id(
+    ages: Vec<i32>,
+    names: Vec<Option<&str>>,
+) -> (i64, i64) {
+    use arrow::array::{Array, Int32Array, StringArray};
+    use arrow::datatypes::{DataType, Field, Schema};
+    use arrow::record_batch::RecordBatch;
+
+    let schema = Arc::new(Schema::new(vec![
+        Field::new("age", DataType::Int32, false),
+        Field::new("name", DataType::Utf8, true),
+    ]));
+    let age_array: Arc<dyn Array> = Arc::new(Int32Array::from(ages));
+    let name_array: Arc<dyn Array> = Arc::new(StringArray::from(names));
+    let record_batch = RecordBatch::try_new(
+        schema.clone(),
+        vec![age_array, name_array],
+    ).unwrap();
+    let struct_array = arrow::array::StructArray::from(record_batch);
+    let (ffi_array, ffi_schema) = arrow::ffi::to_ffi(&struct_array.to_data()).unwrap();
+    let array_ptr = Box::into_raw(Box::new(ffi_array)) as i64;
+    let schema_ptr = Box::into_raw(Box::new(ffi_schema)) as i64;
+    (array_ptr, schema_ptr)
+}
+
+/// Test: Sorted writer without __row_id__ column — single chunk.
+/// Should sort correctly and return no permutation mapping.
+#[test]
+fn test_chunked_writer_no_row_id_single_chunk() {
+    let (_temp_dir, filename) = get_temp_file_path("no_rowid_single.parquet");
+    let index_name = "test-no-rowid-single";
+
+    let mut settings = NativeSettings::default();
+    settings.sort_columns = vec!["age".to_string()];
+    settings.reverse_sorts = vec![false];
+    settings.nulls_first = vec![false];
+    settings.sort_in_memory_threshold_bytes = Some(10 * 1024 * 1024);
+    SETTINGS_STORE.insert(index_name.to_string(), settings);
+
+    let (_schema, schema_ptr) = create_no_row_id_schema_ptr();
+    NativeParquetWriter::create_writer(
+        filename.clone(), index_name.to_string(), schema_ptr,
+        vec!["age".to_string()], vec![false], vec![false], 0,
+    ).unwrap();
+
+    let (ap, sp) = create_ffi_data_no_row_id(
+        vec![50, 10, 30, 20, 40],
+        vec![Some("E"), Some("A"), Some("C"), Some("B"), Some("D")],
+    );
+    NativeParquetWriter::write_data(filename.clone(), ap, sp).unwrap();
+
+    let finalize_result = NativeParquetWriter::finalize_writer(filename.clone()).unwrap().unwrap();
+
+    // Verify sorted output
+    let ages = read_ages_from_parquet(&filename);
+    assert_eq!(ages, vec![10, 20, 30, 40, 50],
+        "Output should be sorted by age ASC even without __row_id__");
+
+    // No permutation mapping when __row_id__ is absent
+    assert!(finalize_result.row_id_mapping.is_none(),
+        "row_id_mapping should be None when schema has no __row_id__ column");
+
+    SETTINGS_STORE.remove(index_name);
+}
+
+/// Test: Sorted writer without __row_id__ column — multi chunk (forced by small threshold).
+/// Should sort correctly across chunks and return no permutation mapping.
+#[test]
+fn test_chunked_writer_no_row_id_multi_chunk() {
+    let (_temp_dir, filename) = get_temp_file_path("no_rowid_multi.parquet");
+    let index_name = "test-no-rowid-multi";
+
+    let mut settings = NativeSettings::default();
+    settings.sort_columns = vec!["age".to_string()];
+    settings.reverse_sorts = vec![false];
+    settings.nulls_first = vec![false];
+    settings.sort_in_memory_threshold_bytes = Some(64); // Force multiple chunks
+    SETTINGS_STORE.insert(index_name.to_string(), settings);
+
+    let (_schema, schema_ptr) = create_no_row_id_schema_ptr();
+    NativeParquetWriter::create_writer(
+        filename.clone(), index_name.to_string(), schema_ptr,
+        vec!["age".to_string()], vec![false], vec![false], 0,
+    ).unwrap();
+
+    let (ap, sp) = create_ffi_data_no_row_id(
+        vec![80, 20, 60, 40, 10, 70, 30, 50],
+        vec![Some("H"), Some("B"), Some("F"), Some("D"), Some("A"),
+             Some("G"), Some("C"), Some("E")],
+    );
+    NativeParquetWriter::write_data(filename.clone(), ap, sp).unwrap();
+
+    let finalize_result = NativeParquetWriter::finalize_writer(filename.clone()).unwrap().unwrap();
+
+    // Verify sorted output
+    let ages = read_ages_from_parquet(&filename);
+    assert_eq!(ages, vec![10, 20, 30, 40, 50, 60, 70, 80],
+        "Output should be sorted even without __row_id__ in multi-chunk path");
+
+    // No permutation mapping
+    assert!(finalize_result.row_id_mapping.is_none(),
+        "row_id_mapping should be None without __row_id__ column");
+
+    SETTINGS_STORE.remove(index_name);
+}
+
+/// Test: Sorted writer without __row_id__ — batch slicing path.
+/// Verifies the slicing + sort works when there's no row ID to rewrite.
+#[test]
+fn test_chunked_writer_no_row_id_batch_slicing() {
+    let (_temp_dir, filename) = get_temp_file_path("no_rowid_slice.parquet");
+    let index_name = "test-no-rowid-slice";
+
+    let mut settings = NativeSettings::default();
+    settings.sort_columns = vec!["age".to_string()];
+    settings.reverse_sorts = vec![true]; // descending
+    settings.nulls_first = vec![false];
+    settings.sort_in_memory_threshold_bytes = Some(1); // Force per-row slicing
+    SETTINGS_STORE.insert(index_name.to_string(), settings);
+
+    let (_schema, schema_ptr) = create_no_row_id_schema_ptr();
+    NativeParquetWriter::create_writer(
+        filename.clone(), index_name.to_string(), schema_ptr,
+        vec!["age".to_string()], vec![true], vec![false], 0,
+    ).unwrap();
+
+    let (ap, sp) = create_ffi_data_no_row_id(
+        vec![10, 50, 30, 20, 40, 60],
+        vec![Some("A"), Some("E"), Some("C"), Some("B"), Some("D"), Some("F")],
+    );
+    NativeParquetWriter::write_data(filename.clone(), ap, sp).unwrap();
+
+    let finalize_result = NativeParquetWriter::finalize_writer(filename.clone()).unwrap().unwrap();
+
+    // Verify descending sort
+    let ages = read_ages_from_parquet(&filename);
+    assert_eq!(ages, vec![60, 50, 40, 30, 20, 10],
+        "Output should be sorted DESC without __row_id__ in slicing path");
+
+    // No permutation
+    assert!(finalize_result.row_id_mapping.is_none());
+
+    // CRC should still be valid
+    let actual_crc = compute_file_crc32(&filename);
+    assert_eq!(finalize_result.crc32, actual_crc);
+
+    SETTINGS_STORE.remove(index_name);
+}
+
+// ===== Multi-column sort tests =====
+// These tests verify sorting on 2+ columns with mixed sort directions.
+
+/// Helper: creates FFI schema with (age: Int32, score: Int32, name: Utf8, __row_id__: Int64).
+fn create_multi_sort_schema_ptr() -> (Arc<arrow::datatypes::Schema>, i64) {
+    use arrow::datatypes::{DataType, Field, Schema};
+    use crate::merge::schema::ROW_ID_COLUMN_NAME;
+
+    let schema = Arc::new(Schema::new(vec![
+        Field::new("age", DataType::Int32, false),
+        Field::new("score", DataType::Int32, false),
+        Field::new("name", DataType::Utf8, true),
+        Field::new(ROW_ID_COLUMN_NAME, DataType::Int64, false),
+    ]));
+    let ffi_schema = arrow::ffi::FFI_ArrowSchema::try_from(schema.as_ref()).unwrap();
+    let schema_ptr = Box::into_raw(Box::new(ffi_schema)) as i64;
+    (schema, schema_ptr)
+}
+
+/// Helper: creates FFI data with (age, score, name, __row_id__) columns.
+fn create_ffi_data_multi_sort(
+    ages: Vec<i32>,
+    scores: Vec<i32>,
+    names: Vec<Option<&str>>,
+    row_ids: Vec<i64>,
+) -> (i64, i64) {
+    use arrow::array::{Array, Int32Array, Int64Array, StringArray};
+    use arrow::datatypes::{DataType, Field, Schema};
+    use arrow::record_batch::RecordBatch;
+    use crate::merge::schema::ROW_ID_COLUMN_NAME;
+
+    let schema = Arc::new(Schema::new(vec![
+        Field::new("age", DataType::Int32, false),
+        Field::new("score", DataType::Int32, false),
+        Field::new("name", DataType::Utf8, true),
+        Field::new(ROW_ID_COLUMN_NAME, DataType::Int64, false),
+    ]));
+    let age_array: Arc<dyn Array> = Arc::new(Int32Array::from(ages));
+    let score_array: Arc<dyn Array> = Arc::new(Int32Array::from(scores));
+    let name_array: Arc<dyn Array> = Arc::new(StringArray::from(names));
+    let row_id_array: Arc<dyn Array> = Arc::new(Int64Array::from(row_ids));
+    let record_batch = RecordBatch::try_new(
+        schema.clone(),
+        vec![age_array, score_array, name_array, row_id_array],
+    ).unwrap();
+    let struct_array = arrow::array::StructArray::from(record_batch);
+    let (ffi_array, ffi_schema) = arrow::ffi::to_ffi(&struct_array.to_data()).unwrap();
+    let array_ptr = Box::into_raw(Box::new(ffi_array)) as i64;
+    let schema_ptr = Box::into_raw(Box::new(ffi_schema)) as i64;
+    (array_ptr, schema_ptr)
+}
+
+/// Helper: reads the "score" column from a Parquet file.
+fn read_scores_from_parquet(filename: &str) -> Vec<i32> {
+    use arrow::array::Int32Array;
+    use arrow::compute::concat_batches;
+
+    let batches = read_parquet_file(filename);
+    if batches.is_empty() {
+        return vec![];
+    }
+    let combined = concat_batches(&batches[0].schema(), &batches).unwrap();
+    let idx = combined.schema().index_of("score").expect("score column should exist");
+    let col = combined.column(idx).as_any().downcast_ref::<Int32Array>()
+        .expect("score should be Int32");
+    (0..col.len()).map(|i| col.value(i)).collect()
+}
+
+/// Test: Sort by age ASC, then score DESC (tie-breaking).
+/// Rows with the same age should be ordered by score descending.
+#[test]
+fn test_multi_column_sort_age_asc_score_desc() {
+    let (_temp_dir, filename) = get_temp_file_path("multi_sort_asc_desc.parquet");
+    let index_name = "test-multi-sort-asc-desc";
+
+    let mut settings = NativeSettings::default();
+    settings.sort_columns = vec!["age".to_string(), "score".to_string()];
+    settings.reverse_sorts = vec![false, true]; // age ASC, score DESC
+    settings.nulls_first = vec![false, false];
+    settings.sort_in_memory_threshold_bytes = Some(10 * 1024 * 1024);
+    SETTINGS_STORE.insert(index_name.to_string(), settings);
+
+    let (_schema, schema_ptr) = create_multi_sort_schema_ptr();
+    NativeParquetWriter::create_writer(
+        filename.clone(), index_name.to_string(), schema_ptr,
+        vec!["age".to_string(), "score".to_string()], vec![false, true], vec![false, false], 0,
+    ).unwrap();
+
+    // Data with duplicate ages to test tie-breaking by score DESC
+    let (ap, sp) = create_ffi_data_multi_sort(
+        vec![30, 20, 30, 20, 10, 30],  // ages: ties at 20 and 30
+        vec![50, 80, 90, 40, 70, 10],  // scores for tie-breaking
+        vec![Some("A"), Some("B"), Some("C"), Some("D"), Some("E"), Some("F")],
+        vec![0, 1, 2, 3, 4, 5],
+    );
+    NativeParquetWriter::write_data(filename.clone(), ap, sp).unwrap();
+
+    let finalize_result = NativeParquetWriter::finalize_writer(filename.clone()).unwrap().unwrap();
+
+    let ages = read_ages_from_parquet(&filename);
+    let scores = read_scores_from_parquet(&filename);
+
+    // Expected sort: age ASC first, then score DESC within same age
+    // age=10: score=70
+    // age=20: score=80, score=40 (DESC)
+    // age=30: score=90, score=50, score=10 (DESC)
+    assert_eq!(ages, vec![10, 20, 20, 30, 30, 30]);
+    assert_eq!(scores, vec![70, 80, 40, 90, 50, 10]);
+
+    // Verify sequential row IDs
+    let row_ids = read_row_ids_from_parquet(&filename);
+    assert_eq!(row_ids, vec![0, 1, 2, 3, 4, 5]);
+
+    // Verify permutation
+    let mapping = finalize_result.row_id_mapping.expect("Should have mapping");
+    // Original order: (30,50), (20,80), (30,90), (20,40), (10,70), (30,10)
+    // Sorted order:   (10,70), (20,80), (20,40), (30,90), (30,50), (30,10)
+    // Original row_ids: 4, 1, 3, 2, 0, 5
+    // mapping[0]=4, mapping[1]=1, mapping[2]=3, mapping[3]=2, mapping[4]=0, mapping[5]=5
+    assert_eq!(mapping, vec![4, 1, 3, 2, 0, 5]);
+
+    SETTINGS_STORE.remove(index_name);
+}
+
+/// Test: Sort by age DESC, then score ASC — both columns with different directions.
+#[test]
+fn test_multi_column_sort_age_desc_score_asc() {
+    let (_temp_dir, filename) = get_temp_file_path("multi_sort_desc_asc.parquet");
+    let index_name = "test-multi-sort-desc-asc";
+
+    let mut settings = NativeSettings::default();
+    settings.sort_columns = vec!["age".to_string(), "score".to_string()];
+    settings.reverse_sorts = vec![true, false]; // age DESC, score ASC
+    settings.nulls_first = vec![false, false];
+    settings.sort_in_memory_threshold_bytes = Some(10 * 1024 * 1024);
+    SETTINGS_STORE.insert(index_name.to_string(), settings);
+
+    let (_schema, schema_ptr) = create_multi_sort_schema_ptr();
+    NativeParquetWriter::create_writer(
+        filename.clone(), index_name.to_string(), schema_ptr,
+        vec!["age".to_string(), "score".to_string()], vec![true, false], vec![false, false], 0,
+    ).unwrap();
+
+    let (ap, sp) = create_ffi_data_multi_sort(
+        vec![20, 30, 20, 30, 10],
+        vec![50, 20, 30, 40, 60],
+        vec![Some("A"), Some("B"), Some("C"), Some("D"), Some("E")],
+        vec![0, 1, 2, 3, 4],
+    );
+    NativeParquetWriter::write_data(filename.clone(), ap, sp).unwrap();
+
+    NativeParquetWriter::finalize_writer(filename.clone()).unwrap();
+
+    let ages = read_ages_from_parquet(&filename);
+    let scores = read_scores_from_parquet(&filename);
+
+    // Expected: age DESC, then score ASC within same age
+    // age=30: score=20, score=40 (ASC)
+    // age=20: score=30, score=50 (ASC)
+    // age=10: score=60
+    assert_eq!(ages, vec![30, 30, 20, 20, 10]);
+    assert_eq!(scores, vec![20, 40, 30, 50, 60]);
+
+    SETTINGS_STORE.remove(index_name);
+}
+
+/// Test: Multi-column sort with forced multi-chunk — verifies the k-way merge
+/// respects composite sort keys across chunk boundaries.
+#[test]
+fn test_multi_column_sort_multi_chunk() {
+    let (_temp_dir, filename) = get_temp_file_path("multi_sort_chunked.parquet");
+    let index_name = "test-multi-sort-chunked";
+
+    let mut settings = NativeSettings::default();
+    settings.sort_columns = vec!["age".to_string(), "score".to_string()];
+    settings.reverse_sorts = vec![false, false]; // both ASC
+    settings.nulls_first = vec![false, false];
+    settings.sort_in_memory_threshold_bytes = Some(64); // Force multiple chunks
+    SETTINGS_STORE.insert(index_name.to_string(), settings);
+
+    let (_schema, schema_ptr) = create_multi_sort_schema_ptr();
+    NativeParquetWriter::create_writer(
+        filename.clone(), index_name.to_string(), schema_ptr,
+        vec!["age".to_string(), "score".to_string()], vec![false, false], vec![false, false], 0,
+    ).unwrap();
+
+    // 10 rows with many ties in age to stress tie-breaking across chunks
+    let (ap, sp) = create_ffi_data_multi_sort(
+        vec![20, 10, 20, 10, 30, 20, 10, 30, 20, 10],
+        vec![50, 30, 10, 70, 20, 40, 10, 60, 30, 50],
+        vec![Some("A"), Some("B"), Some("C"), Some("D"), Some("E"),
+             Some("F"), Some("G"), Some("H"), Some("I"), Some("J")],
+        vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
+    );
+    NativeParquetWriter::write_data(filename.clone(), ap, sp).unwrap();
+
+    let finalize_result = NativeParquetWriter::finalize_writer(filename.clone()).unwrap().unwrap();
+
+    let ages = read_ages_from_parquet(&filename);
+    let scores = read_scores_from_parquet(&filename);
+
+    // Expected: age ASC, then score ASC within same age
+    // age=10: scores 10, 30, 50, 70
+    // age=20: scores 10, 30, 40, 50
+    // age=30: scores 20, 60
+    assert_eq!(ages, vec![10, 10, 10, 10, 20, 20, 20, 20, 30, 30]);
+    assert_eq!(scores, vec![10, 30, 50, 70, 10, 30, 40, 50, 20, 60]);
+
+    // Verify sequential row IDs
+    let row_ids = read_row_ids_from_parquet(&filename);
+    let expected_sequential: Vec<i64> = (0..10).collect();
+    assert_eq!(row_ids, expected_sequential);
+
+    // Verify permutation is valid
+    let mapping = finalize_result.row_id_mapping.expect("Should have mapping");
+    assert_eq!(mapping.len(), 10);
+    let mut sorted_mapping = mapping.clone();
+    sorted_mapping.sort();
+    assert_eq!(sorted_mapping, expected_sequential, "Mapping should be a valid permutation");
+
+    SETTINGS_STORE.remove(index_name);
+}
+
+/// Test: Multi-column sort with batch slicing — extreme case combining both features.
+#[test]
+fn test_multi_column_sort_batch_slicing() {
+    let (_temp_dir, filename) = get_temp_file_path("multi_sort_slice.parquet");
+    let index_name = "test-multi-sort-slice";
+
+    let mut settings = NativeSettings::default();
+    settings.sort_columns = vec!["age".to_string(), "score".to_string()];
+    settings.reverse_sorts = vec![false, true]; // age ASC, score DESC
+    settings.nulls_first = vec![false, false];
+    settings.sort_in_memory_threshold_bytes = Some(1); // Per-row slicing
+    SETTINGS_STORE.insert(index_name.to_string(), settings);
+
+    let (_schema, schema_ptr) = create_multi_sort_schema_ptr();
+    NativeParquetWriter::create_writer(
+        filename.clone(), index_name.to_string(), schema_ptr,
+        vec!["age".to_string(), "score".to_string()], vec![false, true], vec![false, false], 0,
+    ).unwrap();
+
+    let (ap, sp) = create_ffi_data_multi_sort(
+        vec![20, 20, 10, 10, 20],
+        vec![30, 50, 40, 20, 10],
+        vec![Some("A"), Some("B"), Some("C"), Some("D"), Some("E")],
+        vec![0, 1, 2, 3, 4],
+    );
+    NativeParquetWriter::write_data(filename.clone(), ap, sp).unwrap();
+
+    NativeParquetWriter::finalize_writer(filename.clone()).unwrap();
+
+    let ages = read_ages_from_parquet(&filename);
+    let scores = read_scores_from_parquet(&filename);
+
+    // Expected: age ASC, then score DESC within same age
+    // age=10: score=40, score=20 (DESC)
+    // age=20: score=50, score=30, score=10 (DESC)
+    assert_eq!(ages, vec![10, 10, 20, 20, 20]);
+    assert_eq!(scores, vec![40, 20, 50, 30, 10]);
+
+    SETTINGS_STORE.remove(index_name);
+}
+
+// ===== nulls_first behavior test =====
+
+/// Helper: creates FFI schema with nullable sort column (age: Int32 nullable, name: Utf8).
+fn create_nullable_schema_ptr() -> (Arc<arrow::datatypes::Schema>, i64) {
+    use arrow::datatypes::{DataType, Field, Schema};
+
+    let schema = Arc::new(Schema::new(vec![
+        Field::new("age", DataType::Int32, true), // nullable
+        Field::new("name", DataType::Utf8, true),
+    ]));
+    let ffi_schema = arrow::ffi::FFI_ArrowSchema::try_from(schema.as_ref()).unwrap();
+    let schema_ptr = Box::into_raw(Box::new(ffi_schema)) as i64;
+    (schema, schema_ptr)
+}
+
+/// Helper: creates FFI data with nullable age column.
+fn create_ffi_data_nullable_age(
+    ages: Vec<Option<i32>>,
+    names: Vec<Option<&str>>,
+) -> (i64, i64) {
+    use arrow::array::{Array, Int32Array, StringArray};
+    use arrow::datatypes::{DataType, Field, Schema};
+    use arrow::record_batch::RecordBatch;
+
+    let schema = Arc::new(Schema::new(vec![
+        Field::new("age", DataType::Int32, true),
+        Field::new("name", DataType::Utf8, true),
+    ]));
+    let age_array: Arc<dyn Array> = Arc::new(Int32Array::from(ages));
+    let name_array: Arc<dyn Array> = Arc::new(StringArray::from(names));
+    let record_batch = RecordBatch::try_new(
+        schema.clone(),
+        vec![age_array, name_array],
+    ).unwrap();
+    let struct_array = arrow::array::StructArray::from(record_batch);
+    let (ffi_array, ffi_schema) = arrow::ffi::to_ffi(&struct_array.to_data()).unwrap();
+    let array_ptr = Box::into_raw(Box::new(ffi_array)) as i64;
+    let schema_ptr = Box::into_raw(Box::new(ffi_schema)) as i64;
+    (array_ptr, schema_ptr)
+}
+
+/// Helper: reads nullable age column, returning None for nulls.
+fn read_nullable_ages_from_parquet(filename: &str) -> Vec<Option<i32>> {
+    use arrow::array::{Array, Int32Array};
+    use arrow::compute::concat_batches;
+
+    let batches = read_parquet_file(filename);
+    let combined = concat_batches(&batches[0].schema(), &batches).unwrap();
+    let idx = combined.schema().index_of("age").unwrap();
+    let col = combined.column(idx).as_any().downcast_ref::<Int32Array>().unwrap();
+    (0..col.len()).map(|i| if col.is_null(i) { None } else { Some(col.value(i)) }).collect()
+}
+
+/// Test: nulls_first=true places NULL values before non-null values in ascending sort.
+#[test]
+fn test_nulls_first_true_ascending() {
+    let (_temp_dir, filename) = get_temp_file_path("nulls_first_true.parquet");
+    let index_name = "test-nulls-first-true";
+
+    let mut settings = NativeSettings::default();
+    settings.sort_columns = vec!["age".to_string()];
+    settings.reverse_sorts = vec![false]; // ASC
+    settings.nulls_first = vec![true];    // NULLs first
+    settings.sort_in_memory_threshold_bytes = Some(10 * 1024 * 1024);
+    SETTINGS_STORE.insert(index_name.to_string(), settings);
+
+    let (_schema, schema_ptr) = create_nullable_schema_ptr();
+    NativeParquetWriter::create_writer(
+        filename.clone(), index_name.to_string(), schema_ptr,
+        vec!["age".to_string()], vec![false], vec![true], 0,
+    ).unwrap();
+
+    let (ap, sp) = create_ffi_data_nullable_age(
+        vec![Some(30), None, Some(10), None, Some(20)],
+        vec![Some("C"), Some("X"), Some("A"), Some("Y"), Some("B")],
+    );
+    NativeParquetWriter::write_data(filename.clone(), ap, sp).unwrap();
+    NativeParquetWriter::finalize_writer(filename.clone()).unwrap();
+
+    let ages = read_nullable_ages_from_parquet(&filename);
+    // NULLs first, then ascending non-nulls
+    assert_eq!(ages, vec![None, None, Some(10), Some(20), Some(30)]);
+
+    SETTINGS_STORE.remove(index_name);
+}
+
+/// Test: nulls_first=false places NULL values after non-null values in ascending sort.
+#[test]
+fn test_nulls_first_false_ascending() {
+    let (_temp_dir, filename) = get_temp_file_path("nulls_first_false.parquet");
+    let index_name = "test-nulls-first-false";
+
+    let mut settings = NativeSettings::default();
+    settings.sort_columns = vec!["age".to_string()];
+    settings.reverse_sorts = vec![false]; // ASC
+    settings.nulls_first = vec![false];   // NULLs last
+    settings.sort_in_memory_threshold_bytes = Some(10 * 1024 * 1024);
+    SETTINGS_STORE.insert(index_name.to_string(), settings);
+
+    let (_schema, schema_ptr) = create_nullable_schema_ptr();
+    NativeParquetWriter::create_writer(
+        filename.clone(), index_name.to_string(), schema_ptr,
+        vec!["age".to_string()], vec![false], vec![false], 0,
+    ).unwrap();
+
+    let (ap, sp) = create_ffi_data_nullable_age(
+        vec![Some(30), None, Some(10), None, Some(20)],
+        vec![Some("C"), Some("X"), Some("A"), Some("Y"), Some("B")],
+    );
+    NativeParquetWriter::write_data(filename.clone(), ap, sp).unwrap();
+    NativeParquetWriter::finalize_writer(filename.clone()).unwrap();
+
+    let ages = read_nullable_ages_from_parquet(&filename);
+    // Non-nulls ascending first, then NULLs last
+    assert_eq!(ages, vec![Some(10), Some(20), Some(30), None, None]);
+
+    SETTINGS_STORE.remove(index_name);
+}
+
+/// Helper: creates FFI schema with nullable age + __row_id__ (age: Int32 nullable, name: Utf8, __row_id__: Int64).
+fn create_nullable_with_row_id_schema_ptr() -> (Arc<arrow::datatypes::Schema>, i64) {
+    use arrow::datatypes::{DataType, Field, Schema};
+    use crate::merge::schema::ROW_ID_COLUMN_NAME;
+
+    let schema = Arc::new(Schema::new(vec![
+        Field::new("age", DataType::Int32, true), // nullable
+        Field::new("name", DataType::Utf8, true),
+        Field::new(ROW_ID_COLUMN_NAME, DataType::Int64, false),
+    ]));
+    let ffi_schema = arrow::ffi::FFI_ArrowSchema::try_from(schema.as_ref()).unwrap();
+    let schema_ptr = Box::into_raw(Box::new(ffi_schema)) as i64;
+    (schema, schema_ptr)
+}
+
+/// Helper: creates FFI data with nullable age + __row_id__.
+fn create_ffi_data_nullable_with_row_id(
+    ages: Vec<Option<i32>>,
+    names: Vec<Option<&str>>,
+    row_ids: Vec<i64>,
+) -> (i64, i64) {
+    use arrow::array::{Array, Int32Array, Int64Array, StringArray};
+    use arrow::datatypes::{DataType, Field, Schema};
+    use arrow::record_batch::RecordBatch;
+    use crate::merge::schema::ROW_ID_COLUMN_NAME;
+
+    let schema = Arc::new(Schema::new(vec![
+        Field::new("age", DataType::Int32, true),
+        Field::new("name", DataType::Utf8, true),
+        Field::new(ROW_ID_COLUMN_NAME, DataType::Int64, false),
+    ]));
+    let age_array: Arc<dyn Array> = Arc::new(Int32Array::from(ages));
+    let name_array: Arc<dyn Array> = Arc::new(StringArray::from(names));
+    let row_id_array: Arc<dyn Array> = Arc::new(Int64Array::from(row_ids));
+    let record_batch = RecordBatch::try_new(
+        schema.clone(),
+        vec![age_array, name_array, row_id_array],
+    ).unwrap();
+    let struct_array = arrow::array::StructArray::from(record_batch);
+    let (ffi_array, ffi_schema) = arrow::ffi::to_ffi(&struct_array.to_data()).unwrap();
+    let array_ptr = Box::into_raw(Box::new(ffi_array)) as i64;
+    let schema_ptr = Box::into_raw(Box::new(ffi_schema)) as i64;
+    (array_ptr, schema_ptr)
+}
+
+/// Test: nulls_first=true with __row_id__ — verifies sequential row IDs and correct permutation
+/// when NULLs are sorted to the front.
+#[test]
+fn test_nulls_first_with_row_id_and_permutation() {
+    let (_temp_dir, filename) = get_temp_file_path("nulls_first_rowid.parquet");
+    let index_name = "test-nulls-first-rowid";
+
+    let mut settings = NativeSettings::default();
+    settings.sort_columns = vec!["age".to_string()];
+    settings.reverse_sorts = vec![false]; // ASC
+    settings.nulls_first = vec![true];    // NULLs first
+    settings.sort_in_memory_threshold_bytes = Some(10 * 1024 * 1024);
+    SETTINGS_STORE.insert(index_name.to_string(), settings);
+
+    let (_schema, schema_ptr) = create_nullable_with_row_id_schema_ptr();
+    NativeParquetWriter::create_writer(
+        filename.clone(), index_name.to_string(), schema_ptr,
+        vec!["age".to_string()], vec![false], vec![true], 0,
+    ).unwrap();
+
+    // Original: row0=age30, row1=NULL, row2=age10, row3=NULL, row4=age20
+    let (ap, sp) = create_ffi_data_nullable_with_row_id(
+        vec![Some(30), None, Some(10), None, Some(20)],
+        vec![Some("C"), Some("X"), Some("A"), Some("Y"), Some("B")],
+        vec![0, 1, 2, 3, 4],
+    );
+    NativeParquetWriter::write_data(filename.clone(), ap, sp).unwrap();
+
+    let finalize_result = NativeParquetWriter::finalize_writer(filename.clone()).unwrap().unwrap();
+
+    // Verify sort: NULLs first, then ascending
+    let ages = read_nullable_ages_from_parquet(&filename);
+    assert_eq!(ages, vec![None, None, Some(10), Some(20), Some(30)]);
+
+    // Verify __row_id__ is sequential 0..N
+    let row_ids = read_row_ids_from_parquet(&filename);
+    assert_eq!(row_ids, vec![0, 1, 2, 3, 4],
+        "__row_id__ should be sequential after rewrite");
+
+    // Verify permutation mapping
+    // Original: age=[30, NULL, 10, NULL, 20], row_ids=[0,1,2,3,4]
+    // Sorted:   age=[NULL, NULL, 10, 20, 30]
+    // The two NULLs were at original positions 1 and 3 (stable order preserved by RowConverter)
+    // Sorted positions: NULL(row1)→pos0, NULL(row3)→pos1, 10(row2)→pos2, 20(row4)→pos3, 30(row0)→pos4
+    // mapping[0]=4, mapping[1]=0, mapping[2]=2, mapping[3]=1, mapping[4]=3
+    let mapping = finalize_result.row_id_mapping.expect("Should have row_id_mapping");
+    assert_eq!(mapping.len(), 5);
+    assert_eq!(mapping, vec![4, 0, 2, 1, 3],
+        "Permutation should correctly place NULLs first and map original row IDs");
+
+    SETTINGS_STORE.remove(index_name);
+}
+
+/// Test: nulls_first=false with __row_id__ — NULLs at end, verifies permutation.
+#[test]
+fn test_nulls_last_with_row_id_and_permutation() {
+    let (_temp_dir, filename) = get_temp_file_path("nulls_last_rowid.parquet");
+    let index_name = "test-nulls-last-rowid";
+
+    let mut settings = NativeSettings::default();
+    settings.sort_columns = vec!["age".to_string()];
+    settings.reverse_sorts = vec![false]; // ASC
+    settings.nulls_first = vec![false];   // NULLs last
+    settings.sort_in_memory_threshold_bytes = Some(10 * 1024 * 1024);
+    SETTINGS_STORE.insert(index_name.to_string(), settings);
+
+    let (_schema, schema_ptr) = create_nullable_with_row_id_schema_ptr();
+    NativeParquetWriter::create_writer(
+        filename.clone(), index_name.to_string(), schema_ptr,
+        vec!["age".to_string()], vec![false], vec![false], 0,
+    ).unwrap();
+
+    // Original: row0=age30, row1=NULL, row2=age10, row3=NULL, row4=age20
+    let (ap, sp) = create_ffi_data_nullable_with_row_id(
+        vec![Some(30), None, Some(10), None, Some(20)],
+        vec![Some("C"), Some("X"), Some("A"), Some("Y"), Some("B")],
+        vec![0, 1, 2, 3, 4],
+    );
+    NativeParquetWriter::write_data(filename.clone(), ap, sp).unwrap();
+
+    let finalize_result = NativeParquetWriter::finalize_writer(filename.clone()).unwrap().unwrap();
+
+    // Verify sort: ascending non-nulls, then NULLs last
+    let ages = read_nullable_ages_from_parquet(&filename);
+    assert_eq!(ages, vec![Some(10), Some(20), Some(30), None, None]);
+
+    // Verify __row_id__ is sequential 0..N
+    let row_ids = read_row_ids_from_parquet(&filename);
+    assert_eq!(row_ids, vec![0, 1, 2, 3, 4]);
+
+    // Verify permutation mapping
+    // Original: age=[30, NULL, 10, NULL, 20], row_ids=[0,1,2,3,4]
+    // Sorted:   age=[10, 20, 30, NULL, NULL]
+    // 10(row2)→pos0, 20(row4)→pos1, 30(row0)→pos2, NULL(row1)→pos3, NULL(row3)→pos4
+    // mapping[0]=2, mapping[1]=3, mapping[2]=0, mapping[3]=4, mapping[4]=1
+    let mapping = finalize_result.row_id_mapping.expect("Should have row_id_mapping");
+    assert_eq!(mapping.len(), 5);
+    assert_eq!(mapping, vec![2, 3, 0, 4, 1],
+        "Permutation should correctly place NULLs last and map original row IDs");
+
+    SETTINGS_STORE.remove(index_name);
+}
+
+// ===== Empty batch handling and memory usage tests =====
+
+/// Test: Writing a 0-row batch to a sorted writer doesn't corrupt state.
+/// Subsequent non-empty writes and finalize should still work correctly.
+#[test]
+fn test_empty_batch_write_does_not_corrupt_sorted_writer() {
+    let (_temp_dir, filename) = get_temp_file_path("empty_batch.parquet");
+    let index_name = "test-empty-batch";
+
+    let mut settings = NativeSettings::default();
+    settings.sort_columns = vec!["age".to_string()];
+    settings.reverse_sorts = vec![false];
+    settings.nulls_first = vec![false];
+    settings.sort_in_memory_threshold_bytes = Some(10 * 1024 * 1024);
+    SETTINGS_STORE.insert(index_name.to_string(), settings);
+
+    let (_schema, schema_ptr) = create_row_id_schema_ptr();
+    NativeParquetWriter::create_writer(
+        filename.clone(), index_name.to_string(), schema_ptr,
+        vec!["age".to_string()], vec![false], vec![false], 0,
+    ).unwrap();
+
+    // Write an empty batch (0 rows)
+    let (ap_empty, sp_empty) = create_ffi_data_with_row_id(
+        vec![],
+        vec![],
+        vec![],
+    );
+    NativeParquetWriter::write_data(filename.clone(), ap_empty, sp_empty).unwrap();
+
+    // Write a real batch after the empty one
+    let (ap, sp) = create_ffi_data_with_row_id(
+        vec![30, 10, 20],
+        vec![Some("C"), Some("A"), Some("B")],
+        vec![0, 1, 2],
+    );
+    NativeParquetWriter::write_data(filename.clone(), ap, sp).unwrap();
+
+    let finalize_result = NativeParquetWriter::finalize_writer(filename.clone()).unwrap().unwrap();
+
+    // Verify sorted output — empty batch should have no effect
+    let ages = read_ages_from_parquet(&filename);
+    assert_eq!(ages, vec![10, 20, 30]);
+
+    let row_ids = read_row_ids_from_parquet(&filename);
+    assert_eq!(row_ids, vec![0, 1, 2]);
+
+    let mapping = finalize_result.row_id_mapping.expect("Should have mapping");
+    assert_eq!(mapping, vec![2, 0, 1]);
+
+    SETTINGS_STORE.remove(index_name);
+}
+
+/// Test: Writing only empty batches produces a valid empty Parquet file.
+#[test]
+fn test_only_empty_batches_produces_empty_output() {
+    let (_temp_dir, filename) = get_temp_file_path("only_empty.parquet");
+    let index_name = "test-only-empty";
+
+    let mut settings = NativeSettings::default();
+    settings.sort_columns = vec!["age".to_string()];
+    settings.reverse_sorts = vec![false];
+    settings.nulls_first = vec![false];
+    settings.sort_in_memory_threshold_bytes = Some(10 * 1024 * 1024);
+    SETTINGS_STORE.insert(index_name.to_string(), settings);
+
+    let (_schema, schema_ptr) = create_row_id_schema_ptr();
+    NativeParquetWriter::create_writer(
+        filename.clone(), index_name.to_string(), schema_ptr,
+        vec!["age".to_string()], vec![false], vec![false], 0,
+    ).unwrap();
+
+    // Write multiple empty batches
+    for _ in 0..3 {
+        let (ap, sp) = create_ffi_data_with_row_id(vec![], vec![], vec![]);
+        NativeParquetWriter::write_data(filename.clone(), ap, sp).unwrap();
+    }
+
+    let finalize_result = NativeParquetWriter::finalize_writer(filename.clone()).unwrap().unwrap();
+
+    assert_eq!(finalize_result.metadata.file_metadata().num_rows(), 0);
+    assert!(finalize_result.row_id_mapping.is_none());
+
+    SETTINGS_STORE.remove(index_name);
+}
+
+/// Test: get_filtered_writer_memory_usage reports memory for IPC (sorted) writers.
+/// After writing data that triggers chunk flushes, memory should reflect
+/// the accumulated chunk_row_ids.
+#[test]
+fn test_memory_usage_ipc_writer_reports_chunk_row_ids() {
+    let (_temp_dir, filename) = get_temp_file_path("mem_ipc.parquet");
+    let index_name = "test-mem-ipc";
+
+    let mut settings = NativeSettings::default();
+    settings.sort_columns = vec!["age".to_string()];
+    settings.reverse_sorts = vec![false];
+    settings.nulls_first = vec![false];
+    settings.sort_in_memory_threshold_bytes = Some(64); // Force chunking
+    SETTINGS_STORE.insert(index_name.to_string(), settings);
+
+    let (_schema, schema_ptr) = create_row_id_schema_ptr();
+    NativeParquetWriter::create_writer(
+        filename.clone(), index_name.to_string(), schema_ptr,
+        vec!["age".to_string()], vec![false], vec![false], 0,
+    ).unwrap();
+
+    // Before writing, memory should be 0 (no chunks flushed yet)
+    let path_prefix = Path::new(&filename).parent().unwrap().to_string_lossy().to_string();
+    let mem_before = NativeParquetWriter::get_filtered_writer_memory_usage(
+        path_prefix.clone()
+    ).unwrap();
+    assert_eq!(mem_before, 0, "Memory should be 0 before any chunk flush");
+
+    // Write enough data to trigger at least one chunk flush
+    let (ap, sp) = create_ffi_data_with_row_id(
+        vec![50, 30, 10, 40, 20, 60, 5, 45, 35, 15],
+        vec![Some("E"), Some("C"), Some("A"), Some("D"), Some("B"),
+             Some("F"), Some("G"), Some("H"), Some("I"), Some("J")],
+        vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
+    );
+    NativeParquetWriter::write_data(filename.clone(), ap, sp).unwrap();
+
+    // After writing (chunks flushed), memory should be > 0 due to chunk_row_ids
+    let mem_after = NativeParquetWriter::get_filtered_writer_memory_usage(
+        path_prefix.clone()
+    ).unwrap();
+    assert!(mem_after > 0,
+        "Memory should be > 0 after chunk flushes (chunk_row_ids accumulated), got {}",
+        mem_after);
+
+    // Memory should be proportional to rows written × sizeof(i64)
+    // 10 rows × 8 bytes = 80 bytes minimum (could be more if split across chunks)
+    assert!(mem_after >= 80,
+        "Memory should be at least 10 rows × 8 bytes = 80, got {}", mem_after);
+
+    // Finalize and verify writer is removed
+    NativeParquetWriter::finalize_writer(filename.clone()).unwrap();
+
+    let mem_final = NativeParquetWriter::get_filtered_writer_memory_usage(
+        path_prefix
+    ).unwrap();
+    assert_eq!(mem_final, 0, "Memory should be 0 after writer is finalized");
+
+    SETTINGS_STORE.remove(index_name);
+}
+
+/// Test: get_filtered_writer_memory_usage with path prefix filtering.
+/// Only writers whose temp path starts with the prefix should be counted.
+#[test]
+fn test_memory_usage_path_prefix_filtering() {
+    let (_temp_dir1, filename1) = get_temp_file_path("mem_prefix_a.parquet");
+    let (_temp_dir2, filename2) = get_temp_file_path("mem_prefix_b.parquet");
+    let index_name = "test-mem-prefix";
+
+    let mut settings = NativeSettings::default();
+    settings.sort_columns = vec!["age".to_string()];
+    settings.reverse_sorts = vec![false];
+    settings.nulls_first = vec![false];
+    settings.sort_in_memory_threshold_bytes = Some(64);
+    SETTINGS_STORE.insert(index_name.to_string(), settings);
+
+    // Create writer 1
+    let (_schema, schema_ptr1) = create_row_id_schema_ptr();
+    NativeParquetWriter::create_writer(
+        filename1.clone(), index_name.to_string(), schema_ptr1,
+        vec!["age".to_string()], vec![false], vec![false], 0,
+    ).unwrap();
+
+    // Create writer 2
+    let (_schema, schema_ptr2) = create_row_id_schema_ptr();
+    NativeParquetWriter::create_writer(
+        filename2.clone(), index_name.to_string(), schema_ptr2,
+        vec!["age".to_string()], vec![false], vec![false], 0,
+    ).unwrap();
+
+    // Write to writer 1 only
+    let (ap, sp) = create_ffi_data_with_row_id(
+        vec![50, 30, 10, 40, 20],
+        vec![Some("E"), Some("C"), Some("A"), Some("D"), Some("B")],
+        vec![0, 1, 2, 3, 4],
+    );
+    NativeParquetWriter::write_data(filename1.clone(), ap, sp).unwrap();
+
+    // Query with prefix that matches only writer 1's directory
+    let prefix1 = Path::new(&filename1).parent().unwrap().to_string_lossy().to_string();
+    let prefix2 = Path::new(&filename2).parent().unwrap().to_string_lossy().to_string();
+
+    let mem1 = NativeParquetWriter::get_filtered_writer_memory_usage(prefix1).unwrap();
+    let mem2 = NativeParquetWriter::get_filtered_writer_memory_usage(prefix2).unwrap();
+
+    // Writer 1 had data written (and chunks flushed), writer 2 did not
+    assert!(mem1 >= 0, "Writer 1 memory should be reported");
+    assert_eq!(mem2, 0, "Writer 2 should have 0 memory (no data written)");
+
+    // Cleanup
+    NativeParquetWriter::finalize_writer(filename1).unwrap();
+    NativeParquetWriter::finalize_writer(filename2).unwrap();
+
+    SETTINGS_STORE.remove(index_name);
+}
+
+// ===== write_data to non-existent writer (IPC variant) =====
+
+/// Test: write_data fails with "Writer not found" when no sorted (IPC) writer exists for the file.
+#[test]
+fn test_write_data_no_ipc_writer() {
+    let (_temp_dir, filename) = get_temp_file_path("no_ipc_writer.parquet");
+
+    // Don't create any writer — just try to write data
+    let (ap, sp) = create_ffi_data_with_row_id(
+        vec![10, 20, 30],
+        vec![Some("A"), Some("B"), Some("C")],
+        vec![0, 1, 2],
+    );
+    let result = NativeParquetWriter::write_data(filename.clone(), ap, sp);
+
+    assert!(result.is_err());
+    assert!(result.unwrap_err().to_string().contains("Writer not found"),
+        "Should get 'Writer not found' error for non-existent IPC writer");
+}
+
+// ===== Sort stability edge case =====
+
+/// Test: All rows have identical sort keys. The sort is unstable (sort_unstable_by),
+/// so tie-breaking order is non-deterministic. This test verifies that:
+/// - The output is valid (all ages are 30)
+/// - Row IDs are sequential 0..N
+/// - The permutation mapping is a valid permutation (bijection of 0..N)
+/// - The mapping correctly maps each original row to its output position
+/// It does NOT assert a specific tie-breaking order.
+#[test]
+fn test_sort_all_identical_keys_produces_valid_permutation() {
+    let (_temp_dir, filename) = get_temp_file_path("identical_keys.parquet");
+    let index_name = "test-identical-keys";
+
+    let mut settings = NativeSettings::default();
+    settings.sort_columns = vec!["age".to_string()];
+    settings.reverse_sorts = vec![false];
+    settings.nulls_first = vec![false];
+    settings.sort_in_memory_threshold_bytes = Some(10 * 1024 * 1024);
+    SETTINGS_STORE.insert(index_name.to_string(), settings);
+
+    let (_schema, schema_ptr) = create_row_id_schema_ptr();
+    NativeParquetWriter::create_writer(
+        filename.clone(), index_name.to_string(), schema_ptr,
+        vec!["age".to_string()], vec![false], vec![false], 0,
+    ).unwrap();
+
+    // All rows have age=30 — sort has zero ordering information
+    let (ap, sp) = create_ffi_data_with_row_id(
+        vec![30, 30, 30, 30, 30],
+        vec![Some("E"), Some("D"), Some("C"), Some("B"), Some("A")],
+        vec![0, 1, 2, 3, 4],
+    );
+    NativeParquetWriter::write_data(filename.clone(), ap, sp).unwrap();
+
+    let finalize_result = NativeParquetWriter::finalize_writer(filename.clone()).unwrap().unwrap();
+
+    // All ages should be 30
+    let ages = read_ages_from_parquet(&filename);
+    assert_eq!(ages, vec![30, 30, 30, 30, 30]);
+
+    // Row IDs must be sequential 0..N regardless of tie-breaking
+    let row_ids = read_row_ids_from_parquet(&filename);
+    assert_eq!(row_ids, vec![0, 1, 2, 3, 4]);
+
+    // Permutation must be a valid bijection of 0..4
+    let mapping = finalize_result.row_id_mapping.expect("Should have mapping");
+    assert_eq!(mapping.len(), 5);
+    let mut sorted_mapping = mapping.clone();
+    sorted_mapping.sort();
+    assert_eq!(sorted_mapping, vec![0, 1, 2, 3, 4],
+        "Mapping must be a valid permutation even with all-identical sort keys");
+}
