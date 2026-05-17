@@ -113,6 +113,11 @@ public class ExceptionsHelperTests extends OpenSearchTestCase {
         assertThat(ExceptionsHelper.status(new InputCoercionException("illegal")), equalTo(RestStatus.BAD_REQUEST));
         assertThat(ExceptionsHelper.status(new JsonParseException("illegal")), equalTo(RestStatus.BAD_REQUEST));
         assertThat(ExceptionsHelper.status(new OpenSearchRejectedExecutionException("rejected")), equalTo(RestStatus.TOO_MANY_REQUESTS));
+        // fasterxml Jackson 2 exceptions should also map to BAD_REQUEST
+        assertThat(
+            ExceptionsHelper.status(new com.fasterxml.jackson.core.JsonParseException(null, "illegal")),
+            equalTo(RestStatus.BAD_REQUEST)
+        );
     }
 
     public void testSummaryMessage() {
@@ -120,6 +125,11 @@ public class ExceptionsHelperTests extends OpenSearchTestCase {
         assertThat(ExceptionsHelper.summaryMessage(new InputCoercionException("illegal")), equalTo("Incompatible JSON value"));
         assertThat(ExceptionsHelper.summaryMessage(new JsonParseException("illegal")), equalTo("Failed to parse JSON"));
         assertThat(ExceptionsHelper.summaryMessage(new OpenSearchRejectedExecutionException("rejected")), equalTo("Too many requests"));
+        // fasterxml Jackson 2 exceptions should also get proper summary
+        assertThat(
+            ExceptionsHelper.summaryMessage(new com.fasterxml.jackson.core.JsonParseException(null, "illegal")),
+            equalTo("Failed to parse JSON")
+        );
     }
 
     public void testGroupBy() {
