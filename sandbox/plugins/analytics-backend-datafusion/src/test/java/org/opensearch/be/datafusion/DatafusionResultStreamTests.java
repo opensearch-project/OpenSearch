@@ -14,6 +14,7 @@ import org.opensearch.analytics.backend.EngineResultBatch;
 import org.opensearch.be.datafusion.nativelib.NativeBridge;
 import org.opensearch.be.datafusion.nativelib.ReaderHandle;
 import org.opensearch.core.action.ActionListener;
+import org.opensearch.index.engine.exec.MonoFileWriterSet;
 import org.opensearch.plugins.NativeStoreHandle;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -22,6 +23,7 @@ import java.lang.foreign.MemorySegment;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Locale;
 import java.util.NoSuchElementException;
 import java.util.concurrent.CompletableFuture;
@@ -57,7 +59,7 @@ public class DatafusionResultStreamTests extends OpenSearchTestCase {
         Path dataDir = createTempDir("data");
         Path testParquet = Path.of(getClass().getClassLoader().getResource("test.parquet").toURI());
         Files.copy(testParquet, dataDir.resolve("test.parquet"));
-        readerHandle = new ReaderHandle(dataDir.toString(), new String[] { "test.parquet" }, storeHandle);
+        readerHandle = new ReaderHandle(dataDir.toString(), List.of(MonoFileWriterSet.of(".", 0L, "test.parquet", 0L)), storeHandle);
 
         configArena = Arena.ofConfined();
         MemorySegment configSegment = configArena.allocate(WireConfigSnapshot.BYTE_SIZE);

@@ -37,6 +37,10 @@ pub struct SessionContextHandle {
     pub ctx: SessionContext,
     pub table_path: ListingTableUrl,
     pub object_metas: Arc<Vec<ObjectMeta>>,
+    /// Writer generation per object_metas entry (parallel arrays). Sourced from the
+    /// Java-side catalog snapshot via `create_reader`. Authoritative for stamping
+    /// `SegmentFileInfo.writer_generation`; footer-kv reads are debug-only assertions.
+    pub writer_generations: Arc<Vec<i64>>,
     pub query_context: QueryTrackingContext,
     pub table_name: String,
     /// When set, indicates this session uses the indexed execution path with filter delegation.
@@ -176,6 +180,7 @@ pub async unsafe fn create_session_context(
         ctx,
         table_path: shard_view.table_path.clone(),
         object_metas: shard_view.object_metas.clone(),
+        writer_generations: shard_view.writer_generations.clone(),
         query_context,
         table_name: table_name.to_string(),
         indexed_config: None,
@@ -304,6 +309,7 @@ mod tests {
             ctx,
             table_path,
             object_metas: Arc::new(vec![]),
+            writer_generations: Arc::new(vec![]),
             query_context,
             table_name: "t".to_string(),
             indexed_config: None,

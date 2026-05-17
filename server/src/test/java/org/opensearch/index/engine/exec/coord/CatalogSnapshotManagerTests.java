@@ -691,7 +691,7 @@ public class CatalogSnapshotManagerTests extends OpenSearchTestCase {
 
     // --- helpers ---
 
-    private WriterFileSet randomWriterFileSet(String format) {
+    private WriterFileSet randomWriterFileSet(String format, long numRows) {
         String directory = "/tmp/" + randomAlphaOfLength(8);
         int fileCount = randomIntBetween(1, 5);
         Set<String> files = new HashSet<>();
@@ -699,14 +699,15 @@ public class CatalogSnapshotManagerTests extends OpenSearchTestCase {
         for (int i = 0; i < fileCount; i++) {
             files.add(randomAlphaOfLength(6) + "." + randomFrom(extensions));
         }
-        return new WriterFileSet(directory, randomNonNegativeLong(), files, randomIntBetween(1, 10000));
+        return new WriterFileSet(directory, randomNonNegativeLong(), files, numRows);
     }
 
     private Segment randomSegment() {
         Map<String, WriterFileSet> dfGrouped = new HashMap<>();
+        long numRows = randomIntBetween(1, 10000);
         for (int i = 0; i < randomIntBetween(1, 2); i++) {
             String format = randomFrom("lucene", "parquet");
-            dfGrouped.put(format, randomWriterFileSet(format));
+            dfGrouped.put(format, randomWriterFileSet(format, numRows));
         }
         return new Segment(randomNonNegativeLong(), dfGrouped);
     }

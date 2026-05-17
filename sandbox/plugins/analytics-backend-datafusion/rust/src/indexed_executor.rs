@@ -168,6 +168,7 @@ pub async fn execute_indexed_query(
         ctx,
         table_path: shard_view.table_path.clone(),
         object_metas: shard_view.object_metas.clone(),
+        writer_generations: shard_view.writer_generations.clone(),
         query_context: crate::query_tracker::QueryTrackingContext::new(0, runtime.runtime_env.memory_pool.clone()),
         table_name: table_name.clone(),
         indexed_config: None, // derive classification from tree
@@ -429,6 +430,7 @@ pub async unsafe fn execute_indexed_with_context(
     let table_name = handle.table_name;
     let table_path = handle.table_path;
     let object_metas = handle.object_metas;
+    let writer_generations = handle.writer_generations;
     let query_context = handle.query_context;
 
     // SessionContext already has RuntimeEnv, caches, memory pool, UDF from create_session_context_indexed.
@@ -439,7 +441,7 @@ pub async unsafe fn execute_indexed_with_context(
     let state = ctx.state();
     let store = state.runtime_env().object_store(&table_path)?;
 
-    let (segments, schema) = build_segments(&state, Arc::clone(&store), object_metas.as_ref())
+    let (segments, schema) = build_segments(&state, Arc::clone(&store), object_metas.as_ref(), writer_generations.as_ref())
         .await
         .map_err(DataFusionError::Execution)?;
     for (i, seg) in segments.iter().enumerate() {
@@ -542,15 +544,15 @@ pub async unsafe fn execute_indexed_with_context(
                 move |segment: &SegmentFileInfo, chunk, stream_metrics: &StreamMetrics| {
                     let collector = FfmSegmentCollector::create(
                         provider.key(),
-                        segment.segment_ord,
+                        segment.writer_generation,
                         chunk.doc_min,
                         chunk.doc_max,
                     )
                         .map_err(|e| {
                             format!(
-                                "FfmSegmentCollector::create(provider={}, seg={}, doc_range=[{},{})): {}",
+                                "FfmSegmentCollector::create(provider={}, writer_generation={}, doc_range=[{},{})): {}",
                                 provider.key(),
-                                segment.segment_ord,
+                                segment.writer_generation,
                                 chunk.doc_min,
                                 chunk.doc_max,
                                 e
@@ -627,7 +629,7 @@ pub async unsafe fn execute_indexed_with_context(
                     for (idx, provider) in providers.iter().enumerate() {
                         let collector = FfmSegmentCollector::create(
                             provider.key(),
-                            segment.segment_ord,
+                            segment.writer_generation,
                             chunk.doc_min,
                             chunk.doc_max,
                         )
@@ -639,7 +641,7 @@ pub async unsafe fn execute_indexed_with_context(
                     }
 
                     let resolved = tree.resolve(&per_leaf).map_err(|e| {
-                        format!("tree.resolve for segment {}: {}", segment.segment_ord, e)
+                        format!("tree.resolve for segment gen={}: {}", segment.writer_generation, e)
                     })?;
                     let resolved = Arc::new(resolved);
 

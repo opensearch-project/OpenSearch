@@ -23,6 +23,7 @@ import java.lang.foreign.SymbolLookup;
 import java.lang.foreign.ValueLayout;
 import java.lang.invoke.MethodHandle;
 import java.util.LinkedHashMap;
+import java.util.List;
 
 /**
  * FFM bridge to native DataFusion library.
@@ -137,12 +138,13 @@ public final class NativeBridge {
             lib.find("df_create_reader").orElseThrow(),
             FunctionDescriptor.of(
                 ValueLayout.JAVA_LONG,
-                ValueLayout.ADDRESS,
-                ValueLayout.JAVA_LONG,
-                ValueLayout.ADDRESS,
-                ValueLayout.ADDRESS,
-                ValueLayout.JAVA_LONG,
-                ValueLayout.JAVA_LONG
+                ValueLayout.ADDRESS,    // table_path_ptr
+                ValueLayout.JAVA_LONG,  // table_path_len
+                ValueLayout.ADDRESS,    // files_ptr
+                ValueLayout.ADDRESS,    // files_len_ptr
+                ValueLayout.ADDRESS,    // writer_generations_ptr
+                ValueLayout.JAVA_LONG,   // count (applies to all three parallel arrays)
+                ValueLayout.JAVA_LONG // object store ptr
             )
         );
 
@@ -446,7 +448,7 @@ public final class NativeBridge {
             MethodHandle createCollector = lookup.findStatic(
                 cb,
                 "createCollector",
-                java.lang.invoke.MethodType.methodType(int.class, int.class, int.class, int.class, int.class)
+                java.lang.invoke.MethodType.methodType(int.class, int.class, long.class, int.class, int.class)
             );
             MethodHandle collectDocs = lookup.findStatic(
                 cb,
@@ -481,7 +483,7 @@ public final class NativeBridge {
                 FunctionDescriptor.of(
                     ValueLayout.JAVA_INT,
                     ValueLayout.JAVA_INT,
-                    ValueLayout.JAVA_INT,
+                    ValueLayout.JAVA_LONG,
                     ValueLayout.JAVA_INT,
                     ValueLayout.JAVA_INT
                 ),
@@ -575,11 +577,15 @@ public final class NativeBridge {
      * Creates a native reader. Returns an opaque native pointer.
      * Freed by {@link #closeDatafusionReader}.
      *
-     * @param path the directory path
-     * @param files the file names
+     * @param path     shard data directory
+     * @param segments per-segment metadata — each carries a single filename and writer generation
      * @param dataformatAwareStoreHandle per-format native store handle (null = local, live = use store pointer)
      */
-    public static long createDatafusionReader(String path, String[] files, NativeStoreHandle dataformatAwareStoreHandle) {
+    public static long createDatafusionReader(
+        String path,
+        List<org.opensearch.index.engine.exec.MonoFileWriterSet> segments,
+        NativeStoreHandle dataformatAwareStoreHandle
+    ) {
         long storePtr = 0L;
         if (dataformatAwareStoreHandle != null) {
             try {
@@ -591,8 +597,11 @@ public final class NativeBridge {
         }
         try (var call = new NativeCall()) {
             var p = call.str(path);
-            var f = call.strArray(files);
-            return call.invoke(CREATE_READER, p.segment(), p.len(), f.ptrs(), f.lens(), f.count(), storePtr);
+            var f = call.strArray(segments.stream().map(org.opensearch.index.engine.exec.MonoFileWriterSet::file).toArray(String[]::new));
+            var gens = call.longs(
+                segments.stream().mapToLong(org.opensearch.index.engine.exec.MonoFileWriterSet::writerGeneration).toArray()
+            );
+            return call.invoke(CREATE_READER, p.segment(), p.len(), f.ptrs(), f.lens(), gens, f.count(), storePtr);
         }
     }
 

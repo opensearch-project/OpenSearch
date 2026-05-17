@@ -58,6 +58,7 @@ impl MergeContext {
         output_flush_rows: usize,
         rayon_threads: Option<usize>,
         io_threads: Option<usize>,
+        output_writer_generation: i64,
     ) -> MergeResult<Self> {
         if let Some(parent) = Path::new(output_path).parent() {
             if !parent.exists() {
@@ -100,7 +101,10 @@ impl MergeContext {
             .get(index_name)
             .map(|r| r.clone())
             .unwrap_or_default();
-        let writer_props = Arc::new(WriterPropertiesBuilder::build(&config));
+        let writer_props = Arc::new(WriterPropertiesBuilder::build_with_generation(
+            &config,
+            Some(output_writer_generation),
+        ));
 
         let writer = SerializedFileWriter::new(crc_writer, parquet_root, writer_props)?;
         let rg_writer_factory = ArrowRowGroupWriterFactory::new(&writer, output_schema.clone());

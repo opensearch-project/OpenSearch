@@ -29,6 +29,7 @@ pub fn merge_sorted(
     sort_columns: &[String],
     reverse_sorts: &[bool],
     nulls_first: &[bool],
+    output_writer_generation: i64,
 ) -> super::MergeResult<super::MergeOutput> {
     let config = crate::writer::SETTINGS_STORE
         .get(index_name)
@@ -100,6 +101,7 @@ pub fn merge_sorted(
         output_flush_rows,
         rayon_threads,
         io_threads,
+        output_writer_generation,
     )?;
 
     // Precompute column mappings per cursor (avoids per-batch name lookups)

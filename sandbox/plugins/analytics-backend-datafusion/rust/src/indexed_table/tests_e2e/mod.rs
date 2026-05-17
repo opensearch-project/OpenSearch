@@ -215,7 +215,7 @@ async fn run_tree_and_plan(
 
     let object_path = object_store::path::Path::from(path.to_string_lossy().as_ref());
     let segment = SegmentFileInfo {
-        segment_ord: 0,
+        writer_generation: 0,
         max_doc: 16,
         object_path,
         parquet_size: size,

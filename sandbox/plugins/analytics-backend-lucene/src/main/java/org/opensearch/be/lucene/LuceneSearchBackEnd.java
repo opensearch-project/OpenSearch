@@ -47,7 +47,7 @@ final class LuceneSearchBackEnd {
      * @return a new reader manager
      * @throws IOException if reader creation fails
      */
-    static EngineReaderManager<DirectoryReader> createReaderManager(ReaderManagerConfig settings) throws IOException {
+    static EngineReaderManager<LuceneReader> createReaderManager(ReaderManagerConfig settings) throws IOException {
         IndexStoreProvider provider = settings.indexStoreProvider()
             .orElseThrow(() -> new IllegalStateException("IndexStoreProvider is required to create LuceneReaderManager"));
         DirectoryReader directoryReader;
