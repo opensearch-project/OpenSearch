@@ -724,14 +724,14 @@ fn ffm_snapshot_stats_valid_ptr_returns_zero_and_fills_buffer() {
     )};
     assert!(ptr > 0);
 
-    // 9 fields × 2 sections = 18 longs
-    let mut out = [i64::MAX; 18];
+    // 10 fields × 2 sections = 20 longs
+    let mut out = [i64::MAX; 20];
     let rc = unsafe { crate::foyer::ffm::foyer_snapshot_stats(ptr, out.as_mut_ptr()) };
     assert_eq!(rc, 0, "foyer_snapshot_stats should return 0 on success");
 
-    // A freshly created cache has no hits, misses, evictions, or used bytes.
+    // A freshly created cache has no hits, misses, evictions, used bytes, or active reads.
     // Sections 0 and 1 are identical (Foyer is currently single-tier).
-    for i in 0..18 {
+    for i in 0..20 {
         assert_eq!(out[i], 0, "out[{i}] should be 0 for a fresh cache, got {}", out[i]);
     }
 
@@ -755,8 +755,8 @@ fn snapshot_stats_returns_zero_for_fresh_cache() {
     };
     assert!(ptr > 0);
 
-    // 9 fields × 2 sections = 18 longs
-    let mut buf = [i64::MIN; 18];
+    // 10 fields × 2 sections = 20 longs
+    let mut buf = [i64::MIN; 20];
     let result = unsafe { foyer_snapshot_stats(ptr, buf.as_mut_ptr()) };
     assert_eq!(result, 0, "foyer_snapshot_stats must return 0 on success");
 
@@ -766,7 +766,7 @@ fn snapshot_stats_returns_zero_for_fresh_cache() {
     }
 
     // Both sections are identical (single-tier: overall mirrors block_level).
-    assert_eq!(&buf[..9], &buf[9..], "overall and block_level sections must be identical");
+    assert_eq!(&buf[..10], &buf[10..], "overall and block_level sections must be identical");
 
     unsafe { foyer_destroy_cache(ptr) };
 }
@@ -822,16 +822,16 @@ fn snapshot_stats_two_sections_identical_for_single_tier() {
     let boxed = Box::new(std::sync::Arc::clone(&cache_trait));
     let raw_ptr = Box::into_raw(boxed) as i64;
 
-    // 9 fields × 2 sections = 18 longs
-    let mut out = [0i64; 18];
+    // 10 fields × 2 sections = 20 longs
+    let mut out = [0i64; 20];
     let rc = unsafe { crate::foyer::ffm::foyer_snapshot_stats(raw_ptr, out.as_mut_ptr()) };
     assert_eq!(rc, 0);
 
     // Clean up the Box.
     let _ = unsafe { Box::from_raw(raw_ptr as *mut Arc<dyn crate::traits::BlockCache>) };
 
-    // Section 0 (indices 0–8) and section 1 (indices 9–17) must be identical.
-    assert_eq!(&out[0..9], &out[9..18],
+    // Section 0 (indices 0–9) and section 1 (indices 10–19) must be identical.
+    assert_eq!(&out[0..10], &out[10..20],
         "overall and block_level sections should be identical for single-tier Foyer");
 }
 

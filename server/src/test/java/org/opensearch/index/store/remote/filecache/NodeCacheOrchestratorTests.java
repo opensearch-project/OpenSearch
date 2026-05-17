@@ -140,7 +140,7 @@ public class NodeCacheOrchestratorTests extends OpenSearchTestCase {
         FileCache fc = mock(FileCache.class);
         when(fc.usage()).thenReturn(0L);
         NodeCacheOrchestrator orc = new NodeCacheOrchestrator(fc, 0L);
-        BlockCacheStats stats = new BlockCacheStats(0, 0, 0, 0, 0, 0, 0, 0, 50L, 200L, 0L);
+        BlockCacheStats stats = new BlockCacheStats(0, 0, 0, 0, 0, 0, 0, 0, 50L, 200L, 0L, 0L);
         BlockCache bc = mock(BlockCache.class);
         when(bc.stats()).thenReturn(stats);
         orc.addBlockCache(bc);
@@ -323,7 +323,7 @@ public class NodeCacheOrchestratorTests extends OpenSearchTestCase {
     }
 
     private BlockCache mockBlockCache(long hits, long misses, long diskUsed, long memUsed, long total) {
-        BlockCacheStats stats = new BlockCacheStats(hits, misses, 0, 0, 0, 0, 0, 0, memUsed, diskUsed, total);
+        BlockCacheStats stats = new BlockCacheStats(hits, misses, 0, 0, 0, 0, 0, 0, memUsed, diskUsed, total, 0L);
         BlockCache bc = mock(BlockCache.class);
         when(bc.stats()).thenReturn(stats);
         return bc;
@@ -353,7 +353,8 @@ public class NodeCacheOrchestratorTests extends OpenSearchTestCase {
             removedBytes,
             memBytesUsed,
             diskBytesUsed,
-            totalBytes
+            totalBytes,
+            0L      // activeInBytes — not exercised in this helper; tests that need it set it directly
         );
         BlockCache bc = mock(BlockCache.class);
         when(bc.stats()).thenReturn(stats);
@@ -399,7 +400,7 @@ public class NodeCacheOrchestratorTests extends OpenSearchTestCase {
         NodeCacheOrchestrator orc = new NodeCacheOrchestrator(fc, 0L);
 
         BlockCache bc = mock(BlockCache.class);
-        BlockCacheStats stats = new BlockCacheStats(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 512L);
+        BlockCacheStats stats = new BlockCacheStats(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 512L, 0L);
         when(bc.stats()).thenReturn(stats);
         when(bc.cacheName()).thenReturn("foyer");
 
@@ -424,7 +425,7 @@ public class NodeCacheOrchestratorTests extends OpenSearchTestCase {
 
         BlockCache bc1 = mock(BlockCache.class);
         BlockCache bc2 = mock(BlockCache.class);
-        BlockCacheStats s = new BlockCacheStats(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1L);
+        BlockCacheStats s = new BlockCacheStats(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1L, 0L);
         when(bc1.stats()).thenReturn(s);
         when(bc2.stats()).thenReturn(s);
 
@@ -437,6 +438,49 @@ public class NodeCacheOrchestratorTests extends OpenSearchTestCase {
         org.mockito.Mockito.verify(bc2).close();
     }
 
+    // ── aggregateStats: activeInBytes ──────────────────────────────────────────
+
+    public void testAggregateStatsMergesActiveInBytesFromBlockCache() {
+        long fcActive = 100L;
+        long bcActive = 50L;
+        FileCache fc = fileCacheWithStats(fcActive, 0L, 0L, 0L, 1000L, 0L, 0L);
+        NodeCacheOrchestrator orc = new NodeCacheOrchestrator(fc, 0L);
+
+        BlockCache bc = mock(BlockCache.class);
+        // Create a BlockCacheStats with activeInBytes=bcActive
+        when(bc.stats()).thenReturn(new BlockCacheStats(0, 0, 0, 0, 0, 0, 0, 0, 0L, 0L, 100L, bcActive));
+        orc.addBlockCache(bc);
+
+        AggregateFileCacheStats stats = orc.aggregateStats();
+        // merged active = file-cache active + block-cache activeInBytes
+        assertEquals(fcActive + bcActive, stats.getActive().getBytes());
+    }
+
+    public void testAggregateStatsActiveInBytesZeroWithNoBlockCache() {
+        long fcActive = 75L;
+        FileCache fc = fileCacheWithStats(fcActive, 0L, 0L, 0L, 1000L, 0L, 0L);
+        NodeCacheOrchestrator orc = new NodeCacheOrchestrator(fc, 0L);
+        // No block cache registered
+        AggregateFileCacheStats stats = orc.aggregateStats();
+        assertEquals(fcActive, stats.getActive().getBytes());
+    }
+
+    public void testAggregateStatsMergesActiveInBytesAcrossMultipleBlockCaches() {
+        long fcActive = 200L;
+        FileCache fc = fileCacheWithStats(fcActive, 0L, 0L, 0L, 1000L, 0L, 0L);
+        NodeCacheOrchestrator orc = new NodeCacheOrchestrator(fc, 0L);
+
+        BlockCache bc1 = mock(BlockCache.class);
+        BlockCache bc2 = mock(BlockCache.class);
+        when(bc1.stats()).thenReturn(new BlockCacheStats(0, 0, 0, 0, 0, 0, 0, 0, 0L, 0L, 100L, 30L));
+        when(bc2.stats()).thenReturn(new BlockCacheStats(0, 0, 0, 0, 0, 0, 0, 0, 0L, 0L, 100L, 20L));
+        orc.addBlockCache(bc1);
+        orc.addBlockCache(bc2);
+
+        AggregateFileCacheStats stats = orc.aggregateStats();
+        assertEquals(fcActive + 30L + 20L, stats.getActive().getBytes());
+    }
+
     // ── aggregateStats: removed / removedBytes ─────────────────────────────────
 
     public void testAggregateStatsMergesRemovedCountFromBlockCache() {
@@ -446,7 +490,7 @@ public class NodeCacheOrchestratorTests extends OpenSearchTestCase {
         NodeCacheOrchestrator orc = new NodeCacheOrchestrator(fc, 0L);
 
         BlockCache bc = mock(BlockCache.class);
-        when(bc.stats()).thenReturn(new BlockCacheStats(0, 0, 0, 0, 0, 0, removed, removedBytes, 0, 0, 100L));
+        when(bc.stats()).thenReturn(new BlockCacheStats(0, 0, 0, 0, 0, 0, removed, removedBytes, 0, 0, 100L, 0L));
         orc.addBlockCache(bc);
 
         AggregateFileCacheStats stats = orc.aggregateStats();

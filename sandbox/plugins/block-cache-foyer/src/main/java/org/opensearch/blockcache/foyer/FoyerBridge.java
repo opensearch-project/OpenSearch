@@ -160,15 +160,17 @@ public final class FoyerBridge {
     /**
      * Snapshot the cache statistics from the native Foyer runtime.
      *
-     * <p>Returns a {@code long[18]} buffer containing two equal-sized sections:
-     * {@code overall} (cross-tier rollup, indices 0–8) followed by
-     * {@code block_level} (disk tier, indices 9–17).
-     * Each section carries the 9 counters in the order defined by
+     * <p>Returns a {@code long[20]} buffer containing two equal-sized sections:
+     * {@code overall} (cross-tier rollup, indices 0–9) followed by
+     * {@code block_level} (disk tier, indices 10–19).
+     * Each section carries the 10 counters in the order defined by
      * {@code FoyerAggregatedStats.Field}: HIT_COUNT, HIT_BYTES, MISS_COUNT,
-     * MISS_BYTES, EVICTION_COUNT, EVICTION_BYTES, USED_BYTES, REMOVED_COUNT, REMOVED_BYTES.
+     * MISS_BYTES, EVICTION_COUNT, EVICTION_BYTES, USED_BYTES, REMOVED_COUNT,
+     * REMOVED_BYTES, ACTIVE_IN_BYTES.
      *
-     * <p>The buffer size (18 = 9 fields × 2 sections) must stay in sync with
-     * the Rust {@code foyer_snapshot_stats} implementation.
+     * <p>The buffer size (20 = 10 fields × 2 sections) is derived from
+     * {@link FoyerAggregatedStats#STATS_BUFFER_SIZE} and must stay in sync
+     * with the Rust {@code foyer_snapshot_stats} implementation.
      */
     public static long[] snapshotStats(long ptr) {
         final int bufferSize = FoyerAggregatedStats.STATS_BUFFER_SIZE;

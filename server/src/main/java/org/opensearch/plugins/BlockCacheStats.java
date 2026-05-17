@@ -44,6 +44,8 @@ import org.opensearch.common.annotation.ExperimentalApi;
  *   <li>{@code totalBytes}      — configured total capacity (memory + disk).
  *       Used by {@code NodeCacheOrchestrator.mergeStats()} to populate
  *       {@code total_in_bytes} in the REST output.</li>
+ *   <li>{@code activeInBytes}   — current bytes of reads in-flight (gauge, not cumulative).
+ *       Represents the byte volume of cache lookups currently executing concurrently.
  * </ul>
  *
  * <p>Values are a snapshot at construction time and are not guaranteed to be
@@ -53,5 +55,5 @@ import org.opensearch.common.annotation.ExperimentalApi;
  */
 @ExperimentalApi
 public record BlockCacheStats(long hits, long misses, long hitBytes, long missBytes, long evictions, long evictionBytes, long removed,
-    long removedBytes, long memoryBytesUsed, long diskBytesUsed, long totalBytes) {
+    long removedBytes, long memoryBytesUsed, long diskBytesUsed, long totalBytes, long activeInBytes) {
 }

@@ -29,7 +29,7 @@ public final class FoyerAggregatedStats {
     /**
      * Field layout of one section in the native FFM stats buffer.
      * Ordinal equals the field's array index within the section.
-     * Must match the native {@code foyer_snapshot_stats} field order.
+     * Must match the Rust {@code FoyerStatsCounter::snapshot()} field order exactly.
      */
     private enum Field {
         HIT_COUNT,
@@ -40,12 +40,16 @@ public final class FoyerAggregatedStats {
         EVICTION_BYTES,
         USED_BYTES,
         REMOVED_COUNT,
-        REMOVED_BYTES;
+        REMOVED_BYTES,
+        ACTIVE_IN_BYTES;
 
         static final int COUNT = values().length;
     }
 
-    /** Buffer size for {@link FoyerBridge#snapshotStats}: 2 sections × Field.COUNT values. */
+    /**
+     * Buffer size for {@link FoyerBridge#snapshotStats}: 2 sections × {@code Field.COUNT} values.
+     * Automatically kept in sync with the field count — no manual update needed when adding fields.
+     */
     static final int STATS_BUFFER_SIZE = Field.COUNT * 2;
 
     /** Cross-tier rollup — section 0 of the FFM buffer. */
@@ -80,9 +84,10 @@ public final class FoyerAggregatedStats {
             raw[offset + Field.EVICTION_BYTES.ordinal()],
             raw[offset + Field.REMOVED_COUNT.ordinal()],
             raw[offset + Field.REMOVED_BYTES.ordinal()],
-            0L,                                          // memoryBytesUsed — disk-only cache
+            0L,                                                 // memoryBytesUsed — disk-only cache
             raw[offset + Field.USED_BYTES.ordinal()],
-            capacityBytes
+            capacityBytes,
+            raw[offset + Field.ACTIVE_IN_BYTES.ordinal()]       // bytes of in-flight reads at snapshot time
         );
     }
 

@@ -19,6 +19,7 @@ import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
+import org.opensearch.index.store.remote.filecache.FileCacheSettings;
 import org.opensearch.plugins.BlockCache;
 import org.opensearch.plugins.BlockCacheConstants;
 import org.opensearch.plugins.BlockCacheProvider;
@@ -80,8 +81,13 @@ public class BlockCacheFoyerPlugin extends Plugin implements BlockCacheProvider 
 
     /**
      * Registers Foyer-specific settings with the OpenSearch settings framework.
-     * Includes {@code block_cache.size} (capacity fraction) and Foyer-internal settings
-     * ({@code block_cache.block_size}, {@code block_cache.io_engine}).
+     * Includes {@code block_cache.foyer.size} (capacity fraction) and Foyer-internal settings
+     * ({@code block_cache.foyer.block_size}, {@code block_cache.foyer.io_engine},
+     * {@code block_cache.foyer.key_index_sweep_interval_seconds}).
+     *
+     * <p>Note: the data-to-cache amplification ratio is NOT registered here.
+     * It is read from the server-side setting {@code cluster.filecache.remote_data_ratio}
+     * so that the file cache and block cache always use a consistent ratio.
      */
     @Override
     public List<Setting<?>> getSettings() {
@@ -89,18 +95,21 @@ public class BlockCacheFoyerPlugin extends Plugin implements BlockCacheProvider 
             FoyerBlockCacheSettings.CACHE_SIZE_SETTING,
             FoyerBlockCacheSettings.BLOCK_SIZE_SETTING,
             FoyerBlockCacheSettings.IO_ENGINE_SETTING,
-            FoyerBlockCacheSettings.DATA_TO_CACHE_RATIO_SETTING,
             FoyerBlockCacheSettings.KEY_INDEX_SWEEP_INTERVAL_SETTING
         );
     }
 
     /**
      * Returns the data-to-cache amplification ratio for this plugin's block cache.
-     * Used by {@code WarmFsService} to compute virtual warm-node capacity for shard placement.
+     *
+     * <p>Reads from {@code cluster.filecache.remote_data_ratio} — the same setting
+     * used by the file cache — so both caches use a consistent ratio on the warm node.
+     * The removed plugin-specific setting {@code block_cache.foyer.data_to_cache_ratio}
+     * was redundant; operators should use {@code cluster.filecache.remote_data_ratio} instead.
      */
     @Override
     public double dataToCapacityRatio(Settings settings) {
-        return FoyerBlockCacheSettings.DATA_TO_CACHE_RATIO_SETTING.get(settings);
+        return FileCacheSettings.DATA_TO_FILE_CACHE_SIZE_RATIO_SETTING.get(settings);
     }
 
     @Override

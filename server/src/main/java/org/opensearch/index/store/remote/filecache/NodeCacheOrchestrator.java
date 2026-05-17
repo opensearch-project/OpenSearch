@@ -314,7 +314,7 @@ public class NodeCacheOrchestrator implements Closeable, BlockCacheRegistry {
     private BlockCacheStats combineBlockCacheStats() {
         long hits = 0, misses = 0, hitBytes = 0, missBytes = 0;
         long evictions = 0, evictionBytes = 0, removed = 0, removedBytes = 0;
-        long memoryUsed = 0, diskUsed = 0, totalCapacity = 0;
+        long memoryUsed = 0, diskUsed = 0, totalCapacity = 0, activeInBytes = 0;
 
         for (BlockCache bc : blockCaches) {
             BlockCacheStats s = bc.stats();
@@ -329,6 +329,7 @@ public class NodeCacheOrchestrator implements Closeable, BlockCacheRegistry {
             memoryUsed += s.memoryBytesUsed();
             diskUsed += s.diskBytesUsed();
             totalCapacity += s.totalBytes();
+            activeInBytes += s.activeInBytes();
         }
         return new BlockCacheStats(
             hits,
@@ -341,13 +342,14 @@ public class NodeCacheOrchestrator implements Closeable, BlockCacheRegistry {
             removedBytes,
             memoryUsed,
             diskUsed,
-            totalCapacity
+            totalCapacity,
+            activeInBytes
         );
     }
 
     private static AggregateFileCacheStats mergeStats(AggregateFileCacheStats fc, BlockCacheStats bc) {
         FileCacheStats mergedOverall = new FileCacheStats(
-            fc.getActive().getBytes(),
+            fc.getActive().getBytes() + bc.activeInBytes(),
             fc.getTotal().getBytes() + bc.totalBytes(),
             fc.getUsed().getBytes() + bc.diskBytesUsed() + bc.memoryBytesUsed(),
             fc.getPinnedUsage().getBytes(),
@@ -359,7 +361,7 @@ public class NodeCacheOrchestrator implements Closeable, BlockCacheRegistry {
         );
         FileCacheStats fcBlock = fc.getBlockFileCacheStats();
         FileCacheStats mergedBlock = new FileCacheStats(
-            fcBlock.getActive(),
+            fcBlock.getActive() + bc.activeInBytes(),
             fcBlock.getTotal() + bc.totalBytes(),
             fcBlock.getUsed() + bc.diskBytesUsed() + bc.memoryBytesUsed(),
             fcBlock.getPinnedUsage(),
