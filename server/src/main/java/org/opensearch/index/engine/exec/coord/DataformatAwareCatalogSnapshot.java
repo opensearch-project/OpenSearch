@@ -68,6 +68,14 @@ public class DataformatAwareCatalogSnapshot extends CatalogSnapshot {
     // Kept as raw long so this class has no dependency on Lucene's Version type.
     private volatile long lastCommitDataFormatVersion = 0L;
 
+    public final static long SERIALIZATION_VERSION_ZERO = 0;
+
+    public final static long SERIALIZATION_VERSION_ONE = 1;
+
+    public final static long CURRENT_SERIALIZATION_VERSION = SERIALIZATION_VERSION_ONE;
+
+    private final static String SERIALIZATION_VERSION_KEY = "_serialization_version";
+
     /**
      * Transient {@link org.apache.lucene.index.SegmentInfos} that produced this snapshot, when
      * available. Set by segment replication on the replica side so that the replica's commit
@@ -149,6 +157,13 @@ public class DataformatAwareCatalogSnapshot extends CatalogSnapshot {
     DataformatAwareCatalogSnapshot(StreamInput in, Function<String, String> directoryResolver) throws IOException {
         super(in);
         this.userData = in.readMap(StreamInput::readString, StreamInput::readString);
+
+        String serializedVersionValue = this.userData.remove(SERIALIZATION_VERSION_KEY);
+        long serializedVersion = SERIALIZATION_VERSION_ZERO;
+        if (serializedVersionValue != null) {
+            serializedVersion = Long.parseLong(serializedVersionValue);
+        }
+
         this.id = in.readLong();
         this.lastWriterGeneration = in.readLong();
         int segmentCount = in.readVInt();
@@ -157,7 +172,7 @@ public class DataformatAwareCatalogSnapshot extends CatalogSnapshot {
         }
         List<Segment> segmentList = new ArrayList<>(segmentCount);
         for (int i = 0; i < segmentCount; i++) {
-            segmentList.add(new Segment(in, directoryResolver));
+            segmentList.add(new Segment(in, directoryResolver, serializedVersion));
         }
         this.segments = Collections.unmodifiableList(segmentList);
         this.numDocs = computeNumDocs(this.segments);
@@ -247,6 +262,7 @@ public class DataformatAwareCatalogSnapshot extends CatalogSnapshot {
         super.writeTo(out);
         Map<String, String> userData = new HashMap<>(this.userData);
         userData.remove(DataformatAwareCatalogSnapshot.CATALOG_SNAPSHOT_KEY);
+        userData.put(SERIALIZATION_VERSION_KEY, Long.toString(CURRENT_SERIALIZATION_VERSION));
         out.writeMap(userData, StreamOutput::writeString, StreamOutput::writeString);
         out.writeLong(id);
         out.writeLong(lastWriterGeneration);

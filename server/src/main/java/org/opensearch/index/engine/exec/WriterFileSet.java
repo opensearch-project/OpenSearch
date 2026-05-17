@@ -8,10 +8,13 @@
 
 package org.opensearch.index.engine.exec;
 
+import org.apache.lucene.util.Version;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
+import org.opensearch.index.engine.exec.coord.DataformatAwareCatalogSnapshot;
+import org.opensearch.index.engine.exec.coord.LuceneVersionConverter;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -43,8 +46,9 @@ public record WriterFileSet(String directory, long writerGeneration, Set<String>
      * {@code FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG}; it first ships in 3.7.
      * No pre-3.7 wire format exists, so no version gate is needed here.
      */
-    public WriterFileSet(StreamInput in, String directory) throws IOException {
-        this(directory, in.readLong(), new HashSet<>(in.readStringList()), in.readLong(), in.readLong());
+    public WriterFileSet(StreamInput in, String directory, long version) throws IOException {
+        this(directory, in.readLong(), new HashSet<>(in.readStringList()), in.readLong(),
+            version == DataformatAwareCatalogSnapshot.SERIALIZATION_VERSION_ONE ? in.readLong() : LuceneVersionConverter.encode(Version.LATEST));
     }
 
     public long getTotalSize() {
