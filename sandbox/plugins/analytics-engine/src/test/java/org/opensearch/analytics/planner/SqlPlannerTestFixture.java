@@ -123,6 +123,7 @@ public final class SqlPlannerTestFixture {
                     Settings.builder()
                         .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id)
                         .put("index.composite.primary_data_format", primaryDataFormat)
+                        .putList("index.composite.secondary_data_formats", "lucene")
                 )
                 .numberOfShards(shardCount)
                 .numberOfReplicas(0)

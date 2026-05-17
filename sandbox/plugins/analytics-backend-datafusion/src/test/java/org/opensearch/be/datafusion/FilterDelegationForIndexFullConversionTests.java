@@ -358,7 +358,12 @@ public class FilterDelegationForIndexFullConversionTests extends OpenSearchTestC
         when(mappingMetadata.sourceAsMap()).thenReturn(Map.of("properties", fieldMappings));
         IndexMetadata indexMetadata = mock(IndexMetadata.class);
         when(indexMetadata.getIndex()).thenReturn(new Index("test_index", "uuid"));
-        when(indexMetadata.getSettings()).thenReturn(Settings.builder().put("index.composite.primary_data_format", primaryFormat).build());
+        when(indexMetadata.getSettings()).thenReturn(
+            Settings.builder()
+                .put("index.composite.primary_data_format", primaryFormat)
+                .putList("index.composite.secondary_data_formats", "lucene")
+                .build()
+        );
         when(indexMetadata.mapping()).thenReturn(mappingMetadata);
         when(indexMetadata.getNumberOfShards()).thenReturn(2);
         Metadata metadata = mock(Metadata.class);
