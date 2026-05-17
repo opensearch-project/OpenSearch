@@ -36,6 +36,7 @@ import org.opensearch.test.OpenSearchTestCase;
 
 import java.nio.file.Path;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
 
 import io.substrait.extension.DefaultExtensionCatalog;
 import io.substrait.extension.SimpleExtension;
@@ -83,15 +84,23 @@ public class DatafusionReduceSinkTests extends OpenSearchTestCase {
         // Wrap in NativeRuntimeHandle so the pointer is registered in the
         // NativeHandle live-set that validatePointer consults.
         NativeRuntimeHandle runtimeHandle = new NativeRuntimeHandle(runtimePtr);
+        ExecutorService drainExec = java.util.concurrent.Executors.newThreadPerTaskExecutor(Thread.ofVirtual().factory());
 
         try (RootAllocator alloc = new RootAllocator(Long.MAX_VALUE)) {
             Schema inputSchema = new Schema(List.of(new Field("x", FieldType.nullable(new ArrowType.Int(64, true)), null)));
             byte[] substrait = buildSumSubstraitBytes(DatafusionReduceSink.INPUT_ID);
 
             CapturingSink downstream = new CapturingSink();
-            ExchangeSinkContext ctx = new ExchangeSinkContext("q-1", 0, substrait, alloc, inputSchema, downstream);
+            ExchangeSinkContext ctx = new ExchangeSinkContext(
+                "q-1",
+                0,
+                substrait,
+                alloc,
+                List.of(new ExchangeSinkContext.ChildInput(0, buildPassthroughSubstraitBytes(DatafusionReduceSink.INPUT_ID))),
+                downstream
+            );
 
-            DatafusionReduceSink sink = new DatafusionReduceSink(ctx, runtimeHandle);
+            DatafusionReduceSink sink = new DatafusionReduceSink(ctx, runtimeHandle, drainExec);
             try {
                 sink.feed(makeBatch(alloc, inputSchema, new long[] { 1L, 2L, 3L }));
                 sink.feed(makeBatch(alloc, inputSchema, new long[] { 4L, 5L, 6L }));
@@ -101,120 +110,82 @@ public class DatafusionReduceSinkTests extends OpenSearchTestCase {
             }
 
             // Downstream is NOT closed by the reduce sink — its lifecycle is owned by
-            // the walker/orchestrator, which reads buffered batches after the sink drains.
+            // the walker/orchestrator, which reads results after the sink drains.
             assertFalse("downstream must NOT be closed by the reduce sink", downstream.closed);
             assertTrue("downstream should receive at least one row, got " + downstream.totalRows, downstream.totalRows >= 1);
             assertEquals("SUM(1..9) should be 45", 45L, downstream.total);
         } finally {
+            drainExec.shutdownNow();
             runtimeHandle.close();
         }
     }
 
     /**
-     * Demonstrates that producers wedge past the input mpsc capacity (4) when no
-     * consumer is draining — and proves that no consumer IS draining during the
-     * feed phase, because the CPU executor's spawned task only fires on the first
-     * poll of the output stream, which only happens inside {@code close()} via
-     * {@code drainOutputIntoDownstream → streamNext}.
-     *
-     * <p>Expected log signature when this test runs:
-     * <pre>
-     *   [partition_stream] send_blocking enter — channel capacity remaining: 4
-     *   [partition_stream] send_blocking returned ok=true
-     *   [partition_stream] send_blocking enter — channel capacity remaining: 3
-     *   [partition_stream] send_blocking returned ok=true
-     *   ... 4 successful sends ...
-     *   [partition_stream] send_blocking enter — channel capacity remaining: 0
-     *   (no return — parked)
-     *   (no [cross_rt_stream] driver polled message before close — proves CPU never started)
-     *   ...test asserts producer parked at 4 feeds...
-     *   ...test calls close()...
-     *   [cross_rt_stream] driver polled for first time — submitting CPU spawn
-     *   [cross_rt_stream] CPU task started — beginning to pull from input stream
-     * </pre>
-     *
-     * <p>The logs prove: producers are blocked, CPU executor hasn't spawned yet,
-     * and the spawn only fires when close() drains. Run with
-     * {@code -Dtests.logger.level=DEBUG} to see partition_stream logs.
+     * Verifies that the drain task — submitted to the executor at sink construction —
+     * runs concurrently with feeds, so producers complete every batch even when the
+     * total volume exceeds the bounded native input mpsc's capacity.
      */
-    public void testProducersDoNotWedgePastCapacity() throws Exception {
+    public void testDrainTaskKeepsUpWithProducer() throws Exception {
         NativeBridge.initTokioRuntimeManager(2);
         Path spillDir = createTempDir("datafusion-spill");
         long runtimePtr = NativeBridge.createGlobalRuntime(64 * 1024 * 1024, 0L, spillDir.toString(), 32 * 1024 * 1024);
         NativeRuntimeHandle runtimeHandle = new NativeRuntimeHandle(runtimePtr);
+        ExecutorService drainExec = java.util.concurrent.Executors.newThreadPerTaskExecutor(Thread.ofVirtual().factory());
 
         try (RootAllocator alloc = new RootAllocator(Long.MAX_VALUE)) {
             Schema inputSchema = new Schema(List.of(new Field("x", FieldType.nullable(new ArrowType.Int(64, true)), null)));
             byte[] substrait = buildSumSubstraitBytes(DatafusionReduceSink.INPUT_ID);
 
             CapturingSink downstream = new CapturingSink();
-            ExchangeSinkContext ctx = new ExchangeSinkContext("q-wedge", 0, substrait, alloc, inputSchema, downstream);
+            ExchangeSinkContext ctx = new ExchangeSinkContext(
+                "q-drain",
+                0,
+                substrait,
+                alloc,
+                List.of(new ExchangeSinkContext.ChildInput(0, buildPassthroughSubstraitBytes(DatafusionReduceSink.INPUT_ID))),
+                downstream
+            );
 
-            DatafusionReduceSink sink = new DatafusionReduceSink(ctx, runtimeHandle);
-
-            final int totalBatches = 12;     // intentionally > capacity (4)
-            java.util.concurrent.atomic.AtomicInteger attempts = new java.util.concurrent.atomic.AtomicInteger();
-            Thread producer = new Thread(() -> {
+            DatafusionReduceSink sink = new DatafusionReduceSink(ctx, runtimeHandle, drainExec);
+            final int totalBatches = 12; // intentionally > native input mpsc capacity
+            try {
                 for (int i = 0; i < totalBatches; i++) {
-                    attempts.incrementAndGet();
                     sink.feed(makeBatch(alloc, inputSchema, new long[] { (long) i }));
                 }
-            }, "test-producer-wedge");
-            producer.setDaemon(true);
-            producer.start();
+            } finally {
+                sink.close();
+            }
 
-            // Give the producer plenty of wall-clock time to push every batch if it weren't blocked.
-            // 4 should land in the mpsc immediately; the 5th will park indefinitely.
-            Thread.sleep(1500);
-
-            long completed = sink.feedCount();
-            int attempted = attempts.get();
-            Thread.State state = producer.getState();
-            logger.info("After 1500ms wait: completed={}, attempted={}, producerState={}", completed, attempted, state);
-
-            // Channel capacity is 1 (intentionally reduced for diagnostic clarity). If no
-            // consumer is draining concurrently with feeds, we'd expect:
-            // completed = 1 (first push lands), attempted = 2 (second push parked),
-            // state = WAITING/TIMED_WAITING.
-            // If a consumer IS draining concurrently (e.g. RepartitionExec spawned a
-            // task during DataFusion plan setup), we'd expect:
-            // completed = totalBatches, state = TERMINATED.
-            // The actual outcome tells us which mental model is correct.
-            // After Part 1 (drain thread) is in place, the drain thread polls the output
-            // stream which cascades down to our partition stream's receiver — so even
-            // without RepartitionExec (target_partitions=1), there's a concurrent consumer.
-            // EXPECTATION: completed == totalBatches, producer terminated.
-            //
-            // Without the drain thread (and without RepartitionExec), we'd see:
-            // completed == 1, attempted == 2, state in {RUNNABLE (FFI-blocked), WAITING}.
-            // Note: a Java thread blocked inside an FFI call shows up as RUNNABLE in
-            // Thread.getState() because the JVM doesn't see Rust-level parking — the
-            // thread is "running native code" from the JVM's perspective.
-            assertEquals(
-                "with the drain thread, all " + totalBatches + " feeds should complete; got " + completed,
-                totalBatches,
-                completed
-            );
-            assertEquals("producer thread should be TERMINATED after completing all feeds; got " + state, Thread.State.TERMINATED, state);
-            assertEquals("attempted should equal completed", completed, attempted);
-
-            // Cleanup: close() drops the sender, which fails the parked tx.send futures with
-            // "receiver dropped". The producer thread errors out of senderSend; the lock-free
-            // feed catches the runtime exception when closed=true. close() then drains the
-            // (now empty) output stream and tears down. Producer thread becomes joinable.
-            sink.close();
-            producer.join(5_000);
-            assertFalse("producer thread should have exited after sink.close()", producer.isAlive());
-
-            // Final accounting: feedCount reflects only the feeds that actually deposited
-            // before the parked one was unblocked-by-error. Anywhere from 4..5 inclusive.
-            logger.info("After close: feedCount={}, downstream rows={}", sink.feedCount(), downstream.totalRows);
+            assertEquals("all " + totalBatches + " feeds should have completed", totalBatches, sink.feedCount());
+            assertTrue("downstream should receive at least one row, got " + downstream.totalRows, downstream.totalRows >= 1);
+            assertEquals("SUM(0..11) should be 66", 66L, downstream.total);
         } finally {
+            drainExec.shutdownNow();
             runtimeHandle.close();
         }
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────
+
+    /**
+     * Builds Substrait bytes for a plain {@code SELECT * FROM "input-0"} — used as
+     * the producer-side plan in {@link ExchangeSinkContext.ChildInput#producerPlanBytes()}.
+     * The lowered output schema is the bare leaf row type (single BIGINT column {@code x})
+     * which is what the reduce sink registers as the input partition's declared schema.
+     */
+    private static byte[] buildPassthroughSubstraitBytes(String inputId) {
+        RelDataTypeFactory typeFactory = new JavaTypeFactoryImpl();
+        RexBuilder rexBuilder = new RexBuilder(typeFactory);
+        HepPlanner hepPlanner = new HepPlanner(new HepProgramBuilder().build());
+        RelOptCluster cluster = RelOptCluster.create(hepPlanner, rexBuilder);
+
+        RelDataType bigintNullable = typeFactory.createTypeWithNullability(typeFactory.createSqlType(SqlTypeName.BIGINT), true);
+        RelDataType rowType = typeFactory.builder().add("x", bigintNullable).build();
+
+        RelNode scan = new DataFusionFragmentConvertor.StageInputTableScan(cluster, cluster.traitSet(), inputId, rowType);
+
+        return new DataFusionFragmentConvertor(loadExtensions()).convertFragment(scan);
+    }
 
     /**
      * Builds Substrait bytes for {@code SELECT SUM(x) FROM "input-0"} using the
@@ -236,7 +207,7 @@ public class DatafusionReduceSinkTests extends OpenSearchTestCase {
         AggregateCall sumCall = AggregateCall.create(SqlStdOperatorTable.SUM, false, List.of(0), -1, bigintNullable, "total");
         LogicalAggregate agg = LogicalAggregate.create(scan, List.of(), ImmutableBitSet.of(), null, List.of(sumCall));
 
-        return new DataFusionFragmentConvertor(loadExtensions()).convertFinalAggFragment(agg);
+        return new DataFusionFragmentConvertor(loadExtensions()).convertFragment(agg);
     }
 
     /**

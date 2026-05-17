@@ -34,7 +34,6 @@ pub enum JobError {
     Panic { msg: String },
 }
 
-
 struct State {
     handle: Option<Handle>,
     start_shutdown: Arc<Notify>,
@@ -100,10 +99,7 @@ impl DedicatedExecutor {
         let state = State {
             handle: Some(handle),
             start_shutdown: notify_shutdown,
-            completed_shutdown: rx_shutdown
-                .map_err(Arc::new)
-                .boxed()
-                .shared(),
+            completed_shutdown: rx_shutdown.map_err(Arc::new).boxed().shared(),
             thread: Some(thread),
         };
         Self {
@@ -158,6 +154,14 @@ impl DedicatedExecutor {
         }
     }
 
+    /// Returns a clone of the underlying Tokio runtime `Handle`, if the
+    /// executor has not been shut down. Used to create a
+    /// `tokio_metrics::RuntimeMonitor` for the CPU runtime.
+    pub fn handle(&self) -> Option<Handle> {
+        let state = self.state.read();
+        state.handle.clone()
+    }
+
     pub fn shutdown(&self) {
         let mut state = self.state.write();
         state.handle = None;
@@ -189,7 +193,10 @@ mod tests {
     async fn test_spawn_runs_on_different_thread() {
         let exec = test_exec(1);
         let caller_id = std::thread::current().id();
-        let spawned_id = exec.spawn(async { std::thread::current().id() }).await.unwrap();
+        let spawned_id = exec
+            .spawn(async { std::thread::current().id() })
+            .await
+            .unwrap();
         assert_ne!(caller_id, spawned_id);
         exec.join_blocking();
     }
@@ -200,11 +207,17 @@ mod tests {
         let exec = test_exec(2);
         let t1 = exec.spawn({
             let b = barrier.clone();
-            async move { b.wait(); 11 }
+            async move {
+                b.wait();
+                11
+            }
         });
         let t2 = exec.spawn({
             let b = barrier.clone();
-            async move { b.wait(); 22 }
+            async move {
+                b.wait();
+                22
+            }
         });
         barrier.wait();
         assert_eq!(t1.await.unwrap(), 11);

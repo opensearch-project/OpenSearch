@@ -8,19 +8,19 @@
 
 package org.opensearch.be.datafusion;
 
-import org.opensearch.action.search.SearchShardTask;
+import org.opensearch.be.datafusion.nativelib.SessionContextHandle;
 import org.opensearch.be.datafusion.nativelib.StreamHandle;
 import org.opensearch.common.annotation.ExperimentalApi;
-import org.opensearch.index.engine.IndexFilterTree;
 import org.opensearch.search.SearchExecutionContext;
+import org.opensearch.tasks.Task;
 
 import java.io.IOException;
 
 /**
  * DataFusion-specific search execution context.
  * <p>
- * Carries the DataFusion query plan, engine searcher, optional {@link IndexFilterTree},
- * and the native result stream handle after execution.
+ * Carries the DataFusion query plan, engine searcher, and the native result
+ * stream handle after execution.
  *
  * @opensearch.experimental
  */
@@ -30,9 +30,9 @@ public class DatafusionContext implements SearchExecutionContext<DatafusionSearc
     private final DatafusionSearcher engineSearcher;
     private final NativeRuntimeHandle nativeRuntime;
     private DatafusionQuery datafusionQuery;
-    private IndexFilterTree filterTree;
     private StreamHandle streamHandle;
-    private SearchShardTask task;
+    private Task task;
+    private SessionContextHandle sessionContextHandle;
 
     /**
      * Creates a DataFusion execution context
@@ -40,7 +40,7 @@ public class DatafusionContext implements SearchExecutionContext<DatafusionSearc
      * @param reader the DataFusion reader providing index data
      * @param nativeRuntime handle to the native DataFusion runtime
      */
-    public DatafusionContext(SearchShardTask task, DatafusionReader reader, NativeRuntimeHandle nativeRuntime) {
+    public DatafusionContext(Task task, DatafusionReader reader, NativeRuntimeHandle nativeRuntime) {
         this.task = task;
         this.engineSearcher = new DatafusionSearcher(reader.getReaderHandle());
         this.nativeRuntime = nativeRuntime;
@@ -55,8 +55,14 @@ public class DatafusionContext implements SearchExecutionContext<DatafusionSearc
             }
         } finally {
             try {
-                if (filterTree != null) {
-                    filterTree.close();
+                // Safety net for aborted-search paths: if the SessionContext was created but
+                // executeWithContextAsync never ran (or ran and the context is being closed
+                // without handing off the handle), doClose() calls df_close_session_context.
+                // On the happy path the handle is already marked consumed and this close()
+                // is a no-op.
+                if (sessionContextHandle != null) {
+                    sessionContextHandle.close();
+                    sessionContextHandle = null;
                 }
             } finally {
                 engineSearcher.close();
@@ -84,22 +90,7 @@ public class DatafusionContext implements SearchExecutionContext<DatafusionSearc
         this.datafusionQuery = query;
     }
 
-    /** Returns the index filter tree, or {@code null} if not set. */
-    public IndexFilterTree getFilterTree() {
-        return filterTree;
-    }
-
-    /**
-     * Sets the index filter tree for indexed query execution.
-     * @param filterTree the index filter tree
-     */
-    public void setFilterTree(IndexFilterTree filterTree) {
-        this.filterTree = filterTree;
-    }
-
-    /**
-     * Returns the native result stream handle, or {@code null} if execution has not completed.
-     */
+    /** Returns the native result stream handle, or {@code null} if execution has not completed. */
     public StreamHandle getStreamHandle() {
         return streamHandle;
     }
@@ -124,12 +115,20 @@ public class DatafusionContext implements SearchExecutionContext<DatafusionSearc
     }
 
     @Override
-    public SearchShardTask task() {
+    public Task task() {
         return task;
     }
 
     @Override
     public DatafusionSearcher getSearcher() {
         return engineSearcher;
+    }
+
+    public SessionContextHandle getSessionContextHandle() {
+        return sessionContextHandle;
+    }
+
+    public void setSessionContextHandle(SessionContextHandle sessionContextHandle) {
+        this.sessionContextHandle = sessionContextHandle;
     }
 }

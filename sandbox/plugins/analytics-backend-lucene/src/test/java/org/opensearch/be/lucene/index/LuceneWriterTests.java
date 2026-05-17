@@ -9,25 +9,33 @@
 package org.opensearch.be.lucene.index;
 
 import org.apache.lucene.codecs.Codec;
+import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.NumericDocValues;
+import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.NIOFSDirectory;
+import org.apache.lucene.util.BytesRef;
 import org.opensearch.be.lucene.LuceneDataFormat;
+import org.opensearch.index.engine.dataformat.DeleteInput;
 import org.opensearch.index.engine.dataformat.FileInfos;
 import org.opensearch.index.engine.dataformat.WriteResult;
+import org.opensearch.index.engine.dataformat.Writer;
 import org.opensearch.index.engine.exec.WriterFileSet;
+import org.opensearch.index.mapper.KeywordFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
+import org.opensearch.index.mapper.TextFieldMapper;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.Optional;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
@@ -48,23 +56,22 @@ public class LuceneWriterTests extends OpenSearchTestCase {
     }
 
     private MappedFieldType mockTextField(String name) {
-        MappedFieldType ft = mock(MappedFieldType.class);
-        when(ft.typeName()).thenReturn("text");
-        when(ft.name()).thenReturn(name);
-        return ft;
+        return new TextFieldMapper.TextFieldType(name);
     }
 
     private MappedFieldType mockKeywordField(String name) {
-        MappedFieldType ft = mock(MappedFieldType.class);
-        when(ft.typeName()).thenReturn("keyword");
-        when(ft.name()).thenReturn(name);
-        when(ft.hasDocValues()).thenReturn(true);
-        return ft;
+        final FieldType keywordFieldType = new FieldType();
+        keywordFieldType.setTokenized(false);
+        keywordFieldType.setStored(false);
+        keywordFieldType.setOmitNorms(true);
+        keywordFieldType.setIndexOptions(IndexOptions.DOCS);
+        keywordFieldType.freeze();
+        return new KeywordFieldMapper.KeywordFieldType(name, keywordFieldType);
     }
 
     public void testAddDocAndFlushProducesSingleSegment() throws IOException {
         Path baseDir = createTempDir();
-        try (LuceneWriter writer = new LuceneWriter(1L, dataFormat, baseDir, null, Codec.getDefault())) {
+        try (LuceneWriter writer = new LuceneWriter(1L, 0L, dataFormat, baseDir, null, Codec.getDefault(), null)) {
             int numDocs = randomIntBetween(5, 20);
             MappedFieldType textField = mockTextField("content");
             for (int i = 0; i < numDocs; i++) {
@@ -95,7 +102,7 @@ public class LuceneWriterTests extends OpenSearchTestCase {
         Path baseDir = createTempDir();
         int numDocs = randomIntBetween(10, 50);
         MappedFieldType textField = mockTextField("content");
-        try (LuceneWriter writer = new LuceneWriter(1L, dataFormat, baseDir, null, Codec.getDefault())) {
+        try (LuceneWriter writer = new LuceneWriter(1L, 0L, dataFormat, baseDir, null, Codec.getDefault(), null)) {
             for (int i = 0; i < numDocs; i++) {
                 LuceneDocumentInput input = new LuceneDocumentInput();
                 input.addField(textField, "doc " + i);
@@ -109,11 +116,11 @@ public class LuceneWriterTests extends OpenSearchTestCase {
             try (NIOFSDirectory dir = new NIOFSDirectory(Path.of(wfs.directory())); IndexReader reader = DirectoryReader.open(dir)) {
                 for (LeafReaderContext ctx : reader.leaves()) {
                     LeafReader leafReader = ctx.reader();
-                    NumericDocValues rowIdValues = leafReader.getNumericDocValues(LuceneDocumentInput.ROW_ID_FIELD);
+                    SortedNumericDocValues rowIdValues = leafReader.getSortedNumericDocValues(LuceneDocumentInput.ROW_ID_FIELD);
                     assertNotNull("row_id doc values should exist", rowIdValues);
                     for (int docId = 0; docId < leafReader.maxDoc(); docId++) {
                         assertTrue(rowIdValues.advanceExact(docId));
-                        assertThat("row ID should equal Lucene doc ID", rowIdValues.longValue(), equalTo((long) docId));
+                        assertThat("row ID should equal Lucene doc ID", rowIdValues.nextValue(), equalTo((long) docId));
                     }
                 }
             }
@@ -122,7 +129,7 @@ public class LuceneWriterTests extends OpenSearchTestCase {
 
     public void testFlushWithNoDocsReturnsEmpty() throws IOException {
         Path baseDir = createTempDir();
-        try (LuceneWriter writer = new LuceneWriter(1L, dataFormat, baseDir, null, Codec.getDefault())) {
+        try (LuceneWriter writer = new LuceneWriter(1L, 0L, dataFormat, baseDir, null, Codec.getDefault(), null)) {
             FileInfos fileInfos = writer.flush();
             assertTrue(fileInfos.writerFilesMap().isEmpty());
         }
@@ -132,7 +139,7 @@ public class LuceneWriterTests extends OpenSearchTestCase {
         Path baseDir = createTempDir();
         long gen = randomLongBetween(1, 100);
         MappedFieldType textField = mockTextField("content");
-        try (LuceneWriter writer = new LuceneWriter(gen, dataFormat, baseDir, null, Codec.getDefault())) {
+        try (LuceneWriter writer = new LuceneWriter(gen, 0L, dataFormat, baseDir, null, Codec.getDefault(), null)) {
             assertThat(writer.generation(), equalTo(gen));
 
             LuceneDocumentInput input = new LuceneDocumentInput();
@@ -149,7 +156,7 @@ public class LuceneWriterTests extends OpenSearchTestCase {
     public void testKeywordFieldsAreIndexed() throws IOException {
         Path baseDir = createTempDir();
         MappedFieldType keywordField = mockKeywordField("status");
-        try (LuceneWriter writer = new LuceneWriter(1L, dataFormat, baseDir, null, Codec.getDefault())) {
+        try (LuceneWriter writer = new LuceneWriter(1L, 0L, dataFormat, baseDir, null, Codec.getDefault(), null)) {
             LuceneDocumentInput input = new LuceneDocumentInput();
             input.addField(keywordField, "active");
             input.setRowId(LuceneDocumentInput.ROW_ID_FIELD, 0);
@@ -171,7 +178,7 @@ public class LuceneWriterTests extends OpenSearchTestCase {
         when(numericField.typeName()).thenReturn("integer");
         when(numericField.name()).thenReturn("count");
 
-        try (LuceneWriter writer = new LuceneWriter(1L, dataFormat, baseDir, null, Codec.getDefault())) {
+        try (LuceneWriter writer = new LuceneWriter(1L, 0L, dataFormat, baseDir, null, Codec.getDefault(), null)) {
             LuceneDocumentInput input = new LuceneDocumentInput();
             // Should not throw — unsupported types are silently skipped (handled by other formats)
             input.addField(numericField, 42);
@@ -185,7 +192,7 @@ public class LuceneWriterTests extends OpenSearchTestCase {
         MappedFieldType textField = mockTextField("title");
         MappedFieldType keywordField = mockKeywordField("category");
 
-        try (LuceneWriter writer = new LuceneWriter(1L, dataFormat, baseDir, null, Codec.getDefault())) {
+        try (LuceneWriter writer = new LuceneWriter(1L, 0L, dataFormat, baseDir, null, Codec.getDefault(), null)) {
             int numDocs = randomIntBetween(5, 15);
             for (int i = 0; i < numDocs; i++) {
                 LuceneDocumentInput input = new LuceneDocumentInput();
@@ -206,23 +213,13 @@ public class LuceneWriterTests extends OpenSearchTestCase {
         }
     }
 
-    public void testLockUnlock() throws IOException {
-        Path baseDir = createTempDir();
-        try (LuceneWriter writer = new LuceneWriter(1L, dataFormat, baseDir, null, Codec.getDefault())) {
-            assertTrue(writer.tryLock());
-            writer.unlock();
-            writer.lock();
-            writer.unlock();
-        }
-    }
-
     public void testWriteAndFlushEndToEndWithTextAndKeyword() throws IOException {
         Path baseDir = createTempDir();
         MappedFieldType textField = mockTextField("body");
         MappedFieldType keywordField = mockKeywordField("status");
         int numDocs = randomIntBetween(5, 20);
 
-        try (LuceneWriter writer = new LuceneWriter(1L, dataFormat, baseDir, null, Codec.getDefault())) {
+        try (LuceneWriter writer = new LuceneWriter(1L, 0L, dataFormat, baseDir, null, Codec.getDefault(), null)) {
             for (int i = 0; i < numDocs; i++) {
                 LuceneDocumentInput input = new LuceneDocumentInput();
                 input.addField(textField, "hello world " + i);
@@ -242,11 +239,11 @@ public class LuceneWriterTests extends OpenSearchTestCase {
 
                 // Verify row IDs match doc IDs
                 LeafReader leafReader = reader.leaves().get(0).reader();
-                NumericDocValues rowIdValues = leafReader.getNumericDocValues(LuceneDocumentInput.ROW_ID_FIELD);
+                SortedNumericDocValues rowIdValues = leafReader.getSortedNumericDocValues(LuceneDocumentInput.ROW_ID_FIELD);
                 assertNotNull(rowIdValues);
                 for (int docId = 0; docId < numDocs; docId++) {
                     assertTrue(rowIdValues.advanceExact(docId));
-                    assertThat(rowIdValues.longValue(), equalTo((long) docId));
+                    assertThat(rowIdValues.nextValue(), equalTo((long) docId));
                 }
 
                 // Verify text field is searchable via TermQuery
@@ -273,8 +270,8 @@ public class LuceneWriterTests extends OpenSearchTestCase {
 
         // Create both writers without closing them until after verification,
         // because close() deletes the temp directory.
-        LuceneWriter writer1 = new LuceneWriter(gen1, dataFormat, baseDir, null, Codec.getDefault());
-        LuceneWriter writer2 = new LuceneWriter(gen2, dataFormat, baseDir, null, Codec.getDefault());
+        LuceneWriter writer1 = new LuceneWriter(gen1, 0L, dataFormat, baseDir, null, Codec.getDefault(), null);
+        LuceneWriter writer2 = new LuceneWriter(gen2, 0L, dataFormat, baseDir, null, Codec.getDefault(), null);
         try {
             for (int i = 0; i < numDocs1; i++) {
                 LuceneDocumentInput input = new LuceneDocumentInput();
@@ -321,5 +318,41 @@ public class LuceneWriterTests extends OpenSearchTestCase {
             writer1.close();
             writer2.close();
         }
+    }
+
+    public void testGetWriterForFormatReturnsItselfForLucene() throws IOException {
+        Path baseDir = createTempDir();
+        try (LuceneWriter writer = new LuceneWriter(1L, 0L, dataFormat, baseDir, null, Codec.getDefault(), null)) {
+            Optional<Writer<?>> result = writer.getWriterForFormat("lucene");
+
+            assertTrue("Should return present for 'lucene'", result.isPresent());
+            assertSame("Should return itself", writer, result.get());
+        }
+    }
+
+    public void testGetWriterForFormatReturnsEmptyForOtherFormats() throws IOException {
+        Path baseDir = createTempDir();
+        try (LuceneWriter writer = new LuceneWriter(1L, 0L, dataFormat, baseDir, null, Codec.getDefault(), null)) {
+            Optional<Writer<?>> parquetResult = writer.getWriterForFormat("parquet");
+            Optional<Writer<?>> nullResult = writer.getWriterForFormat(null);
+
+            assertFalse("Should return empty for non-lucene format", parquetResult.isPresent());
+            assertFalse("Should return empty for null format", nullResult.isPresent());
+        }
+    }
+
+    public void testWriterDefaultGetWriterForFormatReturnsEmpty() {
+        Writer<?> writer = mock(Writer.class, org.mockito.Mockito.CALLS_REAL_METHODS);
+        Optional<Writer<?>> result = writer.getWriterForFormat("any");
+        assertFalse(result.isPresent());
+    }
+
+    public void testWriterDefaultDeleteDocumentThrowsUnsupported() {
+        Writer<?> writer = mock(Writer.class, org.mockito.Mockito.CALLS_REAL_METHODS);
+        UnsupportedOperationException e = expectThrows(
+            UnsupportedOperationException.class,
+            () -> writer.deleteDocument(new DeleteInput("_id", new BytesRef("1"), 1L))
+        );
+        assertTrue(e.getMessage().contains("deleteDocument is not supported"));
     }
 }

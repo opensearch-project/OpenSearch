@@ -1,0 +1,22 @@
+[package]
+name = "opensearch-block-cache"
+version = "0.1.0"
+edition = "2021"
+description = "Disk block cache backed by Foyer — rlib member of the dataformat-native workspace"
+license = "Apache-2.0"
+workspace = "../../../../../libs/dataformat-native/rust"
+
+[lib]
+name = "opensearch_block_cache"
+crate-type = ["rlib"]
+
+[dependencies]
+foyer                = "=0.22.3"
+bytes                = { workspace = true }
+dashmap              = { workspace = true }
+tokio                = { workspace = true }
+log                  = { workspace = true }
+native-bridge-common = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }

@@ -1,0 +1,707 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ */
+
+//! Indexed query executor — decodes substrait, classifies the filter tree,
+//! builds providers per leaf, runs the query.
+//!
+//! Per-leaf lifecycle at query time (one compiled-query + per-segment matcher
+//! per Collector leaf):
+//!   1. `createProvider(annotation_id)` FFM upcall → `provider_key`  (once per
+//!      Collector leaf, once per query).
+//!   2. `createCollector(provider_key, seg, min, max)` FFM upcall → collector
+//!      (once per SegmentChunk × Collector leaf).
+//!   3. `collectDocs(collector, min, max, out)` FFM upcall (once per row group).
+//!   4. `releaseCollector(collector)` when RG scan completes.
+//!   5. `releaseProvider(provider_key)` when the tree is dropped.
+
+use std::sync::Arc;
+
+use native_bridge_common::log_debug;
+use datafusion::{
+    physical_plan::displayable,
+    physical_plan::execute_stream,
+    execution::SessionStateBuilder,
+    execution::runtime_env::RuntimeEnvBuilder,
+    execution::context::SessionContext,
+    common::DataFusionError,
+    prelude::*,
+    arrow::datatypes::SchemaRef,
+    catalog::Session,
+    common::tree_node::{TreeNode, TreeNodeRecursion},
+    datasource::{TableProvider, TableType},
+    execution::cache::cache_manager::{CacheManagerConfig, CachedFileList},
+    execution::cache::{CacheAccessor, DefaultListFilesCache, TableScopedPath},
+    execution::memory_pool::MemoryPool,
+    execution::object_store::ObjectStoreUrl,
+    logical_expr::Expr,
+    physical_expr::expressions::Column,
+    physical_expr::PhysicalExpr,
+    physical_optimizer::pruning::PruningPredicate,
+    physical_plan::stream::RecordBatchStreamAdapter,
+    physical_plan::ExecutionPlan
+};
+use datafusion_substrait::logical_plan::consumer::from_substrait_plan;
+use prost::Message;
+use substrait::proto::Plan;
+
+use crate::api::DataFusionRuntime;
+use crate::cross_rt_stream::CrossRtStream;
+use crate::executor::DedicatedExecutor;
+use crate::indexed_table::bool_tree::BoolNode;
+use crate::indexed_table::eval::bitmap_tree::{BitmapTreeEvaluator, CollectorLeafBitmaps};
+use crate::indexed_table::eval::single_collector::SingleCollectorEvaluator;
+use crate::indexed_table::eval::{CollectorCallStrategy, RowGroupBitsetSource, TreeBitsetSource};
+use crate::indexed_table::ffm_callbacks::{create_provider, FfmSegmentCollector, ProviderHandle};
+use crate::indexed_table::index::RowGroupDocsCollector;
+use crate::indexed_table::page_pruner::PagePruner;
+use crate::indexed_table::segment_info::build_segments;
+use crate::indexed_table::substrait_to_tree::{
+    classify_filter, create_index_filter_udf, expr_to_bool_tree, extract_filter_expr,
+    ExtractionResult, FilterClass,
+};
+use crate::indexed_table::table_provider::{
+    EvaluatorFactory, IndexedTableConfig, IndexedTableProvider, SegmentFileInfo,
+};
+
+use std::collections::{BTreeSet, HashMap};
+use std::fmt;
+
+use crate::api::ShardView;
+use crate::datafusion_query_config::DatafusionQueryConfig;
+use crate::indexed_table::bool_tree::residual_bool_to_physical_expr;
+use crate::indexed_table::metrics::StreamMetrics;
+use crate::indexed_table::page_pruner::{build_pruning_predicate, PagePruneMetrics};
+
+/// Execute an indexed query.
+///
+/// `shard_view` carries the segment's parquet paths (populated when the reader
+/// was built from a catalog snapshot). `query_memory_pool` is the per-query
+/// tracker (same as vanilla path) — `None` disables tracking and uses the
+/// global pool.
+// TODO: remove this function once all callers migrate to the instruction-based path
+// TODO: remove once api.rs migrates to instruction-based path directly.
+// Kept as thin wrapper to make existing tests exercise execute_indexed_with_context
+// with minimal changes.
+pub async fn execute_indexed_query(
+    substrait_bytes: Vec<u8>,
+    table_name: String,
+    shard_view: &ShardView,
+    runtime: &DataFusionRuntime,
+    cpu_executor: DedicatedExecutor,
+    query_memory_pool: Option<Arc<dyn MemoryPool>>,
+    query_config: Arc<DatafusionQueryConfig>,
+) -> Result<i64, DataFusionError> {
+    let num_partitions = query_config.target_partitions.max(1);
+    // Share caches with the global runtime (same as vanilla path): list-files
+    // pre-populated with the reader's object_metas, file-metadata and
+    // file-statistics inherited from the global runtime for cross-query reuse.
+    let list_file_cache = Arc::new(DefaultListFilesCache::default());
+    let table_scoped_path = TableScopedPath {
+        table: None,
+        path: shard_view.table_path.prefix().clone(),
+    };
+    list_file_cache.put(&table_scoped_path, CachedFileList::new(shard_view.object_metas.as_ref().clone()));
+
+    let mut runtime_env_builder = RuntimeEnvBuilder::from_runtime_env(&runtime.runtime_env)
+        .with_cache_manager(
+            CacheManagerConfig::default()
+                .with_list_files_cache(Some(list_file_cache))
+                .with_file_metadata_cache(Some(
+                    runtime.runtime_env.cache_manager.get_file_metadata_cache(),
+                ))
+                .with_files_statistics_cache(
+                    runtime.runtime_env.cache_manager.get_file_statistic_cache(),
+                ),
+        );
+    if let Some(pool) = query_memory_pool {
+        runtime_env_builder = runtime_env_builder.with_memory_pool(pool);
+    }
+    let runtime_env = runtime_env_builder
+        .build()
+        .map_err(|e| DataFusionError::Execution(format!("runtime env: {}", e)))?;
+
+    // Register shard-specific object store on file:// scheme for this query.
+    runtime_env.register_object_store(
+        &url::Url::parse("file://").unwrap(),
+        Arc::clone(&shard_view.store),
+    );
+
+    let mut config = SessionConfig::new();
+    config.options_mut().execution.parquet.pushdown_filters = query_config.parquet_pushdown_filters;
+    // Indexed path fans out via IndexedExec partitions (derived from
+    // num_partitions), not DataFusion's. But DF wants a sane value here
+    // for any post-scan operators it may add.
+    config.options_mut().execution.target_partitions = num_partitions.max(1);
+    config.options_mut().execution.batch_size = query_config.batch_size;
+    let state = SessionStateBuilder::new()
+        .with_config(config)
+        .with_runtime_env(Arc::from(runtime_env))
+        .with_default_features()
+        .with_physical_optimizer_rules(crate::agg_mode::physical_optimizer_rules_without_combine())
+        .build();
+    let ctx = SessionContext::new_with_state(state);
+    ctx.register_udf(create_index_filter_udf());
+    crate::udf::register_all(&ctx);
+
+    // Register default ListingTable so substrait consumer can resolve the table
+    let listing_options = datafusion::datasource::listing::ListingOptions::new(
+        Arc::new(datafusion::datasource::file_format::parquet::ParquetFormat::new()))
+        .with_file_extension(".parquet")
+        .with_collect_stat(true);
+    let resolved_schema = listing_options
+        .infer_schema(&ctx.state(), &shard_view.table_path)
+        .await?;
+    let resolved_schema = crate::schema_coerce::coerce_inferred_schema(resolved_schema);
+    let table_config = datafusion::datasource::listing::ListingTableConfig::new(shard_view.table_path.clone())
+        .with_listing_options(listing_options)
+        .with_schema(resolved_schema);
+    let provider = Arc::new(datafusion::datasource::listing::ListingTable::try_new(table_config)?);
+    ctx.register_table(&table_name, provider)?;
+
+    // Build SessionContextHandle and delegate to execute_indexed_with_context
+    let handle = crate::session_context::SessionContextHandle {
+        ctx,
+        table_path: shard_view.table_path.clone(),
+        object_metas: shard_view.object_metas.clone(),
+        query_context: crate::query_tracker::QueryTrackingContext::new(0, runtime.runtime_env.memory_pool.clone()),
+        table_name: table_name.clone(),
+        indexed_config: None, // derive classification from tree
+        query_config: Arc::unwrap_or_clone(query_config),
+        aggregate_mode: crate::agg_mode::Mode::Default,
+        prepared_plan: None,
+    };
+    let ptr = Box::into_raw(Box::new(handle)) as i64;
+    unsafe { execute_indexed_with_context(ptr, substrait_bytes, cpu_executor).await }
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────
+
+/// Collect all `Predicate(expr)` leaves in DFS order. Used by the
+/// dispatcher to build a per-leaf `PruningPredicate` cache keyed by
+/// `Arc::as_ptr` identity.
+fn collect_predicate_exprs(tree: &BoolNode, out: &mut Vec<Arc<dyn PhysicalExpr>>) {
+    match tree {
+        BoolNode::And(c) | BoolNode::Or(c) => {
+            c.iter().for_each(|ch| collect_predicate_exprs(ch, out))
+        }
+        BoolNode::Not(inner) => collect_predicate_exprs(inner, out),
+        BoolNode::Collector { .. } => {}
+        BoolNode::Predicate(expr) => out.push(Arc::clone(expr)),
+    }
+}
+
+fn collect_predicate_column_indices(extraction: Option<&ExtractionResult>) -> Vec<usize> {
+    let Some(e) = extraction else { return vec![] };
+    let mut exprs = Vec::new();
+    collect_predicate_exprs(&e.tree, &mut exprs);
+    let mut indices = BTreeSet::new();
+    for expr in &exprs {
+        let _ = expr.apply(|node| {
+            if let Some(col) = node.as_any().downcast_ref::<Column>() {
+                indices.insert(col.index());
+            }
+            Ok(TreeNodeRecursion::Continue)
+        });
+    }
+    indices.into_iter().collect()
+}
+/// For a tree classified as `SingleCollector`, walk it to find the single
+/// Collector leaf and return its query bytes.
+fn single_collector_id(tree: &BoolNode) -> Option<i32> {
+    match tree {
+        BoolNode::Collector { annotation_id } => Some(*annotation_id),
+        BoolNode::And(children) => {
+            for child in children {
+                if let Some(id) = single_collector_id(child) {
+                    return Some(id);
+                }
+            }
+            None
+        }
+        _ => None,
+    }
+}
+
+/// For a tree classified as `SingleCollector`, return the residual
+/// (all non-Collector parts of the AND tree, re-assembled into a
+/// single BoolNode). Recursively strips Collector leaves from nested
+/// ANDs. Returns `None` if the tree is a bare Collector or the entire
+/// tree is collectors-only (no residual predicates).
+fn extract_single_collector_residual(tree: &BoolNode) -> Option<BoolNode> {
+    fn strip_collectors(node: &BoolNode) -> Option<BoolNode> {
+        match node {
+            BoolNode::Collector { .. } => None,
+            BoolNode::Predicate(_) => Some(node.clone()),
+            BoolNode::And(children) => {
+                let residuals: Vec<BoolNode> =
+                    children.iter().filter_map(strip_collectors).collect();
+                match residuals.len() {
+                    0 => None,
+                    1 => Some(residuals.into_iter().next().unwrap()),
+                    _ => Some(BoolNode::And(residuals)),
+                }
+            }
+            // OR/NOT with no collectors pass through unchanged (they're
+            // pure-predicate subtrees in a SingleCollector-classified tree).
+            other => Some(other.clone()),
+        }
+    }
+    strip_collectors(tree)
+}
+
+// ── Placeholder provider used only for substrait consume pass ─────────
+
+struct PlaceholderProvider {
+    schema: SchemaRef,
+}
+
+impl fmt::Debug for PlaceholderProvider {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("PlaceholderProvider").finish()
+    }
+}
+
+#[async_trait::async_trait]
+impl TableProvider for PlaceholderProvider {
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+    fn schema(&self) -> SchemaRef {
+        self.schema.clone()
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Base
+    }
+    async fn scan(
+        &self,
+        _state: &dyn Session,
+        _projection: Option<&Vec<usize>>,
+        _filters: &[Expr],
+        _limit: Option<usize>,
+    ) -> Result<Arc<dyn ExecutionPlan>, DataFusionError> {
+        Err(DataFusionError::Internal(
+            "PlaceholderProvider should not be scanned".into(),
+        ))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::indexed_table::bool_tree::BoolNode;
+    use datafusion::arrow::datatypes::{DataType, Field, Schema};
+    use datafusion::common::ScalarValue;
+    use datafusion::logical_expr::Operator;
+    use datafusion::physical_expr::expressions::{BinaryExpr, Column as PhysColumn, Literal};
+    use datafusion::physical_expr::PhysicalExpr;
+    use std::sync::Arc;
+
+    fn collector(id: i32) -> BoolNode {
+        BoolNode::Collector {
+            annotation_id: id,
+        }
+    }
+
+    fn pred() -> BoolNode {
+        let left: Arc<dyn PhysicalExpr> = Arc::new(PhysColumn::new("price", 0));
+        let right: Arc<dyn PhysicalExpr> = Arc::new(Literal::new(ScalarValue::Int32(Some(0))));
+        BoolNode::Predicate(Arc::new(BinaryExpr::new(left, Operator::Eq, right)))
+    }
+
+    fn is_predicate(node: &BoolNode) -> bool {
+        matches!(node, BoolNode::Predicate(_))
+    }
+
+    // ── extract_single_collector_residual ─────────────────────────────
+
+    #[test]
+    fn residual_bare_collector_is_none() {
+        assert!(extract_single_collector_residual(&collector(10)).is_none());
+    }
+
+    #[test]
+    fn residual_and_collector_plus_predicate() {
+        let tree = BoolNode::And(vec![collector(10), pred()]);
+        let r = extract_single_collector_residual(&tree).unwrap();
+        assert!(is_predicate(&r));
+    }
+
+    #[test]
+    fn residual_and_only_collectors_is_none() {
+        let tree = BoolNode::And(vec![collector(10), collector(11)]);
+        assert!(extract_single_collector_residual(&tree).is_none());
+    }
+
+    #[test]
+    fn residual_nested_and_strips_collectors() {
+        // AND(C₁, AND(C₂, P)) → residual is P
+        let tree = BoolNode::And(vec![
+            collector(10),
+            BoolNode::And(vec![collector(11), pred()]),
+        ]);
+        let r = extract_single_collector_residual(&tree).unwrap();
+        assert!(is_predicate(&r));
+    }
+
+    #[test]
+    fn residual_deeply_nested_and() {
+        // AND(P₁, AND(C₁, AND(C₂, P₂))) → AND(P₁, P₂)
+        let p1 = pred();
+        let p2 = pred();
+        let tree = BoolNode::And(vec![
+            p1,
+            BoolNode::And(vec![
+                collector(0),
+                BoolNode::And(vec![collector(1), p2]),
+            ]),
+        ]);
+        let r = extract_single_collector_residual(&tree).unwrap();
+        match r {
+            BoolNode::And(children) => {
+                assert_eq!(children.len(), 2);
+                assert!(children.iter().all(is_predicate));
+            }
+            _ => panic!("expected AND, got {:?}", r),
+        }
+    }
+
+    #[test]
+    fn residual_nested_and_with_or_predicate() {
+        // AND(C, AND(P, OR(P, P))) → AND(P, OR(P, P))
+        let tree = BoolNode::And(vec![
+            collector(10),
+            BoolNode::And(vec![
+                pred(),
+                BoolNode::Or(vec![pred(), pred()]),
+            ]),
+        ]);
+        let r = extract_single_collector_residual(&tree).unwrap();
+        match r {
+            BoolNode::And(children) => {
+                assert_eq!(children.len(), 2);
+                assert!(is_predicate(&children[0]));
+                assert!(matches!(children[1], BoolNode::Or(_)));
+            }
+            _ => panic!("expected AND, got {:?}", r),
+        }
+    }
+
+    #[test]
+    fn residual_nested_and_all_collectors_is_none() {
+        // AND(AND(C₁, C₂), AND(C₃, C₄)) → no residual
+        let tree = BoolNode::And(vec![
+            BoolNode::And(vec![collector(0), collector(1)]),
+            BoolNode::And(vec![collector(2), collector(3)]),
+        ]);
+        assert!(extract_single_collector_residual(&tree).is_none());
+    }
+}
+
+/// Instruction-based indexed execution path. Consumes a pre-configured SessionContextHandle
+/// (with UDF registered and IndexedExecutionConfig set) and routes to the appropriate
+/// evaluator based on the Java-provided FilterTreeShape.
+///
+/// TODO: extract shared logic with `execute_indexed_query` to avoid duplication.
+/// For now this delegates to the existing function by reconstructing the needed args
+/// from the handle.
+pub async unsafe fn execute_indexed_with_context(
+    session_ctx_ptr: i64,
+    substrait_bytes: Vec<u8>,
+    cpu_executor: DedicatedExecutor,
+) -> Result<i64, DataFusionError> {
+    let handle = *Box::from_raw(session_ctx_ptr as *mut crate::session_context::SessionContextHandle);
+    let classification_override = handle.indexed_config.map(|config| {
+        match (config.tree_shape, config.delegated_predicate_count) {
+            (1, 1) => FilterClass::SingleCollector,
+            (1, _) | (2, _) => FilterClass::Tree,
+            _ => FilterClass::None,
+        }
+    });
+
+    let query_config = Arc::new(handle.query_config);
+    let num_partitions = query_config.target_partitions.max(1);
+    let ctx = handle.ctx;
+    let table_name = handle.table_name;
+    let table_path = handle.table_path;
+    let object_metas = handle.object_metas;
+    let query_context = handle.query_context;
+
+    // SessionContext already has RuntimeEnv, caches, memory pool, UDF from create_session_context_indexed.
+    // Deregister the default ListingTable (registered by create_session_context) — will be replaced
+    // with IndexedTableProvider after plan decoding.
+    ctx.deregister_table(&table_name)?;
+
+    let state = ctx.state();
+    let store = state.runtime_env().object_store(&table_path)?;
+
+    let (segments, schema) = build_segments(&state, Arc::clone(&store), object_metas.as_ref())
+        .await
+        .map_err(DataFusionError::Execution)?;
+    for (i, seg) in segments.iter().enumerate() {
+    }
+
+    let placeholder: Arc<dyn TableProvider> = Arc::new(PlaceholderProvider {
+        schema: schema.clone(),
+    });
+    ctx.register_table(&table_name, placeholder)?;
+
+    let plan = Plan::decode(substrait_bytes.as_slice())
+        .map_err(|e| DataFusionError::Execution(format!("decode substrait: {}", e)))?;
+    let logical_plan = from_substrait_plan(&ctx.state(), &plan).await?;
+
+    let filter_expr = extract_filter_expr(&logical_plan);
+    let extraction = match filter_expr {
+        None => None,
+        Some(ref expr) => Some(
+            expr_to_bool_tree(expr, &schema)
+                .map_err(|e| DataFusionError::Execution(format!("expr_to_bool_tree: {}", e)))?,
+        ),
+    };
+
+    // Resolve classification: from Java config if available, otherwise derive from tree
+    let classification = match classification_override {
+        Some(c) => c,
+        None => match &extraction {
+            None => FilterClass::None,
+            Some(e) => classify_filter(&e.tree),
+        },
+    };
+
+    // Derive the parquet pushdown predicate from the BoolNode tree.
+    // `scan()` ignores DataFusion's filters argument (which contains
+    // the `delegated_predicate` UDF marker whose body panics) and uses this
+    // field instead.
+    //
+    // SingleCollector: residual (non-Collector top-AND children) →
+    //   PhysicalExpr for `ParquetSource::with_predicate`. In
+    //   row-granular mode parquet narrows Collector-matching rows via
+    //   RowSelection and drops residual-failing rows via pushdown.
+    //   In block-granular mode the evaluator's `on_batch_mask` applies
+    //   both mask and residual post-decode, and pushdown is suppressed
+    //   by the stream's `will_build_mask` guard (to avoid misalignment).
+    // Tree: None — BitmapTreeEvaluator walks the whole BoolNode in
+    //   `on_batch_mask` using arrow kernels; no pushdown needed.
+    let pushdown_predicate: Option<Arc<dyn PhysicalExpr>> = match &classification {
+        FilterClass::SingleCollector => extraction.as_ref().and_then(|e| {
+            let residual_bool = extract_single_collector_residual(&e.tree);
+            residual_bool
+                .as_ref()
+                .and_then(residual_bool_to_physical_expr)
+        }),
+        FilterClass::Tree | FilterClass::None => None,
+    };
+
+    let predicate_columns = collect_predicate_column_indices(extraction.as_ref());
+
+    let factory: EvaluatorFactory = match classification {
+        FilterClass::None => {
+            return Err(DataFusionError::Execution(
+                "execute_indexed_query called with no index_filter(...) in plan".into(),
+            ));
+        }
+        FilterClass::SingleCollector => {
+            let extraction = extraction.as_ref().ok_or_else(|| {
+                DataFusionError::Internal(
+                    "classify_filter returned SingleCollector but extraction is None".into(),
+                )
+            })?;
+            let annotation_id = single_collector_id(&extraction.tree).ok_or_else(|| {
+                DataFusionError::Internal(
+                    "SingleCollector classified but leaf extraction failed".into(),
+                )
+            })?;
+            let provider =
+                Arc::new(create_provider(annotation_id).map_err(|e| DataFusionError::External(e.into()))?);
+            let schema_for_pruner = schema.clone();
+
+            // Extract the residual (non-Collector children of top-level
+            // AND) as a BoolNode and convert to PhysicalExpr. Used for:
+            //   - Page-stats pruning in candidate stage (via PruningPredicate).
+            //   - Parquet `with_predicate` pushdown in row-granular mode.
+            //   - `on_batch_mask` refinement in block-granular mode.
+            //
+            // SingleCollector is always AND(Collector, residual...) so
+            // the residual has zero Collectors — no Literal(true)
+            // substitution needed (unlike bool_tree_to_pruning_expr
+            // which handles arbitrary trees).
+            let residual_bool = extract_single_collector_residual(&extraction.tree);
+            let residual_expr = residual_bool
+                .as_ref()
+                .and_then(residual_bool_to_physical_expr);
+            let residual_pruning_predicate: Option<Arc<PruningPredicate>> = residual_expr
+                .as_ref()
+                .and_then(|expr| build_pruning_predicate(expr, Arc::clone(&schema_for_pruner)));
+
+            let call_strategy = query_config.single_collector_strategy;
+            Arc::new(
+                move |segment: &SegmentFileInfo, chunk, stream_metrics: &StreamMetrics| {
+                    let collector = FfmSegmentCollector::create(
+                        provider.key(),
+                        segment.segment_ord,
+                        chunk.doc_min,
+                        chunk.doc_max,
+                    )
+                        .map_err(|e| {
+                            format!(
+                                "FfmSegmentCollector::create(provider={}, seg={}, doc_range=[{},{})): {}",
+                                provider.key(),
+                                segment.segment_ord,
+                                chunk.doc_min,
+                                chunk.doc_max,
+                                e
+                            )
+                        })?;
+                    let pruner = Arc::new(PagePruner::new(
+                        &schema_for_pruner,
+                        Arc::clone(&segment.metadata),
+                    ));
+                    let eval: Arc<dyn RowGroupBitsetSource> =
+                        Arc::new(SingleCollectorEvaluator::new(
+                            Arc::new(collector) as Arc<dyn RowGroupDocsCollector>,
+                            pruner,
+                            residual_pruning_predicate.clone(),
+                            residual_expr.clone(),
+                            Some(PagePruneMetrics::from_stream_metrics(stream_metrics)),
+                            stream_metrics.ffm_collector_calls.clone(),
+                            call_strategy,
+                        ));
+                    Ok(eval)
+                },
+            )
+        }
+        FilterClass::Tree => {
+            let extraction = extraction.ok_or_else(|| {
+                DataFusionError::Internal(
+                    "classify_filter returned Tree but extraction is None".into(),
+                )
+            })?;
+            // Normalize: push NOTs to leaves (De Morgan) then flatten nested
+            // same-kind connectives. Flatten after push_not_down so the
+            // connective changes from De Morgan (e.g. NOT(AND(...)) -> OR(NOT...))
+            // get absorbed into the surrounding Or if applicable.
+            let tree = extraction.tree.push_not_down().flatten();
+            // One provider per Collector leaf (DFS order).
+            let leaf_ids = tree.collector_leaves();
+            let mut providers: Vec<Arc<ProviderHandle>> = Vec::with_capacity(leaf_ids.len());
+            for annotation_id in &leaf_ids {
+                providers.push(Arc::new(
+                    create_provider(*annotation_id).map_err(|e| DataFusionError::External(e.into()))?,
+                ));
+            }
+            let tree = Arc::new(tree);
+            let schema_for_pruner = schema.clone();
+            let cost_predicate = query_config.cost_predicate;
+            let cost_collector = query_config.cost_collector;
+            let max_collector_parallelism = query_config.max_collector_parallelism;
+            let collector_strategy = query_config.tree_collector_strategy;
+
+            // Build one `PruningPredicate` per unique `Predicate` leaf
+            // in the tree. Key = `Arc::as_ptr(expr) as usize` — the
+            // same `Arc<PhysicalExpr>` reaches the tree walker at
+            // candidate stage. Predicates that fail to translate or
+            // resolve to always-true are omitted; the walker's
+            // fallback treats missing entries as "no pruning for this
+            // leaf" (safe: universe bitmap).
+            let mut leaf_exprs: Vec<Arc<dyn PhysicalExpr>> = Vec::new();
+            collect_predicate_exprs(&tree, &mut leaf_exprs);
+            let pruning_predicates: Arc<HashMap<usize, Arc<PruningPredicate>>> = Arc::new(
+                leaf_exprs
+                    .iter()
+                    .filter_map(|expr| {
+                        let result = build_pruning_predicate(expr, Arc::clone(&schema_for_pruner));
+                        result.map(|pp| (Arc::as_ptr(expr) as *const () as usize, pp))
+                    })
+                    .collect(),
+            );
+
+            Arc::new(
+                move |segment: &SegmentFileInfo, chunk, stream_metrics: &StreamMetrics| {
+                    // Build one collector per Collector leaf for this chunk.
+                    let mut per_leaf: Vec<(i32, Arc<dyn RowGroupDocsCollector>)> =
+                        Vec::with_capacity(providers.len());
+                    for (idx, provider) in providers.iter().enumerate() {
+                        let collector = FfmSegmentCollector::create(
+                            provider.key(),
+                            segment.segment_ord,
+                            chunk.doc_min,
+                            chunk.doc_max,
+                        )
+                            .map_err(|e| format!("leaf {} collector: {}", idx, e))?;
+                        per_leaf.push((
+                            provider.key(),
+                            Arc::new(collector) as Arc<dyn RowGroupDocsCollector>,
+                        ));
+                    }
+
+                    let resolved = tree.resolve(&per_leaf).map_err(|e| {
+                        format!("tree.resolve for segment {}: {}", segment.segment_ord, e)
+                    })?;
+                    let resolved = Arc::new(resolved);
+
+                    let pruner = Arc::new(PagePruner::new(
+                        &schema_for_pruner,
+                        Arc::clone(&segment.metadata),
+                    ));
+
+                    let eval: Arc<dyn RowGroupBitsetSource> = Arc::new(TreeBitsetSource {
+                        tree: resolved,
+                        evaluator: Arc::new(BitmapTreeEvaluator),
+                        leaves: Arc::new(CollectorLeafBitmaps {
+                            ffm_collector_calls: stream_metrics.ffm_collector_calls.clone(),
+                        }),
+                        page_pruner: pruner,
+                        cost_predicate,
+                        cost_collector,
+                        max_collector_parallelism,
+                        pruning_predicates: Arc::clone(&pruning_predicates),
+                        page_prune_metrics: Some(PagePruneMetrics::from_stream_metrics(
+                            stream_metrics,
+                        )),
+                        collector_strategy,
+                    });
+                    Ok(eval)
+                },
+            )
+        }
+    };
+
+    ctx.deregister_table(&table_name)?;
+    // Extract the scheme+authority portion of the table URL for
+    // DataFusion's FileScanConfig. The full URL includes the path
+    // (e.g. "file:///Users/.../parquet/"); ObjectStoreUrl wants only
+    // the scheme+authority ("file:///").
+    let url_str = table_path.as_str();
+    let parsed = url::Url::parse(url_str)
+        .map_err(|e| DataFusionError::Execution(format!("parse table_path URL: {}", e)))?;
+    let store_url = ObjectStoreUrl::parse(format!("{}://{}", parsed.scheme(), parsed.authority()))?;
+    let provider = Arc::new(IndexedTableProvider::new(IndexedTableConfig {
+        schema: schema.clone(),
+        segments,
+        store: Arc::clone(&store),
+        store_url,
+        evaluator_factory: factory,
+        pushdown_predicate,
+        query_config: Arc::clone(&query_config),
+        predicate_columns,
+    }));
+    ctx.register_table(&table_name, provider)?;
+
+    let logical_plan = from_substrait_plan(&ctx.state(), &plan).await?;
+    log_debug!("DataFusion logical plan:\n{}", logical_plan.display_indent());
+    let dataframe = ctx.execute_logical_plan(logical_plan).await?;
+    let physical_plan = dataframe.create_physical_plan().await?;
+    log_debug!("DataFusion physical plan:\n{}", displayable(physical_plan.as_ref()).indent(true));
+    let df_stream = execute_stream(physical_plan, ctx.task_ctx())
+        .map_err(|e| DataFusionError::Execution(format!("execute_stream: {}", e)))?;
+
+    let cross_rt_stream = CrossRtStream::new_with_df_error_stream(df_stream, cpu_executor);
+    let schema = cross_rt_stream.schema();
+    let wrapped = RecordBatchStreamAdapter::new(schema, cross_rt_stream);
+    let stream_handle = crate::api::QueryStreamHandle::with_session_context(wrapped, query_context, ctx);
+    Ok(Box::into_raw(Box::new(stream_handle)) as i64)
+}

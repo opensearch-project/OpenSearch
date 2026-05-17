@@ -1218,6 +1218,7 @@ public class MetadataCreateIndexService {
 
         updateReplicationStrategy(indexSettingsBuilder, request.settings(), settings, combinedTemplateSettings, clusterSettings);
         updateRemoteStoreSettings(indexSettingsBuilder, currentState, clusterSettings, settings, request.index());
+        updatePluggableDataFormatSettings(indexSettingsBuilder, clusterSettings, request.index());
 
         if (sourceMetadata != null) {
             assert request.resizeType() != null;
@@ -1234,6 +1235,9 @@ public class MetadataCreateIndexService {
 
         List<String> validationErrors = new ArrayList<>();
         validateIndexReplicationTypeSettings(indexSettingsBuilder.build(), clusterSettings).ifPresent(validationErrors::add);
+        validatePluggableDataFormatSettings(indexSettingsBuilder.build(), clusterSettings, request.index()).ifPresent(
+            validationErrors::add
+        );
         validateErrors(request.index(), validationErrors);
 
         Settings indexSettings = indexSettingsBuilder.build();
@@ -1277,6 +1281,29 @@ public class MetadataCreateIndexService {
      * Also validates that mapper_settings keys are recognized for the configured mapper_type.
      */
     static void validateIngestionSourceSettings(Settings settings, ClusterState state) {
+        // Partition strategy validation. The setting key itself was introduced in V_3_7_0; reject any explicit
+        // value (including [simple], the default) on mixed clusters where some nodes don't recognize the key.
+        // And in that case the index metadata replicated to older nodes would carry unknown settings.
+        // Also, older nodes would silently fall back to the default mapping while the user configured
+        // a different strategy (e.g., modulo), which might cause correctness issues.
+        if (IndexMetadata.INGESTION_SOURCE_PARTITION_STRATEGY_SETTING.exists(settings)) {
+            Version minNodeVersion = state.nodes().getMinNodeVersion();
+            if (minNodeVersion.before(Version.V_3_7_0)) {
+                throw new IllegalArgumentException(
+                    "index.ingestion_source.source_partition_strategy requires all nodes in the cluster to be on version ["
+                        + Version.V_3_7_0
+                        + "] or later, but the minimum node version is ["
+                        + minNodeVersion
+                        + "]"
+                );
+            }
+            // TODO: For source_partition_strategy=simple, surface a warning when numSourcePartitions > numShards
+            // (excess source partitions are silently never consumed) and an error when
+            // numSourcePartitions < numShards (shards beyond numSourcePartitions-1 fail to initialize).
+            // Requires consumerFactory.getSourcePartitionCount() which is added in a follow-up PR
+            // (multi-partition consumer factory). The check will be wired here once available.
+        }
+
         if (IndexMetadata.INGESTION_SOURCE_MAPPER_TYPE_SETTING.exists(settings) == false) {
             return;
         }
@@ -1393,6 +1420,41 @@ public class MetadataCreateIndexService {
                     throw new IndexCreationException(indexName, validationException);
                 }
             }
+        }
+    }
+
+    /**
+     * Stamps the cluster-scope defaults for the pluggable data-format index settings into the
+     * index metadata at creation time when no explicit override is supplied. No-op when the
+     * pluggable data-format feature flag is disabled or the index matches the allowlist.
+     */
+    public static void updatePluggableDataFormatSettings(
+        Settings.Builder settingsBuilder,
+        ClusterSettings clusterSettings,
+        String indexName
+    ) {
+        if (FeatureFlags.isEnabled(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG) == false) {
+            return;
+        }
+
+        if (isAllowedForPluggableDataFormat(indexName, clusterSettings)) {
+            return;
+        }
+
+        final Settings current = settingsBuilder.build();
+
+        if (IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.exists(current) == false) {
+            settingsBuilder.put(
+                IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey(),
+                clusterSettings.get(IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_ENABLED_SETTING)
+            );
+        }
+
+        if (IndexSettings.PLUGGABLE_DATAFORMAT_VALUE_SETTING.exists(current) == false) {
+            settingsBuilder.put(
+                IndexSettings.PLUGGABLE_DATAFORMAT_VALUE_SETTING.getKey(),
+                clusterSettings.get(IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_VALUE_SETTING)
+            );
         }
     }
 
@@ -1671,6 +1733,7 @@ public class MetadataCreateIndexService {
         throws IndexCreationException {
         List<String> validationErrors = getIndexSettingsValidationErrors(settings, forbidPrivateIndexSettings, indexName);
         validateIndexReplicationTypeSettings(settings, clusterService.getClusterSettings()).ifPresent(validationErrors::add);
+        validatePluggableDataFormatSettings(settings, clusterService.getClusterSettings(), indexName).ifPresent(validationErrors::add);
         validateErrors(indexName, validationErrors);
     }
 
@@ -1774,6 +1837,71 @@ public class MetadataCreateIndexService {
             );
         }
         return Optional.empty();
+    }
+
+    /**
+     * Validates that {@code index.pluggable.dataformat.enabled} and {@code index.pluggable.dataformat} match the
+     * cluster-level defaults {@code cluster.pluggable.dataformat.enabled} and
+     * {@code cluster.pluggable.dataformat} when
+     * {@code cluster.restrict.pluggable.dataformat} is set to true.
+     *
+     * @param requestSettings settings resulting from merging request, templates, and cluster-level defaults
+     * @param clusterSettings cluster setting
+     * @param indexName name of the index being created
+     */
+    private static Optional<String> validatePluggableDataFormatSettings(
+        Settings requestSettings,
+        ClusterSettings clusterSettings,
+        String indexName
+    ) {
+        if (FeatureFlags.isEnabled(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG) == false) {
+            return Optional.empty();
+        }
+        if (clusterSettings.get(IndicesService.CLUSTER_RESTRICT_PLUGGABLE_DATAFORMAT_SETTING) == false) {
+            return Optional.empty();
+        }
+        if (isAllowedForPluggableDataFormat(indexName, clusterSettings)) {
+            return Optional.empty();
+        }
+
+        if (requestSettings.hasValue(IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey())
+            && IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.get(requestSettings)
+                .equals(clusterSettings.get(IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_ENABLED_SETTING)) == false) {
+            return Optional.of(
+                "index setting ["
+                    + IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey()
+                    + "] cannot differ from cluster default ["
+                    + clusterSettings.get(IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_ENABLED_SETTING)
+                    + "] when ["
+                    + IndicesService.CLUSTER_RESTRICT_PLUGGABLE_DATAFORMAT_SETTING.getKey()
+                    + "=true]"
+            );
+        }
+
+        if (requestSettings.hasValue(IndexSettings.PLUGGABLE_DATAFORMAT_VALUE_SETTING.getKey())
+            && IndexSettings.PLUGGABLE_DATAFORMAT_VALUE_SETTING.get(requestSettings)
+                .equals(clusterSettings.get(IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_VALUE_SETTING)) == false) {
+            return Optional.of(
+                "index setting ["
+                    + IndexSettings.PLUGGABLE_DATAFORMAT_VALUE_SETTING.getKey()
+                    + "] cannot differ from cluster default ["
+                    + clusterSettings.get(IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_VALUE_SETTING)
+                    + "] when ["
+                    + IndicesService.CLUSTER_RESTRICT_PLUGGABLE_DATAFORMAT_SETTING.getKey()
+                    + "=true]"
+            );
+        }
+        return Optional.empty();
+    }
+
+    /**
+     * Returns {@code true} if the given index name matches any prefix in the
+     * {@code cluster.pluggable.dataformat.restrict.allowlist} setting, meaning it should bypass
+     * pluggable data-format default-stamping and restrict validation.
+     */
+    private static boolean isAllowedForPluggableDataFormat(String indexName, ClusterSettings clusterSettings) {
+        List<String> allowlist = clusterSettings.get(IndicesService.CLUSTER_PLUGGABLE_DATAFORMAT_RESTRICT_ALLOWLIST);
+        return allowlist.stream().anyMatch(indexName::startsWith);
     }
 
     /**

@@ -29,7 +29,6 @@ use std::sync::{Arc, OnceLock};
 use std::thread;
 use std::time::Duration;
 
-use arrow::ipc::writer::StreamWriter;
 use arrow_array::ffi::{FFI_ArrowArray, FFI_ArrowSchema};
 use arrow_array::{Array, Int64Array, RecordBatch, StructArray};
 use arrow_schema::{DataType, Field, Schema, SchemaRef};
@@ -42,8 +41,7 @@ use tempfile::TempDir;
 use opensearch_datafusion::ffm::{
     df_close_global_runtime, df_close_local_session, df_create_global_runtime,
     df_create_local_session, df_execute_local_plan, df_init_runtime_manager,
-    df_register_partition_stream, df_sender_close, df_sender_send, df_stream_close,
-    df_stream_next,
+    df_register_partition_stream, df_sender_close, df_sender_send, df_stream_close, df_stream_next,
 };
 
 // ---------------------------------------------------------------------------
@@ -80,6 +78,7 @@ impl RuntimeGuard {
         let rc = unsafe {
             df_create_global_runtime(
                 128 * 1024 * 1024,
+                0, // no cache manager
                 spill_bytes.as_ptr(),
                 spill_bytes.len() as i64,
                 64 * 1024 * 1024,
@@ -104,7 +103,11 @@ impl Drop for RuntimeGuard {
 // ---------------------------------------------------------------------------
 
 fn i64_schema(column: &str) -> SchemaRef {
-    Arc::new(Schema::new(vec![Field::new(column, DataType::Int64, false)]))
+    Arc::new(Schema::new(vec![Field::new(
+        column,
+        DataType::Int64,
+        false,
+    )]))
 }
 
 fn i64_batch(schema: &SchemaRef, values: &[i64]) -> RecordBatch {
@@ -115,16 +118,34 @@ fn i64_batch(schema: &SchemaRef, values: &[i64]) -> RecordBatch {
     .expect("batch builds")
 }
 
-/// Serialize a `Schema` to Arrow IPC stream bytes — the shape
-/// `df_register_partition_stream` expects.
-fn schema_to_ipc_bytes(schema: &Schema) -> Vec<u8> {
-    let mut buf: Vec<u8> = Vec::new();
-    {
-        let mut writer =
-            StreamWriter::try_new(&mut buf, schema).expect("stream writer builds");
-        writer.finish().expect("stream writer finishes");
-    }
+/// Build a substrait `SELECT * FROM <table>` plan whose lowered output schema
+/// matches `schema`. `df_register_partition_stream` derives the registered
+/// table's schema by lowering this plan, so the inferred schema is identical
+/// to the producer-side schema.
+async fn build_seed_substrait(table: &str, schema: SchemaRef) -> Vec<u8> {
+    let ctx = SessionContext::new();
+    let empty = MemTable::try_new(Arc::clone(&schema), vec![vec![]]).expect("mem table");
+    ctx.register_table(table, Arc::new(empty))
+        .expect("register seed table");
+    let plan = ctx
+        .sql(&format!("SELECT * FROM \"{}\"", table))
+        .await
+        .expect("sql parses")
+        .logical_plan()
+        .clone();
+    let substrait = to_substrait_plan(&plan, &ctx.state()).expect("to_substrait");
+    let mut buf = Vec::new();
+    substrait.encode(&mut buf).expect("encode");
     buf
+}
+
+/// Decode an IPC schema-only stream back to an arrow Schema.
+fn ipc_bytes_to_schema(bytes: &[u8]) -> Schema {
+    use arrow::ipc::reader::StreamReader;
+    use std::io::Cursor;
+    let cursor = Cursor::new(bytes);
+    let reader = StreamReader::try_new(cursor, None).expect("stream reader builds");
+    (*reader.schema()).clone()
 }
 
 /// Export a `RecordBatch` as (FFI_ArrowArray*, FFI_ArrowSchema*) and transfer
@@ -135,8 +156,7 @@ fn schema_to_ipc_bytes(schema: &Schema) -> Vec<u8> {
 /// `df_sender_send` the Rust side consumes both pointers via `from_raw`.
 fn export_batch_ptrs(batch: RecordBatch) -> (i64, i64) {
     let schema = batch.schema();
-    let ffi_schema =
-        FFI_ArrowSchema::try_from(schema.as_ref()).expect("schema export");
+    let ffi_schema = FFI_ArrowSchema::try_from(schema.as_ref()).expect("schema export");
 
     let struct_array: StructArray = batch.into();
     let array_data = struct_array.into_data();
@@ -182,18 +202,34 @@ async fn build_sum_substrait(schema: SchemaRef) -> Vec<u8> {
 }
 
 fn register_input(session_ptr: i64, input_id: &str, schema: &Schema) -> i64 {
-    let ipc = schema_to_ipc_bytes(schema);
+    let rt = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("build tokio rt");
+    let plan_bytes = rt.block_on(build_seed_substrait(input_id, Arc::new(schema.clone())));
     let id_bytes = input_id.as_bytes();
+    let mut out_buf = vec![0u8; 64 * 1024];
+    let mut out_len: i64 = 0;
     let rc = unsafe {
         df_register_partition_stream(
             session_ptr,
             id_bytes.as_ptr(),
             id_bytes.len() as i64,
-            ipc.as_ptr(),
-            ipc.len() as i64,
+            plan_bytes.as_ptr(),
+            plan_bytes.len() as i64,
+            out_buf.as_mut_ptr(),
+            out_buf.len() as i64,
+            &mut out_len as *mut i64,
         )
     };
     assert!(rc > 0, "df_register_partition_stream rc={}", rc);
+    let derived = ipc_bytes_to_schema(&out_buf[..out_len as usize]);
+    // Sanity: derived schema matches the caller-provided one (column types).
+    assert_eq!(
+        derived.fields().len(),
+        schema.fields().len(),
+        "derived schema field count mismatch"
+    );
     rc
 }
 
@@ -259,11 +295,7 @@ fn test_execute_sum_substrait() {
     // without waiting on a consumer.
     let producer_schema = Arc::clone(&schema);
     let producer = thread::spawn(move || {
-        for chunk in [
-            vec![1i64, 2, 3],
-            vec![4i64, 5, 6],
-            vec![7i64, 8, 9],
-        ] {
+        for chunk in [vec![1i64, 2, 3], vec![4i64, 5, 6], vec![7i64, 8, 9]] {
             let batch = i64_batch(&producer_schema, &chunk);
             let (arr_ptr, sch_ptr) = export_batch_ptrs(batch);
             let rc = unsafe { df_sender_send(sender_ptr, arr_ptr, sch_ptr) };
@@ -305,11 +337,10 @@ fn test_execute_sum_substrait() {
             DataType::Int64,
             true,
         )]));
-        let ffi_schema = FFI_ArrowSchema::try_from(result_schema.as_ref())
-            .expect("result schema export");
-        let array_data = unsafe {
-            arrow_array::ffi::from_ffi(*ffi_array, &ffi_schema).expect("import")
-        };
+        let ffi_schema =
+            FFI_ArrowSchema::try_from(result_schema.as_ref()).expect("result schema export");
+        let array_data =
+            unsafe { arrow_array::ffi::from_ffi(*ffi_array, &ffi_schema).expect("import") };
         let struct_array = StructArray::from(array_data);
         let batch = RecordBatch::from(struct_array);
         let col = batch
@@ -384,11 +415,7 @@ fn test_close_session_drops_registered_senders() {
     let batch_fail = i64_batch(&schema, &[20]);
     let (a1, s1) = export_batch_ptrs(batch_fail);
     let rc_err = unsafe { df_sender_send(sender_ptr, a1, s1) };
-    assert!(
-        rc_err < 0,
-        "post-close send should fail, got rc={}",
-        rc_err
-    );
+    assert!(rc_err < 0, "post-close send should fail, got rc={}", rc_err);
     let msg = decode_error(rc_err);
     assert!(
         msg.contains("receiver"),

@@ -1,4 +1,5 @@
 [package]
+# DataFusion analytics backend native library
 name = "opensearch-datafusion"
 version = "0.1.0"
 edition = "2021"
@@ -29,6 +30,7 @@ prost = { workspace = true }
 substrait = { workspace = true }
 
 tokio = { workspace = true }
+tokio-util = { workspace = true }
 futures = { workspace = true }
 tokio-stream = { workspace = true }
 parking_lot = { workspace = true }
@@ -36,12 +38,53 @@ once_cell = { workspace = true }
 dashmap = { workspace = true }
 log = { workspace = true }
 num_cpus = { workspace = true }
-mimalloc = { workspace = true }
 native-bridge-common = { workspace = true }
+async-trait = { workspace = true }
+chrono = { workspace = true }
+roaring = "=0.10.12"
+thiserror = { workspace = true }
+
+# convert_tz UDF
+chrono-tz = "=0.10.4"
+
+tokio-metrics = { workspace = true }
+
+# serde_json `preserve_order` — backs `Map<String,Value>` with `IndexMap`
+# instead of `BTreeMap` so json_keys / mutation UDFs see object keys in
+# insertion order (parity with legacy SQL-plugin's LinkedHashMap; required by
+# `testJsonKeysParityWithLegacy` + byte-for-byte json_extract fixtures).
+# Cargo's feature unification propagates this to every workspace member that
+# pulls in serde_json. Audit (2026-05-07): the five other consumers
+# (parquet-data-format, native-repository-{s3,gcs,azure,fs}) only call
+# `serde_json::from_str` into typed config structs, whose field layout is
+# fixed at the type level — `preserve_order` is inert for them, so the
+# feature is additive with no observable blast radius outside this crate.
+serde_json = { workspace = true, features = ["preserve_order"] }
+# jsonpath-rust 0.7 — JSONPath evaluator for json_extract. Published at
+# https://github.com/besok/jsonpath-rust (crates.io). We pin `0.7` (latest
+# `0.7.5`) rather than tracking the newer `1.0` release line because 0.7's
+# `JsonPathValue` enum exposes the Found/NoValue distinction json_extract
+# relies on to render missing-path matches as literal `null` elements in the
+# multi-path JSON-array output. Moving to 1.x is a follow-up once we can
+# reproduce that distinction against the new API surface.
+jsonpath-rust = "=0.7.5"
+# mvfind / rex_extract / rex_extract_multi / rex_offset UDFs — Java-Pattern-compatible
+# regex matching. Same crate DataFusion's own regexp_replace / regexp_match are
+# built on, so semantics match the existing analytics-engine route's
+# `regex_match` operator (Operator::RegexMatch).
+regex = "=1.12.3"
+
+# Cryptographic hash UDFs. `sha1` is a dedicated crate (RFC 3174); DataFusion
+# only exposes SHA-2 variants via its `digest` UDF. `crc32fast` is a SIMD-accelerated
+# IEEE 802.3 CRC-32 implementation used by `crc32`; also pulled in via workspace
+# for parquet metadata (`crc32fast = "1.4"`) so adding it here is a zero-cost alias.
+sha1 = "0.11"
+crc32fast = { workspace = true }
 
 [dev-dependencies]
 criterion = { workspace = true }
 tempfile = { workspace = true }
+rand = "=0.8.6"
 
 [[bench]]
 name = "query_bench"

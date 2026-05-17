@@ -11,13 +11,19 @@ package org.opensearch.analytics.planner.dag;
 import org.apache.calcite.plan.RelOptCluster;
 import org.apache.calcite.plan.RelOptUtil;
 import org.apache.calcite.rel.RelNode;
+import org.apache.calcite.rel.type.RelDataType;
+import org.apache.calcite.rel.type.RelDataTypeField;
+import org.apache.calcite.rex.RexBuilder;
 import org.apache.calcite.rex.RexCall;
+import org.apache.calcite.rex.RexInputRef;
 import org.apache.calcite.rex.RexNode;
-import org.apache.calcite.sql.SqlFunction;
+import org.apache.calcite.rex.RexShuttle;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.analytics.planner.CapabilityRegistry;
 import org.opensearch.analytics.planner.RelNodeUtils;
+import org.opensearch.analytics.planner.rel.AggregateMode;
+import org.opensearch.analytics.planner.rel.OpenSearchAggregate;
 import org.opensearch.analytics.planner.rel.OpenSearchFilter;
 import org.opensearch.analytics.planner.rel.OpenSearchProject;
 import org.opensearch.analytics.planner.rel.OpenSearchRelNode;
@@ -63,13 +69,13 @@ public class BackendPlanAdapter {
             Map<ScalarFunction, ScalarFunctionAdapter> adapters = registry.getBackend(plan.backendId())
                 .getCapabilityProvider()
                 .scalarFunctionAdapters();
-            if (adapters.isEmpty()) {
-                adapted.add(plan);
+            LOGGER.debug("Before adaptation [{}]:\n{}", plan.backendId(), RelOptUtil.toString(plan.resolvedFragment()));
+            RelNode fragment = adaptNode(plan.resolvedFragment(), adapters);
+            LOGGER.debug("After adaptation [{}]:\n{}", plan.backendId(), RelOptUtil.toString(fragment));
+            if (fragment != plan.resolvedFragment()) {
+                adapted.add(new StagePlan(fragment, plan.backendId()));
             } else {
-                LOGGER.debug("Before adaptation [{}]:\n{}", plan.backendId(), RelOptUtil.toString(plan.resolvedFragment()));
-                RelNode adaptedFragment = adaptNode(plan.resolvedFragment(), adapters);
-                LOGGER.debug("After adaptation [{}]:\n{}", plan.backendId(), RelOptUtil.toString(adaptedFragment));
-                adapted.add(new StagePlan(adaptedFragment, plan.backendId()));
+                adapted.add(plan);
             }
         }
         stage.setPlanAlternatives(adapted);
@@ -89,6 +95,12 @@ public class BackendPlanAdapter {
         }
         if (node instanceof OpenSearchProject project) {
             return adaptProject(project, adapters, adaptedChildren, childrenChanged);
+        }
+        if (node instanceof OpenSearchAggregate agg && agg.getMode() == AggregateMode.FINAL) {
+            OpenSearchAggregate withAdaptedChildren = childrenChanged
+                ? (OpenSearchAggregate) agg.copy(agg.getTraitSet(), adaptedChildren)
+                : agg;
+            return DistributedAggregateRewriter.rewrite(withAdaptedChildren);
         }
 
         return childrenChanged ? node.copy(node.getTraitSet(), adaptedChildren) : node;
@@ -130,11 +142,22 @@ public class BackendPlanAdapter {
             adaptedProjects.add(adapted);
             if (adapted != projectExpr) projectsChanged = true;
         }
+
+        // If the child's row type shifted (e.g. FINAL aggregate's rewriter produced SUM of NOT-NULL
+        // column → nullable BIGINT), the project's RexInputRefs still carry the old types. Rebind
+        // them against the new input row type and CAST each projection back to the project's
+        // declared column type so the outer-visible schema is preserved.
+        RelNode newInput = childrenChanged ? adaptedChildren.getFirst() : project.getInput();
+        if (childrenChanged && !newInput.getRowType().equals(project.getInput().getRowType())) {
+            adaptedProjects = rebindProjectsAgainstInput(adaptedProjects, project, newInput);
+            projectsChanged = true;
+        }
+
         if (projectsChanged || childrenChanged) {
             return new OpenSearchProject(
                 project.getCluster(),
                 project.getTraitSet(),
-                childrenChanged ? adaptedChildren.getFirst() : project.getInput(),
+                newInput,
                 adaptedProjects,
                 project.getRowType(),
                 project.getViableBackends()
@@ -196,13 +219,43 @@ public class BackendPlanAdapter {
     }
 
     private static ScalarFunction resolveFunction(RexCall call) {
-        if (call.getOperator() instanceof SqlFunction sqlFunction) {
-            try {
-                return ScalarFunction.fromSqlFunction(sqlFunction);
-            } catch (IllegalArgumentException ignored) {
-                // Not in our enum — fall through to SqlKind resolution
-            }
+        return ScalarFunction.fromSqlOperatorWithFallback(call.getOperator());
+    }
+
+    /**
+     * Rebind a Project's expressions against a new input whose row type has shifted (typically
+     * in nullability — e.g. FINAL aggregate's rewriter turned a NOT-NULL count into a nullable
+     * BIGINT). RexInputRefs get retyped to the new column types; projections that diverge from
+     * the Project's declared column type get wrapped in a CAST so the outer-visible schema is
+     * preserved.
+     */
+    private static ArrayList<RexNode> rebindProjectsAgainstInput(
+        List<RexNode> projects,
+        OpenSearchProject originalProject,
+        RelNode newInput
+    ) {
+        RexBuilder rexBuilder = originalProject.getCluster().getRexBuilder();
+        List<RelDataType> newInputTypes = new ArrayList<>();
+        for (RelDataTypeField f : newInput.getRowType().getFieldList()) {
+            newInputTypes.add(f.getType());
         }
-        return ScalarFunction.fromSqlKind(call.getKind());
+        RexShuttle rebind = new RexShuttle() {
+            @Override
+            public RexNode visitInputRef(RexInputRef ref) {
+                RelDataType actual = newInputTypes.get(ref.getIndex());
+                if (ref.getType().equals(actual)) return ref;
+                return new RexInputRef(ref.getIndex(), actual);
+            }
+        };
+        ArrayList<RexNode> rebound = new ArrayList<>(projects.size());
+        for (int i = 0; i < projects.size(); i++) {
+            RexNode expr = projects.get(i).accept(rebind);
+            RelDataType targetType = originalProject.getRowType().getFieldList().get(i).getType();
+            if (!expr.getType().equals(targetType)) {
+                expr = rexBuilder.makeCast(targetType, expr);
+            }
+            rebound.add(expr);
+        }
+        return rebound;
     }
 }

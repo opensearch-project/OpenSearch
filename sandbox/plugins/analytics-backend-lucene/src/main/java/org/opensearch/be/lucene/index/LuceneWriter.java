@@ -17,11 +17,15 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.search.Sort;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.MMapDirectory;
 import org.opensearch.be.lucene.LuceneDataFormat;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.util.io.IOUtils;
+import org.opensearch.index.engine.dataformat.DeleteInput;
+import org.opensearch.index.engine.dataformat.DeleteResult;
 import org.opensearch.index.engine.dataformat.FileInfos;
 import org.opensearch.index.engine.dataformat.WriteResult;
 import org.opensearch.index.engine.dataformat.Writer;
@@ -31,7 +35,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
-import java.util.concurrent.locks.ReentrantLock;
+import java.util.Optional;
 
 /**
  * Per-generation Lucene writer that creates segments in an isolated temporary directory.
@@ -72,23 +76,33 @@ public class LuceneWriter implements Writer<LuceneDocumentInput> {
     private final Path tempDirectory;
     private final Directory directory;
     private final IndexWriter indexWriter;
-    private final ReentrantLock lock;
+    private long mappingVersion;
     private volatile long docCount;
 
     /**
      * Creates a new LuceneWriter for the given generation.
      *
      * @param writerGeneration the writer generation number
+     * @param mappingVersion   the initial mapping version
      * @param dataFormat       the Lucene data format descriptor
      * @param baseDirectory    the base directory under which to create the temp directory
      * @param analyzer         the analyzer to use for tokenized fields, or null for default
+     * @param codec            the codec to use, or null for default
+     * @param indexSort        the index sort to apply to segments, or null for no sort
      * @throws IOException if directory creation or IndexWriter opening fails
      */
-    public LuceneWriter(long writerGeneration, LuceneDataFormat dataFormat, Path baseDirectory, Analyzer analyzer, Codec codec)
-        throws IOException {
+    public LuceneWriter(
+        long writerGeneration,
+        long mappingVersion,
+        LuceneDataFormat dataFormat,
+        Path baseDirectory,
+        Analyzer analyzer,
+        Codec codec,
+        Sort indexSort
+    ) throws IOException {
         this.writerGeneration = writerGeneration;
+        this.mappingVersion = mappingVersion;
         this.dataFormat = dataFormat;
-        this.lock = new ReentrantLock();
         this.docCount = 0;
 
         // Create an isolated temp directory for this writer's segment
@@ -100,6 +114,9 @@ public class LuceneWriter implements Writer<LuceneDocumentInput> {
         IndexWriterConfig iwc = analyzer != null ? new IndexWriterConfig(analyzer) : new IndexWriterConfig();
         iwc.setOpenMode(IndexWriterConfig.OpenMode.CREATE);
         iwc.setRAMBufferSizeMB(RAM_BUFFER_SIZE_MB);
+        if (indexSort != null) {
+            iwc.setIndexSort(indexSort);
+        }
 
         iwc.setCodec(new LuceneWriterCodec(codec, writerGeneration));
         this.indexWriter = new IndexWriter(directory, iwc);
@@ -172,9 +189,8 @@ public class LuceneWriter implements Writer<LuceneDocumentInput> {
             }
         }
 
-        // Since flush is once only, we can close the write post this.
+        // Since flush is once only, close the IndexWriter but keep directory open for close()
         indexWriter.close();
-        directory.close();
 
         return FileInfos.builder().putWriterFileSet(dataFormat, wfsBuilder.build()).build();
     }
@@ -196,22 +212,21 @@ public class LuceneWriter implements Writer<LuceneDocumentInput> {
         return writerGeneration;
     }
 
-    /** Acquires the writer's reentrant lock. Used by the writer pool to serialize access. */
     @Override
-    public void lock() {
-        lock.lock();
+    public boolean isSchemaMutable() {
+        return true;
     }
 
-    /** Attempts to acquire the writer's reentrant lock without blocking. */
     @Override
-    public boolean tryLock() {
-        return lock.tryLock();
+    public long mappingVersion() {
+        return mappingVersion;
     }
 
-    /** Releases the writer's reentrant lock. */
     @Override
-    public void unlock() {
-        lock.unlock();
+    public void updateMappingVersion(long newVersion) {
+        if (newVersion > this.mappingVersion) {
+            this.mappingVersion = newVersion;
+        }
     }
 
     /**
@@ -236,5 +251,27 @@ public class LuceneWriter implements Writer<LuceneDocumentInput> {
             logger.warn("Failed to close directory for generation[{}]: {}", writerGeneration, e);
         }
         IOUtils.rm(tempDirectory);
+    }
+
+    /**
+     * Deletes all documents containing the given term from this writer's {@link IndexWriter}.
+     *
+     * @param deleteInput the {@code _id} term identifying the document(s) to delete
+     * @return the result of the delete operation
+     * @throws IOException if a low-level I/O error occurs
+     */
+    @Override
+    public DeleteResult deleteDocument(DeleteInput deleteInput) throws IOException {
+        Term uid = new Term(deleteInput.fieldName(), deleteInput.value());
+        indexWriter.deleteDocuments(uid);
+        return new DeleteResult.Success(1L, 1L, 1L);
+    }
+
+    @Override
+    public Optional<Writer<?>> getWriterForFormat(String formatName) {
+        if (LuceneDataFormat.LUCENE_FORMAT_NAME.equals(formatName)) {
+            return Optional.of(this);
+        }
+        return Optional.empty();
     }
 }

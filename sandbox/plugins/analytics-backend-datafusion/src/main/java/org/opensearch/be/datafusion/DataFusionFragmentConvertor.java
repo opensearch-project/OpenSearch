@@ -8,6 +8,7 @@
 
 package org.opensearch.be.datafusion;
 
+import com.google.common.collect.ImmutableList;
 import com.google.protobuf.InvalidProtocolBufferException;
 import org.apache.calcite.plan.RelOptCluster;
 import org.apache.calcite.plan.RelOptSchema;
@@ -25,36 +26,38 @@ import org.apache.calcite.rel.type.RelDataTypeFactory;
 import org.apache.calcite.rel.type.RelDataTypeField;
 import org.apache.calcite.schema.ColumnStrategy;
 import org.apache.calcite.sql.SqlKind;
+import org.apache.calcite.sql.fun.SqlLibraryOperators;
+import org.apache.calcite.sql.fun.SqlStdOperatorTable;
 import org.apache.calcite.util.ImmutableBitSet;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.analytics.planner.rel.OpenSearchStageInputScan;
+import org.opensearch.analytics.spi.DelegatedPredicateFunction;
 import org.opensearch.analytics.spi.FragmentConvertor;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
 
 import io.substrait.expression.AggregateFunctionInvocation;
 import io.substrait.expression.Expression;
 import io.substrait.extension.SimpleExtension;
-import io.substrait.isthmus.ImmutableFeatureBoard;
+import io.substrait.isthmus.ConverterProvider;
 import io.substrait.isthmus.SubstraitRelVisitor;
 import io.substrait.isthmus.TypeConverter;
 import io.substrait.isthmus.expression.AggregateFunctionConverter;
+import io.substrait.isthmus.expression.FunctionMappings;
 import io.substrait.isthmus.expression.ScalarFunctionConverter;
 import io.substrait.isthmus.expression.WindowFunctionConverter;
 import io.substrait.plan.Plan;
 import io.substrait.plan.PlanProtoConverter;
 import io.substrait.plan.ProtoPlanConverter;
 import io.substrait.relation.Aggregate;
+import io.substrait.relation.Fetch;
 import io.substrait.relation.Filter;
 import io.substrait.relation.NamedScan;
 import io.substrait.relation.Project;
 import io.substrait.relation.Rel;
-import io.substrait.relation.RelCopyOnWriteVisitor;
 import io.substrait.relation.Sort;
-import io.substrait.util.EmptyVisitationContext;
 
 /**
  * Converts Calcite RelNode fragments to Substrait protobuf bytes
@@ -62,13 +65,13 @@ import io.substrait.util.EmptyVisitationContext;
  *
  * <p>Dispatch summary:
  * <ul>
- *   <li>{@link #convertShardScanFragment(String, RelNode)} and
- *       {@link #convertFinalAggFragment(RelNode)} — full-fragment conversions via
- *       {@link #convertToSubstrait(RelNode)}.</li>
+ *   <li>{@link #convertFragment(RelNode)} — full-fragment conversion via
+ *       {@link #convertToSubstrait(RelNode)}, with StageInputScan rewriting
+ *       for reduce-stage fragments.</li>
  *   <li>{@link #attachPartialAggOnTop(RelNode, byte[])} and
  *       {@link #attachFragmentOnTop(RelNode, byte[])} — convert the wrapping
  *       operator standalone, then rewire its input to the decoded inner plan's
- *       root via {@link #rewire(Plan, Rel)}.</li>
+ *       root via {@link #rewire(Plan, Rel, List)}.</li>
  * </ul>
  *
  * @opensearch.internal
@@ -77,6 +80,199 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
 
     private static final Logger LOGGER = LogManager.getLogger(DataFusionFragmentConvertor.class);
 
+    /**
+     * Maps backend-specific Calcite operators to their Substrait extension names so Isthmus
+     * serializes them through our {@code SimpleExtension} catalog. One entry per line so
+     * parallel per-UDF PRs append without hotspot conflicts.
+     * <ul>
+     *   <li>{@link DelegatedPredicateFunction} → {@code delegated_predicate} (delegation to a peer backend).</li>
+     *   <li>{@link SqlLibraryOperators#ILIKE} → {@code ilike} (case-insensitive LIKE; resolved by
+     *       DataFusion's substrait consumer to a case-insensitive {@code LikeExpr}).</li>
+     *   <li>{@link SqlLibraryOperators#DATE_PART} → {@code date_part} (target of DatePartAdapters' rewrite).</li>
+     *   <li>{@link ConvertTzAdapter#LOCAL_CONVERT_TZ_OP} → {@code convert_tz} (Rust UDF).</li>
+     *   <li>{@link UnixTimestampAdapter#LOCAL_TO_UNIXTIME_OP} → {@code to_unixtime} (DF native).</li>
+     *   <li>{@link JsonFunctionAdapters.JsonAppendAdapter#LOCAL_JSON_APPEND_OP} →
+     *       {@code json_append} (Rust UDF, homogeneous-string variadic path/value pairs).</li>
+     *   <li>{@link JsonFunctionAdapters.JsonArrayLengthAdapter#LOCAL_JSON_ARRAY_LENGTH_OP} →
+     *       {@code json_array_length} (Rust UDF).</li>
+     *   <li>{@link JsonFunctionAdapters.JsonDeleteAdapter#LOCAL_JSON_DELETE_OP} →
+     *       {@code json_delete} (Rust UDF, homogeneous-string variadic).</li>
+     *   <li>{@link JsonFunctionAdapters.JsonExtendAdapter#LOCAL_JSON_EXTEND_OP} →
+     *       {@code json_extend} (Rust UDF, homogeneous-string variadic path/value pairs).</li>
+     *   <li>{@link JsonFunctionAdapters.JsonExtractAdapter#LOCAL_JSON_EXTRACT_OP} →
+     *       {@code json_extract} (Rust UDF, homogeneous-string variadic).</li>
+     *   <li>{@link JsonFunctionAdapters.JsonKeysAdapter#LOCAL_JSON_KEYS_OP} →
+     *       {@code json_keys} (Rust UDF).</li>
+     *   <li>{@link JsonFunctionAdapters.JsonSetAdapter#LOCAL_JSON_SET_OP} →
+     *       {@code json_set} (Rust UDF, homogeneous-string variadic path/value pairs).</li>
+     *   <li>{@link SqlLibraryOperators#REGEXP_CONTAINS} → {@code regex_match} (boolean regex match;
+     *       resolved by DataFusion's substrait consumer to {@code Operator::RegexMatch}, the same
+     *       binary operator that backs PostgreSQL's {@code ~} regex match). Lowering target for PPL
+     *       {@code regex} command and {@code regexp_match()} function.</li>
+     *   <li>{@link SqlStdOperatorTable#REPLACE} → {@code replace} (literal string replacement;
+     *       lowering target for PPL `replace` command on non-wildcard patterns).</li>
+     *   <li>{@link SqlLibraryOperators#REGEXP_REPLACE_3} → {@code regexp_replace} (regex string
+     *       replacement; lowering target for PPL `replace` command on wildcard patterns and for
+     *       PPL `replace()` / `regexp_replace()` functions in `eval`).</li>
+     *   <li>{@link SqlLibraryOperators#REGEXP_REPLACE_PG_4} → {@code regexp_replace} (4-arg
+     *       PostgreSQL-style with flags string; lowering target for PPL `rex mode=sed` with
+     *       {@code g}/{@code i} flags. Reuses the same DataFusion {@code regexp_replace} UDF as
+     *       the 3-arg form.</li>
+     *   <li>{@link SqlLibraryOperators#TRANSLATE3} → {@code translate} (3-arg character
+     *       transliteration; lowering target for PPL `rex mode=sed` with {@code y/from/to/}
+     *       transliteration syntax). DataFusion's substrait consumer resolves the extension name
+     *       "translate" to its native {@code translate} UDF
+     *       (datafusion-functions/src/unicode/translate.rs).</li>
+     *   <li>{@link RexExtractAdapter#LOCAL_REX_EXTRACT_OP} → {@code rex_extract} (Rust UDF;
+     *       single-match named/numbered group extract). Lowering target for PPL
+     *       {@code rex field=f "(?<g>...)"} extract command.</li>
+     *   <li>{@link RexExtractMultiAdapter#LOCAL_REX_EXTRACT_MULTI_OP} → {@code rex_extract_multi}
+     *       (Rust UDF; multi-match named/numbered group extract returning {@code list<varchar>}).
+     *       Lowering target for PPL {@code rex ... max_match=N}.</li>
+     *   <li>{@link RexOffsetAdapter#LOCAL_REX_OFFSET_OP} → {@code rex_offset} (Rust UDF;
+     *       named-group position emission as a single string). Lowering target for PPL
+     *       {@code rex ... offset_field=name}.</li>
+     * </ul>
+     */
+    private static final List<FunctionMappings.Sig> ADDITIONAL_SCALAR_SIGS = List.of(
+        FunctionMappings.s(DelegatedPredicateFunction.FUNCTION, DelegatedPredicateFunction.NAME),
+        FunctionMappings.s(SqlStdOperatorTable.ASCII, "ascii"),
+        FunctionMappings.s(SqlStdOperatorTable.CHAR_LENGTH, "length"),
+        FunctionMappings.s(SqlLibraryOperators.CONCAT_FUNCTION, "concat"),
+        FunctionMappings.s(SqlLibraryOperators.CONCAT_WS, "concat_ws"),
+        FunctionMappings.s(SqlLibraryOperators.ILIKE, "ilike"),
+        FunctionMappings.s(SqlLibraryOperators.DATE_PART, "date_part"),
+        // Engine-output cast rewrite target — see DatetimeOutputCastRewriter (issue #5420).
+        // Routes Calcite's TO_CHAR call to DataFusion's native `to_char` so PPL's
+        // documented space-separator timestamp output is preserved on the AE path.
+        FunctionMappings.s(SqlLibraryOperators.TO_CHAR, "to_char"),
+        FunctionMappings.s(SqlLibraryOperators.DATE_TRUNC, "date_trunc"),
+        FunctionMappings.s(ConvertTzAdapter.LOCAL_CONVERT_TZ_OP, "convert_tz"),
+        FunctionMappings.s(UnixTimestampAdapter.LOCAL_TO_UNIXTIME_OP, "to_unixtime"),
+        // Niladic ops from DateTimeAdapters — each maps 1:1 to a DF builtin.
+        FunctionMappings.s(DateTimeAdapters.LOCAL_NOW_OP, "now"),
+        FunctionMappings.s(DateTimeAdapters.LOCAL_CURRENT_DATE_OP, "current_date"),
+        FunctionMappings.s(DateTimeAdapters.LOCAL_CURRENT_TIME_OP, "current_time"),
+        // PPL time(expr) → DF builtin to_time (TimeAdapter renames only).
+        FunctionMappings.s(DateTimeAdapters.LOCAL_TIME_OP, "to_time"),
+        // PPL date(expr) → DF builtin to_date (DateAdapter renames only).
+        FunctionMappings.s(DateTimeAdapters.LOCAL_DATE_OP, "to_date"),
+        // PPL datetime(expr) → DF builtin to_timestamp (DatetimeAdapter renames only).
+        FunctionMappings.s(DateTimeAdapters.LOCAL_TO_TIMESTAMP_OP, "to_timestamp"),
+        // PPL datetime + format functions → Rust UDFs registered in rust/src/udf/mod.rs.
+        FunctionMappings.s(RustUdfDateTimeAdapters.LOCAL_EXTRACT_OP, "extract"),
+        FunctionMappings.s(RustUdfDateTimeAdapters.LOCAL_FROM_UNIXTIME_OP, "from_unixtime"),
+        FunctionMappings.s(RustUdfDateTimeAdapters.LOCAL_MAKEDATE_OP, "makedate"),
+        FunctionMappings.s(RustUdfDateTimeAdapters.LOCAL_MAKETIME_OP, "maketime"),
+        FunctionMappings.s(RustUdfDateTimeAdapters.LOCAL_DATE_FORMAT_OP, "date_format"),
+        FunctionMappings.s(RustUdfDateTimeAdapters.LOCAL_TIME_FORMAT_OP, "time_format"),
+        FunctionMappings.s(RustUdfDateTimeAdapters.LOCAL_STR_TO_DATE_OP, "str_to_date"),
+        FunctionMappings.s(SqlLibraryOperators.REGEXP_CONTAINS, "regex_match"),
+        FunctionMappings.s(SqlStdOperatorTable.REPLACE, "replace"),
+        FunctionMappings.s(SqlLibraryOperators.REGEXP_REPLACE_3, "regexp_replace"),
+        FunctionMappings.s(SqlLibraryOperators.REGEXP_REPLACE_PG_4, "regexp_replace"),
+        FunctionMappings.s(SqlLibraryOperators.REVERSE, "reverse"),
+        FunctionMappings.s(SqlLibraryOperators.TRANSLATE3, "translate"),
+        FunctionMappings.s(PositionAdapter.STRPOS, "strpos"),
+        FunctionMappings.s(StrftimeFunctionAdapter.STRFTIME, "strftime"),
+        FunctionMappings.s(ToNumberFunctionAdapter.TONUMBER, "tonumber"),
+        FunctionMappings.s(ToStringFunctionAdapter.TOSTRING, "tostring"),
+        FunctionMappings.s(SqlLibraryOperators.MD5, "md5"),
+        FunctionMappings.s(SqlLibraryOperators.SHA1, "sha1"),
+        FunctionMappings.s(SqlLibraryOperators.CRC32, "crc32"),
+        FunctionMappings.s(Sha2FunctionAdapter.DIGEST, "digest"),
+        FunctionMappings.s(Sha2FunctionAdapter.ENCODE, "encode"),
+        FunctionMappings.s(RexExtractAdapter.LOCAL_REX_EXTRACT_OP, "rex_extract"),
+        FunctionMappings.s(RexExtractMultiAdapter.LOCAL_REX_EXTRACT_MULTI_OP, "rex_extract_multi"),
+        FunctionMappings.s(RexOffsetAdapter.LOCAL_REX_OFFSET_OP, "rex_offset"),
+        FunctionMappings.s(SqlLibraryOperators.ARRAY_LENGTH, "array_length"),
+        FunctionMappings.s(SqlStdOperatorTable.TRUNCATE, "trunc"),
+        FunctionMappings.s(SqlStdOperatorTable.CBRT, "cbrt"),
+        FunctionMappings.s(SqlStdOperatorTable.COT, "cot"),
+        FunctionMappings.s(SqlStdOperatorTable.PI, "pi"),
+        FunctionMappings.s(SqlStdOperatorTable.RAND, "random"),
+        FunctionMappings.s(SqlLibraryOperators.LOG, "logb"),
+        FunctionMappings.s(SignumFunction.FUNCTION, SignumFunction.NAME),
+        FunctionMappings.s(JsonFunctionAdapters.JsonAppendAdapter.LOCAL_JSON_APPEND_OP, "json_append"),
+        FunctionMappings.s(JsonFunctionAdapters.JsonArrayLengthAdapter.LOCAL_JSON_ARRAY_LENGTH_OP, "json_array_length"),
+        FunctionMappings.s(JsonFunctionAdapters.JsonDeleteAdapter.LOCAL_JSON_DELETE_OP, "json_delete"),
+        FunctionMappings.s(JsonFunctionAdapters.JsonExtendAdapter.LOCAL_JSON_EXTEND_OP, "json_extend"),
+        FunctionMappings.s(JsonFunctionAdapters.JsonExtractAdapter.LOCAL_JSON_EXTRACT_OP, "json_extract"),
+        FunctionMappings.s(JsonFunctionAdapters.JsonKeysAdapter.LOCAL_JSON_KEYS_OP, "json_keys"),
+        FunctionMappings.s(JsonFunctionAdapters.JsonSetAdapter.LOCAL_JSON_SET_OP, "json_set"),
+        FunctionMappings.s(SqlLibraryOperators.REGEXP_CONTAINS, "regex_match"),
+        FunctionMappings.s(SqlStdOperatorTable.REPLACE, "replace"),
+        FunctionMappings.s(SqlLibraryOperators.REGEXP_REPLACE_3, "regexp_replace"),
+        // Array S0 ladder — see DataFusionAnalyticsBackendPlugin.STANDARD_PROJECT_OPS /
+        // ARRAY_RETURNING_PROJECT_OPS for the capability registration. ARRAY_LENGTH /
+        // ARRAY_SLICE / ARRAY_DISTINCT pass through under their Calcite-stdlib names
+        // (DataFusion's substrait consumer resolves them natively). MakeArrayAdapter /
+        // ArrayToStringAdapter / ArrayElementAdapter rewrite PPL `array(...)` /
+        // `mvjoin(...)` / `mvindex(...)` single-element to locally-declared SqlFunctions
+        // so isthmus emits Substrait calls with DataFusion's native function names.
+        FunctionMappings.s(SqlLibraryOperators.ARRAY_LENGTH, "array_length"),
+        FunctionMappings.s(SqlLibraryOperators.ARRAY_SLICE, "array_slice"),
+        FunctionMappings.s(SqlLibraryOperators.ARRAY_DISTINCT, "array_distinct"),
+        FunctionMappings.s(MakeArrayAdapter.LOCAL_MAKE_ARRAY_OP, "make_array"),
+        FunctionMappings.s(ArrayToStringAdapter.LOCAL_ARRAY_TO_STRING_OP, "array_to_string"),
+        FunctionMappings.s(ArrayElementAdapter.LOCAL_ARRAY_ELEMENT_OP, "array_element"),
+        FunctionMappings.s(MvzipAdapter.LOCAL_MVZIP_OP, "mvzip"),
+        FunctionMappings.s(MvfindAdapter.LOCAL_MVFIND_OP, "mvfind"),
+        FunctionMappings.s(MvappendAdapter.LOCAL_MVAPPEND_OP, "mvappend"),
+        // PPL bucketing UDFs — see DataFusionAnalyticsBackendPlugin.STANDARD_PROJECT_OPS for
+        // capability registration and per-adapter Javadoc for semantics. Each LOCAL_*_OP is a
+        // locally-declared SqlFunction (see *Adapter.java) so isthmus's ScalarFunctionConverter
+        // binds the Sig by operator identity without importing sql/core's UDF declarations.
+        FunctionMappings.s(SpanBucketAdapter.LOCAL_SPAN_BUCKET_OP, "span_bucket"),
+        FunctionMappings.s(WidthBucketAdapter.LOCAL_WIDTH_BUCKET_OP, "width_bucket"),
+        FunctionMappings.s(MinspanBucketAdapter.LOCAL_MINSPAN_BUCKET_OP, "minspan_bucket"),
+        FunctionMappings.s(RangeBucketAdapter.LOCAL_RANGE_BUCKET_OP, "range_bucket")
+    );
+
+    /**
+     * Maps aggregate operators to their Substrait extension names so isthmus serializes
+     * them through our {@code SimpleExtension} catalog instead of the default Substrait
+     * names.
+     *
+     * <p>{@link SqlStdOperatorTable#APPROX_COUNT_DISTINCT} → {@code approx_distinct}
+     * (declared in {@code opensearch_aggregate_functions.yaml}) routes to DataFusion's
+     * native HyperLogLog {@code APPROX_DISTINCT} aggregate. Wiring this through isthmus'
+     * {@code ADDITIONAL_AGGREGATE_SIGS} alone is not enough because isthmus's default
+     * aggregate catalog already binds {@code APPROX_COUNT_DISTINCT} to substrait's
+     * standard {@code approx_count_distinct} URN; when signatures merge, the default
+     * binding overwrites ours in the matcher map. {@link OpenSearchAggregateFunctionConverter}
+     * fixes that by filtering the stock sig out of the default list so our entry is the
+     * only one that resolves to this operator.
+     */
+    private static final List<FunctionMappings.Sig> ADDITIONAL_AGGREGATE_SIGS = List.of(
+        FunctionMappings.s(SqlStdOperatorTable.APPROX_COUNT_DISTINCT, "approx_distinct")
+    );
+
+    /**
+     * Subclassed {@link AggregateFunctionConverter} that removes isthmus's default binding
+     * for {@link SqlStdOperatorTable#APPROX_COUNT_DISTINCT} from the signature merge.
+     * Without this, the default {@code approx_count_distinct} URN binding would shadow
+     * our entry in {@link #ADDITIONAL_AGGREGATE_SIGS} and the YAML-declared
+     * {@code approx_distinct} extension would never be reached.
+     */
+    private static final class OpenSearchAggregateFunctionConverter extends AggregateFunctionConverter {
+        OpenSearchAggregateFunctionConverter(
+            List<SimpleExtension.AggregateFunctionVariant> functions,
+            List<FunctionMappings.Sig> additionalSignatures,
+            RelDataTypeFactory typeFactory,
+            TypeConverter typeConverter
+        ) {
+            super(functions, additionalSignatures, typeFactory, typeConverter);
+        }
+
+        @Override
+        protected ImmutableList<FunctionMappings.Sig> getSigs() {
+            return super.getSigs().stream()
+                .filter(sig -> sig.operator != SqlStdOperatorTable.APPROX_COUNT_DISTINCT)
+                .collect(ImmutableList.toImmutableList());
+        }
+    }
+
     private final SimpleExtension.ExtensionCollection extensions;
 
     public DataFusionFragmentConvertor(SimpleExtension.ExtensionCollection extensions) {
@@ -84,9 +280,14 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
     }
 
     @Override
-    public byte[] convertShardScanFragment(String tableName, RelNode fragment) {
-        LOGGER.debug("Converting shard scan fragment for table [{}]", tableName);
-        return convertToSubstrait(fragment);
+    public byte[] convertFragment(RelNode fragment) {
+        LOGGER.debug("Converting fragment [{}]", fragment.getClass().getSimpleName());
+        // Rewrite any OpenSearchStageInputScan leaves to plain TableScan nodes so the
+        // isthmus visitor (which only knows about Calcite core / Logical RelNodes)
+        // emits a ReadRel with the stage-input-id as the named table. No-op when the
+        // fragment has no StageInputScan leaves (shard-scan and Values cases).
+        RelNode rewritten = rewriteStageInputScans(fragment);
+        return convertToSubstrait(rewritten);
     }
 
     @Override
@@ -94,41 +295,66 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         LOGGER.debug("Attaching partial aggregate on top of {} inner bytes", innerBytes.length);
         Plan inner = decodePlan(innerBytes);
         Rel wrapper = convertStandalone(partialAggFragment);
-        Plan rewired = rewire(inner, withAggregationPhase(wrapper, Expression.AggregationPhase.INITIAL_TO_INTERMEDIATE));
-        return serializePlan(rewired);
-    }
-
-    @Override
-    public byte[] convertFinalAggFragment(RelNode fragment) {
-        LOGGER.debug("Converting final-aggregate fragment");
-        // Rewrite any OpenSearchStageInputScan leaves to plain TableScan nodes so the
-        // isthmus visitor (which only knows about Calcite core / Logical RelNodes)
-        // emits a ReadRel with the stage-input-id as the named table.
-        RelNode rewritten = rewriteStageInputScans(fragment);
-        return convertToSubstrait(rewritten);
+        Plan rewired = rewire(
+            inner,
+            withAggregationPhase(wrapper, Expression.AggregationPhase.INITIAL_TO_INTERMEDIATE),
+            fieldNames(partialAggFragment)
+        );
+        return serializePlan(SubstraitPlanRewriter.rewrite(rewired));
     }
 
     @Override
     public byte[] attachFragmentOnTop(RelNode fragment, byte[] innerBytes) {
         LOGGER.debug("Attaching generic fragment [{}] on top of {} inner bytes", fragment.getClass().getSimpleName(), innerBytes.length);
         Plan inner = decodePlan(innerBytes);
-        Rel wrapper = convertStandalone(fragment);
-        return serializePlan(rewire(inner, wrapper));
+        // Rewrite OpenSearchStageInputScans before standalone conversion so the isthmus
+        // visitor can traverse the fragment without choking on planner-internal leaves.
+        // The standalone conversion's children are discarded by rewire(...) anyway, but
+        // the visitor still walks them top-down to build the wrapper rel.
+        RelNode rewritten = rewriteStageInputScans(fragment);
+        Rel wrapper = convertStandalone(rewritten);
+        // SubstraitPlanRewriter must run on the assembled wrapper-over-inner plan, not
+        // just on the inner bytes (those came in already rewritten from the leaf path).
+        // The wrapper rel was just produced by isthmus and carries un-rewritten literals
+        // (e.g. timestamp precision 6 vs Parquet's 3) — without this pass the rewritten
+        // inner gets reattached under a non-rewritten wrapper, leaving the new wrapper
+        // expressions out of sync with the rest of the plan and tripping DataFusion at
+        // execution time. Same fix applied to attachPartialAggOnTop.
+        return serializePlan(SubstraitPlanRewriter.rewrite(rewire(inner, wrapper, fieldNames(fragment))));
     }
 
-    // ── Core conversion helpers ─────────────────────────────────────────────────
-
     private byte[] convertToSubstrait(RelNode fragment) {
-        RelRoot root = RelRoot.of(fragment, SqlKind.SELECT);
-        SubstraitRelVisitor visitor = createVisitor(fragment);
-        Rel substraitRel = visitor.apply(root.rel);
+        // Rewrite SqlTypeName.NULL literals (Calcite's untyped null, emitted for the
+        // implicit ELSE arm of CASE) to typed nulls — isthmus' TypeConverter rejects NULL
+        // with "Unable to convert the type NULL". The widening only changes literal type
+        // tags; semantics and field names (used by Plan.Root.names) are unchanged.
+        RelNode preprocessed = UntypedNullPreprocessor.rewrite(fragment);
+        // Rewrite DatetimeOutputCastRule's CAST(<TIMESTAMP> AS VARCHAR) to to_char(...) so
+        // DataFusion emits PPL's space-separator timestamp format instead of Arrow's ISO-T.
+        // See issue #5420.
+        preprocessed = DatetimeOutputCastRewriter.rewrite(preprocessed);
+        RelRoot root = RelRoot.of(preprocessed, SqlKind.SELECT);
+        SubstraitRelVisitor visitor = createVisitor(preprocessed);
+        Rel substraitRel;
+        try {
+            substraitRel = visitor.apply(root.rel);
+        } catch (AssertionError e) {
+            // Substrait validators (e.g. VariadicParameterConsistencyValidator,
+            // RelOptUtil.eq via Litmus.THROW) throw AssertionError directly via Java
+            // code rather than via the `assert` keyword, so JVM -da doesn't gate them.
+            // If one fires inside a search thread, OpenSearchUncaughtExceptionHandler
+            // exits the cluster JVM. Convert to IllegalStateException so the analytics-
+            // engine error path treats it as a normal per-query failure (HTTP 500 with
+            // a bucketable message) instead of taking down the cluster.
+            throw new IllegalStateException("Substrait conversion rejected the plan: " + e.getMessage(), e);
+        }
 
         List<String> fieldNames = root.fields.stream().map(field -> field.getValue()).toList();
 
         Plan.Root substraitRoot = Plan.Root.builder().input(substraitRel).names(fieldNames).build();
         Plan plan = Plan.builder().addRoots(substraitRoot).build();
 
-        plan = new TableNameModifier().modifyTableNames(plan);
+        plan = SubstraitPlanRewriter.rewrite(plan);
 
         io.substrait.proto.Plan protoPlan = new PlanProtoConverter().toProto(plan);
         byte[] bytes = protoPlan.toByteArray();
@@ -141,28 +367,48 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
      * children (e.g. the {@code attachPartialAggOnTop} caller passes a
      * {@code LogicalAggregate} whose input is the already-stripped inner tree); we
      * deliberately discard those children by taking only the outermost rel of the
-     * conversion and rewiring its input during {@link #rewire(Plan, Rel)}.
+     * conversion and rewiring its input during {@link #rewire(Plan, Rel, List)}.
      */
     private Rel convertStandalone(RelNode operator) {
-        SubstraitRelVisitor visitor = createVisitor(operator);
-        return visitor.apply(operator);
+        // Same untyped-NULL preprocessing rationale as convertToSubstrait — the standalone
+        // wrapper conversion is just as susceptible to a SqlTypeName.NULL literal lurking in
+        // a CASE call attached on top of an inner plan.
+        RelNode preprocessed = UntypedNullPreprocessor.rewrite(operator);
+        // Same rationale as convertToSubstrait — issue #5420.
+        preprocessed = DatetimeOutputCastRewriter.rewrite(preprocessed);
+        SubstraitRelVisitor visitor = createVisitor(preprocessed);
+        return visitor.apply(preprocessed);
     }
 
     /**
      * Rewires the Substrait {@code wrapper} rel to sit above the root relation of
      * {@code inner}. Returns a new {@link Plan} whose single root is
-     * {@code wrapper(inner.root)}. Supports the known single-input wrappers emitted
-     * by our four SPI methods ({@link Aggregate}, {@link Sort}, {@link Filter},
-     * {@link Project}).
+     * {@code wrapper(inner.root)} with {@code wrapperNames} attached as the root's
+     * names list. Supports the known single-input wrappers emitted by our SPI
+     * methods ({@link Aggregate}, {@link Sort}, {@link Filter}, {@link Project},
+     * {@link Fetch}).
+     *
+     * <p>{@code wrapperNames} must describe the wrapper's output schema — one entry
+     * per leaf field in the wrapper's row type. For schema-preserving wrappers
+     * (Sort, Filter, Fetch) these match the inner plan's names; for schema-reshaping
+     * wrappers (Aggregate, Project) they don't. Using the inner's names where the
+     * wrapper reshapes the schema causes DataFusion to reject the Plan with
+     * "Names list must match exactly to nested schema" — surfaces with
+     * Aggregate-over-Join over exchange-gathered Scan.
      */
-    static Plan rewire(Plan inner, Rel wrapper) {
+    static Plan rewire(Plan inner, Rel wrapper, List<String> wrapperNames) {
         if (inner.getRoots().isEmpty()) {
             throw new IllegalArgumentException("Inner Substrait plan has no root relation to rewire under wrapper");
         }
         Plan.Root innerRoot = inner.getRoots().get(0);
         Rel innerRel = innerRoot.getInput();
         Rel rewired = replaceInput(wrapper, innerRel);
-        return Plan.builder().addRoots(Plan.Root.builder().input(rewired).names(innerRoot.getNames()).build()).build();
+        return Plan.builder().addRoots(Plan.Root.builder().input(rewired).names(wrapperNames).build()).build();
+    }
+
+    /** Wrapper's output column names from its Calcite row type. */
+    private static List<String> fieldNames(RelNode fragment) {
+        return fragment.getRowType().getFieldList().stream().map(RelDataTypeField::getName).toList();
     }
 
     private static Rel replaceInput(Rel wrapper, Rel newInput) {
@@ -177,6 +423,12 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         }
         if (wrapper instanceof Project project) {
             return Project.builder().from(project).input(newInput).build();
+        }
+        if (wrapper instanceof Fetch fetch) {
+            // SystemLimit + LogicalSort with offset/fetch lower to a Substrait Fetch rel.
+            // Used by the implicit query-size limit at the top of every analytics-engine plan
+            // and by user-level `head N` clauses; both arrive here when attached above a Union.
+            return Fetch.builder().from(fetch).input(newInput).build();
         }
         throw new UnsupportedOperationException(
             "Cannot attach-on-top a Substrait Rel of type " + wrapper.getClass().getSimpleName() + " — no single-input rewire defined"
@@ -208,18 +460,18 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
 
     /**
      * Rewrites every {@link OpenSearchStageInputScan} in the RelNode tree to a plain
-     * Calcite {@link TableScan} whose qualified name matches what
-     * {@link DatafusionReduceSink#INPUT_ID} registers on the native session.
-     * The isthmus visitor then emits a {@link NamedScan} with that name.
+     * Calcite {@link TableScan} whose qualified name matches what the matching
+     * {@link DatafusionReduceSink} input partition registers on the native session.
      *
-     * <p>Single-input simplification: every {@link OpenSearchStageInputScan} maps to
-     * the same {@code "input-0"} table id. Multi-input / join shapes will require
-     * carrying per-input ids through {@link io.substrait.relation.NamedScan} once
-     * implemented.
+     * <p>The table id is {@code "input-<childStageId>"}, mirroring
+     * {@code AbstractDatafusionReduceSink.inputIdFor}. For a single-input fragment the
+     * sole stage id (typically 0) reproduces the conventional {@code "input-0"} name; for
+     * multi-input shapes (Union) each branch refers to its own child stage id and the
+     * isthmus visitor emits one {@link NamedScan} per branch.
      */
     private static RelNode rewriteStageInputScans(RelNode node) {
         if (node instanceof OpenSearchStageInputScan scan) {
-            return new StageInputTableScan(scan.getCluster(), scan.getTraitSet(), DatafusionReduceSink.INPUT_ID, scan.getRowType());
+            return new StageInputTableScan(scan.getCluster(), scan.getTraitSet(), "input-" + scan.getChildStageId(), scan.getRowType());
         }
         List<RelNode> newInputs = new ArrayList<>(node.getInputs().size());
         boolean changed = false;
@@ -241,24 +493,28 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
     private SubstraitRelVisitor createVisitor(RelNode relNode) {
         RelDataTypeFactory typeFactory = relNode.getCluster().getTypeFactory();
         TypeConverter typeConverter = TypeConverter.DEFAULT;
-
-        AggregateFunctionConverter aggConverter = new AggregateFunctionConverter(extensions.aggregateFunctions(), typeFactory);
         ScalarFunctionConverter scalarConverter = new ScalarFunctionConverter(
             extensions.scalarFunctions(),
-            List.of(),
+            ADDITIONAL_SCALAR_SIGS,
+            typeFactory,
+            typeConverter
+        );
+        AggregateFunctionConverter aggConverter = new OpenSearchAggregateFunctionConverter(
+            extensions.aggregateFunctions(),
+            ADDITIONAL_AGGREGATE_SIGS,
             typeFactory,
             typeConverter
         );
         WindowFunctionConverter windowConverter = new WindowFunctionConverter(extensions.windowFunctions(), typeFactory);
-
-        return new SubstraitRelVisitor(
+        ConverterProvider converterProvider = new ConverterProvider(
             typeFactory,
+            extensions,
             scalarConverter,
             aggConverter,
             windowConverter,
-            typeConverter,
-            ImmutableFeatureBoard.builder().build()
+            typeConverter
         );
+        return new SubstraitRelVisitor(converterProvider);
     }
 
     // ── Plan serde helpers ──────────────────────────────────────────────────────
@@ -276,39 +532,6 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
     /** Serializes a model-level {@link Plan} to proto bytes. */
     private static byte[] serializePlan(Plan plan) {
         return new PlanProtoConverter().toProto(plan).toByteArray();
-    }
-
-    // ── NamedScan prefix stripper ───────────────────────────────────────────────
-
-    /**
-     * Strips Calcite catalog prefixes (e.g. "opensearch") from {@link NamedScan} table
-     * names — DataFusion expects the bare index / stage-input id.
-     */
-    private static class TableNameModifier {
-        Plan modifyTableNames(Plan plan) {
-            TableNameVisitor visitor = new TableNameVisitor();
-            List<Plan.Root> modifiedRoots = new ArrayList<>();
-            for (Plan.Root root : plan.getRoots()) {
-                Optional<Rel> modifiedRel = root.getInput().accept(visitor, null);
-                if (modifiedRel.isPresent()) {
-                    modifiedRoots.add(Plan.Root.builder().from(root).input(modifiedRel.get()).build());
-                } else {
-                    modifiedRoots.add(root);
-                }
-            }
-            return Plan.builder().from(plan).roots(modifiedRoots).build();
-        }
-
-        private static class TableNameVisitor extends RelCopyOnWriteVisitor<RuntimeException> {
-            @Override
-            public Optional<Rel> visit(NamedScan namedScan, EmptyVisitationContext context) {
-                List<String> names = namedScan.getNames();
-                if (names.size() > 1) {
-                    return Optional.of(NamedScan.builder().from(namedScan).names(List.of(names.get(names.size() - 1))).build());
-                }
-                return super.visit(namedScan, context);
-            }
-        }
     }
 
     // ── Calcite TableScan wrappers for OpenSearchStageInputScan rewrite ─────────

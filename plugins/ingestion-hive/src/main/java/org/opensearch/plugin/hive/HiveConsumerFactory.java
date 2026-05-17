@@ -17,23 +17,13 @@ import org.opensearch.index.IngestionConsumerFactory;
  */
 public class HiveConsumerFactory implements IngestionConsumerFactory<HiveShardConsumer, HivePointer> {
 
-    private HiveSourceConfig config;
-
     /** Creates a new HiveConsumerFactory instance. */
     public HiveConsumerFactory() {}
 
     @Override
-    public void initialize(IngestionSource ingestionSource) {
-        throw new UnsupportedOperationException("Use initialize(IngestionSource, int numberOfShards) instead");
-    }
-
-    @Override
-    public void initialize(IngestionSource ingestionSource, int numberOfShards) {
-        config = new HiveSourceConfig(ingestionSource.params(), numberOfShards);
-    }
-
-    @Override
-    public HiveShardConsumer createShardConsumer(String clientId, int shardId) {
+    public HiveShardConsumer createShardConsumer(String clientId, int shardId, IngestionSource ingestionSource) {
+        int numberOfShards = (int) ingestionSource.params().getOrDefault("_number_of_shards", 1);
+        HiveSourceConfig config = new HiveSourceConfig(ingestionSource.params(), numberOfShards);
         return new HiveShardConsumer(clientId, shardId, config);
     }
 

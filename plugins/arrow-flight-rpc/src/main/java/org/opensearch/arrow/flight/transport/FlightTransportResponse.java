@@ -44,6 +44,7 @@ class FlightTransportResponse<T extends TransportResponse> implements StreamTran
     private final NamedWriteableRegistry namedWriteableRegistry;
     private final HeaderContext headerContext;
     private final TransportResponseHandler<T> handler;
+    private final boolean isNativeHandler;
     private final FlightTransportConfig config;
     private final long correlationId;
 
@@ -64,6 +65,7 @@ class FlightTransportResponse<T extends TransportResponse> implements StreamTran
         FlightTransportConfig config
     ) {
         this.handler = Objects.requireNonNull(handler);
+        this.isNativeHandler = handler.skipsDeserialization();
         this.correlationId = correlationId;
         this.flightClient = Objects.requireNonNull(flightClient);
         this.headerContext = Objects.requireNonNull(headerContext);
@@ -121,9 +123,9 @@ class FlightTransportResponse<T extends TransportResponse> implements StreamTran
             boolean hasNext = firstBatchConsumed ? flightStream.next() : (firstBatchConsumed = true);
             if (!hasNext) return null;
 
-            VectorSchemaRoot root = flightStream.getRoot();
-            currentBatchSize = FlightUtils.calculateVectorSchemaRootSize(root);
-            try (VectorStreamInput input = new VectorStreamInput(root, namedWriteableRegistry)) {
+            VectorSchemaRoot streamRoot = flightStream.getRoot();
+            currentBatchSize = FlightUtils.calculateVectorSchemaRootSize(streamRoot);
+            try (VectorStreamInput input = newStreamInput(streamRoot)) {
                 input.setVersion(initialHeader.getVersion());
                 return handler.read(input);
             }
@@ -142,6 +144,12 @@ class FlightTransportResponse<T extends TransportResponse> implements StreamTran
 
     long getCurrentBatchSize() {
         return currentBatchSize;
+    }
+
+    private VectorStreamInput newStreamInput(VectorSchemaRoot streamRoot) {
+        return isNativeHandler
+            ? VectorStreamInput.forNativeArrow(streamRoot, namedWriteableRegistry)
+            : VectorStreamInput.forByteSerialized(streamRoot, namedWriteableRegistry);
     }
 
     @Override

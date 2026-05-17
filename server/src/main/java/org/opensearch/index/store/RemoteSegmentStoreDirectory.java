@@ -1085,6 +1085,21 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
         return segmentsUploadedToRemoteStore.size();
     }
 
+    /**
+     * Returns the blob path for the given data format.
+     * If a {@link FormatBlobRouter} is configured, uses format-specific routing
+     * (e.g., "basePath/parquet/" for parquet files). Otherwise falls back to the base path.
+     *
+     * @param format the data format name (e.g., "parquet", "lucene")
+     * @return the blob path as a string for the given format
+     */
+    public String getRemoteBasePath(String format) {
+        if (formatBlobRouter != null && format != null && format.isEmpty() == false) {
+            return formatBlobRouter.containerFor(format).path().buildAsString();
+        }
+        return remoteDataDirectory.getBlobContainer().path().buildAsString();
+    }
+
     // Visible for testing
     Set<String> getMetadataFilesToFilterActiveSegments(
         final int lastNMetadataFilesToKeep,

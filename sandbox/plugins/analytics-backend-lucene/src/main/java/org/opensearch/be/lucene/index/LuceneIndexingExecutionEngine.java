@@ -15,6 +15,7 @@ import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.MergeIndexWriter;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentReader;
@@ -23,14 +24,15 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.MMapDirectory;
 import org.opensearch.be.lucene.LuceneDataFormat;
 import org.opensearch.be.lucene.LuceneFieldFactoryRegistry;
+import org.opensearch.be.lucene.merge.LuceneMerger;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.IndexingExecutionEngine;
-import org.opensearch.index.engine.dataformat.MergeResult;
 import org.opensearch.index.engine.dataformat.Merger;
 import org.opensearch.index.engine.dataformat.RefreshInput;
 import org.opensearch.index.engine.dataformat.RefreshResult;
 import org.opensearch.index.engine.dataformat.Writer;
+import org.opensearch.index.engine.dataformat.WriterConfig;
 import org.opensearch.index.engine.exec.Segment;
 import org.opensearch.index.engine.exec.WriterFileSet;
 import org.opensearch.index.engine.exec.commit.IndexStoreProvider;
@@ -52,7 +54,7 @@ import java.util.Set;
  * Lucene-specific {@link IndexingExecutionEngine} that manages per-writer Lucene segments
  * and incorporates them into the shared {@link LuceneCommitter} writer during refresh.
  *
- * Write path: Each call to {@link #createWriter(long)} creates a {@link LuceneWriter} with its own
+ * Write path: Each call to {@link #createWriter(WriterConfig)} creates a {@link LuceneWriter} with its own
  * {@link IndexWriter} in an isolated temp directory. Documents are indexed into this
  * per-writer segment. On flush, the writer force-merges to exactly 1 segment.
  *
@@ -74,11 +76,13 @@ public class LuceneIndexingExecutionEngine implements IndexingExecutionEngine<Lu
     private static final Logger logger = LogManager.getLogger(LuceneIndexingExecutionEngine.class);
 
     private final LuceneDataFormat dataFormat;
-    private final IndexWriter sharedWriter;
+    private final MergeIndexWriter sharedWriter;
+    private final MapperService mapperService;
     private final Store store;
     private final Path baseDirectory;
     private final Analyzer analyzer;
     private final Codec codec;
+    private final LuceneMerger luceneMerger;
     private final LuceneFieldFactoryRegistry fieldFactoryRegistry;
 
     /**
@@ -98,12 +102,15 @@ public class LuceneIndexingExecutionEngine implements IndexingExecutionEngine<Lu
             throw new IllegalArgumentException("LuceneCommitter must not be null");
         }
         this.dataFormat = dataFormat;
+        this.mapperService = mapperService;
         this.sharedWriter = luceneCommitter.getIndexWriter();
         this.store = store;
         this.baseDirectory = store.shardPath().resolve(LuceneDataFormat.LUCENE_FORMAT_NAME);
         this.analyzer = sharedWriter.getAnalyzer();
         this.codec = sharedWriter.getConfig().getCodec();
         this.fieldFactoryRegistry = new LuceneFieldFactoryRegistry();
+
+        this.luceneMerger = new LuceneMerger(sharedWriter, dataFormat, store.shardPath().resolveIndex());
 
         // Create the lucene subdirectory if it doesn't exist
         try {
@@ -120,7 +127,7 @@ public class LuceneIndexingExecutionEngine implements IndexingExecutionEngine<Lu
      *
      * @return the index writer
      */
-    public IndexWriter getWriter() {
+    public MergeIndexWriter getWriter() {
         return sharedWriter;
     }
 
@@ -145,17 +152,26 @@ public class LuceneIndexingExecutionEngine implements IndexingExecutionEngine<Lu
      * Creates a new {@link LuceneWriter} for the given generation in an isolated temp directory
      * under the shard's Lucene base directory.
      *
-     * @param writerGeneration the generation number for the new writer
+     * @param config the writer configuration
      * @return a new writer
      * @throws RuntimeException wrapping an {@link IOException} if writer creation fails
      */
     @Override
-    public Writer<LuceneDocumentInput> createWriter(long writerGeneration) {
+    public Writer<LuceneDocumentInput> createWriter(WriterConfig config) {
         assert sharedWriter.isOpen() : "Cannot create writer — shared IndexWriter is closed";
         try {
-            return new LuceneWriter(writerGeneration, dataFormat, baseDirectory, analyzer, codec);
+            long mappingVersion = mapperService.getIndexSettings().getIndexMetadata().getMappingVersion();
+            return new LuceneWriter(
+                config.writerGeneration(),
+                mappingVersion,
+                dataFormat,
+                baseDirectory,
+                analyzer,
+                codec,
+                sharedWriter.getConfig().getIndexSort()
+            );
         } catch (IOException e) {
-            throw new RuntimeException("Failed to create LuceneWriter for generation " + writerGeneration, e);
+            throw new RuntimeException("Failed to create LuceneWriter for generation " + config.writerGeneration(), e);
         }
     }
 
@@ -279,8 +295,7 @@ public class LuceneIndexingExecutionEngine implements IndexingExecutionEngine<Lu
     /** Returns {@code null} — merge scheduling is not yet implemented for the Lucene format. */
     @Override
     public Merger getMerger() {
-        // TODO: Implement merge support as ParquetMerger
-        return mergeInput -> new MergeResult(Map.of());
+        return this.luceneMerger;
     }
 
     /**

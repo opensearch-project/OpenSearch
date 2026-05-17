@@ -102,6 +102,16 @@ public interface TransportResponseHandler<T extends TransportResponse> extends W
      */
     default void handleRejection(Exception exp) {}
 
+    /**
+     * True if this handler consumes the response payload directly (e.g. Flight's native Arrow
+     * path) instead of going through byte-level deserialization. Wrappers must forward their
+     * delegate's value.
+     */
+    @ExperimentalApi
+    default boolean skipsDeserialization() {
+        return false;
+    }
+
     default <Q extends TransportResponse> TransportResponseHandler<Q> wrap(Function<Q, T> converter, Writeable.Reader<Q> reader) {
         final TransportResponseHandler<T> self = this;
         return new TransportResponseHandler<Q>() {

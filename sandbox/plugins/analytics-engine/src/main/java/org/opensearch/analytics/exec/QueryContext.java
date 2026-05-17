@@ -9,10 +9,10 @@
 package org.opensearch.analytics.exec;
 
 import org.apache.arrow.memory.BufferAllocator;
-import org.apache.arrow.memory.RootAllocator;
 import org.opensearch.analytics.backend.AnalyticsOperationListener;
 import org.opensearch.analytics.exec.task.AnalyticsQueryTask;
 import org.opensearch.analytics.planner.dag.QueryDAG;
+import org.opensearch.arrow.flight.transport.ArrowAllocatorProvider;
 
 import java.util.List;
 import java.util.concurrent.Executor;
@@ -35,12 +35,6 @@ public class QueryContext {
 
     /** Default per-query memory limit for Arrow allocations (256 MB). */
     private static final long DEFAULT_PER_QUERY_MEMORY_LIMIT = 256L * 1024 * 1024;
-
-    /**
-     * Shared root allocator across all queries. Per-query child allocators
-     * are created from this root with individual limits.
-     */
-    private static final BufferAllocator SHARED_ROOT = new RootAllocator(Long.MAX_VALUE);
 
     private final QueryDAG dag;
     private final Executor searchExecutor;
@@ -125,7 +119,7 @@ public class QueryContext {
                     if (closed) {
                         throw new IllegalStateException("QueryContext closed for query " + dag.queryId());
                     }
-                    alloc = SHARED_ROOT.newChildAllocator("query-" + dag.queryId(), 0, perQueryMemoryLimit);
+                    alloc = ArrowAllocatorProvider.newChildAllocator("query-" + dag.queryId(), perQueryMemoryLimit);
                     bufferAllocator = alloc;
                 }
             }

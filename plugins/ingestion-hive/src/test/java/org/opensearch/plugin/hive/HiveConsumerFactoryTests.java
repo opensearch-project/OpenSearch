@@ -16,16 +16,16 @@ import java.util.Map;
 
 public class HiveConsumerFactoryTests extends OpenSearchTestCase {
 
-    public void testInitialize() {
+    public void testCreateShardConsumer() {
         HiveConsumerFactory factory = new HiveConsumerFactory();
         Map<String, Object> params = new HashMap<>();
         params.put("metastore_uri", "thrift://metastore:9083");
         params.put("database", "test_db");
         params.put("table", "events");
+        params.put("_number_of_shards", 3);
 
-        factory.initialize(new IngestionSource.Builder("HIVE").setParams(params).build(), 3);
-
-        HiveShardConsumer consumer = factory.createShardConsumer("client-1", 0);
+        IngestionSource source = new IngestionSource.Builder("HIVE").setParams(params).build();
+        HiveShardConsumer consumer = factory.createShardConsumer("client-1", 0, source);
         assertNotNull(consumer);
         assertEquals(0, consumer.getShardId());
     }

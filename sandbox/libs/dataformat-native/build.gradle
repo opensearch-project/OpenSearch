@@ -84,12 +84,21 @@ task buildRustLibrary(type: Exec) {
     outputs.file nativeLibFile
 }
 
-// Expose the native lib path so plugins can reference it for tests
-ext.nativeLibPath = nativeLibFile
+// External override: reuse a prebuilt .dylib from another worktree, a blessed shared copy,
+// or a CI-provided binary. Set OPENSEARCH_NATIVE_LIB (env) or -PnativeLibOverride to an
+// absolute .dylib/.so/.dll path; buildRustLibrary is skipped and nativeLibPath resolves to
+// the override. Consumers across sandbox/plugins read ext.nativeLibPath, so the override
+// propagates without per-plugin changes.
+def nativeLibOverride = project.findProperty('nativeLibOverride') ?: System.getenv('OPENSEARCH_NATIVE_LIB')
+def resolvedNativeLib = nativeLibOverride ? file(nativeLibOverride) : nativeLibFile
+ext.nativeLibPath = resolvedNativeLib
+buildRustLibrary.onlyIf { nativeLibOverride == null }
+
+assemble.dependsOn buildRustLibrary
 
 test {
     systemProperty 'tests.security.manager', 'false'
-    systemProperty 'native.lib.path', nativeLibFile.absolutePath
+    systemProperty 'native.lib.path', resolvedNativeLib.absolutePath
     jvmArgs += ['--enable-native-access=ALL-UNNAMED']
     dependsOn buildRustLibrary
 }

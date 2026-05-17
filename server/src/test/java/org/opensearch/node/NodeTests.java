@@ -42,6 +42,7 @@ import org.opensearch.common.SetOnce;
 import org.opensearch.common.network.NetworkModule;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsException;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.common.breaker.CircuitBreaker;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.common.transport.BoundTransportAddress;
@@ -64,6 +65,7 @@ import org.opensearch.plugins.TelemetryAwarePlugin;
 import org.opensearch.plugins.TelemetryPlugin;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.script.ScriptService;
+import org.opensearch.storage.metrics.TierActionMetrics;
 import org.opensearch.telemetry.Telemetry;
 import org.opensearch.telemetry.TelemetrySettings;
 import org.opensearch.telemetry.metrics.MetricsRegistry;
@@ -396,7 +398,8 @@ public class NodeTests extends OpenSearchTestCase {
             )
             .build();
 
-        // Test exception thrown with configuration missing
+        // Test exception thrown when computed cache budget is 0 (80% × 0 SSD in test env).
+        // NodeCacheOrchestrator.validate() throws IllegalArgumentException
         assertThrows(SettingsException.class, () -> new MockNode(warmRoleSettings, plugins));
 
         // Test file cache is initialized
@@ -419,6 +422,24 @@ public class NodeTests extends OpenSearchTestCase {
             FsInfo fsInfo = fsProbe.stats(null);
             FsInfo.Path cachePathInfo = fsInfo.iterator().next();
             assertEquals(cachePathInfo.getFileCacheReserved().getBytes(), fileCacheNodePath.fileCacheReservedSize.getBytes());
+        }
+    }
+
+    public void testTieredStorageWiringWithFeatureFlag() throws Exception {
+        Settings warmRoleSettings = addRoles(
+            baseSettings().put(FeatureFlags.WRITABLE_WARM_INDEX_EXPERIMENTAL_FLAG, true)
+                .put(Node.NODE_SEARCH_CACHE_SIZE_SETTING.getKey(), "1gb")
+                .build(),
+            Set.of(DiscoveryNodeRole.WARM_ROLE)
+        );
+        List<Class<? extends Plugin>> plugins = basePlugins();
+        try (MockNode mockNode = new MockNode(warmRoleSettings, plugins)) {
+            assertNotNull(mockNode);
+            // Verify TierActionMetrics was bound in Guice
+            assertNotNull(mockNode.injector().getInstance(TierActionMetrics.class));
+            // Verify remote_download thread pool exists
+            ThreadPool threadPool = mockNode.injector().getInstance(ThreadPool.class);
+            assertNotNull(threadPool.executor(ThreadPool.Names.REMOTE_DOWNLOAD));
         }
     }
 

@@ -15,7 +15,6 @@ import org.apache.calcite.rel.core.Filter;
 import org.apache.calcite.rex.RexCall;
 import org.apache.calcite.rex.RexInputRef;
 import org.apache.calcite.rex.RexNode;
-import org.apache.calcite.sql.SqlFunction;
 import org.apache.calcite.sql.SqlKind;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -80,7 +79,7 @@ public class OpenSearchFilterRule extends RelOptRule {
         List<String> childViableBackends = openSearchInput.getViableBackends();
         List<FieldStorageInfo> childFieldStorage = openSearchInput.getOutputFieldStorage();
 
-        // Annotate every leaf predicate with viable backends
+        // Annotate every leaf predicate with viable backends.
         RexNode annotatedCondition = annotateCondition(filter.getCondition(), childFieldStorage, childViableBackends);
 
         // Compute operator-level viable backends: must be viable for child AND handle predicates
@@ -145,7 +144,20 @@ public class OpenSearchFilterRule extends RelOptRule {
 
         CapabilityRegistry registry = context.getCapabilityRegistry();
 
+        ScalarFunction function = ScalarFunction.fromSqlOperatorWithFallback(predicate.getOperator());
+        if (function == null) {
+            throw new IllegalStateException(
+                "Unrecognized filter operator [" + predicate.getOperator().getName() + " / " + predicate.getKind() + "]"
+            );
+        }
+
         if (fieldIndices.isEmpty()) {
+            // Multi-field full-text functions (multi_match, query_string, simple_query_string)
+            // encode field names as string literals in nested MAPs rather than RexInputRef.
+            // Resolve viability against any backend that supports the function on text fields.
+            if (function.getCategory() == ScalarFunction.Category.FULL_TEXT) {
+                return new ArrayList<>(registry.filterBackendsAnyFormat(function, FieldType.TEXT));
+            }
             throw new UnsupportedOperationException(
                 "Constant predicate with no field references reached the filter rule: ["
                     + predicate
@@ -153,40 +165,30 @@ public class OpenSearchFilterRule extends RelOptRule {
             );
         }
 
-        ScalarFunction function = null;
-        if (predicate.getOperator() instanceof SqlFunction sqlFunction) {
-            function = ScalarFunction.fromSqlFunction(sqlFunction);
-        }
-        if (function == null) {
-            function = ScalarFunction.fromSqlKind(predicate.getKind());
-        }
-        if (function == null) {
-            throw new IllegalStateException("Unrecognized filter operator [" + predicate.getKind() + "]");
-        }
-
         Set<String> viableSet = new HashSet<>(registry.filterCapableBackends());
 
         for (int fieldIndex : fieldIndices) {
             FieldStorageInfo storageInfo = FieldStorageInfo.resolve(fieldStorageInfos, fieldIndex);
-            FieldType fieldType = storageInfo.getFieldType();
 
-            // TODO: for FULL_TEXT operators, extract required params from RexCall
+            Set<String> fieldViable;
             if (storageInfo.isDerived()) {
-                // Derived column marking is not yet implemented.
-                // Requires DelegationType split (NATIVE_INDEX vs ARROW_BATCH) and
-                // DataTransferCapability-based execution model for within-stage delegation.
-                throw new UnsupportedOperationException(
-                    "Filter on derived column ["
-                        + storageInfo.getFieldName()
-                        + "] is not yet supported. Marking on derived/expression columns requires "
-                        + "a implementation for delegation model."
-                );
+                // Derived columns (post-Aggregate, post-Join, post-Union, post-Project) are
+                // computed in memory by the producer. The filter can only run on a backend
+                // the producer is also viable for (its child's viableBackends), and further
+                // only on backends that support this function on the field's logical type —
+                // delegation isn't applicable because there's no physical storage to delegate
+                // a scan against. Surfaced by testHavingFilterAfterJoin_multiShard etc., where
+                // a HAVING clause filters on a stats-derived column.
+                fieldViable = new HashSet<>(childViableBackends);
+                fieldViable.retainAll(registry.filterBackendsAnyFormat(function, storageInfo.getFieldType()));
+            } else {
+                // Format-aware: backends that can access this field's storage (doc values + index).
+                // A backend is viable only if it has the field in its own storage formats — ensuring
+                // delegation targets are also field-storage-aware (e.g. Lucene is viable for a keyword
+                // field only when the field has indexFormats=[lucene] set in the mapping).
+                // TODO: for FULL_TEXT operators, extract required params from RexCall
+                fieldViable = new HashSet<>(registry.filterBackendsForField(function, storageInfo));
             }
-            // Format-aware: backends that can access this field's storage (doc values + index).
-            // A backend is viable only if it has the field in its own storage formats — ensuring
-            // delegation targets are also field-storage-aware (e.g. Lucene is viable for a keyword
-            // field only when the field has indexFormats=[lucene] set in the mapping).
-            Set<String> fieldViable = new HashSet<>(registry.filterBackendsForField(function, storageInfo));
 
             viableSet.retainAll(fieldViable);
         }

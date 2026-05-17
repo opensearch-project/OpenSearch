@@ -25,25 +25,16 @@ import org.opensearch.analytics.planner.rel.OpenSearchConvention;
  * trait enforcement (via {@code ExpandConversionRule} + {@code OpenSearchDistributionTraitDef})
  * automatically insert an {@code OpenSearchExchangeReducer}.
  *
- * <p>TODO (plan forking): aggregate decomposition is intentionally deferred to plan forking
- * resolution, after a single backend has been chosen per alternative. Decomposition is
- * backend-specific — different backends may emit different partial state schemas for the
- * same function (e.g. standard SUM+COUNT for AVG vs a backend's native running state).
- * Applying decomposition here would force a single schema before backends are resolved,
- * which breaks the multi-alternative model.
+ * <p>This rule is <b>purely structural</b>: it produces {@code FINAL(Exchange(PARTIAL))}
+ * with both halves carrying the same aggCall list as the original SINGLE node. Rewriting
+ * FINAL's aggregate calls — arg rebasing, COUNT→SUM function-swap, engine-native merge
+ * handling — runs post-Volcano via {@code DistributedAggregateRewriter}. Keeping the
+ * split rule structural avoids Volcano's {@code Aggregate.typeMatchesInferred} and
+ * row-type equivalence checks, which are sensitive to nullability differences that
+ * the rewrites inevitably introduce.
  *
- * <p>During plan forking resolution, for each PARTIAL+FINAL pair in a chosen-backend alternative:
- * <ol>
- *   <li>Look up {@link org.opensearch.analytics.spi.AggregateCapability#decomposition()} for
- *       each AggregateCall using the chosen backend.</li>
- *   <li>If null: apply Calcite's {@code AggregateReduceFunctionsRule} to rewrite
- *       AVG → SUM/COUNT, STDDEV → SUM(x²)+SUM(x)+COUNT, etc.</li>
- *   <li>If non-null: use {@link org.opensearch.analytics.spi.AggregateDecomposition#partialCalls()}
- *       to rewrite PARTIAL's aggCalls and output row type, and
- *       {@code AggregateDecomposition.finalExpression()} to
- *       rewrite FINAL's aggCalls. Both must be updated together — the exchange row type
- *       between them must be consistent within the same plan alternative.</li>
- * </ol>
+ * <p>Multi-field primitive decomposition (AVG / STDDEV / VAR) is handled by
+ * {@link OpenSearchAggregateReduceRule} during HEP marking — before this rule runs.
  *
  * @opensearch.internal
  */
@@ -67,7 +58,25 @@ public class OpenSearchAggregateSplitRule extends RelOptRule {
         OpenSearchAggregate aggregate = call.rel(0);
         RelNode child = call.rel(1);
 
-        // Partial aggregate: runs on each partition, keeps input's traits
+        // SINGLE with input converted to SINGLETON. Volcano picks this when
+        // the child can offer SINGLETON cheaply — e.g. a windowed Project already gathers
+        // below it, so a follow-on Aggregate has no parallelism to gain from splitting.
+        // Mirrors the dual-alternative pattern in OpenSearchJoinSplitRule.
+        RelTraitSet singletonTraits = aggregate.getTraitSet().replace(context.getDistributionTraitDef().coordSingleton());
+        RelNode singletonChild = convert(child, singletonTraits);
+        OpenSearchAggregate singleOnSingleton = new OpenSearchAggregate(
+            aggregate.getCluster(),
+            singletonTraits,
+            singletonChild,
+            aggregate.getGroupSet(),
+            aggregate.getGroupSets(),
+            aggregate.getAggCallList(),
+            AggregateMode.SINGLE,
+            aggregate.getViableBackends()
+        );
+
+        // PARTIAL + ER + FINAL. Wins when child is shard-partitioned — the
+        // common case for an Aggregate directly above a Scan.
         RelTraitSet partialTraits = child.getTraitSet().replace(OpenSearchConvention.INSTANCE);
         OpenSearchAggregate partial = new OpenSearchAggregate(
             aggregate.getCluster(),
@@ -79,15 +88,11 @@ public class OpenSearchAggregateSplitRule extends RelOptRule {
             AggregateMode.PARTIAL,
             aggregate.getViableBackends()
         );
-
-        // Request SINGLETON distribution — Volcano inserts Exchange automatically
-        RelTraitSet singletonTraits = partial.getTraitSet().replace(context.getDistributionTraitDef().singleton());
-        RelNode gathered = convert(partial, singletonTraits);
-
-        // Final aggregate: merges partial states at coordinator
+        RelTraitSet finalTraits = partial.getTraitSet().replace(context.getDistributionTraitDef().coordSingleton());
+        RelNode gathered = convert(partial, finalTraits);
         OpenSearchAggregate finalAggregate = new OpenSearchAggregate(
             aggregate.getCluster(),
-            singletonTraits,
+            finalTraits,
             gathered,
             aggregate.getGroupSet(),
             aggregate.getGroupSets(),
@@ -96,6 +101,7 @@ public class OpenSearchAggregateSplitRule extends RelOptRule {
             aggregate.getViableBackends()
         );
 
+        call.getPlanner().ensureRegistered(singleOnSingleton, aggregate);
         call.transformTo(finalAggregate);
     }
 }

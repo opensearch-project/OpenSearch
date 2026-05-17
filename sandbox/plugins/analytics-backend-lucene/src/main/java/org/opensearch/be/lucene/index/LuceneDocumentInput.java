@@ -9,7 +9,9 @@
 package org.opensearch.be.lucene.index;
 
 import org.apache.lucene.document.Document;
-import org.apache.lucene.document.NumericDocValuesField;
+import org.apache.lucene.document.FieldType;
+import org.apache.lucene.document.SortedNumericDocValuesField;
+import org.apache.lucene.index.DocValuesType;
 import org.opensearch.be.lucene.LuceneFieldFactory;
 import org.opensearch.be.lucene.LuceneFieldFactoryRegistry;
 import org.opensearch.common.annotation.ExperimentalApi;
@@ -26,20 +28,14 @@ import org.opensearch.index.mapper.MappedFieldType;
  * Only field types registered in the registry are accepted. Attempting to add a field
  * of an unregistered type throws {@link IllegalArgumentException}.
  *
- * The row ID field is stored as a {@link NumericDocValuesField} for efficient doc-value
- * access, maintaining 1:1 correspondence between Lucene doc IDs and Parquet row offsets.
+ * The row ID field is stored as a {@link SortedNumericDocValuesField} for efficient doc-value
+ * access and compatibility with the {@code SortedNumericSortField}-based IndexSort,
+ * maintaining 1:1 correspondence between Lucene doc IDs and Parquet row offsets.
  *
  * @opensearch.experimental
  */
 @ExperimentalApi
 public class LuceneDocumentInput implements DocumentInput<Document> {
-
-    /**
-     * Name of the row ID field stored in each Lucene document.
-     * @deprecated Use {@link DocumentInput#ROW_ID_FIELD} instead.
-     */
-    @Deprecated
-    public static final String ROW_ID_FIELD = DocumentInput.ROW_ID_FIELD;
 
     private final Document document;
     private final LuceneFieldFactoryRegistry fieldFactoryRegistry;
@@ -81,21 +77,31 @@ public class LuceneDocumentInput implements DocumentInput<Document> {
      */
     @Override
     public void addField(MappedFieldType fieldType, Object value) {
-        if (value == null || fieldType == null) {
-            return;
-        }
-
-        String typeName = fieldType.typeName();
-        LuceneFieldFactory factory = fieldFactoryRegistry.get(typeName);
+        assert value != null : "Field value must not be null";
+        LuceneFieldFactory factory = fieldFactory(fieldType);
         if (factory == null) {
             return;
         }
+        FieldType luceneFieldType;
+        if (fieldType.getTextSearchInfo() != null && fieldType.getTextSearchInfo().getLuceneFieldType() != null) {
+            luceneFieldType = new FieldType(fieldType.getTextSearchInfo().getLuceneFieldType());
+            luceneFieldType.setDocValuesType(DocValuesType.NONE);
+            luceneFieldType.setStored(false);
+        } else {
+            luceneFieldType = null;
+        }
+        factory.addField(document, fieldType, value, luceneFieldType);
+    }
 
-        factory.addField(document, fieldType, value);
+    private LuceneFieldFactory fieldFactory(MappedFieldType fieldType) {
+        if (fieldType == null) {
+            throw new IllegalArgumentException("Field type and value must not be null");
+        }
+        return fieldFactoryRegistry.get(fieldType.typeName());
     }
 
     /**
-     * Stores the row ID as a {@link NumericDocValuesField} to maintain 1:1 correspondence
+     * Stores the row ID as a {@link SortedNumericDocValuesField} to maintain 1:1 correspondence
      * between Lucene doc IDs and Parquet row offsets.
      *
      * @param rowIdFieldName the name of the row ID field
@@ -103,7 +109,12 @@ public class LuceneDocumentInput implements DocumentInput<Document> {
      */
     @Override
     public void setRowId(String rowIdFieldName, long rowId) {
-        document.add(new NumericDocValuesField(rowIdFieldName, rowId));
+        document.add(new SortedNumericDocValuesField(rowIdFieldName, rowId));
+    }
+
+    @Override
+    public long getFieldCount(String fieldName) {
+        return document.getFields(fieldName).length;
     }
 
     /** No-op — this document input holds no closeable resources. */

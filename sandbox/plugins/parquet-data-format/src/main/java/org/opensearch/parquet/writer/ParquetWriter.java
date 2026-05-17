@@ -9,7 +9,7 @@
 package org.opensearch.parquet.writer;
 
 import org.apache.arrow.vector.types.pojo.Schema;
-import org.opensearch.common.settings.Settings;
+import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.dataformat.FileInfos;
 import org.opensearch.index.engine.dataformat.WriteResult;
 import org.opensearch.index.engine.dataformat.Writer;
@@ -33,7 +33,7 @@ import java.nio.file.Path;
  * by the {@link VSRManager}, and flushed to a Parquet file via the native Rust writer.
  *
  * <p>Writer-level settings (e.g., {@code parquet.max_rows_per_vsr}) are extracted from
- * the {@link Settings} passed at construction time and propagated to the VSR layer.
+ * the {@link IndexSettings} passed at construction time and propagated to the VSR layer.
  *
  * <p>The returned {@link FileInfos} from {@link #flush()} contains the file path, writer
  * generation, and row count for downstream commit tracking.
@@ -45,34 +45,46 @@ public class ParquetWriter implements Writer<ParquetDocumentInput> {
     private final ParquetDataFormat dataFormat;
     private final VSRManager vsrManager;
     private final FormatChecksumStrategy checksumStrategy;
+    private long mappingVersion;
 
     /**
      * Creates a new ParquetWriter.
      *
      * @param file output Parquet file path
      * @param writerGeneration generation number for this writer
+     * @param mappingVersion the initial mapping version
      * @param dataFormat the Parquet data format instance
      * @param schema Arrow schema for vector creation
      * @param bufferPool shared Arrow buffer pool
-     * @param settings node settings for writer configuration
+     * @param indexSettings index settings for writer configuration
      * @param threadPool the thread pool for background native writes
      * @param checksumStrategy strategy to register pre-computed checksums on
      */
     public ParquetWriter(
         String file,
         long writerGeneration,
+        long mappingVersion,
         ParquetDataFormat dataFormat,
         Schema schema,
         ArrowBufferPool bufferPool,
-        Settings settings,
+        IndexSettings indexSettings,
         ThreadPool threadPool,
         FormatChecksumStrategy checksumStrategy
     ) {
         this.file = file;
         this.writerGeneration = writerGeneration;
+        this.mappingVersion = mappingVersion;
         this.dataFormat = dataFormat;
-        this.vsrManager = new VSRManager(file, schema, bufferPool, ParquetSettings.MAX_ROWS_PER_VSR.get(settings), threadPool);
         this.checksumStrategy = checksumStrategy;
+        this.vsrManager = new VSRManager(
+            file,
+            indexSettings,
+            schema,
+            bufferPool,
+            ParquetSettings.MAX_ROWS_PER_VSR.get(indexSettings.getSettings()),
+            threadPool,
+            writerGeneration
+        );
     }
 
     @Override
@@ -87,6 +99,8 @@ public class ParquetWriter implements Writer<ParquetDocumentInput> {
         if (file == null || metadata == null || metadata.numRows() == 0) {
             return FileInfos.empty();
         }
+        assert metadata.numRows() > 0 : "flushed metadata must have positive row count";
+
         Path filePath = Path.of(file);
         String fileName = filePath.getFileName().toString();
 
@@ -96,7 +110,7 @@ public class ParquetWriter implements Writer<ParquetDocumentInput> {
         }
 
         WriterFileSet writerFileSet = WriterFileSet.builder()
-            .directory(filePath.getParent().getFileName())
+            .directory(filePath.getParent().toAbsolutePath())
             .writerGeneration(writerGeneration)
             .addFile(fileName)
             .addNumRows(metadata.numRows())
@@ -115,15 +129,21 @@ public class ParquetWriter implements Writer<ParquetDocumentInput> {
     }
 
     @Override
-    public void lock() {}
-
-    @Override
-    public boolean tryLock() {
-        return false;
+    public boolean isSchemaMutable() {
+        return vsrManager.isSchemaMutable();
     }
 
     @Override
-    public void unlock() {}
+    public long mappingVersion() {
+        return mappingVersion;
+    }
+
+    @Override
+    public void updateMappingVersion(long newVersion) {
+        if (newVersion > this.mappingVersion) {
+            this.mappingVersion = newVersion;
+        }
+    }
 
     @Override
     public void close() throws IOException {

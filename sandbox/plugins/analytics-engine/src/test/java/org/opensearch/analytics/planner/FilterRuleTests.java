@@ -28,7 +28,9 @@ import org.opensearch.analytics.planner.rel.AnnotatedPredicate;
 import org.opensearch.analytics.planner.rel.OpenSearchFilter;
 import org.opensearch.analytics.planner.rel.OpenSearchTableScan;
 import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
+import org.opensearch.analytics.spi.BackendCapabilityProvider;
 import org.opensearch.analytics.spi.DelegationType;
+import org.opensearch.analytics.spi.EngineCapability;
 
 import java.util.List;
 import java.util.Map;
@@ -214,15 +216,12 @@ public class FilterRuleTests extends BasePlannerRulesTests {
     // ---- Derived columns ----
 
     /**
-     * HAVING on derived column must throw — marking on derived/expression columns
-     * is not yet implemented. Verifies the planner fails fast with a clear message
-     * rather than silently producing incorrect viableBackends.
-     *
-     * TODO: add testFilterOnAggregateOutput — Filter(Aggregate(Scan)) where the filter
-     * is on a non-derived column (e.g. group-by key) should succeed and propagate
-     * viableBackends correctly through the composed pipeline.
+     * HAVING on a derived column (the aggregate's {@code total_size} output) plans without
+     * throwing. The filter has no per-field storage to narrow on, so its viable backends are
+     * just the upstream aggregate's. The filter runs on the same backend that produced the
+     * derived column.
      */
-    public void testFilterOnDerivedColumnsAfterAggregateThrows() {
+    public void testFilterOnDerivedColumnPlansSuccessfully() {
         PlannerContext context = buildContext("parquet", 1, Map.of("status", Map.of("type", "integer"), "size", Map.of("type", "integer")));
 
         RelOptTable table = mockTable("test_index", "status", "size");
@@ -251,8 +250,8 @@ public class FilterRuleTests extends BasePlannerRulesTests {
         );
         LogicalFilter having = LogicalFilter.create(aggregate, havingCondition);
 
-        UnsupportedOperationException ex = expectThrows(UnsupportedOperationException.class, () -> runPlanner(having, context));
-        assertTrue("Expected message about derived column, got: " + ex.getMessage(), ex.getMessage().contains("derived column"));
+        RelNode result = runPlanner(having, context);
+        assertNotNull("Planner must produce a plan for HAVING on derived column", result);
     }
 
     // ---- Helpers ----
@@ -323,5 +322,36 @@ public class FilterRuleTests extends BasePlannerRulesTests {
             }
         };
         return List.of(df, lucene);
+    }
+
+    public void testBackendWithFilterDelegationButNoFactory_throws() {
+        AnalyticsSearchBackendPlugin badBackend = new AnalyticsSearchBackendPlugin() {
+            @Override
+            public String name() {
+                return "bad-backend";
+            }
+
+            @Override
+            public BackendCapabilityProvider getCapabilityProvider() {
+                return new BackendCapabilityProvider() {
+                    @Override
+                    public Set<EngineCapability> supportedEngineCapabilities() {
+                        return Set.of();
+                    }
+
+                    @Override
+                    public Set<DelegationType> supportedDelegations() {
+                        return Set.of(DelegationType.FILTER);
+                    }
+                };
+            }
+        };
+
+        IllegalStateException exception = expectThrows(
+            IllegalStateException.class,
+            () -> new CapabilityRegistry(List.of(badBackend), idx -> null)
+        );
+        assertTrue(exception.getMessage().contains("bad-backend"));
+        assertTrue(exception.getMessage().contains("getInstructionHandlerFactory"));
     }
 }

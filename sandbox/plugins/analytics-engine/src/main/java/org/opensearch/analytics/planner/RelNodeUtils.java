@@ -16,11 +16,14 @@ import org.opensearch.analytics.planner.rel.OpenSearchAggregate;
 import org.opensearch.analytics.planner.rel.OpenSearchConvention;
 import org.opensearch.analytics.planner.rel.OpenSearchDistribution;
 import org.opensearch.analytics.planner.rel.OpenSearchDistributionTraitDef;
+import org.opensearch.analytics.planner.rel.OpenSearchExchangeReducer;
 import org.opensearch.analytics.planner.rel.OpenSearchFilter;
+import org.opensearch.analytics.planner.rel.OpenSearchJoin;
 import org.opensearch.analytics.planner.rel.OpenSearchProject;
-import org.opensearch.analytics.planner.rel.OpenSearchRelNode;
 import org.opensearch.analytics.planner.rel.OpenSearchSort;
 import org.opensearch.analytics.planner.rel.OpenSearchTableScan;
+import org.opensearch.analytics.planner.rel.OpenSearchUnion;
+import org.opensearch.analytics.planner.rel.OpenSearchValues;
 
 import java.util.List;
 
@@ -87,6 +90,28 @@ public class RelNodeUtils {
                 project.getRowType(),
                 project.getViableBackends()
             );
+        } else if (node instanceof OpenSearchJoin join) {
+            return new OpenSearchJoin(
+                newCluster,
+                newTraits,
+                newInputs.get(0),
+                newInputs.get(1),
+                join.getCondition(),
+                join.getJoinType(),
+                join.getViableBackends()
+            );
+        } else if (node instanceof OpenSearchUnion union) {
+            return new OpenSearchUnion(newCluster, newTraits, newInputs, union.all, union.getViableBackends());
+        } else if (node instanceof OpenSearchValues values) {
+            return new OpenSearchValues(newCluster, newTraits, values.getRowType(), values.getTuples(), values.getViableBackends());
+        } else if (node instanceof OpenSearchExchangeReducer reducer) {
+            return new OpenSearchExchangeReducer(
+                newCluster,
+                newTraits,
+                newInputs.getFirst(),
+                reducer.getViableBackends(),
+                reducer.getExchangeInfo()
+            );
         }
 
         throw new UnsupportedOperationException("Cannot copy node type: " + node.getClass().getSimpleName());
@@ -98,7 +123,8 @@ public class RelNodeUtils {
         for (int index = 0; index < node.getTraitSet().size(); index++) {
             org.apache.calcite.plan.RelTrait trait = node.getTraitSet().getTrait(index);
             if (trait instanceof OpenSearchDistribution oldDist) {
-                traits = traits.replace(distTraitDef.fromType(oldDist.getType(), oldDist.getKeys()));
+                // Preserve the full distribution (kind, type, keys, tableId).
+                traits = traits.replace(distTraitDef.from(oldDist));
             }
         }
 
@@ -106,29 +132,20 @@ public class RelNodeUtils {
     }
 
     /**
-     * Extracts the single backend from the leaf operator in a resolved fragment.
-     * After resolution, every operator has exactly one viable backend. Throws if
-     * the leaf has more than one (indicates resolution didn't complete).
+     * Finds the first node of the given type in the fragment's single-input chain.
+     * Returns {@code null} if not found.
+     *
+     * <p>TODO: migrate existing findLeaf/findFilter usages in FragmentConversionDriver to use this.
      */
-    public static String extractLeafBackendFromResolvedFragment(RelNode node) {
-        if (node.getInputs().isEmpty()) {
-            if (node instanceof OpenSearchRelNode leafNode) {
-                List<String> backends = leafNode.getViableBackends();
-                if (backends.size() != 1) {
-                    throw new IllegalStateException(
-                        "Expected exactly 1 viable backend on resolved leaf [" + node.getClass().getSimpleName() + "], got " + backends
-                    );
-                }
-                return backends.getFirst();
-            }
-            throw new IllegalStateException("Leaf node [" + node.getClass().getSimpleName() + "] is not an OpenSearchRelNode");
+    @SuppressWarnings("unchecked")
+    public static <T extends RelNode> T findNode(RelNode node, Class<T> type) {
+        if (type.isInstance(node)) {
+            return (T) node;
         }
-        for (RelNode input : node.getInputs()) {
-            String backend = extractLeafBackendFromResolvedFragment(input);
-            if (backend != null) {
-                return backend;
-            }
+        if (!node.getInputs().isEmpty()) {
+            return findNode(node.getInputs().getFirst(), type);
         }
         return null;
     }
+
 }

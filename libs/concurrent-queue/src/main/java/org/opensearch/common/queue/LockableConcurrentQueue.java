@@ -10,6 +10,7 @@ package org.opensearch.common.queue;
 
 import java.util.Queue;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 /**
@@ -53,6 +54,26 @@ public final class LockableConcurrentQueue<T extends Lockable> {
             // If an entry has been added to the queue in the meantime, try again.
         } while (addAndUnlockCount != addAndUnlockCounter.get());
 
+        return null;
+    }
+
+    /**
+     * Poll with compatibility filter. Scans the queue for a compatible entry that can be locked.
+     * Incompatible entries are removed from the queue.
+     * Compatible entries that cannot be locked (held by another thread) are skipped.
+     *
+     * @param isCompatible predicate to test compatibility — failing entries are removed
+     * @return the locked matched entry, or null if none found
+     */
+    public T lockAndPollWithRejects(Predicate<T> isCompatible) {
+        int addAndUnlockCount;
+        do {
+            addAndUnlockCount = addAndUnlockCounter.get();
+            T entry = queue.pollAndDropIncompatible(isCompatible, Lockable::tryLock);
+            if (entry != null) {
+                return entry;
+            }
+        } while (addAndUnlockCount != addAndUnlockCounter.get());
         return null;
     }
 

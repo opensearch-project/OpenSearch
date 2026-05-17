@@ -19,12 +19,14 @@ import org.apache.calcite.rel.logical.LogicalFilter;
 import org.apache.calcite.rel.metadata.RelMetadataQuery;
 import org.apache.calcite.rex.RexCall;
 import org.apache.calcite.rex.RexNode;
+import org.apache.calcite.rex.RexUtil;
 import org.opensearch.analytics.planner.RelNodeUtils;
 import org.opensearch.analytics.spi.FieldStorageInfo;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.ListIterator;
+import java.util.function.Function;
 
 /**
  * OpenSearch custom Filter carrying viable backend list and per-predicate annotations.
@@ -96,7 +98,18 @@ public class OpenSearchFilter extends Filter implements OpenSearchRelNode {
 
     @Override
     public RelNode stripAnnotations(List<RelNode> strippedChildren) {
-        return LogicalFilter.create(strippedChildren.getFirst(), stripCondition(getCondition()));
+        return stripAnnotations(strippedChildren, OperatorAnnotation::unwrap);
+    }
+
+    @Override
+    public RelNode stripAnnotations(List<RelNode> strippedChildren, Function<OperatorAnnotation, RexNode> annotationResolver) {
+        RexNode resolved = resolveCondition(getCondition(), annotationResolver);
+        // LogicalFilter.<init> asserts isFlat on the condition: an AND must not contain an
+        // AND child, and an OR must not contain an OR child. Adapter substitutions in
+        // BackendPlanAdapter.adaptRex can introduce that nesting (e.g. SargAdapter expands
+        // SEARCH into AND(>=, <=) under a parent AND). Flatten canonicalizes the tree.
+        RexNode flattened = RexUtil.flatten(getCluster().getRexBuilder(), resolved);
+        return LogicalFilter.create(strippedChildren.getFirst(), flattened);
     }
 
     private RexNode replaceAnnotations(RexNode node, ListIterator<OperatorAnnotation> annotationIterator) {
@@ -115,15 +128,15 @@ public class OpenSearchFilter extends Filter implements OpenSearchRelNode {
         return node;
     }
 
-    private RexNode stripCondition(RexNode node) {
-        if (node instanceof AnnotatedPredicate predicate) return predicate.unwrap();
+    private RexNode resolveCondition(RexNode node, Function<OperatorAnnotation, RexNode> annotationResolver) {
+        if (node instanceof AnnotatedPredicate predicate) return annotationResolver.apply(predicate);
         if (node instanceof RexCall call) {
             List<RexNode> newOperands = new ArrayList<>();
             boolean changed = false;
             for (RexNode operand : call.getOperands()) {
-                RexNode stripped = stripCondition(operand);
-                newOperands.add(stripped);
-                if (stripped != operand) changed = true;
+                RexNode resolved = resolveCondition(operand, annotationResolver);
+                newOperands.add(resolved);
+                if (resolved != operand) changed = true;
             }
             return changed ? call.clone(call.getType(), newOperands) : call;
         }

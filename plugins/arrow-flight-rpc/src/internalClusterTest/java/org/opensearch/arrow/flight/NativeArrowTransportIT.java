@@ -23,8 +23,9 @@ import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.ActionType;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.TransportAction;
+import org.opensearch.arrow.flight.transport.ArrowAllocatorProvider;
 import org.opensearch.arrow.flight.transport.ArrowBatchResponse;
-import org.opensearch.arrow.flight.transport.ArrowFlightChannel;
+import org.opensearch.arrow.flight.transport.ArrowBatchResponseHandler;
 import org.opensearch.arrow.flight.transport.FlightStreamPlugin;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.inject.Inject;
@@ -37,7 +38,6 @@ import org.opensearch.plugins.Plugin;
 import org.opensearch.tasks.Task;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.threadpool.ThreadPool;
-import org.opensearch.transport.StreamTransportResponseHandler;
 import org.opensearch.transport.StreamTransportService;
 import org.opensearch.transport.TransportChannel;
 import org.opensearch.transport.TransportException;
@@ -124,6 +124,89 @@ public class NativeArrowTransportIT extends OpenSearchIntegTestCase {
         }
     }
 
+    /**
+     * Collects every batch without reading vector data, fully drains and closes the stream, then
+     * verifies each retained batch still holds its data. Mirrors an async consumer that defers
+     * reading until after the stream has advanced or been closed.
+     */
+    @LockFeatureFlag(STREAM_TRANSPORT)
+    public void testBatchesSurviveStreamAdvanceAndClose() throws Exception {
+        DiscoveryNode node = getClusterState().nodes().iterator().next();
+        StreamTransportService sts = internalCluster().getInstance(StreamTransportService.class);
+        List<TestArrowResponse> retained = new ArrayList<>();
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicReference<Exception> failure = new AtomicReference<>();
+
+        int batchCount = 3;
+        int rowsPerBatch = 4;
+        sts.sendRequest(
+            node,
+            TestArrowAction.NAME,
+            new TestArrowRequest(batchCount, rowsPerBatch, 1),
+            TransportRequestOptions.builder().withType(TransportRequestOptions.Type.STREAM).build(),
+            new ArrowBatchResponseHandler<TestArrowResponse>() {
+                @Override
+                public void handleStreamResponse(StreamTransportResponse<TestArrowResponse> streamResponse) {
+                    try {
+                        TestArrowResponse response;
+                        // Collect references WITHOUT reading vector data — defer that until after close.
+                        while ((response = streamResponse.nextResponse()) != null) {
+                            retained.add(response);
+                        }
+                        streamResponse.close();
+                    } catch (Exception e) {
+                        failure.set(e);
+                        streamResponse.cancel("Test error", e);
+                    } finally {
+                        latch.countDown();
+                    }
+                }
+
+                @Override
+                public void handleException(TransportException exp) {
+                    failure.set(exp);
+                    latch.countDown();
+                }
+
+                @Override
+                public String executor() {
+                    return ThreadPool.Names.GENERIC;
+                }
+
+                @Override
+                public TestArrowResponse read(StreamInput in) throws IOException {
+                    return new TestArrowResponse(in);
+                }
+            }
+        );
+
+        assertTrue("Stream should complete within 30s", latch.await(30, TimeUnit.SECONDS));
+        assertNull("No exception expected: " + failure.get(), failure.get());
+        assertEquals(batchCount, retained.size());
+
+        try {
+            // Every retained batch must still have its data intact even though the stream has
+            // advanced and closed.
+            for (int batchIdx = 0; batchIdx < retained.size(); batchIdx++) {
+                VectorSchemaRoot root = retained.get(batchIdx).getRoot();
+                assertEquals("row count must survive stream close", rowsPerBatch, root.getRowCount());
+                IntVector batchIdVec = (IntVector) root.getVector("batch_id");
+                VarCharVector nameVec = (VarCharVector) root.getVector("name");
+                IntVector valueVec = (IntVector) root.getVector("value");
+                assertEquals("valueCount must survive stream close", rowsPerBatch, batchIdVec.getValueCount());
+                for (int row = 0; row < rowsPerBatch; row++) {
+                    assertEquals("batch_id survives", batchIdx, batchIdVec.get(row));
+                    assertEquals("name survives", "row-" + batchIdx + "-" + row, new String(nameVec.get(row), StandardCharsets.UTF_8));
+                    assertEquals("value survives", batchIdx * 1000 + row, valueVec.get(row));
+                }
+            }
+        } finally {
+            for (TestArrowResponse r : retained) {
+                r.getRoot().close();
+            }
+        }
+    }
+
     @LockFeatureFlag(STREAM_TRANSPORT)
     public void testParallelBatchProduction() throws Exception {
         // 100 batches, 10 rows each, produced by 5 parallel threads.
@@ -181,7 +264,7 @@ public class NativeArrowTransportIT extends OpenSearchIntegTestCase {
         }
     }
 
-    /** Deep-copies data from a VectorSchemaRoot. */
+    /** Deep-copies data out of the Arrow batch so the root can be closed immediately. */
     static class ReceivedBatch {
         final int rowCount;
         final int batchId;
@@ -189,11 +272,11 @@ public class NativeArrowTransportIT extends OpenSearchIntegTestCase {
         final List<String> names;
         final List<Integer> values;
 
-        ReceivedBatch(VectorSchemaRoot root) {
-            this.rowCount = root.getRowCount();
-            IntVector batchIdVector = (IntVector) root.getVector("batch_id");
-            VarCharVector nameVector = (VarCharVector) root.getVector("name");
-            IntVector valueVector = (IntVector) root.getVector("value");
+        ReceivedBatch(VectorSchemaRoot batch) {
+            this.rowCount = batch.getRowCount();
+            IntVector batchIdVector = (IntVector) batch.getVector("batch_id");
+            VarCharVector nameVector = (VarCharVector) batch.getVector("name");
+            IntVector valueVector = (IntVector) batch.getVector("value");
             this.batchIds = new ArrayList<>();
             this.names = new ArrayList<>();
             this.values = new ArrayList<>();
@@ -266,11 +349,29 @@ public class NativeArrowTransportIT extends OpenSearchIntegTestCase {
      * batches via sendResponseBatch(). The framework does zero-copy transfer
      * on the executor thread.
      */
+    public static class TestAllocatorHolder {
+        private final BufferAllocator allocator;
+
+        TestAllocatorHolder(BufferAllocator allocator) {
+            this.allocator = allocator;
+        }
+
+        BufferAllocator get() {
+            return allocator;
+        }
+    }
+
     public static class TransportTestArrowAction extends TransportAction<TestArrowRequest, TestArrowResponse> {
+        private final BufferAllocator allocator;
 
         @Inject
-        public TransportTestArrowAction(StreamTransportService streamTransportService, ActionFilters actionFilters) {
+        public TransportTestArrowAction(
+            StreamTransportService streamTransportService,
+            ActionFilters actionFilters,
+            TestAllocatorHolder allocatorHolder
+        ) {
             super(TestArrowAction.NAME, actionFilters, streamTransportService.getTaskManager());
+            this.allocator = allocatorHolder.get();
             streamTransportService.registerRequestHandler(
                 TestArrowAction.NAME,
                 ThreadPool.Names.GENERIC,
@@ -285,7 +386,6 @@ public class NativeArrowTransportIT extends OpenSearchIntegTestCase {
         }
 
         private void handleStreamRequest(TestArrowRequest request, TransportChannel channel, Task task) throws IOException {
-            BufferAllocator allocator = ArrowFlightChannel.from(channel).getAllocator();
 
             try {
                 if (request.parallelism <= 1) {
@@ -354,7 +454,7 @@ public class NativeArrowTransportIT extends OpenSearchIntegTestCase {
         }
     }
 
-    static class TestArrowResponseHandler implements StreamTransportResponseHandler<TestArrowResponse> {
+    static class TestArrowResponseHandler extends ArrowBatchResponseHandler<TestArrowResponse> {
         private final List<ReceivedBatch> batches;
         private final CountDownLatch latch;
         private final AtomicReference<Exception> failure;
@@ -370,13 +470,15 @@ public class NativeArrowTransportIT extends OpenSearchIntegTestCase {
             try {
                 TestArrowResponse response;
                 while ((response = streamResponse.nextResponse()) != null) {
-                    batches.add(new ReceivedBatch(response.getRoot()));
+                    try (VectorSchemaRoot batch = response.getRoot()) {
+                        batches.add(new ReceivedBatch(batch));
+                    }
                 }
                 streamResponse.close();
-                latch.countDown();
             } catch (Exception e) {
                 failure.set(e);
                 streamResponse.cancel("Test error", e);
+            } finally {
                 latch.countDown();
             }
         }
@@ -399,11 +501,35 @@ public class NativeArrowTransportIT extends OpenSearchIntegTestCase {
     }
 
     public static class NativeArrowTestPlugin extends Plugin implements ActionPlugin {
+        private final BufferAllocator allocator = ArrowAllocatorProvider.newChildAllocator("native-arrow-test", Long.MAX_VALUE);
+
         public NativeArrowTestPlugin() {}
+
+        @Override
+        public Collection<Object> createComponents(
+            org.opensearch.transport.client.Client client,
+            org.opensearch.cluster.service.ClusterService clusterService,
+            ThreadPool threadPool,
+            org.opensearch.watcher.ResourceWatcherService resourceWatcherService,
+            org.opensearch.script.ScriptService scriptService,
+            org.opensearch.core.xcontent.NamedXContentRegistry xContentRegistry,
+            org.opensearch.env.Environment environment,
+            org.opensearch.env.NodeEnvironment nodeEnvironment,
+            org.opensearch.core.common.io.stream.NamedWriteableRegistry namedWriteableRegistry,
+            org.opensearch.cluster.metadata.IndexNameExpressionResolver indexNameExpressionResolver,
+            java.util.function.Supplier<org.opensearch.repositories.RepositoriesService> repositoriesServiceSupplier
+        ) {
+            return List.of(new TestAllocatorHolder(allocator));
+        }
 
         @Override
         public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
             return List.of(new ActionHandler<>(TestArrowAction.INSTANCE, TransportTestArrowAction.class));
+        }
+
+        @Override
+        public void close() {
+            allocator.close();
         }
     }
 }

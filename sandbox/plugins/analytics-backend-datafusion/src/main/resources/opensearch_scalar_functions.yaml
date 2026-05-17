@@ -1,0 +1,911 @@
+%YAML 1.2
+---
+urn: extension:org.opensearch:scalar_functions
+scalar_functions:
+  - name: ilike
+    description: >-
+      Case-insensitive LIKE. datafusion-substrait maps the extension name `ilike`
+      to a case-insensitive `LikeExpr`.
+    impls:
+      - args:
+          - value: "varchar<L1>"
+            name: "input"
+          - value: "varchar<L2>"
+            name: "match"
+        return: boolean
+      - args:
+          - value: "string"
+            name: "input"
+          - value: "string"
+            name: "match"
+        return: boolean
+  - name: "date_part"
+    description: >-
+      Extract a numeric component (year, month, day, etc.) from a timestamp/date.
+      DataFusion returns fp64 for every part name, so the signature pins fp64
+      regardless of which part is requested.
+
+      The `part` slot is declared as `value: string`, not an `options:`
+      EnumArgument. `DatePartAdapters` prepends a VARCHAR literal (e.g.
+      `"year"`) via `rexBuilder.makeLiteral(…, VARCHAR, true)`; that is not a
+      `SqlIntervalQualifier` enum symbol, so isthmus's `FunctionConverter.matchKeys`
+      emits the token `str` for that operand, and the probe key matches this
+      sig's `str_…` form. An `options:` declaration would serialize under a
+      `req`/`opt` key and never match.
+
+      The value slot is declared with the concrete timestamp family
+      (`precision_timestamp<P>` / `date`) rather than `any1`: Calcite's `date`
+      field type emits `precision_timestamp<0>?` at the Rex level, and
+      matchKeys encodes the nullable-precision metadata into the probe key;
+      `any1` cannot bind through the composite 2-arg key in this context.
+    impls:
+      - args:
+          - { value: string, name: "part" }
+          - { value: "precision_timestamp<P>", name: "value" }
+        return: fp64
+      - args:
+          - { value: string, name: "part" }
+          - { value: "date", name: "value" }
+        return: fp64
+  - name: "date_trunc"
+    description: >-
+      Truncate a timestamp/date to the given unit. Lowering target for PPL's
+      time-based `span(field, 1<unit>)` (rewritten by `SpanAdapter`). Same arg
+      shape as `date_part` — string unit then precision_timestamp/date — for
+      the same isthmus matchKeys reason documented on `date_part`. Return type
+      mirrors the input timestamp precision; DataFusion's `date_trunc` returns
+      the same temporal kind as its input.
+    impls:
+      - args:
+          - { value: string, name: "unit" }
+          - { value: "precision_timestamp<P>", name: "value" }
+        return: precision_timestamp<P>
+      - args:
+          - { value: string, name: "unit" }
+          - { value: "date", name: "value" }
+        return: date
+  - name: "convert_tz"
+    description: >-
+      Shift a timestamp from one timezone to another. IANA names and +/-HH:MM
+      offsets. The first slot pins `precision_timestamp<P>` for the same
+      reason documented on date_part — `any1` cannot bind the nullable-
+      precision-timestamp metadata through a multi-arg composite match key.
+    impls:
+      - args:
+          - { value: "precision_timestamp<P>", name: "ts" }
+          - { value: string, name: "from_tz" }
+          - { value: string, name: "to_tz" }
+        return: timestamp
+  - name: "to_unixtime"
+    description: "Return a timestamp as Unix epoch seconds."
+    impls:
+      - args: [{ value: "any1", name: "ts" }]
+        return: i64
+  - name: "now"
+    description: >-
+      Returns the current wall-clock timestamp. DataFusion's builtin `now` —
+      evaluated once per query, constant across the plan. Lowering target for
+      PPL `now()`, `current_timestamp()`, and `sysdate()`.
+    impls:
+      - args: []
+        return: timestamp
+  - name: "current_date"
+    description: >-
+      Returns today's date (no time component). DataFusion's builtin
+      `current_date`. Lowering target for PPL `current_date()` / `curdate()`.
+    impls:
+      - args: []
+        return: date
+  - name: "current_time"
+    description: >-
+      Returns the current wall-clock time (no date component). DataFusion's
+      builtin `current_time`. Lowering target for PPL `current_time()` / `curtime()`.
+    impls:
+      - args: []
+        return: time
+  - name: "to_time"
+    description: >-
+      Extract the time-of-day component from a TIMESTAMP, DATE, TIME, or
+      string value. DataFusion's builtin `to_time`
+      (datafusion-functions/src/datetime/to_time.rs) — returns `Time64(ns)`
+      for Timestamp / Utf8 / Utf8View / LargeUtf8 inputs. Lowering target for
+      PPL `time(expr)` via TimeAdapter in DateTimeAdapters.
+    impls:
+      - args: [{ value: "precision_timestamp<P>", name: "value" }]
+        return: time
+      - args: [{ value: "date", name: "value" }]
+        return: time
+      - args: [{ value: "time", name: "value" }]
+        return: time
+      - args: [{ value: "string", name: "value" }]
+        return: time
+      - args: [{ value: "varchar<L1>", name: "value" }]
+        return: time
+  - name: "to_date"
+    description: >-
+      Extract the date component from a TIMESTAMP, DATE, or string value.
+      DataFusion's builtin `to_date`
+      (datafusion-functions/src/datetime/to_date.rs) — returns `Date32` for
+      Timestamp / Utf8 / Utf8View / LargeUtf8 inputs. Lowering target for
+      PPL `date(expr)` via DateAdapter in DateTimeAdapters. PPL's operand
+      checker rejects integer inputs upstream, so DF's days-since-epoch
+      branch is unreachable on this path.
+    impls:
+      - args: [{ value: "precision_timestamp<P>", name: "value" }]
+        return: date
+      - args: [{ value: "date", name: "value" }]
+        return: date
+      - args: [{ value: "string", name: "value" }]
+        return: date
+      - args: [{ value: "varchar<L1>", name: "value" }]
+        return: date
+  - name: "to_timestamp"
+    description: >-
+      Parse a value into a TIMESTAMP. DataFusion's builtin `to_timestamp`
+      (datafusion-functions/src/datetime/to_timestamp.rs) — returns
+      `Timestamp(Nanosecond, None)` for Timestamp / Utf8 / Utf8View /
+      LargeUtf8 inputs. Lowering target for PPL `datetime(expr)` via
+      DatetimeAdapter. PPL's single-arg `timestamp(expr)` shares semantics
+      but stays on legacy due to an enum-slot collision with the VARCHAR
+      literal-folding adapter — see DatetimeAdapter javadoc.
+    impls:
+      - args: [{ value: "precision_timestamp<P>", name: "value" }]
+        return: timestamp
+      - args: [{ value: "date", name: "value" }]
+        return: timestamp
+      - args: [{ value: "string", name: "value" }]
+        return: timestamp
+      - args: [{ value: "varchar<L1>", name: "value" }]
+        return: timestamp
+  - name: regex_match
+    description: >-
+      Regular expression containment match (boolean). Lowering target for PPL's
+      `regex` command and `regexp_match()` function — both emit Calcite's
+      `SqlLibraryOperators.REGEXP_CONTAINS`, which DataFusionFragmentConvertor
+      maps to this extension. datafusion-substrait resolves the extension name
+      "regex_match" to `datafusion::logical_expr::Operator::RegexMatch`, which
+      executes against arrow-string's regex kernel and returns BOOLEAN.
+    impls:
+      - args:
+          - value: "varchar<L1>"
+            name: "input"
+          - value: "varchar<L2>"
+            name: "pattern"
+        return: boolean
+      - args:
+          - value: "string"
+            name: "input"
+          - value: "string"
+            name: "pattern"
+        return: boolean
+  - name: cbrt
+    description: >-
+      Cube root. Resolves to DataFusion's built-in `cbrt` scalar function.
+    impls:
+      - args:
+          - value: fp32
+            name: x
+        return: fp32
+      - args:
+          - value: fp64
+            name: x
+        return: fp64
+  - name: cot
+    description: >-
+      Cotangent. Resolves to DataFusion's built-in `cot` scalar function.
+    impls:
+      - args:
+          - value: fp32
+            name: x
+        return: fp32
+      - args:
+          - value: fp64
+            name: x
+        return: fp64
+  - name: pi
+    description: >-
+      Zero-argument π constant. Resolves to DataFusion's built-in `pi` scalar
+      function.
+    impls:
+      - args: []
+        return: fp64
+  - name: random
+    description: >-
+      Pseudorandom fp64 in [0, 1). Resolves to DataFusion's built-in `random`
+      scalar function. PPL surface name is `rand`; FunctionMappings maps
+      `SqlStdOperatorTable.RAND` to this extension name. Only the 0-arg form
+      is declared because DataFusion's native `random` UDF is registered as
+      NullAry only — adding a seeded i32 overload here makes isthmus bind
+      cleanly, but DF then errors at execute time ("expected zero argument
+      but received 1"). Seeded `rand(int)` needs a dedicated Rust UDF before
+      it can be added here. Until then, tests exercising `rand(seed)` are
+      skipped on the analytics path.
+    impls:
+      - args: []
+        return: fp64
+  - name: round
+    description: >-
+      One-argument rounding to the nearest integer, preserving input type.
+      DataFusion's built-in `round` also supports a 2-arg (value, digits)
+      overload matching the Substrait default signature; PPL frequently emits
+      a single-argument form which this entry declares.
+    impls:
+      - args:
+          - value: fp32
+            name: x
+        return: fp32
+      - args:
+          - value: fp64
+            name: x
+        return: fp64
+  - name: signum
+    description: >-
+      Signum. DataFusion's built-in scalar function is named `signum`; PPL/Calcite
+      surface name is `sign`. AbstractNameMappingAdapter retargets Calcite's `SIGN`
+      at SignumFunction (yaml name `signum`) so isthmus emits the name DataFusion
+      resolves directly. Integer overload returns the input width unchanged —
+      matches Calcite's SIGN type inference for `int` columns.
+    impls:
+      - args:
+          - value: i32
+            name: x
+        return: i32
+      - args:
+          - value: fp32
+            name: x
+        return: fp32
+      - args:
+          - value: fp64
+            name: x
+        return: fp64
+  - name: trunc
+    description: >-
+      Truncate toward zero. Resolves to DataFusion's built-in `trunc` scalar
+      function. PPL's `truncate` — `SqlStdOperatorTable.TRUNCATE` — accepts
+      both 1-arg and 2-arg (value, scale) forms per the
+      CompositeOperandTypeChecker; both are declared here. Integer overloads
+      pass through unchanged (truncate of an int is a no-op) so `truncate(int)`
+      and `truncate(int, scale)` from PPL bind to a Substrait call.
+    impls:
+      - args:
+          - value: i32
+            name: x
+        return: i32
+      - args:
+          - value: fp32
+            name: x
+        return: fp32
+      - args:
+          - value: fp64
+            name: x
+        return: fp64
+      - args:
+          - value: i32
+            name: x
+          - value: i32
+            name: scale
+        return: i32
+      - args:
+          - value: fp32
+            name: x
+          - value: i32
+            name: scale
+        return: fp32
+      - args:
+          - value: fp64
+            name: x
+          - value: i32
+            name: scale
+        return: fp64
+  - name: replace
+    description: >-
+      Literal string replacement — replace every occurrence of `search` in `input`
+      with `replacement`. Lowering target for PPL's `replace` command on
+      non-wildcard patterns (Calcite `SqlStdOperatorTable.REPLACE`).
+      datafusion-substrait resolves the extension name "replace" to DataFusion's
+      native `replace` UDF (datafusion-functions/src/string/replace.rs).
+    impls:
+      - args:
+          - value: "varchar<L1>"
+            name: "input"
+          - value: "varchar<L2>"
+            name: "search"
+          - value: "varchar<L3>"
+            name: "replacement"
+        return: "varchar<L1>"
+      - args:
+          - value: "string"
+            name: "input"
+          - value: "string"
+            name: "search"
+          - value: "string"
+            name: "replacement"
+        return: string
+  - name: regexp_replace
+    description: >-
+      Regex string replacement — replace every match of `pattern` in `input`
+      with `replacement`. Lowering target for PPL's `replace` command on
+      wildcard patterns (after `*` → regex conversion) and for the PPL
+      `replace()` / `regexp_replace()` functions in `eval`. Calcite emits
+      `SqlLibraryOperators.REGEXP_REPLACE_3`. datafusion-substrait resolves
+      the extension name "regexp_replace" to DataFusion's native `regexp_replace`
+      UDF (datafusion-functions/src/regex/regexpreplace.rs).
+    impls:
+      - args:
+          - value: "varchar<L1>"
+            name: "input"
+          - value: "varchar<L2>"
+            name: "pattern"
+          - value: "varchar<L3>"
+            name: "replacement"
+        return: "varchar<L1>"
+      - args:
+          - value: "string"
+            name: "input"
+          - value: "string"
+            name: "pattern"
+          - value: "string"
+            name: "replacement"
+        return: string
+      - args:
+          - value: "varchar<L1>"
+            name: "input"
+          - value: "varchar<L2>"
+            name: "pattern"
+          - value: "varchar<L3>"
+            name: "replacement"
+          - value: "varchar<L4>"
+            name: "flags"
+        return: "varchar<L1>"
+      - args:
+          - value: "string"
+            name: "input"
+          - value: "string"
+            name: "pattern"
+          - value: "string"
+            name: "replacement"
+          - value: "string"
+            name: "flags"
+        return: string
+  - name: translate
+    description: >-
+      Character transliteration — replace each character in `input` that appears
+      in `from` with the corresponding character in `to`. Lowering target for
+      PPL's `rex mode=sed` with {@code y/from/to/} transliteration syntax
+      (Calcite `SqlLibraryOperators.TRANSLATE3`). datafusion-substrait resolves
+      the extension name "translate" to DataFusion's native `translate` UDF
+      (datafusion-functions/src/unicode/translate.rs).
+    impls:
+      - args:
+          - value: "varchar<L1>"
+            name: "input"
+          - value: "varchar<L2>"
+            name: "from"
+          - value: "varchar<L3>"
+            name: "to"
+        return: "varchar<L1>"
+      - args:
+          - value: "string"
+            name: "input"
+          - value: "string"
+            name: "from"
+          - value: "string"
+            name: "to"
+        return: string
+  - name: rex_extract
+    description: >-
+      Extract the first occurrence of a regex named or numbered capture group
+      from a string (Java-Pattern-compatible regex). Lowering target for PPL's
+      `rex field=f "(?<g>...)"` extract command (single-match form) — emitted
+      by the SQL plugin as a custom Calcite UDF named `REX_EXTRACT`. The
+      analytics-engine adapter rewrites the call to a local Calcite operator
+      whose `FunctionMappings.Sig` resolves to this Substrait extension; the
+      Rust UDF implementation lives at
+      sandbox/plugins/analytics-backend-datafusion/rust/src/udf/rex_extract.rs.
+      Returns NULL when the pattern doesn't match, the group doesn't exist, or
+      either operand is NULL.
+    impls:
+      - args:
+          - value: "varchar<L1>"
+            name: "input"
+          - value: "varchar<L2>"
+            name: "pattern"
+          - value: "varchar<L3>"
+            name: "group"
+        return: "varchar<L1>"
+      - args:
+          - value: "string"
+            name: "input"
+          - value: "string"
+            name: "pattern"
+          - value: "string"
+            name: "group"
+        return: string
+  - name: rex_extract_multi
+    description: >-
+      Extract up to `max_match` occurrences of a regex named or numbered
+      capture group from a string, returned as a `list<varchar>`. Lowering
+      target for PPL's `rex field=f "(?<g>...)" max_match=N`. `max_match=0`
+      is unbounded. The Rust UDF implementation lives at
+      sandbox/plugins/analytics-backend-datafusion/rust/src/udf/rex_extract_multi.rs.
+      Returns NULL (not an empty list) when no matches are found.
+    impls:
+      - args:
+          - value: "varchar<L1>"
+            name: "input"
+          - value: "varchar<L2>"
+            name: "pattern"
+          - value: "varchar<L3>"
+            name: "group"
+          - value: i32
+            name: "max_match"
+        return: list<varchar<L1>>
+      - args:
+          - value: "string"
+            name: "input"
+          - value: "string"
+            name: "pattern"
+          - value: "string"
+            name: "group"
+          - value: i32
+            name: "max_match"
+        return: list<string>
+  - name: rex_offset
+    description: >-
+      Compute the start-end offsets of every named capture group from the
+      first regex match, formatted as `"name1=start1-end1&name2=start2-end2"`
+      (group names sorted alphabetically). Lowering target for PPL's
+      `rex field=f "(?<g>...)" offset_field=name`. The Rust UDF implementation
+      lives at sandbox/plugins/analytics-backend-datafusion/rust/src/udf/rex_offset.rs.
+      Returns NULL when the pattern doesn't match or has no named groups.
+      The end position is inclusive (matches the SQL plugin's Java
+      RexOffsetFunction: `end - 1`).
+    impls:
+      - args:
+          - value: "varchar<L1>"
+            name: "input"
+          - value: "varchar<L2>"
+            name: "pattern"
+        return: "varchar<L1>"
+      - args:
+          - value: "string"
+            name: "input"
+          - value: "string"
+            name: "pattern"
+        return: string
+  - name: array_length
+    description: >-
+      Number of elements in a list. Lowering target for PPL's `array_length()`
+      function (Calcite `SqlLibraryOperators.ARRAY_LENGTH`). Needed end-to-end
+      so PPL queries can size the list returned by `rex` extract-mode
+      (`eval count = array_length(g)` after `rex field=f "(?<g>...)"`).
+      datafusion-substrait resolves the extension name "array_length" to
+      DataFusion's native `array_length` UDF.
+      Single polymorphic impl over `list<any1>`: substrait's compound function
+      key drops the inner parametric element type, so declaring separate
+      `list<varchar<L1>>` and `list<string>` impls collapses to the same key
+      `array_length:list` and trips the SimpleExtension loader's duplicate-key
+      check at plugin start. The single `any1` impl matches both call sites.
+    impls:
+      - args:
+          - value: "list<any1>"
+            name: "input"
+        return: i64
+
+  # ascii(str) — Unicode code point of the first character.
+  - name: "ascii"
+    description: "Return the unicode code point of the first character of the input string."
+    impls:
+      - args:
+          - { name: str, value: "varchar<L1>" }
+        nullability: DECLARED_OUTPUT
+        return: i32
+      - args:
+          - { name: str, value: "string" }
+        nullability: DECLARED_OUTPUT
+        return: i32
+
+  # strpos(str, substr) — 1-based position of substr in str, 0 if not found.
+  # Target of PPL's `locate` and `position` adapters.
+  - name: "strpos"
+    description: "Return the 1-based position of `substr` within `str`, or 0 when absent."
+    impls:
+      - args:
+          - { name: str, value: "string" }
+          - { name: substr, value: "string" }
+        nullability: DECLARED_OUTPUT
+        return: i32
+      - args:
+          - { name: str, value: "varchar<L1>" }
+          - { name: substr, value: "varchar<L2>" }
+        nullability: DECLARED_OUTPUT
+        return: i32
+      - args:
+          - { name: str, value: "string" }
+          - { name: substr, value: "varchar<L1>" }
+        nullability: DECLARED_OUTPUT
+        return: i32
+      - args:
+          - { name: str, value: "varchar<L1>" }
+          - { name: substr, value: "string" }
+        nullability: DECLARED_OUTPUT
+        return: i32
+
+  # tostring(x, format) — (hex / binary / commas / duration / duration_millis).
+  - name: "tostring"
+    description: "Convert a number to a string using the requested format (hex/binary/commas/duration/duration_millis)."
+    impls:
+      - args:
+          - { name: value, value: i64 }
+          - { name: format, value: string }
+        nullability: DECLARED_OUTPUT
+        return: string
+      - args:
+          - { name: value, value: fp64 }
+          - { name: format, value: string }
+        nullability: DECLARED_OUTPUT
+        return: string
+
+  # strftime(value, format) — render a timestamp / UNIX-seconds value as a formatted string.
+  # Two impls mirror StrftimeFunctionAdapter's Rex-level normalization: numeric-like sources
+  # are folded onto fp64 (UNIX-seconds branch, with millisecond auto-detect in the UDF);
+  # timestamp / date sources forward verbatim and the Rust UDF's coerce_types canonicalizes
+  # `Timestamp(*, *)` / `Date32` / `Date64` to `Timestamp(Microsecond, None)`.
+  - name: "strftime"
+    description: "Render a timestamp or UNIX seconds value using a POSIX strftime format string."
+    impls:
+      - args:
+          - { name: value, value: fp64 }
+          - { name: format, value: string }
+        nullability: DECLARED_OUTPUT
+        return: string
+      - args:
+          - { name: value, value: "precision_timestamp<P>" }
+          - { name: format, value: string }
+        nullability: DECLARED_OUTPUT
+        return: string
+
+  # to_char(value, format) — render a timestamp using a strftime-style format string.
+  # Bound here so that DatetimeOutputCastRewriter can rewrite the engine-output cast
+  # `CAST(<TIMESTAMP> AS VARCHAR)` to `to_char(<TIMESTAMP>, '%Y-%m-%d %H:%M:%S')` and
+  # have the call serialize through this extension instead of Calcite's stdlib URN.
+  # DataFusion exposes a native `to_char` scalar that consumes strftime tokens. See
+  # issue #5420 (engine-output format divergence between Calcite and DataFusion).
+  - name: "to_char"
+    description: "Render a timestamp using a strftime-style format string (engine-output cast target)."
+    impls:
+      - args:
+          - { name: value, value: "precision_timestamp<P>" }
+          - { name: format, value: string }
+        nullability: DECLARED_OUTPUT
+        return: string
+
+  # tonumber(string, base) — parse `string` as a base-N integer
+  - name: "tonumber"
+    description: "Parse a string to a number in the given radix (2-36). Returns NULL on parse failure."
+    impls:
+      - args:
+          - { name: value, value: string }
+          - { name: base, value: i32 }
+        nullability: DECLARED_OUTPUT
+        return: fp64
+
+  # PPL json_* UDFs — Rust implementations under rust/src/udf/<name>.rs,
+  # surfaced to Calcite via JsonFunctionAdapters. All return NULL on malformed
+  # input; per-function semantics are documented in the Rust module headers.
+  - name: "json_array_length"
+    description: "Length of a JSON array; NULL on malformed or non-array input."
+    impls:
+      - args: [{ value: string, name: "value" }]
+        return: any1
+
+  - name: "json_keys"
+    description: "Top-level keys of a JSON object, encoded as a JSON array string; NULL on non-object input."
+    impls:
+      - args: [{ value: string, name: "value" }]
+        return: any1
+
+  - name: "json_extract"
+    description: "Extract JSON value(s) at PPL path(s); single → stringified match, multi → JSON-array string."
+    impls:
+      - args: [{ value: string, name: "value" }, { value: string, name: "path" }]
+        variadic: { min: 1 }
+        return: string
+
+  - name: "json_delete"
+    description: "Remove PPL-path matches from a JSON document; missing paths are no-ops."
+    impls:
+      - args: [{ value: string, name: "value" }, { value: string, name: "path" }]
+        variadic: { min: 1 }
+        return: string
+
+  - name: "json_set"
+    description: "Replace values at PPL-path matches (replace-only; missing paths are no-ops)."
+    impls:
+      - args: [{ value: string, name: "value" }, { value: string, name: "path" }]
+        variadic: { min: 1 }
+        return: string
+
+  - name: "json_append"
+    description: "Push values onto PPL-path-matched arrays; non-array / missing targets are no-ops."
+    impls:
+      - args: [{ value: string, name: "value" }, { value: string, name: "path" }]
+        variadic: { min: 1 }
+        return: string
+
+  - name: "json_extend"
+    description: "Spread JSON-array values onto PPL-path-matched arrays; scalar values fall back to append."
+    impls:
+      - args: [{ value: string, name: "value" }, { value: string, name: "path" }]
+        variadic: { min: 1 }
+        return: string
+
+  - name: "extract"
+    description: >-
+      Pull a MySQL-style calendar component (simple or composite) out of a
+      timestamp. The unit slot is a VARCHAR literal injected by the adapter
+      (matchKey token `str`); the timestamp slot is PPL's canonical
+      `precision_timestamp<P>` / `date`. Returns BIGINT regardless of unit —
+      composite units (e.g. `DAY_SECOND`) follow MySQL's digit-concatenation
+      semantics (see rust/src/udf/extract.rs). Routes to the Rust `extract`
+      UDF, not Calcite's EXTRACT operator.
+    impls:
+      - args:
+          - { value: string, name: "unit" }
+          - { value: "precision_timestamp<P>", name: "value" }
+        return: i64
+      - args:
+          - { value: string, name: "unit" }
+          - { value: "date", name: "value" }
+        return: i64
+      - args:
+          - { value: string, name: "unit" }
+          - { value: "time", name: "value" }
+        return: i64
+      - args:
+          - { value: string, name: "unit" }
+          - { value: "string", name: "value" }
+        return: i64
+      - args:
+          - { value: string, name: "unit" }
+          - { value: "varchar<L1>", name: "value" }
+        return: i64
+
+  - name: "from_unixtime"
+    description: >-
+      Convert fractional UNIX seconds to TIMESTAMP. Negative values and values
+      at/above MySQL's documented max yield NULL. Routes to the Rust
+      `from_unixtime` UDF (rust/src/udf/from_unixtime.rs). The 2-arg
+      `from_unixtime(seconds, format)` overload is deferred.
+    impls:
+      - args: [{ value: fp64, name: "seconds" }]
+        return: precision_timestamp<6>
+
+  - name: "maketime"
+    description: >-
+      Construct a TIME from (hour, minute, second). Hour and minute are rounded
+      (half-away-from-zero, matching Java Math.round); second passes through
+      verbatim including fractional component. Out-of-range operand yields
+      NULL. Returns `Time64(Microsecond)`. Routes to the Rust `maketime` UDF.
+    impls:
+      - args:
+          - { value: fp64, name: "hour" }
+          - { value: fp64, name: "minute" }
+          - { value: fp64, name: "second" }
+        return: time
+
+  - name: "makedate"
+    description: >-
+      Construct a DATE from (year, day_of_year). PPL MySQL quirks preserved:
+      `doy <= 0` or `year < 0` → NULL; `year == 0` remaps to 2000; doy beyond
+      the year's length cascades into subsequent years. Routes to the Rust
+      `makedate` UDF.
+    impls:
+      - args:
+          - { value: fp64, name: "year" }
+          - { value: fp64, name: "day_of_year" }
+        return: date
+
+  - name: "date_format"
+    description: >-
+      Render a DATE / TIMESTAMP using a MySQL format string. Shares the MySQL
+      token translator with `time_format` / `str_to_date`. Routes to the Rust
+      `date_format` UDF (rust/src/udf/date_format.rs).
+    impls:
+      - args:
+          - { value: "precision_timestamp<P>", name: "value" }
+          - { value: string, name: "format" }
+        return: string
+      - args:
+          - { value: "date", name: "value" }
+          - { value: string, name: "format" }
+        return: string
+      - args:
+          - { value: "string", name: "value" }
+          - { value: string, name: "format" }
+        return: string
+      - args:
+          - { value: "varchar<L1>", name: "value" }
+          - { value: "varchar<L2>", name: "format" }
+        return: string
+
+  - name: "time_format"
+    description: >-
+      Render a TIME / TIMESTAMP using the MySQL time-format sub-table. Date-only
+      name tokens (%W / %a / %M / %b / %D / %j / %w / %U / %u / %V / %v / %X /
+      %x) cause the whole render to return NULL; date-only numeric tokens emit
+      MySQL's documented zero-padded literals. Routes to the Rust `time_format`
+      UDF.
+    impls:
+      - args:
+          - { value: "precision_timestamp<P>", name: "value" }
+          - { value: string, name: "format" }
+        return: string
+      - args:
+          - { value: "time", name: "value" }
+          - { value: string, name: "format" }
+        return: string
+      - args:
+          - { value: "date", name: "value" }
+          - { value: string, name: "format" }
+        return: string
+      - args:
+          - { value: "varchar<L1>", name: "value" }
+          - { value: "varchar<L2>", name: "format" }
+        return: string
+
+  - name: "str_to_date"
+    description: >-
+      Parse a string using a MySQL format into a TIMESTAMP. Unparseable input
+      yields NULL; trailing input is silently tolerated (matches PPL's
+      `parseUnresolved` with `ParsePosition(0)`). Missing date parts default to
+      2000-01-01; missing time parts default to 00:00:00. Routes to the Rust
+      `str_to_date` UDF.
+    impls:
+      - args:
+          - { value: string, name: "input" }
+          - { value: string, name: "format" }
+        return: precision_timestamp<6>
+      - args:
+          - { value: "varchar<L1>", name: "input" }
+          - { value: "varchar<L2>", name: "format" }
+        return: precision_timestamp<6>
+
+  - name: "md5"
+    description: "Return the 128-bit MD5 digest of the input string as a lowercase hex string."
+    impls:
+      - args:
+          - { name: input, value: "varchar<L1>" }
+        nullability: DECLARED_OUTPUT
+        return: "varchar<L1>"
+      - args:
+          - { name: input, value: "string" }
+        nullability: DECLARED_OUTPUT
+        return: string
+
+  - name: "digest"
+    description: "Compute the binary hash of the input using the given algorithm ('sha224'/'sha256'/'sha384'/'sha512' are used by the SHA2)."
+    impls:
+      - args:
+          - { name: input, value: "string" }
+          - { name: algorithm, value: "string" }
+        nullability: DECLARED_OUTPUT
+        return: binary
+      - args:
+          - { name: input, value: "varchar<L1>" }
+          - { name: algorithm, value: "string" }
+        nullability: DECLARED_OUTPUT
+        return: binary
+
+  - name: "encode"
+    description: "Encode a binary value to a string (format 'hex' used by the SHA2)."
+    impls:
+      - args:
+          - { name: input, value: "binary" }
+          - { name: format, value: "string" }
+        nullability: DECLARED_OUTPUT
+        return: string
+
+  - name: "sha1"
+    description: "Return the 160-bit SHA-1 digest of the input string as a lowercase hex string."
+    impls:
+      - args:
+          - { name: input, value: "varchar<L1>" }
+        nullability: DECLARED_OUTPUT
+        return: "varchar<L1>"
+      - args:
+          - { name: input, value: "string" }
+        nullability: DECLARED_OUTPUT
+        return: string
+
+  - name: "crc32"
+    description: "Return the CRC-32 checksum of the input string as a non-negative integer."
+    impls:
+      - args:
+          - { name: input, value: "varchar<L1>" }
+        nullability: DECLARED_OUTPUT
+        return: i64
+      - args:
+          - { name: input, value: "string" }
+        nullability: DECLARED_OUTPUT
+        return: i64
+
+  # span_bucket(value, span) — PPL fixed-width bucket label. Rust UDF at
+  # rust/src/udf/span_bucket.rs. Takes two numerics, returns a VARCHAR label
+  # like "10-20" identifying the half-open `[binStart, binEnd)` bucket that
+  # `value` falls into. NOT ISO-SQL width_bucket (which returns an integer
+  # bucket index); this is the OpenSearch-PPL nice-number-algorithm variant.
+  #
+  # `any1` on both slots matches every integer/float source PPL emits
+  # (Int32/Int64/Float32/Float64) — DF's substrait consumer re-resolves the
+  # Rust UDF by name and its coerce_types canonicalizes both slots to Float64.
+  # Return type is `any1` to stay consistent with surrounding signatures; the
+  # UDF's actual return type (Utf8) is authoritative on the Rust side.
+  - name: "span_bucket"
+    description: "Fixed-width numeric bucket label (PPL). See sql/core SpanBucketFunction for semantics."
+    impls:
+      - args:
+          - { value: "any1", name: "value" }
+          - { value: "any1", name: "span" }
+        return: any1
+
+  # width_bucket(value, num_bins, data_range, max_value) — PPL histogram
+  # bucket label. Rust UDF at rust/src/udf/width_bucket.rs. Returns a VARCHAR
+  # label via the OpenSearch nice-number magnitude-based algorithm (see
+  # sql/core WidthBucketFunction). NOT ISO-SQL width_bucket (which returns an
+  # integer bucket index) — semantics and signature both differ. A future
+  # real ISO-SQL width_bucket binding needs its own name / enum entry.
+  #
+  # Distinct any-parameters per slot (`any1`/`any2`/`any3`/`any4`) so each
+  # independently matches any source type without requiring all slots to
+  # share the same type — PPL may emit mixed types (fp64 value, i32
+  # num_bins, fp64 data_range, fp64 max_value). DF's substrait consumer
+  # re-resolves by name and the UDF's coerce_types canonicalizes
+  # value/range/max to Float64 and num_bins to Int64.
+  - name: "width_bucket"
+    description: "Histogram bucket label (PPL). See sql/core WidthBucketFunction for semantics."
+    impls:
+      - args:
+          - { value: "any1", name: "value" }
+          - { value: "any2", name: "num_bins" }
+          - { value: "any3", name: "data_range" }
+          - { value: "any4", name: "max_value" }
+        return: any1
+
+  # minspan_bucket(value, min_span, data_range, max_value) — PPL minimum-span
+  # histogram bucket label. Rust UDF at rust/src/udf/minspan_bucket.rs. Picks
+  # the larger of the data's natural order-of-magnitude width and a user-
+  # supplied minimum span, returns the resulting bucket label (e.g. "10-20").
+  # The `max_value` slot is unused by the algorithm but carried through for
+  # parity with PPL's call shape (matches Java MinspanBucketFunction).
+  - name: "minspan_bucket"
+    description: "Minimum-span numeric bucket label (PPL). See sql/core MinspanBucketFunction for semantics."
+    impls:
+      - args:
+          - { value: "any1", name: "value" }
+          - { value: "any2", name: "min_span" }
+          - { value: "any3", name: "data_range" }
+          - { value: "any4", name: "max_value" }
+        return: any1
+
+  # range_bucket(value, data_min, data_max, start_param, end_param) — PPL
+  # expansion-range histogram bucket label. Rust UDF at
+  # rust/src/udf/range_bucket.rs. The start_param and end_param slots are
+  # nullable sentinels for "use the observed data bound"; null in those
+  # slots does NOT null-propagate the output (asymmetric null handling).
+  #
+  # The PPL frontend's `bin start=... end=...` command wraps data_min /
+  # data_max in MIN/MAX OVER () empty-partition window aggregates. This
+  # UDF is scalar and doesn't care about that wrapping; end-to-end pushdown
+  # through the `bin` command additionally requires the backend to advertise
+  # the window-over-empty capability.
+  - name: "range_bucket"
+    description: "Range-based bucket label (PPL). Expansion-only effective bounds; magnitude-based width. See sql/core RangeBucketFunction."
+    impls:
+      - args:
+          - { value: "any1", name: "value" }
+          - { value: "any2", name: "data_min" }
+          - { value: "any3", name: "data_max" }
+          - { value: "any4", name: "start_param" }
+          - { value: "any5", name: "end_param" }
+        return: any1

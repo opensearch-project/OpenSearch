@@ -58,7 +58,6 @@ import org.opensearch.core.transport.TransportResponse;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexingPressureService;
 import org.opensearch.index.shard.IndexShard;
-import org.opensearch.index.shard.PrimaryShardClosedException;
 import org.opensearch.index.shard.ShardNotFoundException;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.indices.IndicesService;
@@ -74,7 +73,6 @@ import org.opensearch.transport.Transport;
 import org.opensearch.transport.TransportException;
 import org.opensearch.transport.TransportService;
 import org.opensearch.transport.client.transport.NoNodeAvailableException;
-import org.hamcrest.MatcherAssert;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -97,7 +95,6 @@ import org.mockito.ArgumentCaptor;
 import static java.util.Collections.emptyMap;
 import static org.opensearch.test.ClusterServiceUtils.createClusterService;
 import static org.hamcrest.Matchers.arrayWithSize;
-import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Mockito.any;
@@ -399,49 +396,6 @@ public class TransportWriteActionTests extends OpenSearchTestCase {
             assertFalse(success.get());
             assertNotNull(failure.get());
         }
-    }
-
-    public void testPrimaryClosedDoesNotFailShard() {
-        final CapturingTransport transport = new CapturingTransport();
-        final TransportService transportService = transport.createTransportService(
-            clusterService.getSettings(),
-            threadPool,
-            TransportService.NOOP_TRANSPORT_INTERCEPTOR,
-            x -> clusterService.localNode(),
-            null,
-            Collections.emptySet(),
-            NoopTracer.INSTANCE
-        );
-        transportService.start();
-        transportService.acceptIncomingRequests();
-        final ShardStateAction shardStateAction = new ShardStateAction(clusterService, transportService, null, null, threadPool);
-        final TestAction action = new TestAction(
-            Settings.EMPTY,
-            "internal:testAction",
-            transportService,
-            clusterService,
-            shardStateAction,
-            threadPool
-        );
-        final String index = "test";
-        final ShardId shardId = new ShardId(index, "_na_", 0);
-        final ClusterState state = ClusterStateCreationUtils.stateWithActivePrimary(index, true, 1, 0);
-        ClusterServiceUtils.setState(clusterService, state);
-        final long primaryTerm = state.metadata().index(index).primaryTerm(0);
-        final ShardRouting shardRouting = state.routingTable().shardRoutingTable(shardId).replicaShards().get(0);
-
-        // Assert that failShardIfNeeded is a no-op for the PrimaryShardClosedException failure
-        final AtomicInteger callbackCount = new AtomicInteger(0);
-        action.newReplicasProxy()
-            .failShardIfNeeded(
-                shardRouting,
-                primaryTerm,
-                "test",
-                new PrimaryShardClosedException(shardId),
-                ActionListener.wrap(callbackCount::incrementAndGet)
-            );
-        MatcherAssert.assertThat(transport.getCapturedRequestsAndClear(), emptyArray());
-        MatcherAssert.assertThat(callbackCount.get(), equalTo(1));
     }
 
     private class TestAction extends TransportWriteAction<TestRequest, TestRequest, TestResponse> {

@@ -14,12 +14,11 @@ import org.opensearch.analytics.exec.AnalyticsSearchTransportService;
 import org.opensearch.analytics.exec.PendingExecutions;
 import org.opensearch.analytics.exec.QueryContext;
 import org.opensearch.analytics.exec.StreamingResponseListener;
+import org.opensearch.analytics.exec.action.FragmentExecutionArrowResponse;
 import org.opensearch.analytics.exec.action.FragmentExecutionRequest;
-import org.opensearch.analytics.exec.action.FragmentExecutionResponse;
 import org.opensearch.analytics.planner.dag.ExecutionTarget;
 import org.opensearch.analytics.planner.dag.ShardExecutionTarget;
 import org.opensearch.analytics.planner.dag.Stage;
-import org.opensearch.analytics.spi.DataConsumer;
 import org.opensearch.analytics.spi.ExchangeSink;
 import org.opensearch.cluster.service.ClusterService;
 
@@ -30,24 +29,12 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 
 /**
- * Per-stage execution for row-producing DATA_NODE stages (scans, filters,
- * partial aggregates). Dispatches shard requests via
- * {@link AnalyticsSearchTransportService#dispatchFragment}, decodes streaming
- * responses through a {@link ResponseCodec}, and feeds the resulting Arrow
- * batches into the stage's output {@link ExchangeSink}.
+ * Leaf stage execution that dispatches fragment work to data-node shards via
+ * Arrow streaming, feeding resulting batches into the parent stage's
+ * {@link ExchangeSink}.
  *
- * <p>The codec abstracts the wire format: the current {@link RowResponseCodec}
- * converts {@code Object[]} rows to Arrow; a future Arrow IPC codec would
- * import IPC buffers directly with zero conversion. The stage execution logic
- * is format-agnostic.
- *
- * <p>Implements {@link DataProducer} because it writes batches into a sink
- * owned by its parent stage. Does not implement {@link DataConsumer} because
- * it is a leaf stage with no children.
- *
- * <p>Lifecycle: {@code CREATED → RUNNING → SUCCEEDED | FAILED | CANCELLED}.
- * Instances are one-shot: constructed, {@link #start()} called once,
- * listener signaled once, discarded.
+ * <p>One-shot: constructed, {@link #start()} called once, listener
+ * signaled on completion, then discarded.
  *
  * @opensearch.internal
  */
@@ -55,13 +42,11 @@ final class ShardFragmentStageExecution extends AbstractStageExecution implement
 
     private final AtomicInteger inFlight = new AtomicInteger(0);
 
-    // Immutable config
     private final QueryContext config;
     private final ExchangeSink outputSink;
     private final ClusterService clusterService;
     private final Function<ShardExecutionTarget, FragmentExecutionRequest> requestBuilder;
     private final AnalyticsSearchTransportService dispatcher;
-    private final ResponseCodec<FragmentExecutionResponse> responseCodec;
     private final Map<String, PendingExecutions> pendingPerNode = new ConcurrentHashMap<>();
 
     ShardFragmentStageExecution(
@@ -70,8 +55,7 @@ final class ShardFragmentStageExecution extends AbstractStageExecution implement
         ExchangeSink outputSink,
         ClusterService clusterService,
         Function<ShardExecutionTarget, FragmentExecutionRequest> requestBuilder,
-        AnalyticsSearchTransportService dispatcher,
-        ResponseCodec<FragmentExecutionResponse> responseCodec
+        AnalyticsSearchTransportService dispatcher
     ) {
         super(stage);
         this.config = config;
@@ -79,16 +63,12 @@ final class ShardFragmentStageExecution extends AbstractStageExecution implement
         this.clusterService = clusterService;
         this.requestBuilder = requestBuilder;
         this.dispatcher = dispatcher;
-        this.responseCodec = responseCodec;
     }
 
     @Override
     public void start() {
-        // Resolve targets lazily at dispatch time. For shuffle/broadcast reads this is
-        // where the child stage's manifest would be passed instead of null.
         List<ExecutionTarget> resolved = stage.getTargetResolver().resolve(clusterService.state(), null);
         if (resolved.isEmpty()) {
-            // CREATED → SUCCEEDED directly. transitionTo stamps both start and end.
             transitionTo(StageExecution.State.SUCCEEDED);
             return;
         }
@@ -102,21 +82,51 @@ final class ShardFragmentStageExecution extends AbstractStageExecution implement
     private void dispatchShardTask(ShardExecutionTarget target) {
         FragmentExecutionRequest request = requestBuilder.apply(target);
         PendingExecutions pending = pendingFor(target);
-        dispatcher.dispatchFragment(request, target.node(), new StreamingResponseListener<>() {
+        dispatcher.dispatchFragmentStreaming(request, target.node(), responseListener(), config.parentTask(), pending);
+    }
+
+    private StreamingResponseListener<FragmentExecutionArrowResponse> responseListener() {
+        return new StreamingResponseListener<>() {
+            // Runs inline on the per-stream virtual thread driving handleStreamResponse.
+            // Must NOT offload to a thread pool: reordering across batches would let the
+            // isLast=true task race ahead, flip state to SUCCEEDED, and drop queued
+            // earlier batches via the isDone() short-circuit. Inline also preserves
+            // end-to-end backpressure (next nextResponse() blocks until feed() returns).
             @Override
-            public void onStreamResponse(FragmentExecutionResponse response, boolean isLast) {
-                config.searchExecutor().execute(() -> {
-                    if (isDone()) return;
-
-                    VectorSchemaRoot vsr = responseCodec.decode(response, config.bufferAllocator());
-                    outputSink.feed(vsr);
-                    metrics.addRowsProcessed(vsr.getRowCount());
-
-                    if (isLast) {
-                        metrics.incrementTasksCompleted();
-                        onShardTerminated();
+            public void onStreamResponse(FragmentExecutionArrowResponse response, boolean isLast) {
+                if (isDone()) {
+                    VectorSchemaRoot root = response.getRoot();
+                    if (root != null) {
+                        root.close();
                     }
-                });
+                    return;
+                }
+
+                VectorSchemaRoot vsr = response.getRoot();
+                try {
+                    outputSink.feed(vsr);
+                } catch (Exception e) {
+                    // On feed failure, close the VSR ourselves — sink didn't take ownership.
+                    // Without surfacing via captureFailure the exception only lives on the
+                    // stream's virtual thread; inFlight never decrements and the stage hangs
+                    // to QUERY_TIMEOUT.
+                    RuntimeException wrapped = new RuntimeException("Stage " + stage.getStageId() + " sink feed failed", e);
+                    try {
+                        vsr.close();
+                    } catch (IllegalStateException closeFailure) {
+                        wrapped.addSuppressed(closeFailure);
+                    }
+                    captureFailure(wrapped);
+                    metrics.incrementTasksFailed();
+                    onShardTerminated();
+                    return;
+                }
+                metrics.addRowsProcessed(vsr.getRowCount());
+
+                if (isLast) {
+                    metrics.incrementTasksCompleted();
+                    onShardTerminated();
+                }
             }
 
             @Override
@@ -125,11 +135,13 @@ final class ShardFragmentStageExecution extends AbstractStageExecution implement
                 metrics.incrementTasksFailed();
                 onShardTerminated();
             }
-        }, config.parentTask(), pending);
+        };
     }
 
     private void onShardTerminated() {
-        if (inFlight.decrementAndGet() == 0) {
+        int after = inFlight.decrementAndGet();
+        assert after >= 0 : "inFlight count went negative — a shard terminated more than once: " + after;
+        if (after == 0) {
             Exception captured = getFailure();
             transitionTo(captured != null ? StageExecution.State.FAILED : StageExecution.State.SUCCEEDED);
         }
@@ -138,10 +150,7 @@ final class ShardFragmentStageExecution extends AbstractStageExecution implement
     @Override
     public void cancel(String reason) {
         if (transitionTo(StageExecution.State.CANCELLED) == false) return;
-        // Bridge to task framework: cancel the parent task so data nodes
-        // see the cancellation via TaskCancellationService ban propagation.
-        // AnalyticsQueryTask.shouldCancelChildrenOnCancellation() == true
-        // ensures child shard tasks on data nodes are cancelled.
+        // Cancelling the parent task propagates to data-node shard tasks via TaskCancellationService.
         org.opensearch.tasks.Task parentTask = config.parentTask();
         if (parentTask instanceof org.opensearch.tasks.CancellableTask ct && ct.isCancelled() == false) {
             ct.cancel(reason);

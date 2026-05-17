@@ -8,26 +8,33 @@
 
 package org.opensearch.analytics.exec.stage;
 
-import org.apache.arrow.vector.types.pojo.Schema;
 import org.opensearch.analytics.exec.QueryContext;
 import org.opensearch.analytics.planner.dag.Stage;
 import org.opensearch.analytics.planner.dag.StageExecutionType;
+import org.opensearch.analytics.spi.BackendExecutionContext;
 import org.opensearch.analytics.spi.ExchangeSink;
 import org.opensearch.analytics.spi.ExchangeSinkContext;
 import org.opensearch.analytics.spi.ExchangeSinkProvider;
+import org.opensearch.analytics.spi.FragmentInstructionHandler;
+import org.opensearch.analytics.spi.FragmentInstructionHandlerFactory;
+import org.opensearch.analytics.spi.InstructionNode;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
  * Builds executions for {@link StageExecutionType#COORDINATOR_REDUCE} stages —
  * those that run at the coordinator with a backend-provided {@link ExchangeSink}.
  * Creates the sink via {@link Stage#getExchangeSinkProvider()} using an
- * {@link ExchangeSinkContext} carrying the plan bytes, allocator, input
- * schema (derived from the single child stage), and downstream sink. Hands
- * the resulting sink to {@link LocalStageExecution}.
+ * {@link ExchangeSinkContext} carrying the plan bytes, allocator, per-child
+ * input descriptors (one per child stage, each with its stage id + the
+ * producer-side plan bytes the backend lowers to derive the input schema),
+ * and the downstream sink. Hands the resulting sink to {@link LocalStageExecution}.
  *
- * <p>Single-sink simplification: assumes exactly one child stage. Multi-child
- * (joins, set ops) will require per-child sink routing in a follow-up.
+ * <p>Multi-child stages (Union, future Join) are routed via
+ * {@link LocalStageExecution#inputSink(int)}, which returns a per-child
+ * wrapper that the backend sink uses to register a distinct input partition
+ * per child stage id.
  *
  * @opensearch.internal
  */
@@ -41,13 +48,61 @@ final class LocalStageScheduler implements StageScheduler {
             stage.getStageId(),
             chosenBytes(stage),
             config.bufferAllocator(),
-            deriveInputSchema(stage),
+            buildChildInputs(stage),
             sink
         );
+
+        // Apply instruction handlers for the reduce stage.
+        // Unlike AnalyticsSearchService (shard path) which resolves the factory from its
+        // local backends map, the coordinator-reduce path has no backends map — the factory
+        // is stored on the Stage during FragmentConversionDriver.convertAll (root stage only,
+        // no serialization needed since reduce executes locally at the coordinator).
+        // TODO: find a cleaner way to provide the factory without storing it on Stage.
+        BackendExecutionContext backendContext = null;
+        FragmentInstructionHandlerFactory factory = stage.getInstructionHandlerFactory();
+        if (factory != null) {
+            Throwable primaryFailure = null;
+            try {
+                for (InstructionNode node : stage.getPlanAlternatives().getFirst().instructions()) {
+                    FragmentInstructionHandler handler = factory.createHandler(node);
+                    BackendExecutionContext previous = backendContext;
+                    backendContext = handler.apply(node, context, backendContext);
+                    // A handler that returns a new reference implicitly abandons the previous
+                    // context — close it now so its resources aren't orphaned.
+                    if (previous != null && previous != backendContext) {
+                        previous.close();
+                    }
+                }
+            } catch (Throwable t) {
+                primaryFailure = t;
+                // On failure, close the backendContext since it won't be handed to the sink.
+                if (backendContext != null) {
+                    try {
+                        backendContext.close();
+                    } catch (Exception closeFailure) {
+                        primaryFailure.addSuppressed(closeFailure);
+                    }
+                }
+            }
+            if (primaryFailure != null) {
+                if (primaryFailure instanceof RuntimeException re) throw re;
+                if (primaryFailure instanceof Error err) throw err;
+                throw new RuntimeException("Instruction handler failed for stageId=" + stage.getStageId(), primaryFailure);
+            }
+        }
+
         ExchangeSink backendSink;
         try {
-            backendSink = provider.createSink(context);
+            backendSink = provider.createSink(context, backendContext);
         } catch (Exception e) {
+            // Sink creation failed — close backendContext to avoid resource leak.
+            if (backendContext != null) {
+                try {
+                    backendContext.close();
+                } catch (Exception closeFailure) {
+                    e.addSuppressed(closeFailure);
+                }
+            }
             throw new RuntimeException("Failed to create exchange sink for stageId=" + stage.getStageId(), e);
         }
         return new LocalStageExecution(stage, backendSink, sink);
@@ -63,16 +118,23 @@ final class LocalStageScheduler implements StageScheduler {
     }
 
     /**
-     * Derives the backend's input Arrow schema from the single child stage's
-     * fragment rowtype. Multi-child support (joins, set ops with heterogeneous
-     * inputs) is deferred.
+     * Builds one {@link ExchangeSinkContext.ChildInput} per child stage. Each entry carries
+     * the child's stage id (used by the backend to namespace its registered input, e.g.
+     * {@code "input-<stageId>"}) and the producer-side plan bytes the backend lowers to
+     * derive the input schema at registration time.
      */
-    private static Schema deriveInputSchema(Stage stage) {
+    private static List<ExchangeSinkContext.ChildInput> buildChildInputs(Stage stage) {
         List<Stage> children = stage.getChildStages();
-        assert children.size() == 1 : "COORDINATOR_REDUCE stage "
-            + stage.getStageId()
-            + " expected exactly one child stage, got "
-            + children.size();
-        return ArrowSchemaFromCalcite.arrowSchemaFromRowType(children.getFirst().getFragment().getRowType());
+        if (children.isEmpty()) {
+            throw new IllegalStateException(
+                "COORDINATOR_REDUCE stage " + stage.getStageId() + " expected at least one child stage, got zero"
+            );
+        }
+        List<ExchangeSinkContext.ChildInput> inputs = new ArrayList<>(children.size());
+        for (Stage child : children) {
+            byte[] producerPlanBytes = child.getPlanAlternatives().getFirst().convertedBytes();
+            inputs.add(new ExchangeSinkContext.ChildInput(child.getStageId(), producerPlanBytes));
+        }
+        return inputs;
     }
 }

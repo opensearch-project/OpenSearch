@@ -63,15 +63,17 @@ public class MockWriter implements Writer<MockDocumentInput> {
     }
 
     @Override
-    public void lock() {}
-
-    @Override
-    public boolean tryLock() {
+    public boolean isSchemaMutable() {
         return true;
     }
 
     @Override
-    public void unlock() {}
+    public long mappingVersion() {
+        return 0;
+    }
+
+    @Override
+    public void updateMappingVersion(long newVersion) {}
 
     @Override
     public void close() {}
