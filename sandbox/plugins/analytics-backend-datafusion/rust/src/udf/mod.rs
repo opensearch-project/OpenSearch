@@ -77,21 +77,23 @@ pub(crate) fn coerce_slot(
             ),
         },
         CoerceMode::Int64 => match observed {
-            Int8 | Int16 | Int32 | Int64 | UInt8 | UInt16 | UInt32 | UInt64 | Float32 | Float64
-            | Decimal128(_, _) | Decimal256(_, _) => Ok(Int64),
+            Int8 | Int16 | Int32 | Int64 | UInt8 | UInt16 | UInt32 | UInt64 | Float32 | Float64 => {
+                Ok(Int64)
+            }
             other => {
                 plan_err!("{udf_name}: arg {slot_index} expected integer or float, got {other:?}")
             }
         },
         CoerceMode::Float64 => match observed {
-            Int8 | Int16 | Int32 | Int64 | UInt8 | UInt16 | UInt32 | UInt64 | Float32 | Float64
-            | Decimal128(_, _) | Decimal256(_, _) => Ok(Float64),
+            Int8 | Int16 | Int32 | Int64 | UInt8 | UInt16 | UInt32 | UInt64 | Float32 | Float64 => {
+                Ok(Float64)
+            }
             other => {
                 plan_err!("{udf_name}: arg {slot_index} expected integer or float, got {other:?}")
             }
         },
         CoerceMode::Utf8 => match observed {
-            Utf8 | LargeUtf8 | Utf8View => Ok(Utf8),
+            Utf8 | LargeUtf8 | Utf8View => Ok(observed.clone()),
             other => plan_err!("{udf_name}: arg {slot_index} expected string, got {other:?}"),
         },
     }
@@ -283,17 +285,6 @@ mod tests {
         assert!(err.to_string().contains("expected integer or float"));
     }
 
-    #[test]
-    fn int64_accepts_decimal_types() {
-        // PPL emits Decimal128(p,s) literals (e.g. `span=2.5` becomes
-        // Decimal128(2, 1)). The Int64 coerce-mode must accept and canonicalize.
-        for observed in [DataType::Decimal128(2, 1), DataType::Decimal256(10, 3)] {
-            let result = coerce_slot("i", 0, &observed, CoerceMode::Int64).unwrap();
-            assert_eq!(result, DataType::Int64);
-        }
-    }
-
-
     // ── Float64 ────────────────────────────────────────────────────────────
     #[test]
     fn float64_accepts_every_number() {
@@ -315,22 +306,12 @@ mod tests {
         assert!(err.to_string().contains("expected integer or float"));
     }
 
-    #[test]
-    fn float64_accepts_decimal_types() {
-        // Decimal128 flows in for fractional literals like `span=2.5`.
-        for observed in [DataType::Decimal128(2, 1), DataType::Decimal256(10, 3)] {
-            let result = coerce_slot("f", 0, &observed, CoerceMode::Float64).unwrap();
-            assert_eq!(result, DataType::Float64);
-        }
-    }
-
-
     // ── Utf8 ───────────────────────────────────────────────────────────────
     #[test]
-    fn utf8_accepts_every_string_variant() {
+    fn utf8_passes_string_variant_through_unchanged() {
         for observed in [DataType::Utf8, DataType::LargeUtf8, DataType::Utf8View] {
             let result = coerce_slot("s", 0, &observed, CoerceMode::Utf8).unwrap();
-            assert_eq!(result, DataType::Utf8);
+            assert_eq!(result, observed, "CoerceMode::Utf8 should pass the variant through");
         }
     }
 

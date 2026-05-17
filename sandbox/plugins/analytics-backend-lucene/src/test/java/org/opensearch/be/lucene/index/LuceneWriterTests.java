@@ -21,7 +21,9 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.NIOFSDirectory;
+import org.apache.lucene.util.BytesRef;
 import org.opensearch.be.lucene.LuceneDataFormat;
+import org.opensearch.index.engine.dataformat.DeleteInput;
 import org.opensearch.index.engine.dataformat.FileInfos;
 import org.opensearch.index.engine.dataformat.WriteResult;
 import org.opensearch.index.engine.dataformat.Writer;
@@ -30,8 +32,6 @@ import org.opensearch.index.mapper.KeywordFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.TextFieldMapper;
 import org.opensearch.test.OpenSearchTestCase;
-import org.opensearch.index.engine.dataformat.DeleteInput;
-import org.apache.lucene.util.BytesRef;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -322,7 +322,7 @@ public class LuceneWriterTests extends OpenSearchTestCase {
 
     public void testGetWriterForFormatReturnsItselfForLucene() throws IOException {
         Path baseDir = createTempDir();
-        try (LuceneWriter writer = new LuceneWriter(1L, dataFormat, baseDir, null, Codec.getDefault(), null)) {
+        try (LuceneWriter writer = new LuceneWriter(1L, 0L, dataFormat, baseDir, null, Codec.getDefault(), null)) {
             Optional<Writer<?>> result = writer.getWriterForFormat("lucene");
 
             assertTrue("Should return present for 'lucene'", result.isPresent());
@@ -332,7 +332,7 @@ public class LuceneWriterTests extends OpenSearchTestCase {
 
     public void testGetWriterForFormatReturnsEmptyForOtherFormats() throws IOException {
         Path baseDir = createTempDir();
-        try (LuceneWriter writer = new LuceneWriter(1L, dataFormat, baseDir, null, Codec.getDefault(), null)) {
+        try (LuceneWriter writer = new LuceneWriter(1L, 0L, dataFormat, baseDir, null, Codec.getDefault(), null)) {
             Optional<Writer<?>> parquetResult = writer.getWriterForFormat("parquet");
             Optional<Writer<?>> nullResult = writer.getWriterForFormat(null);
 

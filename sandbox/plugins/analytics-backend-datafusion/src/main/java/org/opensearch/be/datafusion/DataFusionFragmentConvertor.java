@@ -65,9 +65,9 @@ import io.substrait.relation.Sort;
  *
  * <p>Dispatch summary:
  * <ul>
- *   <li>{@link #convertShardScanFragment(String, RelNode)} and
- *       {@link #convertFinalAggFragment(RelNode)} — full-fragment conversions via
- *       {@link #convertToSubstrait(RelNode)}.</li>
+ *   <li>{@link #convertFragment(RelNode)} — full-fragment conversion via
+ *       {@link #convertToSubstrait(RelNode)}, with StageInputScan rewriting
+ *       for reduce-stage fragments.</li>
  *   <li>{@link #attachPartialAggOnTop(RelNode, byte[])} and
  *       {@link #attachFragmentOnTop(RelNode, byte[])} — convert the wrapping
  *       operator standalone, then rewire its input to the decoded inner plan's
@@ -280,9 +280,14 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
     }
 
     @Override
-    public byte[] convertShardScanFragment(String tableName, RelNode fragment) {
-        LOGGER.debug("Converting shard scan fragment for table [{}]", tableName);
-        return convertToSubstrait(fragment);
+    public byte[] convertFragment(RelNode fragment) {
+        LOGGER.debug("Converting fragment [{}]", fragment.getClass().getSimpleName());
+        // Rewrite any OpenSearchStageInputScan leaves to plain TableScan nodes so the
+        // isthmus visitor (which only knows about Calcite core / Logical RelNodes)
+        // emits a ReadRel with the stage-input-id as the named table. No-op when the
+        // fragment has no StageInputScan leaves (shard-scan and Values cases).
+        RelNode rewritten = rewriteStageInputScans(fragment);
+        return convertToSubstrait(rewritten);
     }
 
     @Override
@@ -296,16 +301,6 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
             fieldNames(partialAggFragment)
         );
         return serializePlan(SubstraitPlanRewriter.rewrite(rewired));
-    }
-
-    @Override
-    public byte[] convertFinalAggFragment(RelNode fragment) {
-        LOGGER.debug("Converting final-aggregate fragment");
-        // Rewrite any OpenSearchStageInputScan leaves to plain TableScan nodes so the
-        // isthmus visitor (which only knows about Calcite core / Logical RelNodes)
-        // emits a ReadRel with the stage-input-id as the named table.
-        RelNode rewritten = rewriteStageInputScans(fragment);
-        return convertToSubstrait(rewritten);
     }
 
     @Override

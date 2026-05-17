@@ -59,7 +59,7 @@ public final class DatafusionMemtableReduceSink extends AbstractDatafusionReduce
 
     private final List<ArrowArray> arrays = new ArrayList<>();
     private final List<ArrowSchema> schemas = new ArrayList<>();
-    private final byte[] schemaIpc;
+    private final byte[] producerPlanBytes;
 
     public DatafusionMemtableReduceSink(ExchangeSinkContext ctx, NativeRuntimeHandle runtimeHandle) {
         super(ctx, runtimeHandle);
@@ -82,7 +82,7 @@ public final class DatafusionMemtableReduceSink extends AbstractDatafusionReduce
                     + " constructed directly."
             );
         }
-        this.schemaIpc = childInputs.values().iterator().next();
+        this.producerPlanBytes = childInputs.values().iterator().next();
     }
 
     @Override
@@ -121,7 +121,14 @@ public final class DatafusionMemtableReduceSink extends AbstractDatafusionReduce
             // distinct "input-<childStageId>" table id and separate buffer accumulation
             // per child (the constructor enforces single-input today; see class javadoc).
             int singleChildStageId = childInputs.keySet().iterator().next();
-            NativeBridge.registerMemtable(session.getPointer(), inputIdFor(singleChildStageId), schemaIpc, arrayPtrs, schemaPtrs);
+            NativeBridge.RegisteredInput registered = NativeBridge.registerMemtable(
+                session.getPointer(),
+                inputIdFor(singleChildStageId),
+                producerPlanBytes,
+                arrayPtrs,
+                schemaPtrs
+            );
+            childSchemas.put(singleChildStageId, ArrowSchemaIpc.fromBytes(registered.schemaIpc()));
 
             streamPtr = NativeBridge.executeLocalPlan(session.getPointer(), ctx.fragmentBytes());
             try (StreamHandle outStream = new StreamHandle(streamPtr, runtimeHandle)) {

@@ -12,11 +12,9 @@ import org.apache.arrow.c.ArrowArray;
 import org.apache.arrow.c.ArrowSchema;
 import org.apache.arrow.c.Data;
 import org.apache.arrow.memory.BufferAllocator;
-import org.apache.arrow.vector.FieldVector;
-import org.apache.arrow.vector.VarCharVector;
 import org.apache.arrow.vector.VectorSchemaRoot;
-import org.apache.arrow.vector.ViewVarCharVector;
 import org.apache.arrow.vector.types.pojo.ArrowType;
+import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.Schema;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -27,6 +25,7 @@ import org.opensearch.be.datafusion.nativelib.NativeBridge;
 import org.opensearch.be.datafusion.nativelib.StreamHandle;
 
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
@@ -96,11 +95,13 @@ public final class DatafusionReduceSink extends AbstractDatafusionReduceSink imp
         try {
             if (preparedState != null) {
                 // Plan was already prepared by FinalAggregateInstructionHandler. The handler
-                // registered senders in ctx.childInputs() iteration order; we re-index them
-                // here by childStageId for lookup during feed().
+                // registered senders + captured per-input schemas in ctx.childInputs()
+                // iteration order; re-index them by childStageId here for lookup during feed().
                 int i = 0;
                 for (Map.Entry<Integer, byte[]> child : childInputs.entrySet()) {
-                    senders.put(child.getKey(), preparedState.senders().get(i++));
+                    senders.put(child.getKey(), preparedState.senders().get(i));
+                    childSchemas.put(child.getKey(), preparedState.inputSchemas().get(i));
+                    i++;
                 }
                 streamPtr = NativeBridge.executeLocalPreparedPlan(session.getPointer());
             } else {
@@ -111,9 +112,14 @@ public final class DatafusionReduceSink extends AbstractDatafusionReduceSink imp
                 // (DataFusionFragmentConvertor names them this way during plan conversion).
                 for (Map.Entry<Integer, byte[]> child : childInputs.entrySet()) {
                     int childStageId = child.getKey();
-                    byte[] schemaIpc = child.getValue();
-                    long senderPtr = NativeBridge.registerPartitionStream(session.getPointer(), inputIdFor(childStageId), schemaIpc);
-                    senders.put(childStageId, new DatafusionPartitionSender(senderPtr));
+                    byte[] producerPlanBytes = child.getValue();
+                    NativeBridge.RegisteredInput registered = NativeBridge.registerPartitionStream(
+                        session.getPointer(),
+                        inputIdFor(childStageId),
+                        producerPlanBytes
+                    );
+                    senders.put(childStageId, new DatafusionPartitionSender(registered.pointer()));
+                    childSchemas.put(childStageId, ArrowSchemaIpc.fromBytes(registered.schemaIpc()));
                 }
                 streamPtr = NativeBridge.executeLocalPlan(session.getPointer(), ctx.fragmentBytes());
             }
@@ -200,10 +206,17 @@ public final class DatafusionReduceSink extends AbstractDatafusionReduceSink imp
             return;
         }
         BufferAllocator alloc = ctx.allocator();
-        // Bridge DataFusion's physical types (e.g. Utf8View for string group keys) to the
-        // coordinator's declared schema (Utf8) before handing the batch to Rust. Zero-copy
-        // fast path when schemas already match. See coerceToDeclaredSchema().
-        batch = coerceToDeclaredSchema(batch, declaredSchema, alloc);
+        // Type-only equality check; nullability and Timestamp precision are advisory.
+        if (!typesMatch(batch.getSchema(), declaredSchema)) {
+            batch.close();
+            throw new IllegalStateException(
+                "DatafusionReduceSink: batch schema types do not match declared schema. "
+                    + "declared="
+                    + declaredSchema
+                    + " batch="
+                    + batch.getSchema()
+            );
+        }
         ArrowArray array = ArrowArray.allocateNew(alloc);
         ArrowSchema arrowSchema = ArrowSchema.allocateNew(alloc);
         try {
@@ -242,66 +255,28 @@ public final class DatafusionReduceSink extends AbstractDatafusionReduceSink imp
     }
 
     /**
-     * Coerces {@code batch} to {@code declaredSchema} at the Java→Rust boundary.
-     * Bridges the impedance between DataFusion's physical types (e.g. {@code Utf8View}
-     * for string group keys, a non-configurable HashAggregate optimization) and
-     * substrait's logical "string" which the coordinator's FINAL plan consumes as
-     * {@code Utf8}. One place, explicit, grows per-case on observed mismatch.
-     *
-     * <p>Zero-copy fast path when schemas already match (numeric-only aggregates).
-     * Closes {@code batch} — caller drops its reference.
-     *
-     * <p><b>TODO (revisit):</b> this runtime coercer bridges a logical/physical type
-     * mismatch between Calcite's declared exchange schema and DataFusion's physical
-     * output. A cleaner fix would eliminate the mismatch upstream — for example, a Rust
-     * pass that casts {@code Utf8View} → {@code Utf8} at the PARTIAL plan's root using
-     * DataFusion's vectorized {@code CastExpr} (one columnar kernel per batch instead of
-     * per-cell Java copy), or a Substrait extension that carries view-vs-plain type
-     * information through the serialized plan. Until one of those lands, this Java-side
-     * coercer is the minimum correct bridge.
+     * Field-by-field type equality. Ignores nullability; Timestamp precision/timezone
+     * parameters are tolerated because the data-node parquet reader and physical
+     * planner pick a precision the Java-side declaration does not predict, and the
+     * chosen precision round-trips through Arrow C Data — divergence is harmless.
      */
-    private static VectorSchemaRoot coerceToDeclaredSchema(VectorSchemaRoot batch, Schema declaredSchema, BufferAllocator alloc) {
-        if (batch.getSchema().equals(declaredSchema)) {
-            return batch;
+    private static boolean typesMatch(Schema actual, Schema declared) {
+        List<Field> a = actual.getFields();
+        List<Field> d = declared.getFields();
+        if (a.size() != d.size()) {
+            return false;
         }
-        VectorSchemaRoot out = VectorSchemaRoot.create(declaredSchema, alloc);
-        try {
-            out.allocateNew();
-            int rows = batch.getRowCount();
-            for (int col = 0; col < declaredSchema.getFields().size(); col++) {
-                FieldVector src = batch.getVector(col);
-                FieldVector dst = out.getVector(col);
-                if (src.getField().getType().equals(dst.getField().getType())) {
-                    src.makeTransferPair(dst).transfer();
-                    continue;
-                }
-                ArrowType.ArrowTypeID srcId = src.getField().getType().getTypeID();
-                ArrowType.ArrowTypeID dstId = dst.getField().getType().getTypeID();
-                if (srcId == ArrowType.ArrowTypeID.Utf8View && dstId == ArrowType.ArrowTypeID.Utf8) {
-                    ViewVarCharVector s = (ViewVarCharVector) src;
-                    VarCharVector d = (VarCharVector) dst;
-                    for (int r = 0; r < rows; r++) {
-                        if (s.isNull(r)) {
-                            d.setNull(r);
-                        } else {
-                            d.setSafe(r, s.get(r));
-                        }
-                    }
-                    d.setValueCount(rows);
-                    continue;
-                }
-                throw new IllegalStateException(
-                    "coerceToDeclaredSchema: unsupported " + srcId + " → " + dstId + " for column '" + dst.getField().getName() + "'"
-                );
+        for (int i = 0; i < a.size(); i++) {
+            ArrowType at = a.get(i).getType();
+            ArrowType dt = d.get(i).getType();
+            if (at.getTypeID() == ArrowType.ArrowTypeID.Timestamp && dt.getTypeID() == ArrowType.ArrowTypeID.Timestamp) {
+                continue;
             }
-            out.setRowCount(rows);
-        } catch (RuntimeException e) {
-            out.close();
-            throw e;
-        } finally {
-            batch.close();
+            if (!at.equals(dt)) {
+                return false;
+            }
         }
-        return out;
+        return true;
     }
 
     /**

@@ -41,7 +41,7 @@
 use std::any::Any;
 use std::sync::Arc;
 
-use datafusion::arrow::array::{Array, ArrayRef, StringArray, StringBuilder};
+use datafusion::arrow::array::{ArrayRef, StringBuilder};
 use datafusion::arrow::datatypes::DataType;
 use datafusion::common::{plan_err, ScalarValue};
 use datafusion::error::{DataFusionError, Result};
@@ -51,6 +51,7 @@ use datafusion::logical_expr::{
 };
 use regex::Regex;
 
+use super::json_common::StringArrayView;
 use super::{coerce_args, CoerceMode};
 
 pub fn register_all(ctx: &SessionContext) {
@@ -120,19 +121,11 @@ impl ScalarUDFImpl for RexExtractUdf {
             None => None,
         };
 
-        let input = args.args[0].clone().into_array(n)?;
-        let input = input
-            .as_any()
-            .downcast_ref::<StringArray>()
-            .ok_or_else(|| {
-                DataFusionError::Internal(format!(
-                    "rex_extract: expected Utf8 input, got {:?}",
-                    input.data_type()
-                ))
-            })?;
+        let input_arr = args.args[0].clone().into_array(n)?;
+        let input = StringArrayView::from_array(&input_arr)?;
 
         // Materialize column-valued operands lazily; keep the ArrayRef alive
-        // alongside any downcast reference (the StringArray borrows its buffer).
+        // alongside the StringArrayView (the view borrows the underlying buffers).
         let pattern_arr_ref: Option<ArrayRef> = if pattern_scalar.is_none() && matches!(&args.args[1], ColumnarValue::Array(_)) {
             Some(args.args[1].clone().into_array(n)?)
         } else {
@@ -143,22 +136,24 @@ impl ScalarUDFImpl for RexExtractUdf {
         } else {
             None
         };
-        let pattern_array: Option<&StringArray> = pattern_arr_ref.as_ref().and_then(|a| a.as_any().downcast_ref::<StringArray>());
-        let group_array: Option<&StringArray> = group_arr_ref.as_ref().and_then(|a| a.as_any().downcast_ref::<StringArray>());
+        let pattern_array: Option<StringArrayView<'_>> =
+            pattern_arr_ref.as_ref().map(StringArrayView::from_array).transpose()?;
+        let group_array: Option<StringArrayView<'_>> =
+            group_arr_ref.as_ref().map(StringArrayView::from_array).transpose()?;
 
         let mut builder = StringBuilder::with_capacity(n, n * 16);
         for i in 0..n {
-            if input.is_null(i) {
+            let Some(input_value) = input.cell(i) else {
                 builder.append_null();
                 continue;
-            }
+            };
 
             // Resolve the regex — scalar fast-path or per-row column lookup.
             let regex_owned;
-            let regex: &Regex = match (&scalar_regex, pattern_array) {
+            let regex: &Regex = match (&scalar_regex, pattern_array.as_ref().and_then(|a| a.cell(i))) {
                 (Some(r), _) => r,
-                (None, Some(arr)) if !arr.is_null(i) => {
-                    regex_owned = compile_pattern(arr.value(i))?;
+                (None, Some(s)) => {
+                    regex_owned = compile_pattern(s)?;
                     &regex_owned
                 }
                 _ => {
@@ -168,16 +163,16 @@ impl ScalarUDFImpl for RexExtractUdf {
             };
 
             // Resolve the group name (or numeric index, if it parses as one).
-            let group_name: &str = match (&group_scalar, group_array) {
+            let group_name: &str = match (&group_scalar, group_array.as_ref().and_then(|a| a.cell(i))) {
                 (Some(g), _) => g.as_str(),
-                (None, Some(arr)) if !arr.is_null(i) => arr.value(i),
+                (None, Some(s)) => s,
                 _ => {
                     builder.append_null();
                     continue;
                 }
             };
 
-            match extract_group(regex, input.value(i), group_name) {
+            match extract_group(regex, input_value, group_name) {
                 Some(s) => builder.append_value(s),
                 None => builder.append_null(),
             }
