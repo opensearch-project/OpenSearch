@@ -29,6 +29,7 @@ import org.opensearch.index.SegmentReplicationStatsTracker;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.ingest.IngestService;
 import org.opensearch.monitor.MonitorService;
+import org.opensearch.monitor.memory.MemoryReportingService;
 import org.opensearch.plugin.stats.AnalyticsBackendNativeMemoryStats;
 import org.opensearch.plugins.PluginsService;
 import org.opensearch.ratelimitting.admissioncontrol.AdmissionControlService;
@@ -43,7 +44,6 @@ import org.opensearch.transport.TransportService;
 
 import java.util.Collections;
 import java.util.Map;
-import java.util.function.Supplier;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -57,7 +57,7 @@ import static org.mockito.Mockito.when;
  */
 public class NodeServiceNativeMemoryTests extends OpenSearchTestCase {
 
-    private NodeService createNodeService(Supplier<AnalyticsBackendNativeMemoryStats> nativeMemoryStatsSupplier) {
+    private NodeService createNodeService(AnalyticsBackendNativeMemoryStats nativeStats) {
         TransportService transportService = mock(TransportService.class);
         DiscoveryNode localNode = new DiscoveryNode("test_node", buildNewFakeTransportAddress(), Version.CURRENT);
         when(transportService.getLocalNode()).thenReturn(localNode);
@@ -66,10 +66,16 @@ public class NodeServiceNativeMemoryTests extends OpenSearchTestCase {
         IngestService ingestService = mock(IngestService.class);
         SearchPipelineService searchPipelineService = mock(SearchPipelineService.class);
 
+        MemoryReportingService memoryReportingService = mock(MemoryReportingService.class);
+        when(memoryReportingService.nativeStats()).thenReturn(nativeStats);
+
+        MonitorService monitorService = mock(MonitorService.class);
+        when(monitorService.memoryReportingService()).thenReturn(memoryReportingService);
+
         return new NodeService(
             Settings.EMPTY,
             mock(ThreadPool.class),
-            mock(MonitorService.class),
+            monitorService,
             mock(Discovery.class),
             transportService,
             mock(IndicesService.class),
@@ -92,8 +98,7 @@ public class NodeServiceNativeMemoryTests extends OpenSearchTestCase {
             mock(SegmentReplicationStatsTracker.class),
             mock(RepositoriesService.class),
             mock(AdmissionControlService.class),
-            null, // cacheService
-            nativeMemoryStatsSupplier
+            null  // cacheService
         );
     }
 
@@ -103,9 +108,8 @@ public class NodeServiceNativeMemoryTests extends OpenSearchTestCase {
      */
     public void testStatsWithNativeMemoryTrueAndServicePresent() {
         AnalyticsBackendNativeMemoryStats expectedStats = new AnalyticsBackendNativeMemoryStats(1024L, 2048L);
-        Supplier<AnalyticsBackendNativeMemoryStats> supplier = () -> expectedStats;
 
-        NodeService nodeService = createNodeService(supplier);
+        NodeService nodeService = createNodeService(expectedStats);
 
         NodeStats nodeStats = nodeService.stats(
             CommonStatsFlags.NONE,
@@ -193,9 +197,8 @@ public class NodeServiceNativeMemoryTests extends OpenSearchTestCase {
      */
     public void testStatsWithNativeMemoryFalse() {
         AnalyticsBackendNativeMemoryStats expectedStats = new AnalyticsBackendNativeMemoryStats(4096L, 8192L);
-        Supplier<AnalyticsBackendNativeMemoryStats> supplier = () -> expectedStats;
 
-        NodeService nodeService = createNodeService(supplier);
+        NodeService nodeService = createNodeService(expectedStats);
 
         NodeStats nodeStats = nodeService.stats(
             CommonStatsFlags.NONE,
@@ -239,10 +242,9 @@ public class NodeServiceNativeMemoryTests extends OpenSearchTestCase {
      */
     @SuppressWarnings("unchecked")
     public void testNativeMemoryResponseFormatUnchanged() throws Exception {
-        AnalyticsBackendNativeMemoryStats stats = new AnalyticsBackendNativeMemoryStats(123456789L, 987654321L);
-        Supplier<AnalyticsBackendNativeMemoryStats> supplier = () -> stats;
+        AnalyticsBackendNativeMemoryStats expectedStats = new AnalyticsBackendNativeMemoryStats(123456789L, 987654321L);
 
-        NodeService nodeService = createNodeService(supplier);
+        NodeService nodeService = createNodeService(expectedStats);
 
         NodeStats nodeStats = nodeService.stats(
             CommonStatsFlags.NONE,
