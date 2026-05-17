@@ -140,4 +140,43 @@ public class HiveSourceConfigTests extends OpenSearchTestCase {
 
         assertNull(config.getPartitionTimePattern());
     }
+
+    public void testHadoopProperties() {
+        Map<String, Object> params = new HashMap<>();
+        params.put("metastore_uri", "thrift://localhost:9083");
+        params.put("database", "db");
+        params.put("table", "tbl");
+        params.put("hadoop_config.fs.s3a.endpoint", "https://s3.us-east-1.amazonaws.com");
+        params.put("hadoop_config.fs.s3a.path.style.access", "true");
+
+        HiveSourceConfig config = new HiveSourceConfig(params, 1);
+
+        Map<String, String> hadoop = config.getHadoopProperties();
+        assertEquals(2, hadoop.size());
+        assertEquals("https://s3.us-east-1.amazonaws.com", hadoop.get("fs.s3a.endpoint"));
+        assertEquals("true", hadoop.get("fs.s3a.path.style.access"));
+    }
+
+    public void testHadoopPropertiesEmptyByDefault() {
+        Map<String, Object> params = new HashMap<>();
+        params.put("metastore_uri", "thrift://localhost:9083");
+        params.put("database", "db");
+        params.put("table", "tbl");
+
+        HiveSourceConfig config = new HiveSourceConfig(params, 1);
+
+        assertTrue(config.getHadoopProperties().isEmpty());
+    }
+
+    public void testHadoopPropertiesImmutable() {
+        Map<String, Object> params = new HashMap<>();
+        params.put("metastore_uri", "thrift://localhost:9083");
+        params.put("database", "db");
+        params.put("table", "tbl");
+        params.put("hadoop_config.key", "value");
+
+        HiveSourceConfig config = new HiveSourceConfig(params, 1);
+
+        expectThrows(UnsupportedOperationException.class, () -> config.getHadoopProperties().put("new", "entry"));
+    }
 }

@@ -124,10 +124,12 @@ public class HiveShardConsumerTests extends OpenSearchTestCase {
         row.put("score", 9.5);
         row.put("active", true);
 
-        byte[] json = consumer.rowToJson(row);
+        HivePointer ptr = new HivePointer("dt=2024-01-01", "file:/data/part-0.parquet", 0, 0);
+        byte[] json = consumer.rowToJson(row, ptr);
         String result = new String(json, StandardCharsets.UTF_8);
 
-        assertEquals("{\"name\":\"alice\",\"age\":30,\"score\":9.5,\"active\":true}", result);
+        assertTrue(result.contains("\"_id\":\""));
+        assertTrue(result.contains("\"_source\":{\"name\":\"alice\",\"age\":30,\"score\":9.5,\"active\":true}"));
     }
 
     public void testRowToJsonNullValue() {
@@ -136,10 +138,11 @@ public class HiveShardConsumerTests extends OpenSearchTestCase {
         row.put("name", "bob");
         row.put("email", null);
 
-        byte[] json = consumer.rowToJson(row);
+        HivePointer ptr = new HivePointer("dt=2024-01-01", "file:/data/part-0.parquet", 1, 1);
+        byte[] json = consumer.rowToJson(row, ptr);
         String result = new String(json, StandardCharsets.UTF_8);
 
-        assertEquals("{\"name\":\"bob\",\"email\":null}", result);
+        assertTrue(result.contains("\"_source\":{\"name\":\"bob\",\"email\":null}"));
     }
 
     public void testRowToJsonSpecialCharacters() {
@@ -149,7 +152,8 @@ public class HiveShardConsumerTests extends OpenSearchTestCase {
         row.put("path", "c:\\users\\test");
         row.put("quote", "say \"hello\"");
 
-        byte[] json = consumer.rowToJson(row);
+        HivePointer ptr = new HivePointer("dt=2024-01-01", "file:/data/part-0.parquet", 2, 2);
+        byte[] json = consumer.rowToJson(row, ptr);
         String result = new String(json, StandardCharsets.UTF_8);
 
         assertTrue(result.contains("\\n"));

@@ -11,6 +11,7 @@ package org.opensearch.plugin.hive;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.util.ConfigurationUtils;
 
+import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -53,6 +54,7 @@ public class HiveSourceConfig {
     private final String kerberosPrincipal;
     private final String kerberosKeytabPath;
     private final String metastoreServicePrincipal;
+    private final Map<String, String> hadoopProperties;
 
     /**
      * Creates a new HiveSourceConfig from the ingestion source parameters.
@@ -96,6 +98,16 @@ public class HiveSourceConfig {
         this.kerberosPrincipal = ConfigurationUtils.readOptionalStringProperty(params, "kerberos_principal");
         this.kerberosKeytabPath = ConfigurationUtils.readOptionalStringProperty(params, "kerberos_keytab");
         this.metastoreServicePrincipal = ConfigurationUtils.readOptionalStringProperty(params, "metastore_service_principal");
+
+        // Collect hadoop_config.* entries for Hadoop Configuration (e.g., fs.s3a.* for S3 access)
+        Map<String, String> hadoop = new HashMap<>();
+        String prefix = "hadoop_config.";
+        for (Map.Entry<String, Object> entry : params.entrySet()) {
+            if (entry.getKey().startsWith(prefix)) {
+                hadoop.put(entry.getKey().substring(prefix.length()), String.valueOf(entry.getValue()));
+            }
+        }
+        this.hadoopProperties = Map.copyOf(hadoop);
     }
 
     /** Returns the Hive Metastore Thrift URI (e.g., {@code thrift://host:9083}). */
@@ -176,6 +188,11 @@ public class HiveSourceConfig {
     /** Returns the Metastore service principal (e.g., {@code hive/_HOST@REALM}). */
     public String getMetastoreServicePrincipal() {
         return metastoreServicePrincipal;
+    }
+
+    /** Returns additional Hadoop configuration properties from {@code hadoop_config.*} params. */
+    public Map<String, String> getHadoopProperties() {
+        return hadoopProperties;
     }
 
 }

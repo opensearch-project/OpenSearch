@@ -117,7 +117,6 @@ public class IngestFromHiveIT extends OpenSearchSingleNodeTestCase {
                 .put("ingestion_source.param.database", DATABASE)
                 .put("ingestion_source.param.table", TABLE_NAME)
                 .put("ingestion_source.param.monitor_interval", "2s")
-                .put("ingestion_source.mapper_type", "field_mapping")
                 .put("index.replication.type", "SEGMENT")
                 .build()
         );
@@ -145,7 +144,6 @@ public class IngestFromHiveIT extends OpenSearchSingleNodeTestCase {
                 .put("ingestion_source.param.database", DATABASE)
                 .put("ingestion_source.param.table", TABLE_NAME)
                 .put("ingestion_source.param.monitor_interval", "2s")
-                .put("ingestion_source.mapper_type", "field_mapping")
                 .put("index.replication.type", "SEGMENT")
                 .build()
         );
@@ -332,7 +330,6 @@ public class IngestFromHiveIT extends OpenSearchSingleNodeTestCase {
                 .put("ingestion_source.param.database", DATABASE)
                 .put("ingestion_source.param.table", TABLE_NAME)
                 .put("ingestion_source.param.monitor_interval", "2s")
-                .put("ingestion_source.mapper_type", "field_mapping")
                 .put("index.replication.type", "SEGMENT")
                 .build()
         );

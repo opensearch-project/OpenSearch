@@ -68,6 +68,37 @@ struct StorageDescriptor {
   10: map<string, string> parameters
 }
 
+// Principal type enum (USER, ROLE, GROUP). Used in Table.ownerType.
+enum PrincipalType {
+  USER = 1,
+  ROLE = 2,
+  GROUP = 3
+}
+
+// Grant info for a single privilege.
+struct PrivilegeGrantInfo {
+  1: string privilege,
+  2: i32 createTime,
+  3: string grantor,
+  4: PrincipalType grantorType,
+  5: bool grantOption
+}
+
+// Maps principal names to their privilege grants. Used in Table.privileges.
+struct PrincipalPrivilegeSet {
+  1: map<string, list<PrivilegeGrantInfo>> userPrivileges,
+  2: map<string, list<PrivilegeGrantInfo>> groupPrivileges,
+  3: map<string, list<PrivilegeGrantInfo>> rolePrivileges
+}
+
+// Materialized view creation metadata. Used in Table.creationMetadata.
+struct CreationMetadata {
+  1: required string catName,
+  2: required string dbName,
+  3: required string tblName,
+  4: required set<string> tablesUsed
+}
+
 // Database metadata. Used by test-only create_database.
 struct Database {
   1: string name,
@@ -90,7 +121,14 @@ struct Table {
   9: map<string, string> parameters,
   10: string viewOriginalText,
   11: string viewExpandedText,
-  12: string tableType
+  12: string tableType,
+  13: optional PrincipalPrivilegeSet privileges,
+  14: optional bool temporary,
+  15: optional bool rewriteEnabled,
+  16: optional CreationMetadata creationMetadata,
+  17: optional string catName,
+  18: optional PrincipalType ownerType,
+  19: optional i64 writeId
 }
 
 // Partition metadata. values contains partition column values, sd.location points to
