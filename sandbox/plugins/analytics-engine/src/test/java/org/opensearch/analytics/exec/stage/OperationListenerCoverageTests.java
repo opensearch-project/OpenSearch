@@ -127,11 +127,12 @@ public class OperationListenerCoverageTests extends OpenSearchTestCase {
         RecordingListener recording = new RecordingListener();
         Stage rootStage = stageWithId(0);
         builder.registerFactory(StageExecutionType.LOCAL_PASSTHROUGH, (stage, sink, cfg) -> {
-            // Stage whose start() goes CREATED → SUCCEEDED directly (no RUNNING).
+            // Stage whose start() goes CREATED → SUCCEEDED directly (no RUNNING): materialise
+            // an empty task list, which the base short-circuits to SUCCEEDED.
             return new TestableRootExecution(stage, new NoopSink(), cfg) {
                 @Override
-                public void start() {
-                    doSucceed();
+                protected List<StageTask> materializeTasks() {
+                    return List.of();
                 }
             };
         });
@@ -216,29 +217,26 @@ public class OperationListenerCoverageTests extends OpenSearchTestCase {
     /**
      * Test stage that extends {@link AbstractStageExecution} so its state transitions
      * fire {@code AnalyticsOperationListener} callbacks through the real production wiring
-     * ({@code fireOperationListeners}). Tests drive transitions via the {@code do*}
-     * methods — the dispatcher/task path is unused.
+     * ({@code fireOperationListeners}). {@link #materializeTasks} returns one no-op task so
+     * {@link #start} transitions to RUNNING (not the empty-list short-circuit to SUCCEEDED);
+     * tests then drive terminal transitions via {@code doSucceed}/{@code doFail}.
      */
     private static class TestableRootExecution extends AbstractStageExecution implements DataProducer {
         private final ExchangeSource source;
 
+        @SuppressWarnings({ "unchecked", "rawtypes" })
         TestableRootExecution(Stage stage, ExchangeSource source, QueryContext cfg) {
-            super(stage, cfg.queryId(), cfg.operationListeners());
+            super(stage, cfg.queryId(), cfg.operationListeners(), cfg.parentTask());
             this.source = source;
+            // Park runner: accept the task but never signal terminal. Tests drive
+            // transitions via doSucceed/doFail; dispatch must not race them.
+            this.runner = (org.opensearch.analytics.exec.task.TaskRunner) (task, listener) -> {};
         }
 
         @Override
-        public void start() {
-            transitionTo(State.RUNNING);
+        protected List<StageTask> materializeTasks() {
+            return List.of(new LocalStageTask(new StageTaskId(getStageId(), 0), () -> {}));
         }
-
-        @Override
-        public void cancel(String reason) {
-            transitionTo(State.CANCELLED);
-        }
-
-        @Override
-        public void onTaskTerminal(StageTask task, Exception cause) {}
 
         @Override
         public ExchangeSource outputSource() {

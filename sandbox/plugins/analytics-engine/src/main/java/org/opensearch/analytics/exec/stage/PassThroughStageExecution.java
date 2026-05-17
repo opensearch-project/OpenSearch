@@ -28,7 +28,7 @@ final class PassThroughStageExecution extends AbstractStageExecution implements 
     private final RowProducingSink ownedSink;
 
     public PassThroughStageExecution(Stage stage, QueryContext config, ExchangeSink sink) {
-        super(stage, config.queryId(), config.operationListeners());
+        super(stage, config.queryId(), config.operationListeners(), config.parentTask());
         if ((sink instanceof RowProducingSink) == false) {
             throw new IllegalArgumentException("PassThroughStageExecution requires a RowProducingSink");
         }
@@ -37,9 +37,8 @@ final class PassThroughStageExecution extends AbstractStageExecution implements 
     }
 
     @Override
-    public void start() {
-        LocalStageTask task = new LocalStageTask(new StageTaskId(getStageId(), 0), () -> {});
-        publishTasksAndStart(List.of(task));
+    protected List<StageTask> materializeTasks() {
+        return List.of(new LocalStageTask(new StageTaskId(getStageId(), 0), () -> {}));
     }
 
     @Override

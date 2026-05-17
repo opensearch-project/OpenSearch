@@ -32,7 +32,7 @@ final class LocalStageExecution extends AbstractStageExecution implements SinkPr
     private final AtomicBoolean backendSinkClosed = new AtomicBoolean(false);
 
     public LocalStageExecution(Stage stage, QueryContext config, ExchangeSink backendSink, ExchangeSink downstream) {
-        super(stage, config.queryId(), config.operationListeners());
+        super(stage, config.queryId(), config.operationListeners(), config.parentTask());
         this.backendSink = backendSink;
         this.downstream = downstream;
         this.runner = new LocalTaskRunner(config.localTaskExecutor());
@@ -57,44 +57,30 @@ final class LocalStageExecution extends AbstractStageExecution implements SinkPr
             "downstream sink " + downstream.getClass().getSimpleName() + " does not implement ExchangeSource"
         );
     }
-
+    
     @Override
-    public void start() {
-        // Task body — exceptions propagate to the runner, which calls handle.onFailed.
-        Runnable r = () -> {
-            if (backendSinkClosed.compareAndSet(false, true)) {
-                backendSink.close();
-            }
-        };
-        LocalStageTask task = new LocalStageTask(new StageTaskId(getStageId(), 0), r);
-        publishTasksAndStart(List.of(task));
+    protected List<StageTask> materializeTasks() {
+        // Task body IS the work — closing the sink drives the reduce drain. Exceptions
+        // propagate to the runner, which routes via onFailure → stage FAILED.
+        return List.of(new LocalStageTask(new StageTaskId(getStageId(), 0), this::closeBackendSinkOnce));
     }
 
     /**
-     * Close backend sink BEFORE transitioning — transitionTo fires terminal listeners
-     * inline; the query mirror tears down the per-query allocator; an in-flight import
-     * would race a closed allocator.
+     * Defensive cleanup for FAILED / CANCELLED paths where the task body didn't get
+     * to close the sink. Single-fire via {@link #backendSinkClosed} so the happy-path
+     * task body (which already closed) is a no-op here. Swallows because we're
+     * already terminal — exceptions can't change the outcome and would be lost anyway.
      */
     @Override
-    public boolean failWithCause(Exception cause) {
-        captureFailure(cause);
-        closeBackendSinkSilently();
-        return transitionTo(State.FAILED);
+    protected void onTerminalTransition(State terminal) {
+        try {
+            closeBackendSinkOnce();
+        } catch (Exception ignore) {}
     }
 
-    /** Same ordering rationale as {@link #failWithCause}: close sink before terminal listeners fire. */
-    @Override
-    public void cancel(String reason) {
-        closeBackendSinkSilently();
-        super.cancel(reason);
-    }
-
-    /** Single-fire close — swallows: caller's primary cause is what matters. */
-    private void closeBackendSinkSilently() {
+    private void closeBackendSinkOnce() {
         if (backendSinkClosed.compareAndSet(false, true)) {
-            try {
-                backendSink.close();
-            } catch (Exception ignore) {}
+            backendSink.close();
         }
     }
 }

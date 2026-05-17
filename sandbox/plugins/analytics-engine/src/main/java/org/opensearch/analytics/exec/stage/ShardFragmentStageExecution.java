@@ -21,8 +21,6 @@ import org.opensearch.analytics.planner.dag.Stage;
 import org.opensearch.analytics.spi.ExchangeSink;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.core.action.ActionListener;
-import org.opensearch.tasks.CancellableTask;
-import org.opensearch.tasks.Task;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -49,7 +47,7 @@ class ShardFragmentStageExecution extends AbstractStageExecution implements Data
         Function<ShardExecutionTarget, FragmentExecutionRequest> requestBuilder,
         AnalyticsSearchTransportService dispatcher
     ) {
-        super(stage, config.queryId(), config.operationListeners());
+        super(stage, config.queryId(), config.operationListeners(), config.parentTask());
         this.config = config;
         this.outputSink = outputSink;
         this.clusterService = clusterService;
@@ -57,31 +55,26 @@ class ShardFragmentStageExecution extends AbstractStageExecution implements Data
     }
 
     @Override
-    public void start() {
+    protected List<StageTask> materializeTasks() {
         List<ExecutionTarget> resolved = stage.getTargetResolver().resolve(clusterService.state(), null);
-        if (resolved.isEmpty()) {
-            transitionTo(State.SUCCEEDED);
-            return;
-        }
+        // Empty list → base short-circuits to SUCCEEDED (nothing to dispatch).
         List<StageTask> tasks = new ArrayList<>(resolved.size());
         for (int i = 0; i < resolved.size(); i++) {
             tasks.add(new ShardStageTask(new StageTaskId(getStageId(), i), resolved.get(i)));
         }
-        publishTasksAndStart(tasks);
+        return tasks;
     }
 
     // TODO: override retargetForRetry for replica failover — needs TargetResolver.alternateReplica
     // and per-task attempt tracking. Scheduler-side wiring is already in place.
-
-    /** Cancel locally first, then propagate to data-node shard tasks via TaskCancellationService. */
-    @Override
-    public void cancel(String reason) {
-        super.cancel(reason);
-        Task parentTask = config.parentTask();
-        if (parentTask instanceof CancellableTask ct && ct.isCancelled() == false) {
-            ct.cancel(reason);
-        }
-    }
+    //
+    // FOLLOW-UP: per-stage cancel granularity. Today AbstractStageExecution.cancel cancels
+    // the whole parent task (via ct.cancel) to terminate in-flight data-node Flight streams.
+    // That's coarse — fine for current query shapes (one failure means the query fails) but
+    // it masks the real failure cause as "TaskCancelledException" in QueryExecution.terminalCause,
+    // and forecloses speculative-execution / per-stage abort. Surgical alternative: track
+    // per-task child-task-ids in ShardTaskRunner; cancel just those when this stage's
+    // onTerminalTransition fires CANCELLED.
 
     @Override
     public ExchangeSource outputSource() {

@@ -12,9 +12,11 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.analytics.backend.AnalyticsOperationListener;
+import org.opensearch.analytics.exec.task.AnalyticsQueryTask;
 import org.opensearch.analytics.exec.task.TaskRunner;
 import org.opensearch.analytics.planner.dag.Stage;
 import org.opensearch.common.Nullable;
+import org.opensearch.tasks.CancellableTask;
 
 import java.util.Collections;
 import java.util.List;
@@ -25,11 +27,12 @@ import java.util.concurrent.atomic.AtomicReference;
 /**
  * Shared mechanics for every {@link StageExecution} variant: state CAS, listener
  * fire loop, failure capture, metrics, default {@code tasks}/{@code runner} accessors,
- * default {@code onTaskTerminal}/{@code cancel}/{@code failWithCause} impls.
+ * default {@code onTaskTerminal}/{@code cancel}/{@code failWithCause} impls, and the
+ * {@link #start()} template (materialise → publish → transition).
  *
- * <p>Subclasses typically implement only {@link #start()} (materialise tasks +
- * {@link #publishTasksAndStart}) and override {@link #cancel}/{@link #failWithCause}
- * if they need stage-specific cleanup ordered relative to terminal listeners.
+ * <p>Subclasses implement {@link #materializeTasks()} (what tasks to run) and
+ * optionally {@link #onTerminalTransition(State)} (pre-listener cleanup). The base
+ * drives every state transition.
  *
  * @opensearch.internal
  */
@@ -42,24 +45,23 @@ abstract class AbstractStageExecution implements StageExecution {
     protected TaskRunner<?> runner = TaskRunner.NONE;
     private final AtomicReference<State> state = new AtomicReference<>(State.CREATED);
     private final AtomicReference<Exception> failure = new AtomicReference<>();
-    // CopyOnWriteArrayList for safe publication: listeners are registered during graph
-    // build (single-threaded) but iterated from state transitions (possibly multi-threaded
-    // — transport callbacks, virtual-thread task completions). COW gives a snapshot iterator
-    // and eliminates any implicit-publication concerns.
     private final List<StageStateListener> stateListeners = new CopyOnWriteArrayList<>();
     private final List<AnalyticsOperationListener> operationListeners;
     private final String queryId;
+    private final AnalyticsQueryTask parentTask;
     private final AtomicInteger pendingTaskTerminal = new AtomicInteger(0);
     private volatile List<StageTask> tasks = Collections.emptyList();
 
-    protected AbstractStageExecution(Stage stage) {
-        this(stage, null, List.of());
-    }
-
-    protected AbstractStageExecution(Stage stage, String queryId, List<AnalyticsOperationListener> operationListeners) {
+    protected AbstractStageExecution(
+        Stage stage,
+        String queryId,
+        List<AnalyticsOperationListener> operationListeners,
+        AnalyticsQueryTask parentTask
+    ) {
         this.stage = stage;
         this.queryId = queryId;
         this.operationListeners = operationListeners;
+        this.parentTask = parentTask;
         this.metrics = new StageMetrics();
     }
 
@@ -102,6 +104,41 @@ abstract class AbstractStageExecution implements StageExecution {
     }
 
     /**
+     * Template: materialise task list, hand to {@link #publishTasksAndStart}. Final —
+     * subclasses customise via {@link #materializeTasks()}. Any exception from
+     * {@code materializeTasks()} marks the stage FAILED rather than leaking back to the
+     * scheduler.
+     */
+    @Override
+    public final void start() {
+        List<StageTask> ts;
+        try {
+            ts = materializeTasks();
+        } catch (Exception e) {
+            failWithCause(e);
+            return;
+        }
+        publishTasksAndStart(ts);
+    }
+
+    /**
+     * Build this stage's task list. Called once from {@link #start()}. Return empty for
+     * "nothing to do" — the base will short-circuit straight to SUCCEEDED. Throw to mark
+     * the stage FAILED (e.g. target resolution failure).
+     */
+    protected abstract List<StageTask> materializeTasks();
+
+    /**
+     * Pre-listener cleanup hook. Fires inside {@link #transitionTo} on any terminal
+     * transition (SUCCEEDED / FAILED / CANCELLED), BEFORE state listeners run. Use this
+     * for stage-internal cleanup that must precede the listener cascade — e.g., closing
+     * a backend sink before a query-level listener tears down the per-query allocator.
+     * Default no-op. Exceptions are swallowed (logged) so cleanup failures don't block
+     * listener delivery.
+     */
+    protected void onTerminalTransition(State terminal) {}
+
+    /**
      * Default lifecycle on per-task terminal: fast-fail on any failure, otherwise
      * decrement the pending counter and transition to SUCCEEDED/FAILED once every
      * task is terminal. Retry (when {@link #retargetForRetry} is overridden)
@@ -121,9 +158,10 @@ abstract class AbstractStageExecution implements StageExecution {
     }
 
     /**
-     * Default cancel: idempotent transition to CANCELLED + sweep tasks. Stage-specific
-     * cleanup is best done by overriding this method (close resources before calling
-     * super.cancel if cleanup must happen before terminal listeners fire).
+     * Ensure if this stage is cancelled, our parent stage is also cancelled if not already
+     * This does NOT mean individual StageTask cancellation fails the parent stages/query,
+     * This only handles if a full child stage is cancelled, task management is handled
+     * separately in
      */
     @Override
     public void cancel(String reason) {
@@ -131,14 +169,12 @@ abstract class AbstractStageExecution implements StageExecution {
         for (StageTask t : tasks) {
             t.transitionTo(StageTaskState.CANCELLED);
         }
+        if (parentTask.isCancelled() == false) {
+            parentTask.cancel(reason);
+        }
     }
 
-    /**
-     * Default fail-with-cause: capture, transition to FAILED. Stage-specific cleanup
-     * is best done by overriding this method (close resources before calling super if
-     * cleanup must happen before terminal listeners fire — they may tear down
-     * query-level resources the cleanup needs).
-     */
+    /** Capture cause, transition to FAILED. Stage-internal cleanup runs via {@link #onTerminalTransition}. */
     @Override
     public boolean failWithCause(Exception cause) {
         captureFailure(cause);
@@ -166,6 +202,14 @@ abstract class AbstractStageExecution implements StageExecution {
         }
         if (target.isTerminal()) {
             metrics.recordEnd();
+            try {
+                onTerminalTransition(target);
+            } catch (Exception e) {
+                logger.warn(
+                    new ParameterizedMessage("[StageExecution] onTerminalTransition threw for stage {} -> {}", getStageId(), target),
+                    e
+                );
+            }
         }
 
         for (StageStateListener l : stateListeners) {
@@ -235,12 +279,16 @@ abstract class AbstractStageExecution implements StageExecution {
     }
 
     /**
-     * Subclasses call from {@link #start()} after materialising their task list.
-     * No-op if state has advanced past CREATED (re-entry guard — defends against
-     * a double-call corrupting bookkeeping).
+     * Hands the materialised task list to the lifecycle: empty → straight to SUCCEEDED
+     * (no work to do); otherwise publish + transition to RUNNING. Re-entry guard:
+     * no-op if state has advanced past CREATED.
      */
-    protected final void publishTasksAndStart(List<StageTask> ts) {
+    private void publishTasksAndStart(List<StageTask> ts) {
         if (getState() != State.CREATED) return;
+        if (ts.isEmpty()) {
+            transitionTo(State.SUCCEEDED);
+            return;
+        }
         this.tasks = List.copyOf(ts);
         pendingTaskTerminal.set(ts.size());
         transitionTo(State.RUNNING);
@@ -259,6 +307,4 @@ abstract class AbstractStageExecution implements StageExecution {
         return remaining == 0;
     }
 
-    @Override
-    public abstract void start();
 }

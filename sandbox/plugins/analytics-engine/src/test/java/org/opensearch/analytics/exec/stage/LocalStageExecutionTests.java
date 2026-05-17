@@ -206,6 +206,7 @@ public class LocalStageExecutionTests extends OpenSearchTestCase {
     private static QueryContext mockContext() {
         QueryContext ctx = mock(QueryContext.class);
         when(ctx.localTaskExecutor()).thenReturn(inlineExecutor());
+        when(ctx.parentTask()).thenReturn(mock(org.opensearch.analytics.exec.task.AnalyticsQueryTask.class));
         return ctx;
     }
 

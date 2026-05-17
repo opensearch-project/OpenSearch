@@ -89,6 +89,7 @@ public class PassThroughStageExecutionTests extends OpenSearchTestCase {
             t.setDaemon(true);
             return t;
         }));
+        when(ctx.parentTask()).thenReturn(mock(org.opensearch.analytics.exec.task.AnalyticsQueryTask.class));
         return ctx;
     }
 }
