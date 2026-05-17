@@ -9,44 +9,34 @@
 package org.opensearch.parquet.memory;
 
 import org.apache.arrow.memory.BufferAllocator;
-import org.apache.arrow.memory.RootAllocator;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.opensearch.common.settings.Settings;
-import org.opensearch.common.unit.RatioValue;
-import org.opensearch.monitor.jvm.JvmInfo;
-import org.opensearch.monitor.os.OsProbe;
-import org.opensearch.parquet.ParquetSettings;
+import org.opensearch.arrow.allocator.ArrowNativeAllocator;
+import org.opensearch.arrow.spi.NativeAllocatorPoolConfig;
 
 import java.io.Closeable;
 
 /**
- * Arrow memory allocator pool with configurable limits derived from node settings.
+ * Arrow memory allocator pool for Parquet ingest operations.
  *
- * <p>Wraps an Apache Arrow {@link RootAllocator} whose maximum allocation is computed as a
- * percentage of available non-heap system memory (total physical memory minus JVM max heap),
- * controlled by the {@code parquet.max_native_allocation} setting (default {@code "10%"}).
- *
- * <p>Child allocators are created per {@link org.opensearch.parquet.vsr.ManagedVSR} instance,
- * each limited to 1/10th of the root allocation, providing memory isolation between batches.
+ * <p>Uses the "ingest" pool from the unified {@link ArrowNativeAllocator}.
+ * Child allocators are created per {@link org.opensearch.parquet.vsr.ManagedVSR} instance,
+ * each limited to 1/10th of the pool's configured limit.
  */
 public class ArrowBufferPool implements Closeable {
 
     private static final Logger logger = LogManager.getLogger(ArrowBufferPool.class);
 
-    private final RootAllocator rootAllocator;
+    private final BufferAllocator poolAllocator;
     private final long maxChildAllocation;
 
     /**
-     * Creates a new ArrowBufferPool.
-     *
-     * @param settings node settings used to derive the maximum native allocation
+     * Creates a new ArrowBufferPool backed by the unified native allocator's ingest pool.
      */
-    public ArrowBufferPool(Settings settings) {
-        long maxAllocationInBytes = getMaxAllocationInBytes(settings);
-        logger.debug("Max native memory allocation for ArrowBufferPool: {} bytes", maxAllocationInBytes);
-        this.rootAllocator = new RootAllocator(maxAllocationInBytes);
-        this.maxChildAllocation = maxAllocationInBytes / 10;
+    public ArrowBufferPool() {
+        this.poolAllocator = ArrowNativeAllocator.instance().getPoolAllocator(NativeAllocatorPoolConfig.POOL_INGEST);
+        this.maxChildAllocation = poolAllocator.getLimit() / 10;
+        logger.debug("ArrowBufferPool using ingest pool: limit={}, maxChildAllocation={}", poolAllocator.getLimit(), maxChildAllocation);
     }
 
     /**
@@ -55,22 +45,16 @@ public class ArrowBufferPool implements Closeable {
      * @return a new child buffer allocator
      */
     public BufferAllocator createChildAllocator(String name) {
-        return rootAllocator.newChildAllocator(name, 0, maxChildAllocation);
+        return poolAllocator.newChildAllocator(name, 0, maxChildAllocation);
     }
 
-    /** Returns the total bytes currently allocated by the root allocator. */
+    /** Returns the total bytes currently allocated by the ingest pool. */
     public long getTotalAllocatedBytes() {
-        return rootAllocator.getAllocatedMemory();
+        return poolAllocator.getAllocatedMemory();
     }
 
     @Override
     public void close() {
-        rootAllocator.close();
-    }
-
-    private static long getMaxAllocationInBytes(Settings settings) {
-        long totalAvailableMemory = OsProbe.getInstance().getTotalPhysicalMemorySize() - JvmInfo.jvmInfo().getConfiguredMaxHeapSize();
-        RatioValue ratio = RatioValue.parseRatioValue(ParquetSettings.MAX_NATIVE_ALLOCATION.get(settings));
-        return (long) (totalAvailableMemory * ratio.getAsRatio());
+        // Pool allocator is owned by ArrowNativeAllocator — don't close it here.
     }
 }

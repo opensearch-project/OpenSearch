@@ -9,11 +9,15 @@
 opensearchplugin {
   description = 'Parquet data format plugin for OpenSearch.'
   classname = 'org.opensearch.parquet.ParquetDataFormatPlugin'
+  extendedPlugins = ['native-allocator-arrow']
 }
 
 java { sourceCompatibility = JavaVersion.toVersion(25); targetCompatibility = JavaVersion.toVersion(25) }
 
 dependencies {
+  // native-allocator-arrow provides ArrowNativeAllocator at runtime (shared classloader)
+  compileOnly project(':plugins:native-allocator-arrow')
+
   // Shared native bridge lib (provides the unified .so and FFM SymbolLookup)
   implementation project(':sandbox:libs:dataformat-native')
 
