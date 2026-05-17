@@ -5409,27 +5409,30 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             ) {
                 @Override
                 public GatedCloseable<IndexCommit> acquireLastIndexCommit(boolean flushFirst) {
-                    if (newEngineReference.get() == null) {
+                    Indexer indexer = newEngineReference.get();
+                    if (indexer == null) {
                         throw new AlreadyClosedException("engine was closed");
                     }
                     // ignore flushFirst since we flushed above and we do not want to interfere with ongoing translog replay
-                    return applyOnEngine(newEngineReference.get(), engine -> engine.acquireLastIndexCommit(false));
+                    return applyOnEngine(indexer, e -> e.acquireLastIndexCommit(false));
                 }
 
                 @Override
                 public GatedCloseable<IndexCommit> acquireSafeIndexCommit() {
-                    if (newEngineReference.get() == null) {
+                    Indexer indexer = newEngineReference.get();
+                    if (indexer == null) {
                         throw new AlreadyClosedException("engine was closed");
                     }
-                    return applyOnEngine(newEngineReference.get(), Engine::acquireSafeIndexCommit);
+                    return applyOnEngine(indexer, Engine::acquireSafeIndexCommit);
                 }
 
                 @Override
                 public GatedCloseable<SegmentInfos> getSegmentInfosSnapshot() {
-                    if (newEngineReference.get() == null) {
+                    Indexer indexer = newEngineReference.get();
+                    if (indexer == null) {
                         throw new AlreadyClosedException("engine was closed");
                     }
-                    return applyOnEngine(newEngineReference.get(), Engine::getSegmentInfosSnapshot);
+                    return applyOnEngine(indexer, Engine::getSegmentInfosSnapshot);
                 }
 
                 @Override
