@@ -311,7 +311,7 @@ public class NodeCacheOrchestratorCleanerTests extends OpenSearchTestCase {
         BlockCache mockCache = new BlockCache() {
             @Override
             public BlockCacheStats stats() {
-                return new BlockCacheStats(0, 0, 0, 0, 0, 0, 0, 0, 0L, 0L, 0L);
+                return new BlockCacheStats(0, 0, 0, 0, 0, 0, 0, 0, 0L, 0L, 0L, 0L);
             }
 
             @Override
@@ -339,7 +339,7 @@ public class NodeCacheOrchestratorCleanerTests extends OpenSearchTestCase {
         BlockCache mockCache = new BlockCache() {
             @Override
             public BlockCacheStats stats() {
-                return new BlockCacheStats(0, 0, 0, 0, 0, 0, 0, 0, 0L, 0L, 0L);
+                return new BlockCacheStats(0, 0, 0, 0, 0, 0, 0, 0, 0L, 0L, 0L, 0L);
             }
 
             @Override
@@ -369,7 +369,7 @@ public class NodeCacheOrchestratorCleanerTests extends OpenSearchTestCase {
         orchestrator.addBlockCache(new BlockCache() {
             @Override
             public BlockCacheStats stats() {
-                return new BlockCacheStats(0, 0, 0, 0, 0, 0, 0, 0, 0L, 0L, 0L);
+                return new BlockCacheStats(0, 0, 0, 0, 0, 0, 0, 0, 0L, 0L, 0L, 0L);
             }
 
             @Override
@@ -383,7 +383,7 @@ public class NodeCacheOrchestratorCleanerTests extends OpenSearchTestCase {
         orchestrator.addBlockCache(new BlockCache() {
             @Override
             public BlockCacheStats stats() {
-                return new BlockCacheStats(0, 0, 0, 0, 0, 0, 0, 0, 0L, 0L, 0L);
+                return new BlockCacheStats(0, 0, 0, 0, 0, 0, 0, 0, 0L, 0L, 0L, 0L);
             }
 
             @Override
@@ -413,7 +413,7 @@ public class NodeCacheOrchestratorCleanerTests extends OpenSearchTestCase {
         orchestrator.addBlockCache(new BlockCache() {
             @Override
             public BlockCacheStats stats() {
-                return new BlockCacheStats(0, 0, 0, 0, 0, 0, 0, 0, 0L, 0L, 0L);
+                return new BlockCacheStats(0, 0, 0, 0, 0, 0, 0, 0, 0L, 0L, 0L, 0L);
             }
 
             @Override

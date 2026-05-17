@@ -52,7 +52,7 @@ public class ParquetDataFormatStoreHandler implements DataFormatStoreHandler {
      * Creates a per-shard native file registry.
      *
      * <p>On warm nodes, creates a native store via FFM. The handler resolves
-     * {@link BlockCacheConstants#DISK_CACHE} from {@code cacheRegistry} and wires it into the
+     * {@link BlockCacheConstants#FOYER} from {@code cacheRegistry} and wires it into the
      * store if available.
      *
      * <p>On hot nodes (or when the native store is unavailable), creates an empty

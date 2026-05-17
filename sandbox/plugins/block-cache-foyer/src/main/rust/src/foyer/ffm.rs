@@ -77,25 +77,26 @@ pub unsafe extern "C" fn foyer_destroy_cache(ptr: i64) -> i64 {
     Ok(0)
 }
 
-/// Snapshots cache statistics into a caller-supplied `i64[18]` output buffer.
+/// Snapshots cache statistics into a caller-supplied `i64[20]` output buffer.
 ///
-/// Two consecutive 9-value sections:
-/// - Indices 0–8: cross-tier rollup (`overall`)
-/// - Indices 9–17: disk-tier stats (`block_level`)
+/// Two consecutive 10-value sections:
+/// - Indices 0–9:  cross-tier rollup (`overall`)
+/// - Indices 10–19: disk-tier stats (`block_level`)
 ///
 /// Field order within each section (must match `FoyerAggregatedStats.Field` on the Java side):
 ///
-/// | Offset | Field            |
-/// |--------|------------------|
-/// | +0     | `hit_count`      |
-/// | +1     | `hit_bytes`      |
-/// | +2     | `miss_count`     |
-/// | +3     | `miss_bytes`     |
-/// | +4     | `eviction_count` |
-/// | +5     | `eviction_bytes` |
-/// | +6     | `used_bytes`     |
-/// | +7     | `removed_count`  |
-/// | +8     | `removed_bytes`  |
+/// | Offset | Field              |
+/// |--------|--------------------|
+/// | +0     | `hit_count`        |
+/// | +1     | `hit_bytes`        |
+/// | +2     | `miss_count`       |
+/// | +3     | `miss_bytes`       |
+/// | +4     | `eviction_count`   |
+/// | +5     | `eviction_bytes`   |
+/// | +6     | `used_bytes`       |
+/// | +7     | `removed_count`    |
+/// | +8     | `removed_bytes`    |
+/// | +9     | `active_in_bytes`  |
 ///
 /// Foyer is currently single-tier (disk only): `overall` and `block_level` are identical.
 ///
@@ -104,7 +105,7 @@ pub unsafe extern "C" fn foyer_destroy_cache(ptr: i64) -> i64 {
 ///
 /// # Safety
 /// - `ptr` must be a valid handle from [`foyer_create_cache`], not yet destroyed.
-/// - `out` must point to a writable buffer of at least **18** `i64` values.
+/// - `out` must point to a writable buffer of at least **20** `i64` values.
 #[no_mangle]
 pub unsafe extern "C" fn foyer_snapshot_stats(ptr: i64, out: *mut i64) -> i64 {
     if ptr <= 0 || out.is_null() {
@@ -120,10 +121,10 @@ pub unsafe extern "C" fn foyer_snapshot_stats(ptr: i64, out: *mut i64) -> i64 {
     let single = foyer.stats.snapshot();
 
     // Foyer is currently single-tier (disk only): overall and block_level are identical.
-    // 9 fields × 2 sections = 18 longs total.
-    let mut flat = [0i64; 18];
-    flat[..9].copy_from_slice(&single);
-    flat[9..].copy_from_slice(&single);
+    // 10 fields × 2 sections = 20 longs total.
+    let mut flat = [0i64; 20];
+    flat[..10].copy_from_slice(&single);
+    flat[10..].copy_from_slice(&single);
     for (i, &v) in flat.iter().enumerate() {
         *out.add(i) = v;
     }

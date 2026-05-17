@@ -315,7 +315,11 @@ impl BlockCache for FoyerCache {
         -> std::pin::Pin<Box<dyn std::future::Future<Output = Option<Bytes>> + Send + 'a>>
     {
         Box::pin(async {
-        match self.inner.get(&key.as_str().to_string()).await {
+        let range_len = key.range_len() as i64;
+        // Track the byte range as active for the duration of this read.
+        self.stats.active_in_bytes.fetch_add(range_len, Ordering::Relaxed);
+
+        let result = match self.inner.get(&key.as_str().to_string()).await {
             Ok(Some(e)) => {
                 let size = e.value().len() as i64;
                 self.stats.hit_count.fetch_add(1, Ordering::Relaxed);
@@ -324,10 +328,13 @@ impl BlockCache for FoyerCache {
             }
             _ => {
                 self.stats.miss_count.fetch_add(1, Ordering::Relaxed);
-                self.stats.miss_bytes.fetch_add(key.range_len() as i64, Ordering::Relaxed);
+                self.stats.miss_bytes.fetch_add(range_len, Ordering::Relaxed);
                 None
             }
-        }
+        };
+
+        self.stats.active_in_bytes.fetch_sub(range_len, Ordering::Relaxed);
+        result
         })
     }
 

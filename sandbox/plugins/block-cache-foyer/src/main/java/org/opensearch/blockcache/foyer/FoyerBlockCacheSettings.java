@@ -118,27 +118,6 @@ public final class FoyerBlockCacheSettings {
     }, Setting.Property.NodeScope);
 
     /**
-     * Data-to-cache amplification ratio for the Foyer block cache.
-     *
-     * <p>For every byte of Foyer SSD capacity, the warm node can virtually serve this
-     * many bytes of remote data. Used by warm-node capacity reporting
-     * ({@code WarmFsService}) for shard placement decisions.
-     *
-     * <p>Default: {@code 5.0}.
-     *
-     * <p>Configure in {@code opensearch.yml}:
-     * <pre>{@code
-     * block_cache.foyer.data_to_cache_ratio: 5.0
-     * }</pre>
-     */
-    public static final Setting<Double> DATA_TO_CACHE_RATIO_SETTING = Setting.doubleSetting(
-        "block_cache.foyer.data_to_cache_ratio",
-        5.0,
-        1.0,
-        Setting.Property.NodeScope
-    );
-
-    /**
      * How often (seconds) the background sweeper prunes stale key_index entries left
      * by Foyer's disk reclaimer. {@code 0} uses the Rust-side default (30 s).
      * Range: [0, 3600]. Configure via {@code block_cache.foyer.key_index_sweep_interval_seconds}.
