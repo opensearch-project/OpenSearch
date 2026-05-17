@@ -11,8 +11,10 @@ package org.opensearch.index.store;
 import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.LockFactory;
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.blobstore.BlobPath;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.dataformat.DataFormatRegistry;
@@ -97,6 +99,25 @@ public class RemoteSegmentStoreDirectoryFactory implements IndexStorePlugin.Dire
     public Directory newDirectory(String repositoryName, String indexUUID, ShardId shardId, RemoteStorePathStrategy pathStrategy)
         throws IOException {
         return newDirectory(repositoryName, indexUUID, shardId, pathStrategy, null, false);
+    }
+
+    /**
+     * Overload that accepts {@link IndexMetadata} so cleanup paths (where the live IndexService
+     * is gone but the snapshotted IndexMetadata is available) can build the correct directory
+     * type. For DFA-enabled indices this lets the factory return a {@link
+     * org.opensearch.index.store.remote.DataFormatAwareRemoteDirectory} whose {@code delete()}
+     * iterates all registered format containers (e.g., {@code segments/parquet/}) — without
+     * this, plain {@link RemoteDirectory} is used and per-format files leak on cleanup.
+     */
+    public Directory newDirectory(
+        String repositoryName,
+        String indexUUID,
+        ShardId shardId,
+        RemoteStorePathStrategy pathStrategy,
+        IndexMetadata indexMetadata
+    ) throws IOException {
+        IndexSettings indexSettings = indexMetadata != null ? new IndexSettings(indexMetadata, Settings.EMPTY) : null;
+        return newDirectory(repositoryName, indexUUID, shardId, pathStrategy, null, false, false, indexSettings);
     }
 
     public Directory newDirectory(

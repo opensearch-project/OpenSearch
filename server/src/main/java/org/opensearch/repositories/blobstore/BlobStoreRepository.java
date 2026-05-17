@@ -1640,7 +1640,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         ShardId shardId,
         String threadPoolName,
         RemoteStorePathStrategy pathStrategy,
-        boolean forceClean
+        boolean forceClean,
+        IndexMetadata indexMetadata
     ) {
         threadpool.executor(threadPoolName)
             .execute(
@@ -1651,7 +1652,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         indexUUID,
                         shardId,
                         pathStrategy,
-                        forceClean
+                        forceClean,
+                        indexMetadata
                     ),
                     indexUUID,
                     shardId
@@ -1708,7 +1710,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 new ShardId(Index.UNKNOWN_INDEX_NAME, indexUUID, Integer.parseInt(shardId)),
                 ThreadPool.Names.REMOTE_PURGE,
                 remoteStoreShardShallowCopySnapshot.getRemoteStorePathStrategy(),
-                false
+                false,
+                null  // V1 shallow-copy callsite — IndexMetadata not available here; falls back to plain RemoteDirectory
             );
         }
     }
@@ -2389,7 +2392,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                                 shard,
                                 ThreadPool.Names.REMOTE_PURGE,
                                 remoteStorePathStrategy,
-                                forceClean
+                                forceClean,
+                                prevIndexMetadata    // ← carries DFA flag through factory → DataFormatAwareRemoteDirectory
                             );
                             remoteTranslogCleanupAsync(
                                 remoteTranslogRepository,

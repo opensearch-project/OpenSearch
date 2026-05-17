@@ -235,7 +235,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         TransportService transportService,
         ActionFilters actionFilters,
         @Nullable RemoteStorePinnedTimestampService remoteStorePinnedTimestampService,
-        RemoteStoreSettings remoteStoreSettings
+        RemoteStoreSettings remoteStoreSettings,
+        @Nullable org.opensearch.index.engine.dataformat.DataFormatRegistry dataFormatRegistry
     ) {
         this.clusterService = clusterService;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
@@ -245,10 +246,12 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             remoteStoreSettings.getSegmentsPathFixedPrefix()
         );
         this.threadPool = transportService.getThreadPool();
+        // dataFormatRegistry pre-registers DFA formats so cleanup deletes per-format files (e.g., parquet/).
         this.remoteSegmentStoreDirectoryFactory = new RemoteSegmentStoreDirectoryFactory(
             () -> repositoriesService,
             threadPool,
-            remoteStoreSettings.getSegmentsPathFixedPrefix()
+            remoteStoreSettings.getSegmentsPathFixedPrefix(),
+            dataFormatRegistry
         );
         this.transportService = transportService;
         this.remoteStorePinnedTimestampService = remoteStorePinnedTimestampService;

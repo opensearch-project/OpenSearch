@@ -72,6 +72,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.nullable;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.eq;
@@ -606,7 +607,15 @@ public class RemoteSegmentStoreDirectoryTests extends BaseRemoteSegmentStoreDire
             indexShard.shardId(),
             new HashMap<>()
         );
-        when(remoteSegmentStoreDirectoryFactory.newDirectory(any(), any(), any(), any())).thenReturn(remoteSegmentDirectory);
+        when(
+            remoteSegmentStoreDirectoryFactory.newDirectory(
+                any(),
+                any(),
+                any(),
+                any(),
+                nullable(org.opensearch.cluster.metadata.IndexMetadata.class)
+            )
+        ).thenReturn(remoteSegmentDirectory);
         String repositoryName = "test-repository";
         String indexUUID = "test-idx-uuid";
         ShardId shardId = new ShardId(Index.UNKNOWN_INDEX_NAME, indexUUID, Integer.parseInt("0"));
@@ -621,9 +630,16 @@ public class RemoteSegmentStoreDirectoryTests extends BaseRemoteSegmentStoreDire
             indexUUID,
             shardId,
             pathStrategy,
-            false
+            false,
+            null
         );
-        verify(remoteSegmentStoreDirectoryFactory).newDirectory(repositoryName, indexUUID, shardId, pathStrategy);
+        verify(remoteSegmentStoreDirectoryFactory).newDirectory(
+            repositoryName,
+            indexUUID,
+            shardId,
+            pathStrategy,
+            (org.opensearch.cluster.metadata.IndexMetadata) null
+        );
         verify(threadPool, times(0)).executor(ThreadPool.Names.REMOTE_PURGE);
         verify(remoteMetadataDirectory).delete();
         verify(remoteDataDirectory).delete();
