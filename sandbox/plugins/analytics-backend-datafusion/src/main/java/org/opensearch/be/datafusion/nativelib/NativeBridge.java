@@ -722,7 +722,7 @@ public final class NativeBridge {
      * @throws IllegalArgumentException if {@code n} is negative or implies a
      *         buffer larger than {@link Integer#MAX_VALUE} bytes
      */
-    public static Map<Long, QueryExecutionMetrics> queryRegistryTopN(int n) {
+    public static Map<Long, QueryExecutionMetrics> getTopNQueriesByMemory(int n) {
         if (n < 0) {
             throw new IllegalArgumentException("n must be non-negative: " + n);
         }

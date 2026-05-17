@@ -112,7 +112,7 @@ public class DataFusionPlugin extends Plugin implements SearchBackEndPlugin<Data
     private static final String SUPPORTED_FORMAT = "parquet";
 
     /**
-     * Cap on entries returned by {@link #getActiveQueryMetrics()}. Equal to the per-tick
+     * Cap on entries returned by {@link #getTopQueriesByMemory()}. Equal to the per-tick
      * cancellation budget on {@code SearchBackpressureService} ({@code cancellation_burst}
      * default), so the heaviest queries are always represented and SBP never sees fewer
      * candidates than it can act on in a tick.
@@ -175,7 +175,7 @@ public class DataFusionPlugin extends Plugin implements SearchBackEndPlugin<Data
         // The OpenSearch task id is used as the DataFusion context_id at query launch
         // (see ShardScanInstructionHandler / DatafusionSearchExecEngine), so the map is
         // already keyed by Task#getId on the consumer side.
-        logger.info("[nativemem-bp] plugin: installing native-memory snapshot supplier for backpressure tracker");
+        logger.info("installing native-memory snapshot supplier for search backpressure");
         NativeMemoryUsageTracker.setSnapshotSupplier(this::currentBytesByTaskId);
         NativeMemoryUsageTracker.setNativeMemoryBudgetSupplier(
             () -> DATAFUSION_MEMORY_POOL_LIMIT.get(clusterService.getSettings())
@@ -195,27 +195,19 @@ public class DataFusionPlugin extends Plugin implements SearchBackEndPlugin<Data
      */
     private Map<Long, Long> currentBytesByTaskId() {
         if (dataFusionService == null) {
-            logger.info("[nativemem-bp] plugin.snapshot: service not running, returning empty map");
             return Collections.emptyMap();
         }
-        long t0 = System.nanoTime();
-        Map<Long, QueryExecutionMetrics> metrics = getActiveQueryMetrics();
+        Map<Long, QueryExecutionMetrics> metrics = getTopQueriesByMemory();
         if (metrics.isEmpty()) {
-            logger.info(
-                "[nativemem-bp] plugin.snapshot: empty registry (elapsedMicros={})",
-                (System.nanoTime() - t0) / 1000L
-            );
             return Collections.emptyMap();
         }
         Map<Long, Long> out = new HashMap<>(metrics.size());
         for (Map.Entry<Long, QueryExecutionMetrics> e : metrics.entrySet()) {
             out.put(e.getKey(), e.getValue().currentBytes());
         }
-        logger.info(
-            "[nativemem-bp] plugin.snapshot: built taskId->currentBytes map, size={}, elapsedMicros={}",
-            out.size(),
-            (System.nanoTime() - t0) / 1000L
-        );
+        if (logger.isDebugEnabled()) {
+            logger.debug("native memory snapshot: {} active queries", out.size());
+        }
         return out;
     }
 
@@ -349,15 +341,13 @@ public class DataFusionPlugin extends Plugin implements SearchBackEndPlugin<Data
      * order Rust drained the bounded min-heap (unspecified but stable per snapshot).
      */
     @Override
-    public Map<Long, QueryExecutionMetrics> getActiveQueryMetrics() {
+    public Map<Long, QueryExecutionMetrics> getTopQueriesByMemory() {
         if (dataFusionService == null) {
             return Collections.emptyMap();
         }
-        Map<Long, QueryExecutionMetrics> result = NativeBridge.queryRegistryTopN(ACTIVE_QUERY_METRICS_TOP_N);
-        if (result.isEmpty()) {
-            logger.info("[nativemem-bp] plugin.getActiveQueryMetrics: native registry empty");
-        } else {
-            logger.info("[nativemem-bp] plugin.getActiveQueryMetrics: decoded {} entries from native registry", result.size());
+        Map<Long, QueryExecutionMetrics> result = NativeBridge.getTopNQueriesByMemory(ACTIVE_QUERY_METRICS_TOP_N);
+        if (logger.isDebugEnabled()) {
+            logger.debug("getTopQueriesByMemory: {} entries from native registry", result.size());
         }
         return result;
     }

@@ -21,35 +21,29 @@ public class SearchTaskSettingsTests extends OpenSearchTestCase {
         return new SearchTaskSettings(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
     }
 
-    public void testDefaultNativeMemoryThresholdsKeepTrackerInert() {
+    public void testDefaultNativeMemoryPercentThresholdMatchesDefaults() {
+        // Production default: a small non-zero fraction so the tracker engages once a backend
+        // installs a non-zero budget. Test pinned to the same value as Defaults.NATIVE_MEMORY_PERCENT_THRESHOLD
+        // so a default change here trips this assertion deliberately.
         SearchTaskSettings settings = buildDefault();
-        // Defaults are 0 / 0.0 — the tracker treats both as "feature disabled".
-        assertEquals(0L, settings.getTotalNativeMemoryBytesThreshold());
-        assertEquals(0.0d, settings.getNativeMemoryPercentThreshold(), 0.0d);
+        assertEquals(0.05d, settings.getNativeMemoryPercentThreshold(), 0.0d);
     }
 
-    public void testInitialNativeMemoryThresholdsRespectSettings() {
-        long bytesThreshold = 2L * 1024L * 1024L * 1024L;
+    public void testInitialNativeMemoryPercentThresholdRespectsSetting() {
         double fractionThreshold = 0.75d;
         Settings raw = Settings.builder()
-            .put(SearchTaskSettings.SETTING_TOTAL_NATIVE_MEMORY_BYTES_THRESHOLD.getKey(), bytesThreshold)
             .put(SearchTaskSettings.SETTING_NATIVE_MEMORY_PERCENT_THRESHOLD.getKey(), fractionThreshold)
             .build();
         SearchTaskSettings settings = new SearchTaskSettings(raw, new ClusterSettings(raw, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
-        assertEquals(bytesThreshold, settings.getTotalNativeMemoryBytesThreshold());
         assertEquals(fractionThreshold, settings.getNativeMemoryPercentThreshold(), 0.0d);
     }
 
-    public void testNativeMemoryThresholdsAreDynamic() {
+    public void testNativeMemoryPercentThresholdIsDynamic() {
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         SearchTaskSettings settings = new SearchTaskSettings(Settings.EMPTY, clusterSettings);
         clusterSettings.applySettings(
-            Settings.builder()
-                .put(SearchTaskSettings.SETTING_TOTAL_NATIVE_MEMORY_BYTES_THRESHOLD.getKey(), 1024L)
-                .put(SearchTaskSettings.SETTING_NATIVE_MEMORY_PERCENT_THRESHOLD.getKey(), 0.33d)
-                .build()
+            Settings.builder().put(SearchTaskSettings.SETTING_NATIVE_MEMORY_PERCENT_THRESHOLD.getKey(), 0.33d).build()
         );
-        assertEquals(1024L, settings.getTotalNativeMemoryBytesThreshold());
         assertEquals(0.33d, settings.getNativeMemoryPercentThreshold(), 0.0d);
     }
 
@@ -64,14 +58,6 @@ public class SearchTaskSettingsTests extends OpenSearchTestCase {
         expectThrows(
             IllegalArgumentException.class,
             () -> new SearchTaskSettings(raw2, new ClusterSettings(raw2, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS))
-        );
-    }
-
-    public void testTotalNativeMemoryBytesThresholdRejectsNegative() {
-        Settings raw = Settings.builder().put(SearchTaskSettings.SETTING_TOTAL_NATIVE_MEMORY_BYTES_THRESHOLD.getKey(), -1L).build();
-        expectThrows(
-            IllegalArgumentException.class,
-            () -> new SearchTaskSettings(raw, new ClusterSettings(raw, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS))
         );
     }
 }

@@ -11,6 +11,7 @@ package org.opensearch.search.backpressure.settings;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.core.common.unit.ByteSizeValue;
 
 /**
  * Defines the settings for a node to be considered in duress.
@@ -22,7 +23,7 @@ public class NodeDuressSettings {
         private static final int NUM_SUCCESSIVE_BREACHES = 3;
         private static final double CPU_THRESHOLD = 0.9;
         private static final double HEAP_THRESHOLD = 0.7;
-        // Trip native-memory duress when (totalPhysical - memAvailable) / totalPhysical
+        // Trip native-memory duress when processNativeBytes / nodeNativeMemoryLimit
         // exceeds this fraction. Default 0.85 — tighter than HEAP_THRESHOLD because
         // native allocations bypass GC and hit the OS scheduler directly.
         private static final double NATIVE_MEMORY_THRESHOLD = 0.85;
@@ -67,14 +68,14 @@ public class NodeDuressSettings {
     );
 
     /**
-     * Defines the physical-memory usage threshold (as a fraction of total physical memory) above
-     * which a node is considered "in duress" for native memory. The probe computes used bytes as
-     * {@code totalPhysicalMemory - memAvailableFromProcMeminfo} and compares
-     * {@code used / totalPhysicalMemory} against this threshold; when the comparison holds for
+     * Defines the native-memory usage threshold (as a fraction) above which a node is considered
+     * "in duress" for native memory. The duress probe computes
+     * {@code usedFraction = OsProbe.getProcessNativeMemoryBytes() / nodeNativeMemoryLimit} and
+     * compares against this threshold; when the comparison holds for
      * {@link #numSuccessiveBreaches} consecutive observations the node is marked in duress.
      *
      * <p>This gate is independent of heap duress: backends that manage memory outside the JVM
-     * heap (e.g. DataFusion's memory pool) can cancel search tasks when physical RAM is tight
+     * heap (e.g. DataFusion's memory pool) can cancel search tasks when native memory is tight
      * even if the heap itself is nowhere near its threshold.
      */
     private volatile double nativeMemoryThreshold;
@@ -83,6 +84,18 @@ public class NodeDuressSettings {
         Defaults.NATIVE_MEMORY_THRESHOLD,
         0.0,
         1.0,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * Absolute native-memory budget for this node, in bytes. When the value is {@link ByteSizeValue#ZERO}
+     * (default) the tracker treats the budget as unconfigured and reports {@code 0%}.
+     */
+    private volatile ByteSizeValue nodeNativeMemory;
+    public static final Setting<ByteSizeValue> NODE_NATIVE_MEMORY_LIMIT_SETTING = Setting.byteSizeSetting(
+        "node.native_memory.limit",
+        ByteSizeValue.ZERO,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
@@ -99,6 +112,9 @@ public class NodeDuressSettings {
 
         nativeMemoryThreshold = SETTING_NATIVE_MEMORY_THRESHOLD.get(settings);
         clusterSettings.addSettingsUpdateConsumer(SETTING_NATIVE_MEMORY_THRESHOLD, this::setNativeMemoryThreshold);
+
+        nodeNativeMemory = NODE_NATIVE_MEMORY_LIMIT_SETTING.get(settings);
+        clusterSettings.addSettingsUpdateConsumer(NODE_NATIVE_MEMORY_LIMIT_SETTING, this::setNodeNativeMemory);
     }
 
     public int getNumSuccessiveBreaches() {
@@ -132,4 +148,13 @@ public class NodeDuressSettings {
     private void setNativeMemoryThreshold(double nativeMemoryThreshold) {
         this.nativeMemoryThreshold = nativeMemoryThreshold;
     }
+
+    public long getNodeNativeMemory() {
+        return nodeNativeMemory.getBytes();
+    }
+
+    public void setNodeNativeMemory(ByteSizeValue nativeMemoryLimitBytes) {
+        this.nodeNativeMemory = nativeMemoryLimitBytes;
+    }
+
 }

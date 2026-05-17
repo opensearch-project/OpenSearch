@@ -28,7 +28,7 @@ use tokio_util::sync::CancellationToken;
 use datafusion::common::DataFusionError;
 use datafusion::execution::memory_pool::{MemoryConsumer, MemoryPool, MemoryReservation};
 
-use crate::{log_debug, log_info};
+use crate::log_debug;
 
 // ---------------------------------------------------------------------------
 // Per-query memory pool
@@ -163,32 +163,20 @@ static QUERY_REGISTRY: Lazy<DashMap<i64, Arc<QueryTracker>>> = Lazy::new(DashMap
 /// |---------------|-----------------------------------------------------------|
 /// | context_id    | `QueryTracker::context_id`                                |
 /// | current_bytes | `QueryMemoryPool::current_bytes`, clamped to `i64::MAX`   |
-/// | peak_bytes    | `QueryMemoryPool::peak_bytes`, clamped to `i64::MAX`      |
 #[repr(C)]
 #[derive(Debug, Clone, Copy)]
 pub struct WireQueryMetric {
     pub context_id: i64,
     pub current_bytes: i64,
-    pub peak_bytes: i64,
 }
 
-const _: () = assert!(std::mem::size_of::<WireQueryMetric>() == 3 * 8);
+const _: () = assert!(std::mem::size_of::<WireQueryMetric>() == 2 * 8);
 
 fn usize_to_i64_saturating(value: usize) -> i64 {
     if value > i64::MAX as usize {
         i64::MAX
     } else {
         value as i64
-    }
-}
-
-impl WireQueryMetric {
-    fn from_tracker(tracker: &QueryTracker) -> Self {
-        Self {
-            context_id: tracker.context_id,
-            current_bytes: usize_to_i64_saturating(tracker.memory_pool.current_bytes()),
-            peak_bytes: usize_to_i64_saturating(tracker.memory_pool.peak_bytes()),
-        }
     }
 }
 
@@ -218,22 +206,30 @@ pub fn snapshot_top_n_by_current(out: &mut [WireQueryMetric]) -> usize {
     use std::cmp::{Ordering, Reverse};
     use std::collections::BinaryHeap;
 
-    /// Heap entry — orders purely by `bytes`. The tracker rides along but is
-    /// not part of the comparison, so `QueryTracker` doesn't need `Ord`.
+    /// Heap entry — POD copy of the tracker fields sampled at iteration
+    /// time. We deliberately avoid carrying an `Arc<QueryTracker>` here:
+    /// re-reading the live tracker at materialization time would let the
+    /// reported `current_bytes` drift away from the value the entry was
+    /// ranked on (e.g. a query finishes between rank and report and ships
+    /// out as zero), and would also defeat the `current_bytes == 0` filter
+    /// applied during iteration. Sampling once keeps rank and report
+    /// consistent and removes the per-survivor `Arc::clone` from the hot
+    /// path.
+    #[derive(Clone, Copy)]
     struct HeapEntry {
-        bytes: i64,
-        tracker: Arc<QueryTracker>,
+        context_id: i64,
+        current_bytes: i64,
     }
 
     impl Eq for HeapEntry {}
     impl PartialEq for HeapEntry {
         fn eq(&self, other: &Self) -> bool {
-            self.bytes == other.bytes
+            self.current_bytes == other.current_bytes
         }
     }
     impl Ord for HeapEntry {
         fn cmp(&self, other: &Self) -> Ordering {
-            self.bytes.cmp(&other.bytes)
+            self.current_bytes.cmp(&other.current_bytes)
         }
     }
     impl PartialOrd for HeapEntry {
@@ -252,71 +248,38 @@ pub fn snapshot_top_n_by_current(out: &mut [WireQueryMetric]) -> usize {
     // set — the one a heavier candidate displaces.
     let mut heap: BinaryHeap<Reverse<HeapEntry>> = BinaryHeap::with_capacity(n);
 
-    // Diagnostic: log registry size at entry, plus a sample of what's in there.
-    // Helps distinguish "registry empty" from "registry has entries but all are
-    // completed or have current_bytes == 0".
-    let registry_size = QUERY_REGISTRY.len();
-    let mut sample_logged = 0usize;
-    log_info!(
-        "[nativemem-bp] rust.snapshot_top_n_by_current: enter cap={} registry_size={}",
-        n, registry_size
-    );
-
     for entry in QUERY_REGISTRY.iter() {
         let tracker = entry.value();
-        let bytes_raw = tracker.memory_pool.current_bytes();
-        let peak_raw = tracker.memory_pool.peak_bytes();
-        let completed = tracker.is_completed();
-        if sample_logged < 5 {
-            log_info!(
-                "[nativemem-bp] rust.snapshot_top_n_by_current: sample ctx={} current_bytes={} peak_bytes={} completed={}",
-                tracker.context_id, bytes_raw, peak_raw, completed
-            );
-            sample_logged += 1;
-        }
-        if completed {
+        if tracker.is_completed() {
             continue;
         }
-        let bytes = usize_to_i64_saturating(bytes_raw);
-        if bytes == 0 {
+        let current_raw = tracker.memory_pool.current_bytes();
+        let current_bytes = usize_to_i64_saturating(current_raw);
+        if current_bytes == 0 {
             continue;
         }
+        let candidate = HeapEntry {
+            context_id: tracker.context_id,
+            current_bytes,
+        };
         if heap.len() < n {
-            heap.push(Reverse(HeapEntry {
-                bytes,
-                tracker: Arc::clone(tracker),
-            }));
+            heap.push(Reverse(candidate));
         } else if let Some(Reverse(min)) = heap.peek() {
-            // Strictly greater: equal-byte ties keep the first-seen entry.
-            if bytes > min.bytes {
+            if candidate.current_bytes > min.current_bytes {
                 heap.pop();
-                heap.push(Reverse(HeapEntry {
-                    bytes,
-                    tracker: Arc::clone(tracker),
-                }));
+                heap.push(Reverse(candidate));
             }
         }
     }
 
     let mut written = 0usize;
     for Reverse(entry) in heap.into_iter() {
-        // Re-read the tracker fields here so the wire entry reflects the live
-        // values at materialization time, consistent with from_tracker. Ranking
-        // and final values are independent point-in-time samples.
-        out[written] = WireQueryMetric::from_tracker(&entry.tracker);
-        log_info!(
-            "[nativemem-bp] rust.snapshot_top_n entry[{}]: ctx={}, current={}B, peak={}B",
-            written,
-            out[written].context_id,
-            out[written].current_bytes,
-            out[written].peak_bytes,
-        );
+        out[written] = WireQueryMetric {
+            context_id: entry.context_id,
+            current_bytes: entry.current_bytes,
+        };
         written += 1;
     }
-    log_info!(
-        "[nativemem-bp] rust.snapshot_top_n_by_current: wrote {} entries (cap {})",
-        written, n
-    );
     written
 }
 
@@ -324,19 +287,7 @@ pub fn snapshot_top_n_by_current(out: &mut [WireQueryMetric]) -> usize {
 /// No-op for unknown or already-completed queries.
 pub fn cancel_query(context_id: i64) {
     if let Some(tracker) = QUERY_REGISTRY.get(&context_id) {
-        log_info!(
-            "[nativemem-bp] rust.cancel_query: firing token for ctx={} (completed={}, current_bytes={})",
-            context_id,
-            tracker.is_completed(),
-            tracker.memory_pool.current_bytes()
-        );
         tracker.cancellation_token.cancel();
-    } else {
-        log_info!(
-            "[nativemem-bp] rust.cancel_query: ctx={} not in registry (registry_size={}) — no-op",
-            context_id,
-            QUERY_REGISTRY.len()
-        );
     }
 }
 
@@ -381,11 +332,6 @@ impl QueryTrackingContext {
             wall_nanos: std::sync::atomic::AtomicU64::new(0),
         });
         QUERY_REGISTRY.insert(context_id, Arc::clone(&tracker));
-        log_info!(
-            "[nativemem-bp] rust.QueryTrackingContext::new: registered ctx={} (registry_size={})",
-            context_id,
-            QUERY_REGISTRY.len()
-        );
         Self {
             tracker: Some(tracker),
         }
@@ -407,19 +353,10 @@ impl Drop for QueryTrackingContext {
     fn drop(&mut self) {
         if let Some(tracker) = &self.tracker {
             tracker.mark_completed();
-            log_info!(
-                "[nativemem-bp] rust.QueryTrackingContext::drop: ctx={} completed (wall={:.3}s, mem_current={}B, mem_peak={}B)",
-                tracker.context_id,
-                tracker.wall_secs(),
-                tracker.memory_pool.current_bytes(),
-                tracker.memory_pool.peak_bytes(),
-            );
-            // Keep the debug line for operators who already tail the Rust debug log.
             log_debug!(
-                "Query completed ctx={}: wall={:.3}s, mem_current={}B, mem_peak={}B",
+                "query completed ctx={}: wall={:.3}s, peak={}B",
                 tracker.context_id,
                 tracker.wall_secs(),
-                tracker.memory_pool.current_bytes(),
                 tracker.memory_pool.peak_bytes(),
             );
             QUERY_REGISTRY.remove(&tracker.context_id);
@@ -675,7 +612,6 @@ mod tests {
             WireQueryMetric {
                 context_id: 0,
                 current_bytes: 0,
-                peak_bytes: 0,
             };
             n
         ]
@@ -792,7 +728,6 @@ mod tests {
         let sentinel = WireQueryMetric {
             context_id: -1,
             current_bytes: -1,
-            peak_bytes: -1,
         };
         let mut buf = vec![sentinel; 16];
         let written = snapshot_top_n_by_current(&mut buf);

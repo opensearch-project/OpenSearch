@@ -130,7 +130,7 @@ public interface AnalyticsSearchBackendPlugin {
      * <p>Default implementation returns an empty map so backends that do not track per-query
      * metrics don't have to opt in.
      */
-    default Map<Long, QueryExecutionMetrics> getActiveQueryMetrics() {
+    default Map<Long, QueryExecutionMetrics> getTopQueriesByMemory() {
         return Collections.emptyMap();
     }
 

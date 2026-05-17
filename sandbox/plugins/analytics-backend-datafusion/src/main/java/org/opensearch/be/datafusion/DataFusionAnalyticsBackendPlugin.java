@@ -581,11 +581,11 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
     }
 
     @Override
-    public Map<Long, QueryExecutionMetrics> getActiveQueryMetrics() {
+    public Map<Long, QueryExecutionMetrics> getTopQueriesByMemory() {
         // Delegate to the plugin that owns the DataFusionService and native runtime.
         // Keeping the real implementation on DataFusionPlugin lets operators call it
         // directly (e.g., from a REST action) without going through the SPI.
-        return plugin.getActiveQueryMetrics();
+        return plugin.getTopQueriesByMemory();
     }
 
     @Override

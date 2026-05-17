@@ -29,6 +29,8 @@ import org.opensearch.analytics.planner.dag.DAGBuilder;
 import org.opensearch.analytics.planner.dag.FragmentConversionDriver;
 import org.opensearch.analytics.planner.dag.PlanForker;
 import org.opensearch.analytics.planner.dag.QueryDAG;
+import org.opensearch.analytics.planner.dag.Stage;
+import org.opensearch.analytics.planner.rel.OpenSearchTableScan;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.inject.Inject;
@@ -45,8 +47,10 @@ import org.opensearch.transport.TransportService;
 import org.opensearch.transport.client.node.NodeClient;
 
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.Executor;
 
 import static org.opensearch.action.search.TransportSearchAction.SEARCH_CANCEL_AFTER_TIME_INTERVAL_SETTING;
@@ -138,10 +142,11 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
         // Register coordinator-level query task with TaskManager (like SearchTask).
         // This gives us a proper unique ID, visibility in _tasks API, and cancellation support.
         // TODO: accept a request type from FrontEnd including cancelAfterTimeInterval — set from cluster settings below, null in req.
+        final List<String> indices = collectIndices(dag);
         final AnalyticsQueryTask queryTask = (AnalyticsQueryTask) taskManager.register(
             "transport",
             "analytics_query",
-            new AnalyticsQueryTaskRequest(dag.queryId(), null)
+            new AnalyticsQueryTaskRequest(dag.queryId(), indices, null)
         );
         final QueryContext config = new QueryContext(dag, searchExecutor, queryTask);
 
@@ -187,11 +192,13 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
      */
     static class AnalyticsQueryTaskRequest implements TaskAwareRequest {
         private final String queryId;
+        private final List<String> indices;
         private final TimeValue cancelAfterTimeInterval;
         private TaskId parentTaskId = TaskId.EMPTY_TASK_ID;
 
-        AnalyticsQueryTaskRequest(String queryId, @Nullable TimeValue cancelAfterTimeInterval) {
+        AnalyticsQueryTaskRequest(String queryId, List<String> indices, @Nullable TimeValue cancelAfterTimeInterval) {
             this.queryId = queryId;
+            this.indices = List.copyOf(indices);
             this.cancelAfterTimeInterval = cancelAfterTimeInterval;
         }
 
@@ -207,7 +214,37 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
 
         @Override
         public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-            return new AnalyticsQueryTask(id, type, action, queryId, parentTaskId, headers, cancelAfterTimeInterval);
+            return new AnalyticsQueryTask(id, type, action, queryId, indices, parentTaskId, headers, cancelAfterTimeInterval);
+        }
+    }
+
+    /**
+     * Walks the DAG and returns the distinct index names referenced by all
+     * {@link OpenSearchTableScan} leaves, preserving discovery order. Used to
+     * populate the coordinator task's description for the Tasks API and slow logs.
+     */
+    private static List<String> collectIndices(QueryDAG dag) {
+        Set<String> indices = new LinkedHashSet<>();
+        collectIndices(dag.rootStage(), indices);
+        return new ArrayList<>(indices);
+    }
+
+    private static void collectIndices(Stage stage, Set<String> indices) {
+        if (stage.getFragment() != null) {
+            collectIndicesFromFragment(stage.getFragment(), indices);
+        }
+        for (Stage child : stage.getChildStages()) {
+            collectIndices(child, indices);
+        }
+    }
+
+    private static void collectIndicesFromFragment(RelNode node, Set<String> indices) {
+        if (node instanceof OpenSearchTableScan scan) {
+            indices.add(scan.getTable().getQualifiedName().getLast());
+            return;
+        }
+        for (RelNode input : node.getInputs()) {
+            collectIndicesFromFragment(input, indices);
         }
     }
 

@@ -16,6 +16,7 @@ import org.opensearch.common.Nullable;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.tasks.TaskId;
 
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
@@ -32,6 +33,7 @@ public class AnalyticsQueryTask extends SearchTask {
     private static final Logger logger = LogManager.getLogger(AnalyticsQueryTask.class);
 
     private final String queryId;
+    private final List<String> indices;
     private final TimeValue cancelAfterTimeInterval;
     private final AtomicReference<Runnable> onCancelCallback = new AtomicReference<>();
 
@@ -40,6 +42,7 @@ public class AnalyticsQueryTask extends SearchTask {
         String type,
         String action,
         String queryId,
+        List<String> indices,
         TaskId parentTaskId,
         Map<String, String> headers,
         @Nullable TimeValue cancelAfterTimeInterval
@@ -48,17 +51,14 @@ public class AnalyticsQueryTask extends SearchTask {
             id,
             type,
             action,
-            (Supplier<String>) () -> "queryId[" + queryId + "]",
+            (Supplier<String>) () -> "queryId[" + queryId + "] indices[" + String.join(",", indices) + "]",
             parentTaskId,
             headers,
             cancelAfterTimeInterval != null ? cancelAfterTimeInterval : TimeValue.MINUS_ONE
         );
         this.queryId = queryId;
+        this.indices = List.copyOf(indices);
         this.cancelAfterTimeInterval = cancelAfterTimeInterval;
-    }
-
-    public AnalyticsQueryTask(long id, String type, String action, String queryId, TaskId parentTaskId, Map<String, String> headers) {
-        this(id, type, action, queryId, parentTaskId, headers, null);
     }
 
     @Override
@@ -68,6 +68,10 @@ public class AnalyticsQueryTask extends SearchTask {
 
     public String getQueryId() {
         return queryId;
+    }
+
+    public List<String> getIndices() {
+        return indices;
     }
 
     @Nullable

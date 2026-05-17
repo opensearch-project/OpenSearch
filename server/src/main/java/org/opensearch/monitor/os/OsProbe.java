@@ -238,18 +238,6 @@ public class OsProbe {
     }
 
     /**
-     * Reads the contents of {@code /proc/meminfo} as a list of lines, one per key.
-     * Package-private so tests can override with a synthetic file layout.
-     *
-     * @return the lines from {@code /proc/meminfo}
-     * @throws IOException if an I/O exception occurs reading the file
-     */
-    @SuppressForbidden(reason = "access /proc/meminfo")
-    List<String> readProcMeminfo() throws IOException {
-        return Files.readAllLines(PathUtils.get("/proc/meminfo"));
-    }
-
-    /**
      * Reads the contents of {@code /proc/self/status} as a list of lines, one per key.
      * Package-private so tests can override with a synthetic file layout.
      *
@@ -262,147 +250,60 @@ public class OsProbe {
     }
 
     /**
-     * Returns the free physical memory in bytes reported by the Linux kernel's
-     * {@code /proc/meminfo}, preferring the {@code MemAvailable:} field (kernel ≥ 3.14).
+     * Reads the {@code RssAnon} field (anonymous resident memory) of the current process from
+     * {@code /proc/self/status} and returns it in bytes. Returns {@code -1L} when the host is
+     * not Linux, when {@code /proc/self/status} cannot be read, or when the {@code RssAnon:}
+     * line is missing or malformed. Failure paths are logged at debug level; callers that want
+     * user-visible warnings must wrap this method themselves.
      *
-     * <p>Unlike {@link #getFreePhysicalMemorySize()}, which reflects what the JVM's
-     * {@link OperatingSystemMXBean} sees — historically {@code MemFree} on Linux, which
-     * undercounts because it excludes reclaimable page cache — this method gives the
-     * operator-facing "memory actually available for a new workload without swapping"
-     * figure that tools like {@code free(1)} surface.
-     *
-     * <p>On non-Linux platforms, if {@code /proc/meminfo} is not readable, or if neither
-     * {@code MemAvailable:} nor (as a fallback) {@code MemFree:} can be parsed, this method
-     * returns {@code -1} so callers can detect the unsupported case and fall back to
-     * another source (e.g. {@link #getFreePhysicalMemorySize()}).
-     *
-     * @return free memory in bytes, or {@code -1} when the source is unavailable
+     * @return the {@code RssAnon} value in bytes, or {@code -1L} if unavailable
      */
-    public long getFreePhysicalMemorySizeFromProcMeminfo() {
+    public long getProcessRssAnon() {
         if (Constants.LINUX == false) {
             return -1L;
         }
-        final List<String> lines;
         try {
-            lines = readProcMeminfo();
+            return readRssAnonFromProcSelfStatus();
         } catch (IOException e) {
-            if (logger.isDebugEnabled()) {
-                logger.debug("error reading /proc/meminfo", e);
-            }
+            logger.warn("failed to read /proc/self/status", e);
             return -1L;
         }
-        long memAvailableBytes = -1L;
-        long memFreeBytes = -1L;
-        for (final String line : lines) {
-            if (line.startsWith("MemAvailable:")) {
-                memAvailableBytes = parseMeminfoLineBytes(line);
-                // MemAvailable is the authoritative value when present; stop scanning.
-                if (memAvailableBytes >= 0L) {
-                    return memAvailableBytes;
-                }
-            } else if (line.startsWith("MemFree:")) {
-                memFreeBytes = parseMeminfoLineBytes(line);
-            }
-        }
-        // MemAvailable wasn't present (older kernels) or didn't parse; fall back to MemFree.
-        return memFreeBytes;
     }
 
     /**
-     * Parse a {@code /proc/meminfo} line of the form {@code "Key:    123456 kB"} and return
-     * the value in bytes. Returns {@code -1} when the line cannot be parsed. Visible for tests.
+     * Reads the {@code RssAnon} field from {@code /proc/self/status}.
+     *
+     * @return the {@code RssAnon} value in bytes, or {@code -1L} when the line is missing or
+     *         the value is unparseable/negative
+     * @throws IOException if the file cannot be opened or read
      */
-    static long parseMeminfoLineBytes(final String line) {
-        // Layout: "<key>:<whitespace><value><whitespace>[unit]". Every memory-bytes key on
-        // Linux uses "kB" (= 1024 bytes), even though "kB" is unit-ambiguous in general.
-        // See Documentation/filesystems/proc.rst: "All numbers are in kB".
-        final int colon = line.indexOf(':');
-        if (colon < 0 || colon + 1 >= line.length()) {
-            return -1L;
-        }
-        final String tail = line.substring(colon + 1).trim();
-        // Split on whitespace: first token is the value, optional second token is the unit.
-        final int firstSpace = tail.indexOf(' ');
-        final String valueStr = firstSpace < 0 ? tail : tail.substring(0, firstSpace);
-        try {
-            final long kb = Long.parseLong(valueStr);
-            if (kb < 0L) {
+    long readRssAnonFromProcSelfStatus() throws IOException {
+        for (final String line : readProcSelfStatus()) {
+            if (line.startsWith("RssAnon:")) {
+                // Format: "RssAnon:\t 12345 kB"
+                final String[] parts = line.split("\\s+");
+                if (parts.length >= 2) {
+                    try {
+                        final long kb = Long.parseLong(parts[1]);
+                        if (kb < 0L) {
+                            return -1L;
+                        }
+                        return kb * 1024L;
+                    } catch (NumberFormatException nfe) {
+                        logger.warn("malformed RssAnon value in /proc/self/status", nfe);
+                        return -1L;
+                    }
+                }
+                logger.warn("RssAnon line has unexpected shape: [{}]", line);
                 return -1L;
             }
-            return kb * 1024L;
-        } catch (NumberFormatException e) {
-            return -1L;
         }
-    }
-
-    /**
-     * Returns the anonymous resident-set size of the current process in bytes, read from the
-     * {@code RssAnon:} field of {@code /proc/self/status} (kernel &ge; 4.5).
-     *
-     * <p>{@code RssAnon} is the portion of RSS backed by private anonymous pages — effectively
-     * memory the process has allocated itself (malloc, mmap(PRIVATE|ANONYMOUS), Rust allocator,
-     * etc.) that isn't shared file-backed pages. For an OpenSearch node this tracks JVM heap,
-     * JVM metaspace / direct buffers, AND native-side pools like DataFusion's memory pool —
-     * making it a good signal for "how much real RAM is this process using, across Java and
-     * native code combined" without being inflated by mapped index files.
-     *
-     * <p>On non-Linux platforms, or if {@code /proc/self/status} is unreadable or missing
-     * the {@code RssAnon:} key (older kernels), returns {@code -1} so callers can detect the
-     * unsupported case and fall back.
-     *
-     * @return process anonymous RSS in bytes, or {@code -1} when the source is unavailable
-     */
-    public long getProcessRssAnonBytes() {
-        if (Constants.LINUX == false) {
-            return -1L;
-        }
-        final List<String> lines;
-        try {
-            lines = readProcSelfStatus();
-        } catch (IOException e) {
-            if (logger.isDebugEnabled()) {
-                logger.debug("error reading /proc/self/status", e);
-            }
-            return -1L;
-        }
-        for (final String line : lines) {
-            if (line.startsWith("RssAnon:")) {
-                // The /proc/self/status "kB" lines share the same layout as /proc/meminfo, so
-                // the meminfo parser handles them correctly.
-                return parseMeminfoLineBytes(line);
-            }
-        }
-        // Pre-4.5 kernels don't expose RssAnon; signal "unsupported" rather than fabricating 0.
+        logger.warn("RssAnon line not found in /proc/self/status");
         return -1L;
     }
 
-    /**
-     * Estimates the process's native (off-heap) anonymous memory footprint in bytes —
-     * {@link #getProcessRssAnonBytes()} minus the JVM heap maximum, clamped at zero.
-     *
-     * <p>{@code RssAnon} on Linux includes both committed JVM heap pages and native
-     * allocator pages (malloc, Rust allocator, direct buffers, metaspace). Subtracting
-     * {@code -Xmx} gives a rough "everything outside the heap" view that's useful for
-     * detecting native-side pressure without watching mmapped index files.
-     *
-     * <p>The result is approximate by construction:
-     * <ul>
-     *   <li>Early in a process's life, RssAnon can be lower than {@code -Xmx} because
-     *       not every heap page has been touched / committed yet — the clamp avoids a
-     *       negative reading.</li>
-     *   <li>Heap pages that have been swapped out or unmapped also depress the
-     *       reading, biasing the estimate low.</li>
-     * </ul>
-     *
-     * <p>On non-Linux platforms or older kernels where {@code RssAnon} isn't exposed,
-     * returns {@code -1} so callers can detect unsupported environments rather than
-     * treating the absence as zero pressure.
-     *
-     * @return estimated native (off-heap anonymous) bytes, or {@code -1} if the
-     *         underlying RssAnon signal is unavailable on this platform / kernel
-     */
     public long getProcessNativeMemoryBytes() {
-        long rssAnon = getProcessRssAnonBytes();
+        long rssAnon = getProcessRssAnon();
         if (rssAnon < 0L) {
             return -1L;
         }
