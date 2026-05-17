@@ -33,6 +33,7 @@ import javax.security.sasl.SaslException;
 
 import java.io.IOException;
 import java.security.PrivilegedExceptionAction;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -82,7 +83,9 @@ public class ThriftMetastoreCatalog implements MetastoreCatalog {
                 .stream()
                 .map(fs -> new ColumnInfo(fs.getName(), fs.getType()))
                 .collect(Collectors.toList());
-            List<String> partitionKeys = t.getPartitionKeys().stream().map(FieldSchema::getName).collect(Collectors.toList());
+            List<String> partitionKeys = t.getPartitionKeys() != null
+                ? t.getPartitionKeys().stream().map(FieldSchema::getName).collect(Collectors.toList())
+                : Collections.emptyList();
 
             return new TableInfo(t.getSd().getInputFormat(), partitionKeys, columns);
         } catch (TException e) {

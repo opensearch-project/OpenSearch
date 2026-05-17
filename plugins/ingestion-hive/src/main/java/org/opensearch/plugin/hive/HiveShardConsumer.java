@@ -14,6 +14,7 @@ import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
@@ -49,7 +50,6 @@ public class HiveShardConsumer implements IngestionShardConsumer<HivePointer, Hi
 
     // Catalog connection for metadata queries (table schema, partition discovery)
     private MetastoreCatalog catalog;
-    private FileSystem fileSystem;
     private Configuration hadoopConf;
     private MessageType tableSchema;
     private String tableInputFormat;
@@ -179,29 +179,53 @@ public class HiveShardConsumer implements IngestionShardConsumer<HivePointer, Hi
         tableInputFormat = tableInfo.getInputFormat();
         tableSchema = hiveSchemaToParquet(tableInfo.getColumns());
         partitionKeys = tableInfo.getPartitionKeys();
-        logger.info("Table schema for shard {}: {}", shardId, tableSchema);
+        if (partitionKeys == null) {
+            partitionKeys = Collections.emptyList();
+        }
+        logger.info("Table schema for shard {}: {}, partitionKeys: {}", shardId, tableSchema, partitionKeys);
     }
 
     private void ensureInitialized() throws Exception {
         if (catalog == null) {
             logger.info("Initializing HiveShardConsumer for shard {} with metastore URI: {}", shardId, config.getMetastoreUri());
 
-            catalog = new ThriftMetastoreCatalog(config);
-            catalog.connect();
+            MetastoreCatalog newCatalog = new ThriftMetastoreCatalog(config);
+            newCatalog.connect();
 
-            AccessController.doPrivilegedChecked(() -> {
-                ClassLoader original = Thread.currentThread().getContextClassLoader();
-                try {
-                    Thread.currentThread().setContextClassLoader(HiveShardConsumer.class.getClassLoader());
-                    hadoopConf = new Configuration();
-                    hadoopConf.set("fs.file.impl", "org.apache.hadoop.fs.LocalFileSystem");
-                    fileSystem = FileSystem.get(hadoopConf);
-                } finally {
-                    Thread.currentThread().setContextClassLoader(original);
-                }
-            });
+            try {
+                AccessController.doPrivilegedChecked(() -> {
+                    ClassLoader original = Thread.currentThread().getContextClassLoader();
+                    try {
+                        Thread.currentThread().setContextClassLoader(HiveShardConsumer.class.getClassLoader());
+                        hadoopConf = new Configuration();
+                        String s3FsImpl = S3HadoopFileSystem.class.getName();
+                        hadoopConf.set("fs.s3.impl", s3FsImpl);
+                        hadoopConf.set("fs.s3a.impl", s3FsImpl);
+                        hadoopConf.set("fs.s3n.impl", s3FsImpl);
+                        for (Map.Entry<String, String> entry : config.getHadoopProperties().entrySet()) {
+                            hadoopConf.set(entry.getKey(), entry.getValue());
+                        }
+                    } finally {
+                        Thread.currentThread().setContextClassLoader(original);
+                    }
+                });
+            } catch (Exception e) {
+                logger.error(() -> new ParameterizedMessage("Failed to initialize Hadoop config for shard {}", shardId), e);
+                newCatalog.close();
+                throw e;
+            }
 
-            fetchTableSchema();
+            catalog = newCatalog;
+
+            try {
+                fetchTableSchema();
+            } catch (Exception e) {
+                logger.error(() -> new ParameterizedMessage("Failed to fetch table schema for shard {}", shardId), e);
+                catalog.close();
+                catalog = null;
+                hadoopConf = null;
+                throw e;
+            }
             logger.info("HiveShardConsumer initialized successfully for shard {}", shardId);
         }
     }
@@ -296,9 +320,9 @@ public class HiveShardConsumer implements IngestionShardConsumer<HivePointer, Hi
                 continue;
             }
 
-            byte[] json = rowToJson(row);
             PartitionWork work = pendingWork.get(currentWorkIndex);
             HivePointer ptr = new HivePointer(work.partitionName, currentFile, currentRowIndex, sequenceNumber);
+            byte[] json = rowToJson(row, ptr);
             HiveMessage msg = new HiveMessage(json, System.currentTimeMillis());
             results.add(new ReadResult<>(ptr, msg));
             currentRowIndex++;
@@ -455,10 +479,11 @@ public class HiveShardConsumer implements IngestionShardConsumer<HivePointer, Hi
 
     private List<String> listDataFiles(String location) throws IOException {
         Path path = new Path(location);
-        if (!fileSystem.exists(path)) {
+        FileSystem fs = FileSystem.get(path.toUri(), hadoopConf);
+        if (!fs.exists(path)) {
             return Collections.emptyList();
         }
-        FileStatus[] statuses = fileSystem.listStatus(path);
+        FileStatus[] statuses = fs.listStatus(path);
         List<String> files = new ArrayList<>();
         for (FileStatus status : statuses) {
             String name = status.getPath().getName();
@@ -524,8 +549,10 @@ public class HiveShardConsumer implements IngestionShardConsumer<HivePointer, Hi
         return result;
     }
 
-    byte[] rowToJson(Map<String, Object> row) {
-        StringBuilder sb = new StringBuilder("{");
+    byte[] rowToJson(Map<String, Object> row, HivePointer pointer) {
+        StringBuilder sb = new StringBuilder("{\"_id\":\"");
+        sb.append(escapeJson(pointer.asString()));
+        sb.append("\",\"_source\":{");
         boolean first = true;
         for (Map.Entry<String, Object> entry : row.entrySet()) {
             if (!first) sb.append(",");
@@ -542,7 +569,7 @@ public class HiveShardConsumer implements IngestionShardConsumer<HivePointer, Hi
                 sb.append("\"").append(escapeJson(value.toString())).append("\"");
             }
         }
-        sb.append("}");
+        sb.append("}}");
         return sb.toString().getBytes(StandardCharsets.UTF_8);
     }
 
@@ -623,9 +650,6 @@ public class HiveShardConsumer implements IngestionShardConsumer<HivePointer, Hi
         closeCurrentReader();
         if (catalog != null) {
             catalog.close();
-        }
-        if (fileSystem != null) {
-            fileSystem.close();
         }
     }
 
