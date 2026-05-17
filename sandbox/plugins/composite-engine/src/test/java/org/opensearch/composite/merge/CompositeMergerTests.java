@@ -22,6 +22,7 @@ import org.opensearch.index.engine.dataformat.FieldTypeCapabilities;
 import org.opensearch.index.engine.dataformat.IndexingExecutionEngine;
 import org.opensearch.index.engine.dataformat.MergeResult;
 import org.opensearch.index.engine.dataformat.Merger;
+import org.opensearch.index.engine.dataformat.PackedRowIdMapping;
 import org.opensearch.index.engine.dataformat.RowIdMapping;
 import org.opensearch.index.engine.dataformat.merge.DataFormatAwareMergePolicy;
 import org.opensearch.index.engine.dataformat.merge.MergeHandler;
@@ -55,7 +56,7 @@ import static org.mockito.Mockito.when;
 public class CompositeMergerTests extends OpenSearchTestCase {
 
     private static final ShardId SHARD_ID = new ShardId(new Index("test-index", "uuid"), 0);
-    private static final RowIdMapping STUB_ROW_ID_MAPPING = (oldId, oldGen) -> oldId;
+    private static final RowIdMapping STUB_ROW_ID_MAPPING = new PackedRowIdMapping(new long[] { 0 }, false);
 
     private DataFormat primaryFormat;
     private DataFormat secondaryFormat;

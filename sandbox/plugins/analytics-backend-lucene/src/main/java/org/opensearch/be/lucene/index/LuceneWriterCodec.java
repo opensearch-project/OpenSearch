@@ -9,11 +9,13 @@
 package org.opensearch.be.lucene.index;
 
 import org.apache.lucene.codecs.Codec;
+import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.FilterCodec;
 import org.apache.lucene.codecs.SegmentInfoFormat;
 import org.apache.lucene.index.SegmentInfo;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
+import org.opensearch.index.engine.dataformat.FlushInput;
 
 import java.io.IOException;
 
@@ -21,7 +23,7 @@ import java.io.IOException;
  * A {@link FilterCodec} wrapper that injects the {@code writer_generation} attribute into
  * every segment written by a {@link LuceneWriter}.
  * <p>
- * During {@link LuceneWriter#flush()}, each per-generation writer creates exactly one segment.
+ * During {@link LuceneWriter#flush(FlushInput)}, each per-generation writer creates exactly one segment.
  * This codec intercepts the {@link SegmentInfoFormat#write} call to stamp the segment with
  * the writer generation number. After the segment is incorporated into the shared
  * {@link org.apache.lucene.index.IndexWriter} via {@code addIndexes}, the attribute allows
@@ -33,6 +35,7 @@ import java.io.IOException;
 public class LuceneWriterCodec extends FilterCodec {
 
     private final long writerGeneration;
+    private volatile boolean rewriteRowIds = false;
 
     /**
      * Creates a new codec that wraps the given delegate and tags segments with the specified
@@ -44,6 +47,15 @@ public class LuceneWriterCodec extends FilterCodec {
     public LuceneWriterCodec(Codec delegate, long writerGeneration) {
         super(delegate.getName(), delegate);
         this.writerGeneration = writerGeneration;
+    }
+
+    /**
+     * Enables sequential {@code ___row_id} rewriting during the next merge.
+     * When enabled, the {@link LuceneWriterDocValuesFormat} intercepts writes to
+     * {@code ___row_id} and replaces the values with sequential 0..N.
+     */
+    public void enableRowIdRewrite() {
+        this.rewriteRowIds = true;
     }
 
     /**
@@ -67,5 +79,24 @@ public class LuceneWriterCodec extends FilterCodec {
                 delegate.segmentInfoFormat().write(directory, info, ioContext);
             }
         };
+    }
+
+    /**
+     * Returns a {@link DocValuesFormat} that intercepts writes to {@code __row_id__}
+     * and replaces the values with sequential 0..N when {@link #enableRowIdRewrite()}
+     * has been called. This allows the reorder merge and the row ID rewrite to happen
+     * in a single pass.
+     * <p>
+     * When row ID rewriting is not enabled, delegates directly to the underlying codec's
+     * doc values format.
+     *
+     * @return the doc values format, potentially wrapped with row ID rewriting logic
+     */
+    @Override
+    public DocValuesFormat docValuesFormat() {
+        if (rewriteRowIds == false) {
+            return delegate.docValuesFormat();
+        }
+        return new LuceneWriterDocValuesFormat(delegate.docValuesFormat());
     }
 }

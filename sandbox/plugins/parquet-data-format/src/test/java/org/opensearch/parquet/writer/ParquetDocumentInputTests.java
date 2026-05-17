@@ -52,7 +52,7 @@ public class ParquetDocumentInputTests extends OpenSearchTestCase {
     public void testSetRowId() {
         ParquetDocumentInput input = new ParquetDocumentInput();
         populateMetadataFields(input);
-        input.setRowId("_row_id", 42L);
+        input.setRowId("__row_id__", 42L);
         assertEquals(42L, input.getRowId());
     }
 

@@ -14,7 +14,9 @@ import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.DocumentInput;
 import org.opensearch.index.engine.dataformat.FileInfos;
+import org.opensearch.index.engine.dataformat.FlushInput;
 import org.opensearch.index.engine.dataformat.IndexingExecutionEngine;
+import org.opensearch.index.engine.dataformat.RowIdMapping;
 import org.opensearch.index.engine.dataformat.WriteResult;
 import org.opensearch.index.engine.dataformat.Writer;
 import org.opensearch.index.engine.dataformat.WriterConfig;
@@ -141,24 +143,27 @@ class CompositeWriter implements Writer<CompositeDocumentInput> {
     }
 
     @Override
-    public FileInfos flush() throws IOException {
+    public FileInfos flush(FlushInput flushInput) throws IOException {
         setFlushPending();
         FileInfos.Builder builder = FileInfos.builder();
-        // Flush primary
-        Optional<WriterFileSet> primaryWfs = primaryWriter.flush().getWriterFileSet(primaryFormat);
-        primaryWfs.ifPresent(writerFileSet -> {
-            // Primary format's WriterFileSet must have the same generation as this composite writer
-            assert writerFileSet.writerGeneration() == writerGeneration : "primary WriterFileSet generation ["
-                + writerFileSet.writerGeneration()
-                + "] must match composite writer generation ["
-                + writerGeneration
-                + "]";
-            builder.putWriterFileSet(primaryFormat, writerFileSet);
-        });
-        // Flush secondaries
-        for (Writer<DocumentInput<?>> writer : secondaryWritersByFormat.values()) {
-            FileInfos fileInfos = writer.flush();
-            // Iterate all format entries in the returned FileInfos
+
+        // Flush primary (Parquet) first to get the sort permutation
+        FileInfos primaryFileInfos = primaryWriter.flush(flushInput);
+        Optional<WriterFileSet> primaryWfs = primaryFileInfos.getWriterFileSet(primaryFormat);
+        primaryWfs.ifPresent(writerFileSet -> builder.putWriterFileSet(primaryFormat, writerFileSet));
+
+        // Capture the row ID mapping from the primary flush
+        RowIdMapping rowIdMapping = primaryFileInfos.rowIdMapping();
+        if (rowIdMapping != null) {
+            builder.rowIdMapping(rowIdMapping);
+        }
+
+        // Build FlushInput for secondaries, carrying the row ID mapping from the primary
+        FlushInput secondaryFlushInput = rowIdMapping != null ? new FlushInput(rowIdMapping) : FlushInput.EMPTY;
+
+        // Flush secondaries with the sort permutation context
+        for (Map.Entry<DataFormat, Writer<DocumentInput<?>>> entry : secondaryWritersByFormat.entrySet()) {
+            FileInfos fileInfos = entry.getValue().flush(secondaryFlushInput);
             for (Map.Entry<DataFormat, WriterFileSet> fileEntry : fileInfos.writerFilesMap().entrySet()) {
                 // Secondary format's WriterFileSet must also match this writer's generation
                 assert fileEntry.getValue().writerGeneration() == writerGeneration : "secondary WriterFileSet generation ["

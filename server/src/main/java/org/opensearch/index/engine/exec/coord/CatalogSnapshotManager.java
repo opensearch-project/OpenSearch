@@ -435,6 +435,14 @@ public class CatalogSnapshotManager implements Closeable {
         if (writerFileSetMap.isEmpty()) {
             throw new IllegalArgumentException("writerFileSetMap must not be empty");
         }
+        // Check for null values (format participated but returned no result)
+        for (Map.Entry<DataFormat, WriterFileSet> entry : writerFileSetMap.entrySet()) {
+            if (entry.getValue() == null) {
+                throw new IllegalStateException(
+                    "WriterFileSet is null for format [" + entry.getKey().name() + "] — merge was incomplete"
+                );
+            }
+        }
         long generation = writerFileSetMap.values().iterator().next().writerGeneration();
         Segment.Builder segment = Segment.builder(generation);
         for (Map.Entry<DataFormat, WriterFileSet> entry : writerFileSetMap.entrySet()) {

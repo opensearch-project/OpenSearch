@@ -120,8 +120,10 @@ public class LuceneMerger implements Merger {
         List<SegmentCommitInfo> matchingSegments = findMatchingSegments(segmentInfos, generationsToMerge);
 
         if (matchingSegments.isEmpty()) {
-            logger.warn("No segments found matching writer generations {} — skipping merge", generationsToMerge);
-            return new MergeResult(Map.of());
+            throw new IOException(
+                "No Lucene segments found matching writer generations " + generationsToMerge
+                    + " — segments may have been consumed by a concurrent merge"
+            );
         }
 
         logger.debug(
