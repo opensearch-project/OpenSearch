@@ -9,6 +9,7 @@
 package org.opensearch.index.engine.exec;
 
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.index.engine.exec.coord.DataformatAwareCatalogSnapshot;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.Collections;
@@ -26,7 +27,7 @@ public class WriterFileSetTests extends OpenSearchTestCase {
         WriterFileSet copy = copyWriteable(
             original,
             new NamedWriteableRegistry(Collections.emptyList()),
-            in -> new WriterFileSet(in, directory)
+            in -> new WriterFileSet(in, directory, DataformatAwareCatalogSnapshot.CURRENT_SERIALIZATION_VERSION)
         );
         assertEquals(original, copy);
     }
@@ -39,7 +40,7 @@ public class WriterFileSetTests extends OpenSearchTestCase {
         WriterFileSet deserialized = copyWriteable(
             original,
             new NamedWriteableRegistry(Collections.emptyList()),
-            in -> new WriterFileSet(in, differentDirectory)
+            in -> new WriterFileSet(in, differentDirectory, DataformatAwareCatalogSnapshot.CURRENT_SERIALIZATION_VERSION)
         );
 
         assertEquals(differentDirectory, deserialized.directory());
@@ -54,7 +55,7 @@ public class WriterFileSetTests extends OpenSearchTestCase {
         WriterFileSet copy = copyWriteable(
             original,
             new NamedWriteableRegistry(Collections.emptyList()),
-            in -> new WriterFileSet(in, "/tmp/dir")
+            in -> new WriterFileSet(in, "/tmp/dir", DataformatAwareCatalogSnapshot.CURRENT_SERIALIZATION_VERSION)
         );
         assertEquals(9_010_000L, copy.formatVersion());
     }

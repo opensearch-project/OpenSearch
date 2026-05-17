@@ -13,6 +13,7 @@ import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.index.engine.dataformat.DataFormat;
+import org.opensearch.index.engine.exec.coord.DataformatAwareCatalogSnapshot;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -36,18 +37,19 @@ public record Segment(long generation, Map<String, WriterFileSet> dfGroupedSearc
      *
      * @param in the stream input to read from
      * @param directoryResolver function that maps a data format name to its directory path
+     * @param version version with which this was serialized
      */
-    public Segment(StreamInput in, Function<String, String> directoryResolver) throws IOException {
-        this(in.readLong(), readWriterFileSets(in, directoryResolver));
+    public Segment(StreamInput in, Function<String, String> directoryResolver, long version) throws IOException {
+        this(in.readLong(), readWriterFileSets(in, directoryResolver, version));
     }
 
-    private static Map<String, WriterFileSet> readWriterFileSets(StreamInput in, Function<String, String> directoryResolver)
+    private static Map<String, WriterFileSet> readWriterFileSets(StreamInput in, Function<String, String> directoryResolver, long version)
         throws IOException {
         int size = in.readVInt();
         Map<String, WriterFileSet> map = new HashMap<>(size);
         for (int i = 0; i < size; i++) {
             String key = in.readString();
-            map.put(key, new WriterFileSet(in, directoryResolver.apply(key)));
+            map.put(key, new WriterFileSet(in, directoryResolver.apply(key), version));
         }
         return map;
     }

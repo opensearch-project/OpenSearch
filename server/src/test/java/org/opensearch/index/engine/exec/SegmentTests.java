@@ -9,6 +9,7 @@
 package org.opensearch.index.engine.exec;
 
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.index.engine.exec.coord.DataformatAwareCatalogSnapshot;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.Collections;
@@ -29,7 +30,7 @@ public class SegmentTests extends OpenSearchTestCase {
         Segment copy = copyWriteable(
             original,
             new NamedWriteableRegistry(Collections.emptyList()),
-            in -> new Segment(in, key -> TEST_DIRECTORY)
+            in -> new Segment(in, key -> TEST_DIRECTORY, DataformatAwareCatalogSnapshot.CURRENT_SERIALIZATION_VERSION)
         );
         assertEquals(original, copy);
     }
@@ -39,7 +40,7 @@ public class SegmentTests extends OpenSearchTestCase {
         Segment copy = copyWriteable(
             empty,
             new NamedWriteableRegistry(Collections.emptyList()),
-            in -> new Segment(in, key -> TEST_DIRECTORY)
+            in -> new Segment(in, key -> TEST_DIRECTORY, DataformatAwareCatalogSnapshot.CURRENT_SERIALIZATION_VERSION)
         );
         assertEquals(empty, copy);
     }
@@ -53,7 +54,7 @@ public class SegmentTests extends OpenSearchTestCase {
         Segment copy = copyWriteable(
             original,
             new NamedWriteableRegistry(Collections.emptyList()),
-            in -> new Segment(in, key -> TEST_DIRECTORY)
+            in -> new Segment(in, key -> TEST_DIRECTORY, DataformatAwareCatalogSnapshot.CURRENT_SERIALIZATION_VERSION)
         );
         assertEquals(original, copy);
         assertEquals(2, copy.dfGroupedSearchableFiles().size());
