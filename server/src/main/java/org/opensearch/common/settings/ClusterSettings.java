@@ -143,6 +143,7 @@ import org.opensearch.monitor.fs.FsHealthService;
 import org.opensearch.monitor.fs.FsService;
 import org.opensearch.monitor.jvm.JvmGcMonitorService;
 import org.opensearch.monitor.jvm.JvmService;
+import org.opensearch.monitor.memory.MemoryReportingService;
 import org.opensearch.monitor.os.OsService;
 import org.opensearch.monitor.process.ProcessService;
 import org.opensearch.node.Node;
@@ -623,7 +624,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 ProcessService.REFRESH_INTERVAL_SETTING,
                 JvmService.REFRESH_INTERVAL_SETTING,
                 FsService.REFRESH_INTERVAL_SETTING,
-                Node.NATIVE_MEMORY_REFRESH_INTERVAL_SETTING,
+                MemoryReportingService.NATIVE_MEMORY_REFRESH_INTERVAL_SETTING,
                 JvmGcMonitorService.ENABLED_SETTING,
                 JvmGcMonitorService.REFRESH_INTERVAL_SETTING,
                 JvmGcMonitorService.GC_SETTING,

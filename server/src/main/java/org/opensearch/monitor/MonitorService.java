@@ -38,6 +38,7 @@ import org.opensearch.monitor.fs.FsService;
 import org.opensearch.monitor.fs.FsServiceProvider;
 import org.opensearch.monitor.jvm.JvmGcMonitorService;
 import org.opensearch.monitor.jvm.JvmService;
+import org.opensearch.monitor.memory.MemoryReportingService;
 import org.opensearch.monitor.os.OsService;
 import org.opensearch.monitor.process.ProcessService;
 import org.opensearch.threadpool.ThreadPool;
@@ -56,6 +57,7 @@ public class MonitorService extends AbstractLifecycleComponent {
     private final ProcessService processService;
     private final JvmService jvmService;
     private final FsService fsService;
+    private final MemoryReportingService memoryReportingService;
 
     public MonitorService(Settings settings, ThreadPool threadPool, FsServiceProvider fsServiceProvider) throws IOException {
         this.jvmGcMonitorService = new JvmGcMonitorService(settings, threadPool);
@@ -63,6 +65,7 @@ public class MonitorService extends AbstractLifecycleComponent {
         this.processService = new ProcessService(settings);
         this.jvmService = new JvmService(settings);
         this.fsService = fsServiceProvider.createFsService();
+        this.memoryReportingService = new MemoryReportingService(settings, jvmService);
     }
 
     public OsService osService() {
@@ -79,6 +82,10 @@ public class MonitorService extends AbstractLifecycleComponent {
 
     public FsService fsService() {
         return this.fsService;
+    }
+
+    public MemoryReportingService memoryReportingService() {
+        return this.memoryReportingService;
     }
 
     @Override

@@ -204,7 +204,6 @@ import org.opensearch.monitor.fs.FsServiceProvider;
 import org.opensearch.monitor.jvm.JvmInfo;
 import org.opensearch.monitor.os.OsProbe;
 import org.opensearch.monitor.process.ProcessProbe;
-import org.opensearch.plugin.stats.AnalyticsBackendNativeMemoryStats;
 import org.opensearch.node.remotestore.RemoteStoreNodeService;
 import org.opensearch.node.remotestore.RemoteStorePinnedTimestampService;
 import org.opensearch.node.resource.tracker.NodeResourceUsageTracker;
@@ -439,13 +438,6 @@ public class Node implements Closeable {
         "node.search.cache.size",
         s -> (DiscoveryNode.isDedicatedWarmNode(s)) ? "80%" : ZERO,
         Node::validateFileCacheSize,
-        Property.NodeScope
-    );
-
-    public static final Setting<TimeValue> NATIVE_MEMORY_REFRESH_INTERVAL_SETTING = Setting.timeSetting(
-        "monitor.native_memory.refresh_interval",
-        TimeValue.timeValueSeconds(1),
-        TimeValue.timeValueSeconds(1),
         Property.NodeScope
     );
 
@@ -1223,6 +1215,13 @@ public class Node implements Closeable {
                 .collect(Collectors.toList());
             pluginComponents.addAll(searchBackEndPluginComponents);
 
+            pluginsService.filterPlugins(SearchBackEndPlugin.class)
+                .stream()
+                .map(SearchBackEndPlugin::getAnalyticsBackendNativeMemoryStats)
+                .filter(Objects::nonNull)
+                .findFirst()
+                .ifPresent(supplier -> monitorService.memoryReportingService().setNativeStatsSupplier(supplier));
+
             if (nodeCacheOrchestrator != null) {
                 nodeCacheOrchestrator.registerProviders(blockCacheProviders);
             }
@@ -1583,10 +1582,6 @@ public class Node implements Closeable {
                 analyticsTaskCancellationStatsSupplier
             );
 
-            final Supplier<AnalyticsBackendNativeMemoryStats> nativeMemoryStatsSupplier = pluginsService.filterPlugins(
-                SearchBackEndPlugin.class
-            ).stream().map(SearchBackEndPlugin::getAnalyticsBackendNativeMemoryStats).filter(Objects::nonNull).findFirst().orElse(null);
-
             this.nodeService = new NodeService(
                 settings,
                 threadPool,
@@ -1613,8 +1608,7 @@ public class Node implements Closeable {
                 segmentReplicationStatsTracker,
                 repositoryService,
                 admissionControlService,
-                cacheService,
-                nativeMemoryStatsSupplier
+                cacheService
             );
 
             final SearchService searchService = newSearchService(
