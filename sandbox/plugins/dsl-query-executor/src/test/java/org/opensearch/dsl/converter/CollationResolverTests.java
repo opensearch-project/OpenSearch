@@ -28,9 +28,10 @@ public class CollationResolverTests extends OpenSearchTestCase {
     private final AggregationTreeWalker walker = new AggregationTreeWalker(AggregationRegistryFactory.create());
     private final AggregateConverter aggregateConverter = new AggregateConverter();
     private final LogicalTableScan scan = TestUtils.createTestRelNode();
+    private final ConversionContext ctx = TestUtils.createContext();
 
     private AggregationMetadata walkAndGetMetadata(List<AggregationBuilder> aggs) throws ConversionException {
-        List<AggregationMetadata> metadataList = walker.walk(aggs, scan.getRowType(), scan.getCluster().getTypeFactory());
+        List<AggregationMetadata> metadataList = walker.walk(aggs, ctx);
         return metadataList.get(0);
     }
 
@@ -170,8 +171,7 @@ public class CollationResolverTests extends OpenSearchTestCase {
                             .subAggregation(new AvgAggregationBuilder("avg_price").field("price"))
                     )
             ),
-            scan.getRowType(),
-            scan.getCluster().getTypeFactory()
+            ctx
         );
         // Second granularity has both brand and name as group-by fields
         AggregationMetadata nestedMetadata = metadataList.get(1);
