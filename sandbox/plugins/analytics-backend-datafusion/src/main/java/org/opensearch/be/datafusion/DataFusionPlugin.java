@@ -12,6 +12,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
 import org.opensearch.be.datafusion.action.DataFusionStatsAction;
+import org.opensearch.nativebridge.spi.NativeMemoryFetcher;
+import org.opensearch.plugin.stats.AnalyticsBackendNativeMemoryStats;
 import org.opensearch.plugin.stats.AnalyticsBackendTaskCancellationStats;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.node.DiscoveryNodes;
@@ -286,6 +288,17 @@ public class DataFusionPlugin extends Plugin implements SearchBackEndPlugin<Data
                 return NativeBridge.nativeNodeStats();
             } catch (Exception e) {
                 return new AnalyticsBackendTaskCancellationStats(0, 0, 0, 0);
+            }
+        };
+    }
+
+    @Override
+    public Supplier<AnalyticsBackendNativeMemoryStats> getAnalyticsBackendNativeMemoryStats() {
+        return () -> {
+            try {
+                return NativeMemoryFetcher.fetch();
+            } catch (Exception e) {
+                return new AnalyticsBackendNativeMemoryStats(-1, -1);
             }
         };
     }

@@ -204,8 +204,7 @@ import org.opensearch.monitor.fs.FsServiceProvider;
 import org.opensearch.monitor.jvm.JvmInfo;
 import org.opensearch.monitor.os.OsProbe;
 import org.opensearch.monitor.process.ProcessProbe;
-import org.opensearch.plugin.stats.NativeMemoryStats;
-import org.opensearch.plugin.stats.NativeMemoryStatsFactory;
+import org.opensearch.plugin.stats.AnalyticsBackendNativeMemoryStats;
 import org.opensearch.node.remotestore.RemoteStoreNodeService;
 import org.opensearch.node.remotestore.RemoteStorePinnedTimestampService;
 import org.opensearch.node.resource.tracker.NodeResourceUsageTracker;
@@ -1584,7 +1583,9 @@ public class Node implements Closeable {
                 analyticsTaskCancellationStatsSupplier
             );
 
-            final Supplier<NativeMemoryStats> nativeMemoryStatsSupplier = NativeMemoryStatsFactory.create(pluginsService, settings);
+            final Supplier<AnalyticsBackendNativeMemoryStats> nativeMemoryStatsSupplier = pluginsService.filterPlugins(
+                SearchBackEndPlugin.class
+            ).stream().map(SearchBackEndPlugin::getAnalyticsBackendNativeMemoryStats).filter(Objects::nonNull).findFirst().orElse(null);
 
             this.nodeService = new NodeService(
                 settings,

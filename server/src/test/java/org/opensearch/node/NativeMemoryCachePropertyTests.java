@@ -10,18 +10,18 @@ package org.opensearch.node;
 
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.SingleObjectCache;
-import org.opensearch.plugin.stats.NativeMemoryStats;
+import org.opensearch.plugin.stats.AnalyticsBackendNativeMemoryStats;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * Property-based tests for {@link SingleObjectCache} TTL consistency with NativeMemoryStats.
+ * Property-based tests for {@link SingleObjectCache} TTL consistency with AnalyticsBackendNativeMemoryStats.
  * <p>
  * <b>Feature: native-stats-refactor, Property 1: Cache returns consistent value within TTL</b>
  * <p>
- * For any NativeStatsProvider and any TTL duration, all calls to SingleObjectCache.getOrRefresh()
- * within the TTL window SHALL return the same NativeMemoryStats instance (reference equality),
+ * For any SearchBackEndPlugin and any TTL duration, all calls to SingleObjectCache.getOrRefresh()
+ * within the TTL window SHALL return the same AnalyticsBackendNativeMemoryStats instance (reference equality),
  * and a call after TTL expiry SHALL trigger a refresh.
  * <p>
  * <b>Validates: Requirements 7.2, 7.3, 7.4</b>
@@ -44,27 +44,27 @@ public class NativeMemoryCachePropertyTests extends OpenSearchTestCase {
             // Generate random initial stats
             long allocatedBytes = randomLongBetween(0, Long.MAX_VALUE);
             long residentBytes = randomLongBetween(0, Long.MAX_VALUE);
-            NativeMemoryStats initialStats = new NativeMemoryStats(allocatedBytes, residentBytes);
+            AnalyticsBackendNativeMemoryStats initialStats = new AnalyticsBackendNativeMemoryStats(allocatedBytes, residentBytes);
 
             AtomicInteger refreshCount = new AtomicInteger(0);
 
-            SingleObjectCache<NativeMemoryStats> cache = new SingleObjectCache<NativeMemoryStats>(ttl, initialStats) {
+            SingleObjectCache<AnalyticsBackendNativeMemoryStats> cache = new SingleObjectCache<AnalyticsBackendNativeMemoryStats>(ttl, initialStats) {
                 @Override
-                protected NativeMemoryStats refresh() {
+                protected AnalyticsBackendNativeMemoryStats refresh() {
                     refreshCount.incrementAndGet();
-                    return new NativeMemoryStats(randomLongBetween(0, Long.MAX_VALUE), randomLongBetween(0, Long.MAX_VALUE));
+                    return new AnalyticsBackendNativeMemoryStats(randomLongBetween(0, Long.MAX_VALUE), randomLongBetween(0, Long.MAX_VALUE));
                 }
             };
 
             // Force the cache to think it was just refreshed by calling getOrRefresh once
             // (the initial lastRefreshTimestamp is 0, so first call always refreshes)
-            NativeMemoryStats firstResult = cache.getOrRefresh();
+            AnalyticsBackendNativeMemoryStats firstResult = cache.getOrRefresh();
             int refreshesAfterInit = refreshCount.get();
 
             // Multiple calls within TTL should return the same reference
             int callCount = randomIntBetween(2, 10);
             for (int i = 0; i < callCount; i++) {
-                NativeMemoryStats result = cache.getOrRefresh();
+                AnalyticsBackendNativeMemoryStats result = cache.getOrRefresh();
                 assertSame(
                     "Within TTL, getOrRefresh() should return the same reference on iteration " + iteration + ", call " + i,
                     firstResult,
@@ -92,19 +92,19 @@ public class NativeMemoryCachePropertyTests extends OpenSearchTestCase {
         for (int iteration = 0; iteration < 100; iteration++) {
             long allocatedBytes = randomLongBetween(0, Long.MAX_VALUE);
             long residentBytes = randomLongBetween(0, Long.MAX_VALUE);
-            NativeMemoryStats initialStats = new NativeMemoryStats(allocatedBytes, residentBytes);
+            AnalyticsBackendNativeMemoryStats initialStats = new AnalyticsBackendNativeMemoryStats(allocatedBytes, residentBytes);
 
             AtomicInteger refreshCount = new AtomicInteger(0);
 
             // TTL of 0ms means every call triggers a refresh
-            SingleObjectCache<NativeMemoryStats> cache = new SingleObjectCache<NativeMemoryStats>(
+            SingleObjectCache<AnalyticsBackendNativeMemoryStats> cache = new SingleObjectCache<AnalyticsBackendNativeMemoryStats>(
                 TimeValue.timeValueMillis(0),
                 initialStats
             ) {
                 @Override
-                protected NativeMemoryStats refresh() {
+                protected AnalyticsBackendNativeMemoryStats refresh() {
                     refreshCount.incrementAndGet();
-                    return new NativeMemoryStats(randomLongBetween(0, Long.MAX_VALUE), randomLongBetween(0, Long.MAX_VALUE));
+                    return new AnalyticsBackendNativeMemoryStats(randomLongBetween(0, Long.MAX_VALUE), randomLongBetween(0, Long.MAX_VALUE));
                 }
             };
 
@@ -128,7 +128,7 @@ public class NativeMemoryCachePropertyTests extends OpenSearchTestCase {
     }
 
     /**
-     * Tests that the cache correctly stores and returns NativeMemoryStats values
+     * Tests that the cache correctly stores and returns AnalyticsBackendNativeMemoryStats values
      * with various random field values.
      * <p>
      * <b>Validates: Requirements 7.2, 7.3, 7.4</b>
@@ -137,19 +137,19 @@ public class NativeMemoryCachePropertyTests extends OpenSearchTestCase {
         for (int iteration = 0; iteration < 100; iteration++) {
             long allocatedBytes = randomLongBetween(-1, Long.MAX_VALUE);
             long residentBytes = randomLongBetween(-1, Long.MAX_VALUE);
-            NativeMemoryStats expectedStats = new NativeMemoryStats(allocatedBytes, residentBytes);
+            AnalyticsBackendNativeMemoryStats expectedStats = new AnalyticsBackendNativeMemoryStats(allocatedBytes, residentBytes);
 
-            SingleObjectCache<NativeMemoryStats> cache = new SingleObjectCache<NativeMemoryStats>(
+            SingleObjectCache<AnalyticsBackendNativeMemoryStats> cache = new SingleObjectCache<AnalyticsBackendNativeMemoryStats>(
                 TimeValue.timeValueSeconds(60),
                 expectedStats
             ) {
                 @Override
-                protected NativeMemoryStats refresh() {
+                protected AnalyticsBackendNativeMemoryStats refresh() {
                     return expectedStats;
                 }
             };
 
-            NativeMemoryStats result = cache.getOrRefresh();
+            AnalyticsBackendNativeMemoryStats result = cache.getOrRefresh();
             assertEquals("allocatedBytes should match on iteration " + iteration, allocatedBytes, result.getAllocatedBytes());
             assertEquals("residentBytes should match on iteration " + iteration, residentBytes, result.getResidentBytes());
         }

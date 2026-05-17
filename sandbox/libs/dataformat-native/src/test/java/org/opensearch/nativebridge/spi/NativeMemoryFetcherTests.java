@@ -8,7 +8,7 @@
 
 package org.opensearch.nativebridge.spi;
 
-import org.opensearch.plugin.stats.NativeMemoryStats;
+import org.opensearch.plugin.stats.AnalyticsBackendNativeMemoryStats;
 import org.opensearch.test.OpenSearchTestCase;
 
 /**
@@ -34,7 +34,7 @@ public class NativeMemoryFetcherTests extends OpenSearchTestCase {
      */
     public void testFetchReturnsPositiveValuesOrFailsWithoutJemalloc() {
         try {
-            NativeMemoryStats stats = NativeMemoryFetcher.fetch();
+            AnalyticsBackendNativeMemoryStats stats = NativeMemoryFetcher.fetch();
             // If we get here, jemalloc symbols are available
             assertNotNull("fetch() should never return null", stats);
             assertTrue(
@@ -60,28 +60,28 @@ public class NativeMemoryFetcherTests extends OpenSearchTestCase {
 
     /**
      * Documents the error handling contract: when allocated or resident bytes are -1,
-     * it indicates an error condition. This test verifies that the NativeMemoryStats
+     * it indicates an error condition. This test verifies that the AnalyticsBackendNativeMemoryStats
      * error sentinel values are correctly constructed.
      * <p>
-     * This test does NOT require the native library since it only tests NativeMemoryStats
+     * This test does NOT require the native library since it only tests AnalyticsBackendNativeMemoryStats
      * construction directly.
      */
     public void testErrorSentinelValuesContract() {
         // Directly construct the error state that fetch() would return on failure
-        NativeMemoryStats errorStats = new NativeMemoryStats(-1, -1);
+        AnalyticsBackendNativeMemoryStats errorStats = new AnalyticsBackendNativeMemoryStats(-1, -1);
         assertEquals("Error sentinel for allocatedBytes should be -1", -1L, errorStats.getAllocatedBytes());
         assertEquals("Error sentinel for residentBytes should be -1", -1L, errorStats.getResidentBytes());
     }
 
     /**
-     * Tests that the error state NativeMemoryStats(-1, -1) is distinguishable from
+     * Tests that the error state AnalyticsBackendNativeMemoryStats(-1, -1) is distinguishable from
      * valid stats. This documents the contract that fetch() returns (-1, -1) on:
      * - FFM downcall throwing an exception
      * - FFM downcall returning a negative value
      */
     public void testErrorStateIsDistinguishableFromValidStats() {
-        NativeMemoryStats errorStats = new NativeMemoryStats(-1, -1);
-        NativeMemoryStats validStats = new NativeMemoryStats(1024, 2048);
+        AnalyticsBackendNativeMemoryStats errorStats = new AnalyticsBackendNativeMemoryStats(-1, -1);
+        AnalyticsBackendNativeMemoryStats validStats = new AnalyticsBackendNativeMemoryStats(1024, 2048);
 
         // Error state has -1 for both fields
         assertTrue("Error state allocatedBytes should be negative", errorStats.getAllocatedBytes() < 0);
@@ -93,11 +93,11 @@ public class NativeMemoryFetcherTests extends OpenSearchTestCase {
     }
 
     /**
-     * Tests that NativeMemoryStats correctly stores zero values (boundary between
+     * Tests that AnalyticsBackendNativeMemoryStats correctly stores zero values (boundary between
      * valid and error states). Zero is a valid value (no memory allocated yet).
      */
     public void testZeroValuesAreValid() {
-        NativeMemoryStats stats = new NativeMemoryStats(0, 0);
+        AnalyticsBackendNativeMemoryStats stats = new AnalyticsBackendNativeMemoryStats(0, 0);
         assertEquals("Zero should be a valid allocatedBytes value", 0L, stats.getAllocatedBytes());
         assertEquals("Zero should be a valid residentBytes value", 0L, stats.getResidentBytes());
     }

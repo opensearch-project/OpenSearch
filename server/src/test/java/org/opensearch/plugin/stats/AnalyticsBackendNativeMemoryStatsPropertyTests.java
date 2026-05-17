@@ -15,20 +15,20 @@ import org.opensearch.test.OpenSearchTestCase;
 import java.io.IOException;
 
 /**
- * Property-based tests for {@link NativeMemoryStats} serialization round-trip.
+ * Property-based tests for {@link AnalyticsBackendNativeMemoryStats} serialization round-trip.
  * <p>
- * <b>Feature: native-stats-refactor, Property 2: NativeMemoryStats serialization round-trip</b>
+ * <b>Feature: native-stats-refactor, Property 2: AnalyticsBackendNativeMemoryStats serialization round-trip</b>
  * <p>
- * For any valid NativeMemoryStats instance (with allocatedBytes and residentBytes values),
- * serializing via writeTo(StreamOutput) and deserializing via new NativeMemoryStats(StreamInput)
+ * For any valid AnalyticsBackendNativeMemoryStats instance (with allocatedBytes and residentBytes values),
+ * serializing via writeTo(StreamOutput) and deserializing via new AnalyticsBackendNativeMemoryStats(StreamInput)
  * SHALL produce an equivalent object with identical field values.
  * <p>
  * <b>Validates: Requirements 8.3, 9.1</b>
  */
-public class NativeMemoryStatsPropertyTests extends OpenSearchTestCase {
+public class AnalyticsBackendNativeMemoryStatsPropertyTests extends OpenSearchTestCase {
 
     /**
-     * Property 2: NativeMemoryStats serialization round-trip.
+     * Property 2: AnalyticsBackendNativeMemoryStats serialization round-trip.
      * <p>
      * For any valid (allocatedBytes, residentBytes) pair including edge values (-1, 0, Long.MAX_VALUE),
      * writeTo followed by readFrom produces an equal object.
@@ -40,12 +40,12 @@ public class NativeMemoryStatsPropertyTests extends OpenSearchTestCase {
             long allocatedBytes = generateRandomLong();
             long residentBytes = generateRandomLong();
 
-            NativeMemoryStats original = new NativeMemoryStats(allocatedBytes, residentBytes);
+            AnalyticsBackendNativeMemoryStats original = new AnalyticsBackendNativeMemoryStats(allocatedBytes, residentBytes);
 
             try (BytesStreamOutput out = new BytesStreamOutput()) {
                 original.writeTo(out);
                 try (StreamInput in = out.bytes().streamInput()) {
-                    NativeMemoryStats deserialized = new NativeMemoryStats(in);
+                    AnalyticsBackendNativeMemoryStats deserialized = new AnalyticsBackendNativeMemoryStats(in);
 
                     assertEquals(
                         "allocatedBytes mismatch on iteration " + i + " for values: [" + allocatedBytes + ", " + residentBytes + "]",
@@ -75,12 +75,12 @@ public class NativeMemoryStatsPropertyTests extends OpenSearchTestCase {
 
         for (long allocated : edgeValues) {
             for (long resident : edgeValues) {
-                NativeMemoryStats original = new NativeMemoryStats(allocated, resident);
+                AnalyticsBackendNativeMemoryStats original = new AnalyticsBackendNativeMemoryStats(allocated, resident);
 
                 try (BytesStreamOutput out = new BytesStreamOutput()) {
                     original.writeTo(out);
                     try (StreamInput in = out.bytes().streamInput()) {
-                        NativeMemoryStats deserialized = new NativeMemoryStats(in);
+                        AnalyticsBackendNativeMemoryStats deserialized = new AnalyticsBackendNativeMemoryStats(in);
 
                         assertEquals(
                             "allocatedBytes mismatch for boundary values: [" + allocated + ", " + resident + "]",

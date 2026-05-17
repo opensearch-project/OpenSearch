@@ -26,18 +26,18 @@ import java.io.IOException;
  * </ul>
  * A value of {@code -1} indicates an error reading the metric from the native layer.
  */
-public class NativeMemoryStats implements Writeable, ToXContentFragment {
+public class AnalyticsBackendNativeMemoryStats implements Writeable, ToXContentFragment {
 
     private final long allocatedBytes;
     private final long residentBytes;
 
     /**
-     * Constructs a new NativeMemoryStats with the given metric values.
+     * Constructs a new AnalyticsBackendNativeMemoryStats with the given metric values.
      *
      * @param allocatedBytes live malloc'd bytes tracked by jemalloc, or -1 on error
      * @param residentBytes  physical RSS attributed to jemalloc arenas, or -1 on error
      */
-    public NativeMemoryStats(long allocatedBytes, long residentBytes) {
+    public AnalyticsBackendNativeMemoryStats(long allocatedBytes, long residentBytes) {
         this.allocatedBytes = allocatedBytes;
         this.residentBytes = residentBytes;
     }
@@ -48,7 +48,7 @@ public class NativeMemoryStats implements Writeable, ToXContentFragment {
      * @param in the stream to read from
      * @throws IOException if an I/O error occurs
      */
-    public NativeMemoryStats(StreamInput in) throws IOException {
+    public AnalyticsBackendNativeMemoryStats(StreamInput in) throws IOException {
         this.allocatedBytes = in.readLong();
         this.residentBytes = in.readLong();
     }

@@ -10,8 +10,7 @@ package org.opensearch.nativebridge;
 
 import org.opensearch.common.settings.Setting;
 import org.opensearch.nativebridge.spi.NativeLibraryLoader;
-import org.opensearch.plugin.stats.NativeMemoryStats;
-import org.opensearch.plugin.stats.NativeStatsProvider;
+import org.opensearch.plugin.stats.AnalyticsBackendNativeMemoryStats;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.List;
@@ -19,7 +18,7 @@ import java.util.List;
 /**
  * Unit tests for {@link NativeBridgeModule}.
  * <p>
- * Tests the NativeStatsProvider implementation: memoryStats() returns null when
+ * Tests that memoryStats() returns null when
  * the native library is not loaded, and delegates to NativeMemoryFetcher when loaded.
  * <p>
  * Note: In this test environment, the native library may or may not be available.
@@ -37,12 +36,10 @@ public class NativeBridgeModuleTests extends OpenSearchTestCase {
         assertEquals("native.jemalloc.muzzy_decay_ms", settings.get(1).getKey());
     }
 
-    /**
-     * Tests that NativeBridgeModule implements NativeStatsProvider.
-     */
-    public void testImplementsNativeStatsProvider() {
+    public void testMemoryStatsMethodExists() {
         NativeBridgeModule module = new NativeBridgeModule();
-        assertTrue("NativeBridgeModule should implement NativeStatsProvider", module instanceof NativeStatsProvider);
+        // Just verifies the method is callable; result depends on native library availability
+        module.memoryStats();
     }
 
     /**
@@ -61,7 +58,7 @@ public class NativeBridgeModuleTests extends OpenSearchTestCase {
         if (!libraryLoaded) {
             // Library not loaded — memoryStats() should return null without touching NativeMemoryFetcher
             NativeBridgeModule module = new NativeBridgeModule();
-            NativeMemoryStats stats = module.memoryStats();
+            AnalyticsBackendNativeMemoryStats stats = module.memoryStats();
             assertNull("memoryStats() should return null when native library is not loaded", stats);
         } else {
             // Library is loaded — memoryStats() will attempt to delegate to NativeMemoryFetcher.
@@ -69,7 +66,7 @@ public class NativeBridgeModuleTests extends OpenSearchTestCase {
             // If symbols are missing, NativeMemoryFetcher class init fails with NoClassDefFoundError.
             NativeBridgeModule module = new NativeBridgeModule();
             try {
-                NativeMemoryStats stats = module.memoryStats();
+                AnalyticsBackendNativeMemoryStats stats = module.memoryStats();
                 // If we get here, the full native library with jemalloc is available
                 assertNotNull("memoryStats() should return non-null when library is fully loaded", stats);
                 assertTrue("allocated bytes should be positive", stats.getAllocatedBytes() > 0);

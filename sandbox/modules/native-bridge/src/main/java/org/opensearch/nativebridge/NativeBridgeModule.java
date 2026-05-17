@@ -19,8 +19,7 @@ import org.opensearch.env.NodeEnvironment;
 import org.opensearch.nativebridge.spi.NativeAllocatorConfig;
 import org.opensearch.nativebridge.spi.NativeLibraryLoader;
 import org.opensearch.nativebridge.spi.NativeMemoryFetcher;
-import org.opensearch.plugin.stats.NativeMemoryStats;
-import org.opensearch.plugin.stats.NativeStatsProvider;
+import org.opensearch.plugin.stats.AnalyticsBackendNativeMemoryStats;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.script.ScriptService;
@@ -37,11 +36,8 @@ import java.util.function.Supplier;
  * Always-loaded module that manages runtime tuning for the native (Rust/FFM) layer.
  * <p>
  * Registers dynamic cluster settings and applies changes at runtime via the FFM bridge.
- * <p>
- * Implements {@link NativeStatsProvider} so that {@code Node.java} can discover
- * native memory stats capability via {@code filterPlugins(NativeStatsProvider.class)}.
  */
-public class NativeBridgeModule extends Plugin implements NativeStatsProvider {
+public class NativeBridgeModule extends Plugin {
 
     /** jemalloc dirty page decay time (ms). Dynamically tunable — applied to all arenas at runtime. */
     public static final Setting<Long> JEMALLOC_DIRTY_DECAY_MS = Setting.longSetting(
@@ -61,8 +57,7 @@ public class NativeBridgeModule extends Plugin implements NativeStatsProvider {
         Setting.Property.Dynamic
     );
 
-    @Override
-    public NativeMemoryStats memoryStats() {
+    public AnalyticsBackendNativeMemoryStats memoryStats() {
         if (!NativeLibraryLoader.isLoaded()) {
             return null;
         }

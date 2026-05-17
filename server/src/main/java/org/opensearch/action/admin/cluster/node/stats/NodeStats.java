@@ -57,7 +57,7 @@ import org.opensearch.monitor.fs.FsInfo;
 import org.opensearch.monitor.jvm.JvmStats;
 import org.opensearch.monitor.os.OsStats;
 import org.opensearch.monitor.process.ProcessStats;
-import org.opensearch.plugin.stats.NativeMemoryStats;
+import org.opensearch.plugin.stats.AnalyticsBackendNativeMemoryStats;
 import org.opensearch.node.AdaptiveSelectionStats;
 import org.opensearch.node.NodesResourceUsageStats;
 import org.opensearch.node.remotestore.RemoteStoreNodeStats;
@@ -168,7 +168,7 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
     private RemoteStoreNodeStats remoteStoreNodeStats;
 
     @Nullable
-    private NativeMemoryStats nativeMemoryStats;
+    private AnalyticsBackendNativeMemoryStats nativeMemoryStats;
 
     public NodeStats(StreamInput in) throws IOException {
         super(in);
@@ -257,7 +257,7 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
             remoteStoreNodeStats = null;
         }
         if (in.getVersion().onOrAfter(Version.V_3_7_0)) {
-            nativeMemoryStats = in.readOptionalWriteable(NativeMemoryStats::new);
+            nativeMemoryStats = in.readOptionalWriteable(AnalyticsBackendNativeMemoryStats::new);
         } else {
             nativeMemoryStats = null;
         }
@@ -294,7 +294,7 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         @Nullable AdmissionControlStats admissionControlStats,
         @Nullable NodeCacheStats nodeCacheStats,
         @Nullable RemoteStoreNodeStats remoteStoreNodeStats,
-        @Nullable NativeMemoryStats nativeMemoryStats
+        @Nullable AnalyticsBackendNativeMemoryStats nativeMemoryStats
     ) {
         super(node);
         this.timestamp = timestamp;
@@ -495,7 +495,7 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
     }
 
     @Nullable
-    public NativeMemoryStats getNativeMemoryStats() {
+    public AnalyticsBackendNativeMemoryStats getAnalyticsBackendNativeMemoryStats() {
         return nativeMemoryStats;
     }
 
@@ -672,8 +672,8 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         if (getRemoteStoreNodeStats() != null) {
             getRemoteStoreNodeStats().toXContent(builder, params);
         }
-        if (getNativeMemoryStats() != null) {
-            getNativeMemoryStats().toXContent(builder, params);
+        if (getAnalyticsBackendNativeMemoryStats() != null) {
+            getAnalyticsBackendNativeMemoryStats().toXContent(builder, params);
         }
         return builder;
     }

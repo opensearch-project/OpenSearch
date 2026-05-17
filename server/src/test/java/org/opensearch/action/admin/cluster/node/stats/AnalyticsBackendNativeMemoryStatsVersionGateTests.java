@@ -12,7 +12,7 @@ import org.opensearch.Version;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.core.common.io.stream.StreamInput;
-import org.opensearch.plugin.stats.NativeMemoryStats;
+import org.opensearch.plugin.stats.AnalyticsBackendNativeMemoryStats;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
@@ -21,30 +21,30 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 
 /**
- * Property-based tests for version-gated serialization of {@link NativeMemoryStats}
+ * Property-based tests for version-gated serialization of {@link AnalyticsBackendNativeMemoryStats}
  * within {@link NodeStats}.
  *
- * Verifies that when NodeStats containing a non-null NativeMemoryStats is serialized
+ * Verifies that when NodeStats containing a non-null AnalyticsBackendNativeMemoryStats is serialized
  * to a stream with a version older than V_3_7_0, the deserialized NodeStats has
  * nativeMemoryStats == null. Conversely, when serialized to V_3_7_0 or later, the
- * NativeMemoryStats is preserved.
+ * AnalyticsBackendNativeMemoryStats is preserved.
  */
-public class NativeMemoryStatsVersionGateTests extends OpenSearchTestCase {
+public class AnalyticsBackendNativeMemoryStatsVersionGateTests extends OpenSearchTestCase {
 
     /**
      * Property 3: Version-gated serialization preserves null for old versions.
      *
-     * For any NodeStats containing a non-null NativeMemoryStats, serializing to a stream
+     * For any NodeStats containing a non-null AnalyticsBackendNativeMemoryStats, serializing to a stream
      * with version older than the native-memory support version (V_3_7_0) and then
      * deserializing SHALL yield a NodeStats with nativeMemoryStats == null.
      *
      * Validates: Requirements 3.4, 3.5
      */
-    public void testVersionGatedSerializationOmitsNativeMemoryStatsForOldVersions() throws IOException {
+    public void testVersionGatedSerializationOmitsAnalyticsBackendNativeMemoryStatsForOldVersions() throws IOException {
         for (int i = 0; i < 100; i++) {
             long allocatedBytes = randomLongBetween(Long.MIN_VALUE, Long.MAX_VALUE);
             long residentBytes = randomLongBetween(Long.MIN_VALUE, Long.MAX_VALUE);
-            NativeMemoryStats nativeMemoryStats = new NativeMemoryStats(allocatedBytes, residentBytes);
+            AnalyticsBackendNativeMemoryStats nativeMemoryStats = new AnalyticsBackendNativeMemoryStats(allocatedBytes, residentBytes);
 
             NodeStats nodeStats = createNodeStatsWithNativeMemory(nativeMemoryStats);
 
@@ -66,7 +66,7 @@ public class NativeMemoryStatsVersionGateTests extends OpenSearchTestCase {
                             + ", "
                             + residentBytes
                             + "]",
-                        deserialized.getNativeMemoryStats()
+                        deserialized.getAnalyticsBackendNativeMemoryStats()
                     );
                 }
             }
@@ -74,19 +74,19 @@ public class NativeMemoryStatsVersionGateTests extends OpenSearchTestCase {
     }
 
     /**
-     * Positive case: Version-gated serialization preserves NativeMemoryStats for V_3_7_0+.
+     * Positive case: Version-gated serialization preserves AnalyticsBackendNativeMemoryStats for V_3_7_0+.
      *
-     * For any NodeStats containing a non-null NativeMemoryStats, serializing to a stream
+     * For any NodeStats containing a non-null AnalyticsBackendNativeMemoryStats, serializing to a stream
      * with version V_3_7_0 or later and then deserializing SHALL yield a NodeStats with
      * nativeMemoryStats containing the original values.
      *
      * Validates: Requirements 3.4, 3.5
      */
-    public void testVersionGatedSerializationPreservesNativeMemoryStatsForCurrentVersion() throws IOException {
+    public void testVersionGatedSerializationPreservesAnalyticsBackendNativeMemoryStatsForCurrentVersion() throws IOException {
         for (int i = 0; i < 100; i++) {
             long allocatedBytes = randomLongBetween(Long.MIN_VALUE, Long.MAX_VALUE);
             long residentBytes = randomLongBetween(Long.MIN_VALUE, Long.MAX_VALUE);
-            NativeMemoryStats nativeMemoryStats = new NativeMemoryStats(allocatedBytes, residentBytes);
+            AnalyticsBackendNativeMemoryStats nativeMemoryStats = new AnalyticsBackendNativeMemoryStats(allocatedBytes, residentBytes);
 
             NodeStats nodeStats = createNodeStatsWithNativeMemory(nativeMemoryStats);
 
@@ -101,17 +101,17 @@ public class NativeMemoryStatsVersionGateTests extends OpenSearchTestCase {
 
                     assertNotNull(
                         "nativeMemoryStats should be non-null when deserialized from version >= V_3_7_0, " + "iteration " + i,
-                        deserialized.getNativeMemoryStats()
+                        deserialized.getAnalyticsBackendNativeMemoryStats()
                     );
                     assertEquals(
                         "allocatedBytes mismatch on iteration " + i,
                         allocatedBytes,
-                        deserialized.getNativeMemoryStats().getAllocatedBytes()
+                        deserialized.getAnalyticsBackendNativeMemoryStats().getAllocatedBytes()
                     );
                     assertEquals(
                         "residentBytes mismatch on iteration " + i,
                         residentBytes,
-                        deserialized.getNativeMemoryStats().getResidentBytes()
+                        deserialized.getAnalyticsBackendNativeMemoryStats().getResidentBytes()
                     );
                 }
             }
@@ -119,10 +119,10 @@ public class NativeMemoryStatsVersionGateTests extends OpenSearchTestCase {
     }
 
     /**
-     * Creates a minimal NodeStats with the given NativeMemoryStats and all other fields null.
+     * Creates a minimal NodeStats with the given AnalyticsBackendNativeMemoryStats and all other fields null.
      * Uses the current version for the DiscoveryNode.
      */
-    private NodeStats createNodeStatsWithNativeMemory(NativeMemoryStats nativeMemoryStats) {
+    private NodeStats createNodeStatsWithNativeMemory(AnalyticsBackendNativeMemoryStats nativeMemoryStats) {
         DiscoveryNode node = new DiscoveryNode("test_node", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
 
         return new NodeStats(
