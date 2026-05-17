@@ -12,6 +12,8 @@ import org.apache.arrow.memory.BufferAllocator;
 import org.opensearch.analytics.backend.EngineResultStream;
 import org.opensearch.analytics.backend.SearchExecEngine;
 import org.opensearch.analytics.backend.ShardScanExecutionContext;
+import org.opensearch.analytics.exec.task.AnalyticsShardTask;
+import org.opensearch.be.datafusion.nativelib.NativeBridge;
 import org.opensearch.be.datafusion.nativelib.StreamHandle;
 import org.opensearch.common.annotation.ExperimentalApi;
 
@@ -46,10 +48,26 @@ public class DatafusionSearchExecEngine implements SearchExecEngine<ShardScanExe
         if (allocator == null) {
             throw new IllegalStateException("ExecutionContext.allocator must be set by the caller before execute()");
         }
-        DatafusionSearcher searcher = datafusionContext.getSearcher();
-        searcher.search(datafusionContext);
-        StreamHandle handle = datafusionContext.takeStreamHandle();
-        return new DatafusionResultStream(handle, allocator);
+
+        // Register cancellation hook so HTTP disconnect / _tasks/_cancel / timeout
+        // immediately fires the Rust CancellationToken.
+        long contextId = datafusionContext.getContextId();
+        AnalyticsShardTask shardTask = datafusionContext.task() instanceof AnalyticsShardTask t ? t : null;
+        if (shardTask != null) {
+            shardTask.setCancellationListener(() -> NativeBridge.cancelQuery(contextId));
+        }
+
+        try {
+            DatafusionSearcher searcher = datafusionContext.getSearcher();
+            searcher.search(datafusionContext);
+            StreamHandle handle = datafusionContext.takeStreamHandle();
+            return new DatafusionResultStream(handle, allocator);
+        } finally {
+            // Clear the listener so the task doesn't hold a reference after the query.
+            if (shardTask != null) {
+                shardTask.clearCancellationListener();
+            }
+        }
     }
 
     @Override

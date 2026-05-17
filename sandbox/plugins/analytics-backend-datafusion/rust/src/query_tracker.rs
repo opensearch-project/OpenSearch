@@ -18,12 +18,13 @@
 //! on [`Drop`].
 
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 use std::time::Instant;
 
 use dashmap::DashMap;
 use log::debug;
 use once_cell::sync::Lazy;
+use tokio::task::AbortHandle;
 use tokio_util::sync::CancellationToken;
 
 use datafusion::common::DataFusionError;
@@ -116,6 +117,8 @@ pub struct QueryTracker {
     pub context_id: i64,
     pub memory_pool: Arc<QueryMemoryPool>,
     pub cancellation_token: CancellationToken,
+    /// CPU task abort handle, set after the stream is created.
+    pub abort_handle: OnceLock<AbortHandle>,
     completed: AtomicBool,
     wall_nanos: std::sync::atomic::AtomicU64,
 }
@@ -155,12 +158,22 @@ static QUERY_REGISTRY: Lazy<DashMap<i64, Arc<QueryTracker>>> = Lazy::new(DashMap
 pub fn cancel_query(context_id: i64) {
     if let Some(tracker) = QUERY_REGISTRY.get(&context_id) {
         tracker.cancellation_token.cancel();
+        if let Some(handle) = tracker.abort_handle.get() {
+            handle.abort();
+        }
     }
 }
 
 /// Clone the cancellation token for the given context_id, if registered.
 pub fn get_cancellation_token(context_id: i64) -> Option<CancellationToken> {
     QUERY_REGISTRY.get(&context_id).map(|t| t.cancellation_token.clone())
+}
+
+/// Store the CPU task's AbortHandle for the given context_id.
+pub fn set_abort_handle(context_id: i64, handle: AbortHandle) {
+    if let Some(tracker) = QUERY_REGISTRY.get(&context_id) {
+        tracker.abort_handle.set(handle).ok();
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -195,6 +208,7 @@ impl QueryTrackingContext {
             // `tokio::select!` branch. Calling `token.cancel()` fires all waiters.
             // See: https://github.com/tokio-rs/tokio/blob/master/tokio-util/src/sync/cancellation_token/tree_node.rs
             cancellation_token: CancellationToken::new(),
+            abort_handle: OnceLock::new(),
             completed: AtomicBool::new(false),
             wall_nanos: std::sync::atomic::AtomicU64::new(0),
         });
