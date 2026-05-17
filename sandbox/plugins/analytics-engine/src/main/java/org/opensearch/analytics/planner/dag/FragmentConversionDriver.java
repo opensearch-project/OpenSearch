@@ -217,13 +217,22 @@ public class FragmentConversionDriver {
                             .delegatedPredicateSerializers()
                             .get(function);
                         if (serializer == null) {
-                            throw new IllegalStateException(
-                                "No DelegatedPredicateSerializer for ["
-                                    + function
-                                    + "] on peer backend ["
-                                    + peerBackend
-                                    + "]. CapabilityRegistry should have rejected this at startup."
+                            // Delegated backend declared filter capability for this op but doesn't
+                            // ship a serializer for it (e.g. Lucene declares LESS_THAN_OR_EQUAL but
+                            // only EqualsSerializer is wired today). Without a serializer we can't
+                            // emit a delegation_possible(...) marker, so fall back to native: just
+                            // unwrap as a regular predicate evaluated by the operator's own backend.
+                            // Same end result as a single-viable predicate — no perf delegation for
+                            // this leaf, correctness preserved. CapabilityRegistry startup validation
+                            // will eventually catch the capability/serializer mismatch at boot and reject
+                            // the plugin instead of silently degrading at query time.
+                            LOGGER.info(
+                                "Performance-delegation skipped: no serializer for [{}] on delegated backend [{}]; falling back to native on operator [{}]",
+                                function,
+                                peerBackend,
+                                operatorBackend
                             );
+                            return annotation.unwrap();
                         }
                         byte[] serialized = serializer.serialize(originalCall, fieldStorage);
                         LOGGER.info(
