@@ -16,7 +16,6 @@ import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.composite.merge.CompositeMerger;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.dataformat.DataFormat;
-import org.opensearch.index.engine.dataformat.DataFormatPlugin;
 import org.opensearch.index.engine.dataformat.DataFormatRegistry;
 import org.opensearch.index.engine.dataformat.DocumentInput;
 import org.opensearch.index.engine.dataformat.IndexingEngineConfig;
@@ -75,8 +74,8 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
     /**
      * Constructs a CompositeIndexingExecutionEngine by reading index settings to
      * determine the primary and secondary data formats, validating that all configured
-     * formats are registered, and creating per-format engines via the discovered
-     * {@link DataFormatPlugin} instances.
+     * formats are registered, and creating per-format engines via the data format
+     * plugin instances.
      * <p>
      * The primary engine is the authoritative format used for merge operations and
      * commit coordination. Secondary engines receive writes alongside the primary but

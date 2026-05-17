@@ -13,7 +13,6 @@ import org.opensearch.index.engine.dataformat.FieldTypeCapabilities;
 import org.opensearch.parquet.fields.ArrowFieldRegistry;
 
 import java.util.Set;
-import java.util.stream.Collectors;
 
 /**
  * Data format descriptor for the Parquet format.
@@ -40,18 +39,14 @@ public class ParquetDataFormat extends DataFormat {
         return 0;
     }
 
+    /**
+     * Returns the set of field type capabilities supported by the Parquet data format.
+     * Delegates to {@link ArrowFieldRegistry#getSupportedFieldCapabilities()}.
+     *
+     * @return unmodifiable set of {@link FieldTypeCapabilities}
+     */
     @Override
     public Set<FieldTypeCapabilities> supportedFields() {
-        // TODO - Override FieldRegistry to return capability for each field
-        return ArrowFieldRegistry.getRegisteredFields()
-            .keySet()
-            .stream()
-            .map(
-                type -> new FieldTypeCapabilities(
-                    type,
-                    Set.of(FieldTypeCapabilities.Capability.COLUMNAR_STORAGE, FieldTypeCapabilities.Capability.BLOOM_FILTER)
-                )
-            )
-            .collect(Collectors.toUnmodifiableSet());
+        return ArrowFieldRegistry.getSupportedFieldCapabilities();
     }
 }

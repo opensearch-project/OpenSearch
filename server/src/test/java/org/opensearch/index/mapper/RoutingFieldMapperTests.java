@@ -113,4 +113,12 @@ public class RoutingFieldMapperTests extends OpenSearchSingleNodeTestCase {
         );
         assertThat(ex.getMessage(), containsString("metadata field and cannot be added inside a document"));
     }
+
+    public void testDefaultCapabilities() {
+        java.util.Set<org.opensearch.index.engine.dataformat.FieldTypeCapabilities.Capability> caps =
+            RoutingFieldMapper.RoutingFieldType.INSTANCE.defaultCapabilities();
+        assertEquals(2, caps.size());
+        assertTrue(caps.contains(org.opensearch.index.engine.dataformat.FieldTypeCapabilities.Capability.FULL_TEXT_SEARCH));
+        assertTrue(caps.contains(org.opensearch.index.engine.dataformat.FieldTypeCapabilities.Capability.STORED_FIELDS));
+    }
 }

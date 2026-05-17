@@ -35,12 +35,14 @@ package org.opensearch.index.mapper;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.search.Query;
+import org.opensearch.index.engine.dataformat.FieldTypeCapabilities;
 import org.opensearch.index.mapper.ParseContext.Document;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.query.QueryShardException;
 import org.opensearch.search.lookup.SearchLookup;
 
 import java.util.Collections;
+import java.util.Set;
 
 /**
  * Mapper for the _version field.
@@ -70,6 +72,11 @@ public class VersionFieldMapper extends MetadataFieldMapper {
         @Override
         public String typeName() {
             return CONTENT_TYPE;
+        }
+
+        @Override
+        public Set<FieldTypeCapabilities.Capability> defaultCapabilities() {
+            return Set.of(FieldTypeCapabilities.Capability.COLUMNAR_STORAGE);
         }
 
         @Override

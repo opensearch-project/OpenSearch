@@ -43,15 +43,21 @@ import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.analysis.IndexAnalyzers;
+import org.opensearch.index.engine.dataformat.DataFormat;
+import org.opensearch.index.engine.dataformat.DataFormatRegistry;
+import org.opensearch.index.engine.dataformat.FieldTypeCapabilities;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.similarity.SimilarityProvider;
 import org.opensearch.script.ScriptService;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import static org.opensearch.index.IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING;
 
@@ -72,11 +78,34 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
     public static class BuilderContext {
         private final Settings indexSettings;
         private final ContentPath contentPath;
+        @Nullable
+        private final DataFormatRegistry dataFormatRegistry;
+        /**
+         * Configured data formats for this index in priority-walk order (primary first, then
+         * secondaries by priority ascending). Empty when {@link #dataFormatRegistry} is null
+         * or the index does not configure a pluggable data format.
+         */
+        private final List<DataFormat> configuredFormats;
 
         public BuilderContext(Settings indexSettings, ContentPath contentPath) {
+            this(indexSettings, contentPath, null, List.of());
+        }
+
+        public BuilderContext(Settings indexSettings, ContentPath contentPath, @Nullable DataFormatRegistry dataFormatRegistry) {
+            this(indexSettings, contentPath, dataFormatRegistry, List.of());
+        }
+
+        public BuilderContext(
+            Settings indexSettings,
+            ContentPath contentPath,
+            @Nullable DataFormatRegistry dataFormatRegistry,
+            List<DataFormat> configuredFormats
+        ) {
             Objects.requireNonNull(indexSettings, "indexSettings is required");
             this.contentPath = contentPath;
             this.indexSettings = indexSettings;
+            this.dataFormatRegistry = dataFormatRegistry;
+            this.configuredFormats = configuredFormats == null ? List.of() : List.copyOf(configuredFormats);
         }
 
         public ContentPath path() {
@@ -85,6 +114,98 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
 
         public Settings indexSettings() {
             return this.indexSettings;
+        }
+
+        /**
+         * Returns the data format registry, or {@code null} if pluggable data formats are not enabled.
+         */
+        @Nullable
+        public DataFormatRegistry dataFormatRegistry() {
+            return dataFormatRegistry;
+        }
+
+        /**
+         * Validates capability coverage and assigns the capability map on the given
+         * {@link MappedFieldType}. No-op when the {@link DataFormatRegistry} is unavailable
+         * (non-composite path).
+         *
+         * <p>For non-metadata fields with a non-empty {@link MappedFieldType#requestedCapabilities()},
+         * walks the {@link #configuredFormats} (primary first, then secondaries by priority
+         * ascending — supplied at construction time from
+         * {@link DataFormatRegistry#getConfiguredFormats(org.opensearch.index.IndexSettings)})
+         * and selects the first format whose {@code supportedFields()} declares support for every
+         * requested capability for the field's type. Throws {@link MapperParsingException} when
+         * no single configured format can cover the full set. The capability map is set to
+         * {@code { coveringFormat -> requestedCapabilities }}.
+         *
+         * <p>For metadata fields, falls back to
+         * {@link DataFormatRegistry#computeCapabilityMap(String, Set, Set)} so the existing
+         * metadata routing behavior (per-capability priority winner with defaults) is preserved.
+         *
+         * <p>For non-metadata fields with an empty requested capability set, sets an empty map
+         * without running coverage validation.
+         *
+         * @param fieldType       the field type to validate and assign
+         * @param isMetadataField whether the field is a metadata field; metadata bypasses
+         *                        coverage validation
+         */
+        public void assignCapabilities(MappedFieldType fieldType, boolean isMetadataField) {
+            if (dataFormatRegistry == null) {
+                return;
+            }
+            Set<FieldTypeCapabilities.Capability> requested = fieldType.requestedCapabilities();
+
+            if (isMetadataField) {
+                fieldType.setCapabilityMap(
+                    dataFormatRegistry.computeCapabilityMap(fieldType.typeName(), fieldType.defaultCapabilities(), requested)
+                );
+                return;
+            }
+
+            if (requested.isEmpty()) {
+                fieldType.setCapabilityMap(Map.of());
+                return;
+            }
+
+            if (configuredFormats.isEmpty()) {
+                // Registry is available but no formats are configured for this index (e.g.,
+                // pluggable data format flag enabled but no plugin name set). Treat as no-op
+                // so misconfigurations surface elsewhere rather than as a per-field validation
+                // error.
+                fieldType.setCapabilityMap(Map.of());
+                return;
+            }
+
+            for (DataFormat format : configuredFormats) {
+                if (formatCovers(format, fieldType.typeName(), requested)) {
+                    fieldType.setCapabilityMap(Map.of(format, Set.copyOf(requested)));
+                    return;
+                }
+            }
+
+            throw new MapperParsingException(
+                "Field ["
+                    + fieldType.name()
+                    + "] of type ["
+                    + fieldType.typeName()
+                    + "] requires capabilities "
+                    + requested
+                    + " but no single configured data format covers all of them. Configured formats: "
+                    + configuredFormats.stream().map(DataFormat::name).collect(Collectors.toList())
+            );
+        }
+
+        /**
+         * Returns whether the given format declares support for every required capability for
+         * the given field type name.
+         */
+        private static boolean formatCovers(DataFormat format, String typeName, Set<FieldTypeCapabilities.Capability> required) {
+            return format.supportedFields()
+                .stream()
+                .filter(ftc -> ftc.fieldType().equals(typeName))
+                .findFirst()
+                .map(ftc -> ftc.capabilities().containsAll(required))
+                .orElse(false);
         }
 
         public Version indexCreatedVersion() {
@@ -154,6 +275,8 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
 
             private final ScriptService scriptService;
 
+            private final DataFormatRegistry dataFormatRegistry;
+
             public ParserContext(
                 Function<String, SimilarityProvider> similarityLookupService,
                 MapperService mapperService,
@@ -163,6 +286,28 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
                 DateFormatter dateFormatter,
                 ScriptService scriptService
             ) {
+                this(
+                    similarityLookupService,
+                    mapperService,
+                    typeParsers,
+                    indexVersionCreated,
+                    queryShardContextSupplier,
+                    dateFormatter,
+                    scriptService,
+                    null
+                );
+            }
+
+            public ParserContext(
+                Function<String, SimilarityProvider> similarityLookupService,
+                MapperService mapperService,
+                Function<String, TypeParser> typeParsers,
+                Version indexVersionCreated,
+                Supplier<QueryShardContext> queryShardContextSupplier,
+                DateFormatter dateFormatter,
+                ScriptService scriptService,
+                @Nullable DataFormatRegistry dataFormatRegistry
+            ) {
                 this.similarityLookupService = similarityLookupService;
                 this.mapperService = mapperService;
                 this.typeParsers = typeParsers;
@@ -170,6 +315,7 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
                 this.queryShardContextSupplier = queryShardContextSupplier;
                 this.dateFormatter = dateFormatter;
                 this.scriptService = scriptService;
+                this.dataFormatRegistry = dataFormatRegistry;
             }
 
             public IndexAnalyzers getIndexAnalyzers() {
@@ -228,6 +374,15 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
                 return scriptService;
             }
 
+            /**
+             * Returns the DataFormatRegistry, or null if not available.
+             * Only non-null when pluggable data format is enabled.
+             */
+            @Nullable
+            public DataFormatRegistry dataFormatRegistry() {
+                return dataFormatRegistry;
+            }
+
             public ParserContext createMultiFieldContext(ParserContext in) {
                 return new MultiFieldParserContext(in);
             }
@@ -246,7 +401,8 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
                         in.indexVersionCreated(),
                         in.queryShardContextSupplier(),
                         in.getDateFormatter(),
-                        in.scriptService()
+                        in.scriptService(),
+                        in.dataFormatRegistry()
                     );
                 }
 

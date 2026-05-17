@@ -23,12 +23,16 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+
+import static java.util.Collections.unmodifiableSet;
 
 /**
  * Registry that holds the mapping from {@link DataFormat} to the {@link DataFormatPlugin} that provides it.
@@ -48,6 +52,11 @@ public class DataFormatRegistry {
     private final Map<String, DataFormat> dataFormats;
 
     private static final Logger logger = LogManager.getLogger(DataFormatRegistry.class);
+
+    /** All capability values, cached to avoid repeated array allocation from {@code Capability.values()}. */
+    private static final Set<FieldTypeCapabilities.Capability> ALL_CAPABILITIES = unmodifiableSet(
+        EnumSet.allOf(FieldTypeCapabilities.Capability.class)
+    );
 
     /**
      * Creates a registry by discovering all {@link DataFormatPlugin} and {@link SearchBackEndPlugin} implementations
@@ -126,11 +135,12 @@ public class DataFormatRegistry {
     }
 
     /**
-     * Returns all registered data formats that support a specific capability for a field type.
+     * Returns all registered data formats that support a specific capability for a field type,
+     * sorted by priority ascending (lowest priority value = highest preference).
      *
-     * @param fieldType the field type name
+     * @param fieldType  the field type name
      * @param capability the capability to check
-     * @return list of data formats supporting the capability for the field type
+     * @return list of data formats supporting the capability, sorted by priority
      */
     public List<DataFormat> supportsCapability(String fieldType, FieldTypeCapabilities.Capability capability) {
         return dataFormatPluginRegistry.keySet()
@@ -151,6 +161,111 @@ public class DataFormatRegistry {
      */
     public Set<DataFormat> getRegisteredFormats() {
         return Set.copyOf(dataFormatPluginRegistry.keySet());
+    }
+
+    /**
+     * Returns all registered data formats sorted by {@link DataFormat#priority()} ascending
+     * (lowest priority value = highest preference). Used by capability coverage validation
+     * to walk formats in primary-first order.
+     *
+     * @return list of data formats sorted by priority ascending
+     */
+    public List<DataFormat> getRegisteredFormatsByPriority() {
+        return dataFormatPluginRegistry.keySet()
+            .stream()
+            .sorted(Comparator.comparingLong(DataFormat::priority))
+            .collect(Collectors.toList());
+    }
+
+    /**
+     * Computes the capability map for a given field type name across all registered data formats.
+     * Convenience overload that passes no default or requested capabilities.
+     *
+     * @param fieldTypeName the field type name (e.g., "keyword", "long")
+     * @return an immutable capability map for this field type
+     * @see #computeCapabilityMap(String, Set, Set)
+     */
+    public Map<DataFormat, Set<FieldTypeCapabilities.Capability>> computeCapabilityMap(String fieldTypeName) {
+        return computeCapabilityMap(fieldTypeName, Set.of(), ALL_CAPABILITIES);
+    }
+
+    /**
+     * Computes the capability map for a given field type name, using the provided default
+     * capabilities as a fallback when no registered data format declares support for a capability.
+     * Considers all capabilities (no filtering by user request).
+     *
+     * @param fieldTypeName       the field type name (e.g., "keyword", "long", "_id")
+     * @param defaultCapabilities fallback capabilities for metadata fields not declared by any format
+     * @return an immutable capability map for this field type
+     * @see #computeCapabilityMap(String, Set, Set)
+     */
+    public Map<DataFormat, Set<FieldTypeCapabilities.Capability>> computeCapabilityMap(
+        String fieldTypeName,
+        Set<FieldTypeCapabilities.Capability> defaultCapabilities
+    ) {
+        // Pass all capabilities as requested — the 2-arg overload means "consider everything, with defaults as fallback"
+        return computeCapabilityMap(fieldTypeName, defaultCapabilities, ALL_CAPABILITIES);
+    }
+
+    /**
+     * Computes the capability map for a given field type name, filtered to only the capabilities
+     * that the user's mapping configuration actually requests.
+     * <p>
+     * The algorithm determines which capabilities to consider:
+     * <ul>
+     *   <li>If {@code requestedCapabilities} is non-empty, only those capabilities are considered</li>
+     *   <li>If {@code requestedCapabilities} is empty (metadata fields), {@code defaultCapabilities} are used</li>
+     *   <li>If both are empty, no capabilities are assigned</li>
+     * </ul>
+     * For each considered capability:
+     * <ol>
+     *   <li>Queries all registered formats for support via {@link #supportsCapability}</li>
+     *   <li>If at least one format supports it, the highest-priority format (lowest priority value) wins</li>
+     *   <li>If no format declares support but the capability is in {@code defaultCapabilities},
+     *       it is assigned to the highest-priority registered format (primary)</li>
+     * </ol>
+     *
+     * @param fieldTypeName         the field type name (e.g., "keyword", "long", "_id")
+     * @param defaultCapabilities   fallback capabilities for metadata fields not declared by any format
+     * @param requestedCapabilities capabilities the user's mapping requests; empty means use defaultCapabilities
+     * @return an immutable capability map for this field type
+     */
+    public Map<DataFormat, Set<FieldTypeCapabilities.Capability>> computeCapabilityMap(
+        String fieldTypeName,
+        Set<FieldTypeCapabilities.Capability> defaultCapabilities,
+        Set<FieldTypeCapabilities.Capability> requestedCapabilities
+    ) {
+        // Determine which capabilities to consider:
+        // - Callers pass the specific set of capabilities to evaluate
+        // - The 1-arg and 2-arg overloads pass all Capability.values()
+        // - The 3-arg call from assignCapabilities passes requestedCapabilities from the field type
+        // - If requestedCapabilities is empty, no capabilities are assigned (field doesn't need any)
+        if (requestedCapabilities.isEmpty()) {
+            return Map.of();
+        }
+        Set<FieldTypeCapabilities.Capability> capabilitiesToConsider = requestedCapabilities;
+
+        Map<DataFormat, Set<FieldTypeCapabilities.Capability>> result = new HashMap<>();
+
+        for (FieldTypeCapabilities.Capability capability : capabilitiesToConsider) {
+            List<DataFormat> supporters = supportsCapability(fieldTypeName, capability);
+            if (supporters.isEmpty() == false) {
+                // First match wins — list is sorted by priority ascending (lowest = highest priority)
+                result.computeIfAbsent(supporters.get(0), k -> new HashSet<>()).add(capability);
+            } else if (defaultCapabilities.contains(capability)) {
+                // No format declares support, but the field type itself declares this as a default
+                // capability. Assign to the highest-priority registered format.
+                DataFormat primary = dataFormatPluginRegistry.keySet()
+                    .stream()
+                    .min(Comparator.comparingLong(DataFormat::priority))
+                    .orElse(null);
+                if (primary != null) {
+                    result.computeIfAbsent(primary, k -> new HashSet<>()).add(capability);
+                }
+            }
+        }
+
+        return result.isEmpty() ? Map.of() : Map.copyOf(result);
     }
 
     /**
@@ -180,6 +295,38 @@ public class DataFormatRegistry {
             }
         }
         return Map.of();
+    }
+
+    /**
+     * Returns the data formats configured for use by the given index, in priority-walk order
+     * (primary first, then secondaries by priority ascending). Resolves the active data format
+     * plugin from index settings via the {@code pluggable_dataformat} setting and delegates to
+     * {@link DataFormatPlugin#getConfiguredFormats(IndexSettings, DataFormatRegistry)}.
+     *
+     * <p>Used by capability coverage validation in
+     * {@link org.opensearch.index.mapper.Mapper.BuilderContext#assignCapabilities} to scope
+     * checks to formats that actually participate in this index, not every format registered
+     * on the node.
+     *
+     * @param indexSettings the index settings used to determine the active data format plugin
+     * @return ordered list of configured formats, or an empty list if no pluggable data format
+     *         is configured
+     */
+    public List<DataFormat> getConfiguredFormats(IndexSettings indexSettings) {
+        String dataformatName = indexSettings.pluggableDataFormat();
+        if (dataformatName == null || dataformatName.isEmpty()) {
+            return List.of();
+        }
+        DataFormat format = dataFormats.get(dataformatName);
+        if (format == null) {
+            return List.of();
+        }
+        DataFormatPlugin plugin = dataFormatPluginRegistry.get(format);
+        if (plugin == null) {
+            return List.of();
+        }
+        List<DataFormat> configured = plugin.getConfiguredFormats(indexSettings, this);
+        return configured == null ? List.of() : List.copyOf(configured);
     }
 
     /**

@@ -265,7 +265,7 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
 
     @Override
     public ParquetDocumentInput newDocumentInput() {
-        return new ParquetDocumentInput();
+        return new ParquetDocumentInput(this.dataFormat);
     }
 
     @Override

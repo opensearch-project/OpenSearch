@@ -58,6 +58,7 @@ import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.network.InetAddresses;
 import org.opensearch.common.network.NetworkAddress;
 import org.opensearch.index.compositeindex.datacube.DimensionType;
+import org.opensearch.index.engine.dataformat.FieldTypeCapabilities;
 import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.index.fielddata.ScriptDocValues;
 import org.opensearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
@@ -72,9 +73,11 @@ import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Supplier;
 
@@ -235,6 +238,25 @@ public class IpFieldMapper extends ParametrizedFieldMapper {
         @Override
         public String typeName() {
             return CONTENT_TYPE;
+        }
+
+        /**
+         * IP fields use {@link FieldTypeCapabilities.Capability#POINT_RANGE} for indexing
+         * (via InetAddressPoint) instead of {@link FieldTypeCapabilities.Capability#FULL_TEXT_SEARCH}.
+         */
+        @Override
+        public Set<FieldTypeCapabilities.Capability> requestedCapabilities() {
+            Set<FieldTypeCapabilities.Capability> caps = new HashSet<>();
+            if (isSearchable()) {
+                caps.add(FieldTypeCapabilities.Capability.POINT_RANGE);
+            }
+            if (hasDocValues()) {
+                caps.add(FieldTypeCapabilities.Capability.COLUMNAR_STORAGE);
+            }
+            if (isStored()) {
+                caps.add(FieldTypeCapabilities.Capability.STORED_FIELDS);
+            }
+            return caps.isEmpty() ? Set.of() : Set.copyOf(caps);
         }
 
         private static InetAddress parse(Object value) {
