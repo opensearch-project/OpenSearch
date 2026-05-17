@@ -48,7 +48,13 @@ public class ParquetHiveFileReader implements HiveFileReader {
      * @throws IOException if the file cannot be opened
      */
     public ParquetHiveFileReader(String filePath, Configuration hadoopConf, MessageType projectionSchema) throws IOException {
-        this.reader = ParquetFileReader.open(HadoopInputFile.fromPath(new Path(filePath), hadoopConf));
+        ClassLoader original = Thread.currentThread().getContextClassLoader();
+        try {
+            Thread.currentThread().setContextClassLoader(ParquetHiveFileReader.class.getClassLoader());
+            this.reader = ParquetFileReader.open(HadoopInputFile.fromPath(new Path(filePath), hadoopConf));
+        } finally {
+            Thread.currentThread().setContextClassLoader(original);
+        }
         this.projectionSchema = projectionSchema;
         this.rowsRemainingInGroup = 0;
     }

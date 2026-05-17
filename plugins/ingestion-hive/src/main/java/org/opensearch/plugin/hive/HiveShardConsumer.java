@@ -479,20 +479,26 @@ public class HiveShardConsumer implements IngestionShardConsumer<HivePointer, Hi
 
     private List<String> listDataFiles(String location) throws IOException {
         Path path = new Path(location);
-        FileSystem fs = FileSystem.get(path.toUri(), hadoopConf);
-        if (!fs.exists(path)) {
-            return Collections.emptyList();
-        }
-        FileStatus[] statuses = fs.listStatus(path);
-        List<String> files = new ArrayList<>();
-        for (FileStatus status : statuses) {
-            String name = status.getPath().getName();
-            if (!status.isDirectory() && !name.startsWith("_") && !name.startsWith(".")) {
-                files.add(status.getPath().toString());
+        ClassLoader original = Thread.currentThread().getContextClassLoader();
+        try {
+            Thread.currentThread().setContextClassLoader(HiveShardConsumer.class.getClassLoader());
+            FileSystem fs = FileSystem.get(path.toUri(), hadoopConf);
+            if (!fs.exists(path)) {
+                return Collections.emptyList();
             }
+            FileStatus[] statuses = fs.listStatus(path);
+            List<String> files = new ArrayList<>();
+            for (FileStatus status : statuses) {
+                String name = status.getPath().getName();
+                if (!status.isDirectory() && !name.startsWith("_") && !name.startsWith(".")) {
+                    files.add(status.getPath().toString());
+                }
+            }
+            Collections.sort(files);
+            return files;
+        } finally {
+            Thread.currentThread().setContextClassLoader(original);
         }
-        Collections.sort(files);
-        return files;
     }
 
     /**
