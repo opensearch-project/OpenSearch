@@ -326,7 +326,7 @@ async fn assert_engine_matches_reference_null(name: &str, tree: NT) {
         offset += n;
     }
     let segment = SegmentFileInfo {
-        segment_ord: 0,
+        writer_generation: 0,
         max_doc: NULL_N as i64,
         object_path: object_store::path::Path::from(f.path.to_string_lossy().as_ref()),
         parquet_size: size,

@@ -291,6 +291,7 @@ pub unsafe extern "C" fn parquet_merge_files(
     output_len: i64,
     index_name_ptr: *const u8,
     index_name_len: i64,
+    output_writer_generation: i64,
     version_out: *mut i32,
     num_rows_out: *mut i64,
     created_by_buf: *mut u8,
@@ -331,7 +332,7 @@ pub unsafe extern "C" fn parquet_merge_files(
     };
 
     let result = if sort_cols.is_empty() {
-        merge::merge_unsorted(&input_files, output_path, index_name)
+        merge::merge_unsorted(&input_files, output_path, index_name, output_writer_generation)
     } else {
         merge::merge_sorted(
             &input_files,
@@ -340,6 +341,7 @@ pub unsafe extern "C" fn parquet_merge_files(
             &sort_cols,
             &reverse_flags,
             &nulls_first_flags,
+            output_writer_generation,
         )
     }
     .map_err(|e| format!("{}", e))?;

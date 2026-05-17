@@ -35,5 +35,12 @@ public enum StageExecutionType {
      * stages sitting above children that already produced the final rows.
      * A single-stage query that scans shards is {@link #SHARD_FRAGMENT}, not this.
      */
-    LOCAL_PASSTHROUGH
+    LOCAL_PASSTHROUGH,
+    /**
+     * Runs the fragment locally on the coordinator via the backend's in-process
+     * execution engine. No shard dispatch, no children expected. Used for
+     * literal-row sources ({@code LogicalValues}) and any future leaf operator
+     * whose data lives on the coordinator rather than on a shard.
+     */
+    LOCAL_COMPUTE
 }

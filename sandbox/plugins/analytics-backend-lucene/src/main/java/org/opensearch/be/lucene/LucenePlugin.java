@@ -8,14 +8,15 @@
 
 package org.opensearch.be.lucene;
 
-import org.apache.lucene.index.DirectoryReader;
 import org.opensearch.be.lucene.index.LuceneCommitter;
 import org.opensearch.be.lucene.index.LuceneCommitterFactory;
+import org.opensearch.be.lucene.index.LuceneDeleteExecutionEngine;
 import org.opensearch.be.lucene.index.LuceneIndexingExecutionEngine;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.DataFormatPlugin;
+import org.opensearch.index.engine.dataformat.DeleteExecutionEngine;
 import org.opensearch.index.engine.dataformat.IndexingEngineConfig;
 import org.opensearch.index.engine.dataformat.IndexingExecutionEngine;
 import org.opensearch.index.engine.dataformat.ReaderManagerConfig;
@@ -45,7 +46,7 @@ import java.util.Optional;
  * @opensearch.experimental
  */
 @ExperimentalApi
-public class LucenePlugin extends Plugin implements DataFormatPlugin, SearchBackEndPlugin<DirectoryReader>, EnginePlugin {
+public class LucenePlugin extends Plugin implements DataFormatPlugin, SearchBackEndPlugin<LuceneReader>, EnginePlugin {
 
     private static final LuceneDataFormat DATA_FORMAT = new LuceneDataFormat();
 
@@ -108,7 +109,7 @@ public class LucenePlugin extends Plugin implements DataFormatPlugin, SearchBack
      * @throws IOException if reader creation fails
      */
     @Override
-    public EngineReaderManager<DirectoryReader> createReaderManager(ReaderManagerConfig settings) throws IOException {
+    public EngineReaderManager<LuceneReader> createReaderManager(ReaderManagerConfig settings) throws IOException {
         return LuceneSearchBackEnd.createReaderManager(settings);
     }
 
@@ -123,5 +124,10 @@ public class LucenePlugin extends Plugin implements DataFormatPlugin, SearchBack
     @Override
     public Optional<CommitterFactory> getCommitterFactory(IndexSettings indexSettings) {
         return Optional.of(new LuceneCommitterFactory());
+    }
+
+    @Override
+    public DeleteExecutionEngine<?> getDeleteExecutionEngine(Committer committer) {
+        return new LuceneDeleteExecutionEngine(DATA_FORMAT, committer);
     }
 }

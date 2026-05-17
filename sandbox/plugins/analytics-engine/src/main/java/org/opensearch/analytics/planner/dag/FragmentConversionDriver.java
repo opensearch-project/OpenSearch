@@ -48,12 +48,12 @@ import java.util.function.Function;
  * <p>Dispatch logic for PR2 (pure shard-scan path):
  * <ul>
  *   <li>Leaf = {@link OpenSearchTableScan}, top = {@link OpenSearchAggregate}(PARTIAL):
- *       {@code convertShardScanFragment} on everything below partial agg,
+ *       {@code convertFragment} on everything below partial agg,
  *       then {@code attachPartialAggOnTop}</li>
  *   <li>Leaf = {@link OpenSearchTableScan}, top = anything else:
- *       {@code convertShardScanFragment} on the full fragment</li>
+ *       {@code convertFragment} on the full fragment</li>
  *   <li>Leaf = {@link OpenSearchStageInputScan} (reduce stage):
- *       {@code convertFinalAggFragment} on the final agg (ExchangeReducer stripped),
+ *       {@code convertFragment} on the final agg (ExchangeReducer stripped),
  *       then {@code attachFragmentOnTop} for any operators above it</li>
  * </ul>
  *
@@ -134,13 +134,7 @@ public class FragmentConversionDriver {
             } else {
                 factory.createShardScanNode().ifPresent(instructions::add);
             }
-            if (plan.resolvedFragment() instanceof OpenSearchAggregate agg && agg.getMode() == AggregateMode.PARTIAL) {
-                factory.createPartialAggregateNode().ifPresent(instructions::add);
-            }
-        } else if (leaf instanceof OpenSearchStageInputScan) {
-            factory.createFinalAggregateNode().ifPresent(instructions::add);
         }
-
         return instructions;
     }
 
@@ -216,25 +210,31 @@ public class FragmentConversionDriver {
     static byte[] convert(RelNode resolvedFragment, FragmentConvertor convertor, IntraOperatorDelegationBytes delegationBytes) {
         RelNode leaf = findLeaf(resolvedFragment);
 
-        if (leaf instanceof OpenSearchTableScan scan) {
-            String tableName = scan.getTable().getQualifiedName().getLast();
-
+        if (leaf instanceof OpenSearchTableScan) {
             // Partial agg at top: convert everything below it, then attach partial agg on top.
             // strippedInputs passed to stripAnnotations for schema validity (LogicalAggregate needs its inputs).
             if (resolvedFragment instanceof OpenSearchAggregate agg && agg.getMode() == AggregateMode.PARTIAL) {
                 List<RelNode> strippedInputs = agg.getInputs().stream().map(input -> strip(input, delegationBytes)).toList();
-                byte[] innerBytes = convertor.convertShardScanFragment(tableName, strippedInputs.getFirst());
+                byte[] innerBytes = convertor.convertFragment(strippedInputs.getFirst());
                 Function<OperatorAnnotation, RexNode> resolver = delegationBytes.resolverFor(agg, agg.getCluster().getRexBuilder());
                 RelNode strippedAgg = agg.stripAnnotations(strippedInputs, resolver);
                 return convertor.attachPartialAggOnTop(strippedAgg, innerBytes);
             }
 
             RelNode stripped = strip(resolvedFragment, delegationBytes);
-            return convertor.convertShardScanFragment(tableName, stripped);
+            return convertor.convertFragment(stripped);
         }
 
         if (leaf instanceof OpenSearchStageInputScan) {
             return convertReduceFragment(resolvedFragment, convertor, delegationBytes);
+        }
+
+        if (leaf instanceof org.opensearch.analytics.planner.rel.OpenSearchValues) {
+            // Coord-only literal source — convert the whole fragment via the same isthmus
+            // path as reduce fragments. isthmus emits ReadRel.VirtualTable for the Values
+            // leaf; DataFusion executes it locally without any input partitions.
+            RelNode stripped = strip(resolvedFragment, delegationBytes);
+            return convertor.convertFragment(stripped);
         }
 
         throw new IllegalStateException(
@@ -247,18 +247,17 @@ public class FragmentConversionDriver {
      * (with StageInputScan as leaf for schema), then attaches any operators above it
      * (Sort, Project, etc.) via attachFragmentOnTop.
      *
-     * The node immediately above ExchangeReducer is the final agg — it goes to
-     * convertFinalAggFragment together with StageInputScan. Only operators strictly
-     * above the final agg use attachFragmentOnTop.
+     * <p>Single-input ancestors of a single gathered subtree (Sort/Project/Aggregate over
+     * a partial agg) reach convertFragment as soon as we see a node whose inputs
+     * are all ExchangeReducers, and attach via attachFragmentOnTop on the way back up.
      *
-     * TODO: for joins, the coordinator fragment has a join node directly above two
-     * StageInputScan leaves (no ExchangeReducer between them). convertReduceNode
-     * currently only recognizes the ExchangeReducer boundary — add join handling
-     * when shuffle joins are implemented (check if all inputs are StageInputScan
-     * and dispatch to a dedicated convertJoinFragment method).
+     * <p>Multi-input nodes (Join, Union, Intersect, Minus) are converted as a single
+     * subtree via convertFragment: isthmus handles all of them natively, and
+     * rewriting OpenSearchStageInputScan leaves to plain TableScans (inside the convertor)
+     * lets the whole gathered subtree serialize in one pass. No post-conversion
+     * substrait-level stitching is needed.
      */
     private static byte[] convertReduceFragment(RelNode node, FragmentConvertor convertor, IntraOperatorDelegationBytes delegationBytes) {
-        // Find the ExchangeReducer and collect operators above it
         return convertReduceNode(node, convertor, false, delegationBytes);
     }
 
@@ -269,9 +268,8 @@ public class FragmentConversionDriver {
         IntraOperatorDelegationBytes delegationBytes
     ) {
         if (node instanceof OpenSearchExchangeReducer) {
-            // Strip ExchangeReducer — StageInputScan below it is the schema source
-            // This should never be reached directly; handled by the parent (final agg)
-            return convertor.convertFinalAggFragment(strip(node.getInputs().getFirst(), delegationBytes));
+            // Strip ExchangeReducer — StageInputScan below it is the schema source.
+            return convertor.convertFragment(strip(node.getInputs().getFirst(), delegationBytes));
         }
         if (node instanceof OpenSearchRelNode openSearchNode) {
             List<RelNode> strippedInputs = node.getInputs().stream().map(input -> strip(input, delegationBytes)).toList();
@@ -288,18 +286,27 @@ public class FragmentConversionDriver {
                 // respective input partitions.
                 boolean allChildrenAreExchangeReducer = !node.getInputs().isEmpty()
                     && node.getInputs().stream().allMatch(input -> input instanceof OpenSearchExchangeReducer);
-                if (allChildrenAreExchangeReducer) {
+                if (allChildrenAreExchangeReducer && node.getInputs().size() == 1) {
                     List<RelNode> finalAggInputs = new ArrayList<>(node.getInputs().size());
                     for (RelNode input : node.getInputs()) {
                         // Skip the ER, keep StageInputScan below it as the leaf for schema inference.
                         finalAggInputs.add(strip(input.getInputs().getFirst(), delegationBytes));
                     }
                     RelNode finalAggFragment = openSearchNode.stripAnnotations(finalAggInputs, resolver);
-                    return convertor.convertFinalAggFragment(finalAggFragment);
+                    return convertor.convertFragment(finalAggFragment);
                 }
             }
 
-            // Operator above the final-fragment boundary — convert child first, then attach.
+            // Multi-input node (Join, Union, Intersect, Minus): isthmus handles all of them
+            // natively. The whole subtree — multi-input node + its branches + ERs +
+            // StageInputScans — serializes in one convertFragment pass. The convertor's
+            // StageInputScan → plain TableScan rewrite makes the leaves isthmus-friendly without
+            // any post-conversion substrait-level stitching.
+            if (node.getInputs().size() >= 2) {
+                return convertor.convertFragment(strip(node, delegationBytes));
+            }
+
+            // Single-input operator above the final-fragment boundary — convert child first, then attach.
             byte[] innerBytes = convertReduceNode(node.getInputs().getFirst(), convertor, false, delegationBytes);
             return convertor.attachFragmentOnTop(strippedNode, innerBytes);
         }

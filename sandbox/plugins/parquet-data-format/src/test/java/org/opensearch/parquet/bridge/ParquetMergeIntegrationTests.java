@@ -76,7 +76,7 @@ public class ParquetMergeIntegrationTests extends OpenSearchTestCase {
 
         // 3. Merge
         String mergedFile = tempDir.resolve("merged.parquet").toString();
-        RustBridge.mergeParquetFilesInRust(List.of(Path.of(file1), Path.of(file2), Path.of(file3)), mergedFile, INDEX_NAME);
+        RustBridge.mergeParquetFilesInRust(List.of(Path.of(file1), Path.of(file2), Path.of(file3)), mergedFile, INDEX_NAME, 0L);
 
         // 4. Verify merged output
         ParquetFileMetadata mergedMeta = RustBridge.getFileMetadata(mergedFile);
@@ -97,7 +97,7 @@ public class ParquetMergeIntegrationTests extends OpenSearchTestCase {
         String file2 = createSortedFile(tempDir, "f2.parquet", new long[] { 200, 400, 600 }, new String[] { "b", "d", "f" });
 
         String mergedFile = tempDir.resolve("merged.parquet").toString();
-        RustBridge.mergeParquetFilesInRust(List.of(Path.of(file1), Path.of(file2)), mergedFile, INDEX_NAME);
+        RustBridge.mergeParquetFilesInRust(List.of(Path.of(file1), Path.of(file2)), mergedFile, INDEX_NAME, 0L);
 
         assertEquals(6, RustBridge.getFileMetadata(mergedFile).numRows());
 
@@ -112,7 +112,7 @@ public class ParquetMergeIntegrationTests extends OpenSearchTestCase {
         String file1 = createSortedFile(tempDir, "f1.parquet", new long[] { 10, 20, 30 }, new String[] { "x", "y", "z" });
 
         String mergedFile = tempDir.resolve("merged.parquet").toString();
-        RustBridge.mergeParquetFilesInRust(List.of(Path.of(file1)), mergedFile, INDEX_NAME);
+        RustBridge.mergeParquetFilesInRust(List.of(Path.of(file1)), mergedFile, INDEX_NAME, 0L);
 
         assertEquals(3, RustBridge.getFileMetadata(mergedFile).numRows());
 
@@ -128,7 +128,8 @@ public class ParquetMergeIntegrationTests extends OpenSearchTestCase {
         ParquetSortConfig sortConfig = new ParquetSortConfig(List.of("timestamp"), List.of(false), List.of(false));
 
         try (ArrowExport schemaExport = exportSchema()) {
-            NativeParquetWriter writer = new NativeParquetWriter(filePath, INDEX_NAME, schemaExport.getSchemaAddress(), sortConfig, 0L);
+            NativeParquetWriter writer = new NativeParquetWriter(filePath);
+            writer.initialize(INDEX_NAME, schemaExport.getSchemaAddress(), sortConfig, 0L);
 
             try (ArrowExport dataExport = exportData(timestamps, messages)) {
                 writer.write(dataExport.getArrayAddress(), dataExport.getSchemaAddress());

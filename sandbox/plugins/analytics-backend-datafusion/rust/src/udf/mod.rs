@@ -93,7 +93,7 @@ pub(crate) fn coerce_slot(
             }
         },
         CoerceMode::Utf8 => match observed {
-            Utf8 | LargeUtf8 | Utf8View => Ok(Utf8),
+            Utf8 | LargeUtf8 | Utf8View => Ok(observed.clone()),
             other => plan_err!("{udf_name}: arg {slot_index} expected string, got {other:?}"),
         },
     }
@@ -121,6 +121,7 @@ pub(crate) fn coerce_args(
 }
 
 pub mod convert_tz;
+pub mod crc32;
 pub mod date_format;
 pub mod extract;
 pub mod from_unixtime;
@@ -134,15 +135,23 @@ pub mod json_keys;
 pub mod json_set;
 pub mod makedate;
 pub mod maketime;
+pub mod minspan_bucket;
 pub mod mvappend;
 pub mod mvfind;
 pub mod mvzip;
 pub(crate) mod mysql_format;
+pub mod range_bucket;
+pub mod rex_extract;
+pub mod rex_extract_multi;
+pub mod rex_offset;
+pub mod sha1;
+pub mod span_bucket;
 pub mod str_to_date;
 pub mod strftime;
 pub mod time_format;
 pub mod tonumber;
 pub mod tostring;
+pub mod width_bucket;
 
 // Dev note: if a freshly added UDF here fails at runtime with
 // "Unsupported function name: <X>" despite the Java side being wired, the
@@ -153,6 +162,7 @@ pub mod tostring;
 // and restart the OpenSearch JVM (the loaded dylib is JVM-cached).
 pub fn register_all(ctx: &SessionContext) {
     convert_tz::register_all(ctx);
+    crc32::register_all(ctx);
     date_format::register_all(ctx);
     extract::register_all(ctx);
     from_unixtime::register_all(ctx);
@@ -165,16 +175,24 @@ pub fn register_all(ctx: &SessionContext) {
     json_set::register_all(ctx);
     makedate::register_all(ctx);
     maketime::register_all(ctx);
+    minspan_bucket::register_all(ctx);
     mvappend::register_all(ctx);
     mvfind::register_all(ctx);
     mvzip::register_all(ctx);
+    range_bucket::register_all(ctx);
+    rex_extract::register_all(ctx);
+    rex_extract_multi::register_all(ctx);
+    rex_offset::register_all(ctx);
+    sha1::register_all(ctx);
+    span_bucket::register_all(ctx);
     str_to_date::register_all(ctx);
     strftime::register_all(ctx);
     time_format::register_all(ctx);
     tonumber::register_all(ctx);
     tostring::register_all(ctx);
+    width_bucket::register_all(ctx);
     log::info!(
-        "OpenSearch UDF register_all: convert_tz, date_format, extract, from_unixtime, json_append, json_array_length, json_delete, json_extend, json_extract, json_keys, json_set, makedate, maketime, mvappend, mvfind, mvzip, str_to_date, strftime, time_format, tonumber, tostring registered"
+        "OpenSearch UDF register_all: convert_tz, crc32, date_format, extract, from_unixtime, json_append, json_array_length, json_delete, json_extend, json_extract, json_keys, json_set, makedate, maketime, minspan_bucket, mvappend, mvfind, mvzip, range_bucket, rex_extract, rex_extract_multi, rex_offset, sha1, span_bucket, str_to_date, strftime, time_format, tonumber, tostring, width_bucket registered"
     );
 }
 
@@ -290,10 +308,10 @@ mod tests {
 
     // ── Utf8 ───────────────────────────────────────────────────────────────
     #[test]
-    fn utf8_accepts_every_string_variant() {
+    fn utf8_passes_string_variant_through_unchanged() {
         for observed in [DataType::Utf8, DataType::LargeUtf8, DataType::Utf8View] {
             let result = coerce_slot("s", 0, &observed, CoerceMode::Utf8).unwrap();
-            assert_eq!(result, DataType::Utf8);
+            assert_eq!(result, observed, "CoerceMode::Utf8 should pass the variant through");
         }
     }
 

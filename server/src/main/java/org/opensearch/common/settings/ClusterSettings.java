@@ -123,7 +123,6 @@ import org.opensearch.index.autoforcemerge.ForceMergeManagerSettings;
 import org.opensearch.index.compositeindex.CompositeIndexSettings;
 import org.opensearch.index.remote.RemoteStorePressureSettings;
 import org.opensearch.index.remote.RemoteStoreStatsTrackerFactory;
-import org.opensearch.index.store.remote.filecache.BlockCacheSettings;
 import org.opensearch.index.store.remote.filecache.FileCacheSettings;
 import org.opensearch.indices.ClusterMergeSchedulerConfig;
 import org.opensearch.indices.IndexingMemoryController;
@@ -157,6 +156,7 @@ import org.opensearch.plugins.PluginsService;
 import org.opensearch.ratelimitting.admissioncontrol.AdmissionControlSettings;
 import org.opensearch.ratelimitting.admissioncontrol.settings.CpuBasedAdmissionControllerSettings;
 import org.opensearch.ratelimitting.admissioncontrol.settings.IoBasedAdmissionControllerSettings;
+import org.opensearch.ratelimitting.admissioncontrol.settings.NativeMemoryBasedAdmissionControllerSettings;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.repositories.fs.FsRepository;
 import org.opensearch.rest.BaseRestHandler;
@@ -756,6 +756,9 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 ResourceTrackerSettings.GLOBAL_CPU_USAGE_AC_WINDOW_DURATION_SETTING,
                 ResourceTrackerSettings.GLOBAL_JVM_USAGE_AC_WINDOW_DURATION_SETTING,
                 ResourceTrackerSettings.GLOBAL_IO_USAGE_AC_WINDOW_DURATION_SETTING,
+                ResourceTrackerSettings.GLOBAL_NATIVE_MEMORY_USAGE_AC_WINDOW_DURATION_SETTING,
+                ResourceTrackerSettings.NODE_NATIVE_MEMORY_LIMIT_SETTING,
+                ResourceTrackerSettings.NODE_NATIVE_MEMORY_BUFFER_PERCENT_SETTING,
 
                 // Settings related to Searchable Snapshots
                 Node.NODE_SEARCH_CACHE_SIZE_SETTING,
@@ -766,10 +769,6 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 TieringUtils.W2H_MAX_CONCURRENT_TIERING_REQUESTS,
                 TieringUtils.JVM_USAGE_TIERING_THRESHOLD_PERCENT,
                 TieringUtils.FILECACHE_ACTIVE_USAGE_TIERING_THRESHOLD_PERCENT,
-
-                // Settings related to block cache
-                BlockCacheSettings.BLOCK_SIZE_SETTING,
-                BlockCacheSettings.IO_ENGINE_SETTING,
 
                 // Settings related to Remote Refresh Segment Pressure
                 RemoteStorePressureSettings.REMOTE_REFRESH_SEGMENT_PRESSURE_ENABLED,
@@ -824,6 +823,10 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 IoBasedAdmissionControllerSettings.IO_BASED_ADMISSION_CONTROLLER_TRANSPORT_LAYER_MODE,
                 IoBasedAdmissionControllerSettings.SEARCH_IO_USAGE_LIMIT,
                 IoBasedAdmissionControllerSettings.INDEXING_IO_USAGE_LIMIT,
+                NativeMemoryBasedAdmissionControllerSettings.NATIVE_MEMORY_BASED_ADMISSION_CONTROLLER_TRANSPORT_LAYER_MODE,
+                NativeMemoryBasedAdmissionControllerSettings.SEARCH_NATIVE_MEMORY_USAGE_LIMIT,
+                NativeMemoryBasedAdmissionControllerSettings.INDEXING_NATIVE_MEMORY_USAGE_LIMIT,
+                NativeMemoryBasedAdmissionControllerSettings.CLUSTER_ADMIN_NATIVE_MEMORY_USAGE_LIMIT,
 
                 // Concurrent segment search settings
                 SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING, // deprecated

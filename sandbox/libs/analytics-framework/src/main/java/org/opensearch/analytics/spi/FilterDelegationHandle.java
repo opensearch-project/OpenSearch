@@ -21,7 +21,7 @@ import java.lang.foreign.MemorySegment;
  * <p>Lifecycle:
  * <ol>
  *   <li>Rust calls {@link #createProvider(int)} once per delegated predicate (per annotationId)</li>
- *   <li>Rust calls {@link #createCollector(int, int, int, int)} per (provider × segment)</li>
+ *   <li>Rust calls {@link #createCollector(int, long, int, int)} per (provider × segment)</li>
  *   <li>Rust calls {@link #collectDocs(int, int, int, MemorySegment)} per row group</li>
  *   <li>Rust calls {@link #releaseCollector(int)} when done with a segment</li>
  *   <li>Rust calls {@link #releaseProvider(int)} when the query ends</li>
@@ -43,13 +43,18 @@ public interface FilterDelegationHandle extends Closeable {
     /**
      * Create a collector for one (segment, [minDoc, maxDoc)) range.
      *
+     * <p>The segment is identified by its <b>writer generation</b> — the stable
+     * identifier that matches {@code Segment.generation()} in the catalog snapshot
+     * and the {@code writer_generation} attribute
+     *
      * @param providerKey key returned by {@link #createProvider(int)}
-     * @param segmentOrd the segment ordinal
+     * @param writerGeneration the writer generation for this segment
      * @param minDoc inclusive lower bound
      * @param maxDoc exclusive upper bound
-     * @return a collector key {@code >= 0}, or {@code -1} on failure
+     * @return a collector key {@code >= 0}, or {@code -1} on failure (including
+     *         "no segment with this generation" in the accepting backend)
      */
-    int createCollector(int providerKey, int segmentOrd, int minDoc, int maxDoc);
+    int createCollector(int providerKey, long writerGeneration, int minDoc, int maxDoc);
 
     /**
      * Fill {@code out} with the matching doc-id bitset for the given collector.
@@ -57,7 +62,7 @@ public interface FilterDelegationHandle extends Closeable {
      * <p>Bit layout: word {@code i} contains matches for docs
      * {@code [minDoc + i*64, minDoc + (i+1)*64)}, LSB-first within each word.
      *
-     * @param collectorKey key returned by {@link #createCollector(int, int, int, int)}
+     * @param collectorKey key returned by {@link #createCollector(int, long, int, int)}
      * @param minDoc inclusive lower bound
      * @param maxDoc exclusive upper bound
      * @param out destination buffer; implementation writes up to {@code out.byteSize() / 8} words

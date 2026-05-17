@@ -18,14 +18,20 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Queue;
 import java.util.Set;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 /**
  * A thread-safe pool of {@link Lockable} items backed by a {@link LockableConcurrentQueue}.
  * Items are locked on checkout and unlocked on release, ensuring safe reuse across threads.
  * <p>
- * The pool is created with a supplier that produces new items on demand when the pool
- * is empty. Items are tracked in a set for registration checks and iteration.
+ * The pool supports two modes of checkout:
+ * <ul>
+ *   <li>{@link #getAndLock()} — returns any available item, or creates a new one</li>
+ *   <li>{@link #getAndLock(Predicate)} — returns a compatible item (per predicate),
+ *       rejecting incompatible ones. Rejected items are removed from the available queue
+ *       but remain tracked by the pool and included in {@link #checkoutAll()}.</li>
+ * </ul>
  *
  * @param <T> the pooled item type, must implement {@link Lockable}
  */
@@ -56,9 +62,21 @@ public final class LockablePool<T extends Lockable> implements Iterable<T>, Clos
      * @throws IllegalStateException if the pool is closed
      */
     public T getAndLock() {
+        return getAndLock(e -> true);
+    }
+
+    /**
+     * Locks and polls a compatible item from the pool in a single pass. Items that fail
+     * the predicate are removed from the available queue but remain tracked by the pool.
+     * If no compatible item is found, a new one is created using the constructor's item supplier.
+     *
+     * @param isCompatible predicate to test each polled item
+     * @return a locked, compatible item
+     * @throws IllegalStateException if the pool is closed
+     */
+    public T getAndLock(Predicate<T> isCompatible) {
         ensureOpen();
-        T item = availableItems.lockAndPoll();
-        return Objects.requireNonNullElseGet(item, this::fetchItem);
+        return Objects.requireNonNullElseGet(availableItems.lockAndPollWithRejects(isCompatible), this::fetchItem);
     }
 
     private synchronized T fetchItem() {

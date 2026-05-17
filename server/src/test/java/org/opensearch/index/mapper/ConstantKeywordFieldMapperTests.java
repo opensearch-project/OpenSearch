@@ -28,6 +28,7 @@ import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.engine.dataformat.stub.MockCommitterEnginePlugin;
 import org.opensearch.index.engine.dataformat.stub.MockDataFormatPlugin;
+import org.opensearch.index.engine.dataformat.stub.MockDocumentInput;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.InternalSettingsPlugin;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
@@ -193,7 +194,8 @@ public class ConstantKeywordFieldMapperTests extends OpenSearchSingleNodeTestCas
                     "1",
                     BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("field", "foo").endObject()),
                     MediaTypeRegistry.JSON
-                )
+                ),
+                new MockDocumentInput()
             );
     }
 }

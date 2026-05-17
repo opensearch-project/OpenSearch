@@ -29,6 +29,7 @@ pub fn merge_sorted(
     sort_columns: &[String],
     reverse_sorts: &[bool],
     nulls_first: &[bool],
+    output_writer_generation: i64,
 ) -> super::MergeResult<super::MergeOutput> {
     let config = crate::writer::SETTINGS_STORE
         .get(index_name)
@@ -100,6 +101,7 @@ pub fn merge_sorted(
         output_flush_rows,
         rayon_threads,
         io_threads,
+        output_writer_generation,
     )?;
 
     // Precompute column mappings per cursor (avoids per-batch name lookups)
@@ -196,6 +198,16 @@ pub fn merge_sorted(
                 if !cursor.advance_past_batch()? {
                     break;
                 }
+                // Check if cursor should yield after loading new batch
+                let val = cursor.current_sort_values()?;
+                if cmp_sort_values(&val, heap_top, reverse_sorts) == Ordering::Greater {
+                    heap.push(HeapItem {
+                        sort_values: val,
+                        file_id,
+                        reverse_sorts: Arc::clone(&reverse_sorts_arc),
+                    });
+                    break;
+                }
                 continue;
             }
 
@@ -241,15 +253,15 @@ pub fn merge_sorted(
                 break;
             }
 
-            let next_val = cursor.current_sort_values()?;
-            if cmp_sort_values(&next_val, heap_top, reverse_sorts) == Ordering::Greater {
-                heap.push(HeapItem {
-                    sort_values: next_val,
-                    file_id,
-                    reverse_sorts: Arc::clone(&reverse_sorts_arc),
-                });
-                break;
-            }
+            // Binary search invariant guarantees cursor.current_value > heap_top
+            // so we always yield here (no need for conditional check)
+            let val = cursor.current_sort_values()?;
+            heap.push(HeapItem {
+                sort_values: val,
+                file_id,
+                reverse_sorts: Arc::clone(&reverse_sorts_arc),
+            });
+            break;
         }
     }
 

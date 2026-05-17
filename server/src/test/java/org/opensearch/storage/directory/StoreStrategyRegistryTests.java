@@ -11,6 +11,7 @@ package org.opensearch.storage.directory;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobPath;
+import org.opensearch.common.blobstore.BlobStore;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.engine.dataformat.DataFormat;
@@ -23,6 +24,8 @@ import org.opensearch.index.store.RemoteDirectory;
 import org.opensearch.index.store.RemoteSegmentStoreDirectory;
 import org.opensearch.index.store.RemoteSegmentStoreDirectory.UploadedSegmentMetadata;
 import org.opensearch.index.store.lockmanager.RemoteStoreLockManager;
+import org.opensearch.index.store.remote.FormatBlobRouter;
+import org.opensearch.plugins.BlockCacheRegistry;
 import org.opensearch.plugins.NativeStoreHandle;
 import org.opensearch.repositories.NativeStoreRepository;
 import org.opensearch.test.OpenSearchTestCase;
@@ -88,7 +91,7 @@ public class StoreStrategyRegistryTests extends OpenSearchTestCase {
 
     public void testOpenWithNullStrategiesReturnsEmpty() throws IOException {
         RemoteSegmentStoreDirectory remoteDir = createRealRemoteDir();
-        StoreStrategyRegistry registry = StoreStrategyRegistry.open(shardPath, true, NativeStoreRepository.EMPTY, null, remoteDir);
+        StoreStrategyRegistry registry = StoreStrategyRegistry.open(shardPath, true, NativeStoreRepository.EMPTY, null, remoteDir, null);
         assertSame(StoreStrategyRegistry.EMPTY, registry);
     }
 
@@ -99,7 +102,8 @@ public class StoreStrategyRegistryTests extends OpenSearchTestCase {
             true,
             NativeStoreRepository.EMPTY,
             Collections.emptyMap(),
-            remoteDir
+            remoteDir,
+            null
         );
         assertSame(StoreStrategyRegistry.EMPTY, registry);
     }
@@ -114,11 +118,46 @@ public class StoreStrategyRegistryTests extends OpenSearchTestCase {
             true,
             NativeStoreRepository.EMPTY,
             Map.of(PARQUET_FORMAT, strategy),
-            remoteDir
+            remoteDir,
+            null
         );
 
         assertNotSame(StoreStrategyRegistry.EMPTY, registry);
         assertTrue(registry.hasStoreHandlers());
+        registry.close();
+    }
+
+    /**
+     * Verifies that the BlockCacheRegistry passed to open() is forwarded verbatim
+     * to the factory's create() call. This is the contract that allows format
+     * handlers to resolve their preferred cache by name.
+     */
+    public void testOpenForwardsCacheRegistryToFactory() throws IOException {
+        BlockCacheRegistry mockRegistry = mock(BlockCacheRegistry.class);
+        DataFormatStoreHandler handler = mock(DataFormatStoreHandler.class);
+
+        // Capture what cacheRegistry the factory receives.
+        BlockCacheRegistry[] capturedRegistry = { null };
+        StoreStrategy strategy = new StoreStrategy() {
+            @Override
+            public Optional<DataFormatStoreHandlerFactory> storeHandler() {
+                return Optional.of((shardId, isWarm, repo, cacheRegistry) -> {
+                    capturedRegistry[0] = cacheRegistry;
+                    return handler;
+                });
+            }
+        };
+
+        StoreStrategyRegistry registry = StoreStrategyRegistry.open(
+            shardPath,
+            true,
+            NativeStoreRepository.EMPTY,
+            Map.of(PARQUET_FORMAT, strategy),
+            createRealRemoteDir(),
+            mockRegistry
+        );
+
+        assertSame("cacheRegistry must be forwarded to factory unchanged", mockRegistry, capturedRegistry[0]);
         registry.close();
     }
 
@@ -163,7 +202,7 @@ public class StoreStrategyRegistryTests extends OpenSearchTestCase {
         StoreStrategy strategy2 = new StoreStrategy() {
             @Override
             public Optional<DataFormatStoreHandlerFactory> storeHandler() {
-                return Optional.of((shardId, isWarm, repo) -> { throw new RuntimeException("factory boom"); });
+                return Optional.of((shardId, isWarm, repo, cacheRegistry) -> { throw new RuntimeException("factory boom"); });
             }
         };
 
@@ -176,7 +215,7 @@ public class StoreStrategyRegistryTests extends OpenSearchTestCase {
 
         expectThrows(
             RuntimeException.class,
-            () -> StoreStrategyRegistry.open(shardPath, true, NativeStoreRepository.EMPTY, strategies, remoteDir)
+            () -> StoreStrategyRegistry.open(shardPath, true, NativeStoreRepository.EMPTY, strategies, remoteDir, null)
         );
 
         // The successfully created handler should have been closed during cleanup
@@ -197,7 +236,8 @@ public class StoreStrategyRegistryTests extends OpenSearchTestCase {
             true,
             NativeStoreRepository.EMPTY,
             Map.of(PARQUET_FORMAT, strategy),
-            remoteDir
+            remoteDir,
+            null
         );
 
         assertNull(registry.matchFor("_0.cfe"));
@@ -214,7 +254,8 @@ public class StoreStrategyRegistryTests extends OpenSearchTestCase {
             true,
             NativeStoreRepository.EMPTY,
             Map.of(PARQUET_FORMAT, strategy),
-            remoteDir
+            remoteDir,
+            null
         );
 
         StoreStrategyRegistry.Match match = registry.matchFor("parquet/_0.parquet");
@@ -234,7 +275,8 @@ public class StoreStrategyRegistryTests extends OpenSearchTestCase {
             true,
             NativeStoreRepository.EMPTY,
             Map.of(PARQUET_FORMAT, strategy),
-            remoteDir
+            remoteDir,
+            null
         );
 
         assertNull(registry.matchFor(null));
@@ -255,12 +297,13 @@ public class StoreStrategyRegistryTests extends OpenSearchTestCase {
             true,
             NativeStoreRepository.EMPTY,
             Map.of(PARQUET_FORMAT, strategy),
-            remoteDir
+            remoteDir,
+            null
         );
 
-        boolean dispatched = registry.onUploaded("parquet/_0.parquet", "test-base-path/", "new_blob_key", 1024L);
+        boolean dispatched = registry.onUploaded("parquet/_0.parquet", "test-base-path/parquet/", "new_blob_key", 1024L);
         assertTrue(dispatched);
-        // remotePath default: basePath + name + "/" + blobKey
+        // remotePath: basePath + blobKey (basePath already includes format subdirectory)
         verify(handler).onUploaded(
             org.mockito.ArgumentMatchers.contains("parquet/_0.parquet"),
             eq("test-base-path/parquet/new_blob_key"),
@@ -279,7 +322,8 @@ public class StoreStrategyRegistryTests extends OpenSearchTestCase {
             true,
             NativeStoreRepository.EMPTY,
             Map.of(PARQUET_FORMAT, strategy),
-            remoteDir
+            remoteDir,
+            null
         );
 
         boolean dispatched = registry.onUploaded("_0.cfe", "test-base-path/", "blob_key", 512L);
@@ -302,7 +346,8 @@ public class StoreStrategyRegistryTests extends OpenSearchTestCase {
             true,
             NativeStoreRepository.EMPTY,
             Map.of(PARQUET_FORMAT, strategy),
-            remoteDir
+            remoteDir,
+            null
         );
 
         boolean dispatched = registry.onRemoved("parquet/_0.parquet");
@@ -321,7 +366,8 @@ public class StoreStrategyRegistryTests extends OpenSearchTestCase {
             true,
             NativeStoreRepository.EMPTY,
             Map.of(PARQUET_FORMAT, strategy),
-            remoteDir
+            remoteDir,
+            null
         );
 
         boolean dispatched = registry.onRemoved("_0.cfe");
@@ -347,7 +393,8 @@ public class StoreStrategyRegistryTests extends OpenSearchTestCase {
             true,
             NativeStoreRepository.EMPTY,
             Map.of(PARQUET_FORMAT, strategy),
-            remoteDir
+            remoteDir,
+            null
         );
 
         Map<DataFormat, NativeStoreHandle> handles = registry.getFormatStoreHandles();
@@ -372,7 +419,8 @@ public class StoreStrategyRegistryTests extends OpenSearchTestCase {
             true,
             NativeStoreRepository.EMPTY,
             Map.of(PARQUET_FORMAT, strategy),
-            remoteDir
+            remoteDir,
+            null
         );
 
         Map<DataFormat, NativeStoreHandle> handles = registry.getFormatStoreHandles();
@@ -394,7 +442,8 @@ public class StoreStrategyRegistryTests extends OpenSearchTestCase {
             true,
             NativeStoreRepository.EMPTY,
             Map.of(PARQUET_FORMAT, strategy),
-            remoteDir
+            remoteDir,
+            null
         );
 
         Map<DataFormat, NativeStoreHandle> handles1 = registry.getFormatStoreHandles();
@@ -424,7 +473,8 @@ public class StoreStrategyRegistryTests extends OpenSearchTestCase {
             true,
             NativeStoreRepository.EMPTY,
             Map.of(PARQUET_FORMAT, strategy),
-            remoteDir
+            remoteDir,
+            null
         );
 
         registry.close();
@@ -450,7 +500,8 @@ public class StoreStrategyRegistryTests extends OpenSearchTestCase {
             true,
             NativeStoreRepository.EMPTY,
             Map.of(PARQUET_FORMAT, strategy),
-            remoteDir
+            remoteDir,
+            null
         );
 
         // Capture the seed call argument
@@ -472,12 +523,52 @@ public class StoreStrategyRegistryTests extends OpenSearchTestCase {
         registry.close();
     }
 
+    public void testSeedUsesFormatSpecificBasePath() throws Exception {
+        DataFormatStoreHandler handler = mock(DataFormatStoreHandler.class);
+        StoreStrategy strategy = createTestStrategy(handler);
+
+        // Create a RemoteSegmentStoreDirectory with a FormatBlobRouter that routes
+        // "parquet" to a different sub-path than the base path.
+        RemoteSegmentStoreDirectory remoteDir = createRemoteDirWithFormatRouter();
+        injectUploadedSegment(remoteDir, "parquet/_0.parquet", "parquet_blob_key");
+
+        StoreStrategyRegistry registry = StoreStrategyRegistry.open(
+            shardPath,
+            true,
+            NativeStoreRepository.EMPTY,
+            Map.of(PARQUET_FORMAT, strategy),
+            remoteDir,
+            null
+        );
+
+        @SuppressWarnings("unchecked")
+        org.mockito.ArgumentCaptor<Map<String, DataFormatStoreHandler.FileEntry>> captor = org.mockito.ArgumentCaptor.forClass(Map.class);
+        verify(handler).seed(captor.capture());
+
+        Map<String, DataFormatStoreHandler.FileEntry> seeded = captor.getValue();
+        assertFalse("Seed map should not be empty", seeded.isEmpty());
+
+        String expectedKey = shardPath.getDataPath().resolve("parquet/_0.parquet").toString();
+        assertTrue("Seed key should be absolute path", seeded.containsKey(expectedKey));
+
+        DataFormatStoreHandler.FileEntry entry = seeded.get(expectedKey);
+        // The FormatBlobRouter routes "parquet" to "base-path/parquet/" so getRemoteBasePath("parquet")
+        // returns "base-path/parquet/". The default remotePath appends format + "/" + blobKey.
+        assertTrue(
+            "Seeded path should use format-specific base path containing 'parquet': " + entry.path(),
+            entry.path().contains("parquet")
+        );
+        assertEquals(DataFormatStoreHandler.REMOTE, entry.location());
+
+        registry.close();
+    }
+
     // ═══════════════════════════════════════════════════════════════
     // Helpers
     // ═══════════════════════════════════════════════════════════════
 
     private StoreStrategy createTestStrategy(DataFormatStoreHandler handler) {
-        DataFormatStoreHandlerFactory factory = (shardId, isWarm, repo) -> handler;
+        DataFormatStoreHandlerFactory factory = (shardId, isWarm, repo, cacheRegistry) -> handler;
         return new StoreStrategy() {
             @Override
             public Optional<DataFormatStoreHandlerFactory> storeHandler() {
@@ -493,8 +584,34 @@ public class StoreStrategyRegistryTests extends OpenSearchTestCase {
         ThreadPool tp = mock(ThreadPool.class);
 
         BlobContainer mockBlobContainer = mock(BlobContainer.class);
-        when(mockBlobContainer.path()).thenReturn(new BlobPath().add("test-base-path"));
+        when(mockBlobContainer.path()).thenReturn(new BlobPath().add("test-base-path").add("parquet"));
         when(remoteDataDir.getBlobContainer()).thenReturn(mockBlobContainer);
+
+        return new RemoteSegmentStoreDirectory(remoteDataDir, remoteMetadataDir, lockManager, tp, shardPath.getShardId(), new HashMap<>());
+    }
+
+    private RemoteSegmentStoreDirectory createRemoteDirWithFormatRouter() throws IOException {
+        RemoteDirectory remoteDataDir = mock(RemoteDirectory.class);
+        RemoteDirectory remoteMetadataDir = mock(RemoteDirectory.class);
+        RemoteStoreLockManager lockManager = mock(RemoteStoreLockManager.class);
+        ThreadPool tp = mock(ThreadPool.class);
+
+        BlobPath basePath = new BlobPath().add("base-path");
+        BlobContainer baseBlobContainer = mock(BlobContainer.class);
+        when(baseBlobContainer.path()).thenReturn(basePath);
+        when(remoteDataDir.getBlobContainer()).thenReturn(baseBlobContainer);
+
+        // Create a FormatBlobRouter that routes "parquet" to "base-path/parquet/"
+        BlobStore blobStore = mock(BlobStore.class);
+        when(blobStore.blobContainer(basePath)).thenReturn(baseBlobContainer);
+
+        BlobPath parquetPath = basePath.add("parquet");
+        BlobContainer parquetBlobContainer = mock(BlobContainer.class);
+        when(parquetBlobContainer.path()).thenReturn(parquetPath);
+        when(blobStore.blobContainer(parquetPath)).thenReturn(parquetBlobContainer);
+
+        FormatBlobRouter router = new FormatBlobRouter(blobStore, basePath);
+        when(remoteDataDir.getFormatBlobRouter()).thenReturn(Optional.of(router));
 
         return new RemoteSegmentStoreDirectory(remoteDataDir, remoteMetadataDir, lockManager, tp, shardPath.getShardId(), new HashMap<>());
     }

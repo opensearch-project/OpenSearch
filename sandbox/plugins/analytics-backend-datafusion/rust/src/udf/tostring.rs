@@ -46,14 +46,19 @@ pub struct ToStringUdf {
 
 impl ToStringUdf {
     pub fn new() -> Self {
+        // The format arg accepts any string variant — the body dispatches via
+        // StringArrayView so the producer's Utf8View doesn't get cast to Utf8
+        // at the planner level.
+        let exacts = [DataType::Int64, DataType::Float64]
+            .into_iter()
+            .flat_map(|value_ty| {
+                [DataType::Utf8, DataType::LargeUtf8, DataType::Utf8View]
+                    .into_iter()
+                    .map(move |fmt_ty| TypeSignature::Exact(vec![value_ty.clone(), fmt_ty]))
+            })
+            .collect();
         Self {
-            signature: Signature::one_of(
-                vec![
-                    TypeSignature::Exact(vec![DataType::Int64, DataType::Utf8]),
-                    TypeSignature::Exact(vec![DataType::Float64, DataType::Utf8]),
-                ],
-                Volatility::Immutable,
-            ),
+            signature: Signature::one_of(exacts, Volatility::Immutable),
         }
     }
 }
@@ -182,31 +187,17 @@ fn scalar_to_str<T: Copy>(
 /// format cells.
 fn format_at(format_col: &ColumnarValue, row: usize) -> Result<Option<String>> {
     match format_col {
-        ColumnarValue::Scalar(ScalarValue::Utf8(opt)) | ColumnarValue::Scalar(ScalarValue::LargeUtf8(opt)) => {
-            Ok(opt.clone())
-        }
+        ColumnarValue::Scalar(
+            ScalarValue::Utf8(opt) | ScalarValue::LargeUtf8(opt) | ScalarValue::Utf8View(opt),
+        ) => Ok(opt.clone()),
         ColumnarValue::Scalar(other) => {
             exec_err!("tostring: format must be VARCHAR, got {other:?}")
         }
-        ColumnarValue::Array(arr) => match arr.data_type() {
-            DataType::Utf8 => {
-                let strs = arr.as_string::<i32>();
-                if strs.is_null(row) {
-                    Ok(None)
-                } else {
-                    Ok(Some(strs.value(row).to_string()))
-                }
-            }
-            DataType::LargeUtf8 => {
-                let strs = arr.as_string::<i64>();
-                if strs.is_null(row) {
-                    Ok(None)
-                } else {
-                    Ok(Some(strs.value(row).to_string()))
-                }
-            }
-            other => exec_err!("tostring: expected Utf8 format array, got {other:?}"),
-        },
+        ColumnarValue::Array(arr) => {
+            let view = super::json_common::StringArrayView::from_array(arr)
+                .map_err(|e| datafusion::common::DataFusionError::Execution(format!("tostring: {e}")))?;
+            Ok(view.cell(row).map(|s| s.to_string()))
+        }
     }
 }
 

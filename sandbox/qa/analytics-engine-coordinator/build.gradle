@@ -32,12 +32,23 @@ dependencies {
   // Plugin under test
   internalClusterTestImplementation project(':sandbox:plugins:analytics-engine')
 
+  // QueryPlanExecutor / OpenSearchSchemaBuilder live in analytics-api; SqlPlanRunner pulls
+  // these directly without going through analytics-engine's internal classes.
+  internalClusterTestImplementation project(':sandbox:libs:analytics-api')
+
   // Arrow Flight streaming transport — provides the streaming TransportService.
   internalClusterTestImplementation project(':plugins:arrow-flight-rpc')
 
   // DataFusion backend exercised end-to-end. Test-only — production analytics-engine
   // doesn't link against a specific backend.
   internalClusterTestImplementation project(':sandbox:plugins:analytics-backend-datafusion')
+  // Substrait core for CoordinatorReduceStressIT, which builds Substrait bytes via
+  // DataFusionFragmentConvertor exactly like DatafusionReduceSinkTests does. The
+  // analytics-backend-datafusion plugin uses substrait-core internally, but its public
+  // API exposes io.substrait.extension.SimpleExtension.ExtensionCollection
+  // (DataFusionFragmentConvertor's constructor parameter), so we need substrait-core
+  // on the test classpath to satisfy that signature.
+  internalClusterTestImplementation "io.substrait:core:0.89.1"
 
   // Parquet data format — primary data format for the resilience tests.
   internalClusterTestImplementation project(':sandbox:plugins:parquet-data-format')
@@ -49,7 +60,10 @@ dependencies {
   // Guava is excluded from analytics-engine's runtime classpath (provided by
   // arrow-flight-rpc at runtime in production). The classpath-plugin test
   // launcher doesn't hydrate the extended-plugin classloader, so Guava must
-  // be on the test runtime classpath here.
+  // be on the test runtime classpath here. Calcite's FrameworkConfig also
+  // references ImmutableList in its compile-time API (SqlPlanRunner imports
+  // it), so include Guava on the IT compile classpath too.
+  internalClusterTestCompileOnly "com.google.guava:guava:33.3.1-jre"
   internalClusterTestRuntimeOnly "com.google.guava:guava:33.3.1-jre"
   internalClusterTestRuntimeOnly "com.google.guava:failureaccess:1.0.1"
 }
@@ -71,6 +85,11 @@ def guavaRuntimeJars = configurations.detachedConfiguration(
   dependencies.create("com.fasterxml.jackson.core:jackson-annotations:${versions.jackson_annotations}") { transitive = false }
 )
 sourceSets.internalClusterTest.runtimeClasspath += guavaRuntimeJars
+// SqlPlanRunner references org.apache.calcite.tools.FrameworkConfig, whose API surface
+// has com.google.common.collect.ImmutableList in its bytecode signatures. javac needs
+// Guava on the compile classpath to read those signatures even though no Guava type
+// appears in the harness source.
+sourceSets.internalClusterTest.compileClasspath += guavaRuntimeJars
 
 configurations.all {
   // okhttp-aws-signer is a transitive of unified-query-common, only published on JitPack.
@@ -123,7 +142,10 @@ internalClusterTest {
   jvmArgs '--add-opens=java.base/java.lang=ALL-UNNAMED'
   jvmArgs '--add-opens=java.base/sun.nio.ch=ALL-UNNAMED'
   jvmArgs '--enable-native-access=ALL-UNNAMED'
-  jvmArgs '-Darrow.memory.debug.allocator=false'
+  // Enable Arrow's debug allocator so leaks print the allocation call-site stack.
+  // Small perf hit, acceptable for ITs; CoordinatorResilienceIT specifically asserts
+  // no leak on failure paths and needs the allocator's per-buffer provenance info.
+  jvmArgs '-Darrow.memory.debug.allocator=true'
   systemProperty 'io.netty.allocator.numDirectArenas', '1'
   systemProperty 'io.netty.noUnsafe', 'false'
   systemProperty 'io.netty.tryUnsafe', 'true'

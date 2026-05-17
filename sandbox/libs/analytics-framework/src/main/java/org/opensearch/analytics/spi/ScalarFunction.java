@@ -41,16 +41,29 @@ public enum ScalarFunction {
     IN(Category.COMPARISON, SqlKind.IN),
     LIKE(Category.COMPARISON, SqlKind.LIKE),
     PREFIX(Category.COMPARISON, SqlKind.OTHER_FUNCTION),
+
+    // ── Logical connectives ─────────────────────────────────────────
+    AND(Category.SCALAR, SqlKind.AND),
+    OR(Category.SCALAR, SqlKind.OR),
+    NOT(Category.SCALAR, SqlKind.NOT),
     /** Calcite's Sarg fold for IN / NOT IN / BETWEEN / range-union. Backends expand it before substrait. */
     SARG_PREDICATE(Category.SCALAR, SqlKind.SEARCH),
 
     // ── Full-text search ─────────────────────────────────────────────
     MATCH(Category.FULL_TEXT, SqlKind.OTHER_FUNCTION),
     MATCH_PHRASE(Category.FULL_TEXT, SqlKind.OTHER_FUNCTION),
+    MATCH_BOOL_PREFIX(Category.FULL_TEXT, SqlKind.OTHER_FUNCTION),
+    MATCH_PHRASE_PREFIX(Category.FULL_TEXT, SqlKind.OTHER_FUNCTION),
+    MULTI_MATCH(Category.FULL_TEXT, SqlKind.OTHER_FUNCTION),
+    QUERY_STRING(Category.FULL_TEXT, SqlKind.OTHER_FUNCTION),
+    SIMPLE_QUERY_STRING(Category.FULL_TEXT, SqlKind.OTHER_FUNCTION),
     FUZZY(Category.FULL_TEXT, SqlKind.OTHER_FUNCTION),
     WILDCARD(Category.FULL_TEXT, SqlKind.OTHER_FUNCTION),
     REGEXP(Category.FULL_TEXT, SqlKind.OTHER_FUNCTION),
     REGEXP_CONTAINS(Category.FULL_TEXT, SqlKind.OTHER_FUNCTION),
+    WILDCARD_QUERY(Category.FULL_TEXT, SqlKind.OTHER_FUNCTION),
+    QUERY(Category.FULL_TEXT, SqlKind.OTHER_FUNCTION),
+    MATCHALL(Category.FULL_TEXT, SqlKind.OTHER_FUNCTION),
 
     // ── String ───────────────────────────────────────────────────────
     UPPER(Category.STRING, SqlKind.OTHER_FUNCTION),
@@ -84,6 +97,17 @@ public enum ScalarFunction {
     NUMBER_TO_STRING(Category.STRING, SqlKind.OTHER_FUNCTION), // Alias for TOSTRING
     TONUMBER(Category.STRING, SqlKind.OTHER_FUNCTION),
     STRCMP(Category.STRING, SqlKind.OTHER_FUNCTION),
+    TRANSLATE(Category.STRING, SqlKind.OTHER_FUNCTION),
+    REX_EXTRACT(Category.STRING, SqlKind.OTHER_FUNCTION),
+    REX_EXTRACT_MULTI(Category.STRING, SqlKind.OTHER_FUNCTION),
+    REX_OFFSET(Category.STRING, SqlKind.OTHER_FUNCTION),
+
+    // ── Cryptographic hash ─────────────────────────────────────────────
+    // md5(x), sha1(x), sha2(x, bitLen) with bitLen ∈ {224,256,384,512}, crc32(x).
+    MD5(Category.STRING, SqlKind.OTHER_FUNCTION),
+    SHA1(Category.STRING, SqlKind.OTHER_FUNCTION),
+    SHA2(Category.STRING, SqlKind.OTHER_FUNCTION),
+    CRC32(Category.STRING, SqlKind.OTHER_FUNCTION),
 
     // ── Math ─────────────────────────────────────────────────────────
     PLUS(Category.MATH, SqlKind.PLUS),
@@ -140,6 +164,9 @@ public enum ScalarFunction {
     NULLIF(Category.SCALAR, SqlKind.NULLIF),
 
     EXTRACT(Category.SCALAR, SqlKind.EXTRACT),
+
+    // ── Conversion (placeholder UDFs rewritten by backend adapters) ──
+    BINARY(Category.SCALAR, SqlKind.OTHER_FUNCTION),
 
     // ── Datetime ────────────────────────────────────────────────────
     // fromSqlFunction resolves via valueOf(name.toUpperCase()), so the enum name IS
@@ -245,7 +272,35 @@ public enum ScalarFunction {
      * and preserves nulls, so the analytics-backend-datafusion plugin ships a
      * custom Rust UDF ({@code udf::mvappend}) registered on its session context.
      */
-    MVAPPEND(Category.SCALAR, SqlKind.OTHER_FUNCTION);
+    MVAPPEND(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    /**
+     * PPL {@code span(field, interval, unit?)} — bucket {@code field} into
+     * fixed-width buckets. PPL's {@code stats … by span(field, N)} lowers to
+     * a 3-arg call where the third argument is {@code NULL} for numeric
+     * buckets and a unit-name string ({@code "y"}, {@code "M"}, {@code "d"},
+     * …) for time buckets. Resolves through the SQL plugin's
+     * {@code SpanFunction} UDF named {@code "SPAN"}. The analytics-backend
+     * adapter rewrites numeric span to {@code floor(field/interval)*interval}
+     * and time span (interval=1) to {@code date_trunc(unit, field)} so the
+     * Substrait-emitted plan reaches DataFusion as standard primitives.
+     */
+    SPAN(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+
+    // ── PPL bucketing label functions (return VARCHAR labels via Rust UDFs) ──
+    /** PPL span_bucket(value, span). Rust UDF returning a VARCHAR bucket label
+     *  like "10-20". NOT ISO SQL width_bucket. */
+    SPAN_BUCKET(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+
+    /** PPL width_bucket(value, num_bins, data_range, max_value). Returns a
+     *  VARCHAR bucket label via the OpenSearch nice-number algorithm. Name
+     *  collides with ISO-SQL WIDTH_BUCKET but semantics and signature differ. */
+    WIDTH_BUCKET(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+
+    /** PPL minspan_bucket(value, min_span, data_range, max_value). VARCHAR label. */
+    MINSPAN_BUCKET(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+
+    /** PPL range_bucket(value, data_min, data_max, start_param, end_param). VARCHAR label. */
+    RANGE_BUCKET(Category.SCALAR, SqlKind.OTHER_FUNCTION);
 
     /**
      * Category of scalar function.
@@ -311,7 +366,14 @@ public enum ScalarFunction {
     public static ScalarFunction fromSqlFunction(SqlFunction function) {
         // TODO: Add an explicit functionName field per enum constant instead of relying on
         // valueOf(toUpperCase). This couples enum constant naming to SQL function naming convention.
-        return ScalarFunction.valueOf(function.getName().toUpperCase(Locale.ROOT));
+        try {
+            return ScalarFunction.valueOf(function.getName().toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException e) {
+            // Callers (e.g. OpenSearchProjectRule) short-circuit on null — routing the
+            // function through the non-ScalarFunction path (opaque or YAML-alias based
+            // name lookup) rather than aborting Hep rule matching with an exception.
+            return null;
+        }
     }
 
     /**

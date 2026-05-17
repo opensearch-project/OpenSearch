@@ -56,7 +56,9 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.junit.Assume.assumeThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.reset;
@@ -308,6 +310,120 @@ public class OsProbeTests extends OpenSearchTestCase {
         reset(logger);
         noCpuStatsOsProbe.osStats();
         verify(logger, never()).warn(anyString());
+    }
+
+    public void testGetProcessRssAnonNotLinuxReturnsNegativeOne() {
+        assumeFalse("test runs on non-Linux only", Constants.LINUX);
+        final OsProbe probe = new OsProbe() {
+            @Override
+            List<String> readProcSelfStatus() {
+                throw new AssertionError("readProcSelfStatus should not be called on non-Linux");
+            }
+        };
+        assertThat(probe.getProcessRssAnon(), equalTo(-1L));
+    }
+
+    public void testGetProcessRssAnonReturnsBytes() {
+        assumeTrue("test runs on Linux only", Constants.LINUX);
+        final OsProbe probe = new OsProbe() {
+            @Override
+            List<String> readProcSelfStatus() {
+                return Arrays.asList("Name:\topensearch", "VmRSS:\t  98304 kB", "RssAnon:\t  4096 kB", "RssFile:\t  2048 kB");
+            }
+        };
+        assertThat(probe.getProcessRssAnon(), equalTo(4096L * 1024L));
+    }
+
+    public void testGetProcessRssAnonHandlesIOException() {
+        assumeTrue("test runs on Linux only", Constants.LINUX);
+        final Logger logger = mock(Logger.class);
+        final OsProbe probe = new OsProbe(logger) {
+            @Override
+            List<String> readProcSelfStatus() throws IOException {
+                throw new IOException("simulated failure");
+            }
+        };
+        assertThat(probe.getProcessRssAnon(), equalTo(-1L));
+        verify(logger, times(1)).warn(eq("failed to read /proc/self/status"), any(IOException.class));
+    }
+
+    public void testReadRssAnonFromProcSelfStatusValidValue() throws IOException {
+        final OsProbe probe = new OsProbe() {
+            @Override
+            List<String> readProcSelfStatus() {
+                return Arrays.asList("Name:\topensearch", "VmPeak:\t  131072 kB", "RssAnon:\t  12345 kB", "RssShmem:\t  64 kB");
+            }
+        };
+        assertThat(probe.readRssAnonFromProcSelfStatus(), equalTo(12345L * 1024L));
+    }
+
+    public void testReadRssAnonFromProcSelfStatusZeroValue() throws IOException {
+        final OsProbe probe = new OsProbe() {
+            @Override
+            List<String> readProcSelfStatus() {
+                return Collections.singletonList("RssAnon:\t  0 kB");
+            }
+        };
+        assertThat(probe.readRssAnonFromProcSelfStatus(), equalTo(0L));
+    }
+
+    public void testReadRssAnonFromProcSelfStatusNegativeValue() throws IOException {
+        final OsProbe probe = new OsProbe() {
+            @Override
+            List<String> readProcSelfStatus() {
+                return Collections.singletonList("RssAnon:\t  -1 kB");
+            }
+        };
+        assertThat(probe.readRssAnonFromProcSelfStatus(), equalTo(-1L));
+    }
+
+    public void testReadRssAnonFromProcSelfStatusMalformedValue() throws IOException {
+        final Logger logger = mock(Logger.class);
+        final OsProbe probe = new OsProbe(logger) {
+            @Override
+            List<String> readProcSelfStatus() {
+                return Collections.singletonList("RssAnon:\tnotanumber kB");
+            }
+        };
+        assertThat(probe.readRssAnonFromProcSelfStatus(), equalTo(-1L));
+        verify(logger, times(1)).warn(eq("malformed RssAnon value in /proc/self/status"), any(NumberFormatException.class));
+    }
+
+    public void testReadRssAnonFromProcSelfStatusUnexpectedShape() throws IOException {
+        final Logger logger = mock(Logger.class);
+        final OsProbe probe = new OsProbe(logger) {
+            @Override
+            List<String> readProcSelfStatus() {
+                // No whitespace after the label, so split produces a single token
+                return Collections.singletonList("RssAnon:");
+            }
+        };
+        assertThat(probe.readRssAnonFromProcSelfStatus(), equalTo(-1L));
+        verify(logger, times(1)).warn("RssAnon line has unexpected shape: [{}]", "RssAnon:");
+    }
+
+    public void testReadRssAnonFromProcSelfStatusMissingLine() throws IOException {
+        final Logger logger = mock(Logger.class);
+        final OsProbe probe = new OsProbe(logger) {
+            @Override
+            List<String> readProcSelfStatus() {
+                return Arrays.asList("Name:\topensearch", "VmRSS:\t  98304 kB");
+            }
+        };
+        assertThat(probe.readRssAnonFromProcSelfStatus(), equalTo(-1L));
+        verify(logger, times(1)).warn("RssAnon line not found in /proc/self/status");
+    }
+
+    public void testReadRssAnonFromProcSelfStatusEmptyFile() throws IOException {
+        final Logger logger = mock(Logger.class);
+        final OsProbe probe = new OsProbe(logger) {
+            @Override
+            List<String> readProcSelfStatus() {
+                return Collections.emptyList();
+            }
+        };
+        assertThat(probe.readRssAnonFromProcSelfStatus(), equalTo(-1L));
+        verify(logger, times(1)).warn("RssAnon line not found in /proc/self/status");
     }
 
     private static List<String> getProcSelfGroupLines(String hierarchy) {

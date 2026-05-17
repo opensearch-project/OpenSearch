@@ -18,6 +18,7 @@ import org.opensearch.analytics.exec.task.AnalyticsShardTask;
 import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
 import org.opensearch.analytics.spi.BackendExecutionContext;
 import org.opensearch.analytics.spi.DelegationDescriptor;
+import org.opensearch.analytics.spi.DelegationThreadTracker;
 import org.opensearch.analytics.spi.FilterDelegationHandle;
 import org.opensearch.analytics.spi.FragmentInstructionHandler;
 import org.opensearch.analytics.spi.FragmentInstructionHandlerFactory;
@@ -30,6 +31,7 @@ import org.opensearch.index.engine.exec.IndexReaderProvider;
 import org.opensearch.index.engine.exec.IndexReaderProvider.Reader;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.tasks.Task;
+import org.opensearch.tasks.TaskResourceTrackingService;
 
 import java.io.IOException;
 import java.util.List;
@@ -58,6 +60,7 @@ public class AnalyticsSearchService implements AutoCloseable {
     private final AnalyticsOperationListener listener;
     private final BufferAllocator allocator;
     private final NamedWriteableRegistry namedWriteableRegistry;
+    private TaskResourceTrackingService taskResourceTrackingService;
 
     public AnalyticsSearchService(Map<String, AnalyticsSearchBackendPlugin> backends) {
         this(backends, List.of(), null);
@@ -83,6 +86,10 @@ public class AnalyticsSearchService implements AutoCloseable {
         allocator.close();
     }
 
+    public void setTaskResourceTrackingService(TaskResourceTrackingService service) {
+        this.taskResourceTrackingService = service;
+    }
+
     public FragmentResources executeFragmentStreaming(FragmentExecutionRequest request, IndexShard shard, AnalyticsShardTask task) {
         ResolvedFragment resolved = resolveFragment(request, shard);
         try {
@@ -102,6 +109,7 @@ public class AnalyticsSearchService implements AutoCloseable {
         SearchExecEngine<ShardScanExecutionContext, EngineResultStream> engine = null;
         EngineResultStream stream = null;
         BackendExecutionContext backendContext = null;
+        Runnable trackerCleanup = null;
         try {
             ShardScanExecutionContext ctx = buildContext(request, gatedReader.get(), resolved.plan, shard, task);
             AnalyticsSearchBackendPlugin backend = backends.get(resolved.plan.getBackendId());
@@ -125,14 +133,33 @@ public class AnalyticsSearchService implements AutoCloseable {
                 AnalyticsSearchBackendPlugin acceptingBackend = backends.get(acceptingBackendId);
                 FilterDelegationHandle handle = acceptingBackend.getFilterDelegationHandle(delegation.delegatedExpressions(), ctx);
                 backend.configureFilterDelegation(handle, backendContext);
+
+                if (task != null && taskResourceTrackingService != null) {
+                    long taskId = task.getId();
+                    TaskResourceTrackingService service = taskResourceTrackingService;
+                    backend.setDelegationThreadTracker(new DelegationThreadTracker() {
+                        @Override
+                        public long trackStart() {
+                            long threadId = Thread.currentThread().threadId();
+                            service.taskExecutionStartedOnThread(taskId, threadId);
+                            return threadId;
+                        }
+
+                        @Override
+                        public void trackEnd(long threadId) {
+                            service.taskExecutionFinishedOnThread(taskId, threadId);
+                        }
+                    });
+                    trackerCleanup = () -> backend.setDelegationThreadTracker(null);
+                }
             }
 
             engine = backend.getSearchExecEngineProvider().createSearchExecEngine(ctx, backendContext);
             stream = engine.execute(ctx);
-            return new FragmentResources(gatedReader, engine, stream);
+            return new FragmentResources(gatedReader, engine, stream, trackerCleanup);
         } catch (Exception e) {
             try {
-                new FragmentResources(gatedReader, engine, stream).close();
+                new FragmentResources(gatedReader, engine, stream, trackerCleanup).close();
             } catch (Exception suppressed) {
                 e.addSuppressed(suppressed);
             }
