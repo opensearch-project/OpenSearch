@@ -14,6 +14,7 @@ import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SegmentReader;
 import org.opensearch.be.lucene.index.LuceneReplicaCommitter;
 import org.opensearch.common.CheckedBiFunction;
+import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.exec.EngineReaderManager;
@@ -39,6 +40,7 @@ import static org.opensearch.be.lucene.index.LuceneWriter.WRITER_GENERATION_ATTR
  * @opensearch.experimental
  */
 @ExperimentalApi
+@SuppressForbidden(reason = "reference counting is required here")
 public class LuceneReaderManager implements EngineReaderManager<DirectoryReader> {
 
     private final DataFormat dataFormat;
