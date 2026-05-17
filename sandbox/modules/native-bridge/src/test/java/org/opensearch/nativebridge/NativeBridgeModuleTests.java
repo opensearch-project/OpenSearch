@@ -10,8 +10,8 @@ package org.opensearch.nativebridge;
 
 import org.opensearch.common.settings.Setting;
 import org.opensearch.nativebridge.spi.NativeLibraryLoader;
-import org.opensearch.nativebridge.spi.NativeMemoryStats;
-import org.opensearch.nativebridge.spi.NativeStatsProvider;
+import org.opensearch.plugin.stats.NativeMemoryStats;
+import org.opensearch.plugin.stats.NativeStatsProvider;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.List;

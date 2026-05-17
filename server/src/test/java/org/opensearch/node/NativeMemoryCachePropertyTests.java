@@ -10,7 +10,7 @@ package org.opensearch.node;
 
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.SingleObjectCache;
-import org.opensearch.nativebridge.spi.NativeMemoryStats;
+import org.opensearch.plugin.stats.NativeMemoryStats;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.concurrent.atomic.AtomicInteger;

@@ -120,7 +120,6 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.PageCacheRecycler;
-import org.opensearch.common.util.SingleObjectCache;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.Assertions;
 import org.opensearch.core.common.breaker.CircuitBreaker;
@@ -205,8 +204,8 @@ import org.opensearch.monitor.fs.FsServiceProvider;
 import org.opensearch.monitor.jvm.JvmInfo;
 import org.opensearch.monitor.os.OsProbe;
 import org.opensearch.monitor.process.ProcessProbe;
-import org.opensearch.nativebridge.spi.NativeMemoryStats;
-import org.opensearch.nativebridge.spi.NativeStatsProvider;
+import org.opensearch.plugin.stats.NativeMemoryStats;
+import org.opensearch.plugin.stats.NativeMemoryStatsFactory;
 import org.opensearch.node.remotestore.RemoteStoreNodeService;
 import org.opensearch.node.remotestore.RemoteStorePinnedTimestampService;
 import org.opensearch.node.resource.tracker.NodeResourceUsageTracker;
@@ -1585,32 +1584,7 @@ public class Node implements Closeable {
                 analyticsTaskCancellationStatsSupplier
             );
 
-            final NativeStatsProvider nativeStatsProvider = pluginsService.filterPlugins(NativeStatsProvider.class)
-                .stream()
-                .findFirst()
-                .orElse(null);
-
-            final Supplier<NativeMemoryStats> nativeMemoryStatsSupplier;
-            if (nativeStatsProvider != null) {
-                TimeValue refreshInterval = NATIVE_MEMORY_REFRESH_INTERVAL_SETTING.get(settings);
-                NativeMemoryStats initialStats = nativeStatsProvider.memoryStats();
-                if (initialStats == null) {
-                    initialStats = new NativeMemoryStats(-1, -1);
-                }
-                SingleObjectCache<NativeMemoryStats> nativeMemoryCache = new SingleObjectCache<NativeMemoryStats>(
-                    refreshInterval,
-                    initialStats
-                ) {
-                    @Override
-                    protected NativeMemoryStats refresh() {
-                        NativeMemoryStats stats = nativeStatsProvider.memoryStats();
-                        return stats != null ? stats : new NativeMemoryStats(-1, -1);
-                    }
-                };
-                nativeMemoryStatsSupplier = nativeMemoryCache::getOrRefresh;
-            } else {
-                nativeMemoryStatsSupplier = () -> null;
-            }
+            final Supplier<NativeMemoryStats> nativeMemoryStatsSupplier = NativeMemoryStatsFactory.create(pluginsService, settings);
 
             this.nodeService = new NodeService(
                 settings,

@@ -57,7 +57,7 @@ import org.opensearch.monitor.fs.FsInfo;
 import org.opensearch.monitor.jvm.JvmStats;
 import org.opensearch.monitor.os.OsStats;
 import org.opensearch.monitor.process.ProcessStats;
-import org.opensearch.nativebridge.spi.NativeMemoryStats;
+import org.opensearch.plugin.stats.NativeMemoryStats;
 import org.opensearch.node.AdaptiveSelectionStats;
 import org.opensearch.node.NodesResourceUsageStats;
 import org.opensearch.node.remotestore.RemoteStoreNodeStats;

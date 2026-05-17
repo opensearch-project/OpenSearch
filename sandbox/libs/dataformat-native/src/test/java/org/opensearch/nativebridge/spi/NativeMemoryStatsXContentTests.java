@@ -12,6 +12,7 @@ import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
+import org.opensearch.plugin.stats.NativeMemoryStats;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.Map;
