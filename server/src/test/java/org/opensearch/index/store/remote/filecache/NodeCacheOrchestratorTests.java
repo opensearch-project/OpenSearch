@@ -139,8 +139,17 @@ public class NodeCacheOrchestratorTests extends OpenSearchTestCase {
     public void testCacheUtilizedIncludesBlockCacheMemory() {
         FileCache fc = mock(FileCache.class);
         when(fc.usage()).thenReturn(0L);
+<<<<<<< HEAD:server/src/test/java/org/opensearch/index/store/remote/filecache/NodeCacheOrchestratorTests.java
         NodeCacheOrchestrator orc = new NodeCacheOrchestrator(fc, 0L);
         BlockCacheStats stats = new BlockCacheStats(0, 0, 0, 0, 0, 0, 0, 0, 50L, 200L, 0L);
+=======
+<<<<<<< HEAD:server/src/test/java/org/opensearch/index/store/remote/filecache/NodeCacheServiceTests.java
+        NodeCacheService orc = new NodeCacheService(fc, 0L);
+=======
+        NodeCacheOrchestrator orc = new NodeCacheOrchestrator(fc, 0L);
+>>>>>>> 7f4ec1af9a8 (remove block datatofileratio setting and add active in bytes):server/src/test/java/org/opensearch/index/store/remote/filecache/NodeCacheOrchestratorTests.java
+        BlockCacheStats stats = new BlockCacheStats(0, 0, 0, 0, 0, 0, 0, 0, 50L, 200L, 0L, 0L);
+>>>>>>> 9aa1a52815e (remove block datatofileratio setting and add active in bytes):server/src/test/java/org/opensearch/index/store/remote/filecache/NodeCacheServiceTests.java
         BlockCache bc = mock(BlockCache.class);
         when(bc.stats()).thenReturn(stats);
         orc.addBlockCache(bc);
@@ -437,6 +446,64 @@ public class NodeCacheOrchestratorTests extends OpenSearchTestCase {
         org.mockito.Mockito.verify(bc2).close();
     }
 
+<<<<<<< HEAD:server/src/test/java/org/opensearch/index/store/remote/filecache/NodeCacheOrchestratorTests.java
+=======
+    // ── aggregateStats: activeInBytes ──────────────────────────────────────────
+
+    public void testAggregateStatsMergesActiveInBytesFromBlockCache() {
+        long fcActive = 100L;
+        long bcActive = 50L;
+        FileCache fc = fileCacheWithStats(fcActive, 0L, 0L, 0L, 1000L, 0L, 0L);
+<<<<<<< HEAD:server/src/test/java/org/opensearch/index/store/remote/filecache/NodeCacheServiceTests.java
+        NodeCacheService orc = new NodeCacheService(fc, 0L);
+=======
+        NodeCacheOrchestrator orc = new NodeCacheOrchestrator(fc, 0L);
+>>>>>>> 7f4ec1af9a8 (remove block datatofileratio setting and add active in bytes):server/src/test/java/org/opensearch/index/store/remote/filecache/NodeCacheOrchestratorTests.java
+
+        BlockCache bc = mock(BlockCache.class);
+        // Create a BlockCacheStats with activeInBytes=bcActive
+        when(bc.stats()).thenReturn(new BlockCacheStats(0, 0, 0, 0, 0, 0, 0, 0, 0L, 0L, 100L, bcActive));
+        orc.addBlockCache(bc);
+
+        AggregateFileCacheStats stats = orc.aggregateStats();
+        // merged active = file-cache active + block-cache activeInBytes
+        assertEquals(fcActive + bcActive, stats.getActive().getBytes());
+    }
+
+    public void testAggregateStatsActiveInBytesZeroWithNoBlockCache() {
+        long fcActive = 75L;
+        FileCache fc = fileCacheWithStats(fcActive, 0L, 0L, 0L, 1000L, 0L, 0L);
+<<<<<<< HEAD:server/src/test/java/org/opensearch/index/store/remote/filecache/NodeCacheServiceTests.java
+        NodeCacheService orc = new NodeCacheService(fc, 0L);
+=======
+        NodeCacheOrchestrator orc = new NodeCacheOrchestrator(fc, 0L);
+>>>>>>> 7f4ec1af9a8 (remove block datatofileratio setting and add active in bytes):server/src/test/java/org/opensearch/index/store/remote/filecache/NodeCacheOrchestratorTests.java
+        // No block cache registered
+        AggregateFileCacheStats stats = orc.aggregateStats();
+        assertEquals(fcActive, stats.getActive().getBytes());
+    }
+
+    public void testAggregateStatsMergesActiveInBytesAcrossMultipleBlockCaches() {
+        long fcActive = 200L;
+        FileCache fc = fileCacheWithStats(fcActive, 0L, 0L, 0L, 1000L, 0L, 0L);
+<<<<<<< HEAD:server/src/test/java/org/opensearch/index/store/remote/filecache/NodeCacheServiceTests.java
+        NodeCacheService orc = new NodeCacheService(fc, 0L);
+=======
+        NodeCacheOrchestrator orc = new NodeCacheOrchestrator(fc, 0L);
+>>>>>>> 7f4ec1af9a8 (remove block datatofileratio setting and add active in bytes):server/src/test/java/org/opensearch/index/store/remote/filecache/NodeCacheOrchestratorTests.java
+
+        BlockCache bc1 = mock(BlockCache.class);
+        BlockCache bc2 = mock(BlockCache.class);
+        when(bc1.stats()).thenReturn(new BlockCacheStats(0, 0, 0, 0, 0, 0, 0, 0, 0L, 0L, 100L, 30L));
+        when(bc2.stats()).thenReturn(new BlockCacheStats(0, 0, 0, 0, 0, 0, 0, 0, 0L, 0L, 100L, 20L));
+        orc.addBlockCache(bc1);
+        orc.addBlockCache(bc2);
+
+        AggregateFileCacheStats stats = orc.aggregateStats();
+        assertEquals(fcActive + 30L + 20L, stats.getActive().getBytes());
+    }
+
+>>>>>>> 9aa1a52815e (remove block datatofileratio setting and add active in bytes):server/src/test/java/org/opensearch/index/store/remote/filecache/NodeCacheServiceTests.java
     // ── aggregateStats: removed / removedBytes ─────────────────────────────────
 
     public void testAggregateStatsMergesRemovedCountFromBlockCache() {
