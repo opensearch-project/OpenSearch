@@ -40,6 +40,7 @@ public class PartitionedBlockingQueueContainer {
     private final Map<Integer, BlockingQueue<ShardUpdateMessage<? extends IngestionShardPointer, ? extends Message>>> partitionToQueueMap;
     private final Map<Integer, MessageProcessorRunnable> partitionToMessageProcessorMap;
     private final Map<Integer, ExecutorService> partitionToProcessorExecutorMap;
+    private final Map<Integer, IngestionShardPointer> partitionToFirstQueuedPointerMap;
 
     /**
      * Initialize partitions and processor threads for given number of partitions.
@@ -56,6 +57,7 @@ public class PartitionedBlockingQueueContainer {
         partitionToQueueMap = new ConcurrentHashMap<>();
         partitionToMessageProcessorMap = new ConcurrentHashMap<>();
         partitionToProcessorExecutorMap = new ConcurrentHashMap<>();
+        partitionToFirstQueuedPointerMap = new ConcurrentHashMap<>();
         this.numPartitions = numPartitions;
 
         logger.info("Initializing processors for shard {} using {} partitions", shardId, numPartitions);
@@ -91,6 +93,7 @@ public class PartitionedBlockingQueueContainer {
         partitionToQueueMap = new ConcurrentHashMap<>();
         partitionToMessageProcessorMap = new ConcurrentHashMap<>();
         partitionToProcessorExecutorMap = new ConcurrentHashMap<>();
+        partitionToFirstQueuedPointerMap = new ConcurrentHashMap<>();
         this.numPartitions = 1;
 
         partitionToQueueMap.put(0, messageProcessorRunnable.getBlockingQueue());
@@ -126,7 +129,18 @@ public class PartitionedBlockingQueueContainer {
         String id = (String) payloadMap.get(IdFieldMapper.NAME);
 
         int partition = getPartitionFromID(id);
-        partitionToQueueMap.get(partition).put(shardUpdateMessage);
+        IngestionShardPointer previousFirstQueuedPointer = partitionToFirstQueuedPointerMap.putIfAbsent(
+            partition,
+            shardUpdateMessage.pointer()
+        );
+        try {
+            partitionToQueueMap.get(partition).put(shardUpdateMessage);
+        } catch (InterruptedException | RuntimeException e) {
+            if (previousFirstQueuedPointer == null) {
+                partitionToFirstQueuedPointerMap.remove(partition, shardUpdateMessage.pointer());
+            }
+            throw e;
+        }
     }
 
     /**
@@ -138,6 +152,7 @@ public class PartitionedBlockingQueueContainer {
         partitionToQueueMap.clear();
         partitionToMessageProcessorMap.clear();
         partitionToProcessorExecutorMap.clear();
+        partitionToFirstQueuedPointerMap.clear();
     }
 
     /**
@@ -147,6 +162,7 @@ public class PartitionedBlockingQueueContainer {
         for (BlockingQueue<ShardUpdateMessage<? extends IngestionShardPointer, ? extends Message>> queue : partitionToQueueMap.values()) {
             queue.clear();
         }
+        partitionToFirstQueuedPointerMap.clear();
         logger.debug("Cleared all blocking queues across {} partitions", numPartitions);
     }
 
@@ -169,10 +185,17 @@ public class PartitionedBlockingQueueContainer {
     }
 
     /**
-     * Returns the current shard pointers from each message processor thread.
+     * Returns the list of lowest/first shard pointer per partition that is in-flight or already processed.
+     * If the processor thread is yet to process the very first message, the first queued pointer for the partition is considered.
      */
     public List<IngestionShardPointer> getCurrentShardPointers() {
-        return partitionToMessageProcessorMap.values().stream().map(MessageProcessorRunnable::getCurrentShardPointer).toList();
+        return partitionToMessageProcessorMap.entrySet().stream().map(entry -> {
+            IngestionShardPointer currentShardPointer = entry.getValue().getCurrentShardPointer();
+            if (currentShardPointer != null) {
+                return currentShardPointer;
+            }
+            return partitionToFirstQueuedPointerMap.get(entry.getKey());
+        }).toList();
     }
 
     private int getPartitionFromID(String id) {
