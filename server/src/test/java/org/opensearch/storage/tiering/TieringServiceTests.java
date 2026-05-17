@@ -57,6 +57,7 @@ import static org.opensearch.index.IndexModule.INDEX_TIERING_STATE;
 import static org.opensearch.index.IndexModule.TieringState.HOT_TO_WARM;
 import static org.opensearch.storage.common.tiering.TieringUtils.TIERING_CUSTOM_KEY;
 import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.anyInt;
 import static org.mockito.Mockito.anyString;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.eq;
@@ -513,8 +514,14 @@ public class TieringServiceTests extends OpenSearchTestCase {
 
         tieringService.updateIndexMetadataForTieringStart(metadataBuilder, routingTableBuilder, indexMetadata, testIndex);
 
-        verify(routingTableBuilder).updateNumberOfReplicas(eq(1), any(String[].class));
-        verify(metadataBuilder).updateNumberOfReplicas(eq(1), any(String[].class));
+        // auto_expand_replicas is used instead of direct replica count manipulation
+        verify(routingTableBuilder, never()).updateNumberOfReplicas(anyInt(), any(String[].class));
+        verify(metadataBuilder, never()).updateNumberOfReplicas(anyInt(), any(String[].class));
+
+        ArgumentCaptor<IndexMetadata.Builder> captor = ArgumentCaptor.forClass(IndexMetadata.Builder.class);
+        verify(metadataBuilder).put(captor.capture());
+        IndexMetadata updatedMetadata = captor.getValue().build();
+        assertEquals("0-2", updatedMetadata.getSettings().get(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS));
     }
 
     public void testUpdateIndexMetadataPostTiering_UpdatesCorrectly() {
@@ -956,5 +963,200 @@ public class TieringServiceTests extends OpenSearchTestCase {
         tieringService.clusterChanged(event);
 
         verify(clusterService, never()).submitStateUpdateTask(anyString(), any(ClusterStateUpdateTask.class));
+    }
+
+    public void testUpdateIndexMetadataForTieringStart_ZeroReplicas_SetsAutoExpandToOneMax() {
+        // When user has replicas: 0, auto_expand_replicas should be 0-1 (max(1, 0) = 1)
+        Settings zeroReplicaSettings = Settings.builder()
+            .put(INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
+            .put(INDEX_TIERING_STATE.getKey(), "HOT")
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_INDEX_UUID, "uuid-zero-replicas")
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .build();
+
+        IndexMetadata zeroReplicaMetadata = IndexMetadata.builder("zero-replica-index")
+            .settings(zeroReplicaSettings)
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
+
+        Metadata.Builder metadataBuilder = mock(Metadata.Builder.class);
+        RoutingTable.Builder routingTableBuilder = mock(RoutingTable.Builder.class);
+
+        tieringService.updateIndexMetadataForTieringStart(
+            metadataBuilder,
+            routingTableBuilder,
+            zeroReplicaMetadata,
+            new Index("zero-replica-index", "uuid-zero-replicas")
+        );
+
+        ArgumentCaptor<IndexMetadata.Builder> captor = ArgumentCaptor.forClass(IndexMetadata.Builder.class);
+        verify(metadataBuilder).put(captor.capture());
+        IndexMetadata updatedMetadata = captor.getValue().build();
+        assertEquals("0-1", updatedMetadata.getSettings().get(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS));
+    }
+
+    public void testUpdateIndexMetadataForTieringStart_TwoReplicas_SetsAutoExpandToTwoMax() {
+        // When user has replicas: 2, auto_expand_replicas should be 0-2 (max(1, 2) = 2)
+        Metadata.Builder metadataBuilder = mock(Metadata.Builder.class);
+        RoutingTable.Builder routingTableBuilder = mock(RoutingTable.Builder.class);
+
+        tieringService.updateIndexMetadataForTieringStart(metadataBuilder, routingTableBuilder, indexMetadata, testIndex);
+
+        ArgumentCaptor<IndexMetadata.Builder> captor = ArgumentCaptor.forClass(IndexMetadata.Builder.class);
+        verify(metadataBuilder).put(captor.capture());
+        IndexMetadata updatedMetadata = captor.getValue().build();
+        assertEquals("0-2", updatedMetadata.getSettings().get(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS));
+    }
+
+    public void testUpdateIndexMetadataPostTiering_SetsAutoExpandReplicasFalse() {
+        Metadata.Builder metadataBuilder = mock(Metadata.Builder.class);
+        when(metadataBuilder.put(any(IndexMetadata.Builder.class))).thenReturn(metadataBuilder);
+
+        tieringService.updateIndexMetadataPostTiering(metadataBuilder, indexMetadata);
+
+        ArgumentCaptor<IndexMetadata.Builder> captor = ArgumentCaptor.forClass(IndexMetadata.Builder.class);
+        verify(metadataBuilder).put(captor.capture());
+
+        IndexMetadata updatedMetadata = captor.getValue().build();
+        assertEquals("false", updatedMetadata.getSettings().get(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS));
+    }
+
+    public void testUpdateIndexMetadataForTieringCancel_SetsAutoExpandReplicasFalse() {
+        Metadata.Builder metadataBuilder = mock(Metadata.Builder.class);
+        when(metadataBuilder.put(any(IndexMetadata.Builder.class))).thenReturn(metadataBuilder);
+
+        tieringService.updateIndexMetadataForTieringCancel(metadataBuilder, indexMetadata);
+
+        ArgumentCaptor<IndexMetadata.Builder> captor = ArgumentCaptor.forClass(IndexMetadata.Builder.class);
+        verify(metadataBuilder).put(captor.capture());
+
+        IndexMetadata updatedMetadata = captor.getValue().build();
+        assertEquals("false", updatedMetadata.getSettings().get(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS));
+    }
+
+    public void testWarmToHotTieringStart_DisablesAutoExpandReplicas() {
+        // Verify that WarmToHotTieringService's getTieringStartSettingsToAdd includes
+        // auto_expand_replicas: false. The base class updateIndexMetadataForTieringStart
+        // overrides this with "0-{max(1, currentReplicas)}" for the tiering start phase,
+        // but the setting is correctly applied in the final tiering completion step.
+        TestWarmToHotTieringService warmToHotService = new TestWarmToHotTieringService(
+            Settings.EMPTY,
+            clusterService,
+            mock(ClusterInfoService.class),
+            indexNameExpressionResolver,
+            mock(AllocationService.class),
+            nodeEnvironment,
+            shardLimitValidator
+        );
+
+        Settings tieringStartSettings = warmToHotService.getTieringStartSettingsToAdd();
+        assertEquals(
+            "Warm-to-hot getTieringStartSettingsToAdd should include auto_expand_replicas: false",
+            "false",
+            tieringStartSettings.get(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS)
+        );
+    }
+
+    public void testWarmToHotTieringStart_RemovesReadOnlyAllowDeleteBlock() {
+        // Create a WarmToHot-style tiering service that sets read_only_allow_delete: false on start
+        TestWarmToHotTieringService warmToHotService = new TestWarmToHotTieringService(
+            Settings.EMPTY,
+            clusterService,
+            mock(ClusterInfoService.class),
+            indexNameExpressionResolver,
+            mock(AllocationService.class),
+            nodeEnvironment,
+            shardLimitValidator
+        );
+
+        Metadata.Builder metadataBuilder = mock(Metadata.Builder.class);
+        RoutingTable.Builder routingTableBuilder = mock(RoutingTable.Builder.class);
+
+        warmToHotService.updateIndexMetadataForTieringStart(metadataBuilder, routingTableBuilder, indexMetadata, testIndex);
+
+        ArgumentCaptor<IndexMetadata.Builder> captor = ArgumentCaptor.forClass(IndexMetadata.Builder.class);
+        verify(metadataBuilder).put(captor.capture());
+        IndexMetadata updatedMetadata = captor.getValue().build();
+        assertEquals(
+            "Warm-to-hot tiering start should set read_only_allow_delete to false",
+            "false",
+            updatedMetadata.getSettings().get(IndexMetadata.INDEX_BLOCKS_READ_ONLY_ALLOW_DELETE_SETTING.getKey())
+        );
+    }
+
+    /**
+     * A test tiering service that mimics WarmToHotTieringService behavior.
+     * Sets auto_expand_replicas: false and read_only_allow_delete: false on tiering start.
+     */
+    private class TestWarmToHotTieringService extends TieringService {
+        public TestWarmToHotTieringService(
+            Settings settings,
+            ClusterService clusterService,
+            ClusterInfoService clusterInfoService,
+            IndexNameExpressionResolver indexNameExpressionResolver,
+            AllocationService allocationService,
+            NodeEnvironment nodeEnvironment,
+            ShardLimitValidator shardLimitValidator
+        ) {
+            super(
+                settings,
+                clusterService,
+                clusterInfoService,
+                indexNameExpressionResolver,
+                allocationService,
+                nodeEnvironment,
+                shardLimitValidator
+            );
+        }
+
+        @Override
+        protected Settings getTieringStartSettingsToAdd() {
+            return Settings.builder()
+                .put(IndexModule.IS_WARM_INDEX_SETTING.getKey(), false)
+                .put(INDEX_TIERING_STATE.getKey(), IndexModule.TieringState.WARM_TO_HOT)
+                .put(IndexMetadata.INDEX_BLOCKS_READ_ONLY_ALLOW_DELETE_SETTING.getKey(), false)
+                .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "false")
+                .build();
+        }
+
+        @Override
+        protected Settings getIndexTierSettingsToRestoreAfterCancellation() {
+            return Settings.builder()
+                .put(IndexModule.IS_WARM_INDEX_SETTING.getKey(), true)
+                .put(INDEX_TIERING_STATE.getKey(), IndexModule.TieringState.WARM)
+                .build();
+        }
+
+        @Override
+        protected String getTieringStartTimeKey() {
+            return "w2h_tiering_start_time";
+        }
+
+        @Override
+        protected Setting<Integer> getMaxConcurrentTieringRequestsSetting() {
+            return maxConcurrentTieringRequestsSetting;
+        }
+
+        @Override
+        protected IndexModule.TieringState getTargetTieringState() {
+            return IndexModule.TieringState.HOT;
+        }
+
+        @Override
+        protected IndexModule.TieringState getTieringType() {
+            return IndexModule.TieringState.WARM_TO_HOT;
+        }
+
+        @Override
+        protected void validateTieringRequest(
+            ClusterState clusterState,
+            ClusterInfoService clusterInfoService,
+            Set<Index> tieringEntries,
+            Integer maxConcurrentTieringRequests,
+            Integer jvmActiveUsageThresholdPercent,
+            Index index
+        ) {}
     }
 }

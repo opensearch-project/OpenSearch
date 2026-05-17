@@ -2633,22 +2633,30 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             RemoteSegmentStoreDirectory directory = getRemoteDirectory();
             if (directory.readLatestMetadataFile() != null) {
                 Collection<String> uploadFiles = directory.getSegmentsUploadedToRemoteStore().keySet();
-                try (GatedCloseable<SegmentInfos> segmentInfosGatedCloseable = getSegmentInfosSnapshot()) {
-                    Collection<String> localSegmentInfosFiles = segmentInfosGatedCloseable.get().files(true);
-                    Set<String> localFiles = new HashSet<>(localSegmentInfosFiles);
-                    // verifying that all files except EXCLUDE_FILES are uploaded to the remote
-                    localFiles.removeAll(RemoteStoreRefreshListener.EXCLUDE_FILES);
-                    if (uploadFiles.containsAll(localFiles)) {
-                        return true;
+                Set<String> localFiles;
+                if (indexSettings.isPluggableDataFormatEnabled()) {
+                    // DFA indices: use CatalogSnapshot to get the file list
+                    try (GatedCloseable<CatalogSnapshot> catalogSnapshotRef = getCatalogSnapshot()) {
+                        localFiles = new HashSet<>(catalogSnapshotRef.get().getFiles(true));
                     }
-                    logger.debug(
-                        () -> new ParameterizedMessage(
-                            "RemoteSegmentStoreSyncStatus localSize={} remoteSize={}",
-                            localFiles.size(),
-                            uploadFiles.size()
-                        )
-                    );
+                } else {
+                    // Standard indices: use SegmentInfos to get the file list
+                    try (GatedCloseable<SegmentInfos> segmentInfosGatedCloseable = getSegmentInfosSnapshot()) {
+                        localFiles = new HashSet<>(segmentInfosGatedCloseable.get().files(true));
+                    }
                 }
+                // verifying that all files except EXCLUDE_FILES are uploaded to the remote
+                localFiles.removeAll(RemoteStoreRefreshListener.EXCLUDE_FILES);
+                if (uploadFiles.containsAll(localFiles)) {
+                    return true;
+                }
+                logger.debug(
+                    () -> new ParameterizedMessage(
+                        "RemoteSegmentStoreSyncStatus localSize={} remoteSize={}",
+                        localFiles.size(),
+                        uploadFiles.size()
+                    )
+                );
             }
         } catch (AlreadyClosedException e) {
             throw e;

@@ -14,6 +14,7 @@ import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.SegmentInfos;
+import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.opensearch.OpenSearchException;
 import org.opensearch.common.Nullable;
@@ -118,6 +119,7 @@ public class DataFormatAwareReadOnlyEngine implements Indexer {
     // Metadata
     @Nullable
     private volatile String historyUUID;
+    private final List<ReferenceManager.RefreshListener> internalRefreshListeners;
 
     public DataFormatAwareReadOnlyEngine(EngineConfig engineConfig) {
         this.logger = Loggers.getLogger(DataFormatAwareReadOnlyEngine.class, engineConfig.getShardId());
@@ -169,7 +171,7 @@ public class DataFormatAwareReadOnlyEngine implements Indexer {
 
             catalogSnapshotManagerRef = new CatalogSnapshotManager(
                 committed,
-                CatalogSnapshotDeletionPolicy.KEEP_LATEST_ONLY,
+                new DataFormatAwareNRTReplicationEngine.ReplicaDeletionPolicy(),
                 compositeDeleter,
                 Map.of(),
                 snapshotListeners,
@@ -177,6 +179,7 @@ public class DataFormatAwareReadOnlyEngine implements Indexer {
                 committer
             );
             this.catalogSnapshotManager = catalogSnapshotManagerRef;
+            this.internalRefreshListeners = new ArrayList<>(engineConfig.getInternalRefreshListener());
 
             // Initialize sequence number tracking
             final SequenceNumbers.CommitInfo seqNoInfo = SequenceNumbers.loadSeqNoInfoFromLuceneCommit(userData.entrySet());
@@ -328,10 +331,15 @@ public class DataFormatAwareReadOnlyEngine implements Indexer {
             ensureOpen();
             final long maxSeqNo = Long.parseLong(incoming.getUserData().get(SequenceNumbers.MAX_SEQ_NO));
 
-            // Apply snapshot — reader managers are registered as CatalogSnapshotLifecycleListeners,
-            // so they are notified (and refreshed) inside applyReplicationSnapshot → installSnapshot
-            // before the snapshot becomes visible.
-            catalogSnapshotManager.applyReplicationSnapshot(incoming);
+            // Notify refresh listeners before applying snapshot (same as NRT)
+            notifyRefreshListenersBefore();
+            boolean success = false;
+            try {
+                catalogSnapshotManager.applyReplicationSnapshot(incoming);
+                success = true;
+            } finally {
+                notifyRefreshListenersAfter(success);
+            }
 
             final String incomingHistoryUUID = incoming.getUserData().get(Engine.HISTORY_UUID_KEY);
             if (incomingHistoryUUID != null) {
@@ -693,6 +701,18 @@ public class DataFormatAwareReadOnlyEngine implements Indexer {
             closedLatch.await();
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
+        }
+    }
+
+    private void notifyRefreshListenersBefore() throws IOException {
+        for (ReferenceManager.RefreshListener listener : internalRefreshListeners) {
+            listener.beforeRefresh();
+        }
+    }
+
+    private void notifyRefreshListenersAfter(boolean didRefresh) throws IOException {
+        for (ReferenceManager.RefreshListener listener : internalRefreshListeners) {
+            listener.afterRefresh(didRefresh);
         }
     }
 

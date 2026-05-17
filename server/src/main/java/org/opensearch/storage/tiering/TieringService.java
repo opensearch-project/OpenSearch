@@ -531,11 +531,10 @@ public abstract class TieringService implements ClusterStateListener {
             // 1. Build settings
             Settings.Builder indexSettingsBuilder = Settings.builder().put(indexMetadata.getSettings()).put(getTieringStartSettingsToAdd());
 
-            // 2. Handle replica updates if needed
+            // 2. Handle replica updates using auto_expand_replicas
             int currentReplicas = Integer.parseInt(indexMetadata.getSettings().get(INDEX_NUMBER_OF_REPLICAS_SETTING.getKey()));
-            if (currentReplicas != 1) {
-                indexSettingsBuilder.put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1);
-            }
+            int maxReplicas = Math.max(1, currentReplicas);
+            indexSettingsBuilder.put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-" + maxReplicas);
 
             // 3. Create tiering custom data
             Map<String, String> tieringCustomData = new HashMap<>();
@@ -548,13 +547,6 @@ public abstract class TieringService implements ClusterStateListener {
                 .settingsVersion(1 + indexMetadata.getSettingsVersion());
 
             metadataBuilder.put(indexMetadataBuilder);
-
-            // 5. Update routing table if replicas were changed
-            if (currentReplicas != 1) {
-                final String[] indices = new String[] { index.getName() };
-                routingTableBuilder.updateNumberOfReplicas(1, indices);
-                metadataBuilder.updateNumberOfReplicas(1, indices);
-            }
         } catch (Exception e) {
             throw new OpenSearchException("Failed to update index metadata for tiering start", e);
         }
@@ -572,7 +564,8 @@ public abstract class TieringService implements ClusterStateListener {
             // Build settings
             Settings.Builder indexSettingsBuilder = Settings.builder()
                 .put(indexMetadata.getSettings())
-                .put(INDEX_TIERING_STATE.getKey(), getTargetTieringState());
+                .put(INDEX_TIERING_STATE.getKey(), getTargetTieringState())
+                .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "false");
 
             // Update index metadata
             IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(indexMetadata).settings(indexSettingsBuilder);
@@ -595,23 +588,18 @@ public abstract class TieringService implements ClusterStateListener {
      */
     void updateIndexMetadataForTieringCancel(final Metadata.Builder metadataBuilder, final IndexMetadata indexMetadata) {
         try {
-            // 1. Build settings - remove tiering-specific settings
+            // 1. Build settings - remove tiering-specific settings and disable auto-expand
             Settings.Builder indexSettingsBuilder = Settings.builder()
                 .put(indexMetadata.getSettings())
-                .put(getIndexTierSettingsToRestoreAfterCancellation());
+                .put(getIndexTierSettingsToRestoreAfterCancellation())
+                .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "false");
 
-            // 2. Restore original replica count if it was modified
-            // During tiering start, if replicas > 1, they were set to 1
-            // We need to restore the original count, but we don't have it stored
-            // For safety, we'll leave replicas as they are since we can't reliably determine the original count
-            // This is a limitation that could be improved by storing original settings in custom metadata
-
-            // 3. Build and update metadata
+            // 2. Build and update metadata
             IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(indexMetadata)
                 .settings(indexSettingsBuilder)
                 .settingsVersion(1 + indexMetadata.getSettingsVersion());
 
-            // 4. Remove tiering custom metadata
+            // 3. Remove tiering custom metadata
             indexMetadataBuilder.removeCustom(TIERING_CUSTOM_KEY);
             metadataBuilder.put(indexMetadataBuilder);
         } catch (Exception e) {
