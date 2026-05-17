@@ -44,7 +44,6 @@ import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.DisiPriorityQueue;
 import org.apache.lucene.search.DisiWrapper;
 import org.apache.lucene.search.DocIdSetIterator;
-import org.apache.lucene.search.DocIdStream;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.TermQuery;
@@ -649,14 +648,16 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
         }
 
         @Override
-        public void collect(DocIdStream stream, long owningBucketOrd) throws IOException {
+        public void collect(int[] docs, int count, long owningBucketOrd) throws IOException {
             final BitArray bits = getBitArray(owningBucketOrd);
-            stream.forEach((doc) -> collect(doc, bits));
+            for (int i = 0; i < count; i++) {
+                collect(docs[i], bits);
+            }
         }
 
         @Override
-        public void collectRange(int minDoc, int maxDoc) throws IOException {
-            final BitArray bits = getBitArray(0);
+        public void collectRange(int minDoc, int maxDoc, long bucket) throws IOException {
+            final BitArray bits = getBitArray(bucket);
             for (int doc = minDoc; doc < maxDoc; ++doc) {
                 collect(doc, bits);
             }
@@ -905,24 +906,24 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
         }
 
         @Override
-        public void collect(DocIdStream stream, long owningBucketOrd) throws IOException {
+        public void collect(int[] docs, int count, long owningBucketOrd) throws IOException {
             try {
-                activeCollector.collect(stream, owningBucketOrd);
+                activeCollector.collect(docs, count, owningBucketOrd);
             } catch (MemoryLimitExceededException e) {
                 switchToDirectCollector();
                 // Retry collection with DirectCollector
-                activeCollector.collect(stream, owningBucketOrd);
+                activeCollector.collect(docs, count, owningBucketOrd);
             }
         }
 
         @Override
-        public void collectRange(int minDoc, int maxDoc) throws IOException {
+        public void collectRange(int minDoc, int maxDoc, long bucket) throws IOException {
             try {
-                activeCollector.collectRange(minDoc, maxDoc);
+                activeCollector.collectRange(minDoc, maxDoc, bucket);
             } catch (MemoryLimitExceededException e) {
                 switchToDirectCollector();
                 // Retry collection with DirectCollector
-                activeCollector.collectRange(minDoc, maxDoc);
+                activeCollector.collectRange(minDoc, maxDoc, bucket);
             }
         }
 
