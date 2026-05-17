@@ -15,8 +15,6 @@ import org.apache.lucene.index.SegmentReader;
 import org.opensearch.be.lucene.index.LuceneReplicaCommitter;
 import org.opensearch.common.CheckedBiFunction;
 import org.opensearch.common.annotation.ExperimentalApi;
-import org.opensearch.common.util.concurrent.AbstractRefCounted;
-import org.opensearch.common.util.concurrent.RefCounted;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.exec.EngineReaderManager;
 import org.opensearch.index.engine.exec.Segment;
@@ -51,12 +49,19 @@ public class LuceneReaderManager implements EngineReaderManager<DirectoryReader>
     /**
      * Creates a new LuceneReaderManager.
      *
-     * @param dataFormat the data format this reader manager serves
-     * @param initialReader the initial DirectoryReader, must not be null
+     * @param dataFormat      the data format this reader manager serves
+     * @param initialReader   the initial DirectoryReader, must not be null
+     * @param readers         shared map of generation to DirectoryReader for segment-level reader reuse
+     * @param readerRefresher function that opens a refreshed reader given the current reader and new
+     *                        {@link SegmentInfos}; returns {@code null} if no refresh is needed
      * @throws NullPointerException if initialReader is null
      */
-    public LuceneReaderManager(DataFormat dataFormat, DirectoryReader initialReader, Map<Long, DirectoryReader> readers,
-                               CheckedBiFunction<DirectoryReader, SegmentInfos, DirectoryReader, IOException> readerRefresher) {
+    public LuceneReaderManager(
+        DataFormat dataFormat,
+        DirectoryReader initialReader,
+        Map<Long, DirectoryReader> readers,
+        CheckedBiFunction<DirectoryReader, SegmentInfos, DirectoryReader, IOException> readerRefresher
+    ) {
         this.dataFormat = dataFormat;
         Objects.requireNonNull(initialReader, "initialReader must not be null");
         this.currentReader = initialReader;

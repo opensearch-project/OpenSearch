@@ -26,7 +26,6 @@ import org.opensearch.index.engine.exec.CombinedCatalogSnapshotDeletionPolicy;
 import org.opensearch.index.engine.exec.FileDeleter;
 import org.opensearch.index.engine.exec.Segment;
 import org.opensearch.index.engine.exec.WriterFileSet;
-import org.opensearch.index.engine.exec.commit.Committer;
 import org.opensearch.index.engine.exec.commit.Committer.CommitInput;
 import org.opensearch.index.engine.exec.commit.CommitterConfig;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
@@ -112,7 +111,14 @@ public class LuceneCommitterCSManagerIntegrationTests extends OpenSearchTestCase
         Path translogDir = dataPath.resolve("translog");
         Files.createDirectories(translogDir);
         // Create a real translog so readGlobalCheckpoint works during safe bootstrap
-        Translog.createEmptyTranslog(translogDir, shardId, SequenceNumbers.NO_OPS_PERFORMED, 1L, TRANSLOG_UUID, null);
+        String createdTranslogUUID = Translog.createEmptyTranslog(
+            translogDir,
+            shardId,
+            SequenceNumbers.NO_OPS_PERFORMED,
+            1L,
+            TRANSLOG_UUID,
+            null
+        );
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("test", Settings.EMPTY);
         Store store = new Store(
             shardId,
@@ -122,7 +128,7 @@ public class LuceneCommitterCSManagerIntegrationTests extends OpenSearchTestCase
             Store.OnClose.EMPTY,
             shardPath
         );
-        store.createEmpty(org.apache.lucene.util.Version.LATEST);
+        store.createEmpty(org.apache.lucene.util.Version.LATEST, createdTranslogUUID);
         LuceneCommitter committer = new LuceneCommitter(
             new CommitterConfig(buildEngineConfig(indexSettings, store, shardId, translogDir), () -> {})
         );
@@ -488,7 +494,14 @@ public class LuceneCommitterCSManagerIntegrationTests extends OpenSearchTestCase
 
         // Phase 1: Pre-crash — 3 commits
         {
-            Translog.createEmptyTranslog(translogDir, shardId, SequenceNumbers.NO_OPS_PERFORMED, 1L, TRANSLOG_UUID, null);
+            String phaseTranslogUUID = Translog.createEmptyTranslog(
+                translogDir,
+                shardId,
+                SequenceNumbers.NO_OPS_PERFORMED,
+                1L,
+                TRANSLOG_UUID,
+                null
+            );
             Store store = new Store(
                 shardId,
                 indexSettings,
@@ -497,7 +510,7 @@ public class LuceneCommitterCSManagerIntegrationTests extends OpenSearchTestCase
                 Store.OnClose.EMPTY,
                 shardPath
             );
-            store.createEmpty(org.apache.lucene.util.Version.LATEST);
+            store.createEmpty(org.apache.lucene.util.Version.LATEST, phaseTranslogUUID);
             LuceneCommitter committer = new LuceneCommitter(
                 new CommitterConfig(buildEngineConfig(indexSettings, store, shardId, translogDir), () -> {})
             );
@@ -623,7 +636,14 @@ public class LuceneCommitterCSManagerIntegrationTests extends OpenSearchTestCase
 
         // Phase 1: Pre-crash — 2 commits
         {
-            Translog.createEmptyTranslog(translogDir, shardId, SequenceNumbers.NO_OPS_PERFORMED, 1L, TRANSLOG_UUID, null);
+            String phaseTranslogUUID = Translog.createEmptyTranslog(
+                translogDir,
+                shardId,
+                SequenceNumbers.NO_OPS_PERFORMED,
+                1L,
+                TRANSLOG_UUID,
+                null
+            );
             Store store = new Store(
                 shardId,
                 indexSettings,
@@ -632,7 +652,7 @@ public class LuceneCommitterCSManagerIntegrationTests extends OpenSearchTestCase
                 Store.OnClose.EMPTY,
                 shardPath
             );
-            store.createEmpty(org.apache.lucene.util.Version.LATEST);
+            store.createEmpty(org.apache.lucene.util.Version.LATEST, phaseTranslogUUID);
             LuceneCommitter committer = new LuceneCommitter(
                 new CommitterConfig(buildEngineConfig(indexSettings, store, shardId, translogDir), () -> {})
             );

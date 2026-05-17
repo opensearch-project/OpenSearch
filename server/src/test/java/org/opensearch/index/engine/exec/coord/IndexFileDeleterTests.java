@@ -83,7 +83,8 @@ public class IndexFileDeleterTests extends OpenSearchTestCase {
             Map.of(),
             List.of(cs1),
             null,
-            null
+            null,
+            cs -> {}
         );
 
         Map<String, Collection<String>> newFiles = deleter.addFileReferences(

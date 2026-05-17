@@ -8,7 +8,6 @@
 
 package org.opensearch.be.lucene.index;
 
-import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.SegmentInfos;
@@ -33,6 +32,21 @@ import java.util.stream.Collectors;
 
 import static org.opensearch.be.lucene.index.LuceneCommitter.loadCommittedSnapshots;
 
+/**
+ * Replica-side {@link Committer} implementation backed by Lucene's {@link SegmentInfos} commit mechanism.
+ * <p>
+ * Unlike the primary's {@link LuceneCommitter} which owns an {@link IndexWriter}, this committer
+ * operates without a writer — it directly writes {@code segments_N} files to the store directory
+ * using {@link Store#commitSegmentInfos(SegmentInfos, long, long)}. This is appropriate for replicas
+ * that receive segments via segment replication and only need to persist the commit point.
+ * <p>
+ * The commit path clones the primary's {@link SegmentInfos} (received during replication), injects
+ * the user data (containing the serialized {@link CatalogSnapshot}), and writes it as a new commit.
+ * The {@link #listCommittedSnapshots()} method discovers existing commits by reading all
+ * {@code segments_N} files from the store directory.
+ *
+ * @opensearch.experimental
+ */
 public class LuceneReplicaCommitter implements Committer {
 
     private final Store store;
@@ -61,7 +75,7 @@ public class LuceneReplicaCommitter implements Committer {
             sis.updateGeneration(lastCommittedSegmentInfos);
         }
         Map<String, String> userData = new HashMap<>(sis.userData);
-        for (Map.Entry<String, String> entries: commitInput.userData()) {
+        for (Map.Entry<String, String> entries : commitInput.userData()) {
             userData.put(entries.getKey(), entries.getValue());
         }
         sis.setUserData(userData, false);
@@ -146,4 +160,3 @@ public class LuceneReplicaCommitter implements Committer {
         return null;
     }
 }
-

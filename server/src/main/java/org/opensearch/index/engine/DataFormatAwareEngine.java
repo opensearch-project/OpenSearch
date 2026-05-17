@@ -809,7 +809,7 @@ public class DataFormatAwareEngine implements Indexer {
 
                             catalogSnapshotManager.commitNewSnapshot(result.refreshedSegments());
                         } else if ("flush".equals(source)) {
-                                catalogSnapshotManager.bumpGeneration();
+                            catalogSnapshotManager.bumpGeneration();
                         }
                         notifyRefreshListenersAfter(refreshed);
                     } finally {
@@ -919,8 +919,11 @@ public class DataFormatAwareEngine implements Indexer {
                             : "local checkpoint in commit data must be >= -1";
                         assert Long.parseLong(commitData.get(SequenceNumbers.MAX_SEQ_NO)) >= -1 : "max seq no in commit data must be >= -1";
 
-                        // We do an additional commit on engine start due to no catalog snapshot present in earlier commit during empty recovery
-                        Committer.CommitResult commitResult = committer.commit(new Committer.CommitInput(commitData.entrySet(), snapshot, 0));
+                        // We do an additional commit on engine start due to no catalog snapshot present in earlier commit during empty
+                        // recovery
+                        Committer.CommitResult commitResult = committer.commit(
+                            new Committer.CommitInput(commitData.entrySet(), snapshot, 0)
+                        );
 
                         if (commitResult != null && snapshot instanceof DataformatAwareCatalogSnapshot dfaSnapshot) {
                             // If the catalog snapshot changed during the flush, this will ensure the latest one

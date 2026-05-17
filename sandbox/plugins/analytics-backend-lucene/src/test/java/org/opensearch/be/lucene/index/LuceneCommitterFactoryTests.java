@@ -20,7 +20,9 @@ import org.opensearch.index.engine.EngineConfig;
 import org.opensearch.index.engine.exec.commit.Committer;
 import org.opensearch.index.engine.exec.commit.CommitterConfig;
 import org.opensearch.index.seqno.RetentionLeases;
+import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.store.Store;
+import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.TranslogConfig;
 import org.opensearch.test.DummyShardLock;
 import org.opensearch.test.IndexSettingsModule;
@@ -43,9 +45,10 @@ public class LuceneCommitterFactoryTests extends OpenSearchTestCase {
         Files.createDirectories(dataPath);
         Path translogPath = dataPath.resolve("translog");
         Files.createDirectories(translogPath);
+        String translogUUID = Translog.createEmptyTranslog(translogPath, SequenceNumbers.NO_OPS_PERFORMED, shardId, 1L);
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("test", Settings.EMPTY);
         Store store = new Store(shardId, indexSettings, new NIOFSDirectory(dataPath), new DummyShardLock(shardId));
-        store.createEmpty(Version.LATEST);
+        store.createEmpty(Version.LATEST, translogUUID);
 
         Committer committer = null;
         try {

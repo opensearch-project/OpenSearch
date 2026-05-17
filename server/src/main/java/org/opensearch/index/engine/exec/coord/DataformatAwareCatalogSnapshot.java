@@ -80,7 +80,6 @@ public class DataformatAwareCatalogSnapshot extends CatalogSnapshot {
      */
     private volatile Object replicatingCommitData;
 
-
     /**
      * Constructs a new DataformatAwareCatalogSnapshot.
      *
@@ -333,7 +332,7 @@ public class DataformatAwareCatalogSnapshot extends CatalogSnapshot {
 
     @Override
     public long getLastCommitGeneration() {
-        assert lastCommitGeneration >= 0 : "Before this is obtained, at least one commit should have been obtained";
+        assert lastCommitGeneration >= 0 : "Before this is obtained, at least one snapshot should've been committed: " + this;
         return lastCommitGeneration;
     }
 
