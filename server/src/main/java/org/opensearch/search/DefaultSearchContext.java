@@ -234,6 +234,7 @@ final class DefaultSearchContext extends SearchContext {
     private final CardinalityAggregationContext cardinalityAggregationContext;
     private final int bucketSelectionStrategyFactor;
     private final boolean keywordIndexOrDocValuesEnabled;
+    private final boolean splitAggsAndHits;
 
     private boolean isStreamSearch;
     private StreamSearchChannelListener listener;
@@ -254,7 +255,8 @@ final class DefaultSearchContext extends SearchContext {
         Executor executor,
         Function<SearchSourceBuilder, InternalAggregation.ReduceContextBuilder> requestToAggReduceContextBuilder,
         Collection<ConcurrentSearchRequestDecider.Factory> concurrentSearchDeciderFactories,
-        boolean isStreamSearch
+        boolean isStreamSearch,
+        boolean splitAggsAndHits
     ) throws IOException {
         this.readerContext = readerContext;
         this.request = request;
@@ -305,6 +307,7 @@ final class DefaultSearchContext extends SearchContext {
         this.concurrentSearchDeciderFactories = concurrentSearchDeciderFactories;
         this.keywordIndexOrDocValuesEnabled = evaluateKeywordIndexOrDocValuesEnabled();
         this.isStreamSearch = isStreamSearch;
+        this.splitAggsAndHits = splitAggsAndHits;
     }
 
     DefaultSearchContext(
@@ -338,6 +341,7 @@ final class DefaultSearchContext extends SearchContext {
             executor,
             requestToAggReduceContextBuilder,
             concurrentSearchDeciderFactories,
+            false,
             false
         );
     }
@@ -1429,5 +1433,10 @@ final class DefaultSearchContext extends SearchContext {
             decider.getReason()
         );
         requestShouldUseIntraSegmentSearch.set(result);
+    }
+
+    @Override
+    public boolean splitAggsAndHits() {
+        return splitAggsAndHits;
     }
 }
