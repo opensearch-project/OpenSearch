@@ -13,7 +13,6 @@ import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.index.engine.dataformat.DataFormat;
-import org.opensearch.index.engine.exec.coord.DataformatAwareCatalogSnapshot;
 
 import java.io.IOException;
 import java.util.HashMap;

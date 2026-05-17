@@ -90,7 +90,6 @@ public sealed class WriterFileSet implements Writeable permits MonoFileWriterSet
     public long formatVersion() {
         return formatVersion;
     }
-    }
 
     public long getTotalSize() {
         return files.stream().mapToLong(file -> {
