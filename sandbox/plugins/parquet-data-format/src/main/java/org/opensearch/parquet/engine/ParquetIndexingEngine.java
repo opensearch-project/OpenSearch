@@ -28,6 +28,7 @@ import org.opensearch.parquet.ParquetSettings;
 import org.opensearch.parquet.bridge.NativeSettings;
 import org.opensearch.parquet.bridge.RustBridge;
 import org.opensearch.parquet.memory.ArrowBufferPool;
+import org.opensearch.parquet.memory.ArrowBufferPoolRegistry;
 import org.opensearch.parquet.merge.NativeParquetMergeStrategy;
 import org.opensearch.parquet.merge.ParquetMergeExecutor;
 import org.opensearch.parquet.writer.ParquetDocumentInput;
@@ -78,6 +79,7 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
     private volatile long cachedSchemaVersion = -1;
     private volatile Schema cachedSchema;
     private final ArrowBufferPool bufferPool;
+    private final ArrowBufferPoolRegistry bufferPoolRegistry;
     private final IndexSettings indexSettings;
     private final Settings nodeSettings;
     private final ThreadPool threadPool;
@@ -112,7 +114,8 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
             mappingVersionSupplier,
             indexSettings,
             threadPool,
-            new PrecomputedChecksumStrategy()
+            new PrecomputedChecksumStrategy(),
+            null
         );
     }
 
@@ -138,11 +141,34 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
         ThreadPool threadPool,
         FormatChecksumStrategy checksumStrategy
     ) {
+        this(settings, dataFormat, shardPath, schemaSupplier, mappingVersionSupplier, indexSettings, threadPool, checksumStrategy, null);
+    }
+
+    /**
+     * Creates a new ParquetIndexingEngine with an externally provided checksum strategy and an
+     * optional {@link ArrowBufferPoolRegistry} that fans dynamic Arrow allocator updates out to
+     * the pool created here. {@code null} disables runtime updates (used by tests/benchmarks).
+     */
+    public ParquetIndexingEngine(
+        Settings settings,
+        ParquetDataFormat dataFormat,
+        ShardPath shardPath,
+        Supplier<Schema> schemaSupplier,
+        Supplier<Long> mappingVersionSupplier,
+        IndexSettings indexSettings,
+        ThreadPool threadPool,
+        FormatChecksumStrategy checksumStrategy,
+        ArrowBufferPoolRegistry bufferPoolRegistry
+    ) {
         this.dataFormat = dataFormat;
         this.shardPath = shardPath;
         this.schemaSupplier = schemaSupplier;
         this.mappingVersionSupplier = mappingVersionSupplier;
         this.bufferPool = new ArrowBufferPool(settings);
+        this.bufferPoolRegistry = bufferPoolRegistry;
+        if (bufferPoolRegistry != null) {
+            bufferPoolRegistry.register(this.bufferPool);
+        }
         this.indexSettings = indexSettings;
         this.nodeSettings = settings;
         this.threadPool = threadPool;
@@ -292,6 +318,9 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
                 indexSettings.getIndex().getName(),
                 e.getMessage()
             );
+        }
+        if (bufferPoolRegistry != null) {
+            bufferPoolRegistry.unregister(bufferPool);
         }
         bufferPool.close();
     }

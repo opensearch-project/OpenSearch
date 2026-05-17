@@ -10,6 +10,7 @@ package org.opensearch.parquet;
 
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.RatioValue;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.unit.ByteSizeValue;
 
@@ -90,11 +91,25 @@ public final class ParquetSettings {
         Setting.Property.IndexScope
     );
 
-    /** Maximum native memory allocation for Arrow buffers, as a percentage of non-heap memory (default 10%). */
+    /**
+     * Maximum native memory allocation for Arrow buffers. Accepts a percentage of non-heap memory
+     * ({@code totalPhysicalMemory - configuredMaxHeap}, e.g. {@code "10%"}) or an absolute byte
+     * size (e.g. {@code "2gb"}).
+     * <p>
+     * Dynamic: changes take effect on the live Arrow {@code RootAllocator} via
+     * {@code BaseAllocator.setLimit}. Lowering below current usage rejects future allocations
+     * until reservations drain; it does not reclaim allocated memory.
+     * <p>
+     * If non-heap memory is unmeasurable at resolve time, an {@link IllegalStateException} is
+     * thrown — operators on misconfigured boxes should specify an absolute byte size rather
+     * than a percentage.
+     */
     public static final Setting<String> MAX_NATIVE_ALLOCATION = Setting.simpleString(
         "parquet.max_native_allocation",
         DEFAULT_MAX_NATIVE_ALLOCATION,
-        Setting.Property.NodeScope
+        ParquetSettings::validateMemorySizeOrPercentage,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
     );
 
     /** Maximum rows per VectorSchemaRoot before rotation is triggered (default 50000). */
@@ -151,6 +166,27 @@ public final class ParquetSettings {
         1,
         Setting.Property.NodeScope
     );
+
+    /**
+     * Validates that {@code value} is either a percentage ({@code "10%"}) or an absolute byte
+     * size accepted by {@link ByteSizeValue#parseBytesSizeValue(String, String)}. Used as the
+     * setting-time validator for {@link #MAX_NATIVE_ALLOCATION} so that malformed values fail at
+     * update time rather than at the next read inside {@code ArrowBufferPool}.
+     */
+    private static void validateMemorySizeOrPercentage(String value) {
+        try {
+            if (value.endsWith("%")) {
+                RatioValue.parseRatioValue(value);
+            } else {
+                ByteSizeValue.parseBytesSizeValue(value, "memory size");
+            }
+        } catch (RuntimeException e) {
+            throw new IllegalArgumentException(
+                "value [" + value + "] must be a percentage (e.g. \"10%\") or a byte size (e.g. \"2gb\"): " + e.getMessage(),
+                e
+            );
+        }
+    }
 
     /** Returns all settings defined by the Parquet plugin. */
     public static List<Setting<?>> getSettings() {

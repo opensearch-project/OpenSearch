@@ -20,13 +20,17 @@ import org.opensearch.common.settings.IndexScopedSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsFilter;
+import org.opensearch.common.unit.RatioValue;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.index.engine.dataformat.DataFormatRegistry;
 import org.opensearch.index.engine.dataformat.ReaderManagerConfig;
 import org.opensearch.index.engine.exec.EngineReaderManager;
+import org.opensearch.monitor.jvm.JvmInfo;
+import org.opensearch.monitor.os.OsProbe;
 import org.opensearch.plugins.ActionPlugin;
 import org.opensearch.plugins.NativeStoreHandle;
 import org.opensearch.plugins.Plugin;
@@ -40,6 +44,9 @@ import org.opensearch.transport.client.Client;
 import org.opensearch.watcher.ResourceWatcherService;
 
 import java.io.IOException;
+import java.nio.file.FileStore;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -60,24 +67,57 @@ public class DataFusionPlugin extends Plugin implements SearchBackEndPlugin<Data
     private static final Logger logger = LogManager.getLogger(DataFusionPlugin.class);
 
     /**
-     * Memory pool limit for the DataFusion runtime.
-     * <p>
-     * Dynamic: changes take effect for new allocations only. Existing reservations
-     * that exceed the new limit are not reclaimed — they drain naturally as queries complete.
+     * Default value for {@link #DATAFUSION_MEMORY_POOL_LIMIT}. Set to {@code 50%} of non-heap
+     * memory to give DataFusion a generous working set on AOS-standard heap configurations
+     * (which use the 50% heap rule, leaving non-heap = total/2). On a 64&nbsp;GiB r7g.2xlarge
+     * with 32&nbsp;GiB heap that yields a 16&nbsp;GiB DF pool. Operators on memory-tight
+     * workloads who need more page cache can lower this dynamically via the cluster-settings API.
      */
-    public static final Setting<Long> DATAFUSION_MEMORY_POOL_LIMIT = Setting.longSetting(
-        "datafusion.memory_pool_limit_bytes",
-        Runtime.getRuntime().maxMemory() / 4,
-        0L,
+    public static final String DEFAULT_MEMORY_POOL_LIMIT = "50%";
+
+    /**
+     * Default value for {@link #DATAFUSION_DISK_SPILL_LIMIT}. {@code 20%} of the spill
+     * directory's usable disk space at startup. Disk-relative because the cap bounds
+     * temporary on-disk spill files, not memory; sizing it against non-heap RAM (the
+     * earlier behavior) under-allocated on data-heavy workloads where a single
+     * group-by can spill more than the entire RAM of the host.
+     */
+    public static final String DEFAULT_DISK_SPILL_LIMIT = "20%";
+
+    /**
+     * Memory pool limit for the DataFusion runtime. Accepts a percentage of non-heap memory
+     * ({@code totalPhysicalMemory - configuredMaxHeap}, e.g. {@code "50%"}) or an absolute byte
+     * size (e.g. {@code "10gb"}).
+     * <p>
+     * Dynamic: changes take effect for new allocations only. Existing reservations that exceed
+     * the new limit are not reclaimed — they drain naturally as queries complete.
+     * <p>
+     * If non-heap memory is unmeasurable at resolve time, an {@link IllegalStateException} is
+     * thrown — operators on misconfigured boxes should specify an absolute byte size rather
+     * than a percentage.
+     */
+    public static final Setting<String> DATAFUSION_MEMORY_POOL_LIMIT = Setting.simpleString(
+        "datafusion.memory_pool_limit",
+        DEFAULT_MEMORY_POOL_LIMIT,
+        DataFusionPlugin::validateMemorySizeOrPercentage,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
 
-    /** Spill memory limit — when exceeded, DataFusion spills to disk. */
-    public static final Setting<Long> DATAFUSION_SPILL_MEMORY_LIMIT = Setting.longSetting(
-        "datafusion.spill_memory_limit_bytes",
-        Runtime.getRuntime().maxMemory() / 8,
-        0L,
+    /**
+     * Disk spill limit — caps the total bytes DataFusion may write to its spill directory.
+     * Accepts a percentage of usable disk in the spill directory's filesystem (e.g.
+     * {@code "20%"}) or an absolute byte size (e.g. {@code "100gb"}).
+     * <p>
+     * Static (NodeScope only). DataFusion's {@code DiskManager} stores the spill cap as a plain
+     * {@code u64} and only exposes a setter behind {@code Arc::get_mut}, which fails as soon as
+     * any query holds a strong reference to the runtime. Until upstream offers a thread-safe
+     * setter we treat this as a startup setting; change it in {@code opensearch.yml} and restart.
+     */
+    public static final Setting<String> DATAFUSION_DISK_SPILL_LIMIT = Setting.simpleString(
+        "datafusion.disk_spill_limit",
+        DEFAULT_DISK_SPILL_LIMIT,
+        DataFusionPlugin::validateMemorySizeOrPercentage,
         Setting.Property.NodeScope
     );
 
@@ -134,22 +174,22 @@ public class DataFusionPlugin extends Plugin implements SearchBackEndPlugin<Data
         this.dataFormatRegistry = dataFormatRegistry;
         this.clusterService = clusterService;
         Settings settings = environment.settings();
-        long memoryPoolLimit = DATAFUSION_MEMORY_POOL_LIMIT.get(settings);
-        long spillMemoryLimit = DATAFUSION_SPILL_MEMORY_LIMIT.get(settings);
-        String spillDir = environment.dataFiles()[0].getParent().resolve("tmp").toAbsolutePath().toString();
+        long memoryPoolLimit = resolveMemoryPoolBytes(settings);
+        Path spillDir = environment.dataFiles()[0].getParent().resolve("tmp").toAbsolutePath();
+        long diskSpillLimit = resolveDiskSpillBytes(settings, spillDir);
 
         dataFusionService = DataFusionService.builder()
             .memoryPoolLimit(memoryPoolLimit)
-            .spillMemoryLimit(spillMemoryLimit)
-            .spillDirectory(spillDir)
+            .diskSpillLimit(diskSpillLimit)
+            .spillDirectory(spillDir.toString())
             .clusterSettings(clusterService.getClusterSettings())
             .build();
         dataFusionService.start();
-        logger.debug("DataFusion plugin initialized — memory pool {}B, spill limit {}B", memoryPoolLimit, spillMemoryLimit);
+        logger.debug("DataFusion plugin initialized — memory pool {}B, disk spill {}B", memoryPoolLimit, diskSpillLimit);
 
-        // Wire the dynamic memory pool limit setting to the native runtime so updates via the
-        // cluster settings API take effect without restarting the node.
-        clusterService.getClusterSettings().addSettingsUpdateConsumer(DATAFUSION_MEMORY_POOL_LIMIT, this::updateMemoryPoolLimit);
+        // Wire the memory pool limit setting to the native runtime so cluster-settings PUTs take
+        // effect without restarting the node.
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(DATAFUSION_MEMORY_POOL_LIMIT, this::onMemoryPoolLimitChanged);
 
         this.datafusionSettings = new DatafusionSettings(clusterService);
 
@@ -215,6 +255,136 @@ public class DataFusionPlugin extends Plugin implements SearchBackEndPlugin<Data
     @Override
     public List<Setting<?>> getSettings() {
         return DatafusionSettings.ALL_SETTINGS;
+    }
+
+    /**
+     * Resolves {@link #DATAFUSION_MEMORY_POOL_LIMIT}. Percentages apply against
+     * {@code totalPhysicalMemory - configuredMaxHeap}; absolute byte sizes are used as-is.
+     */
+    static long resolveMemoryPoolBytes(Settings settings) {
+        return resolveBytes(DATAFUSION_MEMORY_POOL_LIMIT.get(settings), DATAFUSION_MEMORY_POOL_LIMIT.getKey());
+    }
+
+    /**
+     * Resolves {@link #DATAFUSION_DISK_SPILL_LIMIT} against the spill directory's filesystem.
+     * Percentages apply against {@code getUsableSpace()} on the FileStore hosting
+     * {@code spillDir}; absolute byte sizes are used as-is.
+     * <p>
+     * The spill directory may not yet exist at resolve time (DataFusion creates it lazily),
+     * so we walk up to the closest existing parent on the same filesystem.
+     */
+    static long resolveDiskSpillBytes(Settings settings, Path spillDir) {
+        String configured = DATAFUSION_DISK_SPILL_LIMIT.get(settings);
+        String key = DATAFUSION_DISK_SPILL_LIMIT.getKey();
+        if (configured.endsWith("%")) {
+            long usable = resolveUsableDiskBytes(spillDir, key);
+            RatioValue ratio = RatioValue.parseRatioValue(configured);
+            return (long) (usable * ratio.getAsRatio());
+        }
+        return ByteSizeValue.parseBytesSizeValue(configured, key).getBytes();
+    }
+
+    /**
+     * Returns usable bytes on the filesystem hosting {@code spillDir}, walking up to the
+     * closest existing ancestor so the lookup works before DataFusion creates the temp dir.
+     * Uses {@link Environment#getFileStore(Path)} (not raw {@link Files#getFileStore}) so the
+     * JDK-8162520 negative-overflow workaround applies — without it, certain large or quirky
+     * filesystems return -1 and we'd misclassify them as "unmeasurable."
+     */
+    private static long resolveUsableDiskBytes(Path spillDir, String settingKey) {
+        Path probe = spillDir;
+        while (probe != null && !Files.exists(probe)) {
+            probe = probe.getParent();
+        }
+        if (probe == null) {
+            // Defensive — on POSIX `/` always exists, so this branch is essentially unreachable
+            // in production. We keep it for esoteric NIO providers that report null parents.
+            throw new IllegalStateException(
+                "Spill directory ["
+                    + spillDir
+                    + "] has no existing ancestor for setting ["
+                    + settingKey
+                    + "]; configure an absolute byte size (e.g. \"100gb\") instead of a percentage."
+            );
+        }
+        try {
+            FileStore store = Environment.getFileStore(probe);
+            long usable = store.getUsableSpace();
+            if (usable <= 0) {
+                throw new IllegalStateException(
+                    "Usable disk space not measurable on ["
+                        + probe
+                        + "] for setting ["
+                        + settingKey
+                        + "]; configure an absolute byte size (e.g. \"100gb\") instead of a percentage."
+                );
+            }
+            return usable;
+        } catch (IOException e) {
+            throw new IllegalStateException(
+                "Failed to read filesystem info for ["
+                    + probe
+                    + "] when resolving setting ["
+                    + settingKey
+                    + "]; configure an absolute byte size (e.g. \"100gb\") instead of a percentage.",
+                e
+            );
+        }
+    }
+
+    /**
+     * Shared parser for memory-pool-style settings. Mirrors {@code IndexingMemoryController}'s
+     * native indexing buffer logic: percentages resolve against
+     * {@code totalPhysicalMemory - configuredMaxHeap}; absolute byte sizes are returned as-is.
+     * <p>
+     * Throws {@link IllegalStateException} if a percentage is supplied but non-heap memory is
+     * unmeasurable — the operator should specify an absolute byte size in that case.
+     */
+    private static long resolveBytes(String configured, String settingKey) {
+        if (configured.endsWith("%")) {
+            long totalAvailableMemory = OsProbe.getInstance().getTotalPhysicalMemorySize() - JvmInfo.jvmInfo().getConfiguredMaxHeapSize();
+            if (totalAvailableMemory <= 0) {
+                throw new IllegalStateException(
+                    "Non-heap memory not measurable for setting ["
+                        + settingKey
+                        + "]; configure an absolute byte size (e.g. \"2gb\") instead of a percentage."
+                );
+            }
+            RatioValue ratio = RatioValue.parseRatioValue(configured);
+            return (long) (totalAvailableMemory * ratio.getAsRatio());
+        }
+        return ByteSizeValue.parseBytesSizeValue(configured, settingKey).getBytes();
+    }
+
+    /**
+     * Cluster-settings listener for {@link #DATAFUSION_MEMORY_POOL_LIMIT}. Re-resolves the new
+     * value and propagates the result to the native runtime.
+     */
+    private void onMemoryPoolLimitChanged(String newValue) {
+        long newLimitBytes = resolveBytes(newValue, DATAFUSION_MEMORY_POOL_LIMIT.getKey());
+        updateMemoryPoolLimit(newLimitBytes);
+    }
+
+    /**
+     * Validates that {@code value} is either a percentage ({@code "25%"}) or an absolute byte
+     * size accepted by {@link ByteSizeValue#parseBytesSizeValue(String, String)}. Used as the
+     * setting-time validator for {@link #DATAFUSION_MEMORY_POOL_LIMIT} and
+     * {@link #DATAFUSION_DISK_SPILL_LIMIT} so that malformed values fail at update time rather
+     * than at the next read inside the per-setting resolvers.
+     */
+    private static void validateMemorySizeOrPercentage(String value) {
+        try {
+            if (value.endsWith("%")) {
+                RatioValue.parseRatioValue(value);
+            } else {
+                ByteSizeValue.parseBytesSizeValue(value, "memory size");
+            }
+        } catch (RuntimeException e) {
+            throw new IllegalArgumentException(
+                "value [" + value + "] must be a percentage (e.g. \"25%\") or a byte size (e.g. \"512mb\"): " + e.getMessage(),
+                e
+            );
+        }
     }
 
     /**

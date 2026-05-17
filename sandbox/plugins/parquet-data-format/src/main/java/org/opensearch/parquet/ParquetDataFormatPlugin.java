@@ -29,6 +29,8 @@ import org.opensearch.index.store.PrecomputedChecksumStrategy;
 import org.opensearch.parquet.engine.ParquetDataFormat;
 import org.opensearch.parquet.engine.ParquetIndexingEngine;
 import org.opensearch.parquet.fields.ArrowSchemaBuilder;
+import org.opensearch.parquet.memory.ArrowBufferPool;
+import org.opensearch.parquet.memory.ArrowBufferPoolRegistry;
 import org.opensearch.parquet.store.ParquetStoreStrategy;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.repositories.RepositoriesService;
@@ -68,6 +70,8 @@ public class ParquetDataFormatPlugin extends Plugin implements DataFormatPlugin 
     /** Initialized to EMPTY to avoid NPE if indexingEngine() is called before createComponents(). */
     private Settings settings = Settings.EMPTY;
     private ThreadPool threadPool;
+    /** Plugin-scoped registry; may be null until createComponents() runs (e.g. in tests). */
+    private volatile ArrowBufferPoolRegistry bufferPoolRegistry;
 
     /** Creates a new ParquetDataFormatPlugin. */
     public ParquetDataFormatPlugin() {}
@@ -88,7 +92,17 @@ public class ParquetDataFormatPlugin extends Plugin implements DataFormatPlugin 
     ) {
         this.settings = clusterService.getSettings();
         this.threadPool = threadPool;
+        this.bufferPoolRegistry = new ArrowBufferPoolRegistry(clusterService.getClusterSettings());
         return Collections.emptyList();
+    }
+
+    /**
+     * Returns the plugin-scoped registry that fans cluster-settings updates out to live
+     * {@link ArrowBufferPool} instances. {@code null} if the plugin has not yet been wired
+     * via {@link #createComponents}, which happens in unit tests that bypass plugin startup.
+     */
+    public ArrowBufferPoolRegistry getBufferPoolRegistry() {
+        return bufferPoolRegistry;
     }
 
     @Override
@@ -106,7 +120,8 @@ public class ParquetDataFormatPlugin extends Plugin implements DataFormatPlugin 
             () -> engineConfig.mapperService().getIndexSettings().getIndexMetadata().getMappingVersion(),
             engineConfig.indexSettings(),
             threadPool,
-            engineConfig.checksumStrategies().get(ParquetDataFormat.PARQUET_DATA_FORMAT_NAME)
+            engineConfig.checksumStrategies().get(ParquetDataFormat.PARQUET_DATA_FORMAT_NAME),
+            bufferPoolRegistry
         );
     }
 

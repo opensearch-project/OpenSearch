@@ -70,6 +70,8 @@ public class DatafusionSettingsTests extends OpenSearchTestCase {
 
     public void testAllSettingsContainsAllExpectedSettings() {
         assertEquals(16, DatafusionSettings.ALL_SETTINGS.size());
+        assertTrue(DatafusionSettings.ALL_SETTINGS.contains(DataFusionPlugin.DATAFUSION_MEMORY_POOL_LIMIT));
+        assertTrue(DatafusionSettings.ALL_SETTINGS.contains(DataFusionPlugin.DATAFUSION_DISK_SPILL_LIMIT));
         assertTrue(DatafusionSettings.ALL_SETTINGS.contains(DatafusionSettings.INDEXED_BATCH_SIZE));
         assertTrue(DatafusionSettings.ALL_SETTINGS.contains(DatafusionSettings.INDEXED_PARQUET_PUSHDOWN_FILTERS));
         assertTrue(DatafusionSettings.ALL_SETTINGS.contains(DatafusionSettings.INDEXED_MIN_SKIP_RUN_DEFAULT));
