@@ -207,9 +207,7 @@ public class FragmentConversionDriver {
                         String peerBackend = ap.getPerformanceDelegationBackends().getFirst();
                         RexNode original = ap.unwrap();
                         if (!(original instanceof RexCall originalCall)) {
-                            throw new IllegalStateException(
-                                "Performance-delegation candidate must wrap a RexCall: " + original
-                            );
+                            throw new IllegalStateException("Performance-delegation candidate must wrap a RexCall: " + original);
                         }
                         // Performance-delegated predicates are typically SqlBinaryOperators (=, <, >, etc.),
                         // not SqlFunctions like MATCH_PHRASE. fromSqlOperatorWithFallback handles both.

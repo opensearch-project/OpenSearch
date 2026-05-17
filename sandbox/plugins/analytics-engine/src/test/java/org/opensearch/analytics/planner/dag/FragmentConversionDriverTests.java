@@ -526,9 +526,12 @@ public class FragmentConversionDriverTests extends BasePlannerRulesTests {
             new String[] { "status", "message", "amount" },
             new SqlTypeName[] { SqlTypeName.INTEGER, SqlTypeName.VARCHAR, SqlTypeName.INTEGER },
             Map.of(
-                "status", Map.of("type", "integer", "index", true),
-                "message", Map.of("type", "keyword", "index", true),
-                "amount", Map.of("type", "integer", "index", false)
+                "status",
+                Map.of("type", "integer", "index", true),
+                "message",
+                Map.of("type", "keyword", "index", true),
+                "amount",
+                Map.of("type", "integer", "index", false)
             )
         );
     }
