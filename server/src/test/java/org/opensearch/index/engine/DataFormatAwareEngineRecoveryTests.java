@@ -11,6 +11,7 @@ package org.opensearch.index.engine;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.NoMergePolicy;
+import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.store.Directory;
 import org.opensearch.Version;
@@ -32,8 +33,10 @@ import org.opensearch.index.engine.dataformat.stub.MockDataFormatPlugin;
 import org.opensearch.index.engine.dataformat.stub.MockDocumentInput;
 import org.opensearch.index.engine.dataformat.stub.MockSearchBackEndPlugin;
 import org.opensearch.index.engine.exec.commit.Committer;
+import org.opensearch.index.engine.exec.commit.Committer.CommitResult;
 import org.opensearch.index.engine.exec.commit.CommitterFactory;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
+import org.opensearch.index.engine.exec.coord.CatalogSnapshotManager;
 import org.opensearch.index.engine.exec.coord.DataformatAwareCatalogSnapshot;
 import org.opensearch.index.mapper.IdFieldMapper;
 import org.opensearch.index.mapper.MapperService;
@@ -66,6 +69,8 @@ import java.util.UUID;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
 import static org.opensearch.index.engine.EngineTestCase.createParsedDoc;
 import static org.opensearch.index.engine.EngineTestCase.tombstoneDocSupplier;
@@ -126,23 +131,31 @@ public class DataFormatAwareEngineRecoveryTests extends OpenSearchTestCase {
         private final Store store;
         private volatile Map<String, String> committedData;
         private volatile CatalogSnapshot lastCommittedSnapshot;
+        private final long initialCommitGeneration;
 
         PersistentCommitter(Store store) throws IOException {
             this.store = store;
-            this.committedData = Map.copyOf(store.readLastCommittedSegmentsInfo().getUserData());
+            SegmentInfos segmentInfos = store.readLastCommittedSegmentsInfo();
+            this.committedData = Map.copyOf(segmentInfos.getUserData());
+            this.initialCommitGeneration = segmentInfos.getGeneration();
             // Deserialize existing catalog snapshot if present
             String serialized = committedData.get(CatalogSnapshot.CATALOG_SNAPSHOT_KEY);
             if (serialized != null) {
-                try {
-                    this.lastCommittedSnapshot = DataformatAwareCatalogSnapshot.deserializeFromString(serialized, dir -> dir);
-                } catch (IOException e) {
-                    // Deserialization failed — start without committed snapshot
-                }
+                this.lastCommittedSnapshot = DataformatAwareCatalogSnapshot.deserializeFromString(
+                    serialized,
+                    store.shardFormatDirectoryResolver()
+                );
+                // Carry forward the commit info from the Lucene commit
+                ((DataformatAwareCatalogSnapshot) this.lastCommittedSnapshot).setLastCommitInfo(
+                    segmentInfos.getSegmentsFileName(),
+                    segmentInfos.getGeneration(),
+                    0L
+                );
             }
         }
 
         @Override
-        public void commit(Map<String, String> commitData) throws IOException {
+        public CommitResult commit(CommitInput commitInput) throws IOException {
             try (
                 IndexWriter writer = new IndexWriter(
                     store.directory(),
@@ -150,19 +163,27 @@ public class DataFormatAwareEngineRecoveryTests extends OpenSearchTestCase {
                         .setOpenMode(IndexWriterConfig.OpenMode.APPEND)
                 )
             ) {
-                writer.setLiveCommitData(commitData.entrySet());
+                writer.setLiveCommitData(commitInput.userData());
                 writer.commit();
             }
-            this.committedData = Map.copyOf(commitData);
+            this.committedData = StreamSupport.stream(commitInput.userData().spliterator(), false)
+                .collect(
+                    Collectors.toMap(
+                        Map.Entry::getKey,
+                        Map.Entry::getValue,
+                        (existing, replacement) -> replacement, // Merge function for duplicate keys
+                        HashMap::new
+                    )
+                );
             // Store the catalog snapshot if present in commit data
-            String serialized = commitData.get(CatalogSnapshot.CATALOG_SNAPSHOT_KEY);
+            String serialized = committedData.get(CatalogSnapshot.CATALOG_SNAPSHOT_KEY);
             if (serialized != null) {
-                try {
-                    this.lastCommittedSnapshot = DataformatAwareCatalogSnapshot.deserializeFromString(serialized, dir -> dir);
-                } catch (IOException e) {
-                    // If deserialization fails, keep the previous snapshot
-                }
+                this.lastCommittedSnapshot = DataformatAwareCatalogSnapshot.deserializeFromString(
+                    serialized,
+                    store.shardFormatDirectoryResolver()
+                );
             }
+            return new CommitResult("segments_1", 1L, 0L);
         }
 
         @Override
@@ -185,7 +206,18 @@ public class DataFormatAwareEngineRecoveryTests extends OpenSearchTestCase {
             if (lastCommittedSnapshot != null) {
                 return List.of(lastCommittedSnapshot);
             }
-            return List.of();
+            // Fresh index — no committed catalog snapshot yet. Provide an initial empty
+            // snapshot so CatalogSnapshotManager can be constructed (it requires non-empty).
+            DataformatAwareCatalogSnapshot initial = (DataformatAwareCatalogSnapshot) CatalogSnapshotManager.createInitialSnapshot(
+                0L,
+                0L,
+                0L,
+                List.of(),
+                -1L,
+                committedData
+            );
+            initial.setLastCommitInfo("segments_" + initialCommitGeneration, initialCommitGeneration, 0L);
+            return List.of(initial);
         }
 
         @Override
@@ -194,6 +226,11 @@ public class DataFormatAwareEngineRecoveryTests extends OpenSearchTestCase {
         @Override
         public boolean isCommitManagedFile(String fileName) {
             return false;
+        }
+
+        @Override
+        public byte[] serializeToCommitFormat(CatalogSnapshot catalogSnapshot) throws IOException {
+            return new byte[0];
         }
 
         @Override
@@ -1034,6 +1071,37 @@ public class DataFormatAwareEngineRecoveryTests extends OpenSearchTestCase {
                 List<org.opensearch.index.engine.exec.Segment> segments = snapshot.getSegments();
                 long distinctGenerations = segments.stream().map(org.opensearch.index.engine.exec.Segment::generation).distinct().count();
                 assertThat("all segment generations must be unique", distinctGenerations, equalTo((long) segments.size()));
+            }
+        }
+    }
+
+    /**
+     * Simulates the production scenario where a Lucene commit exists without a serialized
+     * CatalogSnapshot (e.g. the initial commit from {@code store.createEmpty()} or a commit
+     * written by a non-DFA engine before migration). The PersistentCommitter must synthesize
+     * an initial empty snapshot with correct lastCommitGeneration so the engine can open.
+     * <p>
+     * This mirrors the handling in {@code LuceneCommitter.loadCommittedSnapshots()} where
+     * commits without {@code _catalog_snapshot_} get a synthetic initial snapshot seeded
+     * from the on-disk segments_N generation.
+     */
+    public void testEngineOpensWithCommitLackingCatalogSnapshot() throws IOException {
+        // Bootstrap creates a commit with NO _catalog_snapshot_ key — simulates store.createEmpty()
+        // or a pre-DFA engine commit.
+        try (DataFormatAwareEngine engine = createEngine()) {
+            // recoverFromTranslog triggers onAfterTranslogRecovery → flush, which writes
+            // the first commit WITH _catalog_snapshot_. But the engine must have opened
+            // successfully from the bootstrap commit that lacked it.
+            engine.translogManager().recoverFromTranslog(ignore -> 0, engine.getProcessedLocalCheckpoint(), Long.MAX_VALUE);
+
+            // Engine is functional — can index and refresh
+            for (int i = 0; i < 5; i++) {
+                Engine.IndexResult result = engine.index(indexOp(Integer.toString(i)));
+                assertThat(result.getResultType(), equalTo(Engine.Result.Type.SUCCESS));
+            }
+            engine.refresh("test");
+            try (GatedCloseable<CatalogSnapshot> ref = engine.acquireSnapshot()) {
+                assertThat(ref.get().getSegments().size(), greaterThan(0));
             }
         }
     }

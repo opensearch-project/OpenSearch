@@ -23,7 +23,7 @@ import java.util.Map;
  */
 public class MockReaderManager implements EngineReaderManager<MockReader> {
     private final String formatName;
-    private final Map<CatalogSnapshot, MockReader> readers = new HashMap<>();
+    private final Map<Long, MockReader> readers = new HashMap<>();
     public final List<String> addedFiles = new ArrayList<>();
     public final List<String> deletedFiles = new ArrayList<>();
 
@@ -33,7 +33,7 @@ public class MockReaderManager implements EngineReaderManager<MockReader> {
 
     @Override
     public MockReader getReader(CatalogSnapshot snapshot) {
-        return readers.get(snapshot);
+        return readers.get(snapshot.getVersion());
     }
 
     public int readerCount() {
@@ -45,7 +45,7 @@ public class MockReaderManager implements EngineReaderManager<MockReader> {
 
     @Override
     public void afterRefresh(boolean didRefresh, CatalogSnapshot snapshot) {
-        if (didRefresh == false || readers.containsKey(snapshot)) return;
+        if (didRefresh == false || readers.containsKey(snapshot.getVersion())) return;
         Collection<WriterFileSet> files = snapshot.getSearchableFiles(formatName);
         List<String> allFiles = new ArrayList<>();
         long totalRows = 0;
@@ -53,12 +53,12 @@ public class MockReaderManager implements EngineReaderManager<MockReader> {
             allFiles.addAll(wfs.files());
             totalRows += wfs.numRows();
         }
-        readers.put(snapshot, new MockReader(allFiles, totalRows));
+        readers.put(snapshot.getVersion(), new MockReader(allFiles, totalRows));
     }
 
     @Override
     public void onDeleted(CatalogSnapshot snapshot) {
-        MockReader reader = readers.remove(snapshot);
+        MockReader reader = readers.remove(snapshot.getVersion());
         if (reader != null) reader.close();
     }
 

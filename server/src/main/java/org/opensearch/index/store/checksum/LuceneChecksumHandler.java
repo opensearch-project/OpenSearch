@@ -12,8 +12,13 @@ import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
+import org.apache.lucene.store.IndexOutput;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.index.store.FormatChecksumStrategy;
+import org.opensearch.index.store.Store;
+import org.opensearch.index.store.StoreFileMetadata;
+import org.opensearch.index.store.VerifyingIndexOutput;
 
 import java.io.IOException;
 
@@ -33,5 +38,11 @@ public class LuceneChecksumHandler implements FormatChecksumStrategy {
         try (IndexInput input = dir.openInput(fileName, IOContext.READONCE)) {
             return CodecUtil.retrieveChecksum(input);
         }
+    }
+
+    @ExperimentalApi
+    @Override
+    public VerifyingIndexOutput createVerifyingOutput(StoreFileMetadata metadata, IndexOutput output) {
+        return new Store.LuceneVerifyingIndexOutput(metadata, output);
     }
 }

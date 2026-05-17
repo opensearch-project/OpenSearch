@@ -10,7 +10,11 @@ package org.opensearch.be.lucene;
 
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.SegmentCommitInfo;
+import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SegmentReader;
+import org.opensearch.be.lucene.index.LuceneReplicaCommitter;
+import org.opensearch.common.CheckedBiFunction;
+import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.exec.EngineReaderManager;
@@ -19,7 +23,6 @@ import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 
 import java.io.IOException;
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
@@ -29,38 +32,50 @@ import static org.opensearch.be.lucene.index.LuceneWriter.WRITER_GENERATION_ATTR
  * Lucene implementation of {@link EngineReaderManager}.
  * <p>
  * Constructed with a {@link DataFormat} and an initial {@link DirectoryReader}
- * (typically opened from an IndexWriter). Maintains a map of {@link CatalogSnapshot}
- * to {@link DirectoryReader} so each snapshot gets the reader that was current
+ * (typically opened from an IndexWriter). Maintains a version-keyed map of
+ * {@link DirectoryReader} so each snapshot gets the reader that was current
  * at the time of its refresh. On each {@link #afterRefresh}, the current reader is
  * refreshed via {@link DirectoryReader#openIfChanged}.
  *
  * @opensearch.experimental
  */
 @ExperimentalApi
+@SuppressForbidden(reason = "reference counting is required here")
 public class LuceneReaderManager implements EngineReaderManager<DirectoryReader> {
 
     private final DataFormat dataFormat;
-    private final Map<CatalogSnapshot, DirectoryReader> readers = new HashMap<>();
+    private final Map<Long, DirectoryReader> readers;
     private volatile DirectoryReader currentReader;
+    private final CheckedBiFunction<DirectoryReader, SegmentInfos, DirectoryReader, IOException> readerRefresher;
 
     /**
      * Creates a new LuceneReaderManager.
      *
-     * @param dataFormat the data format this reader manager serves
-     * @param initialReader the initial DirectoryReader, must not be null
+     * @param dataFormat      the data format this reader manager serves
+     * @param initialReader   the initial DirectoryReader, must not be null
+     * @param readers         shared map of generation to DirectoryReader for segment-level reader reuse
+     * @param readerRefresher function that opens a refreshed reader given the current reader and new
+     *                        {@link SegmentInfos}; returns {@code null} if no refresh is needed
      * @throws NullPointerException if initialReader is null
      */
-    public LuceneReaderManager(DataFormat dataFormat, DirectoryReader initialReader) {
+    public LuceneReaderManager(
+        DataFormat dataFormat,
+        DirectoryReader initialReader,
+        Map<Long, DirectoryReader> readers,
+        CheckedBiFunction<DirectoryReader, SegmentInfos, DirectoryReader, IOException> readerRefresher
+    ) {
         this.dataFormat = dataFormat;
         Objects.requireNonNull(initialReader, "initialReader must not be null");
         this.currentReader = initialReader;
+        this.readers = readers;
+        this.readerRefresher = readerRefresher;
     }
 
     @Override
     public DirectoryReader getReader(CatalogSnapshot catalogSnapshot) throws IOException {
-        DirectoryReader reader = readers.get(catalogSnapshot);
+        DirectoryReader reader = readers.get(catalogSnapshot.getId());
         if (reader == null) {
-            throw new IllegalStateException("No reader available for catalog snapshot [gen=" + catalogSnapshot.getGeneration() + "]");
+            throw new IllegalStateException("No reader available for catalog snapshot [version=" + catalogSnapshot.getId() + "]");
         }
         return reader;
     }
@@ -72,20 +87,23 @@ public class LuceneReaderManager implements EngineReaderManager<DirectoryReader>
 
     @Override
     public void afterRefresh(boolean didRefresh, CatalogSnapshot catalogSnapshot) throws IOException {
-        if (didRefresh == false || readers.containsKey(catalogSnapshot)) {
+        if (didRefresh == false || readers.containsKey(catalogSnapshot.getId())) {
             return;
         }
-        DirectoryReader refreshed = DirectoryReader.openIfChanged(currentReader);
+        DirectoryReader refreshed = readerRefresher.apply(currentReader, LuceneReplicaCommitter.getSegmentInfos(catalogSnapshot));
         if (refreshed != null) {
             // Guard against refresh/merge-apply races: a prior IT regression surfaced when
             // overlapping threads produced a refreshed reader whose leaves disagreed with the
             // catalog snapshot being registered, effectively pairing the snapshot with a stale
             // reader. This assert catches that drift in test builds before the mismatched pair
             // is published to readers.
-            assert readersAreSame(catalogSnapshot, refreshed);
             currentReader = refreshed;
+        } else {
+            // If same reader is used, assert that calalog snapshot is same.
+            currentReader.incRef();
         }
-        readers.put(catalogSnapshot, currentReader);
+        assert readersAreSame(catalogSnapshot, currentReader);
+        readers.put(catalogSnapshot.getId(), currentReader);
     }
 
     /**
@@ -101,12 +119,12 @@ public class LuceneReaderManager implements EngineReaderManager<DirectoryReader>
      * with the wrong catalog snapshot.
      *
      * @param catalogSnapshot catalog snapshot whose referenced generations are the expected set
-     * @param readers         DirectoryReader whose leaves' generations are the actual set
+     * @param reader         DirectoryReader whose leaves' generations are the actual set
      * @return {@code true} iff both lists contain the same generations in the same (sorted) order
      */
-    private boolean readersAreSame(CatalogSnapshot catalogSnapshot, DirectoryReader readers) {
+    private boolean readersAreSame(CatalogSnapshot catalogSnapshot, DirectoryReader reader) {
         Collection<Long> generationsReferenced = catalogSnapshot.getSegments().stream().map(Segment::generation).sorted().toList();
-        return generationsReferenced.equals(collectReferencedGenerations(readers));
+        return generationsReferenced.equals(collectReferencedGenerations(reader));
     }
 
     /**
@@ -133,9 +151,9 @@ public class LuceneReaderManager implements EngineReaderManager<DirectoryReader>
 
     @Override
     public void onDeleted(CatalogSnapshot catalogSnapshot) throws IOException {
-        DirectoryReader reader = readers.remove(catalogSnapshot);
+        DirectoryReader reader = readers.remove(catalogSnapshot.getId());
         if (reader != null) {
-            reader.close();
+            reader.decRef();
         }
     }
 
@@ -152,7 +170,7 @@ public class LuceneReaderManager implements EngineReaderManager<DirectoryReader>
     @Override
     public void close() throws IOException {
         for (DirectoryReader reader : readers.values()) {
-            reader.close();
+            reader.decRef();
         }
         readers.clear();
     }

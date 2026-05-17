@@ -25,6 +25,7 @@ import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.UploadListener;
 import org.opensearch.core.action.ActionListener;
+import org.opensearch.index.engine.DataFormatAwareEngine;
 import org.opensearch.index.engine.EngineBackedIndexer;
 import org.opensearch.index.engine.EngineException;
 import org.opensearch.index.engine.InternalEngine;
@@ -226,8 +227,9 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
             // primaryMode to true. Due to this, the refresh that is triggered post replay of translog will not go through
             // if following condition does not exist. The segments created as part of translog replay will not be present
             // in the remote store.
+            // Accept DataFormatAwareEngine alongside InternalEngine (DFA primaries need the retry path).
             return indexShard.state() != IndexShardState.STARTED
-                || !(indexShard.getIndexer() instanceof EngineBackedIndexer indexer && indexer.getEngine() instanceof InternalEngine);
+                || !(isInternalEngineIndexer(indexShard.getIndexer()) || indexShard.getIndexer() instanceof DataFormatAwareEngine);
         }
 
         // Extract crypto metadata once at start of sync
@@ -270,6 +272,7 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
                     long lastRefreshedCheckpoint = indexShard.getIndexer().lastRefreshedCheckpoint();
                     Collection<String> localSegmentsPostRefresh = catalogSnapshot.getFiles(true);
 
+                    evictUploadedChecksums(localSegmentsPostRefresh);
                     // Create a map of file name to size and update the refresh segment tracker
                     Map<String, Long> localSegmentsSizeMap = updateLocalSizeMapAndTracker(localSegmentsPostRefresh).entrySet()
                         .stream()
@@ -349,6 +352,10 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
         return CryptoMetadata.fromIndexSettings(indexMetadata.getSettings());
     }
 
+    private static boolean isInternalEngineIndexer(org.opensearch.index.engine.exec.Indexer indexer) {
+        return indexer instanceof EngineBackedIndexer engineBacked && engineBacked.getEngine() instanceof InternalEngine;
+    }
+
     /**
      * Uploads new segment files to the remote store.
      *
@@ -389,6 +396,17 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
             .filter(file -> !localSegmentsPostRefresh.contains(file))
             .collect(Collectors.toSet())
             .forEach(localSegmentChecksumMap::remove);
+    }
+
+    /**
+     * Evicts pre-computed checksums for files no longer in the current catalog snapshot.
+     * Once uploaded, the checksum is stored in remote metadata and no longer needed in the local cache.
+     */
+    private void evictUploadedChecksums(Collection<String> currentSnapshotFiles) {
+        DataFormatAwareStoreDirectory dfasd = DataFormatAwareStoreDirectory.unwrap(storeDirectory);
+        if (dfasd != null) {
+            dfasd.evictStaleChecksums(currentSnapshotFiles);
+        }
     }
 
     private void beforeSegmentsSync() {
@@ -464,11 +482,18 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
         ReplicationCheckpoint replicationCheckpoint
     ) throws IOException {
         final long maxSeqNo = indexShard.getIndexer().currentOngoingRefreshCheckpoint();
-        CatalogSnapshot catalogSnapshotCloned = catalogSnapshot.cloneNoAcquire();
+        CatalogSnapshot catalogSnapshotCloned = catalogSnapshot.clone();
         Map<String, String> userData = new HashMap<>(catalogSnapshotCloned.getUserData());
         userData.put(LOCAL_CHECKPOINT_KEY, String.valueOf(maxSeqNo));
         userData.put(SequenceNumbers.MAX_SEQ_NO, Long.toString(maxSeqNo));
         catalogSnapshotCloned.setUserData(userData, false);
+
+        // Pass the serializer from the indexer. For DFA primary it delegates to the
+        // CatalogSnapshotManager → LuceneCommitter.serializeToCommitFormat which uses the
+        // reader registered for this snapshot to produce bytes strictly consistent with the
+        // catalog's Lucene files — no race between catalog acquisition and IndexWriter re-capture.
+        org.opensearch.common.CheckedFunction<CatalogSnapshot, byte[], IOException> serializer = indexShard
+            .catalogSnapshotToRemoteMetadataSerializer();
 
         Translog.TranslogGeneration translogGeneration = indexShard.getIndexer().translogManager().getTranslogGeneration();
         if (translogGeneration == null) {
@@ -481,7 +506,8 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
                 storeDirectory,
                 translogFileGeneration,
                 replicationCheckpoint,
-                indexShard.getNodeId()
+                indexShard.getNodeId(),
+                serializer
             );
         }
     }

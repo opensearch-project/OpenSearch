@@ -238,16 +238,6 @@ public abstract class CatalogSnapshot implements Writeable, Cloneable {
     }
 
     /**
-     * Creates a clone without acquiring a reference count.
-     * Used for Lucene compatibility where clone is required.
-     *
-     * @return this catalog snapshot instance
-     */
-    public CatalogSnapshot cloneNoAcquire() {
-        return this;
-    }
-
-    /**
      * Sets user-defined metadata for this catalog snapshot.
      *
      * @param userData map of user data key-value pairs
@@ -264,26 +254,60 @@ public abstract class CatalogSnapshot implements Writeable, Cloneable {
     public abstract CatalogSnapshot clone();
 
     /**
-     * Returns the major version of the format that wrote the given file.
-     * For Lucene files, this is the Lucene major version from SegmentInfo.
-     * For non-Lucene files (e.g., parquet), this is the format-specific version.
+     * Returns the format-version string for the given file. Empty string means pre-versioning
+     * (legacy / BWC). The string is plugin-defined and MUST NOT be compared across formats.
      *
      * @param file the file name
-     * @return the format major version
+     * @return the format version string
      */
-    public abstract int getFormatVersionForFile(String file);
+    /**
+     * Returns the format-version for the given file as a long-encoded value.
+     * Encoding is defined by {@link LuceneVersionConverter}:
+     * {@code major * 1_000_000 + minor * 1_000 + bugfix}. Returns {@code 0} to indicate
+     * "unknown / pre-versioning" (callers map this to {@link org.apache.lucene.util.Version#LATEST}).
+     *
+     * @param file the file name to inspect
+     * @return the encoded long version, or {@code 0} if unknown
+     */
+    public abstract long getFormatVersionForFile(String file);
 
     /**
-     * Serializes this CatalogSnapshot into SegmentInfos bytes for the remote metadata file.
-     * Each subclass knows its own serialization format:
-     *
-     * TODO: When CompositeEngineCatalogSnapshot is added, implement this method
-     *       creating synthetic SegmentInfos with CatalogSnapshot serialized into userData.
-     *
-     * @return serialized bytes
-     * @throws IOException in case of I/O error
+     * Returns the minimum segment format version as a long-encoded value (see
+     * {@link LuceneVersionConverter}). Returns {@code 0} for multi-format catalogs
+     * (cross-format comparison is not meaningful) or for empty catalogs.
      */
-    public abstract byte[] serialize() throws IOException;
+    public abstract long getMinSegmentFormatVersion();
+
+    /**
+     * Returns the commit-time format version as a long-encoded value
+     * (see {@link LuceneVersionConverter}). Returns {@code 0} for multi-format
+     * catalogs or when no commit has landed yet. Callers decode via
+     * {@link LuceneVersionConverter#toLuceneOrLatest(long)} when a Lucene view is needed.
+     */
+    public abstract long getCommitDataFormatVersion();
+
+    /** Total number of live documents in this snapshot. SI → Lucene live docs; DFA → 0 (TODO). */
+    public abstract long getNumDocs();
+
+    /**
+     * Name of the top-level commit file, or {@code null} if not yet committed.
+     * Format-neutral: Lucene-backed snapshots use {@code segments_N} but callers must not
+     * assume any naming convention. {@code MetadataSnapshot.loadMetadata} skips the
+     * hash-full-file step when this is {@code null}.
+     */
+    public abstract String getLastCommitFileName();
+
+    /**
+     * Returns the Lucene {@code segments_N} generation to use when serializing this snapshot
+     * into a synthetic {@code SegmentInfos} or building a {@code ReplicationCheckpoint}.
+     * <p>
+     * For {@code SegmentInfosCatalogSnapshot}, this is the Lucene generation from {@code SegmentInfos}.
+     * For {@code DataformatAwareCatalogSnapshot}, this is the generation set via
+     * {@link DataformatAwareCatalogSnapshot#setLastCommitInfo}, falling back to {@link #getGeneration()}.
+     */
+    public long getLastCommitGeneration() {
+        return getGeneration();
+    }
 
     /**
      * Returns the canonical file names for upload to remote store.

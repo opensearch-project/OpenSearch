@@ -57,7 +57,9 @@ public class SafeBootstrapCommitterTests extends OpenSearchTestCase {
         }
 
         @Override
-        public void commit(Map<String, String> commitData) {}
+        public CommitResult commit(CommitInput commitData) {
+            return null;
+        }
 
         @Override
         public Map<String, String> getLastCommittedData() {
@@ -85,6 +87,11 @@ public class SafeBootstrapCommitterTests extends OpenSearchTestCase {
         @Override
         public boolean isCommitManagedFile(String fileName) {
             return false;
+        }
+
+        @Override
+        public byte[] serializeToCommitFormat(CatalogSnapshot snapshot) {
+            throw new UnsupportedOperationException("test stub does not serialize commits");
         }
 
         @Override

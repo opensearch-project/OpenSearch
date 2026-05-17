@@ -114,7 +114,7 @@ public class LuceneReaderManagerTests extends OpenSearchTestCase {
      */
     private CatalogSnapshot stubSnapshot(long generation, List<Long> segmentGenerations) {
         List<Segment> segs = segmentGenerations.stream().map(g -> Segment.builder(g).build()).toList();
-        return new CatalogSnapshot("test", generation, 1) {
+        return new CatalogSnapshot("test", generation, generation) {
             @Override
             protected void closeInternal() {}
 
@@ -154,11 +154,6 @@ public class LuceneReaderManagerTests extends OpenSearchTestCase {
             }
 
             @Override
-            public CatalogSnapshot cloneNoAcquire() {
-                return this;
-            }
-
-            @Override
             public void setUserData(Map<String, String> userData, boolean commitData) {}
 
             @Override
@@ -167,13 +162,32 @@ public class LuceneReaderManagerTests extends OpenSearchTestCase {
             }
 
             @Override
-            public int getFormatVersionForFile(String file) {
-                return 0;
+            public long getFormatVersionForFile(String file) {
+                return 0L;
             }
 
             @Override
-            public byte[] serialize() throws IOException {
-                return new byte[0];
+            public long getMinSegmentFormatVersion() {
+                return 0L;
+            }
+
+            @Override
+            public long getCommitDataFormatVersion() {
+                return 0L;
+            }
+
+            @Override
+            public long getNumDocs() {
+                return 0L;
+            }
+
+            @Override
+            public String getLastCommitFileName() {
+                return null;
+            }
+
+            public java.util.Set<String> getSegmentNames() {
+                return java.util.Set.of();
             }
 
             @Override
@@ -216,7 +230,12 @@ public class LuceneReaderManagerTests extends OpenSearchTestCase {
     }
 
     public void testAfterRefreshCreatesReader() throws IOException {
-        LuceneReaderManager rm = new LuceneReaderManager(dataFormat, openReader());
+        LuceneReaderManager rm = new LuceneReaderManager(
+            dataFormat,
+            openReader(),
+            new java.util.concurrent.ConcurrentHashMap<>(),
+            (dr, sis) -> DirectoryReader.openIfChanged(dr)
+        );
         CatalogSnapshot snap = stubSnapshot(1);
 
         expectThrows(IllegalStateException.class, () -> rm.getReader(snap));
@@ -225,7 +244,12 @@ public class LuceneReaderManagerTests extends OpenSearchTestCase {
     }
 
     public void testAfterRefreshNoOpWhenDidRefreshFalse() throws IOException {
-        LuceneReaderManager rm = new LuceneReaderManager(dataFormat, openReader());
+        LuceneReaderManager rm = new LuceneReaderManager(
+            dataFormat,
+            openReader(),
+            new java.util.concurrent.ConcurrentHashMap<>(),
+            (dr, sis) -> DirectoryReader.openIfChanged(dr)
+        );
         CatalogSnapshot snap = stubSnapshot(1);
 
         rm.afterRefresh(false, snap);
@@ -233,7 +257,12 @@ public class LuceneReaderManagerTests extends OpenSearchTestCase {
     }
 
     public void testMultipleRefreshesWithIndexing() throws IOException {
-        LuceneReaderManager rm = new LuceneReaderManager(dataFormat, openReader());
+        LuceneReaderManager rm = new LuceneReaderManager(
+            dataFormat,
+            openReader(),
+            new java.util.concurrent.ConcurrentHashMap<>(),
+            (dr, sis) -> DirectoryReader.openIfChanged(dr)
+        );
 
         // Empty initial reader — no segments yet.
         CatalogSnapshot snap1 = stubSnapshot(1);
@@ -266,7 +295,12 @@ public class LuceneReaderManagerTests extends OpenSearchTestCase {
     }
 
     public void testOnDeletedClosesReader() throws IOException {
-        LuceneReaderManager rm = new LuceneReaderManager(dataFormat, openReader());
+        LuceneReaderManager rm = new LuceneReaderManager(
+            dataFormat,
+            openReader(),
+            new java.util.concurrent.ConcurrentHashMap<>(),
+            (dr, sis) -> DirectoryReader.openIfChanged(dr)
+        );
         CatalogSnapshot snap = stubSnapshot(1);
         rm.afterRefresh(true, snap);
 
@@ -278,17 +312,32 @@ public class LuceneReaderManagerTests extends OpenSearchTestCase {
     }
 
     public void testOnDeletedUnknownSnapshotIsNoOp() throws IOException {
-        LuceneReaderManager rm = new LuceneReaderManager(dataFormat, openReader());
+        LuceneReaderManager rm = new LuceneReaderManager(
+            dataFormat,
+            openReader(),
+            new java.util.concurrent.ConcurrentHashMap<>(),
+            (dr, sis) -> DirectoryReader.openIfChanged(dr)
+        );
         rm.onDeleted(stubSnapshot(99));
     }
 
     public void testGetReaderThrowsForUnknownSnapshot() throws IOException {
-        LuceneReaderManager rm = new LuceneReaderManager(dataFormat, openReader());
+        LuceneReaderManager rm = new LuceneReaderManager(
+            dataFormat,
+            openReader(),
+            new java.util.concurrent.ConcurrentHashMap<>(),
+            (dr, sis) -> DirectoryReader.openIfChanged(dr)
+        );
         expectThrows(IllegalStateException.class, () -> rm.getReader(stubSnapshot(42)));
     }
 
     public void testDuplicateAfterRefreshIsIdempotent() throws IOException {
-        LuceneReaderManager rm = new LuceneReaderManager(dataFormat, openReader());
+        LuceneReaderManager rm = new LuceneReaderManager(
+            dataFormat,
+            openReader(),
+            new java.util.concurrent.ConcurrentHashMap<>(),
+            (dr, sis) -> DirectoryReader.openIfChanged(dr)
+        );
         CatalogSnapshot snap = stubSnapshot(1);
 
         rm.afterRefresh(true, snap);
@@ -311,9 +360,15 @@ public class LuceneReaderManagerTests extends OpenSearchTestCase {
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("test", Settings.EMPTY);
         ShardPath shardPath = new ShardPath(false, dataPath, dataPath, shardId);
         Store store = new Store(shardId, idxSettings, new NIOFSDirectory(dataPath), new DummyShardLock(shardId), (x) -> {}, shardPath);
-        store.createEmpty(org.apache.lucene.util.Version.LATEST);
         Path translogPath = dataPath.resolve("translog");
         java.nio.file.Files.createDirectories(translogPath);
+        String translogUUID = org.opensearch.index.translog.Translog.createEmptyTranslog(
+            translogPath,
+            org.opensearch.index.seqno.SequenceNumbers.NO_OPS_PERFORMED,
+            shardId,
+            1L
+        );
+        store.createEmpty(org.apache.lucene.util.Version.LATEST, translogUUID);
         EngineConfig engineConfig = new EngineConfig.Builder().indexSettings(idxSettings)
             .store(store)
             .codecService(new CodecService(null, idxSettings, LogManager.getLogger(getClass()), java.util.List.of()))

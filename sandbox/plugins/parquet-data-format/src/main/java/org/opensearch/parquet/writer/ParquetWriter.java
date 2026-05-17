@@ -14,7 +14,9 @@ import org.opensearch.index.engine.dataformat.FileInfos;
 import org.opensearch.index.engine.dataformat.WriteResult;
 import org.opensearch.index.engine.dataformat.Writer;
 import org.opensearch.index.engine.exec.WriterFileSet;
+import org.opensearch.index.store.FileMetadata;
 import org.opensearch.index.store.FormatChecksumStrategy;
+import org.opensearch.parquet.ParquetDataFormatPlugin;
 import org.opensearch.parquet.ParquetSettings;
 import org.opensearch.parquet.bridge.ParquetFileMetadata;
 import org.opensearch.parquet.engine.ParquetDataFormat;
@@ -104,9 +106,10 @@ public class ParquetWriter implements Writer<ParquetDocumentInput> {
         Path filePath = Path.of(file);
         String fileName = filePath.getFileName().toString();
 
-        // Register the pre-computed CRC32 so the upload path can read it in O(1)
+        // Register the pre-computed CRC32 so the upload path can read it in O(1).
+        // Use the FileMetadata overload so the strategy owns key derivation.
         if (checksumStrategy != null && metadata.crc32() != 0) {
-            checksumStrategy.registerChecksum(fileName, metadata.crc32(), writerGeneration);
+            checksumStrategy.registerChecksum(new FileMetadata(dataFormat.name(), fileName), metadata.crc32(), writerGeneration);
         }
 
         WriterFileSet writerFileSet = WriterFileSet.builder()
@@ -114,6 +117,7 @@ public class ParquetWriter implements Writer<ParquetDocumentInput> {
             .writerGeneration(writerGeneration)
             .addFile(fileName)
             .addNumRows(metadata.numRows())
+            .formatVersion(ParquetDataFormatPlugin.PARQUET_FORMAT_VERSION)
             .build();
         return FileInfos.builder().putWriterFileSet(dataFormat, writerFileSet).build();
     }

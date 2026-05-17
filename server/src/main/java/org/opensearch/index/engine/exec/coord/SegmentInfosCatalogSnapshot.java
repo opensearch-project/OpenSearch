@@ -14,7 +14,9 @@ import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.BufferedChecksumIndexInput;
 import org.apache.lucene.store.ByteBuffersDataOutput;
 import org.apache.lucene.store.ByteBuffersIndexOutput;
+import org.apache.lucene.util.Version;
 import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.lucene.store.ByteArrayIndexInput;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -44,7 +46,7 @@ public class SegmentInfosCatalogSnapshot extends CatalogSnapshot {
     private static final String CATALOG_SNAPSHOT_KEY = "_segment_infos_catalog_snapshot_";
 
     private final SegmentInfos segmentInfos;
-    private final Map<String, Integer> segmentFileVersionMap;
+    private final Map<String, Version> segmentFileVersionMap;
 
     /**
      * Constructs a new SegmentInfosCatalogSnapshot wrapping the given SegmentInfos.
@@ -144,41 +146,55 @@ public class SegmentInfosCatalogSnapshot extends CatalogSnapshot {
         return new SegmentInfosCatalogSnapshot(segmentInfos.clone());
     }
 
-    @Override
-    public CatalogSnapshot cloneNoAcquire() {
-        return new SegmentInfosCatalogSnapshot(segmentInfos.clone());
-    }
-
     /**
      * Returns the Lucene major version that wrote the given segment file by looking it up
      * from the SegmentInfos. Falls back to the SegmentInfos commit version for the segments
      * file itself, or to the .si file's version for other unmapped files.
      */
     @Override
-    public int getFormatVersionForFile(String file) {
-        Integer version = segmentFileVersionMap.get(file);
+    public long getFormatVersionForFile(String file) {
+        return LuceneVersionConverter.encode(getLuceneVersionForFile(file));
+    }
+
+    private Version getLuceneVersionForFile(String file) {
+        Version version = segmentFileVersionMap.get(file);
         if (version != null) {
             return version;
         }
         if (file.equals(segmentInfos.getSegmentsFileName())) {
-            return segmentInfos.getCommitLuceneVersion().major;
+            return segmentInfos.getCommitLuceneVersion();
         }
         String segmentInfoFileName = RemoteStoreUtils.getSegmentName(file) + ".si";
-        Integer siVersion = segmentFileVersionMap.get(segmentInfoFileName);
+        Version siVersion = segmentFileVersionMap.get(segmentInfoFileName);
         if (siVersion != null) {
             return siVersion;
         }
-        return org.apache.lucene.util.Version.LATEST.major;
+        return Version.LATEST;
     }
 
-    /**
-     * Serializes the actual SegmentInfos to bytes for the remote metadata file.
-     */
     @Override
-    public byte[] serialize() throws IOException {
-        ByteBuffersDataOutput byteBuffersIndexOutput = new ByteBuffersDataOutput();
-        segmentInfos.write(new ByteBuffersIndexOutput(byteBuffersIndexOutput, "Snapshot of SegmentInfos", "SegmentInfos"));
-        return byteBuffersIndexOutput.toArrayCopy();
+    public long getMinSegmentFormatVersion() {
+        return LuceneVersionConverter.encode(segmentInfos.getMinSegmentLuceneVersion());
+    }
+
+    @Override
+    public long getCommitDataFormatVersion() {
+        return LuceneVersionConverter.encode(segmentInfos.getCommitLuceneVersion());
+    }
+
+    @Override
+    public long getNumDocs() {
+        return Lucene.getNumDocs(segmentInfos);
+    }
+
+    /** Lucene-specific accessor. Prefer {@link #getLastCommitFileName()} for the format-neutral API. */
+    public String getSegmentsFileName() {
+        return segmentInfos.getSegmentsFileName();
+    }
+
+    @Override
+    public String getLastCommitFileName() {
+        return segmentInfos.getSegmentsFileName();
     }
 
     @Override
@@ -186,13 +202,17 @@ public class SegmentInfosCatalogSnapshot extends CatalogSnapshot {
         return segmentInfos.files(includeSegmentsFile);
     }
 
-    private Map<String, Integer> buildSegmentToLuceneVersionMap() {
-        Map<String, Integer> segmentToLuceneVersion = new HashMap<>();
+    private Map<String, Version> buildSegmentToLuceneVersionMap() {
+        Map<String, Version> segmentToLuceneVersion = new HashMap<>();
         for (SegmentCommitInfo segmentCommitInfo : segmentInfos) {
             SegmentInfo info = segmentCommitInfo.info;
-            Set<String> segFiles = info.files();
-            for (String segFile : segFiles) {
-                segmentToLuceneVersion.put(segFile, info.getVersion().major);
+            final Version version = info.getVersion();
+            if (version == null) {
+                // version is written since 3.1+: we should have already hit IndexFormatTooOld.
+                throw new IllegalArgumentException("expected valid version value: " + info.toString());
+            }
+            for (String segFile : info.files()) {
+                segmentToLuceneVersion.put(segFile, version);
             }
         }
         return segmentToLuceneVersion;

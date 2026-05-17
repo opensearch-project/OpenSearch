@@ -690,11 +690,12 @@ public class RemoteSegmentStoreDirectoryTests extends BaseRemoteSegmentStoreDire
             NoSuchFileException.class,
             () -> remoteSegmentStoreDirectory.uploadMetadata(
                 segmentFiles,
-                segmentInfos,
+                new SegmentInfosCatalogSnapshot(segmentInfos),
                 storeDirectory,
                 34L,
                 indexShard.getLatestReplicationCheckpoint(),
-                ""
+                "",
+                snapshot -> new byte[0]
             )
         );
     }
@@ -737,11 +738,12 @@ public class RemoteSegmentStoreDirectoryTests extends BaseRemoteSegmentStoreDire
 
         remoteSegmentStoreDirectory.uploadMetadata(
             segInfos.files(true),
-            segInfos,
+            new SegmentInfosCatalogSnapshot(segInfos),
             storeDirectory,
             generation,
             indexShard.getLatestReplicationCheckpoint(),
-            ""
+            "",
+            snapshot -> new byte[0]
         );
 
         verify(remoteMetadataDirectory).copyFrom(
@@ -767,6 +769,52 @@ public class RemoteSegmentStoreDirectoryTests extends BaseRemoteSegmentStoreDire
         }
     }
 
+    @SuppressWarnings("deprecation")
+    public void testUploadMetadataDeprecatedSegmentInfosOverload() throws IOException {
+        // Covers the @Deprecated uploadMetadata(Collection, SegmentInfos, Directory, long, ReplicationCheckpoint, String) overload.
+        indexDocs(142364, 5);
+        flushShard(indexShard, true);
+        SegmentInfos segInfos = indexShard.store().readLastCommittedSegmentsInfo();
+        long primaryTerm = indexShard.getLatestReplicationCheckpoint().getPrimaryTerm();
+        String primaryTermLong = RemoteStoreUtils.invertLong(primaryTerm);
+        long generation = segInfos.getGeneration();
+        String generationLong = RemoteStoreUtils.invertLong(generation);
+        String latestMetadataFileName = "metadata__" + primaryTermLong + "__" + generationLong + "__abc";
+        when(
+            remoteMetadataDirectory.listFilesByPrefixInLexicographicOrder(
+                RemoteSegmentStoreDirectory.MetadataFilenameUtils.METADATA_PREFIX,
+                METADATA_FILES_TO_FETCH
+            )
+        ).thenReturn(List.of(latestMetadataFileName));
+        when(remoteMetadataDirectory.getBlobStream(latestMetadataFileName)).thenReturn(
+            createMetadataFileBytes(getDummyMetadata("_0", (int) generation), indexShard.getLatestReplicationCheckpoint(), segmentInfos)
+        );
+        remoteSegmentStoreDirectory.init();
+
+        Directory storeDirectory = mock(Directory.class);
+        BytesStreamOutput output = new BytesStreamOutput();
+        IndexOutput indexOutput = new OutputStreamIndexOutput("segment metadata", "metadata output stream", output, 4096);
+        when(storeDirectory.createOutput(startsWith("metadata__" + primaryTermLong + "__" + generationLong), eq(IOContext.DEFAULT)))
+            .thenReturn(indexOutput);
+
+        // Call the DEPRECATED SegmentInfos overload directly.
+        remoteSegmentStoreDirectory.uploadMetadata(
+            segInfos.files(true),
+            segInfos,
+            storeDirectory,
+            generation,
+            indexShard.getLatestReplicationCheckpoint(),
+            ""
+        );
+
+        verify(remoteMetadataDirectory).copyFrom(
+            eq(storeDirectory),
+            startsWith("metadata__" + primaryTermLong + "__" + generationLong),
+            startsWith("metadata__" + primaryTermLong + "__" + generationLong),
+            eq(IOContext.DEFAULT)
+        );
+    }
+
     public void testUploadMetadataMissingSegment() throws IOException {
         populateMetadata();
         remoteSegmentStoreDirectory.init();
@@ -786,11 +834,12 @@ public class RemoteSegmentStoreDirectoryTests extends BaseRemoteSegmentStoreDire
             NoSuchFileException.class,
             () -> remoteSegmentStoreDirectory.uploadMetadata(
                 segmentFiles,
-                segmentInfos,
+                new SegmentInfosCatalogSnapshot(segmentInfos),
                 storeDirectory,
                 12L,
                 indexShard.getLatestReplicationCheckpoint(),
-                ""
+                "",
+                snapshot -> new byte[0]
             )
         );
         verify(indexOutput).close();
@@ -1440,7 +1489,8 @@ public class RemoteSegmentStoreDirectoryTests extends BaseRemoteSegmentStoreDire
             storeDirectory,
             generation,
             indexShard.getLatestReplicationCheckpoint(),
-            ""
+            "",
+            snapshot -> new byte[0]
         );
 
         verify(remoteMetadataDirectory).copyFrom(
@@ -1476,7 +1526,8 @@ public class RemoteSegmentStoreDirectoryTests extends BaseRemoteSegmentStoreDire
                 storeDirectory,
                 12L,
                 indexShard.getLatestReplicationCheckpoint(),
-                ""
+                "",
+                snapshot -> new byte[0]
             )
         );
         verify(indexOutput).close();

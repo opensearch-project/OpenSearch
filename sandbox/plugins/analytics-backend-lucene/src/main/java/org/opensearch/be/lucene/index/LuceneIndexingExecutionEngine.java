@@ -78,6 +78,7 @@ public class LuceneIndexingExecutionEngine implements IndexingExecutionEngine<Lu
     private final LuceneDataFormat dataFormat;
     private final MergeIndexWriter sharedWriter;
     private final MapperService mapperService;
+    private final Map<Long, DirectoryReader> readers;
     private final Store store;
     private final Path baseDirectory;
     private final Analyzer analyzer;
@@ -104,6 +105,7 @@ public class LuceneIndexingExecutionEngine implements IndexingExecutionEngine<Lu
         this.dataFormat = dataFormat;
         this.mapperService = mapperService;
         this.sharedWriter = luceneCommitter.getIndexWriter();
+        this.readers = luceneCommitter.readers();
         this.store = store;
         this.baseDirectory = store.shardPath().resolve(LuceneDataFormat.LUCENE_FORMAT_NAME);
         this.analyzer = sharedWriter.getAnalyzer();
@@ -145,7 +147,7 @@ public class LuceneIndexingExecutionEngine implements IndexingExecutionEngine<Lu
      */
     @Override
     public FormatStore getStore(DataFormat dataFormat) {
-        return new LuceneFormatStore(store, sharedWriter);
+        return new LuceneFormatStore(store, sharedWriter, readers);
     }
 
     /**
@@ -329,6 +331,6 @@ public class LuceneIndexingExecutionEngine implements IndexingExecutionEngine<Lu
      * @param store  the shard store
      * @param writer the shared index writer
      */
-    public static record LuceneFormatStore(Store store, IndexWriter writer) implements FormatStore {
+    public static record LuceneFormatStore(Store store, IndexWriter writer, Map<Long, DirectoryReader> readers) implements FormatStore {
     }
 }

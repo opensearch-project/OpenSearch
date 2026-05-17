@@ -146,6 +146,7 @@ public class DataFusionService extends AbstractLifecycleComponent {
     @Override
     protected void doClose() throws IOException {
         releaseRuntime();
+        NativeBridge.shutdownTokioRuntimeManager();
     }
 
     /**

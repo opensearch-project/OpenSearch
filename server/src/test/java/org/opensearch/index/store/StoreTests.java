@@ -80,6 +80,8 @@ import org.opensearch.env.ShardLock;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.Engine;
+import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
+import org.opensearch.index.engine.exec.coord.SegmentInfosCatalogSnapshot;
 import org.opensearch.index.seqno.ReplicationTracker;
 import org.opensearch.index.seqno.RetentionLease;
 import org.opensearch.index.seqno.SequenceNumbers;
@@ -1390,5 +1392,107 @@ public class StoreTests extends OpenSearchTestCase {
 
         handle.close();
         store.close();
+    }
+
+    // ==========================================================================================
+    // loadMetadata(CatalogSnapshot, ...) + checksumFromFile + shardFormatDirectoryResolver
+    // ==========================================================================================
+
+    public void testLoadMetadataFromCatalogSnapshotReturnsFileMetadataAndUserData() throws IOException {
+        final ShardId shardId = new ShardId("index", "_na_", 1);
+        Store store = new Store(shardId, INDEX_SETTINGS, StoreTests.newDirectory(random()), new DummyShardLock(shardId));
+        IndexWriter writer = new IndexWriter(
+            store.directory(),
+            newIndexWriterConfig(random(), new MockAnalyzer(random())).setCodec(TestUtil.getDefaultCodec())
+                .setIndexDeletionPolicy(new KeepOnlyLastCommitDeletionPolicy())
+                .setMergePolicy(NoMergePolicy.INSTANCE)
+        );
+        Document doc = new Document();
+        doc.add(new StringField("id", "1", Field.Store.YES));
+        writer.addDocument(doc);
+        writer.setLiveCommitData(Map.of("test-key", "test-value").entrySet());
+        writer.commit();
+        writer.close();
+
+        SegmentInfos infos = store.readLastCommittedSegmentsInfo();
+        SegmentInfosCatalogSnapshot snapshot = new SegmentInfosCatalogSnapshot(infos);
+
+        // ignoreSegmentsFile=true
+        Store.MetadataSnapshot.LoadedMetadata loaded = Store.MetadataSnapshot.loadMetadata(snapshot, store.directory(), logger, true);
+        assertFalse("file metadata must not be empty", loaded.fileMetadata.isEmpty());
+        assertFalse(
+            "segments_N must NOT be present when ignoreSegmentsFile=true",
+            loaded.fileMetadata.containsKey(infos.getSegmentsFileName())
+        );
+        assertEquals("test-value", loaded.userData.get("test-key"));
+        assertTrue("numDocs must be non-negative", loaded.numDocs >= 0);
+
+        // ignoreSegmentsFile=false
+        Store.MetadataSnapshot.LoadedMetadata withSegmentsFile = Store.MetadataSnapshot.loadMetadata(
+            snapshot,
+            store.directory(),
+            logger,
+            false
+        );
+        assertTrue(
+            "segments_N must be present when ignoreSegmentsFile=false",
+            withSegmentsFile.fileMetadata.containsKey(infos.getSegmentsFileName())
+        );
+
+        IOUtils.close(store);
+    }
+
+    public void testLoadMetadataFromEmptyDfaSnapshotFallsBackToMinIndexCompatVersion() throws IOException {
+        final ShardId shardId = new ShardId("index", "_na_", 1);
+        Store store = new Store(shardId, INDEX_SETTINGS, StoreTests.newDirectory(random()), new DummyShardLock(shardId));
+
+        // Empty DFA snapshot: no segments, no files, no segments_N name.
+        CatalogSnapshot empty = org.opensearch.index.engine.exec.coord.CatalogSnapshotManager.createInitialSnapshot(
+            0L,
+            0L,
+            0L,
+            List.of(),
+            -1L,
+            Map.of()
+        );
+        assertNull("DFA getLastCommitFileName must be null for empty snapshot", empty.getLastCommitFileName());
+
+        // ignoreSegmentsFile=false still succeeds because getLastCommitFileName()==null skips that step.
+        Store.MetadataSnapshot.LoadedMetadata loaded = Store.MetadataSnapshot.loadMetadata(empty, store.directory(), logger, false);
+        assertTrue("file metadata must be empty for a snapshot with no segments", loaded.fileMetadata.isEmpty());
+        assertEquals("numDocs must be 0 for DFA", 0L, loaded.numDocs);
+
+        IOUtils.close(store);
+    }
+
+    public void testShardFormatDirectoryResolverRoutesByFormat() throws IOException {
+        final ShardId shardId = new ShardId("index", "_na_", 1);
+        final Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, org.opensearch.Version.CURRENT).build();
+        final Path path = createTempDir().resolve(shardId.getIndex().getUUID()).resolve(String.valueOf(shardId.id()));
+        final ShardPath shardPath = new ShardPath(false, path, path, shardId);
+        Store store = new Store(
+            shardId,
+            IndexSettingsModule.newIndexSettings("index", settings),
+            StoreTests.newDirectory(random()),
+            new DummyShardLock(shardId),
+            Store.OnClose.EMPTY,
+            shardPath,
+            null
+        );
+
+        java.util.function.Function<String, String> resolver = store.shardFormatDirectoryResolver();
+        assertEquals("default format resolves to <shard>/index", shardPath.resolveIndex().toString(), resolver.apply("lucene"));
+        assertEquals(
+            "metadata format is also default (INDEX_DIRECTORY_FORMATS)",
+            shardPath.resolveIndex().toString(),
+            resolver.apply("metadata")
+        );
+        assertEquals(
+            "non-default format resolves to <shard>/<format>",
+            shardPath.getDataPath().resolve("parquet").toString(),
+            resolver.apply("parquet")
+        );
+
+        IOUtils.close(store);
     }
 }
