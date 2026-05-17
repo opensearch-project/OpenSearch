@@ -119,7 +119,7 @@ public class TaskCancellationStatsTests extends AbstractWireSerializingTestCase<
     // -----------------------------------------------------------------------
 
     /**
-     * Test toXContent with native stats renders native_search_task and native_search_shard_task.
+     * Test toXContent with native stats renders analytics_search_task and analytics_search_shard_task.
      *
      * Validates: Requirements 9.2
      */
@@ -141,10 +141,10 @@ public class TaskCancellationStatsTests extends AbstractWireSerializingTestCase<
         assertTrue("JSON should contain search_task", json.contains("\"search_task\""));
         // Verify search_shard_task is present
         assertTrue("JSON should contain search_shard_task", json.contains("\"search_shard_task\""));
-        // Verify native_search_task is present
-        assertTrue("JSON should contain native_search_task", json.contains("\"native_search_task\""));
-        // Verify native_search_shard_task is present
-        assertTrue("JSON should contain native_search_shard_task", json.contains("\"native_search_shard_task\""));
+        // Verify analytics_search_task is present
+        assertTrue("JSON should contain analytics_search_task", json.contains("\"analytics_search_task\""));
+        // Verify analytics_search_shard_task is present
+        assertTrue("JSON should contain analytics_search_shard_task", json.contains("\"analytics_search_shard_task\""));
         // Verify native counter values
         assertTrue("JSON should contain native search task current count", json.contains("\"current_count_post_cancel\":2"));
         assertTrue("JSON should contain native search task total count", json.contains("\"total_count_post_cancel\":147"));
@@ -174,8 +174,8 @@ public class TaskCancellationStatsTests extends AbstractWireSerializingTestCase<
         assertTrue("JSON should contain search_task", json.contains("\"search_task\""));
         assertTrue("JSON should contain search_shard_task", json.contains("\"search_shard_task\""));
         // Verify native fields are NOT present
-        assertFalse("JSON should NOT contain native_search_task", json.contains("\"native_search_task\""));
-        assertFalse("JSON should NOT contain native_search_shard_task", json.contains("\"native_search_shard_task\""));
+        assertFalse("JSON should NOT contain analytics_search_task", json.contains("\"analytics_search_task\""));
+        assertFalse("JSON should NOT contain analytics_search_shard_task", json.contains("\"analytics_search_shard_task\""));
     }
 
     /**

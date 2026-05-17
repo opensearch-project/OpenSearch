@@ -1575,13 +1575,9 @@ public class Node implements Closeable {
                 settings,
                 clusterService.getClusterSettings()
             );
-            final Supplier<AnalyticsBackendTaskCancellationStats> analyticsTaskCancellationStatsSupplier = pluginsService
-                .filterPlugins(SearchBackEndPlugin.class)
-                .stream()
-                .map(SearchBackEndPlugin::getAnalyticsBackendTaskCancellationStats)
-                .filter(Objects::nonNull)
-                .findFirst()
-                .orElse(null);
+            final Supplier<AnalyticsBackendTaskCancellationStats> analyticsTaskCancellationStatsSupplier = pluginsService.filterPlugins(
+                SearchBackEndPlugin.class
+            ).stream().map(SearchBackEndPlugin::getAnalyticsBackendTaskCancellationStats).filter(Objects::nonNull).findFirst().orElse(null);
             final TaskCancellationMonitoringService taskCancellationMonitoringService = new TaskCancellationMonitoringService(
                 threadPool,
                 transportService.getTaskManager(),

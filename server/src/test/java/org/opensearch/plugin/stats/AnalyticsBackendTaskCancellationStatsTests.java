@@ -91,8 +91,8 @@ public class AnalyticsBackendTaskCancellationStatsTests extends OpenSearchTestCa
     }
 
     /**
-     * Test that toXContent produces the expected JSON structure with native_search_task
-     * and native_search_shard_task sub-objects.
+     * Test that toXContent produces the expected JSON structure with analytics_search_task
+     * and analytics_search_shard_task sub-objects.
      *
      * Validates: Requirement 6.6
      */
@@ -107,8 +107,8 @@ public class AnalyticsBackendTaskCancellationStatsTests extends OpenSearchTestCa
         String json = builder.toString();
 
         // Verify the JSON contains the expected structure
-        String expected = "{\"native_search_task\":{\"current_count_post_cancel\":2,\"total_count_post_cancel\":147},"
-            + "\"native_search_shard_task\":{\"current_count_post_cancel\":5,\"total_count_post_cancel\":892}}";
+        String expected = "{\"analytics_search_task\":{\"current_count_post_cancel\":2,\"total_count_post_cancel\":147},"
+            + "\"analytics_search_shard_task\":{\"current_count_post_cancel\":5,\"total_count_post_cancel\":892}}";
         assertEquals(expected, json);
     }
 
@@ -127,8 +127,8 @@ public class AnalyticsBackendTaskCancellationStatsTests extends OpenSearchTestCa
 
         String json = builder.toString();
 
-        String expected = "{\"native_search_task\":{\"current_count_post_cancel\":0,\"total_count_post_cancel\":0},"
-            + "\"native_search_shard_task\":{\"current_count_post_cancel\":0,\"total_count_post_cancel\":0}}";
+        String expected = "{\"analytics_search_task\":{\"current_count_post_cancel\":0,\"total_count_post_cancel\":0},"
+            + "\"analytics_search_shard_task\":{\"current_count_post_cancel\":0,\"total_count_post_cancel\":0}}";
         assertEquals(expected, json);
     }
 

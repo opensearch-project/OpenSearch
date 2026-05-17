@@ -16,8 +16,6 @@ import org.opensearch.common.Nullable;
 import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
 import org.opensearch.common.metrics.CounterMetric;
 import org.opensearch.plugin.stats.AnalyticsBackendTaskCancellationStats;
-
-import java.util.function.Supplier;
 import org.opensearch.threadpool.Scheduler;
 import org.opensearch.threadpool.ThreadPool;
 
@@ -28,6 +26,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 /**
