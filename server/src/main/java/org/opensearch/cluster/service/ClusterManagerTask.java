@@ -49,6 +49,8 @@ public enum ClusterManagerTask {
     DELETE_SNAPSHOT("delete-snapshot", 50),
     RESTORE_SNAPSHOT("restore-snapshot", 50),
     CLUSTER_REROUTE_API("cluster-reroute-api", 50),
+    START_DEPLOYMENT("start-deployment", 50),
+    FINISH_DEPLOYMENT("finish-deployment", 50),
 
     // Tasks with custom thresholds
     AUTO_CREATE("auto-create", 200),
