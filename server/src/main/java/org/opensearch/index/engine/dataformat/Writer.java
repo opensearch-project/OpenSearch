@@ -55,30 +55,6 @@ public interface Writer<P extends DocumentInput<?>> extends Closeable {
     long generation();
 
     /**
-     * Returns the underlying writer for the specified data format name.
-     * Composite writers override this to return the format-specific delegate.
-     * Simple writers return themselves if the format matches.
-     *
-     * @param formatName the name of the data format to look up
-     * @return an optional containing the writer for the given format, or empty if not found
-     */
-    default Optional<Writer<?>> getWriterForFormat(String formatName) {
-        return Optional.empty();
-    }
-
-    /**
-     * Deletes a document identified by the given delete input.
-     * Implementations that support direct deletion should override this method.
-     *
-     * @param deleteInput the input containing field name, value, and generation to identify the document
-     * @return the result of the delete operation
-     * @throws IOException if an I/O error occurs during deletion
-     */
-    default DeleteResult deleteDocument(DeleteInput deleteInput) throws IOException {
-        throw new UnsupportedOperationException("deleteDocument is not supported by this writer");
-    }
-
-    /**
      * Whether this writer's schema can still evolve.
      * Formats that handle schema evolution natively (e.g., Lucene) can always return true.
      *

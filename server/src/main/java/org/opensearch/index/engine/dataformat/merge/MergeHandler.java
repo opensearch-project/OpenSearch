@@ -14,7 +14,6 @@ import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.logging.Loggers;
 import org.opensearch.core.index.shard.ShardId;
-import org.opensearch.index.engine.dataformat.DeleteExecutionEngine;
 import org.opensearch.index.engine.dataformat.MergeInput;
 import org.opensearch.index.engine.dataformat.MergeResult;
 import org.opensearch.index.engine.dataformat.Merger;
@@ -28,7 +27,6 @@ import java.util.Collection;
 import java.util.Deque;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.function.Supplier;
 
@@ -53,18 +51,13 @@ public class MergeHandler {
     private final Merger merger;
     private final Logger logger;
     private final Supplier<Long> generationProvider;
-    private final DeleteExecutionEngine<?> deleteExecutionEngine;
 
     /**
      * Creates a new merge handler.
      *
-     * @param snapshotSupplier      supplier for acquiring catalog snapshots for segment validation
-     * @param merger                the merger that performs the actual merge operation
-     * @param shardId               the shard this handler is associated with (used for logging)
-     * @param mergePolicy           policy that selects merge candidates
-     * @param mergeListener         receives callbacks when segments enter or leave the merging state
-     * @param generationProvider    supplies the writer generation assigned to the merged output
-     * @param deleteExecutionEngine supplies per-segment live-docs at merge start; may be {@code null}
+     * @param snapshotSupplier supplier for acquiring catalog snapshots for segment validation
+     * @param merger           the merger that performs the actual merge operation
+     * @param shardId          the shard this handler is associated with (used for logging)
      */
     public MergeHandler(
         Supplier<GatedCloseable<CatalogSnapshot>> snapshotSupplier,
@@ -72,8 +65,7 @@ public class MergeHandler {
         ShardId shardId,
         MergePolicy mergePolicy,
         MergeListener mergeListener,
-        Supplier<Long> generationProvider,
-        DeleteExecutionEngine<?> deleteExecutionEngine
+        Supplier<Long> generationProvider
     ) {
         this.logger = Loggers.getLogger(getClass(), shardId);
         this.snapshotSupplier = snapshotSupplier;
@@ -81,7 +73,6 @@ public class MergeHandler {
         this.mergeListener = mergeListener;
         this.merger = merger;
         this.generationProvider = generationProvider;
-        this.deleteExecutionEngine = deleteExecutionEngine;
     }
 
     /**
@@ -228,15 +219,7 @@ public class MergeHandler {
         assert oneMerge.getSegmentsToMerge().isEmpty() == false : "merge must have at least one segment";
         long generation = generationProvider.get();
         assert generation > 0 : "merge writer generation must be positive but was: " + generation;
-        Map<Long, long[]> liveDocs = deleteExecutionEngine == null
-            ? Map.of()
-            : deleteExecutionEngine.getLiveDocsForSegments(oneMerge.getSegmentsToMerge());
-        assert liveDocs != null : "deleteExecutionEngine returned null live-docs map";
-        MergeInput mergeInput = MergeInput.builder()
-            .segments(oneMerge.getSegmentsToMerge())
-            .newWriterGeneration(generation)
-            .liveDocsPerSegment(liveDocs)
-            .build();
+        MergeInput mergeInput = MergeInput.builder().segments(oneMerge.getSegmentsToMerge()).newWriterGeneration(generation).build();
         MergeResult result = merger.merge(mergeInput);
         assert result != null : "merger must return a non-null MergeResult";
         assert result.getMergedWriterFileSet().isEmpty() == false : "merge result must contain at least one format's files";
