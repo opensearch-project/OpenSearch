@@ -144,6 +144,8 @@ public class MockInternalClusterInfoService extends InternalClusterInfoService {
                 nodeStats.getClusterManagerThrottlingStats(),
                 nodeStats.getWeightedRoutingStats(),
                 this.aggregateFileCacheStats != null ? this.aggregateFileCacheStats : nodeStats.getFileCacheStats(),
+                nodeStats.getFileCacheOnlyStats(),
+                nodeStats.getBlockCacheDetailedStats(),
                 nodeStats.getTaskCancellationStats(),
                 nodeStats.getSearchPipelineStats(),
                 nodeStats.getSegmentReplicationRejectionStats(),

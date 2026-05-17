@@ -51,14 +51,10 @@ public class RestPruneBlockCacheAction extends BaseRestHandler {
         String cacheName = request.param("cache");
 
         if (Strings.isNullOrEmpty(cacheName)) {
-            throw new IllegalArgumentException(
-                "Parameter [cache] is required. Valid values are: " + VALID_CACHE_NAMES
-            );
+            throw new IllegalArgumentException("Parameter [cache] is required. Valid values are: " + VALID_CACHE_NAMES);
         }
         if (VALID_CACHE_NAMES.contains(cacheName) == false) {
-            throw new IllegalArgumentException(
-                "Unknown cache [" + cacheName + "]. Valid values are: " + VALID_CACHE_NAMES
-            );
+            throw new IllegalArgumentException("Unknown cache [" + cacheName + "]. Valid values are: " + VALID_CACHE_NAMES);
         }
 
         String[] nodeIds = parseNodeIds(request);

@@ -60,6 +60,7 @@ import org.opensearch.monitor.process.ProcessStats;
 import org.opensearch.node.AdaptiveSelectionStats;
 import org.opensearch.node.NodesResourceUsageStats;
 import org.opensearch.node.remotestore.RemoteStoreNodeStats;
+import org.opensearch.plugins.BlockCacheStats;
 import org.opensearch.ratelimitting.admissioncontrol.stats.AdmissionControlStats;
 import org.opensearch.repositories.RepositoriesStats;
 import org.opensearch.script.ScriptCacheStats;
@@ -145,6 +146,14 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
     @Nullable
     private AggregateFileCacheStats fileCacheStats;
 
+    /** Populated only when ?detailed is requested: FileCache-only stats (no block cache contribution). */
+    @Nullable
+    private AggregateFileCacheStats fileCacheOnlyStats;
+
+    /** Populated only when ?detailed is requested: combined rollup across all BlockCache implementations. */
+    @Nullable
+    private BlockCacheStats blockCacheDetailedStats;
+
     @Nullable
     private TaskCancellationStats taskCancellationStats;
 
@@ -212,6 +221,8 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         } else {
             fileCacheStats = null;
         }
+        fileCacheOnlyStats = in.readOptionalWriteable(AggregateFileCacheStats::new);
+        blockCacheDetailedStats = in.readOptionalWriteable(BlockCacheStats::new);
         if (in.getVersion().onOrAfter(Version.V_2_9_0)) {
             taskCancellationStats = in.readOptionalWriteable(TaskCancellationStats::new);
         } else {
@@ -278,6 +289,8 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         @Nullable ClusterManagerThrottlingStats clusterManagerThrottlingStats,
         @Nullable WeightedRoutingStats weightedRoutingStats,
         @Nullable AggregateFileCacheStats fileCacheStats,
+        @Nullable AggregateFileCacheStats fileCacheOnlyStats,
+        @Nullable BlockCacheStats blockCacheDetailedStats,
         @Nullable TaskCancellationStats taskCancellationStats,
         @Nullable SearchPipelineStats searchPipelineStats,
         @Nullable SegmentReplicationRejectionStats segmentReplicationRejectionStats,
@@ -309,6 +322,8 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         this.clusterManagerThrottlingStats = clusterManagerThrottlingStats;
         this.weightedRoutingStats = weightedRoutingStats;
         this.fileCacheStats = fileCacheStats;
+        this.fileCacheOnlyStats = fileCacheOnlyStats;
+        this.blockCacheDetailedStats = blockCacheDetailedStats;
         this.taskCancellationStats = taskCancellationStats;
         this.searchPipelineStats = searchPipelineStats;
         this.segmentReplicationRejectionStats = segmentReplicationRejectionStats;
@@ -449,6 +464,16 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
     }
 
     @Nullable
+    public AggregateFileCacheStats getFileCacheOnlyStats() {
+        return fileCacheOnlyStats;
+    }
+
+    @Nullable
+    public BlockCacheStats getBlockCacheDetailedStats() {
+        return blockCacheDetailedStats;
+    }
+
+    @Nullable
     public TaskCancellationStats getTaskCancellationStats() {
         return taskCancellationStats;
     }
@@ -520,6 +545,8 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         if (out.getVersion().onOrAfter(Version.V_2_7_0)) {
             out.writeOptionalWriteable(fileCacheStats);
         }
+        out.writeOptionalWriteable(fileCacheOnlyStats);
+        out.writeOptionalWriteable(blockCacheDetailedStats);
         if (out.getVersion().onOrAfter(Version.V_2_9_0)) {
             out.writeOptionalWriteable(taskCancellationStats);
         }
@@ -627,6 +654,14 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         }
         if (getFileCacheStats() != null) {
             getFileCacheStats().toXContent(builder, params);
+        }
+        if (getFileCacheOnlyStats() != null) {
+            builder.startObject("file_cache");
+            getFileCacheOnlyStats().toXContent(builder, params);
+            builder.endObject();
+        }
+        if (getBlockCacheDetailedStats() != null) {
+            getBlockCacheDetailedStats().toXContent(builder, params);
         }
         if (getTaskCancellationStats() != null) {
             getTaskCancellationStats().toXContent(builder, params);

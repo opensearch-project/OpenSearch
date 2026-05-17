@@ -102,7 +102,9 @@ public final class FoyerBridge {
             )
         );
 
-        logger.info("FFM downcall handles resolved: foyer_create_cache, foyer_destroy_cache, foyer_snapshot_stats, foyer_evict_prefix, foyer_clear_cache");
+        logger.info(
+            "FFM downcall handles resolved: foyer_create_cache, foyer_destroy_cache, foyer_snapshot_stats, foyer_evict_prefix, foyer_clear_cache"
+        );
     }
 
     /**

@@ -72,34 +72,37 @@ public class RestPruneBlockCacheActionTests extends RestActionTestCase {
 
         Map<String, String> params = new HashMap<>();
         params.put("cache", BlockCacheConstants.DISK_CACHE);
-        dispatchRequest(new FakeRestRequest.Builder(xContentRegistry())
-            .withMethod(RestRequest.Method.POST)
-            .withPath("/_blockcache/prune")
-            .withParams(params)
-            .build());
+        dispatchRequest(
+            new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.POST)
+                .withPath("/_blockcache/prune")
+                .withParams(params)
+                .build()
+        );
     }
 
     public void testMissingCacheParamThrows() {
-        expectThrows(IllegalArgumentException.class, () -> action.prepareRequest(
-            new FakeRestRequest.Builder(xContentRegistry())
-                .withMethod(RestRequest.Method.POST)
-                .withPath("/_blockcache/prune")
-                .build(),
-            verifyingClient
-        ));
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> action.prepareRequest(
+                new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.POST).withPath("/_blockcache/prune").build(),
+                verifyingClient
+            )
+        );
     }
 
     public void testUnknownCacheParamThrows() {
         Map<String, String> params = new HashMap<>();
         params.put("cache", "unknown");
-        expectThrows(IllegalArgumentException.class, () -> action.prepareRequest(
-            new FakeRestRequest.Builder(xContentRegistry())
-                .withMethod(RestRequest.Method.POST)
-                .withPath("/_blockcache/prune")
-                .withParams(params)
-                .build(),
-            verifyingClient
-        ));
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> action.prepareRequest(
+                new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.POST)
+                    .withPath("/_blockcache/prune")
+                    .withParams(params)
+                    .build(),
+                verifyingClient
+            )
+        );
     }
 
     public void testCannotTripCircuitBreaker() {
@@ -117,10 +120,11 @@ public class RestPruneBlockCacheActionTests extends RestActionTestCase {
         Map<String, String> params = new HashMap<>();
         params.put("cache", BlockCacheConstants.DISK_CACHE);
         params.put("nodes", "node1,node2");
-        dispatchRequest(new FakeRestRequest.Builder(xContentRegistry())
-            .withMethod(RestRequest.Method.POST)
-            .withPath("/_blockcache/prune")
-            .withParams(params)
-            .build());
+        dispatchRequest(
+            new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.POST)
+                .withPath("/_blockcache/prune")
+                .withParams(params)
+                .build()
+        );
     }
 }

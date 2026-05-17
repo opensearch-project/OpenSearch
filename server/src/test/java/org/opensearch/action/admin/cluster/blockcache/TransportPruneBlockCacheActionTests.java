@@ -17,8 +17,8 @@ import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.plugins.BlockCache;
-import org.opensearch.plugins.BlockCacheRegistry;
 import org.opensearch.plugins.BlockCacheConstants;
+import org.opensearch.plugins.BlockCacheRegistry;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.transport.CapturingTransport;
 import org.opensearch.threadpool.TestThreadPool;
@@ -88,16 +88,28 @@ public class TransportPruneBlockCacheActionTests extends OpenSearchTestCase {
     private void setupClusterWithWarmNodes() {
         DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder();
         DiscoveryNode warmNode1 = new DiscoveryNode(
-            "warm-node-1", "warm-node-1", buildNewFakeTransportAddress(),
-            Collections.emptyMap(), Set.of(DiscoveryNodeRole.WARM_ROLE), Version.CURRENT
+            "warm-node-1",
+            "warm-node-1",
+            buildNewFakeTransportAddress(),
+            Collections.emptyMap(),
+            Set.of(DiscoveryNodeRole.WARM_ROLE),
+            Version.CURRENT
         );
         DiscoveryNode warmNode2 = new DiscoveryNode(
-            "warm-node-2", "warm-node-2", buildNewFakeTransportAddress(),
-            Collections.emptyMap(), Set.of(DiscoveryNodeRole.WARM_ROLE), Version.CURRENT
+            "warm-node-2",
+            "warm-node-2",
+            buildNewFakeTransportAddress(),
+            Collections.emptyMap(),
+            Set.of(DiscoveryNodeRole.WARM_ROLE),
+            Version.CURRENT
         );
         DiscoveryNode dataNode = new DiscoveryNode(
-            "data-node-1", "data-node-1", buildNewFakeTransportAddress(),
-            Collections.emptyMap(), Set.of(DiscoveryNodeRole.DATA_ROLE), Version.CURRENT
+            "data-node-1",
+            "data-node-1",
+            buildNewFakeTransportAddress(),
+            Collections.emptyMap(),
+            Set.of(DiscoveryNodeRole.DATA_ROLE),
+            Version.CURRENT
         );
         nodesBuilder.add(warmNode1).add(warmNode2).add(dataNode);
         nodesBuilder.localNodeId(warmNode1.getId()).clusterManagerNodeId(warmNode1.getId());
@@ -135,7 +147,11 @@ public class TransportPruneBlockCacheActionTests extends OpenSearchTestCase {
 
         try {
             TransportPruneBlockCacheAction nullRegistryAction = new TransportPruneBlockCacheAction(
-                threadPool, clusterService, nullTransportService, actionFilters, null
+                threadPool,
+                clusterService,
+                nullTransportService,
+                actionFilters,
+                null
             );
             PruneBlockCacheRequest request = new PruneBlockCacheRequest(BlockCacheConstants.DISK_CACHE);
             NodePruneBlockCacheResponse response = nullRegistryAction.nodeOperation(
@@ -176,7 +192,9 @@ public class TransportPruneBlockCacheActionTests extends OpenSearchTestCase {
             new NodePruneBlockCacheResponse(clusterService.state().nodes().get("warm-node-2"), true)
         );
         PruneBlockCacheResponse response = action.newResponse(
-            new PruneBlockCacheRequest(BlockCacheConstants.DISK_CACHE), responses, Collections.emptyList()
+            new PruneBlockCacheRequest(BlockCacheConstants.DISK_CACHE),
+            responses,
+            Collections.emptyList()
         );
 
         assertEquals(2, response.getNodes().size());
@@ -191,7 +209,9 @@ public class TransportPruneBlockCacheActionTests extends OpenSearchTestCase {
             new FailedNodeException("warm-node-2", "simulated failure", new RuntimeException())
         );
         PruneBlockCacheResponse response = action.newResponse(
-            new PruneBlockCacheRequest(BlockCacheConstants.DISK_CACHE), responses, failures
+            new PruneBlockCacheRequest(BlockCacheConstants.DISK_CACHE),
+            responses,
+            failures
         );
 
         assertEquals(1, response.getNodes().size());

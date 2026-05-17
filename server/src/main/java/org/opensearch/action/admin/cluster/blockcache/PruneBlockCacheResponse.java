@@ -30,11 +30,7 @@ public class PruneBlockCacheResponse extends BaseNodesResponse<NodePruneBlockCac
         super(in);
     }
 
-    public PruneBlockCacheResponse(
-        ClusterName clusterName,
-        List<NodePruneBlockCacheResponse> nodes,
-        List<FailedNodeException> failures
-    ) {
+    public PruneBlockCacheResponse(ClusterName clusterName, List<NodePruneBlockCacheResponse> nodes, List<FailedNodeException> failures) {
         super(clusterName, nodes, failures);
     }
 
