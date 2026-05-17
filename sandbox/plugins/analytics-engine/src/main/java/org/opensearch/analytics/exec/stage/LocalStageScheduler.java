@@ -27,9 +27,9 @@ import java.util.List;
  * those that run at the coordinator with a backend-provided {@link ExchangeSink}.
  * Creates the sink via {@link Stage#getExchangeSinkProvider()} using an
  * {@link ExchangeSinkContext} carrying the plan bytes, allocator, per-child
- * input descriptors (one per child stage, each with its stage id + Arrow
- * schema), and the downstream sink. Hands the resulting sink to
- * {@link LocalStageExecution}.
+ * input descriptors (one per child stage, each with its stage id + the
+ * producer-side plan bytes the backend lowers to derive the input schema),
+ * and the downstream sink. Hands the resulting sink to {@link LocalStageExecution}.
  *
  * <p>Multi-child stages (Union, future Join) are routed via
  * {@link LocalStageExecution#inputSink(int)}, which returns a per-child
@@ -118,10 +118,10 @@ final class LocalStageScheduler implements StageScheduler {
     }
 
     /**
-     * Builds one {@link ExchangeSinkContext.ChildInput} per child stage. Each entry
-     * carries the child's stage id (used by the backend to namespace its registered
-     * input, e.g. {@code "input-<stageId>"}) and the Arrow schema derived from the
-     * child fragment's row type.
+     * Builds one {@link ExchangeSinkContext.ChildInput} per child stage. Each entry carries
+     * the child's stage id (used by the backend to namespace its registered input, e.g.
+     * {@code "input-<stageId>"}) and the producer-side plan bytes the backend lowers to
+     * derive the input schema at registration time.
      */
     private static List<ExchangeSinkContext.ChildInput> buildChildInputs(Stage stage) {
         List<Stage> children = stage.getChildStages();
@@ -132,12 +132,8 @@ final class LocalStageScheduler implements StageScheduler {
         }
         List<ExchangeSinkContext.ChildInput> inputs = new ArrayList<>(children.size());
         for (Stage child : children) {
-            inputs.add(
-                new ExchangeSinkContext.ChildInput(
-                    child.getStageId(),
-                    ArrowSchemaFromCalcite.arrowSchemaFromRowType(child.getFragment().getRowType())
-                )
-            );
+            byte[] producerPlanBytes = child.getPlanAlternatives().getFirst().convertedBytes();
+            inputs.add(new ExchangeSinkContext.ChildInput(child.getStageId(), producerPlanBytes));
         }
         return inputs;
     }

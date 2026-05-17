@@ -21,6 +21,8 @@ import org.opensearch.gateway.WriteStateException;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.shard.ShardStateMetadata;
+import org.opensearch.plugins.BlockCache;
+import org.opensearch.plugins.BlockCacheStats;
 import org.opensearch.test.OpenSearchTestCase;
 import org.hamcrest.MatcherAssert;
 import org.junit.After;
@@ -30,8 +32,10 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.PosixFilePermissions;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 
 import static org.opensearch.index.IndexModule.IS_WARM_INDEX_SETTING;
@@ -39,7 +43,12 @@ import static org.opensearch.index.store.remote.directory.RemoteSnapshotDirector
 import static org.opensearch.index.store.remote.utils.FileTypeUtils.INDICES_FOLDER_IDENTIFIER;
 import static org.hamcrest.Matchers.equalTo;
 
-public class FileCacheCleanerTests extends OpenSearchTestCase {
+/**
+ * Tests for {@link NodeCacheOrchestratorCleaner}: verifies that both the
+ * {@link FileCache} (Lucene LRU) and any registered {@link BlockCache} instances
+ * are deterministically evicted when a shard or index is deleted.
+ */
+public class NodeCacheOrchestratorCleanerTests extends OpenSearchTestCase {
     private static final ShardId SHARD_0 = new ShardId("index", "uuid-0", 0);
     private static final ShardId SHARD_1 = new ShardId("index", "uuid-1", 0);
     private static final Settings SETTINGS = Settings.builder()
@@ -78,12 +87,14 @@ public class FileCacheCleanerTests extends OpenSearchTestCase {
     private final FileCache fileCache = FileCacheFactory.createConcurrentLRUFileCache(1024 * 1024, 1);
     private final Map<ShardId, Path> files = new HashMap<>();
     private NodeEnvironment env;
-    private FileCacheCleaner cleaner;
+    private NodeCacheOrchestrator orchestrator;
+    private NodeCacheOrchestratorCleaner cleaner;
 
     @Before
     public void setUpFileCache() throws IOException {
         env = newNodeEnvironment(SETTINGS);
-        cleaner = new FileCacheCleaner(() -> fileCache);
+        orchestrator = new NodeCacheOrchestrator(fileCache);
+        cleaner = new NodeCacheOrchestratorCleaner(() -> orchestrator);
         files.put(SHARD_0, addFile(fileCache, env, SHARD_0));
         files.put(SHARD_1, addFile(fileCache, env, SHARD_1));
 
@@ -173,6 +184,8 @@ public class FileCacheCleanerTests extends OpenSearchTestCase {
     public void tearDownFileCache() {
         env.close();
     }
+
+    // ── FileCache eviction (original tests, adapted) ────────────────────────
 
     public void testShardRemoved() {
         final Path cachePath = ShardPath.loadFileCachePath(env, SHARD_0).getDataPath();
@@ -285,5 +298,156 @@ public class FileCacheCleanerTests extends OpenSearchTestCase {
         cleaner.beforeIndexPathDeleted(SHARD_0.getIndex(), INDEX_SETTINGS, env);
         MatcherAssert.assertThat(fileCache.size(), equalTo(2L));
         assertFalse(Files.exists(indexCachePath));
+    }
+
+    // ── BlockCache eviction tests ─────────────────────────────────────────────
+
+    /**
+     * When a warm shard is deleted, evict_prefix is called on all registered block
+     * caches with the shard's data path as the prefix.
+     */
+    public void testBlockCacheEvictedOnWarmShardDeletion() throws IOException {
+        final List<String> evictedPrefixes = new ArrayList<>();
+        BlockCache mockCache = new BlockCache() {
+            @Override
+            public BlockCacheStats stats() {
+                return new BlockCacheStats(0, 0, 0, 0, 0, 0, 0, 0, 0L, 0L, 0L);
+            }
+
+            @Override
+            public void close() {}
+
+            @Override
+            public void evictPrefix(String prefix) {
+                evictedPrefixes.add(prefix);
+            }
+        };
+        orchestrator.addBlockCache(mockCache);
+
+        final Path warmShardDataPath = ShardPath.loadShardPath(logger, env, WARM_SHARD_0, "").getDataPath();
+        cleaner.beforeShardPathDeleted(WARM_SHARD_0, WARM_INDEX_SETTINGS_0, env);
+
+        assertEquals("evict_prefix must be called exactly once", 1, evictedPrefixes.size());
+        assertEquals("evict_prefix must use the shard data path", warmShardDataPath.toString(), evictedPrefixes.get(0));
+    }
+
+    /**
+     * Block cache eviction is NOT called for remote snapshot shards (isWarmIndex=false).
+     */
+    public void testBlockCacheNotEvictedForRemoteSnapshotShard() {
+        final List<String> evictedPrefixes = new ArrayList<>();
+        BlockCache mockCache = new BlockCache() {
+            @Override
+            public BlockCacheStats stats() {
+                return new BlockCacheStats(0, 0, 0, 0, 0, 0, 0, 0, 0L, 0L, 0L);
+            }
+
+            @Override
+            public void close() {}
+
+            @Override
+            public void evictPrefix(String prefix) {
+                evictedPrefixes.add(prefix);
+            }
+        };
+        orchestrator.addBlockCache(mockCache);
+
+        // SHARD_0 uses INDEX_SETTINGS (remote_snapshot, not warm index)
+        cleaner.beforeShardPathDeleted(SHARD_0, INDEX_SETTINGS, env);
+
+        assertTrue("evict_prefix must NOT be called for remote snapshot shards", evictedPrefixes.isEmpty());
+    }
+
+    /**
+     * When multiple block caches are registered, all of them receive evict_prefix
+     * when a warm shard is deleted.
+     */
+    public void testAllBlockCachesEvictedOnWarmShardDeletion() throws IOException {
+        final List<String> evicted1 = new ArrayList<>();
+        final List<String> evicted2 = new ArrayList<>();
+
+        orchestrator.addBlockCache(new BlockCache() {
+            @Override
+            public BlockCacheStats stats() {
+                return new BlockCacheStats(0, 0, 0, 0, 0, 0, 0, 0, 0L, 0L, 0L);
+            }
+
+            @Override
+            public void close() {}
+
+            @Override
+            public void evictPrefix(String prefix) {
+                evicted1.add(prefix);
+            }
+        });
+        orchestrator.addBlockCache(new BlockCache() {
+            @Override
+            public BlockCacheStats stats() {
+                return new BlockCacheStats(0, 0, 0, 0, 0, 0, 0, 0, 0L, 0L, 0L);
+            }
+
+            @Override
+            public void close() {}
+
+            @Override
+            public void evictPrefix(String prefix) {
+                evicted2.add(prefix);
+            }
+        });
+
+        final Path warmShardDataPath = ShardPath.loadShardPath(logger, env, WARM_SHARD_0, "").getDataPath();
+        cleaner.beforeShardPathDeleted(WARM_SHARD_0, WARM_INDEX_SETTINGS_0, env);
+
+        assertEquals("first cache must receive evict_prefix", 1, evicted1.size());
+        assertEquals("second cache must receive evict_prefix", 1, evicted2.size());
+        assertEquals(warmShardDataPath.toString(), evicted1.get(0));
+        assertEquals(warmShardDataPath.toString(), evicted2.get(0));
+    }
+
+    /**
+     * Block cache eviction and FileCache eviction happen together in the same
+     * beforeShardPathDeleted call — both caches are cleaned atomically.
+     */
+    public void testBothFileCacheAndBlockCacheEvictedTogether() throws IOException {
+        final List<String> blockCacheEvictions = new ArrayList<>();
+        orchestrator.addBlockCache(new BlockCache() {
+            @Override
+            public BlockCacheStats stats() {
+                return new BlockCacheStats(0, 0, 0, 0, 0, 0, 0, 0, 0L, 0L, 0L);
+            }
+
+            @Override
+            public void close() {}
+
+            @Override
+            public void evictPrefix(String prefix) {
+                blockCacheEvictions.add(prefix);
+            }
+        });
+
+        // Before: 4 files in FileCache, 0 block cache evictions
+        MatcherAssert.assertThat(fileCache.size(), equalTo(4L));
+        assertTrue(blockCacheEvictions.isEmpty());
+
+        cleaner.beforeShardPathDeleted(WARM_SHARD_0, WARM_INDEX_SETTINGS_0, env);
+
+        // After: FileCache evicted the shard's file, BlockCache evict_prefix called
+        MatcherAssert.assertThat(fileCache.size(), equalTo(3L));
+        assertNull(fileCache.get(files.get(WARM_SHARD_0)));
+        assertEquals(1, blockCacheEvictions.size());
+    }
+
+    /**
+     * If no block caches are registered (hot nodes), no evict_prefix calls are made
+     * and FileCache cleanup proceeds normally.
+     */
+    public void testNoCrashWhenNoBlockCachesRegistered() throws IOException {
+        // orchestrator has no block caches by default
+        assertTrue(orchestrator.blockCaches().isEmpty());
+
+        // Should not throw and should clean FileCache normally
+        cleaner.beforeShardPathDeleted(WARM_SHARD_0, WARM_INDEX_SETTINGS_0, env);
+        MatcherAssert.assertThat(fileCache.size(), equalTo(3L));
+        assertNull(fileCache.get(files.get(WARM_SHARD_0)));
     }
 }

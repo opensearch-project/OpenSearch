@@ -271,13 +271,8 @@ public class LuceneAnalyticsBackendPluginTests extends OpenSearchTestCase {
         public FragmentConvertor getFragmentConvertor() {
             return new FragmentConvertor() {
                 @Override
-                public byte[] convertShardScanFragment(String tableName, RelNode fragment) {
-                    return ("shard:" + tableName).getBytes(StandardCharsets.UTF_8);
-                }
-
-                @Override
-                public byte[] convertFinalAggFragment(RelNode fragment) {
-                    return "reduce".getBytes(StandardCharsets.UTF_8);
+                public byte[] convertFragment(RelNode fragment) {
+                    return "fragment".getBytes(StandardCharsets.UTF_8);
                 }
 
                 @Override

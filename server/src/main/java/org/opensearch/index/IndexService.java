@@ -106,7 +106,7 @@ import org.opensearch.index.store.FormatChecksumStrategy;
 import org.opensearch.index.store.RemoteSegmentStoreDirectory;
 import org.opensearch.index.store.RemoteSegmentStoreDirectoryFactory;
 import org.opensearch.index.store.Store;
-import org.opensearch.index.store.remote.filecache.FileCache;
+import org.opensearch.index.store.remote.filecache.NodeCacheOrchestrator;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.TranslogFactory;
 import org.opensearch.indices.ClusterMergeSchedulerConfig;
@@ -216,7 +216,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private final Supplier<Boolean> fixedRefreshIntervalSchedulingEnabled;
     private final RecoverySettings recoverySettings;
     private final RemoteStoreSettings remoteStoreSettings;
-    private final FileCache fileCache;
+    private final NodeCacheOrchestrator nodeCacheOrchestrator;
     private final CompositeIndexSettings compositeIndexSettings;
     private final Consumer<IndexShard> replicator;
     private final Function<ShardId, ReplicationStats> segmentReplicationStatsProvider;
@@ -267,14 +267,14 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         boolean shardLevelRefreshEnabled,
         RecoverySettings recoverySettings,
         RemoteStoreSettings remoteStoreSettings,
-        FileCache fileCache,
         CompositeIndexSettings compositeIndexSettings,
         Consumer<IndexShard> replicator,
         Function<ShardId, ReplicationStats> segmentReplicationStatsProvider,
         Supplier<Integer> clusterDefaultMaxMergeAtOnceSupplier,
         ClusterMergeSchedulerConfig clusterMergeSchedulerConfig,
         DataFormatRegistry dataFormatRegistry,
-        DataFormatAwareStoreDirectoryFactory dataFormatAwareStoreDirectoryFactory
+        DataFormatAwareStoreDirectoryFactory dataFormatAwareStoreDirectoryFactory,
+        NodeCacheOrchestrator nodeCacheOrchestrator
     ) {
         super(indexSettings);
         this.storeFactory = storeFactory;
@@ -374,7 +374,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         this.recoverySettings = recoverySettings;
         this.remoteStoreSettings = remoteStoreSettings;
         this.compositeIndexSettings = compositeIndexSettings;
-        this.fileCache = fileCache;
+        this.nodeCacheOrchestrator = nodeCacheOrchestrator;
         this.replicator = replicator;
         this.segmentReplicationStatsProvider = segmentReplicationStatsProvider;
         indexSettings.setDefaultMaxMergesAtOnce(clusterDefaultMaxMergeAtOnceSupplier.get());
@@ -478,11 +478,11 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             recoverySettings,
             remoteStoreSettings,
             null,
-            null,
             s -> {},
             (shardId) -> ReplicationStats.empty(),
             clusterDefaultMaxMergeAtOnce,
             clusterMergeSchedulerConfig,
+            null,
             null,
             null
         );
@@ -801,7 +801,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                         true,
                         nativeStore,
                         storeStrategies,
-                        (RemoteSegmentStoreDirectory) remoteDirectory
+                        (RemoteSegmentStoreDirectory) remoteDirectory,
+                        nodeCacheOrchestrator
                     );
                     dataformatAwareStoreHandles = storeStrategyRegistry.getFormatStoreHandles();
                     directory = dataFormatAwareStoreDirectoryFactory.newDataFormatAwareStoreDirectory(
@@ -812,7 +813,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                         checksumStrategies,
                         storeStrategyRegistry,
                         (RemoteSegmentStoreDirectory) remoteDirectory,
-                        fileCache,
+                        nodeCacheOrchestrator != null ? nodeCacheOrchestrator.fileCache() : null,
                         threadPool
                     );
                 } catch (Exception e) {
@@ -827,7 +828,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                         path,
                         directoryFactory,
                         remoteDirectory,
-                        fileCache,
+                        nodeCacheOrchestrator != null ? nodeCacheOrchestrator.fileCache() : null,
                         threadPool
                     );
                 } else if (this.indexSettings.isPluggableDataFormatEnabled() == false) {

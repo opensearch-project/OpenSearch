@@ -276,6 +276,7 @@ public class DataFormatAwareEngine implements Indexer {
                 ),
                 registry.format(config().getIndexSettings().pluggableDataFormat())
             );
+
             long maxGenFromCommit = 0L;
             try {
                 List<CatalogSnapshot> initSnapshots = committer.listCommittedSnapshots();
@@ -291,7 +292,8 @@ public class DataFormatAwareEngine implements Indexer {
             this.writerPool = new LockablePool<>(() -> {
                 long gen = writerGenerationCounter.incrementAndGet();
                 assert gen > 0 : "writer generation must be positive but was: " + gen;
-                return DefaultLockableHolder.of(new RowIdAwareWriter<>(indexingExecutionEngine.createWriter(new WriterConfig(gen))));
+                Writer<?> writer = indexingExecutionEngine.createWriter(new WriterConfig(gen));
+                return DefaultLockableHolder.of(new RowIdAwareWriter<>(writer));
             }, LinkedList::new, Runtime.getRuntime().availableProcessors());
             // Create Reader managers
             // We will pass IndexStoreProvider to this, which would contain store
