@@ -42,17 +42,23 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.index.fielddata.plain.AbstractLeafOrdinalsFieldData;
 import org.opensearch.index.fielddata.plain.PagedBytesIndexFieldData;
 import org.opensearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.opensearch.index.mapper.TextFieldMapper;
+import org.opensearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.opensearch.search.aggregations.support.CoreValuesSourceType;
 import org.opensearch.test.FieldMaskingReader;
 import org.opensearch.test.OpenSearchTestCase;
+
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -116,6 +122,55 @@ public class FieldDataCacheTests extends OpenSearchTestCase {
             TextFieldMapper.Defaults.FIELDDATA_MAX_FREQUENCY,
             TextFieldMapper.Defaults.FIELDDATA_MIN_SEGMENT_SIZE
         );
+    }
+
+    // End-to-end: a real cache load captures shardIdentity from the resolver, and the cache's
+    // own removal path forwards that identity to the listener.
+    public void testCacheCapturesAndForwardsShardIdentity() throws Exception {
+        Directory dir = newDirectory();
+        IndexWriterConfig iwc = new IndexWriterConfig(null);
+        iwc.setMergePolicy(NoMergePolicy.INSTANCE);
+        IndexWriter iw = new IndexWriter(dir, iwc);
+        // Two segments so loadGlobal goes through the cache path (single-segment is short-circuited).
+        for (int i = 0; i < 2; i++) {
+            Document doc = new Document();
+            doc.add(new SortedSetDocValuesField("field1", new BytesRef("v" + i)));
+            iw.addDocument(doc);
+            iw.commit();
+        }
+        iw.close();
+        DirectoryReader ir = OpenSearchDirectoryReader.wrap(DirectoryReader.open(dir), new ShardId("idx", "_na_", 0));
+
+        AtomicInteger onCacheIdentity = new AtomicInteger(-1);
+        AtomicInteger onRemovalIdentity = new AtomicInteger(-1);
+        IndexFieldDataCache.Listener listener = new IndexFieldDataCache.Listener() {
+            @Override
+            public void onCache(ShardId shardId, String fieldName, Accountable ramUsage, int shardIdentity) {
+                onCacheIdentity.set(shardIdentity);
+            }
+
+            @Override
+            public void onRemoval(ShardId shardId, String fieldName, boolean wasEvicted, long sizeInBytes, int shardIdentity) {
+                onRemovalIdentity.set(shardIdentity);
+            }
+        };
+
+        IndicesFieldDataCache nodeCache = new IndicesFieldDataCache(Settings.EMPTY, new IndexFieldDataCache.Listener() {
+        }, null, null);
+        Index index = new Index("idx", "_na_");
+        int expectedIdentity = 4242;
+        IndexFieldDataCache fieldCache = nodeCache.buildIndexFieldDataCache(listener, index, "field1", shardId -> expectedIdentity);
+
+        SortedSetOrdinalsIndexFieldData ifd = createSortedDV("field1", fieldCache);
+        ifd.loadGlobal(ir);
+        assertEquals(expectedIdentity, onCacheIdentity.get());
+
+        nodeCache.getCache().invalidateAll();
+        assertEquals(expectedIdentity, onRemovalIdentity.get());
+
+        ir.close();
+        dir.close();
+        nodeCache.close();
     }
 
     private class DummyAccountingFieldDataCache implements IndexFieldDataCache {
