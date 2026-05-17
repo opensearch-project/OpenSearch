@@ -10,6 +10,8 @@ package org.opensearch.arrow.memory;
 
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.memory.RootAllocator;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import java.io.Closeable;
 import java.security.AccessController;
@@ -25,6 +27,7 @@ import java.security.PrivilegedAction;
 @SuppressWarnings("removal")
 public final class DefaultArrowAllocatorService implements ArrowAllocatorService, Closeable {
 
+    private static final Logger logger = LogManager.getLogger(DefaultArrowAllocatorService.class);
     private final RootAllocator root;
 
     /** Creates a new service with an unbounded root; child allocators carry their own limits. */
@@ -49,6 +52,12 @@ public final class DefaultArrowAllocatorService implements ArrowAllocatorService
 
     @Override
     public void close() {
-        root.close();
+        try {
+            root.close();
+        } catch (IllegalStateException e) {
+            // Outstanding child allocators remain open — likely a consumer plugin that didn't
+            // clean up. Log at warn so the leak is visible without crashing shutdown.
+            logger.warn("Arrow root allocator closed with outstanding children: {}", e.getMessage());
+        }
     }
 }
