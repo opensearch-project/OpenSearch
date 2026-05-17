@@ -29,7 +29,7 @@ use std::fmt;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use datafusion::arrow::datatypes::SchemaRef;
+use datafusion::arrow::datatypes::{DataType, Field, Schema, SchemaRef};
 use datafusion::catalog::{Session, TableProvider};
 use datafusion::common::{Result, Statistics};
 use datafusion::datasource::TableType;
@@ -61,6 +61,9 @@ pub struct SegmentFileInfo {
     pub parquet_size: u64,
     pub row_groups: Vec<RowGroupInfo>,
     pub metadata: Arc<ParquetMetaData>,
+    /// Cumulative row count from all preceding segments. Used to compute
+    /// shard-global row IDs: `global_base + rg.first_row + position_in_rg`.
+    pub global_base: u64,
 }
 
 /// Factory: build a `RowGroupBitsetSource` for one `SegmentChunk`.
@@ -120,6 +123,10 @@ pub struct IndexedTableConfig {
     pub query_config: Arc<DatafusionQueryConfig>,
     /// Full-schema column indices referenced by BoolNode Predicate leaves.
     pub predicate_columns: Vec<usize>,
+    /// When true, the `___row_id` column in the output projection is computed
+    /// from position (global_base + rg.first_row + position_in_rg) instead of
+    /// being read from parquet. Other projected columns are read normally.
+    pub emit_row_ids: bool,
 }
 
 /// Table provider. Returns a `QueryShardExec` that fans out across chunks.
@@ -177,13 +184,55 @@ impl TableProvider for IndexedTableProvider {
         _limit: Option<usize>,
     ) -> Result<Arc<dyn ExecutionPlan>> {
         let full_schema = self.config.schema.clone();
-        // Output schema = what DataFusion expects
-        let output_schema: SchemaRef = match projection {
-            Some(proj) => Arc::new(full_schema.project(proj)?),
-            None => full_schema.clone(),
+
+        // Detect __row_id__ in the output projection when emit_row_ids=true.
+        // If present, we strip it from the parquet read and compute it from position.
+        let row_id_col_in_full_schema = full_schema.index_of(crate::ROW_ID_COLUMN_NAME).ok();
+        let row_id_output_index: Option<usize> = if self.config.emit_row_ids {
+            match projection {
+                Some(proj) => proj.iter().position(|&idx| Some(idx) == row_id_col_in_full_schema),
+                None => row_id_col_in_full_schema,
+            }
+        } else {
+            None
         };
-        // Read projection = output + predicate columns for evaluator
-        let read_projection: Option<Vec<usize>> = if self.config.predicate_columns.is_empty() {
+
+        // Output schema = what DataFusion expects (includes ___row_id if projected).
+        // When computing row IDs, replace the ___row_id field type with UInt64.
+        let output_schema: SchemaRef = {
+            let base: SchemaRef = match projection {
+                Some(proj) => Arc::new(full_schema.project(proj)?),
+                None => full_schema.clone(),
+            };
+            if let Some(idx) = row_id_output_index {
+                let mut fields: Vec<Field> = base.fields().iter().map(|f| f.as_ref().clone()).collect();
+                fields[idx] = Field::new(crate::ROW_ID_COLUMN_NAME, DataType::Int64, false);
+                Arc::new(Schema::new(fields))
+            } else {
+                base
+            }
+        };
+
+        // Read projection = output columns (minus ___row_id) + predicate columns for evaluator.
+        let read_projection: Option<Vec<usize>> = if self.config.emit_row_ids {
+            let output_cols: Vec<usize> = match projection {
+                Some(proj) => proj.iter()
+                    .filter(|&&idx| Some(idx) != row_id_col_in_full_schema)
+                    .copied()
+                    .collect(),
+                None => (0..full_schema.fields().len())
+                    .filter(|&idx| Some(idx) != row_id_col_in_full_schema)
+                    .collect(),
+            };
+            let mut cols = output_cols;
+            for &idx in &self.config.predicate_columns {
+                if !cols.contains(&idx) {
+                    cols.push(idx);
+                }
+            }
+            cols.sort();
+            Some(cols)
+        } else if self.config.predicate_columns.is_empty() {
             projection.cloned()
         } else {
             projection.map(|proj| {
@@ -197,6 +246,7 @@ impl TableProvider for IndexedTableProvider {
                 cols
             })
         };
+
         let projected_schema = output_schema;
 
         // Ignore DataFusion's `filters` argument. The `index_filter(...)`
@@ -239,6 +289,7 @@ impl TableProvider for IndexedTableProvider {
             predicate,
             metrics: ExecutionPlanMetricsSet::new(),
             inner_parquet_metrics: Arc::new(std::sync::Mutex::new(Vec::new())),
+            row_id_output_index,
         }))
     }
 
@@ -264,6 +315,9 @@ pub struct QueryShardExec {
     predicate: Option<Arc<dyn datafusion::physical_expr::PhysicalExpr>>,
     metrics: ExecutionPlanMetricsSet,
     inner_parquet_metrics: Arc<std::sync::Mutex<Vec<MetricsSet>>>,
+    /// Column index in the OUTPUT schema where computed `___row_id` should be
+    /// injected. `None` means no row ID computation (normal data path).
+    row_id_output_index: Option<usize>,
 }
 
 impl fmt::Debug for QueryShardExec {
@@ -385,6 +439,9 @@ impl ExecutionPlan for QueryShardExec {
                 metrics: ExecutionPlanMetricsSet::new(),
                 stream_metrics: stream_metrics.clone(),
                 query_config: Arc::clone(&self.config.query_config),
+                global_base: segment.global_base,
+                emit_row_ids: self.config.emit_row_ids,
+                row_id_output_index: self.row_id_output_index,
             };
             execs.push(Arc::new(exec));
         }
@@ -446,6 +503,7 @@ mod tests {
                 crate::datafusion_query_config::DatafusionQueryConfig::test_default(),
             ),
             predicate_columns: vec![],
+            emit_row_ids: false,
         }
     }
 

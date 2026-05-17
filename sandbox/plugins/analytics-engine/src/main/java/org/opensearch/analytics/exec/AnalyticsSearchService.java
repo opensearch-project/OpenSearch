@@ -226,4 +226,32 @@ public class AnalyticsSearchService implements AutoCloseable {
         return ctx;
     }
 
+    /**
+     * QTF fetch phase: retrieves specific rows by global row ID via the backend SPI.
+     */
+    public org.opensearch.analytics.backend.EngineResultStream executeFetchByRowIds(
+        String queryId,
+        long[] rowIds,
+        String[] columns,
+        IndexShard shard
+    ) {
+        IndexReaderProvider readerProvider = shard.getReaderProvider();
+        if (readerProvider == null) {
+            throw new IllegalStateException("No ReaderProvider on " + shard.shardId());
+        }
+        try {
+            GatedCloseable<Reader> gatedReader = readerProvider.acquireReader();
+            org.apache.arrow.vector.BigIntVector rowIdVector = new org.apache.arrow.vector.BigIntVector("__row_id__", allocator);
+            rowIdVector.allocateNew(rowIds.length);
+            for (int i = 0; i < rowIds.length; i++) {
+                rowIdVector.set(i, rowIds[i]);
+            }
+            rowIdVector.setValueCount(rowIds.length);
+
+            AnalyticsSearchBackendPlugin backend = backends.values().iterator().next();
+            return backend.fetchByRowIds(gatedReader.get(), rowIdVector, columns, allocator);
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to execute fetch-by-row-ids on " + shard.shardId(), e);
+        }
+    }
 }

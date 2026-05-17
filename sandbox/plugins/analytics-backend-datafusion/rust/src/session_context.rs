@@ -116,18 +116,28 @@ pub async unsafe fn create_session_context(
     config.options_mut().execution.target_partitions = query_config.target_partitions;
     config.options_mut().execution.batch_size = query_config.batch_size;
 
-    let state = SessionStateBuilder::new()
+    let mut state_builder = SessionStateBuilder::new()
         .with_config(config)
         .with_runtime_env(Arc::from(runtime_env))
         .with_default_features()
-        .with_physical_optimizer_rules(crate::agg_mode::physical_optimizer_rules_without_combine())
-        .build();
+        .with_physical_optimizer_rules(crate::agg_mode::physical_optimizer_rules_without_combine());
+
+    // For ListingTable fetch strategy:
+    // 1. Add ProjectRowIdAnalyzer (logical) — ensures __row_id__ survives pruning.
+    // 2. Add ProjectRowIdOptimizer (physical) — computes __row_id__ + row_base.
+    if query_config.fetch_strategy == crate::datafusion_query_config::FetchStrategy::ListingTable {
+        state_builder = state_builder
+            .with_analyzer_rule(
+                Arc::new(crate::project_row_id_analyzer::ProjectRowIdAnalyzer::new())
+            )
+            .with_physical_optimizer_rule(
+                Arc::new(crate::project_row_id_optimizer::ProjectRowIdOptimizer)
+            );
+    }
+
+    let state = state_builder.build();
 
     let ctx = SessionContext::new_with_state(state);
-    // Register OpenSearch UDFs (mvappend, mvfind, mvzip, convert_tz, …) on this session
-    // so the substrait converter at execute_with_context can resolve their function names.
-    // Without this, fragment execution fails with "Unsupported function name" because
-    // df_execute_with_context reuses this handle's ctx instead of building a fresh one.
     crate::udf::register_all(&ctx);
 
     // Register default ListingTable for parquet scans

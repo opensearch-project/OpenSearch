@@ -110,6 +110,11 @@ public class CatalogSnapshotManager implements Closeable {
         for (CatalogSnapshot cs : committedSnapshots) {
             catalogSnapshotMap.put(cs.getGeneration(), cs);
         }
+
+        for(CatalogSnapshotLifecycleListener listener: this.snapshotListeners) {
+            listener.afterRefresh(true, latestCatalogSnapshot);
+        }
+
         this.indexFileDeleter = new IndexFileDeleter(
             deletionPolicy,
             fileDeleter,

@@ -43,6 +43,7 @@ pub async fn build_segments(
     }
 
     let mut segments = Vec::with_capacity(object_metas.len());
+    let mut cumulative_rows: u64 = 0;
 
     for (seg_ord, meta) in object_metas.iter().enumerate() {
         // Per-segment parquet metadata (RG info, page index) — still needed
@@ -67,6 +68,8 @@ pub async fn build_segments(
             offset += num_rows;
         }
         let max_doc = offset;
+        let global_base = cumulative_rows;
+        cumulative_rows += max_doc as u64;
 
         segments.push(SegmentFileInfo {
             segment_ord: seg_ord as i32,
@@ -75,6 +78,7 @@ pub async fn build_segments(
             parquet_size: size,
             row_groups,
             metadata: pq_meta,
+            global_base,
         });
     }
 

@@ -89,3 +89,7 @@ rand = "=0.8.6"
 [[bench]]
 name = "query_bench"
 harness = false
+
+[[bench]]
+name = "row_id_bench"
+harness = false
