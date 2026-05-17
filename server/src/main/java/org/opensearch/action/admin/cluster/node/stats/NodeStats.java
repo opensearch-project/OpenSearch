@@ -60,6 +60,7 @@ import org.opensearch.monitor.process.ProcessStats;
 import org.opensearch.node.AdaptiveSelectionStats;
 import org.opensearch.node.NodesResourceUsageStats;
 import org.opensearch.node.remotestore.RemoteStoreNodeStats;
+import org.opensearch.plugin.stats.AnalyticsBackendNativeMemoryStats;
 import org.opensearch.ratelimitting.admissioncontrol.stats.AdmissionControlStats;
 import org.opensearch.repositories.RepositoriesStats;
 import org.opensearch.script.ScriptCacheStats;
@@ -166,6 +167,9 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
     @Nullable
     private RemoteStoreNodeStats remoteStoreNodeStats;
 
+    @Nullable
+    private AnalyticsBackendNativeMemoryStats nativeMemoryStats;
+
     public NodeStats(StreamInput in) throws IOException {
         super(in);
         timestamp = in.readVLong();
@@ -252,6 +256,11 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         } else {
             remoteStoreNodeStats = null;
         }
+        if (in.getVersion().onOrAfter(Version.V_3_7_0)) {
+            nativeMemoryStats = in.readOptionalWriteable(AnalyticsBackendNativeMemoryStats::new);
+        } else {
+            nativeMemoryStats = null;
+        }
     }
 
     public NodeStats(
@@ -284,7 +293,8 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         @Nullable RepositoriesStats repositoriesStats,
         @Nullable AdmissionControlStats admissionControlStats,
         @Nullable NodeCacheStats nodeCacheStats,
-        @Nullable RemoteStoreNodeStats remoteStoreNodeStats
+        @Nullable RemoteStoreNodeStats remoteStoreNodeStats,
+        @Nullable AnalyticsBackendNativeMemoryStats nativeMemoryStats
     ) {
         super(node);
         this.timestamp = timestamp;
@@ -316,6 +326,7 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         this.admissionControlStats = admissionControlStats;
         this.nodeCacheStats = nodeCacheStats;
         this.remoteStoreNodeStats = remoteStoreNodeStats;
+        this.nativeMemoryStats = nativeMemoryStats;
     }
 
     public long getTimestamp() {
@@ -483,6 +494,11 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         return remoteStoreNodeStats;
     }
 
+    @Nullable
+    public AnalyticsBackendNativeMemoryStats getAnalyticsBackendNativeMemoryStats() {
+        return nativeMemoryStats;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
@@ -543,6 +559,9 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         }
         if (out.getVersion().onOrAfter(Version.V_2_18_0)) {
             out.writeOptionalWriteable(remoteStoreNodeStats);
+        }
+        if (out.getVersion().onOrAfter(Version.V_3_7_0)) {
+            out.writeOptionalWriteable(nativeMemoryStats);
         }
     }
 
@@ -652,6 +671,9 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         }
         if (getRemoteStoreNodeStats() != null) {
             getRemoteStoreNodeStats().toXContent(builder, params);
+        }
+        if (getAnalyticsBackendNativeMemoryStats() != null) {
+            getAnalyticsBackendNativeMemoryStats().toXContent(builder, params);
         }
         return builder;
     }

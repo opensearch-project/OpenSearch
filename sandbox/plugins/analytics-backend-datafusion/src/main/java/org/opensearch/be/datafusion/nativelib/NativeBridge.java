@@ -15,6 +15,7 @@ import org.opensearch.be.datafusion.stats.TaskMonitorStats;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.nativebridge.spi.NativeCall;
 import org.opensearch.nativebridge.spi.NativeLibraryLoader;
+import org.opensearch.plugin.stats.AnalyticsBackendTaskCancellationStats;
 import org.opensearch.plugins.NativeStoreHandle;
 
 import java.lang.foreign.FunctionDescriptor;
@@ -83,6 +84,7 @@ public final class NativeBridge {
     private static final MethodHandle EXECUTE_WITH_CONTEXT;
     private static final MethodHandle CANCEL_QUERY;
     private static final MethodHandle STATS;
+    private static final MethodHandle DF_NATIVE_NODE_STATS;
     private static final MethodHandle PREPARE_PARTIAL_PLAN;
     private static final MethodHandle PREPARE_FINAL_PLAN;
     private static final MethodHandle EXECUTE_LOCAL_PREPARED_PLAN;
@@ -405,6 +407,12 @@ public final class NativeBridge {
             FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG)
         );
 
+        // i64 df_native_node_stats(out_ptr, out_cap)
+        DF_NATIVE_NODE_STATS = linker.downcallHandle(
+            lib.find("df_native_node_stats").orElseThrow(),
+            FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG)
+        );
+
         // ── Distributed aggregate: prepare partial/final plans ──
         // i64 df_prepare_partial_plan(handle_ptr, bytes_ptr, bytes_len)
         PREPARE_PARTIAL_PLAN = linker.downcallHandle(
@@ -697,6 +705,21 @@ public final class NativeBridge {
             }
 
             return new DataFusionStats(new NativeExecutorsStats(ioRuntime, cpuRuntime, taskMonitors));
+        }
+    }
+
+    /**
+     * Reads native task cancellation counters via {@code df_native_node_stats} FFM call.
+     * Independent of {@link #stats()} which calls {@code df_stats} for plugin stats.
+     *
+     * @return a populated {@link AnalyticsBackendTaskCancellationStats}
+     * @throws IllegalStateException if the FFM function returns a non-zero error code
+     */
+    public static AnalyticsBackendTaskCancellationStats nativeNodeStats() {
+        try (var call = new NativeCall()) {
+            var seg = call.buf(32);
+            call.invoke(DF_NATIVE_NODE_STATS, seg, 32L);
+            return NativeNodeStatsLayout.readNativeNodeStats(seg);
         }
     }
 

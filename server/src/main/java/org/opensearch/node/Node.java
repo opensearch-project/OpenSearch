@@ -211,6 +211,7 @@ import org.opensearch.persistent.PersistentTasksClusterService;
 import org.opensearch.persistent.PersistentTasksExecutor;
 import org.opensearch.persistent.PersistentTasksExecutorRegistry;
 import org.opensearch.persistent.PersistentTasksService;
+import org.opensearch.plugin.stats.AnalyticsBackendTaskCancellationStats;
 import org.opensearch.plugins.ActionPlugin;
 import org.opensearch.plugins.AnalysisPlugin;
 import org.opensearch.plugins.CachePlugin;
@@ -333,6 +334,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
@@ -1213,6 +1215,13 @@ public class Node implements Closeable {
                 .collect(Collectors.toList());
             pluginComponents.addAll(searchBackEndPluginComponents);
 
+            pluginsService.filterPlugins(SearchBackEndPlugin.class)
+                .stream()
+                .map(SearchBackEndPlugin::getAnalyticsBackendNativeMemoryStats)
+                .filter(Objects::nonNull)
+                .findFirst()
+                .ifPresent(supplier -> monitorService.memoryReportingService().setNativeStatsSupplier(supplier));
+
             if (nodeCacheOrchestrator != null) {
                 nodeCacheOrchestrator.registerProviders(blockCacheProviders);
             }
@@ -1563,10 +1572,14 @@ public class Node implements Closeable {
                 settings,
                 clusterService.getClusterSettings()
             );
+            final Supplier<AnalyticsBackendTaskCancellationStats> analyticsTaskCancellationStatsSupplier = pluginsService.filterPlugins(
+                SearchBackEndPlugin.class
+            ).stream().map(SearchBackEndPlugin::getAnalyticsBackendTaskCancellationStats).filter(Objects::nonNull).findFirst().orElse(null);
             final TaskCancellationMonitoringService taskCancellationMonitoringService = new TaskCancellationMonitoringService(
                 threadPool,
                 transportService.getTaskManager(),
-                taskCancellationMonitoringSettings
+                taskCancellationMonitoringSettings,
+                analyticsTaskCancellationStatsSupplier
             );
 
             this.nodeService = new NodeService(
@@ -2522,4 +2535,5 @@ public class Node implements Closeable {
     public FileCache fileCache() {
         return nodeCacheOrchestrator != null ? nodeCacheOrchestrator.fileCache() : null;
     }
+
 }

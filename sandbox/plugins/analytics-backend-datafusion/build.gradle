@@ -39,9 +39,6 @@ dependencies {
   // Shared native bridge lib (provides the unified .so and FFM SymbolLookup)
   implementation project(':sandbox:libs:dataformat-native')
 
-  // Canonical stats SPI classes (PluginStats, BackendStatsProvider)
-  implementation project(':sandbox:libs:plugin-stats-spi')
-
   // Provided at runtime by the parent analytics-engine plugin; compile-only to avoid jar hell.
   compileOnly project(':sandbox:libs:analytics-framework')
   // analytics-engine's RelNode types (OpenSearchStageInputScan) are referenced by the

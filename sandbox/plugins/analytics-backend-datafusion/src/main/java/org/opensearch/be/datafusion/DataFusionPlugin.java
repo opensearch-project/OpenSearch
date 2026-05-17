@@ -27,6 +27,9 @@ import org.opensearch.env.NodeEnvironment;
 import org.opensearch.index.engine.dataformat.DataFormatRegistry;
 import org.opensearch.index.engine.dataformat.ReaderManagerConfig;
 import org.opensearch.index.engine.exec.EngineReaderManager;
+import org.opensearch.nativebridge.spi.NativeMemoryFetcher;
+import org.opensearch.plugin.stats.AnalyticsBackendNativeMemoryStats;
+import org.opensearch.plugin.stats.AnalyticsBackendTaskCancellationStats;
 import org.opensearch.plugins.ActionPlugin;
 import org.opensearch.plugins.NativeStoreHandle;
 import org.opensearch.plugins.Plugin;
@@ -276,6 +279,28 @@ public class DataFusionPlugin extends Plugin implements SearchBackEndPlugin<Data
             return Collections.emptyList();
         }
         return List.of(new DataFusionStatsAction(dataFusionService));
+    }
+
+    @Override
+    public Supplier<AnalyticsBackendTaskCancellationStats> getAnalyticsBackendTaskCancellationStats() {
+        return () -> {
+            try {
+                return NativeBridge.nativeNodeStats();
+            } catch (Exception e) {
+                return new AnalyticsBackendTaskCancellationStats(0, 0, 0, 0);
+            }
+        };
+    }
+
+    @Override
+    public Supplier<AnalyticsBackendNativeMemoryStats> getAnalyticsBackendNativeMemoryStats() {
+        return () -> {
+            try {
+                return NativeMemoryFetcher.fetch();
+            } catch (Exception e) {
+                return new AnalyticsBackendNativeMemoryStats(-1, -1);
+            }
+        };
     }
 
     @Override
