@@ -40,8 +40,12 @@ import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Map;
 
 import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.core.IsEqual.equalTo;
@@ -130,5 +134,46 @@ public class SourceFetchingIT extends ParameterizedStaticSettingsOpenSearchInteg
         assertThat(response.getHits().getAt(0).getSourceAsString(), notNullValue());
         assertThat(response.getHits().getAt(0).getSourceAsMap().size(), equalTo(1));
         assertThat((String) response.getHits().getAt(0).getSourceAsMap().get("field"), equalTo("value"));
+    }
+
+    public void testDerivedSourceHonorsMappingSourceFilters() throws InterruptedException {
+        assertAcked(
+            prepareCreate("test").setSettings(
+                Settings.builder()
+                    .put("index.number_of_shards", 1)
+                    .put("index.number_of_replicas", 0)
+                    .put("index.derived_source.enabled", true)
+            ).setMapping("""
+                {
+                  "_source": {
+                    "includes": ["name", "city", "age"],
+                    "excludes": ["age"]
+                  },
+                  "properties": {
+                    "name": { "type": "keyword" },
+                    "age": { "type": "integer" },
+                    "city": { "type": "keyword" },
+                    "country": { "type": "keyword" }
+                  }
+                }""")
+        );
+        ensureGreen();
+
+        client().prepareIndex("test").setId("1").setSource("name", "test", "age", 25, "city", "seattle", "country", "usa").get();
+        refresh();
+        indexRandomForConcurrentSearch("test");
+
+        SearchResponse response = client().prepareSearch("test").get();
+        Map<String, Object> source = response.getHits().getAt(0).getSourceAsMap();
+        assertThat(source.size(), equalTo(2));
+        assertThat(source.get("name"), equalTo("test"));
+        assertThat(source.get("city"), equalTo("seattle"));
+        assertThat(source, not(hasKey("age")));
+        assertThat(source, not(hasKey("country")));
+
+        response = client().prepareSearch("test").setFetchSource(new String[] { "city" }, null).get();
+        source = response.getHits().getAt(0).getSourceAsMap();
+        assertThat(source.size(), equalTo(1));
+        assertThat(source.get("city"), equalTo("seattle"));
     }
 }
