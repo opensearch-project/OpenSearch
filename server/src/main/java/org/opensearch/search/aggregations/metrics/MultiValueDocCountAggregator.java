@@ -74,7 +74,6 @@ public class MultiValueDocCountAggregator extends NumericMetricsAggregator.Singl
             }
         }
 
-        // Skip the StarTree optimization.
         return false;
     }
 
