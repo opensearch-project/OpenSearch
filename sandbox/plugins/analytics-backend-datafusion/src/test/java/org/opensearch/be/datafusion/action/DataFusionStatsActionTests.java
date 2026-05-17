@@ -93,7 +93,7 @@ public class DataFusionStatsActionTests extends OpenSearchTestCase {
         taskMonitors.put("prepare_partial_plan", new TaskMonitorStats(29, 30, 31));
         taskMonitors.put("prepare_final_plan", new TaskMonitorStats(32, 33, 34));
         taskMonitors.put("sql_to_substrait", new TaskMonitorStats(35, 36, 37));
-        DataFusionStats stats = new DataFusionStats(new NativeExecutorsStats(io, cpu, taskMonitors), null);
+        DataFusionStats stats = new DataFusionStats(new NativeExecutorsStats(io, cpu, taskMonitors), null, null);
 
         DataFusionService mockService = mock(DataFusionService.class);
         when(mockService.getStats()).thenReturn(stats);

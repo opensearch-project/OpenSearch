@@ -121,8 +121,8 @@ public class StatsEndpointRefactorPropertyTests {
     @Provide
     Arbitrary<DataFusionStats> dataFusionStats() {
         return Arbitraries.oneOf(
-            nativeExecutorsStatsCpuPresent().map(nes -> new DataFusionStats(nes, null)),
-            nativeExecutorsStatsCpuAbsent().map(nes -> new DataFusionStats(nes, null))
+            nativeExecutorsStatsCpuPresent().map(nes -> new DataFusionStats(nes, null, null)),
+            nativeExecutorsStatsCpuAbsent().map(nes -> new DataFusionStats(nes, null, null))
         );
     }
 

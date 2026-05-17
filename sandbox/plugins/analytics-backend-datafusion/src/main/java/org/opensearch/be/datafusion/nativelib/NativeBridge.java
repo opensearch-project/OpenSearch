@@ -701,10 +701,11 @@ public final class NativeBridge {
                 taskMonitors.put(op.key(), StatsLayout.readTaskMonitor(seg, op.key()));
             }
 
-            // Partition gate
-            var partitionGate = StatsLayout.readPartitionGate(seg);
+            // Partition gates
+            var datanodeGate = StatsLayout.readPartitionGate(seg, "datanode_gate");
+            var coordinatorGate = StatsLayout.readPartitionGate(seg, "coordinator_gate");
 
-            return new DataFusionStats(new NativeExecutorsStats(ioRuntime, cpuRuntime, taskMonitors), partitionGate);
+            return new DataFusionStats(new NativeExecutorsStats(ioRuntime, cpuRuntime, taskMonitors), datanodeGate, coordinatorGate);
         }
     }
 

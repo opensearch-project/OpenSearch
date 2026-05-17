@@ -37,8 +37,9 @@ public class PartitionGateStatsPropertyTests {
 
     @Provide
     Arbitrary<PartitionGateStats> partitionGateStats() {
+        Arbitrary<String> names = Arbitraries.of("datanode_gate", "coordinator_gate");
         Arbitrary<Long> nonNegLong = Arbitraries.longs().between(0, Long.MAX_VALUE / 2);
-        return Combinators.combine(nonNegLong, nonNegLong, nonNegLong, nonNegLong).as(PartitionGateStats::new);
+        return Combinators.combine(names, nonNegLong, nonNegLong, nonNegLong, nonNegLong).as(PartitionGateStats::new);
     }
 
     // ---- Property: StreamOutput/StreamInput round trip produces equal object ----

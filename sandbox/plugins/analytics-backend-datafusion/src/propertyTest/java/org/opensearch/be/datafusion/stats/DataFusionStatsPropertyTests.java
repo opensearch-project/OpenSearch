@@ -120,7 +120,7 @@ public class DataFusionStatsPropertyTests {
                 monitors.put("prepare_partial_plan", (TaskMonitorStats) arr[6]);
                 monitors.put("prepare_final_plan", (TaskMonitorStats) arr[7]);
                 monitors.put("sql_to_substrait", sts);
-                return new DataFusionStats(new NativeExecutorsStats(io, cpu, monitors), null);
+                return new DataFusionStats(new NativeExecutorsStats(io, cpu, monitors), null, null);
             }));
     }
 
@@ -145,13 +145,13 @@ public class DataFusionStatsPropertyTests {
             monitors.put("prepare_partial_plan", ppp);
             monitors.put("prepare_final_plan", pfp);
             monitors.put("sql_to_substrait", sts);
-            return new DataFusionStats(new NativeExecutorsStats(io, null, monitors), null);
+            return new DataFusionStats(new NativeExecutorsStats(io, null, monitors), null, null);
         });
     }
 
     @Provide
     Arbitrary<DataFusionStats> dataFusionStatsNullExecutors() {
-        return Arbitraries.just(new DataFusionStats(null, null));
+        return Arbitraries.just(new DataFusionStats(null, null, null));
     }
 
     // ---- Property 1: Writeable round-trip preserves all field values ----

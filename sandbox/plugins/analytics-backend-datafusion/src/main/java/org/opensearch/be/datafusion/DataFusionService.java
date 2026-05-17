@@ -101,8 +101,12 @@ public class DataFusionService extends AbstractLifecycleComponent {
     protected void doStart() {
         logger.debug("Starting DataFusion service");
         NativeBridge.initTokioRuntimeManager(cpuThreads, datanodeMultiplier, coordinatorMultiplier);
-        logger.debug("Tokio runtime manager initialized with {} CPU threads, datanode multiplier {}, coordinator multiplier {}",
-            cpuThreads, datanodeMultiplier, coordinatorMultiplier);
+        logger.debug(
+            "Tokio runtime manager initialized with {} CPU threads, datanode multiplier {}, coordinator multiplier {}",
+            cpuThreads,
+            datanodeMultiplier,
+            coordinatorMultiplier
+        );
 
         this.drainExecutor = Executors.newThreadPerTaskExecutor(Thread.ofVirtual().name("analytics-reduce-drain-", 0).factory());
 

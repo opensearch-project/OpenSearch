@@ -313,7 +313,9 @@ pub unsafe extern "C" fn df_register_partition_stream(
     let input_id = str_from_raw(input_id_ptr, input_id_len)
         .map_err(|e| format!("df_register_partition_stream: input_id: {}", e))?;
     let schema_ipc = slice::from_raw_parts(schema_ipc_ptr, schema_ipc_len as usize);
-    api::register_partition_stream(session_ptr, input_id, schema_ipc).map_err(|e| e.to_string())
+    api::register_partition_stream(session_ptr, input_id, schema_ipc)
+        .map(|(ptr, _schema_bytes)| ptr)
+        .map_err(|e| e.to_string())
 }
 
 #[ffm_safe]
@@ -746,17 +748,12 @@ pub unsafe extern "C" fn df_execute_with_context(
                     )
                     .await
                 });
-                eprintln!("[DIAG-GATE] thread={:?} BEFORE cpu_executor.spawn()",
-                    std::thread::current().id());
-                let result = match mgr_for_spawn.cpu_executor().spawn(inner_fut).await {
+                match mgr_for_spawn.cpu_executor().spawn(inner_fut).await {
                     Ok(inner) => inner,
                     Err(e) => Err(datafusion::error::DataFusionError::Execution(format!(
                         "df_execute_with_context: CPU spawn failed: {e:?}"
                     ))),
-                };
-                eprintln!("[DIAG-GATE] thread={:?} AFTER cpu_executor.spawn() completed",
-                    std::thread::current().id());
-                result
+                }
             })
             .map_err(|e| e.to_string())
     }
@@ -813,7 +810,8 @@ pub unsafe extern "C" fn df_stats(out_ptr: *mut u8, out_cap: i64) -> i64 {
         prepare_partial_plan: pack_task_monitor(prepare_partial_plan_monitor()),
         prepare_final_plan: pack_task_monitor(prepare_final_plan_monitor()),
         sql_to_substrait: pack_task_monitor(sql_to_substrait_monitor()),
-        partition_gate: pack_partition_gate(mgr.cpu_executor.concurrency_gate()),
+        datanode_gate: pack_partition_gate(mgr.cpu_executor.concurrency_gate()),
+        coordinator_gate: pack_partition_gate(mgr.coordinator_gate()),
     };
 
     // Copy struct bytes to caller buffer

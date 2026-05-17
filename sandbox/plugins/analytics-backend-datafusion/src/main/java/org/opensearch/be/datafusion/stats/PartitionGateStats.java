@@ -18,13 +18,19 @@ import java.io.IOException;
 import java.util.Objects;
 
 /**
- * Stats for the partition budget gate — a node-level semaphore that limits
+ * Stats for a partition budget gate — a node-level semaphore that limits
  * concurrent {@code stream_next} batch fetches across all active queries.
  *
  * <p>Contains 4 metrics: the semaphore capacity, current utilization, cumulative
  * wait time, and cumulative batch count.
+ *
+ * <p>Two instances exist at runtime: one for the datanode gate (shard-scan partitions)
+ * and one for the coordinator gate (reduce partitions).
  */
 public class PartitionGateStats implements Writeable, ToXContentFragment {
+
+    /** JSON key used when serializing this gate's stats. */
+    private final String name;
 
     /** Total semaphore capacity (immutable after initialization). */
     public final long maxPermits;
@@ -41,12 +47,14 @@ public class PartitionGateStats implements Writeable, ToXContentFragment {
     /**
      * Construct from explicit field values.
      *
+     * @param name                JSON key for this gate (e.g. "datanode_gate", "coordinator_gate")
      * @param maxPermits          total semaphore capacity
      * @param activePermits       currently held permits
      * @param totalWaitDurationMs cumulative wait time in milliseconds
      * @param totalBatchesStarted cumulative batches started
      */
-    public PartitionGateStats(long maxPermits, long activePermits, long totalWaitDurationMs, long totalBatchesStarted) {
+    public PartitionGateStats(String name, long maxPermits, long activePermits, long totalWaitDurationMs, long totalBatchesStarted) {
+        this.name = name;
         this.maxPermits = maxPermits;
         this.activePermits = activePermits;
         this.totalWaitDurationMs = totalWaitDurationMs;
@@ -60,6 +68,7 @@ public class PartitionGateStats implements Writeable, ToXContentFragment {
      * @throws IOException if deserialization fails
      */
     public PartitionGateStats(StreamInput in) throws IOException {
+        this.name = in.readString();
         this.maxPermits = in.readVLong();
         this.activePermits = in.readVLong();
         this.totalWaitDurationMs = in.readVLong();
@@ -68,6 +77,7 @@ public class PartitionGateStats implements Writeable, ToXContentFragment {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        out.writeString(name);
         out.writeVLong(maxPermits);
         out.writeVLong(activePermits);
         out.writeVLong(totalWaitDurationMs);
@@ -76,13 +86,18 @@ public class PartitionGateStats implements Writeable, ToXContentFragment {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject("partition_gate");
+        builder.startObject(name);
         builder.field("max_permits", maxPermits);
         builder.field("active_permits", activePermits);
         builder.field("total_wait_duration_ms", totalWaitDurationMs);
         builder.field("total_batches_started", totalBatchesStarted);
         builder.endObject();
         return builder;
+    }
+
+    /** Returns the JSON key for this gate. */
+    public String getName() {
+        return name;
     }
 
     @Override
@@ -93,11 +108,12 @@ public class PartitionGateStats implements Writeable, ToXContentFragment {
         return maxPermits == that.maxPermits
             && activePermits == that.activePermits
             && totalWaitDurationMs == that.totalWaitDurationMs
-            && totalBatchesStarted == that.totalBatchesStarted;
+            && totalBatchesStarted == that.totalBatchesStarted
+            && Objects.equals(name, that.name);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(maxPermits, activePermits, totalWaitDurationMs, totalBatchesStarted);
+        return Objects.hash(name, maxPermits, activePermits, totalWaitDurationMs, totalBatchesStarted);
     }
 }

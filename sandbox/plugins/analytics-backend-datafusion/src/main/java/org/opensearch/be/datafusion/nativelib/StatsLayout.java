@@ -23,7 +23,7 @@ import java.lang.invoke.VarHandle;
  * Defines the {@code MemoryLayout.structLayout} mirroring the Rust {@code DfStatsBuffer}
  * and provides {@link VarHandle} accessors for each field via layout path navigation.
  *
- * <p>The layout contains 10 named groups (2 runtime × 9 fields + 7 task monitor × 3 fields + 1 partition gate × 4 fields = 43 longs = 344 bytes).
+ * <p>The layout contains 11 named groups (2 runtime × 9 fields + 7 task monitor × 3 fields + 2 partition gate × 4 fields = 47 longs = 376 bytes).
  */
 public final class StatsLayout {
 
@@ -60,12 +60,13 @@ public final class StatsLayout {
         taskMonitorGroup("prepare_partial_plan"),
         taskMonitorGroup("prepare_final_plan"),
         taskMonitorGroup("sql_to_substrait"),
-        partitionGateGroup("partition_gate")
+        partitionGateGroup("datanode_gate"),
+        partitionGateGroup("coordinator_gate")
     );
 
     static {
-        if (LAYOUT.byteSize() != 43 * Long.BYTES) {
-            throw new AssertionError("StatsLayout size mismatch: expected " + (43 * Long.BYTES) + " but got " + LAYOUT.byteSize());
+        if (LAYOUT.byteSize() != 47 * Long.BYTES) {
+            throw new AssertionError("StatsLayout size mismatch: expected " + (47 * Long.BYTES) + " but got " + LAYOUT.byteSize());
         }
     }
 
@@ -126,11 +127,17 @@ public final class StatsLayout {
     private static final VarHandle STS_TOTAL_SCHEDULED_DURATION_MS = handle("sql_to_substrait", "total_scheduled_duration_ms");
     private static final VarHandle STS_TOTAL_IDLE_DURATION_MS = handle("sql_to_substrait", "total_idle_duration_ms");
 
-    // ---- VarHandles for partition_gate fields ----
-    private static final VarHandle PG_MAX_PERMITS = handle("partition_gate", "max_permits");
-    private static final VarHandle PG_ACTIVE_PERMITS = handle("partition_gate", "active_permits");
-    private static final VarHandle PG_TOTAL_WAIT_DURATION_MS = handle("partition_gate", "total_wait_duration_ms");
-    private static final VarHandle PG_TOTAL_BATCHES_STARTED = handle("partition_gate", "total_batches_started");
+    // ---- VarHandles for datanode_gate fields ----
+    private static final VarHandle DG_MAX_PERMITS = handle("datanode_gate", "max_permits");
+    private static final VarHandle DG_ACTIVE_PERMITS = handle("datanode_gate", "active_permits");
+    private static final VarHandle DG_TOTAL_WAIT_DURATION_MS = handle("datanode_gate", "total_wait_duration_ms");
+    private static final VarHandle DG_TOTAL_BATCHES_STARTED = handle("datanode_gate", "total_batches_started");
+
+    // ---- VarHandles for coordinator_gate fields ----
+    private static final VarHandle CG_MAX_PERMITS = handle("coordinator_gate", "max_permits");
+    private static final VarHandle CG_ACTIVE_PERMITS = handle("coordinator_gate", "active_permits");
+    private static final VarHandle CG_TOTAL_WAIT_DURATION_MS = handle("coordinator_gate", "total_wait_duration_ms");
+    private static final VarHandle CG_TOTAL_BATCHES_STARTED = handle("coordinator_gate", "total_batches_started");
 
     private StatsLayout() {}
 
@@ -181,17 +188,20 @@ public final class StatsLayout {
     }
 
     /**
-     * Read the partition gate group (4 fields) from the segment.
+     * Read a partition gate group (4 fields) from the segment.
      *
-     * @param seg the memory segment containing the DfStatsBuffer
+     * @param seg   the memory segment containing the DfStatsBuffer
+     * @param group "datanode_gate" or "coordinator_gate"
      * @return a populated PartitionGateStats instance
      */
-    public static PartitionGateStats readPartitionGate(MemorySegment seg) {
+    public static PartitionGateStats readPartitionGate(MemorySegment seg, String group) {
+        VarHandle[] handles = partitionGateHandles(group);
         return new PartitionGateStats(
-            (long) PG_MAX_PERMITS.get(seg, 0L),
-            (long) PG_ACTIVE_PERMITS.get(seg, 0L),
-            (long) PG_TOTAL_WAIT_DURATION_MS.get(seg, 0L),
-            (long) PG_TOTAL_BATCHES_STARTED.get(seg, 0L)
+            group,
+            (long) handles[0].get(seg, 0L),
+            (long) handles[1].get(seg, 0L),
+            (long) handles[2].get(seg, 0L),
+            (long) handles[3].get(seg, 0L)
         );
     }
 
@@ -283,6 +293,22 @@ public final class StatsLayout {
                 STS_TOTAL_SCHEDULED_DURATION_MS,
                 STS_TOTAL_IDLE_DURATION_MS };
             default -> throw new IllegalArgumentException("Unknown task monitor group: " + group);
+        };
+    }
+
+    private static VarHandle[] partitionGateHandles(String group) {
+        return switch (group) {
+            case "datanode_gate" -> new VarHandle[] {
+                DG_MAX_PERMITS,
+                DG_ACTIVE_PERMITS,
+                DG_TOTAL_WAIT_DURATION_MS,
+                DG_TOTAL_BATCHES_STARTED };
+            case "coordinator_gate" -> new VarHandle[] {
+                CG_MAX_PERMITS,
+                CG_ACTIVE_PERMITS,
+                CG_TOTAL_WAIT_DURATION_MS,
+                CG_TOTAL_BATCHES_STARTED };
+            default -> throw new IllegalArgumentException("Unknown partition gate group: " + group);
         };
     }
 }
