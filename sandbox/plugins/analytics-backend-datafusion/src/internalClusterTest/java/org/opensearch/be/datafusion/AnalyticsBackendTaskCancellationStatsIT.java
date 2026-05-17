@@ -20,11 +20,11 @@ import org.opensearch.be.lucene.LucenePlugin;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.xcontent.XContentHelper;
+import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.composite.CompositeDataFormatPlugin;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.parquet.ParquetDataFormatPlugin;
 import org.opensearch.plugin.stats.AnalyticsBackendTaskCancellationStats;
 import org.opensearch.plugins.Plugin;
@@ -98,8 +98,7 @@ public class AnalyticsBackendTaskCancellationStatsIT extends OpenSearchIntegTest
 
         IndexRequestBuilder[] docs = new IndexRequestBuilder[10];
         for (int i = 0; i < 10; i++) {
-            docs[i] = client().prepareIndex(indexName)
-                .setSource("status", 200 + (i % 5), "message", "test message " + i);
+            docs[i] = client().prepareIndex(indexName).setSource("status", 200 + (i % 5), "message", "test message " + i);
         }
         indexRandom(true, docs);
         ensureGreen(indexName);
@@ -169,11 +168,7 @@ public class AnalyticsBackendTaskCancellationStatsIT extends OpenSearchIntegTest
         nodeStats.getTaskCancellationStats().toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
 
-        Map<String, Object> statsMap = XContentHelper.convertToMap(
-            MediaTypeRegistry.JSON.xContent(),
-            builder.toString(),
-            false
-        );
+        Map<String, Object> statsMap = XContentHelper.convertToMap(MediaTypeRegistry.JSON.xContent(), builder.toString(), false);
 
         Map<String, Object> taskCancellation = (Map<String, Object>) statsMap.get("task_cancellation");
         assertNotNull("task_cancellation key should exist in XContent", taskCancellation);
