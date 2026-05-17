@@ -103,7 +103,7 @@ public class ExecutionGraph {
             childExecs.add(childExec);
             buildChildrenRecursively(scheduler, executions, builder, childExec, child, config);
         }
-        StageListenerWiring.wire(scheduler, parentExec, childExecs);
+        parentExec.attachChildren(childExecs, scheduler);
     }
 
     private static void collectLeaves(Map<Integer, StageExecution> executions, Stage stage, List<StageExecution> leaves) {

@@ -6,12 +6,8 @@
  * compatible open source license.
  */
 
-package org.opensearch.analytics.exec;
+package org.opensearch.analytics.exec.stage;
 
-import org.opensearch.analytics.exec.stage.StageExecution;
-import org.opensearch.analytics.exec.stage.StageMetrics;
-import org.opensearch.analytics.exec.stage.StageStateListener;
-import org.opensearch.analytics.exec.stage.StageTask;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.ArrayList;
@@ -22,27 +18,28 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.CALLS_REAL_METHODS;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
 /**
- * Tests for {@link StageListenerWiring} — the cascade's three behaviours:
+ * Tests for {@link StageExecution#attachChildren} — the cascade's three behaviours:
  * scheduler dispatch on all-SUCCEEDED, direct propagation on FAILED / CANCELLED,
  * and the metadata channel that ferries each child's {@code publishedMetadata}
  * to the parent's {@code consumeChildMetadata} before scheduling.
  */
-public class StageListenerWiringTests extends OpenSearchTestCase {
+public class AttachChildrenTests extends OpenSearchTestCase {
 
     public void testSchedulesParentOnceAllChildrenSucceed() {
-        StageExecution parent = mock(StageExecution.class);
+        StageExecution parent = mock(StageExecution.class, CALLS_REAL_METHODS);
         FakeChild childA = new FakeChild(1);
         FakeChild childB = new FakeChild(2);
 
         AtomicReference<StageExecution> scheduled = new AtomicReference<>();
         Consumer<StageExecution> scheduler = scheduled::set;
 
-        StageListenerWiring.wire(scheduler, parent, List.of(childA, childB));
+        parent.attachChildren(List.of(childA, childB), scheduler);
         childA.fireSucceeded();
         assertNull("not scheduled until last child succeeds", scheduled.get());
         childB.fireSucceeded();
@@ -50,7 +47,7 @@ public class StageListenerWiringTests extends OpenSearchTestCase {
     }
 
     public void testHandsOffPublishedMetadataBeforeScheduling() {
-        StageExecution parent = mock(StageExecution.class);
+        StageExecution parent = mock(StageExecution.class, CALLS_REAL_METHODS);
         FakeChild childA = new FakeChild(7, "broadcast-bytes-A");
         FakeChild childB = new FakeChild(8, "stats-from-B");
         FakeChild childC = new FakeChild(9, null);  // publishes nothing
@@ -72,7 +69,7 @@ public class StageListenerWiringTests extends OpenSearchTestCase {
             scheduled.set(stage);
         };
 
-        StageListenerWiring.wire(scheduler, parent, List.of(childA, childB, childC));
+        parent.attachChildren(List.of(childA, childB, childC), scheduler);
         childA.fireSucceeded();
         childB.fireSucceeded();
         childC.fireSucceeded();
@@ -80,13 +77,13 @@ public class StageListenerWiringTests extends OpenSearchTestCase {
     }
 
     public void testFailedChildPropagatesDirectlyToParent() {
-        StageExecution parent = mock(StageExecution.class);
+        StageExecution parent = mock(StageExecution.class, CALLS_REAL_METHODS);
         FakeChild failing = new FakeChild(1);
         failing.failure = new RuntimeException("kaboom");
 
         Consumer<StageExecution> scheduler = stage -> fail("must NOT schedule on child failure");
 
-        StageListenerWiring.wire(scheduler, parent, List.of(failing));
+        parent.attachChildren(List.of(failing), scheduler);
         failing.fire(StageExecution.State.FAILED);
 
         verify(parent).failWithCause(failing.failure);
@@ -100,12 +97,12 @@ public class StageListenerWiringTests extends OpenSearchTestCase {
      * who issued the cancel and must stay RUNNING.
      */
     public void testCancelledChildIsNotPropagatedToParent() {
-        StageExecution parent = mock(StageExecution.class);
+        StageExecution parent = mock(StageExecution.class, CALLS_REAL_METHODS);
         FakeChild cancelled = new FakeChild(5);  // no failure recorded
 
         Consumer<StageExecution> scheduler = stage -> fail("must NOT schedule on child cancellation");
 
-        StageListenerWiring.wire(scheduler, parent, List.of(cancelled));
+        parent.attachChildren(List.of(cancelled), scheduler);
         cancelled.fire(StageExecution.State.CANCELLED);
 
         verify(parent, never()).cancel(any());
@@ -128,7 +125,7 @@ public class StageListenerWiringTests extends OpenSearchTestCase {
         FakeParent parent = new FakeParent(99);
         Consumer<StageExecution> scheduler = stage -> {};
 
-        StageListenerWiring.wire(scheduler, parent, List.of(failing, stillRunning, alreadyDone));
+        parent.attachChildren(List.of(failing, stillRunning, alreadyDone), scheduler);
         failing.fire(StageExecution.State.FAILED);
 
         assertEquals("parent must reach FAILED from child failure", StageExecution.State.FAILED, parent.fakeState);
@@ -218,7 +215,7 @@ public class StageListenerWiringTests extends OpenSearchTestCase {
 
     /**
      * Parent stub for tests that exercise the parent-state listener installed by
-     * {@link StageListenerWiring#wire}: {@link #failWithCause(Exception)} and
+     * {@link StageExecution#attachChildren}: {@link #failWithCause(Exception)} and
      * {@link #cancel(String)} actually transition {@link #fakeState} and fire listeners,
      * which is what triggers the sibling-cancel sweep.
      */

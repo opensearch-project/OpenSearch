@@ -11,9 +11,12 @@ package org.opensearch.analytics.exec.stage;
 import org.opensearch.analytics.exec.task.TaskRunner;
 import org.opensearch.common.Nullable;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
 
 /**
  * One-shot execution unit for a single stage.
@@ -85,6 +88,70 @@ public interface StageExecution {
 
     /** Invoked by the cascade right before parent dispatch. Empty map when no children published. */
     default void consumeChildMetadata(Map<Integer, Object> metadataByChildStageId) {}
+
+    // ── Cascade wiring (called at graph build time) ────────────────────────
+
+    /**
+     * Wires the child→parent state cascade and the reverse parent→sibling cancel sweep.
+     * Called once at graph build time, before any child has transitioned out of CREATED.
+     *
+     * <p>Per-child: SUCCEEDED decrements a shared counter and schedules this parent on
+     * zero (after handing off each child's {@link #publishedMetadata()} via
+     * {@link #consumeChildMetadata}); FAILED propagates via {@link #failWithCause};
+     * CANCELLED is ignored (the cancel initiator already owns the parent's lifecycle).
+     *
+     * <p>Parent: on FAILED / CANCELLED, sweep still-running children — they shouldn't
+     * keep producing into a sink whose owner has terminated.
+     *
+     * <p>Thread-safe under the documented contracts: pending counter is atomic; child
+     * state reads + {@link #cancel} are idempotent; this method runs during graph build
+     * (before any transitions fire), so listener registration never races with firing.
+     */
+    default void attachChildren(List<? extends StageExecution> children, Consumer<StageExecution> scheduler) {
+        if (children.isEmpty()) return;
+
+        AtomicInteger pending = new AtomicInteger(children.size());
+        for (StageExecution child : children) {
+            child.addStateListener((from, to) -> {
+                switch (to) {
+                    case SUCCEEDED -> {
+                        if (pending.decrementAndGet() == 0) {
+                            Map<Integer, Object> metadata = new HashMap<>();
+                            for (StageExecution c : children) {
+                                Object payload = c.publishedMetadata();
+                                if (payload != null) {
+                                    metadata.put(c.getStageId(), payload);
+                                }
+                            }
+                            consumeChildMetadata(metadata);
+                            scheduler.accept(this);
+                        }
+                    }
+                    case FAILED -> {
+                        Exception cause = child.getFailure();
+                        failWithCause(
+                            cause != null
+                                ? cause
+                                : new RuntimeException("child stage " + child.getStageId() + " failed without recorded cause")
+                        );
+                    }
+                    default -> {
+                    }  // CANCELLED intentionally not propagated
+                }
+            });
+        }
+
+        // child.cancel is a no-op when already terminal, so this is safe under top-down sweeps.
+        addStateListener((from, to) -> {
+            if (to == State.FAILED || to == State.CANCELLED) {
+                for (StageExecution child : children) {
+                    if (child.getState().isTerminal() == false) {
+                        child.cancel("parent " + getStageId() + " " + to);
+                    }
+                }
+            }
+        });
+    }
 
     /** Lifecycle states a stage execution moves through. */
     enum State {

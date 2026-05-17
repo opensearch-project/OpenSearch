@@ -16,9 +16,9 @@ import org.opensearch.analytics.exec.task.TaskRunner;
 import org.opensearch.analytics.planner.dag.Stage;
 import org.opensearch.common.Nullable;
 
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -42,7 +42,11 @@ abstract class AbstractStageExecution implements StageExecution {
     protected TaskRunner<?> runner = TaskRunner.NONE;
     private final AtomicReference<State> state = new AtomicReference<>(State.CREATED);
     private final AtomicReference<Exception> failure = new AtomicReference<>();
-    private final List<StageStateListener> stateListeners = new ArrayList<>();
+    // CopyOnWriteArrayList for safe publication: listeners are registered during graph
+    // build (single-threaded) but iterated from state transitions (possibly multi-threaded
+    // — transport callbacks, virtual-thread task completions). COW gives a snapshot iterator
+    // and eliminates any implicit-publication concerns.
+    private final List<StageStateListener> stateListeners = new CopyOnWriteArrayList<>();
     private final List<AnalyticsOperationListener> operationListeners;
     private final String queryId;
     private final AtomicInteger pendingTaskTerminal = new AtomicInteger(0);
@@ -87,7 +91,9 @@ abstract class AbstractStageExecution implements StageExecution {
 
     @Override
     public final List<StageTask> tasks() {
-        return tasks;
+        // Defensive wrap so callers (QueryScheduler dispatch loop, tests) can't mutate the
+        // stage-owned task list. Cheap — just a view wrapper, not a copy.
+        return Collections.unmodifiableList(tasks);
     }
 
     @Override
