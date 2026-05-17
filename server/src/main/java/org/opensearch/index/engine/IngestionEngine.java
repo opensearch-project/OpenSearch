@@ -95,6 +95,8 @@ public class IngestionEngine extends InternalEngine {
         assert indexMetadata != null;
         IngestionSource ingestionSource = Objects.requireNonNull(indexMetadata.getIngestionSource());
 
+        ingestionSource.params().put("_number_of_shards", indexMetadata.getNumberOfShards());
+
         String clientId = engineConfig.getIndexSettings().getNodeName()
             + "-"
             + engineConfig.getIndexSettings().getIndex().getName()
