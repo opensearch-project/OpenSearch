@@ -56,4 +56,22 @@ public class FieldDataStatsTests extends OpenSearchTestCase {
         assertEquals(stats.getMemorySize(), read.getMemorySize());
         assertEquals(stats.getFields(), read.getFields());
     }
+
+    public void testNegativeMemorySizeWriteTo() throws IOException {
+        FieldDataStats stats = new FieldDataStats(-2895512, randomNonNegativeLong(), null);
+        BytesStreamOutput out = new BytesStreamOutput();
+        stats.writeTo(out);
+        StreamInput input = out.bytes().streamInput();
+        FieldDataStats read = new FieldDataStats(input);
+        assertEquals(0, read.getMemorySizeInBytes());
+    }
+
+    public void testNegativeEvictionsWriteTo() throws IOException {
+        FieldDataStats stats = new FieldDataStats(randomNonNegativeLong(), -100, null);
+        BytesStreamOutput out = new BytesStreamOutput();
+        stats.writeTo(out);
+        StreamInput input = out.bytes().streamInput();
+        FieldDataStats read = new FieldDataStats(input);
+        assertEquals(0, read.getEvictions());
+    }
 }
