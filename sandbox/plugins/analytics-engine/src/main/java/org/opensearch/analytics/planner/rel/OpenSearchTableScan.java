@@ -44,9 +44,17 @@ public class OpenSearchTableScan extends TableScan implements OpenSearchRelNode 
     }
 
     /**
-     * Creates an OpenSearchTableScan with distribution trait based on shard count.
-     * Multi-shard → RANDOM (data partitioned across nodes).
-     * Single shard → SINGLETON (all data on one node).
+     * Creates an OpenSearchTableScan with {@code SHARD+SINGLETON} (1 shard) or
+     * {@code SHARD+RANDOM} (N shards). Exchange insertion is CBO-driven: downstream cost
+     * gates (root, Sort with collation, RexOver Project, Join, Union) demand
+     * {@code COORDINATOR+SINGLETON}; Volcano materializes an ER via
+     * {@link OpenSearchDistributionTraitDef#convert} wherever a demand can't be satisfied.
+     *
+     * <p>Join and Union split rules check the SHARD+SINGLETON+shardCount=1+matching-tableId
+     * predicate to keep execution local when all inputs co-locate on one node.
+     *
+     * <p>{@code tableId} is derived from the table's qualified name, stable across plans for
+     * the same index.
      */
     public static OpenSearchTableScan create(
         RelOptCluster cluster,
@@ -56,7 +64,10 @@ public class OpenSearchTableScan extends TableScan implements OpenSearchRelNode 
         int shardCount,
         OpenSearchDistributionTraitDef distTraitDef
     ) {
-        OpenSearchDistribution distribution = shardCount > 1 ? distTraitDef.random() : distTraitDef.singleton();
+        int tableId = table.getQualifiedName().hashCode();
+        OpenSearchDistribution distribution = shardCount == 1
+            ? distTraitDef.shardSingleton(tableId, shardCount)
+            : distTraitDef.shardRandom(tableId, shardCount);
         RelTraitSet traitSet = RelTraitSet.createEmpty().plus(OpenSearchConvention.INSTANCE).plus(distribution);
         return new OpenSearchTableScan(cluster, traitSet, table, viableBackends, outputFieldStorage);
     }

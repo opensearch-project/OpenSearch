@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.be.datafusion.nativelib.ReaderHandle;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.engine.exec.WriterFileSet;
+import org.opensearch.plugins.NativeStoreHandle;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -38,14 +39,15 @@ public class DatafusionReader implements Closeable {
      *
      * @param directoryPath shard data directory
      * @param files The file metadata collection
+     * @param dataformatAwareStoreHandle per-format native store handle (null on hot, live on warm)
      */
-    public DatafusionReader(String directoryPath, Collection<WriterFileSet> files) {
+    public DatafusionReader(String directoryPath, Collection<WriterFileSet> files, NativeStoreHandle dataformatAwareStoreHandle) {
         this.directoryPath = directoryPath;
         String[] fileNames = new String[0];
         if (files != null) {
             fileNames = files.stream().flatMap(writerFileSet -> writerFileSet.files().stream()).toArray(String[]::new);
         }
-        readerHandle = new ReaderHandle(directoryPath, fileNames);
+        readerHandle = new ReaderHandle(directoryPath, fileNames, dataformatAwareStoreHandle);
     }
 
     /**

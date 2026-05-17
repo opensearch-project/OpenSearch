@@ -63,7 +63,6 @@ public class ParquetDataFormatPlugin extends Plugin implements DataFormatPlugin 
 
     /** Thread pool name for background native Parquet writes during VSR rotation. */
     public static final String PARQUET_THREAD_POOL_NAME = "parquet_native_write";
-    private static final ParquetDataFormat dataFormat = new ParquetDataFormat();
     private static final StoreStrategy storeStrategy = new ParquetStoreStrategy();
     public static final ParquetDataFormat PARQUET_DATA_FORMAT = new ParquetDataFormat();
     /** Initialized to EMPTY to avoid NPE if indexingEngine() is called before createComponents(). */
@@ -104,6 +103,7 @@ public class ParquetDataFormatPlugin extends Plugin implements DataFormatPlugin 
             PARQUET_DATA_FORMAT,
             engineConfig.store().shardPath(),
             () -> ArrowSchemaBuilder.getSchema(engineConfig.mapperService()),
+            () -> engineConfig.mapperService().getIndexSettings().getIndexMetadata().getMappingVersion(),
             engineConfig.indexSettings(),
             threadPool,
             engineConfig.checksumStrategies().get(ParquetDataFormat.PARQUET_DATA_FORMAT_NAME)

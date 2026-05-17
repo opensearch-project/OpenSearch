@@ -18,6 +18,7 @@ import org.opensearch.index.mapper.IndexFieldMapper;
 import org.opensearch.index.mapper.Mapper;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.NestedPathFieldMapper;
+import org.opensearch.index.mapper.SeqNoFieldMapper;
 import org.opensearch.index.mapper.SourceFieldMapper;
 import org.opensearch.parquet.fields.core.data.number.LongParquetField;
 
@@ -37,28 +38,29 @@ public final class ArrowSchemaBuilder {
     /**
      * Creates an Arrow Schema from the MapperService.
      * @param mapperService the mapper service containing field mappings
+     * TODO - Get the mapping version while creating the schema
      */
     public static Schema getSchema(MapperService mapperService) {
         Objects.requireNonNull(mapperService, "MapperService cannot be null");
-        if (mapperService.documentMapper() == null) {
-            throw new IllegalStateException("DocumentMapper is not initialized");
-        }
         List<Field> fields = new ArrayList<>();
-        for (Mapper mapper : mapperService.documentMapper().mappers()) {
-            if (isUnsupportedMetadataField(mapper)) {
-                logger.debug("Skipping unsupported metadata field: [{}] of type [{}]", mapper.name(), mapper.typeName());
-                continue;
-            }
-            ParquetField parquetField = ArrowFieldRegistry.getParquetField(mapper.typeName());
-            if (parquetField != null) {
-                fields.add(new Field(mapper.name(), parquetField.getFieldType(), null));
-            } else {
-                logger.debug("No ParquetField registered for field: [{}] of type [{}]", mapper.name(), mapper.typeName());
+        if (mapperService.documentMapper() != null) {
+            for (Mapper mapper : mapperService.documentMapper().mappers()) {
+                if (isUnsupportedMetadataField(mapper)) {
+                    logger.debug("Skipping unsupported metadata field: [{}] of type [{}]", mapper.name(), mapper.typeName());
+                    continue;
+                }
+                ParquetField parquetField = ArrowFieldRegistry.getParquetField(mapper.typeName());
+                if (parquetField != null) {
+                    fields.add(new Field(mapper.name(), parquetField.getFieldType(), null));
+                } else {
+                    logger.debug("No ParquetField registered for field: [{}] of type [{}]", mapper.name(), mapper.typeName());
+                }
             }
         }
         // Add row ID field (long)
-        LongParquetField longField = new LongParquetField();
+        LongParquetField longField = new LongParquetField(false);
         fields.add(new Field(DocumentInput.ROW_ID_FIELD, longField.getFieldType(), null));
+        fields.add(new Field(SeqNoFieldMapper.PRIMARY_TERM_NAME, new LongParquetField(false).getFieldType(), null));
         return new Schema(fields);
     }
 

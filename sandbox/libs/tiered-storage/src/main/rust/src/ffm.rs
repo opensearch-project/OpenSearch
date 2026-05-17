@@ -18,6 +18,8 @@ use std::sync::Arc;
 use native_bridge_common::ffm_safe;
 use object_store::ObjectStore;
 
+use opensearch_block_cache::traits::BlockCache;
+
 use crate::registry::TieredStorageRegistry;
 use crate::registry::FileRegistry;
 use crate::tiered_object_store::TieredObjectStore;
@@ -72,11 +74,15 @@ unsafe fn arc_from_ptr(ptr: i64) -> Result<Arc<TieredObjectStore>, String> {
 /// - `remote_store_box_ptr`: if non-zero, a `Box<Arc<dyn ObjectStore>>` pointer from a repository
 ///   plugin. The Arc is cloned (ownership is NOT taken — the pointer remains valid for other
 ///   shards). If 0, no remote store.
+/// - `cache_box_ptr`: if non-zero, a `Box<Arc<dyn BlockCache>>` pointer from a block cache
+///   plugin. The Arc is cloned (ownership is NOT taken — the pointer remains valid for the
+///   node lifetime). If 0, no block cache is attached.
 #[ffm_safe]
 #[no_mangle]
 pub extern "C" fn ts_create_tiered_object_store(
     local_store_box_ptr: i64,
     remote_store_box_ptr: i64,
+    cache_box_ptr: i64,
 ) -> i64 {
     let file_registry = Arc::new(TieredStorageRegistry::new());
 
@@ -86,7 +92,7 @@ pub extern "C" fn ts_create_tiered_object_store(
         Arc::new(object_store::local::LocalFileSystem::new())
     };
 
-    let store = Arc::new(TieredObjectStore::new(file_registry, local));
+    let mut store = TieredObjectStore::new(file_registry, local);
 
     if remote_store_box_ptr != NULL_PTR {
         // IMPORTANT: Do NOT consume the Box — the pointer is node-level and shared
@@ -96,8 +102,17 @@ pub extern "C" fn ts_create_tiered_object_store(
         store.set_remote(remote_arc);
     }
 
-    let ptr = Arc::into_raw(store) as i64;
-    native_bridge_common::log_info!("ffm: ts_create_tiered_object_store ptr={}", ptr);
+    if cache_box_ptr != NULL_PTR {
+        let cache_box = unsafe { &*(cache_box_ptr as *const Arc<dyn BlockCache>) };
+        store = store.with_cache(Arc::clone(cache_box));
+        native_bridge_common::log_info!("ffm: ts_create_tiered_object_store: block cache wired");
+    }
+
+    let ptr = Arc::into_raw(Arc::new(store)) as i64;
+    native_bridge_common::log_info!(
+        "ffm: ts_create_tiered_object_store cache_wired={}",
+        cache_box_ptr != NULL_PTR
+    );
     Ok(ptr)
 }
 
@@ -117,7 +132,7 @@ pub extern "C" fn ts_get_object_store_box_ptr(tiered_store_ptr: i64) -> i64 {
     // Coerce to trait object and box it
     let boxed: Box<Arc<dyn ObjectStore>> = Box::new(arc as Arc<dyn ObjectStore>);
     let ptr = Box::into_raw(boxed) as i64;
-    native_bridge_common::log_info!("ffm: ts_get_object_store_box_ptr input={}, output={}", tiered_store_ptr, ptr);
+    native_bridge_common::log_info!("ffm: ts_get_object_store_box_ptr: ok");
     Ok(ptr)
 }
 
@@ -130,7 +145,7 @@ pub extern "C" fn ts_destroy_object_store_box_ptr(ptr: i64) -> i64 {
         return Err("ts_destroy_object_store_box_ptr: null pointer (0)".to_string());
     }
     let _boxed = unsafe { Box::from_raw(ptr as *mut Arc<dyn ObjectStore>) };
-    native_bridge_common::log_info!("ffm: ts_destroy_object_store_box_ptr ptr={}", ptr);
+    native_bridge_common::log_info!("ffm: ts_destroy_object_store_box_ptr: ok");
     Ok(0)
 }
 
@@ -144,7 +159,7 @@ pub extern "C" fn ts_destroy_tiered_object_store(ptr: i64) -> i64 {
         return Err("ts_destroy_tiered_object_store: null pointer (0)".to_string());
     }
     let _store = unsafe { Arc::from_raw(ptr as *const TieredObjectStore) };
-    native_bridge_common::log_info!("ffm: ts_destroy_tiered_object_store ptr={}", ptr);
+    native_bridge_common::log_info!("ffm: ts_destroy_tiered_object_store: ok");
     Ok(0)
 }
 
@@ -219,8 +234,11 @@ pub extern "C" fn ts_remove_file(
     let store = unsafe { arc_from_ptr(store_ptr) }?;
     let path = unsafe { str_from_raw(path_ptr, path_len) }
         .map_err(|e| format!("ts_remove_file path: {}", e))?;
+    // Strip leading "/" — object_store::Path normalizes paths without leading slash
+    let path = path.strip_prefix('/').unwrap_or(path);
 
     store.registry().remove(path, false);
+    store.evict_path(path);
 
     native_bridge_common::log_debug!("ffm: ts_remove_file path='{}'", path);
     Ok(0)

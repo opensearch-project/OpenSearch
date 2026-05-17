@@ -15,6 +15,7 @@ import org.apache.calcite.sql.SqlKind;
 import org.apache.calcite.sql.SqlOperator;
 import org.apache.calcite.sql.SqlSyntax;
 import org.apache.calcite.sql.type.ReturnTypes;
+import org.apache.calcite.sql.type.SqlTypeName;
 
 import java.util.List;
 
@@ -65,6 +66,24 @@ public class AnnotatedProjectExpression extends RexCall implements OperatorAnnot
         return viableBackends;
     }
 
+    /**
+     * Preserves subclass identity when {@link org.apache.calcite.rex.RexShuttle#visitCall}'s
+     * default implementation clones this call with updated operands. Without this override,
+     * {@link RexCall#clone(RelDataType, List)} would produce a plain {@code RexCall} with
+     * {@link #ANNOTATED_PROJECT_EXPR_OP} as its operator — downstream {@code stripAnnotations}
+     * would then fail to recognize it as an annotation (because the pattern match is on the
+     * subclass, not the operator), leaving a {@code ANNOTATED_PROJECT_EXPR(...)} call in the
+     * plan that isthmus cannot convert.
+     */
+    @Override
+    public RexCall clone(RelDataType type, List<RexNode> operands) {
+        RexNode newOriginal = operands.isEmpty() ? original : operands.get(0);
+        if (newOriginal == original && type == this.type) {
+            return this;
+        }
+        return new AnnotatedProjectExpression(type, newOriginal, viableBackends, annotationId);
+    }
+
     @Override
     public int getAnnotationId() {
         return annotationId;
@@ -82,7 +101,14 @@ public class AnnotatedProjectExpression extends RexCall implements OperatorAnnot
 
     @Override
     public RexNode withAdaptedOriginal(RexNode adaptedOriginal) {
-        return new AnnotatedProjectExpression(type, adaptedOriginal, viableBackends, annotationId);
+        // When the wrapper's cached type is ANY (PPL polymorphic UDF — SCALAR_MAX,
+        // SCALAR_MIN, etc. declare ANY return because they accept heterogeneous operand
+        // shapes) and the adapter rewrote the call to a target with a concrete inferred
+        // type (DOUBLE for GREATEST(DOUBLE, DOUBLE), etc.), pick up the adapted
+        // expression's type so downstream rowType derivation produces a Substrait-
+        // serialisable schema instead of carrying ANY through to isthmus's TypeConverter.
+        RelDataType resolvedType = type.getSqlTypeName() == SqlTypeName.ANY ? adaptedOriginal.getType() : type;
+        return new AnnotatedProjectExpression(resolvedType, adaptedOriginal, viableBackends, annotationId);
     }
 
     @Override

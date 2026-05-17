@@ -136,7 +136,7 @@ public class LuceneAnalyticsBackendPluginTests extends OpenSearchTestCase {
         LogicalFilter filter = LogicalFilter.create(new TableScan(cluster, cluster.traitSet(), List.of(), table) {
         }, condition);
 
-        RelNode marked = PlannerImpl.markAndOptimize(filter, context);
+        RelNode marked = PlannerImpl.runAllOptimizations(filter, context);
         QueryDAG dag = DAGBuilder.build(marked, context.getCapabilityRegistry(), mockClusterService());
         PlanForker.forkAll(dag, context.getCapabilityRegistry());
         FragmentConversionDriver.convertAll(dag, context.getCapabilityRegistry());
@@ -271,13 +271,8 @@ public class LuceneAnalyticsBackendPluginTests extends OpenSearchTestCase {
         public FragmentConvertor getFragmentConvertor() {
             return new FragmentConvertor() {
                 @Override
-                public byte[] convertShardScanFragment(String tableName, RelNode fragment) {
-                    return ("shard:" + tableName).getBytes(StandardCharsets.UTF_8);
-                }
-
-                @Override
-                public byte[] convertFinalAggFragment(RelNode fragment) {
-                    return "reduce".getBytes(StandardCharsets.UTF_8);
+                public byte[] convertFragment(RelNode fragment) {
+                    return "fragment".getBytes(StandardCharsets.UTF_8);
                 }
 
                 @Override

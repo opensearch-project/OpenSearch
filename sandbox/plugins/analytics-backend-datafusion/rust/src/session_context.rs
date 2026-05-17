@@ -103,6 +103,14 @@ pub async unsafe fn create_session_context(
         e
     })?;
 
+    // Register shard-specific object store on file:// scheme for this query.
+    // This is the instruction-based execution path (ShardScanInstructionHandler).
+    // Without this, queries use default LocalFileSystem and fail on warm.
+    runtime_env.register_object_store(
+        &url::Url::parse("file://").unwrap(),
+        Arc::clone(&shard_view.store),
+    );
+
     let mut config = SessionConfig::new();
     config.options_mut().execution.parquet.pushdown_filters = query_config.parquet_pushdown_filters;
     config.options_mut().execution.target_partitions = query_config.target_partitions;
@@ -134,6 +142,9 @@ pub async unsafe fn create_session_context(
             error!("create_session_context: failed to infer schema: {}", e);
             e
         })?;
+    // Substrait's type system is narrower than Arrow's; normalize the inferred
+    // schema to forms the Substrait consumer can bind against. See crate::schema_coerce.
+    let resolved_schema = crate::schema_coerce::coerce_inferred_schema(resolved_schema);
 
     let table_config = ListingTableConfig::new(shard_view.table_path.clone())
         .with_listing_options(listing_options)

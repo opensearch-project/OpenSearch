@@ -60,7 +60,7 @@ public class OpenSearchSchemaBuilderTests extends OpenSearchTestCase {
 
         RelDataType rowType = table.getRowType(new org.apache.calcite.jdbc.JavaTypeFactoryImpl());
         assertFieldType(rowType, "count", SqlTypeName.INTEGER);
-        assertFieldType(rowType, "ratio", SqlTypeName.FLOAT);
+        assertFieldType(rowType, "ratio", SqlTypeName.REAL);
         assertFieldType(rowType, "active", SqlTypeName.BOOLEAN);
     }
 
@@ -79,7 +79,7 @@ public class OpenSearchSchemaBuilderTests extends OpenSearchTestCase {
 
         RelDataType rowType = table.getRowType(new org.apache.calcite.jdbc.JavaTypeFactoryImpl());
         assertFieldType(rowType, "created", SqlTypeName.TIMESTAMP);
-        assertFieldType(rowType, "address", SqlTypeName.VARCHAR);
+        assertFieldType(rowType, "address", SqlTypeName.VARBINARY);
         assertFieldType(rowType, "content", SqlTypeName.VARCHAR);
         assertFieldType(rowType, "small_num", SqlTypeName.SMALLINT);
         assertFieldType(rowType, "tiny_num", SqlTypeName.TINYINT);
@@ -137,23 +137,29 @@ public class OpenSearchSchemaBuilderTests extends OpenSearchTestCase {
     public void testMapFieldTypeForAllSupportedTypes() {
         assertEquals(SqlTypeName.VARCHAR, OpenSearchSchemaBuilder.mapFieldType("keyword"));
         assertEquals(SqlTypeName.VARCHAR, OpenSearchSchemaBuilder.mapFieldType("text"));
+        assertEquals(SqlTypeName.VARCHAR, OpenSearchSchemaBuilder.mapFieldType("match_only_text"));
         assertEquals(SqlTypeName.BIGINT, OpenSearchSchemaBuilder.mapFieldType("long"));
+        assertEquals(SqlTypeName.BIGINT, OpenSearchSchemaBuilder.mapFieldType("unsigned_long"));
+        assertEquals(SqlTypeName.BIGINT, OpenSearchSchemaBuilder.mapFieldType("scaled_float"));
         assertEquals(SqlTypeName.INTEGER, OpenSearchSchemaBuilder.mapFieldType("integer"));
         assertEquals(SqlTypeName.SMALLINT, OpenSearchSchemaBuilder.mapFieldType("short"));
         assertEquals(SqlTypeName.TINYINT, OpenSearchSchemaBuilder.mapFieldType("byte"));
         assertEquals(SqlTypeName.DOUBLE, OpenSearchSchemaBuilder.mapFieldType("double"));
-        assertEquals(SqlTypeName.FLOAT, OpenSearchSchemaBuilder.mapFieldType("float"));
+        assertEquals(SqlTypeName.REAL, OpenSearchSchemaBuilder.mapFieldType("float"));
+        assertEquals(SqlTypeName.REAL, OpenSearchSchemaBuilder.mapFieldType("half_float"));
         assertEquals(SqlTypeName.BOOLEAN, OpenSearchSchemaBuilder.mapFieldType("boolean"));
         assertEquals(SqlTypeName.TIMESTAMP, OpenSearchSchemaBuilder.mapFieldType("date"));
-        assertEquals(SqlTypeName.VARCHAR, OpenSearchSchemaBuilder.mapFieldType("ip"));
+        assertEquals(SqlTypeName.TIMESTAMP, OpenSearchSchemaBuilder.mapFieldType("date_nanos"));
+        assertEquals(SqlTypeName.VARBINARY, OpenSearchSchemaBuilder.mapFieldType("ip"));
+        assertEquals(SqlTypeName.VARBINARY, OpenSearchSchemaBuilder.mapFieldType("binary"));
     }
 
     /**
-     * Test that unknown field types default to VARCHAR.
+     * Test that unknown field types throw IllegalArgumentException naming the offending type.
      */
-    public void testUnknownFieldTypeDefaultsToVarchar() {
-        assertEquals(SqlTypeName.VARCHAR, OpenSearchSchemaBuilder.mapFieldType("unknown_type"));
-        assertEquals(SqlTypeName.VARCHAR, OpenSearchSchemaBuilder.mapFieldType("geo_point"));
+    public void testUnknownFieldTypeThrows() {
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> OpenSearchSchemaBuilder.mapFieldType("geo_point"));
+        assertTrue("Exception message should mention the unsupported type, was: " + ex.getMessage(), ex.getMessage().contains("geo_point"));
     }
 
     // --- helpers ---

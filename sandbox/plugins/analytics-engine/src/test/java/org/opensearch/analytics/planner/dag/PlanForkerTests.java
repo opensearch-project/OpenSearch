@@ -126,27 +126,27 @@ public class PlanForkerTests extends BasePlannerRulesTests {
     }
 
     /**
-     * Sort(Filter(Scan)) and Sort(Agg(Filter(Scan))) with limit — verifies forking
-     * produces two alternatives with correct pipeline shape at each level.
+     * Sort(Filter(Scan)) and Sort(Agg(Filter(Scan))) with limit — collated Sort always requires
+     * EXECUTION(SINGLETON), so the plan has an ER between the Sort and the scan subtree.
+     * Forking at the root stage is limited to backends that can reduce (only mock-parquet in
+     * these tests) → one alternative per stage, not two.
      */
     public void testSortQueryShapes() {
-        // Sort(Filter(Scan)) with limit
+        // Sort(Filter(Scan)) with limit — multi-shard so root-demand SINGLETON requires a gather,
+        // which narrows the root stage to reduce-capable backends.
         QueryDAG sortFilterDag = buildAndFork(
-            1,
+            3,
             makeSort(makeFilter(stubScan(mockTable("test_index", "status", "size")), makeEquals(0, SqlTypeName.INTEGER, 200)), 10)
         );
-        assertTwoAlternatives(sortFilterDag.rootStage(), OpenSearchSort.class);
+        assertEquals(1, sortFilterDag.rootStage().getPlanAlternatives().size());
         for (StagePlan plan : sortFilterDag.rootStage().getPlanAlternatives()) {
-            assertPipelineViableBackends(
-                plan.resolvedFragment(),
-                List.of(OpenSearchSort.class, OpenSearchFilter.class, OpenSearchTableScan.class),
-                Set.of(plan.backendId())
-            );
+            assertTrue(plan.resolvedFragment() instanceof OpenSearchSort);
         }
 
-        // Sort(Agg(Filter(Scan))) with limit
+        // Sort(Agg(Filter(Scan))) with limit — multi-shard so split fires, root stage is FINAL+Sort
+        // over an ER, narrowed to reduce-capable backends.
         QueryDAG sortAggDag = buildAndFork(
-            1,
+            3,
             makeSort(
                 makeAggregate(
                     makeFilter(stubScan(mockTable("test_index", "status", "size")), makeEquals(0, SqlTypeName.INTEGER, 200)),
@@ -155,13 +155,9 @@ public class PlanForkerTests extends BasePlannerRulesTests {
                 10
             )
         );
-        assertTwoAlternatives(sortAggDag.rootStage(), OpenSearchSort.class);
+        assertEquals(1, sortAggDag.rootStage().getPlanAlternatives().size());
         for (StagePlan plan : sortAggDag.rootStage().getPlanAlternatives()) {
-            assertPipelineViableBackends(
-                plan.resolvedFragment(),
-                List.of(OpenSearchSort.class, OpenSearchAggregate.class, OpenSearchFilter.class, OpenSearchTableScan.class),
-                Set.of(plan.backendId())
-            );
+            assertTrue(plan.resolvedFragment() instanceof OpenSearchSort);
         }
     }
 
@@ -263,7 +259,7 @@ public class PlanForkerTests extends BasePlannerRulesTests {
         );
         LogicalFilter filter = LogicalFilter.create(stubScan(mockTable("test_index", "status", "size")), constant);
         RelNode result = runPlanner(filter, context);
-        // ReduceExpressionsRule folds 1=1 → TRUE, then filter on TRUE is removed
+        // ReduceExpressionsRule folds 1=1 → TRUE, then filter on TRUE is removed.
         assertFalse("filter on constant true must be eliminated", result instanceof OpenSearchFilter);
         assertTrue("root must be the scan after filter elimination", result instanceof OpenSearchTableScan);
     }

@@ -18,6 +18,7 @@ import org.opensearch.index.engine.dataformat.DataFormatStoreHandlerFactory;
 import org.opensearch.index.engine.dataformat.StoreStrategy;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.store.RemoteSegmentStoreDirectory;
+import org.opensearch.plugins.BlockCacheRegistry;
 import org.opensearch.plugins.NativeStoreHandle;
 import org.opensearch.repositories.NativeStoreRepository;
 
@@ -92,10 +93,12 @@ public final class StoreStrategyRegistry implements Closeable {
      *
      * @param shardPath       the shard path (used to resolve absolute file paths for DataFusion)
      * @param isWarm          true on warm nodes
-     * @param nativeStore     the repository's native store, or
-     *                        {@link NativeStoreRepository#EMPTY}
+     * @param nativeStore     the repository's native store, or {@link NativeStoreRepository#EMPTY}
      * @param strategies      the strategies that apply to this shard, keyed by data format
      * @param remoteDirectory the remote segment store directory used to seed initial state
+     * @param cacheRegistry   registry for block cache lookup by name; each handler resolves its
+     *                        preferred cache via a {@link org.opensearch.plugins.BlockCacheConstants}
+     *                        constant. {@code null} when no block cache support is available.
      * @return a fully-initialised registry
      */
     public static StoreStrategyRegistry open(
@@ -103,7 +106,8 @@ public final class StoreStrategyRegistry implements Closeable {
         boolean isWarm,
         NativeStoreRepository nativeStore,
         Map<DataFormat, StoreStrategy> strategies,
-        RemoteSegmentStoreDirectory remoteDirectory
+        RemoteSegmentStoreDirectory remoteDirectory,
+        BlockCacheRegistry cacheRegistry
     ) {
         if (strategies == null || strategies.isEmpty()) {
             return EMPTY;
@@ -123,7 +127,7 @@ public final class StoreStrategyRegistry implements Closeable {
                 if (factory == null) {
                     continue;
                 }
-                DataFormatStoreHandler handler = factory.create(shardPath.getShardId(), isWarm, nativeStore);
+                DataFormatStoreHandler handler = factory.create(shardPath.getShardId(), isWarm, nativeStore, cacheRegistry);
                 if (handler != null) {
                     storeHandlers.put(format, handler);
                     created.add(handler);
@@ -262,7 +266,6 @@ public final class StoreStrategyRegistry implements Closeable {
         if (remoteDirectory == null) {
             return;
         }
-        String basePath = remoteDirectory.getRemoteBasePath();
         Map<String, RemoteSegmentStoreDirectory.UploadedSegmentMetadata> uploaded = remoteDirectory.getSegmentsUploadedToRemoteStore();
         if (uploaded == null || uploaded.isEmpty()) {
             return;
@@ -284,6 +287,7 @@ public final class StoreStrategyRegistry implements Closeable {
                 continue;
             }
             String blobKey = entry.getValue().getUploadedFilename();
+            String basePath = remoteDirectory.getRemoteBasePath(owningFormat.name());
             String remotePath = owning.remotePath(owningFormat.name(), basePath, file, blobKey);
             // Use absolute path as key — matches what DataFusion uses for file:// lookups
             String absoluteKey = shardPath.getDataPath().resolve(file).toString();
