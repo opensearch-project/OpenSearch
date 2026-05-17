@@ -84,7 +84,7 @@ public class ValuesSqlIT extends OpenSearchIntegTestCase {
     /**
      * Source-less {@code SELECT 1 + 1, 'x'} — Calcite lowers this to a single-row
      * {@code LogicalValues}. With no shard scan in the fragment, DAGBuilder picks
-     * {@code LOCAL_COMPUTE}; LocalComputeStageScheduler hands the Substrait plan to
+     * {@code LOCAL_COMPUTE}; LocalComputeStageExecutionFactory hands the Substrait plan to
      * DataFusion's local session with no childInputs. Exercises the pure
      * coordinator-only execution path.
      */

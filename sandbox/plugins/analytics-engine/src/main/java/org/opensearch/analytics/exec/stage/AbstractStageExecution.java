@@ -12,35 +12,41 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.analytics.backend.AnalyticsOperationListener;
+import org.opensearch.analytics.exec.task.TaskRunner;
 import org.opensearch.analytics.planner.dag.Stage;
 import org.opensearch.common.Nullable;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
- * Consolidates the shared mechanics of every {@link StageExecution} variant:
- * state CAS, listener fire loop, failure capture, metrics, and stage-id
- * accessors. Subclasses implement only {@link #start()} and
- * {@link #cancel(String)}.
+ * Shared mechanics for every {@link StageExecution} variant: state CAS, listener
+ * fire loop, failure capture, metrics, default {@code tasks}/{@code runner} accessors,
+ * default {@code onTaskTerminal}/{@code cancel}/{@code failWithCause} impls.
  *
- * <p>Listener registration is append-only and must happen before {@link #start()}
- * is called (during {@code PlanWalker.walk()} construction phase). After that
- * point the list is effectively frozen.
+ * <p>Subclasses typically implement only {@link #start()} (materialise tasks +
+ * {@link #publishTasksAndStart}) and override {@link #cancel}/{@link #failWithCause}
+ * if they need stage-specific cleanup ordered relative to terminal listeners.
  *
  * @opensearch.internal
  */
 abstract class AbstractStageExecution implements StageExecution {
 
+    private static final Logger logger = LogManager.getLogger(AbstractStageExecution.class);
+
     protected final Stage stage;
     protected final StageMetrics metrics;
+    protected TaskRunner<?> runner = TaskRunner.NONE;
     private final AtomicReference<State> state = new AtomicReference<>(State.CREATED);
     private final AtomicReference<Exception> failure = new AtomicReference<>();
     private final List<StageStateListener> stateListeners = new ArrayList<>();
     private final List<AnalyticsOperationListener> operationListeners;
     private final String queryId;
-    private static final Logger logger = LogManager.getLogger(AbstractStageExecution.class);
+    private final AtomicInteger pendingTaskTerminal = new AtomicInteger(0);
+    private volatile List<StageTask> tasks = Collections.emptyList();
 
     protected AbstractStageExecution(Stage stage) {
         this(stage, null, List.of());
@@ -79,54 +85,83 @@ abstract class AbstractStageExecution implements StageExecution {
         stateListeners.add(listener);
     }
 
+    @Override
+    public final List<StageTask> tasks() {
+        return tasks;
+    }
+
+    @Override
+    public TaskRunner<?> taskRunner() {
+        return runner;
+    }
+
     /**
-     * Attempt to transition the execution to the given target state. If the
-     * current state is already terminal ({@link State#SUCCEEDED},
-     * {@link State#FAILED}, {@link State#CANCELLED}) or equal to {@code target},
-     * the call is a no-op and returns {@code false} — no listeners fire, no
-     * state change. On a successful transition, metrics are updated and all
-     * registered listeners fire in registration order with the
-     * {@code (previous, target)} pair.
-     *
-     * <p><b>Metrics are driven entirely from this method.</b> Subclasses must
-     * not call {@code metrics.recordStart()} or {@code metrics.recordEnd()}
-     * directly. Start time is stamped on the <i>first</i> transition out of
-     * {@link State#CREATED} (whether that target is {@code RUNNING} or a
-     * direct terminal), and end time is stamped on any transition into a
-     * terminal state. Stages that skip {@code RUNNING} (e.g. empty-target
-     * scans that go straight from {@code CREATED} to {@code SUCCEEDED}) get
-     * both stamps on the same call.
-     *
-     * <p>Callers should still gate terminal side effects (closing resources,
-     * firing external callbacks) on the return value:
-     * <pre>
-     *     if (transitionTo(State.FAILED)) {
-     *         ctx.close();
-     *     }
-     * </pre>
-     *
-     * @return {@code true} if the transition happened, {@code false} otherwise
+     * Default lifecycle on per-task terminal: fast-fail on any failure, otherwise
+     * decrement the pending counter and transition to SUCCEEDED/FAILED once every
+     * task is terminal. Retry (when {@link #retargetForRetry} is overridden)
+     * intercepts BEFORE this fires — see {@code QueryScheduler.handleFor}.
+     */
+    @Override
+    public void onTaskTerminal(StageTask task, @Nullable Exception cause) {
+        if (cause != null) {
+            captureFailure(cause);
+            transitionTo(State.FAILED);
+            return;
+        }
+        if (recordTaskTerminal(null)) {
+            Exception captured = getFailure();
+            transitionTo(captured != null ? State.FAILED : State.SUCCEEDED);
+        }
+    }
+
+    /**
+     * Default cancel: idempotent transition to CANCELLED + sweep tasks. Stage-specific
+     * cleanup is best done by overriding this method (close resources before calling
+     * super.cancel if cleanup must happen before terminal listeners fire).
+     */
+    @Override
+    public void cancel(String reason) {
+        if (transitionTo(State.CANCELLED) == false) return;
+        for (StageTask t : tasks) {
+            t.transitionTo(StageTaskState.CANCELLED);
+        }
+    }
+
+    /**
+     * Default fail-with-cause: capture, transition to FAILED. Stage-specific cleanup
+     * is best done by overriding this method (close resources before calling super if
+     * cleanup must happen before terminal listeners fire — they may tear down
+     * query-level resources the cleanup needs).
+     */
+    @Override
+    public boolean failWithCause(Exception cause) {
+        captureFailure(cause);
+        return transitionTo(State.FAILED);
+    }
+
+    /**
+     * Attempt to transition to {@code target}. No-op + returns {@code false} when the
+     * current state is already terminal or equal to {@code target}. On a successful
+     * transition: stamps metrics, fires state listeners (registration order), fires
+     * operation listeners. CREATED→terminal also synthesises the onStageStart event so
+     * observers see a start before the terminal.
      */
     protected final boolean transitionTo(State target) {
         State previous;
         do {
             previous = state.get();
-            if (isTerminal(previous) || previous == target) {
+            if (previous.isTerminal() || previous == target) {
                 return false;
             }
         } while (state.compareAndSet(previous, target) == false);
 
-        // Metrics: start is stamped on the first transition out of CREATED;
-        // end is stamped on any transition into a terminal state. Both fire
-        // on direct CREATED→terminal transitions.
         if (previous == State.CREATED) {
             metrics.recordStart();
         }
-        if (isTerminal(target)) {
+        if (target.isTerminal()) {
             metrics.recordEnd();
         }
 
-        // Transition succeeded. Fire state listeners.
         for (StageStateListener l : stateListeners) {
             try {
                 l.onStateChange(previous, target);
@@ -143,9 +178,7 @@ abstract class AbstractStageExecution implements StageExecution {
             }
         }
 
-        // Fire operation listeners for observability.
         fireOperationListeners(previous, target);
-
         return true;
     }
 
@@ -153,64 +186,73 @@ abstract class AbstractStageExecution implements StageExecution {
         if (operationListeners.isEmpty() || queryId == null) return;
         String stageType = getClass().getSimpleName();
         int sid = getStageId();
+        // Synthesise onStageStart when a stage skips RUNNING (CREATED → terminal),
+        // so observers always see a start before any terminal event.
+        if (previous == State.CREATED && target.isTerminal()) {
+            fireSingle(target, sid, stageType, l -> l.onStageStart(queryId, sid, stageType));
+        }
+        switch (target) {
+            case RUNNING -> fireSingle(target, sid, stageType, l -> l.onStageStart(queryId, sid, stageType));
+            case SUCCEEDED -> fireSingle(
+                target,
+                sid,
+                stageType,
+                l -> l.onStageSuccess(
+                    queryId,
+                    sid,
+                    metrics.getEndTimeMs() > 0 && metrics.getStartTimeMs() > 0
+                        ? (metrics.getEndTimeMs() - metrics.getStartTimeMs()) * 1_000_000L
+                        : 0,
+                    metrics.getRowsProcessed()
+                )
+            );
+            case FAILED -> fireSingle(target, sid, stageType, l -> l.onStageFailure(queryId, sid, getFailure()));
+            case CANCELLED -> fireSingle(target, sid, stageType, l -> l.onStageCancelled(queryId, sid, "stage cancelled"));
+            default -> {
+            }
+        }
+    }
+
+    private void fireSingle(State target, int sid, String stageType, java.util.function.Consumer<AnalyticsOperationListener> call) {
         for (AnalyticsOperationListener l : operationListeners) {
             try {
-                switch (target) {
-                    case RUNNING -> l.onStageStart(queryId, sid, stageType);
-                    case SUCCEEDED -> l.onStageSuccess(
-                        queryId,
-                        sid,
-                        metrics.getEndTimeMs() > 0 && metrics.getStartTimeMs() > 0
-                            ? (metrics.getEndTimeMs() - metrics.getStartTimeMs()) * 1_000_000L
-                            : 0,
-                        metrics.getRowsProcessed()
-                    );
-                    case FAILED -> l.onStageFailure(queryId, sid, getFailure());
-                    case CANCELLED -> l.onStageCancelled(queryId, sid, "stage cancelled");
-                    default -> {
-                    }
-                }
+                call.accept(l);
             } catch (Exception e) {
                 logger.warn(new ParameterizedMessage("[StageExecution] operation listener threw for stage {} -> {}", sid, target), e);
             }
         }
     }
 
-    private static boolean isTerminal(State s) {
-        return s == State.SUCCEEDED || s == State.FAILED || s == State.CANCELLED;
-    }
-
-    /**
-     * Records a failure exception. Idempotent — only the first non-null
-     * failure is retained. Does NOT transition state; the caller is
-     * responsible for following up with {@code transitionTo(State.FAILED)}.
-     */
+    /** Idempotent — only the first non-null failure is retained. */
     protected final void captureFailure(Exception e) {
         failure.compareAndSet(null, e);
     }
 
     /**
-     * Captures the given failure and attempts to transition to {@link State#FAILED}.
-     * Called from the per-parent listener in {@code PlanWalker} when a child fails —
-     * propagates the child's cause upward so the root terminal listener surfaces
-     * the actual exception, not a synthetic "CANCELLED" message.
-     *
-     * <p>The failure is captured via {@link #captureFailure} BEFORE the transition
-     * attempt. If the transition is rejected (e.g., this execution was already
-     * FAILED due to a different child failing first), the capture has already
-     * happened — the FIRST failure to reach {@code captureFailure} wins the
-     * {@code AtomicReference.compareAndSet}.
-     *
-     * @return {@code true} if the transition happened, {@code false} otherwise
+     * Subclasses call from {@link #start()} after materialising their task list.
+     * No-op if state has advanced past CREATED (re-entry guard — defends against
+     * a double-call corrupting bookkeeping).
      */
-    public boolean failFromChild(Exception cause) {
-        captureFailure(cause);
-        return transitionTo(State.FAILED);
+    protected final void publishTasksAndStart(List<StageTask> ts) {
+        if (getState() != State.CREATED) return;
+        this.tasks = List.copyOf(ts);
+        pendingTaskTerminal.set(ts.size());
+        transitionTo(State.RUNNING);
+    }
+
+    /**
+     * Captures {@code cause}, decrements pending counter, returns {@code true} iff
+     * every task is now terminal. Caller decides FAILED vs SUCCEEDED.
+     */
+    protected final boolean recordTaskTerminal(@Nullable Exception cause) {
+        if (cause != null) {
+            captureFailure(cause);
+        }
+        int remaining = pendingTaskTerminal.decrementAndGet();
+        assert remaining >= 0 : "task terminal counter went negative: " + remaining;
+        return remaining == 0;
     }
 
     @Override
     public abstract void start();
-
-    @Override
-    public abstract void cancel(String reason);
 }

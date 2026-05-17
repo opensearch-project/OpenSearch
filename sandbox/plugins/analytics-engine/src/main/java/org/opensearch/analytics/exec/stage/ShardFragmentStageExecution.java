@@ -11,7 +11,6 @@ package org.opensearch.analytics.exec.stage;
 import org.apache.arrow.vector.VectorSchemaRoot;
 import org.opensearch.analytics.backend.ExchangeSource;
 import org.opensearch.analytics.exec.AnalyticsSearchTransportService;
-import org.opensearch.analytics.exec.PendingExecutions;
 import org.opensearch.analytics.exec.QueryContext;
 import org.opensearch.analytics.exec.StreamingResponseListener;
 import org.opensearch.analytics.exec.action.FragmentExecutionArrowResponse;
@@ -21,33 +20,26 @@ import org.opensearch.analytics.planner.dag.ShardExecutionTarget;
 import org.opensearch.analytics.planner.dag.Stage;
 import org.opensearch.analytics.spi.ExchangeSink;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.tasks.CancellableTask;
+import org.opensearch.tasks.Task;
 
+import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 
 /**
- * Leaf stage execution that dispatches fragment work to data-node shards via
- * Arrow streaming, feeding resulting batches into the parent stage's
- * {@link ExchangeSink}.
- *
- * <p>One-shot: constructed, {@link #start()} called once, listener
- * signaled on completion, then discarded.
+ * Leaf stage: dispatches fragment work to data-node shards via Arrow streaming,
+ * one {@link StageTask} per resolved target. Transport owned by {@link ShardTaskRunner};
+ * data-arrival behavior by {@link #responseListenerFor}.
  *
  * @opensearch.internal
  */
-final class ShardFragmentStageExecution extends AbstractStageExecution implements DataProducer {
-
-    private final AtomicInteger inFlight = new AtomicInteger(0);
+class ShardFragmentStageExecution extends AbstractStageExecution implements DataProducer {
 
     private final QueryContext config;
     private final ExchangeSink outputSink;
     private final ClusterService clusterService;
-    private final Function<ShardExecutionTarget, FragmentExecutionRequest> requestBuilder;
-    private final AnalyticsSearchTransportService dispatcher;
-    private final Map<String, PendingExecutions> pendingPerNode = new ConcurrentHashMap<>();
 
     ShardFragmentStageExecution(
         Stage stage,
@@ -57,102 +49,36 @@ final class ShardFragmentStageExecution extends AbstractStageExecution implement
         Function<ShardExecutionTarget, FragmentExecutionRequest> requestBuilder,
         AnalyticsSearchTransportService dispatcher
     ) {
-        super(stage);
+        super(stage, config.queryId(), config.operationListeners());
         this.config = config;
         this.outputSink = outputSink;
         this.clusterService = clusterService;
-        this.requestBuilder = requestBuilder;
-        this.dispatcher = dispatcher;
+        this.runner = new ShardTaskRunner(this, config, dispatcher, requestBuilder);
     }
 
     @Override
     public void start() {
         List<ExecutionTarget> resolved = stage.getTargetResolver().resolve(clusterService.state(), null);
         if (resolved.isEmpty()) {
-            transitionTo(StageExecution.State.SUCCEEDED);
+            transitionTo(State.SUCCEEDED);
             return;
         }
-        if (transitionTo(StageExecution.State.RUNNING) == false) return;
-        inFlight.set(resolved.size());
-        for (ExecutionTarget target : resolved) {
-            dispatchShardTask((ShardExecutionTarget) target);
+        List<StageTask> tasks = new ArrayList<>(resolved.size());
+        for (int i = 0; i < resolved.size(); i++) {
+            tasks.add(new ShardStageTask(new StageTaskId(getStageId(), i), resolved.get(i)));
         }
+        publishTasksAndStart(tasks);
     }
 
-    private void dispatchShardTask(ShardExecutionTarget target) {
-        FragmentExecutionRequest request = requestBuilder.apply(target);
-        PendingExecutions pending = pendingFor(target);
-        dispatcher.dispatchFragmentStreaming(request, target.node(), responseListener(), config.parentTask(), pending);
-    }
+    // TODO: override retargetForRetry for replica failover — needs TargetResolver.alternateReplica
+    // and per-task attempt tracking. Scheduler-side wiring is already in place.
 
-    private StreamingResponseListener<FragmentExecutionArrowResponse> responseListener() {
-        return new StreamingResponseListener<>() {
-            // Runs inline on the per-stream virtual thread driving handleStreamResponse.
-            // Must NOT offload to a thread pool: reordering across batches would let the
-            // isLast=true task race ahead, flip state to SUCCEEDED, and drop queued
-            // earlier batches via the isDone() short-circuit. Inline also preserves
-            // end-to-end backpressure (next nextResponse() blocks until feed() returns).
-            @Override
-            public void onStreamResponse(FragmentExecutionArrowResponse response, boolean isLast) {
-                if (isDone()) {
-                    VectorSchemaRoot root = response.getRoot();
-                    if (root != null) {
-                        root.close();
-                    }
-                    return;
-                }
-
-                VectorSchemaRoot vsr = response.getRoot();
-                try {
-                    outputSink.feed(vsr);
-                } catch (Exception e) {
-                    // On feed failure, close the VSR ourselves — sink didn't take ownership.
-                    // Without surfacing via captureFailure the exception only lives on the
-                    // stream's virtual thread; inFlight never decrements and the stage hangs
-                    // to QUERY_TIMEOUT.
-                    RuntimeException wrapped = new RuntimeException("Stage " + stage.getStageId() + " sink feed failed", e);
-                    try {
-                        vsr.close();
-                    } catch (IllegalStateException closeFailure) {
-                        wrapped.addSuppressed(closeFailure);
-                    }
-                    captureFailure(wrapped);
-                    metrics.incrementTasksFailed();
-                    onShardTerminated();
-                    return;
-                }
-                metrics.addRowsProcessed(vsr.getRowCount());
-
-                if (isLast) {
-                    metrics.incrementTasksCompleted();
-                    onShardTerminated();
-                }
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                captureFailure(new RuntimeException("Stage " + stage.getStageId() + " failed", e));
-                metrics.incrementTasksFailed();
-                onShardTerminated();
-            }
-        };
-    }
-
-    private void onShardTerminated() {
-        int after = inFlight.decrementAndGet();
-        assert after >= 0 : "inFlight count went negative — a shard terminated more than once: " + after;
-        if (after == 0) {
-            Exception captured = getFailure();
-            transitionTo(captured != null ? StageExecution.State.FAILED : StageExecution.State.SUCCEEDED);
-        }
-    }
-
+    /** Cancel locally first, then propagate to data-node shard tasks via TaskCancellationService. */
     @Override
     public void cancel(String reason) {
-        if (transitionTo(StageExecution.State.CANCELLED) == false) return;
-        // Cancelling the parent task propagates to data-node shard tasks via TaskCancellationService.
-        org.opensearch.tasks.Task parentTask = config.parentTask();
-        if (parentTask instanceof org.opensearch.tasks.CancellableTask ct && ct.isCancelled() == false) {
+        super.cancel(reason);
+        Task parentTask = config.parentTask();
+        if (parentTask instanceof CancellableTask ct && ct.isCancelled() == false) {
             ct.cancel(reason);
         }
     }
@@ -165,12 +91,45 @@ final class ShardFragmentStageExecution extends AbstractStageExecution implement
         throw new UnsupportedOperationException("outputSink does not implement ExchangeSource");
     }
 
-    private boolean isDone() {
-        StageExecution.State s = getState();
-        return s == StageExecution.State.SUCCEEDED || s == StageExecution.State.FAILED || s == StageExecution.State.CANCELLED;
-    }
+    /**
+     * Runs inline on the per-stream virtual thread driving handleStreamResponse — must NOT
+     * offload: reordering would let isLast race ahead and drop earlier batches via the
+     * stage-terminal short-circuit. Inline also preserves end-to-end backpressure.
+     */
+    StreamingResponseListener<FragmentExecutionArrowResponse> responseListenerFor(ActionListener<Void> listener) {
+        return new StreamingResponseListener<>() {
+            @Override
+            public void onStreamResponse(FragmentExecutionArrowResponse response, boolean isLast) {
+                VectorSchemaRoot vsr = response.getRoot();
+                if (getState().isTerminal()) {
+                    if (vsr != null) vsr.close();
+                    return;
+                }
+                if (vsr == null) {
+                    if (isLast) listener.onResponse(null);
+                    return;
+                }
+                try {
+                    outputSink.feed(vsr);
+                } catch (Exception e) {
+                    // Sink didn't take ownership — close the VSR before surfacing.
+                    RuntimeException wrapped = new RuntimeException("Stage " + getStageId() + " sink feed failed", e);
+                    try {
+                        vsr.close();
+                    } catch (IllegalStateException closeFailure) {
+                        wrapped.addSuppressed(closeFailure);
+                    }
+                    listener.onFailure(wrapped);
+                    return;
+                }
+                metrics.addRowsProcessed(vsr.getRowCount());
+                if (isLast) listener.onResponse(null);
+            }
 
-    private PendingExecutions pendingFor(ShardExecutionTarget target) {
-        return pendingPerNode.computeIfAbsent(target.node().getId(), n -> new PendingExecutions(config.maxConcurrentShardRequests()));
+            @Override
+            public void onFailure(Exception e) {
+                listener.onFailure(new RuntimeException("Stage " + getStageId() + " failed", e));
+            }
+        };
     }
 }

@@ -9,19 +9,17 @@
 package org.opensearch.analytics.exec.stage;
 
 import org.opensearch.analytics.backend.ExchangeSource;
+import org.opensearch.analytics.exec.QueryContext;
 import org.opensearch.analytics.exec.RowProducingSink;
 import org.opensearch.analytics.planner.dag.Stage;
-import org.opensearch.analytics.spi.DataConsumer;
 import org.opensearch.analytics.spi.ExchangeSink;
 
+import java.util.List;
+
 /**
- * Sentinel {@link StageExecution} for LOCAL pass-through (root gather)
- * stages. Owns a {@link RowProducingSink} and transitions synchronously
- * through {@code CREATED → RUNNING → SUCCEEDED} on {@link #start()}.
- *
- * <p>Implements both {@link DataConsumer} and {@link DataProducer} via
- * {@link SinkProvidingStageExecution}: children write into the same sink
- * that the root reads from.
+ * LOCAL pass-through (root gather) stage. Owns a {@link RowProducingSink} that
+ * children write into and the root reads from. Runs a no-op LOCAL task so the
+ * scheduler-driven dispatch path stays uniform.
  *
  * @opensearch.internal
  */
@@ -29,23 +27,19 @@ final class PassThroughStageExecution extends AbstractStageExecution implements 
 
     private final RowProducingSink ownedSink;
 
-    public PassThroughStageExecution(Stage stage, ExchangeSink sink) {
-        super(stage);
+    public PassThroughStageExecution(Stage stage, QueryContext config, ExchangeSink sink) {
+        super(stage, config.queryId(), config.operationListeners());
         if ((sink instanceof RowProducingSink) == false) {
             throw new IllegalArgumentException("PassThroughStageExecution requires a RowProducingSink");
         }
         this.ownedSink = (RowProducingSink) sink;
+        this.runner = new LocalTaskRunner(config.localTaskExecutor());
     }
 
     @Override
     public void start() {
-        if (transitionTo(State.RUNNING) == false) return;
-        transitionTo(State.SUCCEEDED);
-    }
-
-    @Override
-    public void cancel(String reason) {
-        transitionTo(State.CANCELLED);
+        LocalStageTask task = new LocalStageTask(new StageTaskId(getStageId(), 0), () -> {});
+        publishTasksAndStart(List.of(task));
     }
 
     @Override

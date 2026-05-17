@@ -11,19 +11,18 @@ package org.opensearch.analytics.exec.stage;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
- * Per-stage atomic counters for query lifecycle metrics: rowsProcessed,
- * bytesRead, tasksCompleted, tasksFailed, startTimeMs, endTimeMs.
- * <p>
- * Created by {@link AbstractStageExecution} at construction time and
- * owned for the lifetime of the stage. Counters are incremented during
- * execution; future: exposed via explain/profile API.
+ * Stage-aggregate metrics: rowsProcessed, bytesRead, wall-clock start/end.
+ * Created by {@link AbstractStageExecution} at construction time and owned
+ * for the lifetime of the stage.
+ *
+ * <p>Per-task identity / state / timing is a separate concern handled by
+ * the planned {@code StageTask} model; this class is intentionally
+ * task-agnostic.
  *
  * @opensearch.internal
  */
 public class StageMetrics {
 
-    private final AtomicLong tasksCompleted = new AtomicLong();
-    private final AtomicLong tasksFailed = new AtomicLong();
     private final AtomicLong rowsProcessed = new AtomicLong();
     private final AtomicLong bytesRead = new AtomicLong();
     private volatile long startTimeMs;
@@ -41,16 +40,6 @@ public class StageMetrics {
         this.endTimeMs = System.currentTimeMillis();
     }
 
-    /** Atomically increment the completed-tasks counter. */
-    public void incrementTasksCompleted() {
-        tasksCompleted.incrementAndGet();
-    }
-
-    /** Atomically increment the failed-tasks counter. */
-    public void incrementTasksFailed() {
-        tasksFailed.incrementAndGet();
-    }
-
     /** Atomically adds to rowsProcessed. Requires n >= 0. */
     public void addRowsProcessed(long n) {
         if (n < 0) {
@@ -65,14 +54,6 @@ public class StageMetrics {
             throw new IllegalArgumentException("bytesRead delta must be >= 0, got " + n);
         }
         bytesRead.addAndGet(n);
-    }
-
-    public long getTasksCompleted() {
-        return tasksCompleted.get();
-    }
-
-    public long getTasksFailed() {
-        return tasksFailed.get();
     }
 
     public long getRowsProcessed() {

@@ -32,12 +32,12 @@ import java.util.function.Function;
  *
  * @opensearch.internal
  */
-final class ShardFragmentStageScheduler implements StageScheduler {
+final class ShardFragmentStageExecutionFactory implements StageExecutionFactory {
 
     private final ClusterService clusterService;
     private final AnalyticsSearchTransportService transport;
 
-    ShardFragmentStageScheduler(ClusterService clusterService, AnalyticsSearchTransportService transport) {
+    ShardFragmentStageExecutionFactory(ClusterService clusterService, AnalyticsSearchTransportService transport) {
         this.clusterService = clusterService;
         this.transport = transport;
     }

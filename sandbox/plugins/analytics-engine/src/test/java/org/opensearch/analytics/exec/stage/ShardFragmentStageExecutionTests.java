@@ -22,6 +22,7 @@ import org.opensearch.analytics.exec.StreamingResponseListener;
 import org.opensearch.analytics.exec.action.FragmentExecutionArrowResponse;
 import org.opensearch.analytics.exec.action.FragmentExecutionRequest;
 import org.opensearch.analytics.exec.task.AnalyticsQueryTask;
+import org.opensearch.analytics.exec.task.TaskRunner;
 import org.opensearch.analytics.planner.dag.ShardExecutionTarget;
 import org.opensearch.analytics.planner.dag.Stage;
 import org.opensearch.analytics.planner.dag.TargetResolver;
@@ -29,6 +30,7 @@ import org.opensearch.analytics.spi.ExchangeSink;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -71,7 +73,7 @@ public class ShardFragmentStageExecutionTests extends OpenSearchTestCase {
         CapturingSink sink = new CapturingSink();
 
         ShardFragmentStageExecution exec = buildExecution(sink, capturedListener);
-        exec.start();
+        scheduleAndDispatch(exec);
 
         assertNotNull("listener should have been captured by dispatch", capturedListener.get());
 
@@ -90,6 +92,34 @@ public class ShardFragmentStageExecutionTests extends OpenSearchTestCase {
     }
 
     /**
+     * Fast-fail contract: the stage transitions to FAILED on the first failing task
+     * without waiting for sibling tasks to terminate. Subsequent terminals on the
+     * already-failed stage are safe no-ops; the originally captured failure is retained.
+     */
+    public void testFastFailsOnFirstTaskFailureWithoutWaitingForSiblings() {
+        CapturingSink sink = new CapturingSink();
+        ShardFragmentStageExecution exec = buildExecutionWithTargets(sink, 3);
+        exec.start();
+
+        assertEquals("setup: stage transitions to RUNNING", StageExecution.State.RUNNING, exec.getState());
+        assertEquals("setup: one task per target", 3, exec.tasks().size());
+
+        RuntimeException injected = new RuntimeException("first task failure");
+        exec.onTaskTerminal(exec.tasks().get(0), injected);
+
+        assertEquals("stage must fail-fast on first task failure", StageExecution.State.FAILED, exec.getState());
+        assertSame("captured failure must be the original cause", injected, exec.getFailure());
+
+        // Later terminals (success or failure) are safe no-ops; the stage stays FAILED with
+        // its original cause. This guarantees an in-flight task's eventual callback can't
+        // overwrite the captured failure or trigger a spurious transition.
+        exec.onTaskTerminal(exec.tasks().get(1), null);
+        exec.onTaskTerminal(exec.tasks().get(2), new RuntimeException("late second failure"));
+        assertEquals("stage stays FAILED across late terminals", StageExecution.State.FAILED, exec.getState());
+        assertSame("original failure cause is retained", injected, exec.getFailure());
+    }
+
+    /**
      * Verifies that on the happy path, batches are fed into the sink normally.
      */
     public void testArrowResponseFedToSinkOnHappyPath() {
@@ -97,7 +127,7 @@ public class ShardFragmentStageExecutionTests extends OpenSearchTestCase {
         CapturingSink sink = new CapturingSink();
 
         ShardFragmentStageExecution exec = buildExecution(sink, capturedListener);
-        exec.start();
+        scheduleAndDispatch(exec);
 
         VectorSchemaRoot root = createTestBatch(3);
         FragmentExecutionArrowResponse response = new FragmentExecutionArrowResponse(root);
@@ -106,6 +136,36 @@ public class ShardFragmentStageExecutionTests extends OpenSearchTestCase {
         assertEquals("sink should have received the batch", 1, sink.fed.size());
         assertEquals(StageExecution.State.SUCCEEDED, exec.getState());
         sink.close();
+    }
+
+    /**
+     * Mirrors {@code QueryExecution.scheduleStage} for unit-test purposes — calls
+     * start() to materialise + transition, then iterates the stage's tasks via its
+     * dispatcher with a scheduler-side listener. The real QueryExecution does the
+     * same work; replicating it here lets us exercise stage behavior without wiring
+     * a full QueryExecution + ExecutionGraph in the test.
+     */
+    private static void scheduleAndDispatch(ShardFragmentStageExecution exec) {
+        exec.start();
+        @SuppressWarnings("unchecked")
+        TaskRunner<StageTask> dispatcher = (TaskRunner<StageTask>) exec.taskRunner();
+        if (dispatcher == null) return;
+        for (StageTask task : exec.tasks()) {
+            task.transitionTo(StageTaskState.RUNNING);
+            dispatcher.run(task, new ActionListener<>() {
+                @Override
+                public void onResponse(Void unused) {
+                    task.transitionTo(StageTaskState.FINISHED);
+                    exec.onTaskTerminal(task, null);
+                }
+
+                @Override
+                public void onFailure(Exception cause) {
+                    task.transitionTo(StageTaskState.FAILED);
+                    exec.onTaskTerminal(task, cause);
+                }
+            });
+        }
     }
 
     // ── helpers ──────────────────────────────────────────────────────────
@@ -151,15 +211,38 @@ public class ShardFragmentStageExecutionTests extends OpenSearchTestCase {
     }
 
     private Stage mockStage() {
+        return mockStageWithTargets(1);
+    }
+
+    /** Mock stage whose resolver returns {@code n} distinct shard targets (one per fake node). */
+    private Stage mockStageWithTargets(int n) {
         Stage stage = mock(Stage.class);
         when(stage.getStageId()).thenReturn(0);
         TargetResolver resolver = mock(TargetResolver.class);
-        DiscoveryNode node = mock(DiscoveryNode.class);
-        when(node.getId()).thenReturn("test-node-1");
-        ShardExecutionTarget target = new ShardExecutionTarget(node, new ShardId("idx", "_na_", 0));
-        when(resolver.resolve(any(ClusterState.class), any())).thenReturn(List.of(target));
+        List<org.opensearch.analytics.planner.dag.ExecutionTarget> targets = new ArrayList<>(n);
+        for (int i = 0; i < n; i++) {
+            DiscoveryNode node = mock(DiscoveryNode.class);
+            when(node.getId()).thenReturn("test-node-" + i);
+            targets.add(new ShardExecutionTarget(node, new ShardId("idx", "_na_", i)));
+        }
+        when(resolver.resolve(any(ClusterState.class), any())).thenReturn(targets);
         when(stage.getTargetResolver()).thenReturn(resolver);
         return stage;
+    }
+
+    /** Builds a stage execution with N tasks; dispatcher is a no-op stub since the test invokes onTaskTerminal directly. */
+    private ShardFragmentStageExecution buildExecutionWithTargets(CapturingSink sink, int n) {
+        Stage stage = mockStageWithTargets(n);
+        QueryContext config = mockQueryContext();
+        ClusterService cs = mockClusterService();
+        AnalyticsSearchTransportService dispatcher = mock(AnalyticsSearchTransportService.class);
+        Function<ShardExecutionTarget, FragmentExecutionRequest> requestBuilder = t -> new FragmentExecutionRequest(
+            "test-query",
+            0,
+            t.shardId(),
+            List.of(new FragmentExecutionRequest.PlanAlternative("test-backend", new byte[0], List.of()))
+        );
+        return new ShardFragmentStageExecution(stage, config, sink, cs, requestBuilder, dispatcher);
     }
 
     private QueryContext mockQueryContext() {

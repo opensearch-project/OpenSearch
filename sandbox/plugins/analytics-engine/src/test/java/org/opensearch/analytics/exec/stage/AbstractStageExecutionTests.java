@@ -48,6 +48,11 @@ public class AbstractStageExecutionTests extends OpenSearchTestCase {
         public void cancel(String reason) {
             // no-op
         }
+
+        @Override
+        public void onTaskTerminal(StageTask task, Exception cause) {
+            // no-op
+        }
     }
 
     // ─── helpers ────────────────────────────────────────────────────────
