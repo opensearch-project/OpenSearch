@@ -211,6 +211,54 @@ allprojects {
   }
 }
 
+tasks.register("validateVersionConsistency") {
+  description 'Validates offline that Version.java, buildSrc/version.properties, and .ci/bwcVersions are mutually consistent.'
+  group 'Verification'
+  doLast {
+    List<String> errors = []
+    String ciYml = file(".ci/bwcVersions").text
+
+    // Collect the versions listed in .ci/bwcVersions
+    List<String> ciVersions = []
+    ciYml.eachLine { line ->
+      def m = line =~ /^\s+-\s+"(\d+\.\d+\.\d+)"\s*$/
+      if (m) ciVersions << m[0][1]
+    }
+
+    // indexCompatible = all versions (prev major + current major) except CURRENT itself.
+    // These are exactly the versions that should be in .ci/bwcVersions.
+    List<String> expectedVersions = BuildParams.bwcVersions.indexCompatible.collect { it.toString() }
+
+    // Check 1: every version in indexCompatible must appear in .ci/bwcVersions
+    List<String> missingFromCi = expectedVersions.findAll { ciVersions.contains(it) == false }
+    if (missingFromCi.isEmpty() == false) {
+      errors << ".ci/bwcVersions is missing versions declared in Version.java:\n" +
+        missingFromCi.collect { "  - $it" }.join('\n') +
+        "\nRun: ./gradlew updateCIBwcVersions  then review and commit the result."
+    }
+
+    // Check 2: every version in .ci/bwcVersions must be in indexCompatible
+    List<String> unknownInCi = ciVersions.findAll { expectedVersions.contains(it) == false }
+    if (unknownInCi.isEmpty() == false) {
+      errors << ".ci/bwcVersions contains versions not present in Version.java's index-compatible list:\n" +
+        unknownInCi.collect { "  - $it" }.join('\n') +
+        "\nAdd the missing constant(s) to Version.java or remove the entry from .ci/bwcVersions."
+    }
+
+    // Check 3: the current dev version must NOT appear in .ci/bwcVersions (it is unreleased)
+    String currentVersion = VersionProperties.getOpenSearch().replace('-SNAPSHOT', '')
+    if (ciVersions.contains(currentVersion)) {
+      errors << ".ci/bwcVersions contains ${currentVersion}, which is the current development version in " +
+        "buildSrc/version.properties.\nOnly released versions should appear in .ci/bwcVersions. " +
+        "Remove ${currentVersion} from that file."
+    }
+
+    if (errors.isEmpty() == false) {
+      throw new GradleException("Version consistency check failed:\n\n" + errors.collect { "* $it" }.join('\n\n'))
+    }
+  }
+}
+
 tasks.register("verifyVersions") {
   doLast {
     if (gradle.startParameter.isOffline()) {
@@ -265,7 +313,7 @@ tasks.register("verifyBwcTestsEnabled") {
 tasks.register("branchConsistency") {
   description 'Ensures this branch is internally consistent. For example, that versions constants match released versions.'
   group 'Verification'
-  dependsOn ":verifyVersions", ":verifyBwcTestsEnabled"
+  dependsOn ":validateVersionConsistency", ":verifyVersions", ":verifyBwcTestsEnabled"
 }
 
 allprojects {
