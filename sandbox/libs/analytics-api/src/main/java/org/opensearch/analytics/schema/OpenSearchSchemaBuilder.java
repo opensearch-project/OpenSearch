@@ -68,18 +68,23 @@ public class OpenSearchSchemaBuilder {
      *
      * <p>Type mapping:
      * <ul>
-     *   <li>keyword/text -> VARCHAR</li>
+     *   <li>keyword/text/match_only_text -> VARCHAR</li>
      *   <li>long -> BIGINT</li>
+     *   <li>unsigned_long -> BIGINT</li>
      *   <li>integer -> INTEGER</li>
      *   <li>short -> SMALLINT</li>
      *   <li>byte -> TINYINT</li>
      *   <li>double -> DOUBLE</li>
-     *   <li>float -> FLOAT</li>
+     *   <li>float -> REAL</li>
+     *   <li>half_float -> REAL</li>
+     *   <li>scaled_float -> BIGINT</li>
      *   <li>boolean -> BOOLEAN</li>
      *   <li>date -> TIMESTAMP</li>
-     *   <li>ip -> VARCHAR</li>
+     *   <li>date_nanos -> TIMESTAMP</li>
+     *   <li>ip -> VARBINARY</li>
+     *   <li>binary -> VARBINARY</li>
      *   <li>nested/object -> skip (not mapped)</li>
-     *   <li>unknown -> VARCHAR (default)</li>
+     *   <li>unknown -> throws IllegalArgumentException</li>
      * </ul>
      *
      * @param opensearchType the OpenSearch field type string
@@ -88,9 +93,15 @@ public class OpenSearchSchemaBuilder {
         switch (opensearchType) {
             case "keyword":
             case "text":
-            case "ip":
+            case "match_only_text":
                 return SqlTypeName.VARCHAR;
             case "long":
+            case "unsigned_long":
+                // unsigned_long: values above 2^63 - 1 wrap into negatives because BIGINT is
+                // signed and Substrait has no unsigned integer types. Smaller values are safe.
+                // TODO: values above 2^63 - 1 wrap into negatives. Drop the UInt64 → Int64 narrowing
+                // (see schema_coerce.rs) when we have a proper solution.
+            case "scaled_float":
                 return SqlTypeName.BIGINT;
             case "integer":
                 return SqlTypeName.INTEGER;
@@ -101,13 +112,27 @@ public class OpenSearchSchemaBuilder {
             case "double":
                 return SqlTypeName.DOUBLE;
             case "float":
-                return SqlTypeName.FLOAT;
+            case "half_float":
+                // half_float lands as Arrow Float16 on disk. Calcite has no fp16 type; widen to
+                // REAL so the planner sees the same shape as a regular float column. The parquet
+                // reader's SchemaAdapter casts Float16 → Float32 per batch.
+                // TODO: every record batch goes through a Float16 → Float32 cast (see
+                // schema_coerce.rs) and downstream operators see Float32. Drop the widening when
+                // we have a proper solution.
+                return SqlTypeName.REAL;
             case "boolean":
                 return SqlTypeName.BOOLEAN;
             case "date":
+            case "date_nanos":
                 return SqlTypeName.TIMESTAMP;
+            case "ip":
+            case "binary":
+                // TODO: differentiate ip and binary as separate UDTs instead of collapsing both
+                // to VARBINARY. With the type preserved, literals can be converted into the
+                // on-disk byte form the planner expects.
+                return SqlTypeName.VARBINARY;
             default:
-                return SqlTypeName.VARCHAR;
+                throw new IllegalArgumentException("Unsupported OpenSearch field type: " + opensearchType);
         }
     }
 

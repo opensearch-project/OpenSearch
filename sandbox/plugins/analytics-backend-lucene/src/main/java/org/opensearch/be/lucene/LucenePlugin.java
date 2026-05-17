@@ -10,11 +10,13 @@ package org.opensearch.be.lucene;
 
 import org.opensearch.be.lucene.index.LuceneCommitter;
 import org.opensearch.be.lucene.index.LuceneCommitterFactory;
+import org.opensearch.be.lucene.index.LuceneDeleteExecutionEngine;
 import org.opensearch.be.lucene.index.LuceneIndexingExecutionEngine;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.DataFormatPlugin;
+import org.opensearch.index.engine.dataformat.DeleteExecutionEngine;
 import org.opensearch.index.engine.dataformat.IndexingEngineConfig;
 import org.opensearch.index.engine.dataformat.IndexingExecutionEngine;
 import org.opensearch.index.engine.dataformat.ReaderManagerConfig;
@@ -122,5 +124,10 @@ public class LucenePlugin extends Plugin implements DataFormatPlugin, SearchBack
     @Override
     public Optional<CommitterFactory> getCommitterFactory(IndexSettings indexSettings) {
         return Optional.of(new LuceneCommitterFactory());
+    }
+
+    @Override
+    public DeleteExecutionEngine<?> getDeleteExecutionEngine(Committer committer) {
+        return new LuceneDeleteExecutionEngine(DATA_FORMAT, committer);
     }
 }
