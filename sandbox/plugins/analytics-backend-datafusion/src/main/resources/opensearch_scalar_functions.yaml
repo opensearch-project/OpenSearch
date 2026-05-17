@@ -47,6 +47,23 @@ scalar_functions:
           - { value: string, name: "part" }
           - { value: "date", name: "value" }
         return: fp64
+  - name: "date_trunc"
+    description: >-
+      Truncate a timestamp/date to the given unit. Lowering target for PPL's
+      time-based `span(field, 1<unit>)` (rewritten by `SpanAdapter`). Same arg
+      shape as `date_part` — string unit then precision_timestamp/date — for
+      the same isthmus matchKeys reason documented on `date_part`. Return type
+      mirrors the input timestamp precision; DataFusion's `date_trunc` returns
+      the same temporal kind as its input.
+    impls:
+      - args:
+          - { value: string, name: "unit" }
+          - { value: "precision_timestamp<P>", name: "value" }
+        return: precision_timestamp<P>
+      - args:
+          - { value: string, name: "unit" }
+          - { value: "date", name: "value" }
+        return: date
   - name: "convert_tz"
     description: >-
       Shift a timestamp from one timezone to another. IANA names and +/-HH:MM
@@ -196,7 +213,13 @@ scalar_functions:
     description: >-
       Pseudorandom fp64 in [0, 1). Resolves to DataFusion's built-in `random`
       scalar function. PPL surface name is `rand`; FunctionMappings maps
-      `SqlStdOperatorTable.RAND` to this extension name.
+      `SqlStdOperatorTable.RAND` to this extension name. Only the 0-arg form
+      is declared because DataFusion's native `random` UDF is registered as
+      NullAry only — adding a seeded i32 overload here makes isthmus bind
+      cleanly, but DF then errors at execute time ("expected zero argument
+      but received 1"). Seeded `rand(int)` needs a dedicated Rust UDF before
+      it can be added here. Until then, tests exercising `rand(seed)` are
+      skipped on the analytics path.
     impls:
       - args: []
         return: fp64
@@ -220,8 +243,13 @@ scalar_functions:
       Signum. DataFusion's built-in scalar function is named `signum`; PPL/Calcite
       surface name is `sign`. AbstractNameMappingAdapter retargets Calcite's `SIGN`
       at SignumFunction (yaml name `signum`) so isthmus emits the name DataFusion
-      resolves directly.
+      resolves directly. Integer overload returns the input width unchanged —
+      matches Calcite's SIGN type inference for `int` columns.
     impls:
+      - args:
+          - value: i32
+            name: x
+        return: i32
       - args:
           - value: fp32
             name: x
@@ -235,8 +263,14 @@ scalar_functions:
       Truncate toward zero. Resolves to DataFusion's built-in `trunc` scalar
       function. PPL's `truncate` — `SqlStdOperatorTable.TRUNCATE` — accepts
       both 1-arg and 2-arg (value, scale) forms per the
-      CompositeOperandTypeChecker; both are declared here.
+      CompositeOperandTypeChecker; both are declared here. Integer overloads
+      pass through unchanged (truncate of an int is a no-op) so `truncate(int)`
+      and `truncate(int, scale)` from PPL bind to a Substrait call.
     impls:
+      - args:
+          - value: i32
+            name: x
+        return: i32
       - args:
           - value: fp32
             name: x
@@ -245,6 +279,12 @@ scalar_functions:
           - value: fp64
             name: x
         return: fp64
+      - args:
+          - value: i32
+            name: x
+          - value: i32
+            name: scale
+        return: i32
       - args:
           - value: fp32
             name: x
@@ -307,6 +347,150 @@ scalar_functions:
           - value: "string"
             name: "replacement"
         return: string
+      - args:
+          - value: "varchar<L1>"
+            name: "input"
+          - value: "varchar<L2>"
+            name: "pattern"
+          - value: "varchar<L3>"
+            name: "replacement"
+          - value: "varchar<L4>"
+            name: "flags"
+        return: "varchar<L1>"
+      - args:
+          - value: "string"
+            name: "input"
+          - value: "string"
+            name: "pattern"
+          - value: "string"
+            name: "replacement"
+          - value: "string"
+            name: "flags"
+        return: string
+  - name: translate
+    description: >-
+      Character transliteration — replace each character in `input` that appears
+      in `from` with the corresponding character in `to`. Lowering target for
+      PPL's `rex mode=sed` with {@code y/from/to/} transliteration syntax
+      (Calcite `SqlLibraryOperators.TRANSLATE3`). datafusion-substrait resolves
+      the extension name "translate" to DataFusion's native `translate` UDF
+      (datafusion-functions/src/unicode/translate.rs).
+    impls:
+      - args:
+          - value: "varchar<L1>"
+            name: "input"
+          - value: "varchar<L2>"
+            name: "from"
+          - value: "varchar<L3>"
+            name: "to"
+        return: "varchar<L1>"
+      - args:
+          - value: "string"
+            name: "input"
+          - value: "string"
+            name: "from"
+          - value: "string"
+            name: "to"
+        return: string
+  - name: rex_extract
+    description: >-
+      Extract the first occurrence of a regex named or numbered capture group
+      from a string (Java-Pattern-compatible regex). Lowering target for PPL's
+      `rex field=f "(?<g>...)"` extract command (single-match form) — emitted
+      by the SQL plugin as a custom Calcite UDF named `REX_EXTRACT`. The
+      analytics-engine adapter rewrites the call to a local Calcite operator
+      whose `FunctionMappings.Sig` resolves to this Substrait extension; the
+      Rust UDF implementation lives at
+      sandbox/plugins/analytics-backend-datafusion/rust/src/udf/rex_extract.rs.
+      Returns NULL when the pattern doesn't match, the group doesn't exist, or
+      either operand is NULL.
+    impls:
+      - args:
+          - value: "varchar<L1>"
+            name: "input"
+          - value: "varchar<L2>"
+            name: "pattern"
+          - value: "varchar<L3>"
+            name: "group"
+        return: "varchar<L1>"
+      - args:
+          - value: "string"
+            name: "input"
+          - value: "string"
+            name: "pattern"
+          - value: "string"
+            name: "group"
+        return: string
+  - name: rex_extract_multi
+    description: >-
+      Extract up to `max_match` occurrences of a regex named or numbered
+      capture group from a string, returned as a `list<varchar>`. Lowering
+      target for PPL's `rex field=f "(?<g>...)" max_match=N`. `max_match=0`
+      is unbounded. The Rust UDF implementation lives at
+      sandbox/plugins/analytics-backend-datafusion/rust/src/udf/rex_extract_multi.rs.
+      Returns NULL (not an empty list) when no matches are found.
+    impls:
+      - args:
+          - value: "varchar<L1>"
+            name: "input"
+          - value: "varchar<L2>"
+            name: "pattern"
+          - value: "varchar<L3>"
+            name: "group"
+          - value: i32
+            name: "max_match"
+        return: list<varchar<L1>>
+      - args:
+          - value: "string"
+            name: "input"
+          - value: "string"
+            name: "pattern"
+          - value: "string"
+            name: "group"
+          - value: i32
+            name: "max_match"
+        return: list<string>
+  - name: rex_offset
+    description: >-
+      Compute the start-end offsets of every named capture group from the
+      first regex match, formatted as `"name1=start1-end1&name2=start2-end2"`
+      (group names sorted alphabetically). Lowering target for PPL's
+      `rex field=f "(?<g>...)" offset_field=name`. The Rust UDF implementation
+      lives at sandbox/plugins/analytics-backend-datafusion/rust/src/udf/rex_offset.rs.
+      Returns NULL when the pattern doesn't match or has no named groups.
+      The end position is inclusive (matches the SQL plugin's Java
+      RexOffsetFunction: `end - 1`).
+    impls:
+      - args:
+          - value: "varchar<L1>"
+            name: "input"
+          - value: "varchar<L2>"
+            name: "pattern"
+        return: "varchar<L1>"
+      - args:
+          - value: "string"
+            name: "input"
+          - value: "string"
+            name: "pattern"
+        return: string
+  - name: array_length
+    description: >-
+      Number of elements in a list. Lowering target for PPL's `array_length()`
+      function (Calcite `SqlLibraryOperators.ARRAY_LENGTH`). Needed end-to-end
+      so PPL queries can size the list returned by `rex` extract-mode
+      (`eval count = array_length(g)` after `rex field=f "(?<g>...)"`).
+      datafusion-substrait resolves the extension name "array_length" to
+      DataFusion's native `array_length` UDF.
+      Single polymorphic impl over `list<any1>`: substrait's compound function
+      key drops the inner parametric element type, so declaring separate
+      `list<varchar<L1>>` and `list<string>` impls collapses to the same key
+      `array_length:list` and trips the SimpleExtension loader's duplicate-key
+      check at plugin start. The single `any1` impl matches both call sites.
+    impls:
+      - args:
+          - value: "list<any1>"
+            name: "input"
+        return: i64
 
   # ascii(str) — Unicode code point of the first character.
   - name: "ascii"
@@ -375,6 +559,21 @@ scalar_functions:
           - { name: format, value: string }
         nullability: DECLARED_OUTPUT
         return: string
+      - args:
+          - { name: value, value: "precision_timestamp<P>" }
+          - { name: format, value: string }
+        nullability: DECLARED_OUTPUT
+        return: string
+
+  # to_char(value, format) — render a timestamp using a strftime-style format string.
+  # Bound here so that DatetimeOutputCastRewriter can rewrite the engine-output cast
+  # `CAST(<TIMESTAMP> AS VARCHAR)` to `to_char(<TIMESTAMP>, '%Y-%m-%d %H:%M:%S')` and
+  # have the call serialize through this extension instead of Calcite's stdlib URN.
+  # DataFusion exposes a native `to_char` scalar that consumes strftime tokens. See
+  # issue #5420 (engine-output format divergence between Calcite and DataFusion).
+  - name: "to_char"
+    description: "Render a timestamp using a strftime-style format string (engine-output cast target)."
+    impls:
       - args:
           - { name: value, value: "precision_timestamp<P>" }
           - { name: format, value: string }
@@ -630,3 +829,83 @@ scalar_functions:
           - { name: input, value: "string" }
         nullability: DECLARED_OUTPUT
         return: i64
+
+  # span_bucket(value, span) — PPL fixed-width bucket label. Rust UDF at
+  # rust/src/udf/span_bucket.rs. Takes two numerics, returns a VARCHAR label
+  # like "10-20" identifying the half-open `[binStart, binEnd)` bucket that
+  # `value` falls into. NOT ISO-SQL width_bucket (which returns an integer
+  # bucket index); this is the OpenSearch-PPL nice-number-algorithm variant.
+  #
+  # `any1` on both slots matches every integer/float source PPL emits
+  # (Int32/Int64/Float32/Float64) — DF's substrait consumer re-resolves the
+  # Rust UDF by name and its coerce_types canonicalizes both slots to Float64.
+  # Return type is `any1` to stay consistent with surrounding signatures; the
+  # UDF's actual return type (Utf8) is authoritative on the Rust side.
+  - name: "span_bucket"
+    description: "Fixed-width numeric bucket label (PPL). See sql/core SpanBucketFunction for semantics."
+    impls:
+      - args:
+          - { value: "any1", name: "value" }
+          - { value: "any1", name: "span" }
+        return: any1
+
+  # width_bucket(value, num_bins, data_range, max_value) — PPL histogram
+  # bucket label. Rust UDF at rust/src/udf/width_bucket.rs. Returns a VARCHAR
+  # label via the OpenSearch nice-number magnitude-based algorithm (see
+  # sql/core WidthBucketFunction). NOT ISO-SQL width_bucket (which returns an
+  # integer bucket index) — semantics and signature both differ. A future
+  # real ISO-SQL width_bucket binding needs its own name / enum entry.
+  #
+  # Distinct any-parameters per slot (`any1`/`any2`/`any3`/`any4`) so each
+  # independently matches any source type without requiring all slots to
+  # share the same type — PPL may emit mixed types (fp64 value, i32
+  # num_bins, fp64 data_range, fp64 max_value). DF's substrait consumer
+  # re-resolves by name and the UDF's coerce_types canonicalizes
+  # value/range/max to Float64 and num_bins to Int64.
+  - name: "width_bucket"
+    description: "Histogram bucket label (PPL). See sql/core WidthBucketFunction for semantics."
+    impls:
+      - args:
+          - { value: "any1", name: "value" }
+          - { value: "any2", name: "num_bins" }
+          - { value: "any3", name: "data_range" }
+          - { value: "any4", name: "max_value" }
+        return: any1
+
+  # minspan_bucket(value, min_span, data_range, max_value) — PPL minimum-span
+  # histogram bucket label. Rust UDF at rust/src/udf/minspan_bucket.rs. Picks
+  # the larger of the data's natural order-of-magnitude width and a user-
+  # supplied minimum span, returns the resulting bucket label (e.g. "10-20").
+  # The `max_value` slot is unused by the algorithm but carried through for
+  # parity with PPL's call shape (matches Java MinspanBucketFunction).
+  - name: "minspan_bucket"
+    description: "Minimum-span numeric bucket label (PPL). See sql/core MinspanBucketFunction for semantics."
+    impls:
+      - args:
+          - { value: "any1", name: "value" }
+          - { value: "any2", name: "min_span" }
+          - { value: "any3", name: "data_range" }
+          - { value: "any4", name: "max_value" }
+        return: any1
+
+  # range_bucket(value, data_min, data_max, start_param, end_param) — PPL
+  # expansion-range histogram bucket label. Rust UDF at
+  # rust/src/udf/range_bucket.rs. The start_param and end_param slots are
+  # nullable sentinels for "use the observed data bound"; null in those
+  # slots does NOT null-propagate the output (asymmetric null handling).
+  #
+  # The PPL frontend's `bin start=... end=...` command wraps data_min /
+  # data_max in MIN/MAX OVER () empty-partition window aggregates. This
+  # UDF is scalar and doesn't care about that wrapping; end-to-end pushdown
+  # through the `bin` command additionally requires the backend to advertise
+  # the window-over-empty capability.
+  - name: "range_bucket"
+    description: "Range-based bucket label (PPL). Expansion-only effective bounds; magnitude-based width. See sql/core RangeBucketFunction."
+    impls:
+      - args:
+          - { value: "any1", name: "value" }
+          - { value: "any2", name: "data_min" }
+          - { value: "any3", name: "data_max" }
+          - { value: "any4", name: "start_param" }
+          - { value: "any5", name: "end_param" }
+        return: any1

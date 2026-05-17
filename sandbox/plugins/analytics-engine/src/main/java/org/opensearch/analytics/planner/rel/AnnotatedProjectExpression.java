@@ -15,6 +15,7 @@ import org.apache.calcite.sql.SqlKind;
 import org.apache.calcite.sql.SqlOperator;
 import org.apache.calcite.sql.SqlSyntax;
 import org.apache.calcite.sql.type.ReturnTypes;
+import org.apache.calcite.sql.type.SqlTypeName;
 
 import java.util.List;
 
@@ -100,7 +101,14 @@ public class AnnotatedProjectExpression extends RexCall implements OperatorAnnot
 
     @Override
     public RexNode withAdaptedOriginal(RexNode adaptedOriginal) {
-        return new AnnotatedProjectExpression(type, adaptedOriginal, viableBackends, annotationId);
+        // When the wrapper's cached type is ANY (PPL polymorphic UDF — SCALAR_MAX,
+        // SCALAR_MIN, etc. declare ANY return because they accept heterogeneous operand
+        // shapes) and the adapter rewrote the call to a target with a concrete inferred
+        // type (DOUBLE for GREATEST(DOUBLE, DOUBLE), etc.), pick up the adapted
+        // expression's type so downstream rowType derivation produces a Substrait-
+        // serialisable schema instead of carrying ANY through to isthmus's TypeConverter.
+        RelDataType resolvedType = type.getSqlTypeName() == SqlTypeName.ANY ? adaptedOriginal.getType() : type;
+        return new AnnotatedProjectExpression(resolvedType, adaptedOriginal, viableBackends, annotationId);
     }
 
     @Override

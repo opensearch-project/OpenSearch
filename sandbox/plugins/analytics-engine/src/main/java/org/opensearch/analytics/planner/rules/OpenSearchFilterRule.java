@@ -169,24 +169,24 @@ public class OpenSearchFilterRule extends RelOptRule {
 
         for (int fieldIndex : fieldIndices) {
             FieldStorageInfo storageInfo = FieldStorageInfo.resolve(fieldStorageInfos, fieldIndex);
-            FieldType fieldType = storageInfo.getFieldType();
 
             Set<String> fieldViable;
             if (storageInfo.isDerived()) {
-                // Post-Union / post-Project columns have no physical storage formats — the
-                // column is materialised at the operator that produced it (e.g. Union of two
-                // branches with divergent storage, or a literal/expression projection). The
-                // filter still has to run somewhere; resolve viability against any backend
-                // that supports the function on this field type, ignoring storage formats.
-                // The format-aware Lucene-pushdown path stays as the primary lookup for
-                // non-derived columns above.
-                // TODO: for FULL_TEXT operators, extract required params from RexCall
-                fieldViable = new HashSet<>(registry.filterBackendsAnyFormat(function, fieldType));
+                // Derived columns (post-Aggregate, post-Join, post-Union, post-Project) are
+                // computed in memory by the producer. The filter can only run on a backend
+                // the producer is also viable for (its child's viableBackends), and further
+                // only on backends that support this function on the field's logical type —
+                // delegation isn't applicable because there's no physical storage to delegate
+                // a scan against. Surfaced by testHavingFilterAfterJoin_multiShard etc., where
+                // a HAVING clause filters on a stats-derived column.
+                fieldViable = new HashSet<>(childViableBackends);
+                fieldViable.retainAll(registry.filterBackendsAnyFormat(function, storageInfo.getFieldType()));
             } else {
                 // Format-aware: backends that can access this field's storage (doc values + index).
                 // A backend is viable only if it has the field in its own storage formats — ensuring
                 // delegation targets are also field-storage-aware (e.g. Lucene is viable for a keyword
                 // field only when the field has indexFormats=[lucene] set in the mapping).
+                // TODO: for FULL_TEXT operators, extract required params from RexCall
                 fieldViable = new HashSet<>(registry.filterBackendsForField(function, storageInfo));
             }
 

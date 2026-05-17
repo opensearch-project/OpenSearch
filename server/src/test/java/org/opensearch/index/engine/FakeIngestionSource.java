@@ -37,10 +37,7 @@ public class FakeIngestionSource {
         }
 
         @Override
-        public void initialize(IngestionSource ingestionSource) {}
-
-        @Override
-        public FakeIngestionConsumer createShardConsumer(String clientId, int shardId) {
+        public FakeIngestionConsumer createShardConsumer(String clientId, int shardId, IngestionSource ingestionSource) {
             return new FakeIngestionConsumer(messages, shardId);
         }
 

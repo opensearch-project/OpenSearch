@@ -91,7 +91,7 @@ public abstract class BasePlannerRulesTests extends OpenSearchTestCase {
     // ---- Plan execution ----
 
     protected RelNode runPlanner(RelNode input, PlannerContext context) {
-        return PlannerImpl.markAndOptimize(input, context);
+        return PlannerImpl.runAllOptimizations(input, context);
     }
 
     protected RelNode unwrapExchange(RelNode node) {
@@ -99,6 +99,20 @@ public abstract class BasePlannerRulesTests extends OpenSearchTestCase {
             return reducer.getInput();
         }
         return node;
+    }
+
+    /**
+     * The After-CBO root is wrapped in an {@link OpenSearchExchangeReducer} when the
+     * planner's top-level SINGLETON request isn't already satisfied by the subtree
+     * (the common case when scans are at SOURCE kind). Tests that want to inspect the
+     * operator below the root ER call this to peel it.
+     */
+    protected RelNode unwrapRootReducer(RelNode node) {
+        RelNode unwrapped = RelNodeUtils.unwrapHep(node);
+        if (unwrapped instanceof OpenSearchExchangeReducer reducer) {
+            return RelNodeUtils.unwrapHep(reducer.getInput());
+        }
+        return unwrapped;
     }
 
     // ---- Context builders ----
@@ -148,25 +162,50 @@ public abstract class BasePlannerRulesTests extends OpenSearchTestCase {
         Map<String, Map<String, Object>> fieldMappings,
         List<AnalyticsSearchBackendPlugin> backends
     ) {
+        return buildContextPerIndex(primaryFormat, Map.of("test_index", shardCount), fieldMappings, backends);
+    }
+
+    /**
+     * Builds a context where different indices have different shard counts — for
+     * tests that join across tables with asymmetric partitioning. All indices share
+     * the same field mappings and primary format.
+     */
+    protected PlannerContext buildContextPerIndex(String primaryFormat, Map<String, Integer> shardCountByIndex) {
+        return buildContextPerIndex(primaryFormat, shardCountByIndex, intFields(), List.of(DATAFUSION, LUCENE));
+    }
+
+    @SuppressWarnings("unchecked")
+    protected PlannerContext buildContextPerIndex(
+        String primaryFormat,
+        Map<String, Integer> shardCountByIndex,
+        Map<String, Map<String, Object>> fieldMappings,
+        List<AnalyticsSearchBackendPlugin> backends
+    ) {
         Map<String, Object> mappingSource = Map.of("properties", fieldMappings);
 
-        MappingMetadata mappingMetadata = mock(MappingMetadata.class);
-        when(mappingMetadata.sourceAsMap()).thenReturn(mappingSource);
-
-        IndexMetadata indexMetadata = mock(IndexMetadata.class);
-        when(indexMetadata.getIndex()).thenReturn(new Index("test_index", "uuid"));
-        when(indexMetadata.getSettings()).thenReturn(Settings.builder().put("index.composite.primary_data_format", primaryFormat).build());
-        when(indexMetadata.mapping()).thenReturn(mappingMetadata);
-        when(indexMetadata.getNumberOfShards()).thenReturn(shardCount);
-
         Metadata metadata = mock(Metadata.class);
-        when(metadata.index("test_index")).thenReturn(indexMetadata);
-
         ClusterState clusterState = mock(ClusterState.class);
         when(clusterState.metadata()).thenReturn(metadata);
 
-        Function<IndexMetadata, FieldStorageResolver> fieldStorageFactory = FieldStorageResolver::new;
+        for (Map.Entry<String, Integer> entry : shardCountByIndex.entrySet()) {
+            String indexName = entry.getKey();
+            int shardCount = entry.getValue();
 
+            MappingMetadata mappingMetadata = mock(MappingMetadata.class);
+            when(mappingMetadata.sourceAsMap()).thenReturn(mappingSource);
+
+            IndexMetadata indexMetadata = mock(IndexMetadata.class);
+            when(indexMetadata.getIndex()).thenReturn(new Index(indexName, indexName + "-uuid"));
+            when(indexMetadata.getSettings()).thenReturn(
+                Settings.builder().put("index.composite.primary_data_format", primaryFormat).build()
+            );
+            when(indexMetadata.mapping()).thenReturn(mappingMetadata);
+            when(indexMetadata.getNumberOfShards()).thenReturn(shardCount);
+
+            when(metadata.index(indexName)).thenReturn(indexMetadata);
+        }
+
+        Function<IndexMetadata, FieldStorageResolver> fieldStorageFactory = FieldStorageResolver::new;
         return new PlannerContext(new CapabilityRegistry(backends, fieldStorageFactory), clusterState);
     }
 
@@ -233,16 +272,26 @@ public abstract class BasePlannerRulesTests extends OpenSearchTestCase {
     /**
      * Walks the single-input chain asserting each node matches the expected type
      * and has viableBackends containing all expectedBackends.
-     * TODO: extend to per-node expected backends when delegation is implemented.
+     *
+     * <p>{@link OpenSearchExchangeReducer} nodes are skipped at depths where the
+     * expected type is a different logical operator — ERs are trait-driven gather
+     * points, not part of the logical pipeline. Tests that *do* want to verify an
+     * ER at a specific depth list {@code OpenSearchExchangeReducer.class}
+     * explicitly; the walk does not skip past it in that case.
+     *
+     * <p>TODO: extend to per-node expected backends when delegation is implemented.
      */
     protected static void assertPipelineViableBackends(
         RelNode root,
         List<Class<? extends OpenSearchRelNode>> expectedTypes,
         Set<String> expectedBackends
     ) {
-        RelNode current = root;
+        RelNode current = RelNodeUtils.unwrapHep(root);
         for (int i = 0; i < expectedTypes.size(); i++) {
             Class<? extends OpenSearchRelNode> expectedType = expectedTypes.get(i);
+            if (!OpenSearchExchangeReducer.class.isAssignableFrom(expectedType)) {
+                current = skipExchangeReducers(current);
+            }
             assertTrue(
                 "Node at depth " + i + " must be " + expectedType.getSimpleName() + " but was " + current.getClass().getSimpleName(),
                 expectedType.isInstance(current)
@@ -261,6 +310,14 @@ public abstract class BasePlannerRulesTests extends OpenSearchTestCase {
                 current = RelNodeUtils.unwrapHep(current.getInputs().get(0));
             }
         }
+    }
+
+    private static RelNode skipExchangeReducers(RelNode rel) {
+        RelNode current = rel;
+        while (current instanceof OpenSearchExchangeReducer) {
+            current = RelNodeUtils.unwrapHep(current.getInputs().get(0));
+        }
+        return current;
     }
 
     // ---- Cluster service ----

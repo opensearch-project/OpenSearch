@@ -8,12 +8,14 @@
 
 use std::sync::Arc;
 
+use native_bridge_common::log_debug;
 use datafusion::{
     common::DataFusionError,
     datasource::listing::{ListingOptions, ListingTable, ListingTableConfig, ListingTableUrl},
     execution::context::SessionContext,
     execution::runtime_env::RuntimeEnvBuilder,
     execution::SessionStateBuilder,
+    physical_plan::displayable,
     physical_plan::execute_stream,
     prelude::*,
 };
@@ -118,6 +120,7 @@ pub async fn execute_query(
                 .infer_schema(&ctx.state(), &table_path)
                 .await
                 .map_err(|e| { error!("Failed to infer schema: {}", e); e })?;
+            let resolved_schema = crate::schema_coerce::coerce_inferred_schema(resolved_schema);
 
             // Build ShardFileInfo with row_base from cumulative row counts
             let store = ctx.state().runtime_env().object_store(&table_path)?;
@@ -253,6 +256,7 @@ pub async fn execute_with_context(
     })?;
 
     let logical_plan = from_substrait_plan(&handle.ctx.state(), &substrait_plan).await?;
+    log_debug!("DataFusion logical plan:\n{}", logical_plan.display_indent());
 
     let requests_row_ids = crate::indexed_table::substrait_to_tree::plan_requests_row_ids(&logical_plan);
 
@@ -260,6 +264,7 @@ pub async fn execute_with_context(
     // create_physical_plan runs all registered physical optimizer rules including
     // ProjectRowIdOptimizer (registered in session_context when strategy=ListingTable).
     let physical_plan = dataframe.create_physical_plan().await?;
+    log_debug!("DataFusion physical plan:\n{}", displayable(physical_plan.as_ref()).indent(true));
 
     // No post-hoc optimizer needed — ProjectRowIdOptimizer runs inside create_physical_plan.
     let physical_plan = if requests_row_ids {

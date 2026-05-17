@@ -46,10 +46,10 @@ public final class StatsLayout {
     public static final StructLayout LAYOUT = MemoryLayout.structLayout(
         runtimeGroup("io_runtime"),
         runtimeGroup("cpu_runtime"),
+        taskMonitorGroup("coordinator_reduce"),
         taskMonitorGroup("query_execution"),
         taskMonitorGroup("stream_next"),
-        taskMonitorGroup("fetch_phase"),
-        taskMonitorGroup("segment_stats")
+        taskMonitorGroup("plan_setup")
     );
 
     static {
@@ -80,6 +80,11 @@ public final class StatsLayout {
     private static final VarHandle CPU_SPAWNED_TASKS_COUNT = handle("cpu_runtime", "spawned_tasks_count");
     private static final VarHandle CPU_TOTAL_LOCAL_QUEUE_DEPTH = handle("cpu_runtime", "total_local_queue_depth");
 
+    // ---- VarHandles for coordinator_reduce fields ----
+    private static final VarHandle CR_TOTAL_POLL_DURATION_MS = handle("coordinator_reduce", "total_poll_duration_ms");
+    private static final VarHandle CR_TOTAL_SCHEDULED_DURATION_MS = handle("coordinator_reduce", "total_scheduled_duration_ms");
+    private static final VarHandle CR_TOTAL_IDLE_DURATION_MS = handle("coordinator_reduce", "total_idle_duration_ms");
+
     // ---- VarHandles for query_execution fields ----
     private static final VarHandle QE_TOTAL_POLL_DURATION_MS = handle("query_execution", "total_poll_duration_ms");
     private static final VarHandle QE_TOTAL_SCHEDULED_DURATION_MS = handle("query_execution", "total_scheduled_duration_ms");
@@ -90,15 +95,10 @@ public final class StatsLayout {
     private static final VarHandle SN_TOTAL_SCHEDULED_DURATION_MS = handle("stream_next", "total_scheduled_duration_ms");
     private static final VarHandle SN_TOTAL_IDLE_DURATION_MS = handle("stream_next", "total_idle_duration_ms");
 
-    // ---- VarHandles for fetch_phase fields ----
-    private static final VarHandle FP_TOTAL_POLL_DURATION_MS = handle("fetch_phase", "total_poll_duration_ms");
-    private static final VarHandle FP_TOTAL_SCHEDULED_DURATION_MS = handle("fetch_phase", "total_scheduled_duration_ms");
-    private static final VarHandle FP_TOTAL_IDLE_DURATION_MS = handle("fetch_phase", "total_idle_duration_ms");
-
-    // ---- VarHandles for segment_stats fields ----
-    private static final VarHandle SS_TOTAL_POLL_DURATION_MS = handle("segment_stats", "total_poll_duration_ms");
-    private static final VarHandle SS_TOTAL_SCHEDULED_DURATION_MS = handle("segment_stats", "total_scheduled_duration_ms");
-    private static final VarHandle SS_TOTAL_IDLE_DURATION_MS = handle("segment_stats", "total_idle_duration_ms");
+    // ---- VarHandles for plan_setup fields ----
+    private static final VarHandle PS_TOTAL_POLL_DURATION_MS = handle("plan_setup", "total_poll_duration_ms");
+    private static final VarHandle PS_TOTAL_SCHEDULED_DURATION_MS = handle("plan_setup", "total_scheduled_duration_ms");
+    private static final VarHandle PS_TOTAL_IDLE_DURATION_MS = handle("plan_setup", "total_idle_duration_ms");
 
     private StatsLayout() {}
 
@@ -115,7 +115,7 @@ public final class StatsLayout {
     }
 
     /**
-     * Read a runtime metrics group (8 fields) from the segment.
+     * Read a runtime metrics group (9 fields) from the segment.
      *
      * @param seg   the memory segment containing the DfStatsBuffer
      * @param group "io_runtime" or "cpu_runtime"
@@ -140,7 +140,7 @@ public final class StatsLayout {
      * Read a task monitor group (3 fields) from the segment.
      *
      * @param seg   the memory segment containing the DfStatsBuffer
-     * @param group "query_execution", "stream_next", "fetch_phase", or "segment_stats"
+     * @param group one of the OperationType keys
      * @return a populated TaskMonitorStats instance
      */
     public static TaskMonitorStats readTaskMonitor(MemorySegment seg, String group) {
@@ -204,16 +204,16 @@ public final class StatsLayout {
 
     private static VarHandle[] taskMonitorHandles(String group) {
         return switch (group) {
+            case "coordinator_reduce" -> new VarHandle[] {
+                CR_TOTAL_POLL_DURATION_MS,
+                CR_TOTAL_SCHEDULED_DURATION_MS,
+                CR_TOTAL_IDLE_DURATION_MS };
             case "query_execution" -> new VarHandle[] {
                 QE_TOTAL_POLL_DURATION_MS,
                 QE_TOTAL_SCHEDULED_DURATION_MS,
                 QE_TOTAL_IDLE_DURATION_MS };
             case "stream_next" -> new VarHandle[] { SN_TOTAL_POLL_DURATION_MS, SN_TOTAL_SCHEDULED_DURATION_MS, SN_TOTAL_IDLE_DURATION_MS };
-            case "fetch_phase" -> new VarHandle[] { FP_TOTAL_POLL_DURATION_MS, FP_TOTAL_SCHEDULED_DURATION_MS, FP_TOTAL_IDLE_DURATION_MS };
-            case "segment_stats" -> new VarHandle[] {
-                SS_TOTAL_POLL_DURATION_MS,
-                SS_TOTAL_SCHEDULED_DURATION_MS,
-                SS_TOTAL_IDLE_DURATION_MS };
+            case "plan_setup" -> new VarHandle[] { PS_TOTAL_POLL_DURATION_MS, PS_TOTAL_SCHEDULED_DURATION_MS, PS_TOTAL_IDLE_DURATION_MS };
             default -> throw new IllegalArgumentException("Unknown task monitor group: " + group);
         };
     }

@@ -9,6 +9,7 @@
 package org.opensearch.be.lucene;
 
 import org.apache.lucene.document.Document;
+import org.apache.lucene.index.IndexableFieldType;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.mapper.MappedFieldType;
 
@@ -29,5 +30,5 @@ public interface LuceneFieldFactory {
      * @param fieldType the OpenSearch mapped field type (carries name, analyzer, doc-values config)
      * @param value     the field value
      */
-    void addField(Document document, MappedFieldType fieldType, Object value);
+    void addField(Document document, MappedFieldType fieldType, Object value, IndexableFieldType luceneFieldType);
 }

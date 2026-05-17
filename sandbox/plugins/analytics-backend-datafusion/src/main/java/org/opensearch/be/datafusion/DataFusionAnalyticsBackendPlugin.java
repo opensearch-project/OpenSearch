@@ -19,18 +19,24 @@ import org.opensearch.analytics.spi.BackendCapabilityProvider;
 import org.opensearch.analytics.spi.BackendExecutionContext;
 import org.opensearch.analytics.spi.DelegationType;
 import org.opensearch.analytics.spi.EngineCapability;
+import org.opensearch.analytics.spi.ExchangeSink;
+import org.opensearch.analytics.spi.ExchangeSinkContext;
 import org.opensearch.analytics.spi.ExchangeSinkProvider;
 import org.opensearch.analytics.spi.FieldType;
 import org.opensearch.analytics.spi.FilterCapability;
 import org.opensearch.analytics.spi.FilterDelegationHandle;
 import org.opensearch.analytics.spi.FragmentConvertor;
 import org.opensearch.analytics.spi.FragmentInstructionHandlerFactory;
+import org.opensearch.analytics.spi.JoinCapability;
+import org.opensearch.analytics.spi.NumericToDoubleAdapter;
 import org.opensearch.analytics.spi.ProjectCapability;
 import org.opensearch.analytics.spi.ScalarFunction;
 import org.opensearch.analytics.spi.ScalarFunctionAdapter;
 import org.opensearch.analytics.spi.ScanCapability;
 import org.opensearch.analytics.spi.SearchExecEngineProvider;
 import org.opensearch.analytics.spi.StdOperatorRewriteAdapter;
+import org.opensearch.analytics.spi.WindowCapability;
+import org.opensearch.analytics.spi.WindowFunction;
 import org.opensearch.be.datafusion.indexfilter.FilterTreeCallbacks;
 import org.opensearch.index.engine.dataformat.DataFormatRegistry;
 
@@ -50,7 +56,7 @@ import java.util.Set;
  */
 public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendPlugin {
 
-    private static final Set<EngineCapability> ENGINE_CAPS = Set.of(EngineCapability.SORT, EngineCapability.UNION);
+    private static final Set<EngineCapability> ENGINE_CAPS = Set.of(EngineCapability.SORT, EngineCapability.UNION, EngineCapability.VALUES);
 
     private static final Set<FieldType> SUPPORTED_FIELD_TYPES = new HashSet<>();
     static {
@@ -59,6 +65,9 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         SUPPORTED_FIELD_TYPES.addAll(FieldType.date());
         SUPPORTED_FIELD_TYPES.add(FieldType.BOOLEAN);
         SUPPORTED_FIELD_TYPES.add(FieldType.TEXT);
+        SUPPORTED_FIELD_TYPES.add(FieldType.BINARY);
+        SUPPORTED_FIELD_TYPES.add(FieldType.IP);
+        SUPPORTED_FIELD_TYPES.add(FieldType.MATCH_ONLY_TEXT);
     }
 
     // Filter-side scalar functions DataFusion can evaluate natively. Comparisons, arithmetic
@@ -136,6 +145,10 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         ScalarFunction.REGEXP_CONTAINS,
         ScalarFunction.REPLACE,
         ScalarFunction.REGEXP_REPLACE,
+        ScalarFunction.TRANSLATE,
+        ScalarFunction.REX_EXTRACT,
+        ScalarFunction.REX_EXTRACT_MULTI,
+        ScalarFunction.REX_OFFSET,
         ScalarFunction.PLUS,
         ScalarFunction.TIMES,
         ScalarFunction.DIVIDE,
@@ -270,6 +283,7 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         // by a custom Rust UDF on the DataFusion session context (`udf::mvfind`), routed via
         // {@link MvfindAdapter}.
         ScalarFunction.MVFIND,
+        ScalarFunction.BINARY,
         // Logical connectives — emitted in projections where boolean expressions are composed:
         // `case(a = 0 and b = 0, …)`, `eval x = a or b`, `eval x = NOT y`. DataFusion's substrait
         // consumer handles them natively.
@@ -279,7 +293,21 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         ScalarFunction.MD5,
         ScalarFunction.SHA1,
         ScalarFunction.SHA2,
-        ScalarFunction.CRC32
+        ScalarFunction.CRC32,
+        // PPL `span(field, interval, unit?)` — bucketing for `stats … by span(...)`. Numeric
+        // span lowers to {@code floor(field/interval)*interval}; time span (interval=1) to
+        // {@code date_trunc(unit, field)}. Both targets are substrait-default operators.
+        ScalarFunction.SPAN,
+        // PPL bucketing label functions — Rust UDFs returning VARCHAR labels (e.g. "0-100").
+        // SPAN_BUCKET reachable today via `bin <f> span=N`. WIDTH_BUCKET / MINSPAN_BUCKET /
+        // RANGE_BUCKET reach through `bin <f> bins=N` / `minspan=N` / `start=X end=Y`, which
+        // lower to MIN/MAX OVER () empty-partition window aggregates — exercised end-to-end
+        // by the bucket IT suites once the window-pushdown follow-up (#21668) lands. See
+        // per-adapter Javadoc for semantics + collision notes.
+        ScalarFunction.SPAN_BUCKET,
+        ScalarFunction.WIDTH_BUCKET,
+        ScalarFunction.MINSPAN_BUCKET,
+        ScalarFunction.RANGE_BUCKET
     );
 
     /**
@@ -336,6 +364,34 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
             }
 
             @Override
+            public Set<JoinCapability> joinCapabilities() {
+                return Set.of(
+                    new JoinCapability(
+                        Set.of(
+                            JoinCapability.JoinKind.INNER,
+                            JoinCapability.JoinKind.LEFT,
+                            JoinCapability.JoinKind.RIGHT,
+                            JoinCapability.JoinKind.FULL,
+                            JoinCapability.JoinKind.SEMI,
+                            JoinCapability.JoinKind.ANTI,
+                            JoinCapability.JoinKind.CROSS
+                        ),
+                        Set.copyOf(plugin.getSupportedFormats())
+                    )
+                );
+            }
+
+            @Override
+            public Set<WindowCapability> windowCapabilities() {
+                return Set.of(
+                    new WindowCapability(
+                        Set.of(WindowFunction.SUM, WindowFunction.AVG, WindowFunction.COUNT, WindowFunction.MIN, WindowFunction.MAX),
+                        Set.copyOf(plugin.getSupportedFormats())
+                    )
+                );
+            }
+
+            @Override
             public Set<DelegationType> supportedDelegations() {
                 return Set.of(DelegationType.FILTER);
             }
@@ -363,7 +419,14 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                 Set<String> formats = Set.copyOf(plugin.getSupportedFormats());
                 Set<ProjectCapability> caps = new HashSet<>();
                 for (ScalarFunction op : STANDARD_PROJECT_OPS) {
-                    caps.add(new ProjectCapability.Scalar(op, Set.copyOf(SUPPORTED_FIELD_TYPES), formats, true));
+                    // PPL rex extract-mode multi-match returns array<varchar>; the planner
+                    // keys capability lookups on the call's return type, so this op must be
+                    // registered against FieldType.ARRAY rather than the scalar set used by
+                    // every other op (UPPER, ABS, ...) — those genuinely don't return arrays.
+                    Set<FieldType> types = op == ScalarFunction.REX_EXTRACT_MULTI
+                        ? Set.of(FieldType.ARRAY)
+                        : Set.copyOf(SUPPORTED_FIELD_TYPES);
+                    caps.add(new ProjectCapability.Scalar(op, types, formats, true));
                 }
                 for (ScalarFunction op : ARRAY_RETURNING_PROJECT_OPS) {
                     caps.add(new ProjectCapability.Scalar(op, Set.of(FieldType.ARRAY), formats, true));
@@ -413,6 +476,7 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                     Map.entry(ScalarFunction.MVFIND, new MvfindAdapter()),
                     Map.entry(ScalarFunction.MVZIP, new MvzipAdapter()),
                     Map.entry(ScalarFunction.MVAPPEND, new MvappendAdapter()),
+                    Map.entry(ScalarFunction.BINARY, new BinaryFunctionAdapter()),
                     Map.entry(ScalarFunction.CONCAT, new ConcatFunctionAdapter()),
                     Map.entry(ScalarFunction.CONVERT_TZ, new ConvertTzAdapter()),
                     Map.entry(ScalarFunction.COSH, new HyperbolicOperatorAdapter(SqlLibraryOperators.COSH)),
@@ -432,6 +496,11 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                     Map.entry(ScalarFunction.DAY_OF_YEAR, dayOfYear),
                     Map.entry(ScalarFunction.DIVIDE, new StdOperatorRewriteAdapter("DIVIDE", SqlStdOperatorTable.DIVIDE)),
                     Map.entry(ScalarFunction.E, new EConstantAdapter()),
+                    // Math functions whose substrait yaml impls are fp64-only — wrap integer/float
+                    // operands in CAST(DOUBLE) before substrait conversion so isthmus can bind. See
+                    // NumericToDoubleAdapter javadoc for the type-widening rules. Without these the
+                    // path fails with "Unable to convert call EXP(i32?)" / "POWER(i32?, fp64)" etc.
+                    Map.entry(ScalarFunction.EXP, new NumericToDoubleAdapter(SqlStdOperatorTable.EXP)),
                     Map.entry(ScalarFunction.EXPM1, new Expm1Adapter()),
                     Map.entry(ScalarFunction.EXTRACT, new RustUdfDateTimeAdapters.ExtractAdapter()),
                     Map.entry(ScalarFunction.FROM_UNIXTIME, new RustUdfDateTimeAdapters.FromUnixtimeAdapter()),
@@ -445,10 +514,15 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                     Map.entry(ScalarFunction.JSON_KEYS, new JsonFunctionAdapters.JsonKeysAdapter()),
                     Map.entry(ScalarFunction.JSON_SET, new JsonFunctionAdapters.JsonSetAdapter()),
                     Map.entry(ScalarFunction.LIKE, new LikeAdapter()),
+                    Map.entry(ScalarFunction.LN, new NumericToDoubleAdapter(SqlStdOperatorTable.LN)),
                     Map.entry(ScalarFunction.LOCATE, new PositionAdapter()),
+                    Map.entry(ScalarFunction.LOG, new NumericToDoubleAdapter(SqlLibraryOperators.LOG)),
+                    Map.entry(ScalarFunction.LOG10, new NumericToDoubleAdapter(SqlStdOperatorTable.LOG10)),
+                    Map.entry(ScalarFunction.LOG2, new NumericToDoubleAdapter(SqlLibraryOperators.LOG2)),
                     Map.entry(ScalarFunction.MAKEDATE, new RustUdfDateTimeAdapters.MakedateAdapter()),
                     Map.entry(ScalarFunction.MAKETIME, new RustUdfDateTimeAdapters.MaketimeAdapter()),
                     Map.entry(ScalarFunction.MICROSECOND, DatePartAdapters.microsecond()),
+                    Map.entry(ScalarFunction.MINSPAN_BUCKET, new MinspanBucketAdapter()),
                     Map.entry(ScalarFunction.MINUTE, minute),
                     Map.entry(ScalarFunction.MINUTE_OF_HOUR, minute),
                     Map.entry(ScalarFunction.MOD, new StdOperatorRewriteAdapter("MOD", SqlStdOperatorTable.MOD)),
@@ -457,8 +531,13 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                     Map.entry(ScalarFunction.NUMBER_TO_STRING, new ToStringFunctionAdapter()),
                     Map.entry(ScalarFunction.NOW, now),
                     Map.entry(ScalarFunction.POSITION, new PositionAdapter()),
+                    Map.entry(ScalarFunction.POWER, new NumericToDoubleAdapter(SqlStdOperatorTable.POWER)),
                     Map.entry(ScalarFunction.QUARTER, DatePartAdapters.quarter()),
+                    Map.entry(ScalarFunction.RANGE_BUCKET, new RangeBucketAdapter()),
                     Map.entry(ScalarFunction.REGEXP_REPLACE, new RegexpReplaceAdapter()),
+                    Map.entry(ScalarFunction.REX_EXTRACT, new RexExtractAdapter()),
+                    Map.entry(ScalarFunction.REX_EXTRACT_MULTI, new RexExtractMultiAdapter()),
+                    Map.entry(ScalarFunction.REX_OFFSET, new RexOffsetAdapter()),
                     Map.entry(ScalarFunction.SARG_PREDICATE, new SargAdapter()),
                     Map.entry(ScalarFunction.SCALAR_MAX, nameMapping(SqlLibraryOperators.GREATEST)),
                     Map.entry(ScalarFunction.SCALAR_MIN, nameMapping(SqlLibraryOperators.LEAST)),
@@ -467,6 +546,8 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                     Map.entry(ScalarFunction.SHA2, new Sha2FunctionAdapter()),
                     Map.entry(ScalarFunction.SIGN, nameMapping(SignumFunction.FUNCTION)),
                     Map.entry(ScalarFunction.SINH, new HyperbolicOperatorAdapter(SqlLibraryOperators.SINH)),
+                    Map.entry(ScalarFunction.SPAN, new SpanAdapter()),
+                    Map.entry(ScalarFunction.SPAN_BUCKET, new SpanBucketAdapter()),
                     Map.entry(ScalarFunction.STRCMP, new StrcmpFunctionAdapter()),
                     Map.entry(ScalarFunction.STRFTIME, new StrftimeFunctionAdapter()),
                     Map.entry(ScalarFunction.STR_TO_DATE, new RustUdfDateTimeAdapters.StrToDateAdapter()),
@@ -481,6 +562,7 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                     Map.entry(ScalarFunction.UNIX_TIMESTAMP, new UnixTimestampAdapter()),
                     Map.entry(ScalarFunction.WEEK, week),
                     Map.entry(ScalarFunction.WEEK_OF_YEAR, week),
+                    Map.entry(ScalarFunction.WIDTH_BUCKET, new WidthBucketAdapter()),
                     Map.entry(ScalarFunction.YEAR, DatePartAdapters.year())
                 );
             }
@@ -543,32 +625,35 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
 
     @Override
     public ExchangeSinkProvider getExchangeSinkProvider() {
-        return (ctx, backendContext) -> {
-            DataFusionService svc = plugin.getDataFusionService();
-            if (svc == null) {
-                throw new IllegalStateException("DataFusionService not initialized");
+        return new ExchangeSinkProvider() {
+            @Override
+            public ExchangeSink createSink(ExchangeSinkContext ctx, BackendExecutionContext backendContext) {
+                DataFusionService svc = plugin.getDataFusionService();
+                if (svc == null) {
+                    throw new IllegalStateException("DataFusionService not initialized");
+                }
+                // When the FinalAggregateInstructionHandler has already prepared a plan on the
+                // coordinator, it hands over a DataFusionReduceState carrying the session +
+                // registered senders. The sink drives executeLocalPreparedPlan against that
+                // state instead of re-decoding the fragment bytes.
+                DataFusionReduceState preparedState = backendContext instanceof DataFusionReduceState s ? s : null;
+                String mode = plugin.getClusterService() != null
+                    ? plugin.getClusterService().getClusterSettings().get(DataFusionPlugin.DATAFUSION_REDUCE_INPUT_MODE)
+                    : "streaming";
+                // Memtable mode is single-input only (DatafusionMemtableReduceSink registers
+                // exactly one MemTable at close time). Multi-input shapes (Union, future Join)
+                // need per-child input partitions, which only the streaming sink implements via
+                // MultiInputExchangeSink#sinkForChild. Auto-fall-back to streaming so end users
+                // don't have to flip the cluster setting per query. Also fall back when a
+                // prepared state is supplied (memtable sink does not yet support the
+                // prepared-plan path).
+                // TODO: lift this fallback once the memtable sink registers one MemTable per
+                // child stage (see DatafusionMemtableReduceSink class javadoc).
+                if ("memtable".equals(mode) && ctx.childInputs().size() == 1 && preparedState == null) {
+                    return new DatafusionMemtableReduceSink(ctx, svc.getNativeRuntime());
+                }
+                return new DatafusionReduceSink(ctx, svc.getNativeRuntime(), svc.getDrainExecutor(), preparedState);
             }
-            // When the FinalAggregateInstructionHandler has already prepared a plan on the
-            // coordinator, it hands over a DataFusionReduceState carrying the session +
-            // registered senders. The sink drives executeLocalPreparedPlan against that
-            // state instead of re-decoding the fragment bytes.
-            DataFusionReduceState preparedState = backendContext instanceof DataFusionReduceState s ? s : null;
-            String mode = plugin.getClusterService() != null
-                ? plugin.getClusterService().getClusterSettings().get(DataFusionPlugin.DATAFUSION_REDUCE_INPUT_MODE)
-                : "streaming";
-            // Memtable mode is single-input only (DatafusionMemtableReduceSink registers
-            // exactly one MemTable at close time). Multi-input shapes (Union, future Join)
-            // need per-child input partitions, which only the streaming sink implements via
-            // MultiInputExchangeSink#sinkForChild. Auto-fall-back to streaming so end users
-            // don't have to flip the cluster setting per query. Also fall back when a
-            // prepared state is supplied (memtable sink does not yet support the
-            // prepared-plan path).
-            // TODO: lift this fallback once the memtable sink registers one MemTable per
-            // child stage (see DatafusionMemtableReduceSink class javadoc).
-            if ("memtable".equals(mode) && ctx.childInputs().size() == 1 && preparedState == null) {
-                return new DatafusionMemtableReduceSink(ctx, svc.getNativeRuntime());
-            }
-            return new DatafusionReduceSink(ctx, svc.getNativeRuntime(), preparedState);
         };
     }
 

@@ -112,6 +112,11 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
             b.bind(new TypeLiteral<QueryPlanExecutor<RelNode, Iterable<Object[]>>>() {
             }).to(DefaultPlanExecutor.class);
             b.bind(EngineContext.class).to(DefaultEngineContext.class);
+            // Singleton bind on the concrete class so node-injector lookups for
+            // QueryScheduler.class don't fall back to a JIT binding (which would
+            // re-instantiate AnalyticsSearchTransportService, whose ctor registers
+            // transport handlers and is only legal to call once per node).
+            b.bind(QueryScheduler.class).asEagerSingleton();
             b.bind(Scheduler.class).to(QueryScheduler.class);
         });
     }
