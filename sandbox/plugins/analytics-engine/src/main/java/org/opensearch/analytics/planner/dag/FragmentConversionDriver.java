@@ -192,7 +192,6 @@ public class FragmentConversionDriver {
          * annotation's viable backend against the operator's backend: native annotations
          * are unwrapped, delegated ones are serialized and replaced with a placeholder.
          */
-        // TODO: switch the LOGGER.info calls in this resolver back to debug before merging.
         Function<OperatorAnnotation, RexNode> resolverFor(OpenSearchRelNode operator, RexBuilder rexBuilder) {
             String operatorBackend = operator.getViableBackends().getFirst();
             List<FieldStorageInfo> fieldStorage = operator.getOutputFieldStorage();
@@ -226,7 +225,7 @@ public class FragmentConversionDriver {
                             // this leaf, correctness preserved. CapabilityRegistry startup validation
                             // will eventually catch the capability/serializer mismatch at boot and reject
                             // the plugin instead of silently degrading at query time.
-                            LOGGER.info(
+                            LOGGER.debug(
                                 "Performance-delegation skipped: no serializer for [{}] on delegated backend [{}]; falling back to native on operator [{}]",
                                 function,
                                 peerBackend,
@@ -235,7 +234,7 @@ public class FragmentConversionDriver {
                             return annotation.unwrap();
                         }
                         byte[] serialized = serializer.serialize(originalCall, fieldStorage);
-                        LOGGER.info(
+                        LOGGER.debug(
                             "Performance-delegated annotation [id={}]: {} kept on operator [{}], wrapped for peer [{}], serialized {} bytes",
                             ap.getAnnotationId(),
                             function,
@@ -249,7 +248,7 @@ public class FragmentConversionDriver {
                         delegatedExpressions.add(new DelegatedExpression(ap.getAnnotationId(), peerBackend, serialized));
                         return DelegationPossibleFunction.makeCall(rexBuilder, originalCall, ap.getAnnotationId());
                     }
-                    LOGGER.info("Native annotation [id={}]: backend [{}] matches operator", annotation.getAnnotationId(), operatorBackend);
+                    LOGGER.debug("Native annotation [id={}]: backend [{}] matches operator", annotation.getAnnotationId(), operatorBackend);
                     return annotation.unwrap();
                 }
                 RexNode original = annotation.unwrap();
@@ -271,7 +270,7 @@ public class FragmentConversionDriver {
                     );
                 }
                 byte[] serialized = serializer.serialize(originalCall, fieldStorage);
-                LOGGER.info(
+                LOGGER.debug(
                     "Delegated annotation [id={}]: {} from operator [{}] to [{}], serialized {} bytes",
                     annotation.getAnnotationId(),
                     function,

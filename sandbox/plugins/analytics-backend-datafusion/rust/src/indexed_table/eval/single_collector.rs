@@ -27,7 +27,7 @@ use std::sync::OnceLock;
 
 use datafusion::arrow::array::BooleanArray;
 use datafusion::arrow::record_batch::RecordBatch;
-use native_bridge_common::log_info;
+use native_bridge_common::log_debug;
 use roaring::RoaringBitmap;
 
 use super::{PrefetchedRg, RowGroupBitsetSource};
@@ -312,7 +312,7 @@ impl RowGroupBitsetSource for SingleCollectorEvaluator {
                 .keys()
                 .min()
                 .expect("performance_provider_locks is non-empty (just checked)");
-            log_info!(
+            log_debug!(
                 "[scf-rust] consulting peer for performance leaf rg={} writer_generation={} range=[{},{}) annotation_id={}",
                 rg.index, self.writer_generation, min_doc, max_doc, annotation_id
             );
@@ -326,7 +326,7 @@ impl RowGroupBitsetSource for SingleCollectorEvaluator {
                 create_provider(annotation_id).expect("create_provider FFM upcall failed")
             });
             if just_initialized {
-                log_info!(
+                log_debug!(
                     "[scf-rust] lazy provider initialized annotation_id={} provider_key={}",
                     annotation_id, provider.key()
                 );
@@ -372,7 +372,7 @@ impl RowGroupBitsetSource for SingleCollectorEvaluator {
             let candidates_before = candidates.len();
             let peer_card = peer_bm.len();
             candidates &= peer_bm;
-            log_info!(
+            log_debug!(
                 "[scf-rust] peer bitset intersected rg={} writer_generation={} candidates_before={} peer_cardinality={} candidates_after={}",
                 rg.index, self.writer_generation, candidates_before, peer_card, candidates.len()
             );

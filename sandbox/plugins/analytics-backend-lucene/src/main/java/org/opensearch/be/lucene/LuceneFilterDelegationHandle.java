@@ -108,11 +108,6 @@ final class LuceneFilterDelegationHandle implements FilterDelegationHandle {
         return queries;
     }
 
-    // TODO: switch the LOGGER.info calls in createProvider/createCollector/collectDocs back
-    // to debug before merging. Bumped to info temporarily so QA tests can verify Lucene
-    // was actually consulted by inspecting log output. Replace with a counter-based
-    // assertion (test plugin + REST endpoint) once that infrastructure exists.
-
     @Override
     public int createProvider(int annotationId) {
         Query query = queriesByAnnotationId.get(annotationId);
@@ -124,7 +119,7 @@ final class LuceneFilterDelegationHandle implements FilterDelegationHandle {
             Weight weight = searcher.createWeight(searcher.rewrite(query), ScoreMode.COMPLETE_NO_SCORES, 1.0f);
             int providerKey = nextProviderKey.getAndIncrement();
             weightsByProviderKey.put(providerKey, weight);
-            LOGGER.info("[scf] createProvider annotationId={} → providerKey={}", annotationId, providerKey);
+            LOGGER.debug("[scf] createProvider annotationId={} → providerKey={}", annotationId, providerKey);
             return providerKey;
         } catch (IOException exception) {
             LOGGER.error("createProvider failed for annotationId=" + annotationId, exception);
@@ -183,10 +178,10 @@ final class LuceneFilterDelegationHandle implements FilterDelegationHandle {
             Scorer scorer = weight.scorer(leaf);
             int collectorKey = nextCollectorKey.getAndIncrement();
             scorersByCollectorKey.put(collectorKey, new ScorerHandle(scorer, minDoc, maxDoc));
-            LOGGER.info(
-                "[scf] createCollector providerKey={} segmentOrd={} range=[{},{}) → collectorKey={}",
+            LOGGER.debug(
+                "[scf] createCollector providerKey={} writerGeneration={} range=[{},{}) → collectorKey={}",
                 providerKey,
-                segmentOrd,
+                writerGeneration,
                 minDoc,
                 maxDoc,
                 collectorKey
@@ -240,7 +235,7 @@ final class LuceneFilterDelegationHandle implements FilterDelegationHandle {
         long[] words = bits.getBits();
         int wordCount = (span + 63) >>> 6;
         MemorySegment.copy(words, 0, out, ValueLayout.JAVA_LONG, 0, wordCount);
-        LOGGER.info(
+        LOGGER.debug(
             "[scf] collectDocs collectorKey={} range=[{},{}) → cardinality={} words={}",
             collectorKey,
             minDoc,
