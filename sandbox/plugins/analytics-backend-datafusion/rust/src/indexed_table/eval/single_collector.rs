@@ -305,10 +305,13 @@ impl RowGroupBitsetSource for SingleCollectorEvaluator {
         if !self.performance_provider_locks.is_empty()
             && should_consult_lucene(&page_ranges, rg, HARDCODED_SELECTIVITY_THRESHOLD)
         {
-            // Pick first annotation_id deterministically (sorted) so logs/tests are stable.
-            let mut keys: Vec<i32> = self.performance_provider_locks.keys().copied().collect();
-            keys.sort();
-            let annotation_id = keys[0];
+            // Pick the smallest annotation_id deterministically so logs/tests are stable.
+            // Avoids the Vec/sort allocation in the common single-leaf case.
+            let annotation_id = *self
+                .performance_provider_locks
+                .keys()
+                .min()
+                .expect("performance_provider_locks is non-empty (just checked)");
             log_info!(
                 "[scf-rust] consulting peer for performance leaf rg={} seg={} range=[{},{}) annotation_id={}",
                 rg.index, self.segment_ord, min_doc, max_doc, annotation_id
@@ -603,17 +606,7 @@ mod tests {
             docs: vec![0, 3, 7],
         }) as Arc<dyn RowGroupDocsCollector>;
         let pruner = minimal_page_pruner();
-        let eval = SingleCollectorEvaluator::new(
-            Some(collector),
-            pruner,
-            None,
-            None,
-            None,
-            None,
-            CollectorCallStrategy::FullRange,
-            Arc::new(HashMap::new()),
-            0,
-        );
+        let eval = SingleCollectorEvaluator::new(Some(collector), pruner, None, None, None, None, CollectorCallStrategy::FullRange, Arc::new(HashMap::new()), 0);
 
         let rg = RowGroupInfo {
             index: 0,
@@ -629,17 +622,7 @@ mod tests {
     fn on_batch_mask_returns_none_for_path_b() {
         let collector = Arc::new(StubCollector { docs: vec![0] }) as Arc<dyn RowGroupDocsCollector>;
         let pruner = minimal_page_pruner();
-        let eval = SingleCollectorEvaluator::new(
-            Some(collector),
-            pruner,
-            None,
-            None,
-            None,
-            None,
-            CollectorCallStrategy::FullRange,
-            Arc::new(HashMap::new()),
-            0,
-        );
+        let eval = SingleCollectorEvaluator::new(Some(collector), pruner, None, None, None, None, CollectorCallStrategy::FullRange, Arc::new(HashMap::new()), 0);
         let schema = Arc::new(Schema::new(vec![Field::new("a", DataType::Int32, false)]));
         let batch = datafusion::arrow::record_batch::RecordBatch::try_new(
             schema,
@@ -667,17 +650,7 @@ mod tests {
         // (it's the only post-decode filter we have on this path).
         let collector = Arc::new(StubCollector { docs: vec![0] }) as Arc<dyn RowGroupDocsCollector>;
         let pruner = minimal_page_pruner();
-        let eval = SingleCollectorEvaluator::new(
-            Some(collector),
-            pruner,
-            None,
-            None,
-            None,
-            None,
-            CollectorCallStrategy::FullRange,
-            Arc::new(HashMap::new()),
-            0,
-        );
+        let eval = SingleCollectorEvaluator::new(Some(collector), pruner, None, None, None, None, CollectorCallStrategy::FullRange, Arc::new(HashMap::new()), 0);
         assert!(eval.needs_row_mask());
     }
 
@@ -685,17 +658,7 @@ mod tests {
     fn empty_match_returns_none() {
         let collector = Arc::new(StubCollector { docs: vec![] }) as Arc<dyn RowGroupDocsCollector>;
         let pruner = minimal_page_pruner();
-        let eval = SingleCollectorEvaluator::new(
-            Some(collector),
-            pruner,
-            None,
-            None,
-            None,
-            None,
-            CollectorCallStrategy::FullRange,
-            Arc::new(HashMap::new()),
-            0,
-        );
+        let eval = SingleCollectorEvaluator::new(Some(collector), pruner, None, None, None, None, CollectorCallStrategy::FullRange, Arc::new(HashMap::new()), 0);
         let rg = RowGroupInfo {
             index: 0,
             first_row: 0,
@@ -715,17 +678,7 @@ mod tests {
             docs: vec![0, 3, 7],
         }) as Arc<dyn RowGroupDocsCollector>;
         let pruner = minimal_page_pruner();
-        let eval = SingleCollectorEvaluator::new(
-            Some(collector),
-            pruner,
-            None,
-            None,
-            None,
-            None,
-            CollectorCallStrategy::FullRange,
-            Arc::new(HashMap::new()),
-            0,
-        );
+        let eval = SingleCollectorEvaluator::new(Some(collector), pruner, None, None, None, None, CollectorCallStrategy::FullRange, Arc::new(HashMap::new()), 0);
 
         let rg = RowGroupInfo {
             index: 0,
