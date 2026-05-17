@@ -479,7 +479,7 @@ public class LuceneReaderManagerTests extends OpenSearchTestCase {
         rm.afterRefresh(true, snap1);
 
         // Reader should be the same instance with incRef'd count
-        assertSame(initialReader, rm.getReader(snap1));
+        assertSame(initialReader, rm.getReader(snap1).directoryReader());
         assertEquals(initialRefCount + 1, initialReader.getRefCount());
 
         rm.onDeleted(snap1);
@@ -505,9 +505,9 @@ public class LuceneReaderManagerTests extends OpenSearchTestCase {
         rm.afterRefresh(true, snap3);
 
         // All three snapshots should share the same reader
-        assertSame(initialReader, rm.getReader(snap1));
-        assertSame(initialReader, rm.getReader(snap2));
-        assertSame(initialReader, rm.getReader(snap3));
+        assertSame(initialReader, rm.getReader(snap1).directoryReader());
+        assertSame(initialReader, rm.getReader(snap2).directoryReader());
+        assertSame(initialReader, rm.getReader(snap3).directoryReader());
 
         // RefCount should be initial + 3 (one incRef per afterRefresh)
         assertEquals(initialRefCount + 3, initialReader.getRefCount());
@@ -563,7 +563,7 @@ public class LuceneReaderManagerTests extends OpenSearchTestCase {
         nextReader[0] = null;
         CatalogSnapshot snap1 = stubSnapshot(1);
         rm.afterRefresh(true, snap1);
-        assertSame(initialReader, rm.getReader(snap1));
+        assertSame(initialReader, rm.getReader(snap1).directoryReader());
         long refAfterSnap1 = initialReader.getRefCount();
 
         // snap2: add a doc, open a new reader, refresher returns it
@@ -572,14 +572,14 @@ public class LuceneReaderManagerTests extends OpenSearchTestCase {
         nextReader[0] = newReader;
         CatalogSnapshot snap2 = stubSnapshot(2, List.of(10L));
         rm.afterRefresh(true, snap2);
-        assertSame(newReader, rm.getReader(snap2));
+        assertSame(newReader, rm.getReader(snap2).directoryReader());
         assertNotSame(initialReader, newReader);
 
         // snap3: refresher returns null → incRef newReader (currentReader is now newReader)
         nextReader[0] = null;
         CatalogSnapshot snap3 = stubSnapshot(3, List.of(10L));
         rm.afterRefresh(true, snap3);
-        assertSame(newReader, rm.getReader(snap3));
+        assertSame(newReader, rm.getReader(snap3).directoryReader());
 
         long newReaderRefCount = newReader.getRefCount();
 
