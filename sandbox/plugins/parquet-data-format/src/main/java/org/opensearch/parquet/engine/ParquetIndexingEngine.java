@@ -155,7 +155,7 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
             throw new RuntimeException(e);
         }
         this.parquetMerger = new ParquetMergeExecutor(
-            new NativeParquetMergeStrategy(dataFormat, indexSettings.getIndex().getName(), shardPath, checksumStrategy::registerChecksum)
+            new NativeParquetMergeStrategy(dataFormat, indexSettings, shardPath, checksumStrategy::registerChecksum)
         );
         pushSettingsToRust();
     }

@@ -231,6 +231,8 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 IndexSettings.INDEX_MERGE_ON_FLUSH_MAX_FULL_FLUSH_MERGE_WAIT_TIME,
                 IndexSettings.INDEX_MERGE_ON_FLUSH_POLICY,
                 IndexSettings.INDEX_MERGE_POLICY,
+                IndexSettings.INDEX_MERGE_DISK_SPACE_CHECK_ENABLED,
+                IndexSettings.INDEX_MERGE_DISK_SPACE_CHECK_SAFETY_MULTIPLIER,
                 IndexSettings.INDEX_CHECK_PENDING_FLUSH_ENABLED,
                 LogByteSizeMergePolicyProvider.INDEX_LBS_MERGE_POLICY_MERGE_FACTOR_SETTING,
                 LogByteSizeMergePolicyProvider.INDEX_LBS_MERGE_POLICY_MIN_MERGE_SETTING,

@@ -12,10 +12,12 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.common.TriConsumer;
+import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.MergeInput;
 import org.opensearch.index.engine.dataformat.MergeResult;
 import org.opensearch.index.engine.dataformat.RowIdMapping;
+import org.opensearch.index.engine.dataformat.merge.MergePreflightChecker;
 import org.opensearch.index.engine.exec.WriterFileSet;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.parquet.bridge.MergeFilesResult;
@@ -38,18 +40,18 @@ public class NativeParquetMergeStrategy implements ParquetMergeStrategy {
     private static final Logger logger = LogManager.getLogger(NativeParquetMergeStrategy.class);
 
     private final DataFormat dataFormat;
-    private final String indexName;
+    private final IndexSettings indexSettings;
     private final ShardPath shardPath;
     private TriConsumer<String, Long, Long> checksumUpdater;
 
     public NativeParquetMergeStrategy(
         DataFormat dataFormat,
-        String indexName,
+        IndexSettings indexSettings,
         ShardPath shardPath,
         TriConsumer<String, Long, Long> checksumUpdater
     ) {
         this.dataFormat = dataFormat;
-        this.indexName = indexName;
+        this.indexSettings = indexSettings;
         this.shardPath = shardPath;
         this.checksumUpdater = checksumUpdater;
     }
@@ -77,9 +79,19 @@ public class NativeParquetMergeStrategy implements ParquetMergeStrategy {
         Path mergedFilePath = ParquetIndexingEngine.buildParquetFilePath(shardPath, writerGeneration, "merged");
         String mergedFileName = mergedFilePath.getFileName().toString();
 
+        // Pre-merge disk space guard: reject the merge if the target file system does not
+        // have enough usable space to hold the projected merged output. Throws
+        // InsufficientDiskSpaceException — propagates as a hard merge failure.
+        long estimatedInputBytes = files.stream().mapToLong(WriterFileSet::getTotalSize).sum();
+        try {
+            MergePreflightChecker.check(indexSettings, mergedFilePath.getParent(), estimatedInputBytes, dataFormat.name());
+        } catch (java.io.IOException e) {
+            throw new java.io.UncheckedIOException("Failed to evaluate pre-merge disk space for [" + mergedFilePath + "]", e);
+        }
+
         try {
             // Merge files in Rust
-            MergeFilesResult merged = RustBridge.mergeParquetFilesInRust(filePaths, mergedFilePath.toString(), indexName);
+            MergeFilesResult merged = RustBridge.mergeParquetFilesInRust(filePaths, mergedFilePath.toString(), indexSettings.getIndex().getName());
             ParquetFileMetadata mergeMetadata = merged.metadata();
             RowIdMapping rowIdMapping = merged.rowIdMapping();
 

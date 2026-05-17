@@ -17,11 +17,13 @@ import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.MergeInput;
 import org.opensearch.index.engine.dataformat.MergeResult;
 import org.opensearch.index.engine.dataformat.Merger;
 import org.opensearch.index.engine.dataformat.RowIdMapping;
+import org.opensearch.index.engine.dataformat.merge.MergePreflightChecker;
 import org.opensearch.index.engine.exec.Segment;
 import org.opensearch.index.engine.exec.WriterFileSet;
 
@@ -78,15 +80,17 @@ public class LuceneMerger implements Merger {
     private final MergeIndexWriter indexWriter;
     private final DataFormat dataFormat;
     private final Path storeDirectory;
+    private final IndexSettings indexSettings;
     private final LuceneMergeStrategy strategy;
 
-    public LuceneMerger(MergeIndexWriter indexWriter, DataFormat dataFormat, Path storeDirectory) {
+    public LuceneMerger(MergeIndexWriter indexWriter, DataFormat dataFormat, Path storeDirectory, IndexSettings indexSettings) {
         if (indexWriter == null) {
             throw new IllegalArgumentException("IndexWriter must not be null");
         }
         this.indexWriter = indexWriter;
         this.dataFormat = dataFormat;
         this.storeDirectory = storeDirectory;
+        this.indexSettings = indexSettings;
         // TODO implement primary and integrate the same here
         this.strategy = new SecondaryLuceneMergeStrategy();
     }
@@ -129,6 +133,17 @@ public class LuceneMerger implements Merger {
             matchingSegments.size(),
             generationsToMerge
         );
+
+        // Pre-merge disk space guard: reject the merge if the target directory does not have
+        // enough usable space to hold the projected merged output. Throws
+        // InsufficientDiskSpaceException — propagates as a hard merge failure.
+        if (indexSettings != null) {
+            long estimatedInputBytes = mergeInput.getFilesForFormat(dataFormat.name())
+                .stream()
+                .mapToLong(WriterFileSet::getTotalSize)
+                .sum();
+            MergePreflightChecker.check(indexSettings, storeDirectory, estimatedInputBytes, dataFormat.name());
+        }
 
         // Delegate OneMerge creation to the strategy (primary vs secondary behavior).
         // For the secondary path, the returned RowIdRemappingOneMerge stamps the
