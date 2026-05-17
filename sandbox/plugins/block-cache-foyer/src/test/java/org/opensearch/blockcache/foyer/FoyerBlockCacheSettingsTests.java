@@ -156,47 +156,4 @@ public class FoyerBlockCacheSettingsTests extends OpenSearchTestCase {
         );
     }
 
-    // ── DATA_TO_CACHE_RATIO_SETTING ───────────────────────────────────────────
-
-    public void testDataToCacheRatioDefault() {
-        assertEquals(5.0, FoyerBlockCacheSettings.DATA_TO_CACHE_RATIO_SETTING.get(Settings.EMPTY), 0.0);
-    }
-
-    public void testDataToCacheRatioAcceptsOne() {
-        assertEquals(
-            1.0,
-            FoyerBlockCacheSettings.DATA_TO_CACHE_RATIO_SETTING.get(
-                Settings.builder().put("block_cache.foyer.data_to_cache_ratio", "1.0").build()
-            ),
-            0.0
-        );
-    }
-
-    public void testDataToCacheRatioAcceptsLargeValue() {
-        assertEquals(
-            100.0,
-            FoyerBlockCacheSettings.DATA_TO_CACHE_RATIO_SETTING.get(
-                Settings.builder().put("block_cache.foyer.data_to_cache_ratio", "100.0").build()
-            ),
-            0.0
-        );
-    }
-
-    public void testDataToCacheRatioRejectsBelowOne() {
-        expectThrows(
-            IllegalArgumentException.class,
-            () -> FoyerBlockCacheSettings.DATA_TO_CACHE_RATIO_SETTING.get(
-                Settings.builder().put("block_cache.foyer.data_to_cache_ratio", "0.5").build()
-            )
-        );
-    }
-
-    public void testDataToCacheRatioRejectsZero() {
-        expectThrows(
-            IllegalArgumentException.class,
-            () -> FoyerBlockCacheSettings.DATA_TO_CACHE_RATIO_SETTING.get(
-                Settings.builder().put("block_cache.foyer.data_to_cache_ratio", "0.0").build()
-            )
-        );
-    }
 }

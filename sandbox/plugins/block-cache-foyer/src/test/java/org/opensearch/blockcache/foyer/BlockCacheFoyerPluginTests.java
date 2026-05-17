@@ -103,13 +103,29 @@ public class BlockCacheFoyerPluginTests extends OpenSearchTestCase {
     }
 
     public void testDataToCapacityRatioCustom() {
-        Settings s = Settings.builder().put("block_cache.foyer.data_to_cache_ratio", "10.0").build();
+        // Uses cluster.filecache.remote_data_ratio — the canonical server-side setting
+        Settings s = Settings.builder().put("cluster.filecache.remote_data_ratio", "10.0").build();
         assertEquals(10.0, new BlockCacheFoyerPlugin(Settings.EMPTY).dataToCapacityRatio(s), 0.0);
     }
 
     public void testDataToCapacityRatioMinimumOf1() {
-        Settings s = Settings.builder().put("block_cache.foyer.data_to_cache_ratio", "1.0").build();
+        // Uses cluster.filecache.remote_data_ratio — the canonical server-side setting
+        Settings s = Settings.builder().put("cluster.filecache.remote_data_ratio", "1.0").build();
         assertEquals(1.0, new BlockCacheFoyerPlugin(Settings.EMPTY).dataToCapacityRatio(s), 0.0);
+    }
+
+    public void testDataToCapacityRatioUsesFileCacheRatioSetting() {
+        // Explicitly verify cluster.filecache.remote_data_ratio drives the ratio
+        Settings s = Settings.builder().put("cluster.filecache.remote_data_ratio", "7.0").build();
+        assertEquals(7.0, new BlockCacheFoyerPlugin(Settings.EMPTY).dataToCapacityRatio(s), 0.0);
+    }
+
+    public void testDataToCapacityRatioIgnoresRemovedSetting() {
+        // block_cache.foyer.data_to_cache_ratio is removed — the plugin-owned setting list
+        // no longer contains it, so it must not affect dataToCapacityRatio
+        List<Setting<?>> pluginSettings = new BlockCacheFoyerPlugin(Settings.EMPTY).getSettings();
+        boolean hasOldSetting = pluginSettings.stream().anyMatch(s -> s.getKey().equals("block_cache.foyer.data_to_cache_ratio"));
+        assertFalse("Removed setting must not be registered by the plugin", hasOldSetting);
     }
 
     public void testDataToCapacityRatioAtLeastOne() {
@@ -125,14 +141,15 @@ public class BlockCacheFoyerPluginTests extends OpenSearchTestCase {
 
     // ── getSettings ───────────────────────────────────────────────────────────
 
-    public void testGetSettingsRegistersAllFourSettings() {
+    public void testGetSettingsRegistersAllSettings() {
         BlockCacheFoyerPlugin plugin = new BlockCacheFoyerPlugin(Settings.EMPTY);
         List<Setting<?>> settings = plugin.getSettings();
+        // DATA_TO_CACHE_RATIO_SETTING removed — ratio now read from cluster.filecache.remote_data_ratio
         assertEquals(4, settings.size());
         assertTrue(settings.contains(FoyerBlockCacheSettings.CACHE_SIZE_SETTING));
         assertTrue(settings.contains(FoyerBlockCacheSettings.BLOCK_SIZE_SETTING));
         assertTrue(settings.contains(FoyerBlockCacheSettings.IO_ENGINE_SETTING));
-        assertTrue(settings.contains(FoyerBlockCacheSettings.DATA_TO_CACHE_RATIO_SETTING));
+        assertTrue(settings.contains(FoyerBlockCacheSettings.KEY_INDEX_SWEEP_INTERVAL_SETTING));
     }
 
     public void testGetSettingsNoNulls() {

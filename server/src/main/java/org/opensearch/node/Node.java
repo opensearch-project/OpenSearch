@@ -172,8 +172,8 @@ import org.opensearch.index.store.IndexStoreListener;
 import org.opensearch.index.store.RemoteSegmentStoreDirectoryFactory;
 import org.opensearch.index.store.remote.filecache.FileCache;
 import org.opensearch.index.store.remote.filecache.FileCacheSettings;
-import org.opensearch.index.store.remote.filecache.NodeCacheOrchestrator;
-import org.opensearch.index.store.remote.filecache.NodeCacheOrchestratorCleaner;
+import org.opensearch.index.store.remote.filecache.NodeCacheService;
+import org.opensearch.index.store.remote.filecache.NodeCacheServiceCleaner;
 import org.opensearch.indices.IndicesModule;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.RemoteStoreSettings;
@@ -481,7 +481,7 @@ public class Node implements Closeable {
     final NamedWriteableRegistry namedWriteableRegistry;
     private final AtomicReference<RunnableTaskExecutionListener> runnableTaskListener;
     @Nullable
-    private NodeCacheOrchestrator nodeCacheOrchestrator;
+    private NodeCacheService nodeCacheService;
     private final RemoteStoreStatsTrackerFactory remoteStoreStatsTrackerFactory;
     private final MergedSegmentWarmerFactory mergedSegmentWarmerFactory;
 
@@ -587,7 +587,7 @@ public class Node implements Closeable {
                 .map(IndexStorePlugin::getIndexStoreListener)
                 .filter(Optional::isPresent)
                 .map(Optional::get);
-            // NodeCacheOrchestratorCleaner is only needed on warm nodes (where FileCache and
+            // NodeCacheServiceCleaner is only needed on warm nodes (where FileCache and
             // BlockCaches are active). On hot nodes there is nothing to clean up.
             if (DiscoveryNode.isWarmNode(settings) == false) {
                 nodeEnvironment = new NodeEnvironment(
@@ -600,10 +600,8 @@ public class Node implements Closeable {
                     settings,
                     environment,
                     new IndexStoreListener.CompositeIndexStoreListener(
-                        Stream.concat(
-                            indexStoreListenerStream,
-                            Stream.of(new NodeCacheOrchestratorCleaner(() -> this.nodeCacheOrchestrator))
-                        ).collect(Collectors.toList())
+                        Stream.concat(indexStoreListenerStream, Stream.of(new NodeCacheServiceCleaner(() -> this.nodeCacheService)))
+                            .collect(Collectors.toList())
                     )
                 );
             }
@@ -832,7 +830,7 @@ public class Node implements Closeable {
             }));
 
             if (DiscoveryNode.isWarmNode(settings)) {
-                this.nodeCacheOrchestrator = NodeCacheOrchestrator.create(settings, nodeEnvironment, blockCacheProviders);
+                this.nodeCacheService = NodeCacheService.create(settings, nodeEnvironment, blockCacheProviders);
             }
 
             pluginsService.filterPlugins(CircuitBreakerPlugin.class).forEach(plugin -> {
@@ -1073,7 +1071,7 @@ public class Node implements Closeable {
                 recoverySettings,
                 cacheService,
                 remoteStoreSettings,
-                nodeCacheOrchestrator,
+                nodeCacheService,
                 compositeIndexSettings,
                 segmentReplicator::startReplication,
                 segmentReplicator::getSegmentReplicationStats,
@@ -1097,7 +1095,7 @@ public class Node implements Closeable {
             final FsServiceProvider fsServiceProvider = new FsServiceProvider(
                 settings,
                 nodeEnvironment,
-                nodeCacheOrchestrator,
+                nodeCacheService,
                 settingsModule.getClusterSettings(),
                 indicesService
             );
@@ -1213,8 +1211,8 @@ public class Node implements Closeable {
                 .collect(Collectors.toList());
             pluginComponents.addAll(searchBackEndPluginComponents);
 
-            if (nodeCacheOrchestrator != null) {
-                nodeCacheOrchestrator.registerProviders(blockCacheProviders);
+            if (nodeCacheService != null) {
+                nodeCacheService.registerProviders(blockCacheProviders);
             }
 
             List<IdentityAwarePlugin> identityAwarePlugins = pluginsService.filterPlugins(IdentityAwarePlugin.class);
@@ -1589,7 +1587,7 @@ public class Node implements Closeable {
                 searchModule.getValuesSourceRegistry().getUsageService(),
                 searchBackpressureService,
                 searchPipelineService,
-                nodeCacheOrchestrator,
+                nodeCacheService,
                 taskCancellationMonitoringService,
                 resourceUsageCollectorService,
                 segmentReplicationStatsTracker,
@@ -2515,11 +2513,11 @@ public class Node implements Closeable {
 
     /**
      * Returns the {@link FileCache} instance for remote warm nodes, or {@code null} on non-warm nodes.
-     * Delegates to {@link NodeCacheOrchestrator} which owns the FileCache lifecycle.
+     * Delegates to {@link NodeCacheService} which owns the FileCache lifecycle.
      * Note: Visible for testing
      */
     @Nullable
     public FileCache fileCache() {
-        return nodeCacheOrchestrator != null ? nodeCacheOrchestrator.fileCache() : null;
+        return nodeCacheService != null ? nodeCacheService.fileCache() : null;
     }
 }

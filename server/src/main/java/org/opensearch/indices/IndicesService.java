@@ -151,7 +151,7 @@ import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardState;
 import org.opensearch.index.shard.IndexingOperationListener;
 import org.opensearch.index.shard.IndexingStats;
-import org.opensearch.index.store.remote.filecache.NodeCacheOrchestrator;
+import org.opensearch.index.store.remote.filecache.NodeCacheService;
 import org.opensearch.index.translog.InternalTranslogFactory;
 import org.opensearch.index.translog.RemoteBlobStoreInternalTranslogFactory;
 import org.opensearch.index.translog.TranslogFactory;
@@ -474,7 +474,7 @@ public class IndicesService extends AbstractLifecycleComponent
     private volatile boolean fixedRefreshIntervalSchedulingEnabled;
     private volatile boolean shardLevelRefreshEnabled;
     private final SearchRequestStats searchRequestStats;
-    private final NodeCacheOrchestrator nodeCacheOrchestrator;
+    private final NodeCacheService nodeCacheService;
     private final CompositeIndexSettings compositeIndexSettings;
     private final Consumer<IndexShard> replicator;
     private final Function<ShardId, ReplicationStats> segmentReplicationStatsProvider;
@@ -525,7 +525,7 @@ public class IndicesService extends AbstractLifecycleComponent
         RecoverySettings recoverySettings,
         CacheService cacheService,
         RemoteStoreSettings remoteStoreSettings,
-        NodeCacheOrchestrator nodeCacheOrchestrator,
+        NodeCacheService nodeCacheService,
         CompositeIndexSettings compositeIndexSettings,
         Consumer<IndexShard> replicator,
         Function<ShardId, ReplicationStats> segmentReplicationStatsProvider,
@@ -661,7 +661,7 @@ public class IndicesService extends AbstractLifecycleComponent
         this.recoverySettings = recoverySettings;
         this.remoteStoreSettings = remoteStoreSettings;
         this.compositeIndexSettings = compositeIndexSettings;
-        this.nodeCacheOrchestrator = nodeCacheOrchestrator;
+        this.nodeCacheService = nodeCacheService;
         this.replicator = replicator;
         this.segmentReplicationStatsProvider = segmentReplicationStatsProvider;
         this.maxSizeInRequestCache = INDICES_REQUEST_CACHE_MAX_SIZE_ALLOWED_IN_CACHE_SETTING.get(clusterService.getSettings());
@@ -1175,7 +1175,7 @@ public class IndicesService extends AbstractLifecycleComponent
             indexNameExpressionResolver,
             recoveryStateFactories,
             storeFactories,
-            nodeCacheOrchestrator,
+            nodeCacheService,
             compositeIndexSettings,
             dataFormatAwareStoreDirectoryFactories
         );
@@ -1313,7 +1313,7 @@ public class IndicesService extends AbstractLifecycleComponent
             indexNameExpressionResolver,
             recoveryStateFactories,
             storeFactories,
-            nodeCacheOrchestrator,
+            nodeCacheService,
             compositeIndexSettings,
             dataFormatAwareStoreDirectoryFactories
         );

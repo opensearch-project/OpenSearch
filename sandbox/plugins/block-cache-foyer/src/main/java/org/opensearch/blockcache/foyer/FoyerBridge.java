@@ -47,7 +47,8 @@ public final class FoyerBridge {
         Linker linker = Linker.nativeLinker();
 
         // i64 foyer_create_cache(u64 disk_bytes, *const u8 dir_ptr, u64 dir_len,
-        // u64 block_size_bytes, *const u8 io_engine_ptr, u64 io_engine_len)
+        // u64 block_size_bytes, *const u8 io_engine_ptr, u64 io_engine_len,
+        // u64 sweep_interval_secs)
         // Returns Box<Arc<dyn BlockCache>> fat pointer.
         FOYER_CREATE_CACHE = linker.downcallHandle(
             lib.find("foyer_create_cache").orElseThrow(),
@@ -58,7 +59,8 @@ public final class FoyerBridge {
                 ValueLayout.JAVA_LONG,  // dir_len: u64
                 ValueLayout.JAVA_LONG,  // block_size_bytes: u64
                 ValueLayout.ADDRESS,    // io_engine_ptr: *const u8
-                ValueLayout.JAVA_LONG   // io_engine_len: u64
+                ValueLayout.JAVA_LONG,  // io_engine_len: u64
+                ValueLayout.JAVA_LONG   // sweep_interval_secs: u64 (0 = default 30s)
             )
         );
 
@@ -101,26 +103,39 @@ public final class FoyerBridge {
      * <p>Returns a {@code Box<Arc<dyn BlockCache>>} fat pointer that can be passed
      * directly as {@code cache_box_ptr} to {@code ts_create_tiered_object_store}.
      *
-     * @param diskBytes       maximum disk space the cache may use, in bytes
-     * @param diskDir         path to the directory where Foyer stores cache data
-     * @param blockSizeBytes  Foyer disk block size in bytes
-     * @param ioEngine        I/O engine: {@code "auto"}, {@code "io_uring"}, or {@code "psync"}
+     * @param diskBytes            maximum disk space the cache may use, in bytes
+     * @param diskDir              path to the directory where Foyer stores cache data
+     * @param blockSizeBytes       Foyer disk block size in bytes
+     * @param ioEngine             I/O engine: {@code "auto"}, {@code "io_uring"}, or {@code "psync"}
+     * @param sweepIntervalSecs    background key_index sweep interval in seconds;
+     *                             {@code 0} uses the Rust-side default (30 s).
+     *                             Maps to {@code block_cache.foyer.key_index_sweep_interval_seconds}.
      * @return an opaque fat pointer representing the cache instance; always positive on success
      * @throws RuntimeException if the native call fails or the directory is invalid
      */
-    public static long createCache(long diskBytes, String diskDir, long blockSizeBytes, String ioEngine) {
+    public static long createCache(long diskBytes, String diskDir, long blockSizeBytes, String ioEngine, long sweepIntervalSecs) {
         try (var call = new NativeCall()) {
             var dir = call.str(diskDir);
             var engine = call.str(ioEngine);
-            long ptr = call.invoke(FOYER_CREATE_CACHE, diskBytes, dir.segment(), dir.len(), blockSizeBytes, engine.segment(), engine.len());
+            long ptr = call.invoke(
+                FOYER_CREATE_CACHE,
+                diskBytes,
+                dir.segment(),
+                dir.len(),
+                blockSizeBytes,
+                engine.segment(),
+                engine.len(),
+                sweepIntervalSecs
+            );
             if (ptr <= 0) {
                 throw new IllegalStateException("foyer_create_cache returned an invalid handle");
             }
             logger.info(
-                "Foyer block cache created: diskBytes={}, blockSizeBytes={}, ioEngine={}, dir={}",
+                "Foyer block cache created: diskBytes={}, blockSizeBytes={}, ioEngine={}, sweepIntervalSecs={}, dir={}",
                 diskBytes,
                 blockSizeBytes,
                 ioEngine,
+                sweepIntervalSecs == 0 ? "default(30s)" : sweepIntervalSecs + "s",
                 diskDir
             );
             return ptr;
@@ -145,15 +160,17 @@ public final class FoyerBridge {
     /**
      * Snapshot the cache statistics from the native Foyer runtime.
      *
-     * <p>Returns a {@code long[14]} buffer containing two equal-sized sections:
-     * {@code overall} (cross-tier rollup, indices 0–6) followed by
-     * {@code block_level} (disk tier, indices 7–13).
-     * Each section carries the 7 counters in the order defined by
+     * <p>Returns a {@code long[20]} buffer containing two equal-sized sections:
+     * {@code overall} (cross-tier rollup, indices 0–9) followed by
+     * {@code block_level} (disk tier, indices 10–19).
+     * Each section carries the 10 counters in the order defined by
      * {@code FoyerAggregatedStats.Field}: HIT_COUNT, HIT_BYTES, MISS_COUNT,
-     * MISS_BYTES, EVICTION_COUNT, EVICTION_BYTES, USED_BYTES.
+     * MISS_BYTES, EVICTION_COUNT, EVICTION_BYTES, USED_BYTES, REMOVED_COUNT,
+     * REMOVED_BYTES, ACTIVE_IN_BYTES.
      *
-     * <p>The buffer size (14 = 7 fields × 2 sections) must stay in sync with
-     * the Rust {@code foyer_snapshot_stats} implementation.
+     * <p>The buffer size (20 = 10 fields × 2 sections) is derived from
+     * {@link FoyerAggregatedStats#STATS_BUFFER_SIZE} and must stay in sync
+     * with the Rust {@code foyer_snapshot_stats} implementation.
      */
     public static long[] snapshotStats(long ptr) {
         final int bufferSize = FoyerAggregatedStats.STATS_BUFFER_SIZE;
