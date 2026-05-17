@@ -96,7 +96,7 @@ public class LuceneDeleteExecutionEngineTests extends OpenSearchTestCase {
     private LuceneWriter createLuceneWriter(long generation) throws IOException {
         Path writerDir = baseDir.resolve("writers");
         Files.createDirectories(writerDir);
-        return new LuceneWriter(generation, new LuceneDataFormat(), writerDir, null, Codec.getDefault(), null);
+        return new LuceneWriter(generation, 0L, new LuceneDataFormat(), writerDir, null, Codec.getDefault(), null);
     }
 
     private Writer<?> createMockCompositeWriter(long generation, boolean hasLucene, boolean hasParquet) {
@@ -124,11 +124,11 @@ public class LuceneDeleteExecutionEngineTests extends OpenSearchTestCase {
 
     private void addDoc(LuceneWriter writer, String id, int rowId) throws IOException {
         LuceneDocumentInput input = new LuceneDocumentInput();
-        org.opensearch.index.mapper.MappedFieldType keywordField = mock(org.opensearch.index.mapper.MappedFieldType.class);
-        when(keywordField.typeName()).thenReturn("keyword");
-        when(keywordField.name()).thenReturn("_id");
-        when(keywordField.hasDocValues()).thenReturn(false);
-        input.addField(keywordField, id);
+        org.opensearch.index.mapper.MappedFieldType idField = mock(org.opensearch.index.mapper.MappedFieldType.class);
+        when(idField.typeName()).thenReturn("_id");
+        when(idField.name()).thenReturn("_id");
+        when(idField.hasDocValues()).thenReturn(false);
+        input.addField(idField, id.getBytes(java.nio.charset.StandardCharsets.UTF_8));
         input.setRowId(DocumentInput.ROW_ID_FIELD, rowId);
         writer.addDoc(input);
     }
@@ -183,12 +183,12 @@ public class LuceneDeleteExecutionEngineTests extends OpenSearchTestCase {
         assertEquals(8L, deleter.generation());
     }
 
-    public void testCreateDeleterReturnsNullWhenNoLuceneWriterFound() {
+    public void testCreateDeleterThrowsWhenNoLuceneWriterFound() {
         // Composite writer with only parquet, no lucene
         Writer<?> writerWithoutLucene = createMockCompositeWriter(7L, false, true);
 
-        Deleter deleter = deleteEngine.createDeleter(writerWithoutLucene);
-        assertNull("Expected null deleter when no Lucene writer is present", deleter);
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> deleteEngine.createDeleter(writerWithoutLucene));
+        assertTrue(ex.getMessage().contains("no Lucene writer found"));
     }
 
     public void testDeleteDocumentFallsBackToCommitterWhenNoDeleter() throws IOException {

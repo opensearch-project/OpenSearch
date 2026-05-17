@@ -1,3 +1,11 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ */
+
 package org.opensearch.be.lucene.index;
 
 import org.apache.logging.log4j.LogManager;
@@ -28,7 +36,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 
 import static org.opensearch.be.lucene.index.LuceneWriter.WRITER_GENERATION_ATTRIBUTE;
@@ -56,13 +63,11 @@ public class LuceneDeleteExecutionEngine implements DeleteExecutionEngine<DataFo
 
     @Override
     public Deleter createDeleter(Writer<?> writer) {
-        Optional<? extends Writer<?>> luceneWriterOpt = writer.getWriterForFormat(LuceneDataFormat.LUCENE_FORMAT_NAME);
-        if (luceneWriterOpt.isEmpty()) {
-            // Parquet-only writer (no per-gen Lucene writer to pair with).
-            // deleteDocument falls back to the shared committer's IndexWriter for this generation.
-            return null;
-        }
-        LuceneWriter luceneWriter = (LuceneWriter) luceneWriterOpt.get();
+        LuceneWriter luceneWriter = writer.getWriterForFormat(LuceneDataFormat.LUCENE_FORMAT_NAME)
+            .map(w -> (LuceneWriter) w)
+            .orElseThrow(
+                () -> new IllegalArgumentException("Cannot create deleter: no Lucene writer found for generation=" + writer.generation())
+            );
         Deleter deleter = new DeleterImpl<>(luceneWriter);
         generationToDeleterMap.put(writer.generation(), deleter);
         return deleter;
