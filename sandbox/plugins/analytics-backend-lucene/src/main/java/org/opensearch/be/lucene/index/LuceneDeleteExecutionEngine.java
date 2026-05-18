@@ -12,6 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.Term;
 import org.opensearch.be.lucene.LuceneDataFormat;
+import org.opensearch.be.lucene.stats.LuceneShardStats;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.DeleteExecutionEngine;
 import org.opensearch.index.engine.dataformat.DeleteInput;
@@ -26,6 +27,7 @@ import org.opensearch.index.engine.exec.commit.Committer;
 import java.io.IOException;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Lucene-based implementation of {@link DeleteExecutionEngine} that tracks per-generation
@@ -41,11 +43,13 @@ public class LuceneDeleteExecutionEngine implements DeleteExecutionEngine<DataFo
     private final Map<Long, Deleter> generationToDeleterMap;
     private final DataFormat dataFormat;
     private final LuceneCommitter committer;
+    private final LuceneShardStats stats;
 
-    public LuceneDeleteExecutionEngine(DataFormat dataFormat, Committer committer) {
+    public LuceneDeleteExecutionEngine(DataFormat dataFormat, Committer committer, LuceneShardStats stats) {
         this.generationToDeleterMap = new ConcurrentHashMap<>();
         this.dataFormat = dataFormat;
         this.committer = (LuceneCommitter) committer;
+        this.stats = stats;
     }
 
     @Override
@@ -67,13 +71,21 @@ public class LuceneDeleteExecutionEngine implements DeleteExecutionEngine<DataFo
 
     @Override
     public DeleteResult deleteDocument(DeleteInput deleteInput) throws IOException {
-        Deleter deleter = generationToDeleterMap.get(deleteInput.generation());
-        if (deleter != null) {
-            return deleter.deleteDoc(deleteInput);
-        } else {
-            Term uid = new Term(deleteInput.fieldName(), deleteInput.value());
-            this.committer.getIndexWriter().deleteDocuments(uid);
-            return new DeleteResult.Success(1L, 1L, 1L);
+        long start = System.nanoTime();
+        try {
+            Deleter deleter = generationToDeleterMap.get(deleteInput.generation());
+            if (deleter != null) {
+                stats.incDeleteByGenerationTotal();
+                return deleter.deleteDoc(deleteInput);
+            } else {
+                stats.incDeleteSharedWriterFallbackTotal();
+                Term uid = new Term(deleteInput.fieldName(), deleteInput.value());
+                this.committer.getIndexWriter().deleteDocuments(uid);
+                return new DeleteResult.Success(1L, 1L, 1L);
+            }
+        } finally {
+            stats.incDeleteTotal();
+            stats.addDeleteTimeMillis(TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start));
         }
     }
 

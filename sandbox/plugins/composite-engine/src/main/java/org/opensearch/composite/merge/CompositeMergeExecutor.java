@@ -9,6 +9,7 @@
 package org.opensearch.composite.merge;
 
 import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.composite.stats.CompositeShardStats;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.MergeInput;
 import org.opensearch.index.engine.dataformat.MergeResult;
@@ -23,6 +24,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Executes a composite merge: primary format first, then secondaries using the
@@ -35,9 +37,11 @@ import java.util.Map;
 public class CompositeMergeExecutor {
 
     private final Map<DataFormat, Merger> mergers;
+    private final CompositeShardStats stats;
 
-    public CompositeMergeExecutor(Map<DataFormat, Merger> mergers) {
+    public CompositeMergeExecutor(Map<DataFormat, Merger> mergers, CompositeShardStats stats) {
         this.mergers = Map.copyOf(mergers);
+        this.stats = stats;
     }
 
     /**
@@ -47,9 +51,13 @@ public class CompositeMergeExecutor {
      * @return the combined merge result across all formats
      */
     public MergeResult execute(MergePlan plan) {
+        long startNanos = System.nanoTime();
         List<FormatMergeResult> completed = new ArrayList<>();
         try {
+            long primaryStart = System.nanoTime();
             FormatMergeResult primaryResult = mergeFormat(plan, plan.primaryFormat(), null);
+            stats.getOrCreateFormatStats(plan.primaryFormat().name())
+                .addMergeTimeMillis(TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - primaryStart));
             completed.add(primaryResult);
 
             RowIdMapping mapping = plan.hasSecondaries()
@@ -58,14 +66,33 @@ public class CompositeMergeExecutor {
                 : null;
 
             for (DataFormat secondary : plan.secondaryFormats()) {
-                completed.add(mergeFormat(plan, secondary, mapping));
+                long secStart = System.nanoTime();
+                try {
+                    FormatMergeResult secResult = mergeFormat(plan, secondary, mapping);
+                    stats.getOrCreateFormatStats(secondary.name())
+                        .addMergeTimeMillis(TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - secStart));
+                    completed.add(secResult);
+                } catch (Exception e) {
+                    stats.getOrCreateFormatStats(secondary.name()).incMergeFailures();
+                    throw e;
+                }
             }
+
+            // Count total input segments across all formats
+            long inputCount = 0;
+            for (DataFormat format : plan.filesByFormat().keySet()) {
+                inputCount += plan.filesFor(format).size();
+            }
+            stats.addMergeSegmentsInputTotal(inputCount);
 
             return toMergeResult(completed, mapping);
         } catch (Exception e) {
             completed.forEach(FormatMergeResult::cleanup);
             if (e instanceof RuntimeException re) throw re;
             throw new UncheckedIOException((IOException) e);
+        } finally {
+            stats.incMergeTotal();
+            stats.addMergeTimeMillis(TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNanos));
         }
     }
 

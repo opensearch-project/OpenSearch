@@ -8,6 +8,7 @@
 
 package org.opensearch.be.lucene.index;
 
+import org.opensearch.be.lucene.stats.LuceneShardStats;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.engine.exec.commit.Committer;
 import org.opensearch.index.engine.exec.commit.CommitterConfig;
@@ -28,8 +29,12 @@ import java.io.IOException;
 @ExperimentalApi
 public final class LuceneCommitterFactory implements CommitterFactory {
 
-    /** Creates a new factory instance. */
-    public LuceneCommitterFactory() {}
+    private final LuceneShardStats stats;
+
+    /** Creates a new factory instance with the given stats collector. */
+    public LuceneCommitterFactory(LuceneShardStats stats) {
+        this.stats = stats;
+    }
 
     /**
      * Creates a new {@link LuceneCommitter} for the given settings.
@@ -48,6 +53,6 @@ public final class LuceneCommitterFactory implements CommitterFactory {
             // Warm or NRT replica: receives segments from primary, commits them locally.
             return new LuceneReplicaCommitter(committerConfig);
         }
-        return new LuceneCommitter(committerConfig);
+        return new LuceneCommitter(committerConfig, stats);
     }
 }

@@ -11,6 +11,7 @@ package org.opensearch.composite.merge;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.composite.CompositeDataFormat;
 import org.opensearch.composite.CompositeIndexingExecutionEngine;
+import org.opensearch.composite.stats.CompositeShardStats;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.IndexingExecutionEngine;
 import org.opensearch.index.engine.dataformat.MergeInput;
@@ -41,10 +42,10 @@ public class CompositeMerger implements Merger {
     private final List<DataFormat> secondaryFormats;
     private final CompositeMergeExecutor executor;
 
-    public CompositeMerger(CompositeIndexingExecutionEngine engine, CompositeDataFormat compositeDataFormat) {
+    public CompositeMerger(CompositeIndexingExecutionEngine engine, CompositeDataFormat compositeDataFormat, CompositeShardStats stats) {
         this.primaryFormat = compositeDataFormat.getPrimaryDataFormat();
         this.secondaryFormats = resolveSecondaryFormats(compositeDataFormat, primaryFormat);
-        this.executor = new CompositeMergeExecutor(buildMergerMap(engine));
+        this.executor = new CompositeMergeExecutor(buildMergerMap(engine), stats);
     }
 
     @Override

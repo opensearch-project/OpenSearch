@@ -12,6 +12,7 @@ import org.opensearch.be.lucene.index.LuceneCommitter;
 import org.opensearch.be.lucene.index.LuceneCommitterFactory;
 import org.opensearch.be.lucene.index.LuceneDeleteExecutionEngine;
 import org.opensearch.be.lucene.index.LuceneIndexingExecutionEngine;
+import org.opensearch.be.lucene.stats.LuceneShardStats;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.dataformat.DataFormat;
@@ -54,6 +55,7 @@ import java.util.function.Supplier;
 public class LucenePlugin extends Plugin implements DataFormatPlugin, SearchBackEndPlugin<LuceneReader>, EnginePlugin {
 
     private static final LuceneDataFormat DATA_FORMAT = new LuceneDataFormat();
+    private final LuceneShardStats stats = new LuceneShardStats();
 
     /** Creates a new LucenePlugin. */
     public LucenePlugin() {}
@@ -136,11 +138,11 @@ public class LucenePlugin extends Plugin implements DataFormatPlugin, SearchBack
      */
     @Override
     public Optional<CommitterFactory> getCommitterFactory(IndexSettings indexSettings) {
-        return Optional.of(new LuceneCommitterFactory());
+        return Optional.of(new LuceneCommitterFactory(stats));
     }
 
     @Override
     public DeleteExecutionEngine<?> getDeleteExecutionEngine(Committer committer) {
-        return new LuceneDeleteExecutionEngine(DATA_FORMAT, committer);
+        return new LuceneDeleteExecutionEngine(DATA_FORMAT, committer, stats);
     }
 }

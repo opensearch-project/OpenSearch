@@ -22,11 +22,13 @@ import org.opensearch.parquet.ParquetSettings;
 import org.opensearch.parquet.bridge.ParquetFileMetadata;
 import org.opensearch.parquet.engine.ParquetDataFormat;
 import org.opensearch.parquet.memory.ArrowBufferPool;
+import org.opensearch.parquet.stats.ParquetShardStats;
 import org.opensearch.parquet.vsr.VSRManager;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Parquet file writer integrating OpenSearch's {@link Writer} interface with the VSR batching layer.
@@ -48,6 +50,7 @@ public class ParquetWriter implements Writer<ParquetDocumentInput> {
     private final ParquetDataFormat dataFormat;
     private final VSRManager vsrManager;
     private final FormatChecksumStrategy checksumStrategy;
+    private final ParquetShardStats stats;
     private long mappingVersion;
 
     /**
@@ -62,6 +65,40 @@ public class ParquetWriter implements Writer<ParquetDocumentInput> {
      * @param indexSettings index settings for writer configuration
      * @param threadPool the thread pool for background native writes
      * @param checksumStrategy strategy to register pre-computed checksums on
+     * @param stats shard-level stats collector
+     */
+    public ParquetWriter(
+        String file,
+        long writerGeneration,
+        long mappingVersion,
+        ParquetDataFormat dataFormat,
+        Schema schema,
+        ArrowBufferPool bufferPool,
+        IndexSettings indexSettings,
+        ThreadPool threadPool,
+        FormatChecksumStrategy checksumStrategy,
+        ParquetShardStats stats
+    ) {
+        this.file = file;
+        this.writerGeneration = writerGeneration;
+        this.mappingVersion = mappingVersion;
+        this.dataFormat = dataFormat;
+        this.checksumStrategy = checksumStrategy;
+        this.stats = stats;
+        this.vsrManager = new VSRManager(
+            file,
+            indexSettings,
+            schema,
+            bufferPool,
+            ParquetSettings.MAX_ROWS_PER_VSR.get(indexSettings.getSettings()),
+            threadPool,
+            writerGeneration,
+            stats
+        );
+    }
+
+    /**
+     * Creates a new ParquetWriter without stats collection.
      */
     public ParquetWriter(
         String file,
@@ -74,26 +111,31 @@ public class ParquetWriter implements Writer<ParquetDocumentInput> {
         ThreadPool threadPool,
         FormatChecksumStrategy checksumStrategy
     ) {
-        this.file = file;
-        this.writerGeneration = writerGeneration;
-        this.mappingVersion = mappingVersion;
-        this.dataFormat = dataFormat;
-        this.checksumStrategy = checksumStrategy;
-        this.vsrManager = new VSRManager(
+        this(
             file,
-            indexSettings,
+            writerGeneration,
+            mappingVersion,
+            dataFormat,
             schema,
             bufferPool,
-            ParquetSettings.MAX_ROWS_PER_VSR.get(indexSettings.getSettings()),
+            indexSettings,
             threadPool,
-            writerGeneration
+            checksumStrategy,
+            new ParquetShardStats()
         );
     }
 
     @Override
     public WriteResult addDoc(ParquetDocumentInput d) throws IOException {
-        vsrManager.addDocument(d);
-        return new WriteResult.Success(1L, 1L, 1L);
+        long startNanos = System.nanoTime();
+        try {
+            vsrManager.addDocument(d);
+            return new WriteResult.Success(1L, 1L, 1L);
+        } finally {
+            long elapsed = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNanos);
+            stats.addDocsIndexed(1);
+            stats.addIndexTimeMillis(elapsed);
+        }
     }
 
     @Override
