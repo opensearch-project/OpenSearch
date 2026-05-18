@@ -609,7 +609,7 @@ public class RustBridge {
                 0
             );
 
-            RowIdMapping rowIdMapping = readAndFreeMergeResult(
+            Map<Long, RowIdMapping> rowIdMappings = readAndFreeMergeResult(
                 outMappingPtr,
                 outMappingLen,
                 outGenKeysPtr,
@@ -622,13 +622,13 @@ public class RustBridge {
             long flushChunkTimeMillis = outFlushChunkTimeMillis.get(ValueLayout.JAVA_LONG, 0);
             long rowIdMappingMax = outRowIdMappingMax.get(ValueLayout.JAVA_LONG, 0);
 
-            return new MergeFilesResult(rowIdMapping, metadata, flushChunkCount, flushChunkTimeMillis, rowIdMappingMax);
+            return new MergeFilesResult(rowIdMappings, metadata, flushChunkCount, flushChunkTimeMillis, rowIdMappingMax);
         } catch (IOException e) {
             throw new UncheckedIOException("Native merge failed", e);
         }
     }
 
-    private static RowIdMapping readAndFreeMergeResult(
+    private static Map<Long, RowIdMapping> readAndFreeMergeResult(
         MemorySegment outMappingPtr,
         MemorySegment outMappingLen,
         MemorySegment outGenKeysPtr,
@@ -660,14 +660,17 @@ public class RustBridge {
                 .reinterpret(genCount * ValueLayout.JAVA_INT.byteSize())
                 .toArray(ValueLayout.JAVA_INT);
 
-            Map<Long, Integer> offsetMap = new HashMap<>((int) genCount);
-            Map<Long, Integer> sizeMap = new HashMap<>((int) genCount);
+            // Build one PackedRowIdMapping per generation by slicing the flat array
+            Map<Long, RowIdMapping> result = new HashMap<>((int) genCount);
             for (int i = 0; i < (int) genCount; i++) {
-                offsetMap.put(genKeys[i], genOffsets[i]);
-                sizeMap.put(genKeys[i], genSizes[i]);
+                int offset = genOffsets[i];
+                int size = genSizes[i];
+                long[] genMappingArray = new long[size];
+                System.arraycopy(mappingArray, offset, genMappingArray, 0, size);
+                result.put(genKeys[i], new PackedRowIdMapping(genMappingArray, false));
             }
 
-            return new PackedRowIdMapping(mappingArray, offsetMap, sizeMap);
+            return result;
         } finally {
             NativeCall.invokeVoid(FREE_MERGE_RESULT, mappingAddr, mappingLen, genKeysAddr, genOffsetsAddr, genSizesAddr, genCount);
         }

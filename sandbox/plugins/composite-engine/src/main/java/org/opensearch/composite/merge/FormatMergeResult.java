@@ -16,16 +16,17 @@ import org.opensearch.index.engine.exec.WriterFileSet;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Map;
 import java.util.Optional;
 
 /**
  * Result of merging a single data format's files.
  */
 @ExperimentalApi
-public record FormatMergeResult(DataFormat format, WriterFileSet mergedFiles, RowIdMapping rowIdMapping) {
+public record FormatMergeResult(DataFormat format, WriterFileSet mergedFiles, Map<Long, RowIdMapping> rowIdMappings) {
 
-    public Optional<RowIdMapping> rowIdMappingOpt() {
-        return Optional.ofNullable(rowIdMapping);
+    public Optional<Map<Long, RowIdMapping>> rowIdMappingsOpt() {
+        return Optional.ofNullable(rowIdMappings);
     }
 
     /**
