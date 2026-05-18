@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.analytics.exec.stage;
+package org.opensearch.analytics.exec.stage.shard;
 
 import org.apache.arrow.vector.VectorSchemaRoot;
 import org.opensearch.analytics.backend.ExchangeSource;
@@ -15,6 +15,10 @@ import org.opensearch.analytics.exec.QueryContext;
 import org.opensearch.analytics.exec.StreamingResponseListener;
 import org.opensearch.analytics.exec.action.FragmentExecutionArrowResponse;
 import org.opensearch.analytics.exec.action.FragmentExecutionRequest;
+import org.opensearch.analytics.exec.stage.AbstractStageExecution;
+import org.opensearch.analytics.exec.stage.DataProducer;
+import org.opensearch.analytics.exec.stage.StageTask;
+import org.opensearch.analytics.exec.stage.StageTaskId;
 import org.opensearch.analytics.planner.dag.ExecutionTarget;
 import org.opensearch.analytics.planner.dag.ShardExecutionTarget;
 import org.opensearch.analytics.planner.dag.Stage;
@@ -33,13 +37,13 @@ import java.util.function.Function;
  *
  * @opensearch.internal
  */
-class ShardFragmentStageExecution extends AbstractStageExecution implements DataProducer {
+public class ShardFragmentStageExecution extends AbstractStageExecution implements DataProducer {
 
     private final QueryContext config;
     private final ExchangeSink outputSink;
     private final ClusterService clusterService;
 
-    ShardFragmentStageExecution(
+    public ShardFragmentStageExecution(
         Stage stage,
         QueryContext config,
         ExchangeSink outputSink,

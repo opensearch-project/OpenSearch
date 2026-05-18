@@ -6,8 +6,10 @@
  * compatible open source license.
  */
 
-package org.opensearch.analytics.exec.stage;
+package org.opensearch.analytics.exec.stage.shard;
 
+import org.opensearch.analytics.exec.stage.StageTask;
+import org.opensearch.analytics.exec.stage.StageTaskId;
 import org.opensearch.analytics.planner.dag.ExecutionTarget;
 
 /**

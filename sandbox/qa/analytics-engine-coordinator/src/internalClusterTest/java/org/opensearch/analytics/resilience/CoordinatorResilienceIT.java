@@ -89,7 +89,7 @@ import static org.hamcrest.Matchers.lessThan;
 /**
  * Resilience / fault-injection suite for the analytics-engine coordinator
  * (a.k.a. stage scheduler —
- * {@link org.opensearch.analytics.exec.stage.ShardFragmentStageExecutionFactory}).
+ * {@link org.opensearch.analytics.exec.stage.shard.ShardFragmentStageExecutionFactory}).
  *
  * <p>Covers four failure domains:
  * <ul>

@@ -11,6 +11,8 @@ package org.opensearch.analytics.exec.stage;
 import org.apache.arrow.vector.VectorSchemaRoot;
 import org.opensearch.analytics.exec.QueryContext;
 import org.opensearch.analytics.exec.RowProducingSink;
+import org.opensearch.analytics.exec.stage.coordinator.LocalStageTask;
+import org.opensearch.analytics.exec.stage.coordinator.PassThroughStageExecution;
 import org.opensearch.analytics.planner.dag.Stage;
 import org.opensearch.analytics.spi.ExchangeSink;
 import org.opensearch.test.OpenSearchTestCase;
