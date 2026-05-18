@@ -66,6 +66,7 @@ public class DatafusionMemtableReduceSinkTests extends OpenSearchTestCase {
             ExchangeSinkContext ctx = new ExchangeSinkContext(
                 "q-1",
                 0,
+                0L,
                 substrait,
                 alloc,
                 List.of(new ExchangeSinkContext.ChildInput(0, buildPassthroughSubstraitBytes(DatafusionMemtableReduceSink.INPUT_ID))),

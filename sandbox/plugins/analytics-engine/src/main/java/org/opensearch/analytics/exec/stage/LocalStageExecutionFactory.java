@@ -46,6 +46,7 @@ final class LocalStageExecutionFactory implements StageExecutionFactory {
         ExchangeSinkContext context = new ExchangeSinkContext(
             config.queryId(),
             stage.getStageId(),
+            config.parentTask() != null ? config.parentTask().getId() : 0L,
             chosenBytes(stage),
             config.bufferAllocator(),
             buildChildInputs(stage),

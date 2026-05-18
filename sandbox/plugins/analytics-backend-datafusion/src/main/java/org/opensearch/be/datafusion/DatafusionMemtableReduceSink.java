@@ -130,7 +130,7 @@ public final class DatafusionMemtableReduceSink extends AbstractDatafusionReduce
             );
             childSchemas.put(singleChildStageId, ArrowSchemaIpc.fromBytes(registered.schemaIpc()));
 
-            streamPtr = NativeBridge.executeLocalPlan(session.getPointer(), ctx.fragmentBytes());
+            streamPtr = NativeBridge.executeLocalPlan(session.getPointer(), ctx.fragmentBytes(), ctx.taskId());
             try (StreamHandle outStream = new StreamHandle(streamPtr, runtimeHandle)) {
                 streamPtr = 0;
                 drainOutputIntoDownstream(outStream);
