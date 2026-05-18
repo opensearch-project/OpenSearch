@@ -29,6 +29,7 @@ import org.apache.calcite.rex.RexBuilder;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
 import org.apache.calcite.sql.type.SqlTypeName;
 import org.apache.calcite.util.ImmutableBitSet;
+import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.analytics.spi.ExchangeSink;
 import org.opensearch.analytics.spi.ExchangeSinkContext;
 import org.opensearch.be.datafusion.nativelib.NativeBridge;
@@ -86,10 +87,7 @@ public class DatafusionReduceSinkTests extends OpenSearchTestCase {
         Path spillDir = createTempDir("datafusion-spill");
         long runtimePtr = NativeBridge.createGlobalRuntime(64 * 1024 * 1024, 0L, spillDir.toString(), 32 * 1024 * 1024);
         assertTrue("runtime ptr non-zero", runtimePtr != 0);
-        // Wrap in NativeRuntimeHandle so the pointer is registered in the
-        // NativeHandle live-set that validatePointer consults.
         NativeRuntimeHandle runtimeHandle = new NativeRuntimeHandle(runtimePtr);
-        ExecutorService drainExec = java.util.concurrent.Executors.newThreadPerTaskExecutor(Thread.ofVirtual().factory());
 
         try (RootAllocator alloc = new RootAllocator(Long.MAX_VALUE)) {
             Schema inputSchema = new Schema(List.of(new Field("x", FieldType.nullable(new ArrowType.Int(64, true)), null)));
@@ -99,28 +97,33 @@ public class DatafusionReduceSinkTests extends OpenSearchTestCase {
             ExchangeSinkContext ctx = new ExchangeSinkContext(
                 "q-1",
                 0,
+                0L,
                 substrait,
                 alloc,
                 List.of(new ExchangeSinkContext.ChildInput(0, buildPassthroughSubstraitBytes(DatafusionReduceSink.INPUT_ID))),
                 downstream
             );
 
-            DatafusionReduceSink sink = new DatafusionReduceSink(ctx, runtimeHandle, drainExec);
+            DatafusionReduceSink sink = new DatafusionReduceSink(ctx, runtimeHandle);
+            // Mimic ReduceExecution body: spawn reduce on a VT so drain
+            // runs concurrently with feeds (the drain asserts it's on a virtual thread).
+            PlainActionFuture<Void> drainDone = PlainActionFuture.newFuture();
+            Thread.ofVirtual().start(() -> sink.reduce(drainDone));
             try {
                 sink.feed(makeBatch(alloc, inputSchema, new long[] { 1L, 2L, 3L }));
                 sink.feed(makeBatch(alloc, inputSchema, new long[] { 4L, 5L, 6L }));
                 sink.feed(makeBatch(alloc, inputSchema, new long[] { 7L, 8L, 9L }));
+                // Signal input EOF (single-input → close the only per-child wrapper).
+                sink.sinkForChild(0).close();
+                drainDone.actionGet(10, TimeUnit.SECONDS);
             } finally {
                 sink.close();
             }
 
-            // Downstream is NOT closed by the reduce sink — its lifecycle is owned by
-            // the walker/orchestrator, which reads results after the sink drains.
             assertFalse("downstream must NOT be closed by the reduce sink", downstream.closed);
             assertTrue("downstream should receive at least one row, got " + downstream.totalRows, downstream.totalRows >= 1);
             assertEquals("SUM(1..9) should be 45", 45L, downstream.total);
         } finally {
-            drainExec.shutdownNow();
             runtimeHandle.close();
         }
     }
@@ -135,7 +138,6 @@ public class DatafusionReduceSinkTests extends OpenSearchTestCase {
         Path spillDir = createTempDir("datafusion-spill");
         long runtimePtr = NativeBridge.createGlobalRuntime(64 * 1024 * 1024, 0L, spillDir.toString(), 32 * 1024 * 1024);
         NativeRuntimeHandle runtimeHandle = new NativeRuntimeHandle(runtimePtr);
-        ExecutorService drainExec = java.util.concurrent.Executors.newThreadPerTaskExecutor(Thread.ofVirtual().factory());
 
         try (RootAllocator alloc = new RootAllocator(Long.MAX_VALUE)) {
             Schema inputSchema = new Schema(List.of(new Field("x", FieldType.nullable(new ArrowType.Int(64, true)), null)));
@@ -145,18 +147,23 @@ public class DatafusionReduceSinkTests extends OpenSearchTestCase {
             ExchangeSinkContext ctx = new ExchangeSinkContext(
                 "q-drain",
                 0,
+                0L,
                 substrait,
                 alloc,
                 List.of(new ExchangeSinkContext.ChildInput(0, buildPassthroughSubstraitBytes(DatafusionReduceSink.INPUT_ID))),
                 downstream
             );
 
-            DatafusionReduceSink sink = new DatafusionReduceSink(ctx, runtimeHandle, drainExec);
+            DatafusionReduceSink sink = new DatafusionReduceSink(ctx, runtimeHandle);
+            PlainActionFuture<Void> drainDone = PlainActionFuture.newFuture();
+            Thread.ofVirtual().start(() -> sink.reduce(drainDone));
             final int totalBatches = 12; // intentionally > native input mpsc capacity
             try {
                 for (int i = 0; i < totalBatches; i++) {
                     sink.feed(makeBatch(alloc, inputSchema, new long[] { (long) i }));
                 }
+                sink.sinkForChild(0).close();
+                drainDone.actionGet(10, TimeUnit.SECONDS);
             } finally {
                 sink.close();
             }
@@ -165,7 +172,6 @@ public class DatafusionReduceSinkTests extends OpenSearchTestCase {
             assertTrue("downstream should receive at least one row, got " + downstream.totalRows, downstream.totalRows >= 1);
             assertEquals("SUM(0..11) should be 66", 66L, downstream.total);
         } finally {
-            drainExec.shutdownNow();
             runtimeHandle.close();
         }
     }
@@ -186,11 +192,10 @@ public class DatafusionReduceSinkTests extends OpenSearchTestCase {
         Path spillDir = createTempDir("datafusion-spill");
         long runtimePtr = NativeBridge.createGlobalRuntime(64 * 1024 * 1024, 0L, spillDir.toString(), 32 * 1024 * 1024);
         NativeRuntimeHandle runtimeHandle = new NativeRuntimeHandle(runtimePtr);
-        ExecutorService drainExec = java.util.concurrent.Executors.newThreadPerTaskExecutor(Thread.ofVirtual().factory());
 
         try (RootAllocator alloc = new RootAllocator(Long.MAX_VALUE)) {
             Schema inputSchema = new Schema(List.of(new Field("x", FieldType.nullable(new ArrowType.Int(64, true)), null)));
-            // Reduce-side AND child-side both passthrough — each input batch should pipeline
+            // Reduce-side AND child-side both passthrough — each input batch pipelines
             // straight through to a downstream feed, no aggregation buffering.
             byte[] reduceSubstrait = buildPassthroughSubstraitBytes(DatafusionReduceSink.INPUT_ID);
             byte[] childSubstrait = buildPassthroughSubstraitBytes(DatafusionReduceSink.INPUT_ID);
@@ -199,17 +204,18 @@ public class DatafusionReduceSinkTests extends OpenSearchTestCase {
             ExchangeSinkContext ctx = new ExchangeSinkContext(
                 "q-pipelined",
                 0,
+                0L,
                 reduceSubstrait,
                 alloc,
                 List.of(new ExchangeSinkContext.ChildInput(0, childSubstrait)),
                 downstream
             );
 
-            DatafusionReduceSink sink = new DatafusionReduceSink(ctx, runtimeHandle, drainExec);
+            DatafusionReduceSink sink = new DatafusionReduceSink(ctx, runtimeHandle);
+            PlainActionFuture<Void> drainDone = PlainActionFuture.newFuture();
+            Thread.ofVirtual().start(() -> sink.reduce(drainDone));
             // > native input mpsc channel capacity (4). If drain isn't consuming
             // concurrently the channel saturates and feed #5 deadlocks in send_blocking.
-            // Without overflowing the channel, a broken drain would still pass — the
-            // 4-slot buffer would silently absorb 4 feeds.
             final int totalBatches = 8;
             ExecutorService feedExec = Executors.newSingleThreadExecutor();
             try {
@@ -223,14 +229,13 @@ public class DatafusionReduceSinkTests extends OpenSearchTestCase {
                 } catch (TimeoutException te) {
                     fail("feeds deadlocked — drain is not consuming the input mpsc concurrently");
                 }
-                // Drain must have produced output BEFORE we signal EOF via close().
-                // close() signals input EOF — an output-only-at-EOF impl would still
-                // emit batches eventually, so the pre-close assertion is what proves
-                // pipelining.
+                // Pipelining: first output batch reaches downstream BEFORE we signal EOF.
                 assertTrue(
-                    "first output batch did not reach downstream before close — drain not pipelined",
+                    "first output batch did not reach downstream before EOF signal — drain not pipelined",
                     downstream.firstBatchLatch.await(5, TimeUnit.SECONDS)
                 );
+                sink.sinkForChild(0).close();
+                drainDone.actionGet(10, TimeUnit.SECONDS);
             } finally {
                 sink.close();
                 feedExec.shutdownNow();
@@ -239,7 +244,99 @@ public class DatafusionReduceSinkTests extends OpenSearchTestCase {
             assertEquals("all " + totalBatches + " batches must reach downstream", totalBatches, downstream.batchCount);
             assertEquals("each input batch had one row", totalBatches, downstream.totalRows);
         } finally {
-            drainExec.shutdownNow();
+            runtimeHandle.close();
+        }
+    }
+
+    /**
+     * Cancel-before-first-batch: drain is parked in stream_next waiting for input.
+     * {@code close()} fires {@code cancel_query} on the registered taskId — the cancellation
+     * token wakes the {@code cancellable_or}'s select, drain returns sentinel, reduce()
+     * unwinds cleanly. No leak.
+     */
+    public void testCancelBeforeFirstBatchUnwindsDrain() throws Exception {
+        NativeBridge.initTokioRuntimeManager(2);
+        Path spillDir = createTempDir("datafusion-spill");
+        long runtimePtr = NativeBridge.createGlobalRuntime(64 * 1024 * 1024, 0L, spillDir.toString(), 32 * 1024 * 1024);
+        NativeRuntimeHandle runtimeHandle = new NativeRuntimeHandle(runtimePtr);
+
+        try (RootAllocator alloc = new RootAllocator(Long.MAX_VALUE)) {
+            byte[] substrait = buildPassthroughSubstraitBytes(DatafusionReduceSink.INPUT_ID);
+            CapturingSink downstream = new CapturingSink();
+            // Non-zero taskId so the Rust QUERY_REGISTRY actually wires cancellation.
+            ExchangeSinkContext ctx = new ExchangeSinkContext(
+                "q-cancel-pre",
+                0,
+                4242L,
+                substrait,
+                alloc,
+                List.of(new ExchangeSinkContext.ChildInput(0, buildPassthroughSubstraitBytes(DatafusionReduceSink.INPUT_ID))),
+                downstream
+            );
+
+            DatafusionReduceSink sink = new DatafusionReduceSink(ctx, runtimeHandle);
+            PlainActionFuture<Void> reduceDone = PlainActionFuture.newFuture();
+            CountDownLatch reduceEntered = new CountDownLatch(1);
+            Thread.ofVirtual().start(() -> {
+                reduceEntered.countDown();
+                sink.reduce(reduceDone);
+            });
+            // Ensure reduce() has progressed past its READY→REDUCING CAS before we close —
+            // otherwise close runs inline (READY→DONE) and reduce later fails with
+            // "sink closed before reduce" instead of the cancel-during-drain path we want.
+            assertTrue(reduceEntered.await(5, TimeUnit.SECONDS));
+            Thread.sleep(50);
+            // Drain is parked waiting for first batch. Fire cancel via close().
+            // close() sees state=REDUCING, calls cancelQuery(4242L), returns immediately.
+            sink.close();
+            reduceDone.actionGet(5, TimeUnit.SECONDS);
+
+            assertEquals("no rows should be delivered (cancel before any feed)", 0, downstream.totalRows);
+        } finally {
+            runtimeHandle.close();
+        }
+    }
+
+    /**
+     * Cancel-after-first-batch: drain has consumed at least one row, then {@code close()}
+     * fires {@code cancel_query}. The drain returns partial output and unwinds cleanly.
+     */
+    public void testCancelAfterFirstBatchUnwindsDrain() throws Exception {
+        NativeBridge.initTokioRuntimeManager(2);
+        Path spillDir = createTempDir("datafusion-spill");
+        long runtimePtr = NativeBridge.createGlobalRuntime(64 * 1024 * 1024, 0L, spillDir.toString(), 32 * 1024 * 1024);
+        NativeRuntimeHandle runtimeHandle = new NativeRuntimeHandle(runtimePtr);
+
+        try (RootAllocator alloc = new RootAllocator(Long.MAX_VALUE)) {
+            Schema inputSchema = new Schema(List.of(new Field("x", FieldType.nullable(new ArrowType.Int(64, true)), null)));
+            byte[] substrait = buildPassthroughSubstraitBytes(DatafusionReduceSink.INPUT_ID);
+            LatchingCapturingSink downstream = new LatchingCapturingSink();
+            ExchangeSinkContext ctx = new ExchangeSinkContext(
+                "q-cancel-post",
+                0,
+                4243L,
+                substrait,
+                alloc,
+                List.of(new ExchangeSinkContext.ChildInput(0, buildPassthroughSubstraitBytes(DatafusionReduceSink.INPUT_ID))),
+                downstream
+            );
+
+            DatafusionReduceSink sink = new DatafusionReduceSink(ctx, runtimeHandle);
+            PlainActionFuture<Void> reduceDone = PlainActionFuture.newFuture();
+            Thread.ofVirtual().start(() -> sink.reduce(reduceDone));
+            try {
+                sink.feed(makeBatch(alloc, inputSchema, new long[] { 99L }));
+                // Wait until the drain produced the first batch to downstream — proves
+                // we're past the empty-stream-park state and in the steady-pull state.
+                assertTrue("first batch did not reach downstream within 5s", downstream.firstBatchLatch.await(5, TimeUnit.SECONDS));
+                sink.close();  // cancel mid-stream
+                reduceDone.actionGet(5, TimeUnit.SECONDS);
+            } finally {
+                sink.close();  // idempotent
+            }
+
+            assertTrue("downstream should have at least 1 row from before cancel", downstream.totalRows >= 1);
+        } finally {
             runtimeHandle.close();
         }
     }

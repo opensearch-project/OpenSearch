@@ -23,37 +23,26 @@ import org.opensearch.analytics.spi.ExchangeSinkContext;
 import org.opensearch.analytics.spi.MultiInputExchangeSink;
 import org.opensearch.be.datafusion.nativelib.NativeBridge;
 import org.opensearch.be.datafusion.nativelib.StreamHandle;
+import org.opensearch.core.action.ActionListener;
 
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Executor;
-import java.util.concurrent.FutureTask;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
- * Streaming coordinator-side reduce sink: opens one native partition stream per child
- * input, pushes each fed batch through a tokio mpsc-backed sender, and drains the
- * native output stream into {@link ExchangeSinkContext#downstream()} via a task
- * submitted to the supplied {@link Executor} at construction.
+ * Streaming coordinator-side reduce sink: opens one native partition stream per child input,
+ * pushes each fed batch through a tokio mpsc-backed sender, and drains the native output
+ * stream into {@link ExchangeSinkContext#downstream()} inline on the {@link #reduce} caller
+ * (the reduce stage's task, on a virtual thread).
  *
- * <p>Single-input shapes register one partition under {@link AbstractDatafusionReduceSink#INPUT_ID} and accept
- * batches via the inherited {@link #feed(VectorSchemaRoot)} method. Multi-input shapes
- * (Union, Join) register one partition per child stage and require callers to obtain
- * a per-child wrapper via {@link #sinkForChild(int)} — feeds via the bare
- * {@link #feed(VectorSchemaRoot)} method are rejected since the routing target is
- * ambiguous.
+ * <p>Multi-input shapes route via per-child wrappers from {@link #sinkForChild(int)}; the
+ * bare {@link #feed(VectorSchemaRoot)} is reserved for single-input. Feeds are concurrent
+ * with the drain — backpressure is the bounded native input mpsc.
  *
- * <p>Multiple shard response handlers call {@link #feed} concurrently; backpressure
- * comes from the bounded native input mpsc. The drain task runs concurrently with
- * feeds: DataFusion's plan only makes progress when its output is being polled, so
- * without a concurrent consumer feeds wedge once the input mpsc fills.
- *
- * <p><b>Lifecycle.</b> {@link #closeUnderLock} closes senders (signal input EOF),
- * joins the drain task (waits for the streamNext loop to drain remaining output and
- * exit cleanly), then closes {@link #outStream} and {@link #session}.
+ * <p>Cleanup ownership lives in {@link #reduce}'s {@code finally} (via {@link SinkState}),
+ * not {@link #close}, so a close call from another thread never races a parked drain.
  */
 public final class DatafusionReduceSink extends AbstractDatafusionReduceSink implements MultiInputExchangeSink {
 
@@ -69,24 +58,24 @@ public final class DatafusionReduceSink extends AbstractDatafusionReduceSink imp
     private final AtomicLong feedCount = new AtomicLong();
 
     /**
-     * Future for the drain task, submitted at construction. Joined in
-     * {@link #closeUnderLock} so the streamNext loop has finished and all output
-     * batches have been fed downstream before native handles are torn down.
+     * Routes cleanup to the {@link #reduce} caller when a drain is in flight — never to a
+     * concurrent {@link #close()}, which would race {@code drop_in_place} on the senders
+     * and abort the JVM. Transitions: READY → REDUCING (reduce entered) → DONE (drain
+     * returned, cleanup ran). Close-before-reduce: READY → DONE inline.
      */
-    private final FutureTask<Void> drainTask;
-    /** Captures any throwable from the drain task for surfacing during close(). */
-    private final AtomicReference<Throwable> drainFailure = new AtomicReference<>();
-
-    public DatafusionReduceSink(ExchangeSinkContext ctx, NativeRuntimeHandle runtimeHandle, Executor drainExecutor) {
-        this(ctx, runtimeHandle, drainExecutor, null);
+    private enum SinkState {
+        READY,
+        REDUCING,
+        DONE
     }
 
-    public DatafusionReduceSink(
-        ExchangeSinkContext ctx,
-        NativeRuntimeHandle runtimeHandle,
-        Executor drainExecutor,
-        DataFusionReduceState preparedState
-    ) {
+    private final AtomicReference<SinkState> state = new AtomicReference<>(SinkState.READY);
+
+    public DatafusionReduceSink(ExchangeSinkContext ctx, NativeRuntimeHandle runtimeHandle) {
+        this(ctx, runtimeHandle, null);
+    }
+
+    public DatafusionReduceSink(ExchangeSinkContext ctx, NativeRuntimeHandle runtimeHandle, DataFusionReduceState preparedState) {
         super(ctx, runtimeHandle, preparedState);
         Map<Integer, DatafusionPartitionSender> senders = new LinkedHashMap<>(childInputs.size());
         long streamPtr = 0;
@@ -103,7 +92,7 @@ public final class DatafusionReduceSink extends AbstractDatafusionReduceSink imp
                     childSchemas.put(child.getKey(), preparedState.inputSchemas().get(i));
                     i++;
                 }
-                streamPtr = NativeBridge.executeLocalPreparedPlan(session.getPointer());
+                streamPtr = NativeBridge.executeLocalPreparedPlan(session.getPointer(), ctx.taskId());
             } else {
                 // Legacy path (non-aggregate reduce): register partitions and execute the
                 // fragment bytes directly. Used when no prior instruction prepared a plan.
@@ -121,7 +110,7 @@ public final class DatafusionReduceSink extends AbstractDatafusionReduceSink imp
                     senders.put(childStageId, new DatafusionPartitionSender(registered.pointer()));
                     childSchemas.put(childStageId, ArrowSchemaIpc.fromBytes(registered.schemaIpc()));
                 }
-                streamPtr = NativeBridge.executeLocalPlan(session.getPointer(), ctx.fragmentBytes());
+                streamPtr = NativeBridge.executeLocalPlan(session.getPointer(), ctx.fragmentBytes(), ctx.taskId());
             }
             outStreamLocal = new StreamHandle(streamPtr, runtimeHandle);
             success = true;
@@ -142,25 +131,8 @@ public final class DatafusionReduceSink extends AbstractDatafusionReduceSink imp
         }
         this.outStream = outStreamLocal;
         this.sendersByChildStageId = senders;
-
-        // Submit drain AFTER native handles are constructed so the catch-block above
-        // doesn't have to handle task teardown on construction failure.
-        this.drainTask = new FutureTask<>(this::drainLoop, null);
-        drainExecutor.execute(drainTask);
-    }
-
-    private void drainLoop() {
-        // The drain parks on streamNext().join() — must run on a virtual thread so
-        // the park unmounts from its carrier. On a platform thread this would hold
-        // a platform-pool slot for the whole query's lifetime, capping concurrent
-        // analytics queries at pool size.
-        assert Thread.currentThread().isVirtual() : "drain must run on a virtual thread, got " + Thread.currentThread();
-        try {
-            drainOutputIntoDownstream(outStream);
-        } catch (Throwable t) {
-            drainFailure.set(t);
-            logger.warn("[ReduceSink] drain task terminated with error", t);
-        }
+        // Drain is not started here — it runs inline on the owning reduce stage's
+        // reduce() caller thread. No separate drain executor.
     }
 
     /**
@@ -334,33 +306,73 @@ public final class DatafusionReduceSink extends AbstractDatafusionReduceSink imp
                 failure = accumulate(failure, t);
             }
         }
-        // 2. Wait for drain to drain remaining output and exit on EOF. drainLoop catches
-        // every Throwable internally, so get() never surfaces an ExecutionException.
-        try {
-            drainTask.get();
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            failure = accumulate(failure, e);
-        } catch (ExecutionException e) {
-            failure = accumulate(failure, e.getCause());
-        }
-        Throwable drainErr = drainFailure.get();
-        if (drainErr != null) {
-            failure = accumulate(failure, drainErr);
-        }
-        // 3. Close native resources (outStream first, then session, per drop ordering).
         try {
             outStream.close();
         } catch (Throwable t) {
             failure = accumulate(failure, t);
         }
         session.close();
-        assert drainTask.isDone() : "drainTask must be DONE on closeUnderLock exit (closeUnderLock must await it)";
         return failure;
     }
 
-    /** Returns the cumulative number of batches fed into any native sender. */
-    public long feedCount() {
+    /**
+     * Drains inline on the caller (the reduce stage's task, on a virtual thread).
+     * Drain terminates on input EOF (all per-child wrappers closed via
+     * {@link #sinkForChild}) or on cancel-Err (an external {@link #close()} fired
+     * {@code cancel_query}). The {@code finally} runs {@code super.close()} so cleanup
+     * happens on the same thread as the drain — no race with concurrent close.
+     */
+    @Override
+    public void reduce(ActionListener<Void> listener) {
+        SinkState before = state.compareAndExchange(SinkState.READY, SinkState.REDUCING);
+        if (before == SinkState.DONE) {
+            listener.onFailure(new IllegalStateException("sink closed before reduce"));
+            return;
+        }
+        assert before == SinkState.READY : "reduce called more than once (state=" + before + ")";
+        Throwable failure = null;
+        try {
+            drainOutputIntoDownstream(outStream);
+        } catch (Throwable t) {
+            failure = t;
+        } finally {
+            state.set(SinkState.DONE);
+            try {
+                super.close();
+            } catch (Throwable t) {
+                failure = accumulate(failure, t);
+            }
+        }
+        if (failure == null) {
+            listener.onResponse(null);
+        } else {
+            listener.onFailure(failure instanceof Exception e ? e : new RuntimeException("drain failed", failure));
+        }
+    }
+
+    /**
+     * Idempotent. READY → close inline (no drain to race). REDUCING → fire
+     * {@code cancel_query} so the drain unwinds; the in-flight {@link #reduce} finally
+     * does the actual cleanup. DONE → no-op.
+     */
+    @Override
+    public void close() {
+        SinkState current = state.get();
+        if (current == SinkState.DONE) {
+            return;
+        }
+        if (current == SinkState.REDUCING) {
+            // Drain parked — dropping senders/outStream now would panic in drop_in_place.
+            NativeBridge.cancelQuery(ctx.taskId());
+            return;
+        }
+        if (state.compareAndSet(SinkState.READY, SinkState.DONE)) {
+            super.close();
+        }
+    }
+
+    /** Returns the cumulative number of batches fed into any native sender. For Tests */
+    long feedCount() {
         return feedCount.get();
     }
 }

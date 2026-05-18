@@ -6,9 +6,11 @@
  * compatible open source license.
  */
 
-package org.opensearch.analytics.exec.stage;
+package org.opensearch.analytics.exec.stage.coordinator;
 
 import org.opensearch.analytics.exec.QueryContext;
+import org.opensearch.analytics.exec.stage.StageExecution;
+import org.opensearch.analytics.exec.stage.StageExecutionFactory;
 import org.opensearch.analytics.planner.dag.Stage;
 import org.opensearch.analytics.planner.dag.StageExecutionType;
 import org.opensearch.analytics.spi.BackendExecutionContext;
@@ -18,27 +20,25 @@ import org.opensearch.analytics.spi.ExchangeSinkProvider;
 import org.opensearch.analytics.spi.FragmentInstructionHandler;
 import org.opensearch.analytics.spi.FragmentInstructionHandlerFactory;
 import org.opensearch.analytics.spi.InstructionNode;
+import org.opensearch.analytics.spi.ReducingExchangeSink;
 
 import java.util.ArrayList;
 import java.util.List;
 
 /**
  * Builds executions for {@link StageExecutionType#COORDINATOR_REDUCE} stages —
- * those that run at the coordinator with a backend-provided {@link ExchangeSink}.
+ * those that run at the coordinator with a backend-provided {@link ReducingExchangeSink}.
  * Creates the sink via {@link Stage#getExchangeSinkProvider()} using an
  * {@link ExchangeSinkContext} carrying the plan bytes, allocator, per-child
  * input descriptors (one per child stage, each with its stage id + the
  * producer-side plan bytes the backend lowers to derive the input schema),
- * and the downstream sink. Hands the resulting sink to {@link LocalStageExecution}.
- *
- * <p>Multi-child stages (Union, future Join) are routed via
- * {@link LocalStageExecution#inputSink(int)}, which returns a per-child
- * wrapper that the backend sink uses to register a distinct input partition
- * per child stage id.
+ * and the downstream sink. Wraps the resulting sink in a {@link ReduceStageExecution};
+ * the sink's {@link ReducingExchangeSink#supportsEagerScheduling()} drives the
+ * scheduling mode (streaming vs buffered) without needing distinct execution subclasses.
  *
  * @opensearch.internal
  */
-final class LocalStageExecutionFactory implements StageExecutionFactory {
+public final class ReduceStageExecutionFactory implements StageExecutionFactory {
 
     @Override
     public StageExecution createExecution(Stage stage, ExchangeSink sink, QueryContext config) {
@@ -46,6 +46,7 @@ final class LocalStageExecutionFactory implements StageExecutionFactory {
         ExchangeSinkContext context = new ExchangeSinkContext(
             config.queryId(),
             stage.getStageId(),
+            config.parentTask() != null ? config.parentTask().getId() : 0L,
             chosenBytes(stage),
             config.bufferAllocator(),
             buildChildInputs(stage),
@@ -105,7 +106,15 @@ final class LocalStageExecutionFactory implements StageExecutionFactory {
             }
             throw new RuntimeException("Failed to create exchange sink for stageId=" + stage.getStageId(), e);
         }
-        return new LocalStageExecution(stage, config, backendSink, sink);
+        if (backendSink instanceof ReducingExchangeSink reducing) {
+            return new ReduceStageExecution(stage, config, reducing, sink);
+        }
+        throw new IllegalStateException(
+            "Backend exchange sink for COORDINATOR_REDUCE stage "
+                + stage.getStageId()
+                + " must implement ReducingExchangeSink, got "
+                + backendSink.getClass().getName()
+        );
     }
 
     /** Picks the plan-alternative bytes bound to the stage's exchange sink provider. */

@@ -8,7 +8,6 @@
 
 package org.opensearch.analytics.exec;
 
-import org.opensearch.analytics.exec.stage.ShardStageTask;
 import org.opensearch.analytics.exec.stage.StageExecution;
 import org.opensearch.analytics.exec.stage.StageExecutionBuilder;
 import org.opensearch.analytics.exec.stage.StageMetrics;
@@ -16,6 +15,7 @@ import org.opensearch.analytics.exec.stage.StageStateListener;
 import org.opensearch.analytics.exec.stage.StageTask;
 import org.opensearch.analytics.exec.stage.StageTaskId;
 import org.opensearch.analytics.exec.stage.StageTaskState;
+import org.opensearch.analytics.exec.stage.shard.ShardStageTask;
 import org.opensearch.analytics.exec.task.TaskRunner;
 import org.opensearch.analytics.planner.dag.ExecutionTarget;
 import org.opensearch.core.action.ActionListener;

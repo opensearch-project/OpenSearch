@@ -8,6 +8,8 @@
 
 package org.opensearch.analytics.exec.stage;
 
+import org.opensearch.analytics.exec.stage.coordinator.LocalStageTask;
+import org.opensearch.analytics.exec.stage.coordinator.LocalTaskRunner;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -26,7 +28,10 @@ public class LocalTaskRunnerTests extends OpenSearchTestCase {
         AtomicReference<Exception> failure = new AtomicReference<>();
 
         LocalTaskRunner dispatcher = new LocalTaskRunner(Runnable::run);
-        LocalStageTask task = new LocalStageTask(new StageTaskId(0, 0), () -> ran.set(true));
+        LocalStageTask task = new LocalStageTask(new StageTaskId(0, 0), listener -> {
+            ran.set(true);
+            listener.onResponse(null);
+        });
 
         dispatcher.run(task, handle(completed, failure));
 
@@ -41,7 +46,7 @@ public class LocalTaskRunnerTests extends OpenSearchTestCase {
         AtomicReference<Exception> failure = new AtomicReference<>();
 
         LocalTaskRunner dispatcher = new LocalTaskRunner(Runnable::run);
-        LocalStageTask task = new LocalStageTask(new StageTaskId(0, 0), () -> { throw boom; });
+        LocalStageTask task = new LocalStageTask(new StageTaskId(0, 0), listener -> { throw boom; });
 
         dispatcher.run(task, handle(completed, failure));
 
@@ -58,7 +63,7 @@ public class LocalTaskRunnerTests extends OpenSearchTestCase {
         AtomicReference<Exception> failure = new AtomicReference<>();
 
         LocalTaskRunner dispatcher = new LocalTaskRunner(submitted::set);
-        LocalStageTask task = new LocalStageTask(new StageTaskId(0, 0), () -> {});
+        LocalStageTask task = new LocalStageTask(new StageTaskId(0, 0), l -> l.onResponse(null));
 
         dispatcher.run(task, handle(completed, failure));
 

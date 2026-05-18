@@ -821,14 +821,65 @@ pub async unsafe fn execute_local_plan(
     let session = &*(session_ptr as *const LocalSession);
 
     // Per-query memory tracking — wraps the session's global pool. A
-    // `context_id` of 0 disables tracking (pool is not consulted).
+    // `context_id` of 0 disables tracking (pool is not consulted) and no
+    // cancellation token is registered in the global QUERY_REGISTRY.
     let query_context = QueryTrackingContext::new(context_id, session.memory_pool());
+    let token = query_tracker::get_cancellation_token(context_id);
 
-    let df_stream = session.execute_substrait(substrait_bytes).await?;
+    // Race substrait planning + execution against the cancellation token so
+    // a `cancel_query(context_id)` call from Java interrupts even before the
+    // first batch is produced (planning, from_substrait_plan, repartition
+    // setup, etc. can all take non-trivial time on a wide reduce).
+    let df_stream = cancellation::cancellable(
+        token.as_ref(),
+        context_id,
+        session.execute_substrait(substrait_bytes),
+    )
+    .await
+    .map_err(DataFusionError::Execution)?;
 
     // Wrap the output in the same CrossRtStream + RecordBatchStreamAdapter
     // shape as `execute_query`, so existing `stream_next` / `stream_close`
     // drain this handle unchanged.
+    let cross_rt_stream =
+        CrossRtStream::new_with_df_error_stream(df_stream, manager.cpu_executor());
+    let wrapped = RecordBatchStreamAdapter::new(cross_rt_stream.schema(), cross_rt_stream);
+
+    let handle = QueryStreamHandle::new(wrapped, query_context);
+    Ok(Box::into_raw(Box::new(handle)) as i64)
+}
+
+/// Executes the previously prepared final-aggregate plan on a local session.
+/// Mirrors [`execute_local_plan`] for the prepared-plan path: registers a
+/// query-tracking context + cancellation token under `context_id` so the
+/// parent `AnalyticsQueryTask` cancel propagates here, and wraps the native
+/// output in the same `CrossRtStream` + `RecordBatchStreamAdapter` + handle
+/// shape as the streaming path.
+///
+/// # Safety
+/// `session_ptr` must be a valid, non-zero pointer returned by
+/// `create_local_session` with a plan already prepared via
+/// [`LocalSession::prepare_final_plan`].
+pub unsafe fn execute_local_prepared_plan(
+    session_ptr: i64,
+    manager: &RuntimeManager,
+    context_id: i64,
+) -> Result<i64, DataFusionError> {
+    let session = &*(session_ptr as *const LocalSession);
+
+    // Registers the tracker + cancellation token under context_id in the
+    // shared QUERY_REGISTRY — parity with execute_query + execute_local_plan,
+    // so a `cancel_query(context_id)` call fires the token here too.
+    // The token is held via the QueryStreamHandle's context and consulted by
+    // stream_next on each batch pull.
+    let query_context = QueryTrackingContext::new(context_id, session.memory_pool());
+
+    // DataFusion's execute_stream is sync, but kicks off RepartitionExec /
+    // stream channels that require a Tokio reactor. Enter the IO runtime's
+    // context so those operators can register with the reactor.
+    let _guard = manager.io_runtime.enter();
+    let df_stream = session.execute_prepared()?;
+
     let cross_rt_stream =
         CrossRtStream::new_with_df_error_stream(df_stream, manager.cpu_executor());
     let wrapped = RecordBatchStreamAdapter::new(cross_rt_stream.schema(), cross_rt_stream);
