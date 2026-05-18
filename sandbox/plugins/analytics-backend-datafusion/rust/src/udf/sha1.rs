@@ -17,7 +17,7 @@ use std::any::Any;
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 
-use datafusion::arrow::array::{Array, ArrayRef, AsArray, StringArray};
+use datafusion::arrow::array::{Array, ArrayRef, StringArray};
 use datafusion::arrow::datatypes::DataType;
 use datafusion::common::{exec_err, Result, ScalarValue};
 use datafusion::execution::context::SessionContext;
@@ -43,6 +43,7 @@ impl Sha1Udf {
                 vec![
                     TypeSignature::Exact(vec![DataType::Utf8]),
                     TypeSignature::Exact(vec![DataType::LargeUtf8]),
+                    TypeSignature::Exact(vec![DataType::Utf8View]),
                 ],
                 Volatility::Immutable,
             ),
@@ -92,27 +93,17 @@ impl ScalarUDFImpl for Sha1Udf {
             return exec_err!("sha1 expects exactly 1 argument, got {}", args.args.len());
         }
         match &args.args[0] {
-            ColumnarValue::Scalar(ScalarValue::Utf8(opt))
-            | ColumnarValue::Scalar(ScalarValue::LargeUtf8(opt)) => Ok(ColumnarValue::Scalar(
-                ScalarValue::Utf8(opt.as_ref().map(|s| hash_hex(s.as_bytes()))),
-            )),
+            ColumnarValue::Scalar(
+                ScalarValue::Utf8(opt) | ScalarValue::LargeUtf8(opt) | ScalarValue::Utf8View(opt),
+            ) => Ok(ColumnarValue::Scalar(ScalarValue::Utf8(
+                opt.as_ref().map(|s| hash_hex(s.as_bytes())),
+            ))),
             ColumnarValue::Scalar(other) => exec_err!("sha1: expected Utf8 input, got {other:?}"),
             ColumnarValue::Array(arr) => {
-                let out: StringArray = match arr.data_type() {
-                    DataType::Utf8 => arr
-                        .as_string::<i32>()
-                        .iter()
-                        .map(|opt| opt.map(|s| hash_hex(s.as_bytes())))
-                        .collect(),
-                    DataType::LargeUtf8 => arr
-                        .as_string::<i64>()
-                        .iter()
-                        .map(|opt| opt.map(|s| hash_hex(s.as_bytes())))
-                        .collect(),
-                    other => {
-                        return exec_err!("sha1: expected Utf8 array, got {other:?}");
-                    }
-                };
+                let view = super::json_common::StringArrayView::from_array(arr)?;
+                let out: StringArray = (0..arr.len())
+                    .map(|i| view.cell(i).map(|s| hash_hex(s.as_bytes())))
+                    .collect();
                 Ok(ColumnarValue::Array(Arc::new(out) as ArrayRef))
             }
         }
@@ -135,7 +126,7 @@ fn hash_hex(value: &[u8]) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use datafusion::arrow::array::{Array, StringArray};
+    use datafusion::arrow::array::{Array, AsArray, StringArray};
     use datafusion::arrow::datatypes::Field;
 
     fn udf() -> Sha1Udf {

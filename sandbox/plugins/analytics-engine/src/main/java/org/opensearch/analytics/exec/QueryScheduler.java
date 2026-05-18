@@ -69,6 +69,12 @@ public class QueryScheduler implements Scheduler {
         );
 
         PlanWalker walker = createWalker(config, listener, queryId, queryStartNanos, opListener);
+
+        // Wire the completion listener BEFORE registering the cancel callback so a
+        // post-build / pre-start cancellation reaches the listener via the cascade.
+        // Without this the user-facing listener is never registered and queries hang
+        // until the test or REST socket times out.
+        walker.wireCompletion();
         walkerPool.put(queryId, walker);
 
         final AnalyticsQueryTask queryTask = config.parentTask();
@@ -85,7 +91,9 @@ public class QueryScheduler implements Scheduler {
         // The subsequent walker.start(graph) calls leaf.start() on each leaf; those that
         // already saw cancelAll transition into CANCELLED and ShardFragmentStageExecution.start
         // / LocalStageExecution.start treat transitionTo(RUNNING) failure as a no-op, so no
-        // dispatch happens for cancelled queries.
+        // dispatch happens for cancelled queries. On failure the partial graph cleans itself
+        // up via walker.build()'s try-finally; the RuntimeException bubbles to
+        // DefaultPlanExecutor's outer catch which fires listener.onFailure with the cause.
         ExecutionGraph graph = walker.build();
 
         queryTask.setOnCancelCallback(() -> {
@@ -95,7 +103,6 @@ public class QueryScheduler implements Scheduler {
         });
 
         opListener.onQueryStart(queryId, graph.stageCount());
-
         logger.info("[QueryScheduler] ExecutionGraph built:\n{}", graph.explain());
         walker.start(graph);
     }
@@ -120,11 +127,23 @@ public class QueryScheduler implements Scheduler {
     }
 
     /**
-     * Package-accessor for the underlying {@link StageExecutionBuilder}. Used by join-strategy
-     * dispatchers (e.g. M1 broadcast) that need to run a single stage in isolation with a
-     * caller-supplied output sink, bypassing the walker's parent-sink resolution chain.
+     * Returns the underlying {@link StageExecutionBuilder}.
+     *
+     * <p>Used by:
+     * <ul>
+     *   <li>join-strategy dispatchers (e.g. M1 broadcast) that need to run a single stage in
+     *       isolation with a caller-supplied output sink, bypassing the walker's parent-sink
+     *       resolution chain;</li>
+     *   <li>resilience integration tests that register a custom
+     *       {@link org.opensearch.analytics.exec.stage.StageScheduler} for a stage type
+     *       (e.g. fault-injecting scheduler).</li>
+     * </ul>
+     *
+     * <p>Resolving via the singleton scheduler avoids a Guice JIT lookup that would
+     * re-instantiate {@link AnalyticsSearchTransportService} (whose ctor registers transport
+     * handlers, only legal once per node).
      */
-    public StageExecutionBuilder stageExecutionBuilder() {
+    public StageExecutionBuilder getStageExecutionBuilder() {
         return stageExecutionBuilder;
     }
 

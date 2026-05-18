@@ -11,15 +11,13 @@
 //! delegates to `JsonFunctions.jsonInsert` + `.meaningless_key` trick so Jayway
 //! routes to `Collection.add`). Non-array / missing targets are silent no-ops;
 //! any-NULL-arg / odd trailing arg / malformed-doc / malformed-path → NULL.
-//!
-//! Values always push as `Value::String` — every UDF arg is coerced to Utf8
-//! upstream, so nested `json_object` / `json_array` results arrive already
-//! stringified and append as strings, matching legacy.
+//! Values always push as `Value::String` — nested `json_object` / `json_array`
+//! results arrive already stringified and append as strings, matching legacy.
 
 use std::any::Any;
 use std::sync::Arc;
 
-use datafusion::arrow::array::{Array, ArrayRef, StringBuilder};
+use datafusion::arrow::array::{ArrayRef, StringBuilder};
 use datafusion::arrow::datatypes::DataType;
 use datafusion::common::ScalarValue;
 use datafusion::error::Result;
@@ -29,7 +27,7 @@ use datafusion::logical_expr::{
 };
 use serde_json::Value;
 
-use super::json_common::{as_utf8_array, parse, parse_ppl_segments, walk_mut, Segment};
+use super::json_common::{parse, parse_ppl_segments, scalar_utf8, walk_mut, Segment, StringArrayView};
 use super::{coerce_slot, CoerceMode};
 
 const NAME: &str = "json_append";
@@ -103,16 +101,16 @@ impl ScalarUDFImpl for JsonAppendUdf {
             .iter()
             .map(|v| v.clone().into_array(n))
             .collect::<Result<_>>()?;
-        let columns: Vec<&datafusion::arrow::array::StringArray> =
-            arrays.iter().map(as_utf8_array).collect::<Result<_>>()?;
+        let columns: Vec<StringArrayView<'_>> =
+            arrays.iter().map(StringArrayView::from_array).collect::<Result<_>>()?;
 
         let mut b = StringBuilder::with_capacity(n, n * 16);
         let mut rest: Vec<Option<&str>> = Vec::with_capacity(columns.len() - 1);
         for i in 0..n {
-            let doc = cell(columns[0], i);
+            let doc = columns[0].cell(i);
             rest.clear();
             for col in &columns[1..] {
-                rest.push(cell(col, i));
+                rest.push(col.cell(i));
             }
             match append(doc, &rest) {
                 Some(s) => b.append_value(&s),
@@ -120,23 +118,6 @@ impl ScalarUDFImpl for JsonAppendUdf {
             }
         }
         Ok(ColumnarValue::Array(Arc::new(b.finish()) as ArrayRef))
-    }
-}
-
-fn scalar_utf8(v: &ColumnarValue) -> Option<&str> {
-    match v {
-        ColumnarValue::Scalar(
-            ScalarValue::Utf8(s) | ScalarValue::LargeUtf8(s) | ScalarValue::Utf8View(s),
-        ) => s.as_deref(),
-        _ => None,
-    }
-}
-
-fn cell(arr: &datafusion::arrow::array::StringArray, i: usize) -> Option<&str> {
-    if arr.is_null(i) {
-        None
-    } else {
-        Some(arr.value(i))
     }
 }
 
@@ -227,8 +208,8 @@ mod tests {
     fn nested_path_appends_to_inner_array() {
         // testJsonAppend case c — a pre-stringified JSON array is appended as
         // a single string element (legacy calls gson/jackson on the outer doc
-        // but NOT on the value; our Utf8-coerced arg arrives already
-        // stringified and is pushed as-is).
+        // but NOT on the value; the arg arrives already stringified and is
+        // pushed as-is).
         assert_eq!(
             append(
                 Some(r#"{"school":{"teacher":["Alice"]}}"#),
@@ -308,21 +289,6 @@ mod tests {
     #[test]
     fn malformed_path_returns_none() {
         assert!(append(Some(r#"{"a":[1]}"#), &[Some("a{"), Some("v")]).is_none());
-    }
-
-    #[test]
-    fn coerce_types_enforces_string_on_every_slot() {
-        let udf = JsonAppendUdf::new();
-        assert_eq!(
-            udf.coerce_types(&[DataType::Utf8, DataType::LargeUtf8, DataType::Utf8View])
-                .unwrap(),
-            vec![DataType::Utf8, DataType::Utf8, DataType::Utf8]
-        );
-        let err = udf
-            .coerce_types(&[DataType::Utf8, DataType::Int32, DataType::Utf8])
-            .unwrap_err()
-            .to_string();
-        assert!(err.contains("expected string"));
     }
 
     #[test]

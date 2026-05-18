@@ -6,13 +6,18 @@
  * compatible open source license.
  */
 
-//! Build `SegmentFileInfo`s from the query's object_metas by reading parquet
-//! metadata over the object store — no direct filesystem access.
+//! Build `SegmentFileInfo`s from the query's object_metas by reading parquet metadata
+//! over the object store.
 //!
-//! Plain async code; nothing here is FFM- or FFI-specific. The module name
-//! used to be `jni_helpers` (carried over from an earlier JNI-era layout);
-//! renamed to `segment_info` since the contents are about segment metadata
-//! construction, not any language bridge.
+//! # Source of truth: the catalog snapshot
+//!
+//! Writer generation comes from the caller as a parallel slice
+//! (`writer_generations[i]` is the generation of `object_metas[i]`). The values originate
+//! in the Java-side catalog snapshot via `WriterFileSet.writerGeneration` and flow through
+//! `create_reader` → `ShardView.writer_generations` → `SessionContextHandle` →
+//! `build_segments`. The catalog is the authoritative source.
+
+use datafusion::parquet::file::metadata::ParquetMetaData;
 
 use super::parquet_bridge;
 use super::stream::RowGroupInfo;
@@ -23,8 +28,15 @@ use datafusion::catalog::Session;
 use datafusion::datasource::file_format::parquet::ParquetFormat;
 use datafusion::datasource::file_format::FileFormat;
 
-/// Build `SegmentFileInfo` from the shard's object metas. Each entry is one
-/// segment; its max_doc is derived from the sum of row-group row counts.
+/// Parquet footer kv key under which the writer stamps the writer generation.
+/// Must match `parquet-data-format`'s `WRITER_GENERATION_KEY`.
+#[cfg(debug_assertions)]
+const WRITER_GENERATION_KEY: &str = "opensearch.writer_generation";
+
+/// Build `SegmentFileInfo` from the shard's object metas.
+///
+/// `writer_generations[i]` is the writer generation of `object_metas[i]`. Both slices
+/// must have the same length.
 ///
 /// The returned schema is the **union across all segment parquet files**,
 /// computed by `ParquetFormat::infer_schema` — the same function
@@ -37,7 +49,16 @@ pub async fn build_segments(
     state: &dyn Session,
     store: Arc<dyn object_store::ObjectStore>,
     object_metas: &[object_store::ObjectMeta],
+    writer_generations: &[i64],
 ) -> Result<(Vec<SegmentFileInfo>, arrow::datatypes::SchemaRef), String> {
+    if object_metas.len() != writer_generations.len() {
+        return Err(format!(
+            "build_segments: object_metas ({}) and writer_generations ({}) must have the same length",
+            object_metas.len(),
+            writer_generations.len()
+        ));
+    }
+
     if object_metas.is_empty() {
         return Err("No parquet files provided".to_string());
     }
@@ -68,8 +89,16 @@ pub async fn build_segments(
         }
         let max_doc = offset;
 
+        let writer_generation = writer_generations[seg_ord];
+
+        // Debug-only cross-check: the writer also stamps the generation into the parquet
+        // footer. If the catalog and the footer disagree, that's a writer-side regression.
+        // Only runs in dev/test builds; production never depends on the footer kv.
+        #[cfg(debug_assertions)]
+        debug_assert_footer_generation_matches_catalog(&pq_meta, writer_generation, &meta.location);
+
         segments.push(SegmentFileInfo {
-            segment_ord: seg_ord as i32,
+            writer_generation,
             max_doc,
             object_path: meta.location.clone(),
             parquet_size: size,
@@ -93,6 +122,47 @@ pub async fn build_segments(
         .map_err(|e| format!("infer_schema union: {}", e))?;
 
     Ok((segments, schema))
+}
+
+/// Read the writer generation out of a parquet footer's key-value metadata and panic if
+/// it disagrees with what the catalog provided. Debug-only assertion — never on the
+/// production read path.
+#[cfg(debug_assertions)]
+fn debug_assert_footer_generation_matches_catalog(
+    pq_meta: &ParquetMetaData,
+    catalog_generation: i64,
+    location: &object_store::path::Path,
+) {
+    let kvs = match pq_meta.file_metadata().key_value_metadata() {
+        Some(kvs) => kvs,
+        None => {
+            // Older files written before the writer started stamping the kv have no kv block at
+            // all. We don't fail here — older files predate the assertion contract.
+            return;
+        }
+    };
+    let kv = match kvs.iter().find(|kv| kv.key == WRITER_GENERATION_KEY) {
+        Some(kv) => kv,
+        None => return,
+    };
+    let value = match kv.value.as_ref() {
+        Some(v) => v,
+        None => panic!(
+            "parquet footer `{}` has no value (file={})",
+            WRITER_GENERATION_KEY, location
+        ),
+    };
+    let footer_gen: i64 = value.parse().unwrap_or_else(|e| {
+        panic!(
+            "parquet footer `{}` not parseable as i64 [{}] (file={}): {}",
+            WRITER_GENERATION_KEY, value, location, e
+        )
+    });
+    assert_eq!(
+        footer_gen, catalog_generation,
+        "parquet footer writer_generation ({}) disagrees with catalog ({}) for file {}",
+        footer_gen, catalog_generation, location
+    );
 }
 
 #[cfg(test)]
@@ -168,7 +238,8 @@ mod tests {
         let store: Arc<dyn ObjectStore> = Arc::new(LocalFileSystem::new());
         let metas = object_metas(store.as_ref(), &[p0, p1]).await;
         let ctx = SessionContext::new();
-        let (segments, merged) = build_segments(&ctx.state(), Arc::clone(&store), &metas)
+        let gens: Vec<i64> = (0..metas.len() as i64).collect();
+        let (segments, merged) = build_segments(&ctx.state(), Arc::clone(&store), &metas, &gens)
             .await
             .unwrap();
 
@@ -217,7 +288,8 @@ mod tests {
         let store: Arc<dyn ObjectStore> = Arc::new(LocalFileSystem::new());
         let metas = object_metas(store.as_ref(), &[p0, p1]).await;
         let ctx = SessionContext::new();
-        let (_segments, merged) = build_segments(&ctx.state(), Arc::clone(&store), &metas)
+        let gens: Vec<i64> = (0..metas.len() as i64).collect();
+        let (_segments, merged) = build_segments(&ctx.state(), Arc::clone(&store), &metas, &gens)
             .await
             .unwrap();
 
@@ -274,10 +346,13 @@ mod tests {
         let metas_ab = object_metas(store.as_ref(), &[p0.clone(), p1.clone()]).await;
         let metas_ba = object_metas(store.as_ref(), &[p1, p0]).await;
 
-        let (_, schema_ab) = build_segments(&ctx.state(), Arc::clone(&store), &metas_ab)
+        let gens_ab: Vec<i64> = (0..metas_ab.len() as i64).collect();
+        let gens_ba: Vec<i64> = (0..metas_ba.len() as i64).collect();
+
+        let (_, schema_ab) = build_segments(&ctx.state(), Arc::clone(&store), &metas_ab, &gens_ab)
             .await
             .unwrap();
-        let (_, schema_ba) = build_segments(&ctx.state(), Arc::clone(&store), &metas_ba)
+        let (_, schema_ba) = build_segments(&ctx.state(), Arc::clone(&store), &metas_ba, &gens_ba)
             .await
             .unwrap();
 
@@ -322,7 +397,8 @@ mod tests {
         let store: Arc<dyn ObjectStore> = Arc::new(LocalFileSystem::new());
         let metas = object_metas(store.as_ref(), &[p0, p1]).await;
         let ctx = SessionContext::new();
-        let result = build_segments(&ctx.state(), Arc::clone(&store), &metas).await;
+        let gens: Vec<i64> = (0..metas.len() as i64).collect();
+        let result = build_segments(&ctx.state(), Arc::clone(&store), &metas, &gens).await;
         assert!(
             result.is_err(),
             "conflicting Int32 / Int64 on same field name must fail at schema-union time"

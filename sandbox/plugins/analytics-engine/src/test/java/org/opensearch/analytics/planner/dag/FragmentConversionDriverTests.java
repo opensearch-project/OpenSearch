@@ -121,7 +121,7 @@ public class FragmentConversionDriverTests extends BasePlannerRulesTests {
     private void assertShardScanConverted(RecordingConvertor convertor, Stage stage) {
         assertEquals("expected exactly one alternative", 1, stage.getPlanAlternatives().size());
         assertNotNull("convertedBytes must be set", stage.getPlanAlternatives().getFirst().convertedBytes());
-        assertTrue("convertShardScanFragment must be called", convertor.shardScanCalled);
+        assertTrue("convertFragment (shard-scan shape) must be called", convertor.shardScanCalled);
         assertEquals("test_index", convertor.shardScanTableName);
         assertDoesntContainOperators(convertor.shardScanFragment, OPENSEARCH_OPERATORS);
         assertDoesntContainOperators(convertor.shardScanFragment, ANNOTATION_MARKERS);
@@ -134,7 +134,7 @@ public class FragmentConversionDriverTests extends BasePlannerRulesTests {
     private void assertReduceStageConverted(RecordingConvertor convertor, Stage stage) {
         assertEquals("expected exactly one alternative", 1, stage.getPlanAlternatives().size());
         assertNotNull("convertedBytes must be set", stage.getPlanAlternatives().getFirst().convertedBytes());
-        assertTrue("convertFinalAggFragment must be called", convertor.finalAggCalled);
+        assertTrue("convertFragment (final-agg shape) must be called", convertor.finalAggCalled);
         assertDoesntContainOperators(convertor.reduceFragment, OPENSEARCH_OPERATORS);
         assertDoesntContainOperators(convertor.reduceFragment, ANNOTATION_MARKERS);
         // Coord-side reduce stages no longer register FinalAggregateInstructionHandler.
@@ -150,7 +150,7 @@ public class FragmentConversionDriverTests extends BasePlannerRulesTests {
     /**
      * Scan, Filter(Scan), Aggregate(Scan), Sort(Filter(Scan)) — single-shard plans now
      * have a coord stage above the data-node stage (since scans declare RANDOM, the
-     * coord must gather). The test verifies convertShardScanFragment is called on the
+     * coord must gather). The test verifies convertFragment (shard-scan shape) is called on the
      * data-node child stage and the fragment is fully stripped.
      */
     public void testSingleStageQueryShapes() {
@@ -226,8 +226,8 @@ public class FragmentConversionDriverTests extends BasePlannerRulesTests {
     // ---- Two-stage shapes ----
 
     /**
-     * Multi-shard Aggregate(Scan) — child calls convertShardScanFragment,
-     * root calls convertFinalAggFragment.
+     * Multi-shard Aggregate(Scan) — child calls convertFragment (shard-scan shape),
+     * root calls convertFragment (final-agg shape).
      */
     public void testTwoStageAggregateConversion() {
         RecordingConvertor convertor = new RecordingConvertor();
@@ -265,7 +265,7 @@ public class FragmentConversionDriverTests extends BasePlannerRulesTests {
     /**
      * Coord-side fragment: Aggregate ← Join ← (ER ← ...) | (ER ← ...).
      * Both branches are gathered subtrees. convertReduceNode must convert the whole Join +
-     * branches + ERs + StageInputScans subtree in a single {@code convertFinalAggFragment}
+     * branches + ERs + StageInputScans subtree in a single {@code convertFragment (final-agg shape)}
      * pass — same path as Union / Intersect / Minus. No substrait-level join stitching.
      */
     public void testJoinDirectlyOverTwoExchanges() {
@@ -277,7 +277,7 @@ public class FragmentConversionDriverTests extends BasePlannerRulesTests {
         Stage joinStage = findStageWithTwoChildren(dag.rootStage());
         assertNotNull("expected a stage with 2 child stages (the coord-side Join stage)", joinStage);
         assertNotNull("join stage alternative must have convertedBytes", joinStage.getPlanAlternatives().getFirst().convertedBytes());
-        assertTrue("convertFinalAggFragment must be called for the Join subtree", convertor.finalAggCalled);
+        assertTrue("convertFragment (final-agg shape) must be called for the Join subtree", convertor.finalAggCalled);
     }
 
     private static Stage findStageWithTwoChildren(Stage stage) {
@@ -292,7 +292,7 @@ public class FragmentConversionDriverTests extends BasePlannerRulesTests {
     /**
      * Coord-side Union with pass-through operators (Sort/Project) between each arm and its
      * ER. Isthmus's SubstraitRelVisitor handles Union natively; convertReduceNode converts
-     * the whole Union subtree as one convertFinalAggFragment call — same path as Join.
+     * the whole Union subtree as one convertFragment (final-agg shape) call — same path as Join.
      */
     public void testUnionOverPassthroughThenExchange() {
         RecordingConvertor convertor = new RecordingConvertor();
@@ -319,7 +319,7 @@ public class FragmentConversionDriverTests extends BasePlannerRulesTests {
 
         Stage root = dag.rootStage();
         assertNotNull("root alternative must have convertedBytes", root.getPlanAlternatives().getFirst().convertedBytes());
-        assertTrue("convertFinalAggFragment must be called for the Union subtree", convertor.finalAggCalled);
+        assertTrue("convertFragment (final-agg shape) must be called for the Union subtree", convertor.finalAggCalled);
     }
 
     /**
@@ -901,18 +901,36 @@ public class FragmentConversionDriverTests extends BasePlannerRulesTests {
         RelNode reduceFragment;
 
         @Override
-        public byte[] convertShardScanFragment(String tableName, RelNode fragment) {
-            this.shardScanCalled = true;
-            this.shardScanTableName = tableName;
-            this.shardScanFragment = fragment;
-            return ("shard:" + tableName).getBytes(StandardCharsets.UTF_8);
-        }
-
-        @Override
-        public byte[] convertFinalAggFragment(RelNode fragment) {
+        public byte[] convertFragment(RelNode fragment) {
+            // Distinguish shard-scan vs reduce/final by searching the *entire* fragment for a
+            // TableScan-shaped leaf (annotations are stripped before this is called, so
+            // OpenSearchTableScan has been rewritten to LogicalTableScan). RelNodeUtils.findNode
+            // only walks the leftmost spine, which would miss the right-side TableScan in
+            // Join(BroadcastScan, TableScan) — exercise a full tree walk here so the mock
+            // matches the production heuristic in DataFusionFragmentConvertor.
+            org.apache.calcite.rel.core.TableScan scan = findAnyTableScan(fragment);
+            if (scan != null) {
+                this.shardScanCalled = true;
+                this.shardScanTableName = scan.getTable().getQualifiedName().getLast();
+                this.shardScanFragment = fragment;
+                return ("shard:" + this.shardScanTableName).getBytes(StandardCharsets.UTF_8);
+            }
             this.finalAggCalled = true;
             this.reduceFragment = fragment;
             return "reduce".getBytes(StandardCharsets.UTF_8);
+        }
+
+        private static org.apache.calcite.rel.core.TableScan findAnyTableScan(RelNode node) {
+            if (node instanceof org.apache.calcite.rel.core.TableScan scan) {
+                return scan;
+            }
+            for (RelNode input : node.getInputs()) {
+                org.apache.calcite.rel.core.TableScan found = findAnyTableScan(input);
+                if (found != null) {
+                    return found;
+                }
+            }
+            return null;
         }
 
         @Override

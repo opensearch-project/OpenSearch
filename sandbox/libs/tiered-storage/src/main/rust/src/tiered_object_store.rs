@@ -19,15 +19,20 @@
 //! registry's atomics and DashMap — no locks are held during I/O.
 
 use std::fmt;
+use std::ops::Range;
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use bytes::Bytes;
 use futures::stream::BoxStream;
 use futures::StreamExt;
 use object_store::{
     path::Path, CopyOptions, GetOptions, GetResult, ListResult, MultipartUpload, ObjectMeta,
     ObjectStore, PutMultipartOptions, PutOptions, PutPayload, PutResult, Result as OsResult,
 };
+
+use opensearch_block_cache::range_cache::range_cache_key;
+use opensearch_block_cache::traits::BlockCache;
 
 use crate::registry::traits::FileRegistry;
 use crate::registry::TieredStorageRegistry;
@@ -46,6 +51,8 @@ pub struct TieredObjectStore {
     registry: Arc<TieredStorageRegistry>,
     local: Arc<dyn ObjectStore>,
     remote: std::sync::OnceLock<Arc<dyn ObjectStore>>,
+    /// Optional node-level block cache. `None` on hot nodes or when disabled.
+    cache: Option<Arc<dyn BlockCache>>,
 }
 
 impl TieredObjectStore {
@@ -57,6 +64,7 @@ impl TieredObjectStore {
             registry,
             local,
             remote: std::sync::OnceLock::new(),
+            cache: None,
         }
     }
 
@@ -69,6 +77,24 @@ impl TieredObjectStore {
     /// Set the remote store (once). Subsequent calls are ignored.
     pub fn set_remote(&self, store: Arc<dyn ObjectStore>) {
         self.remote.set(store).ok(); // ignore if already set
+    }
+
+    /// Attach a block cache. Hot nodes skip this; `None` means no caching.
+    #[must_use]
+    pub fn with_cache(mut self, cache: Arc<dyn BlockCache>) -> Self {
+        self.cache = Some(cache);
+        self
+    }
+
+    /// Evict all cache entries whose key starts with `path`.
+    ///
+    /// No-op if no cache is attached (hot nodes or cache disabled).
+    /// Called from `ts_remove_file` after a file is removed from the registry
+    /// so that stale byte-range entries are freed promptly.
+    pub fn evict_path(&self, path: &str) {
+        if let Some(ref cache) = self.cache {
+            cache.evict_prefix(path);
+        }
     }
 
     /// Register a file in the registry. For Remote/Both locations, the caller
@@ -210,19 +236,114 @@ impl TieredObjectStore {
         }
         None
     }
+
+    /// Phase 1 — probe the block cache for each requested range.
+    ///
+    /// Returns:
+    /// - `slots`: one entry per input range — `Some(bytes)` for hits, `None` for misses
+    /// - `miss_indices`: original indices of the ranges that missed
+    /// - `miss_ranges`: the ranges that need to be fetched from the backing store
+    ///
+    /// When no cache is attached all ranges are unconditionally treated as misses.
+    async fn probe_cache(
+        &self,
+        path_str: &str,
+        ranges: &[Range<u64>],
+    ) -> (Vec<Option<Bytes>>, Vec<usize>, Vec<Range<u64>>) {
+        let mut slots: Vec<Option<Bytes>> = Vec::with_capacity(ranges.len());
+        let mut miss_indices: Vec<usize> = Vec::new();
+        let mut miss_ranges: Vec<Range<u64>> = Vec::new();
+
+        if let Some(ref cache) = self.cache {
+            for (i, r) in ranges.iter().enumerate() {
+                let key = range_cache_key(path_str, r.start, r.end);
+                if let Some(cached) = cache.get(&key).await {
+                    slots.push(Some(cached));
+                } else {
+                    slots.push(None);
+                    miss_indices.push(i);
+                    miss_ranges.push(r.clone());
+                }
+            }
+        } else {
+            // No cache — all ranges are misses.
+            for (i, r) in ranges.iter().enumerate() {
+                slots.push(None);
+                miss_indices.push(i);
+                miss_ranges.push(r.clone());
+            }
+        }
+
+        (slots, miss_indices, miss_ranges)
+    }
+
+    /// Phase 2 — fetch missing ranges from the backing store (remote or local).
+    ///
+    /// Tries the remote store first (registry lookup). Falls back to local,
+    /// and retries remote if local returns `NotFound` and the file has since
+    /// transitioned to `REMOTE` in the registry.
+    async fn fetch_misses(
+        &self,
+        location: &Path,
+        path_str: &str,
+        miss_ranges: &[Range<u64>],
+    ) -> OsResult<Vec<Bytes>> {
+        if let Some((rp, store)) = self.resolve_remote(path_str) {
+            return store.get_ranges(&rp, miss_ranges).await;
+        }
+        let result = self.local.get_ranges(location, miss_ranges).await;
+        match result {
+            Ok(bytes) => Ok(bytes),
+            Err(ref e) => {
+                if let Some((rp, store)) = self.should_retry_remote(path_str, e) {
+                    store.get_ranges(&rp, miss_ranges).await
+                } else {
+                    result
+                }
+            }
+        }
+    }
+
+    /// Phase 3 — populate the block cache with freshly fetched bytes and
+    /// reassemble the complete result in original range order.
+    ///
+    /// If no cache is attached, only the slot reassembly is performed.
+    fn populate_cache_and_reassemble(
+        &self,
+        path_str: &str,
+        fetched: &[Bytes],
+        miss_indices: &[usize],
+        miss_ranges: &[Range<u64>],
+        slots: &mut Vec<Option<Bytes>>,
+    ) {
+        if let Some(ref cache) = self.cache {
+            for (fetched_bytes, (&slot_i, miss_range)) in
+                fetched.iter().zip(miss_indices.iter().zip(miss_ranges.iter()))
+            {
+                let key = range_cache_key(path_str, miss_range.start, miss_range.end);
+                cache.put(&key, fetched_bytes.clone());
+                slots[slot_i] = Some(fetched_bytes.clone());
+            }
+        } else {
+            for (fetched_bytes, &slot_i) in fetched.iter().zip(miss_indices.iter()) {
+                slots[slot_i] = Some(fetched_bytes.clone());
+            }
+        }
+    }
 }
 
 impl fmt::Debug for TieredObjectStore {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("TieredObjectStore")
             .field("file_count", &self.registry.len())
+            .field("cache", &self.cache.is_some())
             .finish()
     }
 }
 
 impl fmt::Display for TieredObjectStore {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "TieredObjectStore(files={})", self.registry.len())
+        write!(f, "TieredObjectStore(files={}, cache={})", self.registry.len(), self.cache.is_some())
     }
 }
 
@@ -279,6 +400,7 @@ impl ObjectStore for TieredObjectStore {
             }
         }
 
+
         if let Some((rp, store)) = self.resolve_remote(path_str) {
             native_bridge_common::log_debug!(
                 "TieredObjectStore: get_opts REMOTE path='{}'",
@@ -287,7 +409,11 @@ impl ObjectStore for TieredObjectStore {
             return store.get_opts(&rp, options).await;
         }
 
+
         let result = self.local.get_opts(location, options.clone()).await;
+
+
+
         if let Err(ref e) = result {
             if let Some((rp, store)) = self.should_retry_remote(path_str, e) {
                 return store.get_opts(&rp, options).await;
@@ -296,16 +422,58 @@ impl ObjectStore for TieredObjectStore {
         result
     }
 
-    /// Delete stream: remove each path from registry only, NO local delete.
-    /// Local file deletion is handled by the Java layer.
+    /// Multi-range read with cache-first routing.
+    /// Probes cache per range, fetches only misses, populates cache on success.
+    async fn get_ranges(&self, location: &Path, ranges: &[Range<u64>]) -> OsResult<Vec<Bytes>> {
+        let path_str = location.as_ref();
+
+        let (mut slots, miss_indices, miss_ranges) = self.probe_cache(path_str, ranges).await;
+
+        if miss_ranges.is_empty() {
+            // Full cache hit — all ranges served from SSD.
+            native_bridge_common::log_debug!(
+                "TieredObjectStore: get_ranges FULL CACHE HIT path='{}' n={} total_bytes={}",
+                path_str, ranges.len(),
+                ranges.iter().map(|r| r.end - r.start).sum::<u64>()
+            );
+            return Ok(slots.into_iter().map(|o| o.unwrap()).collect());
+        }
+
+        if self.cache.is_some() {
+            native_bridge_common::log_debug!(
+                "TieredObjectStore: get_ranges CACHE MISS path='{}' misses={}/{}",
+                path_str, miss_ranges.len(), ranges.len()
+            );
+        } else {
+            native_bridge_common::log_debug!(
+                "TieredObjectStore: get_ranges NO CACHE path='{}' fetching={}/{}",
+                path_str, miss_ranges.len(), ranges.len()
+            );
+        }
+
+        let fetched = self.fetch_misses(location, path_str, &miss_ranges).await?;
+
+        self.populate_cache_and_reassemble(
+            path_str, &fetched, &miss_indices, &miss_ranges, &mut slots,
+        );
+
+        Ok(slots.into_iter().map(|o| o.unwrap()).collect())
+    }
+
+    /// Delete stream: remove each path from registry and evict cache entries.
     fn delete_stream(
         &self,
         locations: BoxStream<'static, OsResult<Path>>,
     ) -> BoxStream<'static, OsResult<Path>> {
         let registry = Arc::clone(&self.registry);
+        let cache = self.cache.clone();
         let mapped = locations.map(move |result| {
             if let Ok(ref path) = result {
-                registry.remove(path.as_ref(), true);
+                let path_str = path.as_ref();
+                registry.remove(path_str, true);
+                if let Some(ref c) = cache {
+                    c.evict_prefix(path_str);
+                }
             }
             result
         });

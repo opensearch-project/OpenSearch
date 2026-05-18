@@ -37,6 +37,7 @@ import org.opensearch.analytics.planner.dag.FragmentConversionDriver;
 import org.opensearch.analytics.planner.dag.PlanForker;
 import org.opensearch.analytics.planner.dag.QueryDAG;
 import org.opensearch.analytics.planner.dag.Stage;
+import org.opensearch.arrow.memory.ArrowAllocatorService;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.inject.Inject;
@@ -91,6 +92,7 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
     private final TaskManager taskManager;
     private final NodeClient client;
     private final JoinStrategyMetrics joinStrategyMetrics;
+    private final ArrowAllocatorService allocatorService;
 
     @Inject
     public DefaultPlanExecutor(
@@ -102,7 +104,8 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
         EngineContext engineContext,
         NodeClient client,
         Scheduler scheduler,
-        JoinStrategyMetrics joinStrategyMetrics
+        JoinStrategyMetrics joinStrategyMetrics,
+        ArrowAllocatorService allocatorService
     ) {
         super(AnalyticsQueryAction.NAME, transportService, actionFilters, in -> {
             throw new UnsupportedOperationException("Transport path not implemented yet");
@@ -114,6 +117,7 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
         this.client = client;
         this.scheduler = scheduler;
         this.joinStrategyMetrics = joinStrategyMetrics;
+        this.allocatorService = allocatorService;
     }
 
     @Override
@@ -209,7 +213,7 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
             "analytics_query",
             new AnalyticsQueryTaskRequest(dag.queryId(), null)
         );
-        final QueryContext config = new QueryContext(dag, searchExecutor, queryTask);
+        final QueryContext config = new QueryContext(dag, searchExecutor, queryTask, allocatorService);
 
         // Per-query cleanup on terminal. Stage-execution cancellation on external
         // task-cancel/timeout is wired inside the Scheduler — on this path the
@@ -296,7 +300,7 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
         }
         final String captureBackendId = reduceViable.get(0);
         QueryScheduler qscheduler = (QueryScheduler) scheduler;
-        BroadcastDispatch dispatch = new BroadcastDispatch(qscheduler.stageExecutionBuilder(), qscheduler);
+        BroadcastDispatch dispatch = new BroadcastDispatch(qscheduler.getStageExecutionBuilder(), qscheduler);
         QueryContext rewrittenCtx = config.withDag(rewritten);
 
         // Pass the build's RelDataType so the backend can build a fallback Arrow schema for

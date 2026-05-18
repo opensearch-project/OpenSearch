@@ -144,7 +144,8 @@ public class WarmShardDirectoryStackTests extends OpenSearchTestCase {
             true,
             NativeStoreRepository.EMPTY,
             java.util.Map.of(),
-            remoteDir
+            remoteDir,
+            null
         );
         DataFormatAwareStoreDirectory storeDir = factory.newDataFormatAwareStoreDirectory(
             indexSettings,
@@ -182,7 +183,7 @@ public class WarmShardDirectoryStackTests extends OpenSearchTestCase {
         RemoteSegmentStoreDirectory remoteDir = createRealRemoteDir(shardPath.getShardId());
 
         DataFormatStoreHandler nativeRegistry = mock(DataFormatStoreHandler.class);
-        DataFormatStoreHandlerFactory factory = (sid, isWarm, repo) -> nativeRegistry;
+        DataFormatStoreHandlerFactory factory = (sid, isWarm, repo, cacheRegistry) -> nativeRegistry;
         StoreStrategy parquet = new StoreStrategy() {
             @Override
             public Optional<DataFormatStoreHandlerFactory> storeHandler() {
@@ -195,7 +196,8 @@ public class WarmShardDirectoryStackTests extends OpenSearchTestCase {
             true,
             NativeStoreRepository.EMPTY,
             Map.of(PARQUET_FORMAT, parquet),
-            remoteDir
+            remoteDir,
+            null
         );
 
         TieredSubdirectoryAwareDirectory tieredSubdir = new TieredSubdirectoryAwareDirectory(

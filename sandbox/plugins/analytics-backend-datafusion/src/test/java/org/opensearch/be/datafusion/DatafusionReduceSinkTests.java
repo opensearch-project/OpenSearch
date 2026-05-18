@@ -96,7 +96,7 @@ public class DatafusionReduceSinkTests extends OpenSearchTestCase {
                 0,
                 substrait,
                 alloc,
-                List.of(new ExchangeSinkContext.ChildInput(0, inputSchema)),
+                List.of(new ExchangeSinkContext.ChildInput(0, buildPassthroughSubstraitBytes(DatafusionReduceSink.INPUT_ID))),
                 downstream
             );
 
@@ -142,7 +142,7 @@ public class DatafusionReduceSinkTests extends OpenSearchTestCase {
                 0,
                 substrait,
                 alloc,
-                List.of(new ExchangeSinkContext.ChildInput(0, inputSchema)),
+                List.of(new ExchangeSinkContext.ChildInput(0, buildPassthroughSubstraitBytes(DatafusionReduceSink.INPUT_ID))),
                 downstream
             );
 
@@ -168,6 +168,26 @@ public class DatafusionReduceSinkTests extends OpenSearchTestCase {
     // ── Helpers ──────────────────────────────────────────────────────────────
 
     /**
+     * Builds Substrait bytes for a plain {@code SELECT * FROM "input-0"} — used as
+     * the producer-side plan in {@link ExchangeSinkContext.ChildInput#producerPlanBytes()}.
+     * The lowered output schema is the bare leaf row type (single BIGINT column {@code x})
+     * which is what the reduce sink registers as the input partition's declared schema.
+     */
+    private static byte[] buildPassthroughSubstraitBytes(String inputId) {
+        RelDataTypeFactory typeFactory = new JavaTypeFactoryImpl();
+        RexBuilder rexBuilder = new RexBuilder(typeFactory);
+        HepPlanner hepPlanner = new HepPlanner(new HepProgramBuilder().build());
+        RelOptCluster cluster = RelOptCluster.create(hepPlanner, rexBuilder);
+
+        RelDataType bigintNullable = typeFactory.createTypeWithNullability(typeFactory.createSqlType(SqlTypeName.BIGINT), true);
+        RelDataType rowType = typeFactory.builder().add("x", bigintNullable).build();
+
+        RelNode scan = new DataFusionFragmentConvertor.StageInputTableScan(cluster, cluster.traitSet(), inputId, rowType);
+
+        return new DataFusionFragmentConvertor(loadExtensions()).convertFragment(scan);
+    }
+
+    /**
      * Builds Substrait bytes for {@code SELECT SUM(x) FROM "input-0"} using the
      * production {@link DataFusionFragmentConvertor} path — the same conversion
      * {@code FragmentConversionDriver} invokes for a coordinator-reduce stage at
@@ -187,7 +207,7 @@ public class DatafusionReduceSinkTests extends OpenSearchTestCase {
         AggregateCall sumCall = AggregateCall.create(SqlStdOperatorTable.SUM, false, List.of(0), -1, bigintNullable, "total");
         LogicalAggregate agg = LogicalAggregate.create(scan, List.of(), ImmutableBitSet.of(), null, List.of(sumCall));
 
-        return new DataFusionFragmentConvertor(loadExtensions()).convertFinalAggFragment(agg);
+        return new DataFusionFragmentConvertor(loadExtensions()).convertFragment(agg);
     }
 
     /**

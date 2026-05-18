@@ -68,7 +68,7 @@ public class DatafusionMemtableReduceSinkTests extends OpenSearchTestCase {
                 0,
                 substrait,
                 alloc,
-                List.of(new ExchangeSinkContext.ChildInput(0, inputSchema)),
+                List.of(new ExchangeSinkContext.ChildInput(0, buildPassthroughSubstraitBytes(DatafusionMemtableReduceSink.INPUT_ID))),
                 downstream
             );
 
@@ -103,7 +103,27 @@ public class DatafusionMemtableReduceSinkTests extends OpenSearchTestCase {
         AggregateCall sumCall = AggregateCall.create(SqlStdOperatorTable.SUM, false, List.of(0), -1, bigintNullable, "total");
         LogicalAggregate agg = LogicalAggregate.create(scan, List.of(), ImmutableBitSet.of(), null, List.of(sumCall));
 
-        return new DataFusionFragmentConvertor(loadExtensions()).convertFinalAggFragment(agg);
+        return new DataFusionFragmentConvertor(loadExtensions()).convertFragment(agg);
+    }
+
+    /**
+     * Bare {@code SELECT * FROM "input-0"} substrait — used as the producer-side plan in
+     * {@link ExchangeSinkContext.ChildInput#producerPlanBytes()}. Its lowered output schema
+     * is the leaf row type ({@code x: BIGINT}), which the sink registers as the input
+     * partition's declared schema.
+     */
+    private static byte[] buildPassthroughSubstraitBytes(String inputId) {
+        RelDataTypeFactory typeFactory = new JavaTypeFactoryImpl();
+        RexBuilder rexBuilder = new RexBuilder(typeFactory);
+        HepPlanner hepPlanner = new HepPlanner(new HepProgramBuilder().build());
+        RelOptCluster cluster = RelOptCluster.create(hepPlanner, rexBuilder);
+
+        RelDataType bigintNullable = typeFactory.createTypeWithNullability(typeFactory.createSqlType(SqlTypeName.BIGINT), true);
+        RelDataType rowType = typeFactory.builder().add("x", bigintNullable).build();
+
+        RelNode scan = new DataFusionFragmentConvertor.StageInputTableScan(cluster, cluster.traitSet(), inputId, rowType);
+
+        return new DataFusionFragmentConvertor(loadExtensions()).convertFragment(scan);
     }
 
     private static SimpleExtension.ExtensionCollection loadExtensions() {

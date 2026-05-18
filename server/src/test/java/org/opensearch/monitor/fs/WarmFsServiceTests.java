@@ -19,6 +19,7 @@ import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreStats;
 import org.opensearch.index.store.remote.filecache.FileCache;
 import org.opensearch.index.store.remote.filecache.FileCacheSettings;
+import org.opensearch.index.store.remote.filecache.NodeCacheOrchestrator;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -67,7 +68,13 @@ public class WarmFsServiceTests extends OpenSearchTestCase {
 
         // Create service and get stats
         try (var nodeEnv = newNodeEnvironment()) {
-            WarmFsService warmFsService = new WarmFsService(settings, nodeEnv, fileCacheSettings, indicesService, fileCache);
+            WarmFsService warmFsService = new WarmFsService(
+                settings,
+                nodeEnv,
+                fileCacheSettings,
+                indicesService,
+                mockOrchestrator(fileCache)
+            );
             FsInfo fsInfo = warmFsService.stats();
 
             // Verify
@@ -96,20 +103,30 @@ public class WarmFsServiceTests extends OpenSearchTestCase {
     }
 
     public void testStatsWithNullFileCache() throws Exception {
-        // Setup
+        // Setup — simulate a disabled cache: capacity=0, usage=0
         double dataToFileCacheSizeRatio = 5.0;
         when(fileCacheSettings.getRemoteDataRatio()).thenReturn(dataToFileCacheSizeRatio);
 
         long shard1Size = 50L * 1024 * 1024; // 50MB
         long shard2Size = 30L * 1024 * 1024; // 30MB
 
+        FileCache zeroFileCache = mock(FileCache.class);
+        when(zeroFileCache.capacity()).thenReturn(0L);
+        when(zeroFileCache.usage()).thenReturn(0L);
+
         // Mock indices and shards
         IndexService indexService = mockIndexService(shard1Size, shard2Size);
         when(indicesService.iterator()).thenReturn(Collections.singletonList(indexService).iterator());
 
-        // Create service with null file cache
+        // Create service with zero-capacity cache (equivalent to the old "null" case)
         try (var nodeEnv = newNodeEnvironment()) {
-            WarmFsService warmFsService = new WarmFsService(settings, nodeEnv, fileCacheSettings, indicesService, null);
+            WarmFsService warmFsService = new WarmFsService(
+                settings,
+                nodeEnv,
+                fileCacheSettings,
+                indicesService,
+                mockOrchestrator(zeroFileCache)
+            );
             FsInfo fsInfo = warmFsService.stats();
 
             // Verify
@@ -144,7 +161,7 @@ public class WarmFsServiceTests extends OpenSearchTestCase {
 
         // Create service with null indices service
         try (var nodeEnv = newNodeEnvironment()) {
-            WarmFsService warmFsService = new WarmFsService(settings, nodeEnv, fileCacheSettings, null, fileCache);
+            WarmFsService warmFsService = new WarmFsService(settings, nodeEnv, fileCacheSettings, null, mockOrchestrator(fileCache));
             FsInfo fsInfo = warmFsService.stats();
 
             // Verify
@@ -186,7 +203,13 @@ public class WarmFsServiceTests extends OpenSearchTestCase {
 
         // Create service and get stats
         try (var nodeEnv = newNodeEnvironment()) {
-            WarmFsService warmFsService = new WarmFsService(settings, nodeEnv, fileCacheSettings, indicesService, fileCache);
+            WarmFsService warmFsService = new WarmFsService(
+                settings,
+                nodeEnv,
+                fileCacheSettings,
+                indicesService,
+                mockOrchestrator(fileCache)
+            );
             FsInfo fsInfo = warmFsService.stats();
 
             // Verify only primary shard size is counted
@@ -232,7 +255,13 @@ public class WarmFsServiceTests extends OpenSearchTestCase {
 
         // Create service and get stats
         try (var nodeEnv = newNodeEnvironment()) {
-            WarmFsService warmFsService = new WarmFsService(settings, nodeEnv, fileCacheSettings, indicesService, fileCache);
+            WarmFsService warmFsService = new WarmFsService(
+                settings,
+                nodeEnv,
+                fileCacheSettings,
+                indicesService,
+                mockOrchestrator(fileCache)
+            );
             FsInfo fsInfo = warmFsService.stats();
 
             // Verify only active shard size is counted
@@ -276,7 +305,13 @@ public class WarmFsServiceTests extends OpenSearchTestCase {
 
         // Create service and get stats
         try (var nodeEnv = newNodeEnvironment()) {
-            WarmFsService warmFsService = new WarmFsService(settings, nodeEnv, fileCacheSettings, indicesService, fileCache);
+            WarmFsService warmFsService = new WarmFsService(
+                settings,
+                nodeEnv,
+                fileCacheSettings,
+                indicesService,
+                mockOrchestrator(fileCache)
+            );
             FsInfo fsInfo = warmFsService.stats();
 
             // Verify
@@ -319,7 +354,13 @@ public class WarmFsServiceTests extends OpenSearchTestCase {
 
         // Create service and get stats
         try (var nodeEnv = newNodeEnvironment()) {
-            WarmFsService warmFsService = new WarmFsService(settings, nodeEnv, fileCacheSettings, indicesService, fileCache);
+            WarmFsService warmFsService = new WarmFsService(
+                settings,
+                nodeEnv,
+                fileCacheSettings,
+                indicesService,
+                mockOrchestrator(fileCache)
+            );
             FsInfo fsInfo = warmFsService.stats();
 
             // Verify only normal shard size is counted
@@ -355,7 +396,13 @@ public class WarmFsServiceTests extends OpenSearchTestCase {
 
         // Create service and get stats
         try (var nodeEnv = newNodeEnvironment()) {
-            WarmFsService warmFsService = new WarmFsService(settings, nodeEnv, fileCacheSettings, indicesService, fileCache);
+            WarmFsService warmFsService = new WarmFsService(
+                settings,
+                nodeEnv,
+                fileCacheSettings,
+                indicesService,
+                mockOrchestrator(fileCache)
+            );
             FsInfo fsInfo = warmFsService.stats();
 
             // Verify free bytes is 0 (not negative)
@@ -393,7 +440,13 @@ public class WarmFsServiceTests extends OpenSearchTestCase {
 
         // Create service and get stats
         try (var nodeEnv = newNodeEnvironment()) {
-            WarmFsService warmFsService = new WarmFsService(settings, nodeEnv, fileCacheSettings, indicesService, fileCache);
+            WarmFsService warmFsService = new WarmFsService(
+                settings,
+                nodeEnv,
+                fileCacheSettings,
+                indicesService,
+                mockOrchestrator(fileCache)
+            );
             FsInfo fsInfo = warmFsService.stats();
 
             // Verify
@@ -412,7 +465,102 @@ public class WarmFsServiceTests extends OpenSearchTestCase {
         }
     }
 
-    // Helper methods
+    public void testStatsWithBlockCacheCapacityAddedToReserved() throws Exception {
+        // Block cache SSD bytes should be included in fileCacheReserved alongside FileCache bytes.
+        double ratio = 5.0;
+        long fileCacheSSD = 100L * 1024 * 1024;   // 100 MB
+        long blockCacheSSD = 50L * 1024 * 1024;    // 50 MB
+        long expectedReserved = fileCacheSSD + blockCacheSSD;
+
+        when(fileCacheSettings.getRemoteDataRatio()).thenReturn(ratio);
+        when(fileCache.capacity()).thenReturn(fileCacheSSD);
+        when(fileCache.usage()).thenReturn(0L);
+        when(indicesService.iterator()).thenReturn(Collections.emptyIterator());
+
+        NodeCacheOrchestrator orc = mock(NodeCacheOrchestrator.class);
+        when(orc.fileCache()).thenReturn(fileCache);
+        when(orc.blockCacheCapacityBytes()).thenReturn(blockCacheSSD);
+        when(orc.virtualBlockCacheBytes()).thenReturn(0L);
+        when(orc.cacheUtilizedBytes()).thenReturn(0L);
+
+        try (var nodeEnv = newNodeEnvironment()) {
+            WarmFsService svc = new WarmFsService(settings, nodeEnv, fileCacheSettings, indicesService, orc);
+            FsInfo fsInfo = svc.stats();
+            FsInfo.Path warmPath = fsInfo.iterator().next();
+            assertEquals(expectedReserved, warmPath.fileCacheReserved);
+        }
+    }
+
+    public void testStatsWithVirtualBlockCacheBytesAddedToTotal() throws Exception {
+        // virtualBlockCacheBytes from block caches should contribute to the reported total capacity.
+        double ratio = 5.0;
+        long fileCacheSSD = 100L * 1024 * 1024;
+        long virtualBlockBytes = 200L * 1024 * 1024;  // block cache virtual capacity contribution
+        long expectedTotal = (long) (ratio * fileCacheSSD) + virtualBlockBytes;
+
+        when(fileCacheSettings.getRemoteDataRatio()).thenReturn(ratio);
+        when(fileCache.capacity()).thenReturn(fileCacheSSD);
+        when(fileCache.usage()).thenReturn(0L);
+        when(indicesService.iterator()).thenReturn(Collections.emptyIterator());
+
+        NodeCacheOrchestrator orc = mock(NodeCacheOrchestrator.class);
+        when(orc.fileCache()).thenReturn(fileCache);
+        when(orc.blockCacheCapacityBytes()).thenReturn(0L);
+        when(orc.virtualBlockCacheBytes()).thenReturn(virtualBlockBytes);
+        when(orc.cacheUtilizedBytes()).thenReturn(0L);
+
+        try (var nodeEnv = newNodeEnvironment()) {
+            WarmFsService svc = new WarmFsService(settings, nodeEnv, fileCacheSettings, indicesService, orc);
+            FsInfo fsInfo = svc.stats();
+            FsInfo.Path warmPath = fsInfo.iterator().next();
+            assertEquals(expectedTotal, warmPath.total);
+        }
+    }
+
+    public void testStatsWithBlockCacheUtilizationIncludedInCacheUtilized() throws Exception {
+        // cacheUtilizedBytes returned by the orchestrator includes block cache disk+memory usage.
+        double ratio = 5.0;
+        long fileCacheSSD = 100L * 1024 * 1024;
+        long totalCacheUtilized = 70L * 1024 * 1024;  // combined file + block cache usage
+
+        when(fileCacheSettings.getRemoteDataRatio()).thenReturn(ratio);
+        when(fileCache.capacity()).thenReturn(fileCacheSSD);
+        when(fileCache.usage()).thenReturn(20L * 1024 * 1024);
+        when(indicesService.iterator()).thenReturn(Collections.emptyIterator());
+
+        NodeCacheOrchestrator orc = mock(NodeCacheOrchestrator.class);
+        when(orc.fileCache()).thenReturn(fileCache);
+        when(orc.blockCacheCapacityBytes()).thenReturn(0L);
+        when(orc.virtualBlockCacheBytes()).thenReturn(0L);
+        when(orc.cacheUtilizedBytes()).thenReturn(totalCacheUtilized);
+
+        try (var nodeEnv = newNodeEnvironment()) {
+            WarmFsService svc = new WarmFsService(settings, nodeEnv, fileCacheSettings, indicesService, orc);
+            FsInfo fsInfo = svc.stats();
+            FsInfo.Path warmPath = fsInfo.iterator().next();
+            assertEquals(totalCacheUtilized, warmPath.fileCacheUtilized);
+        }
+    }
+
+    // ── Helpers ───────────────────────────────────────────────────────────────
+
+    /**
+     * Creates a {@link NodeCacheOrchestrator} mock that wraps the given {@link FileCache}.
+     * Stubs only the methods called by {@link WarmFsService#stats()}:
+     * {@code fileCache()}, {@code blockCacheCapacityBytes()},
+     * {@code virtualBlockCacheBytes()}, and {@code cacheUtilizedBytes()}.
+     * No block caches are registered, so all block-cache metrics are 0.
+     */
+    private NodeCacheOrchestrator mockOrchestrator(FileCache fc) {
+        NodeCacheOrchestrator orc = mock(NodeCacheOrchestrator.class);
+        when(orc.fileCache()).thenReturn(fc);
+        when(orc.blockCacheCapacityBytes()).thenReturn(0L);
+        when(orc.virtualBlockCacheBytes()).thenReturn(0L);
+        // cacheUtilizedBytes = fileCache.usage() + block caches disk/memory (0 here)
+        long utilizedBytes = fc != null ? fc.usage() : 0L;
+        when(orc.cacheUtilizedBytes()).thenReturn(utilizedBytes);
+        return orc;
+    }
 
     private IndexService mockIndexService(long... shardSizes) throws Exception {
         List<IndexShard> shards = new ArrayList<>();

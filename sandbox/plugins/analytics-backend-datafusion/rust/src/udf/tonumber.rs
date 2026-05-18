@@ -17,10 +17,11 @@ use std::any::Any;
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 
-use datafusion::arrow::array::{Array, ArrayRef, Float64Array, Float64Builder, StringArray};
+use datafusion::arrow::array::{ArrayRef, Float64Array, Float64Builder};
+
+use super::json_common::StringArrayView;
 use datafusion::arrow::datatypes::DataType;
 use datafusion::common::{exec_err, Result, ScalarValue};
-use datafusion::error::DataFusionError;
 use datafusion::execution::context::SessionContext;
 use datafusion::logical_expr::{
     ColumnarValue, ScalarFunctionArgs, ScalarUDF, ScalarUDFImpl, Signature, TypeSignature,
@@ -84,7 +85,7 @@ enum BaseMode {
 /// How the `value` argument is supplied
 enum ValueSource<'a> {
     Scalar(Option<&'a str>),
-    Array(&'a StringArray),
+    Array(StringArrayView<'a>),
 }
 
 impl<'a> ValueSource<'a> {
@@ -92,8 +93,7 @@ impl<'a> ValueSource<'a> {
     fn at(&self, i: usize) -> Option<&str> {
         match self {
             ValueSource::Scalar(s) => *s,
-            ValueSource::Array(arr) if arr.is_null(i) => None,
-            ValueSource::Array(arr) => Some(arr.value(i)),
+            ValueSource::Array(view) => view.cell(i),
         }
     }
 }
@@ -151,18 +151,10 @@ impl ScalarUDFImpl for ToNumberUdf {
             _ => None,
         };
         let values: ValueSource = match (&values_arr_ref, value_col) {
-            (Some(arr), _) => {
-                let sa = arr.as_any().downcast_ref::<StringArray>().ok_or_else(|| {
-                    DataFusionError::Internal(format!(
-                        "tonumber: value expected Utf8, got {:?}",
-                        arr.data_type()
-                    ))
-                })?;
-                ValueSource::Array(sa)
-            }
-            (None, ColumnarValue::Scalar(ScalarValue::Utf8(opt))) => {
-                ValueSource::Scalar(opt.as_deref())
-            }
+            (Some(arr), _) => ValueSource::Array(StringArrayView::from_array(arr)?),
+            (None, ColumnarValue::Scalar(
+                ScalarValue::Utf8(opt) | ScalarValue::LargeUtf8(opt) | ScalarValue::Utf8View(opt),
+            )) => ValueSource::Scalar(opt.as_deref()),
             (None, other) => {
                 return exec_err!("tonumber: value expected Utf8, got {other:?}");
             }
@@ -221,7 +213,7 @@ fn parse_with_base(s: Option<&str>, base: Option<i32>) -> Option<f64> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use datafusion::arrow::array::{AsArray, Int32Array};
+    use datafusion::arrow::array::{Array, AsArray, Int32Array, StringArray};
     use datafusion::arrow::datatypes::Field;
 
     fn invoke_scalar(value: Option<&str>, base: Option<i32>) -> Option<f64> {

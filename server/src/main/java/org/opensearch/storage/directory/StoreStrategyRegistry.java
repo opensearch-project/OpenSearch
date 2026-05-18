@@ -18,6 +18,7 @@ import org.opensearch.index.engine.dataformat.DataFormatStoreHandlerFactory;
 import org.opensearch.index.engine.dataformat.StoreStrategy;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.store.RemoteSegmentStoreDirectory;
+import org.opensearch.plugins.BlockCacheRegistry;
 import org.opensearch.plugins.NativeStoreHandle;
 import org.opensearch.repositories.NativeStoreRepository;
 
@@ -92,10 +93,12 @@ public final class StoreStrategyRegistry implements Closeable {
      *
      * @param shardPath       the shard path (used to resolve absolute file paths for DataFusion)
      * @param isWarm          true on warm nodes
-     * @param nativeStore     the repository's native store, or
-     *                        {@link NativeStoreRepository#EMPTY}
+     * @param nativeStore     the repository's native store, or {@link NativeStoreRepository#EMPTY}
      * @param strategies      the strategies that apply to this shard, keyed by data format
      * @param remoteDirectory the remote segment store directory used to seed initial state
+     * @param cacheRegistry   registry for block cache lookup by name; each handler resolves its
+     *                        preferred cache via a {@link org.opensearch.plugins.BlockCacheConstants}
+     *                        constant. {@code null} when no block cache support is available.
      * @return a fully-initialised registry
      */
     public static StoreStrategyRegistry open(
@@ -103,7 +106,8 @@ public final class StoreStrategyRegistry implements Closeable {
         boolean isWarm,
         NativeStoreRepository nativeStore,
         Map<DataFormat, StoreStrategy> strategies,
-        RemoteSegmentStoreDirectory remoteDirectory
+        RemoteSegmentStoreDirectory remoteDirectory,
+        BlockCacheRegistry cacheRegistry
     ) {
         if (strategies == null || strategies.isEmpty()) {
             return EMPTY;
@@ -123,7 +127,7 @@ public final class StoreStrategyRegistry implements Closeable {
                 if (factory == null) {
                     continue;
                 }
-                DataFormatStoreHandler handler = factory.create(shardPath.getShardId(), isWarm, nativeStore);
+                DataFormatStoreHandler handler = factory.create(shardPath.getShardId(), isWarm, nativeStore, cacheRegistry);
                 if (handler != null) {
                     storeHandlers.put(format, handler);
                     created.add(handler);
