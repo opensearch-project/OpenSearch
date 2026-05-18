@@ -32,10 +32,6 @@ public abstract class BasePplIT extends AnalyticsRestTestCase {
         return Set.of();
     }
 
-    protected String getTestName() {
-        return getDataset().getName();
-    }
-
     private void ensureDataProvisioned() throws Exception {
         if (!dataProvisioned) {
             DatasetProvisioner.provision(client(), getDataset());
@@ -51,7 +47,7 @@ public abstract class BasePplIT extends AnalyticsRestTestCase {
             .filter(n -> !getSkipQueries().contains(n))
             .toList();
         assertFalse("No PPL queries discovered", queryNumbers.isEmpty());
-        logger.info("Running {} {} PPL queries: {}", queryNumbers.size(), getTestName(), queryNumbers);
+        logger.info("Running {} {} PPL queries: {}", queryNumbers.size(), getDataset().name, queryNumbers);
 
         List<String> failures = DatasetQueryRunner.runQueries(
             client(),
@@ -70,7 +66,7 @@ public abstract class BasePplIT extends AnalyticsRestTestCase {
         );
 
         if (!failures.isEmpty()) {
-            fail(getTestName() + " PPL query failures (" + failures.size() + " of " + queryNumbers.size() + "):\n" + String.join("\n", failures));
+            fail(getDataset().name + " PPL query failures (" + failures.size() + " of " + queryNumbers.size() + "):\n" + String.join("\n", failures));
         }
     }
 }
