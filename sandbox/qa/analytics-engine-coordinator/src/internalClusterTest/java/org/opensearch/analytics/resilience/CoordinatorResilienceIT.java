@@ -192,15 +192,11 @@ public class CoordinatorResilienceIT extends OpenSearchIntegTestCase {
     }
 
     @After
-    public void clearDisruption() {
-        // Defensive cleanup — every test that sets a disruption should have
-        // already stopped it, but this guards against assertion failures aborting
-        // the body before the disruption-removal line runs.
+    public void clearDisruption() throws Exception {
         try {
             internalCluster().clearDisruptionScheme(true);
-        } catch (IllegalStateException ignore) {
-            // No scheme set — fine.
-        }
+        } catch (IllegalStateException ignore) {}
+        ensureFullyConnected();
     }
 
     /** Allocator for Arrow buffers produced by stubbed-handler tests; closed after each test. */
@@ -2196,18 +2192,10 @@ public class CoordinatorResilienceIT extends OpenSearchIntegTestCase {
         throw new AssertionError("no node other than " + name + " in cluster: " + List.of(internalCluster().getNodeNames()));
     }
 
-    /**
-     * Wait until the cluster is actually fully reconnected after a disruption.
-     * The framework's {@code ensureFullyConnectedCluster} only takes a single
-     * snapshot — connections re-established via the periodic
-     * {@code NodeConnectionsService} take a few hundred ms post-heal, so we
-     * retry until success or 30s. Tests that assume a healed cluster (post-
-     * disruption queries) need this; silently swallowing the assertion error
-     * lets them fire against a half-connected cluster and surface a misleading
-     * NodeNotConnectedException as the test failure.
-     */
+    /** Wait for transport reconnect AND shard recovery; both are needed before teardown deletes indices. */
     private void ensureFullyConnected() throws Exception {
         assertBusy(() -> NetworkDisruption.ensureFullyConnectedCluster(internalCluster()), 30, TimeUnit.SECONDS);
+        ensureGreen();
     }
 
     private static void assertScalarLong(PPLResponse response, String column, long expected) {
