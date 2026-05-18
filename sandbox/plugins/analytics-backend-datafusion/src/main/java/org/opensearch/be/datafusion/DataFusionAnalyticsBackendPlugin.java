@@ -373,6 +373,9 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
      */
     private static final Set<ScalarFunction> MAP_RETURNING_PROJECT_OPS = Set.of(ScalarFunction.JSON_EXTRACT_ALL);
 
+    // PPL state-expanding aggregates (TAKE/FIRST/LAST/LIST/VALUES) route through
+    // DataFusionFragmentConvertor's LOCAL_*_OP stubs and the substrait extensions in
+    // opensearch_aggregate_functions.yaml.
     private static final Set<AggregateFunction> AGG_FUNCTIONS = Set.of(
         AggregateFunction.SUM,
         AggregateFunction.SUM0,
@@ -380,7 +383,12 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         AggregateFunction.MAX,
         AggregateFunction.COUNT,
         AggregateFunction.AVG,
-        AggregateFunction.APPROX_COUNT_DISTINCT
+        AggregateFunction.APPROX_COUNT_DISTINCT,
+        AggregateFunction.TAKE,
+        AggregateFunction.FIRST,
+        AggregateFunction.LAST,
+        AggregateFunction.LIST,
+        AggregateFunction.VALUES
     );
 
     private final DataFusionPlugin plugin;

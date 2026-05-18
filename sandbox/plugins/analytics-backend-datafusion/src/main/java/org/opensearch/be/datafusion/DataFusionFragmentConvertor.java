@@ -17,18 +17,25 @@ import org.apache.calcite.plan.RelTraitSet;
 import org.apache.calcite.rel.RelCollation;
 import org.apache.calcite.rel.RelDistribution;
 import org.apache.calcite.rel.RelDistributions;
+import org.apache.calcite.rel.RelHomogeneousShuttle;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.RelReferentialConstraint;
 import org.apache.calcite.rel.RelRoot;
+import org.apache.calcite.rel.core.AggregateCall;
 import org.apache.calcite.rel.core.TableScan;
 import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rel.type.RelDataTypeFactory;
 import org.apache.calcite.rel.type.RelDataTypeField;
 import org.apache.calcite.schema.ColumnStrategy;
+import org.apache.calcite.sql.SqlAggFunction;
+import org.apache.calcite.sql.SqlFunctionCategory;
 import org.apache.calcite.sql.SqlKind;
 import org.apache.calcite.sql.fun.SqlLibraryOperators;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
+import org.apache.calcite.sql.type.OperandTypes;
+import org.apache.calcite.sql.type.ReturnTypes;
 import org.apache.calcite.util.ImmutableBitSet;
+import org.apache.calcite.util.Optionality;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.analytics.planner.rel.OpenSearchStageInputScan;
@@ -248,48 +255,106 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
     );
 
     /**
+     * Locally-declared aggregate operator stubs for PPL's state-expanding aggregates.
+     * {@link #rewritePplAggregateCalls(RelNode)} swaps PPL aggregations onto these stubs
+     * so isthmus's {@link io.substrait.isthmus.expression.AggregateFunctionConverter}
+     * resolves them by operator identity through {@link #ADDITIONAL_AGGREGATE_SIGS} →
+     * substrait extension name (in {@code opensearch_aggregate_functions.yaml}), which
+     * DataFusion's substrait consumer binds to its target UDAF.
+     *
+     * <ul>
+     *   <li>{@code TAKE(value, n)} → {@code take} (custom Rust UDAF, {@code rust/src/udaf/take.rs})</li>
+     *   <li>{@code FIRST(value)} → {@code first_value} (DataFusion native)</li>
+     *   <li>{@code LAST(value)} → {@code last_value} (DataFusion native)</li>
+     *   <li>{@code LIST(value)} → {@code array_agg} (DataFusion native)</li>
+     *   <li>{@code VALUES(value)} → {@code array_agg} with {@code isDistinct=true}</li>
+     * </ul>
+     *
+     * <p>VARIADIC operand types because PARTIAL and FINAL aggregate forms differ in
+     * arity (2-arg take(field,N) vs 1-arg take(state)).
+     */
+    static final SqlAggFunction LOCAL_TAKE_OP = new SqlAggFunction(
+        "take",
+        null,
+        SqlKind.OTHER_FUNCTION,
+        ReturnTypes.TO_ARRAY,
+        null,
+        OperandTypes.VARIADIC,
+        SqlFunctionCategory.USER_DEFINED_FUNCTION,
+        false,
+        false,
+        Optionality.FORBIDDEN
+    ) {
+    };
+
+    static final SqlAggFunction LOCAL_FIRST_OP = new SqlAggFunction(
+        "first_value",
+        null,
+        SqlKind.OTHER_FUNCTION,
+        ReturnTypes.ARG0,
+        null,
+        OperandTypes.ANY,
+        SqlFunctionCategory.USER_DEFINED_FUNCTION,
+        false,
+        false,
+        Optionality.FORBIDDEN
+    ) {
+    };
+
+    static final SqlAggFunction LOCAL_LAST_OP = new SqlAggFunction(
+        "last_value",
+        null,
+        SqlKind.OTHER_FUNCTION,
+        ReturnTypes.ARG0,
+        null,
+        OperandTypes.ANY,
+        SqlFunctionCategory.USER_DEFINED_FUNCTION,
+        false,
+        false,
+        Optionality.FORBIDDEN
+    ) {
+    };
+
+    /** Used by both LIST (isDistinct from the call) and VALUES (forces isDistinct=true). */
+    static final SqlAggFunction LOCAL_ARRAY_AGG_OP = new SqlAggFunction(
+        "array_agg",
+        null,
+        SqlKind.OTHER_FUNCTION,
+        ReturnTypes.TO_ARRAY,
+        null,
+        OperandTypes.ANY,
+        SqlFunctionCategory.USER_DEFINED_FUNCTION,
+        false,
+        false,
+        Optionality.FORBIDDEN
+    ) {
+    };
+
+    /**
      * Maps aggregate operators to their Substrait extension names so isthmus serializes
      * them through our {@code SimpleExtension} catalog instead of the default Substrait
      * names.
      *
      * <p>{@link SqlStdOperatorTable#APPROX_COUNT_DISTINCT} → {@code approx_distinct}
      * (declared in {@code opensearch_aggregate_functions.yaml}) routes to DataFusion's
-     * native HyperLogLog {@code APPROX_DISTINCT} aggregate. Wiring this through isthmus'
-     * {@code ADDITIONAL_AGGREGATE_SIGS} alone is not enough because isthmus's default
-     * aggregate catalog already binds {@code APPROX_COUNT_DISTINCT} to substrait's
-     * standard {@code approx_count_distinct} URN; when signatures merge, the default
-     * binding overwrites ours in the matcher map. {@link OpenSearchAggregateFunctionConverter}
-     * fixes that by filtering the stock sig out of the default list so our entry is the
-     * only one that resolves to this operator.
+     * native HyperLogLog {@code APPROX_DISTINCT} aggregate. Isthmus's default catalog
+     * also binds the same operator to substrait's {@code approx_count_distinct} URN;
+     * the converter override in {@link #createVisitor(RelNode)} filters that default
+     * sig out so our entry is the only one that resolves.
+     *
+     * <p>The {@code LOCAL_*_OP} entries route PPL's state-expanding aggregates
+     * (TAKE, FIRST, LAST, LIST, VALUES) to their DataFusion target UDAFs. The custom
+     * stubs are not bound by isthmus's default catalog, so no signature filtering is
+     * needed for them. VALUES shares {@code LOCAL_ARRAY_AGG_OP} with LIST — distinguished
+     * at {@link #rewritePplAggregateCalls(RelNode)} time by setting {@code isDistinct=true}.
      */
     private static final List<FunctionMappings.Sig> ADDITIONAL_AGGREGATE_SIGS = List.of(
-        FunctionMappings.s(SqlStdOperatorTable.APPROX_COUNT_DISTINCT, "approx_distinct")
+        FunctionMappings.s(SqlStdOperatorTable.APPROX_COUNT_DISTINCT, "approx_distinct"),
+        FunctionMappings.s(LOCAL_TAKE_OP, "take"),
+        FunctionMappings.s(LOCAL_FIRST_OP, "first_value"),
+        FunctionMappings.s(LOCAL_LAST_OP, "last_value"),
+        FunctionMappings.s(LOCAL_ARRAY_AGG_OP, "array_agg")
     );
-
-    /**
-     * Subclassed {@link AggregateFunctionConverter} that removes isthmus's default binding
-     * for {@link SqlStdOperatorTable#APPROX_COUNT_DISTINCT} from the signature merge.
-     * Without this, the default {@code approx_count_distinct} URN binding would shadow
-     * our entry in {@link #ADDITIONAL_AGGREGATE_SIGS} and the YAML-declared
-     * {@code approx_distinct} extension would never be reached.
-     */
-    private static final class OpenSearchAggregateFunctionConverter extends AggregateFunctionConverter {
-        OpenSearchAggregateFunctionConverter(
-            List<SimpleExtension.AggregateFunctionVariant> functions,
-            List<FunctionMappings.Sig> additionalSignatures,
-            RelDataTypeFactory typeFactory,
-            TypeConverter typeConverter
-        ) {
-            super(functions, additionalSignatures, typeFactory, typeConverter);
-        }
-
-        @Override
-        protected ImmutableList<FunctionMappings.Sig> getSigs() {
-            return super.getSigs().stream()
-                .filter(sig -> sig.operator != SqlStdOperatorTable.APPROX_COUNT_DISTINCT)
-                .collect(ImmutableList.toImmutableList());
-        }
-    }
 
     private final SimpleExtension.ExtensionCollection extensions;
 
@@ -351,6 +416,14 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         // DataFusion emits PPL's space-separator timestamp format instead of Arrow's ISO-T.
         // See issue #5420.
         preprocessed = DatetimeOutputCastRewriter.rewrite(preprocessed);
+        // Rewrite PPL's state-expanding aggregates (TAKE, FIRST, LAST, LIST, VALUES — all
+        // custom SqlAggFunctions defined in PPLBuiltinOperators, not on this plugin's
+        // classpath) to their LOCAL_*_OP stubs so isthmus's AggregateFunctionConverter
+        // binds each call by operator identity through ADDITIONAL_AGGREGATE_SIGS to the
+        // matching Substrait extension name, which DataFusion's substrait consumer resolves
+        // to the corresponding native UDAF (first_value/last_value/array_agg) or the Rust
+        // UDAF in udaf/take.rs. VALUES routes through array_agg with isDistinct=true.
+        preprocessed = rewritePplAggregateCalls(preprocessed);
         RelRoot root = RelRoot.of(preprocessed, SqlKind.SELECT);
         SubstraitRelVisitor visitor = createVisitor(preprocessed);
         Rel substraitRel;
@@ -381,6 +454,106 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
     }
 
     /**
+     * Pre-emit RelShuttle that walks the input tree and rewrites every
+     * {@link org.apache.calcite.rel.core.Aggregate} whose {@link AggregateCall}
+     * targets one of PPL's state-expanding aggregate operators (TAKE, FIRST, LAST,
+     * LIST, VALUES — all custom {@link SqlAggFunction}s defined in
+     * {@code PPLBuiltinOperators}, not on this plugin's classpath, so we identify
+     * them by case-insensitive name). The original operator is swapped onto the
+     * matching {@code LOCAL_*_OP} stub so isthmus's
+     * {@link io.substrait.isthmus.expression.AggregateFunctionConverter} resolves
+     * by operator identity through {@link #ADDITIONAL_AGGREGATE_SIGS}.
+     *
+     * <p>The rewrite preserves group set/group sets and per-call argList,
+     * isApproximate, ignoreNulls, filterArg, distinctKeys, collation, type, and name.
+     * The {@code isDistinct} flag is preserved <i>except</i> for VALUES, which forces
+     * {@code isDistinct=true} so isthmus emits {@code INVOCATION_DISTINCT} and
+     * DataFusion routes to {@code array_agg(DISTINCT)} server-side.
+     *
+     * <p>Mirrors the pattern of {@link UntypedNullPreprocessor#rewrite(RelNode)} and
+     * {@link DatetimeOutputCastRewriter#rewrite(RelNode)}; called from
+     * {@link #convertToSubstrait(RelNode)} and {@link #convertStandalone(RelNode)}
+     * just before the isthmus visitor runs.
+     */
+    private static RelNode rewritePplAggregateCalls(RelNode root) {
+        return root.accept(new RelHomogeneousShuttle() {
+            @Override
+            public RelNode visit(RelNode other) {
+                RelNode visited = super.visit(other);
+                if (!(visited instanceof org.apache.calcite.rel.core.Aggregate agg)) {
+                    return visited;
+                }
+                List<AggregateCall> oldCalls = agg.getAggCallList();
+                List<AggregateCall> newCalls = new ArrayList<>(oldCalls.size());
+                boolean changed = false;
+                for (AggregateCall call : oldCalls) {
+                    SqlAggFunction aggregation = call.getAggregation();
+                    if (aggregation == LOCAL_TAKE_OP
+                        || aggregation == LOCAL_FIRST_OP
+                        || aggregation == LOCAL_LAST_OP
+                        || aggregation == LOCAL_ARRAY_AGG_OP) {
+                        newCalls.add(call);
+                        continue;
+                    }
+                    String name = aggregation.getName();
+                    SqlAggFunction targetOp;
+                    boolean targetDistinct = call.isDistinct();
+                    // LIST/VALUES use PPL's STRING_ARRAY which forces ARRAY<VARCHAR>; rebuild
+                    // as ARRAY<actual-arg0> so substrait declares what array_agg produces.
+                    boolean overrideToArrayOfArg0 = false;
+                    if ("TAKE".equalsIgnoreCase(name)) {
+                        targetOp = LOCAL_TAKE_OP;
+                    } else if ("FIRST".equalsIgnoreCase(name)) {
+                        targetOp = LOCAL_FIRST_OP;
+                    } else if ("LAST".equalsIgnoreCase(name)) {
+                        targetOp = LOCAL_LAST_OP;
+                    } else if ("LIST".equalsIgnoreCase(name)) {
+                        targetOp = LOCAL_ARRAY_AGG_OP;
+                        overrideToArrayOfArg0 = true;
+                    } else if ("VALUES".equalsIgnoreCase(name)) {
+                        // INVOCATION_DISTINCT routes to array_agg(DISTINCT) at the consumer.
+                        targetOp = LOCAL_ARRAY_AGG_OP;
+                        targetDistinct = true;
+                        overrideToArrayOfArg0 = true;
+                    } else {
+                        newCalls.add(call);
+                        continue;
+                    }
+                    RelDataType explicitReturnType = call.getType();
+                    if (overrideToArrayOfArg0 && !call.getArgList().isEmpty()) {
+                        // PARTIAL: arg0 is the element column → wrap once to ARRAY<elem>.
+                        // FINAL: arg0 is already ARRAY<elem> from StageInputScan → unwrap then re-wrap.
+                        RelDataType arg0Type = agg.getInput().getRowType().getFieldList().get(call.getArgList().get(0)).getType();
+                        RelDataType elementType = arg0Type.getComponentType() != null ? arg0Type.getComponentType() : arg0Type;
+                        explicitReturnType = agg.getCluster().getTypeFactory().createArrayType(elementType, -1);
+                    }
+                    AggregateCall rewritten = AggregateCall.create(
+                        targetOp,
+                        targetDistinct,
+                        call.isApproximate(),
+                        call.ignoreNulls(),
+                        call.rexList,
+                        call.getArgList(),
+                        call.filterArg,
+                        call.distinctKeys,
+                        call.collation,
+                        agg.getGroupCount(),
+                        agg.getInput(),
+                        explicitReturnType,
+                        call.getName()
+                    );
+                    newCalls.add(rewritten);
+                    changed = true;
+                }
+                if (!changed) {
+                    return visited;
+                }
+                return agg.copy(agg.getTraitSet(), agg.getInput(), agg.getGroupSet(), agg.getGroupSets(), newCalls);
+            }
+        });
+    }
+
+    /**
      * Converts a single operator into a Substrait {@link Rel}. The operator may carry
      * children (e.g. the {@code attachPartialAggOnTop} caller passes a
      * {@code LogicalAggregate} whose input is the already-stripped inner tree); we
@@ -394,6 +567,7 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         RelNode preprocessed = UntypedNullPreprocessor.rewrite(operator);
         // Same rationale as convertToSubstrait — issue #5420.
         preprocessed = DatetimeOutputCastRewriter.rewrite(preprocessed);
+        preprocessed = rewritePplAggregateCalls(preprocessed);
         SubstraitRelVisitor visitor = createVisitor(preprocessed);
         return visitor.apply(preprocessed);
     }
@@ -517,12 +691,22 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
             typeFactory,
             typeConverter
         );
-        AggregateFunctionConverter aggConverter = new OpenSearchAggregateFunctionConverter(
+        // Filter isthmus's default APPROX_COUNT_DISTINCT binding out of getSigs() so our
+        // ADDITIONAL_AGGREGATE_SIGS entry routes to the YAML-declared `approx_distinct`
+        // extension instead of being shadowed by the stock `approx_count_distinct` URN.
+        AggregateFunctionConverter aggConverter = new AggregateFunctionConverter(
             extensions.aggregateFunctions(),
             ADDITIONAL_AGGREGATE_SIGS,
             typeFactory,
             typeConverter
-        );
+        ) {
+            @Override
+            protected ImmutableList<FunctionMappings.Sig> getSigs() {
+                return super.getSigs().stream()
+                    .filter(sig -> sig.operator != SqlStdOperatorTable.APPROX_COUNT_DISTINCT)
+                    .collect(ImmutableList.toImmutableList());
+            }
+        };
         WindowFunctionConverter windowConverter = new WindowFunctionConverter(extensions.windowFunctions(), typeFactory);
         ConverterProvider converterProvider = new ConverterProvider(
             typeFactory,

@@ -13,10 +13,17 @@ import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
+import io.substrait.expression.AggregateFunctionInvocation;
 import io.substrait.expression.Expression;
+import io.substrait.expression.FieldReference;
+import io.substrait.expression.FunctionArg;
+import io.substrait.expression.ImmutableAggregateFunctionInvocation;
 import io.substrait.expression.ImmutableExpression;
 import io.substrait.plan.Plan;
+import io.substrait.relation.Aggregate;
 import io.substrait.relation.ExpressionCopyOnWriteVisitor;
+import io.substrait.relation.ImmutableAggregate;
+import io.substrait.relation.Project;
 import io.substrait.relation.Rel;
 import io.substrait.relation.RelCopyOnWriteVisitor;
 import io.substrait.util.EmptyVisitationContext;
@@ -71,6 +78,62 @@ class SubstraitPlanRewriter {
                     .condition(rewritten.orElse(filter.getCondition()))
                     .build()
             );
+        }
+
+        /**
+         * Inline literal-valued Project columns referenced by an Aggregate's measure args,
+         * replacing the {@code FieldReference} with the underlying {@code Expression.Literal}.
+         * Required because {@code RelBuilder.aggregate} auto-projects literal aggregate-args as
+         * separate columns, and our Rust UDAFs (e.g. TAKE's N) need to see a Substrait Literal
+         * at construction time. Always safe — substrait treats literal args identically to
+         * constant column refs.
+         */
+        @Override
+        public Optional<Rel> visit(Aggregate agg, EmptyVisitationContext ctx) {
+            Optional<Rel> visited = super.visit(agg, ctx);
+            Aggregate base = (Aggregate) visited.orElse(agg);
+            if (!(base.getInput() instanceof Project project)) {
+                return visited;
+            }
+            List<Expression> projExprs = project.getExpressions();
+
+            boolean changed = false;
+            List<Aggregate.Measure> newMeasures = new ArrayList<>(base.getMeasures().size());
+            for (Aggregate.Measure measure : base.getMeasures()) {
+                AggregateFunctionInvocation fn = measure.getFunction();
+                List<FunctionArg> args = fn.arguments();
+                List<FunctionArg> newArgs = null;
+                for (int i = 0; i < args.size(); i++) {
+                    FunctionArg arg = args.get(i);
+                    if (!(arg instanceof FieldReference fr)) continue;
+                    Integer offset = simpleStructOffset(fr);
+                    if (offset == null) continue;
+                    int colIdx = offset;
+                    if (colIdx < 0 || colIdx >= projExprs.size()) continue;
+                    if (!(projExprs.get(colIdx) instanceof Expression.Literal lit)) continue;
+                    if (newArgs == null) newArgs = new ArrayList<>(args);
+                    newArgs.set(i, lit);
+                }
+                if (newArgs != null) {
+                    AggregateFunctionInvocation newFn = ImmutableAggregateFunctionInvocation.builder().from(fn).arguments(newArgs).build();
+                    newMeasures.add(Aggregate.Measure.builder().from(measure).function(newFn).build());
+                    changed = true;
+                } else {
+                    newMeasures.add(measure);
+                }
+            }
+            if (!changed) return visited;
+            return Optional.of(ImmutableAggregate.builder().from(base).measures(newMeasures).build());
+        }
+
+        /** Column offset for a simple input-rooted single-segment StructField, else null. */
+        private static Integer simpleStructOffset(FieldReference fr) {
+            if (fr.isOuterReference() || fr.isLambdaParameterReference()) return null;
+            if (!fr.inputExpression().isEmpty()) return null;
+            if (fr.segments().size() != 1) return null;
+            FieldReference.ReferenceSegment seg = fr.segments().get(0);
+            if (!(seg instanceof FieldReference.StructField sf)) return null;
+            return sf.offset();
         }
     }
 
