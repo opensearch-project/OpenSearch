@@ -115,8 +115,12 @@ fn eval_row(node: &BoolNode, corpus: &Corpus, row: i32, collector_sets: &[HashSe
             }
         }
         BoolNode::Predicate(expr) => eval_predicate(expr, corpus, row as usize),
-        BoolNode::DelegationPossible { .. } => {
-            unreachable!("fuzz tree generator does not produce DelegationPossible leaves")
+        // Contract: a DelegationPossible leaf evaluates identically to its `original_expr`.
+        // Production may consult a peer at runtime to narrow candidates, but the residual
+        // FilterExec re-applies `original_expr` on the decoded batch — the final result
+        // set must equal `Predicate(original_expr)`. The oracle treats it that way.
+        BoolNode::DelegationPossible { original_expr, .. } => {
+            eval_predicate(original_expr, corpus, row as usize)
         }
     }
 }

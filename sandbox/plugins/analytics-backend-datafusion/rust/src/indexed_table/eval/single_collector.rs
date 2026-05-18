@@ -51,6 +51,43 @@ use crate::indexed_table::stream::RowGroupInfo;
 /// page-pruning kept more than 5% of an RG.
 const HARDCODED_SELECTIVITY_THRESHOLD: f64 = 0.05;
 
+/// Builds delegated-backend collectors for performance-delegated leaves. Production impl
+/// wraps `FfmSegmentCollector::create` (Java/Lucene round-trip); fuzz tests inject a
+/// mock that replays a pre-computed bitset without an FFM call.
+///
+/// TODO: extend this factory to also build the *correctness* collector currently passed
+/// in pre-built by `indexed_executor.rs`. Today delegated-backend (perf-delegated)
+/// collectors are built inside this evaluator while correctness collectors are built
+/// upstream — that asymmetry should go once we have more than one delegated backend
+/// (DSL, vector, etc.) and the executor wants a single place to plug them in.
+pub trait DelegatedBackendCollectorFactory: Send + Sync + std::fmt::Debug {
+    fn create(
+        &self,
+        provider_key: i32,
+        writer_generation: i64,
+        doc_min: i32,
+        doc_max: i32,
+    ) -> Result<Arc<dyn RowGroupDocsCollector>, String>;
+}
+
+/// Production factory: delegates to `FfmSegmentCollector::create`, which round-trips
+/// to Java via FFM to build a Lucene-backed collector.
+#[derive(Debug)]
+pub struct FfmDelegatedBackendCollectorFactory;
+
+impl DelegatedBackendCollectorFactory for FfmDelegatedBackendCollectorFactory {
+    fn create(
+        &self,
+        provider_key: i32,
+        writer_generation: i64,
+        doc_min: i32,
+        doc_max: i32,
+    ) -> Result<Arc<dyn RowGroupDocsCollector>, String> {
+        let collector = FfmSegmentCollector::create(provider_key, writer_generation, doc_min, doc_max)?;
+        Ok(Arc::new(collector) as Arc<dyn RowGroupDocsCollector>)
+    }
+}
+
 
 /// Per-RG state the evaluator keeps for refinement. In row-granular
 /// mode parquet narrowed fully via `with_predicate` + `RowSelection`
@@ -125,6 +162,10 @@ pub struct SingleCollectorEvaluator {
     /// `FfmSegmentCollector` lazily without re-deriving the segment from
     /// `RowGroupInfo` (which doesn't carry it).
     writer_generation: i64,
+    /// Builds the per-RG delegated-backend collector when the gate fires. Production
+    /// wires `FfmDelegatedBackendCollectorFactory`; fuzz tests inject a mock that
+    /// replays a pre-computed bitset without an FFM call.
+    delegated_backend_collector_factory: Arc<dyn DelegatedBackendCollectorFactory>,
 }
 
 impl SingleCollectorEvaluator {
@@ -138,6 +179,7 @@ impl SingleCollectorEvaluator {
         call_strategy: CollectorCallStrategy,
         performance_provider_locks: Arc<HashMap<i32, Arc<OnceLock<ProviderHandle>>>>,
         writer_generation: i64,
+        delegated_backend_collector_factory: Arc<dyn DelegatedBackendCollectorFactory>,
     ) -> Self {
         Self {
             collector,
@@ -149,6 +191,7 @@ impl SingleCollectorEvaluator {
             call_strategy,
             performance_provider_locks,
             writer_generation,
+            delegated_backend_collector_factory,
         }
     }
 }
@@ -335,27 +378,24 @@ impl RowGroupBitsetSource for SingleCollectorEvaluator {
                 );
             }
 
-            let collector = FfmSegmentCollector::create(
-                provider.key(),
-                self.writer_generation,
-                min_doc,
-                max_doc,
-            )
-            .map_err(|e| {
-                format!(
-                    "FfmSegmentCollector::create(perf provider={}, writer_generation={}, doc_range=[{},{})): {}",
-                    provider.key(),
-                    self.writer_generation,
-                    min_doc,
-                    max_doc,
-                    e
-                )
-            })?;
+            let collector = self
+                .delegated_backend_collector_factory
+                .create(provider.key(), self.writer_generation, min_doc, max_doc)
+                .map_err(|e| {
+                    format!(
+                        "DelegatedBackendCollectorFactory::create(provider={}, writer_generation={}, doc_range=[{},{})): {}",
+                        provider.key(),
+                        self.writer_generation,
+                        min_doc,
+                        max_doc,
+                        e
+                    )
+                })?;
             let bitset = collector
                 .collect_packed_u64_bitset(min_doc, max_doc)
                 .map_err(|e| {
                     format!(
-                        "perf collector.collect_packed_u64_bitset(rg={}, [{}, {})): {}",
+                        "delegated-backend collector.collect_packed_u64_bitset(rg={}, [{}, {})): {}",
                         rg.index, min_doc, max_doc, e
                     )
                 })?;
@@ -610,7 +650,7 @@ mod tests {
             docs: vec![0, 3, 7],
         }) as Arc<dyn RowGroupDocsCollector>;
         let pruner = minimal_page_pruner();
-        let eval = SingleCollectorEvaluator::new(Some(collector), pruner, None, None, None, None, CollectorCallStrategy::FullRange, Arc::new(HashMap::new()), 0);
+        let eval = SingleCollectorEvaluator::new(Some(collector), pruner, None, None, None, None, CollectorCallStrategy::FullRange, Arc::new(HashMap::new()), 0, Arc::new(FfmDelegatedBackendCollectorFactory));
 
         let rg = RowGroupInfo {
             index: 0,
@@ -626,7 +666,7 @@ mod tests {
     fn on_batch_mask_returns_none_for_path_b() {
         let collector = Arc::new(StubCollector { docs: vec![0] }) as Arc<dyn RowGroupDocsCollector>;
         let pruner = minimal_page_pruner();
-        let eval = SingleCollectorEvaluator::new(Some(collector), pruner, None, None, None, None, CollectorCallStrategy::FullRange, Arc::new(HashMap::new()), 0);
+        let eval = SingleCollectorEvaluator::new(Some(collector), pruner, None, None, None, None, CollectorCallStrategy::FullRange, Arc::new(HashMap::new()), 0, Arc::new(FfmDelegatedBackendCollectorFactory));
         let schema = Arc::new(Schema::new(vec![Field::new("a", DataType::Int32, false)]));
         let batch = datafusion::arrow::record_batch::RecordBatch::try_new(
             schema,
@@ -654,7 +694,7 @@ mod tests {
         // (it's the only post-decode filter we have on this path).
         let collector = Arc::new(StubCollector { docs: vec![0] }) as Arc<dyn RowGroupDocsCollector>;
         let pruner = minimal_page_pruner();
-        let eval = SingleCollectorEvaluator::new(Some(collector), pruner, None, None, None, None, CollectorCallStrategy::FullRange, Arc::new(HashMap::new()), 0);
+        let eval = SingleCollectorEvaluator::new(Some(collector), pruner, None, None, None, None, CollectorCallStrategy::FullRange, Arc::new(HashMap::new()), 0, Arc::new(FfmDelegatedBackendCollectorFactory));
         assert!(eval.needs_row_mask());
     }
 
@@ -662,7 +702,7 @@ mod tests {
     fn empty_match_returns_none() {
         let collector = Arc::new(StubCollector { docs: vec![] }) as Arc<dyn RowGroupDocsCollector>;
         let pruner = minimal_page_pruner();
-        let eval = SingleCollectorEvaluator::new(Some(collector), pruner, None, None, None, None, CollectorCallStrategy::FullRange, Arc::new(HashMap::new()), 0);
+        let eval = SingleCollectorEvaluator::new(Some(collector), pruner, None, None, None, None, CollectorCallStrategy::FullRange, Arc::new(HashMap::new()), 0, Arc::new(FfmDelegatedBackendCollectorFactory));
         let rg = RowGroupInfo {
             index: 0,
             first_row: 0,
@@ -682,7 +722,7 @@ mod tests {
             docs: vec![0, 3, 7],
         }) as Arc<dyn RowGroupDocsCollector>;
         let pruner = minimal_page_pruner();
-        let eval = SingleCollectorEvaluator::new(Some(collector), pruner, None, None, None, None, CollectorCallStrategy::FullRange, Arc::new(HashMap::new()), 0);
+        let eval = SingleCollectorEvaluator::new(Some(collector), pruner, None, None, None, None, CollectorCallStrategy::FullRange, Arc::new(HashMap::new()), 0, Arc::new(FfmDelegatedBackendCollectorFactory));
 
         let rg = RowGroupInfo {
             index: 0,

@@ -606,6 +606,7 @@ pub async unsafe fn execute_indexed_with_context(
                             call_strategy,
                             Arc::clone(&performance_provider_locks),
                             segment.writer_generation,
+                            Arc::new(crate::indexed_table::eval::single_collector::FfmDelegatedBackendCollectorFactory),
                         ));
                     Ok(eval)
                 },

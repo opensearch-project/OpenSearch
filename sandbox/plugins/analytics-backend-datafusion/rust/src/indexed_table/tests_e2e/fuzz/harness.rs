@@ -398,6 +398,7 @@ pub(in crate::indexed_table::tests_e2e) async fn execute_tree_single_collector(
                 call_strategy,
                 std::sync::Arc::new(std::collections::HashMap::new()),
                 segment.writer_generation,
+                std::sync::Arc::new(crate::indexed_table::eval::single_collector::FfmDelegatedBackendCollectorFactory),
             ));
             let _ = segment;
             Ok(eval)

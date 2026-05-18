@@ -27,6 +27,7 @@
 
 mod config;
 mod corpus;
+mod delegation;
 mod harness;
 mod oracle;
 mod seed;
