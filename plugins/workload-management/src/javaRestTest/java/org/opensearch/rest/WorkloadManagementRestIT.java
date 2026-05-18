@@ -158,7 +158,8 @@ public class WorkloadManagementRestIT extends OpenSearchRestTestCase {
                     "search.default_search_timeout": "30s",
                     "search.cancel_after_time_interval": "1m",
                     "search.max_concurrent_shard_requests": "5",
-                    "search.batched_reduce_size": "512"
+                    "search.batched_reduce_size": "512",
+                    "search.max_buckets": "1000"
                 }
             }""";
         Response response = performOperation("PUT", "_wlm/workload_group", createJson);
@@ -173,6 +174,7 @@ public class WorkloadManagementRestIT extends OpenSearchRestTestCase {
         assertTrue(responseBody.contains("\"search.cancel_after_time_interval\":\"1m\""));
         assertTrue(responseBody.contains("\"search.max_concurrent_shard_requests\":\"5\""));
         assertTrue(responseBody.contains("\"search.batched_reduce_size\":\"512\""));
+        assertTrue(responseBody.contains("\"search.max_buckets\":\"1000\""));
 
         // Update search settings
         String updateJson = """
@@ -181,7 +183,8 @@ public class WorkloadManagementRestIT extends OpenSearchRestTestCase {
                     "search.default_search_timeout": "1m",
                     "search.cancel_after_time_interval": "5m",
                     "search.max_concurrent_shard_requests": "10",
-                    "search.batched_reduce_size": "256"
+                    "search.batched_reduce_size": "256",
+                    "search.max_buckets": "500"
                 }
             }""";
         Response updateResponse = performOperation("PUT", "_wlm/workload_group/search_test", updateJson);
@@ -194,6 +197,7 @@ public class WorkloadManagementRestIT extends OpenSearchRestTestCase {
         assertTrue(responseBody2.contains("\"search.cancel_after_time_interval\":\"5m\""));
         assertTrue(responseBody2.contains("\"search.max_concurrent_shard_requests\":\"10\""));
         assertTrue(responseBody2.contains("\"search.batched_reduce_size\":\"256\""));
+        assertTrue(responseBody2.contains("\"search.max_buckets\":\"500\""));
 
         performOperation("DELETE", "_wlm/workload_group/search_test", null);
     }
@@ -315,6 +319,67 @@ public class WorkloadManagementRestIT extends OpenSearchRestTestCase {
         String invalidTimeBody = EntityUtils.toString(invalidTimeException.getResponse().getEntity());
         assertTrue(invalidTimeBody.contains("search.cancel_after_time_interval"));
         assertTrue(invalidTimeBody.contains("Invalid value"));
+
+        // Invalid value for max_buckets (must be >= 0)
+        String invalidMaxBucketsJson = """
+            {
+                "name": "invalid_test",
+                "resiliency_mode": "enforced",
+                "resource_limits": {"cpu": 0.3, "memory": 0.3},
+                "settings": {
+                    "search.max_buckets": "-1"
+                }
+            }""";
+        ResponseException invalidMaxBucketsException = expectThrows(
+            ResponseException.class,
+            () -> performOperation("PUT", "_wlm/workload_group", invalidMaxBucketsJson)
+        );
+        String invalidMaxBucketsBody = EntityUtils.toString(invalidMaxBucketsException.getResponse().getEntity());
+        assertTrue(invalidMaxBucketsBody.contains("search.max_buckets"));
+        assertTrue(invalidMaxBucketsBody.contains("Invalid value"));
+    }
+
+    public void testSearchMaxBucketsCreateAndUpdate() throws Exception {
+        // Create a WLM group with a small max_buckets value
+        String createJson = """
+            {
+                "name": "max_buckets_test",
+                "resiliency_mode": "enforced",
+                "resource_limits": {"cpu": 0.3, "memory": 0.3},
+                "settings": {
+                    "search.max_buckets": "100"
+                }
+            }""";
+        Response response = performOperation("PUT", "_wlm/workload_group", createJson);
+        assertEquals(200, response.getStatusLine().getStatusCode());
+
+        Response getResponse = performOperation("GET", "_wlm/workload_group/max_buckets_test", null);
+        assertTrue(EntityUtils.toString(getResponse.getEntity()).contains("\"search.max_buckets\":\"100\""));
+
+        // Update to a larger value
+        String updateJson = """
+            {"settings": {"search.max_buckets": "5000"}}""";
+        Response updateResponse = performOperation("PUT", "_wlm/workload_group/max_buckets_test", updateJson);
+        assertEquals(200, updateResponse.getStatusLine().getStatusCode());
+
+        Response getResponse2 = performOperation("GET", "_wlm/workload_group/max_buckets_test", null);
+        assertTrue(EntityUtils.toString(getResponse2.getEntity()).contains("\"search.max_buckets\":\"5000\""));
+
+        // Exercise the request path with an aggregation — confirms the resolver is wired
+        // through MultiBucketConsumerService without errors. Resolution semantics are
+        // verified in MultiBucketConsumerServiceTests.
+        performOperation("PUT", "wlm-buckets-idx", "{\"settings\":{\"number_of_shards\":1,\"number_of_replicas\":0}}");
+        performOperation("POST", "wlm-buckets-idx/_doc", "{\"k\":\"v1\"}");
+        performOperation("POST", "wlm-buckets-idx/_refresh", null);
+
+        Request searchRequest = new Request("POST", "wlm-buckets-idx/_search");
+        searchRequest.setJsonEntity("{\"size\":0,\"aggs\":{\"by_k\":{\"terms\":{\"field\":\"k.keyword\"}}}}");
+        searchRequest.setOptions(searchRequest.getOptions().toBuilder().addHeader("X-opaque-id", "wlm=max_buckets_test"));
+        Response searchResponse = client().performRequest(searchRequest);
+        assertEquals(200, searchResponse.getStatusLine().getStatusCode());
+
+        performOperation("DELETE", "wlm-buckets-idx", null);
+        performOperation("DELETE", "_wlm/workload_group/max_buckets_test", null);
     }
 
     public void testSearchSettingsMergeSemantics() throws Exception {

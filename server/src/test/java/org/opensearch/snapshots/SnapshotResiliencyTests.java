@@ -2370,7 +2370,8 @@ public class SnapshotResiliencyTests extends OpenSearchTestCase {
                     null,
                     new TaskResourceTrackingService(settings, clusterSettings, threadPool),
                     Collections.emptyList(),
-                    Collections.emptyList()
+                    Collections.emptyList(),
+                    null
                 );
                 SearchPhaseController searchPhaseController = new SearchPhaseController(
                     writableRegistry(),
