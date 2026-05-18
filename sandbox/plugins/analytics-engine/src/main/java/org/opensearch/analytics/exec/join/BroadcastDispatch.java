@@ -21,6 +21,7 @@ import org.opensearch.analytics.planner.dag.StagePlan;
 import org.opensearch.analytics.spi.BroadcastInjectionInstructionNode;
 import org.opensearch.analytics.spi.ExchangeSink;
 import org.opensearch.analytics.spi.InstructionNode;
+import org.opensearch.common.util.concurrent.FutureUtils;
 import org.opensearch.core.action.ActionListener;
 
 import java.util.ArrayList;
@@ -249,9 +250,10 @@ public final class BroadcastDispatch {
             return fut.get(EXTRACT_IPC_TIMEOUT_SECONDS, TimeUnit.SECONDS);
         } catch (TimeoutException te) {
             // Don't block the dispatcher forever on a sink that violates the contract.
-            // cancel(false) doesn't interrupt anything (no producer thread to interrupt) —
-            // it just marks the future done so any later listener doesn't leak.
-            fut.cancel(false);
+            // FutureUtils.cancel routes through cancel(false) — no producer thread to interrupt
+            // here, this just marks the future done so any later listener doesn't leak. (Direct
+            // Future.cancel(boolean) is forbidden by OpenSearch's forbidden-apis policy.)
+            FutureUtils.cancel(fut);
             throw new RuntimeException(
                 "BroadcastDispatch: capture sink did not complete ipcBytesFuture within "
                     + EXTRACT_IPC_TIMEOUT_SECONDS

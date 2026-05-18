@@ -99,7 +99,16 @@ public class QueryContext {
         List<AnalyticsOperationListener> operationListeners,
         ArrowAllocatorService allocatorService
     ) {
-        this(dag, searchExecutor, parentTask, maxConcurrentShardRequests, perQueryMemoryLimit, operationListeners, allocatorService, new AllocatorHolder());
+        this(
+            dag,
+            searchExecutor,
+            parentTask,
+            maxConcurrentShardRequests,
+            perQueryMemoryLimit,
+            operationListeners,
+            allocatorService,
+            new AllocatorHolder()
+        );
     }
 
     private QueryContext(

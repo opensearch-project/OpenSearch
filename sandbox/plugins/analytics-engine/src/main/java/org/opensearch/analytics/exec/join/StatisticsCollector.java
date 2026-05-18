@@ -10,6 +10,7 @@ package org.opensearch.analytics.exec.join;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.action.admin.indices.stats.CommonStats;
 import org.opensearch.action.admin.indices.stats.IndexStats;
 import org.opensearch.action.admin.indices.stats.IndicesStatsRequest;
@@ -104,7 +105,13 @@ public final class StatisticsCollector {
             }
             return rowCounts;
         } catch (Exception e) {
-            LOGGER.warn("IndicesStats fetch failed for {}; row counts will be unknown — broadcast will fall back fail-safe", indexNames, e);
+            LOGGER.warn(
+                new ParameterizedMessage(
+                    "IndicesStats fetch failed for {}; row counts will be unknown — broadcast will fall back fail-safe",
+                    indexNames
+                ),
+                e
+            );
             return Map.of();
         }
     }

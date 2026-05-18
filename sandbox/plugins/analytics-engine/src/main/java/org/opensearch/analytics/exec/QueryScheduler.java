@@ -70,6 +70,12 @@ public class QueryScheduler implements Scheduler {
 
         PlanWalker walker = createWalker(config, listener, queryId, queryStartNanos, opListener);
 
+        // Build the graph first. wireCompletion() requires build() to have populated the graph,
+        // and on failure the partial graph cleans itself up via build()'s try-finally; the
+        // RuntimeException bubbles to DefaultPlanExecutor's outer catch which fires
+        // listener.onFailure with the cause.
+        ExecutionGraph graph = walker.build();
+
         // Wire the completion listener BEFORE registering the cancel callback so a
         // post-build / pre-start cancellation reaches the listener via the cascade.
         // Without this the user-facing listener is never registered and queries hang
@@ -79,23 +85,15 @@ public class QueryScheduler implements Scheduler {
 
         final AnalyticsQueryTask queryTask = config.parentTask();
 
-        // Build the graph BEFORE installing the cancel callback. PlanWalker.cancelAll() bails
-        // when the graph is null (it's the only state it can know to cascade cancels through),
-        // so installing the callback before build() lets a late-cancel replay run cancelAll()
-        // against a null graph — a silent no-op that allows the query to keep running.
-        // Installing the callback after build() means:
-        // - any cancel landing during build() has nothing installed yet → onCancelled is a
-        // no-op on the task side, but
-        // - setOnCancelCallback below sees isCancelled() and replays the new callback
-        // synchronously, which now has a real graph to cascade cancels through.
-        // The subsequent walker.start(graph) calls leaf.start() on each leaf; those that
-        // already saw cancelAll transition into CANCELLED and ShardFragmentStageExecution.start
-        // / LocalStageExecution.start treat transitionTo(RUNNING) failure as a no-op, so no
-        // dispatch happens for cancelled queries. On failure the partial graph cleans itself
-        // up via walker.build()'s try-finally; the RuntimeException bubbles to
-        // DefaultPlanExecutor's outer catch which fires listener.onFailure with the cause.
-        ExecutionGraph graph = walker.build();
-
+        // Install the cancel callback AFTER build() so PlanWalker.cancelAll() has a real graph
+        // to cascade through. Installing it before build() would let a late-cancel replay run
+        // cancelAll() against a null graph — a silent no-op that lets the query keep running.
+        // setOnCancelCallback replays synchronously when the task is already cancelled, so a
+        // cancel landing during build() will be replayed here against the now-built graph.
+        // walker.start(graph) below calls leaf.start() on each leaf; those that already saw
+        // cancelAll transition into CANCELLED and ShardFragmentStageExecution.start /
+        // LocalStageExecution.start treat transitionTo(RUNNING) failure as a no-op, so no
+        // dispatch happens for cancelled queries.
         queryTask.setOnCancelCallback(() -> {
             String reason = "task cancelled: " + (queryTask.getReasonCancelled() != null ? queryTask.getReasonCancelled() : "unknown");
             logger.info("[QueryScheduler] AnalyticsQueryTask.onCancelled fired, reason={}", reason);
