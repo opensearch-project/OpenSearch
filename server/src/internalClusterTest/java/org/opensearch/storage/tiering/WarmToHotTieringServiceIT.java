@@ -1343,7 +1343,7 @@ public class WarmToHotTieringServiceIT extends RemoteStoreBaseIntegTestCase {
         migrateToWarm(INDEX_NAME);
 
         clusterInfoService.setNodeResourceUsageFunctionAndRefresh(
-            (nodeId -> new NodeResourceUsageStats(nodeId, System.currentTimeMillis(), 99, 20, null))
+            (nodeId -> new NodeResourceUsageStats(nodeId, System.currentTimeMillis(), 99, 20, null, 0.0))
         );
 
         // Try migrating again and verify error
