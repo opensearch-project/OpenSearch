@@ -198,11 +198,6 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         ScalarFunction.CURRENT_TIME,
         ScalarFunction.CURTIME,
         ScalarFunction.SYSDATE,
-        // Scalar PPL `where earliest(expr, ts)` / `where latest(expr, ts)` —
-        // EarliestLatestAdapter rewrites them into a now()-symbolic
-        // timestamp comparison so DataFusion's optimizer folds them at engine
-        // plan time, anchored to the same query_execution_start_time as the
-        // niladic now / sysdate / current_* family above.
         ScalarFunction.EARLIEST,
         ScalarFunction.LATEST,
         ScalarFunction.CONVERT_TZ,
@@ -429,10 +424,6 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                     Map.entry(ScalarFunction.DAY_OF_YEAR, dayOfYear),
                     Map.entry(ScalarFunction.DIVIDE, new StdOperatorRewriteAdapter("DIVIDE", SqlStdOperatorTable.DIVIDE)),
                     Map.entry(ScalarFunction.E, new EConstantAdapter()),
-                    // EARLIEST/LATEST scalar PPL predicates: rewritten into a now()-symbolic
-                    // timestamp comparison so DataFusion's SimplifyExpressions folds it at
-                    // engine plan time, sharing the same query_execution_start_time as every
-                    // other migrated datetime function (now/sysdate/current_*).
                     Map.entry(ScalarFunction.EARLIEST, new EarliestLatestAdapter.EarliestAdapter()),
                     Map.entry(ScalarFunction.LATEST, new EarliestLatestAdapter.LatestAdapter()),
                     Map.entry(ScalarFunction.EXPM1, new Expm1Adapter()),
