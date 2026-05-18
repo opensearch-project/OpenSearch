@@ -72,6 +72,20 @@ scalar_functions:
     impls:
       - args: []
         return: timestamp
+  - name: "date_trunc"
+    description: >-
+      Truncate a timestamp to the start of the specified granularity
+      ('second', 'minute', 'hour', 'day', 'week', 'month', 'quarter', 'year').
+      DataFusion's builtin `date_trunc`. Used by `EarliestFunctionAdapter` /
+      `LatestFunctionAdapter` to express PPL's `@<unit>` snap chunks
+      symbolically. The granularity slot is `value: string` (a VARCHAR literal,
+      not a SqlIntervalQualifier enum symbol) — see the rationale on
+      `date_part` for why this matters for isthmus's matchKeys.
+    impls:
+      - args:
+          - { value: string, name: "granularity" }
+          - { value: "precision_timestamp<P>", name: "ts" }
+        return: "precision_timestamp<P>"
   - name: "current_date"
     description: >-
       Returns today's date (no time component). DataFusion's builtin

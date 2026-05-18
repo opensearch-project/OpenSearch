@@ -12,186 +12,157 @@ import org.opensearch.client.Request;
 import org.opensearch.client.Response;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
 /**
- * End-to-end integration test for the scalar PPL boolean predicates
- * {@code where earliest(expr, ts)} and {@code where latest(expr, ts)} on the
- * analytics-engine route.
+ * End-to-end coverage for PPL scalar
+ * <a href="https://docs.opensearch.org/latest/sql-and-ppl/ppl/functions/datetime/">{@code earliest}
+ * and {@code latest}</a> filter predicates on the analytics-engine route.
  *
- * <p>Pipeline exercised end to end:
+ * <p>Pipeline exercised:
  * <pre>
  *   PPL parser → Calcite RexCall (operator name "EARLIEST" / "LATEST")
- *     → analytics-engine PlannerImpl Phase 0:
- *       EarliestLatestAdapter.foldRelativeTimePredicates
- *         (parses the literal first arg via the relative-time DSL, replaces the
- *          call with a {@code ts >= LITERAL} / {@code ts <= LITERAL} comparison)
- *     → standard OpenSearchFilterRule + DataFusion comparison execution
- *     → coordinator → PPL response
+ *     → BackendPlanAdapter resolves ScalarFunction.EARLIEST / LATEST →
+ *       EarliestLatestAdapter rewrites the call to
+ *       {@code ts >=|<= [TIMESTAMP_LITERAL | DATETIME_PLUS(now(), INTERVAL) | date_trunc(unit, now())]}
+ *     → Substrait emit (now(), INTERVAL_DAY/MONTH, date_trunc resolve via the
+ *       sandbox extension catalog) → DataFusion {@code SimplifyExpressions}
+ *       folds {@code now()} against {@code query_execution_start_time} → native
+ *       timestamp comparison → coordinator → PPL response.
  * </pre>
  *
- * <p>The fold is required because substrait-java has no mapping for the
- * SQL-plugin {@code EARLIEST}/{@code LATEST} UDFs and {@code OpenSearchFilterRule}
- * would otherwise throw {@code "Unrecognized filter operator [EARLIEST / OTHER_FUNCTION]"}.
+ * <p>Fixture: shared {@code calcs} dataset (17 rows, all in 2004). The
+ * {@code datetime0} column spans {@code 2004-07-04T22:49:28Z} (key08, earliest)
+ * to {@code 2004-08-02T07:59:23Z} (key02, latest).
  */
 public class EarliestLatestCommandIT extends AnalyticsRestTestCase {
 
-    private static final String INDEX = "earliest_latest_scalar_e2e";
-    private static final int NUM_SHARDS = 1;
-
-    /** Five rows spanning 2023-01-01..2023-01-05 on {@code @timestamp}. */
-    private static final String[][] ROWS = new String[][] {
-        {"server1", "ERROR", "Database connection failed", "2023-01-01"},
-        {"server2", "INFO",  "Service started",            "2023-01-02"},
-        {"server1", "WARN",  "High memory usage",          "2023-01-03"},
-        {"server3", "ERROR", "Disk space low",             "2023-01-04"},
-        {"server2", "INFO",  "Backup completed",           "2023-01-05"},
-    };
+    private static final Dataset DATASET = new Dataset("calcs", "calcs");
 
     private static boolean dataProvisioned = false;
 
     private void ensureDataProvisioned() throws IOException {
-        if (dataProvisioned) return;
-        createParquetBackedIndex();
-        indexRows();
-        dataProvisioned = true;
-    }
-
-    // ── Tests ─────────────────────────────────────────────────────────────────
-
-    /**
-     * Scalar {@code where earliest(absoluteLiteral, @timestamp)} keeps rows whose
-     * timestamp is at-or-after the literal. With the literal at 2023-01-03, the
-     * three rows on 2023-01-03..05 survive.
-     *
-     * <p>This proves the fold pipeline: PPL → Calcite EARLIEST UDF →
-     * {@code EarliestLatestAdapter.foldRelativeTimePredicates} →
-     * {@code @timestamp >= TIMESTAMP_LITERAL} → DataFusion native comparison.
-     * If the fold didn't run, the analytics-engine filter rule would reject the
-     * unknown {@code EARLIEST} operator and the query would 500.
-     */
-    public void testWhereEarliestWithAbsoluteLiteralKeepsLaterRows() throws IOException {
-        assertRowsAnyOrder(
-            "source = " + INDEX + " | where earliest('2023-01-03', `@timestamp`) | stats count() as cnt",
-            row(3)
-        );
-    }
-
-    /**
-     * Scalar {@code where latest(absoluteLiteral, @timestamp)} keeps rows whose
-     * timestamp is at-or-before the literal. Literal at 2023-01-03 → rows on
-     * 2023-01-01..03 qualify (3 rows).
-     */
-    public void testWhereLatestWithAbsoluteLiteralKeepsEarlierRows() throws IOException {
-        assertRowsAnyOrder(
-            "source = " + INDEX + " | where latest('2023-01-03', `@timestamp`) | stats count() as cnt",
-            row(3)
-        );
-    }
-
-    /**
-     * Scalar {@code where earliest('-100y', @timestamp)} — a relative-time
-     * expression. With a 100-year lookback every row of the fixture qualifies, so
-     * this asserts that the relative-time DSL parser is wired up end-to-end (no
-     * fall-back to letting the EARLIEST UDF reach the filter rule unrewritten,
-     * which would 500).
-     */
-    public void testWhereEarliestWithRelativeTimeExpression() throws IOException {
-        assertRowsAnyOrder(
-            "source = " + INDEX + " | where earliest('-100y', `@timestamp`) | stats count() as cnt",
-            row(5)
-        );
-    }
-
-    // ── index provisioning ────────────────────────────────────────────────────
-
-    private void createParquetBackedIndex() throws IOException {
-        try {
-            client().performRequest(new Request("DELETE", "/" + INDEX));
-        } catch (Exception ignored) {}
-
-        String body = "{"
-            + "\"settings\": {"
-            + "  \"number_of_shards\": " + NUM_SHARDS + ","
-            + "  \"number_of_replicas\": 0,"
-            + "  \"index.pluggable.dataformat.enabled\": true,"
-            + "  \"index.pluggable.dataformat\": \"composite\","
-            + "  \"index.composite.primary_data_format\": \"parquet\","
-            + "  \"index.composite.secondary_data_formats\": \"\""
-            + "},"
-            + "\"mappings\": {"
-            + "  \"properties\": {"
-            + "    \"server\":    { \"type\": \"keyword\" },"
-            + "    \"level\":     { \"type\": \"keyword\" },"
-            + "    \"message\":   { \"type\": \"keyword\" },"
-            + "    \"@timestamp\":{ \"type\": \"date\" }"
-            + "  }"
-            + "}"
-            + "}";
-
-        Request createIndex = new Request("PUT", "/" + INDEX);
-        createIndex.setJsonEntity(body);
-        Map<String, Object> response = assertOkAndParse(client().performRequest(createIndex), "Create index");
-        assertEquals("index creation must be acknowledged", true, response.get("acknowledged"));
-
-        Request health = new Request("GET", "/_cluster/health/" + INDEX);
-        health.addParameter("wait_for_status", "green");
-        health.addParameter("timeout", "30s");
-        client().performRequest(health);
-    }
-
-    private void indexRows() throws IOException {
-        StringBuilder bulk = new StringBuilder();
-        for (int i = 0; i < ROWS.length; i++) {
-            String[] r = ROWS[i];
-            bulk.append("{\"index\": {\"_id\": \"").append(i).append("\"}}\n");
-            bulk.append("{")
-                .append("\"server\":\"").append(r[0]).append("\",")
-                .append("\"level\":\"").append(r[1]).append("\",")
-                .append("\"message\":\"").append(r[2]).append("\",")
-                .append("\"@timestamp\":\"").append(r[3]).append("\"")
-                .append("}\n");
+        if (dataProvisioned == false) {
+            DatasetProvisioner.provision(client(), DATASET);
+            dataProvisioned = true;
         }
-
-        Request bulkRequest = new Request("POST", "/" + INDEX + "/_bulk");
-        bulkRequest.setJsonEntity(bulk.toString());
-        bulkRequest.addParameter("refresh", "true");
-        client().performRequest(bulkRequest);
-
-        client().performRequest(new Request("POST", "/" + INDEX + "/_flush?force=true"));
     }
 
-    // ── helpers ───────────────────────────────────────────────────────────────
+    private String oneRow(String key) {
+        return "source=" + DATASET.indexName + " | where key='" + key + "' | head 1 ";
+    }
 
-    private static List<Object> row(Object... values) {
-        return Arrays.asList(values);
+    // ── Absolute literal — emits TIMESTAMP_LITERAL on RHS ───────────────────
+
+    /**
+     * {@code where earliest(absolute_literal, ts)} keeps rows with {@code ts >=}
+     * the literal. Of 17 rows in calcs, 11 have {@code datetime0 >= 2004-07-15}.
+     */
+    public void testEarliestAbsoluteLiteralCount() throws IOException {
+        assertFirstRowLong(
+            "source = " + DATASET.indexName + " | where earliest('2004-07-15 00:00:00', `datetime0`) | stats count() as cnt",
+            11L
+        );
     }
 
     /**
-     * Multiset comparison — group iteration order across stages is not
-     * guaranteed.
+     * {@code where latest(absolute_literal, ts)} keeps rows with {@code ts <=}
+     * the literal. 6 rows have {@code datetime0 <= 2004-07-15}.
      */
-    @SafeVarargs
-    @SuppressWarnings("varargs")
-    private final void assertRowsAnyOrder(String ppl, List<Object>... expected) throws IOException {
+    public void testLatestAbsoluteLiteralCount() throws IOException {
+        assertFirstRowLong(
+            "source = " + DATASET.indexName + " | where latest('2004-07-15 00:00:00', `datetime0`) | stats count() as cnt",
+            6L
+        );
+    }
+
+    /**
+     * Specific row keep: {@code earliest(literal, ts)} on a literal that splits
+     * a single key out. With {@code 2004-07-26T00:00:00Z} as the threshold, only
+     * rows with {@code datetime0 >= that} survive (key01, key02, key04, key05,
+     * key06, key09, key11, key14, key16) — exercises the predicate selectivity
+     * end-to-end, not just the count.
+     */
+    public void testEarliestAbsoluteLiteralSelectsSpecificRows() throws IOException {
+        // Verify against an exact key that's just above the threshold.
+        assertFirstRowLong(
+            oneRow("key01") + "| where earliest('2004-07-26 00:00:00', `datetime0`) | stats count() as cnt",
+            1L
+        );
+        // And one just below — should be filtered out, leaving zero rows that pass through stats.
+        assertFirstRowLong(
+            oneRow("key00") + "| where earliest('2004-07-26 00:00:00', `datetime0`) | stats count() as cnt",
+            0L
+        );
+    }
+
+    // ── Pure offset — emits DATETIME_PLUS(now(), INTERVAL) ──────────────────
+
+    /**
+     * {@code earliest('-100y', ts)} — relative offset 100 years back. Every row
+     * of the calcs fixture sits in 2004, so a 100-year lookback keeps all 17.
+     * This proves the offset path lowers to a {@code now() ± INTERVAL} shape
+     * that DataFusion's optimizer folds at engine plan time.
+     */
+    public void testEarliestRelativeOffsetKeepsAllRows() throws IOException {
+        assertFirstRowLong(
+            "source = " + DATASET.indexName + " | where earliest('-100y', `datetime0`) | stats count() as cnt",
+            17L
+        );
+    }
+
+    /**
+     * {@code latest('+100y', ts)} — symmetric: 100 years forward keeps every
+     * row that's in the past relative to "now".
+     */
+    public void testLatestRelativeOffsetKeepsAllRows() throws IOException {
+        assertFirstRowLong(
+            "source = " + DATASET.indexName + " | where latest('+100y', `datetime0`) | stats count() as cnt",
+            17L
+        );
+    }
+
+    /**
+     * {@code latest('-1y', ts)} — 1-year-ago threshold. All calcs rows are in
+     * 2004 so they're all older than 1 year; the predicate should keep all 17.
+     */
+    public void testLatestRelativeOneYearKeepsAllPastRows() throws IOException {
+        assertFirstRowLong(
+            "source = " + DATASET.indexName + " | where latest('-1y', `datetime0`) | stats count() as cnt",
+            17L
+        );
+    }
+
+    // ── 'now' literal — emits bare now() ────────────────────────────────────
+
+    /**
+     * {@code latest('now', ts)} — the literal "now" lowers to a bare
+     * {@code now()} on the RHS; the predicate becomes {@code ts <= now()}. All
+     * calcs rows are in 2004 so they all qualify.
+     */
+    public void testLatestNowKeepsAllPastRows() throws IOException {
+        assertFirstRowLong(
+            "source = " + DATASET.indexName + " | where latest('now', `datetime0`) | stats count() as cnt",
+            17L
+        );
+    }
+
+    // ── helpers (mirror DateTimeScalarFunctionsIT / ConditionalFunctionsIT) ─
+
+    private void assertFirstRowLong(String ppl, long expected) throws IOException {
+        Object cell = firstRowFirstCell(ppl);
+        assertTrue("Expected numeric result for query [" + ppl + "] but got: " + cell, cell instanceof Number);
+        assertEquals("Value mismatch for query: " + ppl, expected, ((Number) cell).longValue());
+    }
+
+    private Object firstRowFirstCell(String ppl) throws IOException {
         Map<String, Object> response = executePpl(ppl);
         @SuppressWarnings("unchecked")
-        List<List<Object>> actualRows = (List<List<Object>>) response.get("rows");
-        assertNotNull("Response missing 'rows' field for query: " + ppl, actualRows);
-        List<String> expectedSorted = Arrays.stream(expected).map(EarliestLatestCommandIT::normalizeRow).sorted().toList();
-        List<String> actualSorted = actualRows.stream().map(EarliestLatestCommandIT::normalizeRow).sorted().toList();
-        assertEquals("Row multisets differ for query: " + ppl, expectedSorted, actualSorted);
-    }
-
-    private static String normalizeRow(List<Object> row) {
-        StringBuilder sb = new StringBuilder("[");
-        for (int i = 0; i < row.size(); i++) {
-            if (i > 0) sb.append('|');
-            sb.append(row.get(i) == null ? "<NULL>" : row.get(i).toString());
-        }
-        return sb.append(']').toString();
+        List<List<Object>> rows = (List<List<Object>>) response.get("rows");
+        assertNotNull("Response missing 'rows' for query: " + ppl, rows);
+        assertTrue("Expected at least one row for query: " + ppl, rows.size() >= 1);
+        return rows.get(0).get(0);
     }
 
     private Map<String, Object> executePpl(String ppl) throws IOException {

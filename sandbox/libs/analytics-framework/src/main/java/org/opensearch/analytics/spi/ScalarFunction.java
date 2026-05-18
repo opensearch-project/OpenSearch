@@ -184,6 +184,8 @@ public enum ScalarFunction {
     DATE_FORMAT(Category.SCALAR, SqlKind.OTHER_FUNCTION),
     TIME_FORMAT(Category.SCALAR, SqlKind.OTHER_FUNCTION),
     STR_TO_DATE(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    EARLIEST(Category.COMPARISON, SqlKind.OTHER_FUNCTION),
+    LATEST(Category.COMPARISON, SqlKind.OTHER_FUNCTION),
 
     // ── JSON ────────────────────────────────────────────────────────
     JSON_APPEND(Category.SCALAR, SqlKind.OTHER_FUNCTION),

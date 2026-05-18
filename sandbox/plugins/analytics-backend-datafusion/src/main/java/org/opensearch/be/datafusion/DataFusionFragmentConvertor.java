@@ -136,6 +136,9 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         FunctionMappings.s(DateTimeAdapters.LOCAL_DATE_OP, "to_date"),
         // PPL datetime(expr) → DF builtin to_timestamp (DatetimeAdapter renames only).
         FunctionMappings.s(DateTimeAdapters.LOCAL_TO_TIMESTAMP_OP, "to_timestamp"),
+        // date_trunc(granularity, ts) → DF builtin date_trunc. Used by
+        // EarliestFunctionAdapter to express PPL's `@<unit>` snap chunks symbolically.
+        FunctionMappings.s(DateTimeAdapters.LOCAL_DATE_TRUNC_OP, "date_trunc"),
         // PPL datetime + format functions → Rust UDFs registered in rust/src/udf/mod.rs.
         FunctionMappings.s(RustUdfDateTimeAdapters.LOCAL_EXTRACT_OP, "extract"),
         FunctionMappings.s(RustUdfDateTimeAdapters.LOCAL_FROM_UNIXTIME_OP, "from_unixtime"),

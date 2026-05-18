@@ -84,6 +84,28 @@ final class DateTimeAdapters {
         SqlFunctionCategory.TIMEDATE
     );
 
+    /**
+     * 2-arg {@code date_trunc(granularity, ts)} — granularity is a VARCHAR literal
+     * ({@code 'second'}, {@code 'minute'}, {@code 'hour'}, {@code 'day'}, {@code 'month'},
+     * {@code 'quarter'}, {@code 'year'}), ts is a TIMESTAMP. Used by
+     * {@code EarliestFunctionAdapter} / {@code LatestFunctionAdapter} to express PPL's
+     * {@code @<unit>} snap chunks symbolically — the call rides through Substrait so
+     * DataFusion's {@code SimplifyExpressions} folds it together with {@code now()} at
+     * the engine's own plan time, keeping the truncation aligned with the engine's
+     * {@code query_execution_start_time}.
+     */
+    static final SqlOperator LOCAL_DATE_TRUNC_OP = new SqlFunction(
+        "date_trunc",
+        SqlKind.OTHER_FUNCTION,
+        ReturnTypes.ARG1_NULLABLE,
+        null,
+        OperandTypes.family(
+            org.apache.calcite.sql.type.SqlTypeFamily.CHARACTER,
+            org.apache.calcite.sql.type.SqlTypeFamily.TIMESTAMP
+        ),
+        SqlFunctionCategory.TIMEDATE
+    );
+
     static final class NowAdapter extends AbstractNameMappingAdapter {
         NowAdapter() {
             super(LOCAL_NOW_OP, List.of(), List.of());
