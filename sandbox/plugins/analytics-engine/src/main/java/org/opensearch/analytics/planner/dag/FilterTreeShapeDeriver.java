@@ -76,7 +76,12 @@ final class FilterTreeShapeDeriver {
                 hasMixed |= childResult.hasMixed;
             }
 
-            if (isOrNot && hasDelegated && hasDrivingBackend) {
+            // A delegated predicate under OR or NOT requires the tree evaluator —
+            // NOT(delegated) needs bitmap inversion which SingleCollector can't do,
+            // and OR(delegated, ...) needs multi-collector bitmap combination.
+            // Previously this also required hasDrivingBackend, which missed the
+            // bare NOT(delegated) case where no driving-backend predicate exists.
+            if (isOrNot && hasDelegated) {
                 hasMixed = true;
             }
 
