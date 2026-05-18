@@ -118,8 +118,9 @@ public class NativeMemorySearchBackpressureIT extends OpenSearchIntegTestCase {
             .put(NodeDuressSettings.SETTING_HEAP_THRESHOLD.getKey(), 1.0) // disable heap duress
             .put(NodeDuressSettings.SETTING_NATIVE_MEMORY_THRESHOLD.getKey(), 0.0)
             .put(NodeDuressSettings.SETTING_NUM_SUCCESSIVE_BREACHES.getKey(), 1)
-            // node.native_memory.limit must be > 0 or the duress lambda short-circuits
-            // ("totalNative is zero"). 1 byte is enough — the probe reports a non-zero RssAnon.
+            // search_backpressure.node_duress.native_memory_limit must be > 0 or the duress
+            // lambda short-circuits ("totalNative is zero"). 1 byte is enough — the probe
+            // reports a non-zero RssAnon.
             .put(NodeDuressSettings.NODE_NATIVE_MEMORY_LIMIT_SETTING.getKey(), "1b")
             .build();
         assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(request).get());

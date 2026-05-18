@@ -89,12 +89,15 @@ public class NodeDuressSettings {
     );
 
     /**
-     * Absolute native-memory budget for this node, in bytes. When the value is {@link ByteSizeValue#ZERO}
-     * (default) the tracker treats the budget as unconfigured and reports {@code 0%}.
+     * Absolute native-memory budget for this node, in bytes, scoped to the search-backpressure
+     * duress probe. Independent from the node-level resource-tracker's
+     * {@code node.native_memory.limit} so the two features can be tuned separately. When this
+     * value is {@link ByteSizeValue#ZERO} (default), the duress probe treats the budget as
+     * unconfigured and stays inert.
      */
     private volatile ByteSizeValue nodeNativeMemory;
     public static final Setting<ByteSizeValue> NODE_NATIVE_MEMORY_LIMIT_SETTING = Setting.byteSizeSetting(
-        "node.native_memory.limit",
+        "search_backpressure.node_duress.native_memory_limit",
         ByteSizeValue.ZERO,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope

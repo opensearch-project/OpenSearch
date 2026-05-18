@@ -136,12 +136,14 @@ public class SearchBackpressureService extends AbstractLifecycleComponent implem
                 put(ResourceType.NATIVE_MEMORY, new NodeDuressTracker(() -> {
                     double used = OsProbe.getInstance().getProcessNativeMemoryBytes();
                     double totalNative = settings.getNodeDuressSettings().getNodeNativeMemory();
-                    if (totalNative == 0) {
+                    if (totalNative <= 0) {
                         return false;
                     }
                     double usedFraction = used / totalNative;
                     if (usedFraction < 0.0d) {
+                        if (logger.isDebugEnabled()) {
                         logger.debug("native memory duress probe: signal unavailable (usedBytes={})", used);
+                        }
                         return false;
                     }
                     double threshold = settings.getNodeDuressSettings().getNativeMemoryThreshold();
@@ -157,7 +159,7 @@ public class SearchBackpressureService extends AbstractLifecycleComponent implem
                     return breached;
                 }, () -> settings.getNodeDuressSettings().getNumSuccessiveBreaches()));
             }
-        }, new TimeBasedExpiryTracker(System::nanoTime)),
+        }),
             getTrackers(
                 settings.getSearchTaskSettings()::getCpuTimeNanosThreshold,
                 settings.getSearchTaskSettings()::getHeapVarianceThreshold,
@@ -240,21 +242,6 @@ public class SearchBackpressureService extends AbstractLifecycleComponent implem
         List<CancellableTask> searchShardTasks = getTaskByType(SearchShardTask.class);
 
         final boolean isNativeMemoryInDuress = nodeDuressTrackers.isNativeMemoryInDuress();
-        if (logger.isDebugEnabled()) {
-            if (isNativeMemoryInDuress) {
-                logger.debug(
-                    "native memory duress active, bypassing heap-dominance gate — searchTasks={}, searchShardTasks={}",
-                    searchTasks.size(),
-                    searchShardTasks.size()
-                );
-            } else {
-                logger.debug(
-                    "node in duress (non-native-memory) — searchTasks={}, searchShardTasks={}",
-                    searchTasks.size(),
-                    searchShardTasks.size()
-                );
-            }
-        }
 
         final Map<Class<? extends SearchBackpressureTask>, List<CancellableTask>> cancellableTasks;
         if (isNativeMemoryInDuress) {
@@ -316,11 +303,7 @@ public class SearchBackpressureService extends AbstractLifecycleComponent implem
 
             // Stop cancelling tasks if there are no tokens in either of the two token buckets.
             if (rateLimitReached && ratioLimitReached) {
-                logger.warn(
-                    "cancellation limit reached for [{}], not cancelling task [{}]",
-                    taskType.getSimpleName(),
-                    taskCancellation.getTask().getId()
-                );
+                logger.debug("task cancellation limit reached");
                 searchBackpressureState.incrementLimitReachedCount();
                 break;
             }
@@ -441,7 +424,7 @@ public class SearchBackpressureService extends AbstractLifecycleComponent implem
         LongSupplier ElapsedTimeNanosSupplier,
         DoubleSupplier nativeMemoryPercentThresholdSupplier,
         ClusterSettings clusterSettings,
-        Setting<Integer> heapWindowSizeSetting
+        Setting<Integer> windowSizeSetting
     ) {
         TaskResourceUsageTrackers trackers = new TaskResourceUsageTrackers();
         trackers.addTracker(new CpuUsageTracker(cpuThresholdSupplier), TaskResourceUsageTrackerType.CPU_USAGE_TRACKER);
@@ -452,7 +435,7 @@ public class SearchBackpressureService extends AbstractLifecycleComponent implem
                     heapPercentThresholdSupplier,
                     heapMovingAverageWindowSize,
                     clusterSettings,
-                    heapWindowSizeSetting
+                    windowSizeSetting
                 ),
                 TaskResourceUsageTrackerType.HEAP_USAGE_TRACKER
             );

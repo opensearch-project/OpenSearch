@@ -13,7 +13,6 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
 import org.opensearch.analytics.spi.QueryExecutionMetrics;
 import org.opensearch.be.datafusion.action.DataFusionStatsAction;
-import org.opensearch.be.datafusion.cache.CacheSettings;
 import org.opensearch.be.datafusion.nativelib.NativeBridge;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.node.DiscoveryNodes;
@@ -175,7 +174,6 @@ public class DataFusionPlugin extends Plugin implements SearchBackEndPlugin<Data
         // The OpenSearch task id is used as the DataFusion context_id at query launch
         // (see ShardScanInstructionHandler / DatafusionSearchExecEngine), so the map is
         // already keyed by Task#getId on the consumer side.
-        logger.info("installing native-memory snapshot supplier for search backpressure");
         NativeMemoryUsageTracker.setSnapshotSupplier(this::currentBytesByTaskId);
         NativeMemoryUsageTracker.setNativeMemoryBudgetSupplier(
             () -> DATAFUSION_MEMORY_POOL_LIMIT.get(clusterService.getSettings())

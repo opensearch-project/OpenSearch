@@ -87,7 +87,9 @@ public class NodeDuressSettingsTests extends OpenSearchTestCase {
         );
         assertEquals(512L * 1024 * 1024, settings.getNodeNativeMemory());
 
-        clusterSettings.applySettings(Settings.builder().put(NodeDuressSettings.NODE_NATIVE_MEMORY_LIMIT_SETTING.getKey(), "1gb").build());
+        clusterSettings.applySettings(
+            Settings.builder().put(NodeDuressSettings.NODE_NATIVE_MEMORY_LIMIT_SETTING.getKey(), "1gb").build()
+        );
         assertEquals(1024L * 1024 * 1024, settings.getNodeNativeMemory());
     }
 
