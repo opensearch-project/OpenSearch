@@ -14,6 +14,7 @@ import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.composite.CompositeDataFormat;
 import org.opensearch.composite.CompositeIndexingExecutionEngine;
+import org.opensearch.composite.stats.CompositeShardStats;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexSettings;
@@ -136,7 +137,7 @@ public class CompositeMergerTests extends OpenSearchTestCase {
 
         MergeHandler handler = new MergeHandler(
             snapshotSupplier,
-            new CompositeMerger(engineNoSecondary, primaryOnlyFormat),
+            new CompositeMerger(engineNoSecondary, primaryOnlyFormat, new CompositeShardStats()),
             SHARD_ID,
             mock(MergeHandler.MergePolicy.class),
             mock(MergeHandler.MergeListener.class),
@@ -220,7 +221,7 @@ public class CompositeMergerTests extends OpenSearchTestCase {
 
         MergeHandler handler = new MergeHandler(
             snapshotSupplier,
-            new CompositeMerger(multiEngine, multiFormat),
+            new CompositeMerger(multiEngine, multiFormat, new CompositeShardStats()),
             SHARD_ID,
             mock(MergeHandler.MergePolicy.class),
             mock(MergeHandler.MergeListener.class),
@@ -371,7 +372,7 @@ public class CompositeMergerTests extends OpenSearchTestCase {
 
         MergeHandler handler = new MergeHandler(
             snapshotSupplier,
-            new CompositeMerger(dupEngine, dupFormat),
+            new CompositeMerger(dupEngine, dupFormat, new CompositeShardStats()),
             SHARD_ID,
             mock(MergeHandler.MergePolicy.class),
             mock(MergeHandler.MergeListener.class),
@@ -566,7 +567,7 @@ public class CompositeMergerTests extends OpenSearchTestCase {
     private MergeHandler createHandler() {
         return new MergeHandler(
             snapshotSupplier,
-            new CompositeMerger(compositeEngine, compositeDataFormat),
+            new CompositeMerger(compositeEngine, compositeDataFormat, new CompositeShardStats()),
             SHARD_ID,
             mock(MergeHandler.MergePolicy.class),
             mock(MergeHandler.MergeListener.class),
@@ -585,7 +586,7 @@ public class CompositeMergerTests extends OpenSearchTestCase {
         DataFormatAwareMergePolicy policy = new DataFormatAwareMergePolicy(indexSettings.getMergePolicy(true), SHARD_ID);
         return new MergeHandler(
             snapshotSupplier,
-            new CompositeMerger(compositeEngine, compositeDataFormat),
+            new CompositeMerger(compositeEngine, compositeDataFormat, new CompositeShardStats()),
             SHARD_ID,
             policy,
             policy,

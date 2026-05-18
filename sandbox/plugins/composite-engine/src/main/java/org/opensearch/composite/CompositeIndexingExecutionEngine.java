@@ -14,6 +14,9 @@ import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.composite.merge.CompositeMerger;
+import org.opensearch.composite.stats.CompositeShardStats;
+import org.opensearch.composite.stats.CompositeStatsRegistry;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.DataFormatPlugin;
@@ -47,6 +50,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 /**
@@ -71,6 +75,8 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
     private final Set<IndexingExecutionEngine<?, ?>> secondaryEngines;
     private final CompositeDataFormat compositeDataFormat;
     private final Committer committer;
+    private final ShardId shardId;
+    private final CompositeShardStats stats = new CompositeShardStats();
 
     /**
      * Constructs a CompositeIndexingExecutionEngine by reading index settings to
@@ -140,6 +146,10 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
 
         this.compositeDataFormat = new CompositeDataFormat(primaryFormat, allFormats);
         this.committer = committer;
+        this.shardId = store != null ? store.shardId() : null;
+        if (this.shardId != null) {
+            CompositeStatsRegistry.getInstance().register(this.shardId, this);
+        }
     }
 
     /**
@@ -184,13 +194,20 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
      */
     @Override
     public Writer<CompositeDocumentInput> createWriter(WriterConfig config) {
-        return new CompositeWriter(this, config);
+        return new CompositeWriter(this, config, stats);
+    }
+
+    /**
+     * Returns the shard-level stats collector for this engine.
+     */
+    public CompositeShardStats getStats() {
+        return stats;
     }
 
     /** {@inheritDoc} Delegates to the primary engine's merger. */
     @Override
     public Merger getMerger() {
-        return new CompositeMerger(this, compositeDataFormat);
+        return new CompositeMerger(this, compositeDataFormat, stats);
     }
 
     /**
@@ -204,24 +221,37 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
      */
     @Override
     public RefreshResult refresh(RefreshInput refreshInput) throws IOException {
-        RefreshResult primary = primaryEngine.refresh(refreshInput);
-        List<RefreshResult> secResults = new ArrayList<>();
-        for (IndexingExecutionEngine<?, ?> engine : secondaryEngines) {
-            secResults.add(engine.refresh(refreshInput));
-        }
+        long startNanos = System.nanoTime();
+        try {
+            long primaryStart = System.nanoTime();
+            RefreshResult primary = primaryEngine.refresh(refreshInput);
+            stats.getOrCreateFormatStats(primaryEngine.getDataFormat().name())
+                .addRefreshTimeMillis(TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - primaryStart));
 
-        Map<Long, Segment.Builder> mergedByGen = new LinkedHashMap<>();
-        buildSegment(primary, mergedByGen);
-        for (RefreshResult secResult : secResults) {
-            buildSegment(secResult, mergedByGen);
-        }
+            List<RefreshResult> secResults = new ArrayList<>();
+            for (IndexingExecutionEngine<?, ?> engine : secondaryEngines) {
+                long secStart = System.nanoTime();
+                secResults.add(engine.refresh(refreshInput));
+                stats.getOrCreateFormatStats(engine.getDataFormat().name())
+                    .addRefreshTimeMillis(TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - secStart));
+            }
 
-        List<Segment> merged = new ArrayList<>(mergedByGen.size());
-        for (Segment.Builder builder : mergedByGen.values()) {
-            merged.add(builder.build());
-        }
+            Map<Long, Segment.Builder> mergedByGen = new LinkedHashMap<>();
+            buildSegment(primary, mergedByGen);
+            for (RefreshResult secResult : secResults) {
+                buildSegment(secResult, mergedByGen);
+            }
 
-        return new RefreshResult(merged);
+            List<Segment> merged = new ArrayList<>(mergedByGen.size());
+            for (Segment.Builder builder : mergedByGen.values()) {
+                merged.add(builder.build());
+            }
+
+            return new RefreshResult(merged);
+        } finally {
+            stats.incRefreshTotal();
+            stats.addRefreshTimeMillis(TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNanos));
+        }
     }
 
     private void buildSegment(RefreshResult primary, Map<Long, Segment.Builder> mergedByGen) {
@@ -324,6 +354,9 @@ public class CompositeIndexingExecutionEngine implements IndexingExecutionEngine
      */
     @Override
     public void close() throws IOException {
+        if (this.shardId != null) {
+            CompositeStatsRegistry.getInstance().unregister(this.shardId);
+        }
         IOUtils.closeWhileHandlingException(primaryEngine);
         secondaryEngines.forEach(IOUtils::closeWhileHandlingException);
         IOUtils.closeWhileHandlingException(committer);

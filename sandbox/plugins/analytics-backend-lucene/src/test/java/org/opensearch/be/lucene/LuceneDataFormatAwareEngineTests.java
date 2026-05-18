@@ -15,6 +15,7 @@ import org.apache.lucene.search.ReferenceManager;
 import org.opensearch.Version;
 import org.opensearch.be.lucene.index.LuceneCommitterFactory;
 import org.opensearch.be.lucene.index.LuceneDocumentInput;
+import org.opensearch.be.lucene.stats.LuceneShardStats;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
@@ -75,7 +76,7 @@ public class LuceneDataFormatAwareEngineTests extends AbstractDataFormatAwareEng
 
     @Override
     protected CommitterFactory createCommitterFactory(Store store) {
-        return new LuceneCommitterFactory();
+        return new LuceneCommitterFactory(new LuceneShardStats());
     }
 
     @Override

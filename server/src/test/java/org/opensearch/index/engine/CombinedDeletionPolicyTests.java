@@ -67,8 +67,7 @@ public class CombinedDeletionPolicyTests extends OpenSearchTestCase {
         final SoftDeletesPolicy softDeletesPolicy = new SoftDeletesPolicy(
             globalCheckpoint::get,
             NO_OPS_PERFORMED,
-            extraRetainedOps,
-            () -> RetentionLeases.EMPTY
+            extraRetainedOps, () -> RetentionLeases.EMPTY
         );
         TranslogDeletionPolicy translogPolicy = createTranslogDeletionPolicy();
         CombinedDeletionPolicy indexPolicy = newCombinedDeletionPolicy(translogPolicy, softDeletesPolicy, globalCheckpoint);

@@ -8,6 +8,7 @@
 
 package org.opensearch.composite;
 
+import org.opensearch.composite.stats.CompositeShardStats;
 import org.opensearch.index.engine.dataformat.FileInfos;
 import org.opensearch.index.engine.dataformat.FlushInput;
 import org.opensearch.index.engine.dataformat.WriterConfig;
@@ -30,20 +31,20 @@ public class CompositeWriterTests extends OpenSearchTestCase {
 
     public void testWriterGenerationIsPreserved() throws IOException {
         long gen = randomLongBetween(0, 1000);
-        CompositeWriter writer = new CompositeWriter(engine, new WriterConfig(gen));
+        CompositeWriter writer = new CompositeWriter(engine, new WriterConfig(gen), new CompositeShardStats());
         assertEquals(gen, writer.getWriterGeneration());
         writer.close();
     }
 
     public void testAbortedDefaultsToFalse() throws IOException {
-        CompositeWriter writer = new CompositeWriter(engine, new WriterConfig(0));
+        CompositeWriter writer = new CompositeWriter(engine, new WriterConfig(0), new CompositeShardStats());
         assertFalse(writer.isAborted());
         assertEquals(CompositeWriter.WriterState.ACTIVE, writer.getState());
         writer.close();
     }
 
     public void testAbortSetsAbortedFlag() throws IOException {
-        CompositeWriter writer = new CompositeWriter(engine, new WriterConfig(0));
+        CompositeWriter writer = new CompositeWriter(engine, new WriterConfig(0), new CompositeShardStats());
         writer.abort();
         assertTrue(writer.isAborted());
         assertEquals(CompositeWriter.WriterState.ABORTED, writer.getState());
@@ -51,14 +52,14 @@ public class CompositeWriterTests extends OpenSearchTestCase {
     }
 
     public void testFlushPendingDefaultsToFalse() throws IOException {
-        CompositeWriter writer = new CompositeWriter(engine, new WriterConfig(0));
+        CompositeWriter writer = new CompositeWriter(engine, new WriterConfig(0), new CompositeShardStats());
         assertFalse(writer.isFlushPending());
         assertEquals(CompositeWriter.WriterState.ACTIVE, writer.getState());
         writer.close();
     }
 
     public void testSetFlushPendingSetsFlag() throws IOException {
-        CompositeWriter writer = new CompositeWriter(engine, new WriterConfig(0));
+        CompositeWriter writer = new CompositeWriter(engine, new WriterConfig(0), new CompositeShardStats());
         writer.setFlushPending();
         assertTrue(writer.isFlushPending());
         assertEquals(CompositeWriter.WriterState.FLUSH_PENDING, writer.getState());
@@ -66,7 +67,7 @@ public class CompositeWriterTests extends OpenSearchTestCase {
     }
 
     public void testAbortDoesNotTransitionFromFlushPending() throws IOException {
-        CompositeWriter writer = new CompositeWriter(engine, new WriterConfig(0));
+        CompositeWriter writer = new CompositeWriter(engine, new WriterConfig(0), new CompositeShardStats());
         writer.setFlushPending();
         expectThrows(IllegalStateException.class, writer::abort);
         assertTrue(writer.isFlushPending());
@@ -75,7 +76,7 @@ public class CompositeWriterTests extends OpenSearchTestCase {
     }
 
     public void testFlushPendingDoesNotTransitionFromAborted() throws IOException {
-        CompositeWriter writer = new CompositeWriter(engine, new WriterConfig(0));
+        CompositeWriter writer = new CompositeWriter(engine, new WriterConfig(0), new CompositeShardStats());
         writer.abort();
         expectThrows(IllegalStateException.class, writer::setFlushPending);
         assertTrue(writer.isAborted());
@@ -84,40 +85,40 @@ public class CompositeWriterTests extends OpenSearchTestCase {
     }
 
     public void testFlushReturnsFileInfos() throws IOException {
-        CompositeWriter writer = new CompositeWriter(engine, new WriterConfig(0));
+        CompositeWriter writer = new CompositeWriter(engine, new WriterConfig(0), new CompositeShardStats());
         FileInfos fileInfos = writer.flush(FlushInput.EMPTY);
         assertNotNull(fileInfos);
         writer.close();
     }
 
     public void testSyncDoesNotThrow() throws IOException {
-        CompositeWriter writer = new CompositeWriter(engine, new WriterConfig(0));
+        CompositeWriter writer = new CompositeWriter(engine, new WriterConfig(0), new CompositeShardStats());
         writer.sync();
         writer.close();
     }
 
     public void testCloseDoesNotThrow() throws IOException {
-        CompositeWriter writer = new CompositeWriter(engine, new WriterConfig(0));
+        CompositeWriter writer = new CompositeWriter(engine, new WriterConfig(0), new CompositeShardStats());
         writer.close();
         // calling close again should also not throw
         writer.close();
     }
 
     public void testMappingVersionSetAtConstruction() throws IOException {
-        CompositeWriter writer = new CompositeWriter(engine, new WriterConfig(0));
+        CompositeWriter writer = new CompositeWriter(engine, new WriterConfig(0), new CompositeShardStats());
         assertEquals(0L, writer.mappingVersion());
         writer.close();
     }
 
     public void testUpdateMappingVersionPropagates() throws IOException {
-        CompositeWriter writer = new CompositeWriter(engine, new WriterConfig(0));
+        CompositeWriter writer = new CompositeWriter(engine, new WriterConfig(0), new CompositeShardStats());
         writer.updateMappingVersion(5L);
         assertEquals(5L, writer.mappingVersion());
         writer.close();
     }
 
     public void testIsSchemaMutableReturnsFalseWhenAnySubWriterImmutable() throws IOException {
-        CompositeWriter writer = new CompositeWriter(engine, new WriterConfig(0));
+        CompositeWriter writer = new CompositeWriter(engine, new WriterConfig(0), new CompositeShardStats());
         assertTrue(writer.isSchemaMutable());
 
         // Make the primary sub-writer immutable

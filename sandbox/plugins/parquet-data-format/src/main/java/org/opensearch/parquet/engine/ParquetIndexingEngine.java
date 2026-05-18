@@ -31,6 +31,7 @@ import org.opensearch.parquet.bridge.RustBridge;
 import org.opensearch.parquet.memory.ArrowBufferPool;
 import org.opensearch.parquet.merge.NativeParquetMergeStrategy;
 import org.opensearch.parquet.merge.ParquetMergeExecutor;
+import org.opensearch.parquet.stats.ParquetShardStats;
 import org.opensearch.parquet.writer.ParquetDocumentInput;
 import org.opensearch.parquet.writer.ParquetWriter;
 import org.opensearch.threadpool.ThreadPool;
@@ -85,6 +86,7 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
     private final ThreadPool threadPool;
     private final FormatChecksumStrategy checksumStrategy;
     private final Merger parquetMerger;
+    private final ParquetShardStats stats = new ParquetShardStats();
 
     /**
      * Creates a new ParquetIndexingEngine.
@@ -202,7 +204,13 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
             throw new RuntimeException(e);
         }
         this.parquetMerger = new ParquetMergeExecutor(
-            new NativeParquetMergeStrategy(dataFormat, indexSettings.getIndex().getName(), shardPath, checksumStrategy::registerChecksum)
+            new NativeParquetMergeStrategy(
+                dataFormat,
+                indexSettings.getIndex().getName(),
+                shardPath,
+                checksumStrategy::registerChecksum,
+                stats
+            )
         );
         pushSettingsToRust();
     }
@@ -214,6 +222,13 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
     @Override
     public FormatChecksumStrategy getChecksumStrategy() {
         return checksumStrategy;
+    }
+
+    /**
+     * Returns the shard-level stats collector for this engine.
+     */
+    public ParquetShardStats getStats() {
+        return stats;
     }
 
     private void pushSettingsToRust() {
@@ -265,7 +280,8 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
             bufferPool,
             indexSettings,
             threadPool,
-            checksumStrategy
+            checksumStrategy,
+            stats
         );
     }
 

@@ -11,6 +11,7 @@ package org.opensearch.composite;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.composite.stats.CompositeShardStats;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.DocumentInput;
 import org.opensearch.index.engine.dataformat.FileInfos;
@@ -27,6 +28,7 @@ import java.util.Collections;
 import java.util.IdentityHashMap;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
@@ -50,6 +52,7 @@ class CompositeWriter implements Writer<CompositeDocumentInput> {
     private final Map<DataFormat, Writer<DocumentInput<?>>> secondaryWritersByFormat;
     private final long writerGeneration;
     private final AtomicReference<WriterState> state;
+    private final CompositeShardStats stats;
     private long mappingVersion;
 
     /**
@@ -80,11 +83,13 @@ class CompositeWriter implements Writer<CompositeDocumentInput> {
      *
      * @param engine           the composite indexing execution engine
      * @param config           the writer configuration
+     * @param stats            the shard-level stats collector
      */
     @SuppressWarnings("unchecked")
-    CompositeWriter(CompositeIndexingExecutionEngine engine, WriterConfig config) {
+    CompositeWriter(CompositeIndexingExecutionEngine engine, WriterConfig config, CompositeShardStats stats) {
         this.state = new AtomicReference<>(WriterState.ACTIVE);
         this.writerGeneration = config.writerGeneration();
+        this.stats = stats;
 
         IndexingExecutionEngine<?, ?> primaryDelegate = engine.getPrimaryDelegate();
         this.primaryFormat = primaryDelegate.getDataFormat();
@@ -110,80 +115,120 @@ class CompositeWriter implements Writer<CompositeDocumentInput> {
             throw new IllegalStateException("Cannot add document to writer in state " + state.get());
         }
 
-        // Write to primary first
-        WriteResult primaryResult = primaryWriter.addDoc(doc.getPrimaryInput());
-        switch (primaryResult) {
-            case WriteResult.Success s -> logger.trace("Successfully added document in primary format [{}]", primaryFormat.name());
-            case WriteResult.Failure f -> {
-                logger.debug("Failed to add document in primary format [{}]", primaryFormat.name());
-                return primaryResult;
-            }
-        }
-
-        // Then write to each secondary — keyed lookup by DataFormat (equals/hashCode based on name)
-        Map<DataFormat, DocumentInput<?>> secondaryInputs = doc.getSecondaryInputs();
-        for (Map.Entry<DataFormat, DocumentInput<?>> inputEntry : secondaryInputs.entrySet()) {
-            DataFormat format = inputEntry.getKey();
-            Writer<DocumentInput<?>> writer = secondaryWritersByFormat.get(format);
-            if (writer == null) {
-                logger.warn("No writer found for secondary format [{}], skipping", format.name());
-                continue;
-            }
-            WriteResult result = writer.addDoc(inputEntry.getValue());
-            switch (result) {
-                case WriteResult.Success s -> logger.trace("Successfully added document in secondary format [{}]", format.name());
+        long startNanos = System.nanoTime();
+        try {
+            // Write to primary first
+            long primaryStart = System.nanoTime();
+            WriteResult primaryResult = primaryWriter.addDoc(doc.getPrimaryInput());
+            long primaryElapsed = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - primaryStart);
+            CompositeShardStats.FormatStats primaryFormatStats = stats.getOrCreateFormatStats(primaryFormat.name());
+            switch (primaryResult) {
+                case WriteResult.Success s -> {
+                    logger.trace("Successfully added document in primary format [{}]", primaryFormat.name());
+                    primaryFormatStats.addDocsIndexed(1);
+                    primaryFormatStats.addIndexTimeMillis(primaryElapsed);
+                }
                 case WriteResult.Failure f -> {
-                    logger.debug("Failed to add document in secondary format [{}]", format.name());
-                    return result;
+                    logger.debug("Failed to add document in primary format [{}]", primaryFormat.name());
+                    primaryFormatStats.incIndexFailures();
+                    return primaryResult;
                 }
             }
-        }
 
-        return primaryResult;
+            // Then write to each secondary — keyed lookup by DataFormat (equals/hashCode based on name)
+            Map<DataFormat, DocumentInput<?>> secondaryInputs = doc.getSecondaryInputs();
+            for (Map.Entry<DataFormat, DocumentInput<?>> inputEntry : secondaryInputs.entrySet()) {
+                DataFormat format = inputEntry.getKey();
+                Writer<DocumentInput<?>> writer = secondaryWritersByFormat.get(format);
+                if (writer == null) {
+                    logger.warn("No writer found for secondary format [{}], skipping", format.name());
+                    continue;
+                }
+                long secStart = System.nanoTime();
+                WriteResult result = writer.addDoc(inputEntry.getValue());
+                long secElapsed = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - secStart);
+                CompositeShardStats.FormatStats formatStats = stats.getOrCreateFormatStats(format.name());
+                switch (result) {
+                    case WriteResult.Success s -> {
+                        logger.trace("Successfully added document in secondary format [{}]", format.name());
+                        formatStats.addDocsIndexed(1);
+                        formatStats.addIndexTimeMillis(secElapsed);
+                    }
+                    case WriteResult.Failure f -> {
+                        logger.debug("Failed to add document in secondary format [{}]", format.name());
+                        formatStats.incIndexFailures();
+                        return result;
+                    }
+                }
+            }
+
+            return primaryResult;
+        } finally {
+            stats.addDocsIndexed(1);
+            stats.addIndexTimeMillis(TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNanos));
+        }
     }
 
     @Override
     public FileInfos flush(FlushInput flushInput) throws IOException {
         setFlushPending();
-        FileInfos.Builder builder = FileInfos.builder();
+        long startNanos = System.nanoTime();
+        try {
+            FileInfos.Builder builder = FileInfos.builder();
 
-        // Flush primary (Parquet) first to get the sort permutation
-        FileInfos primaryFileInfos = primaryWriter.flush(flushInput);
-        Optional<WriterFileSet> primaryWfs = primaryFileInfos.getWriterFileSet(primaryFormat);
-        primaryWfs.ifPresent(writerFileSet -> builder.putWriterFileSet(primaryFormat, writerFileSet));
+            // Flush primary (Parquet) first to get the sort permutation
+            long primaryStart = System.nanoTime();
+            FileInfos primaryFileInfos = primaryWriter.flush(flushInput);
+            stats.getOrCreateFormatStats(primaryFormat.name())
+                .addFlushTimeMillis(TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - primaryStart));
+            Optional<WriterFileSet> primaryWfs = primaryFileInfos.getWriterFileSet(primaryFormat);
+            primaryWfs.ifPresent(writerFileSet -> builder.putWriterFileSet(primaryFormat, writerFileSet));
 
-        // Capture the row ID mapping from the primary flush
-        RowIdMapping rowIdMapping = primaryFileInfos.rowIdMapping();
-        if (rowIdMapping != null) {
-            builder.rowIdMapping(rowIdMapping);
-        }
-
-        // Build FlushInput for secondaries, carrying the row ID mapping from the primary
-        FlushInput secondaryFlushInput = rowIdMapping != null ? new FlushInput(rowIdMapping) : FlushInput.EMPTY;
-
-        // Flush secondaries with the sort permutation context
-        for (Map.Entry<DataFormat, Writer<DocumentInput<?>>> entry : secondaryWritersByFormat.entrySet()) {
-            FileInfos fileInfos = entry.getValue().flush(secondaryFlushInput);
-            for (Map.Entry<DataFormat, WriterFileSet> fileEntry : fileInfos.writerFilesMap().entrySet()) {
-                // Secondary format's WriterFileSet must also match this writer's generation
-                assert fileEntry.getValue().writerGeneration() == writerGeneration : "secondary WriterFileSet generation ["
-                    + fileEntry.getValue().writerGeneration()
-                    + "] for format ["
-                    + fileEntry.getKey().name()
-                    + "] must match composite writer generation ["
-                    + writerGeneration
-                    + "]";
-                builder.putWriterFileSet(fileEntry.getKey(), fileEntry.getValue());
+            // Capture the row ID mapping from the primary flush
+            RowIdMapping rowIdMapping = primaryFileInfos.rowIdMapping();
+            if (rowIdMapping != null) {
+                builder.rowIdMapping(rowIdMapping);
             }
+
+            // Build FlushInput for secondaries, carrying the row ID mapping from the primary
+            FlushInput secondaryFlushInput = rowIdMapping != null ? new FlushInput(rowIdMapping) : FlushInput.EMPTY;
+
+            // Flush secondaries with the sort permutation context
+            for (Map.Entry<DataFormat, Writer<DocumentInput<?>>> entry : secondaryWritersByFormat.entrySet()) {
+                long secStart = System.nanoTime();
+                FileInfos fileInfos = entry.getValue().flush(secondaryFlushInput);
+                stats.getOrCreateFormatStats(entry.getKey().name())
+                    .addFlushTimeMillis(TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - secStart));
+                for (Map.Entry<DataFormat, WriterFileSet> fileEntry : fileInfos.writerFilesMap().entrySet()) {
+                    // Secondary format's WriterFileSet must also match this writer's generation
+                    assert fileEntry.getValue().writerGeneration() == writerGeneration : "secondary WriterFileSet generation ["
+                        + fileEntry.getValue().writerGeneration()
+                        + "] for format ["
+                        + fileEntry.getKey().name()
+                        + "] must match composite writer generation ["
+                        + writerGeneration
+                        + "]";
+                    builder.putWriterFileSet(fileEntry.getKey(), fileEntry.getValue());
+                }
+            }
+            return builder.build();
+        } finally {
+            stats.incFlushTotal();
+            stats.addFlushTimeMillis(TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNanos));
         }
-        return builder.build();
     }
 
     @Override
     public void sync() throws IOException {
-        primaryWriter.sync();
-        for (Writer<DocumentInput<?>> writer : secondaryWritersByFormat.values()) {
-            writer.sync();
+        long startNanos = System.nanoTime();
+        try {
+            primaryWriter.sync();
+            for (Writer<DocumentInput<?>> writer : secondaryWritersByFormat.values()) {
+                writer.sync();
+            }
+        } finally {
+            stats.incSyncTotal();
+            stats.addSyncTimeMillis(TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNanos));
         }
     }
 

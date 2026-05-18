@@ -694,3 +694,310 @@ pub unsafe extern "C" fn parquet_free_row_id_mapping(
         let _ = Box::from_raw(slice::from_raw_parts_mut(mapping_ptr as *mut i64, mapping_len as usize));
     }
 }
+
+// ---------------------------------------------------------------------------
+// Parquet file analysis
+// ---------------------------------------------------------------------------
+
+/// Analyzes a parquet file and returns detailed metadata as JSON including
+/// row group information, column statistics, compression, encodings,
+/// bloom filter info, sort order, page-level stats, and footer size.
+/// The JSON bytes are written into `out_buf`, actual length into `out_len`.
+/// Returns 0 on success.
+#[ffm_safe]
+#[no_mangle]
+pub unsafe extern "C" fn parquet_analyze_file(
+    file_ptr: *const u8,
+    file_len: i64,
+    out_buf: *mut u8,
+    buf_capacity: i64,
+    out_len: *mut i64,
+) -> i64 {
+    use parquet::file::metadata::ParquetMetaDataReader;
+
+    let filename = str_from_raw(file_ptr, file_len)
+        .map_err(|e| format!("parquet_analyze_file: {}", e))?.to_string();
+
+    let file = std::fs::File::open(&filename)
+        .map_err(|e| format!("Failed to open {}: {}", filename, e))?;
+    let file_size = file.metadata()
+        .map(|m| m.len() as i64)
+        .unwrap_or(-1);
+
+    // Use ParquetMetaDataReader to load page index (column_index + offset_index)
+    let metadata = ParquetMetaDataReader::new()
+        .with_page_indexes(true)
+        .parse_and_finish(&file)
+        .map_err(|e| format!("Failed to read parquet metadata: {}", e))?;
+    let file_meta = metadata.file_metadata();
+
+    // Compute footer size: file_size - (data start + total data)
+    let footer_size = if metadata.num_row_groups() > 0 {
+        let first_rg = metadata.row_group(0);
+        let total_data: i64 = (0..metadata.num_row_groups())
+            .map(|i| metadata.row_group(i).compressed_size())
+            .sum();
+        let first_data_offset = first_rg.column(0).data_page_offset();
+        file_size - (first_data_offset + total_data)
+    } else {
+        -1
+    };
+
+    // Extract sorting columns from first row group (file-level sort order)
+    let sorting_columns = metadata.row_group(0).sorting_columns().map(|cols| {
+        let rg = metadata.row_group(0);
+        cols.iter().map(|sc| {
+            let col_name = if (sc.column_idx as usize) < rg.num_columns() {
+                rg.column(sc.column_idx as usize).column_path().to_string()
+            } else {
+                format!("column_{}", sc.column_idx)
+            };
+            serde_json::json!({
+                "column_idx": sc.column_idx,
+                "column_name": col_name,
+                "descending": sc.descending,
+                "nulls_first": sc.nulls_first,
+            })
+        }).collect::<Vec<_>>()
+    });
+
+    // Page-level indexes
+    let col_index = metadata.column_index();
+    let off_index = metadata.offset_index();
+
+    let mut row_groups = Vec::new();
+    for rg_idx in 0..metadata.num_row_groups() {
+        let rg = metadata.row_group(rg_idx);
+        let mut columns = Vec::new();
+        for col_idx in 0..rg.num_columns() {
+            let col = rg.column(col_idx);
+
+            // Column statistics (min/max/null_count/distinct_count)
+            let stats = col.statistics().map(|s| {
+                let min_val = s.min_bytes_opt().map(|b| format_stat_bytes(b, col.column_type()));
+                let max_val = s.max_bytes_opt().map(|b| format_stat_bytes(b, col.column_type()));
+                serde_json::json!({
+                    "min": min_val,
+                    "max": max_val,
+                    "null_count": s.null_count_opt(),
+                    "distinct_count": s.distinct_count_opt(),
+                    "min_is_exact": s.min_is_exact(),
+                    "max_is_exact": s.max_is_exact(),
+                })
+            });
+
+            // Bloom filter info
+            let has_bloom_filter = col.bloom_filter_offset().is_some();
+            let bloom_filter_size = col.bloom_filter_length().unwrap_or(0) as i64;
+
+            // Page-level stats for this column
+            let page_stats = build_page_stats(col_index, off_index, rg_idx, col_idx, col.column_type());
+
+            let null_count = col.statistics()
+                .and_then(|s| s.null_count_opt())
+                .map(|n| n as i64)
+                .unwrap_or(-1);
+
+            columns.push(serde_json::json!({
+                "name": col.column_path().to_string(),
+                "type": format!("{:?}", col.column_type()),
+                "compression": format!("{:?}", col.compression()),
+                "encodings": col.encodings().map(|e| format!("{:?}", e)).collect::<Vec<_>>(),
+                "compressed_bytes": col.compressed_size(),
+                "uncompressed_bytes": col.uncompressed_size(),
+                "null_count": null_count,
+                "num_values": col.num_values(),
+                "has_bloom_filter": has_bloom_filter,
+                "bloom_filter_size": bloom_filter_size,
+                "stats": stats,
+                "page_stats": page_stats,
+            }));
+        }
+
+        // Per-row-group sorting columns
+        let rg_sorting = rg.sorting_columns().map(|cols| {
+            cols.iter().map(|sc| {
+                let col_name = if (sc.column_idx as usize) < rg.num_columns() {
+                    rg.column(sc.column_idx as usize).column_path().to_string()
+                } else {
+                    format!("column_{}", sc.column_idx)
+                };
+                serde_json::json!({
+                    "column_idx": sc.column_idx,
+                    "column_name": col_name,
+                    "descending": sc.descending,
+                    "nulls_first": sc.nulls_first,
+                })
+            }).collect::<Vec<_>>()
+        });
+
+        row_groups.push(serde_json::json!({
+            "ordinal": rg_idx,
+            "num_rows": rg.num_rows(),
+            "total_compressed_bytes": rg.compressed_size(),
+            "total_uncompressed_bytes": rg.total_byte_size(),
+            "sorting_columns": rg_sorting,
+            "columns": columns,
+        }));
+    }
+
+    let result = serde_json::json!({
+        "num_row_groups": metadata.num_row_groups(),
+        "num_rows": file_meta.num_rows(),
+        "version": file_meta.version(),
+        "created_by": file_meta.created_by().unwrap_or("unknown"),
+        "footer_size": footer_size,
+        "sorting_columns": sorting_columns,
+        "row_groups": row_groups,
+    });
+
+    let json_str = serde_json::to_string(&result)
+        .map_err(|e| format!("JSON serialization failed: {}", e))?;
+    let bytes = json_str.as_bytes();
+    if bytes.len() > buf_capacity as usize {
+        return Err(format!("JSON output ({} bytes) exceeds buffer capacity ({})", bytes.len(), buf_capacity));
+    }
+    std::ptr::copy_nonoverlapping(bytes.as_ptr(), out_buf, bytes.len());
+    *out_len = bytes.len() as i64;
+    Ok(0)
+}
+
+/// Formats raw statistics bytes into a human-readable string based on physical type.
+fn format_stat_bytes(bytes: &[u8], physical_type: parquet::basic::Type) -> String {
+    use parquet::basic::Type;
+    match physical_type {
+        Type::BOOLEAN => {
+            if bytes.is_empty() { "null".to_string() }
+            else { format!("{}", bytes[0] != 0) }
+        }
+        Type::INT32 => {
+            if bytes.len() >= 4 {
+                format!("{}", i32::from_le_bytes(bytes[..4].try_into().unwrap_or([0; 4])))
+            } else { bytes_to_hex(bytes) }
+        }
+        Type::INT64 => {
+            if bytes.len() >= 8 {
+                format!("{}", i64::from_le_bytes(bytes[..8].try_into().unwrap_or([0; 8])))
+            } else { bytes_to_hex(bytes) }
+        }
+        Type::FLOAT => {
+            if bytes.len() >= 4 {
+                format!("{}", f32::from_le_bytes(bytes[..4].try_into().unwrap_or([0; 4])))
+            } else { bytes_to_hex(bytes) }
+        }
+        Type::DOUBLE => {
+            if bytes.len() >= 8 {
+                format!("{}", f64::from_le_bytes(bytes[..8].try_into().unwrap_or([0; 8])))
+            } else { bytes_to_hex(bytes) }
+        }
+        Type::BYTE_ARRAY | Type::FIXED_LEN_BYTE_ARRAY => {
+            String::from_utf8(bytes.to_vec()).unwrap_or_else(|_| bytes_to_hex(bytes))
+        }
+        Type::INT96 => bytes_to_hex(bytes),
+    }
+}
+
+/// Converts bytes to hex string without external dependency.
+fn bytes_to_hex(bytes: &[u8]) -> String {
+    bytes.iter().map(|b| format!("{:02x}", b)).collect()
+}
+
+/// Builds page-level statistics for a column from column_index and offset_index.
+fn build_page_stats(
+    col_index: Option<&parquet::file::metadata::ParquetColumnIndex>,
+    off_index: Option<&parquet::file::metadata::ParquetOffsetIndex>,
+    rg_idx: usize,
+    col_idx: usize,
+    physical_type: parquet::basic::Type,
+) -> Option<serde_json::Value> {
+    use parquet::file::page_index::column_index::ColumnIndexMetaData;
+
+    let rg_col_indexes = col_index?.get(rg_idx)?;
+    let ci = rg_col_indexes.get(col_idx)?;
+    let oi = off_index.and_then(|o| o.get(rg_idx)).and_then(|r| r.get(col_idx));
+
+    let num_pages = ci.num_pages() as usize;
+    if num_pages == 0 {
+        return None;
+    }
+
+    let boundary_order = ci.get_boundary_order().map(|bo| format!("{:?}", bo))
+        .unwrap_or_else(|| "UNORDERED".to_string());
+
+    let pages: Vec<serde_json::Value> = (0..num_pages).map(|page_idx| {
+        let min_val = format_page_min(ci, page_idx, physical_type);
+        let max_val = format_page_max(ci, page_idx, physical_type);
+        let null_count = ci.null_count(page_idx);
+
+        let mut page_json = serde_json::json!({
+            "page_idx": page_idx,
+            "min": min_val,
+            "max": max_val,
+            "null_count": null_count,
+        });
+
+        if let Some(oi_meta) = oi {
+            let locations = oi_meta.page_locations();
+            if page_idx < locations.len() {
+                let loc = &locations[page_idx];
+                page_json["first_row_index"] = serde_json::json!(loc.first_row_index);
+                page_json["compressed_size"] = serde_json::json!(loc.compressed_page_size);
+            }
+        }
+        page_json
+    }).collect();
+
+    Some(serde_json::json!({
+        "num_pages": num_pages,
+        "boundary_order": boundary_order,
+        "pages": pages,
+    }))
+}
+
+/// Extracts the min value for a page from a ColumnIndexMetaData.
+fn format_page_min(
+    ci: &parquet::file::page_index::column_index::ColumnIndexMetaData,
+    page_idx: usize,
+    _physical_type: parquet::basic::Type,
+) -> Option<String> {
+    use parquet::file::page_index::column_index::ColumnIndexMetaData;
+    match ci {
+        ColumnIndexMetaData::NONE => None,
+        ColumnIndexMetaData::BOOLEAN(idx) => idx.min_value(page_idx).map(|v| format!("{}", v)),
+        ColumnIndexMetaData::INT32(idx) => idx.min_value(page_idx).map(|v| format!("{}", v)),
+        ColumnIndexMetaData::INT64(idx) => idx.min_value(page_idx).map(|v| format!("{}", v)),
+        ColumnIndexMetaData::INT96(idx) => idx.min_value(page_idx).map(|v| format!("{:?}", v)),
+        ColumnIndexMetaData::FLOAT(idx) => idx.min_value(page_idx).map(|v| format!("{}", v)),
+        ColumnIndexMetaData::DOUBLE(idx) => idx.min_value(page_idx).map(|v| format!("{}", v)),
+        ColumnIndexMetaData::BYTE_ARRAY(idx) => idx.min_value(page_idx).map(|b: &[u8]| {
+            String::from_utf8(b.to_vec()).unwrap_or_else(|_| bytes_to_hex(b))
+        }),
+        ColumnIndexMetaData::FIXED_LEN_BYTE_ARRAY(idx) => idx.min_value(page_idx).map(|b: &[u8]| {
+            String::from_utf8(b.to_vec()).unwrap_or_else(|_| bytes_to_hex(b))
+        }),
+    }
+}
+
+/// Extracts the max value for a page from a ColumnIndexMetaData.
+fn format_page_max(
+    ci: &parquet::file::page_index::column_index::ColumnIndexMetaData,
+    page_idx: usize,
+    _physical_type: parquet::basic::Type,
+) -> Option<String> {
+    use parquet::file::page_index::column_index::ColumnIndexMetaData;
+    match ci {
+        ColumnIndexMetaData::NONE => None,
+        ColumnIndexMetaData::BOOLEAN(idx) => idx.max_value(page_idx).map(|v| format!("{}", v)),
+        ColumnIndexMetaData::INT32(idx) => idx.max_value(page_idx).map(|v| format!("{}", v)),
+        ColumnIndexMetaData::INT64(idx) => idx.max_value(page_idx).map(|v| format!("{}", v)),
+        ColumnIndexMetaData::INT96(idx) => idx.max_value(page_idx).map(|v| format!("{:?}", v)),
+        ColumnIndexMetaData::FLOAT(idx) => idx.max_value(page_idx).map(|v| format!("{}", v)),
+        ColumnIndexMetaData::DOUBLE(idx) => idx.max_value(page_idx).map(|v| format!("{}", v)),
+        ColumnIndexMetaData::BYTE_ARRAY(idx) => idx.max_value(page_idx).map(|b: &[u8]| {
+            String::from_utf8(b.to_vec()).unwrap_or_else(|_| bytes_to_hex(b))
+        }),
+        ColumnIndexMetaData::FIXED_LEN_BYTE_ARRAY(idx) => idx.max_value(page_idx).map(|b: &[u8]| {
+            String::from_utf8(b.to_vec()).unwrap_or_else(|_| bytes_to_hex(b))
+        }),
+    }
+}

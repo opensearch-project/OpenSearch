@@ -17,6 +17,7 @@ import org.apache.lucene.store.NIOFSDirectory;
 import org.apache.lucene.tests.analysis.MockAnalyzer;
 import org.opensearch.be.lucene.LuceneDataFormat;
 import org.opensearch.be.lucene.LucenePlugin;
+import org.opensearch.be.lucene.stats.LuceneShardStats;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.BigArrays;
@@ -136,7 +137,7 @@ public class LuceneIndexingExecutionEngineTests extends OpenSearchTestCase {
             null
         );
         CommitterConfig settings = new CommitterConfig(engineConfig, () -> {});
-        return new LuceneCommitter(settings);
+        return new LuceneCommitter(settings, new LuceneShardStats());
     }
 
     @Override
@@ -174,7 +175,18 @@ public class LuceneIndexingExecutionEngineTests extends OpenSearchTestCase {
         MappedFieldType textField = new org.opensearch.index.mapper.TextFieldMapper.TextFieldType("content");
 
         long generation = 1L;
-        try (LuceneWriter luceneWriter = new LuceneWriter(generation, 0L, luceneDataFormat, tempBase, null, Codec.getDefault(), null)) {
+        try (
+            LuceneWriter luceneWriter = new LuceneWriter(
+                generation,
+                0L,
+                luceneDataFormat,
+                tempBase,
+                null,
+                Codec.getDefault(),
+                null,
+                new LuceneShardStats()
+            )
+        ) {
             for (int i = 0; i < numDocs; i++) {
                 LuceneDocumentInput input = new LuceneDocumentInput();
                 input.addField(textField, "doc_" + i);

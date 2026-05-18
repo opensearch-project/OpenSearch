@@ -28,6 +28,7 @@ import org.apache.lucene.store.ByteBuffersIndexOutput;
 import org.apache.lucene.util.Version;
 import org.opensearch.be.lucene.LuceneDataFormat;
 import org.opensearch.be.lucene.LuceneReader;
+import org.opensearch.be.lucene.stats.LuceneShardStats;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.engine.CommitStats;
 import org.opensearch.index.engine.EngineConfig;
@@ -51,6 +52,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -97,6 +99,7 @@ public class LuceneCommitter extends SafeBootstrapCommitter {
     private final Sort userProvidedSort;
     private final MergeIndexWriter indexWriter;
     private final LuceneCommitDeletionPolicy deletionPolicy;
+    private final LuceneShardStats stats;
     private final AtomicBoolean isClosed = new AtomicBoolean();
     // Keyed by catalog snapshot generation — survives snapshot cloning at the upload boundary.
     private final Map<Long, LuceneReader> readers = new ConcurrentHashMap<>();
@@ -106,10 +109,12 @@ public class LuceneCommitter extends SafeBootstrapCommitter {
      * then opens the IndexWriter.
      *
      * @param committerConfig the committer committerConfig (shard path, index committerConfig, engine config, store)
+     * @param stats           the shard-level stats collector
      * @throws IOException if opening the IndexWriter fails
      */
-    public LuceneCommitter(CommitterConfig committerConfig) throws IOException {
+    public LuceneCommitter(CommitterConfig committerConfig, LuceneShardStats stats) throws IOException {
         super(committerConfig);
+        this.stats = stats;
         this.store = Objects.requireNonNull(committerConfig.engineConfig().getStore());
         this.userProvidedSort = committerConfig.engineConfig().getIndexSort();
         this.store.incRef();
@@ -136,13 +141,19 @@ public class LuceneCommitter extends SafeBootstrapCommitter {
     @Override
     public synchronized CommitResult commit(CommitInput commitData) throws IOException {
         ensureOpen();
-        indexWriter.setLiveCommitData(commitData.userData());
-        indexWriter.commit();
-        SegmentInfos committed = SegmentInfos.readLatestCommit(indexWriter.getDirectory());
+        long start = System.nanoTime();
+        try {
+            indexWriter.setLiveCommitData(commitData.userData());
+            indexWriter.commit();
+            SegmentInfos committed = SegmentInfos.readLatestCommit(indexWriter.getDirectory());
 
-        // Encode writer's Lucene version as a long — keeps CatalogSnapshot Lucene-type-agnostic.
-        long version = LuceneVersionConverter.encode(committed.getCommitLuceneVersion());
-        return new CommitResult(committed.getSegmentsFileName(), committed.getGeneration(), version);
+            // Encode writer's Lucene version as a long — keeps CatalogSnapshot Lucene-type-agnostic.
+            long version = LuceneVersionConverter.encode(committed.getCommitLuceneVersion());
+            return new CommitResult(committed.getSegmentsFileName(), committed.getGeneration(), version);
+        } finally {
+            stats.incCommitTotal();
+            stats.addCommitTimeMillis(TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start));
+        }
     }
 
     /**

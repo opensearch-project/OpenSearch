@@ -30,6 +30,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.NIOFSDirectory;
 import org.apache.lucene.tests.analysis.MockAnalyzer;
 import org.opensearch.be.lucene.merge.LuceneMerger;
+import org.opensearch.be.lucene.stats.LuceneShardStats;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.index.engine.dataformat.DocumentInput;
 import org.opensearch.index.engine.dataformat.MergeInput;
@@ -90,8 +91,26 @@ public class LuceneMergerTests extends OpenSearchTestCase {
      * Merge with empty input returns empty result without error.
      */
     public void testMergeWithEmptyInput() throws IOException {
-        LuceneMerger merger = new LuceneMerger(writer, new LuceneDataFormat(), dataPath);
+        LuceneMerger merger = new LuceneMerger(writer, new LuceneDataFormat(), dataPath, new LuceneShardStats());
         MergeInput input = MergeInput.builder().segments(List.of()).newWriterGeneration(99L).build();
+
+        MergeResult result = merger.merge(input);
+        assertNotNull(result);
+        assertTrue(result.getMergedWriterFileSet().isEmpty());
+    }
+
+    /**
+    /**
+     * Merge with no matching segments returns empty result and logs warning.
+     */
+    public void testMergeWithNoMatchingSegments() throws IOException {
+        writeSegment(writer, 1L, 0, 3);
+        writer.commit();
+
+        LuceneMerger merger = new LuceneMerger(writer, new LuceneDataFormat(), dataPath, new LuceneShardStats());
+
+        Segment segment = Segment.builder(99L).build();
+        MergeInput input = MergeInput.builder().addSegment(segment).newWriterGeneration(100L).build();
 
         MergeResult result = merger.merge(input);
         assertNotNull(result);
@@ -140,7 +159,7 @@ public class LuceneMergerTests extends OpenSearchTestCase {
         Map<Long, Integer> genSizes = Map.of(1L, 3, 2L, 2);
         RowIdMapping rowIdMapping = new PackedRowIdMapping(mappingArray, genOffsets, genSizes);
 
-        LuceneMerger merger = new LuceneMerger(writer, new LuceneDataFormat(), dataPath);
+        LuceneMerger merger = new LuceneMerger(writer, new LuceneDataFormat(), dataPath, new LuceneShardStats());
         SegmentInfos infos = getSegmentInfos(writer);
         List<Segment> segments = buildSegments(infos);
 
@@ -196,7 +215,7 @@ public class LuceneMergerTests extends OpenSearchTestCase {
         writeSegmentWithRichFields(writer, 2L, 3, 2);
         writer.commit();
 
-        LuceneMerger merger = new LuceneMerger(writer, new LuceneDataFormat(), dataPath);
+        LuceneMerger merger = new LuceneMerger(writer, new LuceneDataFormat(), dataPath, new LuceneShardStats());
         SegmentInfos infos = getSegmentInfos(writer);
         List<Segment> segments = buildSegments(infos);
 
@@ -232,7 +251,10 @@ public class LuceneMergerTests extends OpenSearchTestCase {
      * Constructor with null IndexWriter throws IllegalArgumentException.
      */
     public void testConstructorWithNullIndexWriterThrows() {
-        expectThrows(IllegalArgumentException.class, () -> new LuceneMerger(null, new LuceneDataFormat(), Path.of(".")));
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> new LuceneMerger(null, new LuceneDataFormat(), Path.of("."), new LuceneShardStats())
+        );
     }
 
     /**
@@ -255,7 +277,7 @@ public class LuceneMergerTests extends OpenSearchTestCase {
         writeSegment(writer, 2L, 3, 2);
         writer.commit();
 
-        LuceneMerger merger = new LuceneMerger(writer, new LuceneDataFormat(), dataPath);
+        LuceneMerger merger = new LuceneMerger(writer, new LuceneDataFormat(), dataPath, new LuceneShardStats());
         SegmentInfos infos = getSegmentInfos(writer);
         List<Segment> segments = buildSegments(infos);
 
