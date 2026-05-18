@@ -16,7 +16,9 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.unit.ByteSizeValue;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
@@ -175,6 +177,24 @@ public final class ParquetSettings {
 
     static final Set<String> VALID_COMPRESSIONS = Set.of("ZSTD", "SNAPPY", "GZIP", "BROTLI", "LZ4_RAW", "UNCOMPRESSED");
 
+    static final Set<String> VALID_ARROW_TYPES = Set.of(
+        "int8",
+        "int16",
+        "int32",
+        "int64",
+        "uint8",
+        "uint16",
+        "uint32",
+        "uint64",
+        "float32",
+        "float64",
+        "boolean",
+        "utf8",
+        "binary",
+        "date",
+        "timestamp"
+    );
+
     /**
      * Group setting for per-field configuration (encoding and compression).
      * Usage: index.parquet.field.{field_name}.encoding=DELTA_BINARY_PACKED
@@ -185,13 +205,13 @@ public final class ParquetSettings {
     public static final Setting<Settings> FIELD_SETTINGS = Setting.groupSetting("index.parquet.field.", s -> {
         for (String key : s.keySet()) {
             if (key.endsWith(".encoding")) {
-                String value = s.get(key).toUpperCase(java.util.Locale.ROOT);
-                if (!VALID_ENCODINGS.contains(value)) {
+                String value = s.get(key).toUpperCase(Locale.ROOT);
+                if (VALID_ENCODINGS.contains(value) == false) {
                     throw new IllegalArgumentException("Invalid encoding '" + s.get(key) + "'. Valid values: " + VALID_ENCODINGS);
                 }
             } else if (key.endsWith(".compression")) {
-                String value = s.get(key).toUpperCase(java.util.Locale.ROOT);
-                if (!VALID_COMPRESSIONS.contains(value)) {
+                String value = s.get(key).toUpperCase(Locale.ROOT);
+                if (VALID_COMPRESSIONS.contains(value) == false) {
                     throw new IllegalArgumentException("Invalid compression '" + s.get(key) + "'. Valid values: " + VALID_COMPRESSIONS);
                 }
             }
@@ -203,22 +223,48 @@ public final class ParquetSettings {
      * Usage: parquet.type_encoding.{arrow_type}.encoding=DELTA_BINARY_PACKED
      * e.g. parquet.type_encoding.int64.encoding=DELTA_BINARY_PACKED
      */
-    public static final Setting<Settings> TYPE_ENCODING_SETTINGS = Setting.groupSetting(
-        "parquet.type_encoding.",
-        Setting.Property.NodeScope,
-        Setting.Property.Dynamic
-    );
+    public static final Setting<Settings> TYPE_ENCODING_SETTINGS = Setting.groupSetting("parquet.type_encoding.", s -> {
+        for (String key : s.keySet()) {
+            if (key.endsWith(".encoding")) {
+                String typeName = key.substring(0, key.length() - ".encoding".length());
+                if (VALID_ARROW_TYPES.contains(typeName) == false) {
+                    throw new IllegalArgumentException(
+                        "Invalid arrow type '" + typeName + "'. Valid values: " + VALID_ARROW_TYPES
+                    );
+                }
+                String value = s.get(key).toUpperCase(Locale.ROOT);
+                if (VALID_ENCODINGS.contains(value) == false) {
+                    throw new IllegalArgumentException(
+                        "Invalid encoding '" + s.get(key) + "' for type '" + typeName + "'. Valid values: " + VALID_ENCODINGS
+                    );
+                }
+            }
+        }
+    }, Setting.Property.NodeScope, Setting.Property.Dynamic);
 
     /**
      * Group setting for per-type compression configuration (cluster-level fallback).
      * Usage: parquet.type_compression.{arrow_type}.compression=SNAPPY
      * e.g. parquet.type_compression.utf8.compression=SNAPPY
      */
-    public static final Setting<Settings> TYPE_COMPRESSION_SETTINGS = Setting.groupSetting(
-        "parquet.type_compression.",
-        Setting.Property.NodeScope,
-        Setting.Property.Dynamic
-    );
+    public static final Setting<Settings> TYPE_COMPRESSION_SETTINGS = Setting.groupSetting("parquet.type_compression.", s -> {
+        for (String key : s.keySet()) {
+            if (key.endsWith(".compression")) {
+                String typeName = key.substring(0, key.length() - ".compression".length());
+                if (VALID_ARROW_TYPES.contains(typeName) == false) {
+                    throw new IllegalArgumentException(
+                        "Invalid arrow type '" + typeName + "'. Valid values: " + VALID_ARROW_TYPES
+                    );
+                }
+                String value = s.get(key).toUpperCase(Locale.ROOT);
+                if (VALID_COMPRESSIONS.contains(value) == false) {
+                    throw new IllegalArgumentException(
+                        "Invalid compression '" + s.get(key) + "' for type '" + typeName + "'. Valid values: " + VALID_COMPRESSIONS
+                    );
+                }
+            }
+        }
+    }, Setting.Property.NodeScope, Setting.Property.Dynamic);
 
     /**
      * Validates that field-level encodings are compatible with their Arrow types in the schema.
@@ -226,20 +272,20 @@ public final class ParquetSettings {
      * Skips fields not present in the schema (e.g., dynamic fields not yet mapped).
      */
     public static void validateEncodingTypeCompatibility(Map<String, String> fieldEncodings, Schema schema) {
-        Map<String, ArrowType> arrowTypes = new java.util.HashMap<>();
+        Map<String, ArrowType> arrowTypes = new HashMap<>();
         for (Field field : schema.getFields()) {
             arrowTypes.put(field.getName(), field.getType());
         }
         for (Map.Entry<String, String> entry : fieldEncodings.entrySet()) {
             String fieldName = entry.getKey();
-            String encoding = entry.getValue().toUpperCase(java.util.Locale.ROOT);
+            String encoding = entry.getValue().toUpperCase(Locale.ROOT);
             ArrowType arrowType = arrowTypes.get(fieldName);
             if (arrowType == null) {
                 throw new IllegalArgumentException(
                     "Field '" + fieldName + "' configured in index.parquet.field settings does not exist in mappings"
                 );
             }
-            if (!isEncodingValidForArrowType(encoding, arrowType)) {
+            if (isEncodingValidForArrowType(encoding, arrowType) == false) {
                 throw new IllegalArgumentException(
                     "Encoding '" + encoding + "' is not compatible with field '" + fieldName + "' of type '" + arrowType + "'"
                 );
@@ -247,132 +293,105 @@ public final class ParquetSettings {
         }
     }
 
+    /**
+     * Maps each encoding to the set of ArrowType classes it supports.
+     * PLAIN and unknown encodings are valid for all types (handled separately).
+     */
+    private static final Map<String, Set<Class<? extends ArrowType>>> ENCODING_TO_VALID_TYPES = Map.of(
+        "RLE", Set.of(ArrowType.Bool.class),
+        "DELTA_BINARY_PACKED", Set.of(ArrowType.Int.class),
+        "DELTA", Set.of(ArrowType.Int.class),
+        "DELTA_LENGTH_BYTE_ARRAY", Set.of(ArrowType.Utf8.class, ArrowType.LargeUtf8.class, ArrowType.Binary.class, ArrowType.LargeBinary.class),
+        "DELTA_BYTE_ARRAY", Set.of(ArrowType.Utf8.class, ArrowType.LargeUtf8.class, ArrowType.Binary.class, ArrowType.LargeBinary.class, ArrowType.FixedSizeBinary.class),
+        "BYTE_STREAM_SPLIT", Set.of(ArrowType.Int.class, ArrowType.FloatingPoint.class, ArrowType.FixedSizeBinary.class)
+    );
+
+    /** Set of ArrowType classes that do NOT support dictionary encoding. */
+    private static final Set<Class<? extends ArrowType>> DICTIONARY_INCOMPATIBLE_TYPES = Set.of(ArrowType.Bool.class);
+
     private static boolean isEncodingValidForArrowType(String encoding, ArrowType arrowType) {
-        boolean isInt = arrowType instanceof ArrowType.Int;
-        boolean isFloat = arrowType instanceof ArrowType.FloatingPoint;
-        boolean isBool = arrowType instanceof ArrowType.Bool;
-        boolean isUtf8 = arrowType instanceof ArrowType.Utf8 || arrowType instanceof ArrowType.LargeUtf8;
-        boolean isBinary = arrowType instanceof ArrowType.Binary || arrowType instanceof ArrowType.LargeBinary;
-        boolean isFixedBinary = arrowType instanceof ArrowType.FixedSizeBinary;
-        boolean isStringLike = isUtf8 || isBinary;
-        switch (encoding) {
-            case "PLAIN":
-                return true;
-            case "RLE_DICTIONARY":
-            case "DICTIONARY":
-                return !isBool;
-            case "RLE":
-                return isBool;
-            case "DELTA_BINARY_PACKED":
-            case "DELTA":
-                return isInt;
-            case "DELTA_LENGTH_BYTE_ARRAY":
-                return isStringLike;
-            case "DELTA_BYTE_ARRAY":
-                return isStringLike || isFixedBinary;
-            case "BYTE_STREAM_SPLIT":
-                return isInt || isFloat || isFixedBinary;
-            default:
-                return true;
+        if ("PLAIN".equals(encoding)) {
+            return true;
         }
+        if ("RLE_DICTIONARY".equals(encoding) || "DICTIONARY".equals(encoding)) {
+            return DICTIONARY_INCOMPATIBLE_TYPES.contains(arrowType.getClass()) == false;
+        }
+        Set<Class<? extends ArrowType>> validTypes = ENCODING_TO_VALID_TYPES.get(encoding);
+        if (validTypes == null) {
+            return true;
+        }
+        return validTypes.contains(arrowType.getClass());
+    }
+
+    /**
+     * Extracts a config map from group settings by matching keys with a given suffix,
+     * validating the extracted name against an optional set of valid names,
+     * and validating the value against a set of valid values.
+     */
+    private static Map<String, String> extractConfigMap(
+        Settings groupSettings,
+        String keySuffix,
+        Set<String> validNames,
+        String nameLabel,
+        Set<String> validValues,
+        String valueLabel
+    ) {
+        Map<String, String> result = new HashMap<>();
+        for (String key : groupSettings.keySet()) {
+            if (key.endsWith(keySuffix)) {
+                String name = key.substring(0, key.length() - keySuffix.length());
+                if (validNames != null && validNames.contains(name) == false) {
+                    throw new IllegalArgumentException(
+                        "Invalid " + nameLabel + " '" + name + "'. Valid values: " + validNames
+                    );
+                }
+                String value = groupSettings.get(key).toUpperCase(Locale.ROOT);
+                if (validValues.contains(value) == false) {
+                    throw new IllegalArgumentException(
+                        "Invalid " + valueLabel + " '" + groupSettings.get(key) + "' for " + nameLabel + " '" + name
+                            + "'. Valid values: " + validValues
+                    );
+                }
+                result.put(name, value);
+            }
+        }
+        return result;
     }
 
     /**
      * Extracts per-field encoding map from index settings.
      * Reads all keys under "index.parquet.field.{field_name}.encoding".
      */
-    public static java.util.Map<String, String> getFieldEncodings(Settings settings) {
-        Settings fieldSettings = FIELD_SETTINGS.get(settings);
-        java.util.Map<String, String> result = new java.util.HashMap<>();
-        for (String key : fieldSettings.keySet()) {
-            if (key.endsWith(".encoding")) {
-                String fieldName = key.substring(0, key.length() - ".encoding".length());
-                String value = fieldSettings.get(key).toUpperCase(java.util.Locale.ROOT);
-                if (!VALID_ENCODINGS.contains(value)) {
-                    throw new IllegalArgumentException(
-                        "Invalid encoding '" + fieldSettings.get(key) + "' for field '" + fieldName + "'. Valid values: " + VALID_ENCODINGS
-                    );
-                }
-                result.put(fieldName, value);
-            }
-        }
-        return result;
+    public static Map<String, String> getFieldEncodings(Settings settings) {
+        return extractConfigMap(FIELD_SETTINGS.get(settings), ".encoding", null, "field", VALID_ENCODINGS, "encoding");
     }
 
     /**
      * Extracts per-field compression map from index settings.
      * Reads all keys under "index.parquet.field.{field_name}.compression".
      */
-    public static java.util.Map<String, String> getFieldCompressions(Settings settings) {
-        Settings fieldSettings = FIELD_SETTINGS.get(settings);
-        java.util.Map<String, String> result = new java.util.HashMap<>();
-        for (String key : fieldSettings.keySet()) {
-            if (key.endsWith(".compression")) {
-                String fieldName = key.substring(0, key.length() - ".compression".length());
-                String value = fieldSettings.get(key).toUpperCase(java.util.Locale.ROOT);
-                if (!VALID_COMPRESSIONS.contains(value)) {
-                    throw new IllegalArgumentException(
-                        "Invalid compression '"
-                            + fieldSettings.get(key)
-                            + "' for field '"
-                            + fieldName
-                            + "'. Valid values: "
-                            + VALID_COMPRESSIONS
-                    );
-                }
-                result.put(fieldName, value);
-            }
-        }
-        return result;
+    public static Map<String, String> getFieldCompressions(Settings settings) {
+        return extractConfigMap(FIELD_SETTINGS.get(settings), ".compression", null, "field", VALID_COMPRESSIONS, "compression");
     }
 
     /**
      * Extracts per-type encoding map from node settings.
      * Reads all keys under "parquet.type_encoding.{arrow_type}.encoding".
      */
-    public static java.util.Map<String, String> getTypeEncodings(Settings nodeSettings) {
-        Settings typeSettings = TYPE_ENCODING_SETTINGS.get(nodeSettings);
-        java.util.Map<String, String> result = new java.util.HashMap<>();
-        for (String key : typeSettings.keySet()) {
-            if (key.endsWith(".encoding")) {
-                String typeName = key.substring(0, key.length() - ".encoding".length());
-                String value = typeSettings.get(key).toUpperCase(java.util.Locale.ROOT);
-                if (!VALID_ENCODINGS.contains(value)) {
-                    throw new IllegalArgumentException(
-                        "Invalid encoding '" + typeSettings.get(key) + "' for type '" + typeName + "'. Valid values: " + VALID_ENCODINGS
-                    );
-                }
-                result.put(typeName, value);
-            }
-        }
-        return result;
+    public static Map<String, String> getTypeEncodings(Settings nodeSettings) {
+        return extractConfigMap(
+            TYPE_ENCODING_SETTINGS.get(nodeSettings), ".encoding", VALID_ARROW_TYPES, "arrow type", VALID_ENCODINGS, "encoding"
+        );
     }
 
     /**
      * Extracts per-type compression map from node settings.
      * Reads all keys under "parquet.type_compression.{arrow_type}.compression".
      */
-    public static java.util.Map<String, String> getTypeCompressions(Settings nodeSettings) {
-        Settings typeSettings = TYPE_COMPRESSION_SETTINGS.get(nodeSettings);
-        java.util.Map<String, String> result = new java.util.HashMap<>();
-        for (String key : typeSettings.keySet()) {
-            if (key.endsWith(".compression")) {
-                String typeName = key.substring(0, key.length() - ".compression".length());
-                String value = typeSettings.get(key).toUpperCase(java.util.Locale.ROOT);
-                if (!VALID_COMPRESSIONS.contains(value)) {
-                    throw new IllegalArgumentException(
-                        "Invalid compression '"
-                            + typeSettings.get(key)
-                            + "' for type '"
-                            + typeName
-                            + "'. Valid values: "
-                            + VALID_COMPRESSIONS
-                    );
-                }
-                result.put(typeName, value);
-            }
-        }
-        return result;
+    public static Map<String, String> getTypeCompressions(Settings nodeSettings) {
+        return extractConfigMap(
+            TYPE_COMPRESSION_SETTINGS.get(nodeSettings), ".compression", VALID_ARROW_TYPES, "arrow type", VALID_COMPRESSIONS, "compression"
+        );
     }
 
     /** Returns all settings defined by the Parquet plugin. */

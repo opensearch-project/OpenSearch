@@ -37,6 +37,7 @@ public class RustBridge {
     private static final MethodHandle FINALIZE_WRITER;
     private static final MethodHandle SYNC_TO_DISK;
     private static final MethodHandle GET_FILE_METADATA;
+    private static final MethodHandle GET_COLUMN_METADATA;
     private static final MethodHandle GET_FILTERED_BYTES;
     private static final MethodHandle ON_SETTINGS_UPDATE;
     private static final MethodHandle REMOVE_SETTINGS;
@@ -111,6 +112,17 @@ public class RustBridge {
         GET_FILTERED_BYTES = linker.downcallHandle(
             lib.find("parquet_get_filtered_native_bytes_used").orElseThrow(),
             FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG)
+        );
+        GET_COLUMN_METADATA = linker.downcallHandle(
+            lib.find("parquet_get_column_metadata").orElseThrow(),
+            FunctionDescriptor.of(
+                ValueLayout.JAVA_LONG,
+                ValueLayout.ADDRESS,
+                ValueLayout.JAVA_LONG,
+                ValueLayout.ADDRESS,
+                ValueLayout.JAVA_LONG,
+                ValueLayout.ADDRESS
+            )
         );
         ON_SETTINGS_UPDATE = linker.downcallHandle(
             lib.find("parquet_on_settings_update").orElseThrow(),
@@ -304,6 +316,21 @@ public class RustBridge {
                 0L,
                 (int) numRowGroupsOut.get(ValueLayout.JAVA_LONG, 0)
             );
+        }
+    }
+
+    /**
+     * Returns a JSON string with per-column encoding and compression metadata from the first row group.
+     * Format: {"column_name": {"encodings": ["PLAIN", "RLE_DICTIONARY"], "compression": "LZ4_RAW"}, ...}
+     */
+    public static String getColumnMetadata(String file) throws IOException {
+        try (var call = new NativeCall()) {
+            var f = call.str(file);
+            var out = call.outBuffer(8192);
+            var outLen = call.longOut();
+            call.invokeIO(GET_COLUMN_METADATA, f.segment(), f.len(), out.data(), (long) out.capacity(), outLen);
+            int len = (int) outLen.get(ValueLayout.JAVA_LONG, 0);
+            return new String(out.data().asSlice(0, len).toArray(ValueLayout.JAVA_BYTE), StandardCharsets.UTF_8);
         }
     }
 

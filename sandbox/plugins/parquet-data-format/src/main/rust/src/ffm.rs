@@ -195,6 +195,59 @@ pub unsafe extern "C" fn parquet_get_file_metadata(
     Ok(0)
 }
 
+/// Returns a JSON string with per-column encoding and compression metadata.
+/// Format: {"column_name": {"encodings": ["PLAIN", "RLE_DICTIONARY"], "compression": "LZ4_RAW"}, ...}
+/// Reads from the first row group.
+#[ffm_safe]
+#[no_mangle]
+pub unsafe extern "C" fn parquet_get_column_metadata(
+    file_ptr: *const u8,
+    file_len: i64,
+    out_buf: *mut u8,
+    out_buf_len: i64,
+    out_len: *mut i64,
+) -> i64 {
+    use parquet::file::reader::{FileReader, SerializedFileReader};
+    use std::fs::File;
+
+    let filename = str_from_raw(file_ptr, file_len).map_err(|e| format!("parquet_get_column_metadata: {}", e))?.to_string();
+    let file = File::open(&filename).map_err(|e| format!("Failed to open file: {}", e))?;
+    let reader = SerializedFileReader::new(file).map_err(|e| format!("Failed to read parquet: {}", e))?;
+    let metadata = reader.metadata();
+
+    if metadata.num_row_groups() == 0 {
+        let json = "{}".to_string();
+        let bytes = json.as_bytes();
+        let n = bytes.len().min(out_buf_len as usize);
+        std::ptr::copy_nonoverlapping(bytes.as_ptr(), out_buf, n);
+        if !out_len.is_null() { *out_len = n as i64; }
+        return Ok(0);
+    }
+
+    let rg = metadata.row_group(0);
+    let mut json = String::from("{");
+    for i in 0..rg.num_columns() {
+        let col = rg.column(i);
+        let col_name = col.column_path().string();
+        let encodings: Vec<String> = col.encodings().map(|e| format!("{:?}", e)).collect();
+        let compression = format!("{:?}", col.compression());
+        if i > 0 { json.push(','); }
+        json.push_str(&format!(
+            "\"{}\":{{\"encodings\":[{}],\"compression\":\"{}\"}}",
+            col_name,
+            encodings.iter().map(|e| format!("\"{}\"" , e)).collect::<Vec<_>>().join(","),
+            compression
+        ));
+    }
+    json.push('}');
+
+    let bytes = json.as_bytes();
+    let n = bytes.len().min(out_buf_len as usize);
+    std::ptr::copy_nonoverlapping(bytes.as_ptr(), out_buf, n);
+    if !out_len.is_null() { *out_len = n as i64; }
+    Ok(0)
+}
+
 #[no_mangle]
 pub unsafe extern "C" fn parquet_get_filtered_native_bytes_used(
     prefix_ptr: *const u8,

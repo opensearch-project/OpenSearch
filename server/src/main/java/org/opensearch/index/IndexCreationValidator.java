@@ -8,16 +8,16 @@
 
 package org.opensearch.index;
 
-import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.mapper.MapperService;
 
 /**
  * A validator that is called during index creation after mappings have been merged,
  * allowing plugins to validate the combination of index settings and mappings.
  *
- * @opensearch.api
+ * @opensearch.experimental
  */
-@PublicApi(since = "3.0.0")
+@ExperimentalApi
 public interface IndexCreationValidator {
     /**
      * Validates the index settings against the merged mappings.
@@ -26,5 +26,5 @@ public interface IndexCreationValidator {
      * @param mapperService the mapper service with merged mappings
      * @param indexSettings the index settings
      */
-    void validate(MapperService mapperService, org.opensearch.index.IndexSettings indexSettings);
+    void validate(MapperService mapperService, IndexSettings indexSettings);
 }

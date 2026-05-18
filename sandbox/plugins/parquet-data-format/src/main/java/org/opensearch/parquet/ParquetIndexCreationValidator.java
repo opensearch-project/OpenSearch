@@ -23,10 +23,10 @@ public class ParquetIndexCreationValidator implements IndexCreationValidator {
 
     @Override
     public void validate(MapperService mapperService, IndexSettings indexSettings) {
-        if (!indexSettings.getSettings().getAsBoolean("index.pluggable.dataformat.enabled", false)) {
+        if (indexSettings.getSettings().getAsBoolean("index.pluggable.dataformat.enabled", false) == false) {
             return;
         }
-        if (!"parquet".equals(indexSettings.getSettings().get("index.composite.primary_data_format"))) {
+        if ("parquet".equals(indexSettings.getSettings().get("index.composite.primary_data_format")) == false) {
             return;
         }
         if (mapperService.documentMapper() == null) {
