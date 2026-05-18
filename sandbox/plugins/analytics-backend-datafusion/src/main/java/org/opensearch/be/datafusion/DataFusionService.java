@@ -84,10 +84,9 @@ public class DataFusionService extends AbstractLifecycleComponent {
         logger.debug("Stopping DataFusion service");
         try {
             releaseRuntime();
+        } finally {
+            NativeBridge.shutdownTokioRuntimeManager();
         }
-            finally {
-                NativeBridge.shutdownTokioRuntimeManager();
-            }
 
         logger.debug("DataFusion service stopped");
     }
