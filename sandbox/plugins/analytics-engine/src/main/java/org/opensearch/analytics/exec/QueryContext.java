@@ -186,6 +186,14 @@ public class QueryContext {
 
     /** Creates a test context with a synchronous executor and the supplied operation listeners. */
     public static QueryContext forTest(QueryDAG dag, AnalyticsQueryTask parentTask, List<AnalyticsOperationListener> operationListeners) {
-        return new QueryContext(dag, Runnable::run, parentTask, DEFAULT_MAX_CONCURRENT_SHARD_REQUESTS, Long.MAX_VALUE, operationListeners, testAllocatorService());
+        return new QueryContext(
+            dag,
+            Runnable::run,
+            parentTask,
+            DEFAULT_MAX_CONCURRENT_SHARD_REQUESTS,
+            Long.MAX_VALUE,
+            operationListeners,
+            testAllocatorService()
+        );
     }
 }

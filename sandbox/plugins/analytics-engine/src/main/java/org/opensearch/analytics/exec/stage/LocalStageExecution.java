@@ -57,7 +57,7 @@ final class LocalStageExecution extends AbstractStageExecution implements SinkPr
             "downstream sink " + downstream.getClass().getSimpleName() + " does not implement ExchangeSource"
         );
     }
-    
+
     @Override
     protected List<StageTask> materializeTasks() {
         // Task body IS the work — closing the sink drives the reduce drain. Exceptions

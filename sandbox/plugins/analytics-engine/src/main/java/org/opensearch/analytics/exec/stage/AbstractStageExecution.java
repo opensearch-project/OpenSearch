@@ -16,7 +16,6 @@ import org.opensearch.analytics.exec.task.AnalyticsQueryTask;
 import org.opensearch.analytics.exec.task.TaskRunner;
 import org.opensearch.analytics.planner.dag.Stage;
 import org.opensearch.common.Nullable;
-import org.opensearch.tasks.CancellableTask;
 
 import java.util.Collections;
 import java.util.List;
