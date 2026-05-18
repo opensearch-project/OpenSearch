@@ -55,7 +55,7 @@ public final class BulkResponseProtoConverter {
         for (int i = 0; i < n; i++) {
             items[i] = fromProto(i, proto.getItems(i));
         }
-        long ingestTook = proto.hasIngestTook() ? proto.getIngestTook() : -1L;
+        long ingestTook = proto.hasIngestTook() ? proto.getIngestTook() : BulkResponse.NO_INGEST_TOOK;
         return new BulkResponse(items, proto.getTook(), ingestTook);
     }
 

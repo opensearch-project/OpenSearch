@@ -17,6 +17,7 @@ import org.opensearch.index.query.TermQueryBuilder;
 import org.opensearch.index.query.TermsQueryBuilder;
 import org.opensearch.indices.TermsLookup;
 import org.opensearch.search.builder.SearchSourceBuilder;
+import org.opensearch.transport.grpc.proto.response.common.FieldValueProtoUtils;
 
 /**
  * Converts a server-internal {@link SearchRequest} into a {@code protobufs.SearchRequest}.
@@ -135,7 +136,20 @@ public final class SearchProtoConverter {
             field.setValue(arr);
         }
         b.putTerms(tsq.fieldName(), field.build());
+
+        if (tsq.valueType() != null && tsq.valueType() != TermsQueryBuilder.ValueType.DEFAULT) {
+            b.setValueType(toProtoTermsValueType(tsq.valueType()));
+        }
         return b.build();
+    }
+
+    private static org.opensearch.protobufs.TermsQueryValueType toProtoTermsValueType(TermsQueryBuilder.ValueType vt) {
+        switch (vt) {
+            case BITMAP:
+                return org.opensearch.protobufs.TermsQueryValueType.TERMS_QUERY_VALUE_TYPE_BITMAP;
+            default:
+                return org.opensearch.protobufs.TermsQueryValueType.TERMS_QUERY_VALUE_TYPE_DEFAULT;
+        }
     }
 
     private static org.opensearch.protobufs.TermsLookup toTermsLookup(TermsLookup lookup) {
@@ -147,36 +161,15 @@ public final class SearchProtoConverter {
         return b.build();
     }
 
-    /**
-     * Converts an arbitrary value to a proto {@code FieldValue}. Server-side query builders carry values as
-     * {@link Object}; concrete types are {@code String}, {@code Long}, {@code Integer}, {@code Double}, {@code Float},
-     * {@code Boolean}, or {@link BytesRef}. {@code BytesRef} is unwrapped to its UTF-8 string form, since the proto
-     * forward parser does not accept it directly.
-     *
-     * @throws IllegalArgumentException if {@code value} is none of the supported runtime types
-     */
     private static org.opensearch.protobufs.FieldValue toFieldValue(Object value) {
-        org.opensearch.protobufs.FieldValue.Builder b = org.opensearch.protobufs.FieldValue.newBuilder();
         if (value == null) {
-            b.setNullValue(org.opensearch.protobufs.NullValue.NULL_VALUE_NULL);
-        } else if (value instanceof BytesRef) {
-            b.setString(((BytesRef) value).utf8ToString());
-        } else if (value instanceof String) {
-            b.setString((String) value);
-        } else if (value instanceof Boolean) {
-            b.setBool((Boolean) value);
-        } else if (value instanceof Number) {
-            Number num = (Number) value;
-            org.opensearch.protobufs.GeneralNumber.Builder n = org.opensearch.protobufs.GeneralNumber.newBuilder();
-            if (num instanceof Long || num instanceof Integer || num instanceof Short || num instanceof Byte) {
-                n.setInt64Value(num.longValue());
-            } else {
-                n.setDoubleValue(num.doubleValue());
-            }
-            b.setGeneralNumber(n);
-        } else {
-            throw new IllegalArgumentException("unsupported FieldValue type: " + value.getClass().getName());
+            return org.opensearch.protobufs.FieldValue.newBuilder()
+                .setNullValue(org.opensearch.protobufs.NullValue.NULL_VALUE_NULL)
+                .build();
         }
-        return b.build();
+        if (value instanceof BytesRef) {
+            return FieldValueProtoUtils.toProto(((BytesRef) value).utf8ToString());
+        }
+        return FieldValueProtoUtils.toProto(value);
     }
 }

@@ -16,7 +16,6 @@ import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.support.ActiveShardCount;
 import org.opensearch.action.support.WriteRequest.RefreshPolicy;
 import org.opensearch.action.update.UpdateRequest;
-import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.seqno.SequenceNumbers;
@@ -104,11 +103,6 @@ public final class BulkProtoConverter {
             container.setUpdate(toUpdateOperation(updateReq));
             body.setOperationContainer(container);
             body.setUpdateAction(buildUpdateAction(updateReq));
-            // The forward parser reads update doc bytes from BulkRequestBody.object and ignores
-            // UpdateAction.doc; mirror that here so the round trip is clean.
-            if (updateReq.doc() != null && updateReq.doc().source() != null) {
-                body.setObject(toByteString(updateReq.doc().source()));
-            }
         } else if (req instanceof DeleteRequest) {
             DeleteRequest deleteReq = (DeleteRequest) req;
             container.setDelete(toDeleteOperation(deleteReq));
@@ -210,21 +204,25 @@ public final class BulkProtoConverter {
     private static org.opensearch.protobufs.UpdateAction buildUpdateAction(UpdateRequest req) {
         org.opensearch.protobufs.UpdateAction.Builder action = org.opensearch.protobufs.UpdateAction.newBuilder();
 
-        // Note: doc bytes go on BulkRequestBody.object, not UpdateAction.doc; see toRequestBody.
+        if (req.doc() != null && req.doc().source() != null) {
+            action.setDoc(toByteString(req.doc().source()));
+        }
         if (req.upsertRequest() != null && req.upsertRequest().source() != null) {
             action.setUpsert(toByteString(req.upsertRequest().source()));
         }
         if (req.docAsUpsert()) action.setDocAsUpsert(true);
         if (req.scriptedUpsert()) action.setScriptedUpsert(true);
         if (req.detectNoop() == false) action.setDetectNoop(false); // server default is true
-        // Script support deferred — the Script proto is a non-trivial subgraph.
+        if (req.script() != null) {
+            throw new UnsupportedOperationException("Script in update requests is not yet supported by the gRPC converter");
+        }
 
         return action.build();
     }
 
     private static ByteString toByteString(BytesReference bytes) {
-        BytesArray ba = (bytes instanceof BytesArray) ? (BytesArray) bytes : new BytesArray(bytes.toBytesRef());
-        return ByteString.copyFrom(ba.array(), ba.offset(), ba.length());
+        org.apache.lucene.util.BytesRef ref = bytes.toBytesRef();
+        return ByteString.copyFrom(ref.bytes, ref.offset, ref.length);
     }
 
     private static org.opensearch.protobufs.Refresh toProtoRefresh(RefreshPolicy policy) {

@@ -76,16 +76,15 @@ public class BulkProtoConverterTests extends OpenSearchTestCase {
         assertEquals(7L, idx.getVersion());
     }
 
-    public void testUpdateOp_docBytesGoToBodyObject_notUpdateActionDoc() {
+    public void testUpdateOp_docBytesGoToUpdateActionDoc() {
         BulkRequest bulk = new BulkRequest();
         bulk.add(new UpdateRequest("orders", "1").doc(Map.of("k", 2), XContentType.JSON));
         var proto = BulkProtoConverter.toProto(bulk);
 
         BulkRequestBody body = proto.getBulkRequestBody(0);
         assertTrue(body.getOperationContainer().hasUpdate());
-        // Forward parses update doc bytes from body.object, ignoring update_action.doc.
-        assertTrue("update doc must be on body.object", body.getObject().size() > 0);
-        assertTrue("UpdateAction is still present for upsert/script flags", body.hasUpdateAction());
+        assertTrue("UpdateAction is present", body.hasUpdateAction());
+        assertTrue("update doc must be on UpdateAction.doc", body.getUpdateAction().getDoc().size() > 0);
     }
 
     public void testDeleteOp() {
