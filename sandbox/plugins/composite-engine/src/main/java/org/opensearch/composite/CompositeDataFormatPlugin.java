@@ -45,9 +45,11 @@ import org.opensearch.watcher.ResourceWatcherService;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.Supplier;
 
 /**
@@ -313,6 +315,28 @@ public class CompositeDataFormatPlugin extends Plugin implements DataFormatPlugi
             }
         }
         return Map.copyOf(descriptors);
+    }
+
+    @Override
+    public List<DataFormat> getConfiguredFormats(IndexSettings indexSettings, DataFormatRegistry dataFormatRegistry) {
+        Settings settings = indexSettings.getSettings();
+        String primaryFormatName = PRIMARY_DATA_FORMAT.get(settings);
+        List<String> secondaryFormatNames = SECONDARY_DATA_FORMATS.get(settings);
+
+        List<DataFormat> configured = new ArrayList<>();
+        if (primaryFormatName != null && primaryFormatName.isEmpty() == false) {
+            dataFormatRegistry.getRegisteredFormats()
+                .stream()
+                .filter(f -> f.name().equals(primaryFormatName))
+                .findFirst().ifPresent(configured::add);
+        }
+        secondaryFormatNames.stream()
+            .filter(name -> name != null && name.isEmpty() == false)
+            .map(name -> dataFormatRegistry.getRegisteredFormats().stream().filter(f -> f.name().equals(name)).findFirst().orElse(null))
+            .filter(Objects::nonNull)
+            .sorted(Comparator.comparingLong(DataFormat::priority))
+            .forEach(configured::add);
+        return List.copyOf(configured);
     }
 
     /**

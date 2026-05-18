@@ -37,11 +37,13 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.opensearch.parquet.engine.ParquetIndexingEngineTests.assignTestCapabilities;
 import static org.opensearch.parquet.engine.ParquetIndexingEngineTests.metadataFields;
 import static org.opensearch.parquet.engine.ParquetIndexingEngineTests.populateMetadataFields;
 
 public class ParquetWriterTests extends OpenSearchTestCase {
 
+    private final ParquetDataFormat parquetFormat = new ParquetDataFormat();
     private ArrowNativeAllocator nativeAllocator;
     private ArrowBufferPool bufferPool;
     private MappedFieldType idField;
@@ -61,6 +63,9 @@ public class ParquetWriterTests extends OpenSearchTestCase {
         idField = new NumberFieldMapper.NumberFieldType("id", NumberFieldMapper.NumberType.INTEGER);
         nameField = new KeywordFieldMapper.KeywordFieldType("name");
         scoreField = new NumberFieldMapper.NumberFieldType("score", NumberFieldMapper.NumberType.LONG);
+        assignTestCapabilities(idField, parquetFormat);
+        assignTestCapabilities(nameField, parquetFormat);
+        assignTestCapabilities(scoreField, parquetFormat);
         schema = buildSchema(List.of(idField, nameField, scoreField));
         Settings indexSettingsBuilder = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)

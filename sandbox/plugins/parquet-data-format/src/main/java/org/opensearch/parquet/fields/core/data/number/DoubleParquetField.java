@@ -12,9 +12,12 @@ import org.apache.arrow.vector.Float8Vector;
 import org.apache.arrow.vector.types.FloatingPointPrecision;
 import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.FieldType;
+import org.opensearch.index.engine.dataformat.FieldTypeCapabilities;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.parquet.fields.ParquetField;
 import org.opensearch.parquet.vsr.ManagedVSR;
+
+import java.util.Set;
 
 /**
  * Parquet field for double-precision floating-point values using {@link Float8Vector}.
@@ -37,5 +40,11 @@ public class DoubleParquetField extends ParquetField {
     @Override
     public FieldType getFieldType() {
         return FieldType.nullable(getArrowType());
+    }
+
+    @Override
+    public Set<FieldTypeCapabilities.Capability> supportedCapabilities() {
+        return Set.of(FieldTypeCapabilities.Capability.COLUMNAR_STORAGE, FieldTypeCapabilities.Capability.BLOOM_FILTER,
+            FieldTypeCapabilities.Capability.POINT_RANGE);
     }
 }

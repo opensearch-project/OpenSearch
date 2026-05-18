@@ -182,6 +182,23 @@ public class DataFormatRegistry {
         return Map.of();
     }
 
+    public List<DataFormat> getConfiguredFormats(IndexSettings indexSettings) {
+        String dataformatName = indexSettings.pluggableDataFormat();
+        if (dataformatName == null || dataformatName.isEmpty()) {
+            return List.of();
+        }
+        DataFormat format = dataFormats.get(dataformatName);
+        if (format == null) {
+            return List.of();
+        }
+        DataFormatPlugin plugin = dataFormatPluginRegistry.get(format);
+        if (plugin == null) {
+            return List.of();
+        }
+        List<DataFormat> configured = plugin.getConfiguredFormats(indexSettings, this);
+        return configured == null ? List.of() : List.copyOf(configured);
+    }
+
     /**
      * Returns store strategies for a specific data format, bypassing the
      * {@code pluggable_dataformat} index setting lookup. Used by composite

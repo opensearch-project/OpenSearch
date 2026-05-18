@@ -12,6 +12,7 @@ import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.exec.commit.Committer;
 
+import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
@@ -62,6 +63,10 @@ public interface DataFormatPlugin {
         DataFormatRegistry dataFormatRegistry
     ) {
         return Map.of();
+    }
+
+    default List<DataFormat> getConfiguredFormats(IndexSettings indexSettings, DataFormatRegistry dataFormatRegistry) {
+        return List.of(getDataFormat());
     }
 
     /**

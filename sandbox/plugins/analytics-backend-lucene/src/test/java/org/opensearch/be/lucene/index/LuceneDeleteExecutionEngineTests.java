@@ -1968,3 +1968,4 @@ public class LuceneDeleteExecutionEngineTests extends OpenSearchTestCase {
         return mockWriter;
     }
 }
+

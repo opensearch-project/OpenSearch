@@ -25,6 +25,7 @@ import org.opensearch.index.IndexSettings;
 import org.opensearch.index.codec.CodecService;
 import org.opensearch.index.engine.EngineConfig;
 import org.opensearch.index.engine.EngineConfigFactory;
+import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.FileInfos;
 import org.opensearch.index.engine.dataformat.FlushInput;
 import org.opensearch.index.engine.dataformat.RefreshInput;
@@ -57,6 +58,7 @@ import java.nio.file.Path;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.Map;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -187,6 +189,7 @@ public class LuceneIndexingExecutionEngineTests extends OpenSearchTestCase {
                 ConcurrentHashMap.newKeySet()
             )
         ) {
+            assignTestCapabilities(textField, luceneDataFormat);
             for (int i = 0; i < numDocs; i++) {
                 LuceneDocumentInput input = new LuceneDocumentInput();
                 input.addField(textField, "doc_" + i);
@@ -289,6 +292,8 @@ public class LuceneIndexingExecutionEngineTests extends OpenSearchTestCase {
         keywordFieldType.setIndexOptions(IndexOptions.DOCS);
         keywordFieldType.freeze();
         MappedFieldType keywordField = new KeywordFieldType("tag", keywordFieldType);
+        assignTestCapabilities(textField, luceneDataFormat);
+        assignTestCapabilities(keywordField, luceneDataFormat);
 
         // Create writer through the engine
         Writer<LuceneDocumentInput> writer = engine.createWriter(new WriterConfig(generation));
@@ -337,6 +342,7 @@ public class LuceneIndexingExecutionEngineTests extends OpenSearchTestCase {
         IndexWriter sharedWriter = committer.getIndexWriter();
 
         MappedFieldType textField = new TextFieldType("content");
+        assignTestCapabilities(textField, luceneDataFormat);
 
         long gen1 = 1L;
         long gen2 = 2L;
@@ -482,5 +488,19 @@ public class LuceneIndexingExecutionEngineTests extends OpenSearchTestCase {
 
         writer2.close();
         assertEquals("All writers closed, heap should be 0", 0L, engine.getHeapBytesUsed());
+
+    /**
+     * Stamps the capability map on a {@link MappedFieldType} so that {@code format} owns
+     * the capabilities declared in {@link DataFormat#supportedFields()} for the field's type.
+     * Mirrors what {@code BuilderContext.assignCapabilities} does at mapping build time, so
+     * tests that bypass the mapper can still exercise per-format self-filtering in
+     * {@link LuceneDocumentInput#addField}.
+     */
+    public static void assignTestCapabilities(MappedFieldType fieldType, DataFormat format) {
+        format.supportedFields()
+            .stream()
+            .filter(ftc -> ftc.fieldType().equals(fieldType.typeName()))
+            .findFirst()
+            .ifPresent(ftc -> fieldType.setCapabilityMap(Map.of(format, ftc.capabilities())));
     }
 }

@@ -11,6 +11,16 @@ package org.opensearch.be.lucene;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.FieldTypeCapabilities;
+import org.opensearch.index.mapper.DocCountFieldMapper;
+import org.opensearch.index.mapper.FieldNamesFieldMapper;
+import org.opensearch.index.mapper.IdFieldMapper;
+import org.opensearch.index.mapper.IgnoredFieldMapper;
+import org.opensearch.index.mapper.IndexFieldMapper;
+import org.opensearch.index.mapper.NestedPathFieldMapper;
+import org.opensearch.index.mapper.RoutingFieldMapper;
+import org.opensearch.index.mapper.SeqNoFieldMapper;
+import org.opensearch.index.mapper.SourceFieldMapper;
+import org.opensearch.index.mapper.VersionFieldMapper;
 
 import java.util.Set;
 
@@ -39,9 +49,32 @@ public class LuceneDataFormat extends DataFormat {
         ),
         new FieldTypeCapabilities(
             "keyword",
-            Set.of(FieldTypeCapabilities.Capability.COLUMNAR_STORAGE, FieldTypeCapabilities.Capability.STORED_FIELDS)
+            Set.of(FieldTypeCapabilities.Capability.FULL_TEXT_SEARCH, FieldTypeCapabilities.Capability.COLUMNAR_STORAGE,
+                FieldTypeCapabilities.Capability.STORED_FIELDS)
         ),
-        new FieldTypeCapabilities("match_only_text", Set.of(FieldTypeCapabilities.Capability.FULL_TEXT_SEARCH))
+        new FieldTypeCapabilities("match_only_text", Set.of(FieldTypeCapabilities.Capability.FULL_TEXT_SEARCH)),
+        new FieldTypeCapabilities(IgnoredFieldMapper.CONTENT_TYPE, Set.of(FieldTypeCapabilities.Capability.STORED_FIELDS,
+            FieldTypeCapabilities.Capability.FULL_TEXT_SEARCH)),
+        new FieldTypeCapabilities(IdFieldMapper.CONTENT_TYPE, Set.of(FieldTypeCapabilities.Capability.STORED_FIELDS,
+            FieldTypeCapabilities.Capability.FULL_TEXT_SEARCH)),
+        new FieldTypeCapabilities(RoutingFieldMapper.CONTENT_TYPE, Set.of(FieldTypeCapabilities.Capability.STORED_FIELDS,
+            FieldTypeCapabilities.Capability.FULL_TEXT_SEARCH)),
+        new FieldTypeCapabilities(SourceFieldMapper.CONTENT_TYPE, Set.of(FieldTypeCapabilities.Capability.STORED_FIELDS,
+            FieldTypeCapabilities.Capability.FULL_TEXT_SEARCH)),
+        new FieldTypeCapabilities(SeqNoFieldMapper.CONTENT_TYPE, Set.of(FieldTypeCapabilities.Capability.COLUMNAR_STORAGE,
+            FieldTypeCapabilities.Capability.POINT_RANGE)),
+        new FieldTypeCapabilities(IndexFieldMapper.CONTENT_TYPE, Set.of(FieldTypeCapabilities.Capability.COLUMNAR_STORAGE,
+            FieldTypeCapabilities.Capability.FULL_TEXT_SEARCH)),
+        new FieldTypeCapabilities(NestedPathFieldMapper.NAME, Set.of(FieldTypeCapabilities.Capability.STORED_FIELDS,
+            FieldTypeCapabilities.Capability.FULL_TEXT_SEARCH)),
+        new FieldTypeCapabilities(VersionFieldMapper.CONTENT_TYPE, Set.of(FieldTypeCapabilities.Capability.STORED_FIELDS,
+            FieldTypeCapabilities.Capability.FULL_TEXT_SEARCH)),
+        new FieldTypeCapabilities(DocCountFieldMapper.CONTENT_TYPE, Set.of(FieldTypeCapabilities.Capability.STORED_FIELDS,
+            FieldTypeCapabilities.Capability.FULL_TEXT_SEARCH)),
+        new FieldTypeCapabilities("_feature", Set.of(FieldTypeCapabilities.Capability.STORED_FIELDS,
+            FieldTypeCapabilities.Capability.FULL_TEXT_SEARCH)),
+        new FieldTypeCapabilities(FieldNamesFieldMapper.CONTENT_TYPE, Set.of(FieldTypeCapabilities.Capability.STORED_FIELDS,
+            FieldTypeCapabilities.Capability.FULL_TEXT_SEARCH))
     );
 
     /** {@inheritDoc} Returns {@code "lucene"}. */

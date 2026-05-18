@@ -64,6 +64,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+import static org.opensearch.parquet.engine.ParquetIndexingEngineTests.assignTestCapabilities;
 import static org.opensearch.parquet.engine.ParquetIndexingEngineTests.metadataFields;
 
 /**
@@ -214,31 +215,34 @@ public class ParquetDataFormatAwareEngineTests extends AbstractDataFormatAwareEn
 
     @Override
     protected DocumentInput<?> createDocumentInput() {
+        ParquetDataFormat format = new ParquetDataFormat();
         ParquetDocumentInput input = new ParquetDocumentInput();
+        assignTestCapabilities(ID_FIELD, format);
+        assignTestCapabilities(NAME_FIELD, format);
         input.addField(ID_FIELD, "doc-id".getBytes(StandardCharsets.UTF_8));
         input.addField(NAME_FIELD, "name");
-        input.addField(new NumberFieldMapper.NumberFieldType(BYTE_FIELD_NAME, NumberFieldMapper.NumberType.BYTE), Byte.MAX_VALUE);
-        input.addField(new NumberFieldMapper.NumberFieldType(SHORT_FIELD_NAME, NumberFieldMapper.NumberType.SHORT), Short.MAX_VALUE);
-        input.addField(new NumberFieldMapper.NumberFieldType(INT_FIELD_NAME, NumberFieldMapper.NumberType.INTEGER), Integer.MAX_VALUE);
-        input.addField(new NumberFieldMapper.NumberFieldType(LONG_FIELD_NAME, NumberFieldMapper.NumberType.LONG), Long.MAX_VALUE);
-        input.addField(new NumberFieldMapper.NumberFieldType(FLOAT_FIELD_NAME, NumberFieldMapper.NumberType.FLOAT), Float.MAX_VALUE);
-        input.addField(new NumberFieldMapper.NumberFieldType(DOUBLE_FIELD_NAME, NumberFieldMapper.NumberType.DOUBLE), Double.MAX_VALUE);
-        input.addField(
-            new NumberFieldMapper.NumberFieldType(HALF_FLOAT_FIELD_NAME, NumberFieldMapper.NumberType.HALF_FLOAT),
-            Short.MAX_VALUE
-        );
-        input.addField(
-            new NumberFieldMapper.NumberFieldType(UNSIGNED_LONG_FIELD_NAME, NumberFieldMapper.NumberType.UNSIGNED_LONG),
-            Long.MAX_VALUE
-        );
-        input.addField(new TextFieldType(TEXT_FIELD_NAME), randomAlphaOfLength(100));
-        input.addField(new DateFieldType(DATE_FIELD_NAME), System.currentTimeMillis());
-        input.addField(new DateFieldType(DATE_NANOS_FIELD_NAME, DateFieldMapper.Resolution.NANOSECONDS), System.nanoTime());
-        input.addField(new IpFieldType(IP_FIELD_NAME), InetAddresses.forString("0.0.0.0"));
-        input.addField(new BinaryFieldType(BINARY_FIELD_NAME), randomAlphaOfLength(100).getBytes(StandardCharsets.UTF_8));
-        input.addField(new BooleanFieldType(BOOLEAN_FIELD_NAME), randomBoolean());
+        addFieldWithCapabilities(input, new NumberFieldMapper.NumberFieldType(BYTE_FIELD_NAME, NumberFieldMapper.NumberType.BYTE), Byte.MAX_VALUE, format);
+        addFieldWithCapabilities(input, new NumberFieldMapper.NumberFieldType(SHORT_FIELD_NAME, NumberFieldMapper.NumberType.SHORT), Short.MAX_VALUE, format);
+        addFieldWithCapabilities(input, new NumberFieldMapper.NumberFieldType(INT_FIELD_NAME, NumberFieldMapper.NumberType.INTEGER), Integer.MAX_VALUE, format);
+        addFieldWithCapabilities(input, new NumberFieldMapper.NumberFieldType(LONG_FIELD_NAME, NumberFieldMapper.NumberType.LONG), Long.MAX_VALUE, format);
+        addFieldWithCapabilities(input, new NumberFieldMapper.NumberFieldType(FLOAT_FIELD_NAME, NumberFieldMapper.NumberType.FLOAT), Float.MAX_VALUE, format);
+        addFieldWithCapabilities(input, new NumberFieldMapper.NumberFieldType(DOUBLE_FIELD_NAME, NumberFieldMapper.NumberType.DOUBLE), Double.MAX_VALUE, format);
+        addFieldWithCapabilities(input, new NumberFieldMapper.NumberFieldType(HALF_FLOAT_FIELD_NAME, NumberFieldMapper.NumberType.HALF_FLOAT), Short.MAX_VALUE, format);
+        addFieldWithCapabilities(input, new NumberFieldMapper.NumberFieldType(UNSIGNED_LONG_FIELD_NAME, NumberFieldMapper.NumberType.UNSIGNED_LONG), Long.MAX_VALUE, format);
+        addFieldWithCapabilities(input, new TextFieldType(TEXT_FIELD_NAME), randomAlphaOfLength(100), format);
+        addFieldWithCapabilities(input, new DateFieldType(DATE_FIELD_NAME), System.currentTimeMillis(), format);
+        addFieldWithCapabilities(input, new DateFieldType(DATE_NANOS_FIELD_NAME, DateFieldMapper.Resolution.NANOSECONDS), System.nanoTime(), format);
+        addFieldWithCapabilities(input, new IpFieldType(IP_FIELD_NAME), InetAddresses.forString("0.0.0.0"), format);
+        addFieldWithCapabilities(input, new BinaryFieldType(BINARY_FIELD_NAME), randomAlphaOfLength(100).getBytes(StandardCharsets.UTF_8), format);
+        addFieldWithCapabilities(input, new BooleanFieldType(BOOLEAN_FIELD_NAME), randomBoolean(), format);
+        assignTestCapabilities(matchOnlyTextFieldType, format);
         input.addField(matchOnlyTextFieldType, randomAlphaOfLength(100));
         return input;
+    }
+
+    private void addFieldWithCapabilities(ParquetDocumentInput input, MappedFieldType fieldType, Object value, ParquetDataFormat format) {
+        assignTestCapabilities(fieldType, format);
+        input.addField(fieldType, value);
     }
 
     private static final String BYTE_FIELD_NAME = "byte_field";

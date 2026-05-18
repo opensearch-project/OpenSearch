@@ -11,9 +11,12 @@ package org.opensearch.parquet.fields.core.data.number;
 import org.apache.arrow.vector.BigIntVector;
 import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.FieldType;
+import org.opensearch.index.engine.dataformat.FieldTypeCapabilities;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.parquet.fields.ParquetField;
 import org.opensearch.parquet.vsr.ManagedVSR;
+
+import java.util.Set;
 
 /**
  * Parquet field for 64-bit signed long values using {@link BigIntVector}.
@@ -44,5 +47,11 @@ public class LongParquetField extends ParquetField {
     @Override
     public FieldType getFieldType() {
         return nullable ? FieldType.nullable(getArrowType()) : FieldType.notNullable(getArrowType());
+    }
+
+    @Override
+    public Set<FieldTypeCapabilities.Capability> supportedCapabilities() {
+        return Set.of(FieldTypeCapabilities.Capability.COLUMNAR_STORAGE, FieldTypeCapabilities.Capability.BLOOM_FILTER,
+            FieldTypeCapabilities.Capability.POINT_RANGE);
     }
 }

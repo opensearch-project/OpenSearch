@@ -89,6 +89,7 @@ public class LuceneWriterTests extends OpenSearchTestCase {
         ) {
             int numDocs = randomIntBetween(5, 20);
             MappedFieldType textField = mockTextField("content");
+            LuceneIndexingExecutionEngineTests.assignTestCapabilities(textField, dataFormat);
             for (int i = 0; i < numDocs; i++) {
                 LuceneDocumentInput input = new LuceneDocumentInput();
                 input.addField(textField, "value " + i);
@@ -117,6 +118,7 @@ public class LuceneWriterTests extends OpenSearchTestCase {
         Path baseDir = createTempDir();
         int numDocs = randomIntBetween(10, 50);
         MappedFieldType textField = mockTextField("content");
+        LuceneIndexingExecutionEngineTests.assignTestCapabilities(textField, dataFormat);
         try (
             LuceneWriter writer = new LuceneWriter(
                 1L,
@@ -176,6 +178,8 @@ public class LuceneWriterTests extends OpenSearchTestCase {
         Path baseDir = createTempDir();
         long gen = randomLongBetween(1, 100);
         MappedFieldType textField = mockTextField("content");
+
+        LuceneIndexingExecutionEngineTests.assignTestCapabilities(textField, dataFormat);
         try (
             LuceneWriter writer = new LuceneWriter(
                 gen,
@@ -204,6 +208,7 @@ public class LuceneWriterTests extends OpenSearchTestCase {
     public void testKeywordFieldsAreIndexed() throws IOException {
         Path baseDir = createTempDir();
         MappedFieldType keywordField = mockKeywordField("status");
+        LuceneIndexingExecutionEngineTests.assignTestCapabilities(keywordField, dataFormat);
         try (
             LuceneWriter writer = new LuceneWriter(
                 1L,
@@ -236,6 +241,8 @@ public class LuceneWriterTests extends OpenSearchTestCase {
         MappedFieldType numericField = mock(MappedFieldType.class);
         when(numericField.typeName()).thenReturn("integer");
         when(numericField.name()).thenReturn("count");
+        // Empty capability map → no format owns this field; should be silently skipped
+        when(numericField.getCapabilityMap()).thenReturn(java.util.Map.of());
 
         try (
             LuceneWriter writer = new LuceneWriter(
@@ -261,6 +268,8 @@ public class LuceneWriterTests extends OpenSearchTestCase {
         Path baseDir = createTempDir();
         MappedFieldType textField = mockTextField("title");
         MappedFieldType keywordField = mockKeywordField("category");
+        LuceneIndexingExecutionEngineTests.assignTestCapabilities(textField, dataFormat);
+        LuceneIndexingExecutionEngineTests.assignTestCapabilities(keywordField, dataFormat);
 
         try (
             LuceneWriter writer = new LuceneWriter(
@@ -298,6 +307,8 @@ public class LuceneWriterTests extends OpenSearchTestCase {
         Path baseDir = createTempDir();
         MappedFieldType textField = mockTextField("body");
         MappedFieldType keywordField = mockKeywordField("status");
+        LuceneIndexingExecutionEngineTests.assignTestCapabilities(textField, dataFormat);
+        LuceneIndexingExecutionEngineTests.assignTestCapabilities(keywordField, dataFormat);
         int numDocs = randomIntBetween(5, 20);
 
         try (
@@ -351,6 +362,7 @@ public class LuceneWriterTests extends OpenSearchTestCase {
     public void testMultipleWriterGenerationsProduceIsolatedSegments() throws IOException {
         Path baseDir = createTempDir();
         MappedFieldType textField = mockTextField("content");
+        LuceneIndexingExecutionEngineTests.assignTestCapabilities(textField, dataFormat);
 
         long gen1 = 1L;
         long gen2 = 2L;
