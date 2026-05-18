@@ -36,7 +36,12 @@ import org.opensearch.test.OpenSearchTestCase;
 
 import java.nio.file.Path;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 import io.substrait.extension.DefaultExtensionCatalog;
 import io.substrait.extension.SimpleExtension;
@@ -165,6 +170,80 @@ public class DatafusionReduceSinkTests extends OpenSearchTestCase {
         }
     }
 
+    /**
+     * Pipelining regression net: with a passthrough reduce plan (1-in → 1-out, no
+     * blocking aggregate), the first output batch must reach downstream BEFORE the
+     * sink is closed. {@code close()} signals input EOF — if drain only produced
+     * output at EOF, this assertion would time out, proving the reduce wasn't
+     * incremental.
+     *
+     * <p>Stronger than {@link #testDrainTaskKeepsUpWithProducer} (which only proves
+     * drain consumes input concurrently — SUM is a blocking aggregate that buffers
+     * all rows before emitting). This test proves drain *produces* output concurrently.
+     */
+    public void testReduceProducesOutputIncrementallyForPipelinedPlan() throws Exception {
+        NativeBridge.initTokioRuntimeManager(2);
+        Path spillDir = createTempDir("datafusion-spill");
+        long runtimePtr = NativeBridge.createGlobalRuntime(64 * 1024 * 1024, 0L, spillDir.toString(), 32 * 1024 * 1024);
+        NativeRuntimeHandle runtimeHandle = new NativeRuntimeHandle(runtimePtr);
+        ExecutorService drainExec = java.util.concurrent.Executors.newThreadPerTaskExecutor(Thread.ofVirtual().factory());
+
+        try (RootAllocator alloc = new RootAllocator(Long.MAX_VALUE)) {
+            Schema inputSchema = new Schema(List.of(new Field("x", FieldType.nullable(new ArrowType.Int(64, true)), null)));
+            // Reduce-side AND child-side both passthrough — each input batch should pipeline
+            // straight through to a downstream feed, no aggregation buffering.
+            byte[] reduceSubstrait = buildPassthroughSubstraitBytes(DatafusionReduceSink.INPUT_ID);
+            byte[] childSubstrait = buildPassthroughSubstraitBytes(DatafusionReduceSink.INPUT_ID);
+
+            LatchingCapturingSink downstream = new LatchingCapturingSink();
+            ExchangeSinkContext ctx = new ExchangeSinkContext(
+                "q-pipelined",
+                0,
+                reduceSubstrait,
+                alloc,
+                List.of(new ExchangeSinkContext.ChildInput(0, childSubstrait)),
+                downstream
+            );
+
+            DatafusionReduceSink sink = new DatafusionReduceSink(ctx, runtimeHandle, drainExec);
+            // > native input mpsc channel capacity (4). If drain isn't consuming
+            // concurrently the channel saturates and feed #5 deadlocks in send_blocking.
+            // Without overflowing the channel, a broken drain would still pass — the
+            // 4-slot buffer would silently absorb 4 feeds.
+            final int totalBatches = 8;
+            ExecutorService feedExec = Executors.newSingleThreadExecutor();
+            try {
+                Future<?> feedAll = feedExec.submit(() -> {
+                    for (int i = 0; i < totalBatches; i++) {
+                        sink.feed(makeBatch(alloc, inputSchema, new long[] { (long) i }));
+                    }
+                });
+                try {
+                    feedAll.get(10, TimeUnit.SECONDS);
+                } catch (TimeoutException te) {
+                    fail("feeds deadlocked — drain is not consuming the input mpsc concurrently");
+                }
+                // Drain must have produced output BEFORE we signal EOF via close().
+                // close() signals input EOF — an output-only-at-EOF impl would still
+                // emit batches eventually, so the pre-close assertion is what proves
+                // pipelining.
+                assertTrue(
+                    "first output batch did not reach downstream before close — drain not pipelined",
+                    downstream.firstBatchLatch.await(5, TimeUnit.SECONDS)
+                );
+            } finally {
+                sink.close();
+                feedExec.shutdownNow();
+            }
+
+            assertEquals("all " + totalBatches + " batches must reach downstream", totalBatches, downstream.batchCount);
+            assertEquals("each input batch had one row", totalBatches, downstream.totalRows);
+        } finally {
+            drainExec.shutdownNow();
+            runtimeHandle.close();
+        }
+    }
+
     // ── Helpers ──────────────────────────────────────────────────────────────
 
     /**
@@ -243,6 +322,31 @@ public class DatafusionReduceSinkTests extends OpenSearchTestCase {
      * Values are extracted synchronously during {@code feed} so the test can assert on
      * {@link #total} after {@code close()} has released all Arrow buffers.
      */
+    /**
+     * Downstream that fires {@link #firstBatchLatch} on the first {@code feed()} —
+     * used by {@link #testReduceProducesOutputIncrementallyForPipelinedPlan} to
+     * assert drain produces output mid-stream rather than only at close-time EOF.
+     */
+    private static final class LatchingCapturingSink implements ExchangeSink {
+        final CountDownLatch firstBatchLatch = new CountDownLatch(1);
+        volatile int batchCount;
+        volatile int totalRows;
+
+        @Override
+        public synchronized void feed(VectorSchemaRoot batch) {
+            try {
+                batchCount++;
+                totalRows += batch.getRowCount();
+                firstBatchLatch.countDown();
+            } finally {
+                batch.close();
+            }
+        }
+
+        @Override
+        public void close() {}
+    }
+
     private static final class CapturingSink implements ExchangeSink {
         long total;
         int totalRows;

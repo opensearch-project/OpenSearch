@@ -31,7 +31,7 @@ import java.util.List;
  *
  * @opensearch.internal
  */
-final class LocalComputeStageScheduler implements StageScheduler {
+final class LocalComputeStageExecutionFactory implements StageExecutionFactory {
 
     @Override
     public StageExecution createExecution(Stage stage, ExchangeSink sink, QueryContext config) {
@@ -50,7 +50,7 @@ final class LocalComputeStageScheduler implements StageScheduler {
             sink
         );
         ExchangeSink backendSink = provider.createSink(context, null);
-        return new LocalStageExecution(stage, backendSink, sink);
+        return new LocalStageExecution(stage, config, backendSink, sink);
     }
 
     private static byte[] chosenBytes(Stage stage) {

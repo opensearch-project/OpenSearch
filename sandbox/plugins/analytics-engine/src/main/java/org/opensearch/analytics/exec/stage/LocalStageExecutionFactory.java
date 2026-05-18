@@ -38,7 +38,7 @@ import java.util.List;
  *
  * @opensearch.internal
  */
-final class LocalStageScheduler implements StageScheduler {
+final class LocalStageExecutionFactory implements StageExecutionFactory {
 
     @Override
     public StageExecution createExecution(Stage stage, ExchangeSink sink, QueryContext config) {
@@ -105,7 +105,7 @@ final class LocalStageScheduler implements StageScheduler {
             }
             throw new RuntimeException("Failed to create exchange sink for stageId=" + stage.getStageId(), e);
         }
-        return new LocalStageExecution(stage, backendSink, sink);
+        return new LocalStageExecution(stage, config, backendSink, sink);
     }
 
     /** Picks the plan-alternative bytes bound to the stage's exchange sink provider. */
