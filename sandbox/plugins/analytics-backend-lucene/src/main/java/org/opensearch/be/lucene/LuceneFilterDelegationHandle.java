@@ -235,14 +235,16 @@ final class LuceneFilterDelegationHandle implements FilterDelegationHandle {
         long[] words = bits.getBits();
         int wordCount = (span + 63) >>> 6;
         MemorySegment.copy(words, 0, out, ValueLayout.JAVA_LONG, 0, wordCount);
-        LOGGER.debug(
-            "[scf] collectDocs collectorKey={} range=[{},{}) → cardinality={} words={}",
-            collectorKey,
-            minDoc,
-            maxDoc,
-            bits.cardinality(),
-            wordCount
-        );
+        if (LOGGER.isDebugEnabled()) {
+            LOGGER.debug(
+                "[scf] collectDocs collectorKey={} range=[{},{}) → cardinality={} words={}",
+                collectorKey,
+                minDoc,
+                maxDoc,
+                bits.cardinality(),
+                wordCount
+            );
+        }
         return wordCount;
     }
 

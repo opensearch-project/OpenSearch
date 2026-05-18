@@ -312,10 +312,13 @@ impl RowGroupBitsetSource for SingleCollectorEvaluator {
                 .keys()
                 .min()
                 .expect("performance_provider_locks is non-empty (just checked)");
-            log_debug!(
-                "[scf-rust] consulting peer for performance leaf rg={} writer_generation={} range=[{},{}) annotation_id={}",
-                rg.index, self.writer_generation, min_doc, max_doc, annotation_id
-            );
+            // Per-RG debug log — `format!` runs unconditionally regardless of log level
+            // (the level filter happens on the Java side). Commented out to avoid
+            // per-RG allocation. Re-enable locally for debugging.
+            // log_debug!(
+            //     "[scf-rust] consulting peer for performance leaf rg={} writer_generation={} range=[{},{}) annotation_id={}",
+            //     rg.index, self.writer_generation, min_doc, max_doc, annotation_id
+            // );
             let lock = self
                 .performance_provider_locks
                 .get(&annotation_id)
@@ -369,13 +372,14 @@ impl RowGroupBitsetSource for SingleCollectorEvaluator {
             if upper < u32::MAX {
                 peer_bm.remove_range(upper..);
             }
-            let candidates_before = candidates.len();
-            let peer_card = peer_bm.len();
+            // Per-RG debug log — see note above on `format!` cost. Re-enable locally for debugging.
+            // let candidates_before = candidates.len();
+            // let peer_card = peer_bm.len();
             candidates &= peer_bm;
-            log_debug!(
-                "[scf-rust] peer bitset intersected rg={} writer_generation={} candidates_before={} peer_cardinality={} candidates_after={}",
-                rg.index, self.writer_generation, candidates_before, peer_card, candidates.len()
-            );
+            // log_debug!(
+            //     "[scf-rust] peer bitset intersected rg={} writer_generation={} candidates_before={} peer_cardinality={} candidates_after={}",
+            //     rg.index, self.writer_generation, candidates_before, peer_card, candidates.len()
+            // );
         }
 
         if candidates.is_empty() {
