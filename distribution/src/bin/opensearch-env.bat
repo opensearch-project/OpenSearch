@@ -44,7 +44,7 @@ REM Enable only if value equals "true" (case-insensitive) AND BC-FIPS JAR is pre
 if /I "%OPENSEARCH_FIPS_MODE%"=="true" (
     if "%FOUND_BC_FIPS%"=="true" (
         echo FIPS mode enabled, setting JVM options.
-        set "OPENSEARCH_JAVA_OPTS=-Dorg.bouncycastle.fips.approved_only=true -Djava.security.properties=""%OPENSEARCH_PATH_CONF%\fips_java.security"" %OPENSEARCH_JAVA_OPTS%"
+        set "OPENSEARCH_JAVA_OPTS=-Dorg.bouncycastle.fips.approved_only=true -Djava.security.properties=""%OPENSEARCH_PATH_CONF%\fips_java.security"" --enable-native-access=ALL-UNNAMED %OPENSEARCH_JAVA_OPTS%"
     )
 )
 
