@@ -9,11 +9,11 @@
 package org.opensearch.be.datafusion;
 
 import org.opensearch.be.datafusion.nativelib.NativeBridge;
-import org.opensearch.tasks.CancellableTask;
 import org.opensearch.be.datafusion.nativelib.SessionContextHandle;
 import org.opensearch.be.datafusion.nativelib.StreamHandle;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.search.SearchExecutionContext;
+import org.opensearch.tasks.CancellableTask;
 import org.opensearch.tasks.Task;
 
 import java.io.IOException;
