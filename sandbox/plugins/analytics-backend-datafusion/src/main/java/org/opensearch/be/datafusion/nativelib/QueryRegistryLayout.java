@@ -47,7 +47,7 @@ public final class QueryRegistryLayout {
 
     // Byte offsets within a single entry. Field order must match
     // ENTRY_LAYOUT and the Rust #[repr(C)] WireQueryMetric struct.
-    private static final long OFF_CONTEXT_ID    = 0L;
+    private static final long OFF_CONTEXT_ID = 0L;
     private static final long OFF_CURRENT_BYTES = 8L;
 
     static {

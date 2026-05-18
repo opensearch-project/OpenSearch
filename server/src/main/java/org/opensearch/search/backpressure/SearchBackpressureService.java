@@ -16,7 +16,6 @@ import org.opensearch.action.search.SearchTask;
 import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
-import org.opensearch.common.util.TimeBasedExpiryTracker;
 import org.opensearch.monitor.jvm.JvmStats;
 import org.opensearch.monitor.os.OsProbe;
 import org.opensearch.monitor.process.ProcessProbe;
@@ -142,7 +141,7 @@ public class SearchBackpressureService extends AbstractLifecycleComponent implem
                     double usedFraction = used / totalNative;
                     if (usedFraction < 0.0d) {
                         if (logger.isDebugEnabled()) {
-                        logger.debug("native memory duress probe: signal unavailable (usedBytes={})", used);
+                            logger.debug("native memory duress probe: signal unavailable (usedBytes={})", used);
                         }
                         return false;
                     }

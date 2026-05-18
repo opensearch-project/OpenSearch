@@ -24,6 +24,7 @@ import java.lang.foreign.SymbolLookup;
 import java.lang.foreign.ValueLayout;
 import java.lang.invoke.MethodHandle;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -764,17 +765,11 @@ public final class NativeBridge {
             if (written == 0L) {
                 return Collections.emptyMap();
             }
-            // Defensive: Rust contract is `written <= cap_entries`. A higher value
-            // would mean the buffer was overrun, so refuse to decode past `n`.
             int rows = (int) Math.min(written, (long) n);
-            // LinkedHashMap preserves the heap-drain order Rust used so logs and
-            // tests see stable iteration; values are O(1) regardless.
-            Map<Long, QueryExecutionMetrics> out = new LinkedHashMap<>(rows);
+            Map<Long, QueryExecutionMetrics> out = new HashMap<>(rows);
             for (int i = 0; i < rows; i++) {
                 long ctxId = QueryRegistryLayout.readContextId(seg, i);
-                // putIfAbsent guards against context_id reuse, which is a Rust-side
-                // caller bug but cheap to defend against here.
-                out.putIfAbsent(ctxId, QueryRegistryLayout.readMetrics(seg, i));
+                out.put(ctxId, QueryRegistryLayout.readMetrics(seg, i));
             }
             return Collections.unmodifiableMap(out);
         }

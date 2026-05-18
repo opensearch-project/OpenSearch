@@ -175,9 +175,7 @@ public class DataFusionPlugin extends Plugin implements SearchBackEndPlugin<Data
         // (see ShardScanInstructionHandler / DatafusionSearchExecEngine), so the map is
         // already keyed by Task#getId on the consumer side.
         NativeMemoryUsageTracker.setSnapshotSupplier(this::currentBytesByTaskId);
-        NativeMemoryUsageTracker.setNativeMemoryBudgetSupplier(
-            () -> DATAFUSION_MEMORY_POOL_LIMIT.get(clusterService.getSettings())
-        );
+        NativeMemoryUsageTracker.setNativeMemoryBudgetSupplier(() -> DATAFUSION_MEMORY_POOL_LIMIT.get(clusterService.getSettings()));
 
         this.substraitExtensions = loadSubstraitExtensions();
 

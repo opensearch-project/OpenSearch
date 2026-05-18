@@ -12,7 +12,6 @@ use std::slice;
 use std::str;
 use std::sync::Arc;
 
-use log::info;
 use native_bridge_common::ffm_safe;
 use parking_lot::RwLock;
 
