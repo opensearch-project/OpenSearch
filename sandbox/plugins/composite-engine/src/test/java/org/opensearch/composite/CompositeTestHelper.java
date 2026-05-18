@@ -159,7 +159,7 @@ final class CompositeTestHelper {
         }
 
         @Override
-        public Writer<DocumentInput<?>> createWriter(long writerGeneration) {
+        public Writer<DocumentInput<?>> createWriter(WriterConfig config) {
             return fixedWriter;
         }
     }

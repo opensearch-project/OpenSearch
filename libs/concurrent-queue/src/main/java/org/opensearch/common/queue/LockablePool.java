@@ -98,19 +98,6 @@ public final class LockablePool<T extends Lockable> implements Iterable<T>, Clos
     }
 
     /**
-     * Discards an item from the pool without releasing it back for reuse.
-     * The item is removed from the pool's tracking set. The caller is responsible
-     * for closing the item. The item must be locked by the current thread.
-     *
-     * @param item the item to discard
-     */
-    public synchronized void discard(T item) {
-        items.remove(item);
-        availableItems.remove(item);
-        item.unlock();
-    }
-
-    /**
      * Lock and checkout all items from the pool.
      *
      * @return unmodifiable list of all items locked by current thread

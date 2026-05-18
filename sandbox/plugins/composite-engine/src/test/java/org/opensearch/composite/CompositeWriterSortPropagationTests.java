@@ -16,6 +16,7 @@ import org.opensearch.index.engine.dataformat.FlushInput;
 import org.opensearch.index.engine.dataformat.RowIdMapping;
 import org.opensearch.index.engine.dataformat.WriteResult;
 import org.opensearch.index.engine.dataformat.Writer;
+import org.opensearch.index.engine.dataformat.WriterConfig;
 import org.opensearch.index.engine.exec.WriterFileSet;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -50,7 +51,7 @@ public class CompositeWriterSortPropagationTests extends OpenSearchTestCase {
             primaryFormat, primaryWriter, secondaryFormat, secondaryWriter
         );
 
-        CompositeWriter compositeWriter = new CompositeWriter(engine, 0);
+        CompositeWriter compositeWriter = new CompositeWriter(engine, new WriterConfig(0));
         FileInfos result = compositeWriter.flush(FlushInput.EMPTY);
 
         // The secondary writer should have received the sort permutation
@@ -85,7 +86,7 @@ public class CompositeWriterSortPropagationTests extends OpenSearchTestCase {
             primaryFormat, primaryWriter, secondaryFormat, secondaryWriter
         );
 
-        CompositeWriter compositeWriter = new CompositeWriter(engine, 0);
+        CompositeWriter compositeWriter = new CompositeWriter(engine, new WriterConfig(0));
         compositeWriter.flush(FlushInput.EMPTY);
 
         assertNotNull(secondaryWriter.lastFlushInput);
@@ -109,7 +110,7 @@ public class CompositeWriterSortPropagationTests extends OpenSearchTestCase {
             primaryFormat, primaryWriter, secondaryFormat, secondaryWriter
         );
 
-        CompositeWriter compositeWriter = new CompositeWriter(engine, 0);
+        CompositeWriter compositeWriter = new CompositeWriter(engine, new WriterConfig(0));
         compositeWriter.flush(FlushInput.EMPTY);
 
         assertSame("Primary should receive the original FlushInput", FlushInput.EMPTY, primaryWriter.lastFlushInput);
@@ -173,5 +174,14 @@ public class CompositeWriterSortPropagationTests extends OpenSearchTestCase {
 
         @Override
         public long generation() { return 0; }
+
+        @Override
+        public boolean isSchemaMutable() { return true; }
+
+        @Override
+        public long mappingVersion() { return 0; }
+
+        @Override
+        public void updateMappingVersion(long newVersion) {}
     }
 }

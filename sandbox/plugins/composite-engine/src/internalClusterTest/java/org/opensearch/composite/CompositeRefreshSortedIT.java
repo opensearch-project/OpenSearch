@@ -28,6 +28,7 @@ import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.engine.CommitStats;
+import org.opensearch.index.engine.dataformat.DocumentInput;
 import org.opensearch.index.engine.exec.Segment;
 import org.opensearch.index.engine.exec.WriterFileSet;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
@@ -111,24 +112,29 @@ public class CompositeRefreshSortedIT extends OpenSearchIntegTestCase {
 
         DataformatAwareCatalogSnapshot snapshot = getCatalogSnapshot();
         assertEquals(Set.of("parquet"), snapshot.getDataFormats());
-        verifyRowCount(snapshot, 5);
-        verifySortOrder(snapshot);
+        verifyParquetRowCount(snapshot, 5);
+        verifyParquetSortOrder(snapshot);
+        verifyParquetRowIdSequential(snapshot);
     }
 
     /**
      * Verifies sorted refresh with Lucene secondary:
      * - Parquet is sorted
      * - Lucene __row_id__ is sequential (RowIdMapping applied)
-     * - Cross-format consistency
+     * - Cross-format consistency: reading Parquet and Lucene in physical order produces
+     *   the same {@code name} and {@code tag} values at every position. {@code tag} is
+     *   a keyword field NOT in the sort key — it confirms non-sort fields are also
+     *   correctly co-located across formats. Numeric fields like {@code age} live only
+     *   in Parquet, so cannot be compared across formats.
      */
     public void testSortedRefreshWithLuceneSecondary() throws Exception {
         createIndex(sortedParquetWithLuceneSettings());
 
-        indexDoc("charlie", 30);
-        indexDoc("alice", 50);
-        indexDoc("bob", 10);
-        indexDoc("dave", 50);
-        indexDoc("eve", 30);
+        indexDoc("charlie", 30, "blue");
+        indexDoc("alice", 50, "red");
+        indexDoc("bob", 10, "green");
+        indexDoc("dave", 50, "yellow");
+        indexDoc("eve", 30, "purple");
 
         flushAndRefresh();
 
@@ -137,10 +143,11 @@ public class CompositeRefreshSortedIT extends OpenSearchIntegTestCase {
         assertTrue("Should have parquet format", formats.contains("parquet"));
         assertTrue("Should have lucene format", formats.contains("lucene"));
 
-        verifyRowCount(snapshot, 5);
-        verifySortOrder(snapshot);
+        verifyParquetRowCount(snapshot, 5);
+        verifyParquetSortOrder(snapshot);
         verifyLuceneDocCount(5);
         verifyLuceneRowIdSequential();
+        verifyParquetAndLuceneRowsAlignedSequentially(snapshot);
     }
 
     /**
@@ -163,17 +170,20 @@ public class CompositeRefreshSortedIT extends OpenSearchIntegTestCase {
 
         DataformatAwareCatalogSnapshot snapshot = getCatalogSnapshot();
         assertEquals("Should have 2 segments", 2, snapshot.getSegments().size());
-        verifyRowCount(snapshot, 6);
+        verifyParquetRowCount(snapshot, 6);
         // Each segment should be independently sorted
-        verifySortOrder(snapshot);
+        verifyParquetSortOrder(snapshot);
     }
 
     /**
      * Verifies null handling in sorted output: age DESC with nulls first,
-     * name ASC with nulls last.
+     * name ASC with nulls last. Runs against Parquet primary + Lucene secondary
+     * to also confirm that the row ID rewrite (driven by Parquet's sort
+     * permutation) yields a sequential {@code __row_id__} in Lucene even when
+     * the sort key contains nulls.
      */
     public void testSortedRefreshWithNulls() throws Exception {
-        createIndex(sortedParquetOnlySettings());
+        createIndex(sortedParquetWithLuceneSettings());
 
         // Mix of null and non-null values
         indexDoc("alice", 50);
@@ -185,8 +195,14 @@ public class CompositeRefreshSortedIT extends OpenSearchIntegTestCase {
         flushAndRefresh();
 
         DataformatAwareCatalogSnapshot snapshot = getCatalogSnapshot();
-        verifyRowCount(snapshot, 5);
-        verifySortOrder(snapshot);
+        Set<String> formats = snapshot.getDataFormats();
+        assertTrue("Should have parquet format", formats.contains("parquet"));
+        assertTrue("Should have lucene format", formats.contains("lucene"));
+
+        verifyParquetRowCount(snapshot, 5);
+        verifyParquetSortOrder(snapshot);
+        verifyLuceneDocCount(5);
+        verifyLuceneRowIdSequential();
     }
 
     /**
@@ -204,8 +220,8 @@ public class CompositeRefreshSortedIT extends OpenSearchIntegTestCase {
         flushAndRefresh();
 
         DataformatAwareCatalogSnapshot snapshot = getCatalogSnapshot();
-        verifyRowCount(snapshot, totalDocs);
-        verifySortOrder(snapshot);
+        verifyParquetRowCount(snapshot, totalDocs);
+        verifyParquetSortOrder(snapshot);
         verifyLuceneDocCount(totalDocs);
         verifyLuceneRowIdSequential();
     }
@@ -253,7 +269,7 @@ public class CompositeRefreshSortedIT extends OpenSearchIntegTestCase {
             .indices()
             .prepareCreate(INDEX_NAME)
             .setSettings(settings)
-            .setMapping("name", "type=keyword", "age", "type=integer")
+            .setMapping("name", "type=keyword", "age", "type=integer", "tag", "type=keyword")
             .get();
         ensureGreen(INDEX_NAME);
     }
@@ -262,6 +278,14 @@ public class CompositeRefreshSortedIT extends OpenSearchIntegTestCase {
         IndexResponse response = client().prepareIndex()
             .setIndex(INDEX_NAME)
             .setSource("name", name, "age", age)
+            .get();
+        assertEquals(RestStatus.CREATED, response.status());
+    }
+
+    private void indexDoc(String name, int age, String tag) {
+        IndexResponse response = client().prepareIndex()
+            .setIndex(INDEX_NAME)
+            .setSource("name", name, "age", age, "tag", tag)
             .get();
         assertEquals(RestStatus.CREATED, response.status());
     }
@@ -285,7 +309,7 @@ public class CompositeRefreshSortedIT extends OpenSearchIntegTestCase {
     // Helpers: verification
     // ══════════════════════════════════════════════════════════════════════
 
-    private void verifyRowCount(DataformatAwareCatalogSnapshot snapshot, int expectedTotalDocs) throws IOException {
+    private void verifyParquetRowCount(DataformatAwareCatalogSnapshot snapshot, int expectedTotalDocs) throws IOException {
         Path parquetDir = getParquetDir();
         long totalRows = 0;
         for (Segment segment : snapshot.getSegments()) {
@@ -302,7 +326,7 @@ public class CompositeRefreshSortedIT extends OpenSearchIntegTestCase {
     }
 
     @SuppressForbidden(reason = "JSON parsing for sort order verification")
-    private void verifySortOrder(DataformatAwareCatalogSnapshot snapshot) throws Exception {
+    private void verifyParquetSortOrder(DataformatAwareCatalogSnapshot snapshot) throws Exception {
         Path parquetDir = getParquetDir();
         for (Segment segment : snapshot.getSegments()) {
             WriterFileSet wfs = segment.dfGroupedSearchableFiles().get("parquet");
@@ -377,7 +401,7 @@ public class CompositeRefreshSortedIT extends OpenSearchIntegTestCase {
         Path luceneDir = getLuceneDir();
         try (Directory dir = NIOFSDirectory.open(luceneDir); DirectoryReader reader = DirectoryReader.open(dir)) {
             for (LeafReaderContext ctx : reader.leaves()) {
-                SortedNumericDocValues rowIdDV = ctx.reader().getSortedNumericDocValues("__row_id__");
+                SortedNumericDocValues rowIdDV = ctx.reader().getSortedNumericDocValues(DocumentInput.ROW_ID_FIELD);
                 if (rowIdDV == null) continue;
 
                 long expectedRowId = 0;
@@ -385,7 +409,8 @@ public class CompositeRefreshSortedIT extends OpenSearchIntegTestCase {
                     if (rowIdDV.advanceExact(doc)) {
                         long rowId = rowIdDV.nextValue();
                         assertEquals(
-                            "__row_id__ should be sequential, expected " + expectedRowId + " but got " + rowId + " at doc " + doc,
+                            DocumentInput.ROW_ID_FIELD + " should be sequential, expected " + expectedRowId + " but got " + rowId
+                                + " at doc " + doc,
                             expectedRowId,
                             rowId
                         );
@@ -394,6 +419,133 @@ public class CompositeRefreshSortedIT extends OpenSearchIntegTestCase {
                 }
             }
         }
+    }
+
+    @SuppressForbidden(reason = "JSON parsing for row ID verification")
+    private void verifyParquetRowIdSequential(DataformatAwareCatalogSnapshot snapshot) throws Exception {
+        Path parquetDir = getParquetDir();
+        for (Segment segment : snapshot.getSegments()) {
+            WriterFileSet wfs = segment.dfGroupedSearchableFiles().get("parquet");
+            for (String file : wfs.files()) {
+                Path filePath = parquetDir.resolve(file);
+                String json = RustBridge.readAsJson(filePath.toString());
+                List<Map<String, Object>> rows;
+                try (
+                    XContentParser parser = JsonXContent.jsonXContent.createParser(
+                        NamedXContentRegistry.EMPTY,
+                        DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                        json
+                    )
+                ) {
+                    rows = parser.list().stream().map(o -> {
+                        @SuppressWarnings("unchecked")
+                        Map<String, Object> m = (Map<String, Object>) o;
+                        return m;
+                    }).toList();
+                }
+
+                long expectedRowId = 0;
+                for (Map<String, Object> row : rows) {
+                    Object rowIdObj = row.get(DocumentInput.ROW_ID_FIELD);
+                    assertNotNull(
+                        DocumentInput.ROW_ID_FIELD + " should be present in parquet row " + expectedRowId + " in " + file,
+                        rowIdObj
+                    );
+                    long rowId = ((Number) rowIdObj).longValue();
+                    assertEquals(
+                        DocumentInput.ROW_ID_FIELD + " should be sequential, expected " + expectedRowId + " but got " + rowId + " in "
+                            + file,
+                        expectedRowId,
+                        rowId
+                    );
+                    expectedRowId++;
+                }
+            }
+        }
+    }
+
+    /**
+     * Reads Parquet rows and Lucene documents in physical (storage) order from the
+     * single-shard, single-segment index and asserts that at every position i,
+     * Parquet row i and Lucene doc i agree on keyword fields ({@code name} and
+     * {@code tag}).
+     * <p>
+     * The Lucene secondary writer only persists text/keyword fields (in the inverted
+     * index) and {@code __row_id__} (as doc values). Numeric fields like {@code age}
+     * are intentionally NOT stored in the Lucene secondary — they live only in
+     * Parquet. Keyword fields are also stored only in the inverted index (no doc
+     * values), so we read them via TermsEnum/postings and reconstruct the per-doc
+     * value.
+     * <p>
+     * The {@code tag} field is NOT part of the sort key — verifying it confirms the
+     * row ID rewrite correctly co-locates non-sort fields across formats too.
+     */
+    @SuppressForbidden(reason = "JSON parsing for cross-format row alignment")
+    private void verifyParquetAndLuceneRowsAlignedSequentially(DataformatAwareCatalogSnapshot snapshot) throws Exception {
+        // Read Parquet rows in physical order
+        Path parquetDir = getParquetDir();
+        List<Map<String, Object>> parquetRows = new java.util.ArrayList<>();
+        for (Segment segment : snapshot.getSegments()) {
+            WriterFileSet wfs = segment.dfGroupedSearchableFiles().get("parquet");
+            for (String file : wfs.files()) {
+                String json = RustBridge.readAsJson(parquetDir.resolve(file).toString());
+                try (
+                    XContentParser parser = JsonXContent.jsonXContent.createParser(
+                        NamedXContentRegistry.EMPTY,
+                        DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                        json
+                    )
+                ) {
+                    for (Object obj : parser.list()) {
+                        @SuppressWarnings("unchecked")
+                        Map<String, Object> row = (Map<String, Object>) obj;
+                        parquetRows.add(row);
+                    }
+                }
+            }
+        }
+
+        // Reconstruct per-doc keyword field values from Lucene's inverted index
+        Path luceneDir = getLuceneDir();
+        try (Directory dir = NIOFSDirectory.open(luceneDir); DirectoryReader reader = DirectoryReader.open(dir)) {
+            assertEquals("Test assumes a single Lucene leaf for sequential alignment", 1, reader.leaves().size());
+            org.apache.lucene.index.LeafReader leaf = reader.leaves().get(0).reader();
+
+            String[] luceneNames = readKeywordValuesPerDoc(leaf, "name");
+            String[] luceneTags = readKeywordValuesPerDoc(leaf, "tag");
+
+            assertEquals("Parquet and Lucene must have same row count", parquetRows.size(), luceneNames.length);
+
+            for (int i = 0; i < parquetRows.size(); i++) {
+                Map<String, Object> pq = parquetRows.get(i);
+                String pqName = (String) pq.get("name");
+                String pqTag = (String) pq.get("tag");
+                assertEquals("name mismatch at position " + i, pqName, luceneNames[i]);
+                assertEquals("tag mismatch at position " + i, pqTag, luceneTags[i]);
+            }
+        }
+    }
+
+    /**
+     * Reconstructs the per-doc keyword value for the given field by iterating
+     * the inverted index. Each doc is expected to have at most one term for the
+     * field. Returns an array indexed by Lucene doc ID.
+     */
+    private String[] readKeywordValuesPerDoc(org.apache.lucene.index.LeafReader leaf, String fieldName) throws IOException {
+        String[] values = new String[leaf.maxDoc()];
+        org.apache.lucene.index.Terms terms = leaf.terms(fieldName);
+        assertNotNull("Lucene index should have field '" + fieldName + "' in inverted index", terms);
+        org.apache.lucene.index.TermsEnum it = terms.iterator();
+        org.apache.lucene.util.BytesRef term;
+        while ((term = it.next()) != null) {
+            String value = term.utf8ToString();
+            org.apache.lucene.index.PostingsEnum postings = it.postings(null);
+            int doc;
+            while ((doc = postings.nextDoc()) != org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS) {
+                values[doc] = value;
+            }
+        }
+        return values;
     }
 
     // ══════════════════════════════════════════════════════════════════════
