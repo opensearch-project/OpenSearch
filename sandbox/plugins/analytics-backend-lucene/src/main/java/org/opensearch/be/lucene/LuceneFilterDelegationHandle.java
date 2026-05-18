@@ -37,6 +37,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BooleanSupplier;
 
 /**
  * Lucene implementation of {@link FilterDelegationHandle}. Compiles delegated expressions
@@ -63,6 +64,7 @@ final class LuceneFilterDelegationHandle implements FilterDelegationHandle {
     private final Map<Integer, Query> queriesByAnnotationId;
     private final DirectoryReader directoryReader;
     private final List<LeafReaderContext> leaves;
+    private final BooleanSupplier isCancelledSupplier;
     private final Map<Long, String> generationToSegmentName;
 
     private final ConcurrentHashMap<Integer, Weight> weightsByProviderKey = new ConcurrentHashMap<>();
@@ -75,7 +77,8 @@ final class LuceneFilterDelegationHandle implements FilterDelegationHandle {
         QueryShardContext queryShardContext,
         LuceneReader luceneReader,
         CatalogSnapshot catalogSnapshot,
-        NamedWriteableRegistry namedWriteableRegistry
+        NamedWriteableRegistry namedWriteableRegistry,
+        BooleanSupplier isCancelledSupplier
     ) {
         assert luceneReader != null : "luceneReader must not be null";
         assert catalogSnapshot != null : "catalogSnapshot must not be null";
@@ -83,6 +86,7 @@ final class LuceneFilterDelegationHandle implements FilterDelegationHandle {
         this.leaves = directoryReader.leaves();
         this.generationToSegmentName = luceneReader.generationToSegmentName();
         this.queriesByAnnotationId = compileQueries(expressions, queryShardContext, namedWriteableRegistry);
+        this.isCancelledSupplier = isCancelledSupplier;
     }
 
     private static Map<Integer, Query> compileQueries(
@@ -194,6 +198,11 @@ final class LuceneFilterDelegationHandle implements FilterDelegationHandle {
             );
             return -1;
         }
+    }
+
+    @Override
+    public boolean isCancelled() {
+        return isCancelledSupplier != null && isCancelledSupplier.getAsBoolean();
     }
 
     @Override
