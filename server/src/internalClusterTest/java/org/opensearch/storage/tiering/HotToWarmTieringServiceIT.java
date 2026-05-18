@@ -1045,7 +1045,7 @@ public class HotToWarmTieringServiceIT extends RemoteStoreBaseIntegTestCase {
         );
         clusterInfoService.setShardSizeFunctionAndRefresh(shardRouting -> 230L);
         clusterInfoService.setNodeResourceUsageFunctionAndRefresh(
-            nodeId -> new NodeResourceUsageStats(nodeId, System.currentTimeMillis(), 99, 20, null)
+            nodeId -> new NodeResourceUsageStats(nodeId, System.currentTimeMillis(), 99, 20, null, 0.0)
         );
 
         verifyMigrationError(INDEX_NAME, "Rejecting tiering request as JVM Utilization is high on all [WARM] nodes");
