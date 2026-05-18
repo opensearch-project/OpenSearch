@@ -77,13 +77,15 @@ public class LuceneAnalyticsBackendPlugin implements AnalyticsSearchBackendPlugi
         ScalarFunction.MATCHALL
     );
 
+    // Field types Lucene's secondary data format actually indexes (see LuceneFieldFactoryRegistry).
+    // Numeric/date/boolean fields are not indexed under composite-parquet primary, so listing them
+    // would cause peer consultation to return null scorers and zero-out candidate sets.
+    // TODO: derive this list from LuceneFieldFactoryRegistry instead of hardcoding.
     private static final Set<FieldType> STANDARD_TYPES = new HashSet<>();
     static {
-        STANDARD_TYPES.addAll(FieldType.numeric());
-        STANDARD_TYPES.addAll(FieldType.keyword());
-        STANDARD_TYPES.addAll(FieldType.text());
-        STANDARD_TYPES.addAll(FieldType.date());
-        STANDARD_TYPES.add(FieldType.BOOLEAN);
+        STANDARD_TYPES.add(FieldType.KEYWORD);
+        STANDARD_TYPES.add(FieldType.TEXT);
+        STANDARD_TYPES.add(FieldType.MATCH_ONLY_TEXT);
     }
 
     private static final Set<FieldType> FULL_TEXT_TYPES = new HashSet<>();

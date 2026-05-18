@@ -422,9 +422,10 @@ pub async unsafe fn execute_indexed_with_context(
 ) -> Result<i64, DataFusionError> {
     let handle = *Box::from_raw(session_ctx_ptr as *mut crate::session_context::SessionContextHandle);
     let classification_override = handle.indexed_config.map(|config| {
+        // FilterTreeShape: 1 = CONJUNCTIVE → SingleCollector, 2 = INTERLEAVED → Tree.
         match (config.tree_shape, config.delegated_predicate_count) {
-            (1, 1) => FilterClass::SingleCollector,
-            (1, _) | (2, _) => FilterClass::Tree,
+            (1, _) => FilterClass::SingleCollector,
+            (2, _) => FilterClass::Tree,
             _ => FilterClass::None,
         }
     });

@@ -31,6 +31,13 @@ final class FilterTreeShapeDeriver {
     /**
      * Derives the filter tree shape from the filter's condition.
      *
+     * <p>TODO: assumes a single OpenSearchFilter per fragment (FILTER_MERGE collapses
+     * stacked Filters during pushdownRules). If a future plan can produce multiple
+     * adjacent OpenSearchFilters that don't merge, this needs to walk all of them
+     * and combine their shapes (any mixed → INTERLEAVED, any delegated → CONJUNCTIVE,
+     * else NO_DELEGATION) so derivation stays consistent with delegationBytes which
+     * walks the full tree.
+     *
      * @param filter              the OpenSearchFilter with annotations intact
      * @param drivingBackendId    the filter operator's resolved backend
      * @return the tree shape, or {@code null} if no delegated annotations exist

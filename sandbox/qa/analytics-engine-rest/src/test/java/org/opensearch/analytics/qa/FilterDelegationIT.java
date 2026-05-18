@@ -119,6 +119,117 @@ public class FilterDelegationIT extends AnalyticsRestTestCase {
         assertEquals("SUM(value) for tag='hello' OR tag='goodbye' (all 20 docs)", 80L, total.longValue());
     }
 
+    /**
+     * Regression: OR(match, range-on-numeric) where the numeric field sits at a high
+     * schema index. The bitmap-tree evaluator's general expr.evaluate(batch) path
+     * referenced columns by full-schema index, but the projected batch had a different
+     * layout — DataFusion panicked with "PhysicalExpr Column references column ... at
+     * index N but input schema only has 1 columns". Fix: remap_expr_to_batch rewrites
+     * indices to match the projected batch before evaluating.
+     */
+    public void testOrRangePredicateOnNumeric_DoesNotPanic() throws Exception {
+        createIndex();
+        indexDocs();
+
+        // 10 docs tag='hello' value=5 + 10 docs tag='goodbye' value=3.
+        // match(message,'hello') OR value > 4 → 10 hello docs ∪ 10 value=5 docs (same set) = 10.
+        String ppl = "source = " + INDEX_NAME + " | where match(message, 'hello') or value > 4 | stats count() as c";
+        Map<String, Object> result = executePPL(ppl);
+
+        @SuppressWarnings("unchecked")
+        List<List<Object>> rows = (List<List<Object>>) result.get("rows");
+        assertNotNull(rows);
+        assertEquals(1, rows.size());
+        assertEquals(10L, ((Number) rows.get(0).get(0)).longValue());
+    }
+
+    /**
+     * Regression: NOT(match) on a delegated predicate was misclassified as CONJUNCTIVE
+     * by FilterTreeShapeDeriver because hasMixed required a driving-backend sibling.
+     * SingleCollector can't invert a collector bitmap, so the query crashed. Fix:
+     * a delegated leaf under OR/NOT triggers INTERLEAVED regardless of siblings.
+     */
+    public void testNotMatch_RoutesToTreeEvaluator() throws Exception {
+        createIndex();
+        indexDocs();
+
+        // NOT(match(message,'hello')) → 10 goodbye docs.
+        String ppl = "source = " + INDEX_NAME + " | where not match(message, 'hello') | stats count() as c";
+        Map<String, Object> result = executePPL(ppl);
+
+        @SuppressWarnings("unchecked")
+        List<List<Object>> rows = (List<List<Object>>) result.get("rows");
+        assertNotNull(rows);
+        assertEquals(10L, ((Number) rows.get(0).get(0)).longValue());
+    }
+
+    /**
+     * Regression: COUNT(DISTINCT col) is converted by Calcite into a stacked Filter
+     * (auto-injected IS NOT NULL on top of the user's WHERE). FilterTreeShapeDeriver
+     * only inspected the outermost OpenSearchFilter via findNode and missed the inner
+     * filter's delegated predicate, producing tree_shape=NO_DELEGATION while
+     * delegationBytes recorded 1 delegated leaf — the data node errored with
+     * "execute_indexed_query called with no index_filter(...) in plan". Fix:
+     * CoreRules.FILTER_MERGE collapses adjacent filters before derivation.
+     */
+    public void testCountDistinctWithMatchFilter_StackedFilterMerged() throws Exception {
+        createIndex();
+        indexDocs();
+
+        // dc(value) over docs matching match(message,'hello') → all values are 5 → 1 distinct.
+        String ppl = "source = " + INDEX_NAME + " | where match(message, 'hello') | stats dc(value) as d";
+        Map<String, Object> result = executePPL(ppl);
+
+        @SuppressWarnings("unchecked")
+        List<List<Object>> rows = (List<List<Object>>) result.get("rows");
+        assertNotNull(rows);
+        assertEquals(1L, ((Number) rows.get(0).get(0)).longValue());
+    }
+
+    /**
+     * Regression: AND(match, keyword=, integer=) routed via SingleCollector with
+     * performance peers. The integer field was marked Lucene-indexable in
+     * FieldStorageResolver and routed to peer consultation, but Lucene's secondary
+     * format (composite-parquet primary) only indexes text/keyword/match_only_text —
+     * the integer query produced a null Scorer → empty bitset → wrong zero count
+     * after AND-intersection. Fix: STANDARD_TYPES in LuceneAnalyticsBackendPlugin
+     * only declares Lucene-indexable types.
+     */
+    public void testAndMatchKeywordInteger_NoEmptyPeerIntersection() throws Exception {
+        createIndex();
+        indexDocs();
+
+        // 10 docs match all three: match(message,'hello') AND tag='hello' AND value=5.
+        String ppl = "source = " + INDEX_NAME
+            + " | where match(message, 'hello') and tag = 'hello' and value = 5 | stats count() as c";
+        Map<String, Object> result = executePPL(ppl);
+
+        @SuppressWarnings("unchecked")
+        List<List<Object>> rows = (List<List<Object>>) result.get("rows");
+        assertNotNull(rows);
+        assertEquals(10L, ((Number) rows.get(0).get(0)).longValue());
+    }
+
+    /**
+     * Regression: AND with sum() aggregation — non-count aggregations also need
+     * correctly filtered batches. Pre-fix this returned null because peer
+     * consultation zeroed out candidates.
+     */
+    public void testAndMatchKeywordInteger_SumAggregation() throws Exception {
+        createIndex();
+        indexDocs();
+
+        // sum(value) over the 10 matching docs (value=5 each) → 50.
+        String ppl = "source = " + INDEX_NAME
+            + " | where match(message, 'hello') and tag = 'hello' and value = 5 | stats sum(value) as s";
+        Map<String, Object> result = executePPL(ppl);
+
+        @SuppressWarnings("unchecked")
+        List<List<Object>> rows = (List<List<Object>>) result.get("rows");
+        assertNotNull(rows);
+        assertEquals(50L, ((Number) rows.get(0).get(0)).longValue());
+    }
+
     private void createIndex() throws Exception {
         try {
             client().performRequest(new Request("DELETE", "/" + INDEX_NAME));

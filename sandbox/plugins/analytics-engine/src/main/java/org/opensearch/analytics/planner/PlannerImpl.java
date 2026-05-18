@@ -151,9 +151,13 @@ public class PlannerImpl {
     private static RelNode pushdownRules(RelNode input, RuleProfilingListener listener) {
         HepProgramBuilder builder = new HepProgramBuilder();
         builder.addMatchOrder(HepMatchOrder.BOTTOM_UP);
+        // Push Filters below Project/Aggregate/Join.
         builder.addRuleCollection(
             List.of(CoreRules.FILTER_PROJECT_TRANSPOSE, CoreRules.FILTER_AGGREGATE_TRANSPOSE, CoreRules.FILTER_INTO_JOIN)
         );
+        // Merge adjacent Filters into one — must run after transposes so any
+        // auto-injected NOT NULL collapses with the user's WHERE.
+        builder.addRuleInstance(CoreRules.FILTER_MERGE);
         HepPlanner planner = new HepPlanner(builder.build());
         if (listener != null) {
             planner.addListener(listener);
