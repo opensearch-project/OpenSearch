@@ -249,12 +249,17 @@ async fn run_delegation_fuzz(
 /// Delegation-passthrough: the mock delegated-backend returns *exactly* the rows
 /// where `original_expr` is TRUE. The AND-intersection is a no-op for correctness;
 /// proves the gate + intersection don't lose rows on the happy path.
+///
+/// Uses `concurrency` (4 segments × 8 partitions) so segments after the first have
+/// `rg.first_row != 0` — this is the regime where the peer-bitmap offset math
+/// (`min_doc - rg.first_row`) actually does work. A single-segment fixture would
+/// silently let an off-by-one in that arithmetic pass.
 #[tokio::test(flavor = "multi_thread")]
 async fn fuzz_delegation_passthrough() {
     run_delegation_fuzz(
         "fuzz_delegation_passthrough",
-        50,
-        FixtureConfig::small,
+        25,
+        FixtureConfig::concurrency,
         DelegatedBackendBehavior::Passthrough,
         2,
     )
@@ -264,13 +269,13 @@ async fn fuzz_delegation_passthrough() {
 /// Sloppy delegated backend: returns TRUE-rows + ~30% extras. Residual FilterExec
 /// must filter out the extras. Proves the delegated-backend bitset is *advisory*
 /// — DataFusion's native predicate evaluation is the authoritative correctness
-/// backstop.
+/// backstop. Same multi-segment fixture as the passthrough variant.
 #[tokio::test(flavor = "multi_thread")]
 async fn fuzz_delegation_sloppy() {
     run_delegation_fuzz(
         "fuzz_delegation_sloppy",
-        50,
-        FixtureConfig::small,
+        25,
+        FixtureConfig::concurrency,
         DelegatedBackendBehavior::Sloppy,
         2,
     )

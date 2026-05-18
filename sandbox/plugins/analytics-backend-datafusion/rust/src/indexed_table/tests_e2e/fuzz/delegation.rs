@@ -430,8 +430,16 @@ pub(in crate::indexed_table::tests_e2e) async fn execute_delegation_tree(
     let store: Arc<dyn object_store::ObjectStore> =
         Arc::new(object_store::local::LocalFileSystem::new());
     let store_url = datafusion::execution::object_store::ObjectStoreUrl::local_filesystem();
+    // Honor the corpus's target_partitions so multi-segment fixtures fan out across
+    // partitions — `EvaluatorFactory` closure then runs once per (partition × segment)
+    // and exercises the multi-segment offset math:
+    //
+    //   peer_bm offset = (min_doc as i64 - rg.first_row) as u32
+    //
+    // Segment 0 has rg.first_row==0; segments 1..N have first_row != 0. If the offset
+    // arithmetic were wrong we'd silently corrupt results on any segment after the first.
     let qc = crate::datafusion_query_config::DatafusionQueryConfig::builder()
-        .target_partitions(1)
+        .target_partitions(corpus.config.target_partitions.max(1))
         .force_pushdown(Some(true))
         .batch_size(1024)
         .build();
