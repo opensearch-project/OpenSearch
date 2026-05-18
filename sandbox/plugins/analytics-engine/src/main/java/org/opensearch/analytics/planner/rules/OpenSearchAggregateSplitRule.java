@@ -12,29 +12,28 @@ import org.apache.calcite.plan.RelOptRule;
 import org.apache.calcite.plan.RelOptRuleCall;
 import org.apache.calcite.plan.RelTraitSet;
 import org.apache.calcite.rel.RelNode;
+import org.apache.calcite.rel.core.AggregateCall;
+import org.apache.calcite.rel.core.Project;
+import org.apache.calcite.rex.RexLiteral;
+import org.apache.calcite.rex.RexNode;
 import org.opensearch.analytics.planner.PlannerContext;
+import org.opensearch.analytics.planner.RelNodeUtils;
 import org.opensearch.analytics.planner.rel.AggregateMode;
 import org.opensearch.analytics.planner.rel.OpenSearchAggregate;
 import org.opensearch.analytics.planner.rel.OpenSearchConvention;
+import org.opensearch.analytics.spi.AggregateFunction;
+
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 
 /**
- * Volcano CBO rule that splits an {@link OpenSearchAggregate} into
- * PARTIAL + FINAL when the input is partitioned.
- *
- * <p>Requests SINGLETON distribution on the partial output, letting Volcano's
- * trait enforcement (via {@code ExpandConversionRule} + {@code OpenSearchDistributionTraitDef})
- * automatically insert an {@code OpenSearchExchangeReducer}.
- *
- * <p>This rule is <b>purely structural</b>: it produces {@code FINAL(Exchange(PARTIAL))}
- * with both halves carrying the same aggCall list as the original SINGLE node. Rewriting
- * FINAL's aggregate calls — arg rebasing, COUNT→SUM function-swap, engine-native merge
- * handling — runs post-Volcano via {@code DistributedAggregateRewriter}. Keeping the
- * split rule structural avoids Volcano's {@code Aggregate.typeMatchesInferred} and
- * row-type equivalence checks, which are sensitive to nullability differences that
- * the rewrites inevitably introduce.
- *
- * <p>Multi-field primitive decomposition (AVG / STDDEV / VAR) is handled by
- * {@link OpenSearchAggregateReduceRule} during HEP marking — before this rule runs.
+ * Volcano rule that splits an {@link OpenSearchAggregate} into PARTIAL + FINAL when the
+ * input is partitioned. Both halves carry the original aggCall list — actual aggregate-call
+ * rewriting (arg rebasing, COUNT→SUM, engine-native merge) runs post-Volcano in
+ * {@link org.opensearch.analytics.planner.dag.DistributedAggregateRewriter}. The exchange
+ * is inserted automatically via the SINGLETON trait request on partial's output.
  *
  * @opensearch.internal
  */
@@ -58,10 +57,7 @@ public class OpenSearchAggregateSplitRule extends RelOptRule {
         OpenSearchAggregate aggregate = call.rel(0);
         RelNode child = call.rel(1);
 
-        // SINGLE with input converted to SINGLETON. Volcano picks this when
-        // the child can offer SINGLETON cheaply — e.g. a windowed Project already gathers
-        // below it, so a follow-on Aggregate has no parallelism to gain from splitting.
-        // Mirrors the dual-alternative pattern in OpenSearchJoinSplitRule.
+        // SINGLE-on-SINGLETON alternative — wins when the child already gathers below.
         RelTraitSet singletonTraits = aggregate.getTraitSet().replace(context.getDistributionTraitDef().coordSingleton());
         RelNode singletonChild = convert(child, singletonTraits);
         OpenSearchAggregate singleOnSingleton = new OpenSearchAggregate(
@@ -72,11 +68,11 @@ public class OpenSearchAggregateSplitRule extends RelOptRule {
             aggregate.getGroupSets(),
             aggregate.getAggCallList(),
             AggregateMode.SINGLE,
-            aggregate.getViableBackends()
+            aggregate.getViableBackends(),
+            aggregate.getCallAnnotations()
         );
 
-        // PARTIAL + ER + FINAL. Wins when child is shard-partitioned — the
-        // common case for an Aggregate directly above a Scan.
+        // PARTIAL + ER + FINAL alternative — wins when child is shard-partitioned.
         RelTraitSet partialTraits = child.getTraitSet().replace(OpenSearchConvention.INSTANCE);
         OpenSearchAggregate partial = new OpenSearchAggregate(
             aggregate.getCluster(),
@@ -86,10 +82,13 @@ public class OpenSearchAggregateSplitRule extends RelOptRule {
             aggregate.getGroupSets(),
             aggregate.getAggCallList(),
             AggregateMode.PARTIAL,
-            aggregate.getViableBackends()
+            aggregate.getViableBackends(),
+            aggregate.getCallAnnotations()
         );
         RelTraitSet finalTraits = partial.getTraitSet().replace(context.getDistributionTraitDef().coordSingleton());
         RelNode gathered = convert(partial, finalTraits);
+        Map<Integer, List<RexLiteral>> finalExtraLiterals = captureLiteralArgsForFinal(aggregate.getAggCallList(), child);
+
         OpenSearchAggregate finalAggregate = new OpenSearchAggregate(
             aggregate.getCluster(),
             finalTraits,
@@ -98,10 +97,48 @@ public class OpenSearchAggregateSplitRule extends RelOptRule {
             aggregate.getGroupSets(),
             aggregate.getAggCallList(),
             AggregateMode.FINAL,
-            aggregate.getViableBackends()
+            aggregate.getViableBackends(),
+            aggregate.getCallAnnotations(),
+            finalExtraLiterals
         );
 
         call.getPlanner().ensureRegistered(singleOnSingleton, aggregate);
         call.transformTo(finalAggregate);
+    }
+
+    /**
+     * For each STATE_EXPANDING aggCall, capture literal non-state args (e.g. TAKE's N)
+     * from the child Project so {@code DistributedAggregateRewriter} can re-create them
+     * below FINAL. Calls with non-literal args contribute no entry — the FINAL rewrite
+     * then takes its single-state-column path.
+     */
+    private static Map<Integer, List<RexLiteral>> captureLiteralArgsForFinal(List<AggregateCall> aggCalls, RelNode child) {
+        if (!(RelNodeUtils.unwrapHep(child) instanceof Project project)) {
+            return Map.of();
+        }
+        List<RexNode> projects = project.getProjects();
+        Map<Integer, List<RexLiteral>> captured = new LinkedHashMap<>();
+        for (int i = 0; i < aggCalls.size(); i++) {
+            AggregateCall call = aggCalls.get(i);
+            AggregateFunction fn = AggregateFunction.fromSqlAggFunction(call.getAggregation());
+            if (fn == null || fn.getType() != AggregateFunction.Type.STATE_EXPANDING) continue;
+            List<Integer> args = call.getArgList();
+            if (args.size() < 2) continue;
+            // arg 0 is the value/state column; args 1+ are the configuration literals.
+            List<RexLiteral> literals = new ArrayList<>(args.size() - 1);
+            boolean allLiteral = true;
+            for (int a = 1; a < args.size(); a++) {
+                int colIdx = args.get(a);
+                if (colIdx < 0 || colIdx >= projects.size() || !(projects.get(colIdx) instanceof RexLiteral lit)) {
+                    allLiteral = false;
+                    break;
+                }
+                literals.add(lit);
+            }
+            if (allLiteral && !literals.isEmpty()) {
+                captured.put(i, List.copyOf(literals));
+            }
+        }
+        return captured;
     }
 }
