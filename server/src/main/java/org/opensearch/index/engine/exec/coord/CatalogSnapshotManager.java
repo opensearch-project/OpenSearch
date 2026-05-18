@@ -265,6 +265,16 @@ public class CatalogSnapshotManager implements Closeable {
         assert refreshedSegments.stream().flatMap(s -> s.dfGroupedSearchableFiles().values().stream()).allMatch(wfs -> wfs.numRows() > 0)
             : "every WriterFileSet must have a positive row count";
 
+        // Cross-format per-segment row-count parity: within a single segment, every
+        // format's WriterFileSet must report the same row count. This is the invariant
+        // that downstream segment-ord translation relies on (e.g. Rust's parquet
+        // segment_ord → Lucene leaf index mapping asserts that the leaf's maxDoc
+        // equals the catalog segment's per-format row count). A mismatch here means
+        // one of the writers dropped or duplicated rows during a single refresh —
+        // exactly the class of bug that silently produced different match/LIKE
+        // counts at query time.
+        assert assertPerSegmentCrossFormatRowCountParity(refreshedSegments) : "per-segment row count must be equal across all formats";
+
         // Register file references BEFORE notifying listeners and swapping the snapshot.
         // This ensures that if addFileReferences fails, no listener has been told about
         // the new snapshot and no state has been mutated.
@@ -503,6 +513,43 @@ public class CatalogSnapshotManager implements Closeable {
         if (sourceRows != mergedRows) {
             logger.error("Row count mismatch: source segments have {} rows but merged segment has {} rows", sourceRows, mergedRows);
             return false;
+        }
+        return true;
+    }
+
+    /**
+     * Asserts that within each segment, every format's {@link WriterFileSet} reports
+     * the same {@link WriterFileSet#numRows()}.
+     *
+     * <p>The multi-format segment model pairs one logical row set across formats — e.g.
+     * a parquet file and a Lucene leaf that both represent the same 1000 rows. Segment
+     * ordinal translation on the query side (parquet segment_ord → Lucene leaf index
+     * via writer generation) relies on that invariant to pick the right leaf. A mismatch
+     * here means the writers dropped or duplicated rows against each other during a
+     * single refresh — which produces silent correctness issues like different counts
+     * from {@code match} vs {@code LIKE} over the same field.
+     */
+    private boolean assertPerSegmentCrossFormatRowCountParity(List<Segment> segments) {
+        for (Segment seg : segments) {
+            long expected = -1L;
+            String referenceFormat = null;
+            for (Map.Entry<String, WriterFileSet> entry : seg.dfGroupedSearchableFiles().entrySet()) {
+                long rows = entry.getValue().numRows();
+                if (expected == -1L) {
+                    expected = rows;
+                    referenceFormat = entry.getKey();
+                } else if (rows != expected) {
+                    logger.error(
+                        "Per-segment row count mismatch at generation {}: format [{}] has {} rows but format [{}] has {} rows",
+                        seg.generation(),
+                        referenceFormat,
+                        expected,
+                        entry.getKey(),
+                        rows
+                    );
+                    return false;
+                }
+            }
         }
         return true;
     }

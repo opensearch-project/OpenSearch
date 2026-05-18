@@ -9,10 +9,11 @@
 package org.opensearch.analytics.exec;
 
 import org.apache.arrow.memory.BufferAllocator;
+import org.apache.arrow.memory.RootAllocator;
 import org.opensearch.analytics.backend.AnalyticsOperationListener;
 import org.opensearch.analytics.exec.task.AnalyticsQueryTask;
 import org.opensearch.analytics.planner.dag.QueryDAG;
-import org.opensearch.arrow.flight.transport.ArrowAllocatorProvider;
+import org.opensearch.arrow.memory.ArrowAllocatorService;
 
 import java.util.List;
 import java.util.concurrent.Executor;
@@ -39,13 +40,21 @@ public class QueryContext {
     private final int maxConcurrentShardRequests;
     private final long perQueryMemoryLimit;
     private final List<AnalyticsOperationListener> operationListeners;
+    private final ArrowAllocatorService allocatorService;
     private volatile BufferAllocator bufferAllocator;
     private volatile ExecutorService localTaskExecutor;
     private boolean closed;  // guarded by `this`
 
-    /** Production constructor — defaults concurrency, memory limit, and operation listeners. */
-    public QueryContext(QueryDAG dag, Executor searchExecutor, AnalyticsQueryTask parentTask) {
-        this(dag, searchExecutor, parentTask, DEFAULT_MAX_CONCURRENT_SHARD_REQUESTS, DEFAULT_PER_QUERY_MEMORY_LIMIT, List.of());
+    public QueryContext(QueryDAG dag, Executor searchExecutor, AnalyticsQueryTask parentTask, ArrowAllocatorService allocatorService) {
+        this(
+            dag,
+            searchExecutor,
+            parentTask,
+            DEFAULT_MAX_CONCURRENT_SHARD_REQUESTS,
+            DEFAULT_PER_QUERY_MEMORY_LIMIT,
+            List.of(),
+            allocatorService
+        );
     }
 
     /** Full-parameter constructor. Private; tests use {@link #forTest} factories. */
@@ -55,7 +64,8 @@ public class QueryContext {
         AnalyticsQueryTask parentTask,
         int maxConcurrentShardRequests,
         long perQueryMemoryLimit,
-        List<AnalyticsOperationListener> operationListeners
+        List<AnalyticsOperationListener> operationListeners,
+        ArrowAllocatorService allocatorService
     ) {
         this.dag = dag;
         this.searchExecutor = searchExecutor;
@@ -63,6 +73,7 @@ public class QueryContext {
         this.maxConcurrentShardRequests = maxConcurrentShardRequests;
         this.perQueryMemoryLimit = perQueryMemoryLimit;
         this.operationListeners = operationListeners;
+        this.allocatorService = allocatorService;
     }
 
     public QueryDAG dag() {
@@ -100,7 +111,7 @@ public class QueryContext {
                     if (closed) {
                         throw new IllegalStateException("QueryContext closed for query " + dag.queryId());
                     }
-                    alloc = ArrowAllocatorProvider.newChildAllocator("query-" + dag.queryId(), perQueryMemoryLimit);
+                    alloc = allocatorService.newChildAllocator("query-" + dag.queryId(), perQueryMemoryLimit);
                     bufferAllocator = alloc;
                 }
             }
@@ -146,6 +157,28 @@ public class QueryContext {
 
     // ─── Test factories ────────────────────────────────────────────────
 
+    /** Test-only: wraps a fresh {@link RootAllocator} as an {@link ArrowAllocatorService}. */
+    private static ArrowAllocatorService testAllocatorService() {
+        return new ArrowAllocatorService() {
+            private final RootAllocator root = new RootAllocator(Long.MAX_VALUE);
+
+            @Override
+            public BufferAllocator newChildAllocator(String name, long limit) {
+                return root.newChildAllocator(name, 0, limit);
+            }
+
+            @Override
+            public long getAllocatedMemory() {
+                return root.getAllocatedMemory();
+            }
+
+            @Override
+            public long getPeakMemoryAllocation() {
+                return root.getPeakMemoryAllocation();
+            }
+        };
+    }
+
     /** Creates a test context with a synchronous executor. */
     public static QueryContext forTest(QueryDAG dag, AnalyticsQueryTask parentTask) {
         return forTest(dag, parentTask, List.of());
@@ -153,6 +186,6 @@ public class QueryContext {
 
     /** Creates a test context with a synchronous executor and the supplied operation listeners. */
     public static QueryContext forTest(QueryDAG dag, AnalyticsQueryTask parentTask, List<AnalyticsOperationListener> operationListeners) {
-        return new QueryContext(dag, Runnable::run, parentTask, DEFAULT_MAX_CONCURRENT_SHARD_REQUESTS, Long.MAX_VALUE, operationListeners);
+        return new QueryContext(dag, Runnable::run, parentTask, DEFAULT_MAX_CONCURRENT_SHARD_REQUESTS, Long.MAX_VALUE, operationListeners, testAllocatorService());
     }
 }

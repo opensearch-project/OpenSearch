@@ -9,6 +9,7 @@
 package org.opensearch.analytics.resilience;
 
 import org.apache.arrow.memory.BufferAllocator;
+import org.apache.arrow.memory.RootAllocator;
 import org.apache.arrow.vector.IntVector;
 import org.apache.arrow.vector.VectorSchemaRoot;
 import org.apache.arrow.vector.types.pojo.ArrowType;
@@ -22,7 +23,7 @@ import org.opensearch.action.admin.indices.create.CreateIndexResponse;
 import org.opensearch.analytics.AnalyticsPlugin;
 import org.opensearch.analytics.exec.action.FragmentExecutionAction;
 import org.opensearch.analytics.exec.action.FragmentExecutionArrowResponse;
-import org.opensearch.arrow.flight.transport.ArrowAllocatorProvider;
+import org.opensearch.arrow.plugin.ArrowBasePlugin;
 import org.opensearch.arrow.flight.transport.FlightStreamPlugin;
 import org.opensearch.be.datafusion.DataFusionPlugin;
 import org.opensearch.be.datafusion.DataFusionService;
@@ -122,10 +123,7 @@ public class CoordinatorTransportStressIT extends OpenSearchIntegTestCase {
 
     @BeforeClass
     public static void initProducerAllocator() {
-        // Process-wide static; created once per test class load. Internal-cluster
-        // tests share JVM with the cluster, and ArrowAllocatorProvider's ROOT is
-        // also process-static, so this child shares the root with every plugin.
-        producerAllocator = ArrowAllocatorProvider.newChildAllocator("stress-it-producer", Long.MAX_VALUE);
+        producerAllocator = new RootAllocator(Long.MAX_VALUE);
     }
 
     @AfterClass
@@ -142,12 +140,10 @@ public class CoordinatorTransportStressIT extends OpenSearchIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return List.of(
+            ArrowBasePlugin.class,
             TestPPLPlugin.class,
-            FlightStreamPlugin.class,
             CompositeDataFormatPlugin.class,
             MockTransportService.TestPlugin.class,
-            // Stub committer factory satisfies the EngineConfigFactory boot-time
-            // check without pulling the Lucene backend onto the IT classpath.
             MockCommitterEnginePlugin.class
         );
     }
@@ -155,6 +151,7 @@ public class CoordinatorTransportStressIT extends OpenSearchIntegTestCase {
     @Override
     protected Collection<PluginInfo> additionalNodePlugins() {
         return List.of(
+            classpathPlugin(FlightStreamPlugin.class, List.of(ArrowBasePlugin.class.getName())),
             classpathPlugin(AnalyticsPlugin.class, Collections.emptyList()),
             classpathPlugin(ParquetDataFormatPlugin.class, Collections.emptyList()),
             classpathPlugin(DataFusionPlugin.class, List.of(AnalyticsPlugin.class.getName()))

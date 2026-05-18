@@ -8,6 +8,8 @@
 
 package org.opensearch.composite;
 
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
+
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.FieldInfo;
@@ -26,6 +28,7 @@ import org.opensearch.be.datafusion.DataFusionPlugin;
 import org.opensearch.be.lucene.LucenePlugin;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.SuppressForbidden;
+import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.xcontent.json.JsonXContent;
@@ -34,6 +37,9 @@ import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.DeprecationHandler;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.index.engine.exec.Segment;
+import org.opensearch.index.engine.exec.WriterFileSet;
+import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.parquet.ParquetDataFormatPlugin;
 import org.opensearch.parquet.bridge.ParquetFileMetadata;
@@ -55,7 +61,6 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 /**
  * Integration test validating dynamic mapping support with composite parquet index.
@@ -67,6 +72,7 @@ import java.util.stream.Stream;
  *   --tests "*.CompositeDynamicMappingIT" \
  *   -Dsandbox.enabled=true
  */
+@ThreadLeakScope(ThreadLeakScope.Scope.NONE)
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.SUITE, numDataNodes = 1)
 public class CompositeDynamicMappingIT extends OpenSearchIntegTestCase {
 
@@ -148,18 +154,20 @@ public class CompositeDynamicMappingIT extends OpenSearchIntegTestCase {
         Path parquetDir = shard.shardPath().getDataPath().resolve("parquet");
         assertTrue("Parquet directory should exist", Files.isDirectory(parquetDir));
 
-        List<Path> parquetFiles = listParquetFiles(parquetDir);
-        assertFalse("Should have at least one parquet file", parquetFiles.isEmpty());
+        try (GatedCloseable<List<Path>> parquetFilesRef = listParquetFiles(parquetDir, shard)) {
+            List<Path> parquetFiles = parquetFilesRef.get();
+            assertFalse("Should have at least one parquet file", parquetFiles.isEmpty());
 
-        // Verify row count from parquet file metadata
-        long totalRows = getParquetRowCount(parquetFiles);
-        assertEquals("Total rows across parquet files should equal 10", 10, totalRows);
+            // Verify row count from parquet file metadata
+            long totalRows = getParquetRowCount(parquetFiles);
+            assertEquals("Total rows across parquet files should equal 10", 10, totalRows);
 
-        // Verify content via readAsJson
-        List<Map<String, Object>> allRows = readAllParquetRows(parquetFiles);
-        assertEquals(10, allRows.size());
-        // Verify dynamic fields are present in the rows that should have them
-        assertDynamicFieldCount(allRows, "dynamic_text", 5);
+            // Verify content via readAsJson
+            List<Map<String, Object>> allRows = readAllParquetRows(parquetFiles);
+            assertEquals(10, allRows.size());
+            // Verify dynamic fields are present in the rows that should have them
+            assertDynamicFieldCount(allRows, "dynamic_text", 5);
+        }
 
         // After flush, the writer is now immutable. Index more docs with another new dynamic field
         // to verify schema evolution across writer generations (new writer created with fresh schema).
@@ -183,16 +191,19 @@ public class CompositeDynamicMappingIT extends OpenSearchIntegTestCase {
         client().admin().indices().prepareFlush(INDEX_NAME).get();
 
         // Verify all 15 rows on disk
-        parquetFiles = listParquetFiles(parquetDir);
-        totalRows = getParquetRowCount(parquetFiles);
-        assertEquals("Total rows across parquet files should equal 15", 15, totalRows);
+        try (GatedCloseable<List<Path>> parquetFilesRef = listParquetFiles(parquetDir, shard)) {
+            List<Path> parquetFiles = parquetFilesRef.get();
+            long totalRows = getParquetRowCount(parquetFiles);
+            assertEquals("Total rows across parquet files should equal 15", 15, totalRows);
 
-        // Verify content
-        allRows = readAllParquetRows(parquetFiles);
-        assertEquals(15, allRows.size());
-        assertDynamicFieldCount(allRows, "dynamic_extra", 5);
+            // Verify content
+            List<Map<String, Object>> allRows = readAllParquetRows(parquetFiles);
+            assertEquals(15, allRows.size());
+            assertDynamicFieldCount(allRows, "dynamic_extra", 5);
+        }
 
         ensureGreen(INDEX_NAME);
+        ensureNoActiveMerges(INDEX_NAME);
     }
 
     /**
@@ -234,11 +245,13 @@ public class CompositeDynamicMappingIT extends OpenSearchIntegTestCase {
         // Verify parquet
         IndexShard shard = getIndexShard(indexName);
         Path parquetDir = shard.shardPath().getDataPath().resolve("parquet");
-        List<Path> parquetFiles = listParquetFiles(parquetDir);
-        List<Map<String, Object>> parquetRows = readAllParquetRows(parquetFiles);
-        assertEquals("Parquet should have 10 rows", 10, parquetRows.size());
-        assertDynamicFieldCount(parquetRows, "dynamic_text", 5);
-        assertDynamicFieldCount(parquetRows, "dynamic_long", 5);
+        try (GatedCloseable<List<Path>> parquetFilesRef = listParquetFiles(parquetDir, shard)) {
+            List<Path> parquetFiles = parquetFilesRef.get();
+            List<Map<String, Object>> parquetRows = readAllParquetRows(parquetFiles);
+            assertEquals("Parquet should have 10 rows", 10, parquetRows.size());
+            assertDynamicFieldCount(parquetRows, "dynamic_text", 5);
+            assertDynamicFieldCount(parquetRows, "dynamic_long", 5);
+        }
 
         // Verify lucene secondary: doc count + indexed fields present
         Path luceneDir = shard.shardPath().resolveIndex();
@@ -251,6 +264,7 @@ public class CompositeDynamicMappingIT extends OpenSearchIntegTestCase {
 
         // Verify that the lucene index has the expected indexed fields (inverted index)
         assertLuceneIndexedFieldsPresent(luceneDir, Set.of("field_keyword", "dynamic_text", "dynamic_text.keyword"));
+        ensureNoActiveMerges(indexName);
     }
 
     public void testConflictingDynamicMappings() {
@@ -292,13 +306,16 @@ public class CompositeDynamicMappingIT extends OpenSearchIntegTestCase {
         // Verify parquet content
         IndexShard shard = getIndexShard(indexName);
         Path parquetDir = shard.shardPath().getDataPath().resolve("parquet");
-        List<Path> parquetFiles = listParquetFiles(parquetDir);
+        try (GatedCloseable<List<Path>> parquetFilesRef = listParquetFiles(parquetDir, shard)) {
+            List<Path> parquetFiles = parquetFilesRef.get();
 
-        assertEquals("Total rows should equal 64", 64, getParquetRowCount(parquetFiles));
+            assertEquals("Total rows should equal 64", 64, getParquetRowCount(parquetFiles));
 
-        List<Map<String, Object>> allRows = readAllParquetRows(parquetFiles);
-        assertEquals(64, allRows.size());
-        assertConcurrentFieldValues(allRows, numThreads);
+            List<Map<String, Object>> allRows = readAllParquetRows(parquetFiles);
+            assertEquals(64, allRows.size());
+            assertConcurrentFieldValues(allRows, numThreads);
+        }
+        ensureNoActiveMerges(indexName);
     }
 
     /**
@@ -325,11 +342,13 @@ public class CompositeDynamicMappingIT extends OpenSearchIntegTestCase {
         // Verify parquet
         IndexShard shard = getIndexShard(indexName);
         Path parquetDir = shard.shardPath().getDataPath().resolve("parquet");
-        List<Path> parquetFiles = listParquetFiles(parquetDir);
-        assertEquals("Parquet total rows should be 64", 64, getParquetRowCount(parquetFiles));
-        List<Map<String, Object>> parquetRows = readAllParquetRows(parquetFiles);
-        assertEquals(64, parquetRows.size());
-        assertConcurrentFieldValues(parquetRows, numThreads);
+        try (GatedCloseable<List<Path>> parquetFilesRef = listParquetFiles(parquetDir, shard)) {
+            List<Path> parquetFiles = parquetFilesRef.get();
+            assertEquals("Parquet total rows should be 64", 64, getParquetRowCount(parquetFiles));
+            List<Map<String, Object>> parquetRows = readAllParquetRows(parquetFiles);
+            assertEquals(64, parquetRows.size());
+            assertConcurrentFieldValues(parquetRows, numThreads);
+        }
 
         // Verify lucene secondary: doc count + all dynamic fields indexed
         Path luceneDir = shard.shardPath().resolveIndex();
@@ -347,6 +366,7 @@ public class CompositeDynamicMappingIT extends OpenSearchIntegTestCase {
             expectedFields.add("fieldB_" + i);
         }
         assertLuceneIndexedFieldsPresent(luceneDir, expectedFields);
+        ensureNoActiveMerges(indexName);
     }
 
     // ══════════════════════════════════════════════════════════════════════
@@ -432,6 +452,27 @@ public class CompositeDynamicMappingIT extends OpenSearchIntegTestCase {
         client().admin().indices().prepareFlush(indexName).get();
     }
 
+    // Wait for any in-flight merges to complete to avoid file handle leaks when the cluster shuts down while merge threads still hold open
+    // readers.
+    // The best way to do so is to trigger a force merge to single segment and ensure it completes so that no merges will happen again until
+    // non new documents are ingested
+    private void ensureNoActiveMerges(String indexName) throws IOException {
+        try {
+            assertBusy(() -> {
+                try {
+                    client().admin().indices().prepareForceMerge(indexName).setMaxNumSegments(1).get();
+                } catch (Exception e) {
+                    // forceMerge throws if background merges are active — retry
+                }
+                try (GatedCloseable<CatalogSnapshot> cs = getIndexShard(indexName).getCatalogSnapshot()) {
+                    assertEquals("Segment count after force merge should be 1", 1, cs.get().getSegments().size());
+                }
+            });
+        } catch (Exception e) {
+            throw new IOException("Timed out waiting for merges to complete", e);
+        }
+    }
+
     // ══════════════════════════════════════════════════════════════════════
     // Private helpers: shard access
     // ══════════════════════════════════════════════════════════════════════
@@ -444,11 +485,19 @@ public class CompositeDynamicMappingIT extends OpenSearchIntegTestCase {
     // Private helpers: parquet verification
     // ══════════════════════════════════════════════════════════════════════
 
-    private List<Path> listParquetFiles(Path parquetDir) throws IOException {
+    private GatedCloseable<List<Path>> listParquetFiles(Path parquetDir, IndexShard shard) throws IOException {
         assertTrue("Parquet directory should exist", Files.isDirectory(parquetDir));
-        try (Stream<Path> paths = Files.list(parquetDir)) {
-            return paths.filter(p -> p.toString().endsWith(".parquet")).collect(Collectors.toList());
+        GatedCloseable<CatalogSnapshot> snapshot = shard.getCatalogSnapshot();
+        List<Path> paths = new ArrayList<>();
+        for (Segment segment : snapshot.get().getSegments()) {
+            WriterFileSet wfs = segment.dfGroupedSearchableFiles().get("parquet");
+            if (wfs != null) {
+                for (String file : wfs.files()) {
+                    paths.add(parquetDir.resolve(file));
+                }
+            }
         }
+        return new GatedCloseable<>(paths, snapshot::close);
     }
 
     private long getParquetRowCount(List<Path> parquetFiles) throws IOException {

@@ -30,6 +30,7 @@ import org.opensearch.analytics.planner.dag.DAGBuilder;
 import org.opensearch.analytics.planner.dag.FragmentConversionDriver;
 import org.opensearch.analytics.planner.dag.PlanForker;
 import org.opensearch.analytics.planner.dag.QueryDAG;
+import org.opensearch.arrow.memory.ArrowAllocatorService;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.unit.TimeValue;
@@ -72,6 +73,7 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
     private final Executor searchExecutor;
     private final TaskManager taskManager;
     private final NodeClient client;
+    private final ArrowAllocatorService allocatorService;
 
     @Inject
     public DefaultPlanExecutor(
@@ -82,7 +84,8 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
         CapabilityRegistry capabilityRegistry,
         EngineContext engineContext,
         NodeClient client,
-        Scheduler scheduler
+        Scheduler scheduler,
+        ArrowAllocatorService allocatorService
     ) {
         super(AnalyticsQueryAction.NAME, transportService, actionFilters, in -> {
             throw new UnsupportedOperationException("Transport path not implemented yet");
@@ -93,6 +96,7 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
         this.taskManager = transportService.getTaskManager();
         this.client = client;
         this.scheduler = scheduler;
+        this.allocatorService = allocatorService;
     }
 
     @Override
@@ -140,7 +144,7 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
             "analytics_query",
             new AnalyticsQueryTaskRequest(dag.queryId(), null)
         );
-        final QueryContext context = new QueryContext(dag, searchExecutor, queryTask);
+        final QueryContext context = new QueryContext(dag, searchExecutor, queryTask, allocatorService);
 
         ActionListener<Iterable<VectorSchemaRoot>> batchesListener = ActionListener.runAfter(
             ActionListener.wrap(batches -> listener.onResponse(batchesToRows(batches)), listener::onFailure),

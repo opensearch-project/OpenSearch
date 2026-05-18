@@ -16,6 +16,7 @@ import org.opensearch.arrow.flight.stats.FlightStatsAction;
 import org.opensearch.arrow.flight.stats.FlightStatsCollector;
 import org.opensearch.arrow.flight.stats.FlightStatsRestHandler;
 import org.opensearch.arrow.flight.stats.TransportFlightStatsAction;
+import org.opensearch.arrow.memory.ArrowAllocatorService;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.service.ClusterService;
@@ -37,6 +38,7 @@ import org.opensearch.plugins.ClusterPlugin;
 import org.opensearch.plugins.ExtensiblePlugin;
 import org.opensearch.plugins.NetworkPlugin;
 import org.opensearch.plugins.Plugin;
+import org.opensearch.plugins.PluginComponentRegistry;
 import org.opensearch.plugins.SecureTransportSettingsProvider;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.rest.RestController;
@@ -65,6 +67,7 @@ public class FlightStreamPlugin extends Plugin implements NetworkPlugin, ActionP
 
     private final boolean isStreamTransportEnabled;
     private FlightStatsCollector statsCollector;
+    private ArrowAllocatorService allocatorService;
 
     /**
      * Constructor for FlightStreamPluginImpl.
@@ -81,21 +84,6 @@ public class FlightStreamPlugin extends Plugin implements NetworkPlugin, ActionP
         }
     }
 
-    /**
-     * Creates components for the FlightStream plugin.
-     * @param client The client instance.
-     * @param clusterService The cluster service instance.
-     * @param threadPool The thread pool instance.
-     * @param resourceWatcherService The resource watcher service instance.
-     * @param scriptService The script service instance.
-     * @param xContentRegistry The named XContent registry.
-     * @param environment The environment instance.
-     * @param nodeEnvironment The node environment instance.
-     * @param namedWriteableRegistry The named writeable registry.
-     * @param indexNameExpressionResolver The index name expression resolver instance.
-     * @param repositoriesServiceSupplier The supplier for the repositories service.
-     * @return Collection of components
-     */
     @Override
     public Collection<Object> createComponents(
         Client client,
@@ -108,16 +96,18 @@ public class FlightStreamPlugin extends Plugin implements NetworkPlugin, ActionP
         NodeEnvironment nodeEnvironment,
         NamedWriteableRegistry namedWriteableRegistry,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        Supplier<RepositoriesService> repositoriesServiceSupplier
+        Supplier<RepositoriesService> repositoriesServiceSupplier,
+        PluginComponentRegistry pluginComponentRegistry
     ) {
         if (!isStreamTransportEnabled) {
             return Collections.emptyList();
         }
 
-        List<Object> components = new ArrayList<>();
+        this.allocatorService = pluginComponentRegistry.getComponent(ArrowAllocatorService.class)
+            .orElseThrow(() -> new IllegalStateException("ArrowAllocatorService not available; arrow-base plugin must be installed"));
+
         statsCollector = new FlightStatsCollector();
-        components.add(statsCollector);
-        return components;
+        return List.of(statsCollector);
     }
 
     /**
@@ -157,7 +147,8 @@ public class FlightStreamPlugin extends Plugin implements NetworkPlugin, ActionP
                     networkService,
                     tracer,
                     sslContextProvider,
-                    statsCollector
+                    statsCollector,
+                    allocatorService
                 )
             );
         }
@@ -198,7 +189,8 @@ public class FlightStreamPlugin extends Plugin implements NetworkPlugin, ActionP
                     networkService,
                     tracer,
                     null,
-                    statsCollector
+                    statsCollector,
+                    allocatorService
                 )
             );
         }
@@ -306,4 +298,5 @@ public class FlightStreamPlugin extends Plugin implements NetworkPlugin, ActionP
             }
         };
     }
+
 }

@@ -166,7 +166,8 @@ public class ClusterInfoTests extends OpenSearchTestCase {
                 randomLong(),
                 randomDoubleBetween(0, 100, false),
                 randomDoubleBetween(0, 100, false),
-                null
+                null,
+                randomDoubleBetween(0, 100, false)
             );
             builder.put(key, nodeResourceUsageStats);
         }

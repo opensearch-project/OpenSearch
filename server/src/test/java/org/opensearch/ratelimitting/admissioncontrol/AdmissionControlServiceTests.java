@@ -14,9 +14,11 @@ import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.ratelimitting.admissioncontrol.controllers.AdmissionController;
 import org.opensearch.ratelimitting.admissioncontrol.controllers.CpuBasedAdmissionController;
+import org.opensearch.ratelimitting.admissioncontrol.controllers.NativeMemoryBasedAdmissionController;
 import org.opensearch.ratelimitting.admissioncontrol.enums.AdmissionControlActionType;
 import org.opensearch.ratelimitting.admissioncontrol.enums.AdmissionControlMode;
 import org.opensearch.ratelimitting.admissioncontrol.settings.CpuBasedAdmissionControllerSettings;
+import org.opensearch.ratelimitting.admissioncontrol.settings.NativeMemoryBasedAdmissionControllerSettings;
 import org.opensearch.test.ClusterServiceUtils;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
@@ -51,7 +53,7 @@ public class AdmissionControlServiceTests extends OpenSearchTestCase {
     public void testWhenAdmissionControllerRegistered() {
         admissionControlService = new AdmissionControlService(Settings.EMPTY, clusterService, threadPool, null);
         if (Constants.LINUX) {
-            assertEquals(admissionControlService.getAdmissionControllers().size(), 2);
+            assertEquals(admissionControlService.getAdmissionControllers().size(), 3);
         } else {
             assertEquals(admissionControlService.getAdmissionControllers().size(), 1);
         }
@@ -61,7 +63,7 @@ public class AdmissionControlServiceTests extends OpenSearchTestCase {
         String test = "TEST";
         admissionControlService = new AdmissionControlService(Settings.EMPTY, clusterService, threadPool, null);
         if (Constants.LINUX) {
-            assertEquals(admissionControlService.getAdmissionControllers().size(), 2);
+            assertEquals(admissionControlService.getAdmissionControllers().size(), 3);
         } else {
             assertEquals(admissionControlService.getAdmissionControllers().size(), 1);
         }
@@ -77,7 +79,7 @@ public class AdmissionControlServiceTests extends OpenSearchTestCase {
         AdmissionControlSettings admissionControlSettings = admissionControlService.admissionControlSettings;
         List<AdmissionController> admissionControllerList = admissionControlService.getAdmissionControllers();
         if (Constants.LINUX) {
-            assertEquals(admissionControllerList.size(), 2);
+            assertEquals(admissionControllerList.size(), 3);
         } else {
             assertEquals(admissionControllerList.size(), 1);
         }
@@ -147,7 +149,7 @@ public class AdmissionControlServiceTests extends OpenSearchTestCase {
         clusterService.getClusterSettings().applySettings(settings);
         List<AdmissionController> admissionControllerList = admissionControlService.getAdmissionControllers();
         if (Constants.LINUX) {
-            assertEquals(admissionControllerList.size(), 2);
+            assertEquals(admissionControllerList.size(), 3);
         } else {
             assertEquals(admissionControllerList.size(), 1);
         }
@@ -170,11 +172,56 @@ public class AdmissionControlServiceTests extends OpenSearchTestCase {
             )
             .build();
         clusterService.getClusterSettings().applySettings(settings);
-        List<AdmissionController> admissionControllerList = admissionControlService.getAdmissionControllers();
+        List<AdmissionController> admissionControllerList2 = admissionControlService.getAdmissionControllers();
         if (Constants.LINUX) {
-            assertEquals(admissionControllerList.size(), 2);
+            assertEquals(admissionControllerList2.size(), 3);
         } else {
-            assertEquals(admissionControllerList.size(), 1);
+            assertEquals(admissionControllerList2.size(), 1);
         }
+    }
+
+    public void testNativeMemoryBasedAdmissionControllerRegistered() {
+        assumeTrue("native memory controller is Linux-only", Constants.LINUX);
+        admissionControlService = new AdmissionControlService(Settings.EMPTY, clusterService, threadPool, null);
+        AdmissionController nativeMemoryController = admissionControlService.getAdmissionController(
+            NativeMemoryBasedAdmissionController.NATIVE_MEMORY_BASED_ADMISSION_CONTROLLER
+        );
+        assertNotNull(nativeMemoryController);
+        assertEquals(nativeMemoryController.getName(), NativeMemoryBasedAdmissionController.NATIVE_MEMORY_BASED_ADMISSION_CONTROLLER);
+    }
+
+    public void testNativeMemoryAdmissionControllerSettings() {
+        assumeTrue("native memory controller is Linux-only", Constants.LINUX);
+        admissionControlService = new AdmissionControlService(Settings.EMPTY, clusterService, threadPool, null);
+        NativeMemoryBasedAdmissionController nativeMemoryController = (NativeMemoryBasedAdmissionController) admissionControlService
+            .getAdmissionController(NativeMemoryBasedAdmissionController.NATIVE_MEMORY_BASED_ADMISSION_CONTROLLER);
+        assertNotNull(nativeMemoryController);
+        assertEquals(nativeMemoryController.getSettings().getTransportLayerAdmissionControllerMode(), AdmissionControlMode.DISABLED);
+
+        Settings settings = Settings.builder()
+            .put(
+                NativeMemoryBasedAdmissionControllerSettings.NATIVE_MEMORY_BASED_ADMISSION_CONTROLLER_TRANSPORT_LAYER_MODE.getKey(),
+                AdmissionControlMode.ENFORCED.getMode()
+            )
+            .build();
+        clusterService.getClusterSettings().applySettings(settings);
+        assertEquals(nativeMemoryController.getSettings().getTransportLayerAdmissionControllerMode(), AdmissionControlMode.ENFORCED);
+        assertTrue(
+            nativeMemoryController.isEnabledForTransportLayer(
+                nativeMemoryController.getSettings().getTransportLayerAdmissionControllerMode()
+            )
+        );
+    }
+
+    public void testApplyNativeMemoryAdmissionControllerDisabled() {
+        assumeTrue("native memory controller is Linux-only", Constants.LINUX);
+        this.action = "indices:data/write/bulk[s][p]";
+        admissionControlService = new AdmissionControlService(Settings.EMPTY, clusterService, threadPool, null);
+        admissionControlService.applyTransportAdmissionControl(this.action, null);
+        assertEquals(
+            admissionControlService.getAdmissionController(NativeMemoryBasedAdmissionController.NATIVE_MEMORY_BASED_ADMISSION_CONTROLLER)
+                .getRejectionCount(AdmissionControlActionType.INDEXING.getType()),
+            0
+        );
     }
 }

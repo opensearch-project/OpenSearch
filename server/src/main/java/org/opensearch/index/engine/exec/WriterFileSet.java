@@ -20,20 +20,54 @@ import java.util.Set;
 
 /**
  * Represents a set of files produced by a writer during indexing operations.
- * Groups files by directory and writer generation, tracking metadata such as row count and total size.
+ * Groups files by directory and writer generation, tracking metadata such as row count.
+ * <p>
+ * This is a sealed hierarchy:
+ * <ul>
+ *   <li>{@link WriterFileSet} — the general case (multiple files per generation, e.g. Lucene segments)</li>
+ *   <li>{@link MonoFileWriterSet} — exactly one file per generation (e.g. Parquet)</li>
+ * </ul>
+ * Any code that accepts {@code WriterFileSet} transparently handles both variants.
  */
 @ExperimentalApi
-public record WriterFileSet(String directory, long writerGeneration, Set<String> files, long numRows) implements Writeable {
+public sealed class WriterFileSet implements Writeable permits MonoFileWriterSet {
 
-    public WriterFileSet {
-        files = Set.copyOf(files);
+    private final String directory;
+    private final long writerGeneration;
+    private final Set<String> files;
+    private final long numRows;
+
+    public WriterFileSet(String directory, long writerGeneration, Set<String> files, long numRows) {
+        this.directory = directory;
+        this.writerGeneration = writerGeneration;
+        this.files = Set.copyOf(files);
+        this.numRows = numRows;
     }
 
     /**
      * Constructs a WriterFileSet by deserializing from a {@link StreamInput}.
      */
     public WriterFileSet(StreamInput in, String directory) throws IOException {
-        this(directory, in.readLong(), new HashSet<>(in.readStringList()), in.readLong());
+        this.directory = directory;
+        this.writerGeneration = in.readLong();
+        this.files = new HashSet<>(in.readStringList());
+        this.numRows = in.readLong();
+    }
+
+    public String directory() {
+        return directory;
+    }
+
+    public long writerGeneration() {
+        return writerGeneration;
+    }
+
+    public Set<String> files() {
+        return files;
+    }
+
+    public long numRows() {
+        return numRows;
     }
 
     public long getTotalSize() {
@@ -48,16 +82,33 @@ public record WriterFileSet(String directory, long writerGeneration, Set<String>
 
     @Override
     public String toString() {
-        return "WriterFileSet{" + "directory=" + directory + ", writerGeneration=" + writerGeneration + ", files=" + files + '}';
+        return "WriterFileSet{directory=" + directory + ", writerGeneration=" + writerGeneration + ", files=" + files + '}';
     }
 
-    /**
-     * Serializes this WriterFileSet to the given stream output.
-     */
+    @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeLong(writerGeneration);
         out.writeStringCollection(files);
         out.writeLong(numRows);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        WriterFileSet that = (WriterFileSet) o;
+        return writerGeneration == that.writerGeneration
+            && numRows == that.numRows
+            && directory.equals(that.directory)
+            && files.equals(that.files);
+    }
+
+    @Override
+    public int hashCode() {
+        int result = directory.hashCode();
+        result = 31 * result + Long.hashCode(writerGeneration);
+        result = 31 * result + files.hashCode();
+        return result;
     }
 
     /**
