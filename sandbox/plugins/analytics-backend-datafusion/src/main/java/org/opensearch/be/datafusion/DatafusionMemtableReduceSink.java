@@ -156,9 +156,15 @@ public final class DatafusionMemtableReduceSink extends AbstractDatafusionReduce
 
     /** Releases any buffers reduce() didn't consume (cancel-before-reduce path), then session. */
     @Override
-    protected Throwable closeUnderLock() {
+    protected Throwable closeImpl() {
         Throwable failure = releaseBuffersInto(null);
-        session.close();
+        if (preparedState == null) {
+            try {
+                session.close();
+            } catch (Throwable t) {
+                failure = accumulate(failure, t);
+            }
+        }
         return failure;
     }
 

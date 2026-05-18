@@ -341,6 +341,56 @@ public class DatafusionReduceSinkTests extends OpenSearchTestCase {
         }
     }
 
+    /**
+     * Regression: {@code close()} must fire {@code cancelQuery} when state is REDUCING
+     * even if the prior {@code state.get()} observed READY. The old {@code get()+
+     * compareAndSet(READY,DONE)} pattern silently returned when the CAS failed (because
+     * {@code reduce()} raced and moved state to REDUCING in between), leaving the parked
+     * drain with no cancel signal. The fixed {@code compareAndExchange} returns the prior
+     * state atomically so the REDUCING branch fires unconditionally.
+     *
+     * <p>Simulates the race by pre-setting state to REDUCING via the package-private field
+     * (the same observable end-state the race produces) and verifying the cancel hook fires.
+     */
+    public void testCloseFiresCancelWhenStateRacedToReducing() throws Exception {
+        NativeBridge.initTokioRuntimeManager(2);
+        Path spillDir = createTempDir("datafusion-spill");
+        long runtimePtr = NativeBridge.createGlobalRuntime(64 * 1024 * 1024, 0L, spillDir.toString(), 32 * 1024 * 1024);
+        NativeRuntimeHandle runtimeHandle = new NativeRuntimeHandle(runtimePtr);
+
+        try (RootAllocator alloc = new RootAllocator(Long.MAX_VALUE)) {
+            byte[] substrait = buildPassthroughSubstraitBytes(DatafusionReduceSink.INPUT_ID);
+            CapturingSink downstream = new CapturingSink();
+            ExchangeSinkContext ctx = new ExchangeSinkContext(
+                "q-race",
+                0,
+                7777L,
+                substrait,
+                alloc,
+                List.of(new ExchangeSinkContext.ChildInput(0, buildPassthroughSubstraitBytes(DatafusionReduceSink.INPUT_ID))),
+                downstream
+            );
+            java.util.concurrent.atomic.AtomicInteger cancels = new java.util.concurrent.atomic.AtomicInteger();
+            DatafusionReduceSink sink = new DatafusionReduceSink(ctx, runtimeHandle) {
+                @Override
+                void fireCancelQuery() {
+                    cancels.incrementAndGet();
+                }
+            };
+            // Stand-in for "reduce() won the race to set REDUCING before close()'s CAS ran."
+            sink.state.set(DatafusionReduceSink.SinkState.REDUCING);
+            sink.close();
+            assertEquals("close must fire cancel via compareAndExchange when state is REDUCING", 1, cancels.get());
+            assertEquals(
+                "close must NOT mutate REDUCING state — the in-flight reduce() owns the DONE transition",
+                DatafusionReduceSink.SinkState.REDUCING,
+                sink.state.get()
+            );
+        } finally {
+            runtimeHandle.close();
+        }
+    }
+
     // ── Helpers ──────────────────────────────────────────────────────────────
 
     /**

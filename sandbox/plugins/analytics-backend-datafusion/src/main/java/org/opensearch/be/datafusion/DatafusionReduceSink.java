@@ -44,7 +44,7 @@ import java.util.concurrent.atomic.AtomicReference;
  * <p>Cleanup ownership lives in {@link #reduce}'s {@code finally} (via {@link SinkState}),
  * not {@link #close}, so a close call from another thread never races a parked drain.
  */
-public final class DatafusionReduceSink extends AbstractDatafusionReduceSink implements MultiInputExchangeSink {
+public class DatafusionReduceSink extends AbstractDatafusionReduceSink implements MultiInputExchangeSink {
 
     private static final Logger logger = LogManager.getLogger(DatafusionReduceSink.class);
 
@@ -63,13 +63,13 @@ public final class DatafusionReduceSink extends AbstractDatafusionReduceSink imp
      * and abort the JVM. Transitions: READY → REDUCING (reduce entered) → DONE (drain
      * returned, cleanup ran). Close-before-reduce: READY → DONE inline.
      */
-    private enum SinkState {
+    enum SinkState {
         READY,
         REDUCING,
         DONE
     }
 
-    private final AtomicReference<SinkState> state = new AtomicReference<>(SinkState.READY);
+    final AtomicReference<SinkState> state = new AtomicReference<>(SinkState.READY);
 
     public DatafusionReduceSink(ExchangeSinkContext ctx, NativeRuntimeHandle runtimeHandle) {
         this(ctx, runtimeHandle, null);
@@ -295,8 +295,26 @@ public final class DatafusionReduceSink extends AbstractDatafusionReduceSink imp
         throw new UnsupportedOperationException("DatafusionReduceSink overrides feed() directly");
     }
 
+    /**
+     * Atomic via a single {@code compareAndExchange}: prior state tells us which branch to take.
+     * <ul>
+     *   <li>READY: external close (no drain in flight). Tear down inline.</li>
+     *   <li>REDUCING: drain is parked. Fire {@code cancel_query} so it unwinds — the
+     *       in-flight {@link #reduce}'s {@code finally} will re-enter via {@code super.close()}
+     *       with state == DONE and do the actual teardown then.</li>
+     *   <li>DONE: this IS the {@code super.close()} call from {@link #reduce}'s finally
+     *       (or an idempotent second external close). Do the teardown.</li>
+     * </ul>
+     */
     @Override
-    protected Throwable closeUnderLock() {
+    protected Throwable closeImpl() {
+        SinkState before = state.compareAndExchange(SinkState.READY, SinkState.DONE);
+        if (before == SinkState.REDUCING) {
+            // Drain parked — dropping senders/outStream now would panic in drop_in_place.
+            fireCancelQuery();
+            return null;  // reduce()'s finally re-enters with state=DONE; teardown runs then.
+        }
+        // before == READY (we just won) or DONE (reduce's finally calling us) — both tear down.
         Throwable failure = null;
         // 1. Signal EOF on every sender (ChildSink may have closed some already; idempotent).
         for (DatafusionPartitionSender sender : sendersByChildStageId.values()) {
@@ -311,8 +329,19 @@ public final class DatafusionReduceSink extends AbstractDatafusionReduceSink imp
         } catch (Throwable t) {
             failure = accumulate(failure, t);
         }
-        session.close();
+        if (preparedState == null) {
+            try {
+                session.close();
+            } catch (Throwable t) {
+                failure = accumulate(failure, t);
+            }
+        }
         return failure;
+    }
+
+    /** Test seam: overridden to count invocations without static mocking. */
+    void fireCancelQuery() {
+        NativeBridge.cancelQuery(ctx.taskId());
     }
 
     /**
@@ -347,27 +376,6 @@ public final class DatafusionReduceSink extends AbstractDatafusionReduceSink imp
             listener.onResponse(null);
         } else {
             listener.onFailure(failure instanceof Exception e ? e : new RuntimeException("drain failed", failure));
-        }
-    }
-
-    /**
-     * Idempotent. READY → close inline (no drain to race). REDUCING → fire
-     * {@code cancel_query} so the drain unwinds; the in-flight {@link #reduce} finally
-     * does the actual cleanup. DONE → no-op.
-     */
-    @Override
-    public void close() {
-        SinkState current = state.get();
-        if (current == SinkState.DONE) {
-            return;
-        }
-        if (current == SinkState.REDUCING) {
-            // Drain parked — dropping senders/outStream now would panic in drop_in_place.
-            NativeBridge.cancelQuery(ctx.taskId());
-            return;
-        }
-        if (state.compareAndSet(SinkState.READY, SinkState.DONE)) {
-            super.close();
         }
     }
 

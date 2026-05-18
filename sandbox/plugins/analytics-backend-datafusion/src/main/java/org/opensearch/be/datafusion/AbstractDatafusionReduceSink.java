@@ -22,11 +22,15 @@ import java.util.Map;
 /**
  * Shared lifecycle skeleton for coordinator-side {@link ReducingExchangeSink}s backed by a
  * native DataFusion local session. Subclasses customise per-batch handling, the reduce verb,
- * and native cleanup via {@link #feedBatchUnderLock}, {@link #reduce}, {@link #closeUnderLock}.
+ * and native cleanup via {@link #feedBatchUnderLock}, {@link #reduce}, {@link #closeImpl}.
  *
  * <p>Invariants: {@link #feed} runs under {@link #feedLock} and always closes the batch in
- * {@code finally}; {@link #close} flips {@link #closed} under the lock, runs
- * {@link #closeUnderLock}, then closes {@link #session} if no {@link #preparedState} owns it.
+ * {@code finally}; {@link #close} flips {@link #closed} under the lock then delegates to
+ * {@link #closeImpl}. Subclasses own the full teardown sequence in {@link #closeImpl} —
+ * including {@link #session} and any sender/stream handles. The base used to auto-close
+ * {@code session} after {@code closeImpl} returned, but that double-closed (every concrete
+ * subclass already closed it) and tangled session ownership with the close-state machine
+ * the streaming subclass needs to manage.
  * The {@link ExchangeSinkContext#downstream()} sink is NOT closed here — its lifecycle is the
  * walker's.
  *
@@ -113,19 +117,9 @@ abstract class AbstractDatafusionReduceSink implements ReducingExchangeSink {
         }
         Throwable failure = null;
         try {
-            failure = closeUnderLock();
+            failure = closeImpl();
         } catch (Throwable t) {
             failure = accumulate(failure, t);
-        } finally {
-            // If a preparedState owns the session/senders, let the state's close handle
-            // them (invoked by the orchestrator). Otherwise close the session we created.
-            if (preparedState == null) {
-                try {
-                    session.close();
-                } catch (Throwable t) {
-                    failure = accumulate(failure, t);
-                }
-            }
         }
         rethrow(failure);
     }
@@ -137,10 +131,12 @@ abstract class AbstractDatafusionReduceSink implements ReducingExchangeSink {
     protected abstract void feedBatchUnderLock(VectorSchemaRoot batch);
 
     /**
-     * Subclass shutdown. Runs after {@link #closed} is set; the base closes {@link #session}
-     * afterwards (when {@code preparedState == null}). Return the first failure, or null.
+     * Subclass shutdown. Despite the historical name, this is NOT called under {@link #feedLock} —
+     * the lock is released after {@link #closed} is flipped. Subclasses own the full teardown
+     * including {@link #session} (gate on {@link #preparedState} == null when the session is
+     * owned externally). Return the first failure, or null.
      */
-    protected abstract Throwable closeUnderLock();
+    protected abstract Throwable closeImpl();
 
     /**
      * Imports each batch from {@code outStream} into a fresh {@link VectorSchemaRoot} and
