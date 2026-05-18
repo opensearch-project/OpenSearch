@@ -36,8 +36,14 @@ public class NativeSettings {
     private final Integer mergeIoThreads;
     private final Map<String, String> fieldEncodings;
     private final Map<String, String> fieldCompressions;
+    private final Map<String, Boolean> fieldBloomFilterEnabled;
+    private final Map<String, Double> fieldBloomFilterFpp;
+    private final Map<String, Long> fieldBloomFilterNdv;
     private final Map<String, String> typeEncodings;
     private final Map<String, String> typeCompressions;
+    private final Map<String, Boolean> typeBloomFilterEnabled;
+    private final Map<String, Double> typeBloomFilterFpp;
+    private final Map<String, Long> typeBloomFilterNdv;
 
     private NativeSettings(Builder builder) {
         this.indexName = builder.indexName;
@@ -60,9 +66,27 @@ public class NativeSettings {
         this.fieldCompressions = builder.fieldCompressions != null
             ? Collections.unmodifiableMap(builder.fieldCompressions)
             : Collections.emptyMap();
+        this.fieldBloomFilterEnabled = builder.fieldBloomFilterEnabled != null
+            ? Collections.unmodifiableMap(builder.fieldBloomFilterEnabled)
+            : Collections.emptyMap();
+        this.fieldBloomFilterFpp = builder.fieldBloomFilterFpp != null
+            ? Collections.unmodifiableMap(builder.fieldBloomFilterFpp)
+            : Collections.emptyMap();
+        this.fieldBloomFilterNdv = builder.fieldBloomFilterNdv != null
+            ? Collections.unmodifiableMap(builder.fieldBloomFilterNdv)
+            : Collections.emptyMap();
         this.typeEncodings = builder.typeEncodings != null ? Collections.unmodifiableMap(builder.typeEncodings) : Collections.emptyMap();
         this.typeCompressions = builder.typeCompressions != null
             ? Collections.unmodifiableMap(builder.typeCompressions)
+            : Collections.emptyMap();
+        this.typeBloomFilterEnabled = builder.typeBloomFilterEnabled != null
+            ? Collections.unmodifiableMap(builder.typeBloomFilterEnabled)
+            : Collections.emptyMap();
+        this.typeBloomFilterFpp = builder.typeBloomFilterFpp != null
+            ? Collections.unmodifiableMap(builder.typeBloomFilterFpp)
+            : Collections.emptyMap();
+        this.typeBloomFilterNdv = builder.typeBloomFilterNdv != null
+            ? Collections.unmodifiableMap(builder.typeBloomFilterNdv)
             : Collections.emptyMap();
     }
 
@@ -138,12 +162,36 @@ public class NativeSettings {
         return fieldCompressions;
     }
 
+    public Map<String, Boolean> getFieldBloomFilterEnabled() {
+        return fieldBloomFilterEnabled;
+    }
+
+    public Map<String, Double> getFieldBloomFilterFpp() {
+        return fieldBloomFilterFpp;
+    }
+
+    public Map<String, Long> getFieldBloomFilterNdv() {
+        return fieldBloomFilterNdv;
+    }
+
     public Map<String, String> getTypeEncodings() {
         return typeEncodings;
     }
 
     public Map<String, String> getTypeCompressions() {
         return typeCompressions;
+    }
+
+    public Map<String, Boolean> getTypeBloomFilterEnabled() {
+        return typeBloomFilterEnabled;
+    }
+
+    public Map<String, Double> getTypeBloomFilterFpp() {
+        return typeBloomFilterFpp;
+    }
+
+    public Map<String, Long> getTypeBloomFilterNdv() {
+        return typeBloomFilterNdv;
     }
 
     public static Builder builder() {
@@ -169,8 +217,14 @@ public class NativeSettings {
         private Integer mergeIoThreads;
         private Map<String, String> fieldEncodings;
         private Map<String, String> fieldCompressions;
+        private Map<String, Boolean> fieldBloomFilterEnabled;
+        private Map<String, Double> fieldBloomFilterFpp;
+        private Map<String, Long> fieldBloomFilterNdv;
         private Map<String, String> typeEncodings;
         private Map<String, String> typeCompressions;
+        private Map<String, Boolean> typeBloomFilterEnabled;
+        private Map<String, Double> typeBloomFilterFpp;
+        private Map<String, Long> typeBloomFilterNdv;
 
         public Builder indexName(String v) {
             this.indexName = v;
@@ -262,6 +316,21 @@ public class NativeSettings {
             return this;
         }
 
+        public Builder fieldBloomFilterEnabled(Map<String, Boolean> v) {
+            this.fieldBloomFilterEnabled = v;
+            return this;
+        }
+
+        public Builder fieldBloomFilterFpp(Map<String, Double> v) {
+            this.fieldBloomFilterFpp = v;
+            return this;
+        }
+
+        public Builder fieldBloomFilterNdv(Map<String, Long> v) {
+            this.fieldBloomFilterNdv = v;
+            return this;
+        }
+
         public Builder typeEncodings(Map<String, String> v) {
             this.typeEncodings = v;
             return this;
@@ -269,6 +338,21 @@ public class NativeSettings {
 
         public Builder typeCompressions(Map<String, String> v) {
             this.typeCompressions = v;
+            return this;
+        }
+
+        public Builder typeBloomFilterEnabled(Map<String, Boolean> v) {
+            this.typeBloomFilterEnabled = v;
+            return this;
+        }
+
+        public Builder typeBloomFilterFpp(Map<String, Double> v) {
+            this.typeBloomFilterFpp = v;
+            return this;
+        }
+
+        public Builder typeBloomFilterNdv(Map<String, Long> v) {
+            this.typeBloomFilterNdv = v;
             return this;
         }
 

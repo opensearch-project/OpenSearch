@@ -188,4 +188,90 @@ public class ParquetSettingsTests extends OpenSearchTestCase {
         Map<String, String> compressions = ParquetSettings.getFieldCompressions(settings);
         assertEquals("SNAPPY", compressions.get("name"));
     }
+
+    // --- Field-level bloom filter tests ---
+
+    public void testFieldBloomFilterEnabled() {
+        Settings settings = Settings.builder()
+            .put("index.parquet.field.name.bloom_filter_enabled", "true")
+            .put("index.parquet.field.value.bloom_filter_enabled", "false")
+            .build();
+        Map<String, Boolean> result = ParquetSettings.getFieldBloomFilterEnabled(settings);
+        assertEquals(Boolean.TRUE, result.get("name"));
+        assertEquals(Boolean.FALSE, result.get("value"));
+    }
+
+    public void testFieldBloomFilterFpp() {
+        Settings settings = Settings.builder().put("index.parquet.field.name.bloom_filter_fpp", "0.01").build();
+        Map<String, Double> result = ParquetSettings.getFieldBloomFilterFpp(settings);
+        assertEquals(0.01, result.get("name"), 0.0001);
+    }
+
+    public void testFieldBloomFilterNdv() {
+        Settings settings = Settings.builder().put("index.parquet.field.name.bloom_filter_ndv", "50000").build();
+        Map<String, Long> result = ParquetSettings.getFieldBloomFilterNdv(settings);
+        assertEquals(Long.valueOf(50000L), result.get("name"));
+    }
+
+    // --- Type-level bloom filter validation tests ---
+
+    public void testTypeBloomFilterValidSettings() {
+        Settings settings = Settings.builder()
+            .put("parquet.type_bloom_filter.utf8.enabled", "true")
+            .put("parquet.type_bloom_filter.utf8.fpp", "0.05")
+            .put("parquet.type_bloom_filter.utf8.ndv", "100000")
+            .build();
+        Map<String, Boolean> enabled = ParquetSettings.getTypeBloomFilterEnabled(settings);
+        Map<String, Double> fpp = ParquetSettings.getTypeBloomFilterFpp(settings);
+        Map<String, Long> ndv = ParquetSettings.getTypeBloomFilterNdv(settings);
+        assertEquals(Boolean.TRUE, enabled.get("utf8"));
+        assertEquals(0.05, fpp.get("utf8"), 0.0001);
+        assertEquals(Long.valueOf(100000L), ndv.get("utf8"));
+    }
+
+    public void testTypeBloomFilterInvalidArrowTypeThrows() {
+        Settings settings = Settings.builder().put("parquet.type_bloom_filter.banana.enabled", "true").build();
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> ParquetSettings.getTypeBloomFilterEnabled(settings)
+        );
+        assertTrue(e.getMessage().contains("Invalid arrow type"));
+    }
+
+    public void testTypeBloomFilterInvalidFppThrows() {
+        Settings settings = Settings.builder().put("parquet.type_bloom_filter.utf8.fpp", "1.5").build();
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> ParquetSettings.getTypeBloomFilterFpp(settings));
+        assertTrue(e.getMessage().contains("fpp"));
+    }
+
+    public void testTypeBloomFilterInvalidNdvThrows() {
+        Settings settings = Settings.builder().put("parquet.type_bloom_filter.utf8.ndv", "-1").build();
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> ParquetSettings.getTypeBloomFilterNdv(settings));
+        assertTrue(e.getMessage().contains("ndv"));
+    }
+
+    public void testTypeBloomFilterInvalidEnabledValueThrows() {
+        Settings settings = Settings.builder().put("parquet.type_bloom_filter.utf8.enabled", "maybe").build();
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> ParquetSettings.getTypeBloomFilterEnabled(settings)
+        );
+        assertTrue(e.getMessage().contains("enabled"));
+    }
+
+    public void testTypeBloomFilterMultipleTypes() {
+        Settings settings = Settings.builder()
+            .put("parquet.type_bloom_filter.utf8.enabled", "true")
+            .put("parquet.type_bloom_filter.utf8.fpp", "0.01")
+            .put("parquet.type_bloom_filter.int64.enabled", "false")
+            .put("parquet.type_bloom_filter.int64.ndv", "50000")
+            .build();
+        Map<String, Boolean> enabled = ParquetSettings.getTypeBloomFilterEnabled(settings);
+        Map<String, Double> fpp = ParquetSettings.getTypeBloomFilterFpp(settings);
+        Map<String, Long> ndv = ParquetSettings.getTypeBloomFilterNdv(settings);
+        assertEquals(Boolean.TRUE, enabled.get("utf8"));
+        assertEquals(Boolean.FALSE, enabled.get("int64"));
+        assertEquals(0.01, fpp.get("utf8"), 0.0001);
+        assertEquals(Long.valueOf(50000L), ndv.get("int64"));
+    }
 }

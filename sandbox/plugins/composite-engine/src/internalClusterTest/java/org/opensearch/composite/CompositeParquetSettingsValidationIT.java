@@ -33,17 +33,14 @@ public class CompositeParquetSettingsValidationIT extends AbstractCompositeEngin
     // --- Field-level encoding validation ---
 
     public void testValidFieldEncodingAccepted() {
-        createCompositeIndexWithSettings(
-            Settings.builder().put("index.parquet.field.value.encoding", "DELTA_BINARY_PACKED").build()
-        );
+        createCompositeIndexWithSettings(Settings.builder().put("index.parquet.field.value.encoding", "DELTA_BINARY_PACKED").build());
         ensureGreen(INDEX_NAME);
     }
 
     public void testInvalidFieldEncodingRejected() {
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
-            createCompositeIndexWithSettings(
-                Settings.builder().put("index.parquet.field.value.encoding", "INVALID_ENCODING").build()
-            )
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> createCompositeIndexWithSettings(Settings.builder().put("index.parquet.field.value.encoding", "INVALID_ENCODING").build())
         );
         assertTrue(e.getMessage().contains("Invalid encoding"));
     }
@@ -51,15 +48,14 @@ public class CompositeParquetSettingsValidationIT extends AbstractCompositeEngin
     // --- Field-level compression validation ---
 
     public void testValidFieldCompressionAccepted() {
-        createCompositeIndexWithSettings(
-            Settings.builder().put("index.parquet.field.value.compression", "SNAPPY").build()
-        );
+        createCompositeIndexWithSettings(Settings.builder().put("index.parquet.field.value.compression", "SNAPPY").build());
         ensureGreen(INDEX_NAME);
     }
 
     public void testInvalidFieldCompressionRejected() {
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
-            createCompositeIndexWithSettings(
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> createCompositeIndexWithSettings(
                 Settings.builder().put("index.parquet.field.value.compression", "INVALID_COMPRESSION").build()
             )
         );
@@ -69,26 +65,22 @@ public class CompositeParquetSettingsValidationIT extends AbstractCompositeEngin
     // --- Type-level encoding validation ---
 
     public void testValidTypeEncodingAccepted() {
-        createCompositeIndexWithNodeSettings(
-            Settings.builder().put("parquet.type_encoding.int64.encoding", "DELTA_BINARY_PACKED").build()
-        );
+        createCompositeIndexWithNodeSettings(Settings.builder().put("parquet.type_encoding.int64.encoding", "DELTA_BINARY_PACKED").build());
     }
 
     public void testInvalidArrowTypeInTypeEncodingRejected() {
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
-            createCompositeIndexWithNodeSettings(
-                Settings.builder().put("parquet.type_encoding.banana.encoding", "PLAIN").build()
-            )
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> createCompositeIndexWithNodeSettings(Settings.builder().put("parquet.type_encoding.banana.encoding", "PLAIN").build())
         );
         assertTrue(e.getMessage().contains("Invalid arrow type"));
         assertTrue(e.getMessage().contains("banana"));
     }
 
     public void testInvalidEncodingValueInTypeEncodingRejected() {
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
-            createCompositeIndexWithNodeSettings(
-                Settings.builder().put("parquet.type_encoding.int64.encoding", "INVALID").build()
-            )
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> createCompositeIndexWithNodeSettings(Settings.builder().put("parquet.type_encoding.int64.encoding", "INVALID").build())
         );
         assertTrue(e.getMessage().contains("Invalid encoding"));
     }
@@ -96,14 +88,13 @@ public class CompositeParquetSettingsValidationIT extends AbstractCompositeEngin
     // --- Type-level compression validation ---
 
     public void testValidTypeCompressionAccepted() {
-        createCompositeIndexWithNodeSettings(
-            Settings.builder().put("parquet.type_compression.utf8.compression", "ZSTD").build()
-        );
+        createCompositeIndexWithNodeSettings(Settings.builder().put("parquet.type_compression.utf8.compression", "ZSTD").build());
     }
 
     public void testInvalidArrowTypeInTypeCompressionRejected() {
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
-            createCompositeIndexWithNodeSettings(
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> createCompositeIndexWithNodeSettings(
                 Settings.builder().put("parquet.type_compression.foobar.compression", "SNAPPY").build()
             )
         );
@@ -112,8 +103,9 @@ public class CompositeParquetSettingsValidationIT extends AbstractCompositeEngin
     }
 
     public void testInvalidCompressionValueInTypeCompressionRejected() {
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
-            createCompositeIndexWithNodeSettings(
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> createCompositeIndexWithNodeSettings(
                 Settings.builder().put("parquet.type_compression.utf8.compression", "INVALID").build()
             )
         );
@@ -124,8 +116,9 @@ public class CompositeParquetSettingsValidationIT extends AbstractCompositeEngin
 
     public void testIncompatibleEncodingForFieldTypeRejected() {
         // DELTA_BINARY_PACKED is only valid for integer types, not keyword (utf8)
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
-            createCompositeIndexWithSettings(
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> createCompositeIndexWithSettings(
                 Settings.builder().put("index.parquet.field.name.encoding", "DELTA_BINARY_PACKED").build()
             )
         );
@@ -134,25 +127,19 @@ public class CompositeParquetSettingsValidationIT extends AbstractCompositeEngin
 
     public void testCompatibleEncodingForFieldTypeAccepted() {
         // DELTA_BINARY_PACKED is valid for integer types
-        createCompositeIndexWithSettings(
-            Settings.builder().put("index.parquet.field.value.encoding", "DELTA_BINARY_PACKED").build()
-        );
+        createCompositeIndexWithSettings(Settings.builder().put("index.parquet.field.value.encoding", "DELTA_BINARY_PACKED").build());
         ensureGreen(INDEX_NAME);
     }
 
     // --- Case insensitivity ---
 
     public void testEncodingCaseInsensitive() {
-        createCompositeIndexWithSettings(
-            Settings.builder().put("index.parquet.field.value.encoding", "delta_binary_packed").build()
-        );
+        createCompositeIndexWithSettings(Settings.builder().put("index.parquet.field.value.encoding", "delta_binary_packed").build());
         ensureGreen(INDEX_NAME);
     }
 
     public void testCompressionCaseInsensitive() {
-        createCompositeIndexWithSettings(
-            Settings.builder().put("index.parquet.field.value.compression", "snappy").build()
-        );
+        createCompositeIndexWithSettings(Settings.builder().put("index.parquet.field.value.compression", "snappy").build());
         ensureGreen(INDEX_NAME);
     }
 
@@ -163,9 +150,7 @@ public class CompositeParquetSettingsValidationIT extends AbstractCompositeEngin
      * when no field-level or type-level config is set.
      */
     public void testGlobalCompressionApplied() throws IOException {
-        createCompositeIndexWithSettings(
-            Settings.builder().put("index.parquet.compression_type", "SNAPPY").build()
-        );
+        createCompositeIndexWithSettings(Settings.builder().put("index.parquet.compression_type", "SNAPPY").build());
         ensureGreen(INDEX_NAME);
         indexDocs(INDEX_NAME, 5, 0);
         refreshIndex(INDEX_NAME);
@@ -179,9 +164,7 @@ public class CompositeParquetSettingsValidationIT extends AbstractCompositeEngin
      * Verifies that field-level encoding is applied and visible in parquet metadata.
      */
     public void testFieldLevelEncodingApplied() throws IOException {
-        createCompositeIndexWithSettings(
-            Settings.builder().put("index.parquet.field.name.encoding", "DELTA_BYTE_ARRAY").build()
-        );
+        createCompositeIndexWithSettings(Settings.builder().put("index.parquet.field.name.encoding", "DELTA_BYTE_ARRAY").build());
         ensureGreen(INDEX_NAME);
         indexDocs(INDEX_NAME, 5, 0);
         refreshIndex(INDEX_NAME);
@@ -195,9 +178,7 @@ public class CompositeParquetSettingsValidationIT extends AbstractCompositeEngin
      * Verifies that field-level compression is applied and visible in parquet metadata.
      */
     public void testFieldLevelCompressionApplied() throws IOException {
-        createCompositeIndexWithSettings(
-            Settings.builder().put("index.parquet.field.value.compression", "ZSTD").build()
-        );
+        createCompositeIndexWithSettings(Settings.builder().put("index.parquet.field.value.compression", "ZSTD").build());
         ensureGreen(INDEX_NAME);
         indexDocs(INDEX_NAME, 5, 0);
         refreshIndex(INDEX_NAME);
@@ -232,10 +213,7 @@ public class CompositeParquetSettingsValidationIT extends AbstractCompositeEngin
      */
     public void testFieldLevelCompressionOverridesGlobal() throws IOException {
         createCompositeIndexWithSettings(
-            Settings.builder()
-                .put("index.parquet.compression_type", "LZ4_RAW")
-                .put("index.parquet.field.value.compression", "ZSTD")
-                .build()
+            Settings.builder().put("index.parquet.compression_type", "LZ4_RAW").put("index.parquet.field.value.compression", "ZSTD").build()
         );
         ensureGreen(INDEX_NAME);
         indexDocs(INDEX_NAME, 5, 0);
@@ -273,6 +251,60 @@ public class CompositeParquetSettingsValidationIT extends AbstractCompositeEngin
         Map<String, Object> valueMeta = getColumnInfo(INDEX_NAME, "value");
         assertHasEncoding(valueMeta, "DELTA_BINARY_PACKED");
         assertCompression(valueMeta, "ZSTD");
+    }
+
+    // --- Bloom filter tests ---
+
+    /**
+     * Verifies that bloom filters are disabled by default for all columns.
+     */
+    public void testBloomFilterDisabledByDefault() throws IOException {
+        createCompositeIndexWithSettings(Settings.builder().build());
+        ensureGreen(INDEX_NAME);
+        indexDocs(INDEX_NAME, 5, 0);
+        refreshIndex(INDEX_NAME);
+        flushIndex(INDEX_NAME);
+
+        Map<String, Object> nameMeta = getColumnInfo(INDEX_NAME, "name");
+        assertEquals(Boolean.FALSE, nameMeta.get("bloom_filter"));
+
+        Map<String, Object> valueMeta = getColumnInfo(INDEX_NAME, "value");
+        assertEquals(Boolean.FALSE, valueMeta.get("bloom_filter"));
+    }
+
+    /**
+     * Verifies that global bloom_filter_enabled=true enables bloom filters for all columns.
+     */
+    public void testGlobalBloomFilterEnabled() throws IOException {
+        createCompositeIndexWithSettings(Settings.builder().put("index.parquet.bloom_filter_enabled", "true").build());
+        ensureGreen(INDEX_NAME);
+        indexDocs(INDEX_NAME, 5, 0);
+        refreshIndex(INDEX_NAME);
+        flushIndex(INDEX_NAME);
+
+        Map<String, Object> nameMeta = getColumnInfo(INDEX_NAME, "name");
+        assertEquals(Boolean.TRUE, nameMeta.get("bloom_filter"));
+
+        Map<String, Object> valueMeta = getColumnInfo(INDEX_NAME, "value");
+        assertEquals(Boolean.TRUE, valueMeta.get("bloom_filter"));
+    }
+
+    /**
+     * Verifies that field-level bloom_filter_enabled=true enables bloom filter for that column only.
+     */
+    public void testFieldLevelBloomFilterEnabled() throws IOException {
+        createCompositeIndexWithSettings(Settings.builder().put("index.parquet.field.name.bloom_filter_enabled", "true").build());
+        ensureGreen(INDEX_NAME);
+        indexDocs(INDEX_NAME, 5, 0);
+        refreshIndex(INDEX_NAME);
+        flushIndex(INDEX_NAME);
+
+        Map<String, Object> nameMeta = getColumnInfo(INDEX_NAME, "name");
+        assertEquals(Boolean.TRUE, nameMeta.get("bloom_filter"));
+
+        // Other columns should still have no bloom filter (global default is disabled)
+        Map<String, Object> valueMeta = getColumnInfo(INDEX_NAME, "value");
+        assertEquals(Boolean.FALSE, valueMeta.get("bloom_filter"));
     }
 
     // --- Helpers ---
@@ -318,7 +350,7 @@ public class CompositeParquetSettingsValidationIT extends AbstractCompositeEngin
     @SuppressWarnings("unchecked")
     private Map<String, Object> getColumnInfo(String indexName, String columnName) throws IOException {
         String json = getFirstFileColumnMetadata(indexName);
-        // Extract the JSON object for the specific column: "columnName":{"encodings":[...],"compression":"..."}
+        // Extract the JSON object for the specific column
         String key = "\"" + columnName + "\":{";
         int start = json.indexOf(key);
         assertFalse("Column '" + columnName + "' not found in metadata: " + json, start == -1);
@@ -341,23 +373,34 @@ public class CompositeParquetSettingsValidationIT extends AbstractCompositeEngin
         int compEnd = colJson.indexOf('"', compStart);
         String compression = colJson.substring(compStart, compEnd);
 
+        // Parse bloom_filter
+        String bfKey = "\"bloom_filter\":";
+        int bfStart = colJson.indexOf(bfKey);
+        boolean hasBloomFilter = false;
+        if (bfStart != -1) {
+            String bfVal = colJson.substring(bfStart + bfKey.length()).split("[,}]")[0].trim();
+            hasBloomFilter = "true".equals(bfVal);
+        }
+
         Map<String, Object> result = new java.util.HashMap<>();
         result.put("encodings", encodings);
         result.put("compression", compression);
+        result.put("bloom_filter", hasBloomFilter);
         return result;
     }
 
     @SuppressWarnings("unchecked")
     private void assertHasEncoding(Map<String, Object> colMeta, String expectedEncoding) {
         java.util.List<String> encodings = (java.util.List<String>) colMeta.get("encodings");
-        assertTrue("Expected encoding '" + expectedEncoding + "' in " + encodings,
-            encodings.contains(expectedEncoding));
+        assertTrue("Expected encoding '" + expectedEncoding + "' in " + encodings, encodings.contains(expectedEncoding));
     }
 
     private void assertCompression(Map<String, Object> colMeta, String expectedPrefix) {
         String compression = (String) colMeta.get("compression");
-        assertTrue("Expected compression starting with '" + expectedPrefix + "', got: " + compression,
-            compression.startsWith(expectedPrefix));
+        assertTrue(
+            "Expected compression starting with '" + expectedPrefix + "', got: " + compression,
+            compression.startsWith(expectedPrefix)
+        );
     }
 
     private String getFirstFileColumnMetadata(String indexName) throws IOException {

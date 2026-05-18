@@ -46,9 +46,7 @@ public class CompositeParquetRowGroupSettingsIT extends AbstractCompositeEngineI
         int maxRows = 5;
         int totalDocs = 10;
 
-        createCompositeIndex(INDEX_NAME, Settings.builder()
-            .put(ParquetSettings.ROW_GROUP_MAX_ROWS.getKey(), maxRows)
-            .build());
+        createCompositeIndex(INDEX_NAME, Settings.builder().put(ParquetSettings.ROW_GROUP_MAX_ROWS.getKey(), maxRows).build());
 
         assertSettingValue(ParquetSettings.ROW_GROUP_MAX_ROWS.getKey(), String.valueOf(maxRows));
 
@@ -68,9 +66,7 @@ public class CompositeParquetRowGroupSettingsIT extends AbstractCompositeEngineI
         long maxBytes = new ByteSizeValue(1, ByteSizeUnit.MB).getBytes();
         int totalDocs = 20;
 
-        createCompositeIndex(INDEX_NAME, Settings.builder()
-            .put(ParquetSettings.ROW_GROUP_MAX_BYTES.getKey(), maxBytes + "b")
-            .build());
+        createCompositeIndex(INDEX_NAME, Settings.builder().put(ParquetSettings.ROW_GROUP_MAX_BYTES.getKey(), maxBytes + "b").build());
 
         assertSettingValue(ParquetSettings.ROW_GROUP_MAX_BYTES.getKey(), maxBytes + "b");
 
@@ -90,10 +86,13 @@ public class CompositeParquetRowGroupSettingsIT extends AbstractCompositeEngineI
         long maxBytes = new ByteSizeValue(512, ByteSizeUnit.KB).getBytes();
         int totalDocs = 15;
 
-        createCompositeIndex(INDEX_NAME, Settings.builder()
-            .put(ParquetSettings.ROW_GROUP_MAX_ROWS.getKey(), maxRows)
-            .put(ParquetSettings.ROW_GROUP_MAX_BYTES.getKey(), maxBytes + "b")
-            .build());
+        createCompositeIndex(
+            INDEX_NAME,
+            Settings.builder()
+                .put(ParquetSettings.ROW_GROUP_MAX_ROWS.getKey(), maxRows)
+                .put(ParquetSettings.ROW_GROUP_MAX_BYTES.getKey(), maxBytes + "b")
+                .build()
+        );
 
         assertSettingValue(ParquetSettings.ROW_GROUP_MAX_ROWS.getKey(), String.valueOf(maxRows));
         assertSettingValue(ParquetSettings.ROW_GROUP_MAX_BYTES.getKey(), maxBytes + "b");
@@ -112,9 +111,7 @@ public class CompositeParquetRowGroupSettingsIT extends AbstractCompositeEngineI
     public void testRowGroupMaxRowsOfOneProducesValidFile() throws IOException {
         int totalDocs = 5;
 
-        createCompositeIndex(INDEX_NAME, Settings.builder()
-            .put(ParquetSettings.ROW_GROUP_MAX_ROWS.getKey(), 1)
-            .build());
+        createCompositeIndex(INDEX_NAME, Settings.builder().put(ParquetSettings.ROW_GROUP_MAX_ROWS.getKey(), 1).build());
 
         indexDocs(INDEX_NAME, totalDocs, 0);
         refreshIndex(INDEX_NAME);

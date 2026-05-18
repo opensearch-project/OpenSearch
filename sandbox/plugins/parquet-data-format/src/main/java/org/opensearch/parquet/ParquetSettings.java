@@ -70,10 +70,10 @@ public final class ParquetSettings {
         Setting.Property.IndexScope
     );
 
-    /** Whether bloom filters are enabled for Parquet columns (default true). */
+    /** Whether bloom filters are enabled for Parquet columns (default false). */
     public static final Setting<Boolean> BLOOM_FILTER_ENABLED = Setting.boolSetting(
         "index.parquet.bloom_filter_enabled",
-        true,
+        false,
         Setting.Property.IndexScope
     );
 
@@ -214,6 +214,31 @@ public final class ParquetSettings {
                 if (VALID_COMPRESSIONS.contains(value) == false) {
                     throw new IllegalArgumentException("Invalid compression '" + s.get(key) + "'. Valid values: " + VALID_COMPRESSIONS);
                 }
+            } else if (key.endsWith(".bloom_filter_enabled")) {
+                String value = s.get(key).toLowerCase(Locale.ROOT);
+                if ("true".equals(value) == false && "false".equals(value) == false) {
+                    throw new IllegalArgumentException("Invalid bloom_filter_enabled '" + s.get(key) + "'. Valid values: [true, false]");
+                }
+            } else if (key.endsWith(".bloom_filter_fpp")) {
+                try {
+                    double fpp = Double.parseDouble(s.get(key));
+                    if (fpp <= 0.0 || fpp >= 1.0) {
+                        throw new IllegalArgumentException(
+                            "Invalid bloom_filter_fpp '" + s.get(key) + "'. Must be between 0.0 and 1.0 (exclusive)"
+                        );
+                    }
+                } catch (NumberFormatException e) {
+                    throw new IllegalArgumentException("Invalid bloom_filter_fpp '" + s.get(key) + "'. Must be a number");
+                }
+            } else if (key.endsWith(".bloom_filter_ndv")) {
+                try {
+                    long ndv = Long.parseLong(s.get(key));
+                    if (ndv < 1) {
+                        throw new IllegalArgumentException("Invalid bloom_filter_ndv '" + s.get(key) + "'. Must be >= 1");
+                    }
+                } catch (NumberFormatException e) {
+                    throw new IllegalArgumentException("Invalid bloom_filter_ndv '" + s.get(key) + "'. Must be a number");
+                }
             }
         }
     }, Setting.Property.IndexScope, Setting.Property.Dynamic);
@@ -228,9 +253,7 @@ public final class ParquetSettings {
             if (key.endsWith(".encoding")) {
                 String typeName = key.substring(0, key.length() - ".encoding".length());
                 if (VALID_ARROW_TYPES.contains(typeName) == false) {
-                    throw new IllegalArgumentException(
-                        "Invalid arrow type '" + typeName + "'. Valid values: " + VALID_ARROW_TYPES
-                    );
+                    throw new IllegalArgumentException("Invalid arrow type '" + typeName + "'. Valid values: " + VALID_ARROW_TYPES);
                 }
                 String value = s.get(key).toUpperCase(Locale.ROOT);
                 if (VALID_ENCODINGS.contains(value) == false) {
@@ -252,9 +275,7 @@ public final class ParquetSettings {
             if (key.endsWith(".compression")) {
                 String typeName = key.substring(0, key.length() - ".compression".length());
                 if (VALID_ARROW_TYPES.contains(typeName) == false) {
-                    throw new IllegalArgumentException(
-                        "Invalid arrow type '" + typeName + "'. Valid values: " + VALID_ARROW_TYPES
-                    );
+                    throw new IllegalArgumentException("Invalid arrow type '" + typeName + "'. Valid values: " + VALID_ARROW_TYPES);
                 }
                 String value = s.get(key).toUpperCase(Locale.ROOT);
                 if (VALID_COMPRESSIONS.contains(value) == false) {
@@ -262,6 +283,52 @@ public final class ParquetSettings {
                         "Invalid compression '" + s.get(key) + "' for type '" + typeName + "'. Valid values: " + VALID_COMPRESSIONS
                     );
                 }
+            }
+        }
+    }, Setting.Property.NodeScope, Setting.Property.Dynamic);
+
+    /**
+     * Group setting for per-type bloom filter configuration (cluster-level fallback).
+     * Usage: parquet.type_bloom_filter.{arrow_type}.enabled=true
+     *        parquet.type_bloom_filter.{arrow_type}.fpp=0.01
+     *        parquet.type_bloom_filter.{arrow_type}.ndv=50000
+     */
+    public static final Setting<Settings> TYPE_BLOOM_FILTER_SETTINGS = Setting.groupSetting("parquet.type_bloom_filter.", s -> {
+        for (String key : s.keySet()) {
+            String typeName = null;
+            if (key.endsWith(".enabled")) {
+                typeName = key.substring(0, key.length() - ".enabled".length());
+                String val = s.get(key).toLowerCase(Locale.ROOT);
+                if ("true".equals(val) == false && "false".equals(val) == false) {
+                    throw new IllegalArgumentException(
+                        "Invalid bloom_filter enabled value '" + s.get(key) + "' for type '" + typeName + "'. Must be true or false"
+                    );
+                }
+            } else if (key.endsWith(".fpp")) {
+                typeName = key.substring(0, key.length() - ".fpp".length());
+                try {
+                    double fpp = Double.parseDouble(s.get(key));
+                    if (fpp <= 0.0 || fpp >= 1.0) {
+                        throw new IllegalArgumentException(
+                            "bloom_filter fpp for type '" + typeName + "' must be between 0.0 and 1.0 exclusive, got: " + fpp
+                        );
+                    }
+                } catch (NumberFormatException e) {
+                    throw new IllegalArgumentException("Invalid bloom_filter fpp value '" + s.get(key) + "' for type '" + typeName + "'");
+                }
+            } else if (key.endsWith(".ndv")) {
+                typeName = key.substring(0, key.length() - ".ndv".length());
+                try {
+                    long ndv = Long.parseLong(s.get(key));
+                    if (ndv < 1) {
+                        throw new IllegalArgumentException("bloom_filter ndv for type '" + typeName + "' must be >= 1, got: " + ndv);
+                    }
+                } catch (NumberFormatException e) {
+                    throw new IllegalArgumentException("Invalid bloom_filter ndv value '" + s.get(key) + "' for type '" + typeName + "'");
+                }
+            }
+            if (typeName != null && VALID_ARROW_TYPES.contains(typeName) == false) {
+                throw new IllegalArgumentException("Invalid arrow type '" + typeName + "'. Valid values: " + VALID_ARROW_TYPES);
             }
         }
     }, Setting.Property.NodeScope, Setting.Property.Dynamic);
@@ -298,12 +365,24 @@ public final class ParquetSettings {
      * PLAIN and unknown encodings are valid for all types (handled separately).
      */
     private static final Map<String, Set<Class<? extends ArrowType>>> ENCODING_TO_VALID_TYPES = Map.of(
-        "RLE", Set.of(ArrowType.Bool.class),
-        "DELTA_BINARY_PACKED", Set.of(ArrowType.Int.class),
-        "DELTA", Set.of(ArrowType.Int.class),
-        "DELTA_LENGTH_BYTE_ARRAY", Set.of(ArrowType.Utf8.class, ArrowType.LargeUtf8.class, ArrowType.Binary.class, ArrowType.LargeBinary.class),
-        "DELTA_BYTE_ARRAY", Set.of(ArrowType.Utf8.class, ArrowType.LargeUtf8.class, ArrowType.Binary.class, ArrowType.LargeBinary.class, ArrowType.FixedSizeBinary.class),
-        "BYTE_STREAM_SPLIT", Set.of(ArrowType.Int.class, ArrowType.FloatingPoint.class, ArrowType.FixedSizeBinary.class)
+        "RLE",
+        Set.of(ArrowType.Bool.class),
+        "DELTA_BINARY_PACKED",
+        Set.of(ArrowType.Int.class),
+        "DELTA",
+        Set.of(ArrowType.Int.class),
+        "DELTA_LENGTH_BYTE_ARRAY",
+        Set.of(ArrowType.Utf8.class, ArrowType.LargeUtf8.class, ArrowType.Binary.class, ArrowType.LargeBinary.class),
+        "DELTA_BYTE_ARRAY",
+        Set.of(
+            ArrowType.Utf8.class,
+            ArrowType.LargeUtf8.class,
+            ArrowType.Binary.class,
+            ArrowType.LargeBinary.class,
+            ArrowType.FixedSizeBinary.class
+        ),
+        "BYTE_STREAM_SPLIT",
+        Set.of(ArrowType.Int.class, ArrowType.FloatingPoint.class, ArrowType.FixedSizeBinary.class)
     );
 
     /** Set of ArrowType classes that do NOT support dictionary encoding. */
@@ -341,15 +420,21 @@ public final class ParquetSettings {
             if (key.endsWith(keySuffix)) {
                 String name = key.substring(0, key.length() - keySuffix.length());
                 if (validNames != null && validNames.contains(name) == false) {
-                    throw new IllegalArgumentException(
-                        "Invalid " + nameLabel + " '" + name + "'. Valid values: " + validNames
-                    );
+                    throw new IllegalArgumentException("Invalid " + nameLabel + " '" + name + "'. Valid values: " + validNames);
                 }
                 String value = groupSettings.get(key).toUpperCase(Locale.ROOT);
                 if (validValues.contains(value) == false) {
                     throw new IllegalArgumentException(
-                        "Invalid " + valueLabel + " '" + groupSettings.get(key) + "' for " + nameLabel + " '" + name
-                            + "'. Valid values: " + validValues
+                        "Invalid "
+                            + valueLabel
+                            + " '"
+                            + groupSettings.get(key)
+                            + "' for "
+                            + nameLabel
+                            + " '"
+                            + name
+                            + "'. Valid values: "
+                            + validValues
                     );
                 }
                 result.put(name, value);
@@ -359,19 +444,42 @@ public final class ParquetSettings {
     }
 
     /**
-     * Extracts per-field encoding map from index settings.
-     * Reads all keys under "index.parquet.field.{field_name}.encoding".
+     * Extracts a typed config map from group settings by matching keys with a given suffix
+     * and converting the raw string value using the provided parser.
      */
+    private static <T> Map<String, T> extractConfigMap(
+        Settings groupSettings,
+        String keySuffix,
+        java.util.function.Function<String, T> valueParser
+    ) {
+        Map<String, T> result = new HashMap<>();
+        for (String key : groupSettings.keySet()) {
+            if (key.endsWith(keySuffix)) {
+                String name = key.substring(0, key.length() - keySuffix.length());
+                result.put(name, valueParser.apply(groupSettings.get(key)));
+            }
+        }
+        return result;
+    }
+
     public static Map<String, String> getFieldEncodings(Settings settings) {
         return extractConfigMap(FIELD_SETTINGS.get(settings), ".encoding", null, "field", VALID_ENCODINGS, "encoding");
     }
 
-    /**
-     * Extracts per-field compression map from index settings.
-     * Reads all keys under "index.parquet.field.{field_name}.compression".
-     */
     public static Map<String, String> getFieldCompressions(Settings settings) {
         return extractConfigMap(FIELD_SETTINGS.get(settings), ".compression", null, "field", VALID_COMPRESSIONS, "compression");
+    }
+
+    public static Map<String, Boolean> getFieldBloomFilterEnabled(Settings settings) {
+        return extractConfigMap(FIELD_SETTINGS.get(settings), ".bloom_filter_enabled", Boolean::parseBoolean);
+    }
+
+    public static Map<String, Double> getFieldBloomFilterFpp(Settings settings) {
+        return extractConfigMap(FIELD_SETTINGS.get(settings), ".bloom_filter_fpp", Double::parseDouble);
+    }
+
+    public static Map<String, Long> getFieldBloomFilterNdv(Settings settings) {
+        return extractConfigMap(FIELD_SETTINGS.get(settings), ".bloom_filter_ndv", Long::parseLong);
     }
 
     /**
@@ -380,7 +488,12 @@ public final class ParquetSettings {
      */
     public static Map<String, String> getTypeEncodings(Settings nodeSettings) {
         return extractConfigMap(
-            TYPE_ENCODING_SETTINGS.get(nodeSettings), ".encoding", VALID_ARROW_TYPES, "arrow type", VALID_ENCODINGS, "encoding"
+            TYPE_ENCODING_SETTINGS.get(nodeSettings),
+            ".encoding",
+            VALID_ARROW_TYPES,
+            "arrow type",
+            VALID_ENCODINGS,
+            "encoding"
         );
     }
 
@@ -390,8 +503,25 @@ public final class ParquetSettings {
      */
     public static Map<String, String> getTypeCompressions(Settings nodeSettings) {
         return extractConfigMap(
-            TYPE_COMPRESSION_SETTINGS.get(nodeSettings), ".compression", VALID_ARROW_TYPES, "arrow type", VALID_COMPRESSIONS, "compression"
+            TYPE_COMPRESSION_SETTINGS.get(nodeSettings),
+            ".compression",
+            VALID_ARROW_TYPES,
+            "arrow type",
+            VALID_COMPRESSIONS,
+            "compression"
         );
+    }
+
+    public static Map<String, Boolean> getTypeBloomFilterEnabled(Settings nodeSettings) {
+        return extractConfigMap(TYPE_BLOOM_FILTER_SETTINGS.get(nodeSettings), ".enabled", Boolean::parseBoolean);
+    }
+
+    public static Map<String, Double> getTypeBloomFilterFpp(Settings nodeSettings) {
+        return extractConfigMap(TYPE_BLOOM_FILTER_SETTINGS.get(nodeSettings), ".fpp", Double::parseDouble);
+    }
+
+    public static Map<String, Long> getTypeBloomFilterNdv(Settings nodeSettings) {
+        return extractConfigMap(TYPE_BLOOM_FILTER_SETTINGS.get(nodeSettings), ".ndv", Long::parseLong);
     }
 
     /** Returns all settings defined by the Parquet plugin. */
@@ -416,7 +546,8 @@ public final class ParquetSettings {
             MERGE_IO_THREADS,
             FIELD_SETTINGS,
             TYPE_ENCODING_SETTINGS,
-            TYPE_COMPRESSION_SETTINGS
+            TYPE_COMPRESSION_SETTINGS,
+            TYPE_BLOOM_FILTER_SETTINGS
         );
     }
 }

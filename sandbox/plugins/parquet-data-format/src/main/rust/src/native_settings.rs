@@ -21,6 +21,9 @@ pub struct NativeSettings {
     pub field_configs: Option<HashMap<String, FieldConfig>>,
     pub type_encoding_configs: Option<HashMap<String, String>>,
     pub type_compression_configs: Option<HashMap<String, String>>,
+    pub type_bloom_filter_enabled: Option<HashMap<String, bool>>,
+    pub type_bloom_filter_fpp: Option<HashMap<String, f64>>,
+    pub type_bloom_filter_ndv: Option<HashMap<String, u64>>,
     pub custom_settings: Option<HashMap<String, String>>,
     pub bloom_filter_enabled: Option<bool>,
     pub bloom_filter_fpp: Option<f64>,
@@ -63,7 +66,7 @@ impl NativeSettings {
     }
 
     pub fn get_bloom_filter_enabled(&self) -> bool {
-        self.bloom_filter_enabled.unwrap_or(true)
+        self.bloom_filter_enabled.unwrap_or(false)
     }
 
     pub fn get_bloom_filter_fpp(&self) -> f64 {
@@ -145,6 +148,7 @@ mod tests {
             compression_type: Some("SNAPPY".to_string()),
             compression_level: None,
             encoding_type: None,
+            ..Default::default()
         });
         let config = NativeSettings {
             compression_type: Some("ZSTD".to_string()),

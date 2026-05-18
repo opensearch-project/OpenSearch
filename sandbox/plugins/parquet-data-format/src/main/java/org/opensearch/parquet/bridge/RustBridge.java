@@ -167,8 +167,33 @@ public class RustBridge {
                 ValueLayout.ADDRESS,
                 ValueLayout.ADDRESS,
                 ValueLayout.ADDRESS,
-                ValueLayout.JAVA_LONG    // type_compression_name_ptrs, type_compression_name_lens, type_compression_value_ptrs,
+                ValueLayout.JAVA_LONG,   // type_compression_name_ptrs, type_compression_name_lens, type_compression_value_ptrs,
                                          // type_compression_value_lens, type_compression_count
+                ValueLayout.ADDRESS,
+                ValueLayout.ADDRESS,
+                ValueLayout.ADDRESS,
+                ValueLayout.JAVA_LONG,   // bf_enabled_name_ptrs, bf_enabled_name_lens, bf_enabled_vals, bf_enabled_count
+                ValueLayout.ADDRESS,
+                ValueLayout.ADDRESS,
+                ValueLayout.ADDRESS,
+                ValueLayout.JAVA_LONG,   // bf_fpp_name_ptrs, bf_fpp_name_lens, bf_fpp_vals, bf_fpp_count
+                ValueLayout.ADDRESS,
+                ValueLayout.ADDRESS,
+                ValueLayout.ADDRESS,
+                ValueLayout.JAVA_LONG,   // bf_ndv_name_ptrs, bf_ndv_name_lens, bf_ndv_vals, bf_ndv_count
+                ValueLayout.ADDRESS,
+                ValueLayout.ADDRESS,
+                ValueLayout.ADDRESS,
+                ValueLayout.JAVA_LONG,   // type_bf_enabled_name_ptrs, type_bf_enabled_name_lens, type_bf_enabled_vals,
+                                         // type_bf_enabled_count
+                ValueLayout.ADDRESS,
+                ValueLayout.ADDRESS,
+                ValueLayout.ADDRESS,
+                ValueLayout.JAVA_LONG,   // type_bf_fpp_name_ptrs, type_bf_fpp_name_lens, type_bf_fpp_vals, type_bf_fpp_count
+                ValueLayout.ADDRESS,
+                ValueLayout.ADDRESS,
+                ValueLayout.ADDRESS,
+                ValueLayout.JAVA_LONG    // type_bf_ndv_name_ptrs, type_bf_ndv_name_lens, type_bf_ndv_vals, type_bf_ndv_count
             )
         );
         REMOVE_SETTINGS = linker.downcallHandle(
@@ -305,7 +330,17 @@ public class RustBridge {
             var numRowsOut = call.longOut();
             var numRowGroupsOut = call.longOut();
             var out = call.outBuffer(1024);
-            call.invokeIO(GET_FILE_METADATA, f.segment(), f.len(), versionOut, numRowsOut, out.data(), (long) out.capacity(), out.lenOut(), numRowGroupsOut);
+            call.invokeIO(
+                GET_FILE_METADATA,
+                f.segment(),
+                f.len(),
+                versionOut,
+                numRowsOut,
+                out.data(),
+                (long) out.capacity(),
+                out.lenOut(),
+                numRowGroupsOut
+            );
             int createdByLen = out.actualLength();
             return new ParquetFileMetadata(
                 versionOut.get(ValueLayout.JAVA_INT, 0),
@@ -351,6 +386,14 @@ public class RustBridge {
             var typeEncodings = toNativeArrays(call, nativeSettings.getTypeEncodings());
             var typeCompressions = toNativeArrays(call, nativeSettings.getTypeCompressions());
 
+            var bfEnabled = toBoolMapArrays(call, nativeSettings.getFieldBloomFilterEnabled());
+            var bfFpp = toDoubleMapArrays(call, nativeSettings.getFieldBloomFilterFpp());
+            var bfNdv = toLongMapArrays(call, nativeSettings.getFieldBloomFilterNdv());
+
+            var typeBfEnabled = toBoolMapArrays(call, nativeSettings.getTypeBloomFilterEnabled());
+            var typeBfFpp = toDoubleMapArrays(call, nativeSettings.getTypeBloomFilterFpp());
+            var typeBfNdv = toLongMapArrays(call, nativeSettings.getTypeBloomFilterNdv());
+
             call.invokeIO(
                 ON_SETTINGS_UPDATE,
                 idx.segment(),
@@ -390,7 +433,31 @@ public class RustBridge {
                 typeCompressions.keys().lens(),
                 typeCompressions.values().ptrs(),
                 typeCompressions.values().lens(),
-                typeCompressions.keys().count()
+                typeCompressions.keys().count(),
+                bfEnabled.keys().ptrs(),
+                bfEnabled.keys().lens(),
+                bfEnabled.values(),
+                bfEnabled.keys().count(),
+                bfFpp.keys().ptrs(),
+                bfFpp.keys().lens(),
+                bfFpp.values(),
+                bfFpp.keys().count(),
+                bfNdv.keys().ptrs(),
+                bfNdv.keys().lens(),
+                bfNdv.values(),
+                bfNdv.keys().count(),
+                typeBfEnabled.keys().ptrs(),
+                typeBfEnabled.keys().lens(),
+                typeBfEnabled.values(),
+                typeBfEnabled.keys().count(),
+                typeBfFpp.keys().ptrs(),
+                typeBfFpp.keys().lens(),
+                typeBfFpp.values(),
+                typeBfFpp.keys().count(),
+                typeBfNdv.keys().ptrs(),
+                typeBfNdv.keys().lens(),
+                typeBfNdv.values(),
+                typeBfNdv.keys().count()
             );
         }
     }
@@ -545,6 +612,15 @@ public class RustBridge {
     private record MapArrays(NativeCall.StrArray keys, NativeCall.StrArray values) {
     }
 
+    private record BoolMapArrays(NativeCall.StrArray keys, MemorySegment values) {
+    }
+
+    private record DoubleMapArrays(NativeCall.StrArray keys, MemorySegment values) {
+    }
+
+    private record LongMapArrays(NativeCall.StrArray keys, MemorySegment values) {
+    }
+
     private static MapArrays toNativeArrays(NativeCall call, Map<String, String> map) {
         String[] keys = map.keySet().toArray(new String[0]);
         String[] values = new String[keys.length];
@@ -552,6 +628,33 @@ public class RustBridge {
             values[i] = map.get(keys[i]);
         }
         return new MapArrays(call.strArray(keys), call.strArray(values));
+    }
+
+    private static BoolMapArrays toBoolMapArrays(NativeCall call, Map<String, Boolean> map) {
+        String[] keys = map.keySet().toArray(new String[0]);
+        var seg = keys.length > 0 ? call.buf(keys.length * 8) : MemorySegment.NULL;
+        for (int i = 0; i < keys.length; i++) {
+            seg.setAtIndex(ValueLayout.JAVA_LONG, i, map.get(keys[i]) ? 1L : 0L);
+        }
+        return new BoolMapArrays(call.strArray(keys), seg);
+    }
+
+    private static DoubleMapArrays toDoubleMapArrays(NativeCall call, Map<String, Double> map) {
+        String[] keys = map.keySet().toArray(new String[0]);
+        var seg = keys.length > 0 ? call.buf(keys.length * 8) : MemorySegment.NULL;
+        for (int i = 0; i < keys.length; i++) {
+            seg.setAtIndex(ValueLayout.JAVA_DOUBLE, i, map.get(keys[i]));
+        }
+        return new DoubleMapArrays(call.strArray(keys), seg);
+    }
+
+    private static LongMapArrays toLongMapArrays(NativeCall call, Map<String, Long> map) {
+        String[] keys = map.keySet().toArray(new String[0]);
+        var seg = keys.length > 0 ? call.buf(keys.length * 8) : MemorySegment.NULL;
+        for (int i = 0; i < keys.length; i++) {
+            seg.setAtIndex(ValueLayout.JAVA_LONG, i, map.get(keys[i]));
+        }
+        return new LongMapArrays(call.strArray(keys), seg);
     }
 
     private RustBridge() {}

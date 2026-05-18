@@ -99,9 +99,6 @@ impl WriterPropertiesBuilder {
         // Apply dictionary settings
         builder = Self::apply_dictionary_settings(builder, config);
 
-        // Apply bloom filter settings
-        builder = Self::apply_bloom_filter_settings(builder, config);
-
         // Apply field-level configurations
         builder = Self::apply_field_configs(builder, config, schema)?;
 
@@ -156,18 +153,6 @@ impl WriterPropertiesBuilder {
     }
 
     /// Applies bloom filter settings.
-    fn apply_bloom_filter_settings(
-        mut builder: parquet::file::properties::WriterPropertiesBuilder,
-        config: &NativeSettings
-    ) -> parquet::file::properties::WriterPropertiesBuilder {
-        if config.get_bloom_filter_enabled() {
-            builder = builder.set_bloom_filter_enabled(true);
-            builder = builder.set_bloom_filter_fpp(config.get_bloom_filter_fpp());
-            builder = builder.set_bloom_filter_ndv(config.get_bloom_filter_ndv());
-        }
-        builder
-    }
-
     /// Applies field-level configurations.
     fn apply_field_configs(
         mut builder: parquet::file::properties::WriterPropertiesBuilder,
@@ -232,6 +217,10 @@ impl WriterPropertiesBuilder {
                         field_name.to_string().into(), true
                     );
                 } else {
+                    // PLAIN: explicitly disable dictionary so the writer uses plain encoding
+                    builder = builder.set_column_dictionary_enabled(
+                        field_name.to_string().into(), false
+                    );
                     builder = builder.set_column_encoding(field_name.to_string().into(), enc);
                 }
             }
@@ -248,6 +237,22 @@ impl WriterPropertiesBuilder {
 
             if let Some(comp) = compression {
                 builder = builder.set_column_compression(field_name.to_string().into(), comp);
+            }
+
+            // Bloom filter: field-level > type-level > global. Applied per-column.
+            let bf_enabled = index_cfg.and_then(|fc| fc.bloom_filter_enabled)
+                .or_else(|| type_key.and_then(|t| config.type_bloom_filter_enabled.as_ref()?.get(t).copied()))
+                .unwrap_or(config.get_bloom_filter_enabled());
+            if bf_enabled {
+                builder = builder.set_column_bloom_filter_enabled(field_name.to_string().into(), true);
+                let bf_fpp = index_cfg.and_then(|fc| fc.bloom_filter_fpp)
+                    .or_else(|| type_key.and_then(|t| config.type_bloom_filter_fpp.as_ref()?.get(t).copied()))
+                    .unwrap_or(config.get_bloom_filter_fpp());
+                builder = builder.set_column_bloom_filter_fpp(field_name.to_string().into(), bf_fpp);
+                let bf_ndv = index_cfg.and_then(|fc| fc.bloom_filter_ndv)
+                    .or_else(|| type_key.and_then(|t| config.type_bloom_filter_ndv.as_ref()?.get(t).copied()))
+                    .unwrap_or(config.get_bloom_filter_ndv());
+                builder = builder.set_column_bloom_filter_ndv(field_name.to_string().into(), bf_ndv);
             }
         }
         Ok(builder)
@@ -566,6 +571,8 @@ mod tests {
         let props = WriterPropertiesBuilder::build(&config, &schema).unwrap();
         let col_path = parquet::schema::types::ColumnPath::from("name");
         assert_eq!(props.encoding(&col_path), Some(Encoding::PLAIN));
+        assert!(!props.dictionary_enabled(&col_path),
+            "PLAIN encoding should explicitly disable dictionary");
     }
 
     #[test]
@@ -716,9 +723,9 @@ mod tests {
             bloom_filter_enabled: Some(false),
             ..Default::default()
         };
-        let props = WriterPropertiesBuilder::build(&config);
+        let schema = schema_with(vec![("test_col", ArrowDataType::Utf8)]);
+        let props = WriterPropertiesBuilder::build(&config, &schema).unwrap();
         let col_path = parquet::schema::types::ColumnPath::from("test_col");
-        // When bloom filter is disabled, no bloom filter properties should be set
         assert!(
             props.bloom_filter_properties(&col_path).is_none(),
             "bloom_filter_properties should be None when disabled, got: {:?}",
@@ -734,19 +741,273 @@ mod tests {
             bloom_filter_ndv: Some(100_000),
             ..Default::default()
         };
-        let props = WriterPropertiesBuilder::build(&config);
+        let schema = schema_with(vec![("test_col", ArrowDataType::Utf8)]);
+        let props = WriterPropertiesBuilder::build(&config, &schema).unwrap();
         let col_path = parquet::schema::types::ColumnPath::from("test_col");
         let bf_props = props.bloom_filter_properties(&col_path);
         assert!(bf_props.is_some(), "bloom_filter_properties should be Some when enabled");
     }
 
     #[test]
-    fn test_bloom_filter_default_is_true() {
+    fn test_bloom_filter_default_is_false() {
         let config = NativeSettings::default();
-        assert_eq!(config.get_bloom_filter_enabled(), true);
-        let props = WriterPropertiesBuilder::build(&config);
+        assert_eq!(config.get_bloom_filter_enabled(), false);
+        let schema = schema_with(vec![("test_col", ArrowDataType::Utf8)]);
+        let props = WriterPropertiesBuilder::build(&config, &schema).unwrap();
         let col_path = parquet::schema::types::ColumnPath::from("test_col");
         let bf_props = props.bloom_filter_properties(&col_path);
-        assert!(bf_props.is_some(), "Default should have bloom filter enabled");
+        assert!(bf_props.is_none(), "Default should have bloom filter disabled");
+    }
+
+    #[test]
+    fn test_column_bloom_filter_disabled_overrides_global() {
+        let mut field_configs = HashMap::new();
+        field_configs.insert("name".to_string(), FieldConfig {
+            bloom_filter_enabled: Some(false),
+            ..Default::default()
+        });
+        field_configs.insert("value".to_string(), FieldConfig {
+            bloom_filter_enabled: Some(true),
+            ..Default::default()
+        });
+        let config = NativeSettings {
+            bloom_filter_enabled: Some(true),
+            field_configs: Some(field_configs),
+            ..Default::default()
+        };
+        let schema = schema_with(vec![
+            ("name", ArrowDataType::Utf8),
+            ("value", ArrowDataType::Int32),
+        ]);
+        let props = WriterPropertiesBuilder::build(&config, &schema).unwrap();
+
+        let name_path = parquet::schema::types::ColumnPath::from("name");
+        let value_path = parquet::schema::types::ColumnPath::from("value");
+
+        let name_bf = props.bloom_filter_properties(&name_path);
+        assert!(name_bf.is_none(), "name should have no bloom filter, got: {:?}", name_bf);
+
+        let value_bf = props.bloom_filter_properties(&value_path);
+        assert!(value_bf.is_some(), "value should have bloom filter");
+    }
+
+    #[test]
+    fn test_type_level_bloom_filter_overrides_global() {
+        let mut type_bf_enabled = HashMap::new();
+        type_bf_enabled.insert("utf8".to_string(), true);
+        let config = NativeSettings {
+            bloom_filter_enabled: Some(false),
+            type_bloom_filter_enabled: Some(type_bf_enabled),
+            ..Default::default()
+        };
+        let schema = schema_with(vec![
+            ("name", ArrowDataType::Utf8),
+            ("age", ArrowDataType::Int32),
+        ]);
+        let props = WriterPropertiesBuilder::build(&config, &schema).unwrap();
+
+        let name_path = parquet::schema::types::ColumnPath::from("name");
+        let age_path = parquet::schema::types::ColumnPath::from("age");
+
+        assert!(props.bloom_filter_properties(&name_path).is_some(),
+            "utf8 type-level enabled should override global disabled");
+        assert!(props.bloom_filter_properties(&age_path).is_none(),
+            "int32 has no type-level setting, should use global disabled");
+    }
+
+    #[test]
+    fn test_field_bloom_filter_overrides_type_level() {
+        let mut type_bf_enabled = HashMap::new();
+        type_bf_enabled.insert("utf8".to_string(), true);
+        let mut field_configs = HashMap::new();
+        field_configs.insert("name".to_string(), FieldConfig {
+            bloom_filter_enabled: Some(false),
+            ..Default::default()
+        });
+        let config = NativeSettings {
+            bloom_filter_enabled: Some(false),
+            type_bloom_filter_enabled: Some(type_bf_enabled),
+            field_configs: Some(field_configs),
+            ..Default::default()
+        };
+        let schema = schema_with(vec![("name", ArrowDataType::Utf8)]);
+        let props = WriterPropertiesBuilder::build(&config, &schema).unwrap();
+
+        let name_path = parquet::schema::types::ColumnPath::from("name");
+        assert!(props.bloom_filter_properties(&name_path).is_none(),
+            "field-level disabled should override type-level enabled");
+    }
+
+    #[test]
+    fn test_bloom_filter_fpp_ndv_3tier_fallback() {
+        // Type-level sets fpp/ndv for utf8, field-level overrides fpp for "name"
+        let mut type_bf_enabled = HashMap::new();
+        type_bf_enabled.insert("utf8".to_string(), true);
+        type_bf_enabled.insert("int32".to_string(), true);
+        let mut type_bf_fpp = HashMap::new();
+        type_bf_fpp.insert("utf8".to_string(), 0.05);
+        let mut type_bf_ndv = HashMap::new();
+        type_bf_ndv.insert("utf8".to_string(), 50_000u64);
+
+        let mut field_configs = HashMap::new();
+        field_configs.insert("name".to_string(), FieldConfig {
+            bloom_filter_enabled: Some(true),
+            bloom_filter_fpp: Some(0.01),
+            bloom_filter_ndv: Some(200_000),
+            ..Default::default()
+        });
+        field_configs.insert("title".to_string(), FieldConfig {
+            bloom_filter_enabled: Some(true),
+            ..Default::default()
+        });
+
+        let config = NativeSettings {
+            bloom_filter_enabled: Some(true),
+            bloom_filter_fpp: Some(0.1),
+            bloom_filter_ndv: Some(100_000),
+            type_bloom_filter_enabled: Some(type_bf_enabled),
+            type_bloom_filter_fpp: Some(type_bf_fpp),
+            type_bloom_filter_ndv: Some(type_bf_ndv),
+            field_configs: Some(field_configs),
+            ..Default::default()
+        };
+        let schema = schema_with(vec![
+            ("name", ArrowDataType::Utf8),
+            ("title", ArrowDataType::Utf8),
+            ("age", ArrowDataType::Int32),
+        ]);
+        let props = WriterPropertiesBuilder::build(&config, &schema).unwrap();
+
+        // "name": field-level fpp=0.01, ndv=200000 (overrides type utf8 fpp=0.05, ndv=50000)
+        let name_bf = props.bloom_filter_properties(&parquet::schema::types::ColumnPath::from("name")).unwrap();
+        assert!((name_bf.fpp - 0.01).abs() < 1e-9, "name fpp should be 0.01, got {}", name_bf.fpp);
+        assert_eq!(name_bf.ndv, 200_000, "name ndv should be 200000");
+
+        // "title": field-level enabled but no fpp/ndv -> falls to type utf8 fpp=0.05, ndv=50000
+        let title_bf = props.bloom_filter_properties(&parquet::schema::types::ColumnPath::from("title")).unwrap();
+        assert!((title_bf.fpp - 0.05).abs() < 1e-9, "title fpp should be 0.05, got {}", title_bf.fpp);
+        assert_eq!(title_bf.ndv, 50_000, "title ndv should be 50000");
+
+        // "age": int32 type-level enabled but no fpp/ndv -> falls to global fpp=0.1, ndv=100000
+        let age_bf = props.bloom_filter_properties(&parquet::schema::types::ColumnPath::from("age")).unwrap();
+        assert!((age_bf.fpp - 0.1).abs() < 1e-9, "age fpp should be 0.1, got {}", age_bf.fpp);
+        assert_eq!(age_bf.ndv, 100_000, "age ndv should be 100000");
+    }
+
+    #[test]
+    fn test_type_level_encoding_only_applies_to_matching_type() {
+        // int64 encoding should NOT apply to utf8 columns
+        let mut type_encoding = HashMap::new();
+        type_encoding.insert("int64".to_string(), "DELTA_BINARY_PACKED".to_string());
+        let config = NativeSettings {
+            type_encoding_configs: Some(type_encoding),
+            ..Default::default()
+        };
+        let schema = schema_with(vec![
+            ("name", ArrowDataType::Utf8),
+            ("age", ArrowDataType::Int64),
+        ]);
+        let props = WriterPropertiesBuilder::build(&config, &schema).unwrap();
+
+        let name_path = parquet::schema::types::ColumnPath::from("name");
+        let age_path = parquet::schema::types::ColumnPath::from("age");
+
+        // "name" (utf8) should have no explicit encoding (uses default)
+        assert_eq!(props.encoding(&name_path), None);
+        // "age" (int64) should have DELTA_BINARY_PACKED
+        assert_eq!(props.encoding(&age_path), Some(Encoding::DELTA_BINARY_PACKED));
+    }
+
+    #[test]
+    fn test_type_level_compression_only_applies_to_matching_type() {
+        let mut type_compression = HashMap::new();
+        type_compression.insert("utf8".to_string(), "SNAPPY".to_string());
+        let config = NativeSettings {
+            type_compression_configs: Some(type_compression),
+            ..Default::default()
+        };
+        let schema = schema_with(vec![
+            ("name", ArrowDataType::Utf8),
+            ("age", ArrowDataType::Int32),
+        ]);
+        let props = WriterPropertiesBuilder::build(&config, &schema).unwrap();
+
+        let name_path = parquet::schema::types::ColumnPath::from("name");
+        let age_path = parquet::schema::types::ColumnPath::from("age");
+
+        assert!(matches!(props.compression(&name_path), Compression::SNAPPY));
+        // age (int32) should use global default (LZ4_RAW from build())
+        assert!(!matches!(props.compression(&age_path), Compression::SNAPPY));
+    }
+
+    #[test]
+    fn test_multiple_type_level_encodings_for_different_types() {
+        let mut type_encoding = HashMap::new();
+        type_encoding.insert("int32".to_string(), "DELTA_BINARY_PACKED".to_string());
+        type_encoding.insert("utf8".to_string(), "DELTA_BYTE_ARRAY".to_string());
+        let config = NativeSettings {
+            type_encoding_configs: Some(type_encoding),
+            ..Default::default()
+        };
+        let schema = schema_with(vec![
+            ("name", ArrowDataType::Utf8),
+            ("age", ArrowDataType::Int32),
+        ]);
+        let props = WriterPropertiesBuilder::build(&config, &schema).unwrap();
+
+        let name_path = parquet::schema::types::ColumnPath::from("name");
+        let age_path = parquet::schema::types::ColumnPath::from("age");
+
+        assert_eq!(props.encoding(&name_path), Some(Encoding::DELTA_BYTE_ARRAY));
+        assert!(!props.dictionary_enabled(&name_path));
+        assert_eq!(props.encoding(&age_path), Some(Encoding::DELTA_BINARY_PACKED));
+        assert!(!props.dictionary_enabled(&age_path));
+    }
+
+    #[test]
+    fn test_field_encoding_plain_overrides_type_disables_dictionary() {
+        // Field sets PLAIN, type sets DELTA_BINARY_PACKED — field wins and dictionary is disabled
+        let mut type_encoding = HashMap::new();
+        type_encoding.insert("int32".to_string(), "DELTA_BINARY_PACKED".to_string());
+        let mut field_configs = HashMap::new();
+        field_configs.insert("age".to_string(), FieldConfig {
+            encoding_type: Some("PLAIN".to_string()),
+            ..Default::default()
+        });
+        let config = NativeSettings {
+            type_encoding_configs: Some(type_encoding),
+            field_configs: Some(field_configs),
+            ..Default::default()
+        };
+        let schema = schema_with(vec![("age", ArrowDataType::Int32)]);
+        let props = WriterPropertiesBuilder::build(&config, &schema).unwrap();
+        let col_path = parquet::schema::types::ColumnPath::from("age");
+        assert_eq!(props.encoding(&col_path), Some(Encoding::PLAIN));
+        assert!(!props.dictionary_enabled(&col_path),
+            "PLAIN should disable dictionary even when overriding type-level");
+    }
+
+    #[test]
+    fn test_type_level_compression_overrides_global() {
+        let mut type_compression = HashMap::new();
+        type_compression.insert("int32".to_string(), "ZSTD".to_string());
+        let config = NativeSettings {
+            compression_type: Some("SNAPPY".to_string()),
+            type_compression_configs: Some(type_compression),
+            ..Default::default()
+        };
+        let schema = schema_with(vec![
+            ("age", ArrowDataType::Int32),
+            ("name", ArrowDataType::Utf8),
+        ]);
+        let props = WriterPropertiesBuilder::build(&config, &schema).unwrap();
+
+        let age_path = parquet::schema::types::ColumnPath::from("age");
+        let name_path = parquet::schema::types::ColumnPath::from("name");
+
+        assert!(matches!(props.compression(&age_path), Compression::ZSTD(_)),
+            "int32 type-level ZSTD should override global SNAPPY");
+        assert!(matches!(props.compression(&name_path), Compression::SNAPPY),
+            "utf8 has no type-level, should use global SNAPPY");
     }
 }

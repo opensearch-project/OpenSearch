@@ -231,12 +231,14 @@ pub unsafe extern "C" fn parquet_get_column_metadata(
         let col_name = col.column_path().string();
         let encodings: Vec<String> = col.encodings().map(|e| format!("{:?}", e)).collect();
         let compression = format!("{:?}", col.compression());
+        let has_bloom_filter = col.bloom_filter_offset().is_some();
         if i > 0 { json.push(','); }
         json.push_str(&format!(
-            "\"{}\":{{\"encodings\":[{}],\"compression\":\"{}\"}}",
+            "\"{}\":{{\"encodings\":[{}],\"compression\":\"{}\",\"bloom_filter\":{}}}",
             col_name,
             encodings.iter().map(|e| format!("\"{}\"" , e)).collect::<Vec<_>>().join(","),
-            compression
+            compression,
+            has_bloom_filter
         ));
     }
     json.push('}');
@@ -303,6 +305,30 @@ pub unsafe extern "C" fn parquet_on_settings_update(
     type_compression_value_ptrs: *const *const u8,
     type_compression_value_lens: *const i64,
     type_compression_count: i64,
+    bf_enabled_name_ptrs: *const *const u8,
+    bf_enabled_name_lens: *const i64,
+    bf_enabled_vals: *const i64,
+    bf_enabled_count: i64,
+    bf_fpp_name_ptrs: *const *const u8,
+    bf_fpp_name_lens: *const i64,
+    bf_fpp_vals: *const f64,
+    bf_fpp_count: i64,
+    bf_ndv_name_ptrs: *const *const u8,
+    bf_ndv_name_lens: *const i64,
+    bf_ndv_vals: *const i64,
+    bf_ndv_count: i64,
+    type_bf_enabled_name_ptrs: *const *const u8,
+    type_bf_enabled_name_lens: *const i64,
+    type_bf_enabled_vals: *const i64,
+    type_bf_enabled_count: i64,
+    type_bf_fpp_name_ptrs: *const *const u8,
+    type_bf_fpp_name_lens: *const i64,
+    type_bf_fpp_vals: *const f64,
+    type_bf_fpp_count: i64,
+    type_bf_ndv_name_ptrs: *const *const u8,
+    type_bf_ndv_name_lens: *const i64,
+    type_bf_ndv_vals: *const i64,
+    type_bf_ndv_count: i64,
 ) -> i64 {
     let index_name = str_from_raw(index_name_ptr, index_name_len)
         .map_err(|e| format!("parquet_on_settings_update index_name: {}", e))?.to_string();
@@ -338,6 +364,14 @@ pub unsafe extern "C" fn parquet_on_settings_update(
     let type_compressions = str_array_from_raw(type_compression_value_ptrs, type_compression_value_lens, type_compression_count)
         .map_err(|e| format!("parquet_on_settings_update type_compressions: {}", e))?;
 
+    // Parse per-field bloom filter arrays
+    let bf_enabled_names = str_array_from_raw(bf_enabled_name_ptrs, bf_enabled_name_lens, bf_enabled_count)
+        .map_err(|e| format!("parquet_on_settings_update bf_enabled_names: {}", e))?;
+    let bf_fpp_names = str_array_from_raw(bf_fpp_name_ptrs, bf_fpp_name_lens, bf_fpp_count)
+        .map_err(|e| format!("parquet_on_settings_update bf_fpp_names: {}", e))?;
+    let bf_ndv_names = str_array_from_raw(bf_ndv_name_ptrs, bf_ndv_name_lens, bf_ndv_count)
+        .map_err(|e| format!("parquet_on_settings_update bf_ndv_names: {}", e))?;
+
     let field_configs = {
         let mut map = std::collections::HashMap::new();
         for (name, encoding) in field_names.into_iter().zip(field_encodings.into_iter()) {
@@ -348,6 +382,24 @@ pub unsafe extern "C" fn parquet_on_settings_update(
                .and_modify(|fc| fc.compression_type = Some(compression.clone()))
                .or_insert(FieldConfig { compression_type: Some(compression), ..Default::default() });
         }
+        for (i, name) in bf_enabled_names.into_iter().enumerate() {
+            let val = *bf_enabled_vals.add(i) != 0;
+            map.entry(name)
+               .and_modify(|fc| fc.bloom_filter_enabled = Some(val))
+               .or_insert(FieldConfig { bloom_filter_enabled: Some(val), ..Default::default() });
+        }
+        for (i, name) in bf_fpp_names.into_iter().enumerate() {
+            let val = *bf_fpp_vals.add(i);
+            map.entry(name)
+               .and_modify(|fc| fc.bloom_filter_fpp = Some(val))
+               .or_insert(FieldConfig { bloom_filter_fpp: Some(val), ..Default::default() });
+        }
+        for (i, name) in bf_ndv_names.into_iter().enumerate() {
+            let val = *bf_ndv_vals.add(i) as u64;
+            map.entry(name)
+               .and_modify(|fc| fc.bloom_filter_ndv = Some(val))
+               .or_insert(FieldConfig { bloom_filter_ndv: Some(val), ..Default::default() });
+        }
         if map.is_empty() { None } else { Some(map) }
     };
 
@@ -357,6 +409,30 @@ pub unsafe extern "C" fn parquet_on_settings_update(
     };
     let type_compression_configs: Option<std::collections::HashMap<String, String>> = {
         let map: std::collections::HashMap<_, _> = type_compression_names.into_iter().zip(type_compressions.into_iter()).collect();
+        if map.is_empty() { None } else { Some(map) }
+    };
+
+    // Parse type-level bloom filter arrays
+    let type_bf_enabled_names = str_array_from_raw(type_bf_enabled_name_ptrs, type_bf_enabled_name_lens, type_bf_enabled_count)
+        .map_err(|e| format!("parquet_on_settings_update type_bf_enabled_names: {}", e))?;
+    let type_bf_fpp_names = str_array_from_raw(type_bf_fpp_name_ptrs, type_bf_fpp_name_lens, type_bf_fpp_count)
+        .map_err(|e| format!("parquet_on_settings_update type_bf_fpp_names: {}", e))?;
+    let type_bf_ndv_names = str_array_from_raw(type_bf_ndv_name_ptrs, type_bf_ndv_name_lens, type_bf_ndv_count)
+        .map_err(|e| format!("parquet_on_settings_update type_bf_ndv_names: {}", e))?;
+
+    let type_bloom_filter_enabled: Option<std::collections::HashMap<String, bool>> = {
+        let map: std::collections::HashMap<_, _> = type_bf_enabled_names.into_iter().enumerate()
+            .map(|(i, name)| (name, *type_bf_enabled_vals.add(i) != 0)).collect();
+        if map.is_empty() { None } else { Some(map) }
+    };
+    let type_bloom_filter_fpp: Option<std::collections::HashMap<String, f64>> = {
+        let map: std::collections::HashMap<_, _> = type_bf_fpp_names.into_iter().enumerate()
+            .map(|(i, name)| (name, *type_bf_fpp_vals.add(i))).collect();
+        if map.is_empty() { None } else { Some(map) }
+    };
+    let type_bloom_filter_ndv: Option<std::collections::HashMap<String, u64>> = {
+        let map: std::collections::HashMap<_, _> = type_bf_ndv_names.into_iter().enumerate()
+            .map(|(i, name)| (name, *type_bf_ndv_vals.add(i) as u64)).collect();
         if map.is_empty() { None } else { Some(map) }
     };
 
@@ -380,6 +456,9 @@ pub unsafe extern "C" fn parquet_on_settings_update(
         field_configs,
         type_encoding_configs,
         type_compression_configs,
+        type_bloom_filter_enabled,
+        type_bloom_filter_fpp,
+        type_bloom_filter_ndv,
         ..Default::default()
     };
 

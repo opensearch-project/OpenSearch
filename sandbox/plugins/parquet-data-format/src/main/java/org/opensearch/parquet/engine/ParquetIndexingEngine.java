@@ -190,8 +190,14 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
             .mergeIoThreads(ParquetSettings.MERGE_IO_THREADS.get(nodeSettings))
             .fieldEncodings(ParquetSettings.getFieldEncodings(settings))
             .fieldCompressions(ParquetSettings.getFieldCompressions(settings))
+            .fieldBloomFilterEnabled(ParquetSettings.getFieldBloomFilterEnabled(settings))
+            .fieldBloomFilterFpp(ParquetSettings.getFieldBloomFilterFpp(settings))
+            .fieldBloomFilterNdv(ParquetSettings.getFieldBloomFilterNdv(settings))
             .typeEncodings(ParquetSettings.getTypeEncodings(nodeSettings))
             .typeCompressions(ParquetSettings.getTypeCompressions(nodeSettings))
+            .typeBloomFilterEnabled(ParquetSettings.getTypeBloomFilterEnabled(nodeSettings))
+            .typeBloomFilterFpp(ParquetSettings.getTypeBloomFilterFpp(nodeSettings))
+            .typeBloomFilterNdv(ParquetSettings.getTypeBloomFilterNdv(nodeSettings))
             .build();
         try {
             RustBridge.onSettingsUpdate(config);

@@ -505,7 +505,7 @@ fn test_ipc_staging_complete_lifecycle_with_sync() {
     assert_eq!(ids, vec![10, 20, 30, 40, 50, 60]);
 
     let read_metadata = NativeParquetWriter::get_file_metadata(filename.clone()).unwrap();
-    assert_eq!(read_metadata.num_rows(), 6);
+    assert_eq!(read_metadata.file_metadata().num_rows(), 6);
 
     cleanup_ffi_schema(schema_ptr);
 }
@@ -772,8 +772,8 @@ fn test_bloom_filter_default_when_no_settings() {
 
     let stored = SETTINGS_STORE.get(index_name).unwrap();
     assert_eq!(
-        stored.get_bloom_filter_enabled(), true,
-        "Default bloom_filter_enabled should be true when no settings exist"
+        stored.get_bloom_filter_enabled(), false,
+        "Default bloom_filter_enabled should be false when no settings exist"
     );
     drop(stored);
 
