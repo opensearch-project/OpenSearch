@@ -57,17 +57,10 @@ public class DatafusionSearchExecEngine implements SearchExecEngine<ShardScanExe
             shardTask.setCancellationListener(() -> NativeBridge.cancelQuery(contextId));
         }
 
-        try {
-            DatafusionSearcher searcher = datafusionContext.getSearcher();
-            searcher.search(datafusionContext);
-            StreamHandle handle = datafusionContext.takeStreamHandle();
-            return new DatafusionResultStream(handle, allocator);
-        } finally {
-            // Clear the listener so the task doesn't hold a reference after the query.
-            if (shardTask != null) {
-                shardTask.clearCancellationListener();
-            }
-        }
+        DatafusionSearcher searcher = datafusionContext.getSearcher();
+        searcher.search(datafusionContext);
+        StreamHandle handle = datafusionContext.takeStreamHandle();
+        return new DatafusionResultStream(handle, allocator);
     }
 
     @Override
