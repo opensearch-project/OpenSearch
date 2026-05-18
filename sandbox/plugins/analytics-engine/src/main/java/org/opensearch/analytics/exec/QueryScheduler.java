@@ -69,6 +69,17 @@ public class QueryScheduler implements Scheduler {
         );
 
         PlanWalker walker = createWalker(config, listener, queryId, queryStartNanos, opListener);
+
+        // Build the graph first. On failure the partial graph cleans itself up via
+        // walker.build()'s try-finally; the RuntimeException bubbles to
+        // DefaultPlanExecutor's outer catch which fires listener.onFailure with the cause.
+        ExecutionGraph graph = walker.build();
+
+        // Wire the completion listener BEFORE registering the cancel callback so a
+        // post-build / pre-start cancellation reaches the listener via the cascade.
+        // Without this the user-facing listener is never registered and queries hang
+        // until the test or REST socket times out.
+        walker.wireCompletion();
         walkerPool.put(queryId, walker);
 
         final AnalyticsQueryTask queryTask = config.parentTask();
@@ -78,11 +89,7 @@ public class QueryScheduler implements Scheduler {
             walker.cancelAll(reason);
         });
 
-        // Two-phase: build graph, then start execution
-        ExecutionGraph graph = walker.build();
-
         opListener.onQueryStart(queryId, graph.stageCount());
-
         logger.info("[QueryScheduler] ExecutionGraph built:\n{}", graph.explain());
         walker.start(graph);
     }
@@ -104,6 +111,18 @@ public class QueryScheduler implements Scheduler {
             listener.onFailure(e);
         });
         return new PlanWalker(config, stageExecutionBuilder, wrapped);
+    }
+
+    /**
+     * Returns the underlying {@link StageExecutionBuilder} so callers can register a
+     * custom {@link org.opensearch.analytics.exec.stage.StageScheduler} for a stage
+     * type (e.g. fault-injecting scheduler in resilience tests). Resolving via the
+     * singleton scheduler avoids a Guice JIT lookup that would re-instantiate
+     * {@link AnalyticsSearchTransportService} (whose ctor registers transport
+     * handlers, only legal once per node).
+     */
+    public StageExecutionBuilder getStageExecutionBuilder() {
+        return stageExecutionBuilder;
     }
 
     /** Pool-level lookup for observability / metrics. */

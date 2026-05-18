@@ -18,11 +18,12 @@ import org.opensearch.analytics.exec.task.AnalyticsShardTask;
 import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
 import org.opensearch.analytics.spi.BackendExecutionContext;
 import org.opensearch.analytics.spi.DelegationDescriptor;
+import org.opensearch.analytics.spi.DelegationThreadTracker;
 import org.opensearch.analytics.spi.FilterDelegationHandle;
 import org.opensearch.analytics.spi.FragmentInstructionHandler;
 import org.opensearch.analytics.spi.FragmentInstructionHandlerFactory;
 import org.opensearch.analytics.spi.InstructionNode;
-import org.opensearch.arrow.flight.transport.ArrowAllocatorProvider;
+import org.opensearch.arrow.memory.ArrowAllocatorService;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.tasks.TaskCancelledException;
@@ -30,6 +31,7 @@ import org.opensearch.index.engine.exec.IndexReaderProvider;
 import org.opensearch.index.engine.exec.IndexReaderProvider.Reader;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.tasks.Task;
+import org.opensearch.tasks.TaskResourceTrackingService;
 
 import java.io.IOException;
 import java.util.List;
@@ -45,7 +47,7 @@ import java.util.Map;
  * {@link IndexShard} from the transport action.
  *
  * <p>Owns a service-lifetime {@link BufferAllocator} shared by every fragment, obtained as a child of the
- * node-level root via {@link ArrowAllocatorProvider}. One allocator per service means memory accounting is
+ * node-level root via {@link ArrowAllocatorService}. One allocator per service means memory accounting is
  * reported at the service level. For the streaming path, Arrow Flight's outbound handler co-locates its
  * transfer target on the same root (see {@code FlightOutboundHandler#processBatchTask}), keeping transfers
  * same-root and avoiding the known cross-allocator bug with foreign-backed buffers from the C Data Interface.
@@ -56,31 +58,41 @@ public class AnalyticsSearchService implements AutoCloseable {
 
     private final Map<String, AnalyticsSearchBackendPlugin> backends;
     private final AnalyticsOperationListener listener;
-    private final BufferAllocator allocator;
     private final NamedWriteableRegistry namedWriteableRegistry;
+    private TaskResourceTrackingService taskResourceTrackingService;
+    private final BufferAllocator allocator;
 
-    public AnalyticsSearchService(Map<String, AnalyticsSearchBackendPlugin> backends) {
-        this(backends, List.of(), null);
+    public AnalyticsSearchService(Map<String, AnalyticsSearchBackendPlugin> backends, ArrowAllocatorService allocatorService) {
+        this(backends, List.of(), allocatorService, null);
     }
 
-    public AnalyticsSearchService(Map<String, AnalyticsSearchBackendPlugin> backends, NamedWriteableRegistry namedWriteableRegistry) {
-        this(backends, List.of(), namedWriteableRegistry);
+    public AnalyticsSearchService(
+        Map<String, AnalyticsSearchBackendPlugin> backends,
+        ArrowAllocatorService allocatorService,
+        NamedWriteableRegistry namedWriteableRegistry
+    ) {
+        this(backends, List.of(), allocatorService, namedWriteableRegistry);
     }
 
     public AnalyticsSearchService(
         Map<String, AnalyticsSearchBackendPlugin> backends,
         List<AnalyticsOperationListener> listeners,
+        ArrowAllocatorService allocatorService,
         NamedWriteableRegistry namedWriteableRegistry
     ) {
         this.backends = backends;
         this.listener = new AnalyticsOperationListener.CompositeListener(listeners);
-        this.allocator = ArrowAllocatorProvider.newChildAllocator("analytics-search-service", Long.MAX_VALUE);
+        this.allocator = allocatorService.newChildAllocator("analytics-search-service", Long.MAX_VALUE);
         this.namedWriteableRegistry = namedWriteableRegistry;
     }
 
     @Override
     public void close() {
         allocator.close();
+    }
+
+    public void setTaskResourceTrackingService(TaskResourceTrackingService service) {
+        this.taskResourceTrackingService = service;
     }
 
     public FragmentResources executeFragmentStreaming(FragmentExecutionRequest request, IndexShard shard, AnalyticsShardTask task) {
@@ -102,6 +114,7 @@ public class AnalyticsSearchService implements AutoCloseable {
         SearchExecEngine<ShardScanExecutionContext, EngineResultStream> engine = null;
         EngineResultStream stream = null;
         BackendExecutionContext backendContext = null;
+        Runnable trackerCleanup = null;
         try {
             ShardScanExecutionContext ctx = buildContext(request, gatedReader.get(), resolved.plan, shard, task);
             AnalyticsSearchBackendPlugin backend = backends.get(resolved.plan.getBackendId());
@@ -125,14 +138,33 @@ public class AnalyticsSearchService implements AutoCloseable {
                 AnalyticsSearchBackendPlugin acceptingBackend = backends.get(acceptingBackendId);
                 FilterDelegationHandle handle = acceptingBackend.getFilterDelegationHandle(delegation.delegatedExpressions(), ctx);
                 backend.configureFilterDelegation(handle, backendContext);
+
+                if (task != null && taskResourceTrackingService != null) {
+                    long taskId = task.getId();
+                    TaskResourceTrackingService service = taskResourceTrackingService;
+                    backend.setDelegationThreadTracker(new DelegationThreadTracker() {
+                        @Override
+                        public long trackStart() {
+                            long threadId = Thread.currentThread().threadId();
+                            service.taskExecutionStartedOnThread(taskId, threadId);
+                            return threadId;
+                        }
+
+                        @Override
+                        public void trackEnd(long threadId) {
+                            service.taskExecutionFinishedOnThread(taskId, threadId);
+                        }
+                    });
+                    trackerCleanup = () -> backend.setDelegationThreadTracker(null);
+                }
             }
 
             engine = backend.getSearchExecEngineProvider().createSearchExecEngine(ctx, backendContext);
             stream = engine.execute(ctx);
-            return new FragmentResources(gatedReader, engine, stream);
+            return new FragmentResources(gatedReader, engine, stream, trackerCleanup);
         } catch (Exception e) {
             try {
-                new FragmentResources(gatedReader, engine, stream).close();
+                new FragmentResources(gatedReader, engine, stream, trackerCleanup).close();
             } catch (Exception suppressed) {
                 e.addSuppressed(suppressed);
             }

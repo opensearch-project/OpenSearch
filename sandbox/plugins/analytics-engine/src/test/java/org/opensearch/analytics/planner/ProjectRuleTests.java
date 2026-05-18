@@ -530,8 +530,8 @@ public class ProjectRuleTests extends BasePlannerRulesTests {
     }
 
     /**
-     * Project(Agg(Scan)) — single shard: Project → Aggregate(SINGLE) → Scan.
-     * Multi shard: Project → Aggregate(FINAL) → ExchangeReducer → Aggregate(PARTIAL) → Scan.
+     * Project(Agg(Scan)) — single shard: SOURCE(SINGLETON) scan satisfies the root's
+     * RESULT(SINGLETON) demand, so the aggregate stays SINGLE and no ER is inserted.
      */
     public void testProjectOnAggregateScanSingleShard() {
         RelNode result = runProjectOnAgg(1);
@@ -684,4 +684,5 @@ public class ProjectRuleTests extends BasePlannerRulesTests {
             caps.add(new ProjectCapability.Opaque(name, formats));
         return caps;
     }
+
 }

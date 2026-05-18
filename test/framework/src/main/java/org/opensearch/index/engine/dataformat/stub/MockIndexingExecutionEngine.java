@@ -15,6 +15,7 @@ import org.opensearch.index.engine.dataformat.ReaderManagerConfig;
 import org.opensearch.index.engine.dataformat.RefreshInput;
 import org.opensearch.index.engine.dataformat.RefreshResult;
 import org.opensearch.index.engine.dataformat.Writer;
+import org.opensearch.index.engine.dataformat.WriterConfig;
 import org.opensearch.index.engine.exec.EngineReaderManager;
 import org.opensearch.index.engine.exec.Segment;
 import org.opensearch.index.engine.exec.commit.IndexStoreProvider;
@@ -44,8 +45,8 @@ public class MockIndexingExecutionEngine implements IndexingExecutionEngine<Data
     }
 
     @Override
-    public Writer<MockDocumentInput> createWriter(long writerGeneration) {
-        return new MockWriter(writerGeneration, dataFormat, directory, seqNo);
+    public Writer<MockDocumentInput> createWriter(WriterConfig config) {
+        return new MockWriter(config.writerGeneration(), dataFormat, directory, seqNo);
     }
 
     @Override

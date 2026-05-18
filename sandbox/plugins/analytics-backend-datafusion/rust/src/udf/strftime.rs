@@ -82,7 +82,7 @@ impl ScalarUDFImpl for StrftimeUdf {
             other => return plan_err!("strftime: arg 0 expected numeric/timestamp/date/string, got {other:?}"),
         };
         let format = match &arg_types[1] {
-            DataType::Utf8 | DataType::LargeUtf8 | DataType::Utf8View => DataType::Utf8,
+            t @ (DataType::Utf8 | DataType::LargeUtf8 | DataType::Utf8View) => t.clone(),
             other => return plan_err!("strftime: arg 1 expected string, got {other:?}"),
         };
         Ok(vec![value, format])
@@ -150,24 +150,17 @@ impl ScalarUDFImpl for StrftimeUdf {
 
 fn scalar_utf8(s: &ScalarValue) -> Result<Option<String>> {
     match s {
-        ScalarValue::Utf8(opt) | ScalarValue::LargeUtf8(opt) => Ok(opt.clone()),
+        ScalarValue::Utf8(opt) | ScalarValue::LargeUtf8(opt) | ScalarValue::Utf8View(opt) => {
+            Ok(opt.clone())
+        }
         other => exec_err!("strftime: format must be VARCHAR, got {other:?}"),
     }
 }
 
 fn format_at(array: &ArrayRef, row: usize) -> Result<Option<String>> {
-    let (is_null, value) = match array.data_type() {
-        DataType::Utf8 => {
-            let a = array.as_string::<i32>();
-            (a.is_null(row), a.value(row).to_string())
-        }
-        DataType::LargeUtf8 => {
-            let a = array.as_string::<i64>();
-            (a.is_null(row), a.value(row).to_string())
-        }
-        other => return exec_err!("strftime: expected string format array, got {other:?}"),
-    };
-    Ok(if is_null { None } else { Some(value) })
+    let view = super::json_common::StringArrayView::from_array(array)
+        .map_err(|e| datafusion::common::DataFusionError::Execution(format!("strftime: {e}")))?;
+    Ok(view.cell(row).map(|s| s.to_string()))
 }
 
 fn render_from_seconds(value: f64, format: Option<&str>) -> Option<String> {

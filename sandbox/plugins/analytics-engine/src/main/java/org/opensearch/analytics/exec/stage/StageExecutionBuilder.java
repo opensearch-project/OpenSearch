@@ -57,14 +57,16 @@ public class StageExecutionBuilder {
         registerScheduler(StageExecutionType.SHARD_FRAGMENT, new ShardFragmentStageScheduler(clusterService, dispatcher));
         registerScheduler(StageExecutionType.COORDINATOR_REDUCE, new LocalStageScheduler());
         registerScheduler(StageExecutionType.LOCAL_PASSTHROUGH, (stage, sink, config) -> new PassThroughStageExecution(stage, sink));
+        registerScheduler(StageExecutionType.LOCAL_COMPUTE, new LocalComputeStageScheduler());
     }
 
     /**
-     * Registers a scheduler for a stage execution type. Enables adding new
-     * stage types without modifying this class's constructor.
+     * Registers a scheduler for a stage execution type, replacing any prior registration.
+     * Returns the previously-registered scheduler for {@code type}, or {@code null} —
+     * useful for tests that swap in a faulting scheduler and restore on teardown.
      */
-    public void registerScheduler(StageExecutionType type, StageScheduler scheduler) {
-        schedulers.put(type, scheduler);
+    public StageScheduler registerScheduler(StageExecutionType type, StageScheduler scheduler) {
+        return schedulers.put(type, scheduler);
     }
 
     /**
@@ -88,7 +90,7 @@ public class StageExecutionBuilder {
      */
     public StageExecution buildExecution(Stage stage, StageExecution parentExec, QueryContext config) {
         ExchangeSink sink = switch (stage.getExecutionType()) {
-            case SHARD_FRAGMENT, COORDINATOR_REDUCE, LOCAL_PASSTHROUGH -> resolveRowSink(stage, parentExec);
+            case SHARD_FRAGMENT, COORDINATOR_REDUCE, LOCAL_PASSTHROUGH, LOCAL_COMPUTE -> resolveRowSink(stage, parentExec);
         };
         return buildStageExecution(stage, sink, config);
     }

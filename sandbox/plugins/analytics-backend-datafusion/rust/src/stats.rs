@@ -10,14 +10,14 @@
 //!
 //! ## Struct layout
 //!
-//! | Group             | Type                | Fields |
-//! |-------------------|---------------------|--------|
-//! | `io_runtime`      | `RuntimeMetricsRepr`| 9 × i64 |
-//! | `cpu_runtime`     | `RuntimeMetricsRepr`| 9 × i64 (zeroed if N/A) |
-//! | `query_execution` | `TaskMonitorRepr`   | 3 × i64 |
-//! | `stream_next`     | `TaskMonitorRepr`   | 3 × i64 |
-//! | `fetch_phase`     | `TaskMonitorRepr`   | 3 × i64 |
-//! | `segment_stats`   | `TaskMonitorRepr`   | 3 × i64 |
+//! | Group                | Type                | Fields |
+//! |----------------------|---------------------|--------|
+//! | `io_runtime`         | `RuntimeMetricsRepr`| 9 × i64 |
+//! | `cpu_runtime`        | `RuntimeMetricsRepr`| 9 × i64 (zeroed if N/A) |
+//! | `coordinator_reduce` | `TaskMonitorRepr`   | 3 × i64 |
+//! | `query_execution`    | `TaskMonitorRepr`   | 3 × i64 |
+//! | `stream_next`        | `TaskMonitorRepr`   | 3 × i64 |
+//! | `plan_setup`         | `TaskMonitorRepr`   | 3 × i64 |
 
 use tokio::runtime::Handle;
 use tokio_metrics::{RuntimeMonitor, TaskMonitor};
@@ -62,10 +62,10 @@ pub struct TaskMonitorRepr {
 pub struct DfStatsBuffer {
     pub io_runtime: RuntimeMetricsRepr,
     pub cpu_runtime: RuntimeMetricsRepr,
+    pub coordinator_reduce: TaskMonitorRepr,
     pub query_execution: TaskMonitorRepr,
     pub stream_next: TaskMonitorRepr,
-    pub fetch_phase: TaskMonitorRepr,
-    pub segment_stats: TaskMonitorRepr,
+    pub plan_setup: TaskMonitorRepr,
 }
 
 const _: () = assert!(std::mem::size_of::<RuntimeMetricsRepr>() == 9 * 8);
@@ -144,8 +144,8 @@ pub fn pack_task_monitor(monitor: &TaskMonitor) -> TaskMonitorRepr {
 mod tests {
     use super::*;
     use crate::task_monitors::{
-        query_execution_monitor, stream_next_monitor,
-        fetch_phase_monitor, segment_stats_monitor,
+        coordinator_reduce_monitor, query_execution_monitor,
+        stream_next_monitor, plan_setup_monitor,
     };
 
     #[test]
@@ -217,10 +217,10 @@ mod tests {
         let buf = DfStatsBuffer {
             io_runtime,
             cpu_runtime,
+            coordinator_reduce: pack_task_monitor(coordinator_reduce_monitor()),
             query_execution: pack_task_monitor(query_execution_monitor()),
             stream_next: pack_task_monitor(stream_next_monitor()),
-            fetch_phase: pack_task_monitor(fetch_phase_monitor()),
-            segment_stats: pack_task_monitor(segment_stats_monitor()),
+            plan_setup: pack_task_monitor(plan_setup_monitor()),
         };
 
         assert_eq!(layout::BUFFER_BYTE_SIZE, 240);
@@ -239,7 +239,7 @@ mod tests {
         // Verify that the buffer size assertion holds
         assert_eq!(std::mem::size_of::<DfStatsBuffer>(), 240);
         assert_eq!(layout::BUFFER_BYTE_SIZE, 240);
-        // A buffer smaller than 224 bytes should be rejected by df_stats.
+        // A buffer smaller than 240 bytes should be rejected by df_stats.
         // We can't call df_stats directly without a runtime manager,
         // but we verify the constant is correct.
         assert!(layout::BUFFER_BYTE_SIZE > 0);

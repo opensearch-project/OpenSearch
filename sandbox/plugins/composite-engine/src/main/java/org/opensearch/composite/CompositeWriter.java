@@ -17,6 +17,7 @@ import org.opensearch.index.engine.dataformat.FileInfos;
 import org.opensearch.index.engine.dataformat.IndexingExecutionEngine;
 import org.opensearch.index.engine.dataformat.WriteResult;
 import org.opensearch.index.engine.dataformat.Writer;
+import org.opensearch.index.engine.dataformat.WriterConfig;
 import org.opensearch.index.engine.exec.WriterFileSet;
 
 import java.io.IOException;
@@ -47,6 +48,7 @@ class CompositeWriter implements Writer<CompositeDocumentInput> {
     private final Map<DataFormat, Writer<DocumentInput<?>>> secondaryWritersByFormat;
     private final long writerGeneration;
     private final AtomicReference<WriterState> state;
+    private long mappingVersion;
 
     /**
      * Represents the lifecycle state of a {@link CompositeWriter}.
@@ -75,20 +77,27 @@ class CompositeWriter implements Writer<CompositeDocumentInput> {
      * to the engine's writer pool.
      *
      * @param engine           the composite indexing execution engine
-     * @param writerGeneration the writer generation number
+     * @param config           the writer configuration
      */
     @SuppressWarnings("unchecked")
-    CompositeWriter(CompositeIndexingExecutionEngine engine, long writerGeneration) {
+    CompositeWriter(CompositeIndexingExecutionEngine engine, WriterConfig config) {
         this.state = new AtomicReference<>(WriterState.ACTIVE);
-        this.writerGeneration = writerGeneration;
+        this.writerGeneration = config.writerGeneration();
 
         IndexingExecutionEngine<?, ?> primaryDelegate = engine.getPrimaryDelegate();
         this.primaryFormat = primaryDelegate.getDataFormat();
-        this.primaryWriter = (Writer<DocumentInput<?>>) primaryDelegate.createWriter(writerGeneration);
+        this.primaryWriter = (Writer<DocumentInput<?>>) primaryDelegate.createWriter(config);
+        this.mappingVersion = primaryWriter.mappingVersion();
 
         Map<DataFormat, Writer<DocumentInput<?>>> secondaries = new IdentityHashMap<>();
         for (IndexingExecutionEngine<?, ?> delegate : engine.getSecondaryDelegates()) {
-            secondaries.put(delegate.getDataFormat(), (Writer<DocumentInput<?>>) delegate.createWriter(writerGeneration));
+            Writer<DocumentInput<?>> secondary = (Writer<DocumentInput<?>>) delegate.createWriter(config);
+            assert secondary.isSchemaMutable() && secondary.mappingVersion() >= this.mappingVersion : "Secondary writer mapping version ["
+                + secondary.mappingVersion()
+                + "] must match primary ["
+                + this.mappingVersion
+                + "]";
+            secondaries.put(delegate.getDataFormat(), secondary);
         }
         this.secondaryWritersByFormat = Collections.unmodifiableMap(secondaries);
     }
@@ -179,11 +188,49 @@ class CompositeWriter implements Writer<CompositeDocumentInput> {
     }
 
     @Override
+    public boolean isSchemaMutable() {
+        if (primaryWriter.isSchemaMutable() == false) return false;
+        for (Writer<?> w : secondaryWritersByFormat.values()) {
+            if (w.isSchemaMutable() == false) return false;
+        }
+        return true;
+    }
+
+    @Override
+    public long mappingVersion() {
+        return mappingVersion;
+    }
+
+    @Override
+    public void updateMappingVersion(long newVersion) {
+        if (newVersion > this.mappingVersion) {
+            this.mappingVersion = newVersion;
+            primaryWriter.updateMappingVersion(newVersion);
+            for (Writer<?> w : secondaryWritersByFormat.values()) {
+                w.updateMappingVersion(newVersion);
+            }
+        }
+    }
+
+    @Override
     public void close() throws IOException {
         primaryWriter.close();
         for (Writer<DocumentInput<?>> writer : secondaryWritersByFormat.values()) {
             writer.close();
         }
+    }
+
+    /**
+     * Searches primary and secondary formats by {@link DataFormat#name()}.
+     */
+    @Override
+    public Optional<Writer<?>> getWriterForFormat(String formatName) {
+        if (primaryFormat.name().equals(formatName)) return Optional.of(primaryWriter);
+        return secondaryWritersByFormat.entrySet()
+            .stream()
+            .filter(e -> e.getKey().name().equals(formatName))
+            .<Writer<?>>map(Map.Entry::getValue)
+            .findFirst();
     }
 
     /**

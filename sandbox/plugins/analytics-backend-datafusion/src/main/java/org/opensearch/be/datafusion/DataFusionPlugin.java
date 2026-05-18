@@ -28,6 +28,7 @@ import org.opensearch.index.engine.dataformat.DataFormatRegistry;
 import org.opensearch.index.engine.dataformat.ReaderManagerConfig;
 import org.opensearch.index.engine.exec.EngineReaderManager;
 import org.opensearch.plugins.ActionPlugin;
+import org.opensearch.plugins.NativeStoreHandle;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.SearchBackEndPlugin;
 import org.opensearch.repositories.RepositoriesService;
@@ -173,10 +174,19 @@ public class DataFusionPlugin extends Plugin implements SearchBackEndPlugin<Data
             SimpleExtension.ExtensionCollection scalarExtensions = SimpleExtension.load(List.of("/opensearch_scalar_functions.yaml"));
             SimpleExtension.ExtensionCollection arrayExtensions = SimpleExtension.load(List.of("/opensearch_array_functions.yaml"));
             SimpleExtension.ExtensionCollection aggregateExtensions = SimpleExtension.load(List.of("/opensearch_aggregate_functions.yaml"));
+            // Standard substrait's functions_rounding.yaml only declares ceil/floor for fp;
+            // this supplemental file adds the i32 overloads (which return i32, preserving
+            // PPL's documented "same type as input" contract for ceil(int)/floor(int)). The
+            // transcendental math fns (exp, ln, log10, log2, power) take the
+            // NumericToDoubleAdapter route in DataFusionAnalyticsBackendPlugin instead — they
+            // already return fp64 per PPL docs so widening operands is safe and avoids
+            // proliferating yaml stanzas across every (function, type) pair.
+            SimpleExtension.ExtensionCollection roundingOverloads = SimpleExtension.load(List.of("/opensearch_rounding_overloads.yaml"));
             return DefaultExtensionCatalog.DEFAULT_COLLECTION.merge(delegationExtensions)
                 .merge(scalarExtensions)
                 .merge(arrayExtensions)
-                .merge(aggregateExtensions);
+                .merge(aggregateExtensions)
+                .merge(roundingOverloads);
         } finally {
             t.setContextClassLoader(previous);
         }
@@ -243,7 +253,8 @@ public class DataFusionPlugin extends Plugin implements SearchBackEndPlugin<Data
 
     @Override
     public EngineReaderManager<DatafusionReader> createReaderManager(ReaderManagerConfig settings) throws IOException {
-        return new DatafusionReaderManager(settings.format(), settings.shardPath(), dataFusionService);
+        NativeStoreHandle dataformatAwareStoreHandle = settings.dataformatAwareStoreHandles().get(settings.format());
+        return new DatafusionReaderManager(settings.format(), settings.shardPath(), dataFusionService, dataformatAwareStoreHandle);
     }
 
     @Override

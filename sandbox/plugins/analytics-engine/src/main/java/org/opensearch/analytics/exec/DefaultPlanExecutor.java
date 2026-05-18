@@ -24,12 +24,12 @@ import org.opensearch.analytics.exec.task.AnalyticsQueryTask;
 import org.opensearch.analytics.planner.CapabilityRegistry;
 import org.opensearch.analytics.planner.PlannerContext;
 import org.opensearch.analytics.planner.PlannerImpl;
-import org.opensearch.analytics.planner.dag.AggregateDecompositionResolver;
 import org.opensearch.analytics.planner.dag.BackendPlanAdapter;
 import org.opensearch.analytics.planner.dag.DAGBuilder;
 import org.opensearch.analytics.planner.dag.FragmentConversionDriver;
 import org.opensearch.analytics.planner.dag.PlanForker;
 import org.opensearch.analytics.planner.dag.QueryDAG;
+import org.opensearch.arrow.memory.ArrowAllocatorService;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.inject.Inject;
@@ -76,6 +76,7 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
     private final Executor searchExecutor;
     private final TaskManager taskManager;
     private final NodeClient client;
+    private final ArrowAllocatorService allocatorService;
 
     @Inject
     public DefaultPlanExecutor(
@@ -86,7 +87,8 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
         CapabilityRegistry capabilityRegistry,
         EngineContext engineContext,
         NodeClient client,
-        Scheduler scheduler
+        Scheduler scheduler,
+        ArrowAllocatorService allocatorService
     ) {
         super(AnalyticsQueryAction.NAME, transportService, actionFilters, in -> {
             throw new UnsupportedOperationException("Transport path not implemented yet");
@@ -97,6 +99,7 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
         this.taskManager = transportService.getTaskManager();
         this.client = client;
         this.scheduler = scheduler;
+        this.allocatorService = allocatorService;
     }
 
     @Override
@@ -133,7 +136,6 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
         QueryDAG dag = DAGBuilder.build(plan, capabilityRegistry, clusterService);
         PlanForker.forkAll(dag, capabilityRegistry);
         BackendPlanAdapter.adaptAll(dag, capabilityRegistry);
-        AggregateDecompositionResolver.resolveAll(dag, capabilityRegistry);
         FragmentConversionDriver.convertAll(dag, capabilityRegistry);
         logger.debug("[DefaultPlanExecutor] QueryDAG:\n{}", dag);
 
@@ -145,7 +147,7 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
             "analytics_query",
             new AnalyticsQueryTaskRequest(dag.queryId(), null)
         );
-        final QueryContext config = new QueryContext(dag, searchExecutor, queryTask);
+        final QueryContext config = new QueryContext(dag, searchExecutor, queryTask, allocatorService);
 
         // Per-query cleanup on terminal. Stage-execution cancellation on external
         // task-cancel/timeout is wired inside the Scheduler — on this path the

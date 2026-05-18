@@ -133,6 +133,47 @@ public class LocalStageExecutionTests extends OpenSearchTestCase {
         assertTrue(backend.closed);
     }
 
+    /**
+     * Cascade-driven double-close: a child failure causes failFromChild to close
+     * the backend sink and transition FAILED. A subsequent external cancel (e.g.
+     * task-cancel after the cascade has already failed the stage) must not close
+     * the sink a second time — streaming reduce sinks block on draining the
+     * native pipeline, and concurrent closes serialize on the sink's feedLock.
+     */
+    public void testCancelAfterFailFromChildDoesNotDoubleCloseBackendSink() {
+        CapturingSink backend = new CapturingSink();
+        LocalStageExecution exec = new LocalStageExecution(stageWithId(0), backend, new CapturingSink());
+
+        exec.failFromChild(new RuntimeException("child failed"));
+        assertEquals(StageExecution.State.FAILED, exec.getState());
+        assertEquals("first close fires from failFromChild", 1, backend.closeCount);
+
+        exec.cancel("late external cancel");
+
+        assertEquals("first terminal wins; cancel does not transition", StageExecution.State.FAILED, exec.getState());
+        assertEquals("backend sink close fires exactly once across both calls", 1, backend.closeCount);
+    }
+
+    /**
+     * Symmetric case: external cancel runs first, then a child-failure cascade
+     * fires failFromChild on the already-CANCELLED stage. failFromChild's
+     * transitionTo returns false but must not close the sink a second time.
+     */
+    public void testFailFromChildAfterCancelDoesNotDoubleCloseBackendSink() {
+        CapturingSink backend = new CapturingSink();
+        LocalStageExecution exec = new LocalStageExecution(stageWithId(0), backend, new CapturingSink());
+
+        exec.cancel("external cancel first");
+        assertEquals(StageExecution.State.CANCELLED, exec.getState());
+        assertEquals("first close fires from cancel", 1, backend.closeCount);
+
+        boolean transitioned = exec.failFromChild(new RuntimeException("late child failure"));
+
+        assertFalse("transition rejected — already terminal", transitioned);
+        assertEquals(StageExecution.State.CANCELLED, exec.getState());
+        assertEquals("backend sink close fires exactly once across both calls", 1, backend.closeCount);
+    }
+
     // ── helpers ──────────────────────────────────────────────────────────
 
     private Stage stageWithId(int id) {
@@ -146,6 +187,7 @@ public class LocalStageExecutionTests extends OpenSearchTestCase {
     private static final class CapturingSink implements ExchangeSink {
         final List<VectorSchemaRoot> fed = new ArrayList<>();
         boolean closed = false;
+        int closeCount = 0;
 
         @Override
         public void feed(VectorSchemaRoot batch) {
@@ -155,9 +197,11 @@ public class LocalStageExecutionTests extends OpenSearchTestCase {
         @Override
         public void close() {
             closed = true;
+            closeCount++;
             for (VectorSchemaRoot batch : fed) {
                 batch.close();
             }
+            fed.clear();
         }
     }
 }

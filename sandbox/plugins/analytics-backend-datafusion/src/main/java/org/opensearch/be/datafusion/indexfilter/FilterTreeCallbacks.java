@@ -11,6 +11,7 @@ package org.opensearch.be.datafusion.indexfilter;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.opensearch.analytics.spi.DelegationThreadTracker;
 import org.opensearch.analytics.spi.FilterDelegationHandle;
 
 import java.lang.foreign.MemorySegment;
@@ -35,6 +36,7 @@ public final class FilterTreeCallbacks {
     private static final Logger LOGGER = LogManager.getLogger(FilterTreeCallbacks.class);
 
     private static final AtomicReference<FilterDelegationHandle> HANDLE = new AtomicReference<>();
+    private static final AtomicReference<DelegationThreadTracker> TRACKER = new AtomicReference<>();
 
     private FilterTreeCallbacks() {}
 
@@ -47,12 +49,31 @@ public final class FilterTreeCallbacks {
         HANDLE.set(handle);
     }
 
+    /**
+     * Install or clear the thread tracker for resource attribution.
+     */
+    public static void setThreadTracker(DelegationThreadTracker tracker) {
+        TRACKER.set(tracker);
+    }
+
+    private static long trackStart() {
+        DelegationThreadTracker t = TRACKER.get();
+        return (t != null) ? t.trackStart() : -1;
+    }
+
+    private static void trackEnd(long threadId) {
+        if (threadId < 0) return;
+        DelegationThreadTracker t = TRACKER.get();
+        if (t != null) t.trackEnd(threadId);
+    }
+
     // ── Provider lifecycle (cold path, once per query) ────────────────
 
     /**
      * {@code createProvider(annotationId) -> providerKey|-1}.
      */
     public static int createProvider(int annotationId) {
+        long tid = trackStart();
         try {
             FilterDelegationHandle handle = HANDLE.get();
             if (handle == null) {
@@ -62,6 +83,8 @@ public final class FilterTreeCallbacks {
         } catch (Throwable throwable) {
             LOGGER.error("createProvider failed for annotationId=" + annotationId, throwable);
             return -1;
+        } finally {
+            trackEnd(tid);
         }
     }
 
@@ -82,27 +105,32 @@ public final class FilterTreeCallbacks {
     // ── Collector lifecycle (hot path, per segment per query) ─────────
 
     /**
-     * {@code createCollector(providerKey, segmentOrd, minDoc, maxDoc) -> collectorKey|-1}.
+     * {@code createCollector(providerKey, writerGeneration, minDoc, maxDoc) -> collectorKey|-1}.
+     *
+     * <p>Segments are identified by writer generation
      */
-    public static int createCollector(int providerKey, int segmentOrd, int minDoc, int maxDoc) {
+    public static int createCollector(int providerKey, long writerGeneration, int minDoc, int maxDoc) {
+        long tid = trackStart();
         try {
             FilterDelegationHandle handle = HANDLE.get();
             if (handle == null) {
                 return -1;
             }
-            return handle.createCollector(providerKey, segmentOrd, minDoc, maxDoc);
+            return handle.createCollector(providerKey, writerGeneration, minDoc, maxDoc);
         } catch (Throwable throwable) {
             LOGGER.error(
                 new ParameterizedMessage(
-                    "createCollector(providerKey={}, seg={}, [{}, {})) failed",
+                    "createCollector(providerKey={}, writerGeneration={}, [{}, {})) failed",
                     providerKey,
-                    segmentOrd,
+                    writerGeneration,
                     minDoc,
                     maxDoc
                 ),
                 throwable
             );
             return -1;
+        } finally {
+            trackEnd(tid);
         }
     }
 
@@ -110,6 +138,7 @@ public final class FilterTreeCallbacks {
      * {@code collectDocs(collectorKey, minDoc, maxDoc, outPtr, outWordCap) -> wordsWritten|-1}.
      */
     public static long collectDocs(int collectorKey, int minDoc, int maxDoc, MemorySegment outPtr, long outWordCap) {
+        long tid = trackStart();
         try {
             FilterDelegationHandle handle = HANDLE.get();
             if (handle == null) {
@@ -125,6 +154,8 @@ public final class FilterTreeCallbacks {
                 throwable
             );
             return -1L;
+        } finally {
+            trackEnd(tid);
         }
     }
 

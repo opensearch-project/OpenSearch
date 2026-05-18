@@ -14,16 +14,17 @@
 use std::any::Any;
 use std::sync::Arc;
 
-use datafusion::arrow::array::{Array, ArrayRef, Int32Builder, StringArray};
+use datafusion::arrow::array::{ArrayRef, Int32Builder};
 use datafusion::arrow::datatypes::DataType;
 use datafusion::common::{plan_err, ScalarValue};
-use datafusion::error::{DataFusionError, Result};
+use datafusion::error::Result;
 use datafusion::execution::context::SessionContext;
 use datafusion::logical_expr::{
     ColumnarValue, ScalarFunctionArgs, ScalarUDF, ScalarUDFImpl, Signature, Volatility,
 };
 use serde_json::Value;
 
+use super::json_common::StringArrayView;
 use super::{coerce_args, CoerceMode};
 
 pub fn register_all(ctx: &SessionContext) {
@@ -37,7 +38,6 @@ pub struct JsonArrayLengthUdf {
 
 impl JsonArrayLengthUdf {
     pub fn new() -> Self {
-        // user_defined + coerce_types lets DF cast LargeUtf8 / Utf8View → Utf8.
         Self {
             signature: Signature::user_defined(Volatility::Immutable),
         }
@@ -100,20 +100,11 @@ impl ScalarUDFImpl for JsonArrayLengthUdf {
         }
 
         let arr = args.args[0].clone().into_array(n)?;
-        let strings = arr.as_any().downcast_ref::<StringArray>().ok_or_else(|| {
-            DataFusionError::Internal(format!(
-                "json_array_length: expected Utf8, got {:?}",
-                arr.data_type()
-            ))
-        })?;
+        let strings = StringArrayView::from_array(&arr)?;
 
         let mut builder = Int32Builder::with_capacity(n);
         for i in 0..n {
-            if strings.is_null(i) {
-                builder.append_null();
-                continue;
-            }
-            match json_array_len(strings.value(i)) {
+            match strings.cell(i).and_then(json_array_len) {
                 Some(len) => builder.append_value(len),
                 None => builder.append_null(),
             }
@@ -137,7 +128,7 @@ fn json_array_len(s: &str) -> Option<i32> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use datafusion::arrow::array::Int32Array;
+    use datafusion::arrow::array::{Array, Int32Array, StringArray};
     use datafusion::arrow::datatypes::Field;
 
     #[test]
@@ -162,22 +153,6 @@ mod tests {
         assert_eq!(json_array_len("not-json"), None);
         assert_eq!(json_array_len("[1,2"), None);
         assert_eq!(json_array_len(""), None);
-    }
-
-    #[test]
-    fn coerce_types_accepts_string_variants() {
-        let udf = JsonArrayLengthUdf::new();
-        for t in [DataType::Utf8, DataType::LargeUtf8, DataType::Utf8View] {
-            let out = udf.coerce_types(std::slice::from_ref(&t)).unwrap();
-            assert_eq!(out, vec![DataType::Utf8], "input {t:?} should coerce to Utf8");
-        }
-    }
-
-    #[test]
-    fn coerce_types_rejects_non_string() {
-        let udf = JsonArrayLengthUdf::new();
-        let err = udf.coerce_types(&[DataType::Int64]).unwrap_err();
-        assert!(err.to_string().contains("expected string"));
     }
 
     #[test]

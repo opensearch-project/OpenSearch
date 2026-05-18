@@ -15,6 +15,7 @@ import org.opensearch.be.datafusion.stats.TaskMonitorStats;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.nativebridge.spi.NativeCall;
 import org.opensearch.nativebridge.spi.NativeLibraryLoader;
+import org.opensearch.plugins.NativeStoreHandle;
 
 import java.lang.foreign.FunctionDescriptor;
 import java.lang.foreign.Linker;
@@ -22,6 +23,7 @@ import java.lang.foreign.SymbolLookup;
 import java.lang.foreign.ValueLayout;
 import java.lang.invoke.MethodHandle;
 import java.util.LinkedHashMap;
+import java.util.List;
 
 /**
  * FFM bridge to native DataFusion library.
@@ -136,11 +138,13 @@ public final class NativeBridge {
             lib.find("df_create_reader").orElseThrow(),
             FunctionDescriptor.of(
                 ValueLayout.JAVA_LONG,
-                ValueLayout.ADDRESS,
-                ValueLayout.JAVA_LONG,
-                ValueLayout.ADDRESS,
-                ValueLayout.ADDRESS,
-                ValueLayout.JAVA_LONG
+                ValueLayout.ADDRESS,    // table_path_ptr
+                ValueLayout.JAVA_LONG,  // table_path_len
+                ValueLayout.ADDRESS,    // files_ptr
+                ValueLayout.ADDRESS,    // files_len_ptr
+                ValueLayout.ADDRESS,    // writer_generations_ptr
+                ValueLayout.JAVA_LONG,   // count (applies to all three parallel arrays)
+                ValueLayout.JAVA_LONG // object store ptr
             )
         );
 
@@ -203,7 +207,9 @@ public final class NativeBridge {
             FunctionDescriptor.ofVoid(ValueLayout.JAVA_LONG)
         );
 
-        // i64 df_register_partition_stream(session_ptr, input_id_ptr, input_id_len, schema_ipc_ptr, schema_ipc_len)
+        // i64 df_register_partition_stream(session_ptr, input_id_ptr, input_id_len,
+        // partial_plan_ptr, partial_plan_len,
+        // out_ptr, out_cap, out_len)
         REGISTER_PARTITION_STREAM = linker.downcallHandle(
             lib.find("df_register_partition_stream").orElseThrow(),
             FunctionDescriptor.of(
@@ -212,7 +218,10 @@ public final class NativeBridge {
                 ValueLayout.ADDRESS,
                 ValueLayout.JAVA_LONG,
                 ValueLayout.ADDRESS,
-                ValueLayout.JAVA_LONG
+                ValueLayout.JAVA_LONG,
+                ValueLayout.ADDRESS,
+                ValueLayout.JAVA_LONG,
+                ValueLayout.ADDRESS
             )
         );
 
@@ -231,8 +240,10 @@ public final class NativeBridge {
         // void df_sender_close(sender_ptr)
         SENDER_CLOSE = linker.downcallHandle(lib.find("df_sender_close").orElseThrow(), FunctionDescriptor.ofVoid(ValueLayout.JAVA_LONG));
 
-        // i64 df_register_memtable(session_ptr, input_id_ptr, input_id_len, schema_ipc_ptr, schema_ipc_len,
-        // array_ptrs, schema_ptrs, n_batches)
+        // i64 df_register_memtable(session_ptr, input_id_ptr, input_id_len,
+        // partial_plan_ptr, partial_plan_len,
+        // array_ptrs, schema_ptrs, n_batches,
+        // out_ptr, out_cap, out_len)
         REGISTER_MEMTABLE = linker.downcallHandle(
             lib.find("df_register_memtable").orElseThrow(),
             FunctionDescriptor.of(
@@ -244,7 +255,10 @@ public final class NativeBridge {
                 ValueLayout.JAVA_LONG,
                 ValueLayout.ADDRESS,
                 ValueLayout.ADDRESS,
-                ValueLayout.JAVA_LONG
+                ValueLayout.JAVA_LONG,
+                ValueLayout.ADDRESS,
+                ValueLayout.JAVA_LONG,
+                ValueLayout.ADDRESS
             )
         );
 
@@ -434,7 +448,7 @@ public final class NativeBridge {
             MethodHandle createCollector = lookup.findStatic(
                 cb,
                 "createCollector",
-                java.lang.invoke.MethodType.methodType(int.class, int.class, int.class, int.class, int.class)
+                java.lang.invoke.MethodType.methodType(int.class, int.class, long.class, int.class, int.class)
             );
             MethodHandle collectDocs = lookup.findStatic(
                 cb,
@@ -469,7 +483,7 @@ public final class NativeBridge {
                 FunctionDescriptor.of(
                     ValueLayout.JAVA_INT,
                     ValueLayout.JAVA_INT,
-                    ValueLayout.JAVA_INT,
+                    ValueLayout.JAVA_LONG,
                     ValueLayout.JAVA_INT,
                     ValueLayout.JAVA_INT
                 ),
@@ -562,12 +576,32 @@ public final class NativeBridge {
     /**
      * Creates a native reader. Returns an opaque native pointer.
      * Freed by {@link #closeDatafusionReader}.
+     *
+     * @param path     shard data directory
+     * @param segments per-segment metadata — each carries a single filename and writer generation
+     * @param dataformatAwareStoreHandle per-format native store handle (null = local, live = use store pointer)
      */
-    public static long createDatafusionReader(String path, String[] files) {
+    public static long createDatafusionReader(
+        String path,
+        List<org.opensearch.index.engine.exec.MonoFileWriterSet> segments,
+        NativeStoreHandle dataformatAwareStoreHandle
+    ) {
+        long storePtr = 0L;
+        if (dataformatAwareStoreHandle != null) {
+            try {
+                storePtr = dataformatAwareStoreHandle.getPointer();
+            } catch (IllegalStateException e) {
+                // Handle closed between check and extraction — use default (local)
+                storePtr = 0L;
+            }
+        }
         try (var call = new NativeCall()) {
             var p = call.str(path);
-            var f = call.strArray(files);
-            return call.invoke(CREATE_READER, p.segment(), p.len(), f.ptrs(), f.lens(), f.count());
+            var f = call.strArray(segments.stream().map(org.opensearch.index.engine.exec.MonoFileWriterSet::file).toArray(String[]::new));
+            var gens = call.longs(
+                segments.stream().mapToLong(org.opensearch.index.engine.exec.MonoFileWriterSet::writerGeneration).toArray()
+            );
+            return call.invoke(CREATE_READER, p.segment(), p.len(), f.ptrs(), f.lens(), gens, f.count(), storePtr);
         }
     }
 
@@ -703,6 +737,16 @@ public final class NativeBridge {
     // ---- Coordinator-reduce exports ----
 
     /**
+     * Pair returned from {@link #registerPartitionStream} / {@link #registerMemtable}: the
+     * native sender pointer (or 0 for memtable) plus the Arrow IPC-encoded schema the native
+     * session derived by lowering the producer-side substrait. The Java tripwire
+     * ({@code typesMatch} in {@code DatafusionReduceSink}) validates fed batches against this
+     * schema, and downstream callers decode it once into an Arrow {@link org.apache.arrow.vector.types.pojo.Schema}.
+     */
+    public record RegisteredInput(long pointer, byte[] schemaIpc) {
+    }
+
+    /**
      * Creates a local DataFusion session tied to the given global runtime. Returns an opaque
      * native pointer freed by {@link #closeLocalSession}.
      */
@@ -719,21 +763,28 @@ public final class NativeBridge {
     }
 
     /**
-     * Registers an input partition stream on the session under {@code inputId}, with the given
-     * Arrow IPC-encoded schema. Returns an opaque sender pointer freed by {@link #senderClose}.
+     * Registers an input partition stream on the session under {@code inputId}, deriving the
+     * input schema by lowering the producer-side {@code partialPlanBytes}. Returns the native
+     * sender pointer (freed by {@link #senderClose}) and the Arrow IPC-encoded schema the
+     * native session settled on after lowering.
      */
-    public static long registerPartitionStream(long sessionPtr, String inputId, byte[] schemaIpc) {
+    public static RegisteredInput registerPartitionStream(long sessionPtr, String inputId, byte[] partialPlanBytes) {
         NativeHandle.validatePointer(sessionPtr, "session");
         try (var call = new NativeCall()) {
             var id = call.str(inputId);
-            return call.invoke(
+            var out = call.outBuffer(64 * 1024);
+            long ptr = call.invoke(
                 REGISTER_PARTITION_STREAM,
                 sessionPtr,
                 id.segment(),
                 id.len(),
-                call.bytes(schemaIpc),
-                (long) schemaIpc.length
+                call.bytes(partialPlanBytes),
+                (long) partialPlanBytes.length,
+                out.data(),
+                (long) out.capacity(),
+                out.lenOut()
             );
+            return new RegisteredInput(ptr, out.toByteArray());
         }
     }
 
@@ -774,10 +825,21 @@ public final class NativeBridge {
 
     /**
      * Memtable variant of {@link #registerPartitionStream}: hands across a list of
-     * already-exported Arrow C Data batches in two parallel pointer arrays so the native side can
-     * build a {@code MemTable} in one shot. Native takes ownership of all FFI structs on success.
+     * already-exported Arrow C Data batches in two parallel pointer arrays so the native side
+     * can build a {@code MemTable} in one shot. Schema is derived by lowering the producer-side
+     * {@code partialPlanBytes}; native takes ownership of all FFI structs on success.
+     *
+     * <p>Returns a {@link RegisteredInput} whose {@code pointer} field is always 0 (memtable
+     * registration has no sender to return) — the {@code schemaIpc} field carries the schema
+     * the native session settled on after lowering.
      */
-    public static long registerMemtable(long sessionPtr, String inputId, byte[] schemaIpc, long[] arrayPtrs, long[] schemaPtrs) {
+    public static RegisteredInput registerMemtable(
+        long sessionPtr,
+        String inputId,
+        byte[] partialPlanBytes,
+        long[] arrayPtrs,
+        long[] schemaPtrs
+    ) {
         NativeHandle.validatePointer(sessionPtr, "session");
         if (arrayPtrs.length != schemaPtrs.length) {
             throw new IllegalArgumentException(
@@ -786,17 +848,22 @@ public final class NativeBridge {
         }
         try (var call = new NativeCall()) {
             var id = call.str(inputId);
-            return call.invoke(
+            var out = call.outBuffer(64 * 1024);
+            long ptr = call.invoke(
                 REGISTER_MEMTABLE,
                 sessionPtr,
                 id.segment(),
                 id.len(),
-                call.bytes(schemaIpc),
-                (long) schemaIpc.length,
+                call.bytes(partialPlanBytes),
+                (long) partialPlanBytes.length,
                 call.longs(arrayPtrs),
                 call.longs(schemaPtrs),
-                (long) arrayPtrs.length
+                (long) arrayPtrs.length,
+                out.data(),
+                (long) out.capacity(),
+                out.lenOut()
             );
+            return new RegisteredInput(ptr, out.toByteArray());
         }
     }
 

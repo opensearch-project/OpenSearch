@@ -8,11 +8,6 @@
 
 package org.opensearch.be.datafusion;
 
-import org.apache.calcite.plan.RelOptCluster;
-import org.apache.calcite.rel.type.RelDataType;
-import org.apache.calcite.rel.type.RelDataTypeFactory;
-import org.apache.calcite.rex.RexCall;
-import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.sql.SqlFunction;
 import org.apache.calcite.sql.SqlFunctionCategory;
 import org.apache.calcite.sql.SqlKind;
@@ -22,12 +17,9 @@ import org.apache.calcite.sql.type.ReturnTypes;
 import org.apache.calcite.sql.type.SqlOperandTypeChecker;
 import org.apache.calcite.sql.type.SqlReturnTypeInference;
 import org.apache.calcite.sql.type.SqlTypeFamily;
-import org.apache.calcite.sql.type.SqlTypeName;
 import org.opensearch.analytics.spi.AbstractNameMappingAdapter;
-import org.opensearch.analytics.spi.FieldStorageInfo;
-import org.opensearch.analytics.spi.ScalarFunctionAdapter;
+import org.opensearch.analytics.spi.NumericToDoubleAdapter;
 
-import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -79,47 +71,6 @@ final class RustUdfDateTimeAdapters {
     static final class StrToDateAdapter extends AbstractNameMappingAdapter {
         StrToDateAdapter() {
             super(LOCAL_STR_TO_DATE_OP, List.of(), List.of());
-        }
-    }
-
-    /**
-     * Casts numeric operands to DOUBLE before rewriting: the YAML declares one
-     * fp64-only impl per function, so PPL integer literals (e.g. {@code makedate(2020, 1)})
-     * must be widened before the substrait converter binds them to a signature.
-     */
-    private abstract static class NumericToDoubleAdapter implements ScalarFunctionAdapter {
-        private final SqlOperator target;
-
-        NumericToDoubleAdapter(SqlOperator target) {
-            this.target = target;
-        }
-
-        @Override
-        public RexNode adapt(RexCall original, List<FieldStorageInfo> fieldStorage, RelOptCluster cluster) {
-            List<RexNode> rewritten = new ArrayList<>(original.getOperands().size());
-            for (RexNode operand : original.getOperands()) {
-                rewritten.add(widenToDoubleIfNumeric(operand, cluster));
-            }
-            return cluster.getRexBuilder().makeCall(original.getType(), target, rewritten);
-        }
-
-        private static RexNode widenToDoubleIfNumeric(RexNode operand, RelOptCluster cluster) {
-            SqlTypeName type = operand.getType().getSqlTypeName();
-            if (type == SqlTypeName.DOUBLE) {
-                return operand;
-            }
-            if (SqlTypeName.INT_TYPES.contains(type)
-                || type == SqlTypeName.FLOAT
-                || type == SqlTypeName.REAL
-                || type == SqlTypeName.DECIMAL) {
-                RelDataTypeFactory factory = cluster.getTypeFactory();
-                RelDataType doubleType = factory.createTypeWithNullability(
-                    factory.createSqlType(SqlTypeName.DOUBLE),
-                    operand.getType().isNullable()
-                );
-                return cluster.getRexBuilder().makeCast(doubleType, operand);
-            }
-            return operand;
         }
     }
 

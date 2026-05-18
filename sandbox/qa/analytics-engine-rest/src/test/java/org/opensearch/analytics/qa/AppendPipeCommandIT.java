@@ -55,6 +55,7 @@ public class AppendPipeCommandIT extends AnalyticsRestTestCase {
 
     // ── duplicate + inline sort, then head ──────────────────────────────────────
 
+    @org.apache.lucene.tests.util.LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/pull/21626")
     public void testAppendPipeSort() throws IOException {
         // Branch: stats sum(int0) by str0 → 3 rows (FURNITURE=1, OFFICE SUPPLIES=18, TECHNOLOGY=49).
         // `appendpipe [sort -sum_int0_by_str0]` duplicates them desc-sorted and appends. `head 5`
