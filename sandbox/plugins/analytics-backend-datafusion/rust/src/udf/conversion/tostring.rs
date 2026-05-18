@@ -194,7 +194,7 @@ fn format_at(format_col: &ColumnarValue, row: usize) -> Result<Option<String>> {
             exec_err!("tostring: format must be VARCHAR, got {other:?}")
         }
         ColumnarValue::Array(arr) => {
-            let view = super::json_common::StringArrayView::from_array(arr)
+            let view = crate::udf::json_common::StringArrayView::from_array(arr)
                 .map_err(|e| datafusion::common::DataFusionError::Execution(format!("tostring: {e}")))?;
             Ok(view.cell(row).map(|s| s.to_string()))
         }
