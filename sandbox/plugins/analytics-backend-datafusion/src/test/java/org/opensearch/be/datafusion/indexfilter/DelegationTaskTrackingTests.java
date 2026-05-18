@@ -220,7 +220,7 @@ public class DelegationTaskTrackingTests extends OpenSearchTestCase {
         }
 
         @Override
-        public int createCollector(int providerKey, int segmentOrd, int minDoc, int maxDoc) {
+        public int createCollector(int providerKey, long writerGeneration, int minDoc, int maxDoc) {
             return nextKey++;
         }
 

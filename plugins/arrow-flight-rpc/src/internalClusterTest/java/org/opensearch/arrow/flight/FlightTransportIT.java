@@ -8,6 +8,7 @@
 
 package org.opensearch.arrow.flight;
 
+import org.opensearch.Version;
 import org.opensearch.action.admin.indices.create.CreateIndexRequest;
 import org.opensearch.action.admin.indices.create.CreateIndexResponse;
 import org.opensearch.action.admin.indices.refresh.RefreshRequest;
@@ -16,16 +17,18 @@ import org.opensearch.action.bulk.BulkResponse;
 import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.arrow.flight.transport.FlightStreamPlugin;
+import org.opensearch.arrow.plugin.ArrowBasePlugin;
 import org.opensearch.common.action.ActionFuture;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.plugins.Plugin;
+import org.opensearch.plugins.PluginInfo;
 import org.opensearch.search.SearchHit;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.util.Collection;
-import java.util.Collections;
+import java.util.List;
 
 import static org.opensearch.common.util.FeatureFlags.STREAM_TRANSPORT;
 
@@ -34,7 +37,24 @@ public class FlightTransportIT extends OpenSearchIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.singleton(FlightStreamPlugin.class);
+        return List.of(ArrowBasePlugin.class);
+    }
+
+    @Override
+    protected Collection<PluginInfo> additionalNodePlugins() {
+        return List.of(
+            new PluginInfo(
+                FlightStreamPlugin.class.getName(),
+                "classpath plugin",
+                "NA",
+                Version.CURRENT,
+                "1.8",
+                FlightStreamPlugin.class.getName(),
+                null,
+                List.of(ArrowBasePlugin.class.getName()),
+                false
+            )
+        );
     }
 
     @Override

@@ -25,6 +25,7 @@ pub fn merge_unsorted(
     input_files: &[String],
     output_path: &str,
     index_name: &str,
+    output_writer_generation: i64,
 ) -> MergeResult<super::MergeOutput> {
     let config = crate::writer::SETTINGS_STORE
         .get(index_name)
@@ -75,6 +76,7 @@ pub fn merge_unsorted(
         output_flush_rows,
         rayon_threads,
         io_threads,
+        output_writer_generation,
     )?;
 
     // Precompute column mappings per reader

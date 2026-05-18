@@ -81,6 +81,16 @@ task buildRustLibrary(type: Exec) {
     inputs.files fileTree("${rustWorkspaceDir}/common/src")
     inputs.files fileTree("${rustWorkspaceDir}/lib/src")
     inputs.file "${rustWorkspaceDir}/Cargo.toml"
+    // Track all workspace member Rust sources so changes to plugin crates (e.g.,
+    // analytics-backend-datafusion/rust/src/ffm.rs) invalidate the cached build.
+    inputs.files fileTree("${projectDir}/../../plugins/analytics-backend-datafusion/rust/src")
+    inputs.files fileTree("${projectDir}/../../plugins/parquet-data-format/src/main/rust/src")
+    inputs.files fileTree("${projectDir}/../../plugins/native-repository-s3/src/main/rust/src")
+    inputs.files fileTree("${projectDir}/../../plugins/native-repository-gcs/src/main/rust/src")
+    inputs.files fileTree("${projectDir}/../../plugins/native-repository-azure/src/main/rust/src")
+    inputs.files fileTree("${projectDir}/../../plugins/native-repository-fs/src/main/rust/src")
+    inputs.files fileTree("${projectDir}/../../libs/tiered-storage/src/main/rust/src")
+    inputs.files fileTree("${projectDir}/../../plugins/block-cache-foyer/src/main/rust/src")
     outputs.file nativeLibFile
 }
 

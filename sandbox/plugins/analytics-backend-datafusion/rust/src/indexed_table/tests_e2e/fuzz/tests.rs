@@ -196,3 +196,19 @@ async fn fuzz_clustered_nulls() {
 async fn fuzz_multi_column_or() {
     run_fuzz("fuzz_multi_column_or", 50, FixtureConfig::multi_column_or).await;
 }
+
+/// Block-granular dense: 200k rows in 100k-row RGs with 50% collector
+/// density. Auto strategy picks block-granular `min_skip_run` (selectivity
+/// well above 3% threshold), and the large RGs ensure real skip runs
+/// (> 1024 rows) survive coalescing. This is the production regime for
+/// wide-selectivity queries and catches mask-alignment bugs between
+/// `prefetch_mask_buffer` and `PositionMap` in `finalize_batch`.
+#[tokio::test(flavor = "multi_thread")]
+async fn fuzz_block_granular_dense() {
+    run_fuzz(
+        "fuzz_block_granular_dense",
+        50,
+        FixtureConfig::block_granular_dense,
+    )
+    .await;
+}

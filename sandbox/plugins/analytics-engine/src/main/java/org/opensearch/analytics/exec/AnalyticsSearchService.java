@@ -23,7 +23,7 @@ import org.opensearch.analytics.spi.FilterDelegationHandle;
 import org.opensearch.analytics.spi.FragmentInstructionHandler;
 import org.opensearch.analytics.spi.FragmentInstructionHandlerFactory;
 import org.opensearch.analytics.spi.InstructionNode;
-import org.opensearch.arrow.flight.transport.ArrowAllocatorProvider;
+import org.opensearch.arrow.memory.ArrowAllocatorService;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.tasks.TaskCancelledException;
@@ -47,7 +47,7 @@ import java.util.Map;
  * {@link IndexShard} from the transport action.
  *
  * <p>Owns a service-lifetime {@link BufferAllocator} shared by every fragment, obtained as a child of the
- * node-level root via {@link ArrowAllocatorProvider}. One allocator per service means memory accounting is
+ * node-level root via {@link ArrowAllocatorService}. One allocator per service means memory accounting is
  * reported at the service level. For the streaming path, Arrow Flight's outbound handler co-locates its
  * transfer target on the same root (see {@code FlightOutboundHandler#processBatchTask}), keeping transfers
  * same-root and avoiding the known cross-allocator bug with foreign-backed buffers from the C Data Interface.
@@ -58,26 +58,31 @@ public class AnalyticsSearchService implements AutoCloseable {
 
     private final Map<String, AnalyticsSearchBackendPlugin> backends;
     private final AnalyticsOperationListener listener;
-    private final BufferAllocator allocator;
     private final NamedWriteableRegistry namedWriteableRegistry;
     private TaskResourceTrackingService taskResourceTrackingService;
+    private final BufferAllocator allocator;
 
-    public AnalyticsSearchService(Map<String, AnalyticsSearchBackendPlugin> backends) {
-        this(backends, List.of(), null);
+    public AnalyticsSearchService(Map<String, AnalyticsSearchBackendPlugin> backends, ArrowAllocatorService allocatorService) {
+        this(backends, List.of(), allocatorService, null);
     }
 
-    public AnalyticsSearchService(Map<String, AnalyticsSearchBackendPlugin> backends, NamedWriteableRegistry namedWriteableRegistry) {
-        this(backends, List.of(), namedWriteableRegistry);
+    public AnalyticsSearchService(
+        Map<String, AnalyticsSearchBackendPlugin> backends,
+        ArrowAllocatorService allocatorService,
+        NamedWriteableRegistry namedWriteableRegistry
+    ) {
+        this(backends, List.of(), allocatorService, namedWriteableRegistry);
     }
 
     public AnalyticsSearchService(
         Map<String, AnalyticsSearchBackendPlugin> backends,
         List<AnalyticsOperationListener> listeners,
+        ArrowAllocatorService allocatorService,
         NamedWriteableRegistry namedWriteableRegistry
     ) {
         this.backends = backends;
         this.listener = new AnalyticsOperationListener.CompositeListener(listeners);
-        this.allocator = ArrowAllocatorProvider.newChildAllocator("analytics-search-service", Long.MAX_VALUE);
+        this.allocator = allocatorService.newChildAllocator("analytics-search-service", Long.MAX_VALUE);
         this.namedWriteableRegistry = namedWriteableRegistry;
     }
 
