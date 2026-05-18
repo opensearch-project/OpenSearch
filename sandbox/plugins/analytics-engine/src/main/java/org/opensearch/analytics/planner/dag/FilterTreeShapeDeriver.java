@@ -22,6 +22,24 @@ import org.opensearch.analytics.spi.FilterTreeShape;
  * <p>Single-pass walk: determines both whether delegation exists and whether the tree
  * is mixed (delegated + driving-backend predicates interleaved under OR/NOT).
  *
+ * <p><b>Tree shape this walks.</b> {@code OpenSearchFilterRule#annotateCondition}
+ * wraps only the leaf predicate {@code RexCall}s in an {@code AnnotatedPredicate};
+ * AND/OR/NOT combinators stay as plain {@code RexCall}s. So for
+ * {@code WHERE NOT match(message, 'hello')}:
+ *
+ * <pre>
+ *   Before marking:                        After marking:
+ *   RexCall(NOT)                           RexCall(NOT)                       ← unchanged
+ *     └─ RexCall(MATCH, [...])               └─ AnnotatedPredicate(...)       ← leaf wrapped
+ *                                                   └─ original = RexCall(MATCH, [...])
+ * </pre>
+ *
+ * <p>Parents and grandparents of an annotated leaf stay un-annotated — only the
+ * deepest predicate {@code RexCall} is wrapped. Walkers must check
+ * {@code instanceof AnnotatedPredicate} <i>before</i> {@code instanceof RexCall}
+ * because {@code AnnotatedPredicate} extends {@code RexCall}; otherwise the leaf
+ * is misclassified as a combinator.
+ *
  * @opensearch.internal
  */
 final class FilterTreeShapeDeriver {

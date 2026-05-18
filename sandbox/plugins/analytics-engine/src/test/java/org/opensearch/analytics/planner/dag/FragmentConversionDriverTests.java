@@ -756,7 +756,16 @@ public class FragmentConversionDriverTests extends BasePlannerRulesTests {
         RexNode condition = makeAnd(makeEquals(2, SqlTypeName.INTEGER, 200), orClause);
         QueryDAG dag = buildTwoFieldDelegationDag(condition, dfConvertor, serializer);
         StagePlan plan = leafStage(dag).getPlanAlternatives().getFirst();
-        assertDelegationResult(plan, dfConvertor, serializer, 2, true, true, List.of("MATCH_PHRASE", "FUZZY"), FilterTreeShape.CONJUNCTIVE);
+        assertDelegationResult(
+            plan,
+            dfConvertor,
+            serializer,
+            2,
+            true,
+            true,
+            List.of("MATCH_PHRASE", "FUZZY"),
+            FilterTreeShape.INTERLEAVED_BOOLEAN_EXPRESSION
+        );
         String strippedPlan = RelOptUtil.toString(dfConvertor.shardScanFragment);
         assertTrue("AND structure should be preserved", strippedPlan.contains("AND"));
         assertTrue("OR structure should be preserved", strippedPlan.contains("OR"));
