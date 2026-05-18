@@ -10,7 +10,7 @@
 //! becomes one parquet file and one `SegmentFileInfo`. This module exercises:
 //!
 //! - Two segments in one shard (different content, same schema).
-//! - `segment_ord != 0` propagation through collectors.
+//! - `writer_generation != 0` propagation through collectors.
 //! - Partition assignment spanning multiple segments (`compute_assignments`
 //!   emits multi-chunk partitions → `UnionExec + CoalescePartitionsExec`
 //!   wrapper path in `QueryShardExec::execute`).
@@ -65,8 +65,8 @@ fn write_segment_rg(
     tmp
 }
 
-/// A collector whose matching set is parameterised by segment_ord: it records
-/// the ords it was built for so tests can confirm the evaluator factory called
+/// A collector whose matching set is parameterised by writer_generation: it records
+/// the generations it was built for so tests can confirm the evaluator factory called
 /// us with the right per-segment identity.
 #[derive(Debug)]
 struct PerSegmentCollector {
@@ -88,7 +88,7 @@ impl RowGroupDocsCollector for PerSegmentCollector {
 }
 
 /// Build the 2-segment table provider. Each segment gets its own matching
-/// set indexed by `segment_ord` (caller supplies one Vec<i32> per segment).
+/// set indexed by `writer_generation` (caller supplies one Vec<i32> per segment).
 async fn run_two_segment_query(
     per_segment_matches: Vec<Vec<i32>>,
     num_partitions: usize,
@@ -123,7 +123,7 @@ async fn run_two_segment_query(
         }
         let object_path = object_store::path::Path::from(path.to_string_lossy().as_ref());
         segments.push(SegmentFileInfo {
-            segment_ord: ord as i32,
+            writer_generation: ord as i64,
             // Per-segment max_doc. Both happen to be 8 here.
             max_doc: offset,
             object_path,
@@ -137,15 +137,15 @@ async fn run_two_segment_query(
     let per_segment_matches = Arc::new(per_segment_matches);
 
     // Factory produces a single-collector evaluator per chunk. The collector's
-    // matching set is pulled from `per_segment_matches[segment.segment_ord]`,
-    // so wrong segment_ord propagation would immediately produce wrong rows.
+    // matching set is pulled from `per_segment_matches[segment.writer_generation]`,
+    // so wrong writer_generation propagation would immediately produce wrong rows.
     let factory: super::super::table_provider::EvaluatorFactory =
         {
             let per_segment_matches = Arc::clone(&per_segment_matches);
             let schema = schema.clone();
             Arc::new(move |segment, _chunk, _stream_metrics| {
                 let matching = per_segment_matches
-                    .get(segment.segment_ord as usize)
+                    .get(segment.writer_generation as usize)
                     .cloned()
                     .unwrap_or_default();
                 let collector: Arc<dyn RowGroupDocsCollector> =
@@ -190,7 +190,7 @@ async fn run_two_segment_query(
         let brand = b.column(0).as_any().downcast_ref::<StringArray>().unwrap();
         let price = b.column(1).as_any().downcast_ref::<Int32Array>().unwrap();
         for i in 0..b.num_rows() {
-            // Infer segment_ord by brand for verification purposes.
+            // Infer writer_generation by brand for verification purposes.
             let ord = if brand.value(i) == "amazon" { 0 } else { 1 };
             rows.push((ord, brand.value(i).to_string(), price.value(i)));
         }
@@ -286,7 +286,7 @@ struct SegSpec {
 
 /// Generic multi-segment runner. Builds one parquet per spec, wires them up
 /// as SegmentFileInfo's, runs a SELECT over the whole table. Returns
-/// `(segment_ord_inferred_from_brand, brand, price)` triples sorted so tests
+/// `(writer_generation_inferred_from_brand, brand, price)` triples sorted so tests
 /// can assert on set equality regardless of partition/chunk ordering.
 async fn run_segments(specs: Vec<SegSpec>, num_partitions: usize) -> Vec<(i32, String, i32)> {
     let tmps: Vec<NamedTempFile> = specs
@@ -326,7 +326,7 @@ async fn run_segments(specs: Vec<SegSpec>, num_partitions: usize) -> Vec<(i32, S
         }
         let object_path = object_store::path::Path::from(path.to_string_lossy().as_ref());
         segments.push(SegmentFileInfo {
-            segment_ord: ord as i32,
+            writer_generation: ord as i64,
             max_doc: offset,
             object_path,
             parquet_size: size,
@@ -343,7 +343,7 @@ async fn run_segments(specs: Vec<SegSpec>, num_partitions: usize) -> Vec<(i32, S
             let schema = schema.clone();
             Arc::new(move |segment, _chunk, _stream_metrics| {
                 let matching = per_segment_matches
-                    .get(segment.segment_ord as usize)
+                    .get(segment.writer_generation as usize)
                     .cloned()
                     .unwrap_or_default();
                 let collector: Arc<dyn RowGroupDocsCollector> =
@@ -809,7 +809,7 @@ async fn run_wide_segments(
         }
         let object_path = object_store::path::Path::from(path.to_string_lossy().as_ref());
         segments.push(SegmentFileInfo {
-            segment_ord: ord as i32,
+            writer_generation: ord as i64,
             max_doc: offset,
             object_path,
             parquet_size: size,

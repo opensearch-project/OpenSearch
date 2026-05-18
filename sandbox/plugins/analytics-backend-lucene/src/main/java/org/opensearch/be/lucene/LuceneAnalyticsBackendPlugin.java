@@ -10,7 +10,6 @@ package org.opensearch.be.lucene;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.search.IndexSearcher;
 import org.opensearch.analytics.backend.ShardScanExecutionContext;
 import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
@@ -24,6 +23,7 @@ import org.opensearch.analytics.spi.FieldType;
 import org.opensearch.analytics.spi.FilterCapability;
 import org.opensearch.analytics.spi.FilterDelegationHandle;
 import org.opensearch.analytics.spi.ScalarFunction;
+import org.opensearch.index.engine.exec.IndexReaderProvider;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.tasks.CancellableTask;
@@ -150,8 +150,9 @@ public class LuceneAnalyticsBackendPlugin implements AnalyticsSearchBackendPlugi
     @Override
     public FilterDelegationHandle getFilterDelegationHandle(List<DelegatedExpression> expressions, CommonExecutionContext ctx) {
         ShardScanExecutionContext shardCtx = (ShardScanExecutionContext) ctx;
-        DirectoryReader directoryReader = shardCtx.getReader().getReader(plugin.getDataFormat(), DirectoryReader.class);
-        IndexSearcher searcher = new IndexSearcher(directoryReader);
+        IndexReaderProvider.Reader reader = shardCtx.getReader();
+        LuceneReader luceneReader = reader.getReader(plugin.getDataFormat(), LuceneReader.class);
+        IndexSearcher searcher = new IndexSearcher(luceneReader.directoryReader());
         QueryShardContext queryShardContext = buildMinimalQueryShardContext(shardCtx, searcher);
         BooleanSupplier isCancelled = () -> {
             Task task = shardCtx.getTask();
@@ -160,7 +161,8 @@ public class LuceneAnalyticsBackendPlugin implements AnalyticsSearchBackendPlugi
         return new LuceneFilterDelegationHandle(
             expressions,
             queryShardContext,
-            directoryReader,
+            luceneReader,
+            reader.catalogSnapshot(),
             shardCtx.getNamedWriteableRegistry(),
             isCancelled
         );

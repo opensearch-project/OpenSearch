@@ -25,6 +25,7 @@ import org.opensearch.analytics.exec.stage.StageScheduler;
 import org.opensearch.analytics.planner.dag.StageExecutionType;
 import org.opensearch.analytics.spi.ExchangeSink;
 import org.opensearch.arrow.flight.transport.FlightStreamPlugin;
+import org.opensearch.arrow.plugin.ArrowBasePlugin;
 import org.opensearch.be.datafusion.DataFusionPlugin;
 import org.opensearch.be.datafusion.DataFusionService;
 import org.opensearch.index.engine.dataformat.stub.MockCommitterEnginePlugin;
@@ -141,13 +142,10 @@ public class CoordinatorResilienceIT extends OpenSearchIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return List.of(
+            ArrowBasePlugin.class,
             TestPPLPlugin.class,
-            FlightStreamPlugin.class,
             CompositeDataFormatPlugin.class,
             MockTransportService.TestPlugin.class,
-            // Stub committer factory satisfies the EngineConfigFactory boot-time
-            // check (`committerFactories.isEmpty() && isPluggableDataFormatEnabled`)
-            // without pulling the Lucene backend onto the IT classpath.
             MockCommitterEnginePlugin.class
         );
     }
@@ -155,6 +153,7 @@ public class CoordinatorResilienceIT extends OpenSearchIntegTestCase {
     @Override
     protected Collection<PluginInfo> additionalNodePlugins() {
         return List.of(
+            classpathPlugin(FlightStreamPlugin.class, List.of(ArrowBasePlugin.class.getName())),
             classpathPlugin(AnalyticsPlugin.class, Collections.emptyList()),
             classpathPlugin(ParquetDataFormatPlugin.class, Collections.emptyList()),
             classpathPlugin(DataFusionPlugin.class, List.of(AnalyticsPlugin.class.getName()))

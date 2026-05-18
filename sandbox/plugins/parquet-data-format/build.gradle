@@ -9,6 +9,10 @@
 opensearchplugin {
   description = 'Parquet data format plugin for OpenSearch.'
   classname = 'org.opensearch.parquet.ParquetDataFormatPlugin'
+  // Extend arrow-base so this plugin shares one Arrow classloader with any peer plugin
+  // (analytics-engine, arrow-flight-rpc, …). Cross-plugin Arrow types only work when
+  // loaded by the same classloader.
+  extendedPlugins = ['arrow-base']
 }
 
 java { sourceCompatibility = JavaVersion.toVersion(25); targetCompatibility = JavaVersion.toVersion(25) }
@@ -17,88 +21,48 @@ dependencies {
   // Shared native bridge lib (provides the unified .so and FFM SymbolLookup)
   implementation project(':sandbox:libs:dataformat-native')
 
-  // Apache Arrow dependencies
-  implementation "org.apache.arrow:arrow-vector:${versions.arrow}"
-  implementation "org.apache.arrow:arrow-memory-core:${versions.arrow}"
-  // Arrow 18.1's default AllocationManager is Netty. arrow-memory-netty + its buffer-patch
-  // provide NettyAllocationManager and PooledByteBufAllocatorL.
-  implementation "org.apache.arrow:arrow-memory-netty:${versions.arrow}"
-  implementation "org.apache.arrow:arrow-memory-netty-buffer-patch:${versions.arrow}"
-  implementation "io.netty:netty-buffer:${versions.netty}"
-  implementation "io.netty:netty-common:${versions.netty}"
-  implementation "org.apache.arrow:arrow-format:${versions.arrow}"
+  // arrow-base exposes Arrow + Netty core / Jackson / flatbuffers / slf4j / commons-codec
+  // as api deps, so a compileOnly project dep pulls them onto the compile classpath while
+  // keeping them out of the bundled plugin zip (arrow-base ships them at runtime via the
+  // extendedPlugins classloader chain, giving us a shared Arrow class identity for zero-copy).
+  compileOnly project(':plugins:arrow-base')
+
+  // arrow-c-data is NOT in arrow-base (only this plugin uses FFM via the C Data Interface),
+  // so bundle it here.
   implementation "org.apache.arrow:arrow-c-data:${versions.arrow}"
 
-  // Required by Arrow
-  implementation 'org.checkerframework:checker-qual:3.43.0'
-  implementation "com.google.flatbuffers:flatbuffers-java:${versions.flatbuffers}"
-  implementation "org.slf4j:slf4j-api:${versions.slf4j}"
+  // checker-qual — Arrow references @EnsuresNonNullIf annotations; compile-only is enough.
+  compileOnly 'org.checkerframework:checker-qual:3.43.0'
+
+  // jackson-core is on the server classpath (not in arrow-base's api set).
+  compileOnly "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
+
+  // log4j runtime for parquet's own logging (not provided by arrow-base).
   implementation "org.apache.logging.log4j:log4j-api:${versions.log4j}"
   implementation "org.apache.logging.log4j:log4j-core:${versions.log4j}"
   implementation "org.apache.logging.log4j:log4j-slf4j2-impl:${versions.log4j}"
-  // jackson-core is on the server classpath; jackson-databind and jackson-annotations are not.
-  compileOnly "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
-  implementation("com.fasterxml.jackson.core:jackson-databind:${versions.jackson_databind}") {
-    exclude group: 'com.fasterxml.jackson.core', module: 'jackson-core'
-    exclude group: 'com.fasterxml.jackson.core', module: 'jackson-annotations'
+
+  // Unit tests run on a flat classpath (no plugin classloader), so pull arrow-base's runtime
+  // jars in via the project dep — tests then use the same Arrow + Netty allocator as production.
+  testRuntimeOnly project(':plugins:arrow-base')
+}
+
+// Netty + Arrow memory classes used to be bundled here — arrow-base now provides them.
+// Any Unsafe violations belong to arrow-base's audit suppression, not this plugin.
+
+configurations.all {
+  resolutionStrategy {
+    // Arrow-vector pulls older jackson + commons-codec transitively. Force the versions
+    // matching OpenSearch's managed set so testRuntimeClasspath resolves cleanly.
+    force "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
+    force "com.fasterxml.jackson.core:jackson-databind:${versions.jackson_databind}"
+    force "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson_annotations}"
+    force "com.fasterxml.jackson.datatype:jackson-datatype-jsr310:${versions.jackson}"
+    force "com.fasterxml.jackson:jackson-bom:${versions.jackson}"
+    force "commons-codec:commons-codec:${versions.commonscodec}"
+    force "com.google.flatbuffers:flatbuffers-java:${versions.flatbuffers}"
+    force "org.slf4j:slf4j-api:${versions.slf4j}"
   }
-  implementation "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson_annotations}"
-}
-
-tasks.named("dependencyLicenses").configure {
-  mapping from: /jackson-.*/, to: 'jackson'
-  mapping from: /netty-.*/, to: 'netty'
-}
-
-tasks.named('thirdPartyAudit').configure {
-  ignoreMissingClasses(
-    'org.apache.commons.codec.binary.Hex',
-    // Optional netty runtime deps (not used by arrow-memory-netty)
-    'org.apache.commons.logging.Log',
-    'org.apache.commons.logging.LogFactory',
-    'org.apache.log4j.Level',
-    'org.apache.log4j.Logger',
-    'reactor.blockhound.BlockHound$Builder',
-    'reactor.blockhound.integration.BlockHoundIntegration'
-  )
-  ignoreViolations(
-    'org.apache.arrow.memory.util.MemoryUtil',
-    'org.apache.arrow.memory.util.MemoryUtil$1',
-    // Netty internals — standard violations for any module bundling netty-buffer
-    'io.netty.buffer.AbstractAllocatorEvent',
-    'io.netty.buffer.AbstractBufferEvent',
-    'io.netty.buffer.AbstractChunkEvent',
-    'io.netty.buffer.AdaptivePoolingAllocator$AdaptiveByteBuf',
-    'io.netty.buffer.AdaptivePoolingAllocator$Chunk',
-    'io.netty.buffer.AllocateBufferEvent',
-    'io.netty.buffer.AllocateChunkEvent',
-    'io.netty.buffer.FreeBufferEvent',
-    'io.netty.buffer.FreeChunkEvent',
-    'io.netty.buffer.PooledByteBufAllocator',
-    'io.netty.buffer.ReallocateBufferEvent',
-    'io.netty.util.internal.PlatformDependent0',
-    'io.netty.util.internal.PlatformDependent0$1',
-    'io.netty.util.internal.PlatformDependent0$2',
-    'io.netty.util.internal.PlatformDependent0$3',
-    'io.netty.util.internal.PlatformDependent0$5',
-    'io.netty.util.internal.shaded.org.jctools.queues.BaseLinkedQueueConsumerNodeRef',
-    'io.netty.util.internal.shaded.org.jctools.queues.BaseLinkedQueueProducerNodeRef',
-    'io.netty.util.internal.shaded.org.jctools.queues.BaseMpscLinkedArrayQueueColdProducerFields',
-    'io.netty.util.internal.shaded.org.jctools.queues.BaseMpscLinkedArrayQueueConsumerFields',
-    'io.netty.util.internal.shaded.org.jctools.queues.BaseMpscLinkedArrayQueueProducerFields',
-    'io.netty.util.internal.shaded.org.jctools.queues.LinkedQueueNode',
-    'io.netty.util.internal.shaded.org.jctools.queues.MpmcArrayQueueConsumerIndexField',
-    'io.netty.util.internal.shaded.org.jctools.queues.MpmcArrayQueueProducerIndexField',
-    'io.netty.util.internal.shaded.org.jctools.queues.MpscArrayQueueConsumerIndexField',
-    'io.netty.util.internal.shaded.org.jctools.queues.MpscArrayQueueProducerIndexField',
-    'io.netty.util.internal.shaded.org.jctools.queues.MpscArrayQueueProducerLimitField',
-    'io.netty.util.internal.shaded.org.jctools.queues.unpadded.MpscUnpaddedArrayQueueConsumerIndexField',
-    'io.netty.util.internal.shaded.org.jctools.queues.unpadded.MpscUnpaddedArrayQueueProducerIndexField',
-    'io.netty.util.internal.shaded.org.jctools.queues.unpadded.MpscUnpaddedArrayQueueProducerLimitField',
-    'io.netty.util.internal.shaded.org.jctools.util.UnsafeAccess',
-    'io.netty.util.internal.shaded.org.jctools.util.UnsafeLongArrayAccess',
-    'io.netty.util.internal.shaded.org.jctools.util.UnsafeRefArrayAccess'
-  )
 }
 
 spotless {

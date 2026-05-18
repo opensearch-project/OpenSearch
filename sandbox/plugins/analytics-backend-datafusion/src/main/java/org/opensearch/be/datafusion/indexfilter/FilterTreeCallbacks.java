@@ -105,22 +105,24 @@ public final class FilterTreeCallbacks {
     // ── Collector lifecycle (hot path, per segment per query) ─────────
 
     /**
-     * {@code createCollector(providerKey, segmentOrd, minDoc, maxDoc) -> collectorKey|-1}.
+     * {@code createCollector(providerKey, writerGeneration, minDoc, maxDoc) -> collectorKey|-1}.
+     *
+     * <p>Segments are identified by writer generation
      */
-    public static int createCollector(int providerKey, int segmentOrd, int minDoc, int maxDoc) {
+    public static int createCollector(int providerKey, long writerGeneration, int minDoc, int maxDoc) {
         long tid = trackStart();
         try {
             FilterDelegationHandle handle = HANDLE.get();
             if (handle == null) {
                 return -1;
             }
-            return handle.createCollector(providerKey, segmentOrd, minDoc, maxDoc);
+            return handle.createCollector(providerKey, writerGeneration, minDoc, maxDoc);
         } catch (Throwable throwable) {
             LOGGER.error(
                 new ParameterizedMessage(
-                    "createCollector(providerKey={}, seg={}, [{}, {})) failed",
+                    "createCollector(providerKey={}, writerGeneration={}, [{}, {})) failed",
                     providerKey,
-                    segmentOrd,
+                    writerGeneration,
                     minDoc,
                     maxDoc
                 ),
