@@ -8,61 +8,31 @@
 
 package org.opensearch.analytics.qa;
 
-import org.opensearch.client.Request;
-import org.opensearch.client.Response;
-
-import java.util.List;
-import java.util.Set;
-
 /**
  * Multi-Index Queries PPL integration test (multi-index). Tests fields, rename, top, rare, span commands.
  * Uses existing indexes from other datasets: security_logs, api_metrics, performance_metrics, exception_logs.
  */
-public class MultiIndexQueriesPplIT extends AnalyticsRestTestCase {
+public class MultiIndexQueriesPplIT extends BasePplIT {
 
-    private static final ExpectedResponseStrategy STRATEGY = ExpectedResponseStrategy.PASS_ON_MISSING;
-    private static final Set<Integer> SKIP_QUERIES = Set.of();
-    private static boolean dataProvisioned = false;
+    private boolean additionalDataProvisioned = false;
 
-    private void ensureDataProvisioned() throws Exception {
-        if (dataProvisioned == false) {
-            // Provision all required indexes
+    @Override
+    protected Dataset getDataset() {
+        return MultiIndexQueriesTestHelper.DATASET;
+    }
+
+    private void ensureAdditionalDataProvisioned() throws Exception {
+        if (!additionalDataProvisioned) {
             DatasetProvisioner.provision(client(), SecurityLogsTestHelper.DATASET);
             DatasetProvisioner.provision(client(), ApiMetricsTestHelper.DATASET);
             DatasetProvisioner.provision(client(), PerformanceMetricsTestHelper.DATASET);
             DatasetProvisioner.provision(client(), ExceptionLogsTestHelper.DATASET);
-            dataProvisioned = true;
+            additionalDataProvisioned = true;
         }
     }
 
     public void testMultiIndexQueriesPplQueries() throws Exception {
-        ensureDataProvisioned();
-
-        List<Integer> queryNumbers = DatasetQueryRunner.discoverQueryNumbers(MultiIndexQueriesTestHelper.DATASET, "ppl")
-            .stream()
-            .filter(n -> SKIP_QUERIES.contains(n) == false)
-            .toList();
-        assertFalse("No PPL queries discovered", queryNumbers.isEmpty());
-        logger.info("Running {} Multi-Index Queries PPL queries: {}", queryNumbers.size(), queryNumbers);
-
-        List<String> failures = DatasetQueryRunner.runQueries(
-            client(),
-            MultiIndexQueriesTestHelper.DATASET,
-            "ppl",
-            "ppl",
-            queryNumbers,
-            (client, dataset, queryBody) -> {
-                String ppl = queryBody.trim();
-                Request request = new Request("POST", "/_analytics/ppl");
-                request.setJsonEntity("{\"query\": \"" + escapeJson(ppl) + "\"}");
-                Response response = client.performRequest(request);
-                return assertOkAndParse(response, "PPL query");
-            },
-            STRATEGY
-        );
-
-        if (failures.isEmpty() == false) {
-            fail("Multi-Index Queries PPL query failures (" + failures.size() + " of " + queryNumbers.size() + "):\n" + String.join("\n", failures));
-        }
+        ensureAdditionalDataProvisioned();
+        runPplQueries();
     }
 }

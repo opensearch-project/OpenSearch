@@ -8,56 +8,17 @@
 
 package org.opensearch.analytics.qa;
 
-import org.opensearch.client.Request;
-import org.opensearch.client.Response;
-
-import java.util.List;
-import java.util.Set;
-
 /**
  * Performance metrics analysis PPL integration test.
  */
-public class PerformanceMetricsPplIT extends AnalyticsRestTestCase {
+public class PerformanceMetricsPplIT extends BasePplIT {
 
-    private static final ExpectedResponseStrategy STRATEGY = ExpectedResponseStrategy.PASS_ON_MISSING;
-    private static final Set<Integer> SKIP_QUERIES = Set.of();
-    private static boolean dataProvisioned = false;
-
-    private void ensureDataProvisioned() throws Exception {
-        if (dataProvisioned == false) {
-            DatasetProvisioner.provision(client(), PerformanceMetricsTestHelper.DATASET);
-            dataProvisioned = true;
-        }
+    @Override
+    protected Dataset getDataset() {
+        return PerformanceMetricsTestHelper.DATASET;
     }
 
     public void testPerformanceMetricsPplQueries() throws Exception {
-        ensureDataProvisioned();
-
-        List<Integer> queryNumbers = DatasetQueryRunner.discoverQueryNumbers(PerformanceMetricsTestHelper.DATASET, "ppl")
-            .stream()
-            .filter(n -> SKIP_QUERIES.contains(n) == false)
-            .toList();
-        assertFalse("No PPL queries discovered", queryNumbers.isEmpty());
-        logger.info("Running {} Performance metrics analysis PPL queries: {}", queryNumbers.size(), queryNumbers);
-
-        List<String> failures = DatasetQueryRunner.runQueries(
-            client(),
-            PerformanceMetricsTestHelper.DATASET,
-            "ppl",
-            "ppl",
-            queryNumbers,
-            (client, dataset, queryBody) -> {
-                String ppl = queryBody.trim();
-                Request request = new Request("POST", "/_analytics/ppl");
-                request.setJsonEntity("{\"query\": \"" + escapeJson(ppl) + "\"}");
-                Response response = client.performRequest(request);
-                return assertOkAndParse(response, "PPL query");
-            },
-            STRATEGY
-        );
-
-        if (failures.isEmpty() == false) {
-            fail("Performance metrics analysis PPL query failures (" + failures.size() + " of " + queryNumbers.size() + "):\n" + String.join("\n", failures));
-        }
+        runPplQueries();
     }
 }
