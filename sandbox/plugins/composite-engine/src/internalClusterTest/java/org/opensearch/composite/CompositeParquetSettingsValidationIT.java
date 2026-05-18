@@ -8,11 +8,13 @@
 
 package org.opensearch.composite;
 
+import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.engine.exec.Segment;
 import org.opensearch.index.engine.exec.WriterFileSet;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
+import org.opensearch.parquet.ParquetSettings;
 import org.opensearch.parquet.bridge.RustBridge;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
@@ -83,6 +85,17 @@ public class CompositeParquetSettingsValidationIT extends AbstractCompositeEngin
             () -> createCompositeIndexWithNodeSettings(Settings.builder().put("parquet.type_encoding.int64.encoding", "INVALID").build())
         );
         assertTrue(e.getMessage().contains("Invalid encoding"));
+    }
+
+    public void testIncompatibleTypeLevelEncodingRejected() {
+        // DELTA_BINARY_PACKED is only valid for integer types, not utf8
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> createCompositeIndexWithNodeSettings(
+                Settings.builder().put("parquet.type_encoding.utf8.encoding", "DELTA_BINARY_PACKED").build()
+            )
+        );
+        assertTrue(e.getMessage().contains("not compatible") || e.getMessage().contains("not supported"));
     }
 
     // --- Type-level compression validation ---
@@ -305,6 +318,102 @@ public class CompositeParquetSettingsValidationIT extends AbstractCompositeEngin
         // Other columns should still have no bloom filter (global default is disabled)
         Map<String, Object> valueMeta = getColumnInfo(INDEX_NAME, "value");
         assertEquals(Boolean.FALSE, valueMeta.get("bloom_filter"));
+    }
+
+    // --- Encoding/compression exhaustive combination tests ---
+
+    /**
+     * Loops over every (arrow_type, encoding) pair for type-level settings.
+     * Valid combos must be accepted; incompatible combos must throw IllegalArgumentException.
+     */
+    public void testTypeLevelEncodingAllCombinations() {
+        for (String arrowType : ParquetSettings.VALID_ARROW_TYPES) {
+            for (String encoding : ParquetSettings.VALID_ENCODINGS) {
+                ArrowType arrowTypeInstance = ParquetSettings.ARROW_TYPE_NAME_TO_INSTANCE.get(arrowType);
+                boolean compatible = arrowTypeInstance == null || ParquetSettings.isEncodingValidForArrowType(encoding, arrowTypeInstance);
+                Settings nodeSettings = Settings.builder().put("parquet.type_encoding." + arrowType + ".encoding", encoding).build();
+                if (compatible) {
+                    // Should be accepted — no exception
+                    client().admin().cluster().prepareUpdateSettings().setTransientSettings(nodeSettings).get();
+                } else {
+                    IllegalArgumentException e = expectThrows(
+                        IllegalArgumentException.class,
+                        () -> client().admin().cluster().prepareUpdateSettings().setTransientSettings(nodeSettings).get()
+                    );
+                    assertTrue(
+                        "Expected incompatibility error for type=" + arrowType + " encoding=" + encoding + ", got: " + e.getMessage(),
+                        e.getMessage().contains("not compatible")
+                    );
+                }
+            }
+        }
+    }
+
+    /**
+     * Loops over every (field, encoding) pair for field-level settings.
+     * Uses keyword (utf8) and integer (int32) fields to cover string and numeric types.
+     * Valid combos must be accepted at index creation; incompatible combos must throw IllegalArgumentException.
+     */
+    public void testFieldLevelEncodingAllCombinations() {
+        // field -> arrow type instance for compatibility check
+        java.util.Map<String, ArrowType> fieldToArrowType = java.util.Map.of(
+            "name",
+            ParquetSettings.ARROW_TYPE_NAME_TO_INSTANCE.get("utf8"),
+            "value",
+            ParquetSettings.ARROW_TYPE_NAME_TO_INSTANCE.get("int32")
+        );
+        for (java.util.Map.Entry<String, ArrowType> fieldEntry : fieldToArrowType.entrySet()) {
+            String field = fieldEntry.getKey();
+            ArrowType arrowType = fieldEntry.getValue();
+            for (String encoding : ParquetSettings.VALID_ENCODINGS) {
+                boolean compatible = ParquetSettings.isEncodingValidForArrowType(encoding, arrowType);
+                Settings indexSettings = Settings.builder().put("index.parquet.field." + field + ".encoding", encoding).build();
+                if (compatible) {
+                    createCompositeIndexWithSettings(indexSettings);
+                    client().admin().indices().prepareDelete(INDEX_NAME).get();
+                } else {
+                    IllegalArgumentException e = expectThrows(
+                        IllegalArgumentException.class,
+                        () -> createCompositeIndexWithSettings(indexSettings)
+                    );
+                    assertTrue(
+                        "Expected incompatibility error for field=" + field + " encoding=" + encoding + ", got: " + e.getMessage(),
+                        e.getMessage().contains("not compatible") || e.getMessage().contains("not supported")
+                    );
+                }
+            }
+        }
+    }
+
+    /**
+     * Loops over every (arrow_type, compression) pair for type-level settings.
+     * All compressions are valid for all types — every combo must be accepted.
+     */
+    public void testTypeLevelCompressionAllCombinations() {
+        for (String arrowType : ParquetSettings.VALID_ARROW_TYPES) {
+            for (String compression : ParquetSettings.VALID_COMPRESSIONS) {
+                Settings nodeSettings = Settings.builder()
+                    .put("parquet.type_compression." + arrowType + ".compression", compression)
+                    .build();
+                // All combos valid — must not throw
+                client().admin().cluster().prepareUpdateSettings().setTransientSettings(nodeSettings).get();
+            }
+        }
+    }
+
+    /**
+     * Loops over every (field, compression) pair for field-level settings.
+     * All compressions are valid for all field types — every combo must be accepted.
+     */
+    public void testFieldLevelCompressionAllCombinations() {
+        for (String field : java.util.List.of("name", "value")) {
+            for (String compression : ParquetSettings.VALID_COMPRESSIONS) {
+                Settings indexSettings = Settings.builder().put("index.parquet.field." + field + ".compression", compression).build();
+                // All combos valid — must not throw
+                createCompositeIndexWithSettings(indexSettings);
+                client().admin().indices().prepareDelete(INDEX_NAME).get();
+            }
+        }
     }
 
     // --- Helpers ---

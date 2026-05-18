@@ -196,6 +196,128 @@ public class CompositeParquet3TierSettingsIT extends AbstractCompositeEngineIT {
         assertCompression(getColumnInfo(INDEX_NAME, "name"), "ZSTD");
     }
 
+    // --- All-type encoding/compression exhaustive tests ---
+
+    /**
+     * Type-level encoding set for all arrow types simultaneously.
+     * Verifies each column in the parquet file has the expected encoding.
+     */
+    public void testTypeLevelEncodingAllValidCombinations() throws IOException {
+        startCluster(
+            Settings.builder()
+                .put("parquet.type_encoding.utf8.encoding", "DELTA_BYTE_ARRAY")
+                .put("parquet.type_encoding.int32.encoding", "DELTA_BINARY_PACKED")
+                .put("parquet.type_encoding.int64.encoding", "DELTA_BINARY_PACKED")
+                .put("parquet.type_encoding.float32.encoding", "BYTE_STREAM_SPLIT")
+                .put("parquet.type_encoding.float64.encoding", "BYTE_STREAM_SPLIT")
+                .put("parquet.type_encoding.boolean.encoding", "RLE")
+                .put("parquet.type_encoding.binary.encoding", "DELTA_BYTE_ARRAY")
+                .put("parquet.type_encoding.timestamp.encoding", "PLAIN")
+                .build()
+        );
+        createAllTypeIndex(Settings.EMPTY);
+        indexAllTypeDocs();
+
+        assertHasEncoding(getColumnInfo(INDEX_NAME, "col_utf8"), "DELTA_BYTE_ARRAY");
+        assertHasEncoding(getColumnInfo(INDEX_NAME, "col_int32"), "DELTA_BINARY_PACKED");
+        assertHasEncoding(getColumnInfo(INDEX_NAME, "col_int64"), "DELTA_BINARY_PACKED");
+        assertHasEncoding(getColumnInfo(INDEX_NAME, "col_float32"), "BYTE_STREAM_SPLIT");
+        assertHasEncoding(getColumnInfo(INDEX_NAME, "col_float64"), "BYTE_STREAM_SPLIT");
+        assertHasEncoding(getColumnInfo(INDEX_NAME, "col_boolean"), "RLE");
+        assertHasEncoding(getColumnInfo(INDEX_NAME, "col_binary"), "DELTA_BYTE_ARRAY");
+        assertHasEncoding(getColumnInfo(INDEX_NAME, "col_timestamp"), "PLAIN");
+    }
+
+    /**
+     * Field-level encoding set per column for all types simultaneously.
+     * Verifies each column in the parquet file has the expected encoding.
+     */
+    public void testFieldLevelEncodingAllValidCombinations() throws IOException {
+        startCluster(Settings.EMPTY);
+        createAllTypeIndex(
+            Settings.builder()
+                .put("index.parquet.field.col_utf8.encoding", "DELTA_BYTE_ARRAY")
+                .put("index.parquet.field.col_int32.encoding", "DELTA_BINARY_PACKED")
+                .put("index.parquet.field.col_int64.encoding", "DELTA_BINARY_PACKED")
+                .put("index.parquet.field.col_float32.encoding", "BYTE_STREAM_SPLIT")
+                .put("index.parquet.field.col_float64.encoding", "BYTE_STREAM_SPLIT")
+                .put("index.parquet.field.col_boolean.encoding", "RLE")
+                .put("index.parquet.field.col_binary.encoding", "DELTA_BYTE_ARRAY")
+                .put("index.parquet.field.col_timestamp.encoding", "PLAIN")
+                .build()
+        );
+        indexAllTypeDocs();
+
+        assertHasEncoding(getColumnInfo(INDEX_NAME, "col_utf8"), "DELTA_BYTE_ARRAY");
+        assertHasEncoding(getColumnInfo(INDEX_NAME, "col_int32"), "DELTA_BINARY_PACKED");
+        assertHasEncoding(getColumnInfo(INDEX_NAME, "col_int64"), "DELTA_BINARY_PACKED");
+        assertHasEncoding(getColumnInfo(INDEX_NAME, "col_float32"), "BYTE_STREAM_SPLIT");
+        assertHasEncoding(getColumnInfo(INDEX_NAME, "col_float64"), "BYTE_STREAM_SPLIT");
+        assertHasEncoding(getColumnInfo(INDEX_NAME, "col_boolean"), "RLE");
+        assertHasEncoding(getColumnInfo(INDEX_NAME, "col_binary"), "DELTA_BYTE_ARRAY");
+        assertHasEncoding(getColumnInfo(INDEX_NAME, "col_timestamp"), "PLAIN");
+    }
+
+    /**
+     * Type-level compression set for all arrow types simultaneously.
+     * Verifies each column has the expected compression in the parquet file.
+     */
+    public void testTypeLevelCompressionAllCombinations() throws IOException {
+        startCluster(
+            Settings.builder()
+                .put("parquet.type_compression.utf8.compression", "SNAPPY")
+                .put("parquet.type_compression.int32.compression", "ZSTD")
+                .put("parquet.type_compression.int64.compression", "GZIP")
+                .put("parquet.type_compression.float32.compression", "BROTLI")
+                .put("parquet.type_compression.float64.compression", "LZ4_RAW")
+                .put("parquet.type_compression.boolean.compression", "SNAPPY")
+                .put("parquet.type_compression.binary.compression", "ZSTD")
+                .put("parquet.type_compression.timestamp.compression", "GZIP")
+                .build()
+        );
+        createAllTypeIndex(Settings.EMPTY);
+        indexAllTypeDocs();
+
+        assertCompression(getColumnInfo(INDEX_NAME, "col_utf8"), "SNAPPY");
+        assertCompression(getColumnInfo(INDEX_NAME, "col_int32"), "ZSTD");
+        assertCompression(getColumnInfo(INDEX_NAME, "col_int64"), "GZIP");
+        assertCompression(getColumnInfo(INDEX_NAME, "col_float32"), "BROTLI");
+        assertCompression(getColumnInfo(INDEX_NAME, "col_float64"), "LZ4_RAW");
+        assertCompression(getColumnInfo(INDEX_NAME, "col_boolean"), "SNAPPY");
+        assertCompression(getColumnInfo(INDEX_NAME, "col_binary"), "ZSTD");
+        assertCompression(getColumnInfo(INDEX_NAME, "col_timestamp"), "GZIP");
+    }
+
+    /**
+     * Field-level compression set per column for all types simultaneously.
+     * Verifies each column has the expected compression in the parquet file.
+     */
+    public void testFieldLevelCompressionAllCombinations() throws IOException {
+        startCluster(Settings.EMPTY);
+        createAllTypeIndex(
+            Settings.builder()
+                .put("index.parquet.field.col_utf8.compression", "SNAPPY")
+                .put("index.parquet.field.col_int32.compression", "ZSTD")
+                .put("index.parquet.field.col_int64.compression", "GZIP")
+                .put("index.parquet.field.col_float32.compression", "BROTLI")
+                .put("index.parquet.field.col_float64.compression", "LZ4_RAW")
+                .put("index.parquet.field.col_boolean.compression", "SNAPPY")
+                .put("index.parquet.field.col_binary.compression", "ZSTD")
+                .put("index.parquet.field.col_timestamp.compression", "GZIP")
+                .build()
+        );
+        indexAllTypeDocs();
+
+        assertCompression(getColumnInfo(INDEX_NAME, "col_utf8"), "SNAPPY");
+        assertCompression(getColumnInfo(INDEX_NAME, "col_int32"), "ZSTD");
+        assertCompression(getColumnInfo(INDEX_NAME, "col_int64"), "GZIP");
+        assertCompression(getColumnInfo(INDEX_NAME, "col_float32"), "BROTLI");
+        assertCompression(getColumnInfo(INDEX_NAME, "col_float64"), "LZ4_RAW");
+        assertCompression(getColumnInfo(INDEX_NAME, "col_boolean"), "SNAPPY");
+        assertCompression(getColumnInfo(INDEX_NAME, "col_binary"), "ZSTD");
+        assertCompression(getColumnInfo(INDEX_NAME, "col_timestamp"), "GZIP");
+    }
+
     // --- Helpers ---
 
     private void startCluster(Settings extraNodeSettings) {
@@ -228,6 +350,69 @@ public class CompositeParquet3TierSettingsIT extends AbstractCompositeEngineIT {
 
     private void indexAndFlush() {
         indexDocs(INDEX_NAME, 5, 0);
+        refreshIndex(INDEX_NAME);
+        flushIndex(INDEX_NAME);
+    }
+
+    private void createAllTypeIndex(Settings extraIndexSettings) {
+        Settings.Builder builder = Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put("index.pluggable.dataformat.enabled", true)
+            .put("index.pluggable.dataformat", "composite")
+            .put("index.composite.primary_data_format", "parquet")
+            .putList("index.composite.secondary_data_formats")
+            .put(extraIndexSettings);
+
+        client().admin()
+            .indices()
+            .prepareCreate(INDEX_NAME)
+            .setSettings(builder)
+            .setMapping(
+                "col_utf8",
+                "type=keyword",
+                "col_int32",
+                "type=integer",
+                "col_int64",
+                "type=long",
+                "col_float32",
+                "type=float",
+                "col_float64",
+                "type=double",
+                "col_boolean",
+                "type=boolean",
+                "col_binary",
+                "type=binary",
+                "col_timestamp",
+                "type=date"
+            )
+            .get();
+        ensureGreen(INDEX_NAME);
+    }
+
+    private void indexAllTypeDocs() {
+        for (int i = 0; i < 5; i++) {
+            client().prepareIndex()
+                .setIndex(INDEX_NAME)
+                .setId(String.valueOf(i))
+                .setSource(
+                    "col_utf8",
+                    "val_" + i,
+                    "col_int32",
+                    i,
+                    "col_int64",
+                    (long) i,
+                    "col_float32",
+                    (float) i,
+                    "col_float64",
+                    (double) i,
+                    "col_boolean",
+                    i % 2 == 0,
+                    "col_timestamp",
+                    "2024-01-0" + (i + 1)
+                )
+                .get();
+        }
         refreshIndex(INDEX_NAME);
         flushIndex(INDEX_NAME);
     }

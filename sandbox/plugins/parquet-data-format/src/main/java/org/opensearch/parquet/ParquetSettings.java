@@ -8,6 +8,9 @@
 
 package org.opensearch.parquet;
 
+import org.apache.arrow.vector.types.DateUnit;
+import org.apache.arrow.vector.types.FloatingPointPrecision;
+import org.apache.arrow.vector.types.TimeUnit;
 import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.Schema;
@@ -163,7 +166,7 @@ public final class ParquetSettings {
         Setting.Property.NodeScope
     );
 
-    static final Set<String> VALID_ENCODINGS = Set.of(
+    public static final Set<String> VALID_ENCODINGS = Set.of(
         "PLAIN",
         "RLE",
         "RLE_DICTIONARY",
@@ -175,9 +178,9 @@ public final class ParquetSettings {
         "BYTE_STREAM_SPLIT"
     );
 
-    static final Set<String> VALID_COMPRESSIONS = Set.of("ZSTD", "SNAPPY", "GZIP", "BROTLI", "LZ4_RAW", "UNCOMPRESSED");
+    public static final Set<String> VALID_COMPRESSIONS = Set.of("ZSTD", "SNAPPY", "GZIP", "BROTLI", "LZ4_RAW", "UNCOMPRESSED");
 
-    static final Set<String> VALID_ARROW_TYPES = Set.of(
+    public static final Set<String> VALID_ARROW_TYPES = Set.of(
         "int8",
         "int16",
         "int32",
@@ -194,6 +197,67 @@ public final class ParquetSettings {
         "date",
         "timestamp"
     );
+
+    /**
+     * Maps each encoding to the set of ArrowType classes it supports.
+     * PLAIN and unknown encodings are valid for all types (handled separately).
+     */
+    private static final Map<String, Set<Class<? extends ArrowType>>> ENCODING_TO_VALID_TYPES = Map.of(
+        "RLE",
+        Set.of(ArrowType.Bool.class),
+        "DELTA_BINARY_PACKED",
+        Set.of(ArrowType.Int.class),
+        "DELTA",
+        Set.of(ArrowType.Int.class),
+        "DELTA_LENGTH_BYTE_ARRAY",
+        Set.of(ArrowType.Utf8.class, ArrowType.LargeUtf8.class, ArrowType.Binary.class, ArrowType.LargeBinary.class),
+        "DELTA_BYTE_ARRAY",
+        Set.of(
+            ArrowType.Utf8.class,
+            ArrowType.LargeUtf8.class,
+            ArrowType.Binary.class,
+            ArrowType.LargeBinary.class,
+            ArrowType.FixedSizeBinary.class
+        ),
+        "BYTE_STREAM_SPLIT",
+        Set.of(ArrowType.Int.class, ArrowType.FloatingPoint.class, ArrowType.FixedSizeBinary.class)
+    );
+
+    /** Set of ArrowType classes that do NOT support dictionary encoding. */
+    private static final Set<Class<? extends ArrowType>> DICTIONARY_INCOMPATIBLE_TYPES = Set.of(ArrowType.Bool.class);
+
+    /** Maps arrow type name strings to representative ArrowType instances for compatibility checks. */
+    public static final Map<String, ArrowType> ARROW_TYPE_NAME_TO_INSTANCE = Map.ofEntries(
+        Map.entry("int8", new ArrowType.Int(8, true)),
+        Map.entry("int16", new ArrowType.Int(16, true)),
+        Map.entry("int32", new ArrowType.Int(32, true)),
+        Map.entry("int64", new ArrowType.Int(64, true)),
+        Map.entry("uint8", new ArrowType.Int(8, false)),
+        Map.entry("uint16", new ArrowType.Int(16, false)),
+        Map.entry("uint32", new ArrowType.Int(32, false)),
+        Map.entry("uint64", new ArrowType.Int(64, false)),
+        Map.entry("float32", new ArrowType.FloatingPoint(FloatingPointPrecision.SINGLE)),
+        Map.entry("float64", new ArrowType.FloatingPoint(FloatingPointPrecision.DOUBLE)),
+        Map.entry("boolean", new ArrowType.Bool()),
+        Map.entry("utf8", new ArrowType.Utf8()),
+        Map.entry("binary", new ArrowType.Binary()),
+        Map.entry("date", new ArrowType.Date(DateUnit.DAY)),
+        Map.entry("timestamp", new ArrowType.Timestamp(TimeUnit.MILLISECOND, null))
+    );
+
+    public static boolean isEncodingValidForArrowType(String encoding, ArrowType arrowType) {
+        if ("PLAIN".equals(encoding)) {
+            return true;
+        }
+        if ("RLE_DICTIONARY".equals(encoding) || "DICTIONARY".equals(encoding)) {
+            return DICTIONARY_INCOMPATIBLE_TYPES.contains(arrowType.getClass()) == false;
+        }
+        Set<Class<? extends ArrowType>> validTypes = ENCODING_TO_VALID_TYPES.get(encoding);
+        if (validTypes == null) {
+            return true;
+        }
+        return validTypes.contains(arrowType.getClass());
+    }
 
     /**
      * Group setting for per-field configuration (encoding and compression).
@@ -260,6 +324,10 @@ public final class ParquetSettings {
                     throw new IllegalArgumentException(
                         "Invalid encoding '" + s.get(key) + "' for type '" + typeName + "'. Valid values: " + VALID_ENCODINGS
                     );
+                }
+                ArrowType arrowType = ARROW_TYPE_NAME_TO_INSTANCE.get(typeName);
+                if (arrowType != null && isEncodingValidForArrowType(value, arrowType) == false) {
+                    throw new IllegalArgumentException("Encoding '" + value + "' is not compatible with arrow type '" + typeName + "'");
                 }
             }
         }
@@ -358,48 +426,6 @@ public final class ParquetSettings {
                 );
             }
         }
-    }
-
-    /**
-     * Maps each encoding to the set of ArrowType classes it supports.
-     * PLAIN and unknown encodings are valid for all types (handled separately).
-     */
-    private static final Map<String, Set<Class<? extends ArrowType>>> ENCODING_TO_VALID_TYPES = Map.of(
-        "RLE",
-        Set.of(ArrowType.Bool.class),
-        "DELTA_BINARY_PACKED",
-        Set.of(ArrowType.Int.class),
-        "DELTA",
-        Set.of(ArrowType.Int.class),
-        "DELTA_LENGTH_BYTE_ARRAY",
-        Set.of(ArrowType.Utf8.class, ArrowType.LargeUtf8.class, ArrowType.Binary.class, ArrowType.LargeBinary.class),
-        "DELTA_BYTE_ARRAY",
-        Set.of(
-            ArrowType.Utf8.class,
-            ArrowType.LargeUtf8.class,
-            ArrowType.Binary.class,
-            ArrowType.LargeBinary.class,
-            ArrowType.FixedSizeBinary.class
-        ),
-        "BYTE_STREAM_SPLIT",
-        Set.of(ArrowType.Int.class, ArrowType.FloatingPoint.class, ArrowType.FixedSizeBinary.class)
-    );
-
-    /** Set of ArrowType classes that do NOT support dictionary encoding. */
-    private static final Set<Class<? extends ArrowType>> DICTIONARY_INCOMPATIBLE_TYPES = Set.of(ArrowType.Bool.class);
-
-    private static boolean isEncodingValidForArrowType(String encoding, ArrowType arrowType) {
-        if ("PLAIN".equals(encoding)) {
-            return true;
-        }
-        if ("RLE_DICTIONARY".equals(encoding) || "DICTIONARY".equals(encoding)) {
-            return DICTIONARY_INCOMPATIBLE_TYPES.contains(arrowType.getClass()) == false;
-        }
-        Set<Class<? extends ArrowType>> validTypes = ENCODING_TO_VALID_TYPES.get(encoding);
-        if (validTypes == null) {
-            return true;
-        }
-        return validTypes.contains(arrowType.getClass());
     }
 
     /**
