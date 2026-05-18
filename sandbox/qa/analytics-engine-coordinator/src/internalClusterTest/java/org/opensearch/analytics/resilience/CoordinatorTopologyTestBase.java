@@ -12,6 +12,7 @@ import org.opensearch.Version;
 import org.opensearch.action.admin.indices.create.CreateIndexResponse;
 import org.opensearch.analytics.AnalyticsPlugin;
 import org.opensearch.arrow.flight.transport.FlightStreamPlugin;
+import org.opensearch.arrow.plugin.ArrowBasePlugin;
 import org.opensearch.be.datafusion.DataFusionPlugin;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
@@ -51,8 +52,8 @@ public abstract class CoordinatorTopologyTestBase extends OpenSearchIntegTestCas
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return List.of(
+            ArrowBasePlugin.class,
             TestPPLPlugin.class,
-            FlightStreamPlugin.class,
             CompositeDataFormatPlugin.class,
             MockTransportService.TestPlugin.class,
             MockCommitterEnginePlugin.class
@@ -62,6 +63,7 @@ public abstract class CoordinatorTopologyTestBase extends OpenSearchIntegTestCas
     @Override
     protected Collection<PluginInfo> additionalNodePlugins() {
         return List.of(
+            classpathPlugin(FlightStreamPlugin.class, List.of(ArrowBasePlugin.class.getName())),
             classpathPlugin(AnalyticsPlugin.class, Collections.emptyList()),
             classpathPlugin(ParquetDataFormatPlugin.class, Collections.emptyList()),
             classpathPlugin(DataFusionPlugin.class, List.of(AnalyticsPlugin.class.getName()))

@@ -8,6 +8,7 @@
 
 package org.opensearch.analytics.exec;
 
+import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.vector.VectorSchemaRoot;
 import org.opensearch.analytics.backend.ExchangeSource;
 import org.opensearch.analytics.exec.stage.DataProducer;
@@ -20,6 +21,7 @@ import org.opensearch.analytics.planner.dag.QueryDAG;
 import org.opensearch.analytics.planner.dag.Stage;
 import org.opensearch.analytics.planner.dag.StageExecutionType;
 import org.opensearch.analytics.spi.ExchangeSink;
+import org.opensearch.arrow.memory.ArrowAllocatorService;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.tasks.TaskId;
 import org.opensearch.test.OpenSearchTestCase;
@@ -144,7 +146,23 @@ public class PlanWalkerTests extends OpenSearchTestCase {
             null
         );
         QueryDAG dag = new QueryDAG("q-test", rootStage);
-        return new QueryContext(dag, Runnable::run, task, 1, Long.MAX_VALUE);
+        ArrowAllocatorService stubAllocatorService = new ArrowAllocatorService() {
+            @Override
+            public BufferAllocator newChildAllocator(String name, long limit) {
+                return null;
+            }
+
+            @Override
+            public long getAllocatedMemory() {
+                return 0;
+            }
+
+            @Override
+            public long getPeakMemoryAllocation() {
+                return 0;
+            }
+        };
+        return new QueryContext(dag, Runnable::run, task, 1, Long.MAX_VALUE, stubAllocatorService);
     }
 
     /**

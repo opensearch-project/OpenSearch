@@ -121,6 +121,7 @@ pub(crate) fn coerce_args(
 }
 
 pub mod convert_tz;
+pub mod conversion;
 pub mod crc32;
 pub mod date_format;
 pub mod extract;
@@ -149,8 +150,6 @@ pub mod span_bucket;
 pub mod str_to_date;
 pub mod strftime;
 pub mod time_format;
-pub mod tonumber;
-pub mod tostring;
 pub mod width_bucket;
 
 // Dev note: if a freshly added UDF here fails at runtime with
@@ -162,6 +161,7 @@ pub mod width_bucket;
 // and restart the OpenSearch JVM (the loaded dylib is JVM-cached).
 pub fn register_all(ctx: &SessionContext) {
     convert_tz::register_all(ctx);
+    conversion::register_all(ctx);
     crc32::register_all(ctx);
     date_format::register_all(ctx);
     extract::register_all(ctx);
@@ -188,11 +188,9 @@ pub fn register_all(ctx: &SessionContext) {
     str_to_date::register_all(ctx);
     strftime::register_all(ctx);
     time_format::register_all(ctx);
-    tonumber::register_all(ctx);
-    tostring::register_all(ctx);
     width_bucket::register_all(ctx);
     log::info!(
-        "OpenSearch UDF register_all: convert_tz, crc32, date_format, extract, from_unixtime, json_append, json_array_length, json_delete, json_extend, json_extract, json_keys, json_set, makedate, maketime, minspan_bucket, mvappend, mvfind, mvzip, range_bucket, rex_extract, rex_extract_multi, rex_offset, sha1, span_bucket, str_to_date, strftime, time_format, tonumber, tostring, width_bucket registered"
+        "OpenSearch UDF register_all: convert_tz, conversion(numeric_conversion: num/auto/memk/rmcomma/rmunit/dur2sec/mstime, time_conversion: ctime/mktime), crc32, date_format, extract, from_unixtime, json_append, json_array_length, json_delete, json_extend, json_extract, json_keys, json_set, makedate, maketime, minspan_bucket, mvappend, mvfind, mvzip, range_bucket, rex_extract, rex_extract_multi, rex_offset, sha1, span_bucket, str_to_date, strftime, time_format, tonumber, tostring, width_bucket registered"
     );
 }
 

@@ -31,7 +31,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
  *
  * <p>Verifies Property 2 from the stats-spi-refactor design:
  * For any valid {@code NativeExecutorsStats} object containing IO + optional CPU
- * {@code RuntimeMetrics} (8 fields each) and 4 {@code TaskMonitorStats} (3 fields each),
+ * {@code RuntimeMetrics} (9 fields each) and 4 {@code TaskMonitorStats} (3 fields each),
  * writing to {@code StreamOutput} and reading from {@code StreamInput} SHALL produce
  * an object where all field values are identical to the original.
  *
@@ -60,54 +60,42 @@ public class NativeExecutorsStatsTests {
 
     @Provide
     Arbitrary<NativeExecutorsStats> nativeExecutorsStatsWithCpu() {
-        return Combinators.combine(
-            runtimeMetrics(),                // IO runtime
-            runtimeMetrics().map(rt -> {     // CPU runtime (ensure workers_count > 0)
-                if (rt.workersCount == 0) {
-                    return new RuntimeMetrics(
-                        1,
-                        rt.totalPollsCount,
-                        rt.totalBusyDurationMs,
-                        rt.totalOverflowCount,
-                        rt.globalQueueDepth,
-                        rt.blockingQueueDepth,
-                        rt.numAliveTasks,
-                        rt.spawnedTasksCount,
-                        rt.totalLocalQueueDepth
-                    );
-                }
-                return rt;
-            }),
-            taskMonitorValues(),             // query_execution
-            taskMonitorValues(),             // stream_next
-            taskMonitorValues(),             // fetch_phase
-            taskMonitorValues()              // segment_stats
-        ).as((io, cpu, qe, sn, fp, ss) -> {
+        return Combinators.combine(runtimeMetrics(), runtimeMetrics().map(rt -> {
+            if (rt.workersCount == 0) {
+                return new RuntimeMetrics(
+                    1,
+                    rt.totalPollsCount,
+                    rt.totalBusyDurationMs,
+                    rt.totalOverflowCount,
+                    rt.globalQueueDepth,
+                    rt.blockingQueueDepth,
+                    rt.numAliveTasks,
+                    rt.spawnedTasksCount,
+                    rt.totalLocalQueueDepth
+                );
+            }
+            return rt;
+        }), taskMonitorValues(), taskMonitorValues(), taskMonitorValues(), taskMonitorValues()).as((io, cpu, cr, qe, sn, ps) -> {
             Map<String, TaskMonitorStats> monitors = new LinkedHashMap<>();
+            monitors.put("coordinator_reduce", cr);
             monitors.put("query_execution", qe);
             monitors.put("stream_next", sn);
-            monitors.put("fetch_phase", fp);
-            monitors.put("segment_stats", ss);
+            monitors.put("plan_setup", ps);
             return new NativeExecutorsStats(io, cpu, monitors);
         });
     }
 
     @Provide
     Arbitrary<NativeExecutorsStats> nativeExecutorsStatsNoCpu() {
-        return Combinators.combine(
-            runtimeMetrics(),                // IO runtime
-            taskMonitorValues(),             // query_execution
-            taskMonitorValues(),             // stream_next
-            taskMonitorValues(),             // fetch_phase
-            taskMonitorValues()              // segment_stats
-        ).as((io, qe, sn, fp, ss) -> {
-            Map<String, TaskMonitorStats> monitors = new LinkedHashMap<>();
-            monitors.put("query_execution", qe);
-            monitors.put("stream_next", sn);
-            monitors.put("fetch_phase", fp);
-            monitors.put("segment_stats", ss);
-            return new NativeExecutorsStats(io, null, monitors);
-        });
+        return Combinators.combine(runtimeMetrics(), taskMonitorValues(), taskMonitorValues(), taskMonitorValues(), taskMonitorValues())
+            .as((io, cr, qe, sn, ps) -> {
+                Map<String, TaskMonitorStats> monitors = new LinkedHashMap<>();
+                monitors.put("coordinator_reduce", cr);
+                monitors.put("query_execution", qe);
+                monitors.put("stream_next", sn);
+                monitors.put("plan_setup", ps);
+                return new NativeExecutorsStats(io, null, monitors);
+            });
     }
 
     // ---- Property 2: Writeable round-trip preserves all fields ----

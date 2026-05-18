@@ -13,6 +13,7 @@ import org.opensearch.be.datafusion.nativelib.NativeBridge;
 import org.opensearch.be.datafusion.nativelib.ReaderHandle;
 import org.opensearch.be.datafusion.nativelib.SessionContextHandle;
 import org.opensearch.core.action.ActionListener;
+import org.opensearch.index.engine.exec.MonoFileWriterSet;
 import org.opensearch.plugins.NativeStoreHandle;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -20,6 +21,7 @@ import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
 /**
@@ -62,7 +64,11 @@ public class DataFusionNativeBridgeTests extends OpenSearchTestCase {
         Files.copy(testParquet, dataDir.resolve("test.parquet"));
 
         // Create reader
-        ReaderHandle readerHandle = new ReaderHandle(dataDir.toString(), new String[] { "test.parquet" }, null);
+        ReaderHandle readerHandle = new ReaderHandle(
+            dataDir.toString(),
+            java.util.List.of(MonoFileWriterSet.of(".", 0L, "test.parquet", 0L)),
+            null
+        );
         assertTrue("Reader pointer should be non-zero", readerHandle.getPointer() != 0);
 
         // Close reader
@@ -81,8 +87,11 @@ public class DataFusionNativeBridgeTests extends OpenSearchTestCase {
         Path testParquet = Path.of(getClass().getClassLoader().getResource("test.parquet").toURI());
         Files.copy(testParquet, dataDir.resolve("test.parquet"));
 
-        ReaderHandle readerHandle = new ReaderHandle(dataDir.toString(), new String[] { "test.parquet" }, null);
-
+        ReaderHandle readerHandle = new ReaderHandle(
+            dataDir.toString(),
+            java.util.List.of(MonoFileWriterSet.of(".", 0L, "test.parquet", 0L)),
+            null
+        );
         // Create session context with table registered
         long queryConfigPtr;
         Arena arena = Arena.ofConfined();
@@ -166,7 +175,11 @@ public class DataFusionNativeBridgeTests extends OpenSearchTestCase {
         assertTrue("NativeStoreHandle should be live", storeHandle.isLive());
 
         // Create reader with the real store handle — this proves the full wiring
-        ReaderHandle readerHandle = new ReaderHandle(dataDir.toString(), new String[] { "test.parquet" }, storeHandle);
+        ReaderHandle readerHandle = new ReaderHandle(
+            dataDir.toString(),
+            List.of(MonoFileWriterSet.of(dataDir.toString(), 1L, "test.parquet", 0L)),
+            storeHandle
+        );
         assertTrue("Reader pointer should be non-zero", readerHandle.getPointer() != 0);
 
         // Clean up in reverse order

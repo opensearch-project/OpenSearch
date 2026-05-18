@@ -88,7 +88,7 @@ public class StatsLayoutPropertyTests {
 
     @Provide
     Arbitrary<NativeExecutorsStats> nativeExecutorsStatsWithCpu() {
-        return Combinators.combine(runtimeMetrics(), runtimeMetrics().map(rt -> {
+        Arbitrary<RuntimeMetrics> cpuArb = runtimeMetrics().map(rt -> {
             if (rt.workersCount == 0) {
                 return new RuntimeMetrics(
                     1,
@@ -103,12 +103,20 @@ public class StatsLayoutPropertyTests {
                 );
             }
             return rt;
-        }), taskMonitorValues(), taskMonitorValues(), taskMonitorValues(), taskMonitorValues()).as((io, cpu, qe, sn, fp, ss) -> {
+        });
+        return Combinators.combine(
+            runtimeMetrics(),
+            cpuArb,
+            taskMonitorValues(),
+            taskMonitorValues(),
+            taskMonitorValues(),
+            taskMonitorValues()
+        ).as((io, cpu, cr, qe, sn, ps) -> {
             Map<String, TaskMonitorStats> monitors = new LinkedHashMap<>();
+            monitors.put("coordinator_reduce", cr);
             monitors.put("query_execution", qe);
             monitors.put("stream_next", sn);
-            monitors.put("fetch_phase", fp);
-            monitors.put("segment_stats", ss);
+            monitors.put("plan_setup", ps);
             return new NativeExecutorsStats(io, cpu, monitors);
         });
     }
@@ -116,12 +124,12 @@ public class StatsLayoutPropertyTests {
     @Provide
     Arbitrary<NativeExecutorsStats> nativeExecutorsStatsNoCpu() {
         return Combinators.combine(runtimeMetrics(), taskMonitorValues(), taskMonitorValues(), taskMonitorValues(), taskMonitorValues())
-            .as((io, qe, sn, fp, ss) -> {
+            .as((io, cr, qe, sn, ps) -> {
                 Map<String, TaskMonitorStats> monitors = new LinkedHashMap<>();
+                monitors.put("coordinator_reduce", cr);
                 monitors.put("query_execution", qe);
                 monitors.put("stream_next", sn);
-                monitors.put("fetch_phase", fp);
-                monitors.put("segment_stats", ss);
+                monitors.put("plan_setup", ps);
                 return new NativeExecutorsStats(io, null, monitors);
             });
     }
@@ -167,7 +175,7 @@ public class StatsLayoutPropertyTests {
             assertEquals(values[16], cpuRuntime.spawnedTasksCount);
             assertEquals(values[17], cpuRuntime.totalLocalQueueDepth);
 
-            String[] tmGroups = { "query_execution", "stream_next", "fetch_phase", "segment_stats" };
+            String[] tmGroups = { "coordinator_reduce", "query_execution", "stream_next", "plan_setup" };
             for (int g = 0; g < 4; g++) {
                 var tm = StatsLayout.readTaskMonitor(seg, tmGroups[g]);
                 int base = 18 + g * 3;
@@ -224,10 +232,10 @@ public class StatsLayoutPropertyTests {
             // Decode all fields
             var ioRuntime = StatsLayout.readRuntimeMetrics(original, "io_runtime");
             var cpuRuntime = StatsLayout.readRuntimeMetrics(original, "cpu_runtime");
+            var cr = StatsLayout.readTaskMonitor(original, "coordinator_reduce");
             var qe = StatsLayout.readTaskMonitor(original, "query_execution");
             var sn = StatsLayout.readTaskMonitor(original, "stream_next");
-            var fp = StatsLayout.readTaskMonitor(original, "fetch_phase");
-            var ss = StatsLayout.readTaskMonitor(original, "segment_stats");
+            var ps = StatsLayout.readTaskMonitor(original, "plan_setup");
 
             // Re-encode into new buffer
             var reencoded = arena.allocate(StatsLayout.LAYOUT);
@@ -250,18 +258,18 @@ public class StatsLayoutPropertyTests {
                 cpuRuntime.numAliveTasks,
                 cpuRuntime.spawnedTasksCount,
                 cpuRuntime.totalLocalQueueDepth,
+                cr.totalPollDurationMs,
+                cr.totalScheduledDurationMs,
+                cr.totalIdleDurationMs,
                 qe.totalPollDurationMs,
                 qe.totalScheduledDurationMs,
                 qe.totalIdleDurationMs,
                 sn.totalPollDurationMs,
                 sn.totalScheduledDurationMs,
                 sn.totalIdleDurationMs,
-                fp.totalPollDurationMs,
-                fp.totalScheduledDurationMs,
-                fp.totalIdleDurationMs,
-                ss.totalPollDurationMs,
-                ss.totalScheduledDurationMs,
-                ss.totalIdleDurationMs };
+                ps.totalPollDurationMs,
+                ps.totalScheduledDurationMs,
+                ps.totalIdleDurationMs };
             for (int i = 0; i < FIELD_COUNT; i++) {
                 reencoded.setAtIndex(ValueLayout.JAVA_LONG, i, decoded[i]);
             }

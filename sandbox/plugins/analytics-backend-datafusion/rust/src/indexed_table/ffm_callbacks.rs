@@ -12,7 +12,7 @@
 //! `df_register_filter_tree_callbacks` (see `ffm.rs`):
 //!
 //! - `createProvider(annotationId) -> providerKey|-1`
-//! - `createCollector(providerKey, segmentOrd, minDoc, maxDoc) -> collectorKey|-1`
+//! - `createCollector(providerKey, writerGeneration, minDoc, maxDoc) -> collectorKey|-1`
 //! - `collectDocs(collectorKey, minDoc, maxDoc, outBuf, outWordCap) -> wordsWritten|-1`
 //! - `releaseCollector(collectorKey)`
 //! - `releaseProvider(providerKey)`
@@ -28,7 +28,10 @@ use super::index::RowGroupDocsCollector;
 
 type CreateProviderFn = unsafe extern "C" fn(i32) -> i32;
 type ReleaseProviderFn = unsafe extern "C" fn(i32);
-type CreateCollectorFn = unsafe extern "C" fn(i32, i32, i32, i32) -> i32;
+/// `(provider_key, writer_generation, doc_min, doc_max) -> collector_key | -1`.
+///
+/// `writer_generation` is the stable per-segment identifier
+type CreateCollectorFn = unsafe extern "C" fn(i32, i64, i32, i32) -> i32;
 type CollectDocsFn = unsafe extern "C" fn(i32, i32, i32, *mut u64, i64) -> i64;
 type ReleaseCollectorFn = unsafe extern "C" fn(i32);
 
@@ -156,18 +159,20 @@ pub struct FfmSegmentCollector {
 
 impl FfmSegmentCollector {
     /// Ask Java for a collector keyed by `provider_key` for the given segment/doc range.
+    ///
+    /// `writer_generation` identifies the segment.
     pub fn create(
         provider_key: i32,
-        segment_ord: i32,
+        writer_generation: i64,
         doc_min: i32,
         doc_max: i32,
     ) -> Result<Self, String> {
         let create = load_create_collector()?;
-        let key = unsafe { create(provider_key, segment_ord, doc_min, doc_max) };
+        let key = unsafe { create(provider_key, writer_generation, doc_min, doc_max) };
         if key < 0 {
             return Err(format!(
-                "createCollector(provider={}, seg={}) failed: {}",
-                provider_key, segment_ord, key
+                "createCollector(provider={}, writer_generation={}) failed: {}",
+                provider_key, writer_generation, key
             ));
         }
         Ok(FfmSegmentCollector { key })

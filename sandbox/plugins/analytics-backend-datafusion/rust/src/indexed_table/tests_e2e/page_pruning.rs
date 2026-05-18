@@ -210,7 +210,7 @@ fn load_segment(tmp: &NamedTempFile) -> (SegmentFileInfo, SchemaRef) {
         offset += n;
     }
     let seg = SegmentFileInfo {
-        segment_ord: 0,
+        writer_generation: 0,
         max_doc: NUM_ROWS as i64,
         object_path: object_store::path::Path::from(path.to_string_lossy().as_ref()),
         parquet_size: size,

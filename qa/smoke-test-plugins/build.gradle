@@ -36,10 +36,17 @@ apply plugin: 'opensearch.standalone-rest-test'
 apply plugin: 'opensearch.rest-test'
 apply plugin: 'opensearch.rest-resources'
 
+// Plugins that require non-default JVM flags (e.g. io.netty.noUnsafe=false for Arrow's
+// Netty allocation manager) are tested separately in qa/smoke-test-arrow-plugins.
+def arrowPlugins = ['arrow-base', 'arrow-flight-rpc'] as Set
+
 int pluginsCount = 0
 
 testClusters.integTest {
   project(':plugins').getChildProjects().each { pluginName, pluginProject ->
+    if (arrowPlugins.contains(pluginName)) {
+      return
+    }
     plugin pluginProject.path
     pluginsCount += 1
   }

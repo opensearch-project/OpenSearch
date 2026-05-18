@@ -90,7 +90,7 @@ async fn run_missing_col_tree(tree_bool: BoolNode) -> usize {
         offset += n;
     }
     let segment = SegmentFileInfo {
-        segment_ord: 0,
+        writer_generation: 0,
         max_doc: MISSING_N as i64,
         object_path: object_store::path::Path::from(f.path.to_string_lossy().as_ref()),
         parquet_size: size,
