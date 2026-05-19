@@ -38,9 +38,11 @@ import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.TextFieldMapper.TextFieldType;
 import org.opensearch.index.seqno.RetentionLeases;
+import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.translog.InternalTranslogFactory;
+import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.TranslogConfig;
 import org.opensearch.plugins.EnginePlugin;
 import org.opensearch.plugins.PluginsService;
@@ -82,6 +84,9 @@ public class LuceneIndexingExecutionEngineTests extends OpenSearchTestCase {
         Files.createDirectories(dataPath);
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("test", Settings.EMPTY);
         shardPath = new ShardPath(false, dataPath, dataPath, shardId);
+        Path translogPath = dataPath.resolve("translog");
+        java.nio.file.Files.createDirectories(translogPath);
+        String translogUUID = Translog.createEmptyTranslog(translogPath, SequenceNumbers.NO_OPS_PERFORMED, shardId, 1L);
         store = new Store(
             shardId,
             indexSettings,
@@ -90,13 +95,10 @@ public class LuceneIndexingExecutionEngineTests extends OpenSearchTestCase {
             Store.OnClose.EMPTY,
             shardPath
         );
-        store.createEmpty(org.apache.lucene.util.Version.LATEST);
+        store.createEmpty(org.apache.lucene.util.Version.LATEST, translogUUID);
 
         PluginsService mockPluginsService = mock(PluginsService.class);
         when(mockPluginsService.filterPlugins(EnginePlugin.class)).thenReturn(List.of(new LucenePlugin()));
-
-        Path translogPath = dataPath.resolve("translog");
-        java.nio.file.Files.createDirectories(translogPath);
         EngineConfig engineConfig = new EngineConfigFactory(mockPluginsService, indexSettings).newEngineConfig(
             shardId,
             null,
