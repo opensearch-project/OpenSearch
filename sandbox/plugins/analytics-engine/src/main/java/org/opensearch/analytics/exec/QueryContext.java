@@ -43,15 +43,21 @@ public class QueryContext {
     private final BufferAllocator allocator;
     private final boolean ownsAllocator;
     /**
-     * Holder for the lazy local-task executor + closed flag, shared across phased contexts so
-     * pass 1 and pass 2 of multi-phase dispatch (e.g. M1 broadcast) reuse a single executor and
-     * a single close-once semantics. Non-shared queries get a holder of their own.
+     * Per-instance flag: has THIS context's {@link #close()} already disposed of its instance-
+     * scoped resources (the owning allocator)? Independent of
+     * {@link SharedState#executorClosed}, which tracks the cross-instance executor shutdown.
+     */
+    private boolean closed;  // guarded by synchronized(sharedState)
+    /**
+     * Holder for the lazy local-task executor + executor-close flag, shared across phased
+     * contexts so pass 1 and pass 2 of multi-phase dispatch (e.g. M1 broadcast) reuse a single
+     * executor and shut it down exactly once. Non-shared queries get a holder of their own.
      */
     private final SharedState sharedState;
 
     private static final class SharedState {
         volatile ExecutorService localTaskExecutor;
-        boolean closed;  // guarded by synchronized(this)
+        boolean executorClosed;  // guarded by synchronized(this)
     }
 
     public QueryContext(
@@ -154,7 +160,7 @@ public class QueryContext {
             synchronized (sharedState) {
                 exec = sharedState.localTaskExecutor;
                 if (exec == null) {
-                    if (sharedState.closed) {
+                    if (sharedState.executorClosed) {
                         throw new IllegalStateException("QueryContext closed for query " + dag.queryId());
                     }
                     exec = Executors.newThreadPerTaskExecutor(
@@ -174,25 +180,46 @@ public class QueryContext {
     /**
      * Idempotent. Serialised with lazy-init accessors; post-close executor accessors throw.
      *
-     * <p>For phased contexts produced by {@link #withDag(QueryDAG)}: only the original context
-     * closes the allocator and shuts down the shared executor. Closing a derived context is a
-     * no-op for the allocator (because {@code ownsAllocator=false}); the executor shutdown is
-     * idempotent across all sharers via {@code sharedState.closed}.
+     * <p>Two close paths run independently:
+     * <ul>
+     *   <li><b>Per-instance:</b> if this context owns the allocator, close it exactly once
+     *       <i>per instance</i>. Each instance has its own {@code closed} flag so calling
+     *       {@code close()} twice on the same instance is safe even though Arrow's
+     *       {@code BufferAllocator.close()} is not idempotent. (Coord-centric queries hit this
+     *       path twice — once from {@code QueryExecution.close()} and once from
+     *       {@code DefaultPlanExecutor.batchesListener.runAfter}.)</li>
+     *   <li><b>Cross-instance:</b> shut down the lazy local-task executor exactly once across
+     *       all phased sharers via {@code sharedState.executorClosed}. The original and any
+     *       {@link #withDag(QueryDAG)}-derived contexts share the same executor; the first
+     *       {@code close()} to reach this point shuts it down.</li>
+     * </ul>
+     *
+     * <p>Crucially: a derived (non-owning) context's {@code close()} that runs first must NOT
+     * prevent the original (owning) context from running its allocator-close branch later.
+     * That's why the two flags are separate — the old single-flag design caused every
+     * broadcast query to leak its allocator (the derived pass-2 context closed first, set the
+     * shared flag, and the original's later teardown short-circuited before reaching the
+     * allocator).
      */
     public void close() {
+        // Per-instance: close the owning allocator at most once. Independent of any shared state.
+        boolean closeAllocator;
         synchronized (sharedState) {
-            if (sharedState.closed) return;
-            sharedState.closed = true;
+            closeAllocator = !closed && ownsAllocator;
+            closed = true;
+        }
+        if (closeAllocator) {
+            allocator.close();
+        }
+
+        // Cross-instance: shut down the lazy executor at most once across all phased sharers.
+        synchronized (sharedState) {
+            if (sharedState.executorClosed) return;
+            sharedState.executorClosed = true;
             if (sharedState.localTaskExecutor != null) {
                 sharedState.localTaskExecutor.shutdown();
                 sharedState.localTaskExecutor = null;
             }
-        }
-        // Allocator close is outside the sharedState lock — close() should not race with
-        // bufferAllocator() (the field is final), and arrow's allocator close() can take a lock
-        // that we don't want to interleave with the executor shutdown.
-        if (ownsAllocator) {
-            allocator.close();
         }
     }
 
