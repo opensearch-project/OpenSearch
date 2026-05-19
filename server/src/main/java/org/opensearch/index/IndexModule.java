@@ -92,6 +92,7 @@ import org.opensearch.index.store.FsDirectoryFactory;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.remote.directory.RemoteSnapshotDirectoryFactory;
 import org.opensearch.index.store.remote.filecache.FileCache;
+import org.opensearch.index.store.remote.filecache.NodeCacheOrchestrator;
 import org.opensearch.index.translog.TranslogFactory;
 import org.opensearch.indices.ClusterMergeSchedulerConfig;
 import org.opensearch.indices.IndicesBitsetFilterCache;
@@ -288,7 +289,7 @@ public final class IndexModule {
     private final BooleanSupplier allowExpensiveQueries;
     private final Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories;
     private final Map<String, IndexStorePlugin.StoreFactory> storeFactories;
-    private final FileCache fileCache;
+    private final NodeCacheOrchestrator nodeCacheOrchestrator;
     private final CompositeIndexSettings compositeIndexSettings;
 
     /**
@@ -312,7 +313,7 @@ public final class IndexModule {
         final IndexNameExpressionResolver expressionResolver,
         final Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories,
         final Map<String, IndexStorePlugin.StoreFactory> storeFactories,
-        final FileCache fileCache,
+        final NodeCacheOrchestrator nodeCacheOrchestrator,
         final CompositeIndexSettings compositeIndexSettings,
         final Map<String, DataFormatAwareStoreDirectoryFactory> dataFormatAwareStoreDirectoryFactories
     ) {
@@ -329,7 +330,7 @@ public final class IndexModule {
         this.expressionResolver = expressionResolver;
         this.recoveryStateFactories = recoveryStateFactories;
         this.storeFactories = storeFactories;
-        this.fileCache = fileCache;
+        this.nodeCacheOrchestrator = nodeCacheOrchestrator;
         this.compositeIndexSettings = compositeIndexSettings;
     }
 
@@ -1093,14 +1094,14 @@ public final class IndexModule {
                 shardLevelRefreshEnabled.get(),
                 recoverySettings,
                 remoteStoreSettings,
-                fileCache,
                 compositeIndexSettings,
                 replicator,
                 segmentReplicationStatsProvider,
                 clusterDefaultMaxMergeAtOnceSupplier,
                 clusterMergeSchedulerConfig,
                 dataFormatRegistry,
-                dataFormatAwareStoreDirectoryFactory
+                dataFormatAwareStoreDirectoryFactory,
+                nodeCacheOrchestrator
             );
             success = true;
             return indexService;

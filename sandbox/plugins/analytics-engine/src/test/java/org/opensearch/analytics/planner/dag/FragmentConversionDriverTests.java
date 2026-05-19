@@ -8,17 +8,28 @@
 
 package org.opensearch.analytics.planner.dag;
 
+import org.apache.calcite.plan.RelOptTable;
 import org.apache.calcite.plan.RelOptUtil;
+import org.apache.calcite.rel.RelCollations;
 import org.apache.calcite.rel.RelNode;
+import org.apache.calcite.rel.core.AggregateCall;
+import org.apache.calcite.rel.core.JoinRelType;
+import org.apache.calcite.rel.logical.LogicalAggregate;
 import org.apache.calcite.rel.logical.LogicalFilter;
+import org.apache.calcite.rel.logical.LogicalJoin;
+import org.apache.calcite.rel.logical.LogicalProject;
+import org.apache.calcite.rel.logical.LogicalSort;
+import org.apache.calcite.rel.logical.LogicalUnion;
 import org.apache.calcite.rex.RexCall;
 import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.sql.SqlFunction;
 import org.apache.calcite.sql.SqlFunctionCategory;
 import org.apache.calcite.sql.SqlKind;
+import org.apache.calcite.sql.fun.SqlStdOperatorTable;
 import org.apache.calcite.sql.type.OperandTypes;
 import org.apache.calcite.sql.type.ReturnTypes;
 import org.apache.calcite.sql.type.SqlTypeName;
+import org.apache.calcite.util.ImmutableBitSet;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.analytics.planner.BasePlannerRulesTests;
@@ -36,7 +47,9 @@ import org.opensearch.analytics.planner.rel.OpenSearchTableScan;
 import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
 import org.opensearch.analytics.spi.DelegatedPredicateFunction;
 import org.opensearch.analytics.spi.DelegatedPredicateSerializer;
+import org.opensearch.analytics.spi.DelegationPossibleFunction;
 import org.opensearch.analytics.spi.DelegationType;
+import org.opensearch.analytics.spi.EngineCapability;
 import org.opensearch.analytics.spi.FieldStorageInfo;
 import org.opensearch.analytics.spi.FilterTreeShape;
 import org.opensearch.analytics.spi.FragmentConvertor;
@@ -108,7 +121,7 @@ public class FragmentConversionDriverTests extends BasePlannerRulesTests {
     private void assertShardScanConverted(RecordingConvertor convertor, Stage stage) {
         assertEquals("expected exactly one alternative", 1, stage.getPlanAlternatives().size());
         assertNotNull("convertedBytes must be set", stage.getPlanAlternatives().getFirst().convertedBytes());
-        assertTrue("convertShardScanFragment must be called", convertor.shardScanCalled);
+        assertTrue("convertFragment (shard-scan shape) must be called", convertor.shardScanCalled);
         assertEquals("test_index", convertor.shardScanTableName);
         assertDoesntContainOperators(convertor.shardScanFragment, OPENSEARCH_OPERATORS);
         assertDoesntContainOperators(convertor.shardScanFragment, ANNOTATION_MARKERS);
@@ -121,30 +134,29 @@ public class FragmentConversionDriverTests extends BasePlannerRulesTests {
     private void assertReduceStageConverted(RecordingConvertor convertor, Stage stage) {
         assertEquals("expected exactly one alternative", 1, stage.getPlanAlternatives().size());
         assertNotNull("convertedBytes must be set", stage.getPlanAlternatives().getFirst().convertedBytes());
-        assertTrue("convertFinalAggFragment must be called", convertor.finalAggCalled);
+        assertTrue("convertFragment (final-agg shape) must be called", convertor.finalAggCalled);
         assertDoesntContainOperators(convertor.reduceFragment, OPENSEARCH_OPERATORS);
         assertDoesntContainOperators(convertor.reduceFragment, ANNOTATION_MARKERS);
-        // Instruction assertions
+        // Coord-side reduce stages no longer register FinalAggregateInstructionHandler.
+        // DataFusion plans the substrait Aggregate's Partial+Final pair itself via the legacy
+        // executeLocalPlan path; the previous SETUP_FINAL_AGGREGATE instruction routed through
+        // Rust's apply_aggregate_mode strip, which corrupted column refs (cnt[sum]/cnt[count]).
         StagePlan plan = stage.getPlanAlternatives().getFirst();
-        assertFalse("instructions must not be empty", plan.instructions().isEmpty());
-        assertEquals(
-            "reduce stage must have FINAL_AGGREGATE",
-            InstructionType.SETUP_FINAL_AGGREGATE,
-            plan.instructions().getFirst().type()
-        );
+        assertTrue("coord-side reduce instructions must be empty", plan.instructions().isEmpty());
     }
 
     // ---- Single-stage query shapes ----
 
     /**
-     * Scan, Filter(Scan), Aggregate(Scan), Sort(Filter(Scan)) — all single-stage.
-     * Verifies convertShardScanFragment is called and fragment is fully stripped.
+     * Scan, Filter(Scan), Aggregate(Scan), Sort(Filter(Scan)) — single-shard plans now
+     * have a coord stage above the data-node stage (since scans declare RANDOM, the
+     * coord must gather). The test verifies convertFragment (shard-scan shape) is called on the
+     * data-node child stage and the fragment is fully stripped.
      */
     public void testSingleStageQueryShapes() {
         RecordingConvertor scanConvertor = new RecordingConvertor();
         QueryDAG scanDag = buildAndConvert(1, stubScan(mockTable("test_index", "status", "size")), scanConvertor);
-        assertTrue(scanDag.rootStage().getChildStages().isEmpty());
-        assertShardScanConverted(scanConvertor, scanDag.rootStage());
+        assertShardScanConverted(scanConvertor, dataNodeStage(scanDag));
 
         RecordingConvertor filterConvertor = new RecordingConvertor();
         QueryDAG filterDag = buildAndConvert(
@@ -152,13 +164,11 @@ public class FragmentConversionDriverTests extends BasePlannerRulesTests {
             LogicalFilter.create(stubScan(mockTable("test_index", "status", "size")), makeEquals(0, SqlTypeName.INTEGER, 200)),
             filterConvertor
         );
-        assertTrue(filterDag.rootStage().getChildStages().isEmpty());
-        assertShardScanConverted(filterConvertor, filterDag.rootStage());
+        assertShardScanConverted(filterConvertor, dataNodeStage(filterDag));
 
         RecordingConvertor aggConvertor = new RecordingConvertor();
         QueryDAG aggDag = buildAndConvert(1, makeAggregate(sumCall()), aggConvertor);
-        assertTrue(aggDag.rootStage().getChildStages().isEmpty());
-        assertShardScanConverted(aggConvertor, aggDag.rootStage());
+        assertShardScanConverted(aggConvertor, dataNodeStage(aggDag));
 
         RecordingConvertor sortConvertor = new RecordingConvertor();
         QueryDAG sortDag = buildAndConvert(
@@ -166,8 +176,18 @@ public class FragmentConversionDriverTests extends BasePlannerRulesTests {
             makeSort(makeFilter(stubScan(mockTable("test_index", "status", "size")), makeEquals(0, SqlTypeName.INTEGER, 200)), 10),
             sortConvertor
         );
-        assertTrue(sortDag.rootStage().getChildStages().isEmpty());
-        assertShardScanConverted(sortConvertor, sortDag.rootStage());
+        assertShardScanConverted(sortConvertor, dataNodeStage(sortDag));
+    }
+
+    /** Walks to the deepest leaf stage (the data-node fragment) — used by tests that
+     *  assert SHARD_SCAN behavior, which lives on the data-node side regardless of
+     *  whether a coord stage sits above. */
+    private static Stage dataNodeStage(QueryDAG dag) {
+        Stage current = dag.rootStage();
+        while (!current.getChildStages().isEmpty()) {
+            current = current.getChildStages().get(0);
+        }
+        return current;
     }
 
     // ---- Composed pipeline shapes ----
@@ -183,7 +203,7 @@ public class FragmentConversionDriverTests extends BasePlannerRulesTests {
             ),
             convertor
         );
-        assertShardScanConverted(convertor, dag.rootStage());
+        assertShardScanConverted(convertor, dataNodeStage(dag));
     }
 
     /** Sort(Aggregate(Filter(Scan))) with limit — full OLAP pipeline. */
@@ -200,14 +220,14 @@ public class FragmentConversionDriverTests extends BasePlannerRulesTests {
             ),
             convertor
         );
-        assertShardScanConverted(convertor, dag.rootStage());
+        assertShardScanConverted(convertor, dataNodeStage(dag));
     }
 
     // ---- Two-stage shapes ----
 
     /**
-     * Multi-shard Aggregate(Scan) — child calls convertShardScanFragment,
-     * root calls convertFinalAggFragment.
+     * Multi-shard Aggregate(Scan) — child calls convertFragment (shard-scan shape),
+     * root calls convertFragment (final-agg shape).
      */
     public void testTwoStageAggregateConversion() {
         RecordingConvertor convertor = new RecordingConvertor();
@@ -238,6 +258,156 @@ public class FragmentConversionDriverTests extends BasePlannerRulesTests {
         assertEquals(1, dag.rootStage().getChildStages().size());
         assertReduceStageConverted(convertor, dag.rootStage());
         assertShardScanConverted(convertor, dag.rootStage().getChildStages().getFirst());
+    }
+
+    // ---- Multi-input (join) coord fragment shapes ----
+
+    /**
+     * Coord-side fragment: Aggregate ← Join ← (ER ← ...) | (ER ← ...).
+     * Both branches are gathered subtrees. convertReduceNode must convert the whole Join +
+     * branches + ERs + StageInputScans subtree in a single {@code convertFragment (final-agg shape)}
+     * pass — same path as Union / Intersect / Minus. No substrait-level join stitching.
+     */
+    public void testJoinDirectlyOverTwoExchanges() {
+        RecordingConvertor convertor = new RecordingConvertor();
+        QueryDAG dag = buildAndConvert(2, buildJoinOverTwoScans("test_index", "test_index"), convertor);
+
+        // Find the coord-side join stage — the stage whose fragment contains the Join with
+        // two exchange-gathered branches. The whole subtree converts in one pass.
+        Stage joinStage = findStageWithTwoChildren(dag.rootStage());
+        assertNotNull("expected a stage with 2 child stages (the coord-side Join stage)", joinStage);
+        assertNotNull("join stage alternative must have convertedBytes", joinStage.getPlanAlternatives().getFirst().convertedBytes());
+        assertTrue("convertFragment (final-agg shape) must be called for the Join subtree", convertor.finalAggCalled);
+    }
+
+    private static Stage findStageWithTwoChildren(Stage stage) {
+        if (stage.getChildStages().size() == 2) return stage;
+        for (Stage child : stage.getChildStages()) {
+            Stage found = findStageWithTwoChildren(child);
+            if (found != null) return found;
+        }
+        return null;
+    }
+
+    /**
+     * Coord-side Union with pass-through operators (Sort/Project) between each arm and its
+     * ER. Isthmus's SubstraitRelVisitor handles Union natively; convertReduceNode converts
+     * the whole Union subtree as one convertFragment (final-agg shape) call — same path as Join.
+     */
+    public void testUnionOverPassthroughThenExchange() {
+        RecordingConvertor convertor = new RecordingConvertor();
+        MockDataFusionBackend dfWithUnion = new MockDataFusionBackend() {
+            @Override
+            protected Set<EngineCapability> supportedEngineCapabilities() {
+                Set<EngineCapability> caps = new java.util.HashSet<>(super.supportedEngineCapabilities());
+                caps.add(EngineCapability.UNION);
+                return caps;
+            }
+
+            @Override
+            public org.opensearch.analytics.spi.FragmentConvertor getFragmentConvertor() {
+                return convertor;
+            }
+        };
+        PlannerContext context = buildContext("parquet", 2, intFields(), List.of(dfWithUnion));
+        RelNode logical = buildUnionOverSortedAggArms();
+        RelNode cboOutput = runPlanner(logical, context);
+        LOGGER.info("Marked+CBO:\n{}", RelOptUtil.toString(cboOutput));
+        QueryDAG dag = DAGBuilder.build(cboOutput, context.getCapabilityRegistry(), mockClusterService());
+        PlanForker.forkAll(dag, context.getCapabilityRegistry());
+        FragmentConversionDriver.convertAll(dag, context.getCapabilityRegistry());
+
+        Stage root = dag.rootStage();
+        assertNotNull("root alternative must have convertedBytes", root.getPlanAlternatives().getFirst().convertedBytes());
+        assertTrue("convertFragment (final-agg shape) must be called for the Union subtree", convertor.finalAggCalled);
+    }
+
+    /**
+     * Builds a minimal shape that reproduces the AppendPipeCommandIT plan: a LogicalUnion
+     * over two arms, each arm being {@code Sort ← Project ← Aggregate ← Scan} of the same
+     * multi-shard table. After CBO each arm carries an ER above its aggregate (PARTIAL/FINAL
+     * split or SINGLE-over-RANDOM gather), and the Union sits at the coord with two
+     * pass-through operators above each ER.
+     */
+    private RelNode buildUnionOverSortedAggArms() {
+        RelNode arm1 = buildSortedAggArm();
+        RelNode arm2 = buildSortedAggArm();
+        return LogicalUnion.create(List.of(arm1, arm2), true);
+    }
+
+    private RelNode buildSortedAggArm() {
+        RelNode scan = stubScan(mockTable("test_index", "status", "size"));
+        RelNode project = LogicalProject.create(
+            scan,
+            List.of(),
+            List.of(rexBuilder.makeInputRef(scan, 0), rexBuilder.makeInputRef(scan, 1)),
+            List.of("status", "size")
+        );
+        AggregateCall sumCall = AggregateCall.create(
+            SqlStdOperatorTable.SUM,
+            false,
+            List.of(1),
+            -1,
+            project,
+            typeFactory.createTypeWithNullability(typeFactory.createSqlType(SqlTypeName.INTEGER), false),
+            "s"
+        );
+        RelNode agg = LogicalAggregate.create(project, List.of(), ImmutableBitSet.of(0), null, List.of(sumCall));
+        return LogicalSort.create(
+            agg,
+            org.apache.calcite.rel.RelCollations.of(new org.apache.calcite.rel.RelFieldCollation(0)),
+            null,
+            null
+        );
+    }
+
+    /**
+     * Builds an After-HEP shape close to JoinCommandIT#testInnerJoin: a top-level
+     * count Aggregate over a Join of two separately-aggregated, separately-projected
+     * scans. After CBO each join side carries an ER above its partial-agg subtree.
+     */
+    private RelNode buildJoinOverTwoScans(String leftTable, String rightTable) {
+        RelOptTable left = mockTable(leftTable, "status", "size");
+        RelOptTable right = mockTable(rightTable, "status", "size");
+
+        RelNode leftScan = stubScan(left);
+        RelNode leftProject = LogicalProject.create(
+            leftScan,
+            List.of(),
+            List.of(rexBuilder.makeInputRef(leftScan, 0), rexBuilder.makeInputRef(leftScan, 1)),
+            List.of("status", "size")
+        );
+        RelNode rightScan = stubScan(right);
+        RelNode rightProject = LogicalProject.create(
+            rightScan,
+            List.of(),
+            List.of(rexBuilder.makeInputRef(rightScan, 0), rexBuilder.makeInputRef(rightScan, 1)),
+            List.of("status", "size")
+        );
+        RelNode rightSorted = LogicalSort.create(
+            rightProject,
+            RelCollations.EMPTY,
+            null,
+            rexBuilder.makeLiteral(50000, typeFactory.createSqlType(SqlTypeName.INTEGER), true)
+        );
+
+        RexNode cond = rexBuilder.makeCall(
+            SqlStdOperatorTable.EQUALS,
+            rexBuilder.makeInputRef(typeFactory.createSqlType(SqlTypeName.INTEGER), 0),
+            rexBuilder.makeInputRef(typeFactory.createSqlType(SqlTypeName.INTEGER), 2)
+        );
+        RelNode join = LogicalJoin.create(leftProject, rightSorted, List.of(), cond, Set.of(), JoinRelType.INNER);
+
+        AggregateCall countCall = AggregateCall.create(
+            SqlStdOperatorTable.COUNT,
+            false,
+            List.of(),
+            -1,
+            join,
+            typeFactory.createSqlType(SqlTypeName.BIGINT),
+            "cnt"
+        );
+        return LogicalAggregate.create(join, List.of(), ImmutableBitSet.of(), null, List.of(countCall));
     }
 
     // ---- Delegation tagging tests ----
@@ -299,6 +469,9 @@ public class FragmentConversionDriverTests extends BasePlannerRulesTests {
                 map.put(ScalarFunction.MATCH, serializer);
                 map.put(ScalarFunction.WILDCARD, serializer);
                 map.put(ScalarFunction.REGEXP, serializer);
+                // EQUALS registered for performance-delegation tests (dual-viable predicate that
+                // stays on the operator backend but is also serializable by the Lucene peer).
+                map.put(ScalarFunction.EQUALS, serializer);
                 return map;
             }
         };
@@ -336,15 +509,30 @@ public class FragmentConversionDriverTests extends BasePlannerRulesTests {
         );
     }
 
-    /** Two-field delegation helper (integer status + keyword message). */
+    /**
+     * Three-field delegation helper:
+     *   - field 0 = status   (integer, indexed) — DUAL-VIABLE for Lucene + DataFusion.
+     *   - field 1 = message  (keyword, indexed) — DUAL-VIABLE for full-text + DataFusion.
+     *   - field 2 = amount   (integer, NOT indexed) — SINGLE-VIABLE to DataFusion only;
+     *     Lucene declares EQUALS as a capability for indexed numerics, so an index=false
+     *     field is the simplest way to test the truly-native code path without touching
+     *     {@link MockLuceneBackend}'s capability declarations.
+     */
     private QueryDAG buildTwoFieldDelegationDag(RexNode condition, RecordingConvertor dfConvertor, RecordingSerializer serializer) {
         return buildDelegationDag(
             condition,
             dfConvertor,
             serializer,
-            new String[] { "status", "message" },
-            new SqlTypeName[] { SqlTypeName.INTEGER, SqlTypeName.VARCHAR },
-            Map.of("status", Map.of("type", "integer", "index", true), "message", Map.of("type", "keyword", "index", true))
+            new String[] { "status", "message", "amount" },
+            new SqlTypeName[] { SqlTypeName.INTEGER, SqlTypeName.VARCHAR, SqlTypeName.INTEGER },
+            Map.of(
+                "status",
+                Map.of("type", "integer", "index", true),
+                "message",
+                Map.of("type", "keyword", "index", true),
+                "amount",
+                Map.of("type", "integer", "index", false)
+            )
         );
     }
 
@@ -428,23 +616,69 @@ public class FragmentConversionDriverTests extends BasePlannerRulesTests {
         assertDelegationResult(plan, dfConvertor, serializer, 1, true, false, List.of("MATCH_PHRASE"), FilterTreeShape.CONJUNCTIVE);
     }
 
-    /** Single native equals — no delegation, empty delegatedQueries. */
+    /** Single native equals on a non-indexed field — single-viable to DataFusion, no delegation. */
     public void testSingleNativePredicate() {
         RecordingConvertor dfConvertor = new RecordingConvertor();
         RecordingSerializer serializer = new RecordingSerializer();
-        QueryDAG dag = buildTwoFieldDelegationDag(makeEquals(0, SqlTypeName.INTEGER, 200), dfConvertor, serializer);
+        // amount is index=false → only DataFusion can evaluate, Lucene is not viable.
+        QueryDAG dag = buildTwoFieldDelegationDag(makeEquals(2, SqlTypeName.INTEGER, 200), dfConvertor, serializer);
         StagePlan plan = leafStage(dag).getPlanAlternatives().getFirst();
         assertDelegationResult(plan, dfConvertor, serializer, 0, false, true, List.of(), FilterTreeShape.NO_DELEGATION);
     }
 
+    /**
+     * Single dual-viable equals on an indexed integer field — DataFusion narrows the operator
+     * but Lucene was also viable, so FragmentConversion wraps the predicate with the
+     * {@code delegation_possible(original, annotationId)} marker for opportunistic per-RG
+     * consultation. Asserts one delegated entry, CONJUNCTIVE shape, and that the original
+     * predicate survives in the plan alongside the wrapper (unlike correctness delegation,
+     * which replaces the original with a {@code delegated_predicate} placeholder).
+     */
+    public void testSinglePerformanceDelegatedPredicate() {
+        RecordingConvertor dfConvertor = new RecordingConvertor();
+        RecordingSerializer serializer = new RecordingSerializer();
+        // status is index=true → both DataFusion and Lucene viable → performance-delegation.
+        QueryDAG dag = buildTwoFieldDelegationDag(makeEquals(0, SqlTypeName.INTEGER, 200), dfConvertor, serializer);
+        StagePlan plan = leafStage(dag).getPlanAlternatives().getFirst();
+
+        // Wire-shape: one delegated expression (for the peer to compile lazily), serialized
+        // by the recording serializer. Operator name comes from SqlBinaryOperator.getName() = "=".
+        assertEquals("delegatedQueries count", 1, plan.delegatedExpressions().size());
+        assertEquals("serializer call count", 1, serializer.callCount);
+        assertEquals("serialized functions", List.of("="), serializer.serializedFunctions);
+
+        // Tree shape carries CONJUNCTIVE so the driving backend knows about the performance leaf.
+        ShardScanWithDelegationInstructionNode delegationInstruction = (ShardScanWithDelegationInstructionNode) plan.instructions()
+            .stream()
+            .filter(node -> node.type() == InstructionType.SETUP_SHARD_SCAN_WITH_DELEGATION)
+            .findFirst()
+            .orElseThrow(() -> new AssertionError("performance-delegation plan must have SHARD_SCAN_WITH_DELEGATION"));
+        assertEquals("FilterTreeShape", FilterTreeShape.CONJUNCTIVE, delegationInstruction.getTreeShape());
+        assertEquals("delegatedPredicateCount", 1, delegationInstruction.getDelegatedPredicateCount());
+
+        // Plan-shape: delegation_possible wraps the original; native = survives.
+        // (Correctness delegation would replace with delegated_predicate placeholder; perf preserves.)
+        String strippedPlan = RelOptUtil.toString(dfConvertor.shardScanFragment);
+        assertTrue(
+            "Stripped plan should contain " + DelegationPossibleFunction.NAME,
+            strippedPlan.contains(DelegationPossibleFunction.NAME)
+        );
+        assertFalse(
+            "Stripped plan should NOT contain " + DelegatedPredicateFunction.NAME + " (this is performance, not correctness)",
+            strippedPlan.contains(DelegatedPredicateFunction.NAME)
+        );
+        assertTrue("Stripped plan should still contain the native '=' (preserved by the wrapper)", strippedPlan.contains("="));
+        assertDoesntContainOperators(dfConvertor.shardScanFragment, ANNOTATION_MARKERS);
+    }
+
     // ---- AND conditions ----
 
-    /** AND(native, delegated) — equals unwrapped, MATCH_PHRASE replaced. */
+    /** AND(native, delegated) — equals on non-indexed amount stays native; MATCH_PHRASE replaced. */
     public void testAndNativeAndDelegated() {
         RecordingConvertor dfConvertor = new RecordingConvertor();
         RecordingSerializer serializer = new RecordingSerializer();
         QueryDAG dag = buildTwoFieldDelegationDag(
-            makeAnd(makeEquals(0, SqlTypeName.INTEGER, 200), makeFullTextCall(MATCH_PHRASE_FUNCTION, 1, "timeout error")),
+            makeAnd(makeEquals(2, SqlTypeName.INTEGER, 200), makeFullTextCall(MATCH_PHRASE_FUNCTION, 1, "timeout error")),
             dfConvertor,
             serializer
         );
@@ -476,14 +710,14 @@ public class FragmentConversionDriverTests extends BasePlannerRulesTests {
 
     // ---- OR conditions ----
 
-    /** OR(native, delegated) — structure preserved, delegated replaced. */
+    /** OR(native, delegated) — equals on non-indexed amount stays native; MATCH_PHRASE replaced. */
     public void testOrNativeAndDelegated() {
         RecordingConvertor dfConvertor = new RecordingConvertor();
         RecordingSerializer serializer = new RecordingSerializer();
         QueryDAG dag = buildTwoFieldDelegationDag(
             rexBuilder.makeCall(
                 org.apache.calcite.sql.fun.SqlStdOperatorTable.OR,
-                makeEquals(0, SqlTypeName.INTEGER, 200),
+                makeEquals(2, SqlTypeName.INTEGER, 200),
                 makeFullTextCall(MATCH_PHRASE_FUNCTION, 1, "timeout error")
             ),
             dfConvertor,
@@ -518,10 +752,20 @@ public class FragmentConversionDriverTests extends BasePlannerRulesTests {
             makeFullTextCall(MATCH_PHRASE_FUNCTION, 1, "timeout error"),
             notFuzzy
         );
-        RexNode condition = makeAnd(makeEquals(0, SqlTypeName.INTEGER, 200), orClause);
+        // amount is index=false → equals stays native; only MATCH_PHRASE + FUZZY get delegated.
+        RexNode condition = makeAnd(makeEquals(2, SqlTypeName.INTEGER, 200), orClause);
         QueryDAG dag = buildTwoFieldDelegationDag(condition, dfConvertor, serializer);
         StagePlan plan = leafStage(dag).getPlanAlternatives().getFirst();
-        assertDelegationResult(plan, dfConvertor, serializer, 2, true, true, List.of("MATCH_PHRASE", "FUZZY"), FilterTreeShape.CONJUNCTIVE);
+        assertDelegationResult(
+            plan,
+            dfConvertor,
+            serializer,
+            2,
+            true,
+            true,
+            List.of("MATCH_PHRASE", "FUZZY"),
+            FilterTreeShape.INTERLEAVED_BOOLEAN_EXPRESSION
+        );
         String strippedPlan = RelOptUtil.toString(dfConvertor.shardScanFragment);
         assertTrue("AND structure should be preserved", strippedPlan.contains("AND"));
         assertTrue("OR structure should be preserved", strippedPlan.contains("OR"));
@@ -579,15 +823,20 @@ public class FragmentConversionDriverTests extends BasePlannerRulesTests {
         RelNode reduceFragment;
 
         @Override
-        public byte[] convertShardScanFragment(String tableName, RelNode fragment) {
-            this.shardScanCalled = true;
-            this.shardScanTableName = tableName;
-            this.shardScanFragment = fragment;
-            return ("shard:" + tableName).getBytes(StandardCharsets.UTF_8);
-        }
-
-        @Override
-        public byte[] convertFinalAggFragment(RelNode fragment) {
+        public byte[] convertFragment(RelNode fragment) {
+            // Distinguish shard-scan vs reduce/final by walking down the leftmost spine
+            // to find a TableScan-shaped leaf (annotations are stripped before this is
+            // called, so OpenSearchTableScan has been rewritten to LogicalTableScan).
+            org.apache.calcite.rel.core.TableScan scan = org.opensearch.analytics.planner.RelNodeUtils.findNode(
+                fragment,
+                org.apache.calcite.rel.core.TableScan.class
+            );
+            if (scan != null) {
+                this.shardScanCalled = true;
+                this.shardScanTableName = scan.getTable().getQualifiedName().getLast();
+                this.shardScanFragment = fragment;
+                return ("shard:" + this.shardScanTableName).getBytes(StandardCharsets.UTF_8);
+            }
             this.finalAggCalled = true;
             this.reduceFragment = fragment;
             return "reduce".getBytes(StandardCharsets.UTF_8);

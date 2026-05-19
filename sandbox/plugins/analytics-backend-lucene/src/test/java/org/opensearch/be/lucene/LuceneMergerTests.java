@@ -249,6 +249,77 @@ public class LuceneMergerTests extends OpenSearchTestCase {
         expectThrows(IllegalArgumentException.class, () -> new LuceneMerger(null, new LuceneDataFormat(), Path.of(".")));
     }
 
+    /**
+     * Regression guard for the {@code writer_generation} stamping path. Verifies two things:
+     * <ol>
+     *   <li>The merged segment carries the {@code writer_generation} attribute in the live
+     *       {@link SegmentInfos} immediately after the merge completes — catches regressions
+     *       where the {@link org.opensearch.be.lucene.merge.RowIdRemappingOneMerge#setMergeInfo}
+     *       override stops running.</li>
+     *   <li>The attribute is <em>persisted</em> to the {@code .si} file and survives a writer
+     *       reopen — catches regressions that would revert to an in-memory-only stamp (e.g.
+     *       moving the {@code putAttribute} call back to {@code LuceneMerger#merge} after
+     *       {@code executeMerge}, which runs too late to influence the codec write).</li>
+     * </ol>
+     */
+    public void testMergedSegmentWriterGenerationIsPersisted() throws IOException {
+        long newGeneration = 99L;
+
+        writeSegment(writer, 1L, 0, 3);
+        writeSegment(writer, 2L, 3, 2);
+        writer.commit();
+
+        LuceneMerger merger = new LuceneMerger(writer, new LuceneDataFormat(), dataPath);
+        SegmentInfos infos = getSegmentInfos(writer);
+        List<Segment> segments = buildSegments(infos);
+
+        RowIdMapping identity = (oldId, oldGeneration) -> oldId;
+        MergeInput input = MergeInput.builder().segments(segments).rowIdMapping(identity).newWriterGeneration(newGeneration).build();
+
+        merger.merge(input);
+
+        // Assertion 1: attribute is set on the live (in-memory) merged SegmentCommitInfo
+        SegmentCommitInfo mergedInMemory = findSegmentWithGeneration(getSegmentInfos(writer), newGeneration);
+        assertNotNull("Merged segment must carry writer_generation=" + newGeneration + " in the live SegmentInfos", mergedInMemory);
+
+        // Persist to disk, close the writer, and reopen against the same directory to verify
+        // the attribute survives — i.e. it was stamped before Lucene wrote the .si file.
+        writer.commit();
+        writer.close();
+
+        SegmentInfos onDisk = SegmentInfos.readLatestCommit(directory);
+        SegmentCommitInfo mergedAfterReopen = findSegmentWithGeneration(onDisk, newGeneration);
+        assertNotNull(
+            "Merged segment must carry writer_generation="
+                + newGeneration
+                + " after reopen — the attribute must be written to the .si file during the merge, "
+                + "not stamped in-memory after executeMerge returns",
+            mergedAfterReopen
+        );
+        assertEquals(
+            "Persisted writer_generation attribute must match the one passed to MergeInput#newWriterGeneration",
+            String.valueOf(newGeneration),
+            mergedAfterReopen.info.getAttribute(WRITER_GENERATION_ATTRIBUTE)
+        );
+
+        // Reopen for the tearDown close() to be a no-op on an already-closed writer.
+        IndexWriterConfig iwc = new IndexWriterConfig(new MockAnalyzer(random()));
+        iwc.setMergeScheduler(new SerialMergeScheduler());
+        iwc.setMergePolicy(NoMergePolicy.INSTANCE);
+        iwc.setIndexSort(new Sort(new SortedNumericSortField(ROW_ID_FIELD, SortField.Type.LONG)));
+        writer = new MergeIndexWriter(directory, iwc);
+    }
+
+    private SegmentCommitInfo findSegmentWithGeneration(SegmentInfos infos, long generation) {
+        String target = String.valueOf(generation);
+        for (SegmentCommitInfo sci : infos.asList()) {
+            if (target.equals(sci.info.getAttribute(WRITER_GENERATION_ATTRIBUTE))) {
+                return sci;
+            }
+        }
+        return null;
+    }
+
     // ========== Helper Methods ==========
 
     private void writeSegment(IndexWriter w, long generation, int startRowId, int numDocs) throws IOException {

@@ -130,24 +130,16 @@ public class LuceneMerger implements Merger {
             generationsToMerge
         );
 
-        // Delegate OneMerge creation to the strategy (primary vs secondary behavior)
-        MergePolicy.OneMerge oneMerge = strategy.createOneMerge(matchingSegments, rowIdMapping);
+        // Delegate OneMerge creation to the strategy (primary vs secondary behavior).
+        // For the secondary path, the returned RowIdRemappingOneMerge stamps the
+        // writer_generation attribute onto the merged SegmentInfo via setMergeInfo, which
+        // Lucene invokes immediately before codec.segmentInfoFormat().write(...) — so the
+        // attribute is persisted to the .si file and survives a writer reopen.
+        MergePolicy.OneMerge oneMerge = strategy.createOneMerge(matchingSegments, rowIdMapping, mergeInput.newWriterGeneration());
         indexWriter.executeMerge(oneMerge, mergeInput.newWriterGeneration());
 
-        // Stamp the merged segment with its writer generation so downstream lookups
-        // (e.g. findMatchingSegments on a subsequent merge) can correlate it.
-        //
-        // This mutation is in-memory only: Lucene writes the .si file exactly once at
-        // segment creation via SegmentInfoFormat.write(...) and does not rewrite it on
-        // later commits, so this attribute will not survive a writer reopen. That is
-        // acceptable here because the attribute is only consumed within the lifetime
-        // of the live IndexWriter's SegmentInfos.
-        SegmentCommitInfo mergedInfo = oneMerge.getMergeInfo();
-        if (mergedInfo != null) {
-            mergedInfo.info.putAttribute(WRITER_GENERATION_ATTRIBUTE, String.valueOf(mergeInput.newWriterGeneration()));
-        }
-
         // Build the merged WriterFileSet from the output segment info
+        SegmentCommitInfo mergedInfo = oneMerge.getMergeInfo();
         WriterFileSet mergedFileSet = buildMergedFileSet(mergedInfo, mergeInput.newWriterGeneration());
 
         // Delegate RowIdMapping production to the strategy

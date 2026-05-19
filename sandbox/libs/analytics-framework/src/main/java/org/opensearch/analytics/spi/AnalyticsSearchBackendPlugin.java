@@ -113,4 +113,10 @@ public interface AnalyticsSearchBackendPlugin {
     default void configureFilterDelegation(FilterDelegationHandle handle, BackendExecutionContext backendContext) {
         throw new UnsupportedOperationException("configureFilterDelegation not implemented for [" + name() + "]");
     }
+
+    /**
+     * Install a thread tracker for attribution of delegation callbacks executing on foreign threads.
+     * Called after {@link #configureFilterDelegation}. Pass {@code null} to clear.
+     */
+    default void setDelegationThreadTracker(DelegationThreadTracker tracker) {}
 }

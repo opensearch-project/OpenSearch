@@ -14,11 +14,13 @@ import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.exec.EngineReaderManager;
+import org.opensearch.index.engine.exec.commit.Committer;
 import org.opensearch.index.store.FormatChecksumStrategy;
 import org.opensearch.plugins.PluginsService;
 import org.opensearch.plugins.SearchBackEndPlugin;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -278,5 +280,33 @@ public class DataFormatRegistry {
             );
         }
         return Map.of(readerManagerConfig.format(), readerManagerBuilders.get(readerManagerConfig.format()).apply(readerManagerConfig));
+    }
+
+    /**
+     * Returns the {@link DeleteExecutionEngine} by finding the single registered plugin that provides one.
+     * Iterates over all registered data format plugins and validates that exactly one returns a non-null
+     * result from {@link DataFormatPlugin#getDeleteExecutionEngine(Committer)}.
+     *
+     * @param committer the committer for durable delete tracking
+     * @return the delete execution engine
+     * @throws IllegalStateException if no plugin or multiple plugins provide a delete execution engine
+     */
+    public DeleteExecutionEngine<?> getDeleteExecutionEngine(Committer committer) {
+        List<DeleteExecutionEngine<?>> engines = new ArrayList<>();
+        for (DataFormatPlugin plugin : dataFormatPluginRegistry.values()) {
+            DeleteExecutionEngine<?> engine = plugin.getDeleteExecutionEngine(committer);
+            if (engine != null) {
+                engines.add(engine);
+            }
+        }
+        if (engines.size() > 1) {
+            throw new IllegalStateException(
+                "Multiple DataFormatPlugins provide a DeleteExecutionEngine, expected exactly one but found [" + engines.size() + "]"
+            );
+        }
+        if (engines.isEmpty()) {
+            throw new IllegalStateException("No DataFormatPlugin provides a DeleteExecutionEngine");
+        }
+        return engines.getFirst();
     }
 }

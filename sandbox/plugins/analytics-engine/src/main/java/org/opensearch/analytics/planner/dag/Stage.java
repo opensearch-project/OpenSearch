@@ -62,7 +62,7 @@ public class Stage {
         this.exchangeInfo = exchangeInfo;
         this.exchangeSinkProvider = exchangeSinkProvider;
         this.targetResolver = targetResolver;
-        this.executionType = setStageExecutionType(exchangeSinkProvider, targetResolver);
+        this.executionType = setStageExecutionType(exchangeSinkProvider, targetResolver, fragment);
         this.planAlternatives = List.of();
     }
 
@@ -128,13 +128,35 @@ public class Stage {
         this.instructionHandlerFactory = instructionHandlerFactory;
     }
 
-    private StageExecutionType setStageExecutionType(ExchangeSinkProvider exchangeSinkProvider, TargetResolver targetResolver) {
+    private StageExecutionType setStageExecutionType(
+        ExchangeSinkProvider exchangeSinkProvider,
+        TargetResolver targetResolver,
+        RelNode fragment
+    ) {
         if (targetResolver != null) {
             return StageExecutionType.SHARD_FRAGMENT;
+        } else if (hasComputeLeaf(fragment)) {
+            // Coord-only compute leaf (e.g. OpenSearchValues) — run the plan locally
+            // via the backend's in-process engine. Takes precedence over the
+            // sink-provider check because LOCAL_COMPUTE also requires a sink
+            // provider (DAGBuilder attaches one), but the routing differs.
+            return StageExecutionType.LOCAL_COMPUTE;
         } else if (exchangeSinkProvider != null) {
             return StageExecutionType.COORDINATOR_REDUCE;
         } else {
             return StageExecutionType.LOCAL_PASSTHROUGH;
         }
+    }
+
+    /**
+     * True iff {@code fragment} contains a coord-only compute leaf —
+     * an {@link org.opensearch.analytics.planner.rel.OpenSearchValues} today;
+     * future literal-source rels would extend this list.
+     */
+    private static boolean hasComputeLeaf(RelNode fragment) {
+        return org.opensearch.analytics.planner.RelNodeUtils.findNode(
+            fragment,
+            org.opensearch.analytics.planner.rel.OpenSearchValues.class
+        ) != null;
     }
 }

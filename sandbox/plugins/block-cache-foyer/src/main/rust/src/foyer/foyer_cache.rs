@@ -6,10 +6,11 @@
  * compatible open source license.
  */
 
-//! [`FoyerCache`] — a [`PageCache`] implementation backed by Foyer.
+//! [`FoyerCache`] — a [`BlockCache`] implementation backed by Foyer.
 
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::sync::atomic::Ordering;
 use bytes::Bytes;
 use dashmap::DashMap;
 use foyer::{BlockEngineConfig, DeviceBuilder, Event, EventListener, FsDeviceBuilder,
@@ -18,7 +19,8 @@ use foyer::{BlockEngineConfig, DeviceBuilder, Event, EventListener, FsDeviceBuil
 use foyer::UringIoEngineConfig;
 
 use crate::range_cache::{CacheKey, SEPARATOR};
-use crate::traits::PageCache;
+use crate::stats::FoyerStatsCounter;
+use crate::traits::BlockCache;
 
 // ── I/O engine selection ──────────────────────────────────────────────────────
 
@@ -51,19 +53,19 @@ fn kernel_version_at_least(required_major: u32, required_minor: u32) -> bool {
 fn build_io_engine_config(choice: &str) -> Box<dyn IoEngineConfig> {
     match choice {
         "io_uring" => {
-            log::info!("[block-cache] io_engine=io_uring forced by config");
+            native_bridge_common::log_info!("[block-cache] io_engine=io_uring forced by config");
             #[cfg(target_os = "linux")]
             return UringIoEngineConfig::new().boxed();
             #[cfg(not(target_os = "linux"))]
             panic!("[block-cache] io_engine=io_uring requested but io_uring is not supported on non-Linux platforms");
         }
         "psync" => {
-            log::info!("[block-cache] io_engine=psync forced by config");
+            native_bridge_common::log_info!("[block-cache] io_engine=psync forced by config");
             return PsyncIoEngineConfig::new().boxed();
         }
         other => {
             if other != "auto" {
-                log::warn!("[block-cache] unknown io_engine='{}'; falling back to auto-detect", other);
+                native_bridge_common::log_info!("[block-cache] unknown io_engine='{}'; falling back to auto-detect", other);
             }
             // "auto" — detect by kernel version (existing logic)
             #[cfg(target_os = "linux")]
@@ -72,13 +74,13 @@ fn build_io_engine_config(choice: &str) -> Box<dyn IoEngineConfig> {
                     .unwrap_or_else(|_| "unknown".to_string());
                 let release = release.trim();
                 if kernel_version_at_least(5, 1) {
-                    log::info!(
+                    native_bridge_common::log_info!(
                         "[block-cache] kernel {} — io_uring available, using UringIoEngineConfig",
                         release
                     );
                     return UringIoEngineConfig::new().boxed();
                 } else {
-                    log::warn!(
+                    native_bridge_common::log_info!(
                         "[block-cache] kernel {} — io_uring unavailable (requires >= 5.1), \
                          falling back to PsyncIoEngineConfig",
                         release
@@ -92,12 +94,13 @@ fn build_io_engine_config(choice: &str) -> Box<dyn IoEngineConfig> {
 
 // ── Key index eviction listener ───────────────────────────────────────────────
 
-/// Foyer event listener that removes evicted keys from the key index.
+/// Foyer event listener that removes evicted keys from the key index
+/// and updates the shared [`FoyerStatsCounter`] counters.
 ///
 /// Shared between [`FoyerCache`] and Foyer via `Arc`. When Foyer evicts,
-/// replaces, or removes an entry, `on_leave` is called, which removes the key
-/// from the prefix-to-keys index. This prevents `key_index` from growing
-/// unbounded as Foyer's LRU evicts entries from disk.
+/// replaces, or removes an entry, `on_leave` is called, which:
+/// 1. Removes the key from the prefix-to-keys index (prevents unbounded growth).
+/// 2. Updates the appropriate stats counters.
 ///
 /// # Key index prefix extraction
 ///
@@ -106,20 +109,53 @@ fn build_io_engine_config(choice: &str) -> Box<dyn IoEngineConfig> {
 /// the index key.
 struct KeyIndexListener {
     key_index: Arc<DashMap<String, Vec<String>>>,
+    /// Shared stats counters — updated here for eviction/remove/clear events.
+    stats: Arc<FoyerStatsCounter>,
 }
 
 impl EventListener for KeyIndexListener {
     type Key   = String;
     type Value = Vec<u8>;
 
-    fn on_leave(&self, reason: Event, key: &String, _value: &Vec<u8>) {
+    fn on_leave(&self, reason: Event, key: &String, value: &Vec<u8>) {
+        let size = value.len() as i64;
+        native_bridge_common::log_debug!(
+            "[block-cache] on_leave reason={:?} key='{}' size={} key_index_len={}",
+            reason, key, size, self.key_index.len()
+        );
+
         match reason {
-            Event::Evict | Event::Replace | Event::Remove => {
-                let index_key = if let Some(sep_pos) = key.find(SEPARATOR) {
-                    &key[..sep_pos]
-                } else {
-                    key.as_str()
-                };
+            Event::Evict => {
+                let raw_idx = if let Some(sep_pos) = key.find(SEPARATOR) { &key[..sep_pos] } else { key.as_str() };
+                let index_key = raw_idx.trim_start_matches('/');
+                if let Some(mut keys) = self.key_index.get_mut(index_key) {
+                    let before = keys.len();
+                    keys.retain(|k| k != key);
+                    let after = keys.len();
+                    native_bridge_common::log_debug!(
+                        "[block-cache] on_leave Evict: index_key='{}' keys_before={} keys_after={}",
+                        index_key, before, after
+                    );
+                    if keys.is_empty() {
+                        drop(keys);
+                        self.key_index.remove(index_key);
+                        native_bridge_common::log_debug!("[block-cache] on_leave Evict: removed index_key='{}' from index", index_key);
+                    }
+                }
+                self.stats.eviction_count.fetch_add(1, Ordering::Relaxed);
+                self.stats.eviction_bytes.fetch_add(size, Ordering::Relaxed);
+                self.stats.used_bytes.fetch_add(-size, Ordering::Relaxed);
+                native_bridge_common::log_info!(
+                    "[block-cache] EVICT key='{}' size={} total_evictions={} used_bytes={}",
+                    key, size,
+                    self.stats.eviction_count.load(Ordering::Relaxed),
+                    self.stats.used_bytes.load(Ordering::Relaxed)
+                );
+            }
+            Event::Remove => {
+                // Explicit deletion — e.g. evict_prefix() called on shard/index removal.
+                let raw_idx = if let Some(sep_pos) = key.find(SEPARATOR) { &key[..sep_pos] } else { key.as_str() };
+                let index_key = raw_idx.trim_start_matches('/');
                 if let Some(mut keys) = self.key_index.get_mut(index_key) {
                     keys.retain(|k| k != key);
                     if keys.is_empty() {
@@ -127,8 +163,35 @@ impl EventListener for KeyIndexListener {
                         self.key_index.remove(index_key);
                     }
                 }
+                self.stats.removed_count.fetch_add(1, Ordering::Relaxed);
+                self.stats.removed_bytes.fetch_add(size, Ordering::Relaxed);
+                self.stats.used_bytes.fetch_add(-size, Ordering::Relaxed);
+                native_bridge_common::log_debug!(
+                    "[block-cache] Remove key='{}' size={} used_bytes={}",
+                    key, size, self.stats.used_bytes.load(Ordering::Relaxed)
+                );
             }
-            Event::Clear => {}
+            Event::Replace => {
+                // Overwrite by a newer put — old entry leaves, new entry arrives via put().
+                let raw_idx = if let Some(sep_pos) = key.find(SEPARATOR) { &key[..sep_pos] } else { key.as_str() };
+                let index_key = raw_idx.trim_start_matches('/');
+                if let Some(mut keys) = self.key_index.get_mut(index_key) {
+                    keys.retain(|k| k != key);
+                    if keys.is_empty() {
+                        drop(keys);
+                        self.key_index.remove(index_key);
+                    }
+                }
+                // Only subtract old size — put() will add the new size.
+                self.stats.used_bytes.fetch_add(-size, Ordering::Relaxed);
+                native_bridge_common::log_debug!(
+                    "[block-cache] Replace key='{}' old_size={} used_bytes={}",
+                    key, size, self.stats.used_bytes.load(Ordering::Relaxed)
+                );
+            }
+            Event::Clear => {
+                native_bridge_common::log_info!("[block-cache] CLEAR event — key_index and used_bytes reset externally");
+            }
         }
     }
 }
@@ -139,18 +202,21 @@ impl EventListener for KeyIndexListener {
 ///
 /// Wraps a Foyer [`HybridCache`] configured as a disk-only store, together
 /// with a concurrent key index that maps each index prefix to its cached entry
-/// keys. The key index allows removing all cached entries sharing a common
-/// prefix in O(n) without requiring Foyer to support prefix-scan semantics.
+/// keys, and a set of [`FoyerStatsCounter`] atomic counters.
 ///
-/// Keys are opaque strings supplied by the caller. The index key is derived as
-/// everything before the first [`SEPARATOR`]. See [`PageCache`] for key format
-/// conventions.
+/// The key index allows removing all cached entries sharing a common prefix
+/// in O(n) without requiring Foyer to support prefix-scan semantics.
 ///
-/// The key index is kept in sync with Foyer's internal state via an
-/// [`EventListener`] — stale keys are removed automatically when Foyer evicts
-/// entries via LRU.
+/// Stats are updated on every hot-path operation:
+/// - `get()` → hit_count / miss_count
+/// - `put()` → used_bytes
+/// - `KeyIndexListener::on_leave()` → eviction_count, eviction_bytes, used_bytes
 ///
-/// Thread-safe: both [`HybridCache`] and [`DashMap`] are `Send + Sync`.
+/// Stats are exposed via [`FoyerCache::stats`] and read by the
+/// `foyer_snapshot_stats` FFM function at most once per `_nodes/stats` request.
+///
+/// Thread-safe: both [`HybridCache`] and [`DashMap`] are `Send + Sync`;
+/// all stats fields are [`AtomicI64`].
 pub struct FoyerCache {
     inner: HybridCache<String, Vec<u8>>,
     /// Maps each index prefix to the list of Foyer keys stored under that prefix.
@@ -158,6 +224,9 @@ pub struct FoyerCache {
     pub(crate) key_index: Arc<DashMap<String, Vec<String>>>,
     /// Keeps the Tokio runtime alive for the lifetime of the cache.
     _runtime: Arc<tokio::runtime::Runtime>,
+    /// Atomic stats counters. Shared with [`KeyIndexListener`].
+    /// Exposed for FFM read via `foyer_snapshot_stats`.
+    pub(crate) stats: Arc<FoyerStatsCounter>,
 }
 
 impl FoyerCache {
@@ -182,7 +251,11 @@ impl FoyerCache {
     ) -> Self {
         let disk_dir = disk_dir.into();
         let key_index: Arc<DashMap<String, Vec<String>>> = Arc::new(DashMap::new());
-        let listener = Arc::new(KeyIndexListener { key_index: Arc::clone(&key_index) });
+        let stats = FoyerStatsCounter::new();
+        let listener = Arc::new(KeyIndexListener {
+            key_index: Arc::clone(&key_index),
+            stats: Arc::clone(&stats),
+        });
 
         let rt = tokio::runtime::Runtime::new()
             .expect("[block-cache] failed to create Tokio runtime");
@@ -218,54 +291,85 @@ impl FoyerCache {
                 .await
                 .expect("[block-cache] HybridCache build failed")
         });
-        log::info!(
+        native_bridge_common::log_info!(
             "[block-cache] ready: disk={}B, block_size={}B, io_engine={}, dir={}",
             disk_bytes, block_size_bytes, io_engine_for_log, disk_dir.display()
         );
-        Self { inner, key_index, _runtime: Arc::new(rt) }
+        Self { inner, key_index, _runtime: Arc::new(rt), stats }
     }
 
-    /// Derive the index key from a cache key: everything before the first [`SEPARATOR`].
-    /// For keys without [`SEPARATOR`] (e.g. Lucene block paths), the full key is its
-    /// own index entry.
+    /// Derive the normalized index key from a cache key.
+    ///
+    /// Extracts everything before the first [`SEPARATOR`] (the path prefix),
+    /// then strips any leading `/` so that keys stored by DataFusion's
+    /// `object_store::Path` (no leading slash) and keys from tests or
+    /// direct path strings (with leading slash) both map to the same bucket.
     fn index_key(key: &str) -> &str {
-        if let Some(pos) = key.find(SEPARATOR) { &key[..pos] } else { key }
+        let raw = if let Some(pos) = key.find(SEPARATOR) { &key[..pos] } else { key };
+        raw.trim_start_matches('/')
     }
 }
 
-impl PageCache for FoyerCache {
-    async fn get(&self, key: &CacheKey) -> Option<Bytes> {
+impl BlockCache for FoyerCache {
+    fn as_any(&self) -> &dyn std::any::Any { self }
+    fn get<'a>(&'a self, key: &'a CacheKey)
+        -> std::pin::Pin<Box<dyn std::future::Future<Output = Option<Bytes>> + Send + 'a>>
+    {
+        Box::pin(async {
         match self.inner.get(&key.as_str().to_string()).await {
-            Ok(Some(e)) => Some(Bytes::copy_from_slice(e.value())),
-            _           => None,
+            Ok(Some(e)) => {
+                let size = e.value().len() as i64;
+                self.stats.hit_count.fetch_add(1, Ordering::Relaxed);
+                self.stats.hit_bytes.fetch_add(size, Ordering::Relaxed);
+                Some(Bytes::copy_from_slice(e.value()))
+            }
+            _ => {
+                self.stats.miss_count.fetch_add(1, Ordering::Relaxed);
+                self.stats.miss_bytes.fetch_add(key.range_len() as i64, Ordering::Relaxed);
+                None
+            }
         }
+        })
     }
 
     fn put(&self, key: &CacheKey, data: Bytes) {
+        let size = data.len() as i64;
         let raw = key.as_str();
         let k = raw.to_string();
         self.inner.insert(k.clone(), data.to_vec());
+        self.stats.used_bytes.fetch_add(size, Ordering::Relaxed);
+        // index_key() normalizes by stripping leading '/' — evict_prefix uses the same normalization.
         let idx = Self::index_key(raw).to_string();
         self.key_index.entry(idx).or_default().push(k);
     }
 
     fn evict_prefix(&self, prefix: &str) {
-        // Collect all index entries whose key starts with `prefix`
+        // Normalize prefix: object_store::Path strips leading '/' when building keys,
+        let normalized = prefix.trim_start_matches('/');
         let matching: Vec<String> = self.key_index
             .iter()
-            .filter(|e| e.key().starts_with(prefix))
+            .filter(|e| e.key().starts_with(normalized))
             .map(|e| e.key().clone())
             .collect();
 
-        for idx_key in matching {
-            if let Some((_, keys)) = self.key_index.remove(&idx_key) {
+        let mut total_evicted = 0usize;
+        for idx_key in &matching {
+            if let Some((_, keys)) = self.key_index.remove(idx_key) {
+                total_evicted += keys.len();
                 for k in keys { self.inner.remove(&k); }
             }
         }
+        native_bridge_common::log_info!(
+            "[block-cache] EVICT_PREFIX prefix='{}' matched_index_keys={} evicted_entries={} key_index_len={}",
+            prefix, matching.len(), total_evicted, self.key_index.len()
+        );
     }
 
-    async fn clear(&self) {
+    fn clear(&self) -> std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send + '_>> {
+        Box::pin(async move {
         self.key_index.clear();
+        self.stats.used_bytes.store(0, Ordering::Relaxed);
         let _ = self.inner.clear().await;
+        })
     }
 }

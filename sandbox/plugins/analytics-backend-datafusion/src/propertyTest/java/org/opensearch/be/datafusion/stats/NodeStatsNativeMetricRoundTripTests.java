@@ -32,7 +32,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
  * can round-trip through {@link org.opensearch.core.common.io.stream.Writeable} serialization.
  *
  * <p>Constructs {@code NativeExecutorsStats} with the 4-monitor layout
- * (query_execution, stream_next, fetch_phase, segment_stats — each 3 fields)
+ * (coordinator_reduce, query_execution, stream_next, plan_setup — each 3 fields)
  * and verifies the full StreamOutput → StreamInput round-trip preserves all fields.
  */
 public class NodeStatsNativeMetricRoundTripTests {
@@ -71,12 +71,12 @@ public class NodeStatsNativeMetricRoundTripTests {
                 );
             }
             return rt;
-        }), taskMonitorValues(), taskMonitorValues(), taskMonitorValues(), taskMonitorValues()).as((io, cpu, qe, sn, fp, ss) -> {
+        }), taskMonitorValues(), taskMonitorValues(), taskMonitorValues(), taskMonitorValues()).as((io, cpu, cr, qe, sn, ps) -> {
             Map<String, TaskMonitorStats> monitors = new LinkedHashMap<>();
+            monitors.put("coordinator_reduce", cr);
             monitors.put("query_execution", qe);
             monitors.put("stream_next", sn);
-            monitors.put("fetch_phase", fp);
-            monitors.put("segment_stats", ss);
+            monitors.put("plan_setup", ps);
             return new NativeExecutorsStats(io, cpu, monitors);
         });
     }
@@ -84,12 +84,12 @@ public class NodeStatsNativeMetricRoundTripTests {
     @Provide
     Arbitrary<NativeExecutorsStats> nativeExecutorsStatsNoCpu() {
         return Combinators.combine(runtimeMetrics(), taskMonitorValues(), taskMonitorValues(), taskMonitorValues(), taskMonitorValues())
-            .as((io, qe, sn, fp, ss) -> {
+            .as((io, cr, qe, sn, ps) -> {
                 Map<String, TaskMonitorStats> monitors = new LinkedHashMap<>();
+                monitors.put("coordinator_reduce", cr);
                 monitors.put("query_execution", qe);
                 monitors.put("stream_next", sn);
-                monitors.put("fetch_phase", fp);
-                monitors.put("segment_stats", ss);
+                monitors.put("plan_setup", ps);
                 return new NativeExecutorsStats(io, null, monitors);
             });
     }

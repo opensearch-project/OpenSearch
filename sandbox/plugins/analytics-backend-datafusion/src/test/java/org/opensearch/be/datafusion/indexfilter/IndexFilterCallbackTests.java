@@ -45,10 +45,10 @@ public class IndexFilterCallbackTests extends OpenSearchTestCase {
         assertEquals("handle received annotationId", 42, handle.lastAnnotationId);
 
         // createCollector
-        int collectorKey = FilterTreeCallbacks.createCollector(providerKey, 2, 0, 128);
+        int collectorKey = FilterTreeCallbacks.createCollector(providerKey, 2L, 0, 128);
         assertTrue("collectorKey >= 0", collectorKey >= 0);
         assertEquals("handle received providerKey", providerKey, handle.lastProviderKey);
-        assertEquals("handle received segmentOrd", 2, handle.lastSegmentOrd);
+        assertEquals("handle received writerGeneration", 2L, handle.lastWriterGeneration);
         assertEquals("handle received minDoc", 0, handle.lastMinDoc);
         assertEquals("handle received maxDoc", 128, handle.lastMaxDoc);
 
@@ -73,7 +73,7 @@ public class IndexFilterCallbackTests extends OpenSearchTestCase {
     public void testNoHandleReturnsNegativeOne() {
         FilterTreeCallbacks.setHandle(null);
         assertEquals(-1, FilterTreeCallbacks.createProvider(1));
-        assertEquals(-1, FilterTreeCallbacks.createCollector(1, 0, 0, 64));
+        assertEquals(-1, FilterTreeCallbacks.createCollector(1, 0L, 0, 64));
         try (Arena arena = Arena.ofConfined()) {
             MemorySegment buf = arena.allocate(Long.BYTES);
             assertEquals(-1L, FilterTreeCallbacks.collectDocs(1, 0, 64, buf, 1));
@@ -94,7 +94,7 @@ public class IndexFilterCallbackTests extends OpenSearchTestCase {
             }
 
             @Override
-            public int createCollector(int providerKey, int segOrd, int minDoc, int maxDoc) {
+            public int createCollector(int providerKey, long writerGeneration, int minDoc, int maxDoc) {
                 return -1;
             }
 
@@ -115,7 +115,7 @@ public class IndexFilterCallbackTests extends OpenSearchTestCase {
         FilterTreeCallbacks.setHandle(failingHandle);
 
         assertEquals(-1, FilterTreeCallbacks.createProvider(1));
-        assertEquals(-1, FilterTreeCallbacks.createCollector(1, 0, 0, 64));
+        assertEquals(-1, FilterTreeCallbacks.createCollector(1, 0L, 0, 64));
         try (Arena arena = Arena.ofConfined()) {
             MemorySegment buf = arena.allocate(Long.BYTES);
             assertEquals(-1L, FilterTreeCallbacks.collectDocs(1, 0, 64, buf, 1));
@@ -129,7 +129,7 @@ public class IndexFilterCallbackTests extends OpenSearchTestCase {
 
         int lastAnnotationId = -1;
         int lastProviderKey = -1;
-        int lastSegmentOrd = -1;
+        long lastWriterGeneration = -1L;
         int lastMinDoc = -1;
         int lastMaxDoc = -1;
         int lastCollectorKey = -1;
@@ -147,9 +147,9 @@ public class IndexFilterCallbackTests extends OpenSearchTestCase {
         }
 
         @Override
-        public int createCollector(int providerKey, int segmentOrd, int minDoc, int maxDoc) {
+        public int createCollector(int providerKey, long writerGeneration, int minDoc, int maxDoc) {
             this.lastProviderKey = providerKey;
-            this.lastSegmentOrd = segmentOrd;
+            this.lastWriterGeneration = writerGeneration;
             this.lastMinDoc = minDoc;
             this.lastMaxDoc = maxDoc;
             return nextKey++;

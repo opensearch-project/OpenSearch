@@ -125,6 +125,14 @@ public class OpenSearchFilterRule extends RelOptRule {
             return rexCall.clone(rexCall.getType(), annotatedOperands);
         }
         List<String> viableBackends = resolveViableBackends(rexCall, fieldStorageInfos, childViableBackends);
+        // TODO: viableBackends here is computed from each backend's declared FilterCapability
+        // (see resolveViableBackends below). Today a backend can advertise a function as
+        // filter-capable without actually shipping a DelegatedPredicateSerializer for it; the
+        // mismatch only surfaces when FragmentConversion tries to delegate (correctness) or
+        // wrap as performance-delegation. CapabilityRegistry should validate at startup that
+        // every declared FilterCapability has a matching serializer registered, and reject
+        // the plugin otherwise — fail-fast at boot rather than at first dual-viable query.
+        // Needs revisiting.
         return new AnnotatedPredicate(rexCall.getType(), rexCall, viableBackends, context.nextAnnotationId());
     }
 
@@ -144,14 +152,6 @@ public class OpenSearchFilterRule extends RelOptRule {
 
         CapabilityRegistry registry = context.getCapabilityRegistry();
 
-        if (fieldIndices.isEmpty()) {
-            throw new UnsupportedOperationException(
-                "Constant predicate with no field references reached the filter rule: ["
-                    + predicate
-                    + "]. ReduceExpressionsRule in PlannerImpl should have eliminated it."
-            );
-        }
-
         ScalarFunction function = ScalarFunction.fromSqlOperatorWithFallback(predicate.getOperator());
         if (function == null) {
             throw new IllegalStateException(
@@ -159,28 +159,42 @@ public class OpenSearchFilterRule extends RelOptRule {
             );
         }
 
+        if (fieldIndices.isEmpty()) {
+            // Multi-field full-text functions (multi_match, query_string, simple_query_string)
+            // encode field names as string literals in nested MAPs rather than RexInputRef.
+            // Resolve viability against any backend that supports the function on text fields.
+            if (function.getCategory() == ScalarFunction.Category.FULL_TEXT) {
+                return new ArrayList<>(registry.filterBackendsAnyFormat(function, FieldType.TEXT));
+            }
+            throw new UnsupportedOperationException(
+                "Constant predicate with no field references reached the filter rule: ["
+                    + predicate
+                    + "]. ReduceExpressionsRule in PlannerImpl should have eliminated it."
+            );
+        }
+
         Set<String> viableSet = new HashSet<>(registry.filterCapableBackends());
 
         for (int fieldIndex : fieldIndices) {
             FieldStorageInfo storageInfo = FieldStorageInfo.resolve(fieldStorageInfos, fieldIndex);
-            FieldType fieldType = storageInfo.getFieldType();
 
             Set<String> fieldViable;
             if (storageInfo.isDerived()) {
-                // Post-Union / post-Project columns have no physical storage formats — the
-                // column is materialised at the operator that produced it (e.g. Union of two
-                // branches with divergent storage, or a literal/expression projection). The
-                // filter still has to run somewhere; resolve viability against any backend
-                // that supports the function on this field type, ignoring storage formats.
-                // The format-aware Lucene-pushdown path stays as the primary lookup for
-                // non-derived columns above.
-                // TODO: for FULL_TEXT operators, extract required params from RexCall
-                fieldViable = new HashSet<>(registry.filterBackendsAnyFormat(function, fieldType));
+                // Derived columns (post-Aggregate, post-Join, post-Union, post-Project) are
+                // computed in memory by the producer. The filter can only run on a backend
+                // the producer is also viable for (its child's viableBackends), and further
+                // only on backends that support this function on the field's logical type —
+                // delegation isn't applicable because there's no physical storage to delegate
+                // a scan against. Surfaced by testHavingFilterAfterJoin_multiShard etc., where
+                // a HAVING clause filters on a stats-derived column.
+                fieldViable = new HashSet<>(childViableBackends);
+                fieldViable.retainAll(registry.filterBackendsAnyFormat(function, storageInfo.getFieldType()));
             } else {
                 // Format-aware: backends that can access this field's storage (doc values + index).
                 // A backend is viable only if it has the field in its own storage formats — ensuring
                 // delegation targets are also field-storage-aware (e.g. Lucene is viable for a keyword
                 // field only when the field has indexFormats=[lucene] set in the mapping).
+                // TODO: for FULL_TEXT operators, extract required params from RexCall
                 fieldViable = new HashSet<>(registry.filterBackendsForField(function, storageInfo));
             }
 

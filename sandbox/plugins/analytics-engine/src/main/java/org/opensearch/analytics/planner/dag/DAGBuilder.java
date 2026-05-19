@@ -11,9 +11,12 @@ package org.opensearch.analytics.planner.dag;
 import org.apache.calcite.rel.RelNode;
 import org.opensearch.analytics.planner.CapabilityRegistry;
 import org.opensearch.analytics.planner.CapabilityResolutionUtils;
+import org.opensearch.analytics.planner.RelNodeUtils;
 import org.opensearch.analytics.planner.rel.OpenSearchExchangeReducer;
 import org.opensearch.analytics.planner.rel.OpenSearchRelNode;
 import org.opensearch.analytics.planner.rel.OpenSearchStageInputScan;
+import org.opensearch.analytics.planner.rel.OpenSearchTableScan;
+import org.opensearch.analytics.planner.rel.OpenSearchValues;
 import org.opensearch.analytics.spi.ExchangeSinkProvider;
 import org.opensearch.cluster.service.ClusterService;
 
@@ -23,19 +26,9 @@ import java.util.UUID;
 
 /**
  * Builds a {@link QueryDAG} from the CBO output by cutting at exchange boundaries.
- *
- * <p>SINGLETON: {@link OpenSearchExchangeReducer} is the boundary. Everything above
- * the reducer becomes the root (coordinator gather/compute) stage. The reducer's input
- * subtree becomes the child (data node) stage with a {@link ShardTargetResolver}.
- *
- * <p>Single-stage (no exchange): one stage with a {@link ShardTargetResolver}.
- * The Scheduler uses a simple {@code RowProducingSink} since {@code exchangeSinkProvider}
- * is null.
- *
- * <p>TODO: implement HASH/RANGE shuffle exchange cutting when joins and shuffle
- * aggregates are added.
- *
- * <p>Stage IDs are assigned bottom-up (leaf stages get lower IDs).
+ * Each {@link OpenSearchExchangeReducer} becomes a stage boundary; the subtree
+ * below becomes a child stage and the reducer's own {@link ExchangeInfo} drives
+ * the parent stage's input wiring. Stage IDs are assigned bottom-up.
  *
  * @opensearch.internal
  */
@@ -52,13 +45,19 @@ public class DAGBuilder {
             // Root IS an ExchangeReducer — pure gather (no compute above the exchange).
             // Cut directly: child stage is the subtree below, root fragment is
             // ExchangeReducer → StageInputScan.
-            rootFragment = cutSingleton(reducer, counter, childStages, clusterService);
+            rootFragment = cutAtExchange(reducer, counter, childStages, registry, clusterService);
         } else {
             rootFragment = sever(cboOutput, counter, childStages, registry, clusterService);
         }
 
+        // Sink provider is needed whenever the root stage runs a backend plan locally —
+        // either because it gathers child output (COORDINATOR_REDUCE) or because it's a
+        // coord-only compute leaf like LogicalValues (LOCAL_COMPUTE). Pure shard root
+        // (single-stage scan) and pure pass-through root (no children, no compute leaf)
+        // don't need a backend sink.
+        boolean hasComputeLeaf = RelNodeUtils.findNode(rootFragment, OpenSearchValues.class) != null;
         ExchangeSinkProvider sinkProvider = null;
-        if (!childStages.isEmpty()) {
+        if (!childStages.isEmpty() || hasComputeLeaf) {
             List<String> reduceViable = CapabilityResolutionUtils.filterByReduceCapability(
                 registry,
                 ((OpenSearchRelNode) cboOutput).getViableBackends()
@@ -66,7 +65,11 @@ public class DAGBuilder {
             sinkProvider = registry.getBackend(reduceViable.getFirst()).getExchangeSinkProvider();
         }
 
-        TargetResolver rootTargetResolver = childStages.isEmpty() ? new ShardTargetResolver(rootFragment, clusterService) : null;
+        // Root needs a shard target only if its fragment actually contains a TableScan.
+        // OpenSearchValues (literal-row source) and other coord-only leaves have no scan
+        // and run as LOCAL_COMPUTE on the coordinator.
+        boolean needsShardResolver = childStages.isEmpty() && RelNodeUtils.findNode(rootFragment, OpenSearchTableScan.class) != null;
+        TargetResolver rootTargetResolver = needsShardResolver ? new ShardTargetResolver(rootFragment, clusterService) : null;
 
         Stage rootStage = new Stage(counter[0]++, rootFragment, childStages, null, sinkProvider, rootTargetResolver);
         return new QueryDAG(UUID.randomUUID().toString(), rootStage);
@@ -82,7 +85,7 @@ public class DAGBuilder {
         List<RelNode> newInputs = new ArrayList<>();
         for (RelNode input : node.getInputs()) {
             if (input instanceof OpenSearchExchangeReducer reducer) {
-                newInputs.add(cutSingleton(reducer, counter, childStages, clusterService));
+                newInputs.add(cutAtExchange(reducer, counter, childStages, registry, clusterService));
             } else {
                 newInputs.add(sever(input, counter, childStages, registry, clusterService));
             }
@@ -98,31 +101,33 @@ public class DAGBuilder {
         return changed ? node.copy(node.getTraitSet(), newInputs) : node;
     }
 
-    private static RelNode cutSingleton(
+    private static RelNode cutAtExchange(
         OpenSearchExchangeReducer reducer,
         int[] counter,
         List<Stage> parentChildStages,
+        CapabilityRegistry registry,
         ClusterService clusterService
     ) {
-        // Recurse into child fragment to handle nested exchanges.
-        // TODO: recurse with full sever() (passing registry) when shuffle/broadcast
-        // exchanges are added — not needed for PR2 (pure DF, max 2 stages).
-        // TODO: for joins, each side has its own ExchangeReducer cut producing a
-        // StageInputScan per join input. cutSingleton handles one side; sever() handles
-        // both sides via its input iteration loop.
+        // Recurse into the child fragment with full sever() so any nested ExchangeReducers
+        // (e.g. a Join below a top-level gather Reducer) are also cut into their own child
+        // stages rather than being left intact inside the shard-local fragment.
         List<Stage> grandchildren = new ArrayList<>();
-        RelNode childFragment = reducer.getInput();
+        RelNode childFragment = sever(reducer.getInput(), counter, grandchildren, registry, clusterService);
 
         int childStageId = counter[0]++;
+        // A leaf stage (no grandchildren) runs on shards and needs a ShardTargetResolver.
+        // An intermediate stage (some grandchildren were cut out below) runs at the
+        // coordinator and consumes its grandchildren's outputs via an ExchangeSinkProvider.
+        TargetResolver targetResolver = grandchildren.isEmpty() ? new ShardTargetResolver(childFragment, clusterService) : null;
+        ExchangeSinkProvider childSinkProvider = null;
+        if (!grandchildren.isEmpty()) {
+            List<String> reduceViable = CapabilityResolutionUtils.filterByReduceCapability(registry, reducer.getViableBackends());
+            childSinkProvider = registry.getBackend(reduceViable.getFirst()).getExchangeSinkProvider();
+        }
+        // ExchangeInfo comes from the reducer — the reducer is the exchange and carries
+        // the distribution intent set by whichever rule introduced it.
         parentChildStages.add(
-            new Stage(
-                childStageId,
-                childFragment,
-                grandchildren,
-                ExchangeInfo.singleton(),
-                null,
-                new ShardTargetResolver(childFragment, clusterService)
-            )
+            new Stage(childStageId, childFragment, grandchildren, reducer.getExchangeInfo(), childSinkProvider, targetResolver)
         );
 
         // Replace the reducer's input with a StageInputScan placeholder.
@@ -135,6 +140,12 @@ public class DAGBuilder {
             reducer.getInput().getRowType(),
             reducer.getViableBackends()
         );
-        return new OpenSearchExchangeReducer(reducer.getCluster(), reducer.getTraitSet(), stageInput, reducer.getViableBackends());
+        return new OpenSearchExchangeReducer(
+            reducer.getCluster(),
+            reducer.getTraitSet(),
+            stageInput,
+            reducer.getViableBackends(),
+            reducer.getExchangeInfo()
+        );
     }
 }
