@@ -293,7 +293,7 @@ public class TransportMultiSearchActionTests extends OpenSearchTestCase {
         assertThat(result, equalTo(1));
     }
 
-    public void testCancellation() {
+    public void testCancellation() throws InterruptedException {
         // Initialize dependencies of TransportMultiSearchAction
         Settings settings = Settings.builder().put("node.name", TransportMultiSearchActionTests.class.getSimpleName()).build();
         ActionFilters actionFilters = mock(ActionFilters.class);
@@ -385,22 +385,35 @@ public class TransportMultiSearchActionTests extends OpenSearchTestCase {
             }
             MultiSearchResponse[] responses = new MultiSearchResponse[1];
             Exception[] exceptions = new Exception[1];
+            CountDownLatch executedLatch = new CountDownLatch(1);
             parentTask[0] = (CancellableTask) action.execute(multiSearchRequest, new TaskListener<>() {
                 @Override
                 public void onResponse(Task task, MultiSearchResponse items) {
                     responses[0] = items;
+                    executedLatch.countDown();
                 }
 
                 @Override
                 public void onFailure(Task task, Exception e) {
                     exceptions[0] = e;
+                    executedLatch.countDown();
                 }
             });
             parentTask[0].cancel("Giving up");
             canceledLatch.countDown();
 
-            assertNull(responses[0]);
-            assertNull(exceptions[0]);
+            if (!executedLatch.await(10, TimeUnit.SECONDS)) {
+                fail("Latch should have counted down");
+            }
+
+            boolean cancelled = false;
+            for (MultiSearchResponse.Item item : responses[0].getResponses()) {
+                if (item.isFailure() && item.getFailure().getMessage().contains("Parent task was cancelled")) {
+                    cancelled = true;
+                    break;
+                }
+            }
+            assertTrue(cancelled);
         } finally {
             assertTrue(OpenSearchTestCase.terminate(threadPool));
         }

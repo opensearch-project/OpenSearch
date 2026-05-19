@@ -70,6 +70,7 @@ import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.query.AbstractQueryBuilder;
 import org.opensearch.index.query.BoolQueryBuilder;
 import org.opensearch.index.query.ParsedQuery;
+import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.search.aggregations.AggregatorFactories;
@@ -87,6 +88,7 @@ import org.opensearch.search.internal.ShardSearchRequest;
 import org.opensearch.search.rescore.RescoreContext;
 import org.opensearch.search.slice.SliceBuilder;
 import org.opensearch.search.sort.SortAndFormats;
+import org.opensearch.search.streaming.FlushModeResolver;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
@@ -96,8 +98,10 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -891,6 +895,7 @@ public class DefaultSearchContextTests extends OpenSearchTestCase {
             final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
             clusterSettings.registerSetting(SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING);
             clusterSettings.registerSetting(SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_MODE);
+            clusterSettings.registerSetting(SearchService.CONCURRENT_SEGMENT_SEARCH_PARTITION_STRATEGY);
             clusterSettings.applySettings(
                 Settings.builder().put(SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_MODE.getKey(), "auto").build()
             );
@@ -1165,6 +1170,105 @@ public class DefaultSearchContextTests extends OpenSearchTestCase {
             }
             assertThrows(SetOnce.AlreadySetException.class, context::evaluateRequestShouldUseConcurrentSearch);
 
+            // Case8: no aggregations, query supports intra-segment search, partition strategy is balanced (default)
+            // should use concurrent search via intra-segment search path
+            when(decider1.getConcurrentSearchDecision()).thenReturn(
+                new ConcurrentSearchDecision(ConcurrentSearchDecision.DecisionStatus.NO_OP, "noop")
+            );
+            when(decider2.getConcurrentSearchDecision()).thenReturn(
+                new ConcurrentSearchDecision(ConcurrentSearchDecision.DecisionStatus.NO_OP, "noop")
+            );
+
+            SearchSourceBuilder intraSegmentSourceBuilder = new SearchSourceBuilder();
+            QueryBuilder intraSegmentQuery = mock(QueryBuilder.class);
+            when(intraSegmentQuery.supportsIntraSegmentSearch()).thenReturn(true);
+            intraSegmentSourceBuilder.query(intraSegmentQuery);
+            when(shardSearchRequest.source()).thenReturn(intraSegmentSourceBuilder);
+
+            // Apply balanced partition strategy
+            clusterSettings.applySettings(
+                Settings.builder()
+                    .put(SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_MODE.getKey(), "auto")
+                    .put(SearchService.CONCURRENT_SEGMENT_SEARCH_PARTITION_STRATEGY.getKey(), "balanced")
+                    .build()
+            );
+
+            context = new DefaultSearchContext(
+                readerContext,
+                shardSearchRequest,
+                target,
+                clusterService,
+                bigArrays,
+                null,
+                null,
+                null,
+                false,
+                Version.CURRENT,
+                false,
+                executor,
+                null,
+                concurrentSearchRequestDeciders
+            );
+            // No aggregations set
+            context.evaluateRequestShouldUseConcurrentSearch();
+            if (executor == null) {
+                assertFalse(context.shouldUseConcurrentSearch());
+            } else {
+                assertTrue(context.shouldUseConcurrentSearch());
+            }
+
+            // Case9: no aggregations, query does NOT support intra-segment search
+            // should NOT use concurrent search
+            when(intraSegmentQuery.supportsIntraSegmentSearch()).thenReturn(false);
+
+            context = new DefaultSearchContext(
+                readerContext,
+                shardSearchRequest,
+                target,
+                clusterService,
+                bigArrays,
+                null,
+                null,
+                null,
+                false,
+                Version.CURRENT,
+                false,
+                executor,
+                null,
+                concurrentSearchRequestDeciders
+            );
+            context.evaluateRequestShouldUseConcurrentSearch();
+            assertFalse(context.shouldUseConcurrentSearch());
+
+            // Case10: query supports intra-segment search with partition strategy as none
+            // should NOT use concurrent search
+            when(intraSegmentQuery.supportsIntraSegmentSearch()).thenReturn(true);
+            clusterSettings.applySettings(
+                Settings.builder()
+                    .put(SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_MODE.getKey(), "auto")
+                    .put(SearchService.CONCURRENT_SEGMENT_SEARCH_PARTITION_STRATEGY.getKey(), "segment")
+                    .build()
+            );
+
+            context = new DefaultSearchContext(
+                readerContext,
+                shardSearchRequest,
+                target,
+                clusterService,
+                bigArrays,
+                null,
+                null,
+                null,
+                false,
+                Version.CURRENT,
+                false,
+                executor,
+                null,
+                concurrentSearchRequestDeciders
+            );
+            context.evaluateRequestShouldUseConcurrentSearch();
+            assertFalse(context.shouldUseConcurrentSearch());
+
             // shutdown the threadpool
             threadPool.shutdown();
         }
@@ -1172,5 +1276,37 @@ public class DefaultSearchContextTests extends OpenSearchTestCase {
 
     private ShardSearchContextId newContextId() {
         return new ShardSearchContextId(UUIDs.randomBase64UUID(), randomNonNegativeLong());
+    }
+
+    public void testStreamingSettingsDefaults() {
+        Set<Setting<?>> settings = new HashSet<>();
+        settings.add(FlushModeResolver.STREAMING_MAX_ESTIMATED_BUCKET_COUNT);
+        settings.add(FlushModeResolver.STREAMING_MIN_CARDINALITY_RATIO);
+        settings.add(FlushModeResolver.STREAMING_MIN_ESTIMATED_BUCKET_COUNT);
+
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, settings);
+
+        assertEquals(100_000L, (long) clusterSettings.get(FlushModeResolver.STREAMING_MAX_ESTIMATED_BUCKET_COUNT));
+        assertEquals(0.01, clusterSettings.get(FlushModeResolver.STREAMING_MIN_CARDINALITY_RATIO), 0.001);
+        assertEquals(1000L, (long) clusterSettings.get(FlushModeResolver.STREAMING_MIN_ESTIMATED_BUCKET_COUNT));
+    }
+
+    public void testStreamingSettingsValidation() {
+        Set<Setting<?>> settings = new HashSet<>();
+        settings.add(FlushModeResolver.STREAMING_MAX_ESTIMATED_BUCKET_COUNT);
+        settings.add(FlushModeResolver.STREAMING_MIN_CARDINALITY_RATIO);
+        settings.add(FlushModeResolver.STREAMING_MIN_ESTIMATED_BUCKET_COUNT);
+
+        Settings customSettings = Settings.builder()
+            .put("search.aggregations.streaming.max_estimated_bucket_count", 200000)
+            .put("search.aggregations.streaming.min_cardinality_ratio", 0.05)
+            .put("search.aggregations.streaming.min_estimated_bucket_count", 500)
+            .build();
+
+        ClusterSettings clusterSettings = new ClusterSettings(customSettings, settings);
+
+        assertEquals(200000L, (long) clusterSettings.get(FlushModeResolver.STREAMING_MAX_ESTIMATED_BUCKET_COUNT));
+        assertEquals(0.05, clusterSettings.get(FlushModeResolver.STREAMING_MIN_CARDINALITY_RATIO), 0.001);
+        assertEquals(500L, (long) clusterSettings.get(FlushModeResolver.STREAMING_MIN_ESTIMATED_BUCKET_COUNT));
     }
 }

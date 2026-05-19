@@ -11,6 +11,7 @@ package org.opensearch.tasks;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.action.search.SearchShardTask;
+import org.opensearch.action.search.SearchTask;
 import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
 import org.opensearch.common.metrics.CounterMetric;
 import org.opensearch.threadpool.Scheduler;
@@ -32,7 +33,7 @@ import java.util.stream.Collectors;
 public class TaskCancellationMonitoringService extends AbstractLifecycleComponent implements TaskManager.TaskEventListeners {
 
     private static final Logger logger = LogManager.getLogger(TaskCancellationMonitoringService.class);
-    private final static List<Class<? extends CancellableTask>> TASKS_TO_TRACK = Arrays.asList(SearchShardTask.class);
+    private final static List<Class<? extends CancellableTask>> TASKS_TO_TRACK = Arrays.asList(SearchShardTask.class, SearchTask.class);
 
     private volatile Scheduler.Cancellable scheduledFuture;
     private final ThreadPool threadPool;
@@ -146,6 +147,10 @@ public class TaskCancellationMonitoringService extends AbstractLifecycleComponen
         Map<Class<? extends CancellableTask>, List<CancellableTask>> currentRunningCancelledTasks =
             getCurrentRunningTasksPostCancellation();
         return new TaskCancellationStats(
+            new SearchTaskCancellationStats(
+                Optional.of(currentRunningCancelledTasks).map(mapper -> mapper.get(SearchTask.class)).map(List::size).orElse(0),
+                cancellationStatsHolder.get(SearchTask.class).totalLongRunningCancelledTaskCount.count()
+            ),
             new SearchShardTaskCancellationStats(
                 Optional.of(currentRunningCancelledTasks).map(mapper -> mapper.get(SearchShardTask.class)).map(List::size).orElse(0),
                 cancellationStatsHolder.get(SearchShardTask.class).totalLongRunningCancelledTaskCount.count()

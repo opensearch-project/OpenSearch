@@ -62,6 +62,7 @@ import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsString;
@@ -79,6 +80,18 @@ public class ServerUtils {
         waitForOpenSearch("green", null, installation, null, null);
     }
 
+    private static final Supplier<Boolean> inFipsMode = () -> {
+        try {
+            // Equivalent to: boolean approvedOnly = CryptoServicesRegistrar.isInApprovedOnlyMode()
+            var registrarClass = Class.forName("org.bouncycastle.crypto.CryptoServicesRegistrar");
+            var isApprovedOnlyMethod = registrarClass.getMethod("isInApprovedOnlyMode");
+            return (Boolean) isApprovedOnlyMethod.invoke(null);
+        } catch (ReflectiveOperationException e) {
+            return false;
+        }
+    };
+    private static final String STORE_TYPE = inFipsMode.get() ? "BCFKS" : KeyStore.getDefaultType();
+
     /**
      * Executes the supplied request, optionally applying HTTP basic auth if the
      * username and pasword field are supplied.
@@ -95,7 +108,7 @@ public class ServerUtils {
             try (InputStream inStream = Files.newInputStream(caCert)) {
                 CertificateFactory cf = CertificateFactory.getInstance("X.509");
                 X509Certificate cert = (X509Certificate) cf.generateCertificate(inStream);
-                KeyStore truststore = KeyStore.getInstance(KeyStore.getDefaultType());
+                KeyStore truststore = KeyStore.getInstance(STORE_TYPE);
                 truststore.load(null, null);
                 truststore.setCertificateEntry("myClusterCA", cert);
                 KeyManagerFactory kmf = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());

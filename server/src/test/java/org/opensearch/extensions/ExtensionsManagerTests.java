@@ -46,7 +46,6 @@ import org.opensearch.identity.IdentityService;
 import org.opensearch.plugins.ExtensionAwarePlugin;
 import org.opensearch.rest.RestController;
 import org.opensearch.telemetry.tracing.noop.NoopTracer;
-import org.opensearch.test.FeatureFlagSetter;
 import org.opensearch.test.MockLogAppender;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.client.NoOpNodeClient;
@@ -74,6 +73,7 @@ import java.util.stream.Collectors;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
+import static org.opensearch.common.util.FeatureFlags.EXTENSIONS;
 import static org.opensearch.test.ClusterServiceUtils.createClusterService;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
@@ -86,6 +86,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class ExtensionsManagerTests extends OpenSearchTestCase {
+    private static FeatureFlags.TestUtils.FlagWriteLock ffLock = null;
     private TransportService transportService;
     private ActionModule actionModule;
     private DynamicActionRegistry dynamicActionRegistry;
@@ -108,7 +109,7 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
 
     @Before
     public void setup() throws Exception {
-        FeatureFlagSetter.set(FeatureFlags.EXTENSIONS);
+        ffLock = new FeatureFlags.TestUtils.FlagWriteLock(EXTENSIONS);
         Settings settings = Settings.builder().put("cluster.name", "test").build();
         transport = new MockNioTransport(
             settings,
@@ -179,6 +180,7 @@ public class ExtensionsManagerTests extends OpenSearchTestCase {
         super.tearDown();
         transportService.close();
         client.close();
+        ffLock.close();
         ThreadPool.terminate(threadPool, 30, TimeUnit.SECONDS);
     }
 

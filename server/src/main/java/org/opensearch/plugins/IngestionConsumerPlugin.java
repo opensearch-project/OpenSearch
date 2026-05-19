@@ -8,7 +8,7 @@
 
 package org.opensearch.plugins;
 
-import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.index.IngestionConsumerFactory;
 
 import java.util.Map;
@@ -18,7 +18,7 @@ import java.util.Map;
  *
  * @opensearch.api
  */
-@ExperimentalApi
+@PublicApi(since = "3.6.0")
 public interface IngestionConsumerPlugin {
 
     /**

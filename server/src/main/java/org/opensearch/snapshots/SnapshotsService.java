@@ -74,7 +74,6 @@ import org.opensearch.cluster.routing.IndexRoutingTable;
 import org.opensearch.cluster.routing.IndexShardRoutingTable;
 import org.opensearch.cluster.routing.RoutingTable;
 import org.opensearch.cluster.routing.ShardRouting;
-import org.opensearch.cluster.service.ClusterManagerTaskKeys;
 import org.opensearch.cluster.service.ClusterManagerTaskThrottler;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
@@ -137,6 +136,9 @@ import java.util.stream.Stream;
 import static java.util.Collections.emptySet;
 import static java.util.Collections.unmodifiableList;
 import static org.opensearch.cluster.SnapshotsInProgress.completed;
+import static org.opensearch.cluster.service.ClusterManagerTask.CREATE_SNAPSHOT;
+import static org.opensearch.cluster.service.ClusterManagerTask.DELETE_SNAPSHOT;
+import static org.opensearch.cluster.service.ClusterManagerTask.UPDATE_SNAPSHOT_STATE;
 import static org.opensearch.common.util.IndexUtils.filterIndices;
 import static org.opensearch.node.remotestore.RemoteStoreNodeService.CompatibilityMode;
 import static org.opensearch.node.remotestore.RemoteStoreNodeService.REMOTE_STORE_COMPATIBILITY_MODE_SETTING;
@@ -268,9 +270,9 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         }
 
         // Task is onboarded for throttling, it will get retried from associated TransportClusterManagerNodeAction.
-        createSnapshotTaskKey = clusterService.registerClusterManagerTask(ClusterManagerTaskKeys.CREATE_SNAPSHOT_KEY, true);
-        deleteSnapshotTaskKey = clusterService.registerClusterManagerTask(ClusterManagerTaskKeys.DELETE_SNAPSHOT_KEY, true);
-        updateSnapshotStateTaskKey = clusterService.registerClusterManagerTask(ClusterManagerTaskKeys.UPDATE_SNAPSHOT_STATE_KEY, true);
+        createSnapshotTaskKey = clusterService.registerClusterManagerTask(CREATE_SNAPSHOT, true);
+        deleteSnapshotTaskKey = clusterService.registerClusterManagerTask(DELETE_SNAPSHOT, true);
+        updateSnapshotStateTaskKey = clusterService.registerClusterManagerTask(UPDATE_SNAPSHOT_STATE, true);
     }
 
     /**
@@ -3929,10 +3931,9 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             if (this == other) {
                 return true;
             }
-            if ((other instanceof ShardSnapshotUpdate) == false) {
+            if (!(other instanceof ShardSnapshotUpdate that)) {
                 return false;
             }
-            final ShardSnapshotUpdate that = (ShardSnapshotUpdate) other;
             return this.snapshot.equals(that.snapshot)
                 && Objects.equals(this.shardId, that.shardId)
                 && Objects.equals(this.repoShardId, that.repoShardId)

@@ -65,7 +65,10 @@ import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.SearchOperationListener;
 import org.opensearch.search.internal.ContextIndexSearcher;
 import org.opensearch.search.internal.SearchContext;
+import org.opensearch.search.profile.ContextualProfileBreakdown;
+import org.opensearch.search.profile.ProfileMetric;
 import org.opensearch.search.profile.ProfileResult;
+import org.opensearch.search.profile.Timer;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.ThreadPool;
 import org.junit.After;
@@ -79,6 +82,8 @@ import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
+import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -165,9 +170,7 @@ public class QueryProfilerTests extends OpenSearchTestCase {
     }
 
     public void testBasic() throws IOException {
-        QueryProfiler profiler = executor != null
-            ? new ConcurrentQueryProfiler(new ConcurrentQueryProfileTree())
-            : new QueryProfiler(new InternalQueryProfileTree());
+        QueryProfiler profiler = executor != null ? new ConcurrentQueryProfiler() : new QueryProfiler();
         searcher.setProfiler(profiler);
         Query query = new TermQuery(new Term("foo", "bar"));
         searcher.search(query, 1);
@@ -234,9 +237,7 @@ public class QueryProfilerTests extends OpenSearchTestCase {
     }
 
     public void testNoScoring() throws IOException {
-        QueryProfiler profiler = executor != null
-            ? new ConcurrentQueryProfiler(new ConcurrentQueryProfileTree())
-            : new QueryProfiler(new InternalQueryProfileTree());
+        QueryProfiler profiler = executor != null ? new ConcurrentQueryProfiler() : new QueryProfiler();
         searcher.setProfiler(profiler);
         Query query = new TermQuery(new Term("foo", "bar"));
         searcher.search(query, 1, Sort.INDEXORDER); // scores are not needed
@@ -303,9 +304,7 @@ public class QueryProfilerTests extends OpenSearchTestCase {
     }
 
     public void testUseIndexStats() throws IOException {
-        QueryProfiler profiler = executor != null
-            ? new ConcurrentQueryProfiler(new ConcurrentQueryProfileTree())
-            : new QueryProfiler(new InternalQueryProfileTree());
+        QueryProfiler profiler = executor != null ? new ConcurrentQueryProfiler() : new QueryProfiler();
         searcher.setProfiler(profiler);
         Query query = new TermQuery(new Term("foo", "bar"));
         searcher.count(query); // will use index stats
@@ -319,9 +318,7 @@ public class QueryProfilerTests extends OpenSearchTestCase {
     }
 
     public void testApproximations() throws IOException {
-        QueryProfiler profiler = executor != null
-            ? new ConcurrentQueryProfiler(new ConcurrentQueryProfileTree())
-            : new QueryProfiler(new InternalQueryProfileTree());
+        QueryProfiler profiler = executor != null ? new ConcurrentQueryProfiler() : new QueryProfiler();
         searcher.setProfiler(profiler);
         Query query = new RandomApproximationQuery(new TermQuery(new Term("foo", "bar")), random());
         searcher.count(query);
@@ -404,6 +401,35 @@ public class QueryProfilerTests extends OpenSearchTestCase {
         leafCollector.collect(0);
         assertThat(profileCollector.getTime(), greaterThan(time));
         assertEquals(sliceStartTime, profileCollector.getSliceStartTime());
+    }
+
+    public void testQueryTree() throws IOException {
+        QueryProfiler profiler = executor != null ? new ConcurrentQueryProfiler() : new QueryProfiler();
+        searcher.setProfiler(profiler);
+        Query query = new TermQuery(new Term("foo", "bar"));
+
+        ContextualProfileBreakdown profile = profiler.getQueryBreakdown(query);
+        assertNotNull(profile);
+        assertEquals(profiler.getProfileBreakdown(query), profile);
+        profiler.getQueryBreakdown(query);
+        profiler.pollLastElement();
+        assertEquals(profiler.getProfileBreakdown(query), profile);
+    }
+
+    public void testPlugins() throws IOException {
+        Function<Query, Collection<Supplier<ProfileMetric>>> customPluginMetrics = (query) -> List.of(() -> new Timer("plugin_timer"));
+        QueryProfiler profiler = executor != null
+            ? new ConcurrentQueryProfiler(new ConcurrentQueryProfileTree(customPluginMetrics), customPluginMetrics)
+            : new QueryProfiler(new InternalQueryProfileTree(customPluginMetrics));
+
+        searcher.setProfiler(profiler);
+        Query query = new TermQuery(new Term("foo", "bar"));
+        searcher.count(query);
+        List<ProfileResult> results = profiler.getTree();
+        ProfileResult profileResult = results.get(0);
+        Map<String, Long> breakdown = profileResult.getTimeBreakdown();
+        if (executor != null) assert !breakdown.containsKey("plugin_timer");
+        else assert breakdown.containsKey("plugin_timer");
     }
 
     private static class DummyQuery extends Query {

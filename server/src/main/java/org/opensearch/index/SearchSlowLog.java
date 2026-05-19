@@ -32,8 +32,6 @@
 
 package org.opensearch.index;
 
-import com.fasterxml.jackson.core.io.JsonStringEncoder;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.common.logging.Loggers;
@@ -54,6 +52,8 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
+
+import tools.jackson.core.io.JsonStringEncoder;
 
 /**
  * The search time slow log implementation
@@ -247,6 +247,7 @@ public final class SearchSlowLog implements SearchOperationListener {
             }
 
             messageFields.put("id", context.getTask().getHeader(Task.X_OPAQUE_ID));
+            messageFields.put("request_id", context.getTask().getHeader(Task.X_REQUEST_ID));
             return messageFields;
         }
 
@@ -289,6 +290,11 @@ public final class SearchSlowLog implements SearchOperationListener {
                 sb.append("id[").append(context.getTask().getHeader(Task.X_OPAQUE_ID)).append("], ");
             } else {
                 sb.append("id[], ");
+            }
+            if (context.getTask().getHeader(Task.X_REQUEST_ID) != null) {
+                sb.append("request_id[").append(context.getTask().getHeader(Task.X_REQUEST_ID)).append("]");
+            } else {
+                sb.append("request_id[], ");
             }
             return sb.toString();
         }

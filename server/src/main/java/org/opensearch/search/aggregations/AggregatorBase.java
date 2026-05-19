@@ -38,6 +38,7 @@ import org.apache.lucene.search.ScoreMode;
 import org.opensearch.core.common.breaker.CircuitBreaker;
 import org.opensearch.core.common.breaker.CircuitBreakingException;
 import org.opensearch.core.indices.breaker.CircuitBreakerService;
+import org.opensearch.core.tasks.TaskCancelledException;
 import org.opensearch.search.SearchShardTarget;
 import org.opensearch.search.aggregations.support.ValuesSourceConfig;
 import org.opensearch.search.internal.SearchContext;
@@ -72,6 +73,7 @@ public abstract class AggregatorBase extends Aggregator {
     private Map<String, Aggregator> subAggregatorbyName;
     private final CircuitBreakerService breakerService;
     private long requestBytesUsed;
+    protected LeafCollectionMode leafCollectorMode = LeafCollectionMode.NORMAL;
 
     /**
      * Constructs a new Aggregator.
@@ -235,6 +237,23 @@ public abstract class AggregatorBase extends Aggregator {
         return false;
     }
 
+    /**
+     * To be used in conjunction with <code>tryPrecomputeAggregationForLeaf()</code>
+     * or <code>getLeafCollector</code> method.
+     */
+    public LeafCollectionMode getLeafCollectorMode() {
+        return leafCollectorMode;
+    }
+
+    /**
+     * To be used in conjunction with <code>tryPrecomputeAggregationForLeaf()</code>
+     * or <code>getLeafCollector</code> method.
+     */
+    public enum LeafCollectionMode {
+        NORMAL,
+        FILTER_REWRITE
+    }
+
     @Override
     public final void preCollection() throws IOException {
         List<BucketCollector> collectors = Arrays.asList(subAggregators);
@@ -298,6 +317,14 @@ public abstract class AggregatorBase extends Aggregator {
         collectableSubAggregators.postCollection();
     }
 
+    @Override
+    public void reset() {
+        doReset();
+        collectableSubAggregators.reset();
+    }
+
+    public void doReset() {}
+
     /** Called upon release of the aggregator. */
     @Override
     public void close() {
@@ -328,4 +355,11 @@ public abstract class AggregatorBase extends Aggregator {
     public String toString() {
         return name;
     }
+
+    protected void checkCancelled() {
+        if (context.isCancelled()) {
+            throw new TaskCancelledException("The query has been cancelled");
+        }
+    }
+
 }

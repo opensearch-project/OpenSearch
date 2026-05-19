@@ -43,6 +43,7 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.block.ClusterBlocks;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.MappingMetadata;
+import org.opensearch.common.ValidationException;
 import org.opensearch.common.action.ActionFuture;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
@@ -1200,7 +1201,7 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         setupSnapshotRestore();
 
         // try index restore with mix of removable and UnmodifiableOnRestore settings ignored
-        // index.version.created is UnmodifiableOnRestore, index.number_of_search_only_replicas is removable
+        // index.version.created is UnmodifiableOnRestore, index.number_of_search_replicas is removable
         SnapshotRestoreException exception = expectThrows(
             SnapshotRestoreException.class,
             () -> client().admin()
@@ -1220,7 +1221,7 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         setupSnapshotRestore();
 
         // try index restore with mix of removable and USER_UNREMOVABLE_SETTINGS settings ignored
-        // index.number_of_replicas is USER_UNREMOVABLE_SETTINGS, index.number_of_search_only_replicas is removable
+        // index.number_of_replicas is USER_UNREMOVABLE_SETTINGS, index.number_of_search_replicas is removable
         SnapshotRestoreException exception = expectThrows(
             SnapshotRestoreException.class,
             () -> client().admin()
@@ -1363,11 +1364,58 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
 
     }
 
+    public void testInvalidRenameReplacementPattern() {
+        setupSnapshotRestore();
+
+        // b - 100000 times
+        String invalidRenameReplacementString = "b".repeat(100000);
+
+        ValidationException exception = expectThrows(
+            ValidationException.class,
+            () -> client().admin()
+                .cluster()
+                .prepareRestoreSnapshot(snapshotRepo, snapshotName1)
+                .setWaitForCompletion(false)
+                .setIndices(index)
+                .setRenamePattern(index)
+                .setRenameReplacement(invalidRenameReplacementString)
+                .get()
+        );
+        assertTrue(exception.getMessage().contains("rename_replacement string size exceeds max allowed size"));
+    }
+
+    public void testValidRenameReplacementPattern() {
+        setupSnapshotRestore();
+
+        String validRenameReplacement = "restored-index";
+
+        client().admin()
+            .cluster()
+            .prepareRestoreSnapshot(snapshotRepo, snapshotName1)
+            .setWaitForCompletion(true)
+            .setIndices(index)
+            .setRenamePattern(index)
+            .setRenameReplacement(validRenameReplacement)
+            .get();
+
+        ensureGreen(validRenameReplacement);
+    }
+
+    public void testEmptyRenameReplacementPattern() {
+        setupSnapshotRestore();
+
+        assertAcked(client().admin().indices().prepareDelete(index));
+
+        client().admin().cluster().prepareRestoreSnapshot(snapshotRepo, snapshotName1).setWaitForCompletion(true).setIndices(index).get();
+
+        ensureGreen(index);
+    }
+
     public void testInvalidRestoreRequest_MixModifiableAndUnmodifiableOnRestoreModified() throws Exception {
         setupSnapshotRestore();
 
         // try index restore with mix of modifiable and UnmodifiableOnRestore settings modified
-        // index.version.created is UnmodifiableOnRestore, index.number_of_search_only_replicas is modifiable
+        // index.version.created is UnmodifiableOnRestore, index.number_of_search_replicas is modifiable
         Settings mixedSettingsUnmodifiableOnRestore = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, Version.V_EMPTY)
             .put(IndexMetadata.SETTING_NUMBER_OF_SEARCH_REPLICAS, 1)
@@ -1393,7 +1441,7 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         setupSnapshotRestore();
 
         // try index restore with mix of modifiable and USER_UNMODIFIABLE_SETTINGS settings modified
-        // index.remote_store.enabled is USER_UNMODIFIABLE_SETTINGS, index.number_of_search_only_replicas is modifiable
+        // index.remote_store.enabled is USER_UNMODIFIABLE_SETTINGS, index.number_of_search_replicas is modifiable
         Settings mixedSettingsUserUnmodifiableSettings = Settings.builder()
             .put(IndexMetadata.SETTING_REMOTE_STORE_ENABLED, false)
             .put(IndexMetadata.SETTING_NUMBER_OF_SEARCH_REPLICAS, 1)

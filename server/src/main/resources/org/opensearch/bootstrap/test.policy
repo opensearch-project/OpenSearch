@@ -7,10 +7,31 @@
  */
 
 grant {
-  // allow to use JVM tooling (Java Compiler) in tests for annotation processing 
+  // allow to use JVM tooling (Java Compiler) in tests for annotation processing
   permission java.io.FilePermission "${java.home}/lib/*", "read";
   permission java.io.FilePermission "${java.home}/lib/modules/*", "read";
   permission java.lang.RuntimePermission "accessSystemModules";
   permission java.lang.RuntimePermission "accessDeclaredMembers";
   permission java.lang.RuntimePermission "accessClassInPackage.*";
+
+  // security
+  permission java.io.FilePermission "${java.home}/lib/security/cacerts", "read";
+  permission java.io.FilePermission "${java.home}/lib/security/jssecacerts", "read";
+  permission java.io.FilePermission "${java.home}/conf/security/policy/unlimited/*", "read";
+  permission java.lang.RuntimePermission "accessClassInPackage.sun.security.internal.spec";
+  permission java.lang.RuntimePermission "closeClassLoader";
+  permission java.lang.RuntimePermission "getProtectionDomain";
+  permission java.security.SecurityPermission "getProperty.jdk.certpath.disabledAlgorithms";
+  permission java.security.SecurityPermission "getProperty.jdk.tls.disabledAlgorithms";
+  permission java.security.SecurityPermission "getProperty.jdk.tls.server.defaultDHEParameters";
+  permission java.security.SecurityPermission "getProperty.keystore.type.compat";
+  permission java.security.SecurityPermission "getProperty.org.bouncycastle.*";
+  permission java.security.SecurityPermission "putProviderProperty.BCFIPS";
+  permission java.security.SecurityPermission "putProviderProperty.BCJSSE";
+  permission java.security.SecurityPermission "removeProvider.SunJCE";
+  permission java.security.SecurityPermission "removeProviderProperty.BCFIPS";
+  permission java.util.PropertyPermission "java.runtime.name", "read";
+  permission org.bouncycastle.crypto.CryptoServicesPermission "defaultRandomConfig";
+  permission org.bouncycastle.crypto.CryptoServicesPermission "exportPrivateKey";
+  permission org.bouncycastle.crypto.CryptoServicesPermission "exportSecretKey";
 };

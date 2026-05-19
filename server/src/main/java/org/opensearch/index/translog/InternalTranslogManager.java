@@ -21,7 +21,6 @@ import org.opensearch.index.seqno.LocalCheckpointTracker;
 import org.opensearch.index.translog.listener.TranslogEventListener;
 import org.opensearch.index.translog.transfer.TranslogUploadFailedException;
 
-import java.io.Closeable;
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BooleanSupplier;
@@ -31,12 +30,12 @@ import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 /**
- * The {@link TranslogManager} implementation capable of orchestrating all read/write {@link Translog} operations while
- * interfacing with the {@link org.opensearch.index.engine.InternalEngine}
+ * The {@link TranslogManager} implementation capable of orchestrating all read/write {@link Translog} operations for
+ * the {@link org.opensearch.index.engine.InternalEngine}
  *
  * @opensearch.internal
  */
-public class InternalTranslogManager implements TranslogManager, Closeable {
+public class InternalTranslogManager implements TranslogManager {
 
     private final ReleasableLock readLock;
     private final LifecycleAware engineLifeCycleAware;
@@ -59,7 +58,8 @@ public class InternalTranslogManager implements TranslogManager, Closeable {
         TranslogEventListener translogEventListener,
         LifecycleAware engineLifeCycleAware,
         TranslogFactory translogFactory,
-        BooleanSupplier startedPrimarySupplier
+        BooleanSupplier startedPrimarySupplier,
+        TranslogOperationHelper translogOperationHelper
     ) throws IOException {
         this.shardId = shardId;
         this.readLock = readLock;
@@ -72,7 +72,7 @@ public class InternalTranslogManager implements TranslogManager, Closeable {
             if (tracker != null) {
                 tracker.markSeqNoAsPersisted(seqNo);
             }
-        }, translogUUID, translogFactory, startedPrimarySupplier);
+        }, translogUUID, translogFactory, startedPrimarySupplier, translogOperationHelper);
         assert translog.getGeneration() != null;
         this.translog = translog;
         assert pendingTranslogRecovery.get() == false : "translog recovery can't be pending before we set it";
@@ -369,7 +369,8 @@ public class InternalTranslogManager implements TranslogManager, Closeable {
         LongConsumer persistedSequenceNumberConsumer,
         String translogUUID,
         TranslogFactory translogFactory,
-        BooleanSupplier startedPrimarySupplier
+        BooleanSupplier startedPrimarySupplier,
+        TranslogOperationHelper translogOperationHelper
     ) throws IOException {
         return translogFactory.newTranslog(
             translogConfig,
@@ -378,7 +379,8 @@ public class InternalTranslogManager implements TranslogManager, Closeable {
             globalCheckpointSupplier,
             primaryTermSupplier,
             persistedSequenceNumberConsumer,
-            startedPrimarySupplier
+            startedPrimarySupplier,
+            translogOperationHelper
         );
     }
 

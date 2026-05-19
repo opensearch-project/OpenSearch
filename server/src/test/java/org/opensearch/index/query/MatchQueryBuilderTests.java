@@ -34,6 +34,9 @@ package org.opensearch.index.query;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.analysis.standard.StandardAnalyzer;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.spans.SpanNearQuery;
 import org.apache.lucene.queries.spans.SpanOrQuery;
@@ -50,6 +53,7 @@ import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.analysis.CannedBinaryTokenStream;
 import org.apache.lucene.tests.analysis.MockSynonymAnalyzer;
 import org.apache.lucene.util.BytesRef;
@@ -58,6 +62,7 @@ import org.opensearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.opensearch.common.lucene.search.Queries;
+import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.common.ParsingException;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.MapperService;
@@ -76,6 +81,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
+import static org.opensearch.index.query.BoolQueryBuilderTests.getIndexSearcher;
 import static org.hamcrest.CoreMatchers.either;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.containsString;
@@ -155,15 +161,12 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
     protected Map<String, MatchQueryBuilder> getAlternateVersions() {
         Map<String, MatchQueryBuilder> alternateVersions = new HashMap<>();
         MatchQueryBuilder matchQuery = new MatchQueryBuilder(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10));
-        String contentString = "{\n"
-            + "    \"match\" : {\n"
-            + "        \""
-            + matchQuery.fieldName()
-            + "\" : \""
-            + matchQuery.value()
-            + "\"\n"
-            + "    }\n"
-            + "}";
+        String contentString = String.format(Locale.ROOT, """
+            {
+                "match" : {
+                    "%s" : "%s"
+                }
+            }""", matchQuery.fieldName(), matchQuery.value());
         alternateVersions.put(contentString, matchQuery);
         return alternateVersions;
     }
@@ -285,21 +288,22 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
     }
 
     public void testSimpleMatchQuery() throws IOException {
-        String json = "{\n"
-            + "  \"match\" : {\n"
-            + "    \"message\" : {\n"
-            + "      \"query\" : \"to be or not to be\",\n"
-            + "      \"operator\" : \"AND\",\n"
-            + "      \"prefix_length\" : 0,\n"
-            + "      \"max_expansions\" : 50,\n"
-            + "      \"fuzzy_transpositions\" : true,\n"
-            + "      \"lenient\" : false,\n"
-            + "      \"zero_terms_query\" : \"ALL\",\n"
-            + "      \"auto_generate_synonyms_phrase_query\" : true,\n"
-            + "      \"boost\" : 1.0\n"
-            + "    }\n"
-            + "  }\n"
-            + "}";
+        String json = """
+            {
+              "match" : {
+                "message" : {
+                  "query" : "to be or not to be",
+                  "operator" : "AND",
+                  "prefix_length" : 0,
+                  "max_expansions" : 50,
+                  "fuzzy_transpositions" : true,
+                  "lenient" : false,
+                  "zero_terms_query" : "ALL",
+                  "auto_generate_synonyms_phrase_query" : true,
+                  "boost" : 1.0
+                }
+              }
+            }""";
         MatchQueryBuilder qb = (MatchQueryBuilder) parseQuery(json);
         checkGeneratedJson(json, qb);
 
@@ -361,40 +365,48 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
     }
 
     public void testParseFailsWithMultipleFields() throws IOException {
-        String json = "{\n"
-            + "  \"match\" : {\n"
-            + "    \"message1\" : {\n"
-            + "      \"query\" : \"this is a test\"\n"
-            + "    },\n"
-            + "    \"message2\" : {\n"
-            + "      \"query\" : \"this is a test\"\n"
-            + "    }\n"
-            + "  }\n"
-            + "}";
+        String json = """
+            {
+              "match" : {
+                "message1" : {
+                  "query" : "this is a test"
+                },
+                "message2" : {
+                  "query" : "this is a test"
+                }
+              }
+            }""";
         ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(json));
         assertEquals("[match] query doesn't support multiple fields, found [message1] and [message2]", e.getMessage());
 
-        String shortJson = "{\n"
-            + "  \"match\" : {\n"
-            + "    \"message1\" : \"this is a test\",\n"
-            + "    \"message2\" : \"this is a test\"\n"
-            + "  }\n"
-            + "}";
+        String shortJson = """
+            {
+              "match" : {
+                "message1" : "this is a test",
+                "message2" : "this is a test"
+              }
+            }""";
         e = expectThrows(ParsingException.class, () -> parseQuery(shortJson));
         assertEquals("[match] query doesn't support multiple fields, found [message1] and [message2]", e.getMessage());
     }
 
     public void testParseFailsWithTermsArray() throws Exception {
-        String json1 = "{\n"
-            + "  \"match\" : {\n"
-            + "    \"message1\" : {\n"
-            + "      \"query\" : [\"term1\", \"term2\"]\n"
-            + "    }\n"
-            + "  }\n"
-            + "}";
+        String json1 = """
+            {
+              "match" : {
+                "message1" : {
+                  "query" : ["term1", "term2"]
+                }
+              }
+            }""";
         expectThrows(ParsingException.class, () -> parseQuery(json1));
 
-        String json2 = "{\n" + "  \"match\" : {\n" + "    \"message1\" : [\"term1\", \"term2\"]\n" + "  }\n" + "}";
+        String json2 = """
+            {
+              "match" : {
+                "message1" : ["term1", "term2"]
+              }
+            }""";
         expectThrows(IllegalStateException.class, () -> parseQuery(json2));
     }
 
@@ -633,5 +645,41 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
         QueryBuilder rewritten = rewriteQuery(queryBuilder, new QueryShardContext(context));
         assertNotNull(rewritten.toQuery(context));
         assertFalse("query should not be cacheable: " + queryBuilder.toString(), context.isCacheable());
+    }
+
+    public void testGetComplement() throws Exception {
+        // getComplement() should return null if QueryShardContext is null
+        int value = 200;
+        MatchQueryBuilder queryBuilder = new MatchQueryBuilder(INT_FIELD_NAME, value);
+        assertNull(queryBuilder.getComplement(null));
+
+        // getComplement() should return 2 range queries if this is a numeric field
+        Directory dir = newDirectory();
+        IndexWriter w = new IndexWriter(dir, newIndexWriterConfig(new StandardAnalyzer()));
+        DirectoryReader reader = DirectoryReader.open(w);
+        IndexSearcher searcher = getIndexSearcher(reader);
+
+        testGetComplementNumericField(queryBuilder, value, INT_FIELD_NAME, searcher);
+
+        // should return null if this isn't a numeric field
+        queryBuilder = new MatchQueryBuilder(TEXT_FIELD_NAME, "some_text");
+        assertNull(queryBuilder.getComplement(createShardContext(searcher)));
+
+        IOUtils.close(w, reader, dir);
+    }
+
+    // pkg-private so it can be reused in TermQueryBuilderTests
+    static void testGetComplementNumericField(
+        ComplementAwareQueryBuilder queryBuilder,
+        int value,
+        String fieldName,
+        IndexSearcher searcher
+    ) {
+        List<? extends QueryBuilder> complement = queryBuilder.getComplement(createShardContext(searcher));
+        RangeQueryBuilder expectedLower = new RangeQueryBuilder(fieldName).to(value).includeLower(true).includeUpper(false);
+        RangeQueryBuilder expectedUpper = new RangeQueryBuilder(fieldName).from(value).includeLower(false).includeUpper(true);
+        assertEquals(2, complement.size());
+        assertTrue(complement.contains(expectedLower));
+        assertTrue(complement.contains(expectedUpper));
     }
 }

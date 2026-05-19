@@ -35,6 +35,7 @@ package org.opensearch.test;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.OpenSearchException;
+import org.opensearch.Version;
 import org.opensearch.action.admin.cluster.node.info.NodeInfo;
 import org.opensearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.opensearch.action.admin.cluster.node.stats.NodeStats;
@@ -49,6 +50,7 @@ import org.opensearch.env.Environment;
 import org.opensearch.http.HttpInfo;
 import org.opensearch.node.MockNode;
 import org.opensearch.plugins.Plugin;
+import org.opensearch.plugins.PluginInfo;
 import org.opensearch.transport.client.Client;
 import org.opensearch.transport.nio.MockNioTransportPlugin;
 
@@ -59,6 +61,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -66,6 +69,7 @@ import java.util.stream.Collectors;
 import static org.opensearch.action.admin.cluster.node.info.NodesInfoRequest.Metric.HTTP;
 import static org.opensearch.action.admin.cluster.node.info.NodesInfoRequest.Metric.SETTINGS;
 import static org.opensearch.action.admin.cluster.node.stats.NodesStatsRequest.Metric.BREAKER;
+import static org.opensearch.test.OpenSearchTestCase.assertBusy;
 import static org.opensearch.test.OpenSearchTestCase.getTestTransportType;
 import static org.hamcrest.Matchers.equalTo;
 import static org.junit.Assert.assertThat;
@@ -96,12 +100,37 @@ public final class ExternalTestCluster extends TestCluster {
         Path tempDir,
         Settings additionalSettings,
         Function<Client, Client> clientWrapper,
+        Collection<PluginInfo> pluginInfos,
         String clusterName,
-        Collection<Class<? extends Plugin>> pluginClasses,
         TransportAddress... transportAddresses
     ) {
         super(0);
         this.clusterName = clusterName;
+        List<Class<? extends Plugin>> additionalPluginClasses = new ArrayList<>();
+        boolean addMockTcpTransport = additionalSettings.get(NetworkModule.TRANSPORT_TYPE_KEY) == null;
+
+        if (addMockTcpTransport) {
+            if (pluginInfos.stream().noneMatch(p -> p.getClassname().equals(MockNioTransportPlugin.class.getName()))) {
+                additionalPluginClasses.add(MockNioTransportPlugin.class);
+            }
+        }
+        additionalPluginClasses.add(MockHttpTransport.TestPlugin.class);
+        pluginInfos = new ArrayList<>(pluginInfos);
+        for (Class<? extends Plugin> clazz : additionalPluginClasses) {
+            pluginInfos.add(
+                new PluginInfo(
+                    clazz.getName(),
+                    "classpath plugin",
+                    "NA",
+                    Version.CURRENT,
+                    "1.8",
+                    clazz.getName(),
+                    null,
+                    Collections.emptyList(),
+                    false
+                )
+            );
+        }
         Settings.Builder clientSettingsBuilder = Settings.builder()
             .put(additionalSettings)
             .put("node.master", false)
@@ -116,20 +145,12 @@ public final class ExternalTestCluster extends TestCluster {
         if (Environment.PATH_HOME_SETTING.exists(additionalSettings) == false) {
             clientSettingsBuilder.put(Environment.PATH_HOME_SETTING.getKey(), tempDir);
         }
-        boolean addMockTcpTransport = additionalSettings.get(NetworkModule.TRANSPORT_TYPE_KEY) == null;
-
         if (addMockTcpTransport) {
             String transport = getTestTransportType();
             clientSettingsBuilder.put(NetworkModule.TRANSPORT_TYPE_KEY, transport);
-            if (pluginClasses.contains(MockNioTransportPlugin.class) == false) {
-                pluginClasses = new ArrayList<>(pluginClasses);
-                pluginClasses.add(MockNioTransportPlugin.class);
-            }
         }
-        pluginClasses = new ArrayList<>(pluginClasses);
-        pluginClasses.add(MockHttpTransport.TestPlugin.class);
         Settings clientSettings = clientSettingsBuilder.build();
-        MockNode node = new MockNode(clientSettings, pluginClasses);
+        MockNode node = new MockNode(clientSettings, pluginInfos, null, true);
         Client client = clientWrapper.apply(node.client());
         try {
             node.start();
@@ -167,6 +188,38 @@ public final class ExternalTestCluster extends TestCluster {
             }
             throw new OpenSearchException(e);
         }
+    }
+
+    public ExternalTestCluster(
+        Path tempDir,
+        Settings additionalSettings,
+        Function<Client, Client> clientWrapper,
+        String clusterName,
+        Collection<Class<? extends Plugin>> pluginClasses,
+        TransportAddress... transportAddresses
+    ) {
+        this(
+            tempDir,
+            additionalSettings,
+            clientWrapper,
+            pluginClasses.stream()
+                .map(
+                    p -> new PluginInfo(
+                        p.getName(),
+                        "classpath plugin",
+                        "NA",
+                        Version.CURRENT,
+                        "1.8",
+                        p.getName(),
+                        null,
+                        Collections.emptyList(),
+                        false
+                    )
+                )
+                .collect(Collectors.toList()),
+            clusterName,
+            transportAddresses
+        );
     }
 
     @Override
@@ -217,11 +270,17 @@ public final class ExternalTestCluster extends TestCluster {
                 .execute()
                 .actionGet();
             for (NodeStats stats : nodeStats.getNodes()) {
-                assertThat(
-                    "Fielddata breaker not reset to 0 on node: " + stats.getNode(),
-                    stats.getBreaker().getStats(CircuitBreaker.FIELDDATA).getEstimated(),
-                    equalTo(0L)
-                );
+                try {
+                    assertBusy(() -> {
+                        assertThat(
+                            "Fielddata breaker not reset to 0 on node: " + stats.getNode(),
+                            stats.getBreaker().getStats(CircuitBreaker.FIELDDATA).getEstimated(),
+                            equalTo(0L)
+                        );
+                    });
+                } catch (Exception e) {
+                    throw new AssertionError("Exception during check for request breaker reset to 0", e);
+                }
                 // ExternalTestCluster does not check the request breaker,
                 // because checking it requires a network request, which in
                 // turn increments the breaker, making it non-0

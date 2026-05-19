@@ -151,7 +151,7 @@ public final class HttpTransportSettings {
     );
     public static final Setting<ByteSizeValue> SETTING_HTTP_MAX_HEADER_SIZE = Setting.byteSizeSetting(
         "http.max_header_size",
-        new ByteSizeValue(8, ByteSizeUnit.KB),
+        new ByteSizeValue(16, ByteSizeUnit.KB),
         Property.NodeScope
     );
     public static final Setting<Integer> SETTING_HTTP_MAX_WARNING_HEADER_COUNT = intSetting(
@@ -257,6 +257,23 @@ public final class HttpTransportSettings {
         Function.identity(),
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
+    );
+
+    public static final Setting<Integer> SETTING_HTTP_REQUEST_ID_MAX_LENGTH = intSetting(
+        "http.request_id.max_length",
+        128,
+        16,
+        1024,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
+    // Enable HTTP/3 protocol if supported by the operating system and architecture
+    // The HTTP/3 transport is still experimental and should be used with caution.
+    public static final Setting<Boolean> SETTING_HTTP_HTTP3_ENABLED = Setting.boolSetting(
+        "http.protocol.http3.enabled",
+        false,
+        Property.NodeScope
     );
 
     private HttpTransportSettings() {}

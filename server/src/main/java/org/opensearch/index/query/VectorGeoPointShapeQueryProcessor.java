@@ -77,11 +77,21 @@ public class VectorGeoPointShapeQueryProcessor {
         return getVectorQueryFromShape(shape, fieldName, relation, context);
     }
 
+    private boolean isGeoPointField(MappedFieldType fieldType) {
+        if (fieldType == null) {
+            return false;
+        }
+        MappedFieldType delegateFieldType = fieldType.unwrap();
+        if (delegateFieldType instanceof DerivedFieldType) {
+            MappedFieldType derivedFieldType = ((DerivedFieldType) delegateFieldType).getFieldMapper().fieldType();
+            delegateFieldType = derivedFieldType == null ? null : derivedFieldType.unwrap();
+        }
+        return delegateFieldType instanceof GeoPointFieldMapper.GeoPointFieldType;
+    }
+
     private void validateIsGeoPointFieldType(String fieldName, QueryShardContext context) {
         MappedFieldType fieldType = context.fieldMapper(fieldName);
-        if (fieldType instanceof GeoPointFieldMapper.GeoPointFieldType == false
-            && !(fieldType instanceof DerivedFieldType
-                && (((DerivedFieldType) fieldType).getFieldMapper().fieldType() instanceof GeoPointFieldMapper.GeoPointFieldType))) {
+        if (isGeoPointField(fieldType) == false) {
             throw new QueryShardException(
                 context,
                 "Expected "

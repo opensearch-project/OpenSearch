@@ -470,6 +470,34 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
     }
 
     /**
+     * A map of hit fields (from field name to hit fields) if additional fields
+     * were required to be loaded.
+     */
+    public Map<String, DocumentField> getMetaFields() {
+        if (!metaFields.isEmpty()) {
+            final Map<String, DocumentField> fields = new HashMap<>();
+            fields.putAll(metaFields);
+            return fields;
+        } else {
+            return emptyMap();
+        }
+    }
+
+    /**
+     * A map of hit fields (from field name to hit fields) if additional fields
+     * were required to be loaded.
+     */
+    public Map<String, DocumentField> getDocumentFields() {
+        if (!documentFields.isEmpty()) {
+            final Map<String, DocumentField> fields = new HashMap<>();
+            fields.putAll(documentFields);
+            return fields;
+        } else {
+            return emptyMap();
+        }
+    }
+
+    /**
      * A map of highlighted fields.
      */
     public Map<String, HighlightField> getHighlightFields() {

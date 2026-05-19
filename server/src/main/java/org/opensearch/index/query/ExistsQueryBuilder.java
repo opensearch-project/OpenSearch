@@ -202,13 +202,13 @@ public class ExistsQueryBuilder extends AbstractQueryBuilder<ExistsQueryBuilder>
         BooleanQuery.Builder booleanQuery = new BooleanQuery.Builder();
         Collection<String> fields = context.simpleMatchToIndexNames(objField + ".*");
         for (String field : fields) {
-            int dotPos = field.lastIndexOf('.');
-            if (dotPos > 0 && field.charAt(dotPos + 1) == '_') {
-                // This is a subfield (e.g. prefix) of a complex field type. Skip it.
-                continue;
+            try {
+                Query existsQuery = context.getMapperService().fieldType(field).existsQuery(context);
+                booleanQuery.add(existsQuery, Occur.SHOULD);
+            } catch (UnsupportedOperationException e) {
+                // ignore some subfields which not support exists query
+                // if none of the subfields support the exists query, this is equivalent to MatchNoDocsQuery
             }
-            Query existsQuery = context.getMapperService().fieldType(field).existsQuery(context);
-            booleanQuery.add(existsQuery, Occur.SHOULD);
         }
         return new ConstantScoreQuery(booleanQuery.build());
     }

@@ -432,6 +432,9 @@ public class ClusterBlocks extends AbstractDiffable<ClusterBlocks> implements Ve
             if (indexMetadata.isRemoteSnapshot()) {
                 addIndexBlock(indexName, IndexMetadata.REMOTE_READ_ONLY_ALLOW_DELETE);
             }
+            if (IndexMetadata.INDEX_BLOCKS_SEARCH_ONLY_SETTING.get(indexMetadata.getSettings())) {
+                addIndexBlock(indexName, IndexMetadata.APIBlock.SEARCH_ONLY.getBlock());
+            }
             return this;
         }
 

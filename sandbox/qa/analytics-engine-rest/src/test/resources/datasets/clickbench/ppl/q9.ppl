@@ -1,0 +1,1 @@
+source = clickbench | stats dc(UserID) as u by RegionID | sort -u | head 10

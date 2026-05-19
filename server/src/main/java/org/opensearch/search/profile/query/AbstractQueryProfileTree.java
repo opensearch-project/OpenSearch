@@ -20,7 +20,7 @@ import org.opensearch.search.profile.ProfileResult;
  *
  * @opensearch.internal
  */
-public abstract class AbstractQueryProfileTree extends AbstractInternalProfileTree<ContextualProfileBreakdown<QueryTimingType>, Query> {
+public abstract class AbstractQueryProfileTree extends AbstractInternalProfileTree<ContextualProfileBreakdown, Query> {
 
     /** Rewrite time */
     private long rewriteTime;
@@ -64,4 +64,6 @@ public abstract class AbstractQueryProfileTree extends AbstractInternalProfileTr
     public long getRewriteTime() {
         return rewriteTime;
     }
+
+    protected abstract ContextualProfileBreakdown createProfileBreakdown(Query query);
 }

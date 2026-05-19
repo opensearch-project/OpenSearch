@@ -42,6 +42,7 @@ import org.opensearch.cluster.ClusterStateTaskExecutor;
 import org.opensearch.cluster.ClusterStateTaskListener;
 import org.opensearch.cluster.LocalNodeClusterManagerListener;
 import org.opensearch.cluster.NodeConnectionsService;
+import org.opensearch.cluster.StreamNodeConnectionsService;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.OperationRouting;
 import org.opensearch.cluster.routing.RerouteService;
@@ -129,6 +130,10 @@ public class ClusterService extends AbstractLifecycleComponent {
 
     public synchronized void setNodeConnectionsService(NodeConnectionsService nodeConnectionsService) {
         clusterApplierService.setNodeConnectionsService(nodeConnectionsService);
+    }
+
+    public synchronized void setStreamNodeConnectionsService(StreamNodeConnectionsService streamNodeConnectionsService) {
+        clusterApplierService.setStreamNodeConnectionsService(streamNodeConnectionsService);
     }
 
     public void setRerouteService(RerouteService rerouteService) {
@@ -300,12 +305,12 @@ public class ClusterService extends AbstractLifecycleComponent {
     /**
      * Functionality for register task key to cluster manager node.
      *
-     * @param taskKey - task key of task
+     * @param task - cluster manager task
      * @param throttlingEnabled - throttling is enabled for task or not i.e does data node perform retries on it or not
      * @return throttling task key which needs to be passed while submitting task to cluster manager
      */
-    public ClusterManagerTaskThrottler.ThrottlingKey registerClusterManagerTask(String taskKey, boolean throttlingEnabled) {
-        return clusterManagerService.registerClusterManagerTask(taskKey, throttlingEnabled);
+    public ClusterManagerTaskThrottler.ThrottlingKey registerClusterManagerTask(ClusterManagerTask task, boolean throttlingEnabled) {
+        return clusterManagerService.registerClusterManagerTask(task, throttlingEnabled);
     }
 
     /**

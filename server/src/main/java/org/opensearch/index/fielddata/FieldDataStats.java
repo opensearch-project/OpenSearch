@@ -67,12 +67,28 @@ public class FieldDataStats implements Writeable, ToXContentFragment {
 
     }
 
+    /**
+     * Private constructor that takes a builder.
+     * This is the sole entry point for creating a new FieldDataStats object.
+     * @param builder The builder instance containing all the values.
+     */
+    private FieldDataStats(Builder builder) {
+        this.memorySize = builder.memorySize;
+        this.evictions = builder.evictions;
+        this.fields = builder.fields;
+    }
+
     public FieldDataStats(StreamInput in) throws IOException {
         memorySize = in.readVLong();
         evictions = in.readVLong();
         fields = in.readOptionalWriteable(FieldMemoryStats::new);
     }
 
+    /**
+     * This constructor will be deprecated starting in version 3.4.0.
+     * Use {@link FieldDataStats.Builder} instead.
+     */
+    @Deprecated
     public FieldDataStats(long memorySize, long evictions, @Nullable FieldMemoryStats fields) {
         this.memorySize = memorySize;
         this.evictions = evictions;
@@ -109,6 +125,41 @@ public class FieldDataStats implements Writeable, ToXContentFragment {
     @Nullable
     public FieldMemoryStats getFields() {
         return fields;
+    }
+
+    /**
+     * Builder for the {@link FieldDataStats} class.
+     * Provides a fluent API for constructing a FieldDataStats object.
+     */
+    public static class Builder {
+        private long memorySize = 0;
+        private long evictions = 0;
+        private FieldMemoryStats fields = null;
+
+        public Builder() {}
+
+        public Builder memorySize(long memorySize) {
+            this.memorySize = memorySize;
+            return this;
+        }
+
+        public Builder evictions(long evictions) {
+            this.evictions = evictions;
+            return this;
+        }
+
+        public Builder fieldMemoryStats(@Nullable FieldMemoryStats fields) {
+            this.fields = fields;
+            return this;
+        }
+
+        /**
+         * Creates a {@link FieldDataStats} object from the builder's current state.
+         * @return A new FieldDataStats instance.
+         */
+        public FieldDataStats build() {
+            return new FieldDataStats(this);
+        }
     }
 
     @Override

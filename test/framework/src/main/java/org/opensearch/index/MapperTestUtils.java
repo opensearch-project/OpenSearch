@@ -48,6 +48,7 @@ import org.opensearch.index.similarity.SimilarityService;
 import org.opensearch.indices.IndicesModule;
 import org.opensearch.indices.mapper.MapperRegistry;
 import org.opensearch.plugins.AnalysisPlugin;
+import org.opensearch.script.ScriptService;
 import org.opensearch.test.IndexSettingsModule;
 
 import java.io.IOException;
@@ -67,8 +68,18 @@ public class MapperTestUtils {
         Settings indexSettings,
         String indexName
     ) throws IOException {
+        return newMapperService(xContentRegistry, tempDir, indexSettings, indexName, null);
+    }
+
+    public static MapperService newMapperService(
+        NamedXContentRegistry xContentRegistry,
+        Path tempDir,
+        Settings indexSettings,
+        String indexName,
+        ScriptService scriptService
+    ) throws IOException {
         IndicesModule indicesModule = new IndicesModule(Collections.emptyList());
-        return newMapperService(xContentRegistry, tempDir, indexSettings, indicesModule, indexName);
+        return newMapperService(xContentRegistry, tempDir, indexSettings, indicesModule, indexName, scriptService);
     }
 
     public static MapperService newMapperService(
@@ -76,7 +87,8 @@ public class MapperTestUtils {
         Path tempDir,
         Settings settings,
         IndicesModule indicesModule,
-        String indexName
+        String indexName,
+        ScriptService scriptService
     ) throws IOException {
         Settings.Builder settingsBuilder = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), tempDir).put(settings);
         if (settings.get(IndexMetadata.SETTING_VERSION_CREATED) == null) {
@@ -95,7 +107,7 @@ public class MapperTestUtils {
             mapperRegistry,
             () -> null,
             () -> false,
-            null
+            scriptService
         );
     }
 

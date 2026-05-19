@@ -31,6 +31,8 @@
 package org.opensearch.gradle.test
 
 import groovy.transform.CompileStatic
+import org.gradle.api.artifacts.VersionCatalog
+import org.gradle.api.artifacts.VersionCatalogsExtension
 import org.opensearch.gradle.OpenSearchJavaPlugin
 import org.opensearch.gradle.ExportOpenSearchBuildResourcesTask
 import org.opensearch.gradle.RepositoriesSetupPlugin
@@ -92,13 +94,17 @@ class StandaloneRestTestPlugin implements Plugin<Project> {
         // create a compileOnly configuration as others might expect it
         project.configurations.create("compileOnly")
         project.dependencies.add('testImplementation', project.project(':test:framework'))
+        if (BuildParams.isInFipsJvm()) {
+            VersionCatalog libs = project.extensions.getByType(VersionCatalogsExtension).named("libs")
+            project.dependencies.add('testFipsRuntimeOnly', libs.findBundle("bouncycastle").get())
+        }
 
         EclipseModel eclipse = project.extensions.getByType(EclipseModel)
         eclipse.classpath.sourceSets = [testSourceSet]
         eclipse.classpath.plusConfigurations = [project.configurations.getByName(JavaPlugin.TEST_RUNTIME_CLASSPATH_CONFIGURATION_NAME)]
 
         IdeaModel idea = project.extensions.getByType(IdeaModel)
-        idea.module.testSourceDirs += testSourceSet.java.srcDirs
+        idea.module.testSources.from(testSourceSet.java.srcDirs)
         idea.module.scopes.put('TEST', [plus: [project.configurations.getByName(JavaPlugin.TEST_RUNTIME_CLASSPATH_CONFIGURATION_NAME)]] as Map<String, Collection<Configuration>>)
 
         PrecommitTasks.create(project, false)

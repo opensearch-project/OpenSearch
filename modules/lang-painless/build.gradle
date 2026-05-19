@@ -54,12 +54,8 @@ testClusters.all {
 }
 
 dependencies {
-  api "org.antlr:antlr4-runtime:${versions.antlr4}"
-  api "org.ow2.asm:asm-util:${versions.asm}"
-  api "org.ow2.asm:asm-tree:${versions.asm}"
-  api "org.ow2.asm:asm-commons:${versions.asm}"
-  api "org.ow2.asm:asm-analysis:${versions.asm}"
-  api "org.ow2.asm:asm:${versions.asm}"
+  api(libs.antlr4.runtime)
+  api(libs.bundles.asm)
   api project('spi')
 }
 

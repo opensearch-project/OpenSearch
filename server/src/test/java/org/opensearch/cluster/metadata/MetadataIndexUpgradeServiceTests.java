@@ -31,7 +31,6 @@
 
 package org.opensearch.cluster.metadata;
 
-import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.common.settings.IndexScopedSettings;
 import org.opensearch.common.settings.Settings;
@@ -131,7 +130,7 @@ public class MetadataIndexUpgradeServiceTests extends OpenSearchTestCase {
             minCompat,
             Version.max(minCompat, VersionUtils.getPreviousVersion(Version.CURRENT))
         );
-        Version indexCreated = LegacyESVersion.fromString((minCompat.major - 1) + "." + randomInt(5) + "." + randomInt(5));
+        Version indexCreated = Version.fromString((minCompat.major - 1) + "." + randomInt(5) + "." + randomInt(5));
         final IndexMetadata metadata = newIndexMeta(
             "foo",
             Settings.builder()

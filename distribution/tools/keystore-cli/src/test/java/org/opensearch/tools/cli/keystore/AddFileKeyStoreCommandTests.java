@@ -61,6 +61,10 @@ public class AddFileKeyStoreCommandTests extends KeyStoreCommandTestCase {
         };
     }
 
+    protected String getPassword() {
+        return randomFrom("", "keystorepassword");
+    }
+
     private Path createRandomFile() throws IOException {
         int length = randomIntBetween(10, 20);
         byte[] bytes = new byte[length];
@@ -93,7 +97,8 @@ public class AddFileKeyStoreCommandTests extends KeyStoreCommandTestCase {
     }
 
     public void testMissingNoCreate() throws Exception {
-        terminal.addSecretInput(randomFrom("", "keystorepassword"));
+        var password = getPassword();
+        terminal.addSecretInput(password);
         terminal.addTextInput("n"); // explicit no
         execute("foo");
         assertNull(KeyStoreWrapper.load(env.configDir()));
@@ -211,17 +216,13 @@ public class AddFileKeyStoreCommandTests extends KeyStoreCommandTestCase {
         terminal.addSecretInput("thewrongkeystorepassword");
         UserException e = expectThrows(UserException.class, () -> execute("foo", file.toString()));
         assertEquals(e.getMessage(), ExitCodes.DATA_ERROR, e.exitCode);
-        if (inFipsJvm()) {
-            assertThat(
-                e.getMessage(),
-                anyOf(
-                    containsString("Provided keystore password was incorrect"),
-                    containsString("Keystore has been corrupted or tampered with")
-                )
-            );
-        } else {
-            assertThat(e.getMessage(), containsString("Provided keystore password was incorrect"));
-        }
+        assertThat(
+            e.getMessage(),
+            anyOf(
+                containsString("Provided keystore password was incorrect"),
+                containsString("Keystore has been corrupted or tampered with")
+            )
+        );
     }
 
     public void testAddToUnprotectedKeystore() throws Exception {

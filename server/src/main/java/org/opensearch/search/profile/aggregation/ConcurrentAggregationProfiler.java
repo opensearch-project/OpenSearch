@@ -13,8 +13,8 @@
 
 package org.opensearch.search.profile.aggregation;
 
-import org.opensearch.search.profile.AbstractProfileBreakdown;
 import org.opensearch.search.profile.ProfileResult;
+import org.opensearch.search.profile.Timer;
 
 import java.util.HashMap;
 import java.util.LinkedList;
@@ -31,7 +31,7 @@ public class ConcurrentAggregationProfiler extends AggregationProfiler {
     private static final String MAX_PREFIX = "max_";
     private static final String MIN_PREFIX = "min_";
     private static final String AVG_PREFIX = "avg_";
-    private static final String START_TIME_KEY = AggregationTimingType.INITIALIZE + AbstractProfileBreakdown.TIMING_TYPE_START_TIME_SUFFIX;
+    private static final String START_TIME_KEY = AggregationTimingType.INITIALIZE + Timer.TIMING_TYPE_START_TIME_SUFFIX;
     private static final String[] breakdownCountStatsTypes = { "build_leaf_collector_count", "collect_count" };
 
     @Override
@@ -82,8 +82,7 @@ public class ConcurrentAggregationProfiler extends AggregationProfiler {
             // Profiled breakdown total time
             for (AggregationTimingType timingType : AggregationTimingType.values()) {
                 String breakdownTimingType = timingType.toString();
-                Long startTime = profileResult.getTimeBreakdown()
-                    .get(breakdownTimingType + AbstractProfileBreakdown.TIMING_TYPE_START_TIME_SUFFIX);
+                Long startTime = profileResult.getTimeBreakdown().get(breakdownTimingType + Timer.TIMING_TYPE_START_TIME_SUFFIX);
                 Long endTime = startTime + profileResult.getTimeBreakdown().get(breakdownTimingType);
                 minSliceStartTimeMap.put(
                     breakdownTimingType,
@@ -103,7 +102,7 @@ public class ConcurrentAggregationProfiler extends AggregationProfiler {
             // Profiled breakdown count
             for (AggregationTimingType timingType : AggregationTimingType.values()) {
                 String breakdownType = timingType.toString();
-                String breakdownTypeCount = breakdownType + AbstractProfileBreakdown.TIMING_TYPE_COUNT_SUFFIX;
+                String breakdownTypeCount = breakdownType + Timer.TIMING_TYPE_COUNT_SUFFIX;
                 breakdown.put(
                     breakdownTypeCount,
                     breakdown.getOrDefault(breakdownTypeCount, 0L) + profileResult.getTimeBreakdown().get(breakdownTypeCount)

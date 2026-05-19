@@ -36,6 +36,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.search.SearchResponse;
+import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.plugins.Plugin;
@@ -131,6 +132,7 @@ public class SearchTimeoutIT extends ParameterizedStaticSettingsOpenSearchIntegT
         static final String SCRIPT_NAME = "search_timeout";
 
         @Override
+        @SuppressForbidden(reason = "Simulating a slow task by sleeping")
         public Map<String, Function<Map<String, Object>, Object>> pluginScripts() {
             return Collections.singletonMap(SCRIPT_NAME, params -> {
                 try {

@@ -36,6 +36,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
+import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.PhraseQuery;
@@ -321,14 +322,16 @@ public class MultiMatchQueryTests extends OpenSearchSingleNodeTestCase {
         Query query = parser.parse(MultiMatchQueryBuilder.Type.BEST_FIELDS, fieldNames, "Foo Bar", null);
         DisjunctionMaxQuery expected = new DisjunctionMaxQuery(
             Arrays.asList(
-                new TermQuery(new Term("field_normalizer", "foo bar")),
-                new TermQuery(new Term("field", "Foo Bar")),
-                new BooleanQuery.Builder().add(new TermQuery(new Term("field_split", "Foo")), BooleanClause.Occur.SHOULD)
-                    .add(new TermQuery(new Term("field_split", "Bar")), BooleanClause.Occur.SHOULD)
-                    .build(),
-                new BooleanQuery.Builder().add(new TermQuery(new Term("field_split_normalizer", "foo")), BooleanClause.Occur.SHOULD)
-                    .add(new TermQuery(new Term("field_split_normalizer", "bar")), BooleanClause.Occur.SHOULD)
-                    .build()
+                new ConstantScoreQuery(new TermQuery(new Term("field_normalizer", "foo bar"))),
+                new ConstantScoreQuery(new TermQuery(new Term("field", "Foo Bar"))),
+                new BooleanQuery.Builder().add(
+                    new ConstantScoreQuery(new TermQuery(new Term("field_split", "Foo"))),
+                    BooleanClause.Occur.SHOULD
+                ).add(new ConstantScoreQuery(new TermQuery(new Term("field_split", "Bar"))), BooleanClause.Occur.SHOULD).build(),
+                new BooleanQuery.Builder().add(
+                    new ConstantScoreQuery(new TermQuery(new Term("field_split_normalizer", "foo"))),
+                    BooleanClause.Occur.SHOULD
+                ).add(new ConstantScoreQuery(new TermQuery(new Term("field_split_normalizer", "bar"))), BooleanClause.Occur.SHOULD).build()
             ),
             0.0f
         );

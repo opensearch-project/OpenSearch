@@ -87,7 +87,7 @@ public class TaskResourceTrackingServiceTests extends OpenSearchTestCase {
         taskResourceTrackingService.setTaskResourceTrackingEnabled(true);
         Task task = new SearchTask(1, "test", "test", () -> "Test", TaskId.EMPTY_TASK_ID, new HashMap<>());
         ThreadContext.StoredContext storedContext = taskResourceTrackingService.startTracking(task);
-        long threadId = Thread.currentThread().getId();
+        long threadId = Thread.currentThread().threadId();
         taskResourceTrackingService.taskExecutionStartedOnThread(task.getId(), threadId);
 
         assertTrue(task.getResourceStats().get(threadId).get(0).isActive());
@@ -111,7 +111,7 @@ public class TaskResourceTrackingServiceTests extends OpenSearchTestCase {
         int numTasks = randomIntBetween(2, 100);
         for (int i = 0; i < numTasks; i++) {
             executor.execute(() -> {
-                long threadId = Thread.currentThread().getId();
+                long threadId = Thread.currentThread().threadId();
                 taskResourceTrackingService.taskExecutionStartedOnThread(task.getId(), threadId);
                 // The same thread may pick up multiple runnables for the same task id
                 assertEquals(1, task.getResourceStats().get(threadId).stream().filter(ThreadResourceInfo::isActive).count());
@@ -152,7 +152,7 @@ public class TaskResourceTrackingServiceTests extends OpenSearchTestCase {
         taskResourceTrackingService.setTaskResourceTrackingEnabled(true);
         taskResourceTrackingService.startTracking(task);
         task.startThreadResourceTracking(
-            Thread.currentThread().getId(),
+            Thread.currentThread().threadId(),
             ResourceStatsType.WORKER_STATS,
             new ResourceUsageMetric(CPU, 100),
             new ResourceUsageMetric(MEMORY, 100)

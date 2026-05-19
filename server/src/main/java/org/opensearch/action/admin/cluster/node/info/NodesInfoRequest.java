@@ -72,7 +72,7 @@ public class NodesInfoRequest extends BaseNodesRequest<NodesInfoRequest> {
      * for all nodes will be returned.
      */
     public NodesInfoRequest(String... nodesIds) {
-        super(false, nodesIds);
+        super(nodesIds);
         defaultMetrics();
     }
 
@@ -144,19 +144,6 @@ public class NodesInfoRequest extends BaseNodesRequest<NodesInfoRequest> {
         }
         requestedMetrics.remove(metric);
         return this;
-    }
-
-    /**
-     * Helper method for adding and removing metrics. Used when deserializing
-     * a NodesInfoRequest from an ordered list of booleans.
-     *
-     * @param addMetric Whether or not to include a metric.
-     * @param metricName Name of the metric to include or remove.
-     */
-    private void optionallyAddMetric(boolean addMetric, String metricName) {
-        if (addMetric) {
-            requestedMetrics.add(metricName);
-        }
     }
 
     @Override

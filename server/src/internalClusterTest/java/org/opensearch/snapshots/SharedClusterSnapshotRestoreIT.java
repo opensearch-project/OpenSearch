@@ -103,7 +103,7 @@ import java.util.stream.IntStream;
 
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.opensearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY;
-import static org.opensearch.index.shard.IndexShardTests.getEngineFromShard;
+import static org.opensearch.index.shard.IndexShardTestCase.getEngine;
 import static org.opensearch.indices.recovery.RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAllSuccessful;
@@ -2052,7 +2052,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         final Index index = resolveIndex(indexName);
         final IndexShard primary = internalCluster().getInstance(IndicesService.class, dataNode).getShardOrNull(new ShardId(index, 0));
         // create a gap in the sequence numbers
-        EngineTestCase.generateNewSeqNo(getEngineFromShard(primary));
+        EngineTestCase.generateNewSeqNo(getEngine(primary));
 
         for (int i = 5; i < 10; i++) {
             index(indexName, "_doc", Integer.toString(i), "foo", "bar" + i);

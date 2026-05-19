@@ -95,7 +95,7 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
     public abstract ParametrizedFieldMapper.Builder getMergeBuilder();
 
     @Override
-    public final ParametrizedFieldMapper merge(Mapper mergeWith) {
+    public ParametrizedFieldMapper merge(Mapper mergeWith) {
 
         if (mergeWith instanceof FieldMapper == false) {
             throw new IllegalArgumentException(
@@ -127,12 +127,14 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
         Conflicts conflicts = new Conflicts(name());
         builder.merge((FieldMapper) mergeWith, conflicts);
         conflicts.check();
-        return builder.build(new BuilderContext(Settings.EMPTY, parentPath(name())));
+        return builder.build(new BuilderContext(Settings.EMPTY, parentPath(name(), simpleName())));
     }
 
-    private static ContentPath parentPath(String name) {
-        int endPos = name.lastIndexOf(".");
-        if (endPos == -1) {
+    private static ContentPath parentPath(String name, String simpleName) {
+        // Use simpleName to compute the parent path so that fields whose simpleName contains dots
+        // (because of disable_objects) get the correct parent path
+        int endPos = name.length() - simpleName.length() - 1;
+        if (endPos < 0) {
             return new ContentPath(0);
         }
         return new ContentPath(name.substring(0, endPos));
@@ -348,7 +350,7 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
             }
         }
 
-        protected void toXContent(XContentBuilder builder, boolean includeDefaults) throws IOException {
+        public void toXContent(XContentBuilder builder, boolean includeDefaults) throws IOException {
             if (serializerCheck.check(includeDefaults, isConfigured(), get())) {
                 serializer.serialize(builder, name, getValue());
             }
@@ -619,7 +621,7 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
                 param.merge(in, conflicts);
             }
             for (Mapper newSubField : in.multiFields) {
-                multiFieldsBuilder.update(newSubField, parentPath(newSubField.name()));
+                multiFieldsBuilder.update(newSubField, parentPath(newSubField.name(), newSubField.simpleName()));
             }
             this.copyTo.reset(in.copyTo);
             validate();
@@ -649,7 +651,7 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
         /**
          * Writes the current builder parameter values as XContent
          */
-        protected final void toXContent(XContentBuilder builder, boolean includeDefaults) throws IOException {
+        public final void toXContent(XContentBuilder builder, boolean includeDefaults) throws IOException {
             for (Parameter<?> parameter : getParameters()) {
                 parameter.toXContent(builder, includeDefaults);
             }
@@ -679,7 +681,7 @@ public abstract class ParametrizedFieldMapper extends FieldMapper {
                 Map.Entry<String, Object> entry = iterator.next();
                 final String propName = entry.getKey();
                 final Object propNode = entry.getValue();
-                if (Objects.equals("fields", propName)) {
+                if (Objects.equals("fields", propName) && !name.equals(ContextAwareGroupingFieldMapper.CONTENT_TYPE)) {
                     TypeParsers.parseMultiField(multiFieldsBuilder::add, name, parserContext, propName, propNode);
                     iterator.remove();
                     continue;

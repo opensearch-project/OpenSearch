@@ -304,7 +304,7 @@ public enum CoreValuesSourceType implements ValuesSourceType {
         public ValuesSource getField(FieldContext fieldContext, AggregationScript.LeafFactory script) {
             MappedFieldType fieldType = fieldContext.fieldType();
 
-            if (fieldType instanceof RangeFieldMapper.RangeFieldType == false) {
+            if (fieldType == null || fieldType.unwrap() instanceof RangeFieldMapper.RangeFieldType == false) {
                 // TODO: Is this the correct exception type here?
                 throw new IllegalStateException("Asked for range ValuesSource, but field is of type " + fieldType.name());
             }
@@ -370,7 +370,7 @@ public enum CoreValuesSourceType implements ValuesSourceType {
                     "Expected numeric type on field [" + fieldContext.field() + "], but got [" + fieldContext.fieldType().typeName() + "]"
                 );
             }
-            if (fieldContext.fieldType().isSearchable() == false || fieldContext.fieldType() instanceof DateFieldType == false) {
+            if (fieldContext.fieldType().isSearchable() == false || fieldContext.fieldType().unwrap() instanceof DateFieldType == false) {
                 /*
                  * We can't implement roundingPreparer in these cases because
                  * we can't look up the min and max date without both the

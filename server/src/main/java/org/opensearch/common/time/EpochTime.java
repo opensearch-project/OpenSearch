@@ -49,12 +49,13 @@ import java.util.Map;
 import java.util.Optional;
 
 /**
- * This class provides {@link DateTimeFormatter}s capable of parsing epoch seconds and milliseconds.
+ * This class provides {@link DateTimeFormatter}s capable of parsing epoch seconds, milliseconds, and microseconds.
  * <p>
  * The seconds formatter is provided by {@link #SECONDS_FORMATTER}.
  * The milliseconds formatter is provided by {@link #MILLIS_FORMATTER}.
+ * The microseconds formatter is provided by {@link #MICROS_FORMATTER}.
  * <p>
- * Both formatters support fractional time, up to nanosecond precision.
+ * All formatters support fractional time, up to nanosecond precision.
  *
  * @opensearch.internal
  */
@@ -116,44 +117,62 @@ class EpochTime {
         }
     };
 
-    // Millis as absolute values. Negative millis are encoded by having a NEGATIVE SIGN.
-    private static final EpochField MILLIS_ABS = new EpochField(ChronoUnit.MILLIS, ChronoUnit.FOREVER, LONG_POSITIVE_RANGE) {
+    private static class AbsoluteEpochField extends EpochField {
+        private final long unitsPerSecond;
+        private final long nanosPerUnit;
+        private final ChronoField unitField;
+        private final EpochField nanosOfUnitField;
+
+        private AbsoluteEpochField(
+            TemporalUnit baseUnit,
+            long unitsPerSecond,
+            long nanosPerUnit,
+            ChronoField unitField,
+            EpochField nanosOfUnitField
+        ) {
+            super(baseUnit, ChronoUnit.FOREVER, LONG_POSITIVE_RANGE);
+            this.unitsPerSecond = unitsPerSecond;
+            this.nanosPerUnit = nanosPerUnit;
+            this.unitField = unitField;
+            this.nanosOfUnitField = nanosOfUnitField;
+        }
+
         @Override
         public boolean isSupportedBy(TemporalAccessor temporal) {
             return temporal.isSupported(ChronoField.INSTANT_SECONDS)
-                && (temporal.isSupported(ChronoField.NANO_OF_SECOND) || temporal.isSupported(ChronoField.MILLI_OF_SECOND));
+                && (temporal.isSupported(ChronoField.NANO_OF_SECOND) || temporal.isSupported(unitField));
         }
 
         @Override
         public long getFrom(TemporalAccessor temporal) {
             long instantSeconds = temporal.getLong(ChronoField.INSTANT_SECONDS);
-            if (instantSeconds < Long.MIN_VALUE / 1000L || instantSeconds > Long.MAX_VALUE / 1000L) {
+            if (instantSeconds < Long.MIN_VALUE / unitsPerSecond || instantSeconds > Long.MAX_VALUE / unitsPerSecond) {
                 // Multiplying would yield integer overflow
                 return Long.MAX_VALUE;
             }
-            long instantSecondsInMillis = instantSeconds * 1_000;
-            if (instantSecondsInMillis >= 0) {
+            long instantSecondsInUnits = instantSeconds * unitsPerSecond;
+            if (instantSecondsInUnits >= 0) {
                 if (temporal.isSupported(ChronoField.NANO_OF_SECOND)) {
-                    return instantSecondsInMillis + (temporal.getLong(ChronoField.NANO_OF_SECOND) / 1_000_000);
+                    return instantSecondsInUnits + (temporal.getLong(ChronoField.NANO_OF_SECOND) / nanosPerUnit);
                 } else {
-                    return instantSecondsInMillis + temporal.getLong(ChronoField.MILLI_OF_SECOND);
+                    return instantSecondsInUnits + temporal.getLong(unitField);
                 }
             } else { // negative timestamp
                 if (temporal.isSupported(ChronoField.NANO_OF_SECOND)) {
-                    long millis = instantSecondsInMillis;
+                    long units = instantSecondsInUnits;
                     long nanos = temporal.getLong(ChronoField.NANO_OF_SECOND);
-                    if (nanos % 1_000_000 != 0) {
+                    if (nanos % nanosPerUnit != 0) {
                         // Fractional negative timestamp.
-                        // Add 1 ms towards positive infinity because the fraction leads
+                        // Add 1 unit towards positive infinity because the fraction leads
                         // the output's integral part to be an off-by-one when the
-                        // `(nanos / 1_000_000)` is added below.
-                        millis += 1;
+                        // `(nanos / nanosPerUnit)` is added below.
+                        units += 1;
                     }
-                    millis += (nanos / 1_000_000);
-                    return -millis;
+                    units += (nanos / nanosPerUnit);
+                    return -units;
                 } else {
-                    long millisOfSecond = temporal.getLong(ChronoField.MILLI_OF_SECOND);
-                    return -(instantSecondsInMillis + millisOfSecond);
+                    long unitsOfSecond = temporal.getLong(unitField);
+                    return -(instantSecondsInUnits + unitsOfSecond);
                 }
             }
         }
@@ -166,19 +185,19 @@ class EpochTime {
         ) {
             Long sign = Optional.ofNullable(fieldValues.remove(SIGN)).orElse(POSITIVE);
 
-            Long nanosOfMilli = fieldValues.remove(NANOS_OF_MILLI);
-            long secondsAndMillis = fieldValues.remove(this);
+            Long nanosOfUnit = fieldValues.remove(nanosOfUnitField);
+            long secondsAndUnits = fieldValues.remove(this);
 
             long seconds;
             long nanos;
             if (sign == NEGATIVE) {
-                secondsAndMillis = -secondsAndMillis;
-                seconds = secondsAndMillis / 1_000;
-                nanos = secondsAndMillis % 1000 * 1_000_000;
-                // `secondsAndMillis < 0` implies negative timestamp; so `nanos < 0`
-                if (nanosOfMilli != null) {
+                secondsAndUnits = -secondsAndUnits;
+                seconds = secondsAndUnits / unitsPerSecond;
+                nanos = secondsAndUnits % unitsPerSecond * nanosPerUnit;
+                // `secondsAndUnits < 0` implies negative timestamp; so `nanos < 0`
+                if (nanosOfUnit != null) {
                     // aggregate fractional part of the input; subtract b/c `nanos < 0`
-                    nanos -= nanosOfMilli;
+                    nanos -= nanosOfUnit;
                 }
                 if (nanos != 0) {
                     // nanos must be positive. B/c the timestamp is represented by the
@@ -188,12 +207,12 @@ class EpochTime {
                     nanos = 1_000_000_000 + nanos;
                 }
             } else {
-                seconds = secondsAndMillis / 1_000;
-                nanos = secondsAndMillis % 1000 * 1_000_000;
+                seconds = secondsAndUnits / unitsPerSecond;
+                nanos = secondsAndUnits % unitsPerSecond * nanosPerUnit;
 
-                if (nanosOfMilli != null) {
+                if (nanosOfUnit != null) {
                     // aggregate fractional part of the input
-                    nanos += nanosOfMilli;
+                    nanos += nanosOfUnit;
                 }
             }
             fieldValues.put(ChronoField.INSTANT_SECONDS, seconds);
@@ -206,6 +225,24 @@ class EpochTime {
                 fieldValues.put(ChronoField.MICRO_OF_SECOND, nanos / 1000);
             }
             return null;
+        }
+    }
+
+    private static final EpochField NANOS_OF_MICRO = new EpochField(ChronoUnit.NANOS, ChronoUnit.MICROS, ValueRange.of(0, 999)) {
+        @Override
+        public boolean isSupportedBy(TemporalAccessor temporal) {
+            return temporal.isSupported(ChronoField.INSTANT_SECONDS)
+                && temporal.isSupported(ChronoField.NANO_OF_SECOND)
+                && temporal.getLong(ChronoField.NANO_OF_SECOND) % 1_000 != 0;
+        }
+
+        @Override
+        public long getFrom(TemporalAccessor temporal) {
+            if (temporal.getLong(ChronoField.INSTANT_SECONDS) < 0) {
+                return (1_000_000_000 - temporal.getLong(ChronoField.NANO_OF_SECOND)) % 1_000;
+            } else {
+                return temporal.getLong(ChronoField.NANO_OF_SECOND) % 1_000;
+            }
         }
     };
 
@@ -226,6 +263,23 @@ class EpochTime {
             }
         }
     };
+
+    // Millis as absolute values. Negative millis are encoded by having a NEGATIVE SIGN.
+    private static final EpochField MILLIS_ABS = new AbsoluteEpochField(
+        ChronoUnit.MILLIS,
+        1_000L,
+        1_000_000L,
+        ChronoField.MILLI_OF_SECOND,
+        NANOS_OF_MILLI
+    );
+
+    private static final EpochField MICROS = new AbsoluteEpochField(
+        ChronoUnit.MICROS,
+        1_000_000L,
+        1_000L,
+        ChronoField.MICRO_OF_SECOND,
+        NANOS_OF_MICRO
+    );
 
     // this supports seconds without any fraction
     private static final DateTimeFormatter SECONDS_FORMATTER1 = new DateTimeFormatterBuilder().appendValue(SECONDS, 1, 19, SignStyle.NORMAL)
@@ -261,6 +315,21 @@ class EpochTime {
         .appendLiteral('.')
         .toFormatter(Locale.ROOT);
 
+    // this supports microseconds
+    private static final DateTimeFormatter MICROSECONDS_FORMATTER1 = new DateTimeFormatterBuilder().optionalStart()
+        .appendText(SIGN, SIGN_FORMATTER_LOOKUP) // field is only created in the presence of a '-' char.
+        .optionalEnd()
+        .appendValue(MICROS, 1, 19, SignStyle.NOT_NEGATIVE)
+        .optionalStart()
+        .appendFraction(NANOS_OF_MICRO, 0, 3, true)
+        .optionalEnd()
+        .toFormatter(Locale.ROOT);
+
+    // this supports microseconds ending in dot
+    private static final DateTimeFormatter MICROSECONDS_FORMATTER2 = new DateTimeFormatterBuilder().append(MICROSECONDS_FORMATTER1)
+        .appendLiteral('.')
+        .toFormatter(Locale.ROOT);
+
     static final DateFormatter SECONDS_FORMATTER = new JavaDateFormatter(
         "epoch_second",
         SECONDS_FORMATTER1,
@@ -275,6 +344,14 @@ class EpochTime {
         (builder, parser) -> builder.parseDefaulting(EpochTime.NANOS_OF_MILLI, 999_999L),
         MILLISECONDS_FORMATTER1,
         MILLISECONDS_FORMATTER2
+    );
+
+    static final DateFormatter MICROS_FORMATTER = new JavaDateFormatter(
+        "epoch_micros",
+        MICROSECONDS_FORMATTER1,
+        (builder, parser) -> builder.parseDefaulting(EpochTime.NANOS_OF_MICRO, 999L),
+        MICROSECONDS_FORMATTER1,
+        MICROSECONDS_FORMATTER2
     );
 
     /**

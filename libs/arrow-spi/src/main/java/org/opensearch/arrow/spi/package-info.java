@@ -7,6 +7,6 @@
  */
 
 /**
- * Contains Stream producer, consumer and manager generic interfaces
+ * Service Provider Interface for Arrow-agnostic native memory allocation.
  */
 package org.opensearch.arrow.spi;

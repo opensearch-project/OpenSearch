@@ -39,6 +39,7 @@ import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.LeafBucketCollector;
 import org.opensearch.search.aggregations.support.AggregationPath.PathElement;
 import org.opensearch.search.internal.SearchContext;
+import org.opensearch.search.profile.ProfilingWrapper;
 import org.opensearch.search.profile.Timer;
 import org.opensearch.search.sort.SortOrder;
 
@@ -48,13 +49,13 @@ import java.util.Iterator;
 /**
  * An aggregator that aggregates the performance profiling of other aggregations
  */
-public class ProfilingAggregator extends Aggregator {
+public class ProfilingAggregator extends Aggregator implements ProfilingWrapper<Aggregator> {
 
     private final Aggregator delegate;
     private final AggregationProfiler profiler;
     private AggregationProfileBreakdown profileBreakdown;
 
-    public ProfilingAggregator(Aggregator delegate, AggregationProfiler profiler) throws IOException {
+    public ProfilingAggregator(Aggregator delegate, AggregationProfiler profiler) {
         this.profiler = profiler;
         this.delegate = delegate;
     }
@@ -128,6 +129,12 @@ public class ProfilingAggregator extends Aggregator {
     }
 
     @Override
+    public void reset() {
+        delegate.reset();
+        super.reset();
+    }
+
+    @Override
     public void preCollection() throws IOException {
         this.profileBreakdown = profiler.getQueryBreakdown(delegate);
         Timer timer = profileBreakdown.getTimer(AggregationTimingType.INITIALIZE);
@@ -156,10 +163,13 @@ public class ProfilingAggregator extends Aggregator {
         return delegate.toString();
     }
 
-    public static Aggregator unwrap(Aggregator agg) {
-        if (agg instanceof ProfilingAggregator) {
-            return ((ProfilingAggregator) agg).delegate;
-        }
-        return agg;
+    @Override
+    public Aggregator getDelegate() {
+        return delegate;
+    }
+
+    @Override
+    public Aggregator unwrapAggregator() {
+        return delegate;
     }
 }

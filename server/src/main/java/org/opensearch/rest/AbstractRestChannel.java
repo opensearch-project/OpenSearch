@@ -64,6 +64,7 @@ public abstract class AbstractRestChannel implements RestChannel {
     private final boolean pretty;
     private final boolean human;
     private final String acceptHeader;
+    private final boolean detailedErrorStackTraceRequested;
 
     private BytesStreamOutput bytesOut;
 
@@ -82,6 +83,7 @@ public abstract class AbstractRestChannel implements RestChannel {
         this.filterPath = request.param("filter_path", null);
         this.pretty = request.paramAsBoolean("pretty", false);
         this.human = request.paramAsBoolean("human", false);
+        this.detailedErrorStackTraceRequested = request.paramAsBoolean("error_trace", false);
     }
 
     @Override
@@ -188,5 +190,9 @@ public abstract class AbstractRestChannel implements RestChannel {
     @Override
     public boolean detailedErrorsEnabled() {
         return detailedErrorsEnabled;
+    }
+
+    public boolean detailedErrorStackTraceEnabled() {
+        return detailedErrorStackTraceRequested;
     }
 }

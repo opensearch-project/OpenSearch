@@ -404,19 +404,18 @@ public final class RankFeatureQueryBuilder extends AbstractQueryBuilder<RankFeat
     protected Query doToQuery(QueryShardContext context) throws IOException {
         final MappedFieldType ft = context.fieldMapper(field);
 
-        if (ft instanceof RankFeatureFieldType) {
-            final RankFeatureFieldType fft = (RankFeatureFieldType) ft;
-            return scoreFunction.toQuery(RankFeatureMetaFieldMapper.NAME, field, fft.positiveScoreImpact());
-        } else if (ft == null) {
+        if (ft == null) {
             final int lastDotIndex = field.lastIndexOf('.');
             if (lastDotIndex != -1) {
                 final String parentField = field.substring(0, lastDotIndex);
                 final MappedFieldType parentFt = context.fieldMapper(parentField);
-                if (parentFt instanceof RankFeaturesFieldType) {
+                if (parentFt != null && parentFt.unwrap() instanceof RankFeaturesFieldType) {
                     return scoreFunction.toQuery(parentField, field.substring(lastDotIndex + 1), true);
                 }
             }
             return new MatchNoDocsQuery(); // unmapped field
+        } else if (ft.unwrap() instanceof RankFeatureFieldType fft) {
+            return scoreFunction.toQuery(RankFeatureMetaFieldMapper.NAME, field, fft.positiveScoreImpact());
         } else {
             throw new IllegalArgumentException(
                 "[rank_feature] query only works on [rank_feature] fields and "

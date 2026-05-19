@@ -143,8 +143,6 @@ setup:
 "Deprecated _time order":
 
   - skip:
-      version: " - 7.1.99"
-      reason:  _time order deprecated in 6.0, replaced by _key. Calendar_interval added in 7.2
       features: "allowed_warnings"
 
   - do:
@@ -199,9 +197,6 @@ setup:
 
 ---
 "date_histogram":
-  - skip:
-      version: " - 7.1.99"
-      reason:  calendar_interval introduced in 7.2.0
 
   - do:
       indices.create:
@@ -328,9 +323,7 @@ setup:
 
 ---
 "date_histogram on range":
-  - skip:
-      version: " - 7.4.1"
-      reason:  doc values on ranges implemented in 7.4.1
+
 
   - do:
       indices.create:
@@ -380,9 +373,7 @@ setup:
 
 ---
 "date_histogram on range with offset":
-  - skip:
-      version: " - 7.4.1"
-      reason:  doc values on ranges implemented in 7.4.1
+
 
   - do:
       indices.create:
@@ -433,9 +424,7 @@ setup:
 
 ---
 "date_histogram with pre-epoch daylight savings time transition":
-  - skip:
-      version: " - 7.6.1"
-      reason:  bug fixed in 7.6.1.
+
   # Add date_nanos to the mapping. We couldn't do it during setup because that
   # is run against 6.8 which doesn't have date_nanos
   - do:
@@ -493,9 +482,7 @@ setup:
 
 ---
 "histogram profiler":
-  - skip:
-      version: " - 7.8.99"
-      reason:  debug info added in 7.9.0
+
 
   - do:
       indices.create:
@@ -551,9 +538,7 @@ setup:
 
 ---
 "date_histogram profiler":
-  - skip:
-      version: " - 7.8.99"
-      reason:  debug info added in 7.9.0
+
 
   - do:
       indices.create:
@@ -602,10 +587,6 @@ setup:
 
 ---
 "histogram with hard bounds":
-  - skip:
-      version: " - 7.9.99"
-      reason:  hard_bounds were introduced in 7.10.0
-
   - do:
       indices.create:
         index: test_3

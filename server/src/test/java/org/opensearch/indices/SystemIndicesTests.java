@@ -45,6 +45,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -201,6 +202,9 @@ public class SystemIndicesTests extends OpenSearchTestCase {
                 ).toArray()
             )
         );
+
+        assertTrue(SystemIndexRegistry.matchesSystemIndexPattern(".system-index1"));
+        assertFalse(SystemIndexRegistry.matchesSystemIndexPattern(".not-system-index"));
     }
 
     public void testRegisteredSystemIndexGetAllDescriptors() {
@@ -271,6 +275,18 @@ public class SystemIndicesTests extends OpenSearchTestCase {
             Set.of("other-index")
         );
         assertEquals(0, noMatchingSystemIndices.size());
+
+        Predicate<String> plugin1systemIndexPredicate = SystemIndexRegistry.getPluginSystemIndexPredicate(
+            SystemIndexPlugin1.class.getCanonicalName()
+        );
+        assertTrue(plugin1systemIndexPredicate.test(SystemIndexPlugin1.SYSTEM_INDEX_1));
+        assertFalse(plugin1systemIndexPredicate.test(SystemIndexPlugin2.SYSTEM_INDEX_2));
+        assertFalse(plugin1systemIndexPredicate.test("unknown"));
+
+        Predicate<String> unknownPluginSystemIndexPredicate = SystemIndexRegistry.getPluginSystemIndexPredicate("unknown_plugin");
+        assertFalse(unknownPluginSystemIndexPredicate.test(SystemIndexPlugin1.SYSTEM_INDEX_1));
+        assertFalse(unknownPluginSystemIndexPredicate.test(SystemIndexPlugin2.SYSTEM_INDEX_2));
+        assertFalse(unknownPluginSystemIndexPredicate.test("unknown"));
     }
 
     static final class SystemIndexPlugin1 extends Plugin implements SystemIndexPlugin {

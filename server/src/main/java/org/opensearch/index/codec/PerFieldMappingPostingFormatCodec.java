@@ -36,7 +36,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.PostingsFormat;
-import org.apache.lucene.codecs.lucene101.Lucene101Codec;
+import org.apache.lucene.codecs.lucene104.Lucene104Codec;
 import org.apache.lucene.codecs.lucene90.Lucene90DocValuesFormat;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.index.codec.fuzzy.FuzzyFilterPostingsFormat;
@@ -59,7 +59,7 @@ import java.util.Map;
  *
  * @opensearch.internal
  */
-public class PerFieldMappingPostingFormatCodec extends Lucene101Codec {
+public class PerFieldMappingPostingFormatCodec extends Lucene104Codec {
     private final Logger logger;
     private final MapperService mapperService;
     private final DocValuesFormat dvFormat = new Lucene90DocValuesFormat();
@@ -88,7 +88,7 @@ public class PerFieldMappingPostingFormatCodec extends Lucene101Codec {
         final MappedFieldType fieldType = mapperService.fieldType(field);
         if (fieldType == null) {
             logger.warn("no index mapper found for field: [{}] returning default postings format", field);
-        } else if (fieldType instanceof CompletionFieldMapper.CompletionFieldType) {
+        } else if (fieldType.unwrap() instanceof CompletionFieldMapper.CompletionFieldType) {
             return CompletionFieldMapper.CompletionFieldType.postingsFormat();
         } else if (IdFieldMapper.NAME.equals(field) && mapperService.getIndexSettings().isEnableFuzzySetForDocId()) {
             if (docIdPostingsFormat == null) {

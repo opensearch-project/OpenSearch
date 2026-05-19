@@ -169,7 +169,7 @@ public class MultiGetRequestTests extends OpenSearchTestCase {
                         generateRandomStringArray(5, 4, false)
                     );
                 } else {
-                    fetchSourceContext = new FetchSourceContext(false);
+                    fetchSourceContext = FetchSourceContext.DO_NOT_FETCH_SOURCE;
                 }
                 item.fetchSourceContext(fetchSourceContext);
             }

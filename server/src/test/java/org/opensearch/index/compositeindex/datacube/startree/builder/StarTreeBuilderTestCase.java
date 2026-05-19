@@ -55,6 +55,7 @@ import org.opensearch.index.mapper.Mapper;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.MappingLookup;
 import org.opensearch.index.mapper.NumberFieldMapper;
+import org.opensearch.search.aggregations.metrics.CompensatedSum;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
 
@@ -320,8 +321,8 @@ public abstract class StarTreeBuilderTestCase extends OpenSearchTestCase {
             assertEquals(expectedStarTreeDocument.dimensions[1], resultStarTreeDocument.dimensions[1]);
             assertEquals(expectedStarTreeDocument.dimensions[2], resultStarTreeDocument.dimensions[2]);
             assertEquals(expectedStarTreeDocument.dimensions[3], resultStarTreeDocument.dimensions[3]);
-            assertEquals(expectedStarTreeDocument.metrics[0], resultStarTreeDocument.metrics[0]);
-            assertEquals(expectedStarTreeDocument.metrics[1], resultStarTreeDocument.metrics[1]);
+            assertEquals(expectedStarTreeDocument.metrics[0], ((CompensatedSum) resultStarTreeDocument.metrics[0]).value());
+            assertEquals(expectedStarTreeDocument.metrics[1], ((CompensatedSum) resultStarTreeDocument.metrics[1]).value());
             assertEquals(expectedStarTreeDocument.metrics[2], resultStarTreeDocument.metrics[2]);
             assertEquals(expectedStarTreeDocument.metrics[3], resultStarTreeDocument.metrics[3]);
             assertEquals(expectedStarTreeDocument.metrics[4], resultStarTreeDocument.metrics[4]);

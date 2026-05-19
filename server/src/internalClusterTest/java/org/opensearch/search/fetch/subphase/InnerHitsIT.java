@@ -541,7 +541,7 @@ public class InnerHitsIT extends ParameterizedStaticSettingsOpenSearchIntegTestC
                         new InnerHitBuilder("remark")
                     ),
                     ScoreMode.Avg
-                ).innerHit(new InnerHitBuilder().setFetchSourceContext(new FetchSourceContext(false)))
+                ).innerHit(new InnerHitBuilder().setFetchSourceContext(FetchSourceContext.DO_NOT_FETCH_SOURCE))
             )
             .get();
         assertNoFailures(response);
@@ -660,7 +660,7 @@ public class InnerHitsIT extends ParameterizedStaticSettingsOpenSearchIntegTestC
             () -> client().prepareSearch("articles")
                 .setQuery(
                     nestedQuery("comments.messages", matchQuery("comments.messages.message", "fox"), ScoreMode.Avg).innerHit(
-                        new InnerHitBuilder().setFetchSourceContext(new FetchSourceContext(true))
+                        new InnerHitBuilder().setFetchSourceContext(FetchSourceContext.FETCH_SOURCE)
                     )
                 )
                 .get()
@@ -674,7 +674,7 @@ public class InnerHitsIT extends ParameterizedStaticSettingsOpenSearchIntegTestC
         SearchResponse response = client().prepareSearch("articles")
             .setQuery(
                 nestedQuery("comments.messages", matchQuery("comments.messages.message", "fox"), ScoreMode.Avg).innerHit(
-                    new InnerHitBuilder().setFetchSourceContext(new FetchSourceContext(false))
+                    new InnerHitBuilder().setFetchSourceContext(FetchSourceContext.DO_NOT_FETCH_SOURCE)
                 )
             )
             .get();
@@ -696,7 +696,7 @@ public class InnerHitsIT extends ParameterizedStaticSettingsOpenSearchIntegTestC
         response = client().prepareSearch("articles")
             .setQuery(
                 nestedQuery("comments.messages", matchQuery("comments.messages.message", "bear"), ScoreMode.Avg).innerHit(
-                    new InnerHitBuilder().setFetchSourceContext(new FetchSourceContext(false))
+                    new InnerHitBuilder().setFetchSourceContext(FetchSourceContext.DO_NOT_FETCH_SOURCE)
                 )
             )
             .get();
@@ -731,7 +731,7 @@ public class InnerHitsIT extends ParameterizedStaticSettingsOpenSearchIntegTestC
         response = client().prepareSearch("articles")
             .setQuery(
                 nestedQuery("comments.messages", matchQuery("comments.messages.message", "fox"), ScoreMode.Avg).innerHit(
-                    new InnerHitBuilder().setFetchSourceContext(new FetchSourceContext(false))
+                    new InnerHitBuilder().setFetchSourceContext(FetchSourceContext.DO_NOT_FETCH_SOURCE)
                 )
             )
             .get();

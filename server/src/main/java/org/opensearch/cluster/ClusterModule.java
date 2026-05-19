@@ -41,6 +41,7 @@ import org.opensearch.cluster.metadata.ComposableIndexTemplateMetadata;
 import org.opensearch.cluster.metadata.DataStreamMetadata;
 import org.opensearch.cluster.metadata.IndexGraveyard;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
+import org.opensearch.cluster.metadata.IndexNameExpressionResolver.ExpressionResolver;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.MetadataDeleteIndexService;
 import org.opensearch.cluster.metadata.MetadataIndexAliasesService;
@@ -48,10 +49,10 @@ import org.opensearch.cluster.metadata.MetadataIndexStateService;
 import org.opensearch.cluster.metadata.MetadataIndexTemplateService;
 import org.opensearch.cluster.metadata.MetadataMappingService;
 import org.opensearch.cluster.metadata.MetadataUpdateSettingsService;
-import org.opensearch.cluster.metadata.QueryGroupMetadata;
 import org.opensearch.cluster.metadata.RepositoriesMetadata;
 import org.opensearch.cluster.metadata.ViewMetadata;
 import org.opensearch.cluster.metadata.WeightedRoutingMetadata;
+import org.opensearch.cluster.metadata.WorkloadGroupMetadata;
 import org.opensearch.cluster.routing.DelayedAllocationService;
 import org.opensearch.cluster.routing.RerouteService;
 import org.opensearch.cluster.routing.allocation.AllocationService;
@@ -81,13 +82,13 @@ import org.opensearch.cluster.routing.allocation.decider.ShardsLimitAllocationDe
 import org.opensearch.cluster.routing.allocation.decider.SnapshotInProgressAllocationDecider;
 import org.opensearch.cluster.routing.allocation.decider.TargetPoolAllocationDecider;
 import org.opensearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
+import org.opensearch.cluster.routing.allocation.decider.WarmDiskThresholdDecider;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.AbstractModule;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.common.util.set.Sets;
 import org.opensearch.core.ParseField;
@@ -143,6 +144,7 @@ public class ClusterModule extends AbstractModule {
     final Collection<AllocationDecider> deciderList;
     final ShardsAllocator shardsAllocator;
     private final ClusterManagerMetrics clusterManagerMetrics;
+    private final Class<? extends ShardStateAction> shardStateActionClass;
 
     public ClusterModule(
         Settings settings,
@@ -151,14 +153,15 @@ public class ClusterModule extends AbstractModule {
         ClusterInfoService clusterInfoService,
         SnapshotsInfoService snapshotsInfoService,
         ThreadContext threadContext,
-        ClusterManagerMetrics clusterManagerMetrics
+        ClusterManagerMetrics clusterManagerMetrics,
+        Class<? extends ShardStateAction> shardStateActionClass
     ) {
         this.clusterPlugins = clusterPlugins;
         this.deciderList = createAllocationDeciders(settings, clusterService.getClusterSettings(), clusterPlugins);
         this.allocationDeciders = new AllocationDeciders(deciderList);
         this.shardsAllocator = createShardsAllocator(settings, clusterService.getClusterSettings(), clusterPlugins);
         this.clusterService = clusterService;
-        this.indexNameExpressionResolver = new IndexNameExpressionResolver(threadContext);
+        this.indexNameExpressionResolver = new IndexNameExpressionResolver(threadContext, getCustomResolvers(clusterPlugins));
         this.allocationService = new AllocationService(
             allocationDeciders,
             shardsAllocator,
@@ -168,6 +171,7 @@ public class ClusterModule extends AbstractModule {
             clusterManagerMetrics
         );
         this.clusterManagerMetrics = clusterManagerMetrics;
+        this.shardStateActionClass = shardStateActionClass;
     }
 
     public static List<Entry> getNamedWriteables() {
@@ -221,7 +225,7 @@ public class ClusterModule extends AbstractModule {
             DecommissionAttributeMetadata::readDiffFrom
         );
 
-        registerMetadataCustom(entries, QueryGroupMetadata.TYPE, QueryGroupMetadata::new, QueryGroupMetadata::readDiffFrom);
+        registerMetadataCustom(entries, WorkloadGroupMetadata.TYPE, WorkloadGroupMetadata::new, WorkloadGroupMetadata::readDiffFrom);
         // Task Status (not Diffable)
         entries.add(new Entry(Task.Status.class, PersistentTasksNodeService.Status.NAME, PersistentTasksNodeService.Status::new));
         return entries;
@@ -330,8 +334,8 @@ public class ClusterModule extends AbstractModule {
         entries.add(
             new NamedXContentRegistry.Entry(
                 Metadata.Custom.class,
-                new ParseField(QueryGroupMetadata.TYPE),
-                QueryGroupMetadata::fromXContent
+                new ParseField(WorkloadGroupMetadata.TYPE),
+                WorkloadGroupMetadata::fromXContent
             )
         );
         return entries;
@@ -391,11 +395,10 @@ public class ClusterModule extends AbstractModule {
         addAllocationDecider(deciders, new SnapshotInProgressAllocationDecider());
         addAllocationDecider(deciders, new RestoreInProgressAllocationDecider());
         addAllocationDecider(deciders, new FilterAllocationDecider(settings, clusterSettings));
-        if (FeatureFlags.READER_WRITER_SPLIT_EXPERIMENTAL_SETTING.get(settings)) {
-            addAllocationDecider(deciders, new SearchReplicaAllocationDecider(settings, clusterSettings));
-        }
+        addAllocationDecider(deciders, new SearchReplicaAllocationDecider());
         addAllocationDecider(deciders, new SameShardAllocationDecider(settings, clusterSettings));
         addAllocationDecider(deciders, new DiskThresholdDecider(settings, clusterSettings));
+        addAllocationDecider(deciders, new WarmDiskThresholdDecider(settings, clusterSettings));
         addAllocationDecider(deciders, new ThrottlingAllocationDecider(settings, clusterSettings));
         addAllocationDecider(deciders, new ShardsLimitAllocationDecider(settings, clusterSettings));
         addAllocationDecider(deciders, new AwarenessAllocationDecider(settings, clusterSettings));
@@ -440,6 +443,21 @@ public class ClusterModule extends AbstractModule {
         return Objects.requireNonNull(allocatorSupplier.get(), "ShardsAllocator factory for [" + allocatorName + "] returned null");
     }
 
+    private static List<ExpressionResolver> getCustomResolvers(List<ClusterPlugin> clusterPlugins) {
+        Map<Class, IndexNameExpressionResolver.ExpressionResolver> resolvers = new HashMap<>();
+        clusterPlugins.stream().flatMap(c -> c.getIndexNameCustomResolvers().stream()).forEach(r -> addCustomResolver(resolvers, r));
+        return Collections.unmodifiableList(new ArrayList<>(resolvers.values()));
+    }
+
+    private static void addCustomResolver(
+        Map<Class, IndexNameExpressionResolver.ExpressionResolver> resolvers,
+        IndexNameExpressionResolver.ExpressionResolver customResolver
+    ) {
+        if (resolvers.put(customResolver.getClass(), customResolver) != null) {
+            throw new IllegalArgumentException("Cannot specify expression resolver [" + customResolver.getClass().getName() + "] twice");
+        }
+    }
+
     public AllocationService getAllocationService() {
         return allocationService;
     }
@@ -459,7 +477,11 @@ public class ClusterModule extends AbstractModule {
         bind(MetadataIndexTemplateService.class).asEagerSingleton();
         bind(IndexNameExpressionResolver.class).toInstance(indexNameExpressionResolver);
         bind(DelayedAllocationService.class).asEagerSingleton();
-        bind(ShardStateAction.class).asEagerSingleton();
+        if (shardStateActionClass == ShardStateAction.class) {
+            bind(ShardStateAction.class).asEagerSingleton();
+        } else {
+            bind(ShardStateAction.class).to(shardStateActionClass).asEagerSingleton();
+        }
         bind(NodeMappingRefreshAction.class).asEagerSingleton();
         bind(MappingUpdatedAction.class).asEagerSingleton();
         bind(TaskResultsService.class).asEagerSingleton();

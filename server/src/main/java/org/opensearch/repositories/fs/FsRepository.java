@@ -46,6 +46,8 @@ import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
 import org.opensearch.indices.recovery.RecoverySettings;
+import org.opensearch.plugins.NativeRemoteObjectStoreProvider;
+import org.opensearch.repositories.NativeStoreRepository;
 import org.opensearch.repositories.RepositoryException;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
 
@@ -108,6 +110,9 @@ public class FsRepository extends BlobStoreRepository {
 
     protected BlobPath basePath;
 
+    /** Native (Rust) object store — created during construction if native provider is available. */
+    private volatile NativeStoreRepository nativeStore = NativeStoreRepository.EMPTY;
+
     /**
      * Constructs a shared file system repository.
      */
@@ -118,10 +123,42 @@ public class FsRepository extends BlobStoreRepository {
         ClusterService clusterService,
         RecoverySettings recoverySettings
     ) {
+        this(metadata, environment, namedXContentRegistry, clusterService, recoverySettings, null);
+    }
+
+    /**
+     * Constructs a shared file system repository with optional native store provider.
+     *
+     * <p>Unlike S3/GCS/Azure repos which discover their native provider via
+     * {@link org.opensearch.plugins.ExtensiblePlugin}, FsRepository is a built-in
+     * repo type (not a plugin). The native provider is passed from
+     * {@link org.opensearch.repositories.RepositoriesModule} which discovers it
+     * via {@code filterPlugins(NativeRemoteObjectStoreProvider.class)} in Node.java.
+     *
+     * @param nativeStoreProvider native FS store factory from sandbox, or null
+     */
+    public FsRepository(
+        RepositoryMetadata metadata,
+        Environment environment,
+        NamedXContentRegistry namedXContentRegistry,
+        ClusterService clusterService,
+        RecoverySettings recoverySettings,
+        NativeRemoteObjectStoreProvider nativeStoreProvider
+    ) {
         super(metadata, namedXContentRegistry, clusterService, recoverySettings);
         this.environment = environment;
         validateLocation();
         readMetadata();
+
+        // Initialize native store if provider is available (sandbox warm nodes only)
+        if (nativeStoreProvider != null) {
+            final NativeStoreRepository store = nativeStoreProvider.createNativeStore(metadata, clusterService.getSettings());
+            if (store != null && store.isLive()) {
+                this.nativeStore = store;
+            } else if (store != null && store != NativeStoreRepository.EMPTY) {
+                store.close();
+            }
+        }
     }
 
     protected void readMetadata() {
@@ -196,5 +233,16 @@ public class FsRepository extends BlobStoreRepository {
         restrictedSettings.addAll(super.getRestrictedSystemRepositorySettings());
         restrictedSettings.add(LOCATION_SETTING);
         return restrictedSettings;
+    }
+
+    @Override
+    protected void doClose() {
+        nativeStore.close();
+        super.doClose();
+    }
+
+    @Override
+    public NativeStoreRepository getNativeStore() {
+        return nativeStore;
     }
 }

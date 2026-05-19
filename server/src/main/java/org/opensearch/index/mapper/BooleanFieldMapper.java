@@ -198,8 +198,8 @@ public class BooleanFieldMapper extends ParametrizedFieldMapper {
             return new SourceValueFetcher(name(), context, nullValue) {
                 @Override
                 protected Boolean parseSourceValue(Object value) {
-                    if (value instanceof Boolean) {
-                        return (Boolean) value;
+                    if (value instanceof Boolean boolValue) {
+                        return boolValue;
                     } else {
                         String textValue = value.toString();
                         return Booleans.parseBooleanStrict(textValue, false);
@@ -213,12 +213,12 @@ public class BooleanFieldMapper extends ParametrizedFieldMapper {
             if (value == null) {
                 return Values.FALSE;
             }
-            if (value instanceof Boolean) {
-                return ((Boolean) value) ? Values.TRUE : Values.FALSE;
+            if (value instanceof Boolean boolValue) {
+                return boolValue ? Values.TRUE : Values.FALSE;
             }
             String sValue;
-            if (value instanceof BytesRef) {
-                sValue = ((BytesRef) value).utf8ToString();
+            if (value instanceof BytesRef bytesRef) {
+                sValue = bytesRef.utf8ToString();
             } else {
                 sValue = value.toString();
             }
@@ -374,18 +374,7 @@ public class BooleanFieldMapper extends ParametrizedFieldMapper {
             return;
         }
 
-        Boolean value = context.parseExternalValue(Boolean.class);
-        if (value == null) {
-            XContentParser.Token token = context.parser().currentToken();
-            if (token == XContentParser.Token.VALUE_NULL) {
-                if (nullValue != null) {
-                    value = nullValue;
-                }
-            } else {
-                value = context.parser().booleanValue();
-            }
-        }
-
+        Boolean value = parseBooleanValue(context);
         if (value == null) {
             return;
         }
@@ -403,6 +392,30 @@ public class BooleanFieldMapper extends ParametrizedFieldMapper {
     }
 
     @Override
+    protected void parseCreateFieldForPluggableFormat(ParseContext context) throws IOException {
+        Boolean value = parseBooleanValue(context);
+        if (value == null) {
+            return;
+        }
+        context.documentInput().addField(fieldType(), value);
+    }
+
+    private Boolean parseBooleanValue(ParseContext context) throws IOException {
+        Boolean value = context.parseExternalValue(Boolean.class);
+        if (value == null) {
+            XContentParser.Token token = context.parser().currentToken();
+            if (token == XContentParser.Token.VALUE_NULL) {
+                if (nullValue != null) {
+                    value = nullValue;
+                }
+            } else {
+                value = context.parser().booleanValue();
+            }
+        }
+        return value;
+    }
+
+    @Override
     public ParametrizedFieldMapper.Builder getMergeBuilder() {
         return new Builder(simpleName()).init(this);
     }
@@ -412,4 +425,34 @@ public class BooleanFieldMapper extends ParametrizedFieldMapper {
         return CONTENT_TYPE;
     }
 
+    @Override
+    protected void canDeriveSourceInternal() {
+        checkStoredAndDocValuesForDerivedSource();
+    }
+
+    /**
+     * 1. If it has doc values, build source using doc values
+     * 2. If doc_values is disabled in field mapping, then build source using stored field
+     *
+     * <p>
+     * Considerations:
+     *    1. Result will be in boolean type and not in the provided string value type at time of ingestion,
+     *       i.e. [false, "false", ""] will become boolean false
+     *    2. When using doc values, for multi value field, result will be in sorted order, i.e. at start there will
+     *       be 0 or more false and at end there will be 0 or more true
+     *    2. When using stored field, for multi value field order would be preserved
+     */
+    @Override
+    protected DerivedFieldGenerator derivedFieldGenerator() {
+        return new DerivedFieldGenerator(mappedFieldType, new SortedNumericDocValuesFetcher(mappedFieldType, simpleName()) {
+            @Override
+            public Object convert(Object value) {
+                Long val = (Long) value;
+                if (val == null) {
+                    return null;
+                }
+                return val == 1;
+            }
+        }, new StoredFieldFetcher(mappedFieldType, simpleName()));
+    }
 }

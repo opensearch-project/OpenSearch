@@ -42,6 +42,7 @@ import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.index.codec.CodecService;
 import org.opensearch.index.engine.EngineConfig;
 import org.opensearch.index.engine.InternalEngine;
+import org.opensearch.index.engine.exec.EngineBackedIndexerFactory;
 import org.opensearch.index.refresh.RefreshStats;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardTestCase;
@@ -408,7 +409,7 @@ public class IndexingMemoryControllerTests extends IndexShardTestCase {
             .mergePolicy(config.getMergePolicy())
             .analyzer(config.getAnalyzer())
             .similarity(config.getSimilarity())
-            .codecService(new CodecService(null, config.getIndexSettings(), logger))
+            .codecService(new CodecService(null, config.getIndexSettings(), logger, List.of()))
             .eventListener(config.getEventListener())
             .queryCache(config.getQueryCache())
             .queryCachingPolicy(config.getQueryCachingPolicy())
@@ -457,7 +458,7 @@ public class IndexingMemoryControllerTests extends IndexShardTestCase {
         IndexShard shard = newStartedShard(
             randomBoolean(),
             Settings.EMPTY,
-            config -> new InternalEngine(configWithRefreshListener(config, refreshListener))
+            new EngineBackedIndexerFactory(config -> new InternalEngine(configWithRefreshListener(config, refreshListener)))
         );
         refreshLatch.set(new CountDownLatch(1)); // block refresh
         final RefreshStats refreshStats = shard.refreshStats();

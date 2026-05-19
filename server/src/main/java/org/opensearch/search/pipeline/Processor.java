@@ -95,4 +95,25 @@ public interface Processor {
         // A named pipeline is being validated before being written to cluster state
         VALIDATE_PIPELINE
     }
+
+    /**
+     * Type of the processor
+     */
+    enum ProcessorType {
+        /**
+         * Search request processor
+         * {@link SearchRequestProcessor}
+         */
+        SEARCH_REQUEST,
+        /**
+         * Search response processor
+         * {@link SearchResponseProcessor}
+         */
+        SEARCH_RESPONSE,
+        /**
+         * Search phase results processor
+         * {@link SearchPhaseResultsProcessor}
+         */
+        SEARCH_PHASE_RESULTS
+    }
 }

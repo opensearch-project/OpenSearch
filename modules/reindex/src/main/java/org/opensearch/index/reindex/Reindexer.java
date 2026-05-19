@@ -48,6 +48,7 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.action.DocWriteRequest;
 import org.opensearch.action.bulk.BackoffPolicy;
 import org.opensearch.action.bulk.BulkItemResponse;
+import org.opensearch.action.bulk.BulkRequest;
 import org.opensearch.action.index.IndexRequest;
 import org.opensearch.client.RestClient;
 import org.opensearch.client.RestClientBuilder;
@@ -132,6 +133,7 @@ public class Reindexer {
     public void execute(BulkByScrollTask task, ReindexRequest request, ActionListener<BulkByScrollResponse> listener) {
         ActionListener<BulkByScrollResponse> remoteReindexActionListener = getRemoteReindexWrapperListener(listener, request);
         BulkByScrollParallelizationHelper.executeSlicedAction(
+            clusterService.state().metadata(),
             task,
             request,
             ReindexAction.INSTANCE,
@@ -354,6 +356,11 @@ public class Reindexer {
                 return new Reindexer.AsyncIndexBySearchAction.ReindexScriptApplier(worker, scriptService, script, script.getParams());
             }
             return super.buildScriptApplier();
+        }
+
+        @Override
+        protected BulkRequest buildBulkRequest() {
+            return new BulkRequest().pipeline(mainRequest.getDestination().getPipeline());
         }
 
         @Override

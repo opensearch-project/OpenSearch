@@ -118,7 +118,7 @@ public final class NativeOutboundHandler extends ProtocolOutboundHandler {
             compressRequest
         );
         ActionListener<Void> listener = ActionListener.wrap(() -> messageListener.onRequestSent(node, requestId, action, request, options));
-        sendMessage(channel, message, listener);
+        sendMessage(requestId, channel, message, listener);
     }
 
     /**
@@ -149,7 +149,7 @@ public final class NativeOutboundHandler extends ProtocolOutboundHandler {
             compress
         );
         ActionListener<Void> listener = ActionListener.wrap(() -> messageListener.onResponseSent(requestId, action, response));
-        sendMessage(channel, message, listener);
+        sendMessage(requestId, channel, message, listener);
     }
 
     /**
@@ -177,15 +177,17 @@ public final class NativeOutboundHandler extends ProtocolOutboundHandler {
             false
         );
         ActionListener<Void> listener = ActionListener.wrap(() -> messageListener.onResponseSent(requestId, action, error));
-        sendMessage(channel, message, listener);
+        sendMessage(requestId, channel, message, listener);
     }
 
-    private void sendMessage(TcpChannel channel, NativeOutboundMessage networkMessage, ActionListener<Void> listener) throws IOException {
+    private void sendMessage(long requestId, TcpChannel channel, NativeOutboundMessage networkMessage, ActionListener<Void> listener)
+        throws IOException {
         MessageSerializer serializer = new MessageSerializer(networkMessage, bigArrays);
         OutboundHandler.SendContext sendContext = new OutboundHandler.SendContext(statsTracker, channel, serializer, listener, serializer);
-        handler.sendBytes(channel, sendContext);
+        handler.sendBytes(requestId, channel, sendContext);
     }
 
+    @Override
     public void setMessageListener(TransportMessageListener listener) {
         if (messageListener == TransportMessageListener.NOOP_LISTENER) {
             messageListener = listener;

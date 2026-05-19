@@ -14,15 +14,24 @@ import org.apache.lucene.analysis.core.LowerCaseFilter;
 import org.apache.lucene.analysis.core.WhitespaceTokenizer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
+import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.SortedSetDocValuesField;
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.IndexableFieldType;
+import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.FeatureFlags;
+import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.analysis.AnalyzerScope;
@@ -43,8 +52,11 @@ import java.util.Map;
 
 import static java.util.Collections.singletonMap;
 import static org.opensearch.index.mapper.FieldTypeTestCase.fetchSourceValue;
+import static org.opensearch.index.mapper.KeywordFieldMapper.normalizeValue;
 
 public class WildcardFieldMapperTests extends MapperTestCase {
+
+    private static final String FIELD_NAME = "field";
 
     @Override
     protected void minimalMapping(XContentBuilder b) throws IOException {
@@ -118,7 +130,14 @@ public class WildcardFieldMapperTests extends MapperTestCase {
         assertEquals(DocValuesType.NONE, fields[0].fieldType().docValuesType());
         assertEquals(DocValuesType.SORTED_SET, fields[1].fieldType().docValuesType());
 
+        // doc_values is true by default
         mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "wildcard")));
+        doc = mapper.parse(source(b -> b.field("field", "1234")));
+        fields = doc.rootDoc().getFields("field");
+        assertEquals(2, fields.length);
+        assertEquals(DocValuesType.NONE, fields[0].fieldType().docValuesType());
+
+        mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "wildcard").field("doc_values", false)));
         doc = mapper.parse(source(b -> b.field("field", "1234")));
         fields = doc.rootDoc().getFields("field");
         assertEquals(1, fields.length);
@@ -312,5 +331,246 @@ public class WildcardFieldMapperTests extends MapperTestCase {
 
         MappedFieldType nullValueMapper = new WildcardFieldMapper.Builder("field").nullValue("NULL").build(context).fieldType();
         assertEquals(Collections.singletonList("NULL"), fetchSourceValue(nullValueMapper, null));
+    }
+
+    public void testPossibleToDeriveSource_WhenCopyToPresent() throws IOException {
+        FieldMapper.CopyTo copyTo = new FieldMapper.CopyTo.Builder().add("copy_to_field").build();
+        WildcardFieldMapper mapper = getMapper(copyTo, Integer.MAX_VALUE, "default", true);
+        assertThrows(UnsupportedOperationException.class, mapper::canDeriveSource);
+    }
+
+    public void testPossibleToDeriveSource_WhenIgnoreAbovePresent() throws IOException {
+        WildcardFieldMapper mapper = getMapper(FieldMapper.CopyTo.empty(), 100, "default", true);
+        assertThrows(UnsupportedOperationException.class, mapper::canDeriveSource);
+    }
+
+    public void testPossibleToDeriveSource_WhenNormalizerPresent() throws IOException {
+        WildcardFieldMapper mapper = getMapper(FieldMapper.CopyTo.empty(), 100, "lowercase", true);
+        assertThrows(UnsupportedOperationException.class, mapper::canDeriveSource);
+    }
+
+    public void testPossibleToDeriveSource_WhenDocValuesDisabled() throws IOException {
+        WildcardFieldMapper mapper = getMapper(FieldMapper.CopyTo.empty(), Integer.MAX_VALUE, "default", false);
+        assertThrows(UnsupportedOperationException.class, mapper::canDeriveSource);
+    }
+
+    public void testDerivedValueFetching_DocValues() throws IOException {
+        try (Directory directory = newDirectory()) {
+            WildcardFieldMapper mapper = getMapper(FieldMapper.CopyTo.empty(), Integer.MAX_VALUE, "default", true);
+            String value = "keyword_value";
+            try (IndexWriter iw = new IndexWriter(directory, new IndexWriterConfig())) {
+                iw.addDocument(createDocument(mapper, value));
+            }
+
+            try (DirectoryReader reader = DirectoryReader.open(directory)) {
+                XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
+                mapper.deriveSource(builder, reader.leaves().get(0).reader(), 0);
+                builder.endObject();
+                String source = builder.toString();
+                assertEquals("{\"" + FIELD_NAME + "\":" + "\"" + value + "\"" + "}", source);
+            }
+        }
+    }
+
+    private WildcardFieldMapper getMapper(FieldMapper.CopyTo copyTo, int ignoreAbove, String normalizerName, boolean hasDocValues)
+        throws IOException {
+        MapperService mapperService = createMapperService(
+            fieldMapping(
+                b -> b.field("type", "wildcard")
+                    .field("doc_values", hasDocValues)
+                    .field("normalizer", normalizerName)
+                    .field("ignore_above", ignoreAbove)
+            )
+        );
+        WildcardFieldMapper mapper = (WildcardFieldMapper) mapperService.documentMapper().mappers().getMapper(FIELD_NAME);
+        mapper.copyTo = copyTo;
+        return mapper;
+    }
+
+    /**
+     * Helper method to create a document with both doc values and stored fields
+     */
+    private Document createDocument(WildcardFieldMapper mapper, String value) throws IOException {
+        Document doc = new Document();
+        NamedAnalyzer normalizer = mapper.fieldType().normalizer();
+        value = normalizeValue(normalizer, FIELD_NAME, value);
+        final BytesRef binaryValue = new BytesRef(value);
+        doc.add(new SortedSetDocValuesField(FIELD_NAME, binaryValue));
+        return doc;
+    }
+
+    private Settings pluggableSettings() {
+        return Settings.builder().put(getIndexSettings()).put("index.pluggable.dataformat.enabled", true).build();
+    }
+
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testPluggableDataFormatDefaultWildcard() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(
+            pluggableSettings(),
+            mapping(b -> b.startObject("field").field("type", "wildcard").endObject())
+        );
+        CapturingDocumentInput docInput = new CapturingDocumentInput();
+        mapper.parse(source(b -> b.field("field", "test_value")), docInput);
+
+        boolean found = docInput.getCapturedFields()
+            .stream()
+            .anyMatch(e -> e.getKey().name().equals("field") && e.getValue().equals("test_value"));
+        assertTrue("Expected wildcard field captured with value 'test_value'", found);
+    }
+
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testPluggableDataFormatNullValueSkipped() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(
+            pluggableSettings(),
+            mapping(b -> b.startObject("field").field("type", "wildcard").endObject())
+        );
+        CapturingDocumentInput docInput = new CapturingDocumentInput();
+        mapper.parse(source(b -> b.nullField("field")), docInput);
+
+        boolean hasField = docInput.getCapturedFields().stream().anyMatch(e -> e.getKey().name().equals("field"));
+        assertFalse("Expected no captured field for null value", hasField);
+    }
+
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testPluggableDataFormatNullValueConfigured() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(
+            pluggableSettings(),
+            mapping(b -> b.startObject("field").field("type", "wildcard").field("null_value", "default_val").endObject())
+        );
+        CapturingDocumentInput docInput = new CapturingDocumentInput();
+        mapper.parse(source(b -> b.nullField("field")), docInput);
+
+        boolean found = docInput.getCapturedFields()
+            .stream()
+            .anyMatch(e -> e.getKey().name().equals("field") && e.getValue().equals("default_val"));
+        assertTrue("Expected wildcard field captured with null_value 'default_val'", found);
+    }
+
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testPluggableDataFormatIgnoreAbove() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(
+            pluggableSettings(),
+            mapping(b -> b.startObject("field").field("type", "wildcard").field("ignore_above", 5).endObject())
+        );
+        CapturingDocumentInput docInput = new CapturingDocumentInput();
+        mapper.parse(source(b -> b.field("field", "opensearch")), docInput);
+
+        boolean hasField = docInput.getCapturedFields().stream().anyMatch(e -> e.getKey().name().equals("field"));
+        assertFalse("Expected no captured field when value exceeds ignore_above", hasField);
+    }
+
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testPluggableDataFormatIgnoreAboveWithinLimit() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(
+            pluggableSettings(),
+            mapping(b -> b.startObject("field").field("type", "wildcard").field("ignore_above", 10).endObject())
+        );
+        CapturingDocumentInput docInput = new CapturingDocumentInput();
+        mapper.parse(source(b -> b.field("field", "elk")), docInput);
+
+        boolean found = docInput.getCapturedFields()
+            .stream()
+            .anyMatch(e -> e.getKey().name().equals("field") && e.getValue().equals("elk"));
+        assertTrue("Expected wildcard field captured with value 'elk' within ignore_above limit", found);
+    }
+
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testPluggableDataFormatWithExternalValue() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(pluggableSettings(), mapping(b -> {
+            b.startObject("text_field");
+            b.field("type", "text");
+            b.startObject("fields");
+            b.startObject("wc").field("type", "wildcard").endObject();
+            b.endObject();
+            b.endObject();
+        }));
+        CapturingDocumentInput docInput = new CapturingDocumentInput();
+        mapper.parse(source(b -> b.field("text_field", "external_wildcard")), docInput);
+
+        boolean found = docInput.getCapturedFields()
+            .stream()
+            .anyMatch(e -> e.getKey().name().equals("text_field.wc") && e.getValue().equals("external_wildcard"));
+        assertTrue("Expected wildcard sub-field captured with external value", found);
+    }
+
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testPluggablePathEquivalenceWithLucenePath() throws IOException {
+        Settings pluggable = pluggableSettings();
+
+        // Scenario 1: default wildcard value
+        assertWildcardLuceneAndPluggablePathsEquivalent(
+            pluggable,
+            mapping(b -> b.startObject("field").field("type", "wildcard").endObject()),
+            b -> b.field("field", "test_value"),
+            "field",
+            "test_value"
+        );
+
+        // Scenario 2: null value — no field produced
+        assertWildcardLuceneAndPluggablePathsEquivalent(
+            pluggable,
+            mapping(b -> b.startObject("field").field("type", "wildcard").endObject()),
+            b -> b.nullField("field"),
+            "field",
+            null
+        );
+
+        // Scenario 3: null_value configured — substitution kicks in
+        assertWildcardLuceneAndPluggablePathsEquivalent(
+            pluggable,
+            mapping(b -> b.startObject("field").field("type", "wildcard").field("null_value", "default_val").endObject()),
+            b -> b.nullField("field"),
+            "field",
+            "default_val"
+        );
+
+        // Scenario 4: ignore_above — value exceeds limit, no field produced
+        assertWildcardLuceneAndPluggablePathsEquivalent(
+            pluggable,
+            mapping(b -> b.startObject("field").field("type", "wildcard").field("ignore_above", 5).endObject()),
+            b -> b.field("field", "opensearch"),
+            "field",
+            null
+        );
+
+        // Scenario 5: ignore_above — value within limit
+        assertWildcardLuceneAndPluggablePathsEquivalent(
+            pluggable,
+            mapping(b -> b.startObject("field").field("type", "wildcard").field("ignore_above", 10).endObject()),
+            b -> b.field("field", "elk"),
+            "field",
+            "elk"
+        );
+    }
+
+    private void assertWildcardLuceneAndPluggablePathsEquivalent(
+        Settings pluggableSettings,
+        XContentBuilder mappingBuilder,
+        CheckedConsumer<XContentBuilder, IOException> sourceBuilder,
+        String fieldName,
+        String expectedValue
+    ) throws IOException {
+        // Lucene path
+        DocumentMapper luceneMapper = createDocumentMapper(mappingBuilder);
+        ParsedDocument luceneDoc = luceneMapper.parse(source(sourceBuilder));
+        IndexableField[] luceneFields = luceneDoc.rootDoc().getFields(fieldName);
+
+        // Pluggable path
+        DocumentMapper pluggableMapper = createDocumentMapper(pluggableSettings, mappingBuilder);
+        CapturingDocumentInput docInput = new CapturingDocumentInput();
+        pluggableMapper.parse(source(sourceBuilder), docInput);
+
+        if (expectedValue == null) {
+            assertEquals("Lucene path should produce no field for '" + fieldName + "'", 0, luceneFields.length);
+            boolean pluggableHasField = docInput.getCapturedFields().stream().anyMatch(e -> e.getKey().name().equals(fieldName));
+            assertFalse("Pluggable path should produce no field for '" + fieldName + "'", pluggableHasField);
+        } else {
+            assertTrue("Lucene path should produce field '" + fieldName + "'", luceneFields.length > 0);
+
+            boolean pluggableFound = docInput.getCapturedFields()
+                .stream()
+                .anyMatch(e -> e.getKey().name().equals(fieldName) && e.getValue().equals(expectedValue));
+            assertTrue("Pluggable path should capture field '" + fieldName + "' with value '" + expectedValue + "'", pluggableFound);
+        }
     }
 }

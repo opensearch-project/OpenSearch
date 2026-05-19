@@ -10,6 +10,7 @@ package org.opensearch.indices.replication;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
@@ -23,6 +24,7 @@ import org.opensearch.index.store.RemoteSegmentStoreDirectory;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadata;
+import org.opensearch.indices.replication.checkpoint.RemoteStoreMergedSegmentCheckpoint;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 
 import java.io.IOException;
@@ -31,6 +33,9 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
@@ -67,13 +72,32 @@ public class RemoteStoreReplicationSource implements SegmentReplicationSource {
         try (final GatedCloseable<SegmentInfos> segmentInfosSnapshot = indexShard.getSegmentInfosSnapshot()) {
             final Version version = segmentInfosSnapshot.get().getCommitLuceneVersion();
             final RemoteSegmentMetadata mdFile = getRemoteSegmentMetadata();
-            // During initial recovery flow, the remote store might not
-            // have metadata as primary hasn't uploaded anything yet.
-            if (mdFile == null && indexShard.state().equals(IndexShardState.STARTED) == false) {
-                listener.onResponse(new CheckpointInfoResponse(checkpoint, Collections.emptyMap(), null));
-                return;
+
+            // Handle null metadata file case
+            if (mdFile == null) {
+                // During initial recovery flow, the remote store might not
+                // have metadata as primary hasn't uploaded anything yet.
+                if (indexShard.state().equals(IndexShardState.STARTED) == false) {
+                    // Non-started shard during recovery
+                    listener.onResponse(new CheckpointInfoResponse(checkpoint, Collections.emptyMap(), null));
+                    return;
+                } else if (indexShard.routingEntry().isSearchOnly()) {
+                    // Allow search-only replicas to become active without metadata
+                    logger.debug("Search-only replica proceeding without remote metadata: {}", indexShard.shardId());
+                    listener.onResponse(
+                        new CheckpointInfoResponse(indexShard.getLatestReplicationCheckpoint(), Collections.emptyMap(), null)
+                    );
+                    return;
+                } else {
+                    // Regular replicas should not be active without metadata
+                    listener.onFailure(
+                        new IllegalStateException("Remote metadata file can't be null if shard is active: " + indexShard.shardId())
+                    );
+                    return;
+                }
             }
-            assert mdFile != null : "Remote metadata file can't be null if shard is active " + indexShard.state();
+
+            // Process metadata when it exists
             metadataMap = mdFile.getMetadata()
                 .entrySet()
                 .stream()
@@ -110,7 +134,6 @@ public class RemoteStoreReplicationSource implements SegmentReplicationSource {
                 return;
             }
             logger.debug("Downloading segment files from remote store {}", filesToFetch);
-
             if (remoteMetadataExists()) {
                 final Directory storeDirectory = indexShard.store().directory();
                 final Collection<String> directoryFiles = List.of(storeDirectory.listAll());
@@ -133,6 +156,59 @@ public class RemoteStoreReplicationSource implements SegmentReplicationSource {
             }
         } catch (IOException | RuntimeException e) {
             listener.onFailure(e);
+        }
+    }
+
+    /**
+     * {@inheritDoc}
+     **/
+    @Override
+    public void getMergedSegmentFiles(
+        long replicationId,
+        ReplicationCheckpoint checkpoint,
+        List<StoreFileMetadata> filesToFetch,
+        IndexShard indexShard,
+        BiConsumer<String, Long> fileProgressTracker,
+        ActionListener<GetSegmentFilesResponse> listener
+    ) {
+        assert checkpoint instanceof RemoteStoreMergedSegmentCheckpoint;
+
+        final Directory storeDirectory = indexShard.store().directory();
+        ActionListener<GetSegmentFilesResponse> notifyOnceListener = ActionListener.notifyOnce(listener);
+
+        List<String> toDownloadSegmentNames = filesToFetch.stream().map(StoreFileMetadata::name).toList();
+
+        CountDownLatch latch = new CountDownLatch(1);
+        indexShard.getFileDownloader()
+            .downloadAsync(
+                cancellableThreads,
+                remoteDirectory,
+                new ReplicationStatsDirectoryWrapper(storeDirectory, fileProgressTracker),
+                toDownloadSegmentNames,
+                ActionListener.wrap(r -> {
+                    latch.countDown();
+                    notifyOnceListener.onResponse(new GetSegmentFilesResponse(filesToFetch));
+                }, e -> {
+                    latch.countDown();
+                    notifyOnceListener.onFailure(e);
+                })
+            );
+        try {
+            if (latch.await(
+                indexShard.getRecoverySettings().getMergedSegmentReplicationTimeout().millis(),
+                TimeUnit.MILLISECONDS
+            ) == false) {
+                notifyOnceListener.onFailure(new TimeoutException("Timed out waiting for merged segments download from remote store"));
+                logger.warn(
+                    () -> new ParameterizedMessage(
+                        "Merged segments download from remote store timed out. Segments: {}",
+                        toDownloadSegmentNames
+                    )
+                );
+            }
+        } catch (InterruptedException e) {
+            notifyOnceListener.onFailure(e);
+            logger.warn(() -> new ParameterizedMessage("Exception thrown while trying to get merged segment files. Continuing. {}", e));
         }
     }
 

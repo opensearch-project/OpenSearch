@@ -248,6 +248,11 @@ public class RemoteStoreUtils {
         return remoteCustomData;
     }
 
+    public static boolean isServerSideEncryptionEnabledIndex(IndexMetadata indexMetadata) {
+        Map<String, String> remoteCustomData = indexMetadata.getCustomData(IndexMetadata.REMOTE_STORE_CUSTOM_KEY);
+        return remoteCustomData != null && "true".equalsIgnoreCase(remoteCustomData.get(IndexMetadata.REMOTE_STORE_SSE_ENABLED_INDEX_KEY));
+    }
+
     /**
      * Fetches segment and translog repository names from remote store node attributes.
      * Returns a blank {@link HashMap} if the cluster does not contain any remote nodes.

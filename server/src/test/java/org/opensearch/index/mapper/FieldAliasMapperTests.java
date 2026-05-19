@@ -99,7 +99,7 @@ public class FieldAliasMapperTests extends MapperServiceTestCase {
 
         MappedFieldType firstFieldType = mapperService.fieldType("alias-field");
         assertEquals("first-field", firstFieldType.name());
-        assertTrue(firstFieldType instanceof KeywordFieldMapper.KeywordFieldType);
+        assertTrue(firstFieldType != null && firstFieldType.unwrap() instanceof KeywordFieldMapper.KeywordFieldType);
 
         merge(mapperService, mapping(b -> {
             b.startObject("second-field").field("type", "text").endObject();
@@ -113,7 +113,7 @@ public class FieldAliasMapperTests extends MapperServiceTestCase {
 
         MappedFieldType secondFieldType = mapperService.fieldType("alias-field");
         assertEquals("second-field", secondFieldType.name());
-        assertTrue(secondFieldType instanceof TextFieldMapper.TextFieldType);
+        assertTrue(secondFieldType != null && secondFieldType.unwrap() instanceof TextFieldMapper.TextFieldType);
     }
 
     public void testMergeFailure() throws IOException {

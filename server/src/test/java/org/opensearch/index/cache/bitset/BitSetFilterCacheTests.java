@@ -55,18 +55,37 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexSettings;
+import org.opensearch.indices.IndicesBitsetFilterCache;
 import org.opensearch.test.IndexSettingsModule;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.threadpool.TestThreadPool;
+import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 public class BitSetFilterCacheTests extends OpenSearchTestCase {
 
     private static final IndexSettings INDEX_SETTINGS = IndexSettingsModule.newIndexSettings("test", Settings.EMPTY);
+    private ThreadPool threadPool;
+
+    @Override
+    public void setUp() throws Exception {
+        super.setUp();
+        threadPool = new TestThreadPool("bitset_filter_cache_test");
+    }
+
+    @Override
+    public void tearDown() throws Exception {
+        ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
+        super.tearDown();
+    }
 
     private static int matchCount(BitSetProducer producer, IndexReader reader) throws IOException {
         int count = 0;
@@ -102,24 +121,21 @@ public class BitSetFilterCacheTests extends OpenSearchTestCase {
         DirectoryReader reader = DirectoryReader.open(writer);
         reader = OpenSearchDirectoryReader.wrap(reader, new ShardId("test", "_na_", 0));
 
-        BitsetFilterCache cache = new BitsetFilterCache(INDEX_SETTINGS, new BitsetFilterCache.Listener() {
+        IndicesBitsetFilterCache indicesCache = new IndicesBitsetFilterCache(Settings.EMPTY, threadPool);
+        BitsetFilterCache cache = new BitsetFilterCache(INDEX_SETTINGS, indicesCache, new BitsetFilterCache.Listener() {
             @Override
-            public void onCache(ShardId shardId, Accountable accountable) {
-
-            }
+            public void onCache(ShardId shardId, Accountable accountable) {}
 
             @Override
-            public void onRemoval(ShardId shardId, Accountable accountable) {
-
-            }
+            public void onRemoval(ShardId shardId, Accountable accountable) {}
         });
         BitSetProducer filter = cache.getBitSetProducer(new TermQuery(new Term("field", "value")));
         assertThat(matchCount(filter, reader), equalTo(3));
 
         // now cached
         assertThat(matchCount(filter, reader), equalTo(3));
-        // There are 3 segments
-        assertThat(cache.getLoadedFilters().weight(), equalTo(3L));
+        // There are 3 segments, each with 1 query = 3 entries in the flat cache
+        assertThat(indicesCache.getCache().count(), equalTo(3));
 
         writer.forceMerge(1);
         reader.close();
@@ -130,13 +146,18 @@ public class BitSetFilterCacheTests extends OpenSearchTestCase {
 
         // now cached
         assertThat(matchCount(filter, reader), equalTo(3));
-        // Only one segment now, so the size must be 1
-        assertThat(cache.getLoadedFilters().weight(), equalTo(1L));
+        // Old 3 segments were closed (stale entries purged on next access via cleaner), new merged segment cached = 1
+        // Trigger purge explicitly since the scheduled cleaner may not have run yet.
+        indicesCache.purgeStaleEntries();
+        assertThat(indicesCache.getCache().count(), equalTo(1));
 
         reader.close();
         writer.close();
-        // There is no reference from readers and writer to any segment in the test index, so the size in the fbs cache must be 0
-        assertThat(cache.getLoadedFilters().weight(), equalTo(0L));
+        // Trigger purge for the last closed reader.
+        indicesCache.purgeStaleEntries();
+        assertThat(indicesCache.getCache().count(), equalTo(0));
+
+        indicesCache.close();
     }
 
     public void testListener() throws IOException {
@@ -155,7 +176,8 @@ public class BitSetFilterCacheTests extends OpenSearchTestCase {
         final AtomicInteger onCacheCalls = new AtomicInteger();
         final AtomicInteger onRemoveCalls = new AtomicInteger();
 
-        final BitsetFilterCache cache = new BitsetFilterCache(INDEX_SETTINGS, new BitsetFilterCache.Listener() {
+        IndicesBitsetFilterCache indicesCache = new IndicesBitsetFilterCache(Settings.EMPTY, threadPool);
+        BitsetFilterCache cache = new BitsetFilterCache(INDEX_SETTINGS, indicesCache, new BitsetFilterCache.Listener() {
             @Override
             public void onCache(ShardId shardId, Accountable accountable) {
                 onCacheCalls.incrementAndGet();
@@ -188,31 +210,106 @@ public class BitSetFilterCacheTests extends OpenSearchTestCase {
         assertEquals(1, onCacheCalls.get());
         assertEquals(0, onRemoveCalls.get());
         IOUtils.close(reader, writer);
+        indicesCache.purgeStaleEntries();
         assertEquals(1, onRemoveCalls.get());
         assertEquals(0, stats.get());
+
+        indicesCache.close();
     }
 
     public void testSetNullListener() {
         try {
-            new BitsetFilterCache(INDEX_SETTINGS, null);
+            new BitsetFilterCache(INDEX_SETTINGS, new IndicesBitsetFilterCache(Settings.EMPTY, threadPool), null);
             fail("listener can't be null");
         } catch (IllegalArgumentException ex) {
             assertEquals("listener must not be null", ex.getMessage());
-            // all is well
         }
     }
 
-    public void testRejectOtherIndex() throws IOException {
+    public void testDeprecatedConstructorAndCreateListener() throws IOException {
+        // The deprecated 2-arg constructor sets indicesCache to null.
         BitsetFilterCache cache = new BitsetFilterCache(INDEX_SETTINGS, new BitsetFilterCache.Listener() {
             @Override
-            public void onCache(ShardId shardId, Accountable accountable) {
-
-            }
+            public void onCache(ShardId shardId, Accountable accountable) {}
 
             @Override
-            public void onRemoval(ShardId shardId, Accountable accountable) {
+            public void onRemoval(ShardId shardId, Accountable accountable) {}
+        });
 
-            }
+        // createListener returns null when indicesCache is null
+        assertThat(cache.createListener(threadPool), nullValue());
+
+        // getBitSetProducer throws when indicesCache is null
+        expectThrows(IllegalStateException.class, () -> cache.getBitSetProducer(new MatchAllDocsQuery()));
+
+        cache.close();
+    }
+
+    public void testCreateListenerWithIndicesCache() throws IOException {
+        IndicesBitsetFilterCache indicesCache = new IndicesBitsetFilterCache(Settings.EMPTY, threadPool);
+        BitsetFilterCache cache = new BitsetFilterCache(INDEX_SETTINGS, indicesCache, new BitsetFilterCache.Listener() {
+            @Override
+            public void onCache(ShardId shardId, Accountable accountable) {}
+
+            @Override
+            public void onRemoval(ShardId shardId, Accountable accountable) {}
+        });
+
+        // createListener returns non-null when indicesCache is present
+        assertThat(cache.createListener(threadPool), notNullValue());
+
+        cache.close();
+        indicesCache.close();
+    }
+
+    public void testBitsetFromQuery() throws IOException {
+        Directory dir = newDirectory();
+        IndexWriter writer = new IndexWriter(dir, newIndexWriterConfig());
+        Document doc = new Document();
+        doc.add(new StringField("field", "value", Field.Store.NO));
+        writer.addDocument(doc);
+        writer.commit();
+        DirectoryReader reader = DirectoryReader.open(writer);
+
+        // Matching query returns non-null bitset
+        BitSet bitSet = BitsetFilterCache.bitsetFromQuery(new TermQuery(new Term("field", "value")), reader.leaves().get(0));
+        assertNotNull(bitSet);
+        assertEquals(1, bitSet.cardinality());
+
+        // Non-matching query returns null bitset
+        BitSet emptyBitSet = BitsetFilterCache.bitsetFromQuery(new TermQuery(new Term("field", "missing")), reader.leaves().get(0));
+        assertNull(emptyBitSet);
+
+        IOUtils.close(reader, writer, dir);
+    }
+
+    public void testNoOpDelegationMethods() throws IOException {
+        IndicesBitsetFilterCache indicesCache = new IndicesBitsetFilterCache(Settings.EMPTY, threadPool);
+        BitsetFilterCache cache = new BitsetFilterCache(INDEX_SETTINGS, indicesCache, new BitsetFilterCache.Listener() {
+            @Override
+            public void onCache(ShardId shardId, Accountable accountable) {}
+
+            @Override
+            public void onRemoval(ShardId shardId, Accountable accountable) {}
+        });
+
+        // These are all no-ops delegated to the node-level cache; just verify they don't throw.
+        cache.onClose(null);
+        cache.clear("test");
+        cache.onRemoval(null);
+        cache.close();
+
+        indicesCache.close();
+    }
+
+    public void testRejectOtherIndex() throws IOException {
+        IndicesBitsetFilterCache indicesCache = new IndicesBitsetFilterCache(Settings.EMPTY, threadPool);
+        BitsetFilterCache cache = new BitsetFilterCache(INDEX_SETTINGS, indicesCache, new BitsetFilterCache.Listener() {
+            @Override
+            public void onCache(ShardId shardId, Accountable accountable) {}
+
+            @Override
+            public void onRemoval(ShardId shardId, Accountable accountable) {}
         });
 
         Directory dir = newDirectory();
@@ -224,14 +321,17 @@ public class BitSetFilterCacheTests extends OpenSearchTestCase {
 
         BitSetProducer producer = cache.getBitSetProducer(new MatchAllDocsQuery());
 
+        // The node-level cache doesn't validate index identity — it just caches.
+        // This test verifies the producer works for any index.
         try {
-            producer.getBitSet(reader.leaves().get(0));
-            fail();
-        } catch (IllegalStateException expected) {
-            assertEquals("Trying to load bit set for index [test2] with cache of index [test]", expected.getMessage());
+            for (LeafReaderContext ctx : reader.leaves()) {
+                producer.getBitSet(ctx);
+            }
         } finally {
             IOUtils.close(reader, dir);
         }
+
+        indicesCache.close();
     }
 
 }

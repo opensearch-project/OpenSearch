@@ -133,7 +133,7 @@ public class OpenSearchJsonLayout extends AbstractStringLayout {
         map.put("message", inQuotes("%notEmpty{%enc{%marker}{JSON} }%enc{" + messageFormat + "}{JSON}"));
 
         for (String key : opensearchMessageFields) {
-            map.put(key, inQuotes("%OpenSearchMessageField{" + key + "}"));
+            map.put(key, inQuotes("%enc{%OpenSearchMessageField{" + key + "}}{JSON}"));
         }
         return createPattern(map, Stream.of(opensearchMessageFields).collect(Collectors.toSet()));
     }

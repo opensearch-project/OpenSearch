@@ -37,9 +37,6 @@ import org.apache.lucene.index.ConcurrentMergeScheduler;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.MergeScheduler;
 import org.opensearch.common.logging.Loggers;
-import org.opensearch.common.metrics.CounterMetric;
-import org.opensearch.common.metrics.MeanMetric;
-import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
@@ -48,6 +45,8 @@ import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.MergeSchedulerConfig;
 import org.opensearch.index.merge.MergeStats;
+import org.opensearch.index.merge.MergeStatsTracker;
+import org.opensearch.index.merge.MergedSegmentTransferTracker;
 import org.opensearch.index.merge.OnGoingMerge;
 
 import java.io.IOException;
@@ -64,27 +63,26 @@ import java.util.Set;
 class OpenSearchConcurrentMergeScheduler extends ConcurrentMergeScheduler {
 
     protected final Logger logger;
-    private final Settings indexSettings;
+    private final IndexSettings indexSettings;
     private final ShardId shardId;
 
-    private final MeanMetric totalMerges = new MeanMetric();
-    private final CounterMetric totalMergesNumDocs = new CounterMetric();
-    private final CounterMetric totalMergesSizeInBytes = new CounterMetric();
-    private final CounterMetric currentMerges = new CounterMetric();
-    private final CounterMetric currentMergesNumDocs = new CounterMetric();
-    private final CounterMetric currentMergesSizeInBytes = new CounterMetric();
-    private final CounterMetric totalMergeStoppedTime = new CounterMetric();
-    private final CounterMetric totalMergeThrottledTime = new CounterMetric();
+    private final MergeStatsTracker mergeStatsTracker = new MergeStatsTracker();
 
     private final Set<OnGoingMerge> onGoingMerges = ConcurrentCollections.newConcurrentSet();
     private final Set<OnGoingMerge> readOnlyOnGoingMerges = Collections.unmodifiableSet(onGoingMerges);
     private final MergeSchedulerConfig config;
+    private final MergedSegmentTransferTracker mergedSegmentTransferTracker;
 
-    OpenSearchConcurrentMergeScheduler(ShardId shardId, IndexSettings indexSettings) {
+    OpenSearchConcurrentMergeScheduler(
+        ShardId shardId,
+        IndexSettings indexSettings,
+        MergedSegmentTransferTracker mergedSegmentTransferTracker
+    ) {
         this.config = indexSettings.getMergeSchedulerConfig();
         this.shardId = shardId;
-        this.indexSettings = indexSettings.getSettings();
+        this.indexSettings = indexSettings;
         this.logger = Loggers.getLogger(getClass(), shardId);
+        this.mergedSegmentTransferTracker = mergedSegmentTransferTracker;
         refreshConfig();
     }
 
@@ -104,9 +102,7 @@ class OpenSearchConcurrentMergeScheduler extends ConcurrentMergeScheduler {
         int totalNumDocs = merge.totalNumDocs();
         long totalSizeInBytes = merge.totalBytesSize();
         long timeNS = System.nanoTime();
-        currentMerges.inc();
-        currentMergesNumDocs.inc(totalNumDocs);
-        currentMergesSizeInBytes.inc(totalSizeInBytes);
+        mergeStatsTracker.beforeMerge(totalNumDocs, totalSizeInBytes);
 
         OnGoingMerge onGoingMerge = new OnGoingMerge(merge);
         onGoingMerges.add(onGoingMerge);
@@ -130,21 +126,16 @@ class OpenSearchConcurrentMergeScheduler extends ConcurrentMergeScheduler {
             onGoingMerges.remove(onGoingMerge);
             afterMerge(onGoingMerge);
 
-            currentMerges.dec();
-            currentMergesNumDocs.dec(totalNumDocs);
-            currentMergesSizeInBytes.dec(totalSizeInBytes);
+            mergeStatsTracker.afterMerge(tookMS, totalNumDocs, totalSizeInBytes);
 
-            totalMergesNumDocs.inc(totalNumDocs);
-            totalMergesSizeInBytes.inc(totalSizeInBytes);
-            totalMerges.inc(tookMS);
             long stoppedMS = TimeValue.nsecToMSec(
                 merge.getMergeProgress().getPauseTimes().get(MergePolicy.OneMergeProgress.PauseReason.STOPPED)
             );
             long throttledMS = TimeValue.nsecToMSec(
                 merge.getMergeProgress().getPauseTimes().get(MergePolicy.OneMergeProgress.PauseReason.PAUSED)
             );
-            totalMergeStoppedTime.inc(stoppedMS);
-            totalMergeThrottledTime.inc(throttledMS);
+            mergeStatsTracker.incStoppedTime(stoppedMS);
+            mergeStatsTracker.incThrottledTime(throttledMS);
 
             String message = String.format(
                 Locale.ROOT,
@@ -192,29 +183,26 @@ class OpenSearchConcurrentMergeScheduler extends ConcurrentMergeScheduler {
     protected MergeThread getMergeThread(MergeSource mergeSource, MergePolicy.OneMerge merge) throws IOException {
         MergeThread thread = super.getMergeThread(mergeSource, merge);
         thread.setName(
-            OpenSearchExecutors.threadName(indexSettings, "[" + shardId.getIndexName() + "][" + shardId.id() + "]: " + thread.getName())
+            OpenSearchExecutors.threadName(
+                indexSettings.getSettings(),
+                "[" + shardId.getIndexName() + "][" + shardId.id() + "]: " + thread.getName()
+            )
         );
         return thread;
     }
 
     MergeStats stats() {
-        final MergeStats mergeStats = new MergeStats();
-        mergeStats.add(
-            totalMerges.count(),
-            totalMerges.sum(),
-            totalMergesNumDocs.count(),
-            totalMergesSizeInBytes.count(),
-            currentMerges.count(),
-            currentMergesNumDocs.count(),
-            currentMergesSizeInBytes.count(),
-            totalMergeStoppedTime.count(),
-            totalMergeThrottledTime.count(),
+        final MergeStats mergeStats = mergeStatsTracker.toMergeStats(
             config.isAutoThrottle() ? getIORateLimitMBPerSec() : Double.POSITIVE_INFINITY
         );
+        mergeStats.add(mergedSegmentTransferTracker.stats());
         return mergeStats;
     }
 
     void refreshConfig() {
+        // Update the config with current index settings before using it
+        config.updateMaxForceMergeMBPerSec(indexSettings);
+
         if (this.getMaxMergeCount() != config.getMaxMergeCount() || this.getMaxThreadCount() != config.getMaxThreadCount()) {
             this.setMaxMergesAndThreads(config.getMaxMergeCount(), config.getMaxThreadCount());
         }
@@ -223,6 +211,26 @@ class OpenSearchConcurrentMergeScheduler extends ConcurrentMergeScheduler {
             enableAutoIOThrottle();
         } else if (config.isAutoThrottle() == false && isEnabled) {
             disableAutoIOThrottle();
+        }
+        applyMergeRateLimit();
+    }
+
+    /**
+     * Applies the merge rate limit based on the current configuration.
+     * If the setting value is Double.POSITIVE_INFINITY, rate limiting is disabled.
+     * Otherwise, auto-throttling is enabled as the available rate limiting mechanism.
+     */
+    private void applyMergeRateLimit() {
+        double maxForceMergeMBPerSec = config.getMaxForceMergeMBPerSec();
+        if (maxForceMergeMBPerSec != getForceMergeMBPerSec()) {
+            logger.info(
+                "[{}][{}] updating force merge rate limit from [{}] to [{}] MB/sec",
+                shardId.getIndexName(),
+                shardId.id(),
+                super.getForceMergeMBPerSec(),
+                maxForceMergeMBPerSec
+            );
+            setForceMergeMBPerSec(maxForceMergeMBPerSec);
         }
     }
 

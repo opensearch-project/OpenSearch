@@ -41,15 +41,21 @@ public class StarTreeValidator {
             );
         }
         for (CompositeMappedFieldType compositeFieldType : compositeFieldTypes) {
-            if (!(compositeFieldType instanceof StarTreeMapper.StarTreeFieldType)) {
+            if (!(compositeFieldType != null && compositeFieldType.unwrap() instanceof StarTreeMapper.StarTreeFieldType)) {
                 continue;
             }
-            if (!compositeIndexSettings.isStarTreeIndexCreationEnabled()) {
+
+            if (indexSettings.getSettings()
+                .getAsBoolean(
+                    StarTreeIndexSettings.STAR_TREE_SEARCH_ENABLED_SETTING.getKey(),
+                    compositeIndexSettings.isStarTreeIndexCreationEnabled()
+                ) == false) {
                 throw new IllegalArgumentException(
                     String.format(
                         Locale.ROOT,
-                        "star tree index cannot be created, enable it using [%s] setting",
-                        CompositeIndexSettings.STAR_TREE_INDEX_ENABLED_SETTING.getKey()
+                        "star tree index cannot be created, enable it using [%s] cluster setting or [%s] index setting",
+                        CompositeIndexSettings.STAR_TREE_INDEX_ENABLED_SETTING.getKey(),
+                        StarTreeIndexSettings.STAR_TREE_SEARCH_ENABLED_SETTING.getKey()
                     )
                 );
             }
@@ -79,7 +85,7 @@ public class StarTreeValidator {
                         String.format(Locale.ROOT, "unknown metric field [%s] as part of star tree field", metric.getField())
                     );
                 }
-                if (ft.isAggregatable() == false && ft instanceof DocCountFieldMapper.DocCountFieldType == false) {
+                if (ft.isAggregatable() == false && ft.unwrap() instanceof DocCountFieldMapper.DocCountFieldType == false) {
                     throw new IllegalArgumentException(
                         String.format(
                             Locale.ROOT,

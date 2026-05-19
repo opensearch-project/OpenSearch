@@ -8,19 +8,13 @@
 
 package org.opensearch.plugin.kafka;
 
+import org.opensearch.cluster.metadata.IngestionSource;
 import org.opensearch.index.IngestionConsumerFactory;
 
-import java.util.Map;
-
 /**
- * Factory for creating Kafka consumers
+ * Factory for creating Kafka consumers.
  */
 public class KafkaConsumerFactory implements IngestionConsumerFactory<KafkaPartitionConsumer, KafkaOffset> {
-
-    /**
-     * Configuration for the Kafka source
-     */
-    protected KafkaSourceConfig config;
 
     /**
      * Constructor.
@@ -28,14 +22,9 @@ public class KafkaConsumerFactory implements IngestionConsumerFactory<KafkaParti
     public KafkaConsumerFactory() {}
 
     @Override
-    public void initialize(Map<String, Object> params) {
-        config = new KafkaSourceConfig(params);
-    }
-
-    @Override
-    public KafkaPartitionConsumer createShardConsumer(String clientId, int shardId) {
-        assert config != null;
-        return new KafkaPartitionConsumer(clientId, config, shardId);
+    public KafkaPartitionConsumer createShardConsumer(String clientId, int shardId, IngestionSource ingestionSource) {
+        KafkaSourceConfig localConfig = new KafkaSourceConfig((int) ingestionSource.getMaxPollSize(), ingestionSource.params());
+        return new KafkaPartitionConsumer(clientId, localConfig, shardId);
     }
 
     @Override

@@ -66,5 +66,10 @@ public interface RestChannel {
      */
     boolean detailedErrorsEnabled();
 
+    /**
+     * @return true if detailed stack traces should be included in the response.
+     */
+    boolean detailedErrorStackTraceEnabled();
+
     void sendResponse(RestResponse response);
 }

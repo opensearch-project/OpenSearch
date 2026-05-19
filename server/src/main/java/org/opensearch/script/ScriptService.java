@@ -812,7 +812,7 @@ public class ScriptService implements Closeable, ClusterStateApplier {
                 ScriptCache cache = entry.getValue().get();
                 contextStats.add(cache.stats(entry.getKey()));
             }
-            return new ScriptStats(contextStats);
+            return ScriptStats.aggregate(contextStats);
         }
 
         ScriptCacheStats cacheStats() {

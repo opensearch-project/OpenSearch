@@ -84,7 +84,7 @@ public class SuggestBuilderTests extends OpenSearchTestCase {
             SuggestBuilder suggestBuilder = randomSuggestBuilder();
             XContentBuilder xContentBuilder = MediaTypeRegistry.contentBuilder(randomFrom(XContentType.values()));
             if (randomBoolean()) {
-                xContentBuilder.prettyPrint();
+                xContentBuilder = xContentBuilder.prettyPrint();
             }
             suggestBuilder.toXContent(xContentBuilder, ToXContent.EMPTY_PARAMS);
             try (XContentParser parser = createParser(xContentBuilder)) {

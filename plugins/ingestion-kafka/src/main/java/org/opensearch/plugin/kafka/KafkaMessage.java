@@ -17,15 +17,18 @@ import org.opensearch.index.Message;
 public class KafkaMessage implements Message<byte[]> {
     private final byte[] key;
     private final byte[] payload;
+    private final Long timestamp;
 
     /**
      * Constructor
      * @param key the key of the message
      * @param payload the payload of the message
+     * @param timestamp the timestamp of the message in milliseconds
      */
-    public KafkaMessage(@Nullable byte[] key, byte[] payload) {
+    public KafkaMessage(@Nullable byte[] key, byte[] payload, Long timestamp) {
         this.key = key;
         this.payload = payload;
+        this.timestamp = timestamp;
     }
 
     /**
@@ -39,5 +42,10 @@ public class KafkaMessage implements Message<byte[]> {
     @Override
     public byte[] getPayload() {
         return payload;
+    }
+
+    @Override
+    public Long getTimestamp() {
+        return timestamp;
     }
 }

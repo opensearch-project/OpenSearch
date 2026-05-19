@@ -248,4 +248,26 @@ public class AbstractAsyncTaskTests extends OpenSearchTestCase {
             assertFalse(task.isScheduled());
         }
     }
+
+    public void testGetSleepDurationForFirstRefresh() {
+        AbstractAsyncTask task = new AbstractAsyncTask(
+            logger,
+            threadPool,
+            TimeValue.timeValueMillis(randomIntBetween(1, 2)),
+            true,
+            OpenSearchTestCase::randomBoolean
+        ) {
+            @Override
+            protected boolean mustReschedule() {
+                return true;
+            }
+
+            @Override
+            protected void runInternal() {
+                // no-op
+            }
+        };
+        // No exceptions should be thrown
+        task.getSleepDuration();
+    }
 }

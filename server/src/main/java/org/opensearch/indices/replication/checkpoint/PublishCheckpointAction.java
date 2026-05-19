@@ -10,39 +10,23 @@ package org.opensearch.indices.replication.checkpoint;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.lucene.store.AlreadyClosedException;
-import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.replication.ReplicationMode;
 import org.opensearch.action.support.replication.ReplicationResponse;
-import org.opensearch.action.support.replication.ReplicationTask;
-import org.opensearch.action.support.replication.TransportReplicationAction;
 import org.opensearch.cluster.action.shard.ShardStateAction;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.inject.Inject;
+import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.concurrent.ThreadContext;
-import org.opensearch.common.util.concurrent.ThreadContextAccess;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.action.ActionListener;
-import org.opensearch.core.common.io.stream.StreamInput;
-import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.shard.IndexShard;
-import org.opensearch.index.shard.IndexShardClosedException;
-import org.opensearch.index.shard.ShardNotInPrimaryModeException;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.replication.SegmentReplicationTargetService;
-import org.opensearch.indices.replication.common.ReplicationTimer;
-import org.opensearch.node.NodeClosedException;
 import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
-import org.opensearch.transport.TransportException;
-import org.opensearch.transport.TransportResponseHandler;
 import org.opensearch.transport.TransportService;
-
-import java.io.IOException;
-import java.util.Objects;
 
 /**
  * Replication action responsible for publishing checkpoint to a replica shard.
@@ -50,15 +34,22 @@ import java.util.Objects;
  * @opensearch.api
  */
 @PublicApi(since = "2.2.0")
-public class PublishCheckpointAction extends TransportReplicationAction<
-    PublishCheckpointRequest,
-    PublishCheckpointRequest,
-    ReplicationResponse> {
-
+public class PublishCheckpointAction extends AbstractPublishCheckpointAction<PublishCheckpointRequest, PublishCheckpointRequest> {
+    private static final String TASK_ACTION_NAME = "segrep_publish_checkpoint";
     public static final String ACTION_NAME = "indices:admin/publishCheckpoint";
     protected static Logger logger = LogManager.getLogger(PublishCheckpointAction.class);
 
     private final SegmentReplicationTargetService replicationService;
+
+    /**
+     * The timeout for retrying publish checkpoint requests.
+     */
+    public static final Setting<TimeValue> PUBLISH_CHECK_POINT_RETRY_TIMEOUT = Setting.timeSetting(
+        "indices.publish_check_point.retry_timeout",
+        TimeValue.timeValueMinutes(5),
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
 
     @Inject
     public PublishCheckpointAction(
@@ -82,14 +73,15 @@ public class PublishCheckpointAction extends TransportReplicationAction<
             actionFilters,
             PublishCheckpointRequest::new,
             PublishCheckpointRequest::new,
-            ThreadPool.Names.REFRESH
+            ThreadPool.Names.REFRESH,
+            logger
         );
         this.replicationService = targetService;
     }
 
     @Override
-    protected ReplicationResponse newResponseInstance(StreamInput in) throws IOException {
-        return new ReplicationResponse(in);
+    protected Setting<TimeValue> getRetryTimeoutSetting() {
+        return PUBLISH_CHECK_POINT_RETRY_TIMEOUT;
     }
 
     @Override
@@ -99,9 +91,6 @@ public class PublishCheckpointAction extends TransportReplicationAction<
 
     @Override
     public ReplicationMode getReplicationMode(IndexShard indexShard) {
-        if (indexShard.indexSettings().isAssignedOnRemoteNode()) {
-            return ReplicationMode.FULL_REPLICATION;
-        }
         return super.getReplicationMode(indexShard);
     }
 
@@ -109,80 +98,7 @@ public class PublishCheckpointAction extends TransportReplicationAction<
      * Publish checkpoint request to shard
      */
     final void publish(IndexShard indexShard, ReplicationCheckpoint checkpoint) {
-        String primaryAllocationId = indexShard.routingEntry().allocationId().getId();
-        long primaryTerm = indexShard.getPendingPrimaryTerm();
-        final ThreadContext threadContext = threadPool.getThreadContext();
-        try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
-            // we have to execute under the system context so that if security is enabled the sync is authorized
-            ThreadContextAccess.doPrivilegedVoid(threadContext::markAsSystemContext);
-            PublishCheckpointRequest request = new PublishCheckpointRequest(checkpoint);
-            final ReplicationTask task = (ReplicationTask) taskManager.register("transport", "segrep_publish_checkpoint", request);
-            final ReplicationTimer timer = new ReplicationTimer();
-            timer.start();
-            transportService.sendChildRequest(
-                indexShard.recoveryState().getTargetNode(),
-                transportPrimaryAction,
-                new ConcreteShardRequest<>(request, primaryAllocationId, primaryTerm),
-                task,
-                transportOptions,
-                new TransportResponseHandler<ReplicationResponse>() {
-                    @Override
-                    public ReplicationResponse read(StreamInput in) throws IOException {
-                        return newResponseInstance(in);
-                    }
-
-                    @Override
-                    public String executor() {
-                        return ThreadPool.Names.SAME;
-                    }
-
-                    @Override
-                    public void handleResponse(ReplicationResponse response) {
-                        timer.stop();
-                        logger.debug(
-                            () -> new ParameterizedMessage(
-                                "[shardId {}] Completed publishing checkpoint [{}], timing: {}",
-                                indexShard.shardId().getId(),
-                                checkpoint,
-                                timer.time()
-                            )
-                        );
-                        task.setPhase("finished");
-                        taskManager.unregister(task);
-                    }
-
-                    @Override
-                    public void handleException(TransportException e) {
-                        timer.stop();
-                        logger.debug("[shardId {}] Failed to publish checkpoint, timing: {}", indexShard.shardId().getId(), timer.time());
-                        task.setPhase("finished");
-                        taskManager.unregister(task);
-                        if (ExceptionsHelper.unwrap(
-                            e,
-                            NodeClosedException.class,
-                            IndexNotFoundException.class,
-                            AlreadyClosedException.class,
-                            IndexShardClosedException.class,
-                            ShardNotInPrimaryModeException.class
-                        ) != null) {
-                            // Node is shutting down or the index was deleted or the shard is closed
-                            return;
-                        }
-                        logger.warn(
-                            new ParameterizedMessage("{} segment replication checkpoint publishing failed", indexShard.shardId()),
-                            e
-                        );
-                    }
-                }
-            );
-            logger.trace(
-                () -> new ParameterizedMessage(
-                    "[shardId {}] Publishing replication checkpoint [{}]",
-                    checkpoint.getShardId().getId(),
-                    checkpoint
-                )
-            );
-        }
+        doPublish(indexShard, checkpoint, new PublishCheckpointRequest(checkpoint), TASK_ACTION_NAME, false, null, ActionListener.noOp());
     }
 
     @Override
@@ -195,21 +111,9 @@ public class PublishCheckpointAction extends TransportReplicationAction<
     }
 
     @Override
-    protected void shardOperationOnReplica(PublishCheckpointRequest request, IndexShard replica, ActionListener<ReplicaResult> listener) {
-        Objects.requireNonNull(request);
-        Objects.requireNonNull(replica);
-        ActionListener.completeWith(listener, () -> {
-            logger.trace(() -> new ParameterizedMessage("Checkpoint {} received on replica {}", request, replica.shardId()));
-            // Condition for ensuring that we ignore Segrep checkpoints received on Docrep shard copies.
-            // This case will hit iff the replica hosting node is not remote enabled and replication type != SEGMENT
-            if (replica.indexSettings().isAssignedOnRemoteNode() == false && replica.indexSettings().isSegRepLocalEnabled() == false) {
-                logger.trace("Received segrep checkpoint on a docrep shard copy during an ongoing remote migration. NoOp.");
-                return new ReplicaResult();
-            }
-            if (request.getCheckpoint().getShardId().equals(replica.shardId())) {
-                replicationService.onNewCheckpoint(request.getCheckpoint(), replica);
-            }
-            return new ReplicaResult();
-        });
+    protected void doReplicaOperation(PublishCheckpointRequest request, IndexShard replica) {
+        if (request.getCheckpoint().getShardId().equals(replica.shardId())) {
+            replicationService.onNewCheckpoint(request.getCheckpoint(), replica);
+        }
     }
 }

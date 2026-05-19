@@ -22,7 +22,6 @@ import org.opensearch.action.admin.indices.close.CloseIndexRequest;
 import org.opensearch.action.admin.indices.close.CloseIndexResponse;
 import org.opensearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.opensearch.action.admin.indices.exists.indices.IndicesExistsRequest;
-import org.opensearch.action.admin.indices.exists.indices.IndicesExistsResponse;
 import org.opensearch.action.admin.indices.open.OpenIndexRequest;
 import org.opensearch.action.admin.indices.open.OpenIndexResponse;
 import org.opensearch.action.bulk.BulkRequest;
@@ -118,13 +117,12 @@ public class RestoreServiceIntegTests extends OpenSearchSingleNodeTestCase {
     public void cleanup() throws InterruptedException {
         final CountDownLatch allDeleted = new CountDownLatch(3);
         for (String indexName : new String[] { indexName, renamedIndexName }) {
-            final StepListener<IndicesExistsResponse> existsIndexResponseStepListener = new StepListener<>();
-            client().admin().indices().exists(new IndicesExistsRequest(indexName), existsIndexResponseStepListener);
-            continueOrDie(existsIndexResponseStepListener, resp -> {
+            client().admin().indices().existsAsync(new IndicesExistsRequest(indexName)).thenAccept(resp -> {
                 if (resp.isExists()) {
-                    final StepListener<AcknowledgedResponse> deleteIndexResponseStepListener = new StepListener<>();
-                    client().admin().indices().delete(new DeleteIndexRequest(indexName), deleteIndexResponseStepListener);
-                    continueOrDie(deleteIndexResponseStepListener, ignored -> allDeleted.countDown());
+                    client().admin()
+                        .indices()
+                        .deleteAsync(new DeleteIndexRequest(indexName))
+                        .thenAccept(ignored -> { allDeleted.countDown(); });
                 } else {
                     allDeleted.countDown();
                 }
@@ -218,11 +216,9 @@ public class RestoreServiceIntegTests extends OpenSearchSingleNodeTestCase {
         final CountDownLatch isRestorable = new CountDownLatch(1);
 
         if (!this.exists && !this.renameIndexes) {
-            final StepListener<AcknowledgedResponse> deleteIndexResponseStepListener = new StepListener<>();
             continueOrDie(createSnapshotResponseStepListener, ignored -> {
-                client().admin().indices().delete(new DeleteIndexRequest(indexName), deleteIndexResponseStepListener);
+                client().admin().indices().deleteAsync(new DeleteIndexRequest(indexName)).thenAccept(r -> isRestorable.countDown());
             });
-            continueOrDie(deleteIndexResponseStepListener, ignored -> isRestorable.countDown());
         } else {
             continueOrDie(createSnapshotResponseStepListener, ignored -> isRestorable.countDown());
         }
@@ -243,7 +239,7 @@ public class RestoreServiceIntegTests extends OpenSearchSingleNodeTestCase {
 
         restoreSnapshotResponseStepListener.whenComplete(ignored -> {
             isRestored.countDown();
-            assertTrue("unexpected sucesssful restore", expectSuccess);
+            assertTrue("unexpected successful restore", expectSuccess);
         }, e -> {
             isRestored.countDown();
             if (expectSuccess) {

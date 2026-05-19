@@ -49,9 +49,20 @@ public class LocalTranslog extends Translog {
         TranslogDeletionPolicy deletionPolicy,
         final LongSupplier globalCheckpointSupplier,
         final LongSupplier primaryTermSupplier,
-        final LongConsumer persistedSequenceNumberConsumer
+        final LongConsumer persistedSequenceNumberConsumer,
+        final TranslogOperationHelper translogOperationHelper,
+        final ChannelFactory channelFactory
     ) throws IOException {
-        super(config, translogUUID, deletionPolicy, globalCheckpointSupplier, primaryTermSupplier, persistedSequenceNumberConsumer);
+        super(
+            config,
+            translogUUID,
+            deletionPolicy,
+            globalCheckpointSupplier,
+            primaryTermSupplier,
+            persistedSequenceNumberConsumer,
+            translogOperationHelper,
+            channelFactory
+        );
         try {
             final Checkpoint checkpoint = readCheckpoint(location);
             final Path nextTranslogFile = location.resolve(getFilename(checkpoint.generation + 1));
@@ -105,6 +116,30 @@ public class LocalTranslog extends Translog {
     }
 
     /**
+     * Secondary constructor that does not accept ChannelFactory parameter.
+     */
+    public LocalTranslog(
+        final TranslogConfig config,
+        final String translogUUID,
+        TranslogDeletionPolicy deletionPolicy,
+        final LongSupplier globalCheckpointSupplier,
+        final LongSupplier primaryTermSupplier,
+        final LongConsumer persistedSequenceNumberConsumer,
+        final TranslogOperationHelper translogOperationHelper
+    ) throws IOException {
+        this(
+            config,
+            translogUUID,
+            deletionPolicy,
+            globalCheckpointSupplier,
+            primaryTermSupplier,
+            persistedSequenceNumberConsumer,
+            translogOperationHelper,
+            null
+        );
+    }
+
+    /**
      * Ensures that the given location has be synced / written to the underlying storage.
      *
      * @return Returns <code>true</code> iff this call caused an actual sync operation otherwise <code>false</code>
@@ -131,13 +166,12 @@ public class LocalTranslog extends Translog {
         // acquire lock to make the two numbers roughly consistent (no file change half way)
         try (ReleasableLock lock = readLock.acquire()) {
             long uncommittedGen = getMinGenerationForSeqNo(deletionPolicy.getLocalCheckpointOfSafeCommit() + 1).translogFileGeneration;
-            return new TranslogStats(
-                totalOperations(),
-                sizeInBytes(),
-                totalOperationsByMinGen(uncommittedGen),
-                sizeInBytesByMinGen(uncommittedGen),
-                earliestLastModifiedAge()
-            );
+            return new TranslogStats.Builder().numberOfOperations(totalOperations())
+                .translogSizeInBytes(sizeInBytes())
+                .uncommittedOperations(totalOperationsByMinGen(uncommittedGen))
+                .uncommittedSizeInBytes(sizeInBytesByMinGen(uncommittedGen))
+                .earliestLastModifiedAge(earliestLastModifiedAge())
+                .build();
         }
     }
 

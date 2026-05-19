@@ -42,9 +42,10 @@ import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexNotFoundException;
+import org.opensearch.index.IndexSettings;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.store.remote.file.CleanerDaemonThreadLeakFilter;
-import org.opensearch.index.store.remote.filecache.FileCacheStats;
+import org.opensearch.index.store.remote.filecache.AggregateFileCacheStats;
 import org.opensearch.monitor.fs.FsInfo;
 import org.opensearch.node.Node;
 import org.opensearch.repositories.fs.FsRepository;
@@ -107,7 +108,7 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
     /**
      * Tests a happy path scenario for searchable snapshots by creating 2 indices,
      * taking a snapshot, restoring them as searchable snapshots.
-     * Ensures availability of sufficient data nodes and search capable nodes.
+     * Ensures availability of sufficient data nodes and warm capable nodes.
      */
     public void testCreateSearchableSnapshot() throws Exception {
         final String snapshotName = "test-snap";
@@ -128,7 +129,7 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
         takeSnapshot(client, snapshotName, repoName, indexName1, indexName2);
         deleteIndicesAndEnsureGreen(client, indexName1, indexName2);
 
-        internalCluster().ensureAtLeastNumSearchNodes(Math.max(numReplicasIndex1, numReplicasIndex2) + 1);
+        internalCluster().ensureAtLeastNumWarmNodes(Math.max(numReplicasIndex1, numReplicasIndex2) + 1);
         restoreSnapshotAndEnsureGreen(client, snapshotName, repoName);
         assertRemoteSnapshotIndexSettings(client, restoredIndexName1, restoredIndexName2);
 
@@ -153,7 +154,7 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
         deleteIndicesAndEnsureGreen(client, indexName);
 
         // restore the index as a searchable snapshot
-        internalCluster().ensureAtLeastNumSearchNodes(1);
+        internalCluster().ensureAtLeastNumWarmNodes(1);
         client.admin()
             .cluster()
             .prepareRestoreSnapshot(repoName, initSnapName)
@@ -235,7 +236,7 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
 
         Settings.Builder repositorySettings = chunkedRepositorySettings(2 << 23);
 
-        internalCluster().ensureAtLeastNumSearchAndDataNodes(numReplicasIndex + 1);
+        internalCluster().ensureAtLeastNumWarmAndDataNodes(numReplicasIndex + 1);
         createIndexWithDocsAndEnsureGreen(numReplicasIndex, 1000, indexName);
         createRepositoryWithSettings(repositorySettings, repoName);
         takeSnapshot(client, snapshotName, repoName, indexName);
@@ -261,7 +262,7 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
 
         Settings.Builder repositorySettings = chunkedRepositorySettings(1000);
 
-        internalCluster().ensureAtLeastNumSearchAndDataNodes(numReplicasIndex + 1);
+        internalCluster().ensureAtLeastNumWarmAndDataNodes(numReplicasIndex + 1);
         createIndexWithDocsAndEnsureGreen(numReplicasIndex, 1000, indexName);
         createRepositoryWithSettings(repositorySettings, repoName);
         takeSnapshot(client, snapshotName, repoName, indexName);
@@ -276,7 +277,7 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
     /**
      * Tests the functionality of remote shard allocation to
      * ensure it can assign remote shards to a node with local shards given it has the
-     * search role capabilities.
+     * warm role capabilities.
      */
     public void testSearchableSnapshotAllocationForLocalAndRemoteShardsOnSameNode() throws Exception {
         final int numReplicasIndex = randomIntBetween(1, 4);
@@ -286,7 +287,7 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
         final String snapshotName = "test-snap";
         final Client client = client();
 
-        internalCluster().ensureAtLeastNumSearchAndDataNodes(numReplicasIndex + 1);
+        internalCluster().ensureAtLeastNumWarmAndDataNodes(numReplicasIndex + 1);
         createIndexWithDocsAndEnsureGreen(numReplicasIndex, 100, indexName);
         createRepositoryWithSettings(null, repoName);
         takeSnapshot(client, snapshotName, repoName, indexName);
@@ -306,21 +307,21 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
         final String snapshotName = "test-snap";
         final Client client = client();
 
-        internalCluster().ensureAtLeastNumSearchAndDataNodes(numShardsIndex);
+        internalCluster().ensureAtLeastNumWarmAndDataNodes(numShardsIndex);
         createIndexWithDocsAndEnsureGreen(numShardsIndex, 1, 100, indexName);
         createRepositoryWithSettings(null, repoName);
         takeSnapshot(client, snapshotName, repoName, indexName);
 
         restoreSnapshotAndEnsureGreen(client, snapshotName, repoName);
         assertRemoteSnapshotIndexSettings(client, restoredIndexName);
-        final Set<String> searchNodes = StreamSupport.stream(clusterService().state().getNodes().spliterator(), false)
-            .filter(DiscoveryNode::isSearchNode)
+        final Set<String> warmNodes = StreamSupport.stream(clusterService().state().getNodes().spliterator(), false)
+            .filter(DiscoveryNode::isWarmNode)
             .map(DiscoveryNode::getId)
             .collect(Collectors.toSet());
 
-        for (int i = searchNodes.size(); i > 2; --i) {
-            String pickedNode = randomFrom(searchNodes);
-            searchNodes.remove(pickedNode);
+        for (int i = warmNodes.size(); i > 2; --i) {
+            String pickedNode = randomFrom(warmNodes);
+            warmNodes.remove(pickedNode);
             assertIndexAssignedToNodeOrNot(restoredIndexName, pickedNode, true);
             assertTrue(
                 client.admin()
@@ -357,7 +358,7 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
     /**
      * Tests the functionality of remote shard allocation to
      * ensure it can handle node drops for failover scenarios and the cluster gets back to a healthy state when
-     * nodes with search capabilities are added back to the cluster.
+     * nodes with warm capabilities are added back to the cluster.
      */
     public void testSearchableSnapshotAllocationForFailoverAndRecovery() throws Exception {
         final int numReplicasIndex = 1;
@@ -374,27 +375,27 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
         takeSnapshot(client, snapshotName, repoName, indexName);
         deleteIndicesAndEnsureGreen(client, indexName);
 
-        internalCluster().ensureAtLeastNumSearchNodes(numReplicasIndex + 1);
+        internalCluster().ensureAtLeastNumWarmNodes(numReplicasIndex + 1);
         restoreSnapshotAndEnsureGreen(client, snapshotName, repoName);
         assertRemoteSnapshotIndexSettings(client, restoredIndexName);
         assertDocCount(restoredIndexName, 100L);
 
-        logger.info("--> stop a random search node");
-        internalCluster().stopRandomSearchNode();
+        logger.info("--> stop a random warm node");
+        internalCluster().stopRandomWarmNode();
         ensureYellow(restoredIndexName);
         assertDocCount(restoredIndexName, 100L);
 
-        logger.info("--> stop the last search node");
-        internalCluster().stopRandomSearchNode();
+        logger.info("--> stop the last warm node");
+        internalCluster().stopRandomWarmNode();
         ensureRed(restoredIndexName);
 
-        logger.info("--> add 3 new search nodes");
-        internalCluster().ensureAtLeastNumSearchNodes(numReplicasIndex + 2);
+        logger.info("--> add 3 new warm nodes");
+        internalCluster().ensureAtLeastNumWarmNodes(numReplicasIndex + 2);
         ensureGreen(restoredIndexName);
         assertDocCount(restoredIndexName, 100);
 
-        logger.info("--> stop a random search node");
-        internalCluster().stopRandomSearchNode();
+        logger.info("--> stop a random warm node");
+        internalCluster().stopRandomWarmNode();
         ensureGreen(restoredIndexName);
         assertDocCount(restoredIndexName, 100);
     }
@@ -414,7 +415,7 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
         takeSnapshot(client, snapshotName, repoName, indexName);
         deleteIndicesAndEnsureGreen(client, indexName);
 
-        internalCluster().ensureAtLeastNumSearchNodes(1);
+        internalCluster().ensureAtLeastNumWarmNodes(1);
         restoreSnapshotAndEnsureGreen(client, snapshotName, repoName);
         assertRemoteSnapshotIndexSettings(client, restoredIndexName);
 
@@ -435,7 +436,7 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
         createRepositoryWithSettings(null, repoName);
         createIndexWithDocsAndEnsureGreen(0, 100, indexName);
         takeSnapshot(client, snapshotName, repoName, indexName);
-        internalCluster().ensureAtLeastNumSearchNodes(1);
+        internalCluster().ensureAtLeastNumWarmNodes(1);
         restoreSnapshotAndEnsureGreen(client, snapshotName, repoName);
         assertThrows(
             SnapshotInUseDeletionException.class,
@@ -455,7 +456,7 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
         createIndexWithDocsAndEnsureGreen(0, 100, indexName2);
         takeSnapshot(client, snapshotName1, repoName, indexName1);
         takeSnapshot(client, snapshotName2, repoName, indexName2);
-        internalCluster().ensureAtLeastNumSearchNodes(1);
+        internalCluster().ensureAtLeastNumWarmNodes(1);
         restoreSnapshotAndEnsureGreen(client, snapshotName2, repoName);
         client().admin().cluster().deleteSnapshot(new DeleteSnapshotRequest(repoName, snapshotName1)).actionGet();
     }
@@ -549,6 +550,82 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
         }
     }
 
+    /**
+     * After a searchable snapshot restore completes, all file cache blocks
+     * fetched during DirectoryReader.open() should be unpinned (refCount=0)
+     * so the file cache can evict them under LRU pressure.
+     *
+     * Tests both CFS (compound file) and non-CFS indexes in a single snapshot/restore cycle.
+     * Uses index.codec=default to avoid AssertingCodec (test-only codec that creates extra clones)
+     * and dummyDocuments=false for a clean single-segment layout after force merge.
+     */
+    public void testBlocksUnpinnedAfterRestore() throws Exception {
+        final String snapshotName = "test-snap";
+        final String repoName = "test-repo";
+        final String cfsIndex = "test-idx-cfs";
+        final String nonCfsIndex = "test-idx-noncfs";
+        final Client client = client();
+
+        internalCluster().ensureAtLeastNumDataNodes(1);
+
+        // Disable check_on_startup: Lucene's CodecUtil.checksumEntireFile() clones IndexInput
+        // without closing it, leaving file cache blocks pinned until GC. The test framework
+        // randomizes this setting, which would cause assertNoPinnedBlocks to fail
+        // non-deterministically.
+        Settings.Builder commonSettings = Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.FS.getSettingsKey())
+            .put("index.codec", "default")
+            .put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), "false");
+
+        createIndex(cfsIndex, commonSettings.build());
+        createIndex(nonCfsIndex, Settings.builder().put(commonSettings.build()).put("index.compound_format", false).build());
+        ensureGreen();
+
+        for (String indexName : new String[] { cfsIndex, nonCfsIndex }) {
+            IndexRequestBuilder[] builders = new IndexRequestBuilder[100];
+            for (int i = 0; i < builders.length; i++) {
+                builders[i] = client().prepareIndex(indexName).setId(Integer.toString(i)).setSource("field1", "bar " + i);
+            }
+            indexRandom(true, false, builders);
+            client.admin().indices().prepareForceMerge(indexName).setMaxNumSegments(1).get();
+        }
+        flushAndRefresh(cfsIndex, nonCfsIndex);
+        ensureGreen();
+
+        createRepositoryWithSettings(null, repoName);
+        takeSnapshot(client, snapshotName, repoName, cfsIndex, nonCfsIndex);
+        deleteIndicesAndEnsureGreen(client, cfsIndex, nonCfsIndex);
+
+        internalCluster().ensureAtLeastNumWarmNodes(1);
+        restoreSnapshotAndEnsureGreen(client, snapshotName, repoName);
+
+        assertNoPinnedBlocks("after restore");
+        assertDocCount(cfsIndex + "-copy", 100L);
+        assertDocCount(nonCfsIndex + "-copy", 100L);
+    }
+
+    private void assertNoPinnedBlocks(String context) throws IOException {
+        int pinnedCount = 0;
+        for (Node node : internalCluster().getInstances(Node.class)) {
+            if (node.fileCache() == null) continue;
+
+            Path fileCachePath = node.getNodeEnvironment().fileCacheNodePath().fileCachePath;
+            try (Stream<Path> paths = Files.walk(fileCachePath)) {
+                List<Path> blockFiles = paths.filter(Files::isRegularFile).collect(Collectors.toList());
+                for (Path blockFile : blockFiles) {
+                    Integer refCount = node.fileCache().getRef(blockFile);
+                    if (refCount != null && refCount > 0) {
+                        pinnedCount++;
+                        logger.warn("--> [{}] PINNED block={}, refCount={}", context, blockFile.getFileName(), refCount);
+                    }
+                }
+            }
+        }
+        assertEquals("All blocks should be unpinned " + context, 0, pinnedCount);
+    }
+
     public void testUpdateIndexSettings() throws InterruptedException {
         final String indexName = "test-index";
         final String restoredIndexName = indexName + "-copy";
@@ -561,7 +638,7 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
         takeSnapshot(client, snapshotName, repoName, indexName);
         deleteIndicesAndEnsureGreen(client, indexName);
 
-        internalCluster().ensureAtLeastNumSearchNodes(1);
+        internalCluster().ensureAtLeastNumWarmNodes(1);
         restoreSnapshotAndEnsureGreen(client, snapshotName, repoName);
         assertRemoteSnapshotIndexSettings(client, restoredIndexName);
 
@@ -618,7 +695,7 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
         deleteIndicesAndEnsureGreen(client, indexName1);
         assertAllNodesFileCacheEmpty();
 
-        internalCluster().ensureAtLeastNumSearchNodes(numNodes);
+        internalCluster().ensureAtLeastNumWarmNodes(numNodes);
         restoreSnapshotAndEnsureGreen(client, snapshotName, repoName);
         assertNodesFileCacheNonEmpty(numNodes);
     }
@@ -644,7 +721,7 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
         takeSnapshot(client, snapshotName, repoName, indexName);
         deleteIndicesAndEnsureGreen(client, indexName);
 
-        internalCluster().ensureAtLeastNumSearchNodes(numReplicasIndex + 1);
+        internalCluster().ensureAtLeastNumWarmNodes(numReplicasIndex + 1);
         restoreSnapshotAndEnsureGreen(client, snapshotName, repoName);
         assertRemoteSnapshotIndexSettings(client, restoredIndexName);
 
@@ -653,7 +730,7 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
 
         NodesStatsResponse preRestoreStats = client().admin().cluster().nodesStats(new NodesStatsRequest().all()).actionGet();
         for (NodeStats nodeStats : preRestoreStats.getNodes()) {
-            if (nodeStats.getNode().isSearchNode()) {
+            if (nodeStats.getNode().isWarmNode()) {
                 internalCluster().restartNode(nodeStats.getNode().getName());
             }
         }
@@ -664,7 +741,7 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
         for (String node : postRestoreStatsMap.keySet()) {
             NodeStats preRestoreStat = preRestoreStatsMap.get(node);
             NodeStats postRestoreStat = postRestoreStatsMap.get(node);
-            if (preRestoreStat.getNode().isSearchNode()) {
+            if (preRestoreStat.getNode().isWarmNode()) {
                 assertEquals(preRestoreStat.getFileCacheStats().getUsed(), postRestoreStat.getFileCacheStats().getUsed());
             }
         }
@@ -711,7 +788,7 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
     private void assertAllNodesFileCacheEmpty() {
         NodesStatsResponse response = client().admin().cluster().nodesStats(new NodesStatsRequest().all()).actionGet();
         for (NodeStats stats : response.getNodes()) {
-            FileCacheStats fcstats = stats.getFileCacheStats();
+            AggregateFileCacheStats fcstats = stats.getFileCacheStats();
             if (fcstats != null) {
                 assertTrue(isFileCacheEmpty(fcstats));
             }
@@ -722,8 +799,8 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
         NodesStatsResponse response = client().admin().cluster().nodesStats(new NodesStatsRequest().all()).actionGet();
         int nonEmptyFileCacheNodes = 0;
         for (NodeStats stats : response.getNodes()) {
-            FileCacheStats fcStats = stats.getFileCacheStats();
-            if (stats.getNode().isSearchNode()) {
+            AggregateFileCacheStats fcStats = stats.getFileCacheStats();
+            if (stats.getNode().isWarmNode()) {
                 if (!isFileCacheEmpty(fcStats)) {
                     nonEmptyFileCacheNodes++;
                 }
@@ -735,7 +812,7 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
         assertEquals(numNodes, nonEmptyFileCacheNodes);
     }
 
-    private boolean isFileCacheEmpty(FileCacheStats stats) {
+    private boolean isFileCacheEmpty(AggregateFileCacheStats stats) {
         return stats.getUsed().getBytes() == 0L && stats.getActive().getBytes() == 0L;
     }
 
@@ -747,7 +824,7 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
         final Client client = client();
         final int numNodes = 2;
 
-        internalCluster().ensureAtLeastNumSearchAndDataNodes(numNodes);
+        internalCluster().ensureAtLeastNumWarmAndDataNodes(numNodes);
         createIndexWithDocsAndEnsureGreen(1, 100, indexName1);
 
         createRepositoryWithSettings(null, repoName);
@@ -763,7 +840,7 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
     }
 
     /**
-     * Test scenario that checks the cache folder location on search nodes for the restored index on snapshot restoration
+     * Test scenario that checks the cache folder location on warm nodes for the restored index on snapshot restoration
      * and ensures the index folder is cleared on all nodes post index deletion
      */
     public void testCacheIndexFilesClearedOnDelete() throws Exception {
@@ -775,7 +852,7 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
         final String snapshotName = "test-snap";
         final Client client = client();
 
-        internalCluster().ensureAtLeastNumSearchAndDataNodes(numShards);
+        internalCluster().ensureAtLeastNumWarmAndDataNodes(numShards);
         createIndexWithDocsAndEnsureGreen(numReplicas, 100, indexName);
         createRepositoryWithSettings(null, repoName);
         takeSnapshot(client, snapshotName, repoName, indexName);
@@ -796,7 +873,7 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
     }
 
     /**
-     * Test scenario that validates that the default search preference for searchable snapshot
+     * Test scenario that validates that the default warm preference for searchable snapshot
      * is primary shards
      */
     public void testDefaultShardPreference() throws Exception {
@@ -808,7 +885,7 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
         final Client client = client();
 
         // Create an index, snapshot and restore as a searchable snapshot index
-        internalCluster().ensureAtLeastNumSearchAndDataNodes(numReplicas + 1);
+        internalCluster().ensureAtLeastNumWarmAndDataNodes(numReplicas + 1);
         createIndexWithDocsAndEnsureGreen(numReplicas, 100, indexName);
         createRepositoryWithSettings(null, repoName);
         takeSnapshot(client, snapshotName, repoName, indexName);
@@ -861,7 +938,7 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
         takeSnapshot(client, snapshotName, repoName, indexName1);
         deleteIndicesAndEnsureGreen(client, indexName1);
 
-        internalCluster().ensureAtLeastNumSearchNodes(numReplicasIndex1 + 1);
+        internalCluster().ensureAtLeastNumWarmNodes(numReplicasIndex1 + 1);
 
         // set "index.store.type" to "remote_snapshot" in index settings of restore API and assert appropriate exception with error message
         // is thrown.
@@ -898,8 +975,8 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
         // Get the available NodeEnvironment instances
         Iterable<Node> nodes = internalCluster().getInstances(Node.class);
 
-        // Filter out search NodeEnvironment(s) since FileCache is initialized only on search nodes and
-        // collect the path for all the cache locations on search nodes.
+        // Filter out warm NodeEnvironment(s) since FileCache is initialized only on warm nodes and
+        // collect the path for all the cache locations on warm nodes.
         List<Path> searchNodeFileCachePaths = StreamSupport.stream(nodes.spliterator(), false)
             .filter(node -> node.fileCache() != null)
             .map(node -> node.getNodeEnvironment().fileCacheNodePath().fileCachePath)
@@ -931,12 +1008,12 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
         takeSnapshot(client, snapshotName, repoName, indexName);
         deleteIndicesAndEnsureGreen(client, indexName);
 
-        String searchNode1 = internalCluster().startSearchOnlyNodes(1).get(0);
+        String searchNode1 = internalCluster().startWarmOnlyNodes(1).get(0);
         internalCluster().validateClusterFormed();
         restoreSnapshotAndEnsureGreen(client, snapshotName, repoName);
         assertRemoteSnapshotIndexSettings(client, restoredIndexName);
 
-        String searchNode2 = internalCluster().startSearchOnlyNodes(1).get(0);
+        String searchNode2 = internalCluster().startWarmOnlyNodes(1).get(0);
         internalCluster().validateClusterFormed();
 
         final Index index = resolveIndex(restoredIndexName);
@@ -995,7 +1072,7 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
         createRepositoryWithSettings(null, repoName);
         takeSnapshot(client, snapshotName, repoName, indexName1, indexName2);
 
-        internalCluster().ensureAtLeastNumSearchNodes(Math.max(numReplicasIndex1, numReplicasIndex2) + 1);
+        internalCluster().ensureAtLeastNumWarmNodes(Math.max(numReplicasIndex1, numReplicasIndex2) + 1);
         restoreSnapshotAndEnsureGreen(client, snapshotName, repoName);
 
         assertDocCount(restoredIndexName1, 100L);
@@ -1014,22 +1091,22 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
     }
 
     public void testStartSearchNode() throws Exception {
-        // test start dedicated search node
-        internalCluster().startNode(Settings.builder().put(onlyRole(DiscoveryNodeRole.SEARCH_ROLE)));
-        // test start node without search role
+        // test start dedicated warm node
+        internalCluster().startNode(Settings.builder().put(onlyRole(DiscoveryNodeRole.WARM_ROLE)));
+        // test start node without warm role
         internalCluster().startNode(Settings.builder().put(onlyRole(DiscoveryNodeRole.DATA_ROLE)));
-        // test start non-dedicated search node, if the user doesn't configure the cache size, it fails
+        // test start non-dedicated warm node, if the user doesn't configure the cache size, it fails
         assertThrows(
             SettingsException.class,
             () -> internalCluster().startNode(
-                Settings.builder().put(onlyRoles(Set.of(DiscoveryNodeRole.SEARCH_ROLE, DiscoveryNodeRole.DATA_ROLE)))
+                Settings.builder().put(onlyRoles(Set.of(DiscoveryNodeRole.WARM_ROLE, DiscoveryNodeRole.DATA_ROLE)))
             )
         );
-        // test start non-dedicated search node
+        // test start non-dedicated warm node
         assertThrows(
             SettingsException.class,
             () -> internalCluster().startNode(
-                Settings.builder().put(onlyRoles(Set.of(DiscoveryNodeRole.SEARCH_ROLE, DiscoveryNodeRole.DATA_ROLE)))
+                Settings.builder().put(onlyRoles(Set.of(DiscoveryNodeRole.WARM_ROLE, DiscoveryNodeRole.DATA_ROLE)))
             )
         );
     }
@@ -1053,5 +1130,62 @@ public final class SearchableSnapshotIT extends AbstractSnapshotIntegTestCase {
             assertTrue("index path should " + (exists ? "exist" : "not exist"), Files.exists(indexDataPath) == exists);
             assertTrue("index cache path should " + (exists ? "exist" : "not exist"), Files.exists(indexPath) == exists);
         }, 30, TimeUnit.SECONDS);
+    }
+
+    public void testRestoreRemoteSnapshotWithNullShardSizes() throws Exception {
+        final String snapshotName1 = "test-snap-1";
+        final String snapshotName2 = "test-snap-2";
+        final String repoName = "test-repo";
+        final String indexName1 = "test-idx-1";
+        final String indexName2 = "test-idx-2";
+        final Client client = client();
+
+        // Setup cluster with delayed ClusterInfo updates to simulate null shard sizes
+        client.admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setPersistentSettings(Settings.builder().put("cluster.info.update.interval", "60m"))
+            .get();
+
+        internalCluster().ensureAtLeastNumDataNodes(2);
+
+        createIndexWithDocsAndEnsureGreen(0, 50, indexName1);
+        createRepositoryWithSettings(null, repoName);
+        takeSnapshot(client, snapshotName1, repoName, indexName1);
+        deleteIndicesAndEnsureGreen(client, indexName1);
+
+        createIndexWithDocsAndEnsureGreen(0, 50, indexName2);
+        takeSnapshot(client, snapshotName2, repoName, indexName2);
+        deleteIndicesAndEnsureGreen(client, indexName2);
+
+        internalCluster().ensureAtLeastNumWarmNodes(2);
+
+        RestoreSnapshotRequest firstRestore = new RestoreSnapshotRequest(repoName, snapshotName1).indices(indexName1)
+            .storageType(RestoreSnapshotRequest.StorageType.REMOTE_SNAPSHOT)
+            .renamePattern("(.+)")
+            .renameReplacement("remote-$1")
+            .waitForCompletion(true);
+
+        client.admin().cluster().restoreSnapshot(firstRestore).get();
+        ensureGreen("remote-" + indexName1);
+
+        // Second restore immediately after - ClusterInfo won't have size data for first restore shards
+        RestoreSnapshotRequest secondRestore = new RestoreSnapshotRequest(repoName, snapshotName2).indices(indexName2)
+            .storageType(RestoreSnapshotRequest.StorageType.REMOTE_SNAPSHOT)
+            .renamePattern("(.+)")
+            .renameReplacement("remote-$1")
+            .waitForCompletion(true);
+
+        client.admin().cluster().restoreSnapshot(secondRestore).get();
+        ensureGreen("remote-" + indexName2);
+
+        assertDocCount("remote-" + indexName1, 50L);
+        assertDocCount("remote-" + indexName2, 50L);
+
+        client.admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setPersistentSettings(Settings.builder().putNull("cluster.info.update.interval"))
+            .get();
     }
 }

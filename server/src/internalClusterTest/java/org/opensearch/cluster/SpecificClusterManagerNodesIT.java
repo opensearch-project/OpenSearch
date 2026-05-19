@@ -267,7 +267,7 @@ public class SpecificClusterManagerNodesIT extends OpenSearchIntegTestCase {
                     .nodes()
                     .getClusterManagerNode()
                     .getName();
-            } catch (ClusterManagerNotDiscoveredException e) {
+            } catch (Exception e) {
                 logger.debug("failed to get cluster-manager name", e);
                 return null;
             }

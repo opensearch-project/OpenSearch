@@ -49,6 +49,7 @@ import java.util.Map;
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 
 public class CopyToMapperTests extends MapperServiceTestCase {
@@ -285,6 +286,40 @@ public class CopyToMapperTests extends MapperServiceTestCase {
             e.getMessage(),
             startsWith("mapping set to strict_allow_templates, dynamic introduction of [very] within [_doc] is not allowed")
         );
+    }
+
+    public void testCopyToFalseAllowTemplatesDynamicInnerObjectParsing() throws Exception {
+        DocumentMapper docMapper = createDocumentMapper(topMapping(b -> {
+            b.field("dynamic", "false_allow_templates");
+            b.startArray("dynamic_templates");
+            {
+                b.startObject();
+                {
+                    b.startObject("test");
+                    {
+                        b.field("match", "test");
+                        b.startObject("mapping").field("type", "object").endObject();
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+            }
+            b.endArray();
+            b.startObject("properties");
+            {
+                b.startObject("copy_test");
+                {
+                    b.field("type", "text");
+                    b.field("copy_to", "very.inner.field");
+                }
+                b.endObject();
+            }
+            b.endObject();
+        }));
+
+        ParsedDocument doc = docMapper.parse(source(b -> b.field("copy_test", "foo")));
+        assertThat(doc.rootDoc().get("copy_test"), equalTo("foo"));
+        assertThat(doc.rootDoc().get("very.inner.field"), nullValue());
     }
 
     public void testCopyToInnerStrictDynamicInnerObjectParsing() throws Exception {

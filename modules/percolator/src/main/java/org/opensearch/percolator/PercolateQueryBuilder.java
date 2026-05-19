@@ -508,7 +508,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
             throw new QueryShardException(context, "field [" + field + "] does not exist");
         }
 
-        if (!(fieldType instanceof PercolatorFieldMapper.PercolatorFieldType)) {
+        if (!(fieldType.unwrap() instanceof PercolatorFieldMapper.PercolatorFieldType)) {
             throw new QueryShardException(
                 context,
                 "expected field [" + field + "] to be of type [percolator], but is of type [" + fieldType.typeName() + "]"
@@ -518,7 +518,6 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
         final List<ParsedDocument> docs = new ArrayList<>();
         final DocumentMapper docMapper;
         final MapperService mapperService = context.getMapperService();
-        String type = mapperService.documentMapper().type();
         docMapper = mapperService.documentMapper();
         for (BytesReference document : documents) {
             docs.add(docMapper.parse(new SourceToParse(context.index().getName(), "_temp_id", document, documentXContentType)));

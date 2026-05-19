@@ -196,6 +196,15 @@ final class Bootstrap {
             BootstrapSettings.CTRLHANDLER_SETTING.get(settings)
         );
 
+        var cryptoStandard = System.getenv("OPENSEARCH_CRYPTO_STANDARD");
+        var fipsMode = System.getenv("OPENSEARCH_FIPS_MODE");
+
+        if ("FIPS-140-3".equals(cryptoStandard) || "true".equalsIgnoreCase(fipsMode)) {
+            LogManager.getLogger(Bootstrap.class).info("running in FIPS-140-3 mode");
+            SecurityProviderManager.removeNonCompliantFipsProviders();
+            FipsTrustStoreValidator.validate();
+        }
+
         // initialize probes before the security manager is installed
         initializeProbes();
 

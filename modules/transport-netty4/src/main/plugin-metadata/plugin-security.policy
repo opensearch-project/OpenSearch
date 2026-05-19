@@ -36,6 +36,7 @@ grant {
 
    // netty makes and accepts socket connections
    permission java.net.SocketPermission "*", "accept,connect";
+   permission java.net.NetPermission "accessUnixDomainSocket";
 
    // Netty sets custom classloader for some of its internal threads
    permission java.lang.RuntimePermission "*", "setContextClassLoader";

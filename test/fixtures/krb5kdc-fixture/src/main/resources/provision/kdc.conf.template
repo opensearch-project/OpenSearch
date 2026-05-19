@@ -16,8 +16,8 @@
 # under the License.
 
 [kdcdefaults]
-    kdc_listen = 88
-    kdc_tcp_listen = 88
+    kdc_ports = 88
+    kdc_tcp_ports = 88
 
 [realms]
     ${REALM_NAME} = {
@@ -25,8 +25,7 @@
         max_life = 12h 0m 0s
         max_renewable_life = 7d 0h 0m 0s
         master_key_type = aes256-cts
-        # remove aes256-cts:normal since unlimited strength policy needs installed for java to use it.
-        supported_enctypes = aes128-cts:normal des3-hmac-sha1:normal arcfour-hmac:normal des-hmac-sha1:normal des-cbc-md5:normal des-cbc-crc:normal
+        supported_enctypes = aes256-cts-hmac-sha1-96:normal aes128-cts-hmac-sha1-96:normal
     }
 
 [logging]

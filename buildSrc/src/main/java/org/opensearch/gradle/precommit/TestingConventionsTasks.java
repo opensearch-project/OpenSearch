@@ -52,7 +52,6 @@ import org.gradle.api.tasks.TaskAction;
 import org.gradle.api.tasks.testing.Test;
 import org.gradle.api.tasks.util.PatternFilterable;
 import org.gradle.api.tasks.util.PatternSet;
-import org.gradle.internal.Factory;
 
 import javax.inject.Inject;
 
@@ -97,20 +96,13 @@ public class TestingConventionsTasks extends DefaultTask {
         this.project = project;
     }
 
-    @Inject
-    protected Factory<PatternSet> getPatternSetFactory() {
-        throw new UnsupportedOperationException();
-    }
-
     @Input
     public Map<String, Set<File>> getClassFilesPerEnabledTask() {
         return project.getTasks().withType(Test.class).stream().filter(Task::getEnabled).collect(Collectors.toMap(Task::getPath, task -> {
             // See please https://docs.gradle.org/8.1/userguide/upgrading_version_8.html#test_task_default_classpath
             final JvmTestSuite jvmTestSuite = JvmTestSuiteHelper.getDefaultTestSuite(project).orElse(null);
             if (jvmTestSuite != null) {
-                final PatternFilterable patternSet = getPatternSetFactory().create()
-                    .include(task.getIncludes())
-                    .exclude(task.getExcludes());
+                final PatternFilterable patternSet = new PatternSet().include(task.getIncludes()).exclude(task.getExcludes());
 
                 final Set<File> files = jvmTestSuite.getSources()
                     .getOutput()

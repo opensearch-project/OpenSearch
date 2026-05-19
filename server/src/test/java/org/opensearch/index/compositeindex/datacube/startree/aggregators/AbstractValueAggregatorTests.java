@@ -12,6 +12,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.opensearch.index.mapper.FieldValueConverter;
 import org.opensearch.index.mapper.NumberFieldMapper;
+import org.opensearch.search.aggregations.metrics.CompensatedSum;
 import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Before;
 
@@ -64,6 +65,10 @@ public abstract class AbstractValueAggregatorTests extends OpenSearchTestCase {
         long randomLong = randomLong();
         if (aggregator instanceof CountValueAggregator) {
             assertEquals(CountValueAggregator.DEFAULT_INITIAL_VALUE, aggregator.getInitialAggregatedValueForSegmentDocValue(randomLong()));
+        } else if (aggregator instanceof SumValueAggregator) {
+            CompensatedSum sum = new CompensatedSum(0, 0);
+            sum.add(fieldValueConverter.toDoubleValue(randomLong));
+            assertEquals(sum, aggregator.getInitialAggregatedValueForSegmentDocValue(randomLong));
         } else {
             assertEquals(fieldValueConverter.toDoubleValue(randomLong), aggregator.getInitialAggregatedValueForSegmentDocValue(randomLong));
         }

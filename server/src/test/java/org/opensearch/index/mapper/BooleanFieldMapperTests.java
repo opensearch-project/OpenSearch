@@ -32,14 +32,24 @@
 
 package org.opensearch.index.mapper;
 
+import org.apache.lucene.document.SortedNumericDocValuesField;
+import org.apache.lucene.document.StoredField;
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.DocValuesType;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
+import org.opensearch.common.Booleans;
+import org.opensearch.common.CheckedConsumer;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -48,6 +58,8 @@ import org.opensearch.index.mapper.ParseContext.Document;
 import java.io.IOException;
 
 public class BooleanFieldMapperTests extends MapperTestCase {
+
+    private static final String FIELD_NAME = "field";
 
     @Override
     protected void writeFieldValue(XContentBuilder builder) throws IOException {
@@ -233,5 +245,205 @@ public class BooleanFieldMapperTests extends MapperTestCase {
         );
 
         assertEquals("Can't parse boolean value [random], expected [true] or [false]", e.getMessage());
+    }
+
+    public void testPossibleToDeriveSource_WhenDocValuesAndStoredDisabled() throws IOException {
+        BooleanFieldMapper mapper = getMapper(FieldMapper.CopyTo.empty(), false, false);
+        assertThrows(UnsupportedOperationException.class, mapper::canDeriveSource);
+    }
+
+    public void testPossibleToDeriveSource_WhenCopyToPresent() throws IOException {
+        FieldMapper.CopyTo copyTo = new FieldMapper.CopyTo.Builder().add("copy_to_field").build();
+        BooleanFieldMapper mapper = getMapper(copyTo, true, true);
+        assertThrows(UnsupportedOperationException.class, mapper::canDeriveSource);
+    }
+
+    public void testDerivedValueFetching_DocValues() throws IOException {
+        try (Directory directory = newDirectory()) {
+            BooleanFieldMapper mapper = getMapper(FieldMapper.CopyTo.empty(), true, false);
+            String value = "";  // empty string means false under boolean field mapping
+            try (IndexWriter iw = new IndexWriter(directory, new IndexWriterConfig())) {
+                iw.addDocument(createDocument(value, true));
+            }
+
+            try (DirectoryReader reader = DirectoryReader.open(directory)) {
+                XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
+                mapper.deriveSource(builder, reader.leaves().get(0).reader(), 0);
+                builder.endObject();
+                String source = builder.toString();
+                assertEquals("{\"" + FIELD_NAME + "\":" + false + "}", source);
+            }
+        }
+    }
+
+    public void testDerivedValueFetching_StoredField() throws IOException {
+        try (Directory directory = newDirectory()) {
+            BooleanFieldMapper mapper = getMapper(FieldMapper.CopyTo.empty(), false, true);
+            String value = "true";
+            try (IndexWriter iw = new IndexWriter(directory, new IndexWriterConfig())) {
+                iw.addDocument(createDocument(value, false));
+            }
+
+            try (DirectoryReader reader = DirectoryReader.open(directory)) {
+                XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
+                mapper.deriveSource(builder, reader.leaves().get(0).reader(), 0);
+                builder.endObject();
+                String source = builder.toString();
+                assertEquals("{\"" + FIELD_NAME + "\":" + true + "}", source);
+            }
+        }
+    }
+
+    private BooleanFieldMapper getMapper(FieldMapper.CopyTo copyTo, boolean hasDocValues, boolean isStored) throws IOException {
+        MapperService mapperService = createMapperService(
+            fieldMapping(b -> b.field("type", "boolean").field("store", isStored).field("doc_values", hasDocValues))
+        );
+        BooleanFieldMapper mapper = (BooleanFieldMapper) mapperService.documentMapper().mappers().getMapper(FIELD_NAME);
+        mapper.copyTo = copyTo;
+        return mapper;
+    }
+
+    /**
+     * Helper method to create a document with both doc values and stored fields
+     */
+    private org.apache.lucene.document.Document createDocument(String value, boolean hasDocValues) {
+        char[] chars = value.toCharArray();
+        boolean val = Booleans.parseBoolean(chars, 0, chars.length, false);
+        org.apache.lucene.document.Document doc = new org.apache.lucene.document.Document();
+        if (hasDocValues) {
+            doc.add(new SortedNumericDocValuesField(FIELD_NAME, val ? 1 : 0));
+        } else {
+            doc.add(new StoredField(FIELD_NAME, val ? "T" : "F"));
+        }
+        return doc;
+    }
+
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testPluggableDataFormatBooleanTrue() throws IOException {
+        Settings settings = Settings.builder().put(getIndexSettings()).put("index.pluggable.dataformat.enabled", true).build();
+        DocumentMapper mapper = createDocumentMapper(settings, fieldMapping(this::minimalMapping));
+
+        CapturingDocumentInput capturingDocInput = new CapturingDocumentInput();
+        mapper.parse(source(b -> b.field("field", true)), capturingDocInput);
+
+        assertTrue(
+            capturingDocInput.getCapturedFields()
+                .stream()
+                .anyMatch(e -> e.getKey().name().equals("field") && Boolean.TRUE.equals(e.getValue()))
+        );
+    }
+
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testPluggableDataFormatBooleanFalse() throws IOException {
+        Settings settings = Settings.builder().put(getIndexSettings()).put("index.pluggable.dataformat.enabled", true).build();
+        DocumentMapper mapper = createDocumentMapper(settings, fieldMapping(this::minimalMapping));
+
+        CapturingDocumentInput capturingDocInput = new CapturingDocumentInput();
+        mapper.parse(source(b -> b.field("field", false)), capturingDocInput);
+
+        assertTrue(
+            capturingDocInput.getCapturedFields()
+                .stream()
+                .anyMatch(e -> e.getKey().name().equals("field") && Boolean.FALSE.equals(e.getValue()))
+        );
+    }
+
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testPluggableDataFormatBooleanNullSkipped() throws IOException {
+        Settings settings = Settings.builder().put(getIndexSettings()).put("index.pluggable.dataformat.enabled", true).build();
+        DocumentMapper mapper = createDocumentMapper(settings, fieldMapping(this::minimalMapping));
+
+        CapturingDocumentInput capturingDocInput = new CapturingDocumentInput();
+        mapper.parse(source(b -> b.nullField("field")), capturingDocInput);
+
+        assertTrue(capturingDocInput.getCapturedFields().stream().noneMatch(e -> e.getKey().name().equals("field")));
+    }
+
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testPluggableDataFormatBooleanNullValueConfigured() throws IOException {
+        Settings settings = Settings.builder().put(getIndexSettings()).put("index.pluggable.dataformat.enabled", true).build();
+        DocumentMapper mapper = createDocumentMapper(
+            settings,
+            mapping(b -> b.startObject("field").field("type", "boolean").field("null_value", true).endObject())
+        );
+        CapturingDocumentInput capturingDocInput = new CapturingDocumentInput();
+        mapper.parse(source(b -> b.nullField("field")), capturingDocInput);
+
+        assertTrue(
+            capturingDocInput.getCapturedFields()
+                .stream()
+                .anyMatch(e -> e.getKey().name().equals("field") && Boolean.TRUE.equals(e.getValue()))
+        );
+    }
+
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testPluggablePathEquivalenceWithLucenePath() throws IOException {
+        Settings pluggableSettings = Settings.builder().put(getIndexSettings()).put("index.pluggable.dataformat.enabled", true).build();
+
+        // Scenario 1: true value
+        assertBooleanLuceneAndPluggablePathsEquivalent(
+            pluggableSettings,
+            fieldMapping(this::minimalMapping),
+            b -> b.field("field", true),
+            "field",
+            Boolean.TRUE
+        );
+
+        // Scenario 2: false value
+        assertBooleanLuceneAndPluggablePathsEquivalent(
+            pluggableSettings,
+            fieldMapping(this::minimalMapping),
+            b -> b.field("field", false),
+            "field",
+            Boolean.FALSE
+        );
+
+        // Scenario 3: null value — no field produced
+        assertBooleanLuceneAndPluggablePathsEquivalent(
+            pluggableSettings,
+            fieldMapping(this::minimalMapping),
+            b -> b.nullField("field"),
+            "field",
+            null
+        );
+
+        // Scenario 4: null_value configured — substitution kicks in
+        assertBooleanLuceneAndPluggablePathsEquivalent(
+            pluggableSettings,
+            mapping(b -> b.startObject("field").field("type", "boolean").field("null_value", true).endObject()),
+            b -> b.nullField("field"),
+            "field",
+            Boolean.TRUE
+        );
+    }
+
+    private void assertBooleanLuceneAndPluggablePathsEquivalent(
+        Settings pluggableSettings,
+        XContentBuilder mappingBuilder,
+        CheckedConsumer<XContentBuilder, IOException> sourceBuilder,
+        String fieldName,
+        Boolean expectedValue
+    ) throws IOException {
+        // Lucene path
+        DocumentMapper luceneMapper = createDocumentMapper(mappingBuilder);
+        ParsedDocument luceneDoc = luceneMapper.parse(source(sourceBuilder));
+        IndexableField[] luceneFields = luceneDoc.rootDoc().getFields(fieldName);
+
+        // Pluggable path
+        DocumentMapper pluggableMapper = createDocumentMapper(pluggableSettings, mappingBuilder);
+        CapturingDocumentInput docInput = new CapturingDocumentInput();
+        pluggableMapper.parse(source(sourceBuilder), docInput);
+
+        if (expectedValue == null) {
+            assertEquals("Lucene path should produce no field for '" + fieldName + "'", 0, luceneFields.length);
+            boolean pluggableHasField = docInput.getCapturedFields().stream().anyMatch(e -> e.getKey().name().equals(fieldName));
+            assertFalse("Pluggable path should produce no field for '" + fieldName + "'", pluggableHasField);
+        } else {
+            assertTrue("Lucene path should produce field '" + fieldName + "'", luceneFields.length > 0);
+            boolean pluggableFound = docInput.getCapturedFields()
+                .stream()
+                .anyMatch(e -> e.getKey().name().equals(fieldName) && expectedValue.equals(e.getValue()));
+            assertTrue("Pluggable path should capture field '" + fieldName + "' with value '" + expectedValue + "'", pluggableFound);
+        }
     }
 }

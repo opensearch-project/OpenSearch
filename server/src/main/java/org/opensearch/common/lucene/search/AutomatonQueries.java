@@ -39,8 +39,10 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
+import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 
@@ -91,7 +93,14 @@ public class AutomatonQueries {
      * Build an automaton matching a wildcard pattern, ASCII case insensitive, if the method is null, then will use {@link  MultiTermQuery#CONSTANT_SCORE_BLENDED_REWRITE}.
      */
     public static AutomatonQuery caseInsensitiveWildcardQuery(Term wildcardquery, MultiTermQuery.RewriteMethod method) {
-        return createAutomatonQuery(wildcardquery, toCaseInsensitiveWildcardAutomaton(wildcardquery), method);
+        Automaton automaton = toCaseInsensitiveWildcardAutomaton(wildcardquery);
+        try {
+            automaton = Operations.determinize(automaton, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
+        } catch (TooComplexToDeterminizeException e) {
+            throw new RuntimeException("Wildcard query too complex to determinize for term: " + wildcardquery, e);
+        }
+        assert automaton.isDeterministic();
+        return createAutomatonQuery(wildcardquery, automaton, method);
     }
 
     /**
@@ -177,7 +186,7 @@ public class AutomatonQueries {
         int altCase = Character.isLowerCase(codepoint) ? Character.toUpperCase(codepoint) : Character.toLowerCase(codepoint);
         Automaton result;
         if (altCase != codepoint) {
-            result = Operations.union(case1, Automata.makeChar(altCase));
+            result = Operations.union(Arrays.asList(case1, Automata.makeChar(altCase)));
         } else {
             result = case1;
         }

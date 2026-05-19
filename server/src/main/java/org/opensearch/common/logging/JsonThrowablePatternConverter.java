@@ -29,8 +29,6 @@
 
 package org.opensearch.common.logging;
 
-import com.fasterxml.jackson.core.io.JsonStringEncoder;
-
 import org.apache.logging.log4j.core.LogEvent;
 import org.apache.logging.log4j.core.config.Configuration;
 import org.apache.logging.log4j.core.config.plugins.Plugin;
@@ -42,6 +40,8 @@ import org.opensearch.core.common.Strings;
 
 import java.nio.charset.Charset;
 import java.util.StringJoiner;
+
+import tools.jackson.core.io.JsonStringEncoder;
 
 /**
 

@@ -81,4 +81,11 @@ public abstract class BucketCollector implements Collector {
      */
     public abstract void postCollection() throws IOException;
 
+    /**
+     * Reset any state in collector, so any future collection starts clean
+     * <br/>
+     * Usage:
+     * - streaming aggregation reset aggregator after sending a batch
+     */
+    public void reset() {}
 }

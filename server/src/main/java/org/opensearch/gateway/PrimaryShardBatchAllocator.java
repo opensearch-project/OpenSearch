@@ -148,15 +148,17 @@ public abstract class PrimaryShardBatchAllocator extends PrimaryShardAllocator {
         // build data for a shard from all the nodes
         nodeResponses.forEach((node, nodeGatewayStartedShardsBatch) -> {
             GatewayStartedShard shardData = nodeGatewayStartedShardsBatch.getNodeGatewayStartedShardsBatch().get(unassignedShard.shardId());
-            nodeShardStates.add(
-                new NodeGatewayStartedShard(
-                    shardData.allocationId(),
-                    shardData.primary(),
-                    shardData.replicationCheckpoint(),
-                    shardData.storeException(),
-                    node
-                )
-            );
+            if (null != shardData) {
+                nodeShardStates.add(
+                    new NodeGatewayStartedShard(
+                        shardData.allocationId(),
+                        shardData.primary(),
+                        shardData.replicationCheckpoint(),
+                        shardData.storeException(),
+                        node
+                    )
+                );
+            }
         });
         return nodeShardStates;
     }

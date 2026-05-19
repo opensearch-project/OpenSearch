@@ -23,6 +23,9 @@ public class TaskCancellationStatsTests extends AbstractWireSerializingTestCase<
     }
 
     public static TaskCancellationStats randomInstance() {
-        return new TaskCancellationStats(SearchShardTaskCancellationStatsTests.randomInstance());
+        return new TaskCancellationStats(
+            SearchTaskCancellationStatsTests.randomInstance(),
+            SearchShardTaskCancellationStatsTests.randomInstance()
+        );
     }
 }

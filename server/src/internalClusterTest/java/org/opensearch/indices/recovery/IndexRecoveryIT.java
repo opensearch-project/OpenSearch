@@ -67,11 +67,13 @@ import org.opensearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.cluster.routing.UnassignedInfo;
+import org.opensearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.opensearch.cluster.routing.allocation.command.AllocateEmptyPrimaryAllocationCommand;
 import org.opensearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Priority;
 import org.opensearch.common.SetOnce;
+import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
@@ -250,7 +252,7 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
         assertThat(state.getStage(), not(equalTo(Stage.DONE)));
     }
 
-    private void slowDownRecovery(ByteSizeValue shardSize) {
+    public void slowDownRecovery(ByteSizeValue shardSize) {
         long chunkSize = Math.max(1, shardSize.getBytes() / 10);
         assertTrue(
             client().admin()
@@ -528,7 +530,7 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
             assertThat(indicesService.indexServiceSafe(index).getShard(0).recoveryStats().currentAsSource(), equalTo(1));
             indicesService = internalCluster().getInstance(IndicesService.class, nodeB);
             assertThat(indicesService.indexServiceSafe(index).getShard(0).recoveryStats().currentAsTarget(), equalTo(1));
-        }, TimeValue.timeValueSeconds(10), TimeValue.timeValueMillis(500));
+        }, TimeValue.timeValueSeconds(60), TimeValue.timeValueMillis(500));
 
         logger.info("--> request recoveries");
         RecoveryResponse response = client().admin().indices().prepareRecoveries(INDEX_NAME).execute().actionGet();
@@ -1267,6 +1269,7 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
         redMockTransportService.addSendBehavior(blueMockTransportService, new StubbableTransport.SendRequestBehavior() {
             private final AtomicInteger count = new AtomicInteger();
 
+            @SuppressForbidden(reason = "Simulating disconnect after sending request with a delay")
             @Override
             public void sendRequest(
                 Transport.Connection connection,
@@ -1479,9 +1482,14 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
     }
 
     /** Makes sure the new cluster-manager does not repeatedly fetch index metadata from recovering replicas */
-    public void testOngoingRecoveryAndClusterManagerFailOver() throws Exception {
+    public void testOngoingRecoveryAndClusterManagerFailOverForASFDisabled() throws Exception {
         String indexName = "test";
-        internalCluster().startNodes(2);
+        // ASF Disabled
+        internalCluster().startNodes(
+            2,
+            Settings.builder().put(ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_BATCH_MODE.getKey(), false).build()
+        );
+
         String nodeWithPrimary = internalCluster().startDataOnlyNode();
         assertAcked(
             client().admin()
@@ -1542,6 +1550,84 @@ public class IndexRecoveryIT extends OpenSearchIntegTestCase {
             allowToCompletePhase1Latch.countDown();
         }
         ensureGreen(indexName);
+    }
+
+    public void testOngoingRecoveryAndClusterManagerFailOver() throws Exception {
+        String indexName = "test";
+        internalCluster().startNodes(2);
+        String nodeWithPrimary = internalCluster().startDataOnlyNode();
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate(indexName)
+                .setSettings(
+                    Settings.builder()
+                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                        .put("index.routing.allocation.include._name", nodeWithPrimary)
+                )
+        );
+        MockTransportService transport = (MockTransportService) internalCluster().getInstance(TransportService.class, nodeWithPrimary);
+        CountDownLatch phase1ReadyBlocked = new CountDownLatch(1);
+        CountDownLatch allowToCompletePhase1Latch = new CountDownLatch(1);
+        Semaphore blockRecovery = new Semaphore(1);
+        transport.addSendBehavior((connection, requestId, action, request, options) -> {
+            if (PeerRecoveryTargetService.Actions.CLEAN_FILES.equals(action) && blockRecovery.tryAcquire()) {
+                phase1ReadyBlocked.countDown();
+                try {
+                    allowToCompletePhase1Latch.await();
+                } catch (InterruptedException e) {
+                    throw new AssertionError(e);
+                }
+            }
+            connection.sendRequest(requestId, action, request, options);
+        });
+        try {
+            String nodeWithReplica = internalCluster().startDataOnlyNode();
+            assertAcked(
+                client().admin()
+                    .indices()
+                    .prepareUpdateSettings(indexName)
+                    .setSettings(
+                        Settings.builder()
+                            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+                            .put("index.routing.allocation.include._name", nodeWithPrimary + "," + nodeWithReplica)
+                    )
+            );
+            phase1ReadyBlocked.await();
+            internalCluster().restartNode(
+                clusterService().state().nodes().getClusterManagerNode().getName(),
+                new InternalTestCluster.RestartCallback()
+            );
+            internalCluster().ensureAtLeastNumDataNodes(3);
+            assertAcked(
+                client().admin()
+                    .indices()
+                    .prepareUpdateSettings(indexName)
+                    .setSettings(
+                        Settings.builder()
+                            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 2)
+                            .putNull("index.routing.allocation.include._name")
+                    )
+            );
+
+            ClusterState state = client().admin().cluster().prepareState().get().getState();
+            assertTrue(
+                state.routingTable().index(indexName).shardsWithState(ShardRoutingState.UNASSIGNED).size() == 1
+                    && state.routingTable().index(indexName).shardsWithState(ShardRoutingState.INITIALIZING).size() == 1
+            );
+            /*
+            Shard assignment is stuck because recovery is blocked at CLEAN_FILES stage. Once, it times out after 60s the replica shards get assigned.
+            https://github.com/opensearch-project/OpenSearch/issues/18098.
+
+            Stack trace:
+            Caused by: org.opensearch.transport.ReceiveTimeoutTransportException: [node_t3][127.0.0.1:56648][internal:index/shard/recovery/clean_files] request_id [20] timed out after [60026ms]
+            at org.opensearch.transport.TransportService$TimeoutHandler.run(TransportService.java:1399) ~[main/:?]
+             */
+            ensureGreen(TimeValue.timeValueSeconds(62), indexName);
+        } finally {
+            allowToCompletePhase1Latch.countDown();
+        }
     }
 
     public void testRecoverLocallyUpToGlobalCheckpoint() throws Exception {

@@ -43,6 +43,11 @@ import io.netty.handler.codec.http.FullHttpRequest;
 
 @ChannelHandler.Sharable
 class Netty4HttpRequestCreator extends MessageToMessageDecoder<FullHttpRequest> {
+    private final HttpResponseHeadersFactory responseHeadersFactory;
+
+    Netty4HttpRequestCreator(HttpResponseHeadersFactory responseHeadersFactory) {
+        this.responseHeadersFactory = responseHeadersFactory;
+    }
 
     @Override
     protected void decode(ChannelHandlerContext ctx, FullHttpRequest msg, List<Object> out) {
@@ -55,9 +60,9 @@ class Netty4HttpRequestCreator extends MessageToMessageDecoder<FullHttpRequest> 
             } else {
                 nonError = (Exception) cause;
             }
-            out.add(new Netty4HttpRequest(msg.retain(), nonError));
+            out.add(new Netty4HttpRequest(msg.retain(), nonError, responseHeadersFactory));
         } else {
-            out.add(new Netty4HttpRequest(msg.retain()));
+            out.add(new Netty4HttpRequest(msg.retain(), responseHeadersFactory));
         }
     }
 }

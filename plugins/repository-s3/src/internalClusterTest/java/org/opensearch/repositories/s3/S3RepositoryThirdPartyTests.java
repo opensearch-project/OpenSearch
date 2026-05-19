@@ -31,6 +31,8 @@
 
 package org.opensearch.repositories.s3;
 
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
+
 import software.amazon.awssdk.services.s3.model.StorageClass;
 
 import org.opensearch.common.SuppressForbidden;
@@ -42,6 +44,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.repositories.AbstractThirdPartyRepositoryTestCase;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
+import org.opensearch.secure_sm.AccessController;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.junit.Before;
 
@@ -53,20 +56,21 @@ import java.util.concurrent.TimeUnit;
 import static org.hamcrest.Matchers.blankOrNullString;
 import static org.hamcrest.Matchers.not;
 
+@ThreadLeakFilters(filters = EventLoopThreadFilter.class)
 public class S3RepositoryThirdPartyTests extends AbstractThirdPartyRepositoryTestCase {
 
     @Override
     @Before
     @SuppressForbidden(reason = "Need to set system property here for AWS SDK v2")
     public void setUp() throws Exception {
-        SocketAccess.doPrivileged(() -> System.setProperty("opensearch.path.conf", "config"));
+        AccessController.doPrivileged(() -> System.setProperty("opensearch.path.conf", "config"));
         super.setUp();
     }
 
     @Override
     @SuppressForbidden(reason = "Need to reset system property here for AWS SDK v2")
     public void tearDown() throws Exception {
-        SocketAccess.doPrivileged(() -> System.clearProperty("opensearch.path.conf"));
+        AccessController.doPrivileged(() -> System.clearProperty("opensearch.path.conf"));
         super.tearDown();
     }
 
@@ -94,6 +98,9 @@ public class S3RepositoryThirdPartyTests extends AbstractThirdPartyRepositoryTes
             .put("region", System.getProperty("test.s3.region", "us-west-2"))
             .put("base_path", System.getProperty("test.s3.base", "testpath"));
         final String endpoint = System.getProperty("test.s3.endpoint");
+        final boolean pathStyleAccess = Boolean.parseBoolean(System.getProperty("test.s3.path_style_access"));
+        settings.put("path_style_access", pathStyleAccess);
+
         if (endpoint != null) {
             settings.put("endpoint", endpoint);
         } else {
@@ -110,7 +117,7 @@ public class S3RepositoryThirdPartyTests extends AbstractThirdPartyRepositoryTes
                 settings.put("storage_class", storageClass);
             }
         }
-        OpenSearchIntegTestCase.putRepository(client().admin().cluster(), "test-repo", "s3", settings);
+        OpenSearchIntegTestCase.putRepository(client().admin().cluster(), repoName, "s3", settings);
     }
 
     @Override

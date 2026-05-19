@@ -10,4 +10,11 @@ grant {
   // allow to test Security policy and codebases
   permission java.util.PropertyPermission "*", "read,write";
   permission java.security.SecurityPermission "createPolicy.JavaPolicy";
+  permission java.security.SecurityPermission "insertProvider";
+  permission java.net.NetPermission "accessUnixDomainSocket";
+};
+
+grant codeBase "${codebase.framework}" {
+  permission java.net.NetPermission "accessUnixDomainSocket";
+  permission java.net.SocketPermission "*", "accept,connect";
 };

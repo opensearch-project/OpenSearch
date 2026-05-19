@@ -70,7 +70,11 @@ public class MergeStats implements Writeable, ToXContentFragment {
 
     private long unreferencedFileCleanUpsPerformed;
 
-    public MergeStats() {}
+    private final MergedSegmentWarmerStats warmerStats;
+
+    public MergeStats() {
+        this.warmerStats = new MergedSegmentWarmerStats();
+    }
 
     public MergeStats(StreamInput in) throws IOException {
         total = in.readVLong();
@@ -87,6 +91,11 @@ public class MergeStats implements Writeable, ToXContentFragment {
         if (in.getVersion().onOrAfter(Version.V_2_11_0)) {
             unreferencedFileCleanUpsPerformed = in.readOptionalVLong();
         }
+        if (in.getVersion().onOrAfter(Version.V_3_4_0)) {
+            this.warmerStats = new MergedSegmentWarmerStats(in);
+        } else {
+            this.warmerStats = new MergedSegmentWarmerStats();
+        }
     }
 
     public void add(
@@ -100,6 +109,34 @@ public class MergeStats implements Writeable, ToXContentFragment {
         long stoppedTimeMillis,
         long throttledTimeMillis,
         double mbPerSecAutoThrottle
+    ) {
+        add(
+            totalMerges,
+            totalMergeTime,
+            totalNumDocs,
+            totalSizeInBytes,
+            currentMerges,
+            currentNumDocs,
+            currentSizeInBytes,
+            stoppedTimeMillis,
+            throttledTimeMillis,
+            mbPerSecAutoThrottle,
+            new MergedSegmentWarmerStats()
+        );
+    }
+
+    public void add(
+        long totalMerges,
+        long totalMergeTime,
+        long totalNumDocs,
+        long totalSizeInBytes,
+        long currentMerges,
+        long currentNumDocs,
+        long currentSizeInBytes,
+        long stoppedTimeMillis,
+        long throttledTimeMillis,
+        double mbPerSecAutoThrottle,
+        MergedSegmentWarmerStats mergedSegmentWarmerStats
     ) {
         this.total += totalMerges;
         this.totalTimeInMillis += totalMergeTime;
@@ -116,6 +153,15 @@ public class MergeStats implements Writeable, ToXContentFragment {
         } else {
             this.totalBytesPerSecAutoThrottle += bytesPerSecAutoThrottle;
         }
+        this.add(mergedSegmentWarmerStats);
+    }
+
+    public void add(MergedSegmentWarmerStats warmerStats) {
+        if (this.warmerStats == null) {
+            return;
+        }
+        this.warmerStats.add(warmerStats);
+        this.warmerStats.addTotals(warmerStats);
     }
 
     public void add(MergeStats mergeStats) {
@@ -126,6 +172,7 @@ public class MergeStats implements Writeable, ToXContentFragment {
         this.currentNumDocs += mergeStats.currentNumDocs;
         this.currentSizeInBytes += mergeStats.currentSizeInBytes;
 
+        this.warmerStats.add(mergeStats.warmerStats);
         addTotals(mergeStats);
     }
 
@@ -145,6 +192,7 @@ public class MergeStats implements Writeable, ToXContentFragment {
         } else {
             this.totalBytesPerSecAutoThrottle += mergeStats.totalBytesPerSecAutoThrottle;
         }
+        this.warmerStats.addTotals(mergeStats.warmerStats);
     }
 
     public void addUnreferencedFileCleanUpStats(long unreferencedFileCleanUpsPerformed) {
@@ -239,6 +287,10 @@ public class MergeStats implements Writeable, ToXContentFragment {
         return new ByteSizeValue(currentSizeInBytes);
     }
 
+    public MergedSegmentWarmerStats getWarmerStats() {
+        return warmerStats;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(Fields.MERGES);
@@ -256,6 +308,7 @@ public class MergeStats implements Writeable, ToXContentFragment {
         }
         builder.field(Fields.TOTAL_THROTTLE_BYTES_PER_SEC_IN_BYTES, totalBytesPerSecAutoThrottle);
         builder.field(Fields.UNREFERENCED_FILE_CLEANUPS_PERFORMED, unreferencedFileCleanUpsPerformed);
+        this.warmerStats.toXContent(builder, params);
         builder.endObject();
         return builder;
     }
@@ -301,6 +354,9 @@ public class MergeStats implements Writeable, ToXContentFragment {
         out.writeVLong(totalBytesPerSecAutoThrottle);
         if (out.getVersion().onOrAfter(Version.V_2_11_0)) {
             out.writeOptionalVLong(unreferencedFileCleanUpsPerformed);
+        }
+        if (out.getVersion().onOrAfter(Version.V_3_4_0)) {
+            this.warmerStats.writeTo(out);
         }
     }
 }

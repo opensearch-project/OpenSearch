@@ -135,13 +135,15 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
 
     /**
      * Adds a query that <b>must</b> appear in the matching documents but will
-     * not contribute to scoring. No {@code null} value allowed.
+     * not contribute to scoring. If null value passed, then do nothing and return.
+     * @param filter the filter to add to the current ConstantScoreQuery
+     * @return query builder with filter combined
      */
-    public BoolQueryBuilder filter(QueryBuilder queryBuilder) {
-        if (queryBuilder == null) {
-            throw new IllegalArgumentException("inner bool query clause cannot be null");
+    public BoolQueryBuilder filter(QueryBuilder filter) {
+        if (validateFilterParams(filter) == false) {
+            return this;
         }
-        filterClauses.add(queryBuilder);
+        filterClauses.add(filter);
         return this;
     }
 
@@ -393,7 +395,9 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
 
         if (changed) {
             newBuilder.adjustPureNegative = adjustPureNegative;
-            newBuilder.minimumShouldMatch = minimumShouldMatch;
+            if (minimumShouldMatch != null) {
+                newBuilder.minimumShouldMatch = minimumShouldMatch;
+            }
             newBuilder.boost(boost());
             newBuilder.queryName(queryName());
             return newBuilder;
@@ -457,5 +461,4 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
         }
 
     }
-
 }

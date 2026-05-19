@@ -31,14 +31,22 @@
 
 package org.opensearch.index.mapper;
 
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.common.geo.GeoUtils;
 import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.common.xcontent.XContentHelper;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.hamcrest.CoreMatchers;
 
 import java.io.IOException;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import static org.opensearch.geometry.utils.Geohash.stringEncode;
@@ -53,6 +61,8 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class GeoPointFieldMapperTests extends FieldMapperTestCase2<GeoPointFieldMapper.Builder> {
+
+    private static final String FIELD_NAME = "field";
 
     @Override
     protected Set<String> unsupportedProperties() {
@@ -408,5 +418,256 @@ public class GeoPointFieldMapperTests extends FieldMapperTestCase2<GeoPointField
     @Override
     protected GeoPointFieldMapper.Builder newBuilder() {
         return new GeoPointFieldMapper.Builder("geo");
+    }
+
+    public void testPossibleToDeriveSource_WhenDocValuesAndStoredDisabled() throws IOException {
+        GeoPointFieldMapper mapper = getMapper(getMapperService(false, false), FieldMapper.CopyTo.empty());
+        assertThrows(UnsupportedOperationException.class, mapper::canDeriveSource);
+    }
+
+    public void testPossibleToDeriveSource_WhenCopyToPresent() throws IOException {
+        FieldMapper.CopyTo copyTo = new FieldMapper.CopyTo.Builder().add("copy_to_field").build();
+        GeoPointFieldMapper mapper = getMapper(getMapperService(true, false), copyTo);
+        assertThrows(UnsupportedOperationException.class, mapper::canDeriveSource);
+    }
+
+    public void testDerivedValueFetching_DocValues_GeoHash() throws IOException {
+        try (Directory directory = newDirectory()) {
+            MapperService mapperService = getMapperService(true, false); // doc values
+            GeoPointFieldMapper mapper = getMapper(mapperService, FieldMapper.CopyTo.empty());
+            try (IndexWriter iw = new IndexWriter(directory, new IndexWriterConfig())) {
+                ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.field(FIELD_NAME, stringEncode(1.3, 1.2))));
+                iw.addDocument(doc.rootDoc());
+            }
+            validateDerivedSource(mapper, directory);
+        }
+    }
+
+    public void testDerivedValueFetching_StoredField_GeoHash() throws IOException {
+        try (Directory directory = newDirectory()) {
+            MapperService mapperService = getMapperService(false, true); // doc values
+            GeoPointFieldMapper mapper = getMapper(mapperService, FieldMapper.CopyTo.empty());
+            try (IndexWriter iw = new IndexWriter(directory, new IndexWriterConfig())) {
+                ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.field(FIELD_NAME, stringEncode(1.3, 1.2))));
+                iw.addDocument(doc.rootDoc());
+            }
+            validateDerivedSource(mapper, directory);
+        }
+    }
+
+    public void testDerivedValueFetching_DocValues_Point() throws IOException {
+        try (Directory directory = newDirectory()) {
+            MapperService mapperService = getMapperService(true, false); // doc values
+            GeoPointFieldMapper mapper = getMapper(mapperService, FieldMapper.CopyTo.empty());
+            try (IndexWriter iw = new IndexWriter(directory, new IndexWriterConfig())) {
+                ParsedDocument doc = mapperService.documentMapper()
+                    .parse(source(b -> b.startObject(FIELD_NAME).field("lat", 1.2).field("lon", 1.3).endObject()));
+                iw.addDocument(doc.rootDoc());
+            }
+            validateDerivedSource(mapper, directory);
+        }
+    }
+
+    public void testDerivedValueFetching_StoredField_Point() throws IOException {
+        try (Directory directory = newDirectory()) {
+            MapperService mapperService = getMapperService(false, true); // doc values
+            GeoPointFieldMapper mapper = getMapper(mapperService, FieldMapper.CopyTo.empty());
+            try (IndexWriter iw = new IndexWriter(directory, new IndexWriterConfig())) {
+                ParsedDocument doc = mapperService.documentMapper()
+                    .parse(source(b -> b.startObject(FIELD_NAME).field("lat", 1.2).field("lon", 1.3).endObject()));
+                iw.addDocument(doc.rootDoc());
+            }
+            validateDerivedSource(mapper, directory);
+        }
+    }
+
+    public void testDerivedValueFetching_DocValues_String() throws IOException {
+        try (Directory directory = newDirectory()) {
+            MapperService mapperService = getMapperService(true, false); // doc values
+            GeoPointFieldMapper mapper = getMapper(mapperService, FieldMapper.CopyTo.empty());
+            try (IndexWriter iw = new IndexWriter(directory, new IndexWriterConfig())) {
+                ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.field(FIELD_NAME, "1.2,1.3")));
+                iw.addDocument(doc.rootDoc());
+            }
+            validateDerivedSource(mapper, directory);
+        }
+    }
+
+    public void testDerivedValueFetching_StoredField_String() throws IOException {
+        try (Directory directory = newDirectory()) {
+            MapperService mapperService = getMapperService(false, true); // doc values
+            GeoPointFieldMapper mapper = getMapper(mapperService, FieldMapper.CopyTo.empty());
+            try (IndexWriter iw = new IndexWriter(directory, new IndexWriterConfig())) {
+                ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.field(FIELD_NAME, "1.2,1.3")));
+                iw.addDocument(doc.rootDoc());
+            }
+            validateDerivedSource(mapper, directory);
+        }
+    }
+
+    public void testDerivedValueFetching_DocValues_Array() throws IOException {
+        try (Directory directory = newDirectory()) {
+            MapperService mapperService = getMapperService(true, false); // doc values
+            GeoPointFieldMapper mapper = getMapper(mapperService, FieldMapper.CopyTo.empty());
+            try (IndexWriter iw = new IndexWriter(directory, new IndexWriterConfig())) {
+                ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.field(FIELD_NAME, new double[] { 1.3, 1.2 })));
+                iw.addDocument(doc.rootDoc());
+            }
+            validateDerivedSource(mapper, directory);
+        }
+    }
+
+    public void testDerivedValueFetching_StoredField_Array() throws IOException {
+        try (Directory directory = newDirectory()) {
+            MapperService mapperService = getMapperService(false, true); // doc values
+            GeoPointFieldMapper mapper = getMapper(mapperService, FieldMapper.CopyTo.empty());
+            try (IndexWriter iw = new IndexWriter(directory, new IndexWriterConfig())) {
+                ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.field(FIELD_NAME, new double[] { 1.3, 1.2 })));
+                iw.addDocument(doc.rootDoc());
+            }
+            validateDerivedSource(mapper, directory);
+        }
+    }
+
+    public void testDerivedValueFetching_DocValues_WKT() throws IOException {
+        try (Directory directory = newDirectory()) {
+            MapperService mapperService = getMapperService(true, false); // doc values
+            GeoPointFieldMapper mapper = getMapper(mapperService, FieldMapper.CopyTo.empty());
+            try (IndexWriter iw = new IndexWriter(directory, new IndexWriterConfig())) {
+                ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.field(FIELD_NAME, "POINT (1.3 1.2)")));
+                iw.addDocument(doc.rootDoc());
+            }
+            validateDerivedSource(mapper, directory);
+        }
+    }
+
+    public void testDerivedValueFetching_StoredField_WKT() throws IOException {
+        try (Directory directory = newDirectory()) {
+            MapperService mapperService = getMapperService(false, true); // doc values
+            GeoPointFieldMapper mapper = getMapper(mapperService, FieldMapper.CopyTo.empty());
+            try (IndexWriter iw = new IndexWriter(directory, new IndexWriterConfig())) {
+                ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.field(FIELD_NAME, "POINT (1.3 1.2)")));
+                iw.addDocument(doc.rootDoc());
+            }
+            validateDerivedSource(mapper, directory);
+        }
+    }
+
+    public void testDerivedValueFetching_DocValues_Coordinates() throws IOException {
+        try (Directory directory = newDirectory()) {
+            MapperService mapperService = getMapperService(true, false); // doc values
+            GeoPointFieldMapper mapper = getMapper(mapperService, FieldMapper.CopyTo.empty());
+            try (IndexWriter iw = new IndexWriter(directory, new IndexWriterConfig())) {
+                ParsedDocument doc = mapperService.documentMapper()
+                    .parse(
+                        source(
+                            b -> b.startObject(FIELD_NAME)
+                                .field("type", "Point")
+                                .field("coordinates", new double[] { 1.3, 1.2 })
+                                .endObject()
+                        )
+                    );
+                iw.addDocument(doc.rootDoc());
+            }
+            validateDerivedSource(mapper, directory);
+        }
+    }
+
+    public void testDerivedValueFetching_StoredField_Coordinates() throws IOException {
+        try (Directory directory = newDirectory()) {
+            MapperService mapperService = getMapperService(false, true); // doc values
+            GeoPointFieldMapper mapper = getMapper(mapperService, FieldMapper.CopyTo.empty());
+            try (IndexWriter iw = new IndexWriter(directory, new IndexWriterConfig())) {
+                ParsedDocument doc = mapperService.documentMapper()
+                    .parse(
+                        source(
+                            b -> b.startObject(FIELD_NAME)
+                                .field("type", "Point")
+                                .field("coordinates", new double[] { 1.3, 1.2 })
+                                .endObject()
+                        )
+                    );
+                iw.addDocument(doc.rootDoc());
+            }
+            validateDerivedSource(mapper, directory);
+        }
+    }
+
+    public void testDerivedValueFetching_DocValues_Multi() throws IOException {
+        try (Directory directory = newDirectory()) {
+            MapperService mapperService = getMapperService(true, false); // doc values
+            GeoPointFieldMapper mapper = getMapper(mapperService, FieldMapper.CopyTo.empty());
+            try (IndexWriter iw = new IndexWriter(directory, new IndexWriterConfig())) {
+                ParsedDocument doc = mapperService.documentMapper()
+                    .parse(source(b -> b.field(FIELD_NAME, new String[] { stringEncode(1.3, 1.2), stringEncode(1.2, 1.1) })));
+                iw.addDocument(doc.rootDoc());
+            }
+            validateDerivedSourceMultiField(mapper, directory, false);
+        }
+    }
+
+    public void testDerivedValueFetching_StoredField_Multi() throws IOException {
+        try (Directory directory = newDirectory()) {
+            MapperService mapperService = getMapperService(false, true); // doc values
+            GeoPointFieldMapper mapper = getMapper(mapperService, FieldMapper.CopyTo.empty());
+            try (IndexWriter iw = new IndexWriter(directory, new IndexWriterConfig())) {
+                ParsedDocument doc = mapperService.documentMapper()
+                    .parse(source(b -> b.field(FIELD_NAME, new String[] { stringEncode(1.3, 1.2), stringEncode(1.2, 1.1) })));
+                iw.addDocument(doc.rootDoc());
+            }
+            validateDerivedSourceMultiField(mapper, directory, true);
+        }
+    }
+
+    private void validateDerivedSource(GeoPointFieldMapper mapper, Directory directory) throws IOException {
+        try (DirectoryReader reader = DirectoryReader.open(directory)) {
+            XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
+            mapper.deriveSource(builder, reader.leaves().get(0).reader(), 0);
+            builder.endObject();
+            Map<String, Object> jsonObject = XContentHelper.convertToMap(BytesReference.bytes(builder), false, builder.contentType()).v2();
+            assertTrue(jsonObject.containsKey(FIELD_NAME));
+            Map<String, Object> latLon = (Map<String, Object>) jsonObject.get(FIELD_NAME);
+            assertEquals(1.2, (Double) latLon.get("lat"), 0.001);
+            assertEquals(1.3, (Double) latLon.get("lon"), 0.001);
+        }
+    }
+
+    private void validateDerivedSourceMultiField(GeoPointFieldMapper mapper, Directory directory, boolean isStored) throws IOException {
+        try (DirectoryReader reader = DirectoryReader.open(directory)) {
+            XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
+            mapper.deriveSource(builder, reader.leaves().get(0).reader(), 0);
+            builder.endObject();
+            Map<String, Object> jsonObject = XContentHelper.convertToMap(BytesReference.bytes(builder), false, builder.contentType()).v2();
+            assertTrue(jsonObject.containsKey(FIELD_NAME));
+            List<Map<String, Object>> points = (List<Map<String, Object>>) jsonObject.get(FIELD_NAME);
+            assertEquals(2, points.size());
+            if (isStored) {
+                Map<String, Object> latLon1 = points.get(0);
+                assertEquals(1.2, (Double) latLon1.get("lat"), 0.001);
+                assertEquals(1.3, (Double) latLon1.get("lon"), 0.001);
+                Map<String, Object> latLon2 = points.get(1);
+                assertEquals(1.1, (Double) latLon2.get("lat"), 0.001);
+                assertEquals(1.2, (Double) latLon2.get("lon"), 0.001);
+            } else {
+                Map<String, Object> latLon1 = points.get(0);
+                assertEquals(1.1, (Double) latLon1.get("lat"), 0.001);
+                assertEquals(1.2, (Double) latLon1.get("lon"), 0.001);
+                Map<String, Object> latLon2 = points.get(1);
+                assertEquals(1.2, (Double) latLon2.get("lat"), 0.001);
+                assertEquals(1.3, (Double) latLon2.get("lon"), 0.001);
+            }
+        }
+    }
+
+    private MapperService getMapperService(boolean hasDocValues, boolean isStored) throws IOException {
+        return createMapperService(
+            fieldMapping(b -> b.field("type", "geo_point").field("store", isStored).field("doc_values", hasDocValues))
+        );
+    }
+
+    private GeoPointFieldMapper getMapper(MapperService mapperService, FieldMapper.CopyTo copyTo) throws IOException {
+        GeoPointFieldMapper mapper = (GeoPointFieldMapper) mapperService.documentMapper().mappers().getMapper(FIELD_NAME);
+        mapper.copyTo = copyTo;
+        return mapper;
     }
 }

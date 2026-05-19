@@ -49,6 +49,7 @@ import org.opensearch.common.settings.IndexScopedSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.index.mapper.MappingTransformerRegistry;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
@@ -65,6 +66,7 @@ public class TransportPutIndexTemplateAction extends TransportClusterManagerNode
 
     private final MetadataIndexTemplateService indexTemplateService;
     private final IndexScopedSettings indexScopedSettings;
+    private final MappingTransformerRegistry mappingTransformerRegistry;
 
     @Inject
     public TransportPutIndexTemplateAction(
@@ -74,7 +76,8 @@ public class TransportPutIndexTemplateAction extends TransportClusterManagerNode
         MetadataIndexTemplateService indexTemplateService,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        IndexScopedSettings indexScopedSettings
+        IndexScopedSettings indexScopedSettings,
+        MappingTransformerRegistry mappingTransformerRegistry
     ) {
         super(
             PutIndexTemplateAction.NAME,
@@ -87,6 +90,7 @@ public class TransportPutIndexTemplateAction extends TransportClusterManagerNode
         );
         this.indexTemplateService = indexTemplateService;
         this.indexScopedSettings = indexScopedSettings;
+        this.mappingTransformerRegistry = mappingTransformerRegistry;
     }
 
     @Override
@@ -118,28 +122,33 @@ public class TransportPutIndexTemplateAction extends TransportClusterManagerNode
         final Settings.Builder templateSettingsBuilder = Settings.builder();
         templateSettingsBuilder.put(request.settings()).normalizePrefix(IndexMetadata.INDEX_SETTING_PREFIX);
         indexScopedSettings.validate(templateSettingsBuilder.build(), true); // templates must be consistent with regards to dependencies
-        indexTemplateService.putTemplate(
-            new MetadataIndexTemplateService.PutRequest(cause, request.name()).patterns(request.patterns())
-                .order(request.order())
-                .settings(templateSettingsBuilder.build())
-                .mappings(request.mappings())
-                .aliases(request.aliases())
-                .create(request.create())
-                .clusterManagerTimeout(request.clusterManagerNodeTimeout())
-                .version(request.version()),
+        final String finalCause = cause;
+        final ActionListener<String> mappingTransformListener = ActionListener.wrap(transformedMappings -> {
+            indexTemplateService.putTemplate(
+                new MetadataIndexTemplateService.PutRequest(finalCause, request.name()).patterns(request.patterns())
+                    .order(request.order())
+                    .settings(templateSettingsBuilder.build())
+                    .mappings(transformedMappings)
+                    .aliases(request.aliases())
+                    .create(request.create())
+                    .clusterManagerTimeout(request.clusterManagerNodeTimeout())
+                    .version(request.version()),
 
-            new MetadataIndexTemplateService.PutListener() {
-                @Override
-                public void onResponse(MetadataIndexTemplateService.PutResponse response) {
-                    listener.onResponse(new AcknowledgedResponse(response.acknowledged()));
-                }
+                new MetadataIndexTemplateService.PutListener() {
+                    @Override
+                    public void onResponse(MetadataIndexTemplateService.PutResponse response) {
+                        listener.onResponse(new AcknowledgedResponse(response.acknowledged()));
+                    }
 
-                @Override
-                public void onFailure(Exception e) {
-                    logger.debug(() -> new ParameterizedMessage("failed to put template [{}]", request.name()), e);
-                    listener.onFailure(e);
+                    @Override
+                    public void onFailure(Exception e) {
+                        logger.debug(() -> new ParameterizedMessage("failed to put template [{}]", request.name()), e);
+                        listener.onFailure(e);
+                    }
                 }
-            }
-        );
+            );
+        }, listener::onFailure);
+
+        mappingTransformerRegistry.applyTransformers(request.mappings(), null, mappingTransformListener);
     }
 }

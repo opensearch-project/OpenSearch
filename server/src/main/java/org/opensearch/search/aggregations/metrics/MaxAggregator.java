@@ -35,6 +35,7 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.search.CollectionTerminatedException;
+import org.apache.lucene.search.DocIdStream;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.NumericUtils;
@@ -109,6 +110,23 @@ class MaxAggregator extends NumericMetricsAggregator.SingleValue implements Star
         if (valuesSource == null) {
             return false;
         }
+
+        if (pointConverter != null) {
+            Number segMax = findLeafMaxValue(ctx.reader(), pointField, pointConverter);
+            if (segMax != null) {
+                /*
+                 * There is no parent aggregator (see {@link AggregatorBase#getPointReaderOrNull}
+                 * so the ordinal for the bucket is always 0.
+                 */
+                assert maxes.size() == 1;
+                double max = maxes.get(0);
+                max = Math.max(max, segMax.doubleValue());
+                maxes.set(0, max);
+                // the maximum value has been extracted, we don't need to collect hits on this segment.
+                return true;
+            }
+        }
+
         CompositeIndexFieldInfo supportedStarTree = getSupportedStarTree(this.context.getQueryShardContext());
         if (supportedStarTree != null) {
             if (parent != null && subAggregators.length == 0) {
@@ -132,34 +150,14 @@ class MaxAggregator extends NumericMetricsAggregator.SingleValue implements Star
                 throw new CollectionTerminatedException();
             }
         }
-        if (pointConverter != null) {
-            Number segMax = findLeafMaxValue(ctx.reader(), pointField, pointConverter);
-            if (segMax != null) {
-                /*
-                 * There is no parent aggregator (see {@link AggregatorBase#getPointReaderOrNull}
-                 * so the ordinal for the bucket is always 0.
-                 */
-                assert maxes.size() == 1;
-                double max = maxes.get(0);
-                max = Math.max(max, segMax.doubleValue());
-                maxes.set(0, max);
-                // the maximum value has been extracted, we don't need to collect hits on this segment.
-                throw new CollectionTerminatedException();
-            }
-        }
 
         final BigArrays bigArrays = context.bigArrays();
         final SortedNumericDoubleValues allValues = valuesSource.doubleValues(ctx);
         final NumericDoubleValues values = MultiValueMode.MAX.select(allValues);
         return new LeafBucketCollectorBase(sub, allValues) {
-
             @Override
             public void collect(int doc, long bucket) throws IOException {
-                if (bucket >= maxes.size()) {
-                    long from = maxes.size();
-                    maxes = bigArrays.grow(maxes, bucket + 1);
-                    maxes.fill(from, maxes.size(), Double.NEGATIVE_INFINITY);
-                }
+                growMaxes(bucket);
                 if (values.advanceExact(doc)) {
                     final double value = values.doubleValue();
                     double max = maxes.get(bucket);
@@ -168,6 +166,37 @@ class MaxAggregator extends NumericMetricsAggregator.SingleValue implements Star
                 }
             }
 
+            @Override
+            public void collect(DocIdStream stream, long bucket) throws IOException {
+                growMaxes(bucket);
+                final double[] max = { maxes.get(bucket) };
+                stream.forEach((doc) -> {
+                    if (values.advanceExact(doc)) {
+                        max[0] = Math.max(max[0], values.doubleValue());
+                    }
+                });
+                maxes.set(bucket, max[0]);
+            }
+
+            @Override
+            public void collectRange(int min, int max) throws IOException {
+                growMaxes(0);
+                double maximum = maxes.get(0);
+                for (int doc = min; doc < max; doc++) {
+                    if (values.advanceExact(doc)) {
+                        maximum = Math.max(maximum, values.doubleValue());
+                    }
+                }
+                maxes.set(0, maximum);
+            }
+
+            private void growMaxes(long bucket) {
+                if (bucket >= maxes.size()) {
+                    long from = maxes.size();
+                    maxes = bigArrays.grow(maxes, bucket + 1);
+                    maxes.fill(from, maxes.size(), Double.NEGATIVE_INFINITY);
+                }
+            }
         };
     }
 
@@ -272,5 +301,10 @@ class MaxAggregator extends NumericMetricsAggregator.SingleValue implements Star
             },
             (bucket, metricValue) -> maxes.set(bucket, Math.max(maxes.get(bucket), (NumericUtils.sortableLongToDouble(metricValue))))
         );
+    }
+
+    @Override
+    public void doReset() {
+        maxes.fill(0, maxes.size(), Double.NEGATIVE_INFINITY);
     }
 }

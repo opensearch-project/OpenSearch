@@ -50,12 +50,14 @@ import org.opensearch.core.common.util.CollectionUtils;
 import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.index.IndexSettings;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.query.QueryShardException;
 import org.opensearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -182,6 +184,11 @@ public class SourceFieldMapper extends MetadataFieldMapper {
 
         @Override
         public SourceFieldMapper build(BuilderContext context) {
+            if (context.indexSettings().getAsBoolean(IndexSettings.INDEX_DERIVED_SOURCE_SETTING.getKey(), false) && !enabled.getValue()) {
+                throw new MapperParsingException(
+                    "_source can't be disabled with " + IndexSettings.INDEX_DERIVED_SOURCE_SETTING.getKey() + " enabled index setting"
+                );
+            }
             return new SourceFieldMapper(
                 enabled.getValue(),
                 includes.getValue().toArray(new String[0]),
@@ -254,7 +261,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         this.includes = includes;
         this.excludes = excludes;
         final boolean filtered = CollectionUtils.isEmpty(includes) == false || CollectionUtils.isEmpty(excludes) == false;
-        this.filter = enabled && filtered ? XContentMapValues.filter(includes, excludes) : null;
+        this.filter = enabled && filtered ? XContentMapValues.filter(includes, excludes, true) : null;
         this.complete = enabled && CollectionUtils.isEmpty(includes) && CollectionUtils.isEmpty(excludes);
 
         // Set parameters for recovery source
@@ -264,7 +271,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         final boolean recoverySourcefiltered = CollectionUtils.isEmpty(recoverySourceIncludes) == false
             || CollectionUtils.isEmpty(recoverySourceExcludes) == false;
         this.recoverySourceFilter = this.recoverySourceEnabled && recoverySourcefiltered
-            ? XContentMapValues.filter(recoverySourceIncludes, recoverySourceExcludes)
+            ? XContentMapValues.filter(recoverySourceIncludes, recoverySourceExcludes, true)
             : null;
     }
 
@@ -276,8 +283,19 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         return complete;
     }
 
+    public Collection<String> getIncludes() {
+        return List.of(includes);
+    }
+
+    public Collection<String> getExcludes() {
+        return List.of(excludes);
+    }
+
     @Override
     public void preParse(ParseContext context) throws IOException {
+        if (context.indexSettings().isDerivedSourceEnabled()) {
+            return;
+        }
         BytesReference originalSource = context.sourceToParse().source();
         MediaType contentType = context.sourceToParse().getMediaType();
         final BytesReference adaptedSource = applyFilters(originalSource, contentType);

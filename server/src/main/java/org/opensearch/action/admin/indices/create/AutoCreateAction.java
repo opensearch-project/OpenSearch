@@ -35,6 +35,7 @@ import org.opensearch.action.ActionType;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.ActiveShardCount;
 import org.opensearch.action.support.ActiveShardsObserver;
+import org.opensearch.action.support.TransportIndicesResolvingAction;
 import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeAction;
 import org.opensearch.cluster.AckedClusterStateUpdateTask;
 import org.opensearch.cluster.ClusterState;
@@ -49,7 +50,7 @@ import org.opensearch.cluster.metadata.MetadataCreateDataStreamService;
 import org.opensearch.cluster.metadata.MetadataCreateDataStreamService.CreateDataStreamClusterStateUpdateRequest;
 import org.opensearch.cluster.metadata.MetadataCreateIndexService;
 import org.opensearch.cluster.metadata.MetadataIndexTemplateService;
-import org.opensearch.cluster.service.ClusterManagerTaskKeys;
+import org.opensearch.cluster.metadata.ResolvedIndices;
 import org.opensearch.cluster.service.ClusterManagerTaskThrottler;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Priority;
@@ -61,6 +62,8 @@ import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicReference;
+
+import static org.opensearch.cluster.service.ClusterManagerTask.AUTO_CREATE;
 
 /**
  * Api that auto creates an index or data stream that originate from requests that write into an index that doesn't yet exist.
@@ -81,7 +84,9 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
      *
      * @opensearch.internal
      */
-    public static final class TransportAction extends TransportClusterManagerNodeAction<CreateIndexRequest, CreateIndexResponse> {
+    public static final class TransportAction extends TransportClusterManagerNodeAction<CreateIndexRequest, CreateIndexResponse>
+        implements
+            TransportIndicesResolvingAction<CreateIndexRequest> {
 
         private final ActiveShardsObserver activeShardsObserver;
         private final MetadataCreateIndexService createIndexService;
@@ -104,7 +109,7 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
             this.metadataCreateDataStreamService = metadataCreateDataStreamService;
 
             // Task is onboarded for throttling, it will get retried from associated TransportClusterManagerNodeAction.
-            autoCreateTaskKey = clusterService.registerClusterManagerTask(ClusterManagerTaskKeys.AUTO_CREATE_KEY, true);
+            autoCreateTaskKey = clusterService.registerClusterManagerTask(AUTO_CREATE, true);
         }
 
         @Override
@@ -185,6 +190,19 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
         @Override
         protected ClusterBlockException checkBlock(CreateIndexRequest request, ClusterState state) {
             return state.blocks().indexBlockedException(ClusterBlockLevel.METADATA_WRITE, request.index());
+        }
+
+        @Override
+        public ResolvedIndices resolveIndices(CreateIndexRequest request) {
+            ClusterState clusterState = clusterService.state();
+            DataStreamTemplate dataStreamTemplate = resolveAutoCreateDataStream(request, clusterState.metadata());
+
+            if (dataStreamTemplate != null) {
+                // No date math is supported when a data stream is created
+                return ResolvedIndices.of(request.index());
+            } else {
+                return ResolvedIndices.of(indexNameExpressionResolver.resolveDateMathExpression(request.index()));
+            }
         }
     }
 

@@ -26,7 +26,6 @@ import java.util.Optional;
 public class RangeMatchDimFilter implements DimensionFilter {
 
     private final String dimensionName;
-
     private final Object low;
     private final Object high;
     private final boolean includeLow;
@@ -35,7 +34,10 @@ public class RangeMatchDimFilter implements DimensionFilter {
     private Long lowOrdinal;
     private Long highOrdinal;
 
+    // TODO - see if we need to handle this while intersecting
     private boolean skipRangeCollection = false;
+
+    private DimensionFilterMapper dimensionFilterMapper;
 
     public RangeMatchDimFilter(String dimensionName, Object low, Object high, boolean includeLow, boolean includeHigh) {
         this.dimensionName = dimensionName;
@@ -48,9 +50,11 @@ public class RangeMatchDimFilter implements DimensionFilter {
     @Override
     public void initialiseForSegment(StarTreeValues starTreeValues, SearchContext searchContext) {
         skipRangeCollection = false;
-        DimensionFilterMapper dimensionFilterMapper = DimensionFilterMapper.Factory.fromMappedFieldType(
-            searchContext.mapperService().fieldType(dimensionName)
+        this.dimensionFilterMapper = DimensionFilterMapper.Factory.fromMappedFieldType(
+            searchContext.mapperService().fieldType(dimensionName),
+            searchContext
         );
+
         lowOrdinal = 0L;
         if (low != null) {
             MatchType lowMatchType = includeLow ? MatchType.GTE : MatchType.GT;
@@ -77,13 +81,35 @@ public class RangeMatchDimFilter implements DimensionFilter {
     public void matchStarTreeNodes(StarTreeNode parentNode, StarTreeValues starTreeValues, StarTreeNodeCollector collector)
         throws IOException {
         if (parentNode != null && !skipRangeCollection) {
-            parentNode.collectChildrenInRange(lowOrdinal, highOrdinal, collector);
+            parentNode.collectChildrenInRange(lowOrdinal, highOrdinal, collector, dimensionFilterMapper);
         }
     }
 
     @Override
     public boolean matchDimValue(long ordinal, StarTreeValues starTreeValues) {
-        return lowOrdinal <= ordinal && ordinal <= highOrdinal;
+        return dimensionFilterMapper.comparator().compare(lowOrdinal, ordinal) <= 0
+            && dimensionFilterMapper.comparator().compare(ordinal, highOrdinal) <= 0;
+    }
+
+    @Override
+    public String getDimensionName() {
+        return dimensionName;
+    }
+
+    public Object getLow() {
+        return low;
+    }
+
+    public Object getHigh() {
+        return high;
+    }
+
+    public boolean isIncludeLow() {
+        return includeLow;
+    }
+
+    public boolean isIncludeHigh() {
+        return includeHigh;
     }
 
 }

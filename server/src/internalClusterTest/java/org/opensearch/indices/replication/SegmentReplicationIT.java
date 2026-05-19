@@ -16,15 +16,18 @@ import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.Fields;
+import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.StandardDirectoryReader;
+import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.action.admin.cluster.stats.ClusterStatsResponse;
 import org.opensearch.action.admin.indices.alias.Alias;
 import org.opensearch.action.admin.indices.flush.FlushRequest;
+import org.opensearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.opensearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.opensearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.opensearch.action.admin.indices.stats.IndicesStatsResponse;
@@ -41,6 +44,7 @@ import org.opensearch.action.search.PitTestsUtil;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.search.SearchType;
 import org.opensearch.action.support.WriteRequest;
+import org.opensearch.action.support.replication.TransportReplicationAction;
 import org.opensearch.action.termvectors.TermVectorsRequestBuilder;
 import org.opensearch.action.termvectors.TermVectorsResponse;
 import org.opensearch.action.update.UpdateResponse;
@@ -53,12 +57,16 @@ import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.cluster.routing.allocation.command.CancelAllocationCommand;
 import org.opensearch.common.action.ActionFuture;
+import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.set.Sets;
+import org.opensearch.core.common.breaker.CircuitBreaker;
+import org.opensearch.core.common.breaker.CircuitBreakingException;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.IndexModule;
@@ -71,7 +79,9 @@ import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.EngineConfig;
 import org.opensearch.index.engine.NRTReplicationReaderManager;
 import org.opensearch.index.shard.IndexShard;
+import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.indices.recovery.FileChunkRequest;
+import org.opensearch.indices.replication.checkpoint.PublishCheckpointAction;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.node.NodeClosedException;
 import org.opensearch.search.SearchService;
@@ -83,6 +93,7 @@ import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.junit.annotations.TestLogging;
 import org.opensearch.test.transport.MockTransportService;
+import org.opensearch.transport.RemoteTransportException;
 import org.opensearch.transport.TransportService;
 import org.opensearch.transport.client.Requests;
 import org.junit.Before;
@@ -98,6 +109,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
@@ -131,6 +143,240 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
         return randomBoolean() ? INDEX_NAME : "alias";
     }
 
+    public void testLocalSegmentReplicationWithException() throws Exception {
+        // this test stubs transport calls specific to node-node replication.
+        assumeFalse(
+            "Skipping the test as its not compatible with segment replication with remote store.",
+            segmentReplicationWithRemoteEnabled()
+        );
+
+        final String primaryNode = internalCluster().startDataOnlyNode();
+        createIndex(INDEX_NAME);
+        ensureYellowAndNoInitializingShards(INDEX_NAME);
+        final String replicaNode = internalCluster().startDataOnlyNode();
+        ensureGreen(INDEX_NAME);
+
+        MockTransportService primaryTransportService = ((MockTransportService) internalCluster().getInstance(
+            TransportService.class,
+            primaryNode
+        ));
+
+        AtomicBoolean mockException = new AtomicBoolean(true);
+        CountDownLatch latch1 = new CountDownLatch(1);
+        CountDownLatch latch2 = new CountDownLatch(1);
+
+        primaryTransportService.addRequestHandlingBehavior(
+            SegmentReplicationSourceService.Actions.GET_SEGMENT_FILES,
+            (handler, request, channel, task) -> {
+                logger.info(
+                    "replicationId {}, get segment files {}",
+                    ((GetSegmentFilesRequest) request).getReplicationId(),
+                    ((GetSegmentFilesRequest) request).getFilesToFetch().stream().map(StoreFileMetadata::name).collect(Collectors.toList())
+                );
+                if (mockException.get()) {
+                    mockException.set(false);
+                    latch1.countDown();
+                    latch2.await();
+                    throw new CircuitBreakingException("mock circuit break exception", CircuitBreaker.Durability.TRANSIENT);
+                } else {
+                    handler.messageReceived(request, channel, task);
+                }
+            }
+        );
+
+        // generate _0.si
+        client().prepareIndex(INDEX_NAME)
+            .setId(String.valueOf(1))
+            .setSource("foo", "bar")
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+
+        latch1.await();
+
+        MockTransportService replicaTransportService = ((MockTransportService) internalCluster().getInstance(
+            TransportService.class,
+            replicaNode
+        ));
+        replicaTransportService.addRequestHandlingBehavior(
+            PublishCheckpointAction.ACTION_NAME + TransportReplicationAction.REPLICA_ACTION_SUFFIX,
+            (handler, request, channel, task) -> {
+                logger.info("replica receive publish checkpoint request");
+                handler.messageReceived(request, channel, task);
+                latch2.countDown();
+            }
+        );
+
+        // generate _1.si
+        client().prepareIndex(INDEX_NAME)
+            .setId(String.valueOf(2))
+            .setSource("foo2", "bar2")
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+
+        waitForSearchableDocs(2, primaryNode, replicaNode);
+
+        client().prepareIndex(INDEX_NAME)
+            .setId(String.valueOf(3))
+            .setSource("foo3", "bar3")
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+
+        waitForSearchableDocs(3, primaryNode, replicaNode);
+    }
+
+    public void testAcquireLastIndexCommit() throws Exception {
+        final String primaryNode = internalCluster().startDataOnlyNode();
+        createIndex(INDEX_NAME);
+        ensureYellowAndNoInitializingShards(INDEX_NAME);
+        final String replicaNode = internalCluster().startDataOnlyNode();
+        ensureGreen(INDEX_NAME);
+
+        // generate _0.si
+        client().prepareIndex(INDEX_NAME)
+            .setId(String.valueOf(1))
+            .setSource("foo", "bar")
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+
+        // generate _1.si
+        client().prepareIndex(INDEX_NAME)
+            .setId(String.valueOf(2))
+            .setSource("foo2", "bar2")
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+
+        waitForSearchableDocs(2, primaryNode, replicaNode);
+
+        // primary and replica generate index commit
+        IndexShard primaryShard = getIndexShard(primaryNode, INDEX_NAME);
+        primaryShard.flush(new FlushRequest(INDEX_NAME));
+        IndexShard replicaShard = getIndexShard(replicaNode, INDEX_NAME);
+        replicaShard.flush(new FlushRequest(INDEX_NAME));
+
+        logger.info("primary {} acquire last IndexCommit", primaryShard.shardId());
+        GatedCloseable<IndexCommit> primaryIndexCommit = primaryShard.acquireLastIndexCommit(false);
+
+        logger.info("replica {} acquire last IndexCommit", replicaShard.shardId());
+        GatedCloseable<IndexCommit> replicaIndexCommit = replicaShard.acquireLastIndexCommit(false);
+
+        logger.info("Verify that before merge, primary and replica contain _0.si and _1.si");
+        Directory primaryDirectory = primaryShard.store().directory();
+        Set<String> primaryFilesBeforeMerge = Sets.newHashSet(primaryDirectory.listAll());
+        logger.info("primaryFilesBeforeMerge {}: {}", primaryFilesBeforeMerge.size(), primaryFilesBeforeMerge);
+        assertTrue(
+            primaryFilesBeforeMerge.stream().anyMatch(s -> s.startsWith("_0"))
+                && primaryFilesBeforeMerge.stream().anyMatch(s -> s.startsWith("_1"))
+        );
+
+        Directory replicaDirectory = replicaShard.store().directory();
+        Set<String> replicaFilesBeforeMerge = Sets.newHashSet(replicaDirectory.listAll());
+        logger.info("replicaFilesBeforeMerge {}: {}", replicaFilesBeforeMerge.size(), replicaFilesBeforeMerge);
+        assertTrue(
+            replicaFilesBeforeMerge.stream().anyMatch(s -> s.startsWith("_0"))
+                && replicaFilesBeforeMerge.stream().anyMatch(s -> s.startsWith("_1"))
+        );
+
+        // generate _2.si
+        client().admin().indices().forceMerge(new ForceMergeRequest(INDEX_NAME).maxNumSegments(1));
+        waitForSegmentCount(INDEX_NAME, 1, logger);
+        primaryShard.flush(new FlushRequest(INDEX_NAME));
+        replicaShard.flush(new FlushRequest(INDEX_NAME));
+
+        logger.info("Verify that after merge, primary and replica contain _0.si, _1.si and _2.si");
+        Set<String> primaryFilesAfterMerge = Sets.newHashSet(primaryDirectory.listAll());
+        logger.info("primaryFilesAfterMerge {}: {}", primaryFilesAfterMerge.size(), primaryFilesAfterMerge);
+        assertTrue(
+            primaryFilesAfterMerge.stream().anyMatch(s -> s.startsWith("_0"))
+                && primaryFilesAfterMerge.stream().anyMatch(s -> s.startsWith("_1"))
+                && primaryFilesAfterMerge.stream().anyMatch(s -> s.startsWith("_2"))
+        );
+
+        Set<String> replicaFilesAfterMerge = Sets.newHashSet(replicaDirectory.listAll());
+        logger.info("replicaFilesAfterMerge {}: {}", replicaFilesAfterMerge.size(), replicaFilesAfterMerge);
+        assertTrue(
+            replicaFilesAfterMerge.stream().anyMatch(s -> s.startsWith("_0"))
+                && replicaFilesAfterMerge.stream().anyMatch(s -> s.startsWith("_1"))
+                && replicaFilesAfterMerge.stream().anyMatch(s -> s.startsWith("_2"))
+        );
+
+        logger.info("Verify that after close index commit, primary and replica only contain _2.si");
+        primaryIndexCommit.close();
+        Set<String> primaryFilesAfterIndexCommitClose = Sets.newHashSet(primaryDirectory.listAll());
+        logger.info(
+            "primaryFilesAfterIndexCommitClose {}: {}",
+            primaryFilesAfterIndexCommitClose.size(),
+            primaryFilesAfterIndexCommitClose
+        );
+        assertTrue(
+            primaryFilesAfterIndexCommitClose.stream().noneMatch(s -> s.startsWith("_0"))
+                && primaryFilesAfterIndexCommitClose.stream().noneMatch(s -> s.startsWith("_1"))
+                && primaryFilesAfterIndexCommitClose.stream().anyMatch(s -> s.startsWith("_2"))
+        );
+
+        replicaIndexCommit.close();
+        Set<String> replicaFilesAfterIndexCommitClose = Sets.newHashSet(replicaDirectory.listAll());
+        logger.info(
+            "replicaFilesAfterIndexCommitClose {}: {}",
+            replicaFilesAfterIndexCommitClose.size(),
+            replicaFilesAfterIndexCommitClose
+        );
+        assertTrue(
+            replicaFilesAfterIndexCommitClose.stream().noneMatch(s -> s.startsWith("_0"))
+                && replicaFilesAfterIndexCommitClose.stream().noneMatch(s -> s.startsWith("_1"))
+                && replicaFilesAfterIndexCommitClose.stream().anyMatch(s -> s.startsWith("_2"))
+        );
+    }
+
+    public void testRetryPublishCheckPoint() throws Exception {
+        // Reproduce the case where the replica shard cannot synchronize data from the primary shard when there is a network exception.
+        // Test update of configuration PublishCheckpointAction#PUBLISH_CHECK_POINT_RETRY_TIMEOUT.
+        Settings mockNodeSetting = Settings.builder()
+            .put(TransportReplicationAction.REPLICATION_RETRY_TIMEOUT.getKey(), TimeValue.timeValueSeconds(0))
+            .put(PublishCheckpointAction.PUBLISH_CHECK_POINT_RETRY_TIMEOUT.getKey(), TimeValue.timeValueSeconds(0))
+            .build();
+
+        final String primaryNode = internalCluster().startDataOnlyNode(mockNodeSetting);
+        createIndex(INDEX_NAME, Settings.builder().put(indexSettings()).put("index.refresh_interval", -1).build());
+        ensureYellowAndNoInitializingShards(INDEX_NAME);
+        final String replicaNode = internalCluster().startDataOnlyNode(mockNodeSetting);
+        ensureGreen(INDEX_NAME);
+
+        // update publish checkpoint retry time out
+        client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setPersistentSettings(
+                Settings.builder().put(PublishCheckpointAction.PUBLISH_CHECK_POINT_RETRY_TIMEOUT.getKey(), TimeValue.timeValueMinutes(10))
+            )
+            .get();
+
+        // mock network exception
+        MockTransportService replicaTransportService = ((MockTransportService) internalCluster().getInstance(
+            TransportService.class,
+            replicaNode
+        ));
+        AtomicBoolean mockReplicaReceivePublishCheckpointException = new AtomicBoolean(true);
+        replicaTransportService.addRequestHandlingBehavior(
+            PublishCheckpointAction.ACTION_NAME + TransportReplicationAction.REPLICA_ACTION_SUFFIX,
+            (handler, request, channel, task) -> {
+                if (mockReplicaReceivePublishCheckpointException.get()) {
+                    logger.info("mock remote transport exception");
+                    throw new RemoteTransportException("mock remote transport exception", new OpenSearchRejectedExecutionException());
+                }
+                logger.info("replica receive publish checkpoint request");
+                handler.messageReceived(request, channel, task);
+            }
+        );
+
+        client().prepareIndex(INDEX_NAME).setId("1").setSource("foo", "bar").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+        waitForSearchableDocs(0, replicaNode);
+        logger.info("ensure publish checkpoint request can be process");
+        mockReplicaReceivePublishCheckpointException.set(false);
+
+        waitForSearchableDocs(1, primaryNode, replicaNode);
+        replicaTransportService.clearAllRules();
+    }
+
     public void testPrimaryStopped_ReplicaPromoted() throws Exception {
         final String primary = internalCluster().startDataOnlyNode();
         createIndex(INDEX_NAME);
@@ -143,8 +389,11 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
 
         waitForSearchableDocs(1, primary, replica);
 
-        // index another doc but don't refresh, we will ensure this is searchable once replica is promoted.
-        client().prepareIndex(INDEX_NAME).setId("2").setSource("bar", "baz").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+        // index another doc but don't refresh, it should become searchable once the replica is promoted and refreshed there.
+        client().prepareIndex(INDEX_NAME).setId("2").setSource("bar", "baz").setRefreshPolicy(WriteRequest.RefreshPolicy.NONE).get();
+
+        // make sure doc 2 is on the replica realtime GET reads from translog, not search
+        assertBusy(() -> assertTrue(client(replica).prepareGet(INDEX_NAME, "2").setRealtime(true).get().isExists()));
 
         // stop the primary node - we only have one shard on here.
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(primary));
@@ -157,8 +406,12 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
         // new primary should have at least the doc count from the first set of segments.
         assertTrue(response.getHits().getTotalHits().value() >= 1);
 
-        // assert we can index into the new primary.
-        client().prepareIndex(INDEX_NAME).setId("3").setSource("bar", "baz").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+        // assert we can index into the new primary and refresh there, making doc2 searchable too.
+        client(replica).prepareIndex(INDEX_NAME)
+            .setId("3")
+            .setSource("bar", "baz")
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
         assertHitCount(client(replica).prepareSearch(INDEX_NAME).setSize(0).setPreference("_only_local").get(), 3);
 
         // start another node, index another doc and replicate.
@@ -1892,17 +2145,29 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
         // index a doc.
         client().prepareIndex(INDEX_NAME).setId("1").setSource("foo", randomInt()).get();
         refresh(INDEX_NAME);
+        waitForSearchableDocs(1, primaryNode, replicaNode, replicaNode2);
 
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(primaryNode));
         ensureYellowAndNoInitializingShards(INDEX_NAME);
-        IndexShard replica_1 = getIndexShard(replicaNode, INDEX_NAME);
-        IndexShard replica_2 = getIndexShard(replicaNode2, INDEX_NAME);
+        AtomicReference<IndexShard> replica_1 = new AtomicReference<>();
+        AtomicReference<IndexShard> replica_2 = new AtomicReference<>();
         // wait until a replica is promoted & finishes engine flip, we don't care which one
         AtomicReference<IndexShard> primary = new AtomicReference<>();
         assertBusy(() -> {
-            assertTrue("replica should be promoted as a primary", replica_1.routingEntry().primary() || replica_2.routingEntry().primary());
-            primary.set(replica_1.routingEntry().primary() ? replica_1 : replica_2);
-        });
+            IndexShard replicaShard1 = getIndexShard(replicaNode, INDEX_NAME);
+            IndexShard replicaShard2 = getIndexShard(replicaNode2, INDEX_NAME);
+
+            assertNotNull("Replica shard 1 should not be null", replicaShard1);
+            assertNotNull("Replica shard 2 should not be null", replicaShard2);
+
+            replica_1.set(replicaShard1);
+            replica_2.set(replicaShard2);
+            assertTrue(
+                "replica should be promoted as a primary",
+                replica_1.get().routingEntry().primary() || replica_2.get().routingEntry().primary()
+            );
+            primary.set(replica_1.get().routingEntry().primary() ? replica_1.get() : replica_2.get());
+        }, 60, TimeUnit.SECONDS);
 
         FlushRequest request = new FlushRequest(INDEX_NAME);
         request.force(true);
@@ -1910,8 +2175,8 @@ public class SegmentReplicationIT extends SegmentReplicationBaseIT {
 
         assertBusy(() -> {
             assertEquals(
-                replica_1.getLatestReplicationCheckpoint().getSegmentInfosVersion(),
-                replica_2.getLatestReplicationCheckpoint().getSegmentInfosVersion()
+                replica_1.get().getLatestReplicationCheckpoint().getSegmentInfosVersion(),
+                replica_2.get().getLatestReplicationCheckpoint().getSegmentInfosVersion()
             );
         });
 

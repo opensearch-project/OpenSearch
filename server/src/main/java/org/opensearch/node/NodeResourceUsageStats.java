@@ -9,22 +9,33 @@
 package org.opensearch.node;
 
 import org.opensearch.Version;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
+import org.opensearch.core.xcontent.ToXContentFragment;
+import org.opensearch.core.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Locale;
+
+import static org.opensearch.node.NodeResourceUsageStats.Fields.CPU_UTILIZATION_PERCENT;
+import static org.opensearch.node.NodeResourceUsageStats.Fields.IO_USAGE_STATS;
+import static org.opensearch.node.NodeResourceUsageStats.Fields.MEMORY_UTILIZATION_PERCENT;
+import static org.opensearch.node.NodeResourceUsageStats.Fields.NATIVE_MEMORY_UTILIZATION_PERCENT;
+import static org.opensearch.node.NodeResourceUsageStats.Fields.TIMESTAMP;
 
 /**
  * This represents the resource usage stats of a node along with the timestamp at which the stats object was created
  * in the respective node
  */
-public class NodeResourceUsageStats implements Writeable {
+@ExperimentalApi
+public class NodeResourceUsageStats implements Writeable, ToXContentFragment {
     final String nodeId;
     long timestamp;
     double cpuUtilizationPercent;
     double memoryUtilizationPercent;
+    double nativeMemoryUtilizationPercent;
     private IoUsageStats ioUsageStats;
 
     public NodeResourceUsageStats(
@@ -32,13 +43,15 @@ public class NodeResourceUsageStats implements Writeable {
         long timestamp,
         double memoryUtilizationPercent,
         double cpuUtilizationPercent,
-        IoUsageStats ioUsageStats
+        IoUsageStats ioUsageStats,
+        double nativeMemoryUtilizationPercent
     ) {
         this.nodeId = nodeId;
         this.timestamp = timestamp;
         this.cpuUtilizationPercent = cpuUtilizationPercent;
         this.memoryUtilizationPercent = memoryUtilizationPercent;
         this.ioUsageStats = ioUsageStats;
+        this.nativeMemoryUtilizationPercent = nativeMemoryUtilizationPercent;
     }
 
     public NodeResourceUsageStats(StreamInput in) throws IOException {
@@ -51,6 +64,11 @@ public class NodeResourceUsageStats implements Writeable {
         } else {
             this.ioUsageStats = null;
         }
+        if (in.getVersion().onOrAfter(Version.V_3_7_0)) {
+            this.nativeMemoryUtilizationPercent = in.readDouble();
+        } else {
+            this.nativeMemoryUtilizationPercent = 0.0;
+        }
     }
 
     @Override
@@ -62,6 +80,9 @@ public class NodeResourceUsageStats implements Writeable {
         if (out.getVersion().onOrAfter(Version.V_2_13_0)) {
             out.writeOptionalWriteable(this.ioUsageStats);
         }
+        if (out.getVersion().onOrAfter(Version.V_3_7_0)) {
+            out.writeDouble(this.nativeMemoryUtilizationPercent);
+        }
     }
 
     @Override
@@ -71,6 +92,8 @@ public class NodeResourceUsageStats implements Writeable {
         sb.append("Timestamp: ").append(timestamp);
         sb.append(", CPU utilization percent: ").append(String.format(Locale.ROOT, "%.1f", this.getCpuUtilizationPercent()));
         sb.append(", Memory utilization percent: ").append(String.format(Locale.ROOT, "%.1f", this.getMemoryUtilizationPercent()));
+        sb.append(", Native memory utilization percent: ")
+            .append(String.format(Locale.ROOT, "%.1f", this.getNativeMemoryUtilizationPercent()));
         if (this.ioUsageStats != null) {
             sb.append(", ").append(this.getIoUsageStats());
         }
@@ -84,7 +107,8 @@ public class NodeResourceUsageStats implements Writeable {
             nodeResourceUsageStats.timestamp,
             nodeResourceUsageStats.memoryUtilizationPercent,
             nodeResourceUsageStats.cpuUtilizationPercent,
-            nodeResourceUsageStats.ioUsageStats
+            nodeResourceUsageStats.ioUsageStats,
+            nodeResourceUsageStats.nativeMemoryUtilizationPercent
         );
     }
 
@@ -100,11 +124,42 @@ public class NodeResourceUsageStats implements Writeable {
         return ioUsageStats;
     }
 
+    public double getNativeMemoryUtilizationPercent() {
+        return nativeMemoryUtilizationPercent;
+    }
+
     public void setIoUsageStats(IoUsageStats ioUsageStats) {
         this.ioUsageStats = ioUsageStats;
     }
 
     public long getTimestamp() {
         return timestamp;
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject(nodeId);
+        builder.field(TIMESTAMP, timestamp);
+        builder.field(CPU_UTILIZATION_PERCENT, String.format(Locale.ROOT, "%.1f", cpuUtilizationPercent));
+        builder.field(MEMORY_UTILIZATION_PERCENT, String.format(Locale.ROOT, "%.1f", memoryUtilizationPercent));
+        builder.field(NATIVE_MEMORY_UTILIZATION_PERCENT, String.format(Locale.ROOT, "%.1f", nativeMemoryUtilizationPercent));
+        if (ioUsageStats != null) {
+            builder.field(IO_USAGE_STATS, ioUsageStats);
+        }
+        builder.endObject();
+        return builder;
+    }
+
+    /**
+     * Fields used for statistics
+     *
+     * @opensearch.internal
+     */
+    static final class Fields {
+        static final String TIMESTAMP = "timestamp";
+        static final String CPU_UTILIZATION_PERCENT = "cpu_utilization_percent";
+        static final String MEMORY_UTILIZATION_PERCENT = "memory_utilization_percent";
+        static final String NATIVE_MEMORY_UTILIZATION_PERCENT = "native_memory_utilization_percent";
+        static final String IO_USAGE_STATS = "io_usage_stats";
     }
 }

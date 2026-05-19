@@ -10,7 +10,6 @@ package org.opensearch.cache.common.tier;
 
 import org.opensearch.common.cache.ICache;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.Map;
@@ -24,10 +23,8 @@ public class TieredSpilloverCachePluginTests extends OpenSearchTestCase {
         assertEquals(TieredSpilloverCachePlugin.TIERED_CACHE_SPILLOVER_PLUGIN_NAME, tieredSpilloverCachePlugin.getName());
     }
 
-    public void testGetSettingsWithFeatureFlagOn() {
-        TieredSpilloverCachePlugin tieredSpilloverCachePlugin = new TieredSpilloverCachePlugin(
-            Settings.builder().put(FeatureFlags.PLUGGABLE_CACHE_SETTING.getKey(), true).build()
-        );
+    public void testGetSettings() {
+        TieredSpilloverCachePlugin tieredSpilloverCachePlugin = new TieredSpilloverCachePlugin(Settings.builder().build());
         assertFalse(tieredSpilloverCachePlugin.getSettings().isEmpty());
     }
 }

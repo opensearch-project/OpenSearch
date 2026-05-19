@@ -151,8 +151,7 @@ public final class ClassPermission extends BasicPermission {
     @Override
     public boolean implies(Permission p) {
         // check for a special value of STANDARD to imply the basic set
-        if (p != null && p.getClass() == getClass()) {
-            ClassPermission other = (ClassPermission) p;
+        if (p instanceof ClassPermission other) {
             if (STANDARD.equals(getName()) && STANDARD_CLASSES.contains(other.getName())) {
                 return true;
             }

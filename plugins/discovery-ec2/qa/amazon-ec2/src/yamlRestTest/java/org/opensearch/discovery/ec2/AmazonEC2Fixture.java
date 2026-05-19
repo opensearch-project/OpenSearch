@@ -145,7 +145,7 @@ public class AmazonEC2Fixture extends AbstractHttpFixture {
                 + "test"
                 + "\","
                 + "\"SecretAccessKey\": \""
-                + "test"
+                + "ec2_integration_test_secret_key"
                 + "\","
                 + "\"Token\": \""
                 + "test"

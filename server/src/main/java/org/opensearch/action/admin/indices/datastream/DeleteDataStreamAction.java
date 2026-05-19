@@ -38,6 +38,7 @@ import org.opensearch.action.ActionType;
 import org.opensearch.action.IndicesRequest;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.IndicesOptions;
+import org.opensearch.action.support.TransportIndicesResolvingAction;
 import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
 import org.opensearch.action.support.clustermanager.ClusterManagerNodeRequest;
 import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeAction;
@@ -49,7 +50,7 @@ import org.opensearch.cluster.metadata.DataStream;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.MetadataDeleteIndexService;
-import org.opensearch.cluster.service.ClusterManagerTaskKeys;
+import org.opensearch.cluster.metadata.ResolvedIndices;
 import org.opensearch.cluster.service.ClusterManagerTaskThrottler;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Priority;
@@ -75,6 +76,7 @@ import java.util.Objects;
 import java.util.Set;
 
 import static org.opensearch.action.ValidateActions.addValidationError;
+import static org.opensearch.cluster.service.ClusterManagerTask.REMOVE_DATA_STREAM;
 
 /**
  * Transport action for deleting a datastream
@@ -169,7 +171,9 @@ public class DeleteDataStreamAction extends ActionType<AcknowledgedResponse> {
      *
      * @opensearch.internal
      */
-    public static class TransportAction extends TransportClusterManagerNodeAction<Request, AcknowledgedResponse> {
+    public static class TransportAction extends TransportClusterManagerNodeAction<Request, AcknowledgedResponse>
+        implements
+            TransportIndicesResolvingAction<Request> {
 
         private final MetadataDeleteIndexService deleteIndexService;
         private final ClusterManagerTaskThrottler.ThrottlingKey removeDataStreamTaskKey;
@@ -186,7 +190,7 @@ public class DeleteDataStreamAction extends ActionType<AcknowledgedResponse> {
             super(NAME, transportService, clusterService, threadPool, actionFilters, Request::new, indexNameExpressionResolver);
             this.deleteIndexService = deleteIndexService;
             // Task is onboarded for throttling, it will get retried from associated TransportClusterManagerNodeAction.
-            removeDataStreamTaskKey = clusterService.registerClusterManagerTask(ClusterManagerTaskKeys.REMOVE_DATA_STREAM_KEY, true);
+            removeDataStreamTaskKey = clusterService.registerClusterManagerTask(REMOVE_DATA_STREAM, true);
         }
 
         @Override
@@ -235,17 +239,8 @@ public class DeleteDataStreamAction extends ActionType<AcknowledgedResponse> {
         }
 
         static ClusterState removeDataStream(MetadataDeleteIndexService deleteIndexService, ClusterState currentState, Request request) {
-            Set<String> dataStreams = new HashSet<>();
-            Set<String> snapshottingDataStreams = new HashSet<>();
-            for (String name : request.names) {
-                for (String dataStreamName : currentState.metadata().dataStreams().keySet()) {
-                    if (Regex.simpleMatch(name, dataStreamName)) {
-                        dataStreams.add(dataStreamName);
-                    }
-                }
-
-                snapshottingDataStreams.addAll(SnapshotsService.snapshottingDataStreams(currentState, dataStreams));
-            }
+            Set<String> dataStreams = resolveDataStreams(currentState, request);
+            Set<String> snapshottingDataStreams = new HashSet<>(SnapshotsService.snapshottingDataStreams(currentState, dataStreams));
 
             if (snapshottingDataStreams.isEmpty() == false) {
                 throw new SnapshotInProgressException(
@@ -278,6 +273,23 @@ public class DeleteDataStreamAction extends ActionType<AcknowledgedResponse> {
         @Override
         protected ClusterBlockException checkBlock(Request request, ClusterState state) {
             return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
+        }
+
+        @Override
+        public ResolvedIndices resolveIndices(Request request) {
+            return ResolvedIndices.of(resolveDataStreams(clusterService.state(), request));
+        }
+
+        private static Set<String> resolveDataStreams(ClusterState state, Request request) {
+            Set<String> dataStreams = new HashSet<>();
+            for (String name : request.names) {
+                for (String dataStreamName : state.metadata().dataStreams().keySet()) {
+                    if (Regex.simpleMatch(name, dataStreamName)) {
+                        dataStreams.add(dataStreamName);
+                    }
+                }
+            }
+            return dataStreams;
         }
     }
 

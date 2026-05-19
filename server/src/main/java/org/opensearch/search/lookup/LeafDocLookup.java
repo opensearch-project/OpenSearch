@@ -38,10 +38,9 @@ import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.index.fielddata.ScriptDocValues;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.MapperService;
+import org.opensearch.secure_sm.AccessController;
 
 import java.io.IOException;
-import java.security.AccessController;
-import java.security.PrivilegedAction;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
@@ -91,12 +90,7 @@ public class LeafDocLookup implements Map<String, ScriptDocValues<?>> {
             }
             // load fielddata on behalf of the script: otherwise it would need additional permissions
             // to deal with pagedbytes/ramusagestimator/etc
-            scriptValues = AccessController.doPrivileged(new PrivilegedAction<ScriptDocValues<?>>() {
-                @Override
-                public ScriptDocValues<?> run() {
-                    return fieldDataLookup.apply(fieldType).load(reader).getScriptValues();
-                }
-            });
+            scriptValues = AccessController.doPrivileged(() -> fieldDataLookup.apply(fieldType).load(reader).getScriptValues());
             localCacheFieldData.put(fieldName, scriptValues);
         }
         try {

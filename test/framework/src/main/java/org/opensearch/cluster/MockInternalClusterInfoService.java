@@ -38,11 +38,15 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.index.store.remote.filecache.AggregateFileCacheStats;
 import org.opensearch.monitor.fs.FsInfo;
+import org.opensearch.node.NodeResourceUsageStats;
+import org.opensearch.node.NodesResourceUsageStats;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.client.node.NodeClient;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.function.BiFunction;
 import java.util.function.Function;
@@ -60,12 +64,28 @@ public class MockInternalClusterInfoService extends InternalClusterInfoService {
     @Nullable // if no fakery should take place
     private volatile BiFunction<DiscoveryNode, FsInfo.Path, FsInfo.Path> diskUsageFunction;
 
+    @Nullable
+    private AggregateFileCacheStats aggregateFileCacheStats;
+
+    @Nullable // if no fakery should take place
+    private volatile Function<String, NodeResourceUsageStats> resourceUsageFunction;
+
     public MockInternalClusterInfoService(Settings settings, ClusterService clusterService, ThreadPool threadPool, NodeClient client) {
         super(settings, clusterService, threadPool, client);
     }
 
     public void setDiskUsageFunctionAndRefresh(BiFunction<DiscoveryNode, FsInfo.Path, FsInfo.Path> diskUsageFunction) {
         this.diskUsageFunction = diskUsageFunction;
+        refresh();
+    }
+
+    public void setAggregateFileCacheStats(AggregateFileCacheStats aggregateFileCacheStats) {
+        this.aggregateFileCacheStats = aggregateFileCacheStats;
+        refresh();
+    }
+
+    public void setNodeResourceUsageFunctionAndRefresh(Function<String, NodeResourceUsageStats> resourceUsageFunction) {
+        this.resourceUsageFunction = resourceUsageFunction;
         refresh();
     }
 
@@ -83,13 +103,11 @@ public class MockInternalClusterInfoService extends InternalClusterInfoService {
     @Override
     List<NodeStats> adjustNodesStats(List<NodeStats> nodesStats) {
         final BiFunction<DiscoveryNode, FsInfo.Path, FsInfo.Path> diskUsageFunction = this.diskUsageFunction;
-        if (diskUsageFunction == null) {
-            return nodesStats;
-        }
 
         return nodesStats.stream().map(nodeStats -> {
             final DiscoveryNode discoveryNode = nodeStats.getNode();
             final FsInfo oldFsInfo = nodeStats.getFs();
+
             return new NodeStats(
                 discoveryNode,
                 nodeStats.getTimestamp(),
@@ -98,13 +116,15 @@ public class MockInternalClusterInfoService extends InternalClusterInfoService {
                 nodeStats.getProcess(),
                 nodeStats.getJvm(),
                 nodeStats.getThreadPool(),
-                new FsInfo(
-                    oldFsInfo.getTimestamp(),
-                    oldFsInfo.getIoStats(),
-                    StreamSupport.stream(oldFsInfo.spliterator(), false)
-                        .map(fsInfoPath -> diskUsageFunction.apply(discoveryNode, fsInfoPath))
-                        .toArray(FsInfo.Path[]::new)
-                ),
+                this.diskUsageFunction != null
+                    ? new FsInfo(
+                        oldFsInfo.getTimestamp(),
+                        oldFsInfo.getIoStats(),
+                        StreamSupport.stream(oldFsInfo.spliterator(), false)
+                            .map(fsInfoPath -> diskUsageFunction.apply(discoveryNode, fsInfoPath))
+                            .toArray(FsInfo.Path[]::new)
+                    )
+                    : nodeStats.getFs(),
                 nodeStats.getTransport(),
                 nodeStats.getHttp(),
                 nodeStats.getBreaker(),
@@ -112,14 +132,18 @@ public class MockInternalClusterInfoService extends InternalClusterInfoService {
                 nodeStats.getDiscoveryStats(),
                 nodeStats.getIngestStats(),
                 nodeStats.getAdaptiveSelectionStats(),
-                nodeStats.getResourceUsageStats(),
+                this.resourceUsageFunction != null
+                    ? new NodesResourceUsageStats(
+                        Collections.singletonMap(discoveryNode.getId(), resourceUsageFunction.apply(discoveryNode.getId()))
+                    )
+                    : nodeStats.getResourceUsageStats(),
                 nodeStats.getScriptCacheStats(),
                 nodeStats.getIndexingPressureStats(),
                 nodeStats.getShardIndexingPressureStats(),
                 nodeStats.getSearchBackpressureStats(),
                 nodeStats.getClusterManagerThrottlingStats(),
                 nodeStats.getWeightedRoutingStats(),
-                nodeStats.getFileCacheStats(),
+                this.aggregateFileCacheStats != null ? this.aggregateFileCacheStats : nodeStats.getFileCacheStats(),
                 nodeStats.getTaskCancellationStats(),
                 nodeStats.getSearchPipelineStats(),
                 nodeStats.getSegmentReplicationRejectionStats(),
@@ -139,7 +163,8 @@ public class MockInternalClusterInfoService extends InternalClusterInfoService {
                 delegate.shardSizes,
                 delegate.routingToDataPath,
                 delegate.reservedSpace,
-                delegate.nodeFileCacheStats
+                delegate.nodeFileCacheStats,
+                delegate.getNodeResourceUsageStats()
             );
         }
 

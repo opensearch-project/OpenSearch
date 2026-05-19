@@ -18,12 +18,15 @@ import org.opensearch.common.annotation.ExperimentalApi;
 @ExperimentalApi
 public class FileTypeUtils {
 
+    public static String BLOCK_FILE_IDENTIFIER = "_block_";
+    public static String INDICES_FOLDER_IDENTIFIER = "index";
+
     public static boolean isTempFile(String name) {
         return name.endsWith(".tmp");
     }
 
     public static boolean isBlockFile(String name) {
-        return name.contains("_block_");
+        return name.contains(BLOCK_FILE_IDENTIFIER);
     }
 
     public static boolean isExtraFSFile(String name) {
@@ -36,5 +39,14 @@ public class FileTypeUtils {
 
     public static boolean isSegmentsFile(String name) {
         return name.startsWith("segments_");
+    }
+
+    /**
+     * Checks if the file is a corrupted marker file.
+     * @param name the file name
+     * @return true if the file is a corrupted marker file
+     */
+    public static boolean isCorruptedFile(String name) {
+        return name.startsWith("corrupted_");
     }
 }

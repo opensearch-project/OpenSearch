@@ -34,15 +34,14 @@ package org.opensearch.common.settings;
 
 import org.opensearch.common.inject.ModuleTestCase;
 import org.opensearch.common.settings.Setting.Property;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.search.SearchService;
-import org.opensearch.test.FeatureFlagSetter;
 import org.hamcrest.Matchers;
 
 import java.util.Arrays;
 
 import static java.util.Collections.emptySet;
+import static org.opensearch.common.util.FeatureFlags.EXTENSIONS;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
@@ -242,8 +241,8 @@ public class SettingsModuleTests extends ModuleTestCase {
         );
     }
 
+    @LockFeatureFlag(EXTENSIONS)
     public void testDynamicNodeSettingsRegistration() {
-        FeatureFlagSetter.set(FeatureFlags.EXTENSIONS);
         Settings settings = Settings.builder().put("some.custom.setting", "2.0").build();
         SettingsModule module = new SettingsModule(settings, Setting.floatSetting("some.custom.setting", 1.0f, Property.NodeScope));
         assertNotNull(module.getClusterSettings().get("some.custom.setting"));
@@ -263,8 +262,8 @@ public class SettingsModuleTests extends ModuleTestCase {
         );
     }
 
+    @LockFeatureFlag(EXTENSIONS)
     public void testDynamicIndexSettingsRegistration() {
-        FeatureFlagSetter.set(FeatureFlags.EXTENSIONS);
         Settings settings = Settings.builder().put("some.custom.setting", "2.0").build();
         SettingsModule module = new SettingsModule(settings, Setting.floatSetting("some.custom.setting", 1.0f, Property.NodeScope));
         assertNotNull(module.getClusterSettings().get("some.custom.setting"));

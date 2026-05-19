@@ -62,14 +62,25 @@ public class IndexAbstractionResolver {
         Metadata metadata,
         boolean includeDataStreams
     ) {
-        return resolveIndexAbstractions(Arrays.asList(indices), indicesOptions, metadata, includeDataStreams);
+        return resolveIndexAbstractions(indices, indicesOptions, metadata, includeDataStreams, true);
+    }
+
+    public List<String> resolveIndexAbstractions(
+        String[] indices,
+        IndicesOptions indicesOptions,
+        Metadata metadata,
+        boolean includeDataStreams,
+        boolean throwExceptions
+    ) {
+        return resolveIndexAbstractions(Arrays.asList(indices), indicesOptions, metadata, includeDataStreams, throwExceptions);
     }
 
     public List<String> resolveIndexAbstractions(
         Iterable<String> indices,
         IndicesOptions indicesOptions,
         Metadata metadata,
-        boolean includeDataStreams
+        boolean includeDataStreams,
+        boolean throwExceptions
     ) {
         final boolean replaceWildcards = indicesOptions.expandWildcardsOpen() || indicesOptions.expandWildcardsClosed();
         Set<String> availableIndexAbstractions = metadata.getIndicesLookup().keySet();
@@ -79,7 +90,8 @@ public class IndexAbstractionResolver {
             metadata,
             availableIndexAbstractions,
             replaceWildcards,
-            includeDataStreams
+            includeDataStreams,
+            throwExceptions
         );
     }
 
@@ -89,7 +101,8 @@ public class IndexAbstractionResolver {
         Metadata metadata,
         Collection<String> availableIndexAbstractions,
         boolean replaceWildcards,
-        boolean includeDataStreams
+        boolean includeDataStreams,
+        boolean throwExceptions
     ) {
         List<String> finalIndices = new ArrayList<>();
         boolean wildcardSeen = false;
@@ -110,18 +123,29 @@ public class IndexAbstractionResolver {
                 if (replaceWildcards && Regex.isSimpleMatchPattern(dateMathName)) {
                     // continue
                     indexAbstraction = dateMathName;
-                } else if (availableIndexAbstractions.contains(dateMathName)
-                    && isIndexVisible(indexAbstraction, dateMathName, indicesOptions, metadata, includeDataStreams, true)) {
+                } else if (availableIndexAbstractions.contains(dateMathName)) {
+                    if (isIndexVisible(indexAbstraction, dateMathName, indicesOptions, metadata, includeDataStreams, true)) {
                         if (minus) {
                             finalIndices.remove(dateMathName);
                         } else {
                             finalIndices.add(dateMathName);
                         }
-                    } else {
+                    } else if (throwExceptions) {
                         if (indicesOptions.ignoreUnavailable() == false) {
                             throw new IndexNotFoundException(dateMathName);
                         }
                     }
+                } else {
+                    if (!throwExceptions) {
+                        if (minus) {
+                            finalIndices.remove(dateMathName);
+                        } else {
+                            finalIndices.add(dateMathName);
+                        }
+                    } else if (indicesOptions.ignoreUnavailable() == false) {
+                        throw new IndexNotFoundException(dateMathName);
+                    }
+                }
             }
 
             if (replaceWildcards && Regex.isSimpleMatchPattern(indexAbstraction)) {
@@ -135,7 +159,7 @@ public class IndexAbstractionResolver {
                 }
                 if (resolvedIndices.isEmpty()) {
                     // es core honours allow_no_indices for each wildcard expression, we do the same here by throwing index not found.
-                    if (indicesOptions.allowNoIndices() == false) {
+                    if (indicesOptions.allowNoIndices() == false && throwExceptions) {
                         throw new IndexNotFoundException(indexAbstraction);
                     }
                 } else {

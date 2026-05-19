@@ -69,6 +69,9 @@ import org.opensearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.opensearch.action.admin.cluster.node.usage.NodesUsageRequest;
 import org.opensearch.action.admin.cluster.node.usage.NodesUsageRequestBuilder;
 import org.opensearch.action.admin.cluster.node.usage.NodesUsageResponse;
+import org.opensearch.action.admin.cluster.remotestore.metadata.RemoteStoreMetadataRequest;
+import org.opensearch.action.admin.cluster.remotestore.metadata.RemoteStoreMetadataRequestBuilder;
+import org.opensearch.action.admin.cluster.remotestore.metadata.RemoteStoreMetadataResponse;
 import org.opensearch.action.admin.cluster.remotestore.restore.RestoreRemoteStoreRequest;
 import org.opensearch.action.admin.cluster.remotestore.restore.RestoreRemoteStoreResponse;
 import org.opensearch.action.admin.cluster.remotestore.stats.RemoteStoreStatsRequest;
@@ -323,7 +326,7 @@ public interface ClusterAdminClient extends OpenSearchClient {
     NodesStatsRequestBuilder prepareNodesStats(String... nodesIds);
 
     /**
-     * QueryGroup stats of the cluster.
+     * WorkloadGroup stats of the cluster.
      * @param request The wlmStatsRequest
      * @param listener A listener to be notified with a result
      */
@@ -332,6 +335,10 @@ public interface ClusterAdminClient extends OpenSearchClient {
     void remoteStoreStats(RemoteStoreStatsRequest request, ActionListener<RemoteStoreStatsResponse> listener);
 
     RemoteStoreStatsRequestBuilder prepareRemoteStoreStats(String index, String shardId);
+
+    void remoteStoreMetadata(RemoteStoreMetadataRequest request, ActionListener<RemoteStoreMetadataResponse> listener);
+
+    RemoteStoreMetadataRequestBuilder prepareRemoteStoreMetadata(String index, String shardId);
 
     /**
      * Returns top N hot-threads samples per node. The hot-threads are only

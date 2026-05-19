@@ -44,15 +44,19 @@ import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.MetadataIndexTemplateService;
 import org.opensearch.cluster.metadata.Template;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.settings.IndexScopedSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.index.mapper.MappingTransformerRegistry;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
+
+import reactor.util.annotation.NonNull;
 
 /**
  * An action for putting a single component template into the cluster state
@@ -65,6 +69,7 @@ public class TransportPutComponentTemplateAction extends TransportClusterManager
 
     private final MetadataIndexTemplateService indexTemplateService;
     private final IndexScopedSettings indexScopedSettings;
+    private final MappingTransformerRegistry mappingTransformerRegistry;
 
     @Inject
     public TransportPutComponentTemplateAction(
@@ -74,7 +79,8 @@ public class TransportPutComponentTemplateAction extends TransportClusterManager
         MetadataIndexTemplateService indexTemplateService,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        IndexScopedSettings indexScopedSettings
+        IndexScopedSettings indexScopedSettings,
+        MappingTransformerRegistry mappingTransformerRegistry
     ) {
         super(
             PutComponentTemplateAction.NAME,
@@ -87,6 +93,7 @@ public class TransportPutComponentTemplateAction extends TransportClusterManager
         );
         this.indexTemplateService = indexTemplateService;
         this.indexScopedSettings = indexScopedSettings;
+        this.mappingTransformerRegistry = mappingTransformerRegistry;
     }
 
     @Override
@@ -121,13 +128,37 @@ public class TransportPutComponentTemplateAction extends TransportClusterManager
             template = new Template(settings, template.mappings(), template.aliases());
             componentTemplate = new ComponentTemplate(template, componentTemplate.version(), componentTemplate.metadata());
         }
-        indexTemplateService.putComponentTemplate(
-            request.cause(),
-            request.create(),
-            request.name(),
-            request.clusterManagerNodeTimeout(),
-            componentTemplate,
-            listener
-        );
+
+        final ActionListener<String> mappingTransformListener = getMappingTransformListener(request, listener, componentTemplate);
+
+        transformMapping(template, mappingTransformListener);
+    }
+
+    private ActionListener<String> getMappingTransformListener(
+        @NonNull final PutComponentTemplateAction.Request request,
+        @NonNull final ActionListener<AcknowledgedResponse> listener,
+        @NonNull final ComponentTemplate componentTemplate
+    ) {
+        return ActionListener.wrap(transformedMappings -> {
+            if (transformedMappings != null && componentTemplate.template() != null) {
+                componentTemplate.template().setMappings(new CompressedXContent(transformedMappings));
+            }
+            indexTemplateService.putComponentTemplate(
+                request.cause(),
+                request.create(),
+                request.name(),
+                request.clusterManagerNodeTimeout(),
+                componentTemplate,
+                listener
+            );
+        }, listener::onFailure);
+    }
+
+    private void transformMapping(final Template template, @NonNull final ActionListener<String> mappingTransformListener) {
+        if (template == null || template.mappings() == null) {
+            mappingTransformListener.onResponse(null);
+        } else {
+            mappingTransformerRegistry.applyTransformers(template.mappings().string(), null, mappingTransformListener);
+        }
     }
 }

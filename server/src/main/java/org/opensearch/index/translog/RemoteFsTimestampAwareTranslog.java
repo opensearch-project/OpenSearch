@@ -75,7 +75,9 @@ public class RemoteFsTimestampAwareTranslog extends RemoteFsTranslog {
         ThreadPool threadPool,
         BooleanSupplier startedPrimarySupplier,
         RemoteTranslogTransferTracker remoteTranslogTransferTracker,
-        RemoteStoreSettings remoteStoreSettings
+        RemoteStoreSettings remoteStoreSettings,
+        TranslogOperationHelper translogOperationHelper,
+        boolean isServerSideEncryptionEnabled
     ) throws IOException {
         super(
             config,
@@ -88,7 +90,10 @@ public class RemoteFsTimestampAwareTranslog extends RemoteFsTranslog {
             threadPool,
             startedPrimarySupplier,
             remoteTranslogTransferTracker,
-            remoteStoreSettings
+            remoteStoreSettings,
+            translogOperationHelper,
+            null,
+            isServerSideEncryptionEnabled
         );
         logger = Loggers.getLogger(getClass(), shardId);
         this.metadataFilePinnedTimestampMap = new HashMap<>();
@@ -125,20 +130,18 @@ public class RemoteFsTimestampAwareTranslog extends RemoteFsTranslog {
         }
 
         // Update file tracker to reflect local translog state
-        Optional<Long> minLiveGeneration = readers.stream().map(BaseTranslogReader::getGeneration).min(Long::compareTo);
-        if (minLiveGeneration.isPresent()) {
-            List<String> staleFilesInTracker = new ArrayList<>();
-            for (String file : fileTransferTracker.allUploaded()) {
-                if (file.endsWith(TRANSLOG_FILE_SUFFIX)) {
-                    long generation = Translog.parseIdFromFileName(file);
-                    if (generation < minLiveGeneration.get()) {
-                        staleFilesInTracker.add(file);
-                        staleFilesInTracker.add(Translog.getCommitCheckpointFileName(generation));
-                    }
+        long minLiveGeneration = getMinFileGeneration();
+        List<String> staleFilesInTracker = new ArrayList<>();
+        for (String file : fileTransferTracker.allUploaded()) {
+            if (file.endsWith(TRANSLOG_FILE_SUFFIX)) {
+                long generation = Translog.parseIdFromFileName(file);
+                if (generation < minLiveGeneration) {
+                    staleFilesInTracker.add(file);
+                    staleFilesInTracker.add(Translog.getCommitCheckpointFileName(generation));
                 }
-                fileTransferTracker.delete(staleFilesInTracker);
             }
         }
+        fileTransferTracker.delete(staleFilesInTracker);
 
         // This is to ensure that after the permits are acquired during primary relocation, there are no further modification on remote
         // store.
@@ -148,7 +151,7 @@ public class RemoteFsTimestampAwareTranslog extends RemoteFsTranslog {
 
         // This is to fail fast and avoid listing md files un-necessarily.
         if (indexDeleted == false && RemoteStoreUtils.isPinnedTimestampStateStale()) {
-            logger.warn("Skipping remote translog garbage collection as last fetch of pinned timestamp is stale");
+            logger.debug("Skipping remote translog garbage collection as last fetch of pinned timestamp is stale");
             return;
         }
 
@@ -181,7 +184,7 @@ public class RemoteFsTimestampAwareTranslog extends RemoteFsTranslog {
 
                     // Check last fetch status of pinned timestamps. If stale, return.
                     if (indexDeleted == false && RemoteStoreUtils.isPinnedTimestampStateStale()) {
-                        logger.warn("Skipping remote translog garbage collection as last fetch of pinned timestamp is stale");
+                        logger.debug("Skipping remote translog garbage collection as last fetch of pinned timestamp is stale");
                         remoteGenerationDeletionPermits.release(REMOTE_DELETION_PERMITS);
                         return;
                     }
@@ -199,12 +202,22 @@ public class RemoteFsTimestampAwareTranslog extends RemoteFsTranslog {
                         return;
                     }
 
-                    logger.debug(() -> "metadataFilesToBeDeleted = " + metadataFilesToBeDeleted);
+                    logger.debug(
+                        () -> "metadataFilesToBeDeleted count = "
+                            + metadataFilesToBeDeleted.size()
+                            + ", metadataFilesToBeDeleted = "
+                            + metadataFilesToBeDeleted
+                    );
                     // For all the files that we are keeping, fetch min and max generations
                     List<String> metadataFilesNotToBeDeleted = new ArrayList<>(metadataFiles);
-                    metadataFilesNotToBeDeleted.removeAll(metadataFilesToBeDeleted);
+                    metadataFilesNotToBeDeleted.removeAll(new HashSet<>(metadataFilesToBeDeleted));
 
-                    logger.debug(() -> "metadataFilesNotToBeDeleted = " + metadataFilesNotToBeDeleted);
+                    logger.debug(
+                        () -> "metadataFilesNotToBeDeleted count = "
+                            + metadataFilesNotToBeDeleted.size()
+                            + ", metadataFilesNotToBeDeleted = "
+                            + metadataFilesNotToBeDeleted
+                    );
 
                     Set<Long> generationsToBeDeleted = getGenerationsToBeDeleted(
                         metadataFilesNotToBeDeleted,
@@ -370,7 +383,7 @@ public class RemoteFsTimestampAwareTranslog extends RemoteFsTranslog {
                 long maxGeneration = TranslogTransferMetadata.getMaxGenerationFromFileName(md);
                 return maxGeneration == -1 || maxGeneration >= minGenerationToKeepInRemote;
             }).collect(Collectors.toList());
-            metadataFilesToBeDeleted.removeAll(metadataFilesContainingMinGenerationToKeep);
+            metadataFilesToBeDeleted.removeAll(new HashSet<>(metadataFilesContainingMinGenerationToKeep));
 
             logger.trace(
                 "metadataFilesContainingMinGenerationToKeep.size = {}, metadataFilesToBeDeleted based on minGenerationToKeep filtering = {}, minGenerationToKeep = {}",
@@ -569,12 +582,22 @@ public class RemoteFsTimestampAwareTranslog extends RemoteFsTranslog {
                             staticLogger.debug("No metadata files to delete");
                             return;
                         }
-                        staticLogger.debug(() -> "metadataFilesToBeDeleted = " + metadataFilesToBeDeleted);
+                        staticLogger.debug(
+                            () -> "metadataFilesToBeDeleted count = "
+                                + metadataFilesToBeDeleted.size()
+                                + ", metadataFilesToBeDeleted = "
+                                + metadataFilesToBeDeleted
+                        );
 
                         // For all the files that we are keeping, fetch min and max generations
                         List<String> metadataFilesNotToBeDeleted = new ArrayList<>(metadataFiles);
-                        metadataFilesNotToBeDeleted.removeAll(metadataFilesToBeDeleted);
-                        staticLogger.debug(() -> "metadataFilesNotToBeDeleted = " + metadataFilesNotToBeDeleted);
+                        metadataFilesNotToBeDeleted.removeAll(new HashSet<>(metadataFilesToBeDeleted));
+                        staticLogger.debug(
+                            () -> "metadataFilesNotToBeDeleted count = "
+                                + metadataFilesNotToBeDeleted.size()
+                                + ", metadataFilesNotToBeDeleted = "
+                                + metadataFilesNotToBeDeleted
+                        );
 
                         // Delete stale metadata files
                         translogTransferManager.deleteMetadataFilesAsync(metadataFilesToBeDeleted, () -> {});

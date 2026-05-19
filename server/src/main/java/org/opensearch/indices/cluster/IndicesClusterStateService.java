@@ -66,6 +66,7 @@ import org.opensearch.gateway.GatewayService;
 import org.opensearch.index.IndexComponent;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
+import org.opensearch.index.engine.MergedSegmentWarmerFactory;
 import org.opensearch.index.remote.RemoteStoreStatsTrackerFactory;
 import org.opensearch.index.seqno.GlobalCheckpointSyncAction;
 import org.opensearch.index.seqno.ReplicationTracker;
@@ -84,6 +85,8 @@ import org.opensearch.indices.recovery.RecoveryListener;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.indices.replication.SegmentReplicationSourceService;
 import org.opensearch.indices.replication.SegmentReplicationTargetService;
+import org.opensearch.indices.replication.checkpoint.MergedSegmentPublisher;
+import org.opensearch.indices.replication.checkpoint.ReferencedSegmentsPublisher;
 import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.indices.replication.common.ReplicationState;
 import org.opensearch.repositories.RepositoriesService;
@@ -151,6 +154,11 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
 
     private final RemoteStoreStatsTrackerFactory remoteStoreStatsTrackerFactory;
 
+    private final MergedSegmentWarmerFactory mergedSegmentWarmerFactory;
+
+    private final MergedSegmentPublisher mergedSegmentPublisher;
+    private final ReferencedSegmentsPublisher referencedSegmentsPublisher;
+
     @Inject
     public IndicesClusterStateService(
         final Settings settings,
@@ -170,7 +178,10 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         final GlobalCheckpointSyncAction globalCheckpointSyncAction,
         final RetentionLeaseSyncer retentionLeaseSyncer,
         final SegmentReplicationCheckpointPublisher checkpointPublisher,
-        final RemoteStoreStatsTrackerFactory remoteStoreStatsTrackerFactory
+        final RemoteStoreStatsTrackerFactory remoteStoreStatsTrackerFactory,
+        final MergedSegmentWarmerFactory mergedSegmentWarmerFactory,
+        final MergedSegmentPublisher mergedSegmentPublisher,
+        final ReferencedSegmentsPublisher referencedSegmentsPublisher
     ) {
         this(
             settings,
@@ -190,7 +201,10 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             primaryReplicaSyncer,
             globalCheckpointSyncAction::updateGlobalCheckpointForShard,
             retentionLeaseSyncer,
-            remoteStoreStatsTrackerFactory
+            remoteStoreStatsTrackerFactory,
+            mergedSegmentWarmerFactory,
+            mergedSegmentPublisher,
+            referencedSegmentsPublisher
         );
     }
 
@@ -213,7 +227,10 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         final PrimaryReplicaSyncer primaryReplicaSyncer,
         final Consumer<ShardId> globalCheckpointSyncer,
         final RetentionLeaseSyncer retentionLeaseSyncer,
-        final RemoteStoreStatsTrackerFactory remoteStoreStatsTrackerFactory
+        final RemoteStoreStatsTrackerFactory remoteStoreStatsTrackerFactory,
+        final MergedSegmentWarmerFactory mergedSegmentWarmerFactory,
+        final MergedSegmentPublisher mergedSegmentPublisher,
+        final ReferencedSegmentsPublisher referencedSegmentsPublisher
     ) {
         this.settings = settings;
         this.checkpointPublisher = checkpointPublisher;
@@ -238,6 +255,9 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         this.retentionLeaseSyncer = Objects.requireNonNull(retentionLeaseSyncer);
         this.sendRefreshMapping = settings.getAsBoolean("indices.cluster.send_refresh_mapping", true);
         this.remoteStoreStatsTrackerFactory = remoteStoreStatsTrackerFactory;
+        this.mergedSegmentWarmerFactory = mergedSegmentWarmerFactory;
+        this.mergedSegmentPublisher = mergedSegmentPublisher;
+        this.referencedSegmentsPublisher = referencedSegmentsPublisher;
     }
 
     @Override
@@ -681,7 +701,10 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 nodes.getLocalNode(),
                 sourceNode,
                 remoteStoreStatsTrackerFactory,
-                nodes
+                nodes,
+                mergedSegmentWarmerFactory,
+                mergedSegmentPublisher,
+                referencedSegmentsPublisher
             );
         } catch (Exception e) {
             failAndRemoveShard(shardRouting, true, "failed to create shard", e, state);
@@ -718,6 +741,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 indexShardRoutingTable,
                 nodes
             );
+            updateShardIngestionState(shard, indexMetadata, shardRouting);
+
         } catch (Exception e) {
             failAndRemoveShard(shardRouting, true, "failed updating shard routing entry", e, clusterState);
             return;
@@ -749,6 +774,21 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                     clusterState
                 );
             }
+        }
+    }
+
+    /**
+     * Update the ingestion state for the shard using the new metadata.
+     */
+    private void updateShardIngestionState(Shard shard, IndexMetadata indexMetadata, ShardRouting shardRouting) {
+        try {
+            boolean isPrimaryOrAllActiveShard = shardRouting.primary() || indexMetadata.isAllActiveIngestionEnabled();
+            if (indexMetadata.useIngestionSource() && isPrimaryOrAllActiveShard) {
+                shard.updateShardIngestionState(indexMetadata);
+            }
+        } catch (Exception e) {
+            logger.error("Failed to update shard ingestion state", e);
+            throw e;
         }
     }
 
@@ -927,6 +967,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             IndexShardRoutingTable routingTable,
             DiscoveryNodes discoveryNodes
         ) throws IOException;
+
+        default void updateShardIngestionState(IndexMetadata indexMetadata) {};
     }
 
     /**
@@ -1029,6 +1071,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
          * @param targetNode             the node where this shard will be recovered
          * @param sourceNode             the source node to recover this shard from (it might be null)
          * @param remoteStoreStatsTrackerFactory factory for remote store stats trackers
+         * @param mergedSegmentWarmerFactory factory for merged segment warmer
+         * @param mergedSegmentPublisher merged segment publisher
          * @return a new shard
          * @throws IOException if an I/O exception occurs when creating the shard
          */
@@ -1044,7 +1088,10 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             DiscoveryNode targetNode,
             @Nullable DiscoveryNode sourceNode,
             RemoteStoreStatsTrackerFactory remoteStoreStatsTrackerFactory,
-            DiscoveryNodes discoveryNodes
+            DiscoveryNodes discoveryNodes,
+            MergedSegmentWarmerFactory mergedSegmentWarmerFactory,
+            MergedSegmentPublisher mergedSegmentPublisher,
+            ReferencedSegmentsPublisher referencedSegmentsPublisher
         ) throws IOException;
 
         /**

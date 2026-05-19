@@ -60,6 +60,11 @@ final class CompositeValuesCollectorQueue extends PriorityQueue<Integer> impleme
             this.value = initial;
         }
 
+        // This is to be only for reusable slot
+        public void set(int newValue) {
+            this.value = newValue;
+        }
+
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
@@ -81,6 +86,14 @@ final class CompositeValuesCollectorQueue extends PriorityQueue<Integer> impleme
     private final int maxSize;
     private final Map<Slot, Integer> map; // to quickly find the slot for a value
     private final SingleDimensionValuesSource<?>[] arrays;
+
+    /**
+     * A reusable, flyweight Slot instance to avoid object allocation and reduce GC pressure
+     * during map lookups in the high-frequency collect() path. This object is NOT
+     * thread-safe, but is safe here because each collector instance is confined to a
+     * single thread.
+     */
+    private final Slot reusableSlot = new Slot(0);
 
     private LongArray docCounts;
     private boolean afterKeyIsSet = false;
@@ -125,7 +138,8 @@ final class CompositeValuesCollectorQueue extends PriorityQueue<Integer> impleme
      * the slot if the candidate is already in the queue or null if the candidate is not present.
      */
     Integer getCurrentSlot() {
-        return map.get(new Slot(CANDIDATE_SLOT));
+        reusableSlot.set(CANDIDATE_SLOT); // Update the state of the reusable slot
+        return map.get(reusableSlot);     // Use the single reusable slot instance for the lookup
     }
 
     /**
@@ -322,7 +336,8 @@ final class CompositeValuesCollectorQueue extends PriorityQueue<Integer> impleme
         if (size() >= maxSize) {
             // the queue is full, we replace the last key with this candidate
             int slot = pop();
-            map.remove(new Slot(slot));
+            reusableSlot.set(slot);          // Use reusable for remove
+            map.remove(reusableSlot);
             // and we recycle the deleted slot
             newSlot = slot;
         } else {

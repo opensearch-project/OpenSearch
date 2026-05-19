@@ -171,11 +171,98 @@ public class RestThreadPoolAction extends AbstractCatAction {
         table.addCell("max", "alias:mx;default:false;text-align:right;desc:maximum number of threads in a scaling thread pool");
         table.addCell("size", "alias:sz;default:false;text-align:right;desc:number of threads in a fixed thread pool");
         table.addCell("keep_alive", "alias:ka;default:false;text-align:right;desc:thread keep alive time");
+        table.addCell("parallelism", "alias:pl;default:false;text-align:right;desc:number of worker threads in a fork_join thread pool");
         table.endHeaders();
         return table;
     }
 
-    private Table buildTable(RestRequest req, ClusterStateResponse state, NodesInfoResponse nodesInfo, NodesStatsResponse nodesStats) {
+    // NEW: package-private helper to write one row, so tests can call this directly (no reflection).
+    void writeRow(
+        Table table,
+        String nodeName,
+        String nodeId,
+        String ephemeralId,
+        Long pid,
+        String hostName,
+        String hostAddress,
+        int port,
+        String poolName,
+        ThreadPool.Info poolInfo,
+        ThreadPoolStats.Stats poolStats
+    ) {
+        final boolean isForkJoin = poolInfo != null && poolInfo.getThreadPoolType() == ThreadPool.ThreadPoolType.FORK_JOIN;
+
+        table.startRow();
+        table.addCell(nodeName);
+        table.addCell(nodeId);
+        table.addCell(ephemeralId);
+        table.addCell(pid);
+        table.addCell(hostName);
+        table.addCell(hostAddress);
+        table.addCell(port);
+
+        if (isForkJoin) {
+            table.addCell(poolName);
+            table.addCell(poolInfo.getThreadPoolType().getType());
+            table.addCell(0);   // active
+            table.addCell(0);   // pool_size
+            table.addCell(0);   // queue
+            table.addCell(-1);  // queue_size
+            table.addCell(0);   // rejected
+            table.addCell(0);   // largest
+            table.addCell(0);   // completed
+            table.addCell(-1);  // total_wait_time
+            table.addCell(null); // core
+            table.addCell(null); // max
+            table.addCell(null); // size
+            table.addCell(null); // keep_alive
+            table.addCell(poolInfo.getMax()); // parallelism
+        } else {
+            Long maxQueueSize = null;
+            String keepAlive = null;
+            Integer core = null;
+            Integer max = null;
+            Integer size = null;
+
+            if (poolInfo != null) {
+                if (poolInfo.getQueueSize() != null) {
+                    maxQueueSize = poolInfo.getQueueSize().singles();
+                }
+                if (poolInfo.getKeepAlive() != null) {
+                    keepAlive = poolInfo.getKeepAlive().toString();
+                }
+                if (poolInfo.getThreadPoolType() == ThreadPool.ThreadPoolType.SCALING) {
+                    assert poolInfo.getMin() >= 0;
+                    core = poolInfo.getMin();
+                    assert poolInfo.getMax() > 0;
+                    max = poolInfo.getMax();
+                } else {
+                    assert poolInfo.getMin() == poolInfo.getMax() && poolInfo.getMax() > 0;
+                    size = poolInfo.getMax();
+                }
+            }
+
+            table.addCell(poolName);
+            table.addCell(poolInfo == null ? null : poolInfo.getThreadPoolType().getType());
+            table.addCell(poolStats == null ? null : poolStats.getActive());
+            table.addCell(poolStats == null ? null : poolStats.getThreads());
+            table.addCell(poolStats == null ? null : poolStats.getQueue());
+            table.addCell(maxQueueSize == null ? -1 : maxQueueSize);
+            table.addCell(poolStats == null ? null : poolStats.getRejected());
+            table.addCell(poolStats == null ? null : poolStats.getLargest());
+            table.addCell(poolStats == null ? null : poolStats.getCompleted());
+            table.addCell(poolStats == null ? null : poolStats.getWaitTime());
+            table.addCell(core);
+            table.addCell(max);
+            table.addCell(size);
+            table.addCell(keepAlive);
+            table.addCell(null); // parallelism
+        }
+
+        table.endRow();
+    }
+
+    Table buildTable(RestRequest req, ClusterStateResponse state, NodesInfoResponse nodesInfo, NodesStatsResponse nodesStats) {
         final String[] threadPools = req.paramAsStringArray("thread_pool_patterns", new String[] { "*" });
         final DiscoveryNodes nodes = state.getState().nodes();
         final Table table = getTableWithHeader(req);
@@ -225,59 +312,22 @@ public class RestThreadPoolAction extends AbstractCatAction {
 
                 if (!included.contains(entry.getKey())) continue;
 
-                table.startRow();
-
-                table.addCell(node.getName());
-                table.addCell(node.getId());
-                table.addCell(node.getEphemeralId());
-                table.addCell(info == null ? null : info.getInfo(ProcessInfo.class).getId());
-                table.addCell(node.getHostName());
-                table.addCell(node.getHostAddress());
-                table.addCell(node.getAddress().address().getPort());
                 final ThreadPoolStats.Stats poolStats = entry.getValue();
                 final ThreadPool.Info poolInfo = poolThreadInfo.get(entry.getKey());
 
-                Long maxQueueSize = null;
-                String keepAlive = null;
-                Integer core = null;
-                Integer max = null;
-                Integer size = null;
-
-                if (poolInfo != null) {
-                    if (poolInfo.getQueueSize() != null) {
-                        maxQueueSize = poolInfo.getQueueSize().singles();
-                    }
-                    if (poolInfo.getKeepAlive() != null) {
-                        keepAlive = poolInfo.getKeepAlive().toString();
-                    }
-
-                    if (poolInfo.getThreadPoolType() == ThreadPool.ThreadPoolType.SCALING) {
-                        assert poolInfo.getMin() >= 0;
-                        core = poolInfo.getMin();
-                        assert poolInfo.getMax() > 0;
-                        max = poolInfo.getMax();
-                    } else {
-                        assert poolInfo.getMin() == poolInfo.getMax() && poolInfo.getMax() > 0;
-                        size = poolInfo.getMax();
-                    }
-                }
-
-                table.addCell(entry.getKey());
-                table.addCell(poolInfo == null ? null : poolInfo.getThreadPoolType().getType());
-                table.addCell(poolStats == null ? null : poolStats.getActive());
-                table.addCell(poolStats == null ? null : poolStats.getThreads());
-                table.addCell(poolStats == null ? null : poolStats.getQueue());
-                table.addCell(maxQueueSize == null ? -1 : maxQueueSize);
-                table.addCell(poolStats == null ? null : poolStats.getRejected());
-                table.addCell(poolStats == null ? null : poolStats.getLargest());
-                table.addCell(poolStats == null ? null : poolStats.getCompleted());
-                table.addCell(poolStats == null ? null : poolStats.getWaitTime());
-                table.addCell(core);
-                table.addCell(max);
-                table.addCell(size);
-                table.addCell(keepAlive);
-
-                table.endRow();
+                writeRow(
+                    table,
+                    node.getName(),
+                    node.getId(),
+                    node.getEphemeralId(),
+                    info == null ? null : info.getInfo(ProcessInfo.class).getId(),
+                    node.getHostName(),
+                    node.getHostAddress(),
+                    node.getAddress().address().getPort(),
+                    entry.getKey(),
+                    poolInfo,
+                    poolStats
+                );
             }
         }
 

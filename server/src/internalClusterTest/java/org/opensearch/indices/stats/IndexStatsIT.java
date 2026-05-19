@@ -165,7 +165,7 @@ public class IndexStatsIT extends ParameterizedStaticSettingsOpenSearchIntegTest
         return Settings.builder().put(indexSettings());
     }
 
-    public void testFieldDataStats() throws InterruptedException {
+    public void testFieldDataStats() throws Exception {
         assertAcked(
             client().admin()
                 .indices()
@@ -274,18 +274,30 @@ public class IndexStatsIT extends ParameterizedStaticSettingsOpenSearchIntegTest
         );
 
         client().admin().indices().prepareClearCache().setFieldDataCache(true).execute().actionGet();
-        nodesStats = client().admin().cluster().prepareNodesStats("data:true").setIndices(true).execute().actionGet();
-        assertThat(
-            nodesStats.getNodes().get(0).getIndices().getFieldData().getMemorySizeInBytes() + nodesStats.getNodes()
-                .get(1)
-                .getIndices()
-                .getFieldData()
-                .getMemorySizeInBytes(),
-            equalTo(0L)
-        );
-        indicesStats = client().admin().indices().prepareStats("test").clear().setFieldData(true).execute().actionGet();
-        assertThat(indicesStats.getTotal().getFieldData().getMemorySizeInBytes(), equalTo(0L));
-
+        assertBusy(() -> {
+            NodesStatsResponse postClearNodesStats = client().admin()
+                .cluster()
+                .prepareNodesStats("data:true")
+                .setIndices(true)
+                .execute()
+                .actionGet();
+            assertThat(
+                postClearNodesStats.getNodes().get(0).getIndices().getFieldData().getMemorySizeInBytes() + postClearNodesStats.getNodes()
+                    .get(1)
+                    .getIndices()
+                    .getFieldData()
+                    .getMemorySizeInBytes(),
+                equalTo(0L)
+            );
+            IndicesStatsResponse postClearIndicesStats = client().admin()
+                .indices()
+                .prepareStats("test")
+                .clear()
+                .setFieldData(true)
+                .execute()
+                .actionGet();
+            assertThat(postClearIndicesStats.getTotal().getFieldData().getMemorySizeInBytes(), equalTo(0L));
+        });
     }
 
     public void testClearAllCaches() throws Exception {
@@ -368,25 +380,30 @@ public class IndexStatsIT extends ParameterizedStaticSettingsOpenSearchIntegTest
         assertThat(indicesStats.getTotal().getQueryCache().getMemorySizeInBytes(), greaterThan(0L));
 
         client().admin().indices().prepareClearCache().execute().actionGet();
-        Thread.sleep(100); // Make sure the filter cache entries have been removed...
-        nodesStats = client().admin().cluster().prepareNodesStats("data:true").setIndices(true).execute().actionGet();
-        assertThat(
-            nodesStats.getNodes().get(0).getIndices().getFieldData().getMemorySizeInBytes() + nodesStats.getNodes()
-                .get(1)
-                .getIndices()
-                .getFieldData()
-                .getMemorySizeInBytes(),
-            equalTo(0L)
-        );
-        assertThat(
-            nodesStats.getNodes().get(0).getIndices().getQueryCache().getMemorySizeInBytes() + nodesStats.getNodes()
-                .get(1)
-                .getIndices()
-                .getQueryCache()
-                .getMemorySizeInBytes(),
-            equalTo(0L)
-        );
-
+        assertBusy(() -> {
+            NodesStatsResponse postClearNodesStats = client().admin()
+                .cluster()
+                .prepareNodesStats("data:true")
+                .setIndices(true)
+                .execute()
+                .actionGet();
+            assertThat(
+                postClearNodesStats.getNodes().get(0).getIndices().getFieldData().getMemorySizeInBytes() + postClearNodesStats.getNodes()
+                    .get(1)
+                    .getIndices()
+                    .getFieldData()
+                    .getMemorySizeInBytes(),
+                equalTo(0L)
+            );
+            assertThat(
+                postClearNodesStats.getNodes().get(0).getIndices().getQueryCache().getMemorySizeInBytes() + postClearNodesStats.getNodes()
+                    .get(1)
+                    .getIndices()
+                    .getQueryCache()
+                    .getMemorySizeInBytes(),
+                equalTo(0L)
+            );
+        });
         indicesStats = client().admin().indices().prepareStats("test").clear().setFieldData(true).setQueryCache(true).execute().actionGet();
         assertThat(indicesStats.getTotal().getFieldData().getMemorySizeInBytes(), equalTo(0L));
         assertThat(indicesStats.getTotal().getQueryCache().getMemorySizeInBytes(), equalTo(0L));

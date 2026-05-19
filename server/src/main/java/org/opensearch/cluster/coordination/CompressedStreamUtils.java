@@ -38,6 +38,7 @@ public final class CompressedStreamUtils {
         throws IOException {
         final BytesStreamOutput bStream = new BytesStreamOutput();
         try (StreamOutput stream = new OutputStreamStreamOutput(CompressorRegistry.defaultCompressor().threadLocalOutputStream(bStream))) {
+            // Version is set for performing serialization but is not transmitted over the wire.
             stream.setVersion(version);
             outputConsumer.accept(stream);
         }

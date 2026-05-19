@@ -39,26 +39,45 @@ import org.opensearch.http.HttpChannel;
 import org.opensearch.http.HttpResponse;
 import org.opensearch.transport.netty4.Netty4TcpChannel;
 
+import javax.net.ssl.SSLEngine;
+
+import java.net.InetAddress;
 import java.net.InetSocketAddress;
+import java.net.SocketAddress;
 import java.util.Optional;
+import java.util.function.Function;
 
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelPipeline;
+import io.netty.util.AttributeKey;
 
 public class Netty4HttpChannel implements HttpChannel {
+    private static final InetSocketAddress NO_SOCKET_ADDRESS = new InetSocketAddress(InetAddress.getLoopbackAddress(), 0);
+
     private static final String CHANNEL_PROPERTY = "channel";
+    private static final String SSL_ENGINE_PROPERTY = "ssl_engine";
 
     private final Channel channel;
     private final CompletableContext<Void> closeContext = new CompletableContext<>();
     private final ChannelPipeline inboundPipeline;
+    private final AttributeKey<SSLEngine> sslEngineKey;
 
     Netty4HttpChannel(Channel channel) {
-        this(channel, null);
+        this(channel, null, null);
+    }
+
+    Netty4HttpChannel(Channel channel, AttributeKey<SSLEngine> sslEngineKey) {
+        this(channel, null, sslEngineKey);
     }
 
     Netty4HttpChannel(Channel channel, ChannelPipeline inboundPipeline) {
+        this(channel, inboundPipeline, null);
+    }
+
+    Netty4HttpChannel(Channel channel, ChannelPipeline inboundPipeline, AttributeKey<SSLEngine> sslEngineKey) {
         this.channel = channel;
         this.inboundPipeline = inboundPipeline;
+        this.sslEngineKey = sslEngineKey;
         Netty4TcpChannel.addListener(this.channel.closeFuture(), closeContext);
     }
 
@@ -69,12 +88,26 @@ public class Netty4HttpChannel implements HttpChannel {
 
     @Override
     public InetSocketAddress getLocalAddress() {
-        return (InetSocketAddress) channel.localAddress();
+        if (channel.localAddress() instanceof InetSocketAddress isa) {
+            return isa;
+        } else {
+            return getAddressFromParent(channel, Channel::localAddress);
+        }
     }
 
     @Override
     public InetSocketAddress getRemoteAddress() {
-        return (InetSocketAddress) channel.remoteAddress();
+        if (channel.remoteAddress() instanceof InetSocketAddress isa) {
+            return isa;
+        } else {
+            final InetSocketAddress address = getAddressFromParent(channel, Channel::remoteAddress);
+            if (address == null && channel.remoteAddress() != null) {
+                // In case of QUIC / HTTP3, the datagram channel (parent) may not have address
+                // populated, but QuicChannelXxx does, returning the placeholder with 0 port here.
+                return NO_SOCKET_ADDRESS;
+            }
+            return address;
+        }
     }
 
     @Override
@@ -107,6 +140,18 @@ public class Netty4HttpChannel implements HttpChannel {
             return (Optional<T>) Optional.of(getNettyChannel());
         }
 
+        if (sslEngineKey != null) {
+            if (SSL_ENGINE_PROPERTY.equalsIgnoreCase(name) && clazz.isAssignableFrom(SSLEngine.class)) {
+                SSLEngine engine = channel.attr(sslEngineKey).get();
+                if (engine == null && channel.parent() != null) {
+                    engine = channel.parent().attr(sslEngineKey).get();
+                }
+                if (engine != null) {
+                    return (Optional<T>) Optional.of(engine);
+                }
+            }
+        }
+
         Object handler = getNettyChannel().pipeline().get(name);
 
         if (handler == null && inboundPipeline() != null) {
@@ -123,5 +168,23 @@ public class Netty4HttpChannel implements HttpChannel {
     @Override
     public String toString() {
         return "Netty4HttpChannel{" + "localAddress=" + getLocalAddress() + ", remoteAddress=" + getRemoteAddress() + '}';
+    }
+
+    /**
+     * Attempts to extract the {@link InetSocketAddress} from parent channel, since
+     * some channels, like QuicXxxChannel, do not expose {@link InetSocketAddress} but
+     * {@link SocketAddress} only
+     */
+    private InetSocketAddress getAddressFromParent(Channel channel, Function<Channel, SocketAddress> socketAddressSupplier) {
+        final Channel parent = channel.parent();
+        if (parent != null) {
+            if (socketAddressSupplier.apply(parent) instanceof InetSocketAddress isa) {
+                return isa;
+            } else {
+                return getAddressFromParent(parent, socketAddressSupplier);
+            }
+        } else {
+            return null; /* Not connected */
+        }
     }
 }

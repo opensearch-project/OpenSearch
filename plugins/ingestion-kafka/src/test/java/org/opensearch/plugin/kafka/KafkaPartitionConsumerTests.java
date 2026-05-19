@@ -28,6 +28,7 @@ import java.util.Map;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class KafkaPartitionConsumerTests extends OpenSearchTestCase {
@@ -44,7 +45,7 @@ public class KafkaPartitionConsumerTests extends OpenSearchTestCase {
         params.put("topic", "test-topic");
         params.put("bootstrap_servers", "localhost:9092");
 
-        config = new KafkaSourceConfig(params);
+        config = new KafkaSourceConfig(1000, params);
         mockConsumer = mock(KafkaConsumer.class);
         // Mock the partitionsFor method
         PartitionInfo partitionInfo = new PartitionInfo("test-topic", 0, null, null, null);
@@ -61,11 +62,10 @@ public class KafkaPartitionConsumerTests extends OpenSearchTestCase {
 
         when(mockConsumer.poll(any(Duration.class))).thenReturn(records);
 
-        List<IngestionShardConsumer.ReadResult<KafkaOffset, KafkaMessage>> result = consumer.readNext(new KafkaOffset(0), 10, 1000);
+        List<IngestionShardConsumer.ReadResult<KafkaOffset, KafkaMessage>> result = consumer.readNext(new KafkaOffset(0), true, 10, 1000);
 
         assertEquals(1, result.size());
         assertEquals("message", new String(result.get(0).getMessage().getPayload(), StandardCharsets.UTF_8));
-        assertEquals(1, consumer.nextPointer().getOffset());
         assertEquals(0, consumer.getShardId());
         assertEquals("client1", consumer.getClientId());
     }
@@ -110,7 +110,7 @@ public class KafkaPartitionConsumerTests extends OpenSearchTestCase {
         Map<String, Object> params = new HashMap<>();
         params.put("topic", "non-existent-topic");
         params.put("bootstrap_servers", "localhost:9092");
-        var kafkaSourceConfig = new KafkaSourceConfig(params);
+        var kafkaSourceConfig = new KafkaSourceConfig(1000, params);
         when(mockConsumer.partitionsFor(eq("non-existent-topic"), any(Duration.class))).thenReturn(null);
         try {
             new KafkaPartitionConsumer("client1", kafkaSourceConfig, 0, mockConsumer);
@@ -137,5 +137,96 @@ public class KafkaPartitionConsumerTests extends OpenSearchTestCase {
 
         assertNotNull(consumer);
         assertEquals(KafkaConsumer.class, consumer.getClass());
+    }
+
+    public void testGetPointerBasedLagBeforeAnyFetch() {
+        // Before any messages are fetched, lag should be calculated from expected start pointer
+        TopicPartition topicPartition = new TopicPartition("test-topic", 0);
+        when(mockConsumer.endOffsets(Collections.singletonList(topicPartition))).thenReturn(Collections.singletonMap(topicPartition, 100L));
+
+        // Expected start pointer is offset 0
+        KafkaOffset expectedStartPointer = new KafkaOffset(0L);
+        long lag = consumer.getPointerBasedLag(expectedStartPointer);
+
+        assertEquals(100L, lag);
+    }
+
+    public void testGetPointerBasedLagAfterFetch() throws Exception {
+        // Simulate fetching messages up to offset 50
+        TopicPartition topicPartition = new TopicPartition("test-topic", 0);
+        ConsumerRecord<byte[], byte[]> record1 = new ConsumerRecord<>(
+            "test-topic",
+            0,
+            50,
+            null,
+            "message".getBytes(StandardCharsets.UTF_8)
+        );
+        ConsumerRecords<byte[], byte[]> records = new ConsumerRecords<>(
+            Collections.singletonMap(topicPartition, Collections.singletonList(record1))
+        );
+
+        when(mockConsumer.poll(any(Duration.class))).thenReturn(records);
+        consumer.readNext(new KafkaOffset(50), true, 10, 1000);
+
+        // Now endOffset is 100, lastFetchedOffset is 50
+        // expected lag is 49
+        when(mockConsumer.endOffsets(Collections.singletonList(topicPartition))).thenReturn(Collections.singletonMap(topicPartition, 100L));
+
+        // Expected start pointer doesn't matter since we've already fetched
+        KafkaOffset expectedStartPointer = new KafkaOffset(0L);
+        long lag = consumer.getPointerBasedLag(expectedStartPointer);
+
+        assertEquals(49L, lag);
+    }
+
+    public void testGetPointerBasedLagWhenCaughtUp() throws Exception {
+        // Simulate being caught up: lastFetchedOffset = endOffset - 1
+        TopicPartition topicPartition = new TopicPartition("test-topic", 0);
+        ConsumerRecord<byte[], byte[]> record = new ConsumerRecord<>("test-topic", 0, 99, null, "message".getBytes(StandardCharsets.UTF_8));
+        ConsumerRecords<byte[], byte[]> records = new ConsumerRecords<>(
+            Collections.singletonMap(topicPartition, Collections.singletonList(record))
+        );
+
+        when(mockConsumer.poll(any(Duration.class))).thenReturn(records);
+        consumer.readNext(new KafkaOffset(99), true, 10, 1000);
+
+        // endOffset is 100, lastFetchedOffset is 99
+        // expected lag is 0
+        when(mockConsumer.endOffsets(Collections.singletonList(topicPartition))).thenReturn(Collections.singletonMap(topicPartition, 100L));
+
+        // Expected start pointer doesn't matter since we've already fetched
+        KafkaOffset expectedStartPointer = new KafkaOffset(0L);
+        long lag = consumer.getPointerBasedLag(expectedStartPointer);
+
+        assertEquals(0L, lag);
+    }
+
+    public void testGetPointerBasedLagHandlesException() {
+        // Simulate an exception when calling endOffsets
+        TopicPartition topicPartition = new TopicPartition("test-topic", 0);
+        when(mockConsumer.endOffsets(Collections.singletonList(topicPartition))).thenThrow(
+            new RuntimeException("Kafka broker unavailable")
+        );
+
+        KafkaOffset expectedStartPointer = new KafkaOffset(0L);
+        long lag = consumer.getPointerBasedLag(expectedStartPointer);
+
+        // Should return -1 on exception
+        assertEquals(-1, lag);
+    }
+
+    public void testTopicMetadataFetchTimeoutUsedFromConfig() {
+        Map<String, Object> params = new HashMap<>();
+        params.put("topic", "test-topic");
+        params.put("bootstrap_servers", "localhost:9092");
+        params.put("topic_metadata_fetch_timeout_ms", 5000);
+
+        KafkaSourceConfig customConfig = new KafkaSourceConfig(1000, params);
+        PartitionInfo partitionInfo = new PartitionInfo("test-topic", 0, null, null, null);
+        when(mockConsumer.partitionsFor(eq("test-topic"), any(Duration.class))).thenReturn(Collections.singletonList(partitionInfo));
+
+        new KafkaPartitionConsumer("client1", customConfig, 0, mockConsumer);
+
+        verify(mockConsumer).partitionsFor(eq("test-topic"), eq(Duration.ofMillis(5000)));
     }
 }

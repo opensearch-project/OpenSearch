@@ -23,6 +23,8 @@ import static org.opensearch.Version.V_2_5_0;
 import static org.opensearch.Version.V_2_6_0;
 import static org.opensearch.Version.V_2_7_0;
 import static org.opensearch.Version.V_3_0_0;
+import static org.opensearch.Version.V_3_2_0;
+import static org.opensearch.Version.V_3_7_0;
 
 /**
  * Utility class to register server exceptions
@@ -1222,6 +1224,30 @@ public final class OpenSearchServerException {
                 org.opensearch.cluster.block.IndexCreateBlockException::new,
                 CUSTOM_ELASTICSEARCH_EXCEPTIONS_BASE_ID + 1,
                 V_3_0_0
+            )
+        );
+        registerExceptionHandle(
+            new OpenSearchExceptionHandle(
+                org.opensearch.index.engine.IngestionEngineException.class,
+                org.opensearch.index.engine.IngestionEngineException::new,
+                176,
+                V_3_0_0
+            )
+        );
+        registerExceptionHandle(
+            new OpenSearchExceptionHandle(
+                org.opensearch.transport.stream.StreamException.class,
+                org.opensearch.transport.stream.StreamException::new,
+                177,
+                V_3_2_0
+            )
+        );
+        registerExceptionHandle(
+            new OpenSearchExceptionHandle(
+                org.opensearch.index.engine.dataformat.merge.MergeFailedEngineException.class,
+                org.opensearch.index.engine.dataformat.merge.MergeFailedEngineException::new,
+                178,
+                V_3_7_0
             )
         );
     }

@@ -34,7 +34,6 @@ package org.opensearch.search;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.util.CharsRefBuilder;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -78,6 +77,7 @@ import org.opensearch.search.fetch.subphase.highlight.FastVectorHighlighter;
 import org.opensearch.search.fetch.subphase.highlight.Highlighter;
 import org.opensearch.search.fetch.subphase.highlight.PlainHighlighter;
 import org.opensearch.search.fetch.subphase.highlight.UnifiedHighlighter;
+import org.opensearch.search.profile.Timer;
 import org.opensearch.search.query.ConcurrentQueryPhaseSearcher;
 import org.opensearch.search.query.QueryPhase;
 import org.opensearch.search.query.QueryPhaseSearcher;
@@ -423,6 +423,19 @@ public class SearchModuleTests extends OpenSearchTestCase {
         );
     }
 
+    public void testProfileMetricsProvider() {
+        SearchModule module = new SearchModule(Settings.EMPTY, singletonList(new SearchPlugin() {
+            @Override
+            public Optional<ProfileMetricsProvider> getQueryProfileMetricsProvider() {
+                return Optional.of((searchContext, query) -> List.of(() -> new Timer("plugin_timer")));
+            }
+        }));
+
+        List<SearchPlugin.ProfileMetricsProvider> providers = module.getPluginProfileMetricsProviders();
+        assertThat(providers, hasSize(1));
+        assertEquals(providers.getFirst().getQueryProfileMetrics(null, null).size(), 1);
+    }
+
     public void testDefaultQueryPhaseSearcher() {
         SearchModule searchModule = new SearchModule(Settings.EMPTY, Collections.emptyList());
         TestSearchContext searchContext = new TestSearchContext(null);
@@ -438,7 +451,6 @@ public class SearchModuleTests extends OpenSearchTestCase {
         QueryPhase queryPhase = searchModule.getQueryPhase();
         assertTrue(queryPhase.getQueryPhaseSearcher() instanceof QueryPhaseSearcherWrapper);
         assertTrue(queryPhase.getQueryPhaseSearcher().aggregationProcessor(searchContext) instanceof ConcurrentAggregationProcessor);
-        FeatureFlags.initializeFeatureFlags(Settings.EMPTY);
     }
 
     public void testPluginQueryPhaseSearcher() {
@@ -454,7 +466,6 @@ public class SearchModuleTests extends OpenSearchTestCase {
         TestSearchContext searchContext = new TestSearchContext(null);
         assertEquals(queryPhaseSearcher, queryPhase.getQueryPhaseSearcher());
         assertTrue(queryPhaseSearcher.aggregationProcessor(searchContext) instanceof DefaultAggregationProcessor);
-        FeatureFlags.initializeFeatureFlags(Settings.EMPTY);
     }
 
     public void testMultiplePluginRegisterQueryPhaseSearcher() {
@@ -567,6 +578,7 @@ public class SearchModuleTests extends OpenSearchTestCase {
         "bool",
         "boosting",
         "constant_score",
+        "combined_fields",
         "dis_max",
         "exists",
         "function_score",

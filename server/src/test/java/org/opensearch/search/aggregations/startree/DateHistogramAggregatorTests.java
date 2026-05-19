@@ -13,7 +13,7 @@ import com.carrotsearch.randomizedtesting.RandomizedTest;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.codecs.Codec;
-import org.apache.lucene.codecs.lucene101.Lucene101Codec;
+import org.apache.lucene.codecs.lucene104.Lucene104Codec;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
@@ -28,12 +28,10 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.opensearch.common.Rounding;
 import org.opensearch.common.lucene.Lucene;
-import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.codec.composite.CompositeIndexFieldInfo;
 import org.opensearch.index.codec.composite.CompositeIndexReader;
-import org.opensearch.index.codec.composite.composite101.Composite101Codec;
+import org.opensearch.index.codec.composite.composite104.Composite104Codec;
 import org.opensearch.index.codec.composite912.datacube.startree.StarTreeDocValuesFormatTests;
 import org.opensearch.index.compositeindex.datacube.DateDimension;
 import org.opensearch.index.compositeindex.datacube.Dimension;
@@ -50,8 +48,6 @@ import org.opensearch.search.aggregations.bucket.histogram.DateHistogramAggregat
 import org.opensearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.opensearch.search.aggregations.bucket.histogram.InternalDateHistogram;
 import org.opensearch.search.aggregations.support.ValuesSourceAggregationBuilder;
-import org.junit.After;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -78,16 +74,6 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
         NumberFieldMapper.NumberType.LONG
     );
 
-    @Before
-    public void setup() {
-        FeatureFlags.initializeFeatureFlags(Settings.builder().put(FeatureFlags.STAR_TREE_INDEX, true).build());
-    }
-
-    @After
-    public void teardown() throws IOException {
-        FeatureFlags.initializeFeatureFlags(Settings.EMPTY);
-    }
-
     protected Codec getCodec() {
         final Logger testLogger = LogManager.getLogger(MetricAggregatorTests.class);
         MapperService mapperService;
@@ -96,7 +82,7 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
-        return new Composite101Codec(Lucene101Codec.Mode.BEST_SPEED, mapperService, testLogger);
+        return new Composite104Codec(Lucene104Codec.Mode.BEST_SPEED, mapperService, testLogger);
     }
 
     public void testStarTreeDateHistogram() throws IOException {
@@ -162,7 +148,7 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
         );
         supportedDimensions.put(
             new NumericDimension(SIZE),
-            new NumberFieldMapper.NumberFieldType(STATUS, NumberFieldMapper.NumberType.INTEGER)
+            new NumberFieldMapper.NumberFieldType(SIZE, NumberFieldMapper.NumberType.INTEGER)
         );
         supportedDimensions.put(
             new DateDimension(
@@ -324,7 +310,7 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
             b.startObject("properties");
             b.startObject("@timestamp");
             b.field("type", "date");
-            b.field("format", "strict_date_optional_time||epoch_second");
+            b.field("format", "strict_date_optional_time||epoch_millis");
             b.endObject();
             b.startObject("message");
             b.field("type", "keyword");

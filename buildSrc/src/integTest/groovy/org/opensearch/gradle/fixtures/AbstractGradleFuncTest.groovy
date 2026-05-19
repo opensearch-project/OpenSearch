@@ -45,11 +45,13 @@ abstract class AbstractGradleFuncTest extends Specification {
 
     File settingsFile
     File buildFile
+    File testKitDir
 
     def setup() {
         settingsFile = testProjectDir.newFile('settings.gradle')
         settingsFile << "rootProject.name = 'hello-world'\n"
         buildFile = testProjectDir.newFile('build.gradle')
+        testKitDir = testProjectDir.newFolder('.gradle-test-kit')
     }
 
     GradleRunner gradleRunner(String... arguments) {
@@ -62,6 +64,7 @@ abstract class AbstractGradleFuncTest extends Specification {
                 .withProjectDir(projectDir)
                 .withArguments(arguments)
                 .withPluginClasspath()
+                .withTestKitDir(testKitDir)
                 .forwardOutput()
     }
 

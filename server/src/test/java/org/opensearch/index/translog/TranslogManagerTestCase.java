@@ -94,7 +94,9 @@ public abstract class TranslogManagerTestCase extends OpenSearchTestCase {
             createTranslogDeletionPolicy(INDEX_SETTINGS),
             () -> SequenceNumbers.NO_OPS_PERFORMED,
             primaryTermSupplier,
-            seqNo -> {}
+            seqNo -> {},
+            TranslogOperationHelper.DEFAULT,
+            null
         );
     }
 

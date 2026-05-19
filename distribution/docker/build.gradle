@@ -29,6 +29,7 @@ configurations {
   arm64DockerSource
   s390xDockerSource
   ppc64leDockerSource
+  riscv64DockerSource
   dockerSource
 }
 
@@ -37,6 +38,7 @@ dependencies {
   arm64DockerSource project(path: ":distribution:archives:linux-arm64-tar", configuration:"default")
   s390xDockerSource project(path: ":distribution:archives:linux-s390x-tar", configuration:"default")
   ppc64leDockerSource project(path: ":distribution:archives:linux-ppc64le-tar", configuration:"default")
+  riscv64DockerSource project(path: ":distribution:archives:linux-riscv64-tar", configuration:"default")
   dockerSource project(path: ":distribution:archives:linux-tar", configuration:"default")
 }
 
@@ -51,6 +53,8 @@ ext.expansions = { Architecture architecture, DockerBase base, boolean local ->
       classifier = "linux-s390x"
     } else if (architecture == Architecture.PPC64LE) {
       classifier = "linux-ppc64le"
+    } else if (architecture == Architecture.RISCV64) {
+      classifier = "linux-riscv64"
     } else {
       throw new IllegalArgumentException("Unsupported architecture [" + architecture + "]")
     }
@@ -96,6 +100,7 @@ private static String buildPath(Architecture architecture, DockerBase base) {
     (architecture == Architecture.ARM64 ? 'arm64-' : '') +
     (architecture == Architecture.S390X ? 's390x-' : '') +
     (architecture == Architecture.PPC64LE ? 'ppc64le-' : '') +
+    (architecture == Architecture.RISCV64 ? 'riscv64-' : '') +
     'docker'
 }
 
@@ -104,6 +109,7 @@ private static String taskName(String prefix, Architecture architecture, DockerB
     (architecture == Architecture.ARM64 ? 'Arm64' : '') +
     (architecture == Architecture.S390X ? 'S390x' : '') +
     (architecture == Architecture.PPC64LE ? 'Ppc64le' : '') +
+    (architecture == Architecture.RISCV64 ? 'Riscv64' : '') +
     suffix
 }
 
@@ -126,8 +132,8 @@ project.ext {
 }
 
 void addCopyDockerContextTask(Architecture architecture, DockerBase base) {
-  if (base != DockerBase.CENTOS) {
-    throw new GradleException("The only allowed docker base image for builds is CENTOS")
+  if (base != DockerBase.ALMALINUX) {
+    throw new GradleException("The only allowed docker base image for builds is ALMALINUX")
   }
 
   tasks.register(taskName("copy", architecture, base, "DockerContext"), Sync) {
@@ -144,6 +150,8 @@ void addCopyDockerContextTask(Architecture architecture, DockerBase base) {
       from configurations.s390xDockerSource
     } else if (architecture == Architecture.PPC64LE) {
       from configurations.ppc64leDockerSource
+    } else if (architecture == Architecture.RISCV64) {
+      from configurations.riscv64DockerSource
     } else {
       from configurations.dockerSource
     }
@@ -173,8 +181,8 @@ opensearch_distributions {
 tasks.named("preProcessFixture").configure {
   dependsOn opensearch_distributions.docker
   // always run the task, otherwise the folders won't be created
-  outputs.upToDateWhen { 
-    false 
+  outputs.upToDateWhen {
+    false
   }
   doLast {
     // tests expect to have an empty repo
@@ -200,8 +208,8 @@ tasks.named("check").configure {
 }
 
 void addBuildDockerImage(Architecture architecture, DockerBase base) {
-  if (base != DockerBase.CENTOS) {
-    throw new GradleException("The only allowed docker base image for builds is CENTOS")
+  if (base != DockerBase.ALMALINUX) {
+    throw new GradleException("The only allowed docker base image for builds is ALMALINUX")
   }
 
   final TaskProvider<DockerBuildTask> buildDockerImageTask =
@@ -224,9 +232,9 @@ void addBuildDockerImage(Architecture architecture, DockerBase base) {
 }
 
 for (final Architecture architecture : Architecture.values()) {
-  // We only create Docker images for the distribution on CentOS.
+  // We only create Docker images for the distribution on AlmaLinux.
   for (final DockerBase base : DockerBase.values()) {
-    if (base == DockerBase.CENTOS) {
+    if (base == DockerBase.ALMALINUX) {
       addCopyDockerContextTask(architecture, base)
       addBuildDockerImage(architecture, base)
     }
@@ -249,7 +257,7 @@ subprojects { Project subProject ->
     apply plugin: 'distribution'
 
     final Architecture architecture = subProject.name.contains('arm64-') ? Architecture.ARM64 : Architecture.X64
-    final DockerBase base = DockerBase.CENTOS
+    final DockerBase base = DockerBase.ALMALINUX
 
     final String arch = architecture == Architecture.ARM64 ? '-arm64' : ''
     final String extension = 'docker.tar'
@@ -286,4 +294,12 @@ subprojects { Project subProject ->
 
 tasks.named("composeUp").configure {
   dependsOn preProcessFixture
+}
+
+dockerCompose {
+  useComposeFiles = ['docker-compose.yml']
+  if (BuildParams.isInFipsJvm()) {
+    environment.put("KEYSTORE_PASSWORD", "notarealpasswordphrase")
+    environment.put("FIPS_GENERATE_TRUSTSTORE", "true")
+  }
 }

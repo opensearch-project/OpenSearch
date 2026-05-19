@@ -125,6 +125,8 @@ import static org.mockito.Mockito.spy;
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.SUITE, minNumDataNodes = 2)
 public class TasksIT extends AbstractTasksIT {
 
+    private static final String SAMPLE_REQUEST_ID_HEADER = "19d538d7c42d09240be001d1e4ff6203";
+
     protected final TaskInfo taskInfo = new TaskInfo(
         new TaskId("fake", 1),
         "test_type",
@@ -379,6 +381,8 @@ public class TasksIT extends AbstractTasksIT {
 
         Map<String, String> headers = new HashMap<>();
         headers.put(Task.X_OPAQUE_ID, "my_id");
+        // Add request id to the header
+        headers.put(Task.X_REQUEST_ID, SAMPLE_REQUEST_ID_HEADER);
         headers.put("Foo-Header", "bar");
         headers.put("Custom-Task-Header", "my_value");
         assertSearchResponse(client().filterWithHeader(headers).prepareSearch("test").setQuery(QueryBuilders.matchAllQuery()).get());
@@ -427,6 +431,7 @@ public class TasksIT extends AbstractTasksIT {
 
         Map<String, String> headers = new HashMap<>();
         headers.put(Task.X_OPAQUE_ID, "my_id");
+        headers.put(Task.X_REQUEST_ID, SAMPLE_REQUEST_ID_HEADER);
         headers.put("Custom-Task-Header", randomAlphaOfLengthBetween(maxSize, maxSize + 100));
         IllegalArgumentException ex = expectThrows(
             IllegalArgumentException.class,
@@ -436,8 +441,9 @@ public class TasksIT extends AbstractTasksIT {
     }
 
     private void assertTaskHeaders(TaskInfo taskInfo) {
-        assertThat(taskInfo.getHeaders().keySet(), hasSize(2));
+        assertThat(taskInfo.getHeaders().keySet(), hasSize(3));
         assertEquals("my_id", taskInfo.getHeaders().get(Task.X_OPAQUE_ID));
+        assertEquals(SAMPLE_REQUEST_ID_HEADER, taskInfo.getHeaders().get(Task.X_REQUEST_ID));
         assertEquals("my_value", taskInfo.getHeaders().get("Custom-Task-Header"));
     }
 

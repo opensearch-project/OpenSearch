@@ -52,12 +52,39 @@ import java.security.NoSuchAlgorithmException;
 import java.security.PrivateKey;
 import java.security.cert.Certificate;
 import java.util.Collection;
+import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 /**
  * A variety of utility methods for working with or constructing {@link KeyStore} instances.
  */
 final class KeyStoreUtil {
+
+    public static final boolean IN_FIPS_MODE = detectFipsMode();
+
+    private static boolean detectFipsMode() {
+        try {
+            // Equivalent to: boolean approvedOnly = CryptoServicesRegistrar.isInApprovedOnlyMode()
+            var registrarClass = Class.forName("org.bouncycastle.crypto.CryptoServicesRegistrar");
+            var isApprovedOnlyMethod = registrarClass.getMethod("isInApprovedOnlyMode");
+            return (Boolean) isApprovedOnlyMethod.invoke(null);
+        } catch (ReflectiveOperationException e) {
+            return false;
+        }
+    }
+
+    public static final Map<String, List<String>> TYPE_TO_EXTENSION_MAP = Map.of(
+        "JKS",
+        List.of(".jks", ".ks"),
+        "PKCS12",
+        List.of(".p12", ".pkcs12", ".pfx"),
+        "BCFKS", // Bouncy Castle FIPS Keystore
+        List.of(".bcfks")
+    );
+    public static final List<String> FIPS_COMPLIANT_KEYSTORE_TYPES = List.of("PKCS11", "BCFKS");
+    public static final String STORE_PROVIDER = IN_FIPS_MODE ? "BCFIPS" : "SUN";
+    public static final String STORE_TYPE = IN_FIPS_MODE ? "BCFKS" : KeyStore.getDefaultType();
 
     private KeyStoreUtil() {
         throw new IllegalStateException("Utility class should not be instantiated");
@@ -67,13 +94,13 @@ final class KeyStoreUtil {
      * Make a best guess about the "type" (see {@link KeyStore#getType()}) of the keystore file located at the given {@code Path}.
      * This method only references the <em>file name</em> of the keystore, it does not look at its contents.
      */
-    static String inferKeyStoreType(Path path) {
-        String name = path == null ? "" : path.toString().toLowerCase(Locale.ROOT);
-        if (name.endsWith(".p12") || name.endsWith(".pfx") || name.endsWith(".pkcs12")) {
-            return "PKCS12";
-        } else {
-            return "jks";
-        }
+    static String inferStoreType(String filePath) {
+        return TYPE_TO_EXTENSION_MAP.entrySet()
+            .stream()
+            .filter(entry -> entry.getValue().stream().anyMatch(filePath::endsWith))
+            .map(Map.Entry::getKey)
+            .findFirst()
+            .orElseThrow(() -> new IllegalArgumentException("Unknown keystore type for file path: " + filePath));
     }
 
     /**
@@ -89,16 +116,25 @@ final class KeyStoreUtil {
             );
         }
         try {
-            KeyStore keyStore = KeyStore.getInstance(type);
+            if (IN_FIPS_MODE && !FIPS_COMPLIANT_KEYSTORE_TYPES.contains(type)) {
+                throw new SslConfigException(
+                    "cannot use a ["
+                        + type.toUpperCase(Locale.ROOT)
+                        + "] keystore in FIPS JVM. Allowed types are "
+                        + FIPS_COMPLIANT_KEYSTORE_TYPES
+                );
+            }
+            KeyStore keyStore = KeyStore.getInstance(type, STORE_PROVIDER);
             try (InputStream in = Files.newInputStream(path)) {
                 keyStore.load(in, password);
             }
             return keyStore;
-        } catch (IOException e) {
-            throw new SslConfigException(
-                "cannot read a [" + type + "] keystore from [" + path.toAbsolutePath() + "] - " + e.getMessage(),
-                e
-            );
+        } catch (IOException | IllegalArgumentException e) {
+            var finalMessage = e.getMessage();
+            if ("BCFKS KeyStore corrupted: MAC calculation failed.".equals(e.getMessage())) {
+                finalMessage = "incorrect password or corrupt file: " + e.getMessage();
+            }
+            throw new SslConfigException("cannot read a [" + type + "] keystore from [" + path.toAbsolutePath() + "] - " + finalMessage, e);
         }
     }
 
@@ -133,7 +169,7 @@ final class KeyStoreUtil {
     }
 
     private static KeyStore buildNewKeyStore() throws GeneralSecurityException {
-        KeyStore keyStore = KeyStore.getInstance(KeyStore.getDefaultType());
+        KeyStore keyStore = KeyStore.getInstance(STORE_TYPE, STORE_PROVIDER);
         try {
             keyStore.load(null, null);
         } catch (IOException e) {
@@ -151,8 +187,8 @@ final class KeyStoreUtil {
         kmf.init(keyStore, password);
         KeyManager[] keyManagers = kmf.getKeyManagers();
         for (KeyManager keyManager : keyManagers) {
-            if (keyManager instanceof X509ExtendedKeyManager) {
-                return (X509ExtendedKeyManager) keyManager;
+            if (keyManager instanceof X509ExtendedKeyManager x509KeyManager) {
+                return x509KeyManager;
             }
         }
         throw new SslConfigException(
@@ -169,8 +205,8 @@ final class KeyStoreUtil {
         tmf.init(trustStore);
         TrustManager[] trustManagers = tmf.getTrustManagers();
         for (TrustManager trustManager : trustManagers) {
-            if (trustManager instanceof X509ExtendedTrustManager) {
-                return (X509ExtendedTrustManager) trustManager;
+            if (trustManager instanceof X509ExtendedTrustManager x509TrustManager) {
+                return x509TrustManager;
             }
         }
         throw new SslConfigException(

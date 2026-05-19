@@ -250,6 +250,7 @@ public class MinimumClusterManagerNodesIT extends OpenSearchIntegTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/14289")
     public void testThreeNodesNoClusterManagerBlock() throws Exception {
         internalCluster().setBootstrapClusterManagerNodeIndex(2);
 

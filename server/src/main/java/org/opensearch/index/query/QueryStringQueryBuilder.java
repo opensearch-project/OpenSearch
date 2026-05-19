@@ -685,6 +685,12 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
                 if (FIELDS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     List<String> fields = new ArrayList<>();
                     while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
+                        if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
+                            throw new ParsingException(
+                                parser.getTokenLocation(),
+                                "[" + QueryStringQueryBuilder.NAME + "] field name in [" + currentFieldName + "] cannot be null"
+                            );
+                        }
                         fields.add(parser.text());
                     }
                     fieldsAndWeights = QueryParserHelper.parseFieldsAndWeights(fields);
@@ -966,8 +972,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
 
         // save the BoostQuery wrapped structure if present
         List<Float> boosts = new ArrayList<>();
-        while (query instanceof BoostQuery) {
-            BoostQuery boostQuery = (BoostQuery) query;
+        while (query instanceof BoostQuery boostQuery) {
             boosts.add(boostQuery.getBoost());
             query = boostQuery.getQuery();
         }

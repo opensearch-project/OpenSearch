@@ -23,3 +23,7 @@ Integration tests require several environment variables.
 ```
 AWS_REGION=us-west-2 amazon_s3_access_key=$AWS_ACCESS_KEY_ID amazon_s3_secret_key=$AWS_SECRET_ACCESS_KEY amazon_s3_base_path=path amazon_s3_bucket=dblock-opensearch ./gradlew :plugins:repository-s3:s3ThirdPartyTest
 ```
+Optional environment variables:
+
+- `amazon_s3_path_style_access`: Possible values true or false. Default is false.
+- `amazon_s3_endpoint`: s3 custom endpoint url if aws s3 default endpoint is not being used.

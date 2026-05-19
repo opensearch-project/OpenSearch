@@ -37,6 +37,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.action.RequestValidators;
 import org.opensearch.action.support.ActionFilters;
+import org.opensearch.action.support.TransportIndicesResolvingAction;
 import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
 import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeAction;
 import org.opensearch.cluster.ClusterState;
@@ -45,12 +46,15 @@ import org.opensearch.cluster.block.ClusterBlockException;
 import org.opensearch.cluster.block.ClusterBlockLevel;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.MetadataMappingService;
+import org.opensearch.cluster.metadata.ResolvedIndices;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.index.Index;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.index.IndexNotFoundException;
+import org.opensearch.index.mapper.MappingTransformerRegistry;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
@@ -66,12 +70,15 @@ import java.util.Optional;
  *
  * @opensearch.internal
  */
-public class TransportPutMappingAction extends TransportClusterManagerNodeAction<PutMappingRequest, AcknowledgedResponse> {
+public class TransportPutMappingAction extends TransportClusterManagerNodeAction<PutMappingRequest, AcknowledgedResponse>
+    implements
+        TransportIndicesResolvingAction<PutMappingRequest> {
 
     private static final Logger logger = LogManager.getLogger(TransportPutMappingAction.class);
 
     private final MetadataMappingService metadataMappingService;
     private final RequestValidators<PutMappingRequest> requestValidators;
+    private final MappingTransformerRegistry mappingTransformerRegistry;
 
     @Inject
     public TransportPutMappingAction(
@@ -81,7 +88,8 @@ public class TransportPutMappingAction extends TransportClusterManagerNodeAction
         final MetadataMappingService metadataMappingService,
         final ActionFilters actionFilters,
         final IndexNameExpressionResolver indexNameExpressionResolver,
-        final RequestValidators<PutMappingRequest> requestValidators
+        final RequestValidators<PutMappingRequest> requestValidators,
+        final MappingTransformerRegistry mappingTransformerRegistry
     ) {
         super(
             PutMappingAction.NAME,
@@ -94,6 +102,7 @@ public class TransportPutMappingAction extends TransportClusterManagerNodeAction
         );
         this.metadataMappingService = metadataMappingService;
         this.requestValidators = Objects.requireNonNull(requestValidators);
+        this.mappingTransformerRegistry = mappingTransformerRegistry;
     }
 
     @Override
@@ -125,21 +134,36 @@ public class TransportPutMappingAction extends TransportClusterManagerNodeAction
         final ActionListener<AcknowledgedResponse> listener
     ) {
         try {
-            final Index[] concreteIndices = resolveIndices(state, request, indexNameExpressionResolver);
+            final Index[] concreteIndices = resolveIndices(state, request, indexNameExpressionResolver).concreteIndicesAsArray();
 
             final Optional<Exception> maybeValidationException = requestValidators.validateRequest(request, state, concreteIndices);
             if (maybeValidationException.isPresent()) {
                 listener.onFailure(maybeValidationException.get());
                 return;
             }
-            performMappingUpdate(concreteIndices, request, listener, metadataMappingService);
+
+            final ActionListener<String> mappingTransformListener = ActionListener.wrap(transformedMapping -> {
+                request.source(transformedMapping, MediaTypeRegistry.JSON);
+                performMappingUpdate(concreteIndices, request, listener, metadataMappingService);
+            }, listener::onFailure);
+
+            mappingTransformerRegistry.applyTransformers(request.source(), null, mappingTransformListener);
         } catch (IndexNotFoundException ex) {
             logger.debug(() -> new ParameterizedMessage("failed to put mappings on indices [{}]", Arrays.asList(request.indices())), ex);
             throw ex;
         }
     }
 
-    static Index[] resolveIndices(final ClusterState state, PutMappingRequest request, final IndexNameExpressionResolver iner) {
+    @Override
+    public ResolvedIndices resolveIndices(PutMappingRequest request) {
+        return ResolvedIndices.of(resolveIndices(clusterService.state(), request, indexNameExpressionResolver));
+    }
+
+    static ResolvedIndices.Local.Concrete resolveIndices(
+        final ClusterState state,
+        PutMappingRequest request,
+        final IndexNameExpressionResolver iner
+    ) {
         if (request.getConcreteIndex() == null) {
             if (request.writeIndexOnly()) {
                 List<Index> indices = new ArrayList<>();
@@ -154,12 +178,12 @@ public class TransportPutMappingAction extends TransportClusterManagerNodeAction
                         )
                     );
                 }
-                return indices.toArray(Index.EMPTY_ARRAY);
+                return ResolvedIndices.Local.Concrete.of(indices.toArray(Index.EMPTY_ARRAY));
             } else {
-                return iner.concreteIndices(state, request);
+                return iner.concreteResolvedIndices(state, request);
             }
         } else {
-            return new Index[] { request.getConcreteIndex() };
+            return ResolvedIndices.Local.Concrete.of(request.getConcreteIndex());
         }
     }
 

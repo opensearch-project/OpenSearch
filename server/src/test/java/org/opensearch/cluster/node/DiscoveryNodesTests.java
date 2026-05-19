@@ -34,7 +34,6 @@ package org.opensearch.cluster.node;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 
-import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.settings.Setting;
@@ -493,7 +492,7 @@ public class DiscoveryNodesTests extends OpenSearchTestCase {
                 buildNewFakeTransportAddress(),
                 Collections.emptyMap(),
                 new HashSet<>(randomSubsetOf(DiscoveryNodeRole.BUILT_IN_ROLES)),
-                LegacyESVersion.fromString("5.1.0")
+                Version.fromString("5.1.0")
             )
         );
         discoBuilder.add(
@@ -503,7 +502,7 @@ public class DiscoveryNodesTests extends OpenSearchTestCase {
                 buildNewFakeTransportAddress(),
                 Collections.emptyMap(),
                 new HashSet<>(randomSubsetOf(DiscoveryNodeRole.BUILT_IN_ROLES)),
-                LegacyESVersion.fromString("6.3.0")
+                Version.fromString("6.3.0")
             )
         );
         discoBuilder.add(
@@ -519,21 +518,7 @@ public class DiscoveryNodesTests extends OpenSearchTestCase {
         discoBuilder.localNodeId("name_1");
         discoBuilder.clusterManagerNodeId("name_2");
         DiscoveryNodes build = discoBuilder.build();
-        assertEquals(Version.fromString("1.1.0"), build.getMaxNodeVersion());
-        assertEquals(LegacyESVersion.fromString("5.1.0"), build.getMinNodeVersion());
-    }
-
-    private DiscoveryNode buildDiscoveryNodeFromExisting(DiscoveryNode existing, Version newVersion) {
-        return new DiscoveryNode(
-            existing.getName(),
-            existing.getId(),
-            existing.getEphemeralId(),
-            existing.getHostName(),
-            existing.getHostAddress(),
-            existing.getAddress(),
-            existing.getAttributes(),
-            existing.getRoles(),
-            newVersion
-        );
+        assertEquals(Version.fromString("6.3.0"), build.getMaxNodeVersion());
+        assertEquals(Version.fromString("1.1.0"), build.getMinNodeVersion());
     }
 }

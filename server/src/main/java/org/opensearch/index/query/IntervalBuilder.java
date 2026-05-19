@@ -144,6 +144,20 @@ public class IntervalBuilder {
         return Intervals.term(BytesRef.deepCopyOf(bytesAtt.getBytesRef()));
     }
 
+    static boolean canCombineSources(List<IntervalsSource> sources) {
+        int sourceIndex = 0;
+        long disjunctionCount = 1;
+
+        while (sourceIndex < sources.size()) {
+            disjunctionCount = disjunctionCount * sources.get(sourceIndex).pullUpDisjunctions().size();
+            if (disjunctionCount > IndexSearcher.getMaxClauseCount()) {
+                return false;
+            }
+            sourceIndex += 1;
+        }
+        return true;
+    }
+
     protected static IntervalsSource combineSources(List<IntervalsSource> sources, int maxGaps, IntervalMode mode) {
         if (sources.size() == 0) {
             return NO_INTERVALS;

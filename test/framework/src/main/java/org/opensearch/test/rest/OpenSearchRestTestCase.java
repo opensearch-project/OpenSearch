@@ -79,6 +79,7 @@ import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.seqno.ReplicationTracker;
 import org.opensearch.snapshots.SnapshotState;
+import org.opensearch.test.KeyStoreUtils;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.rest.yaml.ObjectPath;
 import org.hamcrest.Matchers;
@@ -722,30 +723,6 @@ public abstract class OpenSearchRestTestCase extends OpenSearchTestCase {
         client().performRequest(refreshRequest);
     }
 
-    private static void deleteAllSLMPolicies() throws IOException {
-        Map<String, Object> policies;
-
-        try {
-            Response response = adminClient().performRequest(new Request("GET", "/_slm/policy"));
-            policies = entityAsMap(response);
-        } catch (ResponseException e) {
-            if (RestStatus.METHOD_NOT_ALLOWED.getStatus() == e.getResponse().getStatusLine().getStatusCode()
-                || RestStatus.BAD_REQUEST.getStatus() == e.getResponse().getStatusLine().getStatusCode()) {
-                // If bad request returned, SLM is not enabled.
-                return;
-            }
-            throw e;
-        }
-
-        if (policies == null || policies.isEmpty()) {
-            return;
-        }
-
-        for (String policyName : policies.keySet()) {
-            adminClient().performRequest(new Request("DELETE", "/_slm/policy/" + policyName));
-        }
-    }
-
     /**
      * Logs a message if there are still running tasks. The reasoning is that any tasks still running are state the is trying to bleed into
      * other tests.
@@ -841,8 +818,7 @@ public abstract class OpenSearchRestTestCase extends OpenSearchTestCase {
                 throw new IllegalStateException(TRUSTSTORE_PATH + " is set but points to a non-existing file");
             }
             try {
-                final String keyStoreType = keystorePath.endsWith(".p12") ? "PKCS12" : "jks";
-                KeyStore keyStore = KeyStore.getInstance(keyStoreType);
+                KeyStore keyStore = KeyStore.getInstance(KeyStoreUtils.inferStoreType(keystorePath));
                 try (InputStream is = Files.newInputStream(path)) {
                     keyStore.load(is, keystorePass.toCharArray());
                 }

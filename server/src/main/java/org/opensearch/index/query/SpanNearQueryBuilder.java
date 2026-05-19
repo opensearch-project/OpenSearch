@@ -311,6 +311,11 @@ public class SpanNearQueryBuilder extends AbstractQueryBuilder<SpanNearQueryBuil
         }
     }
 
+    @Override
+    public boolean supportsIntraSegmentSearch() {
+        return true;
+    }
+
     /**
      * SpanGapQueryBuilder enables gaps in a SpanNearQuery.
      * Since, SpanGapQuery is private to SpanNearQuery, SpanGapQueryBuilder cannot
@@ -373,6 +378,11 @@ public class SpanNearQueryBuilder extends AbstractQueryBuilder<SpanNearQueryBuil
         @Override
         public Query toQuery(QueryShardContext context) throws IOException {
             throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public QueryBuilder filter(QueryBuilder filter) {
+            throw new UnsupportedOperationException("You can't add a filter to a SpanGapQueryBuilder");
         }
 
         @Override

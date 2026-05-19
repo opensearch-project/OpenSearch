@@ -598,8 +598,8 @@ public class RoutingIteratorTests extends OpenSearchAllocationTestCase {
             .nodes(
                 DiscoveryNodes.builder()
                     .add(newNode("node1", Collections.singleton(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE)))
-                    .add(newNode("node2", Collections.singleton(DiscoveryNodeRole.SEARCH_ROLE)))
-                    .add(newNode("node3", Collections.singleton(DiscoveryNodeRole.SEARCH_ROLE)))
+                    .add(newNode("node2", Collections.singleton(DiscoveryNodeRole.WARM_ROLE)))
+                    .add(newNode("node3", Collections.singleton(DiscoveryNodeRole.WARM_ROLE)))
                     .localNodeId("node1")
             )
             .build();

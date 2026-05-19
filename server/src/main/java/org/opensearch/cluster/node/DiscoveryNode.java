@@ -122,12 +122,12 @@ public class DiscoveryNode implements VerifiableWriteable, ToXContentFragment {
         return hasRole(settings, DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE);
     }
 
-    public static boolean isSearchNode(Settings settings) {
-        return hasRole(settings, DiscoveryNodeRole.SEARCH_ROLE);
+    public static boolean isWarmNode(Settings settings) {
+        return hasRole(settings, DiscoveryNodeRole.WARM_ROLE);
     }
 
-    public static boolean isDedicatedSearchNode(Settings settings) {
-        return getRolesFromSettings(settings).stream().allMatch(DiscoveryNodeRole.SEARCH_ROLE::equals);
+    public static boolean isDedicatedWarmNode(Settings settings) {
+        return getRolesFromSettings(settings).stream().allMatch(DiscoveryNodeRole.WARM_ROLE::equals);
     }
 
     private final String nodeName;
@@ -136,6 +136,7 @@ public class DiscoveryNode implements VerifiableWriteable, ToXContentFragment {
     private final String hostName;
     private final String hostAddress;
     private final TransportAddress address;
+    private final TransportAddress streamAddress;
     private final Map<String, String> attributes;
     private final Version version;
     private final SortedSet<DiscoveryNodeRole> roles;
@@ -219,6 +220,20 @@ public class DiscoveryNode implements VerifiableWriteable, ToXContentFragment {
         );
     }
 
+    public DiscoveryNode(
+        String nodeName,
+        String nodeId,
+        String ephemeralId,
+        String hostName,
+        String hostAddress,
+        TransportAddress address,
+        Map<String, String> attributes,
+        Set<DiscoveryNodeRole> roles,
+        Version version
+    ) {
+        this(nodeName, nodeId, ephemeralId, hostName, hostAddress, address, null, attributes, roles, version);
+    }
+
     /**
      * Creates a new {@link DiscoveryNode}.
      * <p>
@@ -244,6 +259,7 @@ public class DiscoveryNode implements VerifiableWriteable, ToXContentFragment {
         String hostName,
         String hostAddress,
         TransportAddress address,
+        TransportAddress streamAddress,
         Map<String, String> attributes,
         Set<DiscoveryNodeRole> roles,
         Version version
@@ -258,6 +274,7 @@ public class DiscoveryNode implements VerifiableWriteable, ToXContentFragment {
         this.hostName = hostName.intern();
         this.hostAddress = hostAddress.intern();
         this.address = address;
+        this.streamAddress = streamAddress;
         if (version == null) {
             this.version = Version.CURRENT;
         } else {
@@ -275,6 +292,21 @@ public class DiscoveryNode implements VerifiableWriteable, ToXContentFragment {
         };
         assert predicate.test(attributes) : attributes;
         this.roles = Collections.unmodifiableSortedSet(new TreeSet<>(roles));
+    }
+
+    public DiscoveryNode(DiscoveryNode node, TransportAddress streamAddress) {
+        this(
+            node.getName(),
+            node.getId(),
+            node.getEphemeralId(),
+            node.getHostName(),
+            node.getHostAddress(),
+            node.getAddress(),
+            streamAddress,
+            node.getAttributes(),
+            node.getRoles(),
+            node.getVersion()
+        );
     }
 
     /** Creates a DiscoveryNode representing the local node. */
@@ -320,6 +352,12 @@ public class DiscoveryNode implements VerifiableWriteable, ToXContentFragment {
         this.hostName = in.readString().intern();
         this.hostAddress = in.readString().intern();
         this.address = new TransportAddress(in);
+        if (in.getVersion().onOrAfter(Version.V_3_2_0)) {
+            this.streamAddress = in.readOptionalWriteable(TransportAddress::new);
+        } else {
+            streamAddress = null;
+        }
+
         int size = in.readVInt();
         this.attributes = new HashMap<>(size);
         for (int i = 0; i < size; i++) {
@@ -397,6 +435,9 @@ public class DiscoveryNode implements VerifiableWriteable, ToXContentFragment {
         out.writeString(hostName);
         out.writeString(hostAddress);
         address.writeTo(out);
+        if (out.getVersion().onOrAfter(Version.V_3_2_0)) {
+            out.writeOptionalWriteable(streamAddress);
+        }
     }
 
     private void writeRolesAndVersion(StreamOutput out) throws IOException {
@@ -415,6 +456,10 @@ public class DiscoveryNode implements VerifiableWriteable, ToXContentFragment {
      */
     public TransportAddress getAddress() {
         return address;
+    }
+
+    public TransportAddress getStreamAddress() {
+        return streamAddress;
     }
 
     /**
@@ -480,9 +525,18 @@ public class DiscoveryNode implements VerifiableWriteable, ToXContentFragment {
     }
 
     /**
-     * Returns whether the node is dedicated to provide search capability.
+     * Returns whether the node is dedicated to hold warm indices.
      *
-     * @return true if the node contains search role, false otherwise
+     * @return true if the node contains warm role, false otherwise
+     */
+    public boolean isWarmNode() {
+        return roles.contains(DiscoveryNodeRole.WARM_ROLE);
+    }
+
+    /**
+     * Returns whether the node is dedicated to host search replicas.
+     *
+     * @return true if the node contains a search role, false otherwise
      */
     public boolean isSearchNode() {
         return roles.contains(DiscoveryNodeRole.SEARCH_ROLE);
@@ -495,6 +549,14 @@ public class DiscoveryNode implements VerifiableWriteable, ToXContentFragment {
      */
     public boolean isRemoteStoreNode() {
         return isClusterStateRepoConfigured(this.getAttributes()) && RemoteStoreNodeAttribute.isSegmentRepoConfigured(this.getAttributes());
+    }
+
+    /**
+     * Returns whether the node is a remote segment store node.
+     * @return true if the node contains remote segment store node attributes, false otherwise
+     */
+    public boolean isRemoteSegmentStoreNode() {
+        return RemoteStoreNodeAttribute.isSegmentRepoConfigured(this.getAttributes());
     }
 
     /**
@@ -560,6 +622,9 @@ public class DiscoveryNode implements VerifiableWriteable, ToXContentFragment {
         sb.append('{').append(ephemeralId).append('}');
         sb.append('{').append(hostName).append('}');
         sb.append('{').append(address).append('}');
+        if (streamAddress != null) {
+            sb.append('{').append(streamAddress).append('}');
+        }
         if (roles.isEmpty() == false) {
             sb.append('{');
             roles.stream().map(DiscoveryNodeRole::roleNameAbbreviation).sorted().forEach(sb::append);
@@ -586,6 +651,9 @@ public class DiscoveryNode implements VerifiableWriteable, ToXContentFragment {
         builder.field("name", getName());
         builder.field("ephemeral_id", getEphemeralId());
         builder.field("transport_address", getAddress().toString());
+        if (streamAddress != null) {
+            builder.field("stream_transport_address", getStreamAddress().toString());
+        }
 
         builder.startObject("attributes");
         for (Map.Entry<String, String> entry : attributes.entrySet()) {
@@ -598,7 +666,8 @@ public class DiscoveryNode implements VerifiableWriteable, ToXContentFragment {
     }
 
     private static Map<String, DiscoveryNodeRole> rolesToMap(final Stream<DiscoveryNodeRole> roles) {
-        return Collections.unmodifiableMap(roles.collect(Collectors.toMap(DiscoveryNodeRole::roleName, Function.identity())));
+        Stream<DiscoveryNodeRole> rolesWithSearch = Stream.concat(roles, Stream.of(DiscoveryNodeRole.SEARCH_ROLE));
+        return Collections.unmodifiableMap(rolesWithSearch.collect(Collectors.toMap(DiscoveryNodeRole::roleName, Function.identity())));
     }
 
     private static Map<String, DiscoveryNodeRole> roleMap = rolesToMap(DiscoveryNodeRole.BUILT_IN_ROLES.stream());

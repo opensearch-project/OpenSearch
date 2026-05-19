@@ -32,6 +32,8 @@
 
 package org.opensearch.index.reindex;
 
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
+
 import com.sun.net.httpserver.HttpsConfigurator;
 import com.sun.net.httpserver.HttpsExchange;
 import com.sun.net.httpserver.HttpsParameters;
@@ -48,6 +50,7 @@ import org.opensearch.common.ssl.PemTrustConfig;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.env.Environment;
 import org.opensearch.env.TestEnvironment;
+import org.opensearch.test.BouncyCastleThreadFilter;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.watcher.ResourceWatcherService;
 import org.hamcrest.Matchers;
@@ -56,7 +59,6 @@ import org.junit.BeforeClass;
 
 import javax.net.ssl.KeyManager;
 import javax.net.ssl.SSLContext;
-import javax.net.ssl.SSLHandshakeException;
 import javax.net.ssl.SSLPeerUnverifiedException;
 import javax.net.ssl.TrustManager;
 import javax.net.ssl.X509ExtendedKeyManager;
@@ -65,6 +67,7 @@ import javax.net.ssl.X509ExtendedTrustManager;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.file.Path;
+import java.security.cert.CertPathBuilderException;
 import java.security.cert.Certificate;
 import java.security.cert.X509Certificate;
 import java.util.ArrayList;
@@ -82,8 +85,10 @@ import static org.mockito.Mockito.mock;
  * right SSL keys + trust settings.
  */
 @SuppressForbidden(reason = "use http server")
+@ThreadLeakFilters(filters = BouncyCastleThreadFilter.class)
 public class ReindexRestClientSslTests extends OpenSearchTestCase {
 
+    private static final String STRONG_PRIVATE_SECRET = "6!6428DQXwPpi7@$ggeg/="; // has to be at least 112 bit strong to test in FIPS mode.
     private static HttpsServer server;
     private static Consumer<HttpsExchange> handler = ignore -> {};
 
@@ -115,11 +120,10 @@ public class ReindexRestClientSslTests extends OpenSearchTestCase {
 
     private static SSLContext buildServerSslContext() throws Exception {
         final SSLContext sslContext = SSLContext.getInstance("TLSv1.2");
-        final char[] password = "http-password".toCharArray();
 
         final Path cert = PathUtils.get(ReindexRestClientSslTests.class.getResource("http/http.crt").toURI());
         final Path key = PathUtils.get(ReindexRestClientSslTests.class.getResource("http/http.key").toURI());
-        final X509ExtendedKeyManager keyManager = new PemKeyConfig(cert, key, password).createKeyManager();
+        final X509ExtendedKeyManager keyManager = new PemKeyConfig(cert, key, STRONG_PRIVATE_SECRET.toCharArray()).createKeyManager();
 
         final Path ca = PathUtils.get(ReindexRestClientSslTests.class.getResource("ca.pem").toURI());
         final X509ExtendedTrustManager trustManager = new PemTrustConfig(Collections.singletonList(ca)).createTrustManager();
@@ -129,7 +133,6 @@ public class ReindexRestClientSslTests extends OpenSearchTestCase {
     }
 
     public void testClientFailsWithUntrustedCertificate() throws IOException {
-        assumeFalse("https://github.com/elastic/elasticsearch/issues/49094", inFipsJvm());
         final List<Thread> threads = new ArrayList<>();
         final Settings settings = Settings.builder()
             .put("path.home", createTempDir())
@@ -138,7 +141,13 @@ public class ReindexRestClientSslTests extends OpenSearchTestCase {
         final Environment environment = TestEnvironment.newEnvironment(settings);
         final ReindexSslConfig ssl = new ReindexSslConfig(settings, environment, mock(ResourceWatcherService.class));
         try (RestClient client = Reindexer.buildRestClient(getRemoteInfo(), ssl, 1L, threads)) {
-            expectThrows(SSLHandshakeException.class, () -> client.performRequest(new Request("GET", "/")));
+            var exception = expectThrows(Exception.class, () -> client.performRequest(new Request("GET", "/")));
+            var rootCause = exception.getCause().getCause().getCause().getCause();
+            assertThat(rootCause, Matchers.instanceOf(CertPathBuilderException.class));
+            assertThat(
+                rootCause.getMessage(),
+                Matchers.containsString("No issuer certificate for certificate in certification path found")
+            );
         }
     }
 
@@ -158,8 +167,7 @@ public class ReindexRestClientSslTests extends OpenSearchTestCase {
         }
     }
 
-    public void testClientSucceedsWithVerificationDisabled() throws IOException {
-        assumeFalse("Cannot disable verification in FIPS JVM", inFipsJvm());
+    public void testClientWithVerificationDisabled() throws IOException {
         final List<Thread> threads = new ArrayList<>();
         final Settings settings = Settings.builder()
             .put("path.home", createTempDir())
@@ -184,7 +192,7 @@ public class ReindexRestClientSslTests extends OpenSearchTestCase {
             .putList("reindex.ssl.certificate_authorities", ca.toString())
             .put("reindex.ssl.certificate", cert)
             .put("reindex.ssl.key", key)
-            .put("reindex.ssl.key_passphrase", "client-password")
+            .put("reindex.ssl.key_passphrase", STRONG_PRIVATE_SECRET)
             .put("reindex.ssl.supported_protocols", "TLSv1.2")
             .build();
         AtomicReference<Certificate[]> clientCertificates = new AtomicReference<>();
@@ -206,8 +214,8 @@ public class ReindexRestClientSslTests extends OpenSearchTestCase {
             assertThat(certs, Matchers.arrayWithSize(1));
             assertThat(certs[0], Matchers.instanceOf(X509Certificate.class));
             final X509Certificate clientCert = (X509Certificate) certs[0];
-            assertThat(clientCert.getSubjectDN().getName(), Matchers.is("CN=client"));
-            assertThat(clientCert.getIssuerDN().getName(), Matchers.is("CN=Elastic Certificate Tool Autogenerated CA"));
+            assertThat(clientCert.getSubjectDN().getName(), Matchers.is("CN=localhost,OU=UNIT,O=ORG,L=TORONTO,ST=ONTARIO,C=CA"));
+            assertThat(clientCert.getIssuerDN().getName(), Matchers.is("CN=OpenSearch Test Node"));
         }
     }
 

@@ -50,7 +50,7 @@ import org.opensearch.http.HttpStats;
 import org.opensearch.index.SegmentReplicationRejectionStats;
 import org.opensearch.index.stats.IndexingPressureStats;
 import org.opensearch.index.stats.ShardIndexingPressureStats;
-import org.opensearch.index.store.remote.filecache.FileCacheStats;
+import org.opensearch.index.store.remote.filecache.AggregateFileCacheStats;
 import org.opensearch.indices.NodeIndicesStats;
 import org.opensearch.ingest.IngestStats;
 import org.opensearch.monitor.fs.FsInfo;
@@ -143,7 +143,7 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
     private WeightedRoutingStats weightedRoutingStats;
 
     @Nullable
-    private FileCacheStats fileCacheStats;
+    private AggregateFileCacheStats fileCacheStats;
 
     @Nullable
     private TaskCancellationStats taskCancellationStats;
@@ -208,7 +208,7 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
             weightedRoutingStats = null;
         }
         if (in.getVersion().onOrAfter(Version.V_2_7_0)) {
-            fileCacheStats = in.readOptionalWriteable(FileCacheStats::new);
+            fileCacheStats = in.readOptionalWriteable(AggregateFileCacheStats::new);
         } else {
             fileCacheStats = null;
         }
@@ -277,7 +277,7 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         @Nullable SearchBackpressureStats searchBackpressureStats,
         @Nullable ClusterManagerThrottlingStats clusterManagerThrottlingStats,
         @Nullable WeightedRoutingStats weightedRoutingStats,
-        @Nullable FileCacheStats fileCacheStats,
+        @Nullable AggregateFileCacheStats fileCacheStats,
         @Nullable TaskCancellationStats taskCancellationStats,
         @Nullable SearchPipelineStats searchPipelineStats,
         @Nullable SegmentReplicationRejectionStats segmentReplicationRejectionStats,
@@ -444,7 +444,7 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         return weightedRoutingStats;
     }
 
-    public FileCacheStats getFileCacheStats() {
+    public AggregateFileCacheStats getFileCacheStats() {
         return fileCacheStats;
     }
 

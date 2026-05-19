@@ -86,6 +86,30 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
         queryName = in.readOptionalString();
     }
 
+    /**
+     * Check the input parameters of filter function.
+     * @param filter filter to combine with current query builder
+     * @return true if parameters are valid. Returns false when the filter is null.
+     */
+    public static boolean validateFilterParams(QueryBuilder filter) {
+        return filter != null;
+    }
+
+    /**
+     * Combine filter with current query builder
+     * @param filter filter to combine with current query builder
+     * @return query builder with filter combined
+     */
+    public QueryBuilder filter(QueryBuilder filter) {
+        if (validateFilterParams(filter) == false) {
+            return this;
+        }
+        final BoolQueryBuilder modifiedQB = new BoolQueryBuilder();
+        modifiedQB.must(this);
+        modifiedQB.filter(filter);
+        return modifiedQB;
+    }
+
     @Override
     public final void writeTo(StreamOutput out) throws IOException {
         out.writeFloat(boost);
@@ -211,13 +235,13 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
      * @param obj the input object
      * @return the same input object or a {@link BytesRef} representation if input was of type string
      */
-    static Object maybeConvertToBytesRef(Object obj) {
-        if (obj instanceof String) {
-            return BytesRefs.toBytesRef(obj);
-        } else if (obj instanceof CharBuffer) {
-            return new BytesRef((CharBuffer) obj);
-        } else if (obj instanceof BigInteger) {
-            return BytesRefs.toBytesRef(obj);
+    public static Object maybeConvertToBytesRef(Object obj) {
+        if (obj instanceof String stringValue) {
+            return BytesRefs.toBytesRef(stringValue);
+        } else if (obj instanceof CharBuffer charBuffer) {
+            return new BytesRef(charBuffer);
+        } else if (obj instanceof BigInteger bigInteger) {
+            return BytesRefs.toBytesRef(bigInteger);
         }
         return obj;
     }
@@ -229,10 +253,10 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
      * @return the same input object or a utf8 string if input was of type {@link BytesRef} or {@link CharBuffer}
      */
     static Object maybeConvertToString(Object obj) {
-        if (obj instanceof BytesRef) {
-            return ((BytesRef) obj).utf8ToString();
-        } else if (obj instanceof CharBuffer) {
-            return new BytesRef((CharBuffer) obj).utf8ToString();
+        if (obj instanceof BytesRef bytesRef) {
+            return bytesRef.utf8ToString();
+        } else if (obj instanceof CharBuffer charBuffer) {
+            return new BytesRef(charBuffer).utf8ToString();
         }
         return obj;
     }

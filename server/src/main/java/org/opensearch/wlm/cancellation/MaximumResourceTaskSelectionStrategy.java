@@ -8,8 +8,8 @@
 
 package org.opensearch.wlm.cancellation;
 
-import org.opensearch.wlm.QueryGroupTask;
 import org.opensearch.wlm.ResourceType;
+import org.opensearch.wlm.WorkloadGroupTask;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -17,7 +17,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.stream.Collectors;
 
-import static org.opensearch.wlm.cancellation.QueryGroupTaskCancellationService.MIN_VALUE;
+import static org.opensearch.wlm.cancellation.WorkloadGroupTaskCancellationService.MIN_VALUE;
 
 /**
  * Represents the highest resource consuming task first selection strategy.
@@ -33,7 +33,7 @@ public class MaximumResourceTaskSelectionStrategy implements TaskSelectionStrate
      *
      * @return The comparator
      */
-    private Comparator<QueryGroupTask> sortingCondition(ResourceType resourceType) {
+    private Comparator<WorkloadGroupTask> sortingCondition(ResourceType resourceType) {
         return Comparator.comparingDouble(task -> resourceType.getResourceUsageCalculator().calculateTaskResourceUsage(task));
     }
 
@@ -47,7 +47,7 @@ public class MaximumResourceTaskSelectionStrategy implements TaskSelectionStrate
      * @return The list of selected tasks
      * @throws IllegalArgumentException If the limit is less than zero
      */
-    public List<QueryGroupTask> selectTasksForCancellation(List<QueryGroupTask> tasks, double limit, ResourceType resourceType) {
+    public List<WorkloadGroupTask> selectTasksForCancellation(List<WorkloadGroupTask> tasks, double limit, ResourceType resourceType) {
         if (limit < 0) {
             throw new IllegalArgumentException("limit has to be greater than zero");
         }
@@ -55,11 +55,11 @@ public class MaximumResourceTaskSelectionStrategy implements TaskSelectionStrate
             return Collections.emptyList();
         }
 
-        List<QueryGroupTask> sortedTasks = tasks.stream().sorted(sortingCondition(resourceType).reversed()).collect(Collectors.toList());
+        List<WorkloadGroupTask> sortedTasks = tasks.stream().sorted(sortingCondition(resourceType).reversed()).collect(Collectors.toList());
 
-        List<QueryGroupTask> selectedTasks = new ArrayList<>();
+        List<WorkloadGroupTask> selectedTasks = new ArrayList<>();
         double accumulated = 0;
-        for (QueryGroupTask task : sortedTasks) {
+        for (WorkloadGroupTask task : sortedTasks) {
             selectedTasks.add(task);
             accumulated += resourceType.getResourceUsageCalculator().calculateTaskResourceUsage(task);
             if ((accumulated - limit) > MIN_VALUE) {

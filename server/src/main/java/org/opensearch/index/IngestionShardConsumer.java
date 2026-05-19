@@ -8,7 +8,7 @@
 
 package org.opensearch.index;
 
-import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.common.annotation.PublicApi;
 
 import java.io.Closeable;
 import java.util.List;
@@ -18,7 +18,7 @@ import java.util.List;
  * @param <T> the type of the pointer to the message
  * @param <M> the type of the message
  */
-@ExperimentalApi
+@PublicApi(since = "3.6.0")
 public interface IngestionShardConsumer<T extends IngestionShardPointer, M extends Message> extends Closeable {
 
     /**
@@ -26,7 +26,7 @@ public interface IngestionShardConsumer<T extends IngestionShardPointer, M exten
      * @param <T> the type of the pointer to the message
      * @param <M> the type of the message
      */
-    @ExperimentalApi
+    @PublicApi(since = "3.6.0")
     class ReadResult<T, M> {
         T pointer;
         M message;
@@ -58,19 +58,26 @@ public interface IngestionShardConsumer<T extends IngestionShardPointer, M exten
 
     /**
      * Read the next set of messages from the source
-     * @param pointer the pointer to start reading from, inclusive
+     * @param pointer the pointer to start reading from,
+     * @param includeStart whether to include the start pointer in the read
      * @param maxMessages, the maximum number of messages to read, or -1 for no limit
      * @param timeoutMillis the maximum time to wait for messages
      * @throws java.util.concurrent.TimeoutException If the operation could not be completed within {@code timeoutMillis}
      * milliseconds
      * @return a list of messages read from the source
      */
-    List<ReadResult<T, M>> readNext(T pointer, long maxMessages, int timeoutMillis) throws java.util.concurrent.TimeoutException;
+    List<ReadResult<T, M>> readNext(T pointer, boolean includeStart, long maxMessages, int timeoutMillis)
+        throws java.util.concurrent.TimeoutException;
 
     /**
-     * @return the next pointer to read from
+     * Read the next set of messages from the source using the previous pointer. An exception is thrown if no previous pointer is available.
+     * This method is used as an optimization for consecutive reads.
+     * @param maxMessages the maximum number of messages to read, or -1 for no limit
+     * @param timeoutMillis the maximum time to wait for messages
+     * @return a list of messages read from the source
+     * @throws java.util.concurrent.TimeoutException
      */
-    T nextPointer();
+    List<ReadResult<T, M>> readNext(long maxMessages, int timeoutMillis) throws java.util.concurrent.TimeoutException;
 
     /**
      * @return the earliest pointer in the shard
@@ -102,4 +109,11 @@ public interface IngestionShardConsumer<T extends IngestionShardPointer, M exten
      * @return the shard id
      */
     int getShardId();
+
+    /**
+     * Returns the pointer based lag for the current shard consumer.
+     * @param expectedStartPointer the ingestion start point on first time shard initialization.
+     * @return pointer based lag if available, else 0.
+     */
+    long getPointerBasedLag(IngestionShardPointer expectedStartPointer);
 }

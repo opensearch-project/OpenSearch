@@ -114,7 +114,7 @@ public interface Processor {
         Consumer<List<IngestDocumentWrapper>> handler
     ) {
         execute(ingestDocumentWrapper.getIngestDocument(), (doc, ex) -> {
-            results.set(slot, new IngestDocumentWrapper(ingestDocumentWrapper.getSlot(), doc, ex));
+            results.set(slot, new IngestDocumentWrapper(ingestDocumentWrapper.getSlot(), ingestDocumentWrapper.getChildSlot(), doc, ex));
             if (counter.decrementAndGet() == 0) {
                 handler.accept(results.asList());
             }
@@ -137,6 +137,13 @@ public interface Processor {
     String getDescription();
 
     /**
+     * @return if the processor is systematically generated
+     */
+    default boolean isSystemGenerated() {
+        return false;
+    }
+
+    /**
      * A factory that knows how to construct a processor based on a map of maps.
      */
     interface Factory {
@@ -152,6 +159,13 @@ public interface Processor {
          */
         Processor create(Map<String, Factory> processorFactories, String tag, String description, Map<String, Object> config)
             throws Exception;
+
+        /**
+         * @return if the factory is for system generated processor
+         */
+        default boolean isSystemGenerated() {
+            return false;
+        }
     }
 
     /**

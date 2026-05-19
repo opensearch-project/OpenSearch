@@ -382,6 +382,11 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
         throw new UnsupportedOperationException("Parsing is implemented in parse(), this method should NEVER be called");
     }
 
+    @Override
+    protected void parseCreateFieldForPluggableFormat(ParseContext context) throws IOException {
+        throw new UnsupportedOperationException("Parsing is implemented in parse(), this method should NEVER be called");
+    }
+
     protected abstract void addStoredFields(ParseContext context, Processed geometry);
 
     protected abstract void addDocValuesFields(String name, Processed geometry, List<IndexableField> fields, ParseContext context);
@@ -452,7 +457,8 @@ public abstract class AbstractGeometryFieldMapper<Parsed, Processed> extends Fie
         }
     }
 
-    public Explicit<Boolean> ignoreMalformed() {
+    @Override
+    protected Explicit<Boolean> ignoreMalformed() {
         return ignoreMalformed;
     }
 

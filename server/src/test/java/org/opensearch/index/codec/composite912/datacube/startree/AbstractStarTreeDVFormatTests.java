@@ -13,7 +13,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.codecs.Codec;
-import org.apache.lucene.codecs.lucene101.Lucene101Codec;
+import org.apache.lucene.codecs.lucene104.Lucene104Codec;
 import org.apache.lucene.tests.index.BaseDocValuesFormatTestCase;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.opensearch.Version;
@@ -21,7 +21,6 @@ import org.opensearch.cluster.ClusterModule;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.unit.ByteSizeValue;
@@ -29,22 +28,18 @@ import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.MapperTestUtils;
-import org.opensearch.index.codec.composite.composite101.Composite101Codec;
+import org.opensearch.index.codec.composite.composite104.Composite104Codec;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeFieldConfiguration;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeIndexSettings;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.indices.IndicesModule;
 import org.junit.After;
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
-
-import static org.opensearch.common.util.FeatureFlags.STAR_TREE_INDEX;
 
 /**
  * Abstract star tree doc values Lucene tests
@@ -66,16 +61,6 @@ public abstract class AbstractStarTreeDVFormatTests extends BaseDocValuesFormatT
         return parameters;
     }
 
-    @BeforeClass
-    public static void createMapper() throws Exception {
-        FeatureFlags.initializeFeatureFlags(Settings.builder().put(STAR_TREE_INDEX, "true").build());
-    }
-
-    @AfterClass
-    public static void clearMapper() {
-        FeatureFlags.initializeFeatureFlags(Settings.EMPTY);
-    }
-
     @After
     public void teardown() throws IOException {
         mapperService.close();
@@ -90,7 +75,7 @@ public abstract class AbstractStarTreeDVFormatTests extends BaseDocValuesFormatT
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
-        Codec codec = new Composite101Codec(Lucene101Codec.Mode.BEST_SPEED, mapperService, testLogger);
+        Codec codec = new Composite104Codec(Lucene104Codec.Mode.BEST_SPEED, mapperService, testLogger);
         return codec;
     }
 

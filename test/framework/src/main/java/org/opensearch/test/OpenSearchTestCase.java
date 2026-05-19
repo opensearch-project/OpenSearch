@@ -33,6 +33,7 @@ package org.opensearch.test;
 
 import com.carrotsearch.randomizedtesting.RandomizedTest;
 import com.carrotsearch.randomizedtesting.annotations.Listeners;
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakLingering;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope.Scope;
@@ -85,6 +86,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.time.DateUtils;
 import org.opensearch.common.time.FormatNames;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.MockBigArrays;
 import org.opensearch.common.util.MockPageCacheRecycler;
 import org.opensearch.common.util.concurrent.ThreadContext;
@@ -112,6 +114,7 @@ import org.opensearch.core.xcontent.XContentParser.Token;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.env.TestEnvironment;
+import org.opensearch.fips.FipsMode;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.analysis.AnalysisRegistry;
@@ -146,11 +149,18 @@ import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.internal.AssumptionViolatedException;
 import org.junit.rules.RuleChain;
+import org.junit.rules.TestRule;
+import org.junit.runner.Description;
+import org.junit.runners.model.Statement;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.PrintWriter;
 import java.io.StringWriter;
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
 import java.math.BigInteger;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
@@ -198,6 +208,7 @@ import static org.hamcrest.Matchers.hasItem;
 @Listeners({ ReproduceInfoPrinter.class, LoggingListener.class })
 @ThreadLeakScope(Scope.SUITE)
 @ThreadLeakLingering(linger = 5000) // 5 sec lingering
+@ThreadLeakFilters(filters = BouncyCastleThreadFilter.class)
 @TimeoutSuite(millis = 20 * TimeUnits.MINUTE)
 @LuceneTestCase.SuppressSysoutChecks(bugUrl = "we log a lot on purpose")
 // we suppress pretty much all the lucene codecs for now, except asserting
@@ -234,6 +245,45 @@ public abstract class OpenSearchTestCase extends LuceneTestCase {
     private static final Collection<String> nettyLoggedLeaks = new ArrayList<>();
     private HeaderWarningAppender headerWarningAppender;
 
+    /**
+     * Define LockFeatureFlag annotation for unit tests.
+     * Enables and make a flag immutable for the duration of the test case.
+     * Flag returned to previous value on test exit.
+     * Usage: LockFeatureFlag("example.featureflag.setting.key.enabled")
+     */
+    @Retention(RetentionPolicy.RUNTIME)
+    @Target({ ElementType.METHOD })
+    public @interface LockFeatureFlag {
+        String value();
+    }
+
+    public static class AnnotatedFeatureFlagRule implements TestRule {
+        /**
+         * Wrap base test case with an
+         * @param base test case to execute.
+         * @param description annotated test description.
+         */
+        @Override
+        public Statement apply(Statement base, Description description) {
+            LockFeatureFlag annotation = description.getAnnotation(LockFeatureFlag.class);
+            if (annotation == null) {
+                return base;
+            }
+            String flagKey = annotation.value();
+            return new Statement() {
+                @Override
+                public void evaluate() throws Throwable {
+                    try (FeatureFlags.TestUtils.FlagWriteLock ignored = new FeatureFlags.TestUtils.FlagWriteLock(flagKey)) {
+                        base.evaluate();
+                    }
+                }
+            };
+        }
+    }
+
+    @Rule
+    public AnnotatedFeatureFlagRule flagLockRule = new AnnotatedFeatureFlagRule();
+
     @AfterClass
     public static void resetPortCounter() {
         portGenerator.set(0);
@@ -242,7 +292,6 @@ public abstract class OpenSearchTestCase extends LuceneTestCase {
     @Override
     public void tearDown() throws Exception {
         Schedulers.shutdownNow();
-        FeatureFlagSetter.clear();
         super.tearDown();
     }
 
@@ -252,8 +301,6 @@ public abstract class OpenSearchTestCase extends LuceneTestCase {
     public static final String TEST_WORKER_SYS_PROPERTY = "org.gradle.test.worker";
 
     public static final String DEFAULT_TEST_WORKER_ID = "--not-gradle--";
-
-    public static final String FIPS_SYSPROP = "tests.fips.enabled";
 
     static {
         TEST_WORKER_VM_ID = System.getProperty(TEST_WORKER_SYS_PROPERTY, DEFAULT_TEST_WORKER_ID);
@@ -650,25 +697,35 @@ public abstract class OpenSearchTestCase extends LuceneTestCase {
         assertThat(StatusLogger.getLogger().getLevel(), equalTo(Level.WARN));
         synchronized (statusData) {
             try {
-                // ensure that there are no status logger messages which would indicate a problem with our Log4j usage; we map the
-                // StatusData instances to Strings as otherwise their toString output is useless
+                /* ensure that there are no status logger messages which would indicate a problem with our Log4j usage; we map the
+                 * StatusData instances to Strings as otherwise their toString output is useless
+                 *
+                 * Filter out known Log4j 2.25+ initialization message about default root logger
+                 */
+                List<StatusData> filteredStatusData = statusData.stream()
+                    .filter(
+                        status -> status.getMessage()
+                            .getFormattedMessage()
+                            .contains("No Root logger was configured, creating default ERROR-level Root logger") == false
+                    )
+                    .toList();
 
-                final Function<StatusData, String> statusToString = (statusData) -> {
+                final Function<StatusData, String> statusToString = (sd) -> {
                     try (final StringWriter sw = new StringWriter(); final PrintWriter pw = new PrintWriter(sw)) {
 
-                        pw.print(statusData.getLevel());
+                        pw.print(sd.getLevel());
                         pw.print(":");
-                        pw.print(statusData.getMessage().getFormattedMessage());
+                        pw.print(sd.getMessage().getFormattedMessage());
 
-                        if (statusData.getStackTraceElement() != null) {
-                            final var messageSource = statusData.getStackTraceElement();
+                        if (sd.getStackTraceElement() != null) {
+                            final var messageSource = sd.getStackTraceElement();
                             pw.println("Source:");
                             pw.println(messageSource.getFileName() + "@" + messageSource.getLineNumber());
                         }
 
-                        if (statusData.getThrowable() != null) {
+                        if (sd.getThrowable() != null) {
                             pw.println("Throwable:");
-                            statusData.getThrowable().printStackTrace(pw);
+                            sd.getThrowable().printStackTrace(pw);
                         }
                         return sw.toString();
                     } catch (IOException ioe) {
@@ -677,8 +734,8 @@ public abstract class OpenSearchTestCase extends LuceneTestCase {
                 };
 
                 assertThat(
-                    statusData.stream().map(statusToString::apply).collect(Collectors.joining("\r\n")),
-                    statusData.stream().map(status -> status.getMessage().getFormattedMessage()).collect(Collectors.toList()),
+                    filteredStatusData.stream().map(statusToString::apply).collect(Collectors.joining("\r\n")),
+                    filteredStatusData.stream().map(status -> status.getMessage().getFormattedMessage()).collect(Collectors.toList()),
                     empty()
                 );
             } finally {
@@ -1233,7 +1290,7 @@ public abstract class OpenSearchTestCase extends LuceneTestCase {
     }
 
     /**
-     * Returns a {@link java.nio.file.Path} pointing to the class path relative resource given
+     * Returns a {@link Path} pointing to the class path relative resource given
      * as the first argument. In contrast to
      * <code>getClass().getResource(...).getFile()</code> this method will not
      * return URL encoded paths if the parent path contains spaces or other
@@ -1288,6 +1345,14 @@ public abstract class OpenSearchTestCase extends LuceneTestCase {
         Settings.Builder builder = Settings.builder()
             .put(DATA_TO_FILE_CACHE_SIZE_RATIO_SETTING.getKey(), 5)
             .put(IndexMetadata.SETTING_VERSION_CREATED, version)
+            .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.REMOTE_SNAPSHOT.getSettingsKey());
+        return builder;
+    }
+
+    public static Settings.Builder warmIndexSettings(Version version) {
+        Settings.Builder builder = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, version)
+            .put(IndexModule.IS_WARM_INDEX_SETTING.getKey(), true)
             .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.REMOTE_SNAPSHOT.getSettingsKey());
         return builder;
     }
@@ -1395,7 +1460,7 @@ public abstract class OpenSearchTestCase extends LuceneTestCase {
         boolean humanReadable,
         String... exceptFieldNames
     ) throws IOException {
-        BytesReference bytes = org.opensearch.core.xcontent.XContentHelper.toXContent(toXContent, mediaType, params, humanReadable);
+        BytesReference bytes = XContentHelper.toXContent(toXContent, mediaType, params, humanReadable);
         try (XContentParser parser = createParser(mediaType.xContent(), bytes)) {
             try (XContentBuilder builder = shuffleXContent(parser, rarely(), exceptFieldNames)) {
                 return BytesReference.bytes(builder);
@@ -1425,7 +1490,7 @@ public abstract class OpenSearchTestCase extends LuceneTestCase {
         throws IOException {
         XContentBuilder xContentBuilder = MediaTypeRegistry.contentBuilder(parser.contentType());
         if (prettyPrint) {
-            xContentBuilder.prettyPrint();
+            xContentBuilder = xContentBuilder.prettyPrint();
         }
         Token token = parser.currentToken() == null ? parser.nextToken() : parser.currentToken();
         if (token == Token.START_ARRAY) {
@@ -1687,8 +1752,8 @@ public abstract class OpenSearchTestCase extends LuceneTestCase {
     protected IndexAnalyzers createDefaultIndexAnalyzers() {
         return new IndexAnalyzers(
             Collections.singletonMap("default", new NamedAnalyzer("default", AnalyzerScope.INDEX, new StandardAnalyzer())),
-            Collections.emptyMap(),
-            Collections.emptyMap()
+            emptyMap(),
+            emptyMap()
         );
     }
 
@@ -1758,7 +1823,7 @@ public abstract class OpenSearchTestCase extends LuceneTestCase {
     }
 
     public static boolean inFipsJvm() {
-        return Boolean.parseBoolean(System.getProperty(FIPS_SYSPROP));
+        return FipsMode.CHECK.isFipsEnabled();
     }
 
     /**

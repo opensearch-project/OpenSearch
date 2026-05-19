@@ -8,11 +8,15 @@
 
 package org.opensearch.repositories.s3;
 
+import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.SizeUnit;
 import org.opensearch.common.unit.SizeValue;
 import org.opensearch.common.util.concurrent.OpenSearchThreadPoolExecutor;
+import org.opensearch.plugins.ExtensiblePlugin;
+import org.opensearch.plugins.NativeRemoteObjectStoreProvider;
+import org.opensearch.repositories.NativeStoreRepository;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.ExecutorBuilder;
 import org.opensearch.threadpool.ThreadPool;
@@ -20,6 +24,8 @@ import org.opensearch.threadpool.ThreadPool.ThreadPoolType;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.Executor;
 
@@ -74,6 +80,7 @@ public class S3RepositoryPluginTests extends OpenSearchTestCase {
                         + "] is deprecated"
                 );
             }
+            assertTrue(plugin.getSettings().contains(S3Repository.S3_ASYNC_HTTP_CLIENT_TYPE));
         } finally {
             if (threadPool != null) {
                 terminate(threadPool);
@@ -83,6 +90,110 @@ public class S3RepositoryPluginTests extends OpenSearchTestCase {
 
     private static int boundedBy(int value, int min, int max) {
         return Math.min(max, Math.max(min, value));
+    }
+
+    public void testLoadExtensionsMultipleProvidersUsesFirst() {
+        Settings settings = Settings.builder().put("node.name", "test").build();
+        Path configPath = createTempDir();
+        S3RepositoryPlugin plugin = new S3RepositoryPlugin(settings, configPath);
+        NativeRemoteObjectStoreProvider first = new NativeRemoteObjectStoreProvider() {
+            @Override
+            public String repositoryType() {
+                return "s3";
+            }
+
+            @Override
+            public NativeStoreRepository createNativeStore(RepositoryMetadata metadata, Settings nodeSettings) {
+                return NativeStoreRepository.EMPTY;
+            }
+        };
+        NativeRemoteObjectStoreProvider second = new NativeRemoteObjectStoreProvider() {
+            @Override
+            public String repositoryType() {
+                return "s3";
+            }
+
+            @Override
+            public NativeStoreRepository createNativeStore(RepositoryMetadata metadata, Settings nodeSettings) {
+                return NativeStoreRepository.EMPTY;
+            }
+        };
+
+        ExtensiblePlugin.ExtensionLoader loader = new ExtensiblePlugin.ExtensionLoader() {
+            @Override
+            @SuppressWarnings("unchecked")
+            public <T> List<T> loadExtensions(Class<T> extensionPointType) {
+                if (extensionPointType == NativeRemoteObjectStoreProvider.class) {
+                    return (List<T>) Arrays.asList(first, second);
+                }
+                return Collections.emptyList();
+            }
+        };
+
+        plugin.loadExtensions(loader);
+        // The warning about multiple providers is logged; verify no exception is thrown
+    }
+
+    public void testLoadExtensionsSingleProvider() {
+        Settings settings = Settings.builder().put("node.name", "test").build();
+        Path configPath = createTempDir();
+        S3RepositoryPlugin plugin = new S3RepositoryPlugin(settings, configPath);
+        NativeRemoteObjectStoreProvider provider = new NativeRemoteObjectStoreProvider() {
+            @Override
+            public String repositoryType() {
+                return "s3";
+            }
+
+            @Override
+            public NativeStoreRepository createNativeStore(RepositoryMetadata metadata, Settings nodeSettings) {
+                return NativeStoreRepository.EMPTY;
+            }
+        };
+
+        ExtensiblePlugin.ExtensionLoader loader = new ExtensiblePlugin.ExtensionLoader() {
+            @Override
+            @SuppressWarnings("unchecked")
+            public <T> List<T> loadExtensions(Class<T> extensionPointType) {
+                if (extensionPointType == NativeRemoteObjectStoreProvider.class) {
+                    return (List<T>) Collections.singletonList(provider);
+                }
+                return Collections.emptyList();
+            }
+        };
+
+        plugin.loadExtensions(loader);
+        // Single provider — no warning, no exception
+    }
+
+    public void testLoadExtensionsNoMatchingProvider() {
+        Settings settings = Settings.builder().put("node.name", "test").build();
+        Path configPath = createTempDir();
+        S3RepositoryPlugin plugin = new S3RepositoryPlugin(settings, configPath);
+        NativeRemoteObjectStoreProvider nonMatchingProvider = new NativeRemoteObjectStoreProvider() {
+            @Override
+            public String repositoryType() {
+                return "gcs";
+            }
+
+            @Override
+            public NativeStoreRepository createNativeStore(RepositoryMetadata metadata, Settings nodeSettings) {
+                return NativeStoreRepository.EMPTY;
+            }
+        };
+
+        ExtensiblePlugin.ExtensionLoader loader = new ExtensiblePlugin.ExtensionLoader() {
+            @Override
+            @SuppressWarnings("unchecked")
+            public <T> List<T> loadExtensions(Class<T> extensionPointType) {
+                if (extensionPointType == NativeRemoteObjectStoreProvider.class) {
+                    return (List<T>) Collections.singletonList(nonMatchingProvider);
+                }
+                return Collections.emptyList();
+            }
+        };
+
+        plugin.loadExtensions(loader);
+        // No matching provider — info log about no provider found, no exception
     }
 
 }

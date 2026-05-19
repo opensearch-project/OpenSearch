@@ -40,7 +40,6 @@ import org.opensearch.cloud.gce.GceInstancesService;
 import org.opensearch.cloud.gce.GceInstancesServiceImpl;
 import org.opensearch.cloud.gce.GceMetadataService;
 import org.opensearch.cloud.gce.network.GceNameResolver;
-import org.opensearch.cloud.gce.util.Access;
 import org.opensearch.common.Booleans;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.network.NetworkService;
@@ -51,6 +50,7 @@ import org.opensearch.discovery.SeedHostsProvider;
 import org.opensearch.discovery.gce.GceSeedHostsProvider;
 import org.opensearch.plugins.DiscoveryPlugin;
 import org.opensearch.plugins.Plugin;
+import org.opensearch.secure_sm.AccessController;
 import org.opensearch.transport.TransportService;
 
 import java.io.Closeable;
@@ -84,7 +84,7 @@ public class GceDiscoveryPlugin extends Plugin implements DiscoveryPlugin, Close
          * our plugin permissions don't allow core to "reach through" plugins to
          * change the permission. Because that'd be silly.
          */
-        Access.doPrivilegedVoid(() -> ClassInfo.of(HttpHeaders.class, true));
+        AccessController.doPrivileged(() -> ClassInfo.of(HttpHeaders.class, true));
     }
 
     public GceDiscoveryPlugin(Settings settings) {

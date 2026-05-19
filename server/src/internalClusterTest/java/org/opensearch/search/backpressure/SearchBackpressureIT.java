@@ -18,6 +18,7 @@ import org.opensearch.action.search.SearchShardTask;
 import org.opensearch.action.search.SearchTask;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.HandledTransportAction;
+import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
@@ -39,7 +40,7 @@ import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
-import org.opensearch.wlm.QueryGroupTask;
+import org.opensearch.wlm.WorkloadGroupTask;
 import org.hamcrest.MatcherAssert;
 import org.junit.After;
 import org.junit.Before;
@@ -416,7 +417,7 @@ public class SearchBackpressureIT extends ParameterizedStaticSettingsOpenSearchI
             threadPool.executor(ThreadPool.Names.SEARCH).execute(() -> {
                 try {
                     CancellableTask cancellableTask = (CancellableTask) task;
-                    ((QueryGroupTask) task).setQueryGroupId(threadPool.getThreadContext());
+                    ((WorkloadGroupTask) task).setWorkloadGroupId(threadPool.getThreadContext());
                     long startTime = System.nanoTime();
 
                     // Doing a busy-wait until task cancellation or timeout.
@@ -438,6 +439,7 @@ public class SearchBackpressureIT extends ParameterizedStaticSettingsOpenSearchI
             });
         }
 
+        @SuppressForbidden(reason = "Simulating a slow task by sleeping")
         private void doWork(TestRequest<Task> request) throws InterruptedException {
             switch (request.getType()) {
                 case HIGH_CPU:

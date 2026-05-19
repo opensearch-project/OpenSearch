@@ -52,16 +52,17 @@ public class CryptoHandlerRegistry {
         List<CryptoKeyProviderPlugin> cryptoKeyProviderPlugins,
         Settings settings
     ) {
-        if (cryptoPlugins == null || cryptoPlugins.size() == 0) {
-            return;
-        }
-        if (cryptoPlugins.size() > 1) {
-            // We can remove this to support multiple implementations in future if needed.
-            throw new IllegalStateException("More than 1 implementation of crypto plugin found.");
+        if (cryptoPlugins != null && !cryptoPlugins.isEmpty()) {
+            if (cryptoPlugins.size() > 1) {
+                // We can remove this to support multiple implementations in future if needed.
+                throw new IllegalStateException("More than 1 implementation of crypto plugin found.");
+            }
+            cryptoHandlerPlugin.set(cryptoPlugins.get(0));
         }
 
-        cryptoHandlerPlugin.set(cryptoPlugins.get(0));
-        registry.set(loadCryptoFactories(cryptoKeyProviderPlugins));
+        if (cryptoKeyProviderPlugins != null && !cryptoKeyProviderPlugins.isEmpty()) {
+            registry.set(loadCryptoFactories(cryptoKeyProviderPlugins));
+        }
     }
 
     public static CryptoHandlerRegistry getInstance() {

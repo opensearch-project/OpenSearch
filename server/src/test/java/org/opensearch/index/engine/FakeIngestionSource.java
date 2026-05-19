@@ -11,6 +11,7 @@ package org.opensearch.index.engine;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.search.Query;
+import org.opensearch.cluster.metadata.IngestionSource;
 import org.opensearch.index.IngestionConsumerFactory;
 import org.opensearch.index.IngestionShardConsumer;
 import org.opensearch.index.IngestionShardPointer;
@@ -21,7 +22,6 @@ import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.TimeoutException;
 
 /**
@@ -37,10 +37,7 @@ public class FakeIngestionSource {
         }
 
         @Override
-        public void initialize(Map params) {}
-
-        @Override
-        public FakeIngestionConsumer createShardConsumer(String clientId, int shardId) {
+        public FakeIngestionConsumer createShardConsumer(String clientId, int shardId, IngestionSource ingestionSource) {
             return new FakeIngestionConsumer(messages, shardId);
         }
 
@@ -65,13 +62,20 @@ public class FakeIngestionSource {
         @Override
         public List<ReadResult<FakeIngestionShardPointer, FakeIngestionMessage>> readNext(
             FakeIngestionShardPointer pointer,
+            boolean includeStart,
             long maxMessages,
             int timeoutMillis
         ) throws TimeoutException {
-            lastFetchedOffset = pointer.offset - 1;
+            if (includeStart) {
+                lastFetchedOffset = pointer.offset - 1;
+            } else {
+                lastFetchedOffset = pointer.offset;
+            }
+
             int numToFetch = Math.min(messages.size() - (int) pointer.offset, (int) maxMessages);
             List<ReadResult<FakeIngestionShardPointer, FakeIngestionMessage>> result = new ArrayList<>();
-            for (long i = pointer.offset; i < pointer.offset + numToFetch; i++) {
+            long startOffset = includeStart ? pointer.offset : pointer.offset + 1;
+            for (long i = startOffset; i < pointer.offset + numToFetch; i++) {
                 result.add(new ReadResult<>(new FakeIngestionShardPointer(i), new FakeIngestionMessage(messages.get((int) i))));
                 lastFetchedOffset = i;
             }
@@ -79,8 +83,9 @@ public class FakeIngestionSource {
         }
 
         @Override
-        public FakeIngestionShardPointer nextPointer() {
-            return new FakeIngestionShardPointer(lastFetchedOffset + 1);
+        public List<ReadResult<FakeIngestionShardPointer, FakeIngestionMessage>> readNext(long maxMessages, int timeoutMillis)
+            throws TimeoutException {
+            return readNext(new FakeIngestionShardPointer(lastFetchedOffset), false, maxMessages, timeoutMillis);
         }
 
         @Override
@@ -109,6 +114,11 @@ public class FakeIngestionSource {
         }
 
         @Override
+        public long getPointerBasedLag(IngestionShardPointer expectedStartPointer) {
+            return 0;
+        }
+
+        @Override
         public void close() throws IOException {
 
         }
@@ -124,6 +134,11 @@ public class FakeIngestionSource {
         @Override
         public byte[] getPayload() {
             return payload;
+        }
+
+        @Override
+        public Long getTimestamp() {
+            return System.currentTimeMillis();
         }
 
         @Override

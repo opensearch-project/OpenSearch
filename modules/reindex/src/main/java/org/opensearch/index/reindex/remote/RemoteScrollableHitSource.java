@@ -42,7 +42,6 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.opensearch.OpenSearchException;
 import org.opensearch.OpenSearchStatusException;
-import org.opensearch.Version;
 import org.opensearch.action.bulk.BackoffPolicy;
 import org.opensearch.action.search.SearchRequest;
 import org.opensearch.client.Request;
@@ -81,7 +80,7 @@ public class RemoteScrollableHitSource extends ScrollableHitSource {
     private final RestClient client;
     private final BytesReference query;
     private final SearchRequest searchRequest;
-    Version remoteVersion;
+    RemoteVersion remoteVersion;
 
     public RemoteScrollableHitSource(
         Logger logger,
@@ -116,7 +115,7 @@ public class RemoteScrollableHitSource extends ScrollableHitSource {
         }, searchListener::onFailure, searchListener::onFailure));
     }
 
-    void lookupRemoteVersion(RejectAwareActionListener<Version> listener) {
+    void lookupRemoteVersion(RejectAwareActionListener<RemoteVersion> listener) {
         logger.trace("Checking version for remote domain");
         // We're skipping retries for the first call to remote cluster so that we fail fast & respond back immediately
         // instead of retrying for longer duration.
@@ -157,19 +156,18 @@ public class RemoteScrollableHitSource extends ScrollableHitSource {
             }
 
             private void logFailure(Exception e) {
-                if (e instanceof ResponseException) {
-                    ResponseException re = (ResponseException) e;
-                    if (remoteVersion.before(Version.fromId(2000099)) && re.getResponse().getStatusLine().getStatusCode() == 404) {
-                        logger.debug(
-                            (Supplier<?>) () -> new ParameterizedMessage(
-                                "Failed to clear scroll [{}] from pre-2.0 OpenSearch. This is normal if the request terminated "
-                                    + "normally as the scroll has already been cleared automatically.",
-                                scrollId
-                            ),
-                            e
-                        );
-                        return;
-                    }
+                if (e instanceof ResponseException re
+                    && remoteVersion.before(RemoteVersion.ELASTICSEARCH_2_0_0)
+                    && re.getResponse().getStatusLine().getStatusCode() == 404) {
+                    logger.debug(
+                        (Supplier<?>) () -> new ParameterizedMessage(
+                            "Failed to clear scroll [{}] from pre-2.0 OpenSearch. This is normal if the request terminated "
+                                + "normally as the scroll has already been cleared automatically.",
+                            scrollId
+                        ),
+                        e
+                    );
+                    return;
                 }
                 logger.warn((Supplier<?>) () -> new ParameterizedMessage("Failed to clear scroll [{}]", scrollId), e);
             }
@@ -265,24 +263,27 @@ public class RemoteScrollableHitSource extends ScrollableHitSource {
                     try (ThreadContext.StoredContext ctx = contextSupplier.get()) {
                         assert ctx != null; // eliminates compiler warning
                         logger.debug("Received response failure {}", e.getMessage());
-                        if (e instanceof ResponseException) {
-                            ResponseException re = (ResponseException) e;
-                            int statusCode = re.getResponse().getStatusLine().getStatusCode();
-                            e = wrapExceptionToPreserveStatus(statusCode, re.getResponse().getEntity(), re);
-                            // retry all 5xx & 429s.
-                            if (RestStatus.TOO_MANY_REQUESTS.getStatus() == statusCode
-                                || statusCode >= RestStatus.INTERNAL_SERVER_ERROR.getStatus()) {
+                        switch (e) {
+                            case ResponseException re -> {
+                                int statusCode = re.getResponse().getStatusLine().getStatusCode();
+                                e = wrapExceptionToPreserveStatus(statusCode, re.getResponse().getEntity(), re);
+                                // retry all 5xx & 429s.
+                                if (RestStatus.TOO_MANY_REQUESTS.getStatus() == statusCode
+                                    || statusCode >= RestStatus.INTERNAL_SERVER_ERROR.getStatus()) {
+                                    listener.onRejection(e);
+                                    return;
+                                }
+                            }
+                            case ConnectException ignored -> {
                                 listener.onRejection(e);
                                 return;
                             }
-                        } else if (e instanceof ConnectException) {
-                            listener.onRejection(e);
-                            return;
-                        } else if (e instanceof ContentTooLongException) {
-                            e = new IllegalArgumentException(
+                            case ContentTooLongException ignored -> e = new IllegalArgumentException(
                                 "Remote responded with a chunk that was too large. Use a smaller batch size.",
                                 e
                             );
+                            default -> {
+                            }
                         }
                     }
                     listener.onFailure(e);

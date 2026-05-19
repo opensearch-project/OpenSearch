@@ -11,6 +11,8 @@ package org.opensearch.search.pipeline;
 import org.opensearch.action.search.SearchRequest;
 import org.opensearch.core.action.ActionListener;
 
+import java.util.concurrent.TimeUnit;
+
 /**
  * Wrapper for SearchRequestProcessor to track execution details.
  *
@@ -70,7 +72,7 @@ public class TrackingSearchRequestProcessorWrapper implements SearchRequestProce
         detail.addInput(request.source().toString());
         wrappedProcessor.processRequestAsync(request, requestContext, ActionListener.wrap(result -> {
             detail.addOutput(result.source().toString());
-            long took = System.nanoTime() - start;
+            long took = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start);
             detail.addTook(took);
             requestContext.addProcessorExecutionDetail(detail);
             requestListener.onResponse(result);

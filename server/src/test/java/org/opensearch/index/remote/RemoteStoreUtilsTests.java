@@ -51,6 +51,8 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
+import org.mockito.Mockito;
+
 import static org.opensearch.cluster.metadata.IndexMetadata.REMOTE_STORE_CUSTOM_KEY;
 import static org.opensearch.index.remote.RemoteMigrationIndexMetadataUpdaterTests.createIndexMetadataWithDocrepSettings;
 import static org.opensearch.index.remote.RemoteStoreUtils.URL_BASE64_CHARSET;
@@ -993,6 +995,37 @@ public class RemoteStoreUtilsTests extends OpenSearchTestCase {
         assertEquals(0, metadataFilePinnedTimestampCache.size());
     }
 
+    /**
+     * This test checks the case when a stale writer is uploading metadata files with higher timestamp, but lower primary
+     * term.
+     */
+    public void testGetPinnedTimestampLockedFilesForDivergentWrites() {
+        setupRemotePinnedTimestampFeature(true);
+
+        Map<Long, String> metadataFilePinnedTimestampCache = new HashMap<>();
+
+        // Pinned timestamp 7000
+        // Primary Term - Timestamp in md file
+        // 6 - 7002
+        // 3 - 6999
+        // 4 - 6998
+        // 5 - 6995
+        // 5 - 6990
+        Tuple<Map<Long, String>, Set<String>> metadataAndLocks = testGetPinnedTimestampLockedFilesWithPinnedTimestamps(
+            Map.of(7002L, 6L, 6999L, 3L, 6998L, 4L, 6995L, 5L, 6990L, 5L),
+            Set.of(4000L, 5000L, 6000L, 7000L),
+            metadataFilePinnedTimestampCache
+        );
+        Map<Long, String> metadataFiles = metadataAndLocks.v1();
+        Set<String> implicitLockedFiles = metadataAndLocks.v2();
+
+        assertEquals(1, implicitLockedFiles.size());
+        assertTrue(implicitLockedFiles.contains(metadataFiles.get(6995L)));
+        // Now we cache all the matches except the last one.
+        assertEquals(1, metadataFilePinnedTimestampCache.size());
+        assertEquals(metadataFiles.get(6995L), metadataFilePinnedTimestampCache.get(7000L));
+    }
+
     public void testFilterOutMetadataFilesBasedOnAgeFeatureDisabled() {
         setupRemotePinnedTimestampFeature(false);
         List<String> metadataFiles = new ArrayList<>();
@@ -1179,5 +1212,34 @@ public class RemoteStoreUtilsTests extends OpenSearchTestCase {
         implicitLockedFiles = metadataAndLocks.v2();
         assertEquals(0, implicitLockedFiles.size());
         assertEquals(0, metadataFilePinnedTimestampCache.size());
+    }
+
+    public void testIsServerSideEncryptionEnabledIndex_when_enabled() {
+        IndexMetadata indexMetadata = Mockito.mock(IndexMetadata.class);
+        Map<String, String> metadata = new HashMap<>();
+        metadata.put(IndexMetadata.REMOTE_STORE_SSE_ENABLED_INDEX_KEY, "true");
+        Mockito.when(indexMetadata.getCustomData(IndexMetadata.REMOTE_STORE_CUSTOM_KEY)).thenReturn(metadata);
+        assertTrue(RemoteStoreUtils.isServerSideEncryptionEnabledIndex(indexMetadata));
+    }
+
+    public void testIsServerSideEncryptionEnabledIndex_when_disabled() {
+        IndexMetadata indexMetadata = Mockito.mock(IndexMetadata.class);
+        Map<String, String> metadata = new HashMap<>();
+        metadata.put(IndexMetadata.REMOTE_STORE_SSE_ENABLED_INDEX_KEY, "false");
+        Mockito.when(indexMetadata.getCustomData(IndexMetadata.REMOTE_STORE_CUSTOM_KEY)).thenReturn(metadata);
+        assertFalse(RemoteStoreUtils.isServerSideEncryptionEnabledIndex(indexMetadata));
+    }
+
+    public void testIsServerSideEncryptionEnabledIndex_when_No_Custom_key() {
+        IndexMetadata indexMetadata = Mockito.mock(IndexMetadata.class);
+        Map<String, String> metadata = new HashMap<>();
+        Mockito.when(indexMetadata.getCustomData(IndexMetadata.REMOTE_STORE_CUSTOM_KEY)).thenReturn(metadata);
+        assertFalse(RemoteStoreUtils.isServerSideEncryptionEnabledIndex(indexMetadata));
+    }
+
+    public void testIsServerSideEncryptionEnabledIndex_when_Custom_key_is_null() {
+        IndexMetadata indexMetadata = Mockito.mock(IndexMetadata.class);
+        Mockito.when(indexMetadata.getCustomData(IndexMetadata.REMOTE_STORE_CUSTOM_KEY)).thenReturn(null);
+        assertFalse(RemoteStoreUtils.isServerSideEncryptionEnabledIndex(indexMetadata));
     }
 }

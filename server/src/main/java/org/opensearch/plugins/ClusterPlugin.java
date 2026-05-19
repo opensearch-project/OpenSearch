@@ -32,6 +32,7 @@
 
 package org.opensearch.plugins;
 
+import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.opensearch.cluster.routing.allocation.allocator.ShardsAllocator;
@@ -86,6 +87,14 @@ public interface ClusterPlugin {
     }
 
     /**
+     * Returns List of custom index name resolvers which can support additional custom wildcards.
+     * @return List of {@link IndexNameExpressionResolver.ExpressionResolver}
+     */
+    default Collection<IndexNameExpressionResolver.ExpressionResolver> getIndexNameCustomResolvers() {
+        return Collections.emptyList();
+    }
+
+    /**
      * Called when the node is started
      *
      * @deprecated Use {@link #onNodeStarted(DiscoveryNode)} for newer implementations.
@@ -102,4 +111,13 @@ public interface ClusterPlugin {
         onNodeStarted();
     }
 
+    /**
+     * @return true if this plugin will handle cluster state management on behalf of the node, so the node does not
+     * need to discover a cluster manager and be part of a cluster.
+     *
+     * Note that if any ClusterPlugin returns true from this method, the node will start in clusterless mode.
+     */
+    default boolean isClusterless() {
+        return false;
+    }
 }

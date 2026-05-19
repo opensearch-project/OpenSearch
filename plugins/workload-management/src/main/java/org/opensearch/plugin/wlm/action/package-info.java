@@ -7,6 +7,6 @@
  */
 
 /**
- * Package for the action classes of WorkloadManagementPlugin
+ * Package for the action classes related to workload groups in WorkloadManagementPlugin
  */
 package org.opensearch.plugin.wlm.action;

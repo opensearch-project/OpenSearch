@@ -17,8 +17,8 @@ import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.wlm.ResourceType;
-import org.opensearch.wlm.stats.QueryGroupStats;
 import org.opensearch.wlm.stats.WlmStats;
+import org.opensearch.wlm.stats.WorkloadGroupStats;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -29,7 +29,7 @@ import java.util.Set;
 
 public class WlmStatsResponseTests extends OpenSearchTestCase {
     ClusterName clusterName = new ClusterName("test-cluster");
-    String testQueryGroupId = "safjgagnaeekg-3r3fads";
+    String testWorkloadGroupId = "safjgagnaeekg-3r3fads";
     DiscoveryNode node = new DiscoveryNode(
         "node-1",
         buildNewFakeTransportAddress(),
@@ -37,45 +37,45 @@ public class WlmStatsResponseTests extends OpenSearchTestCase {
         Set.of(DiscoveryNodeRole.DATA_ROLE),
         Version.CURRENT
     );
-    Map<String, QueryGroupStats.QueryGroupStatsHolder> statsHolderMap = new HashMap<>();
-    QueryGroupStats queryGroupStats = new QueryGroupStats(
+    Map<String, WorkloadGroupStats.WorkloadGroupStatsHolder> statsHolderMap = new HashMap<>();
+    WorkloadGroupStats workloadGroupStats = new WorkloadGroupStats(
         Map.of(
-            testQueryGroupId,
-            new QueryGroupStats.QueryGroupStatsHolder(
+            testWorkloadGroupId,
+            new WorkloadGroupStats.WorkloadGroupStatsHolder(
                 0,
                 0,
                 1,
                 0,
                 Map.of(
                     ResourceType.CPU,
-                    new QueryGroupStats.ResourceStats(0, 0, 0),
+                    new WorkloadGroupStats.ResourceStats(0, 0, 0),
                     ResourceType.MEMORY,
-                    new QueryGroupStats.ResourceStats(0, 0, 0)
+                    new WorkloadGroupStats.ResourceStats(0, 0, 0)
                 )
             )
         )
     );
-    WlmStats wlmStats = new WlmStats(node, queryGroupStats);
+    WlmStats wlmStats = new WlmStats(node, workloadGroupStats);
     List<WlmStats> wlmStatsList = List.of(wlmStats);
     List<FailedNodeException> failedNodeExceptionList = new ArrayList<>();
 
     public void testSerializationAndDeserialization() throws IOException {
-        WlmStatsResponse queryGroupStatsResponse = new WlmStatsResponse(clusterName, wlmStatsList, failedNodeExceptionList);
+        WlmStatsResponse workloadGroupStatsResponse = new WlmStatsResponse(clusterName, wlmStatsList, failedNodeExceptionList);
         BytesStreamOutput out = new BytesStreamOutput();
-        queryGroupStatsResponse.writeTo(out);
+        workloadGroupStatsResponse.writeTo(out);
         StreamInput in = out.bytes().streamInput();
         WlmStatsResponse deserializedResponse = new WlmStatsResponse(in);
-        assertEquals(queryGroupStatsResponse.getClusterName(), deserializedResponse.getClusterName());
-        assertEquals(queryGroupStatsResponse.getNodes().size(), deserializedResponse.getNodes().size());
+        assertEquals(workloadGroupStatsResponse.getClusterName(), deserializedResponse.getClusterName());
+        assertEquals(workloadGroupStatsResponse.getNodes().size(), deserializedResponse.getNodes().size());
     }
 
     public void testToString() {
-        WlmStatsResponse queryGroupStatsResponse = new WlmStatsResponse(clusterName, wlmStatsList, failedNodeExceptionList);
-        String responseString = queryGroupStatsResponse.toString();
+        WlmStatsResponse workloadGroupStatsResponse = new WlmStatsResponse(clusterName, wlmStatsList, failedNodeExceptionList);
+        String responseString = workloadGroupStatsResponse.toString();
         assertEquals(
             "{\n"
                 + "  \"node-1\" : {\n"
-                + "    \"query_groups\" : {\n"
+                + "    \"workload_groups\" : {\n"
                 + "      \"safjgagnaeekg-3r3fads\" : {\n"
                 + "        \"total_completions\" : 0,\n"
                 + "        \"total_rejections\" : 0,\n"

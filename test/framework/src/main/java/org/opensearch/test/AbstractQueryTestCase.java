@@ -32,8 +32,6 @@
 
 package org.opensearch.test;
 
-import com.fasterxml.jackson.core.io.JsonStringEncoder;
-
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
@@ -63,7 +61,9 @@ import org.opensearch.core.xcontent.XContentGenerator;
 import org.opensearch.core.xcontent.XContentParseException;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.query.AbstractQueryBuilder;
+import org.opensearch.index.query.BoolQueryBuilder;
 import org.opensearch.index.query.QueryBuilder;
+import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.index.query.QueryRewriteContext;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.query.Rewriteable;
@@ -82,6 +82,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+
+import tools.jackson.core.io.JsonStringEncoder;
 
 import static org.opensearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -446,7 +448,13 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
              * We do it this way in SearchService where
              * we first rewrite the query with a private context, then reset the context and then build the actual lucene query*/
             QueryBuilder rewritten = rewriteQuery(firstQuery, new QueryShardContext(context));
-            Query firstLuceneQuery = rewritten.toQuery(context);
+            Query firstLuceneQuery;
+            try {
+                firstLuceneQuery = rewritten.toQuery(context);
+            } catch (IllegalArgumentException e) {
+                assertEquals("Too many disjunctions to expand", e.getMessage());
+                continue;
+            }
             assertNotNull("toQuery should not return null", firstLuceneQuery);
             assertLuceneQuery(firstQuery, firstLuceneQuery, context);
             // remove after assertLuceneQuery since the assertLuceneQuery impl might access the context as well
@@ -676,7 +684,9 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                 if (rarely()) {
                     // unicode in 10% cases
                     JsonStringEncoder encoder = JsonStringEncoder.getInstance();
-                    value = new String(encoder.quoteAsString(randomUnicodeOfLength(10)));
+                    StringBuilder output = new StringBuilder();
+                    encoder.quoteAsString(randomUnicodeOfLength(10), output);
+                    value = output.toString();
                 } else {
                     value = randomAlphaOfLengthBetween(1, 10);
                 }
@@ -868,4 +878,21 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         assertTrue("query should be cacheable: " + queryBuilder.toString(), context.isCacheable());
     }
 
+    /**
+     * Check if a filter can be applied to the abstract query builder.
+     * @throws UnsupportedOperationException
+     */
+    public void testFilter() throws IOException {
+        QB queryBuilder = createTestQueryBuilder();
+        QueryBuilder filter = QueryBuilders.matchAllQuery();
+        // Test for Null Filter case
+        QueryBuilder returnedQuerybuilder = queryBuilder.filter(null);
+        assertEquals(queryBuilder, returnedQuerybuilder);
+
+        // Test for non null filter
+        returnedQuerybuilder = queryBuilder.filter(filter);
+        assertTrue(returnedQuerybuilder instanceof BoolQueryBuilder);
+        assertTrue(((BoolQueryBuilder) returnedQuerybuilder).filter().size() == 1);
+        assertEquals(filter, ((BoolQueryBuilder) returnedQuerybuilder).filter().get(0));
+    }
 }

@@ -39,10 +39,8 @@ import org.gradle.api.Task;
 import org.gradle.api.UnknownTaskException;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.Dependency;
-import org.gradle.api.artifacts.LenientConfiguration;
+import org.gradle.api.artifacts.component.ComponentIdentifier;
 import org.gradle.api.file.FileCollection;
-import org.gradle.api.internal.artifacts.ivyservice.ResolvedFilesCollectingVisitor;
-import org.gradle.api.internal.artifacts.ivyservice.resolveengine.artifact.SelectedArtifactSet;
 import org.gradle.api.plugins.JavaBasePlugin;
 import org.gradle.api.plugins.JavaPluginExtension;
 import org.gradle.api.provider.Provider;
@@ -58,16 +56,15 @@ import org.gradle.api.tasks.testing.Test;
 import org.gradle.plugins.ide.eclipse.model.EclipseModel;
 import org.gradle.plugins.ide.idea.model.IdeaModel;
 
-import java.lang.invoke.MethodHandle;
-import java.lang.invoke.MethodHandles;
-import java.lang.invoke.MethodType;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 public abstract class GradleUtils {
 
@@ -176,7 +173,7 @@ public abstract class GradleUtils {
         Configuration runtimeClasspathConfiguration = project.getConfigurations().getByName(runtimeClasspathName);
         project.getPluginManager().withPlugin("idea", p -> {
             IdeaModel idea = project.getExtensions().getByType(IdeaModel.class);
-            idea.getModule().setTestSourceDirs(testSourceSet.getJava().getSrcDirs());
+            idea.getModule().getTestSources().setFrom(testSourceSet.getJava().getSrcDirs());
             idea.getModule().getScopes().put(testSourceSet.getName(), new HashMap<String, Collection<Configuration>>() {
                 {
                     put("plus", Arrays.asList(runtimeClasspathConfiguration));
@@ -254,21 +251,20 @@ public abstract class GradleUtils {
         return lastDelimiterIndex == 0 ? ":" : taskPath.substring(0, lastDelimiterIndex);
     }
 
-    public static FileCollection getFiles(Project project, Configuration cfg, Spec<Dependency> spec) {
-        final LenientConfiguration configuration = cfg.getResolvedConfiguration().getLenientConfiguration();
-        try {
-            // Using reflection here to cover the pre 8.7 releases (since those have no such APIs), the
-            // ResolverResults.LegacyResolverResults.LegacyVisitedArtifactSet::select(...) is not available
-            // on older versions.
-            final MethodHandle mh = MethodHandles.lookup()
-                .findVirtual(configuration.getClass(), "select", MethodType.methodType(SelectedArtifactSet.class, Spec.class))
-                .bindTo(configuration);
-
-            final ResolvedFilesCollectingVisitor visitor = new ResolvedFilesCollectingVisitor();
-            ((SelectedArtifactSet) mh.invoke(spec)).visitArtifacts(visitor, false);
-            return project.files(visitor.getFiles());
-        } catch (Throwable ex) {
-            return project.files(configuration.getFiles(spec));
-        }
+    public static FileCollection getFirstLevelModuleDependencyFiles(
+        Project project,
+        Configuration cfg,
+        Spec<? super ComponentIdentifier> spec
+    ) {
+        final FileCollection files = cfg.getIncoming().artifactView(viewConfiguration -> {
+            final Set<ComponentIdentifier> directDependencies = cfg.getResolvedConfiguration()
+                .getFirstLevelModuleDependencies()
+                .stream()
+                .flatMap(dep -> dep.getModuleArtifacts().stream().map(artifact -> artifact.getId().getComponentIdentifier()))
+                .collect(Collectors.toSet());
+            viewConfiguration.setLenient(true);
+            viewConfiguration.componentFilter(ci -> spec.isSatisfiedBy(ci) && directDependencies.contains(ci));
+        }).getFiles();
+        return project.files(files);
     }
 }

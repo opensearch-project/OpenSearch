@@ -15,6 +15,7 @@ import org.opensearch.action.admin.indices.stats.IndexStats;
 import org.opensearch.action.admin.indices.stats.IndicesStatsRequestBuilder;
 import org.opensearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexSettings;
@@ -59,7 +60,7 @@ public class ConcurrentSearchStatsIT extends OpenSearchIntegTestCase {
             .put(super.nodeSettings(nodeOrdinal))
             .put(IndicesService.INDICES_CACHE_CLEAN_INTERVAL_SETTING.getKey(), "1ms")
             .put(IndicesQueryCache.INDICES_QUERIES_CACHE_ALL_SEGMENTS_SETTING.getKey(), true)
-            .put(SearchService.CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_KEY, SEGMENT_SLICE_COUNT)
+            .put(SearchService.CONCURRENT_SEGMENT_SEARCH_MAX_SLICE_COUNT_KEY, SEGMENT_SLICE_COUNT)
             .put(SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), true)
             .build();
     }
@@ -171,8 +172,7 @@ public class ConcurrentSearchStatsIT extends OpenSearchIntegTestCase {
         );
 
         forceMerge();
-        // Sleep to make sure force merge completes
-        Thread.sleep(1000);
+        refresh(); // ensure merged segments are searchable
         client().prepareSearch(INDEX_1).execute().actionGet();
 
         nodesStatsResponse = client().admin().cluster().prepareNodesStats().execute().actionGet();
@@ -212,8 +212,7 @@ public class ConcurrentSearchStatsIT extends OpenSearchIntegTestCase {
         );
 
         forceMerge();
-        // Sleep to make sure force merge completes
-        Thread.sleep(1000);
+        refresh(); // ensure merged segments are searchable
         client().prepareSearch(INDEX_2).execute().actionGet();
         nodesStatsResponse = client().admin().cluster().prepareNodesStats().execute().actionGet();
 
@@ -281,8 +280,7 @@ public class ConcurrentSearchStatsIT extends OpenSearchIntegTestCase {
         assertEquals(expectedConcurrency, stats.getTotal().getSearch().getTotal().getConcurrentAvgSliceCount(), 0);
 
         forceMerge();
-        // Sleep to make sure force merge completes
-        Thread.sleep(1000);
+        refresh(); // ensure merged segments are searchable
         client().prepareSearch(INDEX).execute().actionGet();
 
         indicesStatsResponse = client().admin().indices().prepareStats().execute().actionGet();
@@ -359,6 +357,7 @@ public class ConcurrentSearchStatsIT extends OpenSearchIntegTestCase {
         static final String SCRIPT_NAME = "search_timeout";
 
         @Override
+        @SuppressForbidden(reason = "Sleeping to simulate slow task")
         public Map<String, Function<Map<String, Object>, Object>> pluginScripts() {
             return Collections.singletonMap(SCRIPT_NAME, params -> {
                 try {

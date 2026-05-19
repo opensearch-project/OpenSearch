@@ -455,7 +455,7 @@ public abstract class OpenSearchBlobStoreRepositoryIntegTestCase extends OpenSea
     }
 
     public void testIndicesDeletedFromRepository() throws Exception {
-        final String repoName = createRepository("test-repo");
+        final String repoName = createRepository("test-repo-" + randomAlphaOfLength(8));
         Client client = client();
         createIndex("test-idx-1", "test-idx-2", "test-idx-3");
         ensureGreen();
@@ -563,6 +563,6 @@ public abstract class OpenSearchBlobStoreRepositoryIntegTestCase extends OpenSea
     }
 
     protected static String randomName() {
-        return randomAlphaOfLength(randomIntBetween(1, 10)).toLowerCase(Locale.ROOT);
+        return randomAlphaOfLength(randomIntBetween(5, 10)).toLowerCase(Locale.ROOT);
     }
 }

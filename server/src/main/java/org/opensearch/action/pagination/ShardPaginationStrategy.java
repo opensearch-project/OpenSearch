@@ -16,10 +16,13 @@ import org.opensearch.cluster.routing.IndexShardRoutingTable;
 import org.opensearch.cluster.routing.ShardRouting;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 import static org.opensearch.action.pagination.IndexPaginationStrategy.ASC_COMPARATOR;
 import static org.opensearch.action.pagination.IndexPaginationStrategy.DESC_COMPARATOR;
@@ -37,6 +40,10 @@ public class ShardPaginationStrategy implements PaginationStrategy<ShardRouting>
     private PageData pageData;
 
     public ShardPaginationStrategy(PageParams pageParams, ClusterState clusterState) {
+        this(pageParams, clusterState, new int[0]);
+    }
+
+    public ShardPaginationStrategy(PageParams pageParams, ClusterState clusterState, int[] shardIDs) {
         ShardStrategyToken shardStrategyToken = getShardStrategyToken(pageParams.getRequestedToken());
         // Get list of indices metadata sorted by their creation time and filtered by the last sent index
         List<IndexMetadata> filteredIndices = getEligibleIndices(
@@ -50,7 +57,8 @@ public class ShardPaginationStrategy implements PaginationStrategy<ShardRouting>
             filteredIndices,
             clusterState.getRoutingTable().getIndicesRouting(),
             shardStrategyToken,
-            pageParams.getSize()
+            pageParams.getSize(),
+            shardIDs
         );
     }
 
@@ -89,17 +97,19 @@ public class ShardPaginationStrategy implements PaginationStrategy<ShardRouting>
 
     /**
      * Will be used to get the list of shards and respective indices to which they belong,
-     * which are to be displayed in a page.
+     * which are to be displayed in a page. Optionally, if shardIDs are provided, only those will be considered.
      * Note: All shards for a shardID will always be present in the same page.
      */
     private PageData getPageData(
         List<IndexMetadata> filteredIndices,
         Map<String, IndexRoutingTable> indicesRouting,
         final ShardStrategyToken token,
-        final int numShardsRequired
+        final int numShardsRequired,
+        int[] shardIDs
     ) {
         List<ShardRouting> shardRoutings = new ArrayList<>();
         List<String> indices = new ArrayList<>();
+        Set<Integer> shardIdSet = Arrays.stream(shardIDs).boxed().collect(Collectors.toSet());
         int shardCount = 0;
         IndexMetadata lastAddedIndex = null;
 
@@ -108,10 +118,14 @@ public class ShardPaginationStrategy implements PaginationStrategy<ShardRouting>
             String indexName = indexMetadata.getIndex().getName();
             boolean indexShardsAdded = false;
             // Always start from shardID 0 for all indices except for the first one which might be same as the last sent
-            // index. To identify if an index is same as last sent index, verify both the index name and creaton time.
+            // index. To identify if an index is same as last sent index, verify both the index name and creation time.
             int startShardId = shardCount == 0 ? getStartShardIdForPageIndex(token, indexName, indexMetadata.getCreationDate()) : 0;
             Map<Integer, IndexShardRoutingTable> indexShardRoutingTable = indicesRouting.get(indexName).getShards();
             for (; startShardId < indexShardRoutingTable.size(); startShardId++) {
+                if (shardIdSet.isEmpty() == false && shardIdSet.contains(startShardId) == false) {
+                    continue;
+                }
+
                 if (indexShardRoutingTable.get(startShardId).size() > numShardsRequired) {
                     throw new IllegalArgumentException(
                         "size value should be greater than the replica count of all indices, so that all primary and replicas of a shard show up in single page"

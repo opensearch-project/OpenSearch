@@ -83,7 +83,7 @@ public class ClusterStatsRequest extends BaseNodesRequest<ClusterStatsRequest> {
      * based on all nodes will be returned.
      */
     public ClusterStatsRequest(String... nodesIds) {
-        super(false, nodesIds);
+        super(nodesIds);
     }
 
     public boolean useAggregatedNodeLevelResponses() {

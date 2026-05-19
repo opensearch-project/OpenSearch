@@ -34,12 +34,14 @@ package org.opensearch.index.engine;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SoftDeletesDirectoryReaderWrapper;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.Lock;
-import org.opensearch.Version;
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
@@ -47,12 +49,15 @@ import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.index.seqno.SeqNoStats;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.store.Store;
+import org.opensearch.index.store.remote.directory.BlockUnpinningDirectory;
+import org.opensearch.index.store.remote.directory.RemoteSnapshotDirectory;
 import org.opensearch.index.translog.DefaultTranslogDeletionPolicy;
 import org.opensearch.index.translog.NoOpTranslogManager;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.TranslogConfig;
 import org.opensearch.index.translog.TranslogDeletionPolicy;
 import org.opensearch.index.translog.TranslogManager;
+import org.opensearch.index.translog.TranslogOperationHelper;
 import org.opensearch.index.translog.TranslogStats;
 import org.opensearch.search.suggest.completion.CompletionStats;
 import org.opensearch.transport.Transports;
@@ -61,6 +66,7 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.function.BiFunction;
@@ -92,7 +98,6 @@ public class ReadOnlyEngine extends Engine {
     private final CompletionStatsCache completionStatsCache;
     private final boolean requireCompleteHistory;
     private final TranslogManager translogManager;
-    private final Version minimumSupportedVersion;
 
     protected volatile TranslogStats translogStats;
 
@@ -119,8 +124,6 @@ public class ReadOnlyEngine extends Engine {
     ) {
         super(config);
         this.requireCompleteHistory = requireCompleteHistory;
-        // fetch the minimum Version for extended backward compatibility use-cases
-        this.minimumSupportedVersion = config.getIndexSettings().getExtendedCompatibilitySnapshotVersion();
         try {
             Store store = config.getStore();
             store.incRef();
@@ -132,18 +135,22 @@ public class ReadOnlyEngine extends Engine {
                 // we obtain the IW lock even though we never modify the index.
                 // yet this makes sure nobody else does. including some testing tools that try to be messy
                 indexWriterLock = obtainLock ? directory.obtainLock(IndexWriter.WRITE_LOCK_NAME) : null;
-                if (isExtendedCompatibility()) {
-                    this.lastCommittedSegmentInfos = Lucene.readSegmentInfos(directory, this.minimumSupportedVersion);
-                } else {
-                    this.lastCommittedSegmentInfos = Lucene.readSegmentInfos(directory);
-                }
+                this.lastCommittedSegmentInfos = Lucene.readSegmentInfos(directory);
                 if (seqNoStats == null) {
                     seqNoStats = buildSeqNoStats(config, lastCommittedSegmentInfos);
                     ensureMaxSeqNoEqualsToGlobalCheckpoint(seqNoStats);
                 }
                 this.seqNoStats = seqNoStats;
                 this.indexCommit = Lucene.getIndexCommit(lastCommittedSegmentInfos, directory);
-                reader = wrapReader(open(indexCommit), readerWrapperFunction);
+                if (FilterDirectory.unwrap(directory) instanceof RemoteSnapshotDirectory) {
+                    BlockUnpinningDirectory unpinningDir = new BlockUnpinningDirectory(directory);
+                    // Ephemeral commit — unpinningDir only needs to live during open();
+                    // indexCommit is long-lived and used by recovery, metadata reads, etc.
+                    reader = wrapReader(open(Lucene.getIndexCommit(lastCommittedSegmentInfos, unpinningDir)), readerWrapperFunction);
+                    unpinningDir.unpinAndStopTracking();
+                } else {
+                    reader = wrapReader(open(indexCommit), readerWrapperFunction);
+                }
                 readerManager = new OpenSearchReaderManager(reader);
                 assert translogStats != null || obtainLock : "mutiple translogs instances should not be opened at the same time";
                 this.translogStats = translogStats != null ? translogStats : translogStats(config, lastCommittedSegmentInfos);
@@ -166,7 +173,7 @@ public class ReadOnlyEngine extends Engine {
     }
 
     protected void ensureMaxSeqNoEqualsToGlobalCheckpoint(final SeqNoStats seqNoStats) {
-        if (requireCompleteHistory == false) {
+        if (requireCompleteHistory == false || isClosedRemoteIndex()) {
             return;
         }
         // Before 3.0 the global checkpoint is not known and up to date when the engine is created after
@@ -185,6 +192,14 @@ public class ReadOnlyEngine extends Engine {
                     + "]"
             );
         }
+    }
+
+    /**
+     * Returns true if this is a remote store index (included if migrating as well) which is closed.
+     */
+    private boolean isClosedRemoteIndex() {
+        return this.engineConfig.getIndexSettings().isAssignedOnRemoteNode()
+            && this.engineConfig.getIndexSettings().getIndexMetadata().getState() == IndexMetadata.State.CLOSE;
     }
 
     protected boolean assertMaxSeqNoEqualsToGlobalCheckpoint(final long maxSeqNo, final long globalCheckpoint) {
@@ -212,17 +227,8 @@ public class ReadOnlyEngine extends Engine {
 
     protected DirectoryReader open(IndexCommit commit) throws IOException {
         assert Transports.assertNotTransportThread("opening index commit of a read-only engine");
-        DirectoryReader reader;
-        if (isExtendedCompatibility()) {
-            reader = DirectoryReader.open(commit, this.minimumSupportedVersion.luceneVersion.major, null);
-        } else {
-            reader = DirectoryReader.open(commit);
-        }
+        DirectoryReader reader = DirectoryReader.open(commit);
         return new SoftDeletesDirectoryReaderWrapper(reader, Lucene.SOFT_DELETES_FIELD);
-    }
-
-    private boolean isExtendedCompatibility() {
-        return Version.CURRENT.minimumIndexCompatibilityVersion().onOrAfter(this.minimumSupportedVersion);
     }
 
     @Override
@@ -262,12 +268,14 @@ public class ReadOnlyEngine extends Engine {
             Translog translog = config.getTranslogFactory()
                 .newTranslog(
                     translogConfig,
+
                     translogUuid,
                     translogDeletionPolicy,
                     config.getGlobalCheckpointSupplier(),
                     config.getPrimaryTermSupplier(),
                     seqNo -> {},
-                    config.getStartedPrimarySupplier()
+                    config.getStartedPrimarySupplier(),
+                    TranslogOperationHelper.create(config)
                 )
         ) {
             return translog.stats();
@@ -506,6 +514,17 @@ public class ReadOnlyEngine extends Engine {
     protected static DirectoryReader openDirectory(Directory directory, boolean wrapSoftDeletes) throws IOException {
         assert Transports.assertNotTransportThread("opening directory reader of a read-only engine");
         final DirectoryReader reader = DirectoryReader.open(directory);
+        if (wrapSoftDeletes) {
+            return new SoftDeletesDirectoryReaderWrapper(reader, Lucene.SOFT_DELETES_FIELD);
+        } else {
+            return reader;
+        }
+    }
+
+    protected static DirectoryReader openDirectory(Directory directory, boolean wrapSoftDeletes, Comparator<LeafReader> leafSorter)
+        throws IOException {
+        assert Transports.assertNotTransportThread("opening directory reader of a read-only engine");
+        final DirectoryReader reader = DirectoryReader.open(directory, leafSorter);
         if (wrapSoftDeletes) {
             return new SoftDeletesDirectoryReaderWrapper(reader, Lucene.SOFT_DELETES_FIELD);
         } else {

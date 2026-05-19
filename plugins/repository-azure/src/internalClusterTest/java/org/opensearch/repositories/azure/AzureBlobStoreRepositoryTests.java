@@ -47,8 +47,10 @@ import org.opensearch.common.settings.MockSecureSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.rest.RestStatus;
+import org.opensearch.plugins.ExtensiblePlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.repositories.blobstore.OpenSearchMockAPIBasedRepositoryIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 import org.junit.AfterClass;
 
 import java.io.IOException;
@@ -63,6 +65,7 @@ import fixture.azure.AzureHttpHandler;
 import reactor.core.scheduler.Schedulers;
 
 @SuppressForbidden(reason = "this test uses a HttpServer to emulate an Azure endpoint")
+@OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST)
 public class AzureBlobStoreRepositoryTests extends OpenSearchMockAPIBasedRepositoryIntegTestCase {
     @AfterClass
     public static void shutdownSchedulers() {
@@ -95,7 +98,7 @@ public class AzureBlobStoreRepositoryTests extends OpenSearchMockAPIBasedReposit
 
     @Override
     protected HttpHandler createErroneousHttpHandler(final HttpHandler delegate) {
-        return new AzureErroneousHttpHandler(delegate, randomIntBetween(2, 3));
+        return new AzureErroneousHttpHandler(delegate, randomDoubleBetween(0, 0.25, false));
     }
 
     @Override
@@ -121,6 +124,11 @@ public class AzureBlobStoreRepositoryTests extends OpenSearchMockAPIBasedReposit
 
         public TestAzureRepositoryPlugin(Settings settings) {
             super(settings);
+        }
+
+        @Override
+        public void loadExtensions(ExtensiblePlugin.ExtensionLoader loader) {
+            // No-op in tests — avoids interference with Reactor/Netty event loop initialization
         }
 
         @Override
@@ -163,8 +171,8 @@ public class AzureBlobStoreRepositoryTests extends OpenSearchMockAPIBasedReposit
     @SuppressForbidden(reason = "this test uses a HttpServer to emulate an Azure endpoint")
     private static class AzureErroneousHttpHandler extends ErroneousHttpHandler {
 
-        AzureErroneousHttpHandler(final HttpHandler delegate, final int maxErrorsPerRequest) {
-            super(delegate, maxErrorsPerRequest);
+        AzureErroneousHttpHandler(final HttpHandler delegate, final double maxErrorsPercentage) {
+            super(delegate, maxErrorsPercentage);
         }
 
         @Override

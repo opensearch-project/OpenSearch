@@ -94,9 +94,6 @@
 
 ---
 "date":
-  - skip:
-      version: " - 7.9.99"
-      reason: fixed in 7.10.0
 
   - do:
       indices.create:
@@ -184,9 +181,6 @@
 
 ---
 "date_nanos":
-  - skip:
-      version: " - 7.9.99"
-      reason: fixed in 7.10.0
 
   - do:
       indices.create:

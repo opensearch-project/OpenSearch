@@ -32,9 +32,14 @@
 
 package org.opensearch.search.profile;
 
+import org.opensearch.common.annotation.PublicApi;
+
+import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Map;
+import java.util.TreeMap;
+import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 
@@ -43,46 +48,47 @@ import static java.util.Collections.emptyMap;
  * A node's time may be composed of several internal attributes (rewriting, weighting,
  * scoring, etc).
  *
- * @opensearch.internal
+ * @opensearch.api
  */
-public abstract class AbstractProfileBreakdown<T extends Enum<T>> {
+@PublicApi(since = "3.2.0")
+public abstract class AbstractProfileBreakdown {
 
-    /**
-     * The accumulated timings for this query node
-     */
-    protected final Timer[] timings;
-    protected final T[] timingTypes;
-    public static final String TIMING_TYPE_COUNT_SUFFIX = "_count";
-    public static final String TIMING_TYPE_START_TIME_SUFFIX = "_start_time";
+    protected final Map<String, ProfileMetric> metrics;
 
     /** Sole constructor. */
-    public AbstractProfileBreakdown(Class<T> clazz) {
-        this.timingTypes = clazz.getEnumConstants();
-        timings = new Timer[timingTypes.length];
-        for (int i = 0; i < timings.length; ++i) {
-            timings[i] = new Timer();
-        }
+    public AbstractProfileBreakdown(Collection<Supplier<ProfileMetric>> metricSuppliers) {
+        this.metrics = metricSuppliers.stream().map(Supplier::get).collect(Collectors.toMap(ProfileMetric::getName, metric -> metric));
     }
 
-    public Timer getTimer(T timing) {
-        return timings[timing.ordinal()];
+    public Timer getTimer(Enum<?> type) {
+        ProfileMetric metric = metrics.get(type.toString());
+        assert metric instanceof Timer : "Metric " + type + " is not a timer";
+        return (Timer) metric;
     }
 
-    public void setTimer(T timing, Timer timer) {
-        timings[timing.ordinal()] = timer;
+    public ProfileMetric getMetric(String name) {
+        return metrics.get(name);
     }
 
     /**
-     * Build a timing count breakdown for current instance
+     * Build a breakdown for current instance
      */
     public Map<String, Long> toBreakdownMap() {
-        Map<String, Long> map = new HashMap<>(this.timings.length * 3);
-        for (T timingType : this.timingTypes) {
-            map.put(timingType.toString(), this.timings[timingType.ordinal()].getApproximateTiming());
-            map.put(timingType + TIMING_TYPE_COUNT_SUFFIX, this.timings[timingType.ordinal()].getCount());
-            map.put(timingType + TIMING_TYPE_START_TIME_SUFFIX, this.timings[timingType.ordinal()].getEarliestTimerStartTime());
+        Map<String, Long> map = new TreeMap<>();
+        for (Map.Entry<String, ProfileMetric> entry : metrics.entrySet()) {
+            map.putAll(entry.getValue().toBreakdownMap());
         }
         return Collections.unmodifiableMap(map);
+    }
+
+    public long toNodeTime() {
+        long total = 0;
+        for (Map.Entry<String, ProfileMetric> entry : metrics.entrySet()) {
+            if (entry.getValue() instanceof Timer t) {
+                total += t.getApproximateTiming();
+            }
+        }
+        return total;
     }
 
     /**
@@ -92,11 +98,4 @@ public abstract class AbstractProfileBreakdown<T extends Enum<T>> {
         return emptyMap();
     }
 
-    public long toNodeTime() {
-        long total = 0;
-        for (T timingType : timingTypes) {
-            total += timings[timingType.ordinal()].getApproximateTiming();
-        }
-        return total;
-    }
 }

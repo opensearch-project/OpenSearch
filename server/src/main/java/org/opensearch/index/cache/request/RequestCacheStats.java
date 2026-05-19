@@ -57,6 +57,18 @@ public class RequestCacheStats implements Writeable, ToXContentFragment {
 
     public RequestCacheStats() {}
 
+    /**
+     * Private constructor that takes a builder.
+     * This is the sole entry point for creating a new RequestCacheStats object.
+     * @param builder The builder instance containing all the values.
+     */
+    private RequestCacheStats(Builder builder) {
+        this.memorySize = builder.memorySize;
+        this.evictions = builder.evictions;
+        this.hitCount = builder.hitCount;
+        this.missCount = builder.missCount;
+    }
+
     public RequestCacheStats(StreamInput in) throws IOException {
         memorySize = in.readVLong();
         evictions = in.readVLong();
@@ -64,6 +76,11 @@ public class RequestCacheStats implements Writeable, ToXContentFragment {
         missCount = in.readVLong();
     }
 
+    /**
+     * This constructor will be deprecated starting in version 3.4.0.
+     * Use {@link Builder} instead.
+     */
+    @Deprecated
     public RequestCacheStats(long memorySize, long evictions, long hitCount, long missCount) {
         this.memorySize = memorySize;
         this.evictions = evictions;
@@ -96,6 +113,47 @@ public class RequestCacheStats implements Writeable, ToXContentFragment {
 
     public long getMissCount() {
         return this.missCount;
+    }
+
+    /**
+     * Builder for the {@link RequestCacheStats} class.
+     * Provides a fluent API for constructing a RequestCacheStats object.
+     */
+    public static class Builder {
+        private long memorySize = 0;
+        private long evictions = 0;
+        private long hitCount = 0;
+        private long missCount = 0;
+
+        public Builder() {}
+
+        public Builder memorySize(long count) {
+            this.memorySize = count;
+            return this;
+        }
+
+        public Builder evictions(long count) {
+            this.evictions = count;
+            return this;
+        }
+
+        public Builder hitCount(long count) {
+            this.hitCount = count;
+            return this;
+        }
+
+        public Builder missCount(long count) {
+            this.missCount = count;
+            return this;
+        }
+
+        /**
+         * Creates a {@link RequestCacheStats} object from the builder's current state.
+         * @return A new RequestCacheStats instance.
+         */
+        public RequestCacheStats build() {
+            return new RequestCacheStats(this);
+        }
     }
 
     @Override

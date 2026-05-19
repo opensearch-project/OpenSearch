@@ -95,16 +95,4 @@ public class RemoteShardsRebalanceShardsTests extends RemoteShardsBalancerBaseTe
         }
         return totalShardCount;
     }
-
-    /**
-     * Asserts that the expected value is within the variance range.
-     * <p>
-     * Being used to assert the average number of shards per node.
-     * Variance is required in case of non-absolute mean values;
-     * for example, total number of remote capable nodes in a cluster.
-     */
-    private void assertInRange(int actual, int expectedMean, int variance) {
-        assertTrue(actual >= expectedMean - variance);
-        assertTrue(actual <= expectedMean + variance);
-    }
 }

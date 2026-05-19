@@ -186,7 +186,7 @@ public class ValuesSourceConfig {
         DocValueFormat docValueFormat = resolveFormat(format, valuesSourceType, timeZone, fieldType);
 
         // If we are aggregating on derived field set the agg script.
-        if (fieldType instanceof DerivedFieldType) {
+        if (fieldType != null && fieldType.unwrap() instanceof DerivedFieldType) {
             aggregationScript = ((DerivedFieldType) fieldType).getAggregationScript(context);
         }
 
@@ -232,7 +232,7 @@ public class ValuesSourceConfig {
             return CoreValuesSourceType.NUMERIC;
         } else if (indexFieldData instanceof IndexGeoPointFieldData) {
             return CoreValuesSourceType.GEOPOINT;
-        } else if (fieldContext.fieldType() instanceof RangeFieldMapper.RangeFieldType) {
+        } else if (fieldContext.fieldType() != null && fieldContext.fieldType().unwrap() instanceof RangeFieldMapper.RangeFieldType) {
             return CoreValuesSourceType.RANGE;
         } else {
             if (userValueTypeHint == null) {
@@ -343,7 +343,7 @@ public class ValuesSourceConfig {
         if (this.unmapped) {
             vs = valueSourceType().getEmpty();
         } else {
-            if (fieldContext() == null || fieldType() instanceof DerivedFieldType) {
+            if (fieldContext() == null || fieldType().unwrap() instanceof DerivedFieldType) {
                 // Script case
                 vs = valueSourceType().getScript(script(), scriptValueType());
             } else {

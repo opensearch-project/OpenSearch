@@ -8,10 +8,13 @@
 
 package org.opensearch.transport;
 
+import org.opensearch.common.annotation.ExperimentalApi;
+
 /**
  * Enumeration of transport protocols.
  */
-enum TransportProtocol {
+@ExperimentalApi
+public enum TransportProtocol {
     /**
      * The original, hand-rolled binary protocol used for node-to-node
      * communication. Message schemas are defined implicitly in code using the

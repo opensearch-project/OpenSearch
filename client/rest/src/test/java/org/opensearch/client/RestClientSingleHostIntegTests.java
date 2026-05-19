@@ -378,12 +378,9 @@ public class RestClientSingleHostIntegTests extends RestClientTestCase {
      */
     public void testHeaders() throws Exception {
         for (String method : getHttpMethods()) {
-            final Set<String> standardHeaders = new HashSet<>(Arrays.asList("Connection", "Host", "User-agent", "Date"));
+            final Set<String> standardHeaders = new HashSet<>(Arrays.asList("Connection", "Host", "User-agent", "Date", "Accept-encoding"));
             if (method.equals("HEAD") == false) {
                 standardHeaders.add("Content-length");
-            }
-            if (method.equals("HEAD") == true || method.equals("GET") == true || method.equals("OPTIONS") == true) {
-                standardHeaders.add("Upgrade");
             }
 
             final Header[] requestHeaders = RestClientTestUtil.randomHeaders(getRandom(), "Header");

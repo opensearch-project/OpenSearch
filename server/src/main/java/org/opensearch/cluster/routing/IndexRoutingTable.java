@@ -122,11 +122,11 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable>
     boolean validate(Metadata metadata) {
         // check index exists
         if (!metadata.hasIndex(index.getName())) {
-            throw new IllegalStateException(index + " exists in routing does not exists in metadata");
+            throw new IllegalStateException(index + " exists in routing but does not exist in metadata");
         }
         IndexMetadata indexMetadata = metadata.index(index.getName());
         if (indexMetadata.getIndexUUID().equals(index.getUUID()) == false) {
-            throw new IllegalStateException(index.getName() + " exists in routing does not exists in metadata with the same uuid");
+            throw new IllegalStateException(index.getName() + " exists in routing but does not exist in metadata with the same uuid");
         }
 
         // check the number of shards
@@ -141,27 +141,33 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable>
             throw new IllegalStateException("Wrong number of shards in routing table, missing: " + expected);
         }
 
-        // check the replicas
+        boolean isSearchOnlyClusterBlockEnabled = indexMetadata.getSettings()
+            .getAsBoolean(IndexMetadata.INDEX_BLOCKS_SEARCH_ONLY_SETTING.getKey(), false);
+
         for (IndexShardRoutingTable indexShardRoutingTable : this) {
             int routingNumberOfReplicas = indexShardRoutingTable.size() - 1;
-            if (routingNumberOfReplicas != indexMetadata.getNumberOfReplicas() + indexMetadata.getNumberOfSearchOnlyReplicas()) {
+            int expectedReplicas = indexMetadata.getNumberOfReplicas() + indexMetadata.getNumberOfSearchOnlyReplicas();
+
+            // Only throw if we are NOT in search-only mode. Otherwise, we ignore or log the mismatch.
+            if (routingNumberOfReplicas != expectedReplicas && isSearchOnlyClusterBlockEnabled == false) {
                 throw new IllegalStateException(
                     "Shard ["
                         + indexShardRoutingTable.shardId().id()
                         + "] routing table has wrong number of replicas, expected ["
-                        + "Replicas:  "
+                        + "Replicas: "
                         + indexMetadata.getNumberOfReplicas()
-                        + "Search Replicas: "
+                        + ", Search Replicas: "
                         + indexMetadata.getNumberOfSearchOnlyReplicas()
                         + "], got ["
                         + routingNumberOfReplicas
                         + "]"
                 );
             }
+
             for (ShardRouting shardRouting : indexShardRoutingTable) {
                 if (!shardRouting.index().equals(index)) {
                     throw new IllegalStateException(
-                        "shard routing has an index [" + shardRouting.index() + "] that is different " + "from the routing table"
+                        "shard routing has an index [" + shardRouting.index() + "] that is different from the routing table"
                     );
                 }
                 final Set<String> inSyncAllocationIds = indexMetadata.inSyncAllocationIds(shardRouting.id());
@@ -185,8 +191,8 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable>
                             throw new IllegalStateException(
                                 "a primary shard routing "
                                     + shardRouting
-                                    + " is a primary that is recovering from a stale primary has unexpected allocation ids in in-sync "
-                                    + "allocation set "
+                                    + " is a primary that is recovering "
+                                    + "from a stale primary but has unexpected allocation ids in the in-sync set "
                                     + inSyncAllocationIds
                             );
                         }
@@ -194,8 +200,8 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable>
                         throw new IllegalStateException(
                             "a primary shard routing "
                                 + shardRouting
-                                + " is a primary that is recovering from a known allocation id but has no corresponding entry in the in-sync "
-                                + "allocation set "
+                                + " is a primary that is recovering "
+                                + "from a known allocation id but has no corresponding entry in the in-sync set "
                                 + inSyncAllocationIds
                         );
                     }
@@ -269,7 +275,7 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable>
     public int primaryShardsActive() {
         int counter = 0;
         for (IndexShardRoutingTable shardRoutingTable : this) {
-            if (shardRoutingTable.primaryShard().active()) {
+            if (shardRoutingTable.primaryShard() != null && shardRoutingTable.primaryShard().active()) {
                 counter++;
             }
         }
@@ -425,6 +431,7 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable>
         /**
          * Initializes an existing index.
          */
+
         public Builder initializeAsRecovery(IndexMetadata indexMetadata) {
             return initializeEmpty(indexMetadata, new UnassignedInfo(UnassignedInfo.Reason.CLUSTER_RECOVERED, null));
         }
@@ -605,11 +612,42 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable>
         /**
          * Initializes a new empty index, with an option to control if its from an API or not.
          */
+        /**
+         * Initializes a new empty index, with an option to control if its from an API or not.
+         */
         private Builder initializeEmpty(IndexMetadata indexMetadata, UnassignedInfo unassignedInfo) {
             assert indexMetadata.getIndex().equals(index);
             if (!shards.isEmpty()) {
                 throw new IllegalStateException("trying to initialize an index with fresh shards, but already has shards created");
             }
+
+            // Check if search-only mode is enabled
+            boolean isSearchOnly = indexMetadata.getSettings().getAsBoolean(IndexMetadata.INDEX_BLOCKS_SEARCH_ONLY_SETTING.getKey(), false);
+
+            // For search-only mode, only initialize search replicas
+            if (isSearchOnly) {
+                for (int shardNumber = 0; shardNumber < indexMetadata.getNumberOfShards(); shardNumber++) {
+                    ShardId shardId = new ShardId(index, shardNumber);
+                    IndexShardRoutingTable.Builder indexShardRoutingBuilder = new IndexShardRoutingTable.Builder(shardId);
+
+                    // Add only search replicas
+                    for (int i = 0; i < indexMetadata.getNumberOfSearchOnlyReplicas(); i++) {
+                        indexShardRoutingBuilder.addShard(
+                            ShardRouting.newUnassigned(
+                                shardId,
+                                false,
+                                true,
+                                RecoverySource.EmptyStoreRecoverySource.INSTANCE,
+                                unassignedInfo
+                            )
+                        );
+                    }
+                    shards.put(shardNumber, indexShardRoutingBuilder.build());
+                }
+                return this;
+            }
+
+            // Standard initialization for non-search-only mode
             for (int shardNumber = 0; shardNumber < indexMetadata.getNumberOfShards(); shardNumber++) {
                 ShardId shardId = new ShardId(index, shardNumber);
                 final RecoverySource primaryRecoverySource;

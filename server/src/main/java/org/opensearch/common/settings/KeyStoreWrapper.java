@@ -84,6 +84,7 @@ import java.util.HashSet;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Supplier;
 import java.util.regex.Pattern;
 
 /**
@@ -448,8 +449,12 @@ public class KeyStoreWrapper implements SecureSettings {
     }
 
     private void decryptLegacyEntries() throws GeneralSecurityException, IOException {
+        if (inFipsMode.get()) {
+            throw new SecurityException("Legacy KeyStore formats v1 & v2 are not supported in FIPS JVM");
+        }
+
         // v1 and v2 keystores never had passwords actually used, so we always use an empty password
-        KeyStore keystore = KeyStore.getInstance("PKCS12");
+        KeyStore keystore = KeyStore.getInstance("PKCS12", "SUN");
         Map<String, EntryType> settingTypes = new HashMap<>();
         ByteArrayInputStream inputBytes = new ByteArrayInputStream(dataBytes);
         try (DataInputStream input = new DataInputStream(inputBytes)) {
@@ -488,7 +493,7 @@ public class KeyStoreWrapper implements SecureSettings {
 
         // fill in the entries now that we know all the types to expect
         this.entries.set(new HashMap<>());
-        SecretKeyFactory keyFactory = SecretKeyFactory.getInstance("PBE");
+        SecretKeyFactory keyFactory = SecretKeyFactory.getInstance("PBE", "SunJCE");
         KeyStore.PasswordProtection password = new KeyStore.PasswordProtection("".toCharArray());
 
         for (Map.Entry<String, EntryType> settingEntry : settingTypes.entrySet()) {
@@ -527,7 +532,7 @@ public class KeyStoreWrapper implements SecureSettings {
         NIOFSDirectory directory = new NIOFSDirectory(configDir);
         // write to tmp file first, then overwrite
         String tmpFile = KEYSTORE_FILENAME + ".tmp";
-        try (IndexOutput output = EndiannessReverserUtil.createOutput(directory, tmpFile, IOContext.DEFAULT)) {
+        try (IndexOutput output = EndiannessReverserUtil.createOutput(directory, tmpFile, IOContext.READONCE)) {
             CodecUtil.writeHeader(output, KEYSTORE_FILENAME, FORMAT_VERSION);
             output.writeByte(password.length == 0 ? (byte) 0 : (byte) 1);
 
@@ -574,6 +579,17 @@ public class KeyStoreWrapper implements SecureSettings {
             attrs.setPermissions(PosixFilePermissions.fromString("rw-rw----"));
         }
     }
+
+    private static final Supplier<Boolean> inFipsMode = () -> {
+        try {
+            // Equivalent to: boolean approvedOnly = CryptoServicesRegistrar.isInApprovedOnlyMode()
+            var registrarClass = Class.forName("org.bouncycastle.crypto.CryptoServicesRegistrar");
+            var isApprovedOnlyMethod = registrarClass.getMethod("isInApprovedOnlyMode");
+            return (Boolean) isApprovedOnlyMethod.invoke(null);
+        } catch (ReflectiveOperationException e) {
+            return false;
+        }
+    };
 
     /**
      * It is possible to retrieve the setting names even if the keystore is closed.

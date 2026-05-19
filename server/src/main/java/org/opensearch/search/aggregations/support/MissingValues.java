@@ -269,6 +269,11 @@ public enum MissingValues {
                 return "anon ValuesSource.Bytes.WithOrdinals of [" + super.toString() + "]";
             }
 
+            @Override
+            public String getIndexFieldName() {
+                return valuesSource.getIndexFieldName();
+            }
+
         };
     }
 
@@ -324,7 +329,8 @@ public enum MissingValues {
 
             @Override
             public int docValueCount() {
-                return values.docValueCount();
+                // If we don't have ordinals, then we just have the missing value
+                return hasOrds ? values.docValueCount() : 1;
             }
 
             @Override
@@ -359,7 +365,8 @@ public enum MissingValues {
 
             @Override
             public int docValueCount() {
-                return Math.max(1, values.docValueCount());
+                // If we don't have ordinals, then we just have the missing value
+                return hasOrds ? values.docValueCount() : 1;
             }
 
             @Override

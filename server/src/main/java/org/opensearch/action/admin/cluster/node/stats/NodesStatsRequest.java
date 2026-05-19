@@ -58,7 +58,7 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
     private final Set<String> requestedMetrics = new HashSet<>();
 
     public NodesStatsRequest() {
-        super(false, (String[]) null);
+        super((String[]) null);
     }
 
     public NodesStatsRequest(StreamInput in) throws IOException {
@@ -74,7 +74,7 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
      * for all nodes will be returned.
      */
     public NodesStatsRequest(String... nodesIds) {
-        super(false, nodesIds);
+        super(nodesIds);
     }
 
     /**
@@ -170,17 +170,6 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
         }
         requestedMetrics.remove(metric);
         return this;
-    }
-
-    /**
-     * Helper method for adding metrics during deserialization.
-     * @param includeMetric Whether or not to include a metric.
-     * @param metricName Name of the metric to add.
-     */
-    private void optionallyAddMetric(boolean includeMetric, String metricName) {
-        if (includeMetric) {
-            requestedMetrics.add(metricName);
-        }
     }
 
     @Override

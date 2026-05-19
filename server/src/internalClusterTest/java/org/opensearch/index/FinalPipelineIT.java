@@ -111,7 +111,7 @@ public class FinalPipelineIT extends OpenSearchIntegTestCase {
             IllegalStateException.class,
             () -> client().prepareIndex("index").setId("1").setSource(Collections.singletonMap("field", "value")).get()
         );
-        assertThat(e, hasToString(containsString("final pipeline [final_pipeline] can't change the target index")));
+        assertThat(e, hasToString(containsString("FINAL pipeline [final_pipeline] can't change the target index")));
     }
 
     public void testFinalPipelineOfOldDestinationIsNotInvoked() {

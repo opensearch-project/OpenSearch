@@ -46,12 +46,16 @@ public class ConditionTests extends OpenSearchTestCase {
         final MaxAgeCondition maxAgeCondition = new MaxAgeCondition(TimeValue.timeValueHours(1));
 
         long indexCreatedMatch = System.currentTimeMillis() - TimeValue.timeValueMinutes(61).getMillis();
-        Condition.Result evaluate = maxAgeCondition.evaluate(new Condition.Stats(0, indexCreatedMatch, randomByteSize()));
+        Condition.Result evaluate = maxAgeCondition.evaluate(
+            new Condition.Stats.Builder().numDocs(0).indexCreated(indexCreatedMatch).indexSize(randomByteSize()).build()
+        );
         assertThat(evaluate.condition, equalTo(maxAgeCondition));
         assertThat(evaluate.matched, equalTo(true));
 
         long indexCreatedNotMatch = System.currentTimeMillis() - TimeValue.timeValueMinutes(59).getMillis();
-        evaluate = maxAgeCondition.evaluate(new Condition.Stats(0, indexCreatedNotMatch, randomByteSize()));
+        evaluate = maxAgeCondition.evaluate(
+            new Condition.Stats.Builder().numDocs(0).indexCreated(indexCreatedNotMatch).indexSize(randomByteSize()).build()
+        );
         assertThat(evaluate.condition, equalTo(maxAgeCondition));
         assertThat(evaluate.matched, equalTo(false));
     }
@@ -60,12 +64,16 @@ public class ConditionTests extends OpenSearchTestCase {
         final MaxDocsCondition maxDocsCondition = new MaxDocsCondition(100L);
 
         long maxDocsMatch = randomIntBetween(100, 1000);
-        Condition.Result evaluate = maxDocsCondition.evaluate(new Condition.Stats(maxDocsMatch, 0, randomByteSize()));
+        Condition.Result evaluate = maxDocsCondition.evaluate(
+            new Condition.Stats.Builder().numDocs(maxDocsMatch).indexCreated(0).indexSize(randomByteSize()).build()
+        );
         assertThat(evaluate.condition, equalTo(maxDocsCondition));
         assertThat(evaluate.matched, equalTo(true));
 
         long maxDocsNotMatch = randomIntBetween(0, 99);
-        evaluate = maxDocsCondition.evaluate(new Condition.Stats(0, maxDocsNotMatch, randomByteSize()));
+        evaluate = maxDocsCondition.evaluate(
+            new Condition.Stats.Builder().numDocs(0).indexCreated(maxDocsNotMatch).indexSize(randomByteSize()).build()
+        );
         assertThat(evaluate.condition, equalTo(maxDocsCondition));
         assertThat(evaluate.matched, equalTo(false));
     }
@@ -74,25 +82,26 @@ public class ConditionTests extends OpenSearchTestCase {
         MaxSizeCondition maxSizeCondition = new MaxSizeCondition(new ByteSizeValue(randomIntBetween(10, 20), ByteSizeUnit.MB));
 
         Condition.Result result = maxSizeCondition.evaluate(
-            new Condition.Stats(randomNonNegativeLong(), randomNonNegativeLong(), new ByteSizeValue(0, ByteSizeUnit.MB))
+            new Condition.Stats.Builder().numDocs(randomNonNegativeLong())
+                .indexCreated(randomNonNegativeLong())
+                .indexSize(new ByteSizeValue(0, ByteSizeUnit.MB))
+                .build()
         );
         assertThat(result.matched, equalTo(false));
 
         result = maxSizeCondition.evaluate(
-            new Condition.Stats(
-                randomNonNegativeLong(),
-                randomNonNegativeLong(),
-                new ByteSizeValue(randomIntBetween(0, 9), ByteSizeUnit.MB)
-            )
+            new Condition.Stats.Builder().numDocs(randomNonNegativeLong())
+                .indexCreated(randomNonNegativeLong())
+                .indexSize(new ByteSizeValue(randomIntBetween(0, 9), ByteSizeUnit.MB))
+                .build()
         );
         assertThat(result.matched, equalTo(false));
 
         result = maxSizeCondition.evaluate(
-            new Condition.Stats(
-                randomNonNegativeLong(),
-                randomNonNegativeLong(),
-                new ByteSizeValue(randomIntBetween(20, 1000), ByteSizeUnit.MB)
-            )
+            new Condition.Stats.Builder().numDocs(randomNonNegativeLong())
+                .indexCreated(randomNonNegativeLong())
+                .indexSize(new ByteSizeValue(randomIntBetween(20, 1000), ByteSizeUnit.MB))
+                .build()
         );
         assertThat(result.matched, equalTo(true));
     }

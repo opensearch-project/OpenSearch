@@ -57,14 +57,11 @@ import org.opensearch.common.settings.SettingsException;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.unit.ByteSizeValue;
+import org.opensearch.secure_sm.AccessController;
 
 import java.io.IOException;
-import java.net.Authenticator;
-import java.net.PasswordAuthentication;
 import java.net.URISyntaxException;
-import java.security.AccessController;
 import java.security.InvalidKeyException;
-import java.security.PrivilegedAction;
 import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
@@ -119,17 +116,12 @@ public class AzureStorageService implements AutoCloseable {
 
         @Override
         public Thread newThread(Runnable r) {
-            Thread t = new Thread(group, new Runnable() {
-                @SuppressWarnings("removal")
-                public void run() {
-                    AccessController.doPrivileged(new PrivilegedAction<>() {
-                        public Void run() {
-                            r.run();
-                            return null;
-                        }
-                    });
-                }
-            }, namePrefix + "[T#" + threadNumber.getAndIncrement() + "]", 0);
+            Thread t = new Thread(
+                group,
+                () -> AccessController.doPrivileged(r),
+                namePrefix + "[T#" + threadNumber.getAndIncrement() + "]",
+                0
+            );
             t.setDaemon(true);
             return t;
         }
@@ -150,7 +142,7 @@ public class AzureStorageService implements AutoCloseable {
         // eagerly load client settings so that secure settings are read
         final Map<String, AzureStorageSettings> clientsSettings = AzureStorageSettings.load(settings);
         refreshAndClearCache(clientsSettings);
-        executor = SocketAccess.doPrivilegedException(
+        executor = AccessController.doPrivileged(
             () -> Executors.newCachedThreadPool(new IdentityClientThreadFactory("azure-identity-client"))
         );
     }
@@ -206,18 +198,14 @@ public class AzureStorageService implements AutoCloseable {
         final NioEventLoopGroup eventLoopGroup = new NioEventLoopGroup(new NioThreadFactory());
         final NettyAsyncHttpClientBuilder clientBuilder = new NettyAsyncHttpClientBuilder().eventLoopGroup(eventLoopGroup);
 
-        SocketAccess.doPrivilegedVoidException(() -> {
+        AccessController.doPrivilegedChecked(() -> {
             final ProxySettings proxySettings = azureStorageSettings.getProxySettings();
             if (proxySettings != ProxySettings.NO_PROXY_SETTINGS) {
+                final ProxyOptions proxyOptions = new ProxyOptions(proxySettings.getType().toProxyType(), proxySettings.getAddress());
                 if (proxySettings.isAuthenticated()) {
-                    Authenticator.setDefault(new Authenticator() {
-                        @Override
-                        protected PasswordAuthentication getPasswordAuthentication() {
-                            return new PasswordAuthentication(proxySettings.getUsername(), proxySettings.getPassword().toCharArray());
-                        }
-                    });
+                    proxyOptions.setCredentials(proxySettings.getUsername(), proxySettings.getPassword());
                 }
-                clientBuilder.proxy(new ProxyOptions(proxySettings.getType().toProxyType(), proxySettings.getAddress()));
+                clientBuilder.proxy(proxyOptions);
             }
         });
 
@@ -287,7 +275,7 @@ public class AzureStorageService implements AutoCloseable {
     }
 
     private BlobServiceClientBuilder createClientBuilder(AzureStorageSettings settings) throws InvalidKeyException, URISyntaxException {
-        return SocketAccess.doPrivilegedException(() -> settings.configure(new BlobServiceClientBuilder(), executor, logger));
+        return AccessController.doPrivileged(() -> settings.configure(new BlobServiceClientBuilder(), executor, logger));
     }
 
     /**
@@ -445,16 +433,7 @@ public class AzureStorageService implements AutoCloseable {
         }
 
         public Thread newThread(Runnable r) {
-            final Thread t = new Thread(group, new Runnable() {
-                @SuppressWarnings({ "deprecation", "removal" })
-                @Override
-                public void run() {
-                    AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-                        r.run();
-                        return null;
-                    });
-                }
-            }, namePrefix + threadNumber.getAndIncrement(), 0);
+            final Thread t = new Thread(group, () -> AccessController.doPrivileged(r), namePrefix + threadNumber.getAndIncrement(), 0);
 
             if (t.isDaemon()) {
                 t.setDaemon(false);

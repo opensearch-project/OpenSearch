@@ -30,10 +30,15 @@ import java.util.stream.Collectors;
  */
 @PublicApi(since = "2.6.0")
 public class RemoteSegmentMetadata {
+
+    public static final int VERSION_ONE = 1;
+
+    public static final int VERSION_TWO = 2;
+
     /**
      * Latest supported version of metadata
      */
-    public static final int CURRENT_VERSION = 1;
+    public static final int CURRENT_VERSION = VERSION_TWO;
     /**
      * Metadata codec
      */
@@ -106,6 +111,11 @@ public class RemoteSegmentMetadata {
             );
     }
 
+    /**
+     * Write always writes with the latest version of the RemoteSegmentMetadata
+     * @param out file output stream which will store stream content
+     * @throws IOException in case there is a problem writing the file
+     */
     public void write(IndexOutput out) throws IOException {
         out.writeMapOfStrings(toMapOfStrings());
         writeCheckpointToIndexOutput(replicationCheckpoint, out);
@@ -113,11 +123,18 @@ public class RemoteSegmentMetadata {
         out.writeBytes(segmentInfosBytes, segmentInfosBytes.length);
     }
 
-    public static RemoteSegmentMetadata read(IndexInput indexInput) throws IOException {
+    /**
+     * Read can happen in the upgraded version of replica which needs to support all versions of RemoteSegmentMetadata
+     * @param indexInput file input stream
+     * @param version version of the RemoteSegmentMetadata
+     * @return {@code RemoteSegmentMetadata}
+     * @throws IOException in case there is a problem reading from the file input stream
+     */
+    public static RemoteSegmentMetadata read(IndexInput indexInput, int version) throws IOException {
         Map<String, String> metadata = indexInput.readMapOfStrings();
         final Map<String, RemoteSegmentStoreDirectory.UploadedSegmentMetadata> uploadedSegmentMetadataMap = RemoteSegmentMetadata
             .fromMapOfStrings(metadata);
-        ReplicationCheckpoint replicationCheckpoint = readCheckpointFromIndexInput(indexInput, uploadedSegmentMetadataMap);
+        ReplicationCheckpoint replicationCheckpoint = readCheckpointFromIndexInput(indexInput, uploadedSegmentMetadataMap, version);
         int byteArraySize = (int) indexInput.readLong();
         byte[] segmentInfosBytes = new byte[byteArraySize];
         indexInput.readBytes(segmentInfosBytes, 0, byteArraySize);
@@ -136,11 +153,13 @@ public class RemoteSegmentMetadata {
         out.writeLong(replicationCheckpoint.getSegmentInfosVersion());
         out.writeLong(replicationCheckpoint.getLength());
         out.writeString(replicationCheckpoint.getCodec());
+        out.writeLong(replicationCheckpoint.getCreatedTimeStamp());
     }
 
     private static ReplicationCheckpoint readCheckpointFromIndexInput(
         IndexInput in,
-        Map<String, RemoteSegmentStoreDirectory.UploadedSegmentMetadata> uploadedSegmentMetadataMap
+        Map<String, RemoteSegmentStoreDirectory.UploadedSegmentMetadata> uploadedSegmentMetadataMap,
+        int version
     ) throws IOException {
         return new ReplicationCheckpoint(
             new ShardId(new Index(in.readString(), in.readString()), in.readVInt()),
@@ -149,7 +168,8 @@ public class RemoteSegmentMetadata {
             in.readLong(),
             in.readLong(),
             in.readString(),
-            toStoreFileMetadata(uploadedSegmentMetadataMap)
+            toStoreFileMetadata(uploadedSegmentMetadataMap),
+            version >= VERSION_TWO ? in.readLong() : 0
         );
     }
 

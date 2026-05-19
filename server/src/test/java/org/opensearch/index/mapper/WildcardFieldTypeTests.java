@@ -142,6 +142,36 @@ public class WildcardFieldTypeTests extends FieldTypeTestCase {
         assertFalse(actualMatchingQuery.getSecondPhaseMatcher().test("abcdzzzefgqqh"));
     }
 
+    public void testEscapedBackslashFollowedByWildcard() {
+        MappedFieldType ft = new WildcardFieldMapper.WildcardFieldType("field");
+
+        // Test case from issue #19719
+        // Pattern: *some\\* means "wildcard + 'some\' + wildcard"
+        // Should match strings like "some\string", "awesome\stuff", etc.
+
+        // Verify ngram generation doesn't include wildcard characters
+        Set<String> ngrams = WildcardFieldMapper.WildcardFieldType.getRequiredNGrams("*some\\\\*", false);
+        assertFalse("Ngrams should not contain wildcard characters", ngrams.stream().anyMatch(s -> s.contains("*")));
+        assertTrue(ngrams.contains("som"));
+        assertTrue(ngrams.contains("ome"));
+        assertTrue(ngrams.contains("me\\"));
+
+        // Test the query
+        Query query = ft.wildcardQuery("*some\\\\*", null, null);
+        assertTrue(query instanceof WildcardFieldMapper.WildcardMatchingQuery);
+
+        WildcardFieldMapper.WildcardMatchingQuery wildcardQuery = (WildcardFieldMapper.WildcardMatchingQuery) query;
+
+        // Second phase matcher should correctly match strings with backslash
+        assertTrue(wildcardQuery.getSecondPhaseMatcher().test("some\\string"));
+        assertTrue(wildcardQuery.getSecondPhaseMatcher().test("some\\"));
+        assertTrue(wildcardQuery.getSecondPhaseMatcher().test("prefix_some\\suffix"));
+
+        // Should not match strings without backslash
+        assertFalse(wildcardQuery.getSecondPhaseMatcher().test("somestring"));
+        assertFalse(wildcardQuery.getSecondPhaseMatcher().test("some/string"));
+    }
+
     public void testRegexpQuery() {
         String pattern = ".*apple.*";
         MappedFieldType ft = new WildcardFieldMapper.WildcardFieldType("field");

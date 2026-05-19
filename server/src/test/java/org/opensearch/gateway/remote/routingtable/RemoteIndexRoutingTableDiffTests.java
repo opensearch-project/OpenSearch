@@ -8,6 +8,7 @@
 
 package org.opensearch.gateway.remote.routingtable;
 
+import org.opensearch.Version;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.Diff;
 import org.opensearch.cluster.routing.RoutingTable;
@@ -100,7 +101,7 @@ public class RemoteIndexRoutingTableDiffTests extends OpenSearchTestCase {
         );
         assertEquals(remoteDiffForUpload.clusterUUID(), clusterUUID);
 
-        RemoteRoutingTableDiff remoteDiffForDownload = new RemoteRoutingTableDiff(TEST_BLOB_NAME, clusterUUID, compressor);
+        RemoteRoutingTableDiff remoteDiffForDownload = new RemoteRoutingTableDiff(TEST_BLOB_NAME, clusterUUID, compressor, Version.CURRENT);
         assertEquals(remoteDiffForDownload.clusterUUID(), clusterUUID);
     }
 
@@ -123,7 +124,7 @@ public class RemoteIndexRoutingTableDiffTests extends OpenSearchTestCase {
         );
         assertThat(remoteDiffForUpload.getFullBlobName(), nullValue());
 
-        RemoteRoutingTableDiff remoteDiffForDownload = new RemoteRoutingTableDiff(TEST_BLOB_NAME, clusterUUID, compressor);
+        RemoteRoutingTableDiff remoteDiffForDownload = new RemoteRoutingTableDiff(TEST_BLOB_NAME, clusterUUID, compressor, Version.CURRENT);
         assertThat(remoteDiffForDownload.getFullBlobName(), is(TEST_BLOB_NAME));
     }
 
@@ -146,7 +147,7 @@ public class RemoteIndexRoutingTableDiffTests extends OpenSearchTestCase {
         );
         assertThat(remoteDiffForUpload.getBlobFileName(), nullValue());
 
-        RemoteRoutingTableDiff remoteDiffForDownload = new RemoteRoutingTableDiff(TEST_BLOB_NAME, clusterUUID, compressor);
+        RemoteRoutingTableDiff remoteDiffForDownload = new RemoteRoutingTableDiff(TEST_BLOB_NAME, clusterUUID, compressor, Version.CURRENT);
         assertThat(remoteDiffForDownload.getBlobFileName(), is(TEST_BLOB_FILE_NAME));
     }
 
@@ -249,7 +250,7 @@ public class RemoteIndexRoutingTableDiffTests extends OpenSearchTestCase {
         InputStream inputStream = remoteDiffForUpload.serialize();
 
         // Create a new instance for deserialization
-        RemoteRoutingTableDiff remoteDiffForDownload = new RemoteRoutingTableDiff(TEST_BLOB_NAME, clusterUUID, compressor);
+        RemoteRoutingTableDiff remoteDiffForDownload = new RemoteRoutingTableDiff(TEST_BLOB_NAME, clusterUUID, compressor, Version.CURRENT);
 
         // Deserialize the remote diff
         Diff<RoutingTable> deserializedDiff = remoteDiffForDownload.deserialize(inputStream);

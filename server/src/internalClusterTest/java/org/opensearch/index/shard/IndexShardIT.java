@@ -74,9 +74,10 @@ import org.opensearch.index.IndexSettings;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.engine.CommitStats;
 import org.opensearch.index.engine.Engine;
+import org.opensearch.index.engine.EngineBackedIndexer;
+import org.opensearch.index.engine.MergedSegmentWarmerFactory;
 import org.opensearch.index.engine.NoOpEngine;
 import org.opensearch.index.flush.FlushStats;
-import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.SourceToParse;
 import org.opensearch.index.seqno.RetentionLeaseSyncer;
 import org.opensearch.index.seqno.SequenceNumbers;
@@ -87,6 +88,8 @@ import org.opensearch.index.translog.TranslogStats;
 import org.opensearch.indices.DefaultRemoteStoreSettings;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.recovery.RecoveryState;
+import org.opensearch.indices.replication.checkpoint.MergedSegmentPublisher;
+import org.opensearch.indices.replication.checkpoint.ReferencedSegmentsPublisher;
 import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.search.builder.SearchSourceBuilder;
@@ -94,6 +97,7 @@ import org.opensearch.test.DummyShardLock;
 import org.opensearch.test.IndexSettingsModule;
 import org.opensearch.test.InternalSettingsPlugin;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
+import org.opensearch.test.OpenSearchTestCase;
 import org.junit.Assert;
 
 import java.io.IOException;
@@ -114,6 +118,7 @@ import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Stream;
 
@@ -136,6 +141,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomAsciiLettersOfLength;
+import static org.mockito.Mockito.mock;
 
 public class IndexShardIT extends OpenSearchSingleNodeTestCase {
 
@@ -471,7 +477,7 @@ public class IndexShardIT extends OpenSearchSingleNodeTestCase {
             .put("index.number_of_shards", 1)
             .put("index.translog.generation_threshold_size", generationThreshold + "b")
             .build();
-        createIndex("test", settings, MapperService.SINGLE_MAPPING_NAME);
+        createIndexWithSimpleMappings("test", settings);
         ensureGreen("test");
         final IndicesService indicesService = getInstanceFromNode(IndicesService.class);
         final IndexService test = indicesService.indexService(resolveIndex("test"));
@@ -658,6 +664,7 @@ public class IndexShardIT extends OpenSearchSingleNodeTestCase {
             wrapper,
             getInstanceFromNode(CircuitBreakerService.class),
             env.nodeId(),
+            getInstanceFromNode(ClusterService.class),
             listener
         );
         shardRef.set(newShard);
@@ -684,6 +691,7 @@ public class IndexShardIT extends OpenSearchSingleNodeTestCase {
         CheckedFunction<DirectoryReader, DirectoryReader, IOException> wrapper,
         final CircuitBreakerService cbs,
         final String nodeId,
+        final ClusterService clusterService,
         final IndexingOperationListener... listeners
     ) throws IOException {
         ShardRouting initializingShardRouting = getInitializingShardRouting(shard.routingEntry());
@@ -696,7 +704,7 @@ public class IndexShardIT extends OpenSearchSingleNodeTestCase {
             indexService.cache(),
             indexService.mapperService(),
             indexService.similarityService(),
-            shard.getEngineFactory(),
+            shard.getIndexerFactory(),
             shard.getEngineConfigFactory(),
             indexService.getIndexEventListener(),
             wrapper,
@@ -716,7 +724,18 @@ public class IndexShardIT extends OpenSearchSingleNodeTestCase {
             null,
             DefaultRemoteStoreSettings.INSTANCE,
             false,
-            IndexShardTestUtils.getFakeDiscoveryNodes(initializingShardRouting)
+            IndexShardTestUtils.getFakeDiscoveryNodes(initializingShardRouting),
+            mock(Function.class),
+            new MergedSegmentWarmerFactory(null, null, null),
+            false,
+            OpenSearchTestCase::randomBoolean,
+            () -> indexService.getIndexSettings().getRefreshInterval(),
+            indexService.getRefreshMutex(),
+            clusterService.getClusterApplierService(),
+            MergedSegmentPublisher.EMPTY,
+            ReferencedSegmentsPublisher.EMPTY,
+            Collections.emptyMap(),
+            null // TODO
         );
     }
 
@@ -796,7 +815,7 @@ public class IndexShardIT extends OpenSearchSingleNodeTestCase {
             .put("index.translog.flush_threshold_size", "512mb") // do not flush
             .put("index.soft_deletes.enabled", true)
             .build();
-        IndexService indexService = createIndex("index", settings, "user_doc", "title", "type=keyword");
+        IndexService indexService = createIndexWithSimpleMappings("index", settings, "title", "type=keyword");
         int numOps = between(1, 10);
         for (int i = 0; i < numOps; i++) {
             if (randomBoolean()) {
@@ -836,7 +855,7 @@ public class IndexShardIT extends OpenSearchSingleNodeTestCase {
         final IndexService indexService = indicesService.indexServiceSafe(indexMetadata.getIndex());
 
         for (IndexShard indexShard : indexService) {
-            assertThat(indexShard.getEngine(), instanceOf(NoOpEngine.class));
+            assertThat(((EngineBackedIndexer) (indexShard.getIndexer())).getEngine(), instanceOf(NoOpEngine.class));
         }
     }
 

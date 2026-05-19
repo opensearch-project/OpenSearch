@@ -44,6 +44,7 @@ import org.opensearch.cluster.RestoreInProgress;
 import org.opensearch.cluster.health.ClusterHealthStatus;
 import org.opensearch.cluster.health.ClusterStateHealth;
 import org.opensearch.cluster.metadata.AutoExpandReplicas;
+import org.opensearch.cluster.metadata.AutoExpandSearchReplicas;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNode;
@@ -373,11 +374,19 @@ public class AllocationService {
             clusterState.metadata(),
             allocation
         );
-        if (autoExpandReplicaChanges.isEmpty()) {
+
+        final Map<Integer, List<String>> autoExpandSearchReplicaChanges = AutoExpandSearchReplicas.getAutoExpandSearchReplicaChanges(
+            clusterState.metadata(),
+            allocation
+        );
+
+        if (autoExpandReplicaChanges.isEmpty() && autoExpandSearchReplicaChanges.isEmpty()) {
             return clusterState;
         } else {
             final RoutingTable.Builder routingTableBuilder = RoutingTable.builder(clusterState.routingTable());
             final Metadata.Builder metadataBuilder = Metadata.builder(clusterState.metadata());
+            final Set<String> updatedIndices = new HashSet<>();
+
             for (Map.Entry<Integer, List<String>> entry : autoExpandReplicaChanges.entrySet()) {
                 final int numberOfReplicas = entry.getKey();
                 final String[] indices = entry.getValue().toArray(new String[0]);
@@ -385,21 +394,36 @@ public class AllocationService {
                 // operation which make these copies stale
                 routingTableBuilder.updateNumberOfReplicas(numberOfReplicas, indices);
                 metadataBuilder.updateNumberOfReplicas(numberOfReplicas, indices);
-                // update settings version for each index
-                for (final String index : indices) {
-                    final IndexMetadata indexMetadata = metadataBuilder.get(index);
-                    final IndexMetadata.Builder indexMetadataBuilder = new IndexMetadata.Builder(indexMetadata).settingsVersion(
-                        1 + indexMetadata.getSettingsVersion()
-                    );
-                    metadataBuilder.put(indexMetadataBuilder);
-                }
+                updatedIndices.addAll(Set.of(indices));
                 logger.info("updating number_of_replicas to [{}] for indices {}", numberOfReplicas, indices);
             }
+
+            for (Map.Entry<Integer, List<String>> entry : autoExpandSearchReplicaChanges.entrySet()) {
+                final int numberOfSearchReplicas = entry.getKey();
+                final String[] indices = entry.getValue().toArray(new String[0]);
+                // we do *not* update the in sync allocation ids as they will be removed upon the first index
+                // operation which make these copies stale
+                routingTableBuilder.updateNumberOfSearchReplicas(numberOfSearchReplicas, indices);
+                metadataBuilder.updateNumberOfSearchReplicas(numberOfSearchReplicas, indices);
+                updatedIndices.addAll(Set.of(indices));
+                logger.info("updating number_of_search_replicas to [{}] for indices {}", numberOfSearchReplicas, indices);
+            }
+
+            // update settings version for each updated index
+            for (final String index : updatedIndices) {
+                final IndexMetadata indexMetadata = metadataBuilder.get(index);
+                final IndexMetadata.Builder indexMetadataBuilder = new IndexMetadata.Builder(indexMetadata).settingsVersion(
+                    1 + indexMetadata.getSettingsVersion()
+                );
+                metadataBuilder.put(indexMetadataBuilder);
+            }
+
             final ClusterState fixedState = ClusterState.builder(clusterState)
                 .routingTable(routingTableBuilder.build())
                 .metadata(metadataBuilder)
                 .build();
             assert AutoExpandReplicas.getAutoExpandReplicaChanges(fixedState.metadata(), allocation).isEmpty();
+            assert AutoExpandSearchReplicas.getAutoExpandSearchReplicaChanges(fixedState.metadata(), allocation).isEmpty();
             return fixedState;
         }
     }
@@ -567,6 +591,9 @@ public class AllocationService {
         assert hasDeadNodes(allocation) == false : "dead nodes should be explicitly cleaned up. See disassociateDeadNodes";
         assert AutoExpandReplicas.getAutoExpandReplicaChanges(allocation.metadata(), allocation).isEmpty()
             : "auto-expand replicas out of sync with number of nodes in the cluster";
+        assert AutoExpandSearchReplicas.getAutoExpandSearchReplicaChanges(allocation.metadata(), allocation).isEmpty()
+            : "auto-expand search replicas out of sync with number of search nodes in the cluster";
+
         assert assertInitialized();
         long rerouteStartTimeNS = System.nanoTime();
         removeDelayMarkers(allocation);

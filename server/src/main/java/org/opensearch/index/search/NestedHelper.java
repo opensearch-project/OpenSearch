@@ -46,6 +46,7 @@ import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.ObjectMapper;
+import org.opensearch.search.approximate.ApproximateScoreQuery;
 
 /** Utility class to filter parent and children clauses when building nested
  * queries.
@@ -62,50 +63,35 @@ public final class NestedHelper {
 
     /** Returns true if the given query might match nested documents. */
     public boolean mightMatchNestedDocs(Query query) {
-        if (query instanceof ConstantScoreQuery) {
-            return mightMatchNestedDocs(((ConstantScoreQuery) query).getQuery());
-        } else if (query instanceof BoostQuery) {
-            return mightMatchNestedDocs(((BoostQuery) query).getQuery());
-        } else if (query instanceof MatchAllDocsQuery) {
-            return true;
-        } else if (query instanceof MatchNoDocsQuery) {
-            return false;
-        } else if (query instanceof TermQuery) {
-            // We only handle term(s) queries and range queries, which should already
-            // cover a high majority of use-cases
-            return mightMatchNestedDocs(((TermQuery) query).getTerm().field());
-        } else if (query instanceof TermInSetQuery) {
-            final TermInSetQuery termInSetQuery = (TermInSetQuery) query;
-            if (termInSetQuery.getTermsCount() > 0) {
-                return mightMatchNestedDocs(termInSetQuery.getField());
-            } else {
-                return false;
+        return switch (query) {
+            case ConstantScoreQuery csq -> mightMatchNestedDocs(csq.getQuery());
+            case BoostQuery bq -> mightMatchNestedDocs(bq.getQuery());
+            case MatchAllDocsQuery ignored -> true;
+            case MatchNoDocsQuery ignored -> false;
+            case TermQuery tq -> mightMatchNestedDocs(tq.getTerm().field());
+            case TermInSetQuery tisq -> tisq.getTermsCount() > 0 && mightMatchNestedDocs(tisq.getField());
+            case PointRangeQuery prq -> mightMatchNestedDocs(prq.getField());
+            case IndexOrDocValuesQuery iorvq -> mightMatchNestedDocs(iorvq.getIndexQuery());
+            case ApproximateScoreQuery asq -> mightMatchNestedDocs(asq.getOriginalQuery());
+            case BooleanQuery bq -> {
+                final boolean hasRequiredClauses = bq.clauses().stream().anyMatch(BooleanClause::isRequired);
+                if (hasRequiredClauses) {
+                    yield bq.clauses()
+                        .stream()
+                        .filter(BooleanClause::isRequired)
+                        .map(BooleanClause::query)
+                        .allMatch(this::mightMatchNestedDocs);
+                } else {
+                    yield bq.clauses()
+                        .stream()
+                        .filter(c -> c.occur() == Occur.SHOULD)
+                        .map(BooleanClause::query)
+                        .anyMatch(this::mightMatchNestedDocs);
+                }
             }
-        } else if (query instanceof PointRangeQuery) {
-            return mightMatchNestedDocs(((PointRangeQuery) query).getField());
-        } else if (query instanceof IndexOrDocValuesQuery) {
-            return mightMatchNestedDocs(((IndexOrDocValuesQuery) query).getIndexQuery());
-        } else if (query instanceof BooleanQuery) {
-            final BooleanQuery bq = (BooleanQuery) query;
-            final boolean hasRequiredClauses = bq.clauses().stream().anyMatch(BooleanClause::isRequired);
-            if (hasRequiredClauses) {
-                return bq.clauses()
-                    .stream()
-                    .filter(BooleanClause::isRequired)
-                    .map(BooleanClause::query)
-                    .allMatch(this::mightMatchNestedDocs);
-            } else {
-                return bq.clauses()
-                    .stream()
-                    .filter(c -> c.occur() == Occur.SHOULD)
-                    .map(BooleanClause::query)
-                    .anyMatch(this::mightMatchNestedDocs);
-            }
-        } else if (query instanceof OpenSearchToParentBlockJoinQuery) {
-            return ((OpenSearchToParentBlockJoinQuery) query).getPath() != null;
-        } else {
-            return true;
-        }
+            case OpenSearchToParentBlockJoinQuery opbq -> opbq.getPath() != null;
+            case null, default -> true;
+        };
     }
 
     /** Returns true if a query on the given field might match nested documents. */
@@ -134,46 +120,34 @@ public final class NestedHelper {
     /** Returns true if the given query might match parent documents or documents
      *  that are nested under a different path. */
     public boolean mightMatchNonNestedDocs(Query query, String nestedPath) {
-        if (query instanceof ConstantScoreQuery) {
-            return mightMatchNonNestedDocs(((ConstantScoreQuery) query).getQuery(), nestedPath);
-        } else if (query instanceof BoostQuery) {
-            return mightMatchNonNestedDocs(((BoostQuery) query).getQuery(), nestedPath);
-        } else if (query instanceof MatchAllDocsQuery) {
-            return true;
-        } else if (query instanceof MatchNoDocsQuery) {
-            return false;
-        } else if (query instanceof TermQuery) {
-            return mightMatchNonNestedDocs(((TermQuery) query).getTerm().field(), nestedPath);
-        } else if (query instanceof TermInSetQuery) {
-            final TermInSetQuery termInSetQuery = (TermInSetQuery) query;
-            if (termInSetQuery.getTermsCount() > 0) {
-                return mightMatchNonNestedDocs(termInSetQuery.getField(), nestedPath);
-            } else {
-                return false;
+        return switch (query) {
+            case ConstantScoreQuery csq -> mightMatchNonNestedDocs(csq.getQuery(), nestedPath);
+            case BoostQuery bq -> mightMatchNonNestedDocs(bq.getQuery(), nestedPath);
+            case MatchAllDocsQuery ignored -> true;
+            case MatchNoDocsQuery ignored -> false;
+            case TermQuery tq -> mightMatchNonNestedDocs(tq.getTerm().field(), nestedPath);
+            case TermInSetQuery tisq -> tisq.getTermsCount() > 0 && mightMatchNonNestedDocs(tisq.getField(), nestedPath);
+            case PointRangeQuery prq -> mightMatchNonNestedDocs(prq.getField(), nestedPath);
+            case IndexOrDocValuesQuery iorvq -> mightMatchNonNestedDocs(iorvq.getIndexQuery(), nestedPath);
+            case ApproximateScoreQuery asq -> mightMatchNonNestedDocs(asq.getOriginalQuery(), nestedPath);
+            case BooleanQuery bq -> {
+                final boolean hasRequiredClauses = bq.clauses().stream().anyMatch(BooleanClause::isRequired);
+                if (hasRequiredClauses) {
+                    yield bq.clauses()
+                        .stream()
+                        .filter(BooleanClause::isRequired)
+                        .map(BooleanClause::query)
+                        .allMatch(q -> mightMatchNonNestedDocs(q, nestedPath));
+                } else {
+                    yield bq.clauses()
+                        .stream()
+                        .filter(c -> c.occur() == Occur.SHOULD)
+                        .map(BooleanClause::query)
+                        .anyMatch(q -> mightMatchNonNestedDocs(q, nestedPath));
+                }
             }
-        } else if (query instanceof PointRangeQuery) {
-            return mightMatchNonNestedDocs(((PointRangeQuery) query).getField(), nestedPath);
-        } else if (query instanceof IndexOrDocValuesQuery) {
-            return mightMatchNonNestedDocs(((IndexOrDocValuesQuery) query).getIndexQuery(), nestedPath);
-        } else if (query instanceof BooleanQuery) {
-            final BooleanQuery bq = (BooleanQuery) query;
-            final boolean hasRequiredClauses = bq.clauses().stream().anyMatch(BooleanClause::isRequired);
-            if (hasRequiredClauses) {
-                return bq.clauses()
-                    .stream()
-                    .filter(BooleanClause::isRequired)
-                    .map(BooleanClause::query)
-                    .allMatch(q -> mightMatchNonNestedDocs(q, nestedPath));
-            } else {
-                return bq.clauses()
-                    .stream()
-                    .filter(c -> c.occur() == Occur.SHOULD)
-                    .map(BooleanClause::query)
-                    .anyMatch(q -> mightMatchNonNestedDocs(q, nestedPath));
-            }
-        } else {
-            return true;
-        }
+            case null, default -> true;
+        };
     }
 
     /** Returns true if a query on the given field might match parent documents

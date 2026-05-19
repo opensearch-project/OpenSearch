@@ -39,6 +39,16 @@ public class TieredSpilloverCacheSettings {
     public static final long MIN_DISK_CACHE_SIZE_IN_BYTES = 10485760L;
 
     /**
+     * The default took time threshold for a value to enter the heap tier of the cache, and therefore to enter the cache at all.
+     */
+    public static final TimeValue DEFAULT_TOOK_TIME_THRESHOLD = TimeValue.ZERO;
+
+    /**
+     * The default took time threshold for a value to enter the disk tier of the cache.
+     */
+    public static final TimeValue DEFAULT_TOOK_TIME_DISK_THRESHOLD = new TimeValue(10, TimeUnit.MILLISECONDS);
+
+    /**
      * Setting which defines the onHeap cache store to be used in TieredSpilloverCache.
      *
      * Pattern: {cache_type}.tiered_spillover.onheap.store.name
@@ -109,13 +119,27 @@ public class TieredSpilloverCacheSettings {
     );
 
     /**
-     * Setting defining the minimum took time for a query to be allowed into the disk cache.
+     * Setting defining the minimum took time for a query to be allowed in the cache.
+     */
+    private static final Setting.AffixSetting<TimeValue> TIERED_SPILLOVER_TOOK_TIME_THRESHOLD = Setting.suffixKeySetting(
+        TieredSpilloverCache.TieredSpilloverCacheFactory.TIERED_SPILLOVER_CACHE_NAME + ".policies.took_time.threshold",
+        (key) -> Setting.timeSetting(
+            key,
+            DEFAULT_TOOK_TIME_THRESHOLD,
+            TimeValue.ZERO, // Minimum value for this setting
+            NodeScope,
+            Setting.Property.Dynamic
+        )
+    );
+
+    /**
+     * Setting defining the minimum took time for a query to be allowed in the disk tier of the cache.
      */
     private static final Setting.AffixSetting<TimeValue> TIERED_SPILLOVER_DISK_TOOK_TIME_THRESHOLD = Setting.suffixKeySetting(
         TieredSpilloverCache.TieredSpilloverCacheFactory.TIERED_SPILLOVER_CACHE_NAME + ".disk.store.policies.took_time.threshold",
         (key) -> Setting.timeSetting(
             key,
-            new TimeValue(10, TimeUnit.MILLISECONDS), // Default value for this setting
+            DEFAULT_TOOK_TIME_DISK_THRESHOLD,
             TimeValue.ZERO, // Minimum value for this setting
             NodeScope,
             Setting.Property.Dynamic
@@ -129,6 +153,12 @@ public class TieredSpilloverCacheSettings {
     public static final Map<CacheType, Setting<TimeValue>> TOOK_TIME_POLICY_CONCRETE_SETTINGS_MAP;
 
     /**
+     * Stores took time policy settings for the disk tiers of various cache types as these are dynamic so that can be registered and
+     * retrieved accordingly.
+     */
+    public static final Map<CacheType, Setting<TimeValue>> TOOK_TIME_DISK_TIER_POLICY_CONCRETE_SETTINGS_MAP;
+
+    /**
      * Stores disk cache enabled settings for various cache types as these are dynamic so that can be registered and
      * retrieved accordingly.
      */
@@ -139,9 +169,14 @@ public class TieredSpilloverCacheSettings {
      */
     static {
         Map<CacheType, Setting<TimeValue>> concreteTookTimePolicySettingMap = new HashMap<>();
+        Map<CacheType, Setting<TimeValue>> concreteDiskTookTimePolicySettingMap = new HashMap<>();
         Map<CacheType, Setting<Boolean>> diskCacheSettingMap = new HashMap<>();
         for (CacheType cacheType : CacheType.values()) {
             concreteTookTimePolicySettingMap.put(
+                cacheType,
+                TIERED_SPILLOVER_TOOK_TIME_THRESHOLD.getConcreteSettingForNamespace(cacheType.getSettingPrefix())
+            );
+            concreteDiskTookTimePolicySettingMap.put(
                 cacheType,
                 TIERED_SPILLOVER_DISK_TOOK_TIME_THRESHOLD.getConcreteSettingForNamespace(cacheType.getSettingPrefix())
             );
@@ -151,6 +186,7 @@ public class TieredSpilloverCacheSettings {
             );
         }
         TOOK_TIME_POLICY_CONCRETE_SETTINGS_MAP = concreteTookTimePolicySettingMap;
+        TOOK_TIME_DISK_TIER_POLICY_CONCRETE_SETTINGS_MAP = concreteDiskTookTimePolicySettingMap;
         DISK_CACHE_ENABLED_SETTING_MAP = diskCacheSettingMap;
     }
 

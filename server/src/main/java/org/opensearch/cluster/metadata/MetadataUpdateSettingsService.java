@@ -43,10 +43,10 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ack.ClusterStateUpdateResponse;
 import org.opensearch.cluster.block.ClusterBlock;
 import org.opensearch.cluster.block.ClusterBlocks;
+import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.RoutingTable;
 import org.opensearch.cluster.routing.allocation.AllocationService;
 import org.opensearch.cluster.routing.allocation.AwarenessReplicaBalance;
-import org.opensearch.cluster.service.ClusterManagerTaskKeys;
 import org.opensearch.cluster.service.ClusterManagerTaskThrottler;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Priority;
@@ -57,7 +57,6 @@ import org.opensearch.common.regex.Regex;
 import org.opensearch.common.settings.IndexScopedSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.index.Index;
 import org.opensearch.index.IndexSettings;
@@ -78,12 +77,14 @@ import java.util.Set;
 import static org.opensearch.action.support.ContextPreservingActionListener.wrapPreservingContext;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SEARCH_REPLICAS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REMOTE_STORE_ENABLED;
-import static org.opensearch.cluster.metadata.MetadataCreateIndexService.validateIndexTotalPrimaryShardsPerNodeSetting;
 import static org.opensearch.cluster.metadata.MetadataCreateIndexService.validateOverlap;
 import static org.opensearch.cluster.metadata.MetadataCreateIndexService.validateRefreshIntervalSettings;
 import static org.opensearch.cluster.metadata.MetadataCreateIndexService.validateTranslogDurabilitySettings;
 import static org.opensearch.cluster.metadata.MetadataCreateIndexService.validateTranslogFlushIntervalSettingsForCompositeIndex;
 import static org.opensearch.cluster.metadata.MetadataIndexTemplateService.findComponentTemplate;
+import static org.opensearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider.INDEX_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING;
+import static org.opensearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider.INDEX_TOTAL_REMOTE_CAPABLE_PRIMARY_SHARDS_PER_NODE_SETTING;
+import static org.opensearch.cluster.service.ClusterManagerTask.UPDATE_SETTINGS;
 import static org.opensearch.common.settings.AbstractScopedSettings.ARCHIVED_SETTINGS_PREFIX;
 import static org.opensearch.index.IndexSettings.same;
 
@@ -126,7 +127,7 @@ public class MetadataUpdateSettingsService {
         this.awarenessReplicaBalance = awarenessReplicaBalance;
 
         // Task is onboarded for throttling, it will get retried from associated TransportClusterManagerNodeAction.
-        updateSettingsTaskKey = clusterService.registerClusterManagerTask(ClusterManagerTaskKeys.UPDATE_SETTINGS_KEY, true);
+        updateSettingsTaskKey = clusterService.registerClusterManagerTask(UPDATE_SETTINGS, true);
     }
 
     public void updateSettings(
@@ -140,7 +141,8 @@ public class MetadataUpdateSettingsService {
 
         validateRefreshIntervalSettings(normalizedSettings, clusterService.getClusterSettings());
         validateTranslogDurabilitySettings(normalizedSettings, clusterService.getClusterSettings(), clusterService.getSettings());
-        validateIndexTotalPrimaryShardsPerNodeSetting(normalizedSettings);
+        validateIndexTotalPrimaryShardsPerNodeSetting(normalizedSettings, clusterService);
+        validateCryptoStoreSettings(normalizedSettings, request.indices(), clusterService.state());
         final int defaultReplicaCount = clusterService.getClusterSettings().get(Metadata.DEFAULT_REPLICA_COUNT_SETTING);
 
         Settings.Builder settingsForClosedIndices = Settings.builder();
@@ -272,15 +274,11 @@ public class MetadataUpdateSettingsService {
                             }
 
                             // Verify that this won't take us over the cluster shard limit.
-                            int totalNewShards = Arrays.stream(request.indices())
-                                .mapToInt(i -> getTotalNewShards(i, currentState, updatedNumberOfReplicas))
-                                .sum();
-                            Optional<String> error = shardLimitValidator.checkShardLimit(totalNewShards, currentState);
-                            if (error.isPresent()) {
-                                ValidationException ex = new ValidationException();
-                                ex.addValidationError(error.get());
-                                throw ex;
-                            }
+                            shardLimitValidator.validateShardLimitForIndices(
+                                request.indices(),
+                                currentState,
+                                index -> getTotalNewShards(index, currentState, updatedNumberOfReplicas)
+                            );
 
                             /*
                              * We do not update the in-sync allocation IDs as they will be removed upon the first index operation which makes
@@ -295,23 +293,32 @@ public class MetadataUpdateSettingsService {
                     }
 
                     if (IndexMetadata.INDEX_NUMBER_OF_SEARCH_REPLICAS_SETTING.exists(openSettings)) {
-                        if (FeatureFlags.isEnabled(FeatureFlags.READER_WRITER_SPLIT_EXPERIMENTAL_SETTING)) {
-                            validateSearchReplicaCountSettings(normalizedSettings, request.indices(), currentState);
-                        }
+                        validateSearchReplicaCountSettings(normalizedSettings, request.indices(), currentState);
                         final int updatedNumberOfSearchReplicas = IndexMetadata.INDEX_NUMBER_OF_SEARCH_REPLICAS_SETTING.get(openSettings);
                         if (preserveExisting == false) {
-                            // TODO: Honor awareness validation to search replicas.
+                            for (Index index : request.indices()) {
+                                if (index.getName().charAt(0) != '.') {
+                                    // No replica count validation for system indices
+                                    Optional<String> error = awarenessReplicaBalance.validate(
+                                        updatedNumberOfSearchReplicas,
+                                        AutoExpandSearchReplicas.SETTING.get(openSettings)
+                                    );
+
+                                    if (error.isPresent()) {
+                                        ValidationException ex = new ValidationException();
+                                        ex.addValidationError(error.get());
+                                        throw ex;
+                                    }
+                                }
+                            }
 
                             // Verify that this won't take us over the cluster shard limit.
-                            int totalNewShards = Arrays.stream(request.indices())
-                                .mapToInt(i -> getTotalNewShards(i, currentState, updatedNumberOfSearchReplicas))
-                                .sum();
-                            Optional<String> error = shardLimitValidator.checkShardLimit(totalNewShards, currentState);
-                            if (error.isPresent()) {
-                                ValidationException ex = new ValidationException();
-                                ex.addValidationError(error.get());
-                                throw ex;
-                            }
+                            shardLimitValidator.validateShardLimitForIndices(
+                                request.indices(),
+                                currentState,
+                                index -> getTotalNewShards(index, currentState, updatedNumberOfSearchReplicas)
+                            );
+
                             routingTableBuilder.updateNumberOfSearchReplicas(updatedNumberOfSearchReplicas, actualIndices);
                             metadataBuilder.updateNumberOfSearchReplicas(updatedNumberOfSearchReplicas, actualIndices);
                             logger.info(
@@ -345,7 +352,9 @@ public class MetadataUpdateSettingsService {
                                 Settings finalSettings = indexSettings.build();
                                 indexScopedSettings.validate(
                                     finalSettings.filter(k -> indexScopedSettings.isPrivateSetting(k) == false),
-                                    true
+                                    true, // validateDependencies
+                                    false, // ignorePrivateSettings
+                                    true  // ignoreArchivedSettings
                                 );
                                 metadataBuilder.put(IndexMetadata.builder(indexMetadata).settings(finalSettings));
                             }
@@ -377,9 +386,9 @@ public class MetadataUpdateSettingsService {
                                 Settings finalSettings = indexSettings.build();
                                 indexScopedSettings.validate(
                                     finalSettings.filter(k -> indexScopedSettings.isPrivateSetting(k) == false),
-                                    true,
-                                    false,
-                                    true
+                                    true, // validateDependencies
+                                    false, // ignorePrivateSettings
+                                    true  // ignoreArchivedSettings
                                 );
                                 metadataBuilder.put(IndexMetadata.builder(indexMetadata).settings(finalSettings));
                             }
@@ -546,6 +555,67 @@ public class MetadataUpdateSettingsService {
                 throw new IllegalArgumentException(
                     "To set " + SETTING_NUMBER_OF_SEARCH_REPLICAS + ", " + SETTING_REMOTE_STORE_ENABLED + " must be set to true"
                 );
+            }
+        }
+    }
+
+    /**
+     * Validates the 'index.routing.allocation.total_primary_shards_per_node' setting during index settings update.
+     * Ensures this setting can only be modified for existing indices in remote store enabled clusters.
+     */
+    public static void validateIndexTotalPrimaryShardsPerNodeSetting(Settings indexSettings, ClusterService clusterService) {
+        // Get the setting value
+        int indexPrimaryShardsPerNode = INDEX_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING.get(indexSettings);
+        int indexRemoteCapablePrimaryShardsPerNode = INDEX_TOTAL_REMOTE_CAPABLE_PRIMARY_SHARDS_PER_NODE_SETTING.get(indexSettings);
+
+        // If default value (-1), no validation needed
+        if (indexPrimaryShardsPerNode == -1 && indexRemoteCapablePrimaryShardsPerNode == -1) {
+            return;
+        }
+
+        // Check if remote store is enabled
+        boolean isRemoteStoreEnabled = clusterService.state()
+            .nodes()
+            .getNodes()
+            .values()
+            .stream()
+            .allMatch(DiscoveryNode::isRemoteStoreNode);
+        if (!isRemoteStoreEnabled) {
+            throw new IllegalArgumentException(
+                "Setting ["
+                    + INDEX_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING.getKey()
+                    + "] or ["
+                    + INDEX_TOTAL_REMOTE_CAPABLE_PRIMARY_SHARDS_PER_NODE_SETTING.getKey()
+                    + "] can only be used with remote store enabled clusters"
+            );
+        }
+    }
+
+    /**
+     * Validates crypto store settings are immutable after index creation.
+     */
+    public static void validateCryptoStoreSettings(Settings indexSettings, Index[] indices, ClusterState clusterState) {
+        final String storeTypeKey = "index.store.type";
+
+        // Only validate if store.type is being explicitly modified
+        if (!indexSettings.keySet().contains(storeTypeKey)) {
+            return;
+        }
+
+        for (Index index : indices) {
+            String currentStoreType = clusterState.metadata().getIndexSafe(index).getSettings().get(storeTypeKey, "");
+            String newStoreType = indexSettings.get(storeTypeKey);
+
+            // Prevent changing FROM cryptofs to anything else (including null)
+            if ("cryptofs".equals(currentStoreType) && !"cryptofs".equals(newStoreType)) {
+                throw new IllegalArgumentException(
+                    "Cannot change store type from 'cryptofs' for index [" + index.getName() + "] - cryptofs store type is immutable"
+                );
+            }
+
+            // Prevent changing TO cryptofs from any other type
+            if (!"cryptofs".equals(currentStoreType) && "cryptofs".equals(newStoreType)) {
+                throw new IllegalArgumentException("Cannot change store type to 'cryptofs' for index [" + index.getName() + "]");
             }
         }
     }

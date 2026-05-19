@@ -33,6 +33,7 @@
 package org.opensearch.repositories.s3;
 
 import software.amazon.awssdk.services.s3.model.ObjectCannedACL;
+import software.amazon.awssdk.services.s3.model.ServerSideEncryption;
 import software.amazon.awssdk.services.s3.model.StorageClass;
 
 import org.apache.logging.log4j.LogManager;
@@ -59,6 +60,8 @@ import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.monitor.jvm.JvmInfo;
+import org.opensearch.plugins.NativeRemoteObjectStoreProvider;
+import org.opensearch.repositories.NativeStoreRepository;
 import org.opensearch.repositories.RepositoryData;
 import org.opensearch.repositories.RepositoryException;
 import org.opensearch.repositories.ShardGenerations;
@@ -122,11 +125,66 @@ class S3Repository extends MeteredBlobStoreRepository {
 
     static final Setting<String> BUCKET_SETTING = Setting.simpleString("bucket");
 
+    static final String BUCKET_DEFAULT_ENCRYPTION_TYPE = "bucket_default";
+
+    public static final String NETTY_ASYNC_HTTP_CLIENT_TYPE = "netty";
+    public static final String CRT_ASYNC_HTTP_CLIENT_TYPE = "crt";
+
     /**
-     * When set to true files are encrypted on server side using AES256 algorithm.
-     * Defaults to false.
+     * The type of S3 Server Side Encryption to use.
+     * Defaults to AES256.
+     * Supports: AES256, aws:kms
      */
-    static final Setting<Boolean> SERVER_SIDE_ENCRYPTION_SETTING = Setting.boolSetting("server_side_encryption", false);
+    static final Setting<String> SERVER_SIDE_ENCRYPTION_TYPE_SETTING = Setting.simpleString(
+        "server_side_encryption_type",
+        BUCKET_DEFAULT_ENCRYPTION_TYPE,
+        value -> {
+            if (!(value.equals(ServerSideEncryption.AES256.toString())
+                || value.equals(ServerSideEncryption.AWS_KMS.toString())
+                || value.equals(BUCKET_DEFAULT_ENCRYPTION_TYPE))) {
+                throw new IllegalArgumentException("server_side_encryption_type must be one of [AES256, aws:kms, bucket_default]");
+            }
+        }
+    );
+
+    /**
+     * The KMS key id to be used for SSE-KMS. Must be used when server_side_encryption_type setting is set to aws:kms.
+     */
+    static final Setting<String> SERVER_SIDE_ENCRYPTION_KMS_KEY_SETTING = Setting.simpleString("server_side_encryption_kms_key_id");
+
+    /**
+     * Whether to use S3 Bucket Keys along with SSE-KMS.
+     * Defaults to true.
+     */
+    static final Setting<Boolean> SERVER_SIDE_ENCRYPTION_BUCKET_KEY_SETTING = Setting.boolSetting(
+        "server_side_encryption_bucket_key_enabled",
+        true
+    );
+
+    /**
+     * Optional additional encryption context passed to S3 for use in KMS crypto operations. The setting value must be formatted as a key-value pair JSON object.
+     */
+    static final Setting<String> SERVER_SIDE_ENCRYPTION_ENCRYPTION_CONTEXT_SETTING = Setting.simpleString(
+        "server_side_encryption_encryption_context"
+    );
+
+    /**
+     * Optional setting to specify the expected S3 bucket owner. This is used to verify S3 bucket ownership before reading/writing data from/to a bucket.
+     */
+    static final Setting<String> EXPECTED_BUCKET_OWNER_SETTING = Setting.simpleString("expected_bucket_owner", value -> {
+        if (!(value.matches("\\d{12}") || value.isEmpty())) {
+            throw new IllegalArgumentException("expected_bucket_owner must be a 12 digit AWS account id");
+        }
+    });
+
+    /**
+     * Type of Async client to be used for S3 Uploads. Defaults to crt.
+     */
+    static final Setting<String> S3_ASYNC_HTTP_CLIENT_TYPE = Setting.simpleString(
+        "s3_async_client_type",
+        CRT_ASYNC_HTTP_CLIENT_TYPE,
+        Setting.Property.NodeScope
+    );
 
     /**
      * Maximum size of files that can be uploaded using a single upload request.
@@ -273,6 +331,9 @@ class S3Repository extends MeteredBlobStoreRepository {
      */
     static final Setting<String> BASE_PATH_SETTING = Setting.simpleString("base_path");
 
+    /** An override for the s3 region to use for signing requests. */
+    static final Setting<Boolean> LEGACY_MD5_CHECKSUM_CALCULATION = Setting.boolSetting("legacy_md5_checksum_calculation", false);
+
     private final S3Service service;
 
     private volatile String bucket;
@@ -283,7 +344,11 @@ class S3Repository extends MeteredBlobStoreRepository {
 
     private volatile BlobPath basePath;
 
-    private volatile boolean serverSideEncryption;
+    private volatile String serverSideEncryptionType;
+    private volatile String serverSideEncryptionKmsKey;
+    private volatile boolean serverSideEncryptionBucketKey;
+    private volatile String serverSideEncryptionEncryptionContext;
+    private volatile String expectedBucketOwner;
 
     private volatile String storageClass;
 
@@ -300,6 +365,9 @@ class S3Repository extends MeteredBlobStoreRepository {
     private final GenericStatsMetricPublisher genericStatsMetricPublisher;
 
     private volatile int bulkDeletesSize;
+
+    /** Native (Rust) object store — created during construction if native provider is available. */
+    private volatile NativeStoreRepository nativeStore = NativeStoreRepository.EMPTY;
 
     // Used by test classes
     S3Repository(
@@ -357,6 +425,47 @@ class S3Repository extends MeteredBlobStoreRepository {
         final SizeBasedBlockingQ lowPrioritySizeBasedBlockingQ,
         final GenericStatsMetricPublisher genericStatsMetricPublisher
     ) {
+        this(
+            metadata,
+            namedXContentRegistry,
+            service,
+            clusterService,
+            recoverySettings,
+            asyncUploadUtils,
+            urgentExecutorBuilder,
+            priorityExecutorBuilder,
+            normalExecutorBuilder,
+            s3AsyncService,
+            multipartUploadEnabled,
+            pluginConfigPath,
+            normalPrioritySizeBasedBlockingQ,
+            lowPrioritySizeBasedBlockingQ,
+            genericStatsMetricPublisher,
+            null
+        );
+    }
+
+    /**
+     * Constructs an s3 backed repository with optional native store provider.
+     */
+    S3Repository(
+        final RepositoryMetadata metadata,
+        final NamedXContentRegistry namedXContentRegistry,
+        final S3Service service,
+        final ClusterService clusterService,
+        final RecoverySettings recoverySettings,
+        final AsyncTransferManager asyncUploadUtils,
+        final AsyncExecutorContainer urgentExecutorBuilder,
+        final AsyncExecutorContainer priorityExecutorBuilder,
+        final AsyncExecutorContainer normalExecutorBuilder,
+        final S3AsyncService s3AsyncService,
+        final boolean multipartUploadEnabled,
+        Path pluginConfigPath,
+        final SizeBasedBlockingQ normalPrioritySizeBasedBlockingQ,
+        final SizeBasedBlockingQ lowPrioritySizeBasedBlockingQ,
+        final GenericStatsMetricPublisher genericStatsMetricPublisher,
+        final NativeRemoteObjectStoreProvider nativeStoreProvider
+    ) {
         super(metadata, namedXContentRegistry, clusterService, recoverySettings, buildLocation(metadata));
         this.service = service;
         this.s3AsyncService = s3AsyncService;
@@ -372,6 +481,16 @@ class S3Repository extends MeteredBlobStoreRepository {
 
         validateRepositoryMetadata(metadata);
         readRepositoryMetadata();
+
+        // Initialize native store if provider is available (sandbox warm nodes only)
+        if (nativeStoreProvider != null) {
+            final NativeStoreRepository store = nativeStoreProvider.createNativeStore(metadata, clusterService.getSettings());
+            if (store != null && store.isLive()) {
+                this.nativeStore = store;
+            } else if (store != null && store != NativeStoreRepository.EMPTY) {
+                store.close();
+            }
+        }
     }
 
     private static Map<String, String> buildLocation(RepositoryMetadata metadata) {
@@ -424,7 +543,6 @@ class S3Repository extends MeteredBlobStoreRepository {
             s3AsyncService,
             multipartUploadEnabled,
             bucket,
-            serverSideEncryption,
             bufferSize,
             cannedACL,
             storageClass,
@@ -436,7 +554,12 @@ class S3Repository extends MeteredBlobStoreRepository {
             normalExecutorBuilder,
             normalPrioritySizeBasedBlockingQ,
             lowPrioritySizeBasedBlockingQ,
-            genericStatsMetricPublisher
+            genericStatsMetricPublisher,
+            serverSideEncryptionType,
+            serverSideEncryptionKmsKey,
+            serverSideEncryptionBucketKey,
+            serverSideEncryptionEncryptionContext,
+            expectedBucketOwner
         );
     }
 
@@ -491,7 +614,11 @@ class S3Repository extends MeteredBlobStoreRepository {
             this.basePath = BlobPath.cleanPath();
         }
 
-        this.serverSideEncryption = SERVER_SIDE_ENCRYPTION_SETTING.get(metadata.settings());
+        this.serverSideEncryptionType = SERVER_SIDE_ENCRYPTION_TYPE_SETTING.get(metadata.settings());
+        this.serverSideEncryptionKmsKey = SERVER_SIDE_ENCRYPTION_KMS_KEY_SETTING.get(metadata.settings());
+        this.serverSideEncryptionBucketKey = SERVER_SIDE_ENCRYPTION_BUCKET_KEY_SETTING.get(metadata.settings());
+        this.serverSideEncryptionEncryptionContext = SERVER_SIDE_ENCRYPTION_ENCRYPTION_CONTEXT_SETTING.get(metadata.settings());
+        this.expectedBucketOwner = EXPECTED_BUCKET_OWNER_SETTING.get(metadata.settings());
         this.storageClass = STORAGE_CLASS_SETTING.get(metadata.settings());
         this.cannedACL = CANNED_ACL_SETTING.get(metadata.settings());
         this.bulkDeletesSize = BULK_DELETE_SIZE.get(metadata.settings());
@@ -505,13 +632,18 @@ class S3Repository extends MeteredBlobStoreRepository {
         }
 
         logger.debug(
-            "using bucket [{}], chunk_size [{}], server_side_encryption [{}], buffer_size [{}], cannedACL [{}], storageClass [{}]",
+            "using bucket [{}], chunk_size [{}], buffer_size [{}], cannedACL [{}], storageClass [{}], "
+                + "server_side_encryption_type [{}], server_side_encryption_kms_key_id [{}], server_side_encryption_bucket_key_enabled [{}], server_side_encryption_encryption_context [{}], expected_bucket_owner [{}], ",
             bucket,
             chunkSize,
-            serverSideEncryption,
             bufferSize,
             cannedACL,
-            storageClass
+            storageClass,
+            serverSideEncryptionType,
+            serverSideEncryptionKmsKey,
+            serverSideEncryptionBucketKey,
+            serverSideEncryptionEncryptionContext,
+            expectedBucketOwner
         );
     }
 
@@ -544,6 +676,15 @@ class S3Repository extends MeteredBlobStoreRepository {
 
         validateStorageClass(STORAGE_CLASS_SETTING.get(settings));
         validateCannedACL(CANNED_ACL_SETTING.get(settings));
+        validateHttpClientType(S3_ASYNC_HTTP_CLIENT_TYPE.get(settings));
+    }
+
+    // package access for tests
+    void validateHttpClientType(String httpClientType) {
+        if (!(httpClientType.equalsIgnoreCase(NETTY_ASYNC_HTTP_CLIENT_TYPE)
+            || httpClientType.equalsIgnoreCase(CRT_ASYNC_HTTP_CLIENT_TYPE))) {
+            throw new BlobStoreException("Invalid http client type. `" + httpClientType + "`");
+        }
     }
 
     private static void validateStorageClass(String storageClassStringValue) {
@@ -591,11 +732,23 @@ class S3Repository extends MeteredBlobStoreRepository {
 
     @Override
     protected void doClose() {
+        nativeStore.close();
         final Scheduler.Cancellable cancellable = finalizationFuture.getAndSet(null);
         if (cancellable != null) {
             logger.debug("Repository [{}] closed during cool-down period", metadata.name());
             cancellable.cancel();
         }
         super.doClose();
+    }
+
+    @Override
+    public NativeStoreRepository getNativeStore() {
+        return nativeStore;
+    }
+
+    @Override
+    public boolean isSeverSideEncryptionEnabled() {
+        // s3 is always server side encrypted.
+        return true;
     }
 }

@@ -14,7 +14,6 @@ import java.security.BasicPermission;
  * Permission to utilize methods in the ThreadContext class that are normally not accessible
  *
  * @see ThreadGroup
- * @see SecureSM
  */
 public final class ThreadContextPermission extends BasicPermission {
 

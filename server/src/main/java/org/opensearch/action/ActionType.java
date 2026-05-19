@@ -82,7 +82,7 @@ public class ActionType<Response extends ActionResponse> {
 
     @Override
     public boolean equals(Object o) {
-        return o instanceof ActionType && name.equals(((ActionType<?>) o).name());
+        return o instanceof ActionType<?> actionType && name.equals(actionType.name());
     }
 
     @Override

@@ -50,7 +50,7 @@ public class TestWithSslPlugin implements Plugin<Project> {
 
     @Override
     public void apply(Project project) {
-        File keyStoreDir = new File(project.getBuildDir(), "keystore");
+        File keyStoreDir = new File(project.getLayout().getBuildDirectory().getAsFile().get(), "keystore");
         TaskProvider<ExportOpenSearchBuildResourcesTask> exportKeyStore = project.getTasks()
             .register("copyTestCertificates", ExportOpenSearchBuildResourcesTask.class, (t) -> {
                 t.copy("test/ssl/test-client.crt");
@@ -74,9 +74,10 @@ public class TestWithSslPlugin implements Plugin<Project> {
         });
 
         project.getPlugins().withType(TestClustersPlugin.class).configureEach(clustersPlugin -> {
-            File keystoreDir = new File(project.getBuildDir(), "keystore/test/ssl");
+            File keystoreDir = new File(project.getLayout().getBuildDirectory().getAsFile().get(), "keystore/test/ssl");
             File nodeKeystore = new File(keystoreDir, "test-node.jks");
             File clientKeyStore = new File(keystoreDir, "test-client.jks");
+            @SuppressWarnings("unchecked")
             NamedDomainObjectContainer<OpenSearchCluster> clusters = (NamedDomainObjectContainer<OpenSearchCluster>) project.getExtensions()
                 .getByName(TestClustersPlugin.EXTENSION_NAME);
             clusters.all(c -> {

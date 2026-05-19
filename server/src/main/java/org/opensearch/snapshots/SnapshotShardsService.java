@@ -322,17 +322,6 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
         });
     }
 
-    private boolean isRemoteSnapshot(ShardId shardId) {
-        final IndexService indexService = indicesService.indexService(shardId.getIndex());
-        if (indexService != null) {
-            final IndexShard shard = indexService.getShardOrNull(shardId.id());
-            if (shard != null) {
-                return shard.isRemoteSnapshot();
-            }
-        }
-        return false;
-    }
-
     // package private for testing
     static String summarizeFailure(Throwable t) {
         if (t.getCause() == null) {
@@ -481,6 +470,9 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                     // we flush first to make sure we get the latest writes snapshotted
                     wrappedSnapshot = indexShard.acquireLastIndexCommit(true);
                     final IndexCommit snapshotIndexCommit = wrappedSnapshot.get();
+
+                    IndexMetadata indexMetadata = clusterService.state().metadata().index(indexId.getName());
+
                     repository.snapshotShard(
                         indexShard.store(),
                         indexShard.mapperService(),
@@ -491,7 +483,8 @@ public class SnapshotShardsService extends AbstractLifecycleComponent implements
                         snapshotStatus,
                         version,
                         userMetadata,
-                        ActionListener.runBefore(listener, wrappedSnapshot::close)
+                        ActionListener.runBefore(listener, wrappedSnapshot::close),
+                        indexMetadata
                     );
                 }
             } catch (Exception e) {

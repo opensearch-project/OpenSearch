@@ -8,6 +8,7 @@
 
 package org.opensearch.gateway.remote.routingtable;
 
+import org.opensearch.Version;
 import org.opensearch.cluster.routing.IndexRoutingTable;
 import org.opensearch.common.io.Streams;
 import org.opensearch.common.remote.AbstractClusterMetadataWriteableBlobEntity;
@@ -37,8 +38,7 @@ public class RemoteIndexRoutingTable extends AbstractClusterMetadataWriteableBlo
     private long term;
     private long version;
     private BlobPathParameters blobPathParameters;
-    public static final ChecksumWritableBlobStoreFormat<IndexRoutingTable> INDEX_ROUTING_TABLE_FORMAT =
-        new ChecksumWritableBlobStoreFormat<>("index-routing-table", IndexRoutingTable::readFrom);
+    public final ChecksumWritableBlobStoreFormat<IndexRoutingTable> indexRoutingTableFormat;
 
     public RemoteIndexRoutingTable(
         IndexRoutingTable indexRoutingTable,
@@ -52,6 +52,7 @@ public class RemoteIndexRoutingTable extends AbstractClusterMetadataWriteableBlo
         this.indexRoutingTable = indexRoutingTable;
         this.term = term;
         this.version = version;
+        this.indexRoutingTableFormat = new ChecksumWritableBlobStoreFormat<>("index-routing-table", IndexRoutingTable::readFrom);
     }
 
     /**
@@ -60,12 +61,17 @@ public class RemoteIndexRoutingTable extends AbstractClusterMetadataWriteableBlo
      * @param clusterUUID UUID of the cluster
      * @param compressor Compressor object
      */
-    public RemoteIndexRoutingTable(String blobName, String clusterUUID, Compressor compressor) {
+    public RemoteIndexRoutingTable(String blobName, String clusterUUID, Compressor compressor, Version opensearchVersion) {
         super(clusterUUID, compressor);
         this.index = null;
         this.term = -1;
         this.version = -1;
         this.blobName = blobName;
+        this.indexRoutingTableFormat = new ChecksumWritableBlobStoreFormat<>(
+            "index-routing-table",
+            IndexRoutingTable::readFrom,
+            opensearchVersion
+        );
     }
 
     @Override
@@ -104,11 +110,11 @@ public class RemoteIndexRoutingTable extends AbstractClusterMetadataWriteableBlo
 
     @Override
     public InputStream serialize() throws IOException {
-        return INDEX_ROUTING_TABLE_FORMAT.serialize(indexRoutingTable, generateBlobFileName(), getCompressor()).streamInput();
+        return indexRoutingTableFormat.serialize(indexRoutingTable, generateBlobFileName(), getCompressor()).streamInput();
     }
 
     @Override
     public IndexRoutingTable deserialize(InputStream in) throws IOException {
-        return INDEX_ROUTING_TABLE_FORMAT.deserialize(blobName, Streams.readFully(in));
+        return indexRoutingTableFormat.deserialize(blobName, Streams.readFully(in));
     }
 }

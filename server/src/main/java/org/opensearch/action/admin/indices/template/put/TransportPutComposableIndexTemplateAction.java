@@ -41,14 +41,19 @@ import org.opensearch.cluster.block.ClusterBlockLevel;
 import org.opensearch.cluster.metadata.ComposableIndexTemplate;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.MetadataIndexTemplateService;
+import org.opensearch.cluster.metadata.Template;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.index.mapper.MappingTransformerRegistry;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
+
+import reactor.util.annotation.NonNull;
 
 /**
  * An action for putting a composable index template into the cluster state
@@ -60,6 +65,7 @@ public class TransportPutComposableIndexTemplateAction extends TransportClusterM
     AcknowledgedResponse> {
 
     private final MetadataIndexTemplateService indexTemplateService;
+    private final MappingTransformerRegistry mappingTransformerRegistry;
 
     @Inject
     public TransportPutComposableIndexTemplateAction(
@@ -68,7 +74,8 @@ public class TransportPutComposableIndexTemplateAction extends TransportClusterM
         ThreadPool threadPool,
         MetadataIndexTemplateService indexTemplateService,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        MappingTransformerRegistry mappingTransformerRegistry
     ) {
         super(
             PutComposableIndexTemplateAction.NAME,
@@ -80,6 +87,7 @@ public class TransportPutComposableIndexTemplateAction extends TransportClusterM
             indexNameExpressionResolver
         );
         this.indexTemplateService = indexTemplateService;
+        this.mappingTransformerRegistry = mappingTransformerRegistry;
     }
 
     @Override
@@ -103,15 +111,35 @@ public class TransportPutComposableIndexTemplateAction extends TransportClusterM
         final PutComposableIndexTemplateAction.Request request,
         final ClusterState state,
         final ActionListener<AcknowledgedResponse> listener
+    ) throws IOException {
+        final ComposableIndexTemplate indexTemplate = request.indexTemplate();
+
+        final ActionListener<String> mappingTransformListener = ActionListener.wrap(transformedMappings -> {
+            if (transformedMappings != null && indexTemplate.template() != null) {
+                indexTemplate.template().setMappings(new CompressedXContent(transformedMappings));
+            }
+            indexTemplateService.putIndexTemplateV2(
+                request.cause(),
+                request.create(),
+                request.name(),
+                request.clusterManagerNodeTimeout(),
+                indexTemplate,
+                listener
+            );
+        }, listener::onFailure);
+
+        transformMapping(indexTemplate, mappingTransformListener);
+    }
+
+    private void transformMapping(
+        @NonNull final ComposableIndexTemplate indexTemplate,
+        @NonNull final ActionListener<String> mappingTransformListener
     ) {
-        ComposableIndexTemplate indexTemplate = request.indexTemplate();
-        indexTemplateService.putIndexTemplateV2(
-            request.cause(),
-            request.create(),
-            request.name(),
-            request.clusterManagerNodeTimeout(),
-            indexTemplate,
-            listener
-        );
+        final Template template = indexTemplate.template();
+        if (template == null || template.mappings() == null) {
+            mappingTransformListener.onResponse(null);
+        } else {
+            mappingTransformerRegistry.applyTransformers(template.mappings().string(), null, mappingTransformListener);
+        }
     }
 }

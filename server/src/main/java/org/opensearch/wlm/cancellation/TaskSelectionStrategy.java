@@ -8,8 +8,8 @@
 
 package org.opensearch.wlm.cancellation;
 
-import org.opensearch.wlm.QueryGroupTask;
 import org.opensearch.wlm.ResourceType;
+import org.opensearch.wlm.WorkloadGroupTask;
 
 import java.util.List;
 
@@ -24,5 +24,5 @@ public interface TaskSelectionStrategy {
      * @param resourceType
      * @return list of tasks
      */
-    List<QueryGroupTask> selectTasksForCancellation(List<QueryGroupTask> tasks, double limit, ResourceType resourceType);
+    List<WorkloadGroupTask> selectTasksForCancellation(List<WorkloadGroupTask> tasks, double limit, ResourceType resourceType);
 }

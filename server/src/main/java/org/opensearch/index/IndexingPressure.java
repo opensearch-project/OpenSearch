@@ -218,19 +218,18 @@ public class IndexingPressure {
     }
 
     public IndexingPressureStats stats() {
-        return new IndexingPressureStats(
-            totalCombinedCoordinatingAndPrimaryBytes.get(),
-            totalCoordinatingBytes.get(),
-            totalPrimaryBytes.get(),
-            totalReplicaBytes.get(),
-            currentCombinedCoordinatingAndPrimaryBytes.get(),
-            currentCoordinatingBytes.get(),
-            currentPrimaryBytes.get(),
-            currentReplicaBytes.get(),
-            coordinatingRejections.get(),
-            primaryRejections.get(),
-            replicaRejections.get(),
-            primaryAndCoordinatingLimits
-        );
+        return new IndexingPressureStats.Builder().totalCombinedCoordinatingAndPrimaryBytes(totalCombinedCoordinatingAndPrimaryBytes.get())
+            .totalCoordinatingBytes(totalCoordinatingBytes.get())
+            .totalPrimaryBytes(totalPrimaryBytes.get())
+            .totalReplicaBytes(totalReplicaBytes.get())
+            .currentCombinedCoordinatingAndPrimaryBytes(currentCombinedCoordinatingAndPrimaryBytes.get())
+            .currentCoordinatingBytes(currentCoordinatingBytes.get())
+            .currentPrimaryBytes(currentPrimaryBytes.get())
+            .currentReplicaBytes(currentReplicaBytes.get())
+            .coordinatingRejections(coordinatingRejections.get())
+            .primaryRejections(primaryRejections.get())
+            .replicaRejections(replicaRejections.get())
+            .memoryLimit(primaryAndCoordinatingLimits)
+            .build();
     }
 }

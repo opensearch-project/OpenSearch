@@ -1,0 +1,8 @@
+/*
+SELECT 1, URL, COUNT(*) AS c FROM hits GROUP BY 1, URL ORDER BY c DESC LIMIT 10;
+*/
+source=hits
+| eval const = 1
+| stats bucket_nullable=false count() as c by const, URL
+| sort - c
+| head 10

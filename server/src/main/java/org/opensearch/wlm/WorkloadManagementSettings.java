@@ -36,9 +36,9 @@ public class WorkloadManagementSettings {
     private Double nodeLevelCpuRejectionThreshold;
 
     /**
-     * Setting name for QueryGroupService node duress streak
+     * Setting name for WorkloadGroupService node duress streak
      */
-    public static final String QUERYGROUP_DURESS_STREAK_SETTING_NAME = "wlm.query_group.duress_streak";
+    public static final String QUERYGROUP_DURESS_STREAK_SETTING_NAME = "wlm.workload_group.duress_streak";
     private int duressStreak;
     public static final Setting<Integer> QUERYGROUP_SERVICE_DURESS_STREAK_SETTING = Setting.intSetting(
         QUERYGROUP_DURESS_STREAK_SETTING_NAME,
@@ -49,13 +49,13 @@ public class WorkloadManagementSettings {
     );
 
     /**
-     * Setting name for Query Group Service run interval
+     * Setting name for Workload Group Service run interval
      */
-    public static final String QUERYGROUP_ENFORCEMENT_INTERVAL_SETTING_NAME = "wlm.query_group.enforcement_interval";
+    public static final String QUERYGROUP_ENFORCEMENT_INTERVAL_SETTING_NAME = "wlm.workload_group.enforcement_interval";
 
-    private TimeValue queryGroupServiceRunInterval;
+    private TimeValue workloadGroupServiceRunInterval;
     /**
-     * Setting to control the run interval of Query Group Service
+     * Setting to control the run interval of Workload Group Service
      */
     public static final Setting<Long> QUERYGROUP_SERVICE_RUN_INTERVAL_SETTING = Setting.longSetting(
         QUERYGROUP_ENFORCEMENT_INTERVAL_SETTING_NAME,
@@ -68,7 +68,7 @@ public class WorkloadManagementSettings {
     /**
      * WLM mode setting name
      */
-    public static final String WLM_MODE_SETTING_NAME = "wlm.query_group.mode";
+    public static final String WLM_MODE_SETTING_NAME = "wlm.workload_group.mode";
 
     private volatile WlmMode wlmMode;
 
@@ -84,9 +84,9 @@ public class WorkloadManagementSettings {
     );
 
     /**
-     * Setting name for node level memory based rejection threshold for QueryGroup service
+     * Setting name for node level memory based rejection threshold for WorkloadGroup service
      */
-    public static final String NODE_MEMORY_REJECTION_THRESHOLD_SETTING_NAME = "wlm.query_group.node.memory_rejection_threshold";
+    public static final String NODE_MEMORY_REJECTION_THRESHOLD_SETTING_NAME = "wlm.workload_group.node.memory_rejection_threshold";
     /**
      * Setting to control the memory based rejection threshold
      */
@@ -97,9 +97,9 @@ public class WorkloadManagementSettings {
         Setting.Property.NodeScope
     );
     /**
-     * Setting name for node level cpu based rejection threshold for QueryGroup service
+     * Setting name for node level cpu based rejection threshold for WorkloadGroup service
      */
-    public static final String NODE_CPU_REJECTION_THRESHOLD_SETTING_NAME = "wlm.query_group.node.cpu_rejection_threshold";
+    public static final String NODE_CPU_REJECTION_THRESHOLD_SETTING_NAME = "wlm.workload_group.node.cpu_rejection_threshold";
     /**
      * Setting to control the cpu based rejection threshold
      */
@@ -110,9 +110,9 @@ public class WorkloadManagementSettings {
         Setting.Property.NodeScope
     );
     /**
-     * Setting name for node level memory based cancellation threshold for QueryGroup service
+     * Setting name for node level memory based cancellation threshold for WorkloadGroup service
      */
-    public static final String NODE_MEMORY_CANCELLATION_THRESHOLD_SETTING_NAME = "wlm.query_group.node.memory_cancellation_threshold";
+    public static final String NODE_MEMORY_CANCELLATION_THRESHOLD_SETTING_NAME = "wlm.workload_group.node.memory_cancellation_threshold";
     /**
      * Setting to control the memory based cancellation threshold
      */
@@ -123,9 +123,9 @@ public class WorkloadManagementSettings {
         Setting.Property.NodeScope
     );
     /**
-     * Setting name for node level cpu based cancellation threshold for QueryGroup service
+     * Setting name for node level cpu based cancellation threshold for WorkloadGroup service
      */
-    public static final String NODE_CPU_CANCELLATION_THRESHOLD_SETTING_NAME = "wlm.query_group.node.cpu_cancellation_threshold";
+    public static final String NODE_CPU_CANCELLATION_THRESHOLD_SETTING_NAME = "wlm.workload_group.node.cpu_cancellation_threshold";
     /**
      * Setting to control the cpu based cancellation threshold
      */
@@ -137,9 +137,9 @@ public class WorkloadManagementSettings {
     );
 
     /**
-     * QueryGroup service settings constructor
-     * @param settings - QueryGroup service settings
-     * @param clusterSettings - QueryGroup cluster settings
+     * WorkloadGroup service settings constructor
+     * @param settings - WorkloadGroup service settings
+     * @param clusterSettings - WorkloadGroup cluster settings
      */
     public WorkloadManagementSettings(Settings settings, ClusterSettings clusterSettings) {
         this.wlmMode = WLM_MODE_SETTING.get(settings);
@@ -147,7 +147,7 @@ public class WorkloadManagementSettings {
         nodeLevelMemoryRejectionThreshold = NODE_LEVEL_MEMORY_REJECTION_THRESHOLD.get(settings);
         nodeLevelCpuCancellationThreshold = NODE_LEVEL_CPU_CANCELLATION_THRESHOLD.get(settings);
         nodeLevelCpuRejectionThreshold = NODE_LEVEL_CPU_REJECTION_THRESHOLD.get(settings);
-        this.queryGroupServiceRunInterval = TimeValue.timeValueMillis(QUERYGROUP_SERVICE_RUN_INTERVAL_SETTING.get(settings));
+        this.workloadGroupServiceRunInterval = TimeValue.timeValueMillis(QUERYGROUP_SERVICE_RUN_INTERVAL_SETTING.get(settings));
         duressStreak = QUERYGROUP_SERVICE_DURESS_STREAK_SETTING.get(settings);
 
         ensureRejectionThresholdIsLessThanCancellation(
@@ -168,7 +168,7 @@ public class WorkloadManagementSettings {
         clusterSettings.addSettingsUpdateConsumer(NODE_LEVEL_CPU_CANCELLATION_THRESHOLD, this::setNodeLevelCpuCancellationThreshold);
         clusterSettings.addSettingsUpdateConsumer(NODE_LEVEL_CPU_REJECTION_THRESHOLD, this::setNodeLevelCpuRejectionThreshold);
         clusterSettings.addSettingsUpdateConsumer(WLM_MODE_SETTING, this::setWlmMode);
-        clusterSettings.addSettingsUpdateConsumer(QUERYGROUP_SERVICE_RUN_INTERVAL_SETTING, this::setQueryGroupServiceRunInterval);
+        clusterSettings.addSettingsUpdateConsumer(QUERYGROUP_SERVICE_RUN_INTERVAL_SETTING, this::setWorkloadGroupServiceRunInterval);
         clusterSettings.addSettingsUpdateConsumer(QUERYGROUP_SERVICE_DURESS_STREAK_SETTING, this::setDuressStreak);
     }
 
@@ -189,19 +189,19 @@ public class WorkloadManagementSettings {
     }
 
     /**
-     * queryGroupServiceRunInterval setter
+     * workloadGroupServiceRunInterval setter
      * @param newIntervalInMillis new value
      */
-    private void setQueryGroupServiceRunInterval(long newIntervalInMillis) {
-        this.queryGroupServiceRunInterval = TimeValue.timeValueMillis(newIntervalInMillis);
+    private void setWorkloadGroupServiceRunInterval(long newIntervalInMillis) {
+        this.workloadGroupServiceRunInterval = TimeValue.timeValueMillis(newIntervalInMillis);
     }
 
     /**
-     * queryGroupServiceRunInterval getter
-     * @return current queryGroupServiceRunInterval value
+     * workloadGroupServiceRunInterval getter
+     * @return current workloadGroupServiceRunInterval value
      */
-    public TimeValue getQueryGroupServiceRunInterval() {
-        return this.queryGroupServiceRunInterval;
+    public TimeValue getWorkloadGroupServiceRunInterval() {
+        return this.workloadGroupServiceRunInterval;
     }
 
     /**

@@ -32,6 +32,7 @@
 package org.opensearch.action.admin.indices.alias.get;
 
 import org.opensearch.action.support.ActionFilters;
+import org.opensearch.action.support.TransportIndicesResolvingAction;
 import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeReadAction;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.block.ClusterBlockException;
@@ -39,6 +40,7 @@ import org.opensearch.cluster.block.ClusterBlockLevel;
 import org.opensearch.cluster.metadata.AliasMetadata;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
+import org.opensearch.cluster.metadata.ResolvedIndices;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.logging.DeprecationLogger;
@@ -51,6 +53,7 @@ import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -65,7 +68,9 @@ import java.util.stream.Collectors;
  *
  * @opensearch.internal
  */
-public class TransportGetAliasesAction extends TransportClusterManagerNodeReadAction<GetAliasesRequest, GetAliasesResponse> {
+public class TransportGetAliasesAction extends TransportClusterManagerNodeReadAction<GetAliasesRequest, GetAliasesResponse>
+    implements
+        TransportIndicesResolvingAction<GetAliasesRequest> {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(TransportGetAliasesAction.class);
 
     private final SystemIndices systemIndices;
@@ -194,5 +199,53 @@ public class TransportGetAliasesAction extends TransportClusterManagerNodeReadAc
                 systemAliases
             );
         }
+    }
+
+    @Override
+    public ResolvedIndices resolveIndices(GetAliasesRequest request) {
+        ClusterState state = this.clusterService.state();
+
+        // The index resolution object in this method is advanced, even though it might not look like it in
+        // the clusterManagerOperation() method on the first glance.
+        //
+        // GetAliasesRequest can be in several different states:
+        // - no aliases and no indices specified: both the aliases and the indices attribute in GetAliasesRequest are
+        // empty arrays. This will then cause all aliases and all indices to be resolved and referenced.
+        // - an alias and no indices: the indices attribute in GetAliasesRequest will be an empty array, which will be
+        // resolved by indexNameExpressionResolver.concreteIndexNames() to all indices. The action will then filter
+        // all indices to those that are member of the specified alias
+        // - no aliases and one or more indices: the aliases attribute in GetAliasesRequest will be an empty array,
+        // which will be resolved by state.metadata().findAliases() to all aliases, but limited to the aliases
+        // containing one of the specified indices
+        // - both aliases and indices specified: this is then the intersection
+        //
+        // For both indices and aliases, patterns can be specified. The indicesOptions of the request only apply to the indices.
+        //
+        // The consequence for the resolveIndices() method is that the semantics of the return value might be debatable.
+        // We resort to have just the index names on the top level, because it is the most precise dimension.
+        // Alias names are included as a sub action named "indices:admin/aliases/get[aliases]"
+
+        boolean noAliasesSpecified = request.getOriginalAliases() == null || request.getOriginalAliases().length == 0;
+        String[] concreteIndices;
+
+        try (ThreadContext.StoredContext ignore = threadPool.getThreadContext().newStoredContext(false)) {
+            concreteIndices = indexNameExpressionResolver.concreteResolvedIndices(state, request)
+                .withoutResolutionErrors()
+                .namesOfConcreteIndicesAsArray();
+        }
+        Map<String, List<AliasMetadata>> indexToAliasesMap = state.metadata().findAliases(request, concreteIndices);
+
+        // If no aliases were specified in the request, we will report all indices matching the indices expression
+        // If there were aliases specified, we will report just the indices that are members of the aliases
+        // That follows the logic in the postProcess() method above.
+        Collection<String> indices = noAliasesSpecified ? Arrays.asList(concreteIndices) : indexToAliasesMap.keySet();
+
+        return ResolvedIndices.of(indices)
+            .withLocalSubActions(
+                GetAliasesAction.NAME + "[aliases]",
+                ResolvedIndices.Local.of(
+                    indexToAliasesMap.values().stream().flatMap(Collection::stream).map(AliasMetadata::alias).collect(Collectors.toSet())
+                )
+            );
     }
 }

@@ -32,9 +32,8 @@
 
 package org.opensearch.index.query.functionscore;
 
-import com.fasterxml.jackson.core.JsonParseException;
-
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
@@ -67,14 +66,18 @@ import org.opensearch.script.MockScriptEngine;
 import org.opensearch.script.Script;
 import org.opensearch.script.ScriptType;
 import org.opensearch.search.MultiValueMode;
+import org.opensearch.search.approximate.ApproximateMatchAllQuery;
+import org.opensearch.search.approximate.ApproximateScoreQuery;
 import org.opensearch.test.AbstractQueryTestCase;
 import org.opensearch.test.TestGeoShapeFieldMapperPlugin;
+import org.opensearch.tools.jackson.core.JsonParseException;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.hamcrest.CoreMatchers;
 import org.hamcrest.Matcher;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -621,7 +624,8 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
         ).toQuery(context);
         assertThat(parsedQuery, instanceOf(FunctionScoreQuery.class));
         FunctionScoreQuery functionScoreQuery = (FunctionScoreQuery) parsedQuery;
-        assertThat(((TermQuery) functionScoreQuery.getSubQuery()).getTerm(), equalTo(new Term(KEYWORD_FIELD_NAME, "banon")));
+        ConstantScoreQuery constantScoreQuery = (ConstantScoreQuery) functionScoreQuery.getSubQuery();
+        assertThat(((TermQuery) constantScoreQuery.getQuery()).getTerm(), equalTo(new Term(KEYWORD_FIELD_NAME, "banon")));
         assertThat((double) (functionScoreQuery.getFunctions()[0]).getWeight(), closeTo(1.3, 0.001));
     }
 
@@ -629,7 +633,10 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
         Query parsedQuery = parseQuery(functionScoreQuery(weightFactorFunction(1.3f))).toQuery(createShardContext());
         assertThat(parsedQuery, instanceOf(FunctionScoreQuery.class));
         FunctionScoreQuery functionScoreQuery = (FunctionScoreQuery) parsedQuery;
-        assertThat(functionScoreQuery.getSubQuery() instanceof MatchAllDocsQuery, equalTo(true));
+        assertThat(functionScoreQuery.getSubQuery(), CoreMatchers.instanceOf(ApproximateScoreQuery.class));
+        ApproximateScoreQuery approxQuery = (ApproximateScoreQuery) functionScoreQuery.getSubQuery();
+        assertThat(approxQuery.getOriginalQuery(), CoreMatchers.instanceOf(MatchAllDocsQuery.class));
+        assertThat(approxQuery.getApproximationQuery(), CoreMatchers.instanceOf(ApproximateMatchAllQuery.class));
         assertThat((double) (functionScoreQuery.getFunctions()[0]).getWeight(), closeTo(1.3, 0.001));
     }
 
@@ -772,44 +779,55 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
     }
 
     public void testQueryMalformedArrayNotSupported() throws IOException {
-        String json = "{\n" + "  \"function_score\" : {\n" + "    \"not_supported\" : []\n" + "  }\n" + "}";
+        String json = """
+            {
+              "function_score" : {
+                "not_supported" : []
+              }
+            }""";
 
         expectParsingException(json, "array [not_supported] is not supported");
     }
 
     public void testQueryMalformedFieldNotSupported() throws IOException {
-        String json = "{\n" + "  \"function_score\" : {\n" + "    \"not_supported\" : \"value\"\n" + "  }\n" + "}";
+        String json = """
+            {
+              "function_score" : {
+                "not_supported" : "value"
+              }
+            }""";
 
         expectParsingException(json, "field [not_supported] is not supported");
     }
 
     public void testMalformedQueryFunctionFieldNotSupported() throws IOException {
-        String json = "{\n"
-            + "  \"function_score\" : {\n"
-            + "    \"functions\" : [ {\n"
-            + "      \"not_supported\" : 23.0\n"
-            + "    }\n"
-            + "  }\n"
-            + "}";
+        String json = """
+            {
+              "function_score" : {
+                "functions" : [ {
+                  "not_supported" : 23.0
+                }
+              }
+            }""";
 
         expectParsingException(json, "field [not_supported] is not supported");
     }
 
     public void testMalformedQueryMultipleQueryObjects() throws IOException {
         // verify that an error is thrown rather than setting the query twice (https://github.com/elastic/elasticsearch/issues/16583)
-        String json = "{\n"
-            + "    \"function_score\":{\n"
-            + "        \"query\":{\n"
-            + "            \"bool\":{\n"
-            + "                \"must\":{\"match\":{\"field\":\"value\"}}"
-            + "             },\n"
-            + "            \"ignored_field_name\": {\n"
-            + "                {\"match\":{\"field\":\"value\"}}\n"
-            + "            }\n"
-            + "            }\n"
-            + "        }\n"
-            + "    }\n"
-            + "}";
+        String json = """
+            {
+                "function_score":{
+                    "query":{
+                        "bool":{
+                            "must":{"match":{"field":"value"}}             },
+                        "ignored_field_name": {
+                            {"match":{"field":"value"}}
+                        }
+                        }
+                    }
+                }
+            }""";
         expectParsingException(json, equalTo("[bool] malformed query, expected [END_OBJECT] but found [FIELD_NAME]"));
     }
 
@@ -937,5 +955,16 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
         );
         e = expectThrows(IllegalStateException.class, () -> functionQueryBuilder2.toQuery(context));
         assertEquals("Rewrite first", e.getMessage());
+    }
+
+    public void testVisit() {
+        TermQueryBuilder termQueryBuilder = new TermQueryBuilder("unmapped_field", "foo");
+        FunctionScoreQueryBuilder builder = new FunctionScoreQueryBuilder(termQueryBuilder);
+
+        List<QueryBuilder> visitedQueries = new ArrayList<>();
+        builder.visit(createTestVisitor(visitedQueries));
+
+        assertEquals(2, visitedQueries.size());
+        assertTrue(visitedQueries.contains(termQueryBuilder));
     }
 }

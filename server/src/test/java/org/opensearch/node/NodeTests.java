@@ -65,11 +65,11 @@ import org.opensearch.plugins.TelemetryAwarePlugin;
 import org.opensearch.plugins.TelemetryPlugin;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.script.ScriptService;
+import org.opensearch.storage.metrics.TierActionMetrics;
 import org.opensearch.telemetry.Telemetry;
 import org.opensearch.telemetry.TelemetrySettings;
 import org.opensearch.telemetry.metrics.MetricsRegistry;
 import org.opensearch.telemetry.tracing.Tracer;
-import org.opensearch.test.FeatureFlagSetter;
 import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.MockHttpTransport;
 import org.opensearch.test.NodeRoles;
@@ -94,6 +94,7 @@ import java.util.function.Supplier;
 
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
+import static org.opensearch.common.util.FeatureFlags.TELEMETRY;
 import static org.opensearch.test.NodeRoles.addRoles;
 import static org.opensearch.test.NodeRoles.dataNode;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
@@ -376,17 +377,17 @@ public class NodeTests extends OpenSearchTestCase {
     }
 
     public void testCreateWithFileCache() throws Exception {
-        Settings searchRoleSettings = addRoles(baseSettings().build(), Set.of(DiscoveryNodeRole.SEARCH_ROLE));
+        Settings warmRoleSettings = addRoles(baseSettings().build(), Set.of(DiscoveryNodeRole.WARM_ROLE));
         List<Class<? extends Plugin>> plugins = basePlugins();
         ByteSizeValue cacheSize = new ByteSizeValue(16, ByteSizeUnit.GB);
-        Settings searchRoleSettingsWithConfig = baseSettings().put(searchRoleSettings)
+        Settings warmRoleSettingsWithConfig = baseSettings().put(warmRoleSettings)
             .put(Node.NODE_SEARCH_CACHE_SIZE_SETTING.getKey(), cacheSize.toString())
             .build();
-        Settings onlySearchRoleSettings = Settings.builder()
-            .put(searchRoleSettingsWithConfig)
+        Settings onlyWarmRoleSettings = Settings.builder()
+            .put(warmRoleSettingsWithConfig)
             .put(
                 NodeRoles.removeRoles(
-                    searchRoleSettingsWithConfig,
+                    warmRoleSettingsWithConfig,
                     Set.of(
                         DiscoveryNodeRole.DATA_ROLE,
                         DiscoveryNodeRole.CLUSTER_MANAGER_ROLE,
@@ -397,29 +398,48 @@ public class NodeTests extends OpenSearchTestCase {
             )
             .build();
 
-        // Test exception thrown with configuration missing
-        assertThrows(SettingsException.class, () -> new MockNode(searchRoleSettings, plugins));
+        // Test exception thrown when computed cache budget is 0 (80% × 0 SSD in test env).
+        // NodeCacheOrchestrator.validate() throws IllegalArgumentException
+        assertThrows(SettingsException.class, () -> new MockNode(warmRoleSettings, plugins));
 
         // Test file cache is initialized
-        try (MockNode mockNode = new MockNode(searchRoleSettingsWithConfig, plugins)) {
+        try (MockNode mockNode = new MockNode(warmRoleSettingsWithConfig, plugins)) {
             NodeEnvironment.NodePath fileCacheNodePath = mockNode.getNodeEnvironment().fileCacheNodePath();
             assertEquals(cacheSize.getBytes(), fileCacheNodePath.fileCacheReservedSize.getBytes());
         }
 
-        // Test data + search node with defined cache size
-        try (MockNode mockNode = new MockNode(searchRoleSettingsWithConfig, plugins)) {
+        // Test data + warm node with defined cache size
+        try (MockNode mockNode = new MockNode(warmRoleSettingsWithConfig, plugins)) {
             NodeEnvironment.NodePath fileCacheNodePath = mockNode.getNodeEnvironment().fileCacheNodePath();
             assertEquals(cacheSize.getBytes(), fileCacheNodePath.fileCacheReservedSize.getBytes());
         }
 
-        // Test dedicated search node with no configuration
-        try (MockNode mockNode = new MockNode(onlySearchRoleSettings, plugins)) {
+        // Test dedicated warm node with no configuration
+        try (MockNode mockNode = new MockNode(onlyWarmRoleSettings, plugins)) {
             NodeEnvironment.NodePath fileCacheNodePath = mockNode.getNodeEnvironment().fileCacheNodePath();
             assertTrue(fileCacheNodePath.fileCacheReservedSize.getBytes() > 0);
             FsProbe fsProbe = new FsProbe(mockNode.getNodeEnvironment(), mockNode.fileCache());
             FsInfo fsInfo = fsProbe.stats(null);
             FsInfo.Path cachePathInfo = fsInfo.iterator().next();
             assertEquals(cachePathInfo.getFileCacheReserved().getBytes(), fileCacheNodePath.fileCacheReservedSize.getBytes());
+        }
+    }
+
+    public void testTieredStorageWiringWithFeatureFlag() throws Exception {
+        Settings warmRoleSettings = addRoles(
+            baseSettings().put(FeatureFlags.WRITABLE_WARM_INDEX_EXPERIMENTAL_FLAG, true)
+                .put(Node.NODE_SEARCH_CACHE_SIZE_SETTING.getKey(), "1gb")
+                .build(),
+            Set.of(DiscoveryNodeRole.WARM_ROLE)
+        );
+        List<Class<? extends Plugin>> plugins = basePlugins();
+        try (MockNode mockNode = new MockNode(warmRoleSettings, plugins)) {
+            assertNotNull(mockNode);
+            // Verify TierActionMetrics was bound in Guice
+            assertNotNull(mockNode.injector().getInstance(TierActionMetrics.class));
+            // Verify remote_download thread pool exists
+            ThreadPool threadPool = mockNode.injector().getInstance(ThreadPool.class);
+            assertNotNull(threadPool.executor(ThreadPool.Names.REMOTE_DOWNLOAD));
         }
     }
 
@@ -436,11 +456,11 @@ public class NodeTests extends OpenSearchTestCase {
         }
     }
 
+    @LockFeatureFlag(TELEMETRY)
     public void testTelemetryPluginShouldNOTImplementTelemetryAwarePlugin() throws IOException {
         Settings.Builder settings = baseSettings();
         List<Class<? extends Plugin>> plugins = basePlugins();
         plugins.add(MockTelemetryPlugin.class);
-        FeatureFlagSetter.set(FeatureFlags.TELEMETRY);
         settings.put(TelemetrySettings.TRACER_FEATURE_ENABLED_SETTING.getKey(), true);
         assertThrows(IllegalStateException.class, () -> new MockNode(settings.build(), plugins));
     }

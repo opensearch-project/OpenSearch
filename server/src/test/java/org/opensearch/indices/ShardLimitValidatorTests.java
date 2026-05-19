@@ -39,6 +39,7 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
+import org.opensearch.cluster.routing.RoutingPool;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.cluster.shards.ShardCounts;
 import org.opensearch.common.ValidationException;
@@ -77,7 +78,14 @@ public class ShardLimitValidatorTests extends OpenSearchTestCase {
         ClusterState state = createClusterForShardLimitTest(nodesInCluster, counts.getFirstIndexShards(), counts.getFirstIndexReplicas());
 
         int shardsToAdd = counts.getFailingIndexShards() * (1 + counts.getFailingIndexReplicas());
-        Optional<String> errorMessage = ShardLimitValidator.checkShardLimit(shardsToAdd, state, counts.getShardsPerNode(), -1);
+        Optional<String> errorMessage = ShardLimitValidator.checkShardLimit(
+            shardsToAdd,
+            state.getMetadata().getTotalOpenIndexShards(),
+            counts.getShardsPerNode(),
+            -1,
+            state.getNodes().getDataNodes().size(),
+            RoutingPool.LOCAL_ONLY
+        );
 
         int totalShards = counts.getFailingIndexShards() * (1 + counts.getFailingIndexReplicas());
         int currentShards = counts.getFirstIndexShards() * (1 + counts.getFirstIndexReplicas());
@@ -86,11 +94,11 @@ public class ShardLimitValidatorTests extends OpenSearchTestCase {
         assertEquals(
             "this action would add ["
                 + totalShards
-                + "] total shards, but this cluster currently has ["
+                + "] total LOCAL_ONLY shards, but this cluster currently has ["
                 + currentShards
                 + "]/["
                 + maxShards
-                + "] maximum shards open",
+                + "] maximum LOCAL_ONLY shards open",
             errorMessage.get()
         );
     }
@@ -104,9 +112,11 @@ public class ShardLimitValidatorTests extends OpenSearchTestCase {
         int maxShardLimitOnCluster = shardsToAdd - 1;
         Optional<String> errorMessage = ShardLimitValidator.checkShardLimit(
             shardsToAdd,
-            state,
+            state.getMetadata().getTotalOpenIndexShards(),
             counts.getShardsPerNode(),
-            maxShardLimitOnCluster
+            maxShardLimitOnCluster,
+            state.getNodes().getDataNodes().size(),
+            RoutingPool.LOCAL_ONLY
         );
 
         int totalShards = counts.getFailingIndexShards() * (1 + counts.getFailingIndexReplicas());
@@ -116,11 +126,11 @@ public class ShardLimitValidatorTests extends OpenSearchTestCase {
         assertEquals(
             "this action would add ["
                 + totalShards
-                + "] total shards, but this cluster currently has ["
+                + "] total LOCAL_ONLY shards, but this cluster currently has ["
                 + currentShards
                 + "]/["
                 + maxShards
-                + "] maximum shards open",
+                + "] maximum LOCAL_ONLY shards open",
             errorMessage.get()
         );
     }
@@ -136,7 +146,14 @@ public class ShardLimitValidatorTests extends OpenSearchTestCase {
 
         int existingShards = counts.getFirstIndexShards() * (1 + counts.getFirstIndexReplicas());
         int shardsToAdd = randomIntBetween(1, (counts.getShardsPerNode() * nodesInCluster) - existingShards);
-        Optional<String> errorMessage = ShardLimitValidator.checkShardLimit(shardsToAdd, state, counts.getShardsPerNode(), -1);
+        Optional<String> errorMessage = ShardLimitValidator.checkShardLimit(
+            shardsToAdd,
+            state.getMetadata().getTotalOpenIndexShards(),
+            counts.getShardsPerNode(),
+            -1,
+            state.getNodes().getDataNodes().size(),
+            RoutingPool.LOCAL_ONLY
+        );
 
         assertFalse(errorMessage.isPresent());
     }
@@ -175,11 +192,11 @@ public class ShardLimitValidatorTests extends OpenSearchTestCase {
         assertEquals(
             "Validation Failed: 1: this action would add ["
                 + 2
-                + "] total shards, but this cluster currently has ["
+                + "] total LOCAL_ONLY shards, but this cluster currently has ["
                 + 1
                 + "]/["
                 + 1
-                + "] maximum shards open;",
+                + "] maximum LOCAL_ONLY shards open;",
             exception.getMessage()
         );
     }
@@ -205,11 +222,11 @@ public class ShardLimitValidatorTests extends OpenSearchTestCase {
         assertEquals(
             "Validation Failed: 1: this action would add ["
                 + 2
-                + "] total shards, but this cluster currently has ["
+                + "] total LOCAL_ONLY shards, but this cluster currently has ["
                 + 1
                 + "]/["
                 + maxShardLimitOnCluster
-                + "] maximum shards open;",
+                + "] maximum LOCAL_ONLY shards open;",
             exception.getMessage()
         );
     }
@@ -217,18 +234,32 @@ public class ShardLimitValidatorTests extends OpenSearchTestCase {
     public void testComputedMaxShardsOfClusterIntOverFlow() {
         final int maxShardLimitPerNode = 500_000_000;
         ClusterState state = createClusterForShardLimitTest(15, 1, 1);
-        Optional<String> errorMessage = ShardLimitValidator.checkShardLimit(2, state, maxShardLimitPerNode, -1);
+        Optional<String> errorMessage = ShardLimitValidator.checkShardLimit(
+            2,
+            state.getMetadata().getTotalOpenIndexShards(),
+            maxShardLimitPerNode,
+            -1,
+            state.getNodes().getDataNodes().size(),
+            RoutingPool.LOCAL_ONLY
+        );
         assertFalse(errorMessage.isPresent());
 
-        errorMessage = ShardLimitValidator.checkShardLimit(Integer.MAX_VALUE - 1, state, maxShardLimitPerNode, -1);
+        errorMessage = ShardLimitValidator.checkShardLimit(
+            Integer.MAX_VALUE - 1,
+            state.getMetadata().getTotalOpenIndexShards(),
+            maxShardLimitPerNode,
+            -1,
+            state.getNodes().getDataNodes().size(),
+            RoutingPool.LOCAL_ONLY
+        );
         assertEquals(
             "this action would add ["
                 + (Integer.MAX_VALUE - 1)
-                + "] total shards, but this cluster currently has ["
+                + "] total LOCAL_ONLY shards, but this cluster currently has ["
                 + 2
                 + "]/["
                 + Integer.MAX_VALUE
-                + "] maximum shards open",
+                + "] maximum LOCAL_ONLY shards open",
             errorMessage.get()
         );
     }
@@ -284,11 +315,11 @@ public class ShardLimitValidatorTests extends OpenSearchTestCase {
         assertEquals(
             "Validation Failed: 1: this action would add ["
                 + 2
-                + "] total shards, but this cluster currently has ["
+                + "] total LOCAL_ONLY shards, but this cluster currently has ["
                 + 1
                 + "]/["
                 + 1
-                + "] maximum shards open;",
+                + "] maximum LOCAL_ONLY shards open;",
             exception.getMessage()
         );
     }
@@ -312,11 +343,11 @@ public class ShardLimitValidatorTests extends OpenSearchTestCase {
         assertEquals(
             "Validation Failed: 1: this action would add ["
                 + 2
-                + "] total shards, but this cluster currently has ["
+                + "] total LOCAL_ONLY shards, but this cluster currently has ["
                 + 1
                 + "]/["
                 + 1
-                + "] maximum shards open;",
+                + "] maximum LOCAL_ONLY shards open;",
             exception.getMessage()
         );
     }
@@ -367,11 +398,11 @@ public class ShardLimitValidatorTests extends OpenSearchTestCase {
         assertEquals(
             "Validation Failed: 1: this action would add ["
                 + totalShards
-                + "] total shards, but this cluster currently has ["
+                + "] total LOCAL_ONLY shards, but this cluster currently has ["
                 + currentShards
                 + "]/["
                 + maxShards
-                + "] maximum shards open;",
+                + "] maximum LOCAL_ONLY shards open;",
             exception.getMessage()
         );
     }
@@ -465,11 +496,11 @@ public class ShardLimitValidatorTests extends OpenSearchTestCase {
         assertEquals(
             "Validation Failed: 1: this action would add ["
                 + totalShards
-                + "] total shards, but this cluster currently has ["
+                + "] total LOCAL_ONLY shards, but this cluster currently has ["
                 + currentShards
                 + "]/["
                 + maxShards
-                + "] maximum shards open;",
+                + "] maximum LOCAL_ONLY shards open;",
             exception.getMessage()
         );
     }
@@ -508,11 +539,11 @@ public class ShardLimitValidatorTests extends OpenSearchTestCase {
         assertEquals(
             "Validation Failed: 1: this action would add ["
                 + totalShards
-                + "] total shards, but this cluster currently has ["
+                + "] total LOCAL_ONLY shards, but this cluster currently has ["
                 + currentShards
                 + "]/["
                 + maxShards
-                + "] maximum shards open;",
+                + "] maximum LOCAL_ONLY shards open;",
             exception.getMessage()
         );
     }

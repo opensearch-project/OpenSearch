@@ -228,7 +228,7 @@ public class TermsDocCountErrorIT extends ParameterizedStaticSettingsOpenSearchI
         // correctly calculated for concurrent segment search at the slice level.
         // See https://github.com/opensearch-project/OpenSearch/issues/11680"
         forceMerge(1);
-        Thread.sleep(5000); // Sleep 5s to ensure force merge completes
+        refresh();
     }
 
     private void assertDocCountErrorWithinBounds(int size, SearchResponse accurateResponse, SearchResponse testResponse) {

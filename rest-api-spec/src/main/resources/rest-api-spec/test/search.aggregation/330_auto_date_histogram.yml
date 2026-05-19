@@ -26,9 +26,7 @@ setup:
 
 ---
 "basic":
-  - skip:
-      version: " - 7.8.99"
-      reason:  interval had a in bug before 7.9.0
+
   - do:
       search:
         rest_total_hits_as_int: true
@@ -49,9 +47,7 @@ setup:
 
 ---
 "avg_bucket":
-  - skip:
-      version: " - 7.7.99"
-      reason: Fixed in 7.8.0
+
   - do:
       search:
         body:

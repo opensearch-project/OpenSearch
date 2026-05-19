@@ -34,6 +34,8 @@ package org.opensearch.index.query;
 
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
+import org.opensearch.search.approximate.ApproximateMatchAllQuery;
+import org.opensearch.search.approximate.ApproximateScoreQuery;
 import org.opensearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
@@ -49,11 +51,19 @@ public class MatchAllQueryBuilderTests extends AbstractQueryTestCase<MatchAllQue
 
     @Override
     protected void doAssertLuceneQuery(MatchAllQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
-        assertThat(query, instanceOf(MatchAllDocsQuery.class));
+        assertThat(query, instanceOf(ApproximateScoreQuery.class));
+        ApproximateScoreQuery approxQuery = (ApproximateScoreQuery) query;
+        assertThat(approxQuery.getOriginalQuery(), instanceOf(MatchAllDocsQuery.class));
+        assertThat(approxQuery.getApproximationQuery(), instanceOf(ApproximateMatchAllQuery.class));
     }
 
     public void testFromJson() throws IOException {
-        String json = "{\n" + "  \"match_all\" : {\n" + "    \"boost\" : 1.2\n" + "  }\n" + "}";
+        String json = """
+            {
+              "match_all" : {
+                "boost" : 1.2
+              }
+            }""";
         MatchAllQueryBuilder parsed = (MatchAllQueryBuilder) parseQuery(json);
         checkGeneratedJson(json, parsed);
         assertEquals(json, 1.2, parsed.boost(), 0.0001);

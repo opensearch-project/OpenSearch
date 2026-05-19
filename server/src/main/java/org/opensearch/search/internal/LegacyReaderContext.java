@@ -82,6 +82,7 @@ public class LegacyReaderContext extends ReaderContext {
                 () -> {}
             );
             this.scrollContext = new ScrollContext();
+            addOnClose(this.scrollContext);
         } else {
             this.scrollContext = null;
             this.searcher = null;

@@ -1,8 +1,6 @@
 ---
 "Simulate template without a template in the body":
   - skip:
-      version: " - 7.8.99"
-      reason: "only available in 7.9+"
       features: ["default_shards"]
 
   - do:
@@ -31,8 +29,6 @@
 ---
 "Simulate index template specifying a new template":
   - skip:
-      version: " - 7.8.99"
-      reason: "only available in 7.9+"
       features: ["default_shards"]
 
   - do:
@@ -85,8 +81,6 @@
 ---
 "Simulate template matches overlapping legacy and composable templates":
   - skip:
-      version: " - 7.8.99"
-      reason: "only available in 7.9+"
       features: ["allowed_warnings", "default_shards"]
 
   - do:

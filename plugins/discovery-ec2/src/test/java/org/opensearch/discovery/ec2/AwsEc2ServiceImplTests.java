@@ -131,7 +131,7 @@ public class AwsEc2ServiceImplTests extends AbstractEc2DiscoveryTestCase {
             Ec2ClientSettings.getClientSettings(Settings.EMPTY)
         );
 
-        assertNull(proxyConfiguration.scheme());
+        assertEquals("http", proxyConfiguration.scheme());
         assertNull(proxyConfiguration.host());
         assertThat(proxyConfiguration.port(), is(0));
         assertNull(proxyConfiguration.username());

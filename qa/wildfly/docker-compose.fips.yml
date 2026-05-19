@@ -1,0 +1,5 @@
+services:
+  opensearch:
+    environment:
+      KEYSTORE_PASSWORD: notarealpasswordphrase
+      FIPS_GENERATE_TRUSTSTORE: true

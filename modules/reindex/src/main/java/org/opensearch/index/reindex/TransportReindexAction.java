@@ -32,10 +32,14 @@
 
 package org.opensearch.index.reindex;
 
+import org.opensearch.action.index.IndexAction;
+import org.opensearch.action.search.TransportSearchAction;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.AutoCreateIndex;
 import org.opensearch.action.support.HandledTransportAction;
+import org.opensearch.action.support.TransportIndicesResolvingAction;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
+import org.opensearch.cluster.metadata.ResolvedIndices;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.settings.Setting;
@@ -56,7 +60,9 @@ import java.util.function.Function;
 
 import static java.util.Collections.emptyList;
 
-public class TransportReindexAction extends HandledTransportAction<ReindexRequest, BulkByScrollResponse> {
+public class TransportReindexAction extends HandledTransportAction<ReindexRequest, BulkByScrollResponse>
+    implements
+        TransportIndicesResolvingAction<ReindexRequest> {
     public static final Setting<List<String>> REMOTE_CLUSTER_ALLOWLIST = Setting.listSetting(
         "reindex.remote.allowlist",
         emptyList(),
@@ -88,6 +94,8 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
     private final Reindexer reindexer;
 
     private final ClusterService clusterService;
+    private final TransportSearchAction transportSearchAction;
+    private final IndexNameExpressionResolver indexNameExpressionResolver;
 
     @Inject
     public TransportReindexAction(
@@ -100,12 +108,15 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
         AutoCreateIndex autoCreateIndex,
         Client client,
         TransportService transportService,
-        ReindexSslConfig sslConfig
+        ReindexSslConfig sslConfig,
+        TransportSearchAction transportSearchAction
     ) {
         super(ReindexAction.NAME, transportService, actionFilters, ReindexRequest::new);
         this.reindexValidator = new ReindexValidator(settings, clusterService, indexNameExpressionResolver, autoCreateIndex);
         this.reindexer = new Reindexer(clusterService, client, threadPool, scriptService, sslConfig, remoteExtension);
         this.clusterService = clusterService;
+        this.transportSearchAction = transportSearchAction;
+        this.indexNameExpressionResolver = indexNameExpressionResolver;
     }
 
     @Override
@@ -128,5 +139,14 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
                 listener.onFailure(e);
             }
         });
+    }
+
+    @Override
+    public ResolvedIndices resolveIndices(ReindexRequest request) {
+        return transportSearchAction.resolveIndices(request.getSearchRequest())
+            .withLocalSubActions(
+                IndexAction.INSTANCE,
+                ResolvedIndices.Local.of(indexNameExpressionResolver.resolveDateMathExpression(request.getDestination().index()))
+            );
     }
 }

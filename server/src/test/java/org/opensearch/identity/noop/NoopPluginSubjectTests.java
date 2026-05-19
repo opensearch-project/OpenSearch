@@ -48,10 +48,7 @@ public class NoopPluginSubjectTests extends OpenSearchTestCase {
         assertThat(testPluginSubject.getPrincipal().getName(), equalTo(NamedPrincipal.UNAUTHENTICATED.getName()));
         threadPool.getThreadContext().putHeader("test_header", "foo");
         assertThat(threadPool.getThreadContext().getHeader("test_header"), equalTo("foo"));
-        testPluginSubject.runAs(() -> {
-            assertNull(threadPool.getThreadContext().getHeader("test_header"));
-            return null;
-        });
+        testPluginSubject.runAs(() -> { assertNull(threadPool.getThreadContext().getHeader("test_header")); });
         assertThat(threadPool.getThreadContext().getHeader("test_header"), equalTo("foo"));
         terminate(threadPool);
     }

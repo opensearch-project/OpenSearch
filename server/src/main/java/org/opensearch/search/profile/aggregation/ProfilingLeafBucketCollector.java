@@ -34,6 +34,7 @@ package org.opensearch.search.profile.aggregation;
 
 import org.apache.lucene.search.Scorable;
 import org.opensearch.search.aggregations.LeafBucketCollector;
+import org.opensearch.search.profile.ProfilingWrapper;
 import org.opensearch.search.profile.Timer;
 
 import java.io.IOException;
@@ -43,9 +44,9 @@ import java.io.IOException;
  *
  * @opensearch.internal
  */
-public class ProfilingLeafBucketCollector extends LeafBucketCollector {
+public class ProfilingLeafBucketCollector extends LeafBucketCollector implements ProfilingWrapper<LeafBucketCollector> {
 
-    private LeafBucketCollector delegate;
+    private final LeafBucketCollector delegate;
     private Timer collectTimer;
 
     public ProfilingLeafBucketCollector(LeafBucketCollector delegate, AggregationProfileBreakdown profileBreakdown) {
@@ -61,6 +62,11 @@ public class ProfilingLeafBucketCollector extends LeafBucketCollector {
         } finally {
             collectTimer.stop();
         }
+    }
+
+    @Override
+    public LeafBucketCollector getDelegate() {
+        return delegate;
     }
 
     @Override

@@ -41,9 +41,10 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.transport.PortsRange;
 import org.opensearch.env.Environment;
 import org.opensearch.http.HttpTransportSettings;
+import org.opensearch.javaagent.bootstrap.AgentPolicy;
 import org.opensearch.plugins.PluginInfo;
 import org.opensearch.plugins.PluginsService;
-import org.opensearch.secure_sm.SecureSM;
+import org.opensearch.secure_sm.policy.PolicyFile;
 import org.opensearch.transport.TcpTransport;
 
 import java.io.IOException;
@@ -59,7 +60,6 @@ import java.nio.file.Path;
 import java.security.NoSuchAlgorithmException;
 import java.security.Permissions;
 import java.security.Policy;
-import java.security.URIParameter;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -74,9 +74,9 @@ import java.util.regex.Pattern;
 
 import static org.opensearch.bootstrap.FilePermissionUtils.addDirectoryPath;
 import static org.opensearch.bootstrap.FilePermissionUtils.addSingleFilePath;
-import static org.opensearch.plugins.NetworkPlugin.AuxTransport.AUX_PORT_DEFAULTS;
-import static org.opensearch.plugins.NetworkPlugin.AuxTransport.AUX_TRANSPORT_PORT;
-import static org.opensearch.plugins.NetworkPlugin.AuxTransport.AUX_TRANSPORT_TYPES_SETTING;
+import static org.opensearch.transport.AuxTransport.AUX_PORT_DEFAULTS;
+import static org.opensearch.transport.AuxTransport.AUX_TRANSPORT_PORT;
+import static org.opensearch.transport.AuxTransport.AUX_TRANSPORT_TYPES_SETTING;
 
 /**
  * Initializes SecurityManager with necessary permissions.
@@ -129,7 +129,9 @@ import static org.opensearch.plugins.NetworkPlugin.AuxTransport.AUX_TRANSPORT_TY
  */
 @SuppressWarnings("removal")
 final class Security {
-    private static final Pattern CODEBASE_JAR_WITH_CLASSIFIER = Pattern.compile("^(.+)-\\d+\\.\\d+[^-]*.*?[-]?([^-]+)?\\.jar$");
+    private static final Pattern CODEBASE_JAR_WITH_CLASSIFIER = Pattern.compile(
+        "^(.+)-\\d+\\.\\d+[^-]*.*?[-]?((?:linux-|windows-|osx-)?[^-]+)?\\.jar$"
+    );
 
     /** no instantiation */
     private Security() {}
@@ -144,22 +146,25 @@ final class Security {
 
         // enable security policy: union of template and environment-based paths, and possibly plugin permissions
         Map<String, URL> codebases = getCodebaseJarMap(JarHell.parseClassPath());
-        Policy.setPolicy(
-            new OpenSearchPolicy(
-                codebases,
-                createPermissions(environment),
-                getPluginPermissions(environment),
-                filterBadDefaults,
-                createRecursiveDataPathPermission(environment)
-            )
-        );
 
         // enable security manager
         final String[] classesThatCanExit = new String[] {
             // SecureSM matches class names as regular expressions so we escape the $ that arises from the nested class name
             OpenSearchUncaughtExceptionHandler.PrivilegedHaltAction.class.getName().replace("$", "\\$"),
             Command.class.getName() };
-        System.setSecurityManager(new SecureSM(classesThatCanExit));
+
+        AgentPolicy.setPolicy(
+            new OpenSearchPolicy(
+                codebases,
+                createPermissions(environment),
+                getPluginPermissions(environment),
+                filterBadDefaults,
+                createRecursiveDataPathPermission(environment)
+            ),
+            Set.of() /* trusted hosts */,
+            Set.of() /* trusted file systems */,
+            new AgentPolicy.AnyCanExit(classesThatCanExit)
+        );
 
         // do some basic tests
         selfTest();
@@ -256,11 +261,11 @@ final class Security {
                         // - netty-tcnative-boringssl-static-2.0.61.Final-linux-x86_64.jar
                         // - kafka-server-common-3.6.1-test.jar
                         // - lucene-core-9.11.0-snapshot-8a555eb.jar
-                        // - zstd-jni-1.5.5-5.jar
+                        // - zstd-jni-1.5.6-1.jar
                         jarsWithPossibleClassifiers.put(codebase, matcher.group(2));
                     } else {
                         String property = "codebase." + name;
-                        String aliasProperty = "codebase." + name.replaceFirst("-\\d+\\.\\d+.*\\.jar", "");
+                        String aliasProperty = "codebase." + disambiguateAlias(name);
                         addCodebaseToSystemProperties(propertiesSet, url, property, aliasProperty);
                     }
                 }
@@ -280,14 +285,14 @@ final class Security {
                     addCodebaseToSystemProperties(propertiesSet, url, property, aliasProperty);
                 }
 
-                return Policy.getInstance("JavaPolicy", new URIParameter(policyFile.toURI()));
+                return new PolicyFile(policyFile);
             } finally {
                 // clear codebase properties
                 for (String property : propertiesSet) {
                     System.clearProperty(property);
                 }
             }
-        } catch (NoSuchAlgorithmException | URISyntaxException e) {
+        } catch (final RuntimeException e) {
             throw new IllegalArgumentException("unable to parse policy file `" + policyFile + "`", e);
         }
     }
@@ -515,5 +520,22 @@ final class Security {
         } catch (SecurityException problem) {
             throw new SecurityException("Security misconfiguration: cannot access java.io.tmpdir", problem);
         }
+    }
+
+    /**
+     * Disambiguates conflicting aliases for the artifacts that known to have different groups and
+     * major versions but the same artifact name. Examples are:
+     *    jackson-core-2.21.2.jar -> coming from com.fasterxml.jackson.core
+     *    jackson-core-3.1.0.jar -> coming from tools.jackson.core
+     * @param name artifact name
+     * @return disambiguated alias
+     */
+    private static String disambiguateAlias(final String name) {
+        String disambiguated = name;
+        // Disambiguate Jackson 2.x / 3.x artifacts
+        if (disambiguated.matches("^jackson-(.+)-[3].\\d+.*\\.jar$") == true) {
+            disambiguated = disambiguated.replaceAll("^jackson-", "jackson3-");
+        }
+        return disambiguated.replaceFirst("-\\d+\\.\\d+.*\\.jar", "");
     }
 }

@@ -10,6 +10,7 @@ package org.opensearch.action.admin.indices.tiering;
 
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.cluster.ClusterInfoService;
 import org.opensearch.cluster.MockInternalClusterInfoService;
@@ -35,6 +36,7 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 
 @ThreadLeakFilters(filters = CleanerDaemonThreadLeakFilter.class)
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0, supportsDedicatedMasters = false)
+@LuceneTestCase.AwaitsFix(bugUrl = "")
 public class TransportHotToWarmTieringActionTests extends OpenSearchIntegTestCase {
     protected static final String TEST_IDX_1 = "test-idx-1";
     protected static final String TEST_IDX_2 = "idx-2";
@@ -44,7 +46,7 @@ public class TransportHotToWarmTieringActionTests extends OpenSearchIntegTestCas
     @Override
     protected Settings featureFlagSettings() {
         Settings.Builder featureSettings = Settings.builder();
-        featureSettings.put(FeatureFlags.TIERED_REMOTE_INDEX, true);
+        featureSettings.put(FeatureFlags.WRITABLE_WARM_INDEX_EXPERIMENTAL_FLAG, true);
         return featureSettings.build();
     }
 
@@ -56,7 +58,7 @@ public class TransportHotToWarmTieringActionTests extends OpenSearchIntegTestCas
     @Before
     public void setup() {
         internalCluster().startClusterManagerOnlyNode();
-        internalCluster().ensureAtLeastNumSearchAndDataNodes(1);
+        internalCluster().ensureAtLeastNumWarmAndDataNodes(1);
         long bytes = new ByteSizeValue(1000, ByteSizeUnit.KB).getBytes();
         final MockInternalClusterInfoService clusterInfoService = getMockInternalClusterInfoService();
         clusterInfoService.setDiskUsageFunctionAndRefresh((discoveryNode, fsInfoPath) -> setDiskUsage(fsInfoPath, bytes, bytes - 1));

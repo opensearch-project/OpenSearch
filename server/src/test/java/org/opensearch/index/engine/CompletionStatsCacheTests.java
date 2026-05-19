@@ -32,14 +32,14 @@
 package org.opensearch.index.engine;
 
 import org.apache.lucene.codecs.PostingsFormat;
-import org.apache.lucene.codecs.lucene101.Lucene101Codec;
+import org.apache.lucene.codecs.lucene104.Lucene104Codec;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryCachingPolicy;
-import org.apache.lucene.search.suggest.document.Completion101PostingsFormat;
+import org.apache.lucene.search.suggest.document.Completion104PostingsFormat;
 import org.apache.lucene.search.suggest.document.SuggestField;
 import org.apache.lucene.store.Directory;
 import org.opensearch.OpenSearchException;
@@ -69,8 +69,8 @@ public class CompletionStatsCacheTests extends OpenSearchTestCase {
 
     public void testCompletionStatsCache() throws IOException, InterruptedException {
         final IndexWriterConfig indexWriterConfig = newIndexWriterConfig();
-        final PostingsFormat postingsFormat = new Completion101PostingsFormat();
-        indexWriterConfig.setCodec(new Lucene101Codec() {
+        final PostingsFormat postingsFormat = new Completion104PostingsFormat();
+        indexWriterConfig.setCodec(new Lucene104Codec() {
             @Override
             public PostingsFormat getPostingsFormatForField(String field) {
                 return postingsFormat; // all fields are suggest fields
@@ -126,8 +126,7 @@ public class CompletionStatsCacheTests extends OpenSearchTestCase {
                 thread.start();
             }
 
-            testHarness.start();
-
+            // Wait for all threads to complete before checking results
             for (Thread thread : threads) {
                 thread.join();
             }
@@ -222,26 +221,27 @@ public class CompletionStatsCacheTests extends OpenSearchTestCase {
 
     private static class TestHarness {
         private final CompletionStatsCache completionStatsCache;
-        private final CyclicBarrier cyclicBarrier;
+        private final CyclicBarrier startBarrier;
         private final CompletionStats[] results;
 
         TestHarness(CompletionStatsCache completionStatsCache, int resultCount) {
             this.completionStatsCache = completionStatsCache;
             results = new CompletionStats[resultCount];
-            cyclicBarrier = new CyclicBarrier(resultCount + 1);
+            // Only need threads to synchronize at start
+            startBarrier = new CyclicBarrier(resultCount);
         }
 
-        void getStats(int threadIndex, String... fieldPatterns) {
-            start();
-            results[threadIndex] = completionStatsCache.get(fieldPatterns);
-        }
-
-        void start() {
+        void waitForStart() {
             try {
-                cyclicBarrier.await();
+                startBarrier.await();
             } catch (InterruptedException | BrokenBarrierException e) {
                 throw new AssertionError(e);
             }
+        }
+
+        void getStats(int threadIndex, String... fieldPatterns) {
+            waitForStart();
+            results[threadIndex] = completionStatsCache.get(fieldPatterns);
         }
 
         CompletionStats getResult(int index) {

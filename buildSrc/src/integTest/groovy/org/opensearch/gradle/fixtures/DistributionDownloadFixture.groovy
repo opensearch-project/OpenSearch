@@ -30,6 +30,7 @@
 package org.opensearch.gradle.fixtures
 
 
+import org.opensearch.gradle.Architecture
 import org.opensearch.gradle.OpenSearchDistribution
 import org.opensearch.gradle.Version
 import org.opensearch.gradle.VersionProperties
@@ -66,11 +67,12 @@ class DistributionDownloadFixture {
     private static String urlPath(String version, OpenSearchDistribution.Platform platform) {
         String fileType = ((platform == OpenSearchDistribution.Platform.LINUX ||
                 platform == OpenSearchDistribution.Platform.DARWIN)) ? "tar.gz" : "zip"
+        String arch = Architecture.current().name().toLowerCase()
         if (Version.fromString(version).onOrAfter(Version.fromString("1.0.0"))) {
             if (version.contains("SNAPSHOT")) {
-                return "/snapshots/core/opensearch/${version}/opensearch-min-${version}-${platform}-x64-latest.$fileType"
+                return "/snapshots/core/opensearch/${version}/opensearch-min-${version}-${platform}-${arch}-latest.$fileType"
             }
-            return "/releases/core/opensearch/${version}/opensearch-min-${version}-${platform}-x64.$fileType"
+            return "/releases/core/opensearch/${version}/opensearch-min-${version}-${platform}-${arch}.$fileType"
         } else {
             return "/downloads/elasticsearch/elasticsearch-oss-${version}-${platform}-x86_64.$fileType"
         }

@@ -137,7 +137,8 @@ public class InternalDistributionArchiveSetupPlugin implements Plugin<Project> {
                 extractedConfiguration.setCanBeResolved(false);
                 extractedConfiguration.getAttributes().attribute(ARTIFACT_FORMAT, ArtifactTypeDefinition.DIRECTORY_TYPE);
                 sub.getArtifacts().add(EXTRACTED_CONFIGURATION_NAME, distributionArchive.getExpandedDistTask());
-
+                // Add the archive task as a dependency of assemble. This was not required before Gradle 9.
+                sub.getTasks().named("assemble").configure(t -> t.dependsOn(distributionArchive.getArchiveTask()));
             });
         });
         project.getExtensions().add("distribution_archives", container);

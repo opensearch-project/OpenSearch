@@ -65,7 +65,6 @@ import org.opensearch.common.time.DateFormatter;
 import org.opensearch.common.time.DateFormatters;
 import org.opensearch.common.time.DateMathParser;
 import org.opensearch.common.util.BigArrays;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.fielddata.IndexNumericFieldData;
@@ -81,6 +80,7 @@ import org.opensearch.index.query.QueryRewriteContext;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.search.approximate.ApproximatePointRangeQuery;
 import org.opensearch.search.approximate.ApproximateScoreQuery;
+import org.opensearch.test.TestSearchContext;
 import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
@@ -91,9 +91,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 
-import static org.hamcrest.CoreMatchers.is;
 import static org.apache.lucene.document.LongPoint.pack;
-import static org.junit.Assume.assumeThat;
 
 public class DateFieldTypeTests extends FieldTypeTestCase {
 
@@ -239,18 +237,9 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
                 "field",
                 pack(new long[] { instant }).bytes,
                 pack(new long[] { instant + 999 }).bytes,
-                new long[] { instant }.length
-            ) {
-                @Override
-                protected String toString(int dimension, byte[] value) {
-                    return Long.toString(LongPoint.decodeDimension(value, 0));
-                }
-            }
-        );
-        assumeThat(
-            "Using Approximate Range Query as default",
-            FeatureFlags.isEnabled(FeatureFlags.APPROXIMATE_POINT_RANGE_QUERY),
-            is(true)
+                new long[] { instant }.length,
+                ApproximatePointRangeQuery.LONG_FORMAT
+            )
         );
         assertEquals(expected, ft.termQuery(date, context));
 
@@ -298,58 +287,42 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
         String date2 = "2016-04-28T11:33:52";
         long instant1 = DateFormatters.from(DateFieldMapper.getDefaultDateTimeFormatter().parse(date1)).toInstant().toEpochMilli();
         long instant2 = DateFormatters.from(DateFieldMapper.getDefaultDateTimeFormatter().parse(date2)).toInstant().toEpochMilli() + 999;
+        ApproximatePointRangeQuery approximatePointRangeQuery = new ApproximatePointRangeQuery(
+            "field",
+            pack(new long[] { instant1 }).bytes,
+            pack(new long[] { instant2 }).bytes,
+            new long[] { instant1 }.length,
+            ApproximatePointRangeQuery.LONG_FORMAT
+        );
         Query expected = new ApproximateScoreQuery(
             new IndexOrDocValuesQuery(
                 LongPoint.newRangeQuery("field", instant1, instant2),
                 SortedNumericDocValuesField.newSlowRangeQuery("field", instant1, instant2)
             ),
+            approximatePointRangeQuery
+        );
+        Query rangeQuery = ft.rangeQuery(date1, date2, true, true, null, null, null, context);
+        assertTrue(rangeQuery instanceof ApproximateScoreQuery);
+        ((ApproximateScoreQuery) rangeQuery).setContext(new TestSearchContext(context));
+        assertEquals(expected, rangeQuery.rewrite(new IndexSearcher(new MultiReader())));
+
+        instant1 = nowInMillis;
+        instant2 = instant1 + 100;
+        expected = new ApproximateScoreQuery(
+            new DateRangeIncludingNowQuery(
+                new IndexOrDocValuesQuery(
+                    LongPoint.newRangeQuery("field", instant1, instant2),
+                    SortedNumericDocValuesField.newSlowRangeQuery("field", instant1, instant2)
+                )
+            ),
             new ApproximatePointRangeQuery(
                 "field",
                 pack(new long[] { instant1 }).bytes,
                 pack(new long[] { instant2 }).bytes,
-                new long[] { instant1 }.length
-            ) {
-                @Override
-                protected String toString(int dimension, byte[] value) {
-                    return Long.toString(LongPoint.decodeDimension(value, 0));
-                }
-            }
-        );
-        assumeThat(
-            "Using Approximate Range Query as default",
-            FeatureFlags.isEnabled(FeatureFlags.APPROXIMATE_POINT_RANGE_QUERY),
-            is(true)
-        );
-        assertEquals(
-            expected,
-            ft.rangeQuery(date1, date2, true, true, null, null, null, context).rewrite(new IndexSearcher(new MultiReader()))
-        );
+                new long[] { instant1 }.length,
+                ApproximatePointRangeQuery.LONG_FORMAT
 
-        instant1 = nowInMillis;
-        instant2 = instant1 + 100;
-        expected = new DateRangeIncludingNowQuery(
-            new ApproximateScoreQuery(
-                new IndexOrDocValuesQuery(
-                    LongPoint.newRangeQuery("field", instant1, instant2),
-                    SortedNumericDocValuesField.newSlowRangeQuery("field", instant1, instant2)
-                ),
-                new ApproximatePointRangeQuery(
-                    "field",
-                    pack(new long[] { instant1 }).bytes,
-                    pack(new long[] { instant2 }).bytes,
-                    new long[] { instant1 }.length
-                ) {
-                    @Override
-                    protected String toString(int dimension, byte[] value) {
-                        return Long.toString(LongPoint.decodeDimension(value, 0));
-                    }
-                }
             )
-        );
-        assumeThat(
-            "Using Approximate Range Query as default",
-            FeatureFlags.isEnabled(FeatureFlags.APPROXIMATE_POINT_RANGE_QUERY),
-            is(true)
         );
         assertEquals(expected, ft.rangeQuery("now", instant2, true, true, null, null, null, context));
 
@@ -408,29 +381,20 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
         long instant2 = DateFormatters.from(DateFieldMapper.getDefaultDateTimeFormatter().parse(date2)).toInstant().toEpochMilli() + 999;
 
         Query dvQuery = SortedNumericDocValuesField.newSlowRangeQuery("field", instant1, instant2);
-        Query expected = new IndexSortSortedNumericDocValuesRangeQuery(
-            "field",
-            instant1,
-            instant2,
-            new ApproximateScoreQuery(
-                new IndexOrDocValuesQuery(LongPoint.newRangeQuery("field", instant1, instant2), dvQuery),
-                new ApproximatePointRangeQuery(
-                    "field",
-                    pack(new long[] { instant1 }).bytes,
-                    pack(new long[] { instant2 }).bytes,
-                    new long[] { instant1 }.length
-                ) {
-                    @Override
-                    protected String toString(int dimension, byte[] value) {
-                        return Long.toString(LongPoint.decodeDimension(value, 0));
-                    }
-                }
+        Query expected = new ApproximateScoreQuery(
+            new IndexSortSortedNumericDocValuesRangeQuery(
+                "field",
+                instant1,
+                instant2,
+                new IndexOrDocValuesQuery(LongPoint.newRangeQuery("field", instant1, instant2), dvQuery)
+            ),
+            new ApproximatePointRangeQuery(
+                "field",
+                pack(new long[] { instant1 }).bytes,
+                pack(new long[] { instant2 }).bytes,
+                new long[] { instant1 }.length,
+                ApproximatePointRangeQuery.LONG_FORMAT
             )
-        );
-        assumeThat(
-            "Using Approximate Range Query as default",
-            FeatureFlags.isEnabled(FeatureFlags.APPROXIMATE_POINT_RANGE_QUERY),
-            is(true)
         );
         assertEquals(expected, ft.rangeQuery(date1, date2, true, true, null, null, null, context));
     }
