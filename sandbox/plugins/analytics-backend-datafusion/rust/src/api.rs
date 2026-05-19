@@ -35,6 +35,8 @@ use std::num::NonZeroUsize;
 use std::path::PathBuf;
 use std::sync::Arc;
 
+use arrow_schema::DataType;
+
 use arrow_array::ffi::FFI_ArrowArray;
 use arrow_array::RecordBatch;
 use arrow_array::{Array, StructArray};
@@ -454,6 +456,7 @@ pub async unsafe fn stream_next(stream_ptr: i64) -> Result<i64, DataFusionError>
 
     match result {
         Some(batch) => {
+            let batch = compact_string_view_columns(batch);
             let struct_array: StructArray = batch.into();
             let array_data = struct_array.into_data();
             let ffi_array = FFI_ArrowArray::new(&array_data);
@@ -461,6 +464,36 @@ pub async unsafe fn stream_next(stream_ptr: i64) -> Result<i64, DataFusionError>
         }
         None => Ok(0),
     }
+}
+
+/// Compacts StringView/BinaryView columns in a RecordBatch by calling `gc()`.
+/// This eliminates shared backing buffers that inflate batch size when sliced
+/// from a larger array (e.g., hash aggregate EmitTo::All + slice()).
+fn compact_string_view_columns(batch: RecordBatch) -> RecordBatch {
+    let schema = batch.schema();
+    let has_views = schema.fields().iter().any(|f| {
+        matches!(f.data_type(), DataType::Utf8View | DataType::BinaryView)
+    });
+    if !has_views {
+        return batch;
+    }
+    let columns: Vec<Arc<dyn Array>> = batch
+        .columns()
+        .iter()
+        .zip(schema.fields().iter())
+        .map(|(col, field)| match field.data_type() {
+            DataType::Utf8View => {
+                let view: &arrow_array::StringViewArray = col.as_any().downcast_ref().unwrap();
+                Arc::new(view.gc()) as Arc<dyn Array>
+            }
+            DataType::BinaryView => {
+                let view: &arrow_array::BinaryViewArray = col.as_any().downcast_ref().unwrap();
+                Arc::new(view.gc()) as Arc<dyn Array>
+            }
+            _ => Arc::clone(col),
+        })
+        .collect();
+    RecordBatch::try_new(schema, columns).unwrap_or(batch)
 }
 
 /// Closes a result stream. Safe to call with 0 (no-op).
