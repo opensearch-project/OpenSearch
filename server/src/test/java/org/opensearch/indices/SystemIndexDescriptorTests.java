@@ -74,4 +74,38 @@ public class SystemIndexDescriptorTests extends OpenSearchTestCase {
             assertThat(ex.getMessage(), containsString("must not start with the character sequence [.*] to prevent conflicts"));
         }
     }
+
+    public void testReadableDefaultsToFalse() {
+        SystemIndexDescriptor descriptor = new SystemIndexDescriptor(".test-index", "test");
+        assertFalse(descriptor.isReadable());
+    }
+
+    public void testReadableFlag() {
+        SystemIndexDescriptor readable = new SystemIndexDescriptor(".test-index", "test", true);
+        assertTrue(readable.isReadable());
+
+        SystemIndexDescriptor notReadable = new SystemIndexDescriptor(".test-index", "test", false);
+        assertFalse(notReadable.isReadable());
+    }
+
+    public void testEqualsAndHashCode() {
+        SystemIndexDescriptor descriptor1 = new SystemIndexDescriptor(".test-index", "desc1", true);
+        SystemIndexDescriptor descriptor2 = new SystemIndexDescriptor(".test-index", "desc2", false);
+        SystemIndexDescriptor descriptor3 = new SystemIndexDescriptor(".other-index", "desc1", true);
+
+        // Same pattern means equal, regardless of description or readable flag
+        assertEquals(descriptor1, descriptor2);
+        assertEquals(descriptor1.hashCode(), descriptor2.hashCode());
+
+        // Different pattern means not equal
+        assertNotEquals(descriptor1, descriptor3);
+    }
+
+    public void testToString() {
+        SystemIndexDescriptor descriptor = new SystemIndexDescriptor(".test-index", "test description", true);
+        String str = descriptor.toString();
+        assertThat(str, containsString(".test-index"));
+        assertThat(str, containsString("test description"));
+        assertThat(str, containsString("readable=[true]"));
+    }
 }
