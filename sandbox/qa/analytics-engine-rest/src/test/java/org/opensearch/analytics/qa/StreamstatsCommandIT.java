@@ -47,10 +47,9 @@ import java.util.Map;
  *       conditional aggregate, doesn't flow through RexOver at all (see {@code
  *       CalciteRelNodeVisitor#buildStreamWindowJoinPlan}). Not reachable on analytics-engine.</li>
  *   <li>{@code streamstats global=true window=N by …} — uses self-join lowering, also not RexOver.</li>
- *   <li>{@code streamstats … by span(int0, 10)} — span() UDF is registered, but using
- *       it as a PARTITION BY key fails substrait emission with "Unable to convert the
- *       type NULL" (isthmus rejects SPAN's third NULL-typed operand). Pinned via
- *       {@code assertErrorContains}.</li>
+ *   <li>{@code streamstats … by span(int0, 10)} works after BackendPlanAdapter recurses
+ *       into RexOver.window.partitionKeys, letting SpanAdapter rewrite SPAN's NULL operand
+ *       before substrait emission. The {@code bySpan} cases assert exact per-bucket rows.</li>
  *   <li>{@code streamstats dc / distinct_count / earliest / latest / percentile / median / mode}
  *       — not in {@link org.opensearch.analytics.spi.WindowFunction} enum.</li>
  *   <li>{@code testLeftJoinWithStreamstats} / {@code testWhereInWithStreamstatsSubquery} — test
@@ -213,62 +212,128 @@ public class StreamstatsCommandIT extends AnalyticsRestTestCase {
         );
     }
 
-    /** sql IT: testStreamstatsBySpan. PPL {@code span(int0, 10)} is registered as a scalar
-     *  function on the analytics-engine route, but using it as a PARTITION BY key on a
-     *  window aggregate trips isthmus's WindowFunctionConverter when it tries to serialize
-     *  SPAN's third operand — a NULL-typed literal that {@code TypeConverter.toSubstrait}
-     *  rejects with "Unable to convert the type NULL". Pinning the precise failure string
-     *  so this test flips loud once the underlying gap is fixed. */
+    /** sql IT: testStreamstatsBySpan. {@code span(int0, 10)} buckets int0 into [0,10), [10,20),
+     *  null. Per-bucket final running count = bucket size: bucket 0 has 9 rows, bucket 10 has
+     *  2 rows, null bucket has 6 rows. */
     public void testStreamstatsBySpan() throws IOException {
-        ensureDataProvisioned();
-        assertErrorContains(
-            "source=" + DATASET.indexName + " | streamstats count() by span(int0, 10)",
-            "Unable to convert the type NULL"
+        Map<String, Object> response = executePpl(
+            "source=" + DATASET.indexName + " | sort key | streamstats count() as cnt by span(int0, 10)"
+                + " | stats max(cnt) as final_cnt by int0 | sort int0"
+        );
+        assertRowsEqual(response,
+            row(6L, null),
+            row(1L, 1),
+            row(3L, 3),
+            row(8L, 4),
+            row(2L, 7),
+            row(9L, 8),
+            row(1L, 10),
+            row(2L, 11)
         );
     }
 
-    /** sql IT: testStreamstatsBySpanWithNull. Same span()-in-PARTITION-BY substrait gap. */
+    /** sql IT: testStreamstatsBySpanWithNull. Same query and result as
+     *  {@link #testStreamstatsBySpan} — calcs has int0 nulls covered there. */
     public void testStreamstatsBySpanWithNull() throws IOException {
-        ensureDataProvisioned();
-        assertErrorContains(
-            "source=" + DATASET.indexName + " | streamstats count() by span(int0, 10)",
-            "Unable to convert the type NULL"
+        Map<String, Object> response = executePpl(
+            "source=" + DATASET.indexName + " | sort key | streamstats count() as cnt by span(int0, 10)"
+                + " | stats max(cnt) as final_cnt by int0 | sort int0"
+        );
+        assertRowsEqual(response,
+            row(6L, null),
+            row(1L, 1),
+            row(3L, 3),
+            row(8L, 4),
+            row(2L, 7),
+            row(9L, 8),
+            row(1L, 10),
+            row(2L, 11)
         );
     }
 
-    /** sql IT: testStreamstatsByMultiplePartitions1. by span() + str0. */
+    /** sql IT: testStreamstatsByMultiplePartitions1. {@code by span(int0, 10), str0}. */
     public void testStreamstatsByMultiplePartitions1() throws IOException {
-        ensureDataProvisioned();
-        assertErrorContains(
-            "source=" + DATASET.indexName + " | streamstats count() by span(int0, 10), str0",
-            "Unable to convert the type NULL"
+        Map<String, Object> response = executePpl(
+            "source=" + DATASET.indexName + " | sort key | streamstats count() as cnt by span(int0, 10), str0"
+                + " | stats max(cnt) as final_cnt by str0, int0 | sort str0, int0"
+        );
+        assertRowsEqual(response,
+            row(1L, "FURNITURE", null),
+            row(1L, "FURNITURE", 1),
+            row(3L, "OFFICE SUPPLIES", null),
+            row(2L, "OFFICE SUPPLIES", 3),
+            row(1L, "OFFICE SUPPLIES", 7),
+            row(3L, "OFFICE SUPPLIES", 8),
+            row(2L, "TECHNOLOGY", null),
+            row(4L, "TECHNOLOGY", 4),
+            row(5L, "TECHNOLOGY", 8),
+            row(1L, "TECHNOLOGY", 10),
+            row(2L, "TECHNOLOGY", 11)
         );
     }
 
-    /** sql IT: testStreamstatsByMultiplePartitions2. by span() + str3. */
+    /** sql IT: testStreamstatsByMultiplePartitions2. {@code by span(int0, 10), str3}. */
     public void testStreamstatsByMultiplePartitions2() throws IOException {
-        ensureDataProvisioned();
-        assertErrorContains(
-            "source=" + DATASET.indexName + " | streamstats count() by span(int0, 10), str3",
-            "Unable to convert the type NULL"
+        Map<String, Object> response = executePpl(
+            "source=" + DATASET.indexName + " | sort key | streamstats count() as cnt by span(int0, 10), str3"
+                + " | stats max(cnt) as final_cnt by str3, int0 | sort str3, int0"
+        );
+        assertRowsEqual(response,
+            row(2L, null, null),
+            row(2L, null, 3),
+            row(3L, null, 4),
+            row(1L, null, 7),
+            row(4L, null, 8),
+            row(1L, null, 10),
+            row(4L, "e", null),
+            row(1L, "e", 1),
+            row(5L, "e", 4),
+            row(3L, "e", 8),
+            row(1L, "e", 11)
         );
     }
 
-    /** sql IT: testStreamstatsByMultiplePartitionsWithNull1. */
+    /** sql IT: testStreamstatsByMultiplePartitionsWithNull1. Same as
+     *  {@link #testStreamstatsByMultiplePartitions1}. */
     public void testStreamstatsByMultiplePartitionsWithNull1() throws IOException {
-        ensureDataProvisioned();
-        assertErrorContains(
-            "source=" + DATASET.indexName + " | streamstats count() by span(int0, 10), str0",
-            "Unable to convert the type NULL"
+        Map<String, Object> response = executePpl(
+            "source=" + DATASET.indexName + " | sort key | streamstats count() as cnt by span(int0, 10), str0"
+                + " | stats max(cnt) as final_cnt by str0, int0 | sort str0, int0"
+        );
+        assertRowsEqual(response,
+            row(1L, "FURNITURE", null),
+            row(1L, "FURNITURE", 1),
+            row(3L, "OFFICE SUPPLIES", null),
+            row(2L, "OFFICE SUPPLIES", 3),
+            row(1L, "OFFICE SUPPLIES", 7),
+            row(3L, "OFFICE SUPPLIES", 8),
+            row(2L, "TECHNOLOGY", null),
+            row(4L, "TECHNOLOGY", 4),
+            row(5L, "TECHNOLOGY", 8),
+            row(1L, "TECHNOLOGY", 10),
+            row(2L, "TECHNOLOGY", 11)
         );
     }
 
-    /** sql IT: testStreamstatsByMultiplePartitionsWithNull2. */
+    /** sql IT: testStreamstatsByMultiplePartitionsWithNull2. Same as
+     *  {@link #testStreamstatsByMultiplePartitions2}. */
     public void testStreamstatsByMultiplePartitionsWithNull2() throws IOException {
-        ensureDataProvisioned();
-        assertErrorContains(
-            "source=" + DATASET.indexName + " | streamstats count() by span(int0, 10), str3",
-            "Unable to convert the type NULL"
+        Map<String, Object> response = executePpl(
+            "source=" + DATASET.indexName + " | sort key | streamstats count() as cnt by span(int0, 10), str3"
+                + " | stats max(cnt) as final_cnt by str3, int0 | sort str3, int0"
+        );
+        assertRowsEqual(response,
+            row(2L, null, null),
+            row(2L, null, 3),
+            row(3L, null, 4),
+            row(1L, null, 7),
+            row(4L, null, 8),
+            row(1L, null, 10),
+            row(4L, "e", null),
+            row(1L, "e", 1),
+            row(5L, "e", 4),
+            row(3L, "e", 8),
+            row(1L, "e", 11)
         );
     }
 
@@ -644,14 +709,25 @@ public class StreamstatsCommandIT extends AnalyticsRestTestCase {
         assertRowCount(response, 17);
     }
 
-    /** sql IT: testStreamstatsVarianceBySpan. Same span()-in-PARTITION-BY substrait gap as
-     *  {@link #testStreamstatsBySpan}. */
+    /** sql IT: testStreamstatsVarianceBySpan. Per-partition running stddev_samp; the per-int0
+     *  max picks up the partition's max running stddev across rows. */
     public void testStreamstatsVarianceBySpan() throws IOException {
-        ensureDataProvisioned();
-        assertErrorContains(
-            "source=" + DATASET.indexName
-                + " | streamstats stddev_samp(int0) by span(int0, 10)",
-            "Unable to convert the type NULL"
+        Map<String, Object> response = executePpl(
+            "source=" + DATASET.indexName + " | sort key | streamstats stddev_samp(int0) as ss by span(int0, 10)"
+                + " | stats max(ss) as ss by int0 | sort int0"
+        );
+        // First-row running stddev_samp on a 1-element partition is NaN. The null-int0
+        // partition sees only nulls → stddev=null. Other rows take the running max within
+        // their bucket from the deterministic key-sorted streaming order.
+        assertRowsEqual(response,
+            row(null, null),
+            row(Double.NaN, 1),
+            row(3.055050463303893, 3),
+            row(2.926886855802026, 4),
+            row(4.242640687119285, 7),
+            row(3.304037933599835, 8),
+            row(Double.NaN, 10),
+            row(0.7071067811865476, 11)
         );
     }
 

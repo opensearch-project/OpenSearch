@@ -64,13 +64,10 @@ import java.util.Map;
  *       null-bubbling-through-window-aggregate code path.</li>
  *   <li>{@code logs} index is not provisioned in this QA module; {@code testEventstatsEarliestAndLatest}
  *       expectThrows on the missing index AND the missing earliest/latest window function.</li>
- *   <li>{@code span()} UDF is registered on the analytics-engine route, but using it as
- *       a PARTITION BY key inside a window aggregate fails substrait emission with
- *       "Unable to convert the type NULL" — isthmus's WindowFunctionConverter walks the
- *       SPAN call's operands and trips on its third NULL-typed literal. All {@code bySpan}
- *       cases pin this exact failure with {@code assertErrorContains}; once isthmus or the
- *       PPL lowering drops the NULL operand, these tests will fail loudly so a follow-up
- *       can upgrade them to row assertions.</li>
+ *   <li>{@code span()} as a PARTITION BY key works after BackendPlanAdapter is taught to
+ *       recurse into RexOver.window.partitionKeys, so the SpanAdapter rewrites SPAN(field,
+ *       n, NULL) → FLOOR(field/n)*n before substrait emission. The {@code bySpan} cases
+ *       collapse via {@code | stats max(...) by int0} and assert exact per-bucket rows.</li>
  *   <li>{@code dc} / {@code distinct_count} window function is not in {@link
  *       org.opensearch.analytics.spi.WindowFunction}; expectThrows.</li>
  *   <li>{@code earliest} / {@code latest} window function is not in {@link
@@ -224,72 +221,138 @@ public class EventstatsCommandIT extends AnalyticsRestTestCase {
         );
     }
 
-    /** sql IT: testEventstatsBySpan. PPL {@code span(int0, 10)} is registered as a scalar
-     *  function on the analytics-engine route, and works in {@code stats … by span(...)}.
-     *  But when used as a PARTITION BY key on a window aggregate, isthmus's
-     *  {@code WindowFunctionConverter} walks the SPAN call's operands and trips on the
-     *  third operand — a NULL-typed literal that {@code TypeConverter.toSubstrait} rejects
-     *  with "Unable to convert the type NULL". Pinning the precise failure string so
-     *  this test flips loud the moment isthmus fixes NULL-literal serialization (or PPL
-     *  drops the NULL operand). */
+    /** sql IT: testEventstatsBySpan. {@code span(int0, 10)} buckets int0 into [0,10), [10,20),
+     *  null. Per-bucket aggregates: bucket 0 has 9 rows int0∈{1,3,4,4,4,7,8,8,8} → cnt=9
+     *  avg≈5.222 min=1 max=8; bucket 10 has 2 rows {10,11} → cnt=2 avg=10.5 min=10 max=11;
+     *  null bucket has 6 null-int0 rows → cnt=6 with NULL aggregates. */
     public void testEventstatsBySpan() throws IOException {
-        ensureDataProvisioned();
-        assertErrorContains(
+        Map<String, Object> response = executePpl(
             "source=" + DATASET.indexName + " | eventstats count() as cnt, avg(int0) as avg, min(int0) as min, max(int0) as max"
-                + " by span(int0, 10) as int0_span",
-            "Unable to convert the type NULL"
+                + " by span(int0, 10)"
+                + " | stats max(cnt) as cnt, max(avg) as avg, max(min) as mn, max(max) as mx by int0 | sort int0"
+        );
+        // Ordered by int0 (NULL first per default sort).
+        assertRowsEqual(response,
+            row(6L, null, null, null, null),
+            row(9L, 47.0 / 9, 1, 8, 1),
+            row(9L, 47.0 / 9, 1, 8, 3),
+            row(9L, 47.0 / 9, 1, 8, 4),
+            row(9L, 47.0 / 9, 1, 8, 7),
+            row(9L, 47.0 / 9, 1, 8, 8),
+            row(2L, 10.5, 10, 11, 10),
+            row(2L, 10.5, 10, 11, 11)
         );
     }
 
-    /** sql IT: testEventstatsBySpanWithNull. Same span()-in-PARTITION-BY substrait gap as
-     *  {@link #testEventstatsBySpan}. */
+    /** sql IT: testEventstatsBySpanWithNull. Same query and result as
+     *  {@link #testEventstatsBySpan} — calcs has int0 nulls covered there. */
     public void testEventstatsBySpanWithNull() throws IOException {
-        ensureDataProvisioned();
-        assertErrorContains(
+        Map<String, Object> response = executePpl(
             "source=" + DATASET.indexName + " | eventstats count() as cnt, avg(int0) as avg, min(int0) as min, max(int0) as max"
-                + " by span(int0, 10) as int0_span",
-            "Unable to convert the type NULL"
+                + " by span(int0, 10)"
+                + " | stats max(cnt) as cnt, max(avg) as avg, max(min) as mn, max(max) as mx by int0 | sort int0"
+        );
+        assertRowsEqual(response,
+            row(6L, null, null, null, null),
+            row(9L, 47.0 / 9, 1, 8, 1),
+            row(9L, 47.0 / 9, 1, 8, 3),
+            row(9L, 47.0 / 9, 1, 8, 4),
+            row(9L, 47.0 / 9, 1, 8, 7),
+            row(9L, 47.0 / 9, 1, 8, 8),
+            row(2L, 10.5, 10, 11, 10),
+            row(2L, 10.5, 10, 11, 11)
         );
     }
 
-    /** sql IT: testEventstatsByMultiplePartitions1. {@code by span(int0, 10), str0} — same
-     *  span()-in-PARTITION-BY substrait gap as {@link #testEventstatsBySpan}. */
+    /** sql IT: testEventstatsByMultiplePartitions1. {@code by span(int0, 10), str0} — splits
+     *  span buckets further by str0. */
     public void testEventstatsByMultiplePartitions1() throws IOException {
-        ensureDataProvisioned();
-        assertErrorContains(
-            "source=" + DATASET.indexName + " | eventstats count() as cnt, avg(int0) as avg, min(int0) as min, max(int0) as max"
-                + " by span(int0, 10) as int0_span, str0",
-            "Unable to convert the type NULL"
+        Map<String, Object> response = executePpl(
+            "source=" + DATASET.indexName + " | eventstats count() as cnt by span(int0, 10), str0"
+                + " | stats max(cnt) as cnt by str0, int0 | sort str0, int0"
+        );
+        // (FURNITURE,null)=1, (FURNITURE,1)=1; (OS,null)=3, (OS,3)=(OS,7)=(OS,8)=3;
+        // (TECH,null)=2, (TECH,4)=(TECH,8)=5, (TECH,10)=(TECH,11)=2.
+        assertRowsEqual(response,
+            row(1L, "FURNITURE", null),
+            row(1L, "FURNITURE", 1),
+            row(3L, "OFFICE SUPPLIES", null),
+            row(3L, "OFFICE SUPPLIES", 3),
+            row(3L, "OFFICE SUPPLIES", 7),
+            row(3L, "OFFICE SUPPLIES", 8),
+            row(2L, "TECHNOLOGY", null),
+            row(5L, "TECHNOLOGY", 4),
+            row(5L, "TECHNOLOGY", 8),
+            row(2L, "TECHNOLOGY", 10),
+            row(2L, "TECHNOLOGY", 11)
         );
     }
 
-    /** sql IT: testEventstatsByMultiplePartitions2. {@code by span(int0, 10), str3}. */
+    /** sql IT: testEventstatsByMultiplePartitions2. {@code by span(int0, 10), str3} — splits
+     *  span buckets further by str3 (which has 7 nulls + 10 'e's). */
     public void testEventstatsByMultiplePartitions2() throws IOException {
-        ensureDataProvisioned();
-        assertErrorContains(
-            "source=" + DATASET.indexName + " | eventstats count() as cnt, avg(int0) as avg, min(int0) as min, max(int0) as max"
-                + " by span(int0, 10) as int0_span, str3",
-            "Unable to convert the type NULL"
+        Map<String, Object> response = executePpl(
+            "source=" + DATASET.indexName + " | eventstats count() as cnt by span(int0, 10), str3"
+                + " | stats max(cnt) as cnt by str3, int0 | sort str3, int0"
+        );
+        // (null,null)=2, (null,3)=(null,4)=(null,7)=(null,8)=4, (null,10)=1;
+        // (e,null)=4, (e,1)=(e,4)=(e,8)=5, (e,11)=1.
+        assertRowsEqual(response,
+            row(2L, null, null),
+            row(4L, null, 3),
+            row(4L, null, 4),
+            row(4L, null, 7),
+            row(4L, null, 8),
+            row(1L, null, 10),
+            row(4L, "e", null),
+            row(5L, "e", 1),
+            row(5L, "e", 4),
+            row(5L, "e", 8),
+            row(1L, "e", 11)
         );
     }
 
-    /** sql IT: testEventstatsByMultiplePartitionsWithNull1. */
+    /** sql IT: testEventstatsByMultiplePartitionsWithNull1. Same query as
+     *  {@link #testEventstatsByMultiplePartitions1}. */
     public void testEventstatsByMultiplePartitionsWithNull1() throws IOException {
-        ensureDataProvisioned();
-        assertErrorContains(
-            "source=" + DATASET.indexName + " | eventstats count() as cnt, avg(int0) as avg, min(int0) as min, max(int0) as max"
-                + " by span(int0, 10) as int0_span, str0",
-            "Unable to convert the type NULL"
+        Map<String, Object> response = executePpl(
+            "source=" + DATASET.indexName + " | eventstats count() as cnt by span(int0, 10), str0"
+                + " | stats max(cnt) as cnt by str0, int0 | sort str0, int0"
+        );
+        assertRowsEqual(response,
+            row(1L, "FURNITURE", null),
+            row(1L, "FURNITURE", 1),
+            row(3L, "OFFICE SUPPLIES", null),
+            row(3L, "OFFICE SUPPLIES", 3),
+            row(3L, "OFFICE SUPPLIES", 7),
+            row(3L, "OFFICE SUPPLIES", 8),
+            row(2L, "TECHNOLOGY", null),
+            row(5L, "TECHNOLOGY", 4),
+            row(5L, "TECHNOLOGY", 8),
+            row(2L, "TECHNOLOGY", 10),
+            row(2L, "TECHNOLOGY", 11)
         );
     }
 
-    /** sql IT: testEventstatsByMultiplePartitionsWithNull2. */
+    /** sql IT: testEventstatsByMultiplePartitionsWithNull2. Same query as
+     *  {@link #testEventstatsByMultiplePartitions2}. */
     public void testEventstatsByMultiplePartitionsWithNull2() throws IOException {
-        ensureDataProvisioned();
-        assertErrorContains(
-            "source=" + DATASET.indexName + " | eventstats count() as cnt, avg(int0) as avg, min(int0) as min, max(int0) as max"
-                + " by span(int0, 10) as int0_span, str3",
-            "Unable to convert the type NULL"
+        Map<String, Object> response = executePpl(
+            "source=" + DATASET.indexName + " | eventstats count() as cnt by span(int0, 10), str3"
+                + " | stats max(cnt) as cnt by str3, int0 | sort str3, int0"
+        );
+        assertRowsEqual(response,
+            row(2L, null, null),
+            row(4L, null, 3),
+            row(4L, null, 4),
+            row(4L, null, 7),
+            row(4L, null, 8),
+            row(1L, null, 10),
+            row(4L, "e", null),
+            row(5L, "e", 1),
+            row(5L, "e", 4),
+            row(5L, "e", 8),
+            row(1L, "e", 11)
         );
     }
 
@@ -511,14 +574,22 @@ public class EventstatsCommandIT extends AnalyticsRestTestCase {
         );
     }
 
-    /** sql IT: testEventstatsVarianceBySpan. {@code where str0 != 'TECHNOLOGY' | … by span(int0,10)} —
-     *  same span()-in-PARTITION-BY substrait gap as {@link #testEventstatsBySpan}. */
+    /** sql IT: testEventstatsVarianceBySpan. After filtering out TECHNOLOGY, only FURNITURE and
+     *  OFFICE SUPPLIES rows remain (8 rows). All non-null int0 values are in span bucket 0
+     *  ({1,7,3,8} — int0 of key00, key04, key05, key06): stddev_samp({1,7,3,8}) ≈ 3.304. The
+     *  4 null-int0 rows form the null-bucket → NULL stddev. */
     public void testEventstatsVarianceBySpan() throws IOException {
-        ensureDataProvisioned();
-        assertErrorContains(
+        Map<String, Object> response = executePpl(
             "source=" + DATASET.indexName + " | where str0 != 'TECHNOLOGY'"
-                + " | eventstats stddev_samp(int0) by span(int0, 10)",
-            "Unable to convert the type NULL"
+                + " | eventstats stddev_samp(int0) as ss by span(int0, 10)"
+                + " | stats max(ss) as ss by int0 | sort int0"
+        );
+        assertRowsEqual(response,
+            row(null, null),
+            row(3.304037933599835, 1),
+            row(3.304037933599835, 3),
+            row(3.304037933599835, 7),
+            row(3.304037933599835, 8)
         );
     }
 
