@@ -559,11 +559,21 @@ pub unsafe fn sql_to_substrait(
 }
 
 /// Lowers a partial-aggregate Substrait plan against a throwaway session and
-/// returns its physical output schema. NamedTable references are resolved
-/// against empty MemTables built from the substrait base_schema — the plan
-/// itself is the source of truth for the producer side, so no view-type or
-/// timestamp-precision rewrites are applied here. The plan is dropped at
+/// returns its physical output schema **narrowed via
+/// [`schema_coerce::coerce_inferred_schema`]** to types Substrait can bind
+/// against. NamedTable references are resolved against empty MemTables built
+/// from the substrait base_schema — the plan itself is the source of truth for
+/// the producer side, so no view-type or timestamp-precision rewrites are
+/// applied here beyond the post-physical coercer. The plan is dropped at
 /// function exit; only the schema is returned.
+///
+/// <p>The coercer flips Arrow-only types (notably `UInt64` from DataFusion's
+/// `row_number()` physical op) back to their Substrait-compatible counterparts
+/// (`Int64` matching isthmus's `ROW_NUMBER OVER` declaration). The producer
+/// side runs the same coercer + wraps its physical plan with
+/// [`crate::relabel_exec::RelabelExec`] (zero-copy bit-tag flip per mismatched
+/// column), so runtime batches arrive with the same type tags the consumer
+/// registers here — no per-batch cast needed at the partition-stream feed.
 fn derive_schema_from_partial_plan(
     substrait_bytes: &[u8],
 ) -> Result<arrow::datatypes::SchemaRef, DataFusionError> {
@@ -641,7 +651,7 @@ fn derive_schema_from_partial_plan(
 
     let logical_plan = futures::executor::block_on(from_substrait_plan(&session_state, &plan))?;
     let physical_plan = futures::executor::block_on(session_state.create_physical_plan(&logical_plan))?;
-    Ok(physical_plan.schema())
+    Ok(crate::schema_coerce::coerce_inferred_schema(physical_plan.schema()))
 }
 
 /// Encodes a Schema as Arrow IPC stream-format bytes (a schema-only message
@@ -794,6 +804,12 @@ pub unsafe fn register_partition_stream(
     partial_plan_bytes: &[u8],
 ) -> Result<(i64, Vec<u8>), DataFusionError> {
     let session = &mut *(session_ptr as *mut LocalSession);
+    // derive_schema_from_partial_plan applies `schema_coerce::coerce_inferred_schema`
+    // to the physical plan's output schema, matching what isthmus declared on the wire
+    // for the producer (e.g. `Int64` for `ROW_NUMBER OVER`). The producer side runs the
+    // same coercer + wraps its physical plan with `RelabelExec`, so the batches arriving
+    // here through the partition channel are already typed to match this schema — no
+    // per-batch cast at feed time.
     let schema = derive_schema_from_partial_plan(partial_plan_bytes)?;
     let schema_ipc = schema_to_ipc_bytes(schema.as_ref())?;
     let sender = session.register_partition(input_id, schema)?;
