@@ -6,11 +6,14 @@
  * compatible open source license.
  */
 
-package org.opensearch.analytics.exec.stage;
+package org.opensearch.analytics.exec.stage.shard;
 
 import org.opensearch.analytics.exec.AnalyticsSearchTransportService;
 import org.opensearch.analytics.exec.QueryContext;
 import org.opensearch.analytics.exec.action.FragmentExecutionRequest;
+import org.opensearch.analytics.exec.stage.StageExecution;
+import org.opensearch.analytics.exec.stage.StageExecutionBuilder;
+import org.opensearch.analytics.exec.stage.StageExecutionFactory;
 import org.opensearch.analytics.planner.dag.ShardExecutionTarget;
 import org.opensearch.analytics.planner.dag.Stage;
 import org.opensearch.analytics.planner.dag.StagePlan;
@@ -32,12 +35,12 @@ import java.util.function.Function;
  *
  * @opensearch.internal
  */
-final class ShardFragmentStageScheduler implements StageScheduler {
+public final class ShardFragmentStageExecutionFactory implements StageExecutionFactory {
 
     private final ClusterService clusterService;
     private final AnalyticsSearchTransportService transport;
 
-    ShardFragmentStageScheduler(ClusterService clusterService, AnalyticsSearchTransportService transport) {
+    public ShardFragmentStageExecutionFactory(ClusterService clusterService, AnalyticsSearchTransportService transport) {
         this.clusterService = clusterService;
         this.transport = transport;
     }

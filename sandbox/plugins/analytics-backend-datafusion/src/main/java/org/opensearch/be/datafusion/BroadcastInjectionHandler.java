@@ -44,7 +44,7 @@ import java.util.List;
  * existing instruction list, not prepending.
  *
  * <p>Memtable registration mirrors the happy path of
- * {@link DatafusionMemtableReduceSink#closeUnderLock}: export each
+ * {@link DatafusionMemtableReduceSink#close()}: export each
  * {@link VectorSchemaRoot} via Arrow C Data Interface, accumulate the FFI struct pointers in
  * parallel arrays, hand them across in a single {@code NativeBridge.registerMemtable} call.
  * Native takes ownership on success; the Java wrappers are closed in the {@code finally} block

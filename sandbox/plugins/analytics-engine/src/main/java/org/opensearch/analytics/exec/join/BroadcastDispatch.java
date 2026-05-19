@@ -220,7 +220,12 @@ public final class BroadcastDispatch {
         }
 
         LOGGER.debug("[BroadcastDispatch] starting pass 1 (build stage {})", buildStage.getStageId());
-        buildExec.start();
+        // Delegate to the scheduler's stage dispatch loop so tasks are actually run.
+        // Calling buildExec.start() alone only materializes the task list (transitioning
+        // the stage to RUNNING) — it does NOT invoke TaskRunner.run(...) on each task.
+        // Without this delegation the build stage hangs in RUNNING with no work in flight,
+        // the capture sink never closes, and pass 2 never starts.
+        scheduler.scheduleStage(buildExec);
     }
 
     /**

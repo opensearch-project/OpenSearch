@@ -34,7 +34,10 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.analytics.planner.rel.OpenSearchBroadcastScan;
 import org.opensearch.analytics.planner.rel.OpenSearchStageInputScan;
 import org.opensearch.analytics.spi.DelegatedPredicateFunction;
+import org.opensearch.analytics.spi.DelegationPossibleFunction;
 import org.opensearch.analytics.spi.FragmentConvertor;
+import org.opensearch.be.datafusion.planner.adapter.NumericConversionFunctionAdapter;
+import org.opensearch.be.datafusion.planner.adapter.TimeConversionFunctionAdapter;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -137,6 +140,7 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
      */
     private static final List<FunctionMappings.Sig> ADDITIONAL_SCALAR_SIGS = List.of(
         FunctionMappings.s(DelegatedPredicateFunction.FUNCTION, DelegatedPredicateFunction.NAME),
+        FunctionMappings.s(DelegationPossibleFunction.FUNCTION, DelegationPossibleFunction.NAME),
         FunctionMappings.s(SqlStdOperatorTable.ASCII, "ascii"),
         FunctionMappings.s(SqlStdOperatorTable.CHAR_LENGTH, "length"),
         FunctionMappings.s(SqlLibraryOperators.CONCAT_FUNCTION, "concat"),
@@ -187,6 +191,15 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         FunctionMappings.s(RexExtractMultiAdapter.LOCAL_REX_EXTRACT_MULTI_OP, "rex_extract_multi"),
         FunctionMappings.s(RexOffsetAdapter.LOCAL_REX_OFFSET_OP, "rex_offset"),
         FunctionMappings.s(SqlLibraryOperators.ARRAY_LENGTH, "array_length"),
+        FunctionMappings.s(NumericConversionFunctionAdapter.NUM, "num"),
+        FunctionMappings.s(NumericConversionFunctionAdapter.AUTO, "auto"),
+        FunctionMappings.s(NumericConversionFunctionAdapter.MEMK, "memk"),
+        FunctionMappings.s(NumericConversionFunctionAdapter.RMCOMMA, "rmcomma"),
+        FunctionMappings.s(NumericConversionFunctionAdapter.RMUNIT, "rmunit"),
+        FunctionMappings.s(NumericConversionFunctionAdapter.DUR2SEC, "dur2sec"),
+        FunctionMappings.s(NumericConversionFunctionAdapter.MSTIME, "mstime"),
+        FunctionMappings.s(TimeConversionFunctionAdapter.CTIME, "ctime"),
+        FunctionMappings.s(TimeConversionFunctionAdapter.MKTIME, "mktime"),
         FunctionMappings.s(SqlStdOperatorTable.TRUNCATE, "trunc"),
         FunctionMappings.s(SqlStdOperatorTable.CBRT, "cbrt"),
         FunctionMappings.s(SqlStdOperatorTable.COT, "cot"),
@@ -199,6 +212,7 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         FunctionMappings.s(JsonFunctionAdapters.JsonDeleteAdapter.LOCAL_JSON_DELETE_OP, "json_delete"),
         FunctionMappings.s(JsonFunctionAdapters.JsonExtendAdapter.LOCAL_JSON_EXTEND_OP, "json_extend"),
         FunctionMappings.s(JsonFunctionAdapters.JsonExtractAdapter.LOCAL_JSON_EXTRACT_OP, "json_extract"),
+        FunctionMappings.s(JsonFunctionAdapters.JsonExtractAllAdapter.LOCAL_JSON_EXTRACT_ALL_OP, "json_extract_all"),
         FunctionMappings.s(JsonFunctionAdapters.JsonKeysAdapter.LOCAL_JSON_KEYS_OP, "json_keys"),
         FunctionMappings.s(JsonFunctionAdapters.JsonSetAdapter.LOCAL_JSON_SET_OP, "json_set"),
         FunctionMappings.s(SqlLibraryOperators.REGEXP_CONTAINS, "regex_match"),
@@ -217,6 +231,7 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         FunctionMappings.s(MakeArrayAdapter.LOCAL_MAKE_ARRAY_OP, "make_array"),
         FunctionMappings.s(ArrayToStringAdapter.LOCAL_ARRAY_TO_STRING_OP, "array_to_string"),
         FunctionMappings.s(ArrayElementAdapter.LOCAL_ARRAY_ELEMENT_OP, "array_element"),
+        FunctionMappings.s(ArrayElementAdapter.LOCAL_MAP_EXTRACT_OP, "map_extract"),
         FunctionMappings.s(MvzipAdapter.LOCAL_MVZIP_OP, "mvzip"),
         FunctionMappings.s(MvfindAdapter.LOCAL_MVFIND_OP, "mvfind"),
         FunctionMappings.s(MvappendAdapter.LOCAL_MVAPPEND_OP, "mvappend"),

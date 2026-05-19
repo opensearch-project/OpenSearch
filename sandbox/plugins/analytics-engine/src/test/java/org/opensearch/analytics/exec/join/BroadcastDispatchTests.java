@@ -31,6 +31,8 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
@@ -134,8 +136,11 @@ public class BroadcastDispatchTests extends OpenSearchTestCase {
                 + "instead the query would hang",
             failure.get()
         );
-        // start() must NOT have been invoked — the dispatcher should bail out once it observes
-        // the task is already cancelled.
+        // scheduleStage must NOT have been invoked — the dispatcher should bail out once it
+        // observes the task is already cancelled. (Pre-merge this asserted on
+        // buildExec.start(), but main moved task dispatch into QueryScheduler.scheduleStage,
+        // so the dispatcher now delegates to that and we assert on the scheduler mock instead.)
+        verify(scheduler, never()).scheduleStage(any());
         assertFalse("buildExec.start() must not run for an already-cancelled task", buildExec.startInvoked);
     }
 
@@ -188,11 +193,6 @@ public class BroadcastDispatchTests extends OpenSearchTestCase {
         @Override
         public Exception getFailure() {
             return null;
-        }
-
-        @Override
-        public boolean failFromChild(Exception cause) {
-            return false;
         }
 
         @Override

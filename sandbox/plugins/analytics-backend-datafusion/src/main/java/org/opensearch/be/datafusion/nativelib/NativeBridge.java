@@ -226,10 +226,16 @@ public final class NativeBridge {
             )
         );
 
-        // i64 df_execute_local_plan(session_ptr, substrait_ptr, substrait_len)
+        // i64 df_execute_local_plan(session_ptr, substrait_ptr, substrait_len, context_id)
         EXECUTE_LOCAL_PLAN = linker.downcallHandle(
             lib.find("df_execute_local_plan").orElseThrow(),
-            FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG)
+            FunctionDescriptor.of(
+                ValueLayout.JAVA_LONG,
+                ValueLayout.JAVA_LONG,
+                ValueLayout.ADDRESS,
+                ValueLayout.JAVA_LONG,
+                ValueLayout.JAVA_LONG
+            )
         );
 
         // i64 df_sender_send(sender_ptr, array_ptr, schema_ptr)
@@ -437,10 +443,10 @@ public final class NativeBridge {
             FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.JAVA_LONG)
         );
 
-        // i64 df_execute_local_prepared_plan(session_ptr)
+        // i64 df_execute_local_prepared_plan(session_ptr, context_id)
         EXECUTE_LOCAL_PREPARED_PLAN = linker.downcallHandle(
             lib.find("df_execute_local_prepared_plan").orElseThrow(),
-            FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG)
+            FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG)
         );
     }
 
@@ -808,11 +814,17 @@ public final class NativeBridge {
     /**
      * Executes a Substrait plan on the session, returning an opaque stream pointer. The stream is
      * drained via {@link #streamNext} and freed by {@link #streamClose}.
+     *
+     * @param sessionPtr pointer returned by {@link #createLocalSession}
+     * @param substrait  Substrait plan bytes
+     * @param contextId  the parent {@code AnalyticsQueryTask.getId()}; registers the reduce in the
+     *                   native {@code QUERY_REGISTRY} under this id so {@link #cancelQuery} fires
+     *                   the attached cancellation token. Pass {@code 0} to disable tracking.
      */
-    public static long executeLocalPlan(long sessionPtr, byte[] substrait) {
+    public static long executeLocalPlan(long sessionPtr, byte[] substrait, long contextId) {
         NativeHandle.validatePointer(sessionPtr, "session");
         try (var call = new NativeCall()) {
-            return call.invoke(EXECUTE_LOCAL_PLAN, sessionPtr, call.bytes(substrait), (long) substrait.length);
+            return call.invoke(EXECUTE_LOCAL_PLAN, sessionPtr, call.bytes(substrait), (long) substrait.length, contextId);
         }
     }
 
@@ -1074,12 +1086,14 @@ public final class NativeBridge {
      *
      * @param sessionPtr pointer returned by {@link #createLocalSession} with a plan
      *                   already prepared via {@link #prepareFinalPlan}
+     * @param contextId  the parent {@code AnalyticsQueryTask.getId()}; see
+     *                   {@link #executeLocalPlan(long, byte[], long)} for semantics
      * @return opaque stream pointer
      */
-    public static long executeLocalPreparedPlan(long sessionPtr) {
+    public static long executeLocalPreparedPlan(long sessionPtr, long contextId) {
         NativeHandle.validatePointer(sessionPtr, "session");
         try (var call = new NativeCall()) {
-            return call.invoke(EXECUTE_LOCAL_PREPARED_PLAN, sessionPtr);
+            return call.invoke(EXECUTE_LOCAL_PREPARED_PLAN, sessionPtr, contextId);
         }
     }
 

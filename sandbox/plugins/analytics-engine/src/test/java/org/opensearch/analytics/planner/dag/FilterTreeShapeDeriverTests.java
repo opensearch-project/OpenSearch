@@ -83,7 +83,10 @@ public class FilterTreeShapeDeriverTests extends BasePlannerRulesTests {
     }
 
     public void testOrWithOnlyDelegated() {
-        // OR with only delegated predicates (no driving backend) — SINGLE_AND (no mixing)
+        // OR(delegated, delegated) — two collectors under OR. SingleCollector handles
+        // exactly one Collector + native residuals; combining two collector bitmaps
+        // requires the BitmapTree evaluator. So even without a native sibling under
+        // the OR, the shape is INTERLEAVED_BOOLEAN_EXPRESSION.
         RexNode delegated1 = annotated(ACCEPTING);
         RexNode delegated2 = annotated(ACCEPTING);
         RexNode orNode = rexBuilder.makeCall(SqlStdOperatorTable.OR, delegated1, delegated2);
@@ -92,7 +95,24 @@ public class FilterTreeShapeDeriverTests extends BasePlannerRulesTests {
         OpenSearchFilter filter = buildFilter(andNode);
 
         FilterTreeShape shape = FilterTreeShapeDeriver.derive(filter, DRIVING);
-        assertEquals(FilterTreeShape.CONJUNCTIVE, shape);
+        assertEquals(FilterTreeShape.INTERLEAVED_BOOLEAN_EXPRESSION, shape);
+    }
+
+    /**
+     * Bare {@code NOT(delegated)} — no AND parent, no native sibling. Mirrors the
+     * production query {@code WHERE NOT match(message, 'hello')} that crashed when
+     * misclassified as CONJUNCTIVE: SingleCollector can't invert a Collector bitmap,
+     * so the result silently became "all rows" instead of "non-matching rows".
+     * (Regression coverage for the FilterDelegationIT#testNotMatch_RoutesToTreeEvaluator
+     * fix — the shape MUST route to the tree evaluator.)
+     */
+    public void testBareNotOfDelegated() {
+        RexNode delegated = annotated(ACCEPTING);
+        RexNode notNode = rexBuilder.makeCall(SqlStdOperatorTable.NOT, delegated);
+        OpenSearchFilter filter = buildFilter(notNode);
+
+        FilterTreeShape shape = FilterTreeShapeDeriver.derive(filter, DRIVING);
+        assertEquals(FilterTreeShape.INTERLEAVED_BOOLEAN_EXPRESSION, shape);
     }
 
     // ---- Helpers ----

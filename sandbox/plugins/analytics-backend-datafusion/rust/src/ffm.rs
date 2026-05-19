@@ -323,6 +323,7 @@ pub unsafe extern "C" fn df_execute_local_plan(
     session_ptr: i64,
     substrait_ptr: *const u8,
     substrait_len: i64,
+    context_id: i64,
 ) -> i64 {
     let mgr = get_rt_manager()?;
     // Copy substrait bytes into an owned Vec so the spawned future can move them
@@ -340,7 +341,10 @@ pub unsafe extern "C" fn df_execute_local_plan(
     mgr.io_runtime
         .block_on(crate::task_monitors::coordinator_reduce_monitor().instrument(async move {
             let inner_fut = async move {
-                unsafe { api::execute_local_plan(session_ptr, &bytes_vec, &mgr_for_inner, 0).await }
+                unsafe {
+                    api::execute_local_plan(session_ptr, &bytes_vec, &mgr_for_inner, context_id)
+                        .await
+                }
             };
             match mgr_for_spawn.cpu_executor().spawn(inner_fut).await {
                 Ok(inner_result) => inner_result,
@@ -908,21 +912,10 @@ pub unsafe extern "C" fn df_prepare_final_plan(
 /// with a plan already prepared via `df_prepare_final_plan`.
 #[ffm_safe]
 #[no_mangle]
-pub unsafe extern "C" fn df_execute_local_prepared_plan(session_ptr: i64) -> i64 {
-    let session = &*(session_ptr as *const crate::local_executor::LocalSession);
+pub unsafe extern "C" fn df_execute_local_prepared_plan(
+    session_ptr: i64,
+    context_id: i64,
+) -> i64 {
     let mgr = get_rt_manager()?;
-    // DataFusion's execute_stream is sync, but kicks off RepartitionExec / stream
-    // channels that require a Tokio reactor. Enter the IO runtime's context so those
-    // operators can register with the reactor.
-    let _guard = mgr.io_runtime.enter();
-    let df_stream = session.execute_prepared().map_err(|e| e.to_string())?;
-    let cross_rt_stream =
-        crate::cross_rt_stream::CrossRtStream::new_with_df_error_stream(df_stream, mgr.cpu_executor());
-    let wrapped = datafusion::physical_plan::stream::RecordBatchStreamAdapter::new(
-        cross_rt_stream.schema(),
-        cross_rt_stream,
-    );
-    let query_context = crate::query_tracker::QueryTrackingContext::new(0, session.memory_pool());
-    let handle = crate::api::QueryStreamHandle::new(wrapped, query_context);
-    Ok(Box::into_raw(Box::new(handle)) as i64)
+    api::execute_local_prepared_plan(session_ptr, &mgr, context_id).map_err(|e| e.to_string())
 }

@@ -31,7 +31,7 @@ public class NativeBridgePreparedPlanTests extends OpenSearchTestCase {
     }
 
     public void testExecuteLocalPreparedPlanRejectsNullPointer() {
-        expectThrows(IllegalArgumentException.class, () -> NativeBridge.executeLocalPreparedPlan(0L));
+        expectThrows(IllegalArgumentException.class, () -> NativeBridge.executeLocalPreparedPlan(0L, 0L));
     }
 
     /**
