@@ -50,7 +50,7 @@ public class SystemIndexDescriptor {
     private final String indexPattern;
     private final String description;
     private final CharacterRunAutomaton indexPatternAutomaton;
-    private boolean readable;
+    private final boolean readable;
 
     /**
      *
