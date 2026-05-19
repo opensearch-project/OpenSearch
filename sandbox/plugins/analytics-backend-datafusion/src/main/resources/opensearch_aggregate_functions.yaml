@@ -69,7 +69,24 @@ aggregate_functions:
   - name: array_agg
     description: >-
       PPL `list(field)` (and `values(field)` with `INVOCATION_DISTINCT`) —
-      DataFusion native array_agg.
+      DataFusion native array_agg. Used at PARTIAL only; FINAL re-aggregates
+      via list_merge / list_merge_distinct.
+    impls:
+      - args:
+          - name: x
+            value: any
+        return: any
+  - name: list_merge
+    description: >-
+      Cross-shard FINAL of LIST. Concatenates per-shard `List<elem>` states.
+      Custom Rust UDAF in `rust/src/udaf/list_merge.rs`.
+    impls:
+      - args:
+          - name: x
+            value: any
+        return: any
+  - name: list_merge_distinct
+    description: Cross-shard FINAL of VALUES — concatenates and re-deduplicates.
     impls:
       - args:
           - name: x

@@ -299,15 +299,7 @@ public class CoordinatorReduceIT extends AnalyticsRestTestCase {
         assertEquals("list(value) must contain every integer in {1.." + DOCS_PER_SHARD + "}", expected, seen);
     }
 
-    /**
-     * Cross-shard {@code list(value)} — coordinator concatenates shard lists. Two stacked
-     * blockers: (a) PPL's {@code STRING_ARRAY} return-type forces ARRAY&lt;VARCHAR&gt; regardless
-     * of input element type; (b) DataFusion's substrait consumer ignores AggregationPhase, so
-     * native {@code array_agg} at FINAL re-wraps each shard's list rather than concatenating.
-     * For TAKE we sidestep (b) via a custom UDAF that detects an array input column and routes
-     * to merge semantics; LIST/VALUES need an analogous Rust UDAF.
-     */
-    @org.apache.lucene.tests.util.LuceneTestCase.AwaitsFix(bugUrl = "Cross-shard LIST: needs PPL STRING_ARRAY repair + custom Rust UDAF for FINAL list-merge")
+    /** Cross-shard {@code list(value)} — coordinator concatenates per-shard lists via list_merge UDAF. */
     public void testListAcrossShards() throws Exception {
         String index = "coord_reduce_list_multi";
         createParquetBackedIndex(index);
@@ -384,8 +376,7 @@ public class CoordinatorReduceIT extends AnalyticsRestTestCase {
         assertEquals("values(value) must contain exactly {1..5}", expected, seen);
     }
 
-    /** Cross-shard {@code values(value)} — same blockers as cross-shard LIST (see {@link #testListAcrossShards()}). */
-    @org.apache.lucene.tests.util.LuceneTestCase.AwaitsFix(bugUrl = "Cross-shard VALUES: same blockers as cross-shard LIST")
+    /** Cross-shard {@code values(value)} — coordinator concatenates and re-deduplicates via list_merge_distinct UDAF. */
     public void testValuesAcrossShards() throws Exception {
         String index = "coord_reduce_values_multi";
         createParquetBackedIndex(index);

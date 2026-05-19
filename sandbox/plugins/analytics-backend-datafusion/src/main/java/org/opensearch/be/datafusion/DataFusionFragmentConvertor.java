@@ -330,6 +330,36 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
     ) {
     };
 
+    /** FINAL-side merge for LIST — custom Rust UDAF that un-nests per-shard list states. */
+    static final SqlAggFunction LOCAL_LIST_MERGE_OP = new SqlAggFunction(
+        "list_merge",
+        null,
+        SqlKind.OTHER_FUNCTION,
+        ReturnTypes.ARG0,
+        null,
+        OperandTypes.ANY,
+        SqlFunctionCategory.USER_DEFINED_FUNCTION,
+        false,
+        false,
+        Optionality.FORBIDDEN
+    ) {
+    };
+
+    /** FINAL-side merge for VALUES — re-deduplicates after concatenation. */
+    static final SqlAggFunction LOCAL_LIST_MERGE_DISTINCT_OP = new SqlAggFunction(
+        "list_merge_distinct",
+        null,
+        SqlKind.OTHER_FUNCTION,
+        ReturnTypes.ARG0,
+        null,
+        OperandTypes.ANY,
+        SqlFunctionCategory.USER_DEFINED_FUNCTION,
+        false,
+        false,
+        Optionality.FORBIDDEN
+    ) {
+    };
+
     /**
      * Maps aggregate operators to their Substrait extension names so isthmus serializes
      * them through our {@code SimpleExtension} catalog instead of the default Substrait
@@ -353,7 +383,9 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         FunctionMappings.s(LOCAL_TAKE_OP, "take"),
         FunctionMappings.s(LOCAL_FIRST_OP, "first_value"),
         FunctionMappings.s(LOCAL_LAST_OP, "last_value"),
-        FunctionMappings.s(LOCAL_ARRAY_AGG_OP, "array_agg")
+        FunctionMappings.s(LOCAL_ARRAY_AGG_OP, "array_agg"),
+        FunctionMappings.s(LOCAL_LIST_MERGE_OP, "list_merge"),
+        FunctionMappings.s(LOCAL_LIST_MERGE_DISTINCT_OP, "list_merge_distinct")
     );
 
     private final SimpleExtension.ExtensionCollection extensions;
@@ -491,41 +523,46 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
                     if (aggregation == LOCAL_TAKE_OP
                         || aggregation == LOCAL_FIRST_OP
                         || aggregation == LOCAL_LAST_OP
-                        || aggregation == LOCAL_ARRAY_AGG_OP) {
+                        || aggregation == LOCAL_ARRAY_AGG_OP
+                        || aggregation == LOCAL_LIST_MERGE_OP
+                        || aggregation == LOCAL_LIST_MERGE_DISTINCT_OP) {
                         newCalls.add(call);
                         continue;
                     }
                     String name = aggregation.getName();
                     SqlAggFunction targetOp;
                     boolean targetDistinct = call.isDistinct();
-                    // LIST/VALUES use PPL's STRING_ARRAY which forces ARRAY<VARCHAR>; rebuild
-                    // as ARRAY<actual-arg0> so substrait declares what array_agg produces.
-                    boolean overrideToArrayOfArg0 = false;
+                    RelDataType explicitReturnType = call.getType();
                     if ("TAKE".equalsIgnoreCase(name)) {
                         targetOp = LOCAL_TAKE_OP;
                     } else if ("FIRST".equalsIgnoreCase(name)) {
                         targetOp = LOCAL_FIRST_OP;
                     } else if ("LAST".equalsIgnoreCase(name)) {
                         targetOp = LOCAL_LAST_OP;
-                    } else if ("LIST".equalsIgnoreCase(name)) {
-                        targetOp = LOCAL_ARRAY_AGG_OP;
-                        overrideToArrayOfArg0 = true;
-                    } else if ("VALUES".equalsIgnoreCase(name)) {
-                        // INVOCATION_DISTINCT routes to array_agg(DISTINCT) at the consumer.
-                        targetOp = LOCAL_ARRAY_AGG_OP;
-                        targetDistinct = true;
-                        overrideToArrayOfArg0 = true;
+                    } else if ("LIST".equalsIgnoreCase(name) || "VALUES".equalsIgnoreCase(name)) {
+                        // arg0 type tells us PARTIAL (raw element) vs FINAL (already array):
+                        //   PARTIAL → array_agg (with INVOCATION_DISTINCT for VALUES); rebuild
+                        //     return type as ARRAY<arg0> to repair PPL's lossy STRING_ARRAY.
+                        //   FINAL   → list_merge / list_merge_distinct un-nests per-shard arrays.
+                        boolean isValues = "VALUES".equalsIgnoreCase(name);
+                        if (call.getArgList().isEmpty()) {
+                            newCalls.add(call);
+                            continue;
+                        }
+                        RelDataType arg0Type = agg.getInput().getRowType().getFieldList().get(call.getArgList().get(0)).getType();
+                        boolean arg0IsList = arg0Type.getComponentType() != null;
+                        if (arg0IsList) {
+                            targetOp = isValues ? LOCAL_LIST_MERGE_DISTINCT_OP : LOCAL_LIST_MERGE_OP;
+                            targetDistinct = false;
+                            explicitReturnType = arg0Type;
+                        } else {
+                            targetOp = LOCAL_ARRAY_AGG_OP;
+                            targetDistinct = isValues;
+                            explicitReturnType = agg.getCluster().getTypeFactory().createArrayType(arg0Type, -1);
+                        }
                     } else {
                         newCalls.add(call);
                         continue;
-                    }
-                    RelDataType explicitReturnType = call.getType();
-                    if (overrideToArrayOfArg0 && !call.getArgList().isEmpty()) {
-                        // PARTIAL: arg0 is the element column → wrap once to ARRAY<elem>.
-                        // FINAL: arg0 is already ARRAY<elem> from StageInputScan → unwrap then re-wrap.
-                        RelDataType arg0Type = agg.getInput().getRowType().getFieldList().get(call.getArgList().get(0)).getType();
-                        RelDataType elementType = arg0Type.getComponentType() != null ? arg0Type.getComponentType() : arg0Type;
-                        explicitReturnType = agg.getCluster().getTypeFactory().createArrayType(elementType, -1);
                     }
                     AggregateCall rewritten = AggregateCall.create(
                         targetOp,

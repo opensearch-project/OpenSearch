@@ -73,6 +73,11 @@ public class OpenSearchAggregateSplitRule extends RelOptRule {
         );
 
         // PARTIAL + ER + FINAL alternative — wins when child is shard-partitioned.
+        // Repair LIST/VALUES return type from PPL's lossy ARRAY<VARCHAR> to ARRAY<arg0> on
+        // PARTIAL only, so the StageInputScan column type (and thus the FINAL substrait's
+        // base_schema) matches what DataFusion's array_agg actually produces. FINAL keeps
+        // the original aggCall list to satisfy Volcano's parent row-type check.
+        List<AggregateCall> partialAggCalls = repairLossyReturnTypes(aggregate.getAggCallList(), child);
         RelTraitSet partialTraits = child.getTraitSet().replace(OpenSearchConvention.INSTANCE);
         OpenSearchAggregate partial = new OpenSearchAggregate(
             aggregate.getCluster(),
@@ -80,7 +85,7 @@ public class OpenSearchAggregateSplitRule extends RelOptRule {
             child,
             aggregate.getGroupSet(),
             aggregate.getGroupSets(),
-            aggregate.getAggCallList(),
+            partialAggCalls,
             AggregateMode.PARTIAL,
             aggregate.getViableBackends(),
             aggregate.getCallAnnotations()
@@ -107,11 +112,39 @@ public class OpenSearchAggregateSplitRule extends RelOptRule {
     }
 
     /**
-     * For each STATE_EXPANDING aggCall, capture literal non-state args (e.g. TAKE's N)
-     * from the child Project so {@code DistributedAggregateRewriter} can re-create them
-     * below FINAL. Calls with non-literal args contribute no entry — the FINAL rewrite
-     * then takes its single-state-column path.
+     * Rebuild any LIST/VALUES aggCall to declare {@code ARRAY<actual-arg0>} instead of
+     * PPL's lossy {@code ARRAY<VARCHAR>}. Pass-through for every other call. Used on the
+     * PARTIAL side only — the FINAL keeps the original call list so Volcano's parent
+     * row-type check on transformTo passes.
      */
+    private static List<AggregateCall> repairLossyReturnTypes(List<AggregateCall> aggCalls, RelNode input) {
+        List<AggregateCall> rebuilt = null;
+        for (int i = 0; i < aggCalls.size(); i++) {
+            AggregateCall call = aggCalls.get(i);
+            String name = call.getAggregation().getName();
+            if (!"LIST".equalsIgnoreCase(name) && !"VALUES".equalsIgnoreCase(name)) continue;
+            if (call.getArgList().isEmpty()) continue;
+            org.apache.calcite.rel.type.RelDataType arg0Type = input.getRowType().getFieldList().get(call.getArgList().get(0)).getType();
+            org.apache.calcite.rel.type.RelDataType repaired = input.getCluster().getTypeFactory().createArrayType(arg0Type, -1);
+            if (repaired.equals(call.getType())) continue;
+            if (rebuilt == null) rebuilt = new ArrayList<>(aggCalls);
+            rebuilt.set(i, AggregateCall.create(
+                call.getAggregation(),
+                call.isDistinct(),
+                call.isApproximate(),
+                call.ignoreNulls(),
+                call.rexList,
+                call.getArgList(),
+                call.filterArg,
+                call.distinctKeys,
+                call.collation,
+                repaired,
+                call.getName()
+            ));
+        }
+        return rebuilt != null ? rebuilt : aggCalls;
+    }
+
     private static Map<Integer, List<RexLiteral>> captureLiteralArgsForFinal(List<AggregateCall> aggCalls, RelNode child) {
         if (!(RelNodeUtils.unwrapHep(child) instanceof Project project)) {
             return Map.of();
