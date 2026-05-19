@@ -18,6 +18,7 @@ import org.opensearch.action.ActionRequest;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.HandledTransportAction;
 import org.opensearch.action.support.TimeoutTaskCancellationUtility;
+import org.opensearch.analytics.AnalyticsPlugin;
 import org.opensearch.analytics.EngineContext;
 import org.opensearch.analytics.exec.action.AnalyticsQueryAction;
 import org.opensearch.analytics.exec.task.AnalyticsQueryTask;
@@ -74,6 +75,7 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
     private final TaskManager taskManager;
     private final NodeClient client;
     private final ArrowAllocatorService allocatorService;
+    private volatile long perQueryBufferLimit;
 
     @Inject
     public DefaultPlanExecutor(
@@ -97,6 +99,8 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
         this.client = client;
         this.scheduler = scheduler;
         this.allocatorService = allocatorService;
+        this.perQueryBufferLimit = AnalyticsPlugin.COORDINATOR_BUFFER_LIMIT.get(clusterService.getSettings());
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(AnalyticsPlugin.COORDINATOR_BUFFER_LIMIT, v -> perQueryBufferLimit = v);
     }
 
     @Override
@@ -144,7 +148,7 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
             "analytics_query",
             new AnalyticsQueryTaskRequest(dag.queryId(), null)
         );
-        final QueryContext context = new QueryContext(dag, searchExecutor, queryTask, allocatorService);
+        final QueryContext context = new QueryContext(dag, searchExecutor, queryTask, perQueryBufferLimit, allocatorService);
 
         ActionListener<Iterable<VectorSchemaRoot>> batchesListener = ActionListener.runAfter(
             ActionListener.wrap(batches -> listener.onResponse(batchesToRows(batches)), listener::onFailure),

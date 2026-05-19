@@ -10,6 +10,8 @@ package org.opensearch.analytics.exec;
 
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.memory.RootAllocator;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.analytics.backend.AnalyticsOperationListener;
 import org.opensearch.analytics.exec.task.AnalyticsQueryTask;
 import org.opensearch.analytics.planner.dag.QueryDAG;
@@ -28,10 +30,11 @@ import java.util.concurrent.Executors;
  */
 public class QueryContext {
 
+    private static final Logger logger = LogManager.getLogger(QueryContext.class);
+
     // TODO: make configurable via cluster setting (like search.max_concurrent_shard_requests)
     private static final int DEFAULT_MAX_CONCURRENT_SHARD_REQUESTS = 5;
 
-    /** Default per-query memory limit for Arrow allocations (256 MB). */
     private static final long DEFAULT_PER_QUERY_MEMORY_LIMIT = 256L * 1024 * 1024;
 
     private final QueryDAG dag;
@@ -45,13 +48,19 @@ public class QueryContext {
     private volatile ExecutorService localTaskExecutor;
     private boolean closed;  // guarded by `this`
 
-    public QueryContext(QueryDAG dag, Executor searchExecutor, AnalyticsQueryTask parentTask, ArrowAllocatorService allocatorService) {
+    public QueryContext(
+        QueryDAG dag,
+        Executor searchExecutor,
+        AnalyticsQueryTask parentTask,
+        long perQueryMemoryLimit,
+        ArrowAllocatorService allocatorService
+    ) {
         this(
             dag,
             searchExecutor,
             parentTask,
             DEFAULT_MAX_CONCURRENT_SHARD_REQUESTS,
-            DEFAULT_PER_QUERY_MEMORY_LIMIT,
+            perQueryMemoryLimit,
             List.of(),
             allocatorService
         );
@@ -113,6 +122,7 @@ public class QueryContext {
                     }
                     alloc = allocatorService.newChildAllocator("query-" + dag.queryId(), perQueryMemoryLimit);
                     bufferAllocator = alloc;
+                    logger.debug("[query-{}] Arrow allocator created, limit={}B", dag.queryId(), perQueryMemoryLimit);
                 }
             }
         }
@@ -137,6 +147,10 @@ public class QueryContext {
             }
         }
         return exec;
+    }
+
+    BufferAllocator getAllocatorIfCreated() {
+        return bufferAllocator;
     }
 
     /** Idempotent. Serialised with lazy-init accessors; post-close accessors throw. */
