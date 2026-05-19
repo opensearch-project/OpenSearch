@@ -165,19 +165,21 @@ public class EventstatsCommandIT extends AnalyticsRestTestCase {
         );
     }
 
-    /** sql IT: testEventstatsByWithNullBucket. {@code bucket_nullable=false} wraps each
-     *  window expression in {@code CASE WHEN groupNotNull THEN RexOver ELSE NULL END}.
-     *  PPL emits {@code IS_NOT_NULL} as the gating predicate inside the CASE, but
-     *  {@code IS_NOT_NULL} is not in the analytics-engine backend's project-side scalar
-     *  capabilities, so the planner rejects it with
-     *  {@code "No backend supports scalar function [IS_NOT_NULL]"}. This is a pre-existing
-     *  analytics-engine gap unrelated to this PR — assert the failure. */
+    /** sql IT: testEventstatsByWithNullBucket. {@code bucket_nullable=false} drops rows
+     *  whose by-key is null from each partition's aggregate. calcs has no null str0, so
+     *  the result matches {@link #testEventstatsBy}. */
     public void testEventstatsByWithNullBucket() throws IOException {
         ensureDataProvisioned();
-        assertErrorContains(
+        Map<String, Object> response = executePpl(
             "source=" + DATASET.indexName + " | eventstats bucket_nullable=false count() as cnt,"
-                + " avg(int0) as avg, min(int0) as min, max(int0) as max by str0",
-            "IS_NOT_NULL"
+                + " avg(int0) as avg, min(int0) as min, max(int0) as max by str0"
+                + " | stats max(cnt) as cnt, max(avg) as avg, max(min) as min, max(max) as max by str0"
+                + " | sort str0"
+        );
+        assertRowsEqual(response,
+            row(2L, 1.0, 1, 1, "FURNITURE"),
+            row(6L, 6.0, 3, 8, "OFFICE SUPPLIES"),
+            row(9L, 7.0, 4, 11, "TECHNOLOGY")
         );
     }
 
@@ -382,13 +384,15 @@ public class EventstatsCommandIT extends AnalyticsRestTestCase {
      */
     public void testMultipleEventstatsWithNullBucket() throws IOException {
         ensureDataProvisioned();
-        // bucket_nullable=false → CASE WHEN IS_NOT_NULL(...) THEN RexOver ELSE NULL END.
-        // Same IS_NOT_NULL gap as testEventstatsByWithNullBucket — pre-existing analytics-engine
-        // limitation. Assert the rejection.
-        assertErrorContains(
+        Map<String, Object> response = executePpl(
             "source=" + DATASET.indexName + " | eventstats bucket_nullable=false avg(int0) as avg_int0 by str3, str0"
-                + " | eventstats bucket_nullable=false avg(avg_int0) as avg_str0_int0 by str0",
-            "IS_NOT_NULL"
+                + " | eventstats bucket_nullable=false avg(avg_int0) as avg_str0_int0 by str0"
+                + " | stats max(avg_str0_int0) as avg_str0_int0 by str0 | sort str0"
+        );
+        assertRowsEqual(response,
+            row(1.0, "FURNITURE"),
+            row(8.0, "OFFICE SUPPLIES"),
+            row(6.75, "TECHNOLOGY")
         );
     }
 

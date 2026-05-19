@@ -198,16 +198,20 @@ public class StreamstatsCommandIT extends AnalyticsRestTestCase {
         );
     }
 
-    /** sql IT: testStreamstatsByWithNullBucket. {@code bucket_nullable=false} wraps each
-     *  window expression in {@code CASE WHEN IS_NOT_NULL(group_key) THEN RexOver ELSE NULL END}.
-     *  IS_NOT_NULL is not in analytics-engine's project-side scalar capabilities — pre-existing
-     *  gap. Assert the rejection. */
+    /** sql IT: testStreamstatsByWithNullBucket. {@code bucket_nullable=false} drops null-key
+     *  rows from each partition's running count. calcs has no null str0, so the result
+     *  matches {@link #testStreamstatsBy}. */
     public void testStreamstatsByWithNullBucket() throws IOException {
         ensureDataProvisioned();
-        assertErrorContains(
+        Map<String, Object> response = executePpl(
             "source=" + DATASET.indexName + " | sort key"
-                + " | streamstats bucket_nullable=false count() as cnt by str0",
-            "IS_NOT_NULL"
+                + " | streamstats bucket_nullable=false count() as cnt by str0"
+                + " | stats max(cnt) as final_cnt by str0 | sort str0"
+        );
+        assertRowsEqual(response,
+            row(2L, "FURNITURE"),
+            row(6L, "OFFICE SUPPLIES"),
+            row(9L, "TECHNOLOGY")
         );
     }
 

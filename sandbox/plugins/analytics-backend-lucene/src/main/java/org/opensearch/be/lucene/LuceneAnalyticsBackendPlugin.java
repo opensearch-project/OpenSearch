@@ -26,11 +26,14 @@ import org.opensearch.analytics.spi.ScalarFunction;
 import org.opensearch.index.engine.exec.IndexReaderProvider;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryShardContext;
+import org.opensearch.tasks.CancellableTask;
+import org.opensearch.tasks.Task;
 
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.BooleanSupplier;
 
 /**
  * Analytics SPI extension for the Lucene backend. Declares filter capabilities
@@ -77,13 +80,15 @@ public class LuceneAnalyticsBackendPlugin implements AnalyticsSearchBackendPlugi
         ScalarFunction.MATCHALL
     );
 
+    // Field types Lucene's secondary data format actually indexes (see LuceneFieldFactoryRegistry).
+    // Numeric/date/boolean fields are not indexed under composite-parquet primary, so listing them
+    // would cause peer consultation to return null scorers and zero-out candidate sets.
+    // TODO: derive this list from LuceneFieldFactoryRegistry instead of hardcoding.
     private static final Set<FieldType> STANDARD_TYPES = new HashSet<>();
     static {
-        STANDARD_TYPES.addAll(FieldType.numeric());
-        STANDARD_TYPES.addAll(FieldType.keyword());
-        STANDARD_TYPES.addAll(FieldType.text());
-        STANDARD_TYPES.addAll(FieldType.date());
-        STANDARD_TYPES.add(FieldType.BOOLEAN);
+        STANDARD_TYPES.add(FieldType.KEYWORD);
+        STANDARD_TYPES.add(FieldType.TEXT);
+        STANDARD_TYPES.add(FieldType.MATCH_ONLY_TEXT);
     }
 
     private static final Set<FieldType> FULL_TEXT_TYPES = new HashSet<>();
@@ -151,12 +156,17 @@ public class LuceneAnalyticsBackendPlugin implements AnalyticsSearchBackendPlugi
         LuceneReader luceneReader = reader.getReader(plugin.getDataFormat(), LuceneReader.class);
         IndexSearcher searcher = new IndexSearcher(luceneReader.directoryReader());
         QueryShardContext queryShardContext = buildMinimalQueryShardContext(shardCtx, searcher);
+        BooleanSupplier isCancelled = () -> {
+            Task task = shardCtx.getTask();
+            return task instanceof CancellableTask ct && ct.isCancelled();
+        };
         return new LuceneFilterDelegationHandle(
             expressions,
             queryShardContext,
             luceneReader,
             reader.catalogSnapshot(),
-            shardCtx.getNamedWriteableRegistry()
+            shardCtx.getNamedWriteableRegistry(),
+            isCancelled
         );
     }
 

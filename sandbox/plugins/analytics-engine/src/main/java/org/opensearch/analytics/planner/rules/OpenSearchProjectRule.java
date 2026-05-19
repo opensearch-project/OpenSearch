@@ -85,9 +85,10 @@ public class OpenSearchProjectRule extends RelOptRule {
             : childViableBackends;
 
         // Window functions (RexOver): PPL `eventstats` / `appendcol` emit window calls inline
-        // on the projection. Narrow viable backends to those whose WindowCapability declares
-        // every required function. PARTITION BY is rejected up front — no shuffle exchange
-        // exists today.
+        // on the projection; PPL `dedup` lowers to ROW_NUMBER OVER (PARTITION BY ...). Narrow
+        // viable backends to those whose WindowCapability declares every required function.
+        // PARTITION BY is rejected for aggregate-as-window functions (no shuffle exchange
+        // available yet) but allowed for ROW_NUMBER since its partition is local.
         Set<WindowFunction> requiredWindowFns = collectWindowFunctions(project.getProjects());
         if (!requiredWindowFns.isEmpty()) {
             viableBackends = narrowByWindowCapability(viableBackends, requiredWindowFns);
@@ -290,9 +291,9 @@ public class OpenSearchProjectRule extends RelOptRule {
      *  already forces SINGLETON input on any RexOver-bearing project, so all rows in a partition
      *  arrive on the coordinator regardless of whether partition keys span shards. The
      *  coordinator's WindowAggExec then computes the window correctly per partition / per frame.
-     *  HASH-shuffle parallel execution is a future strict improvement (it would let the planner
-     *  prefer a partition-aware shuffle when partitions are small relative to data volume), not
-     *  a correctness prerequisite. */
+     *  Covers ROW_NUMBER OVER PARTITION BY (PPL dedup), SUM/AVG/COUNT/MIN/MAX OVER PARTITION BY
+     *  (PPL eventstats by ...), and the empty-OVER aggregate-as-window forms. HASH-shuffle is a
+     *  future strict improvement, not a correctness prerequisite. */
     private static Set<WindowFunction> collectWindowFunctions(List<? extends RexNode> exprs) {
         Set<WindowFunction> fns = new LinkedHashSet<>();
         for (RexNode expr : exprs) {
