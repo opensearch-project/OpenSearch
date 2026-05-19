@@ -47,10 +47,10 @@ import java.util.Map;
  *       conditional aggregate, doesn't flow through RexOver at all (see {@code
  *       CalciteRelNodeVisitor#buildStreamWindowJoinPlan}). Not reachable on analytics-engine.</li>
  *   <li>{@code streamstats global=true window=N by …} — uses self-join lowering, also not RexOver.</li>
- *   <li>{@code streamstats … by span(int0, 10)} — span() UDF is now registered (#21584 +
- *       #21621 merged into main), but RexOver(... PARTITION BY span(...)) end-to-end
- *       reachability is not yet verified — these cases use {@code assertErrorAny}, failing
- *       loudly if they ever start succeeding so a follow-up can upgrade.</li>
+ *   <li>{@code streamstats … by span(int0, 10)} — span() UDF is registered, but using
+ *       it as a PARTITION BY key fails substrait emission with "Unable to convert the
+ *       type NULL" (isthmus rejects SPAN's third NULL-typed operand). Pinned via
+ *       {@code assertErrorContains}.</li>
  *   <li>{@code streamstats dc / distinct_count / earliest / latest / percentile / median / mode}
  *       — not in {@link org.opensearch.analytics.spi.WindowFunction} enum.</li>
  *   <li>{@code testLeftJoinWithStreamstats} / {@code testWhereInWithStreamstatsSubquery} — test
@@ -213,63 +213,62 @@ public class StreamstatsCommandIT extends AnalyticsRestTestCase {
         );
     }
 
-    /** sql IT: testStreamstatsBySpan. {@code span()} not registered. */
+    /** sql IT: testStreamstatsBySpan. PPL {@code span(int0, 10)} is registered as a scalar
+     *  function on the analytics-engine route, but using it as a PARTITION BY key on a
+     *  window aggregate trips isthmus's WindowFunctionConverter when it tries to serialize
+     *  SPAN's third operand — a NULL-typed literal that {@code TypeConverter.toSubstrait}
+     *  rejects with "Unable to convert the type NULL". Pinning the precise failure string
+     *  so this test flips loud once the underlying gap is fixed. */
     public void testStreamstatsBySpan() throws IOException {
         ensureDataProvisioned();
-        // After #21584 + #21621, SPAN is registered as a ScalarFunction. Whether
-        // RexOver(... PARTITION BY span(int0, 10)) survives substrait emission +
-        // DataFusion physical planning end-to-end is not yet verified — assert the
-        // query fails somewhere; a future PR can upgrade if this starts succeeding.
-        assertErrorAny(
-            "source=" + DATASET.indexName + " | streamstats count() by span(int0, 10)"
+        assertErrorContains(
+            "source=" + DATASET.indexName + " | streamstats count() by span(int0, 10)",
+            "Unable to convert the type NULL"
         );
     }
 
-    /** sql IT: testStreamstatsBySpanWithNull. */
+    /** sql IT: testStreamstatsBySpanWithNull. Same span()-in-PARTITION-BY substrait gap. */
     public void testStreamstatsBySpanWithNull() throws IOException {
         ensureDataProvisioned();
-        // After #21584 + #21621, SPAN is registered as a ScalarFunction. Whether
-        // RexOver(... PARTITION BY span(int0, 10)) survives substrait emission +
-        // DataFusion physical planning end-to-end is not yet verified — assert the
-        // query fails somewhere; a future PR can upgrade if this starts succeeding.
-        assertErrorAny(
-            "source=" + DATASET.indexName + " | streamstats count() by span(int0, 10)"
+        assertErrorContains(
+            "source=" + DATASET.indexName + " | streamstats count() by span(int0, 10)",
+            "Unable to convert the type NULL"
         );
     }
 
     /** sql IT: testStreamstatsByMultiplePartitions1. by span() + str0. */
     public void testStreamstatsByMultiplePartitions1() throws IOException {
         ensureDataProvisioned();
-        // span()-in-PARTITION-BY uncertainty — see testStreamstatsBySpan.
-        assertErrorAny(
-            "source=" + DATASET.indexName + " | streamstats count() by span(int0, 10), str0"
+        assertErrorContains(
+            "source=" + DATASET.indexName + " | streamstats count() by span(int0, 10), str0",
+            "Unable to convert the type NULL"
         );
     }
 
     /** sql IT: testStreamstatsByMultiplePartitions2. by span() + str3. */
     public void testStreamstatsByMultiplePartitions2() throws IOException {
         ensureDataProvisioned();
-        // span()-in-PARTITION-BY uncertainty — see testStreamstatsBySpan.
-        assertErrorAny(
-            "source=" + DATASET.indexName + " | streamstats count() by span(int0, 10), str3"
+        assertErrorContains(
+            "source=" + DATASET.indexName + " | streamstats count() by span(int0, 10), str3",
+            "Unable to convert the type NULL"
         );
     }
 
     /** sql IT: testStreamstatsByMultiplePartitionsWithNull1. */
     public void testStreamstatsByMultiplePartitionsWithNull1() throws IOException {
         ensureDataProvisioned();
-        // span()-in-PARTITION-BY uncertainty — see testStreamstatsBySpan.
-        assertErrorAny(
-            "source=" + DATASET.indexName + " | streamstats count() by span(int0, 10), str0"
+        assertErrorContains(
+            "source=" + DATASET.indexName + " | streamstats count() by span(int0, 10), str0",
+            "Unable to convert the type NULL"
         );
     }
 
     /** sql IT: testStreamstatsByMultiplePartitionsWithNull2. */
     public void testStreamstatsByMultiplePartitionsWithNull2() throws IOException {
         ensureDataProvisioned();
-        // span()-in-PARTITION-BY uncertainty — see testStreamstatsBySpan.
-        assertErrorAny(
-            "source=" + DATASET.indexName + " | streamstats count() by span(int0, 10), str3"
+        assertErrorContains(
+            "source=" + DATASET.indexName + " | streamstats count() by span(int0, 10), str3",
+            "Unable to convert the type NULL"
         );
     }
 
@@ -645,13 +644,14 @@ public class StreamstatsCommandIT extends AnalyticsRestTestCase {
         assertRowCount(response, 17);
     }
 
-    /** sql IT: testStreamstatsVarianceBySpan. */
+    /** sql IT: testStreamstatsVarianceBySpan. Same span()-in-PARTITION-BY substrait gap as
+     *  {@link #testStreamstatsBySpan}. */
     public void testStreamstatsVarianceBySpan() throws IOException {
         ensureDataProvisioned();
-        // span()-in-PARTITION-BY uncertainty — see testStreamstatsBySpan.
-        assertErrorAny(
+        assertErrorContains(
             "source=" + DATASET.indexName
-                + " | streamstats stddev_samp(int0) by span(int0, 10)"
+                + " | streamstats stddev_samp(int0) by span(int0, 10)",
+            "Unable to convert the type NULL"
         );
     }
 

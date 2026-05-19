@@ -64,11 +64,13 @@ import java.util.Map;
  *       null-bubbling-through-window-aggregate code path.</li>
  *   <li>{@code logs} index is not provisioned in this QA module; {@code testEventstatsEarliestAndLatest}
  *       expectThrows on the missing index AND the missing earliest/latest window function.</li>
- *   <li>{@code span()} UDF is now registered on the analytics-engine route (#21584 + #21621
- *       merged into main). Whether {@code RexOver(... PARTITION BY span(int0, 10))} survives
- *       substrait emission + DataFusion physical planning is not yet verified — all
- *       {@code bySpan} cases assert "fails somewhere" via {@code assertErrorAny}. If they
- *       start succeeding, the assertions fail loudly and a follow-up should upgrade them.</li>
+ *   <li>{@code span()} UDF is registered on the analytics-engine route, but using it as
+ *       a PARTITION BY key inside a window aggregate fails substrait emission with
+ *       "Unable to convert the type NULL" — isthmus's WindowFunctionConverter walks the
+ *       SPAN call's operands and trips on its third NULL-typed literal. All {@code bySpan}
+ *       cases pin this exact failure with {@code assertErrorContains}; once isthmus or the
+ *       PPL lowering drops the NULL operand, these tests will fail loudly so a follow-up
+ *       can upgrade them to row assertions.</li>
  *   <li>{@code dc} / {@code distinct_count} window function is not in {@link
  *       org.opensearch.analytics.spi.WindowFunction}; expectThrows.</li>
  *   <li>{@code earliest} / {@code latest} window function is not in {@link
@@ -222,73 +224,72 @@ public class EventstatsCommandIT extends AnalyticsRestTestCase {
         );
     }
 
-    /** sql IT: testEventstatsBySpan. {@code span(age, 10)} requires the PPL span() UDF
-     *  registered on the analytics-engine route (PR #21621 — unmerged). expectThrows. */
+    /** sql IT: testEventstatsBySpan. PPL {@code span(int0, 10)} is registered as a scalar
+     *  function on the analytics-engine route, and works in {@code stats … by span(...)}.
+     *  But when used as a PARTITION BY key on a window aggregate, isthmus's
+     *  {@code WindowFunctionConverter} walks the SPAN call's operands and trips on the
+     *  third operand — a NULL-typed literal that {@code TypeConverter.toSubstrait} rejects
+     *  with "Unable to convert the type NULL". Pinning the precise failure string so
+     *  this test flips loud the moment isthmus fixes NULL-literal serialization (or PPL
+     *  drops the NULL operand). */
     public void testEventstatsBySpan() throws IOException {
         ensureDataProvisioned();
-        // After #21584 + #21621 merged into main, SPAN is registered as a ScalarFunction.
-        // PPL's eventstats … by span(int0, 10) lowers to RexOver(... PARTITION BY span(int0, 10) ...).
-        // Whether substrait emission + DataFusion's WindowFunctionInvocation handle a
-        // scalar-call-as-partition-key end-to-end is not yet verified — this test asserts
-        // the query fails loudly somewhere in that pipeline. If it ever passes on a real
-        // cluster, this test fails with "expected to fail but got: [response]" and a future
-        // PR should upgrade it to assert exact rows.
-        assertErrorAny(
+        assertErrorContains(
             "source=" + DATASET.indexName + " | eventstats count() as cnt, avg(int0) as avg, min(int0) as min, max(int0) as max"
-                + " by span(int0, 10) as int0_span"
+                + " by span(int0, 10) as int0_span",
+            "Unable to convert the type NULL"
         );
     }
 
-    /** sql IT: testEventstatsBySpanWithNull. Same span() gap. */
+    /** sql IT: testEventstatsBySpanWithNull. Same span()-in-PARTITION-BY substrait gap as
+     *  {@link #testEventstatsBySpan}. */
     public void testEventstatsBySpanWithNull() throws IOException {
         ensureDataProvisioned();
-        // After #21584 + #21621 merged into main, SPAN is registered as a ScalarFunction.
-        // PPL's eventstats … by span(int0, 10) lowers to RexOver(... PARTITION BY span(int0, 10) ...).
-        // Whether substrait emission + DataFusion's WindowFunctionInvocation handle a
-        // scalar-call-as-partition-key end-to-end is not yet verified — this test asserts
-        // the query fails loudly somewhere in that pipeline. If it ever passes on a real
-        // cluster, this test fails with "expected to fail but got: [response]" and a future
-        // PR should upgrade it to assert exact rows.
-        assertErrorAny(
+        assertErrorContains(
             "source=" + DATASET.indexName + " | eventstats count() as cnt, avg(int0) as avg, min(int0) as min, max(int0) as max"
-                + " by span(int0, 10) as int0_span"
+                + " by span(int0, 10) as int0_span",
+            "Unable to convert the type NULL"
         );
     }
 
-    /** sql IT: testEventstatsByMultiplePartitions1. {@code by span(age, 10), country}. */
+    /** sql IT: testEventstatsByMultiplePartitions1. {@code by span(int0, 10), str0} — same
+     *  span()-in-PARTITION-BY substrait gap as {@link #testEventstatsBySpan}. */
     public void testEventstatsByMultiplePartitions1() throws IOException {
         ensureDataProvisioned();
-        // See testEventstatsBySpan — same span()-in-PARTITION-BY uncertainty.
-        assertErrorAny(
+        assertErrorContains(
             "source=" + DATASET.indexName + " | eventstats count() as cnt, avg(int0) as avg, min(int0) as min, max(int0) as max"
-                + " by span(int0, 10) as int0_span, str0"
+                + " by span(int0, 10) as int0_span, str0",
+            "Unable to convert the type NULL"
         );
     }
 
-    /** sql IT: testEventstatsByMultiplePartitions2. {@code by span(age, 10), state}. */
+    /** sql IT: testEventstatsByMultiplePartitions2. {@code by span(int0, 10), str3}. */
     public void testEventstatsByMultiplePartitions2() throws IOException {
         ensureDataProvisioned();
-        assertErrorAny(
+        assertErrorContains(
             "source=" + DATASET.indexName + " | eventstats count() as cnt, avg(int0) as avg, min(int0) as min, max(int0) as max"
-                + " by span(int0, 10) as int0_span, str3"
+                + " by span(int0, 10) as int0_span, str3",
+            "Unable to convert the type NULL"
         );
     }
 
     /** sql IT: testEventstatsByMultiplePartitionsWithNull1. */
     public void testEventstatsByMultiplePartitionsWithNull1() throws IOException {
         ensureDataProvisioned();
-        assertErrorAny(
+        assertErrorContains(
             "source=" + DATASET.indexName + " | eventstats count() as cnt, avg(int0) as avg, min(int0) as min, max(int0) as max"
-                + " by span(int0, 10) as int0_span, str0"
+                + " by span(int0, 10) as int0_span, str0",
+            "Unable to convert the type NULL"
         );
     }
 
     /** sql IT: testEventstatsByMultiplePartitionsWithNull2. */
     public void testEventstatsByMultiplePartitionsWithNull2() throws IOException {
         ensureDataProvisioned();
-        assertErrorAny(
+        assertErrorContains(
             "source=" + DATASET.indexName + " | eventstats count() as cnt, avg(int0) as avg, min(int0) as min, max(int0) as max"
-                + " by span(int0, 10) as int0_span, str3"
+                + " by span(int0, 10) as int0_span, str3",
+            "Unable to convert the type NULL"
         );
     }
 
@@ -510,13 +511,14 @@ public class EventstatsCommandIT extends AnalyticsRestTestCase {
         );
     }
 
-    /** sql IT: testEventstatsVarianceBySpan. {@code where country != 'USA' | … by span(age,10)}. */
+    /** sql IT: testEventstatsVarianceBySpan. {@code where str0 != 'TECHNOLOGY' | … by span(int0,10)} —
+     *  same span()-in-PARTITION-BY substrait gap as {@link #testEventstatsBySpan}. */
     public void testEventstatsVarianceBySpan() throws IOException {
         ensureDataProvisioned();
-        // See testEventstatsBySpan — span()-in-PARTITION-BY uncertainty.
-        assertErrorAny(
+        assertErrorContains(
             "source=" + DATASET.indexName + " | where str0 != 'TECHNOLOGY'"
-                + " | eventstats stddev_samp(int0) by span(int0, 10)"
+                + " | eventstats stddev_samp(int0) by span(int0, 10)",
+            "Unable to convert the type NULL"
         );
     }
 
