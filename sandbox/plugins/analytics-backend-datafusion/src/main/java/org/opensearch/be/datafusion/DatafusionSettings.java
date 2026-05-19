@@ -166,10 +166,11 @@ public final class DatafusionSettings {
 
     public static final List<Setting<?>> ALL_SETTINGS = List.of(
 
-        // Runtime settings — memory pool, spill, and reduce input mode
+        // Runtime settings — memory pool, spill, reduce input mode, and budget tuning
         DataFusionPlugin.DATAFUSION_MEMORY_POOL_LIMIT,
         DataFusionPlugin.DATAFUSION_SPILL_MEMORY_LIMIT,
         DataFusionPlugin.DATAFUSION_REDUCE_INPUT_MODE,
+        DataFusionPlugin.DATAFUSION_MIN_TARGET_PARTITIONS,
 
         // Cache settings — metadata and statistics cache configuration
         CacheSettings.METADATA_CACHE_SIZE_LIMIT,

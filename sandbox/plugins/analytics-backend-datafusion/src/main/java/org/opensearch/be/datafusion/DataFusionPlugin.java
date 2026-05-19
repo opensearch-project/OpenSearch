@@ -49,6 +49,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.function.Supplier;
 
+import org.opensearch.be.datafusion.nativelib.NativeBridge;
+
 import io.substrait.extension.DefaultExtensionCatalog;
 import io.substrait.extension.SimpleExtension;
 
@@ -88,6 +90,21 @@ public class DataFusionPlugin extends Plugin
         Runtime.getRuntime().maxMemory() / 8,
         0L,
         Setting.Property.NodeScope
+    );
+
+    /**
+     * Minimum target partitions floor for the adaptive budget system.
+     * When memory pressure forces partition reduction, this is the lowest value allowed.
+     * Setting this equal to the configured target_partitions effectively disables
+     * adaptive reduction (the budget system will never reduce below this floor).
+     * Default: 1 (allow full reduction range).
+     */
+    public static final Setting<Integer> DATAFUSION_MIN_TARGET_PARTITIONS = Setting.intSetting(
+        "datafusion.min_target_partitions",
+        1,
+        1,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
     );
 
     /**
@@ -160,6 +177,10 @@ public class DataFusionPlugin extends Plugin
         // Wire the dynamic memory pool limit setting to the native runtime so updates via the
         // cluster settings API take effect without restarting the node.
         clusterService.getClusterSettings().addSettingsUpdateConsumer(DATAFUSION_MEMORY_POOL_LIMIT, this::updateMemoryPoolLimit);
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(DATAFUSION_MIN_TARGET_PARTITIONS, this::updateMinTargetPartitions);
+
+        // Apply initial value
+        NativeBridge.setMinTargetPartitions(DATAFUSION_MIN_TARGET_PARTITIONS.get(settings));
 
         this.datafusionSettings = new DatafusionSettings(clusterService);
 
@@ -254,6 +275,11 @@ public class DataFusionPlugin extends Plugin
             // API; swallow the race so cluster-state application does not log a spurious failure.
             logger.warn("Ignoring memory pool limit update to {}B; service is not running", newLimitBytes);
         }
+    }
+
+    void updateMinTargetPartitions(int value) {
+        NativeBridge.setMinTargetPartitions(value);
+        logger.info("Updated DataFusion min_target_partitions to {}", value);
     }
 
     @Override

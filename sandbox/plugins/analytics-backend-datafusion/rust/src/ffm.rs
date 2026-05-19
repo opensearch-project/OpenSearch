@@ -150,6 +150,11 @@ pub unsafe extern "C" fn df_set_memory_pool_limit(runtime_ptr: i64, new_limit: i
     Ok(0)
 }
 
+#[no_mangle]
+pub extern "C" fn df_set_min_target_partitions(value: i64) {
+    api::set_min_target_partitions(value);
+}
+
 #[ffm_safe]
 #[no_mangle]
 pub unsafe extern "C" fn df_create_reader(

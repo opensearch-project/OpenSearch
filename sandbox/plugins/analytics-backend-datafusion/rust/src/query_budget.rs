@@ -68,11 +68,27 @@
 //! extreme saturation.
 
 use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 use datafusion::arrow::datatypes::{DataType, SchemaRef};
 use datafusion::common::DataFusionError;
 use datafusion::execution::memory_pool::{MemoryConsumer, MemoryLimit, MemoryPool, MemoryReservation};
 use parquet::file::metadata::ParquetMetaData;
+
+/// Configurable minimum target_partitions floor. Updated from Java when the
+/// cluster setting `datafusion.min_target_partitions` changes.
+static MIN_TARGET_PARTITIONS_SETTING: AtomicUsize = AtomicUsize::new(1);
+
+/// Set the minimum target partitions floor at runtime. Called from Java when
+/// the cluster setting changes.
+pub fn set_min_target_partitions(value: usize) {
+    MIN_TARGET_PARTITIONS_SETTING.store(value.max(1), Ordering::Release);
+}
+
+/// Read the current minimum target partitions floor.
+pub fn get_min_target_partitions() -> usize {
+    MIN_TARGET_PARTITIONS_SETTING.load(Ordering::Acquire)
+}
 
 
 /// How many batch-sized buffers exist per partition in the pipeline.
@@ -94,8 +110,8 @@ const PER_COLUMN_DECODE_OVERHEAD_BYTES: usize = 4 * 1024;
 /// Minimum batch_size floor.
 const MIN_BATCH_SIZE: usize = 1024;
 
-/// Minimum target_partitions floor.
-const MIN_TARGET_PARTITIONS: usize = 1;
+/// Default minimum target_partitions floor (used if the dynamic setting hasn't been set).
+const DEFAULT_MIN_TARGET_PARTITIONS: usize = 1;
 
 /// Computed budget for a query. Carries the phantom reservation that must be
 /// held for the query's lifetime.
@@ -182,7 +198,8 @@ fn acquire_budget_inner(
     configured_target_partitions: usize,
     configured_batch_size: usize,
 ) -> Result<QueryMemoryBudget, DataFusionError> {
-    let mut target_partitions = configured_target_partitions.max(MIN_TARGET_PARTITIONS);
+    let min_partitions = get_min_target_partitions();
+    let mut target_partitions = configured_target_partitions.max(min_partitions);
     let mut batch_size = configured_batch_size.max(MIN_BATCH_SIZE);
 
     loop {
@@ -233,12 +250,12 @@ fn acquire_budget_inner(
                 }
 
                 // Both pool and jemalloc confirm pressure — reduce parallelism
-                if target_partitions > MIN_TARGET_PARTITIONS {
+                if target_partitions > min_partitions {
                     let prev = target_partitions;
-                    target_partitions = (target_partitions / 2).max(MIN_TARGET_PARTITIONS);
+                    target_partitions = (target_partitions / 2).max(min_partitions);
                     native_bridge_common::log_info!(
-                        "Memory pressure: reducing target_partitions {} -> {} (phantom {} bytes failed)",
-                        prev, target_partitions, phantom_bytes
+                        "Memory pressure: reducing target_partitions {} -> {} (phantom {} bytes failed, floor={})",
+                        prev, target_partitions, phantom_bytes, min_partitions
                     );
                 } else if batch_size > MIN_BATCH_SIZE {
                     let prev = batch_size;
@@ -249,8 +266,8 @@ fn acquire_budget_inner(
                     );
                 } else {
                     return Err(crate::native_error::admission_rejected_error(
-                        compute_untracked_bytes(MIN_TARGET_PARTITIONS, MIN_BATCH_SIZE, avg_row_bytes),
-                        MIN_TARGET_PARTITIONS,
+                        compute_untracked_bytes(min_partitions, MIN_BATCH_SIZE, avg_row_bytes),
+                        min_partitions,
                         MIN_BATCH_SIZE,
                         avg_row_bytes,
                     ));

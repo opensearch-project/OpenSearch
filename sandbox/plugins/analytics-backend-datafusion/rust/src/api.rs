@@ -275,6 +275,14 @@ pub unsafe fn set_memory_pool_limit(ptr: i64, new_limit: i64) -> Result<(), Stri
     Ok(())
 }
 
+/// Sets the minimum target_partitions floor for the adaptive budget system.
+/// When the budget reduces parallelism under memory pressure, it will not
+/// go below this value. Setting it equal to configured target_partitions
+/// effectively disables adaptive reduction.
+pub fn set_min_target_partitions(value: i64) {
+    crate::query_budget::set_min_target_partitions(value.max(1) as usize);
+}
+
 /// Creates a native reader (ShardView) for the given path and files.
 ///
 /// Returns a heap-allocated pointer (as i64) to `ShardView`.
