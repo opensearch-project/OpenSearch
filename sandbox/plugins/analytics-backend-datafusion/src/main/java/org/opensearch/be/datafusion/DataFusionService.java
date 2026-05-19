@@ -137,6 +137,23 @@ public class DataFusionService extends AbstractLifecycleComponent {
     }
 
     /**
+     * Returns true if the loaded native library can update the spill cap at runtime.
+     * When false, {@link #setSpillMemoryLimit(long)} will throw and cluster-state
+     * updates of {@code datafusion.spill_memory_limit_bytes} have no live effect.
+     */
+    public boolean isSpillLimitDynamic() {
+        return NativeBridge.isSpillLimitDynamic();
+    }
+
+    /**
+     * Sets the spill memory limit at runtime. Requires {@link #isSpillLimitDynamic()};
+     * otherwise throws {@link UnsupportedOperationException}.
+     */
+    public void setSpillMemoryLimit(long newLimitBytes) {
+        NativeBridge.setSpillLimit(getNativeRuntime().get(), newLimitBytes);
+    }
+
+    /**
      * Returns the latest native executor stats, collected fresh from JNI on every call.
      *
      * @return the current {@link DataFusionStats}

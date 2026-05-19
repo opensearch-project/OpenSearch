@@ -250,6 +250,20 @@ public abstract class Plugin implements Closeable {
     }
 
     /**
+     * Returns plugin-contributed node statistics that surface under {@code _nodes/stats}.
+     * Each entry renders at top-level under {@code nodes.<id>.<getWriteableName()>}.
+     *
+     * <p>Plugins that override this method must also register the concrete
+     * {@link PluginNodeStats} subclass via {@link #getNamedWriteables()} so the
+     * coordinator can deserialize per-node payloads received over transport.
+     *
+     * <p>Default: empty.
+     */
+    public List<PluginNodeStats> nodeStats() {
+        return Collections.emptyList();
+    }
+
+    /**
      * Returns a list of additional settings filter for this plugin
      */
     public List<String> getSettingsFilter() {

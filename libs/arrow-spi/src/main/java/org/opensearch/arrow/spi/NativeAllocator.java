@@ -56,6 +56,24 @@ public interface NativeAllocator extends Closeable {
     NativeAllocatorPoolStats stats();
 
     /**
+     * Registers a listener that is invoked after a pool's limit changes.
+     *
+     * <p>Listener invocation is synchronous on the caller thread. See
+     * {@link NativeAllocatorListener} for threading constraints.
+     *
+     * @param listener the listener to register
+     */
+    void addListener(NativeAllocatorListener listener);
+
+    /**
+     * Unregisters a previously registered listener. No-op if the listener
+     * was not registered.
+     *
+     * @param listener the listener to remove
+     */
+    void removeListener(NativeAllocatorListener listener);
+
+    /**
      * Opaque handle to a memory pool. Plugins downcast to the concrete type
      * (e.g., Arrow's {@code BufferAllocator}) in the implementation layer.
      */

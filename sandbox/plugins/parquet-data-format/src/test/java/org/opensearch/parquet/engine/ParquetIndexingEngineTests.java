@@ -56,6 +56,7 @@ import static org.mockito.Mockito.when;
 
 public class ParquetIndexingEngineTests extends OpenSearchTestCase {
 
+    private org.opensearch.arrow.allocator.ArrowNativeAllocator nativeAllocator;
     private MappedFieldType idField;
     private MappedFieldType nameField;
     private MappedFieldType scoreField;
@@ -68,6 +69,7 @@ public class ParquetIndexingEngineTests extends OpenSearchTestCase {
     public void setUp() throws Exception {
         super.setUp();
         RustBridge.initLogger();
+        nativeAllocator = org.opensearch.arrow.allocator.ArrowNativeAllocator.ensureForTesting();
         idField = new NumberFieldMapper.NumberFieldType("id", NumberFieldMapper.NumberType.INTEGER);
         nameField = new KeywordFieldMapper.KeywordFieldType("name");
         scoreField = new NumberFieldMapper.NumberFieldType("score", NumberFieldMapper.NumberType.LONG);
@@ -90,6 +92,10 @@ public class ParquetIndexingEngineTests extends OpenSearchTestCase {
     @Override
     public void tearDown() throws Exception {
         terminate(threadPool);
+        if (nativeAllocator != null) {
+            nativeAllocator.close();
+            nativeAllocator = null;
+        }
         super.tearDown();
     }
 

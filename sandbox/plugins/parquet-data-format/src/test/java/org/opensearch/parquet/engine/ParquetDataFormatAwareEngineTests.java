@@ -115,12 +115,23 @@ public class ParquetDataFormatAwareEngineTests extends AbstractDataFormatAwareEn
     };
 
     private Schema schema;
+    private org.opensearch.arrow.allocator.ArrowNativeAllocator nativeAllocator;
 
     @Override
     public void setUp() throws Exception {
         super.setUp();
         RustBridge.initLogger();
+        nativeAllocator = org.opensearch.arrow.allocator.ArrowNativeAllocator.ensureForTesting();
         schema = buildSchema();
+    }
+
+    @Override
+    public void tearDown() throws Exception {
+        if (nativeAllocator != null) {
+            nativeAllocator.close();
+            nativeAllocator = null;
+        }
+        super.tearDown();
     }
 
     @Override

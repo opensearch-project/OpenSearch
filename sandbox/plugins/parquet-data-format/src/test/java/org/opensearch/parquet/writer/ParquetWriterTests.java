@@ -11,6 +11,7 @@ package org.opensearch.parquet.writer;
 import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.Schema;
 import org.opensearch.Version;
+import org.opensearch.arrow.allocator.ArrowNativeAllocator;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.IndexSettings;
@@ -40,6 +41,7 @@ import static org.opensearch.parquet.engine.ParquetIndexingEngineTests.populateM
 
 public class ParquetWriterTests extends OpenSearchTestCase {
 
+    private ArrowNativeAllocator nativeAllocator;
     private ArrowBufferPool bufferPool;
     private MappedFieldType idField;
     private MappedFieldType nameField;
@@ -52,6 +54,7 @@ public class ParquetWriterTests extends OpenSearchTestCase {
     public void setUp() throws Exception {
         super.setUp();
         RustBridge.initLogger();
+        nativeAllocator = ArrowNativeAllocator.ensureForTesting();
         bufferPool = new ArrowBufferPool(Settings.EMPTY);
         idField = new NumberFieldMapper.NumberFieldType("id", NumberFieldMapper.NumberType.INTEGER);
         nameField = new KeywordFieldMapper.KeywordFieldType("name");
@@ -81,6 +84,10 @@ public class ParquetWriterTests extends OpenSearchTestCase {
     public void tearDown() throws Exception {
         terminate(threadPool);
         bufferPool.close();
+        if (nativeAllocator != null) {
+            nativeAllocator.close();
+            nativeAllocator = null;
+        }
         super.tearDown();
     }
 

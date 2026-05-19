@@ -19,10 +19,13 @@ import org.apache.arrow.memory.BufferAllocator;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.Version;
+import org.opensearch.arrow.allocator.ArrowNativeAllocator;
 import org.opensearch.arrow.flight.bootstrap.ServerConfig;
 import org.opensearch.arrow.flight.bootstrap.tls.SslContextProvider;
 import org.opensearch.arrow.flight.stats.FlightStatsCollector;
 import org.opensearch.arrow.memory.ArrowAllocatorService;
+import org.opensearch.arrow.spi.NativeAllocatorListener;
+import org.opensearch.arrow.spi.NativeAllocatorPoolConfig;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.network.NetworkAddress;
 import org.opensearch.common.network.NetworkService;
@@ -98,6 +101,7 @@ class FlightTransport extends TcpTransport {
     private BufferAllocator flightAllocator;
     private BufferAllocator serverAllocator;
     private BufferAllocator clientAllocator;
+    private volatile NativeAllocatorListener poolListener;
 
     private final NamedWriteableRegistry namedWriteableRegistry;
     private final FlightStatsCollector statsCollector;
@@ -147,9 +151,27 @@ class FlightTransport extends TcpTransport {
     protected void doStart() {
         boolean success = false;
         try {
-            flightAllocator = allocatorService.newChildAllocator("flight", Integer.MAX_VALUE);
+            // Use the unified native allocator's flight pool so flight allocations are tracked
+            // and capped by the framework alongside ingest, query, and datafusion. Hard-fail if
+            // the framework plugin is missing — silently falling back to a separate root would
+            // break the same-root invariant for cross-plugin Arrow handoff.
+            ArrowNativeAllocator nativeAllocator = ArrowNativeAllocator.instance();
+            BufferAllocator flightPool = nativeAllocator.getPoolAllocator(NativeAllocatorPoolConfig.POOL_FLIGHT);
+            flightAllocator = flightPool.newChildAllocator("flight", 0, flightPool.getLimit());
             serverAllocator = flightAllocator.newChildAllocator("server", 0, flightAllocator.getLimit());
             clientAllocator = flightAllocator.newChildAllocator("client", 0, flightAllocator.getLimit());
+            // Subscribe to FLIGHT pool resize events so a dynamic update to
+            // parquet.native.pool.flight.max propagates into the captured child
+            // allocators. Without this, the children retain their construction-time
+            // limit — Arrow's parent-cap check still bounds shrinks, but bumps don't
+            // reach in-flight children. Only the top-level child's limit is updated;
+            // server/client allocators inherit headroom from their parent.
+            poolListener = (poolName, newLimit) -> {
+                if (NativeAllocatorPoolConfig.POOL_FLIGHT.equals(poolName)) {
+                    flightAllocator.setLimit(newLimit);
+                }
+            };
+            nativeAllocator.addListener(poolListener);
             if (statsCollector != null) {
                 statsCollector.setBufferAllocator(flightAllocator);
                 statsCollector.setThreadPool(threadPool);
@@ -261,6 +283,14 @@ class FlightTransport extends TcpTransport {
     @Override
     protected void stopInternal() {
         try {
+            if (poolListener != null) {
+                try {
+                    ArrowNativeAllocator.instance().removeListener(poolListener);
+                } catch (IllegalStateException ignored) {
+                    // Framework already torn down — nothing to detach from.
+                }
+                poolListener = null;
+            }
             if (flightServer != null) {
                 flightServer.shutdown();
                 flightServer.awaitTermination();

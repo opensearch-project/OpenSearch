@@ -29,6 +29,32 @@ public class DataFusionPluginSettingsTests extends OpenSearchTestCase {
         );
     }
 
+    public void testSpillMemoryLimitIsDynamic() {
+        assertTrue(
+            "datafusion.spill_memory_limit_bytes must be dynamic so cluster-state updates are accepted; "
+                + "live propagation depends on the loaded native library",
+            DataFusionPlugin.DATAFUSION_SPILL_MEMORY_LIMIT.isDynamic()
+        );
+        assertTrue(
+            "datafusion.spill_memory_limit_bytes must have node scope",
+            DataFusionPlugin.DATAFUSION_SPILL_MEMORY_LIMIT.hasNodeScope()
+        );
+    }
+
+    /**
+     * The cluster-settings listener can fire before {@link DataFusionPlugin#createComponents}
+     * is called (service field still null). {@code updateSpillMemoryLimit} must swallow this
+     * quietly to mirror {@link DataFusionPlugin#updateMemoryPoolLimit} so cluster-state
+     * application does not log a spurious failure during node startup.
+     */
+    public void testUpdateSpillMemoryLimitBeforeServiceStartDoesNotThrow() {
+        try (DataFusionPlugin plugin = new DataFusionPlugin()) {
+            plugin.updateSpillMemoryLimit(32L * 1024 * 1024);
+        } catch (Exception e) {
+            throw new AssertionError(e);
+        }
+    }
+
     public void testMemoryPoolLimitHasNodeScope() {
         assertTrue("datafusion.memory_pool_limit_bytes must have node scope", DataFusionPlugin.DATAFUSION_MEMORY_POOL_LIMIT.hasNodeScope());
     }

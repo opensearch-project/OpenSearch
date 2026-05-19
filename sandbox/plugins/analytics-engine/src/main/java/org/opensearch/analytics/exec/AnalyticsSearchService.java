@@ -23,7 +23,10 @@ import org.opensearch.analytics.spi.FilterDelegationHandle;
 import org.opensearch.analytics.spi.FragmentInstructionHandler;
 import org.opensearch.analytics.spi.FragmentInstructionHandlerFactory;
 import org.opensearch.analytics.spi.InstructionNode;
+import org.opensearch.arrow.allocator.ArrowNativeAllocator;
 import org.opensearch.arrow.memory.ArrowAllocatorService;
+import org.opensearch.arrow.spi.NativeAllocatorListener;
+import org.opensearch.arrow.spi.NativeAllocatorPoolConfig;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.tasks.TaskCancelledException;
@@ -61,6 +64,7 @@ public class AnalyticsSearchService implements AutoCloseable {
     private final NamedWriteableRegistry namedWriteableRegistry;
     private TaskResourceTrackingService taskResourceTrackingService;
     private final BufferAllocator allocator;
+    private final NativeAllocatorListener poolListener;
 
     public AnalyticsSearchService(Map<String, AnalyticsSearchBackendPlugin> backends, ArrowAllocatorService allocatorService) {
         this(backends, List.of(), allocatorService, null);
@@ -82,12 +86,36 @@ public class AnalyticsSearchService implements AutoCloseable {
     ) {
         this.backends = backends;
         this.listener = new AnalyticsOperationListener.CompositeListener(listeners);
-        this.allocator = allocatorService.newChildAllocator("analytics-search-service", Long.MAX_VALUE);
+        // Source the service-level allocator from the unified framework's query pool so all
+        // analytics-engine allocations are tracked and capped by the framework. Hard-fail if
+        // the framework is missing — silently falling back to a separate root would break
+        // Arrow's same-root invariant for cross-plugin handoff.
+        ArrowNativeAllocator nativeAllocator = ArrowNativeAllocator.instance();
+        BufferAllocator queryPool = nativeAllocator.getPoolAllocator(NativeAllocatorPoolConfig.POOL_QUERY);
+        this.allocator = queryPool.newChildAllocator("analytics-search-service", 0, queryPool.getLimit());
         this.namedWriteableRegistry = namedWriteableRegistry;
+
+        // Subscribe to QUERY pool resize events so a dynamic update to
+        // parquet.native.pool.query.max propagates into this service-level child
+        // allocator. Without this, the child's limit is captured at construction
+        // and runtime grows are silently ignored — Arrow's parent-cap check still
+        // bounds shrinks, but bumps don't reach in-flight children.
+        this.poolListener = (poolName, newLimit) -> {
+            if (NativeAllocatorPoolConfig.POOL_QUERY.equals(poolName)) {
+                allocator.setLimit(newLimit);
+            }
+        };
+        nativeAllocator.addListener(poolListener);
     }
 
     @Override
     public void close() {
+        try {
+            ArrowNativeAllocator.instance().removeListener(poolListener);
+        } catch (IllegalStateException ignored) {
+            // Framework already torn down — child plugins close after the framework in some
+            // shutdown paths; the listener is gone with the singleton anyway.
+        }
         allocator.close();
     }
 

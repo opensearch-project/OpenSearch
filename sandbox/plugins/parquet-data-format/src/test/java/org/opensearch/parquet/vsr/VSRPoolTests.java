@@ -12,6 +12,7 @@ import org.apache.arrow.vector.types.pojo.ArrowType;
 import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.FieldType;
 import org.apache.arrow.vector.types.pojo.Schema;
+import org.opensearch.arrow.allocator.ArrowNativeAllocator;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.parquet.memory.ArrowBufferPool;
 import org.opensearch.test.OpenSearchTestCase;
@@ -21,12 +22,14 @@ import java.util.List;
 
 public class VSRPoolTests extends OpenSearchTestCase {
 
+    private ArrowNativeAllocator nativeAllocator;
     private ArrowBufferPool bufferPool;
     private Schema schema;
 
     @Override
     public void setUp() throws Exception {
         super.setUp();
+        nativeAllocator = ArrowNativeAllocator.ensureForTesting();
         bufferPool = new ArrowBufferPool(Settings.EMPTY);
         schema = new Schema(List.of(new Field("val", FieldType.nullable(new ArrowType.Int(32, true)), null)));
     }
@@ -34,6 +37,10 @@ public class VSRPoolTests extends OpenSearchTestCase {
     @Override
     public void tearDown() throws Exception {
         bufferPool.close();
+        if (nativeAllocator != null) {
+            nativeAllocator.close();
+            nativeAllocator = null;
+        }
         super.tearDown();
     }
 

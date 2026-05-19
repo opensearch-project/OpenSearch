@@ -73,12 +73,21 @@ public class DataFusionPlugin extends Plugin implements SearchBackEndPlugin<Data
         Setting.Property.Dynamic
     );
 
-    /** Spill memory limit — when exceeded, DataFusion spills to disk. */
+    /**
+     * Spill memory limit — when exceeded, DataFusion spills to disk.
+     * <p>
+     * Dynamic only when the loaded native library exports {@code df_set_spill_limit}
+     * (see {@link org.opensearch.be.datafusion.nativelib.NativeBridge#isSpillLimitDynamic()}).
+     * When the symbol is absent the setting can still be updated at the cluster level,
+     * but the new value only takes effect after a node restart — the live update consumer
+     * logs a warning in that case.
+     */
     public static final Setting<Long> DATAFUSION_SPILL_MEMORY_LIMIT = Setting.longSetting(
         "datafusion.spill_memory_limit_bytes",
         Runtime.getRuntime().maxMemory() / 8,
         0L,
-        Setting.Property.NodeScope
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
     );
 
     /**
@@ -110,7 +119,6 @@ public class DataFusionPlugin extends Plugin implements SearchBackEndPlugin<Data
     private volatile SimpleExtension.ExtensionCollection substraitExtensions;
     private volatile ClusterService clusterService;
     private volatile DatafusionSettings datafusionSettings;
-
     /**
      * Creates the DataFusion plugin.
      */
@@ -148,8 +156,13 @@ public class DataFusionPlugin extends Plugin implements SearchBackEndPlugin<Data
         logger.debug("DataFusion plugin initialized — memory pool {}B, spill limit {}B", memoryPoolLimit, spillMemoryLimit);
 
         // Wire the dynamic memory pool limit setting to the native runtime so updates via the
-        // cluster settings API take effect without restarting the node.
+        // cluster settings API take effect without restarting the node. The framework's
+        // parquet.native.pool.datafusion.{min,max} controls the Java-side Arrow pool that
+        // sources the per-query allocators handed to DataFusion; this setting controls the
+        // Rust runtime's internal MemoryPool used by query execution. They're separate
+        // accounting layers — operators tune them independently.
         clusterService.getClusterSettings().addSettingsUpdateConsumer(DATAFUSION_MEMORY_POOL_LIMIT, this::updateMemoryPoolLimit);
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(DATAFUSION_SPILL_MEMORY_LIMIT, this::updateSpillMemoryLimit);
 
         this.datafusionSettings = new DatafusionSettings(clusterService);
 
@@ -243,6 +256,38 @@ public class DataFusionPlugin extends Plugin implements SearchBackEndPlugin<Data
             // still registered on ClusterSettings because there is no removeSettingsUpdateConsumer
             // API; swallow the race so cluster-state application does not log a spurious failure.
             logger.warn("Ignoring memory pool limit update to {}B; service is not running", newLimitBytes);
+        }
+    }
+
+    /**
+     * Applies a new spill memory limit to the running DataFusion runtime when the loaded
+     * native library exports {@code df_set_spill_limit}; otherwise emits a warning. The
+     * cluster-settings update is accepted unconditionally because the value is read at next
+     * node startup. Package-private for testing.
+     */
+    void updateSpillMemoryLimit(long newLimitBytes) {
+        DataFusionService service = dataFusionService;
+        if (service == null) {
+            logger.debug("DataFusion service not yet initialized; ignoring spill limit update to {}B", newLimitBytes);
+            return;
+        }
+        if (!service.isSpillLimitDynamic()) {
+            logger.warn(
+                "Updated DataFusion spill memory limit to {}B at the cluster level; the loaded native library does not "
+                    + "support runtime spill resize, so the new value will only take effect after a node restart",
+                newLimitBytes
+            );
+            return;
+        }
+        try {
+            service.setSpillMemoryLimit(newLimitBytes);
+            logger.info("Updated DataFusion spill memory limit to {}B", newLimitBytes);
+        } catch (IllegalStateException e) {
+            logger.warn("Ignoring spill memory limit update to {}B; service is not running", newLimitBytes);
+        } catch (UnsupportedOperationException e) {
+            // isSpillLimitDynamic() guard above should make this unreachable, but defend
+            // against a race between probe and call.
+            logger.warn("Ignoring spill memory limit update to {}B; native runtime does not support live updates", newLimitBytes);
         }
     }
 

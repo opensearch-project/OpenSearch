@@ -14,6 +14,7 @@ import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.FieldType;
 import org.apache.arrow.vector.types.pojo.Schema;
 import org.opensearch.Version;
+import org.opensearch.arrow.allocator.ArrowNativeAllocator;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.IndexSettings;
@@ -37,6 +38,7 @@ import static org.opensearch.parquet.engine.ParquetIndexingEngineTests.populateM
 
 public class VSRManagerTests extends OpenSearchTestCase {
 
+    private ArrowNativeAllocator nativeAllocator;
     private ArrowBufferPool bufferPool;
     private Schema schema;
     private ThreadPool threadPool;
@@ -46,6 +48,7 @@ public class VSRManagerTests extends OpenSearchTestCase {
     public void setUp() throws Exception {
         super.setUp();
         RustBridge.initLogger();
+        nativeAllocator = ArrowNativeAllocator.ensureForTesting();
         bufferPool = new ArrowBufferPool(Settings.EMPTY);
         schema = new Schema(List.of(new Field("val", FieldType.nullable(new ArrowType.Int(32, true)), null)));
         Settings indexSettingsBuilder = Settings.builder()
@@ -72,6 +75,10 @@ public class VSRManagerTests extends OpenSearchTestCase {
     public void tearDown() throws Exception {
         terminate(threadPool);
         bufferPool.close();
+        if (nativeAllocator != null) {
+            nativeAllocator.close();
+            nativeAllocator = null;
+        }
         super.tearDown();
     }
 
