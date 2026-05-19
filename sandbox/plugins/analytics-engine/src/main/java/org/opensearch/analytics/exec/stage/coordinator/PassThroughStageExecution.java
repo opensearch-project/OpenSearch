@@ -6,11 +6,15 @@
  * compatible open source license.
  */
 
-package org.opensearch.analytics.exec.stage;
+package org.opensearch.analytics.exec.stage.coordinator;
 
 import org.opensearch.analytics.backend.ExchangeSource;
 import org.opensearch.analytics.exec.QueryContext;
 import org.opensearch.analytics.exec.RowProducingSink;
+import org.opensearch.analytics.exec.stage.AbstractStageExecution;
+import org.opensearch.analytics.exec.stage.SinkProvidingStageExecution;
+import org.opensearch.analytics.exec.stage.StageTask;
+import org.opensearch.analytics.exec.stage.StageTaskId;
 import org.opensearch.analytics.planner.dag.Stage;
 import org.opensearch.analytics.spi.ExchangeSink;
 
@@ -23,7 +27,7 @@ import java.util.List;
  *
  * @opensearch.internal
  */
-final class PassThroughStageExecution extends AbstractStageExecution implements SinkProvidingStageExecution {
+public final class PassThroughStageExecution extends AbstractStageExecution implements SinkProvidingStageExecution {
 
     private final RowProducingSink ownedSink;
 
@@ -38,7 +42,7 @@ final class PassThroughStageExecution extends AbstractStageExecution implements 
 
     @Override
     protected List<StageTask> materializeTasks() {
-        return List.of(new LocalStageTask(new StageTaskId(getStageId(), 0), () -> {}));
+        return List.of(new LocalStageTask(new StageTaskId(getStageId(), 0), listener -> listener.onResponse(null)));
     }
 
     @Override

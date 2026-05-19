@@ -6,7 +6,7 @@
  * compatible open source license.
  */
 
-package org.opensearch.analytics.exec.stage;
+package org.opensearch.analytics.exec.stage.shard;
 
 import org.opensearch.analytics.exec.AnalyticsSearchTransportService;
 import org.opensearch.analytics.exec.PendingExecutions;
@@ -27,7 +27,7 @@ import java.util.function.Function;
  *
  * @opensearch.internal
  */
-final class ShardTaskRunner implements TaskRunner<ShardStageTask> {
+public final class ShardTaskRunner implements TaskRunner<ShardStageTask> {
 
     private final ShardFragmentStageExecution stage;
     private final QueryContext config;
@@ -35,7 +35,7 @@ final class ShardTaskRunner implements TaskRunner<ShardStageTask> {
     private final Function<ShardExecutionTarget, FragmentExecutionRequest> requestBuilder;
     private final Map<String, PendingExecutions> pendingPerNode = new ConcurrentHashMap<>();
 
-    ShardTaskRunner(
+    public ShardTaskRunner(
         ShardFragmentStageExecution stage,
         QueryContext config,
         AnalyticsSearchTransportService transport,

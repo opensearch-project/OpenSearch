@@ -89,32 +89,64 @@ public interface StageExecution {
     /** Invoked by the cascade right before parent dispatch. Empty map when no children published. */
     default void consumeChildMetadata(Map<Integer, Object> metadataByChildStageId) {}
 
+    /**
+     * Default {@code false}: parent scheduled on all-children-SUCCEEDED. {@code true} (eager):
+     * scheduled on first-child-RUNNING — required for streaming-reduce shapes whose drain
+     * must run concurrently with feeds to avoid deadlocking on a bounded input mpsc.
+     */
+    default boolean schedulesEagerly() {
+        return false;
+    }
+
+    /**
+     * Per-input EOF hook fired by the cascade on every child SUCCEEDED (independent of
+     * {@link #schedulesEagerly()}). Default no-op; streaming reduce overrides to close the
+     * just-finished child's sender. Failure paths fall through to the parent's terminal
+     * close, which tears everything down regardless.
+     */
+    default void closeChildInput(int childStageId) {}
+
     // ── Cascade wiring (called at graph build time) ────────────────────────
 
     /**
      * Wires the child→parent state cascade and the reverse parent→sibling cancel sweep.
      * Called once at graph build time, before any child has transitioned out of CREATED.
      *
-     * <p>Per-child: SUCCEEDED decrements a shared counter and schedules this parent on
-     * zero (after handing off each child's {@link #publishedMetadata()} via
-     * {@link #consumeChildMetadata}); FAILED propagates via {@link #failWithCause};
-     * CANCELLED is ignored (the cancel initiator already owns the parent's lifecycle).
+     * <p>Per-child child→parent listener:
+     * <ul>
+     *   <li>RUNNING — eager parents ({@link #schedulesEagerly}) schedule on the first
+     *   child to enter RUNNING so their work can run concurrently with children's feeds.
+     *   <li>SUCCEEDED — invokes {@link #closeChildInput} (ungated; no-op for backends with
+     *   no per-child resources); decrements a counter; on zero, collects
+     *   {@link #publishedMetadata} from each child and hands off via {@link #consumeChildMetadata};
+     *   default-mode parents are scheduled here (eager parents already scheduled).
+     *   <li>FAILED — propagates via {@link #failWithCause}.
+     *   <li>CANCELLED — intentionally not propagated (cancel initiator owns the parent's lifecycle).
+     * </ul>
      *
-     * <p>Parent: on FAILED / CANCELLED, sweep still-running children — they shouldn't
-     * keep producing into a sink whose owner has terminated.
+     * <p>Parent→sibling cancel sweep: on FAILED / CANCELLED, sweep still-running children.
      *
-     * <p>Thread-safe under the documented contracts: pending counter is atomic; child
-     * state reads + {@link #cancel} are idempotent; this method runs during graph build
-     * (before any transitions fire), so listener registration never races with firing.
+     * <p>Thread-safe under the documented contracts: counters are atomic; child state reads +
+     * {@link #cancel} are idempotent; this runs during graph build (before any transition
+     * fires), so listener registration never races with firing.
      */
     default void attachChildren(List<? extends StageExecution> children, Consumer<StageExecution> scheduler) {
         if (children.isEmpty()) return;
 
+        boolean eager = schedulesEagerly();
         AtomicInteger pending = new AtomicInteger(children.size());
+        AtomicInteger eagerScheduled = new AtomicInteger(0);  // fires scheduler.accept at most once for eager mode
         for (StageExecution child : children) {
+            int childId = child.getStageId();
             child.addStateListener((from, to) -> {
                 switch (to) {
+                    case RUNNING -> {
+                        if (eager && eagerScheduled.compareAndSet(0, 1)) {
+                            scheduler.accept(this);
+                        }
+                    }
                     case SUCCEEDED -> {
+                        closeChildInput(childId);  // per-input EOF; no-op when not multi-input
                         if (pending.decrementAndGet() == 0) {
                             Map<Integer, Object> metadata = new HashMap<>();
                             for (StageExecution c : children) {
@@ -124,7 +156,10 @@ public interface StageExecution {
                                 }
                             }
                             consumeChildMetadata(metadata);
-                            scheduler.accept(this);
+                            // Eager parents already scheduled on first child RUNNING; default-mode schedules here.
+                            if (eager == false) {
+                                scheduler.accept(this);
+                            }
                         }
                     }
                     case FAILED -> {
