@@ -36,6 +36,7 @@ public class FieldStorageResolver {
     // TODO: import from CompositeEnginePlugin.PRIMARY_DATA_FORMAT once composite-common
     // exposes it as a shared constant accessible to analytics-engine.
     static final String PRIMARY_DATA_FORMAT_SETTING = "index.composite.primary_data_format";
+    static final String SECONDARY_DATA_FORMATS_SETTING = "index.composite.secondary_data_formats";
 
     private static final String LUCENE_FORMAT = "lucene";
 
@@ -57,6 +58,9 @@ public class FieldStorageResolver {
     public FieldStorageResolver(IndexMetadata indexMetadata) {
         String indexName = indexMetadata.getIndex().getName();
         String primaryFormat = indexMetadata.getSettings().get(PRIMARY_DATA_FORMAT_SETTING, LUCENE_FORMAT);
+        // Lucene is index-viable only when it's the primary or in the secondary list.
+        boolean luceneAvailable = LUCENE_FORMAT.equals(primaryFormat)
+            || indexMetadata.getSettings().getAsList(SECONDARY_DATA_FORMATS_SETTING).contains(LUCENE_FORMAT);
 
         MappingMetadata mapping = indexMetadata.mapping();
         if (mapping == null) {
@@ -68,11 +72,11 @@ public class FieldStorageResolver {
         }
 
         this.fieldStorage = new HashMap<>();
-        populateFromProperties(properties, "", primaryFormat);
+        populateFromProperties(properties, "", primaryFormat, luceneAvailable);
     }
 
     @SuppressWarnings("unchecked")
-    private void populateFromProperties(Map<String, Object> properties, String pathPrefix, String primaryFormat) {
+    private void populateFromProperties(Map<String, Object> properties, String pathPrefix, String primaryFormat, boolean luceneAvailable) {
         for (Map.Entry<String, Object> entry : properties.entrySet()) {
             String fieldName = pathPrefix.isEmpty() ? entry.getKey() : pathPrefix + "." + entry.getKey();
             Map<String, Object> fieldProps = (Map<String, Object>) entry.getValue();
@@ -82,12 +86,12 @@ public class FieldStorageResolver {
                 // Recurse into the sub-mapping; object fields themselves have no storage.
                 Map<String, Object> nested = (Map<String, Object>) fieldProps.get("properties");
                 if (nested != null) {
-                    populateFromProperties(nested, fieldName, primaryFormat);
+                    populateFromProperties(nested, fieldName, primaryFormat, luceneAvailable);
                     continue;
                 }
                 throw new IllegalStateException("Field [" + fieldName + "] has no type in mapping");
             }
-            this.fieldStorage.put(fieldName, resolveField(fieldName, fieldType, fieldProps, primaryFormat));
+            this.fieldStorage.put(fieldName, resolveField(fieldName, fieldType, fieldProps, primaryFormat, luceneAvailable));
         }
     }
 
@@ -104,7 +108,13 @@ public class FieldStorageResolver {
         return result;
     }
 
-    private static FieldStorageInfo resolveField(String fieldName, String fieldType, Map<String, Object> fieldProps, String primaryFormat) {
+    private static FieldStorageInfo resolveField(
+        String fieldName,
+        String fieldType,
+        Map<String, Object> fieldProps,
+        String primaryFormat,
+        boolean luceneAvailable
+    ) {
         // Doc values: present for all types unless explicitly disabled
         boolean hasDocValues = !Boolean.FALSE.equals(fieldProps.get("doc_values"));
 
@@ -115,8 +125,9 @@ public class FieldStorageResolver {
         boolean isStored = Boolean.TRUE.equals(fieldProps.get("store"));
 
         List<String> docValueFormats = hasDocValues ? List.of(primaryFormat) : List.of();
-        List<String> indexFormats = isIndexed ? List.of(LUCENE_FORMAT) : List.of();
-        List<String> storedFieldFormats = isStored ? List.of(LUCENE_FORMAT) : List.of();
+        // Only declare Lucene formats when Lucene is actually an index data format.
+        List<String> indexFormats = (isIndexed && luceneAvailable) ? List.of(LUCENE_FORMAT) : List.of();
+        List<String> storedFieldFormats = (isStored && luceneAvailable) ? List.of(LUCENE_FORMAT) : List.of();
 
         if (docValueFormats.isEmpty() && indexFormats.isEmpty() && storedFieldFormats.isEmpty()) {
             throw new IllegalStateException("Field [" + fieldName + "] has no storage in any format");

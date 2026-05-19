@@ -8,6 +8,7 @@
 
 package org.opensearch.analytics.exec;
 
+import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.vector.VectorSchemaRoot;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.metadata.JaninoRelMetadataProvider;
@@ -18,9 +19,11 @@ import org.opensearch.action.ActionRequest;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.HandledTransportAction;
 import org.opensearch.action.support.TimeoutTaskCancellationUtility;
+import org.opensearch.analytics.AnalyticsPlugin;
 import org.opensearch.analytics.EngineContext;
 import org.opensearch.analytics.exec.action.AnalyticsQueryAction;
 import org.opensearch.analytics.exec.task.AnalyticsQueryTask;
+import org.opensearch.analytics.exec.task.AnalyticsQueryTaskRequest;
 import org.opensearch.analytics.planner.CapabilityRegistry;
 import org.opensearch.analytics.planner.PlannerContext;
 import org.opensearch.analytics.planner.PlannerImpl;
@@ -29,16 +32,14 @@ import org.opensearch.analytics.planner.dag.DAGBuilder;
 import org.opensearch.analytics.planner.dag.FragmentConversionDriver;
 import org.opensearch.analytics.planner.dag.PlanForker;
 import org.opensearch.analytics.planner.dag.QueryDAG;
+import org.opensearch.arrow.memory.ArrowAllocatorService;
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.common.Nullable;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.action.ActionResponse;
-import org.opensearch.core.tasks.TaskId;
 import org.opensearch.search.SearchService;
 import org.opensearch.tasks.Task;
-import org.opensearch.tasks.TaskAwareRequest;
 import org.opensearch.tasks.TaskManager;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
@@ -46,7 +47,6 @@ import org.opensearch.transport.client.node.NodeClient;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.Executor;
 
 import static org.opensearch.action.search.TransportSearchAction.SEARCH_CANCEL_AFTER_TIME_INTERVAL_SETTING;
@@ -75,6 +75,10 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
     private final Executor searchExecutor;
     private final TaskManager taskManager;
     private final NodeClient client;
+    // TODO: close on shutdown — currently arrow-base's root.close() will warn about this
+    // outstanding child. Consider wrapping in a Guice-bound type owned by AnalyticsPlugin.
+    private final BufferAllocator coordinatorAllocator;
+    private volatile long perQueryBufferLimit;
 
     @Inject
     public DefaultPlanExecutor(
@@ -85,7 +89,8 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
         CapabilityRegistry capabilityRegistry,
         EngineContext engineContext,
         NodeClient client,
-        Scheduler scheduler
+        Scheduler scheduler,
+        ArrowAllocatorService allocatorService
     ) {
         super(AnalyticsQueryAction.NAME, transportService, actionFilters, in -> {
             throw new UnsupportedOperationException("Transport path not implemented yet");
@@ -96,6 +101,10 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
         this.taskManager = transportService.getTaskManager();
         this.client = client;
         this.scheduler = scheduler;
+        this.coordinatorAllocator = allocatorService.newChildAllocator("coordinator", Long.MAX_VALUE);
+        this.perQueryBufferLimit = AnalyticsPlugin.COORDINATOR_BUFFER_LIMIT.get(clusterService.getSettings());
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(AnalyticsPlugin.COORDINATOR_BUFFER_LIMIT, v -> perQueryBufferLimit = v);
     }
 
     @Override
@@ -143,20 +152,28 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
             "analytics_query",
             new AnalyticsQueryTaskRequest(dag.queryId(), null)
         );
-        final QueryContext config = new QueryContext(dag, searchExecutor, queryTask);
+        final BufferAllocator queryAllocator;
+        final boolean ownsAllocator;
+        if (perQueryBufferLimit <= 0) {
+            queryAllocator = coordinatorAllocator;
+            ownsAllocator = false;
+        } else {
+            queryAllocator = coordinatorAllocator.newChildAllocator("query-" + dag.queryId(), 0, perQueryBufferLimit);
+            ownsAllocator = true;
+        }
+        logger.debug("[query-{}] Arrow allocator created, limit={}B", dag.queryId(), perQueryBufferLimit);
+        final QueryContext context;
+        try {
+            context = new QueryContext(dag, searchExecutor, queryTask, queryAllocator, ownsAllocator);
+        } catch (Exception e) {
+            if (ownsAllocator) queryAllocator.close();
+            throw e;
+        }
 
-        // Per-query cleanup on terminal. Stage-execution cancellation on external
-        // task-cancel/timeout is wired inside the Scheduler — on this path the
-        // walker has already cascaded cancellations by the time we see the failure.
-        // Scheduler yields batches; we materialize rows at the API edge for callers
-        // that still consume Iterable<Object[]>.
-        ActionListener<Iterable<VectorSchemaRoot>> batchesListener = buildBatchesListener(listener, () -> {
-            try {
-                config.closeBufferAllocator();
-            } finally {
-                taskManager.unregister(queryTask);
-            }
-        });
+        ActionListener<Iterable<VectorSchemaRoot>> batchesListener = ActionListener.runAfter(
+            ActionListener.wrap(batches -> listener.onResponse(batchesToRows(batches)), listener::onFailure),
+            () -> taskManager.unregister(queryTask)
+        );
 
         TimeValue taskTimeout = queryTask.getCancelAfterTimeInterval();
         TimeValue clusterTimeout = clusterService.getClusterSettings().get(SEARCH_CANCEL_AFTER_TIME_INTERVAL_SETTING);
@@ -170,7 +187,7 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
             );
         }
 
-        scheduler.execute(config, batchesListener);
+        scheduler.execute(context, batchesListener);
     }
 
     @Override
@@ -178,55 +195,6 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
         // Transport path — reserved for future remote query invocation.
         // Currently, front-ends invoke execute(RelNode, Object, ActionListener) directly.
         listener.onFailure(new UnsupportedOperationException("Direct invocation only — use execute(RelNode, Object, ActionListener)"));
-    }
-
-    /**
-     * Lightweight {@link TaskAwareRequest} for registering an {@link AnalyticsQueryTask}
-     * with {@link TaskManager}. Mirrors how {@code SearchRequest.createTask()} returns
-     * a {@code SearchTask}.
-     */
-    static class AnalyticsQueryTaskRequest implements TaskAwareRequest {
-        private final String queryId;
-        private final TimeValue cancelAfterTimeInterval;
-        private TaskId parentTaskId = TaskId.EMPTY_TASK_ID;
-
-        AnalyticsQueryTaskRequest(String queryId, @Nullable TimeValue cancelAfterTimeInterval) {
-            this.queryId = queryId;
-            this.cancelAfterTimeInterval = cancelAfterTimeInterval;
-        }
-
-        @Override
-        public void setParentTask(TaskId taskId) {
-            this.parentTaskId = taskId;
-        }
-
-        @Override
-        public TaskId getParentTask() {
-            return parentTaskId;
-        }
-
-        @Override
-        public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-            return new AnalyticsQueryTask(id, type, action, queryId, parentTaskId, headers, cancelAfterTimeInterval);
-        }
-    }
-
-    /**
-     * Builds the batches→rows {@link ActionListener} used by {@link #executeInternal}. {@code cleanup}
-     * runs exactly once before {@code downstream} is notified — on either response or failure paths.
-     * A cleanup failure on the response path is routed to {@code downstream.onFailure}; on the failure
-     * path it is attached as a suppressed exception. This eliminates the double-cleanup that the prior
-     * try/finally pattern produced when an exception in the success path was caught by
-     * {@link ActionListener#wrap} and re-routed to the failure callback.
-     *
-     * <p>Package-private for unit testing.
-     */
-    static ActionListener<Iterable<VectorSchemaRoot>> buildBatchesListener(
-        ActionListener<Iterable<Object[]>> downstream,
-        Runnable cleanup
-    ) {
-        ActionListener<Iterable<Object[]>> wrapped = ActionListener.runBefore(downstream, cleanup::run);
-        return ActionListener.wrap(batches -> wrapped.onResponse(batchesToRows(batches)), wrapped::onFailure);
     }
 
     /**

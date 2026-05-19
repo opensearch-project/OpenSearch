@@ -13,7 +13,7 @@ use std::time::Duration;
 use tokio::{
     runtime::Handle,
     sync::{oneshot::error::RecvError, Notify},
-    task::JoinSet,
+    task::{AbortHandle, JoinSet},
 };
 
 use crate::io::register_io_runtime;
@@ -112,16 +112,31 @@ impl DedicatedExecutor {
         T: Future + Send + 'static,
         T::Output: Send + 'static,
     {
+        let (_abort_handle, fut) = self.spawn_with_abort_handle(task);
+        fut
+    }
+
+
+    /// Like [`spawn`](Self::spawn), but also returns an [`AbortHandle`] that
+    /// can be used to cancel the CPU task from outside (e.g. from `cancel_query`).
+    pub fn spawn_with_abort_handle<T>(
+        &self,
+        task: T,
+    ) -> (Option<AbortHandle>, impl Future<Output = Result<T::Output, JobError>>)
+    where
+        T: Future + Send + 'static,
+        T::Output: Send + 'static,
+    {
         let handle = {
             let state = self.state.read();
             state.handle.clone()
         };
         let Some(handle) = handle else {
-            return futures::future::err(JobError::WorkerGone).boxed();
+            return (None, futures::future::err(JobError::WorkerGone).boxed());
         };
         let mut join_set = JoinSet::new();
-        join_set.spawn_on(task, &handle);
-        async move {
+        let abort_handle = join_set.spawn_on(task, &handle);
+        let fut = async move {
             join_set
                 .join_next()
                 .await
@@ -140,9 +155,9 @@ impl DedicatedExecutor {
                     Err(_) => JobError::WorkerGone,
                 })
         }
-        .boxed()
+        .boxed();
+        (Some(abort_handle), fut)
     }
-
     pub fn join_blocking(&self) {
         self.shutdown();
         let thread_handle = {
