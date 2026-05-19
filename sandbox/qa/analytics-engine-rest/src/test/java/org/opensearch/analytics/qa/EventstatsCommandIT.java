@@ -222,6 +222,32 @@ public class EventstatsCommandIT extends AnalyticsRestTestCase {
         assertScalarRow(response, 17L, 68.0 / 11.0, 1, 11);
     }
 
+    /** Chained eventstats on a 3-shard index — every {@code eventstats} lowers through
+     *  {@link org.opensearch.analytics.planner.rel.OpenSearchProject#liftNestedRexOver},
+     *  producing a 2-layer Project bundle per stage. Each bundle is rewired through
+     *  {@code DataFusionFragmentConvertor.replaceInput} as a separate {@code attachFragmentOnTop}
+     *  call; the lifted-window detection has to fire on every one. Two chained eventstats
+     *  prove the rewire stays correct across multiple bundles on the multi-shard exchange
+     *  path. */
+    public void testChainedEventstats_3shard() throws IOException {
+        ensureMultiShardProvisioned();
+        Map<String, Object> response = executePpl(
+            "source=" + DATASET_MULTI.indexName
+                + " | eventstats avg(int0) as a by str0, str3"
+                + " | eventstats max(a) as max_a by str0"
+                + " | stats max(max_a) as final_max_a by str0 | sort str0"
+        );
+        // Per-(str0, str3) avg(int0) — see testMultipleEventstats. Take max of those avgs per str0:
+        // FURNITURE: avg=1.0 (one (FURNITURE,'e') bucket) → max=1.0
+        // OFFICE SUPPLIES: avg=8.0 ((OS,'e')), 5.0 ((OS,null)) → max=8.0
+        // TECHNOLOGY: avg=6.75 ((T,'e')), ~7.333 ((T,null)) → max≈7.333
+        assertRowsEqual(response,
+            row(1.0, "FURNITURE"),
+            row(8.0, "OFFICE SUPPLIES"),
+            row(22.0 / 3, "TECHNOLOGY")
+        );
+    }
+
     /** sql IT: testEventstatsBySpan. {@code span(age, 10)} requires the PPL span() UDF
      *  registered on the analytics-engine route (PR #21621 — unmerged). expectThrows. */
     public void testEventstatsBySpan() throws IOException {
