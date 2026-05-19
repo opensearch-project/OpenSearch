@@ -22,6 +22,7 @@ import org.opensearch.analytics.spi.FinalAggregateInstructionNode;
 import org.opensearch.analytics.spi.FragmentInstructionHandler;
 import org.opensearch.analytics.spi.FragmentInstructionHandlerFactory;
 import org.opensearch.analytics.spi.InstructionNode;
+import org.opensearch.analytics.spi.JoinCapability;
 import org.opensearch.analytics.spi.PartialAggregateInstructionNode;
 import org.opensearch.analytics.spi.ProjectCapability;
 import org.opensearch.analytics.spi.ScalarFunction;
@@ -29,6 +30,7 @@ import org.opensearch.analytics.spi.ScalarFunctionAdapter;
 import org.opensearch.analytics.spi.ScanCapability;
 import org.opensearch.analytics.spi.ShardScanInstructionNode;
 import org.opensearch.analytics.spi.ShardScanWithDelegationInstructionNode;
+import org.opensearch.analytics.spi.WindowCapability;
 
 import java.util.List;
 import java.util.Map;
@@ -74,6 +76,16 @@ abstract class MockBackend implements AnalyticsSearchBackendPlugin {
             }
 
             @Override
+            public Set<JoinCapability> joinCapabilities() {
+                return self.joinCapabilities();
+            }
+
+            @Override
+            public Set<WindowCapability> windowCapabilities() {
+                return self.windowCapabilities();
+            }
+
+            @Override
             public Set<DelegationType> supportedDelegations() {
                 return self.supportedDelegations();
             }
@@ -113,6 +125,14 @@ abstract class MockBackend implements AnalyticsSearchBackendPlugin {
     }
 
     protected Set<ProjectCapability> projectCapabilities() {
+        return Set.of();
+    }
+
+    protected Set<JoinCapability> joinCapabilities() {
+        return Set.of();
+    }
+
+    protected Set<WindowCapability> windowCapabilities() {
         return Set.of();
     }
 

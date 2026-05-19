@@ -95,15 +95,17 @@ public final class DatasetQueryRunner {
     }
 
     /**
-     * Run the given query numbers against the cluster using the supplied executor.
+     * Run queries against the cluster using the supplied executor.
+     * If queryNumbers is null or empty, auto-discovers all queries from the dataset directory.
      * Collects failures and returns them as a list — does not fail-fast so all queries are attempted.
      *
-     * @param client       the REST client
-     * @param dataset      the dataset descriptor
-     * @param language     the query language directory (e.g. "dsl", "ppl")
-     * @param extension    the query file extension (e.g. "json", "ppl")
-     * @param queryNumbers the query numbers to run
-     * @param executor     the executor that sends the query to the cluster
+     * @param client     the REST client
+     * @param dataset    the dataset descriptor
+     * @param language   the query language directory (e.g. "dsl", "ppl")
+     * @param extension  the query file extension (e.g. "json", "ppl")
+     * @param queryNumbers the query numbers to run (null to auto-discover all and empty for skip all)
+     * @param executor   the executor that sends the query to the cluster
+     * @param strategy   the strategy for handling missing expected responses
      * @return list of failure messages (empty if all queries succeeded)
      */
     public static List<String> runQueries(
@@ -112,10 +114,27 @@ public final class DatasetQueryRunner {
         String language,
         String extension,
         List<Integer> queryNumbers,
-        QueryExecutor executor
+        QueryExecutor executor,
+        ExpectedResponseStrategy strategy
     ) {
+        // Auto-discover queries if not specified
+        List<Integer> queriesToRun = queryNumbers;
+        if (queryNumbers == null) {
+            try {
+                queriesToRun = discoverQueryNumbers(dataset, language);
+                if (queriesToRun.isEmpty()) {
+                    logger.warn("No queries discovered for dataset [{}] language [{}]", dataset.name, language);
+                    return Collections.emptyList();
+                }
+                logger.info("Auto-discovered {} queries for {} in dataset [{}]",
+                    queriesToRun.size(), language.toUpperCase(Locale.ROOT), dataset.name);
+            } catch (IOException e) {
+                return Collections.singletonList("Failed to discover queries: " + e.getMessage());
+            }
+        }
+
         List<String> failures = new ArrayList<>();
-        for (int queryNum : queryNumbers) {
+        for (int queryNum : queriesToRun) {
             String queryId = language.toUpperCase(Locale.ROOT) + " Q" + queryNum;
             try {
                 String queryBody = DatasetProvisioner.loadResource(dataset.queryResourcePath(language, extension, queryNum));
@@ -126,6 +145,13 @@ public final class DatasetQueryRunner {
 
                 if (response == null || response.isEmpty()) {
                     failures.add(queryId + ": empty response");
+                    continue;
+                }
+
+                // Validate against expected response based on strategy
+                String validationError = ResponseValidator.validate(dataset, language, queryNum, response, strategy);
+                if (validationError != null) {
+                    failures.add(validationError);
                 }
             } catch (Exception e) {
                 String msg = queryId + " failed: " + e.getMessage();

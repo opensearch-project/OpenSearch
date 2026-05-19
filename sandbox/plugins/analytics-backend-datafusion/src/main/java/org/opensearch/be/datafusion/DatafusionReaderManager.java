@@ -15,6 +15,7 @@ import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.exec.EngineReaderManager;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 import org.opensearch.index.shard.ShardPath;
+import org.opensearch.plugins.NativeStoreHandle;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -40,17 +41,27 @@ public class DatafusionReaderManager implements EngineReaderManager<DatafusionRe
     private final DataFormat dataFormat;
     private final String directoryPath;
     private final DataFusionService dataFusionService;
+    private final NativeStoreHandle dataformatAwareStoreHandle;
 
     /**
      * Creates a reader manager.
      * @param dataFormat the data format for this reader
      * @param shardPath the shard path to read data from
      * @param dataFusionService node-level service for cache management
+     * @param dataformatAwareStoreHandle per-format native store handle for reads (null if not available).
+     *                                   Pointer is extracted at reader creation time via {@code getPointer()}.
+     *                                   0 means use default local file system.
      */
-    public DatafusionReaderManager(DataFormat dataFormat, ShardPath shardPath, DataFusionService dataFusionService) {
+    public DatafusionReaderManager(
+        DataFormat dataFormat,
+        ShardPath shardPath,
+        DataFusionService dataFusionService,
+        NativeStoreHandle dataformatAwareStoreHandle
+    ) {
         this.dataFormat = dataFormat;
         this.directoryPath = shardPath.getDataPath().resolve(dataFormat.name()).toString();
         this.dataFusionService = dataFusionService;
+        this.dataformatAwareStoreHandle = dataformatAwareStoreHandle;
     }
 
     @Override
@@ -88,7 +99,11 @@ public class DatafusionReaderManager implements EngineReaderManager<DatafusionRe
     public void afterRefresh(boolean didRefresh, CatalogSnapshot catalogSnapshot) throws IOException {
         if (didRefresh == false) return;
         if (readers.containsKey(catalogSnapshot)) return;
-        DatafusionReader reader = new DatafusionReader(directoryPath, catalogSnapshot.getSearchableFiles(dataFormat.name()));
+        DatafusionReader reader = new DatafusionReader(
+            directoryPath,
+            catalogSnapshot.getSearchableFiles(dataFormat.name()),
+            dataformatAwareStoreHandle
+        );
         readers.put(catalogSnapshot, reader);
     }
 

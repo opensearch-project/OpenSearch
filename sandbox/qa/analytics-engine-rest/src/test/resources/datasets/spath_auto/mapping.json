@@ -1,0 +1,16 @@
+{
+    "settings": {
+        "number_of_shards": 1,
+        "number_of_replicas": 0
+    },
+    "mappings": {
+        "properties": {
+            "nested_doc": { "type": "keyword" },
+            "array_doc": { "type": "keyword" },
+            "merge_doc": { "type": "keyword" },
+            "stringify_doc": { "type": "keyword" },
+            "empty_doc": { "type": "keyword" },
+            "malformed_doc": { "type": "keyword" }
+        }
+    }
+}

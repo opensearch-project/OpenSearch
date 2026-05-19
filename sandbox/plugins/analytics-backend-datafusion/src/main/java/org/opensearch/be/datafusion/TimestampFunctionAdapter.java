@@ -94,6 +94,14 @@ class TimestampFunctionAdapter implements ScalarFunctionAdapter {
             return toTimestampString(ldt);
         } catch (DateTimeParseException ignored) {}
 
+        // Handle space-separated format: "yyyy-MM-dd HH:mm:ss" or "yyyy-MM-dd HH:mm:ss.SSS"
+        if (input.contains(" ") && !input.contains("T")) {
+            try {
+                LocalDateTime ldt = LocalDateTime.parse(input.replace(' ', 'T'));
+                return toTimestampString(ldt);
+            } catch (DateTimeParseException ignored) {}
+        }
+
         return new TimestampString(input);
     }
 

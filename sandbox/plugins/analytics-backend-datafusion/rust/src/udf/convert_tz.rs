@@ -41,8 +41,10 @@ use std::sync::Arc;
 use chrono::{DateTime, NaiveDateTime, Offset, TimeZone, Utc};
 use chrono_tz::Tz;
 use datafusion::arrow::array::{
-    Array, ArrayRef, StringArray, TimestampMillisecondArray, TimestampMillisecondBuilder,
+    Array, ArrayRef, TimestampMillisecondArray, TimestampMillisecondBuilder,
 };
+
+use super::json_common::StringArrayView;
 use datafusion::arrow::datatypes::{DataType, TimeUnit};
 use datafusion::common::{plan_err, ScalarValue};
 use datafusion::error::{DataFusionError, Result};
@@ -132,19 +134,21 @@ impl ScalarUDFImpl for ConvertTzUdf {
 
         // Only materialize column-valued tz operands; for scalars the parsed
         // TzSpec is already in hand. Keep the ArrayRef alive alongside the
-        // downcast reference — StringArray borrows from the underlying buffer.
+        // view — StringArrayView borrows from the underlying buffer.
         let from_arr_ref: Option<ArrayRef> = if from_scalar.is_none() && matches!(&args.args[1], ColumnarValue::Array(_)) {
-            Some(materialize_string_array(&args.args[1], n, "from_tz")?)
+            Some(args.args[1].clone().into_array(n)?)
         } else {
             None
         };
         let to_arr_ref: Option<ArrayRef> = if to_scalar.is_none() && matches!(&args.args[2], ColumnarValue::Array(_)) {
-            Some(materialize_string_array(&args.args[2], n, "to_tz")?)
+            Some(args.args[2].clone().into_array(n)?)
         } else {
             None
         };
-        let from_array: Option<&StringArray> = from_arr_ref.as_ref().and_then(|a| a.as_any().downcast_ref::<StringArray>());
-        let to_array: Option<&StringArray> = to_arr_ref.as_ref().and_then(|a| a.as_any().downcast_ref::<StringArray>());
+        let from_array: Option<StringArrayView<'_>> =
+            from_arr_ref.as_ref().map(StringArrayView::from_array).transpose()?;
+        let to_array: Option<StringArrayView<'_>> =
+            to_arr_ref.as_ref().map(StringArrayView::from_array).transpose()?;
 
         let mut builder = TimestampMillisecondBuilder::with_capacity(n);
         for i in 0..n {
@@ -152,9 +156,9 @@ impl ScalarUDFImpl for ConvertTzUdf {
                 builder.append_null();
                 continue;
             }
-            let from = match (&from_scalar, from_array) {
+            let from = match (&from_scalar, from_array.as_ref().and_then(|a| a.cell(i))) {
                 (Some(tz), _) => tz.clone(),
-                (None, Some(arr)) if !arr.is_null(i) => match parse_tz(arr.value(i)) {
+                (None, Some(s)) => match parse_tz(s) {
                     Some(tz) => tz,
                     None => {
                         builder.append_null();
@@ -166,9 +170,9 @@ impl ScalarUDFImpl for ConvertTzUdf {
                     continue;
                 }
             };
-            let to = match (&to_scalar, to_array) {
+            let to = match (&to_scalar, to_array.as_ref().and_then(|a| a.cell(i))) {
                 (Some(tz), _) => tz.clone(),
-                (None, Some(arr)) if !arr.is_null(i) => match parse_tz(arr.value(i)) {
+                (None, Some(s)) => match parse_tz(s) {
                     Some(tz) => tz,
                     None => {
                         builder.append_null();
@@ -201,18 +205,6 @@ fn scalar_tz(cv: &ColumnarValue) -> Option<TzSpec> {
         return s.and_then(parse_tz);
     }
     None
-}
-
-fn materialize_string_array(cv: &ColumnarValue, n: usize, label: &'static str) -> Result<ArrayRef> {
-    let arr = cv.clone().into_array(n)?;
-    if arr.as_any().downcast_ref::<StringArray>().is_none() {
-        return Err(DataFusionError::Internal(format!(
-            "convert_tz: {} expected Utf8, got {:?}",
-            label,
-            arr.data_type()
-        )));
-    }
-    Ok(arr)
 }
 
 /// Parse timezone string (IANA name or `±HH:MM` offset).
@@ -322,6 +314,7 @@ fn offset_seconds_at_instant(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use datafusion::arrow::array::StringArray;
 
     // ±HH:MM offsets parse to the expected second counts.
     #[test]

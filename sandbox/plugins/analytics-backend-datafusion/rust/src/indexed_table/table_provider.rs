@@ -53,7 +53,11 @@ use std::collections::HashSet;
 /// Info about a segment and its corresponding parquet file.
 #[derive(Debug, Clone)]
 pub struct SegmentFileInfo {
-    pub segment_ord: i32,
+    /// Writer generation for this segment — the stable per-segment identifier
+    /// that crosses the FFM boundary to identify a segment on the Java side.
+    /// Read from the parquet footer key-value metadata
+    /// (`opensearch.writer_generation`) at `build_segments` time.
+    pub writer_generation: i64,
     pub max_doc: i64,
     /// Object-store-relative path to the parquet file (same as the
     /// `ObjectMeta.location` DataFusion uses for the vanilla `ListingTable`).

@@ -39,6 +39,7 @@ import org.opensearch.index.engine.exec.WriterFileSet;
 import org.opensearch.index.engine.exec.commit.CommitterFactory;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 import org.opensearch.index.mapper.IdFieldMapper;
+import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.ParsedDocument;
 import org.opensearch.index.mapper.SeqNoFieldMapper;
 import org.opensearch.index.mapper.Uid;
@@ -203,6 +204,9 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
         DataFormatRegistry registry = createMockRegistry();
         CommitterFactory committerFactory = config -> new InMemoryCommitter(store);
 
+        MapperService mapperService = mock(MapperService.class);
+        when(mapperService.getIndexSettings()).thenReturn(indexSettings);
+
         return new EngineConfig.Builder().shardId(shardId)
             .threadPool(threadPool)
             .indexSettings(indexSettings)
@@ -218,6 +222,7 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
             .tombstoneDocSupplier(tombstoneDocSupplier())
             .dataFormatRegistry(registry)
             .committerFactory(committerFactory)
+            .mapperService(mapperService)
             .build();
     }
 

@@ -33,10 +33,12 @@ use std::any::Any;
 use std::sync::Arc;
 
 use datafusion::arrow::array::{
-    Array, ArrayRef, AsArray, BooleanArray, Float32Array, Float64Array, GenericListArray,
-    Int16Array, Int32Array, Int32Builder, Int64Array, Int8Array, ListArray, StringArray,
-    UInt16Array, UInt32Array, UInt64Array, UInt8Array,
+    Array, ArrayRef, BooleanArray, Float32Array, Float64Array, GenericListArray, Int16Array,
+    Int32Array, Int32Builder, Int64Array, Int8Array, UInt16Array, UInt32Array, UInt64Array,
+    UInt8Array,
 };
+
+use super::json_common::StringArrayView;
 use datafusion::arrow::datatypes::DataType;
 use datafusion::common::{plan_err, ScalarValue};
 use datafusion::error::{DataFusionError, Result};
@@ -142,9 +144,8 @@ impl ScalarUDFImpl for MvfindUdf {
         } else {
             None
         };
-        let pattern_arr: Option<&StringArray> = pattern_arr_ref
-            .as_ref()
-            .and_then(|a| a.as_any().downcast_ref::<StringArray>());
+        let pattern_arr: Option<StringArrayView<'_>> =
+            pattern_arr_ref.as_ref().map(StringArrayView::from_array).transpose()?;
 
         let mut builder = Int32Builder::with_capacity(n);
         for i in 0..n {
@@ -153,9 +154,9 @@ impl ScalarUDFImpl for MvfindUdf {
                 continue;
             }
             // Per-row regex (compile if column-valued; reuse the scalar compile otherwise).
-            let regex_for_row: Option<Regex> = match (&scalar_regex, pattern_arr) {
+            let regex_for_row: Option<Regex> = match (&scalar_regex, pattern_arr.as_ref().and_then(|a| a.cell(i))) {
                 (Some(r), _) => Some(r.clone()),
-                (None, Some(arr)) if !arr.is_null(i) => Regex::new(arr.value(i)).ok(),
+                (None, Some(s)) => Regex::new(s).ok(),
                 _ => None,
             };
             let regex = match regex_for_row {
@@ -195,30 +196,32 @@ fn find_first_match(arr: &dyn Array, regex: &Regex) -> Option<i32> {
         }};
     }
     match arr.data_type() {
-        DataType::Utf8 | DataType::LargeUtf8 | DataType::Utf8View => {
-            // String children may arrive as any of the three Utf8 flavors.
-            if let Some(typed) = arr.as_string_opt::<i32>() {
-                for i in 0..n {
-                    if typed.is_null(i) {
-                        continue;
-                    }
-                    if regex.is_match(typed.value(i)) {
-                        return Some(i as i32);
-                    }
+        DataType::Utf8 => {
+            let typed = arr.as_any().downcast_ref::<datafusion::arrow::array::StringArray>()?;
+            for i in 0..n {
+                if !typed.is_null(i) && regex.is_match(typed.value(i)) {
+                    return Some(i as i32);
                 }
-                None
-            } else {
-                let large = arr.as_string_opt::<i64>()?;
-                for i in 0..n {
-                    if large.is_null(i) {
-                        continue;
-                    }
-                    if regex.is_match(large.value(i)) {
-                        return Some(i as i32);
-                    }
-                }
-                None
             }
+            None
+        }
+        DataType::LargeUtf8 => {
+            let typed = arr.as_any().downcast_ref::<datafusion::arrow::array::LargeStringArray>()?;
+            for i in 0..n {
+                if !typed.is_null(i) && regex.is_match(typed.value(i)) {
+                    return Some(i as i32);
+                }
+            }
+            None
+        }
+        DataType::Utf8View => {
+            let typed = arr.as_any().downcast_ref::<datafusion::arrow::array::StringViewArray>()?;
+            for i in 0..n {
+                if !typed.is_null(i) && regex.is_match(typed.value(i)) {
+                    return Some(i as i32);
+                }
+            }
+            None
         }
         DataType::Int8 => scan!(Int8Array, |v: i8| v.to_string()),
         DataType::Int16 => scan!(Int16Array, |v: i16| v.to_string()),
