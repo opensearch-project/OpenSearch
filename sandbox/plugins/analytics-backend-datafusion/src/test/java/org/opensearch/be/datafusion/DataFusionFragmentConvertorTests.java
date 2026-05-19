@@ -698,4 +698,90 @@ public class DataFusionFragmentConvertorTests extends OpenSearchTestCase {
         assertTrue("lower's input must be the rewired stage-scan", innerOfLower.hasRead());
     }
 
+    // ── eliminateIntermediateRelNodes tests ────────────────────────────────────
+
+    /**
+     * A {@code Filter(Project(Scan))} is rewritten to {@code Project(Filter(Scan))}
+     * with the filter condition inlined to reference raw table columns.
+     * This prevents DataFusion's optimizer from failing on synthetic field names.
+     */
+    public void testFilterOverProjectOverScan_RewrittenToProjectOverFilterOverScan() throws Exception {
+        RelNode scan = buildTableScan("test_index", "A", "B");
+        // Project: [A + 1, B]
+        RexNode exprA = rexBuilder.makeCall(
+            SqlStdOperatorTable.PLUS,
+            rexBuilder.makeInputRef(scan, 0),
+            rexBuilder.makeLiteral(1, typeFactory.createSqlType(SqlTypeName.INTEGER), true)
+        );
+        RexNode exprB = rexBuilder.makeInputRef(scan, 1);
+        RelNode project = LogicalProject.create(scan, List.of(), List.of(exprA, exprB), List.of("derived_a", "B"), java.util.Set.of());
+
+        // Filter on derived_a > 200 (references project output column 0)
+        RexNode filterCond = rexBuilder.makeCall(
+            SqlStdOperatorTable.GREATER_THAN,
+            rexBuilder.makeInputRef(project, 0),
+            rexBuilder.makeLiteral(200, typeFactory.createSqlType(SqlTypeName.INTEGER), true)
+        );
+        RelNode filter = LogicalFilter.create(project, filterCond);
+
+        byte[] bytes = newConvertor().convertFragment(filter);
+        Plan plan = decodeSubstrait(bytes);
+        Rel root = rootRel(plan);
+
+        // After rewrite: root should be ProjectRel(FilterRel(ReadRel))
+        assertTrue("root must be a ProjectRel after rewrite", root.hasProject());
+        ProjectRel projectRel = root.getProject();
+        Rel projectInput = projectRel.getInput();
+        assertTrue("Project input must be a FilterRel", projectInput.hasFilter());
+        FilterRel filterRel = projectInput.getFilter();
+        assertTrue("Filter must have a condition", filterRel.hasCondition());
+        Rel filterInput = filterRel.getInput();
+        assertTrue("Filter input must be a ReadRel (table scan)", filterInput.hasRead());
+        assertEquals(List.of("test_index"), filterInput.getRead().getNamedTable().getNamesList());
+    }
+
+    /**
+     * A bare {@code Project(Scan)} without a filter above it passes through unchanged —
+     * the rewrite only triggers for Filter-over-Project patterns.
+     */
+    public void testProjectOverScan_NoFilter_PassesThroughUnchanged() throws Exception {
+        RelNode scan = buildTableScan("test_index", "A", "B");
+        RexNode exprA = rexBuilder.makeCall(
+            SqlStdOperatorTable.PLUS,
+            rexBuilder.makeInputRef(scan, 0),
+            rexBuilder.makeLiteral(1, typeFactory.createSqlType(SqlTypeName.INTEGER), true)
+        );
+        RelNode project = LogicalProject.create(scan, List.of(), List.of(exprA), List.of("derived_a"), java.util.Set.of());
+
+        byte[] bytes = newConvertor().convertFragment(project);
+        Plan plan = decodeSubstrait(bytes);
+        Rel root = rootRel(plan);
+
+        // Should remain ProjectRel(ReadRel) — no filter inserted
+        assertTrue("root must be a ProjectRel", root.hasProject());
+        Rel projectInput = root.getProject().getInput();
+        assertTrue("Project input must be a ReadRel", projectInput.hasRead());
+    }
+
+    /**
+     * A {@code Filter(Scan)} without an intermediate project passes through unchanged.
+     */
+    public void testFilterOverScan_NoProject_PassesThroughUnchanged() throws Exception {
+        RelNode scan = buildTableScan("test_index", "A", "B");
+        RexNode predicate = rexBuilder.makeCall(
+            SqlStdOperatorTable.GREATER_THAN,
+            rexBuilder.makeInputRef(scan, 0),
+            rexBuilder.makeLiteral(5, typeFactory.createSqlType(SqlTypeName.INTEGER), true)
+        );
+        RelNode filter = LogicalFilter.create(scan, predicate);
+
+        byte[] bytes = newConvertor().convertFragment(filter);
+        Plan plan = decodeSubstrait(bytes);
+        Rel root = rootRel(plan);
+
+        // Should remain FilterRel(ReadRel)
+        assertTrue("root must be a FilterRel", root.hasFilter());
+        assertTrue("Filter input must be a ReadRel", root.getFilter().getInput().hasRead());
+    }
+
 }

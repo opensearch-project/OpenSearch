@@ -458,6 +458,29 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         // LOCAL_*_OP stubs so isthmus's AggregateFunctionConverter binds them by
         // operator identity through ADDITIONAL_AGGREGATE_SIGS.
         preprocessed = PplAggregateCallRewriter.rewrite(preprocessed);
+
+        // Substrait does not name intermediate fields in a plan — all references are
+        // positional ordinals (see https://substrait.io/faq/#where-are-field-names-represented).
+        // When DataFusion's Substrait consumer (datafusion-substrait crate) deserializes a
+        // ProjectRel, it invents names for expression-derived output fields using the expression
+        // string (e.g. "table.col + Int32(1)") per DataFusion's output field name semantics.
+        // If a FilterRel above the ProjectRel references such a derived field, DataFusion's
+        // optimizer (FilterProjectTransposeRule) pushes the filter below the projection. The
+        // filter then references the expression-derived column name against the raw table schema,
+        // causing "Schema error: No field named ...".
+        //
+        // Input (problematic — filter references derived column from intermediate project):
+        //   Filter(condition: >($19, 200))
+        //     Project(..., answerId=[+($0, 1)])
+        //       TableScan(opensearch-sql_test_index_beer)
+        //
+        // Output (safe — filter inlined, references raw table columns only):
+        //   Project(..., answerId=[+($0, 1)])
+        //     Filter(condition: >(+($0, 1), 200))
+        //       TableScan(opensearch-sql_test_index_beer)
+        //
+        preprocessed = eliminateIntermediateRelNodes(preprocessed);
+
         RelRoot root = RelRoot.of(preprocessed, SqlKind.SELECT);
         SubstraitRelVisitor visitor = createVisitor(preprocessed);
         Rel substraitRel;
