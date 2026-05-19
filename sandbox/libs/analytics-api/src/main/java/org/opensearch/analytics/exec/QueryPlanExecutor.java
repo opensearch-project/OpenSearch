@@ -37,5 +37,7 @@ public interface QueryPlanExecutor<LogicalPlan, Stream> {
      * @param context  execution context (opaque Object to avoid server dependency)
      * @param listener receives the profiled result on success, or the failure cause on error
      */
-    void executeWithProfile(LogicalPlan plan, Object context, ActionListener<ProfiledResult> listener);
+    default void executeWithProfile(LogicalPlan plan, Object context, ActionListener<ProfiledResult> listener) {
+        listener.onFailure(new UnsupportedOperationException(getClass().getSimpleName() + " does not support executeWithProfile"));
+    }
 }
