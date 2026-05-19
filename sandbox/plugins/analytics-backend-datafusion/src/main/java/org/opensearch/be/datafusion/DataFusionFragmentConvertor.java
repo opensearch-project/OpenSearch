@@ -17,7 +17,6 @@ import org.apache.calcite.plan.RelTraitSet;
 import org.apache.calcite.rel.RelCollation;
 import org.apache.calcite.rel.RelDistribution;
 import org.apache.calcite.rel.RelDistributions;
-import org.apache.calcite.rel.RelHomogeneousShuttle;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.RelReferentialConstraint;
 import org.apache.calcite.rel.RelRoot;
@@ -26,6 +25,8 @@ import org.apache.calcite.rel.core.TableScan;
 import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rel.type.RelDataTypeFactory;
 import org.apache.calcite.rel.type.RelDataTypeField;
+import org.apache.calcite.rex.RexLiteral;
+import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.schema.ColumnStrategy;
 import org.apache.calcite.sql.SqlAggFunction;
 import org.apache.calcite.sql.SqlFunctionCategory;
@@ -47,9 +48,13 @@ import org.opensearch.be.datafusion.planner.adapter.TimeConversionFunctionAdapte
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
+import java.util.function.Function;
 
 import io.substrait.expression.AggregateFunctionInvocation;
 import io.substrait.expression.Expression;
+import io.substrait.expression.FunctionArg;
+import io.substrait.expression.ImmutableAggregateFunctionInvocation;
 import io.substrait.extension.SimpleExtension;
 import io.substrait.isthmus.ConverterProvider;
 import io.substrait.isthmus.SubstraitRelVisitor;
@@ -68,6 +73,7 @@ import io.substrait.relation.NamedScan;
 import io.substrait.relation.Project;
 import io.substrait.relation.Rel;
 import io.substrait.relation.Sort;
+import io.substrait.type.Type;
 
 /**
  * Converts Calcite RelNode fragments to Substrait protobuf bytes
@@ -256,7 +262,7 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
 
     /**
      * Locally-declared aggregate operator stubs for PPL's state-expanding aggregates.
-     * {@link #rewritePplAggregateCalls(RelNode)} swaps PPL aggregations onto these stubs
+     * {@link PplAggregateCallRewriter#rewrite(RelNode)} swaps PPL aggregations onto these stubs
      * so isthmus's {@link io.substrait.isthmus.expression.AggregateFunctionConverter}
      * resolves them by operator identity through {@link #ADDITIONAL_AGGREGATE_SIGS} →
      * substrait extension name (in {@code opensearch_aggregate_functions.yaml}), which
@@ -376,7 +382,7 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
      * (TAKE, FIRST, LAST, LIST, VALUES) to their DataFusion target UDAFs. The custom
      * stubs are not bound by isthmus's default catalog, so no signature filtering is
      * needed for them. VALUES shares {@code LOCAL_ARRAY_AGG_OP} with LIST — distinguished
-     * at {@link #rewritePplAggregateCalls(RelNode)} time by setting {@code isDistinct=true}.
+     * at {@link PplAggregateCallRewriter#rewrite(RelNode)} time by setting {@code isDistinct=true}.
      */
     private static final List<FunctionMappings.Sig> ADDITIONAL_AGGREGATE_SIGS = List.of(
         FunctionMappings.s(SqlStdOperatorTable.APPROX_COUNT_DISTINCT, "approx_distinct"),
@@ -448,14 +454,10 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         // DataFusion emits PPL's space-separator timestamp format instead of Arrow's ISO-T.
         // See issue #5420.
         preprocessed = DatetimeOutputCastRewriter.rewrite(preprocessed);
-        // Rewrite PPL's state-expanding aggregates (TAKE, FIRST, LAST, LIST, VALUES — all
-        // custom SqlAggFunctions defined in PPLBuiltinOperators, not on this plugin's
-        // classpath) to their LOCAL_*_OP stubs so isthmus's AggregateFunctionConverter
-        // binds each call by operator identity through ADDITIONAL_AGGREGATE_SIGS to the
-        // matching Substrait extension name, which DataFusion's substrait consumer resolves
-        // to the corresponding native UDAF (first_value/last_value/array_agg) or the Rust
-        // UDAF in udaf/take.rs. VALUES routes through array_agg with isDistinct=true.
-        preprocessed = rewritePplAggregateCalls(preprocessed);
+        // Rewrite PPL's state-expanding aggregates (TAKE/FIRST/LAST/LIST/VALUES) onto
+        // LOCAL_*_OP stubs so isthmus's AggregateFunctionConverter binds them by
+        // operator identity through ADDITIONAL_AGGREGATE_SIGS.
+        preprocessed = PplAggregateCallRewriter.rewrite(preprocessed);
         RelRoot root = RelRoot.of(preprocessed, SqlKind.SELECT);
         SubstraitRelVisitor visitor = createVisitor(preprocessed);
         Rel substraitRel;
@@ -486,111 +488,6 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
     }
 
     /**
-     * Pre-emit RelShuttle that walks the input tree and rewrites every
-     * {@link org.apache.calcite.rel.core.Aggregate} whose {@link AggregateCall}
-     * targets one of PPL's state-expanding aggregate operators (TAKE, FIRST, LAST,
-     * LIST, VALUES — all custom {@link SqlAggFunction}s defined in
-     * {@code PPLBuiltinOperators}, not on this plugin's classpath, so we identify
-     * them by case-insensitive name). The original operator is swapped onto the
-     * matching {@code LOCAL_*_OP} stub so isthmus's
-     * {@link io.substrait.isthmus.expression.AggregateFunctionConverter} resolves
-     * by operator identity through {@link #ADDITIONAL_AGGREGATE_SIGS}.
-     *
-     * <p>The rewrite preserves group set/group sets and per-call argList,
-     * isApproximate, ignoreNulls, filterArg, distinctKeys, collation, type, and name.
-     * The {@code isDistinct} flag is preserved <i>except</i> for VALUES, which forces
-     * {@code isDistinct=true} so isthmus emits {@code INVOCATION_DISTINCT} and
-     * DataFusion routes to {@code array_agg(DISTINCT)} server-side.
-     *
-     * <p>Mirrors the pattern of {@link UntypedNullPreprocessor#rewrite(RelNode)} and
-     * {@link DatetimeOutputCastRewriter#rewrite(RelNode)}; called from
-     * {@link #convertToSubstrait(RelNode)} and {@link #convertStandalone(RelNode)}
-     * just before the isthmus visitor runs.
-     */
-    private static RelNode rewritePplAggregateCalls(RelNode root) {
-        return root.accept(new RelHomogeneousShuttle() {
-            @Override
-            public RelNode visit(RelNode other) {
-                RelNode visited = super.visit(other);
-                if (!(visited instanceof org.apache.calcite.rel.core.Aggregate agg)) {
-                    return visited;
-                }
-                List<AggregateCall> oldCalls = agg.getAggCallList();
-                List<AggregateCall> newCalls = new ArrayList<>(oldCalls.size());
-                boolean changed = false;
-                for (AggregateCall call : oldCalls) {
-                    SqlAggFunction aggregation = call.getAggregation();
-                    if (aggregation == LOCAL_TAKE_OP
-                        || aggregation == LOCAL_FIRST_OP
-                        || aggregation == LOCAL_LAST_OP
-                        || aggregation == LOCAL_ARRAY_AGG_OP
-                        || aggregation == LOCAL_LIST_MERGE_OP
-                        || aggregation == LOCAL_LIST_MERGE_DISTINCT_OP) {
-                        newCalls.add(call);
-                        continue;
-                    }
-                    String name = aggregation.getName();
-                    SqlAggFunction targetOp;
-                    boolean targetDistinct = call.isDistinct();
-                    RelDataType explicitReturnType = call.getType();
-                    if ("TAKE".equalsIgnoreCase(name)) {
-                        targetOp = LOCAL_TAKE_OP;
-                    } else if ("FIRST".equalsIgnoreCase(name)) {
-                        targetOp = LOCAL_FIRST_OP;
-                    } else if ("LAST".equalsIgnoreCase(name)) {
-                        targetOp = LOCAL_LAST_OP;
-                    } else if ("LIST".equalsIgnoreCase(name) || "VALUES".equalsIgnoreCase(name)) {
-                        // arg0 type tells us PARTIAL (raw element) vs FINAL (already array):
-                        //   PARTIAL → array_agg (with INVOCATION_DISTINCT for VALUES); rebuild
-                        //     return type as ARRAY<arg0> to repair PPL's lossy STRING_ARRAY.
-                        //   FINAL   → list_merge / list_merge_distinct un-nests per-shard arrays.
-                        boolean isValues = "VALUES".equalsIgnoreCase(name);
-                        if (call.getArgList().isEmpty()) {
-                            newCalls.add(call);
-                            continue;
-                        }
-                        RelDataType arg0Type = agg.getInput().getRowType().getFieldList().get(call.getArgList().get(0)).getType();
-                        boolean arg0IsList = arg0Type.getComponentType() != null;
-                        if (arg0IsList) {
-                            targetOp = isValues ? LOCAL_LIST_MERGE_DISTINCT_OP : LOCAL_LIST_MERGE_OP;
-                            targetDistinct = false;
-                            explicitReturnType = arg0Type;
-                        } else {
-                            targetOp = LOCAL_ARRAY_AGG_OP;
-                            targetDistinct = isValues;
-                            explicitReturnType = agg.getCluster().getTypeFactory().createArrayType(arg0Type, -1);
-                        }
-                    } else {
-                        newCalls.add(call);
-                        continue;
-                    }
-                    AggregateCall rewritten = AggregateCall.create(
-                        targetOp,
-                        targetDistinct,
-                        call.isApproximate(),
-                        call.ignoreNulls(),
-                        call.rexList,
-                        call.getArgList(),
-                        call.filterArg,
-                        call.distinctKeys,
-                        call.collation,
-                        agg.getGroupCount(),
-                        agg.getInput(),
-                        explicitReturnType,
-                        call.getName()
-                    );
-                    newCalls.add(rewritten);
-                    changed = true;
-                }
-                if (!changed) {
-                    return visited;
-                }
-                return agg.copy(agg.getTraitSet(), agg.getInput(), agg.getGroupSet(), agg.getGroupSets(), newCalls);
-            }
-        });
-    }
-
-    /**
      * Converts a single operator into a Substrait {@link Rel}. The operator may carry
      * children (e.g. the {@code attachPartialAggOnTop} caller passes a
      * {@code LogicalAggregate} whose input is the already-stripped inner tree); we
@@ -604,7 +501,7 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         RelNode preprocessed = UntypedNullPreprocessor.rewrite(operator);
         // Same rationale as convertToSubstrait — issue #5420.
         preprocessed = DatetimeOutputCastRewriter.rewrite(preprocessed);
-        preprocessed = rewritePplAggregateCalls(preprocessed);
+        preprocessed = PplAggregateCallRewriter.rewrite(preprocessed);
         SubstraitRelVisitor visitor = createVisitor(preprocessed);
         return visitor.apply(preprocessed);
     }
@@ -731,6 +628,17 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         // Filter isthmus's default APPROX_COUNT_DISTINCT binding out of getSigs() so our
         // ADDITIONAL_AGGREGATE_SIGS entry routes to the YAML-declared `approx_distinct`
         // extension instead of being shadowed by the stock `approx_count_distinct` URN.
+        //
+        // The convert() override inlines literal-Project columns referenced by aggregate
+        // measure args into the emitted AggregateFunctionInvocation as Substrait literals.
+        // Calcite's RelBuilder.aggregate auto-projects literal aggregate-args as separate
+        // columns and AggregateCall.argList only carries column indices, so without this
+        // step our Rust UDAFs (e.g. TAKE's N) only see a column reference at construction
+        // and DataFusion's two-stage execution dispatches the Final accumulator through
+        // merge_batch — which receives only state columns, not the constant column — so
+        // the limit can never be resolved on the coordinator. Inlining at the binding
+        // layer means the Substrait literal travels with the aggregate and the Final
+        // accumulator resolves the limit synchronously in accumulator().
         AggregateFunctionConverter aggConverter = new AggregateFunctionConverter(
             extensions.aggregateFunctions(),
             ADDITIONAL_AGGREGATE_SIGS,
@@ -743,6 +651,34 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
                     .filter(sig -> sig.operator != SqlStdOperatorTable.APPROX_COUNT_DISTINCT)
                     .collect(ImmutableList.toImmutableList());
             }
+
+            @Override
+            public Optional<AggregateFunctionInvocation> convert(
+                RelNode input,
+                Type.Struct inputType,
+                AggregateCall call,
+                Function<RexNode, Expression> rexConverter
+            ) {
+                Optional<AggregateFunctionInvocation> bound = super.convert(input, inputType, call, rexConverter);
+                if (bound.isEmpty() || !(input instanceof org.apache.calcite.rel.core.Project project)) {
+                    return bound;
+                }
+                AggregateFunctionInvocation fn = bound.get();
+                List<RexNode> projects = project.getProjects();
+                List<FunctionArg> args = fn.arguments();
+                List<FunctionArg> rewritten = null;
+                for (int i = 0; i < args.size(); i++) {
+                    FunctionArg arg = args.get(i);
+                    if (!(arg instanceof io.substrait.expression.FieldReference fr)) continue;
+                    Integer offset = simpleStructOffset(fr);
+                    if (offset == null || offset < 0 || offset >= projects.size()) continue;
+                    if (!(projects.get(offset) instanceof RexLiteral rexLit)) continue;
+                    if (rewritten == null) rewritten = new ArrayList<>(args);
+                    rewritten.set(i, rexConverter.apply(rexLit));
+                }
+                if (rewritten == null) return bound;
+                return Optional.of(ImmutableAggregateFunctionInvocation.builder().from(fn).arguments(rewritten).build());
+            }
         };
         WindowFunctionConverter windowConverter = new WindowFunctionConverter(extensions.windowFunctions(), typeFactory);
         ConverterProvider converterProvider = new ConverterProvider(
@@ -754,6 +690,21 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
             typeConverter
         );
         return new SubstraitRelVisitor(converterProvider);
+    }
+
+    /**
+     * Column offset for a simple input-rooted single-segment {@code StructField}, else null.
+     * Used to identify {@code FunctionArg}s that name a single column of the aggregate's
+     * input — these are the only references that can be inlined safely against the input
+     * Project's projection list.
+     */
+    private static Integer simpleStructOffset(io.substrait.expression.FieldReference fr) {
+        if (fr.isOuterReference() || fr.isLambdaParameterReference()) return null;
+        if (!fr.inputExpression().isEmpty()) return null;
+        if (fr.segments().size() != 1) return null;
+        io.substrait.expression.FieldReference.ReferenceSegment seg = fr.segments().get(0);
+        if (!(seg instanceof io.substrait.expression.FieldReference.StructField sf)) return null;
+        return sf.offset();
     }
 
     // ── Plan serde helpers ──────────────────────────────────────────────────────

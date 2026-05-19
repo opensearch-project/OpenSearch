@@ -128,19 +128,22 @@ public class OpenSearchAggregateSplitRule extends RelOptRule {
             org.apache.calcite.rel.type.RelDataType repaired = input.getCluster().getTypeFactory().createArrayType(arg0Type, -1);
             if (repaired.equals(call.getType())) continue;
             if (rebuilt == null) rebuilt = new ArrayList<>(aggCalls);
-            rebuilt.set(i, AggregateCall.create(
-                call.getAggregation(),
-                call.isDistinct(),
-                call.isApproximate(),
-                call.ignoreNulls(),
-                call.rexList,
-                call.getArgList(),
-                call.filterArg,
-                call.distinctKeys,
-                call.collation,
-                repaired,
-                call.getName()
-            ));
+            rebuilt.set(
+                i,
+                AggregateCall.create(
+                    call.getAggregation(),
+                    call.isDistinct(),
+                    call.isApproximate(),
+                    call.ignoreNulls(),
+                    call.rexList,
+                    call.getArgList(),
+                    call.filterArg,
+                    call.distinctKeys,
+                    call.collation,
+                    repaired,
+                    call.getName()
+                )
+            );
         }
         return rebuilt != null ? rebuilt : aggCalls;
     }
