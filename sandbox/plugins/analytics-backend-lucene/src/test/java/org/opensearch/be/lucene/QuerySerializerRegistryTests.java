@@ -391,6 +391,98 @@ public class QuerySerializerRegistryTests extends OpenSearchTestCase {
         }
     }
 
+    // --- SQL-to-Lucene wildcard conversion tests ---
+
+    /**
+     * Tests that SQL '%' wildcard is converted to Lucene '*'.
+     */
+    public void testWildcardQueryConvertsPercentToStar() throws IOException {
+        DelegatedPredicateSerializer serializer = serializers.get(ScalarFunction.WILDCARD_QUERY);
+        RexCall call = buildSingleFieldRexCallWithParams("title", "test%", "WILDCARD_QUERY", Map.of());
+        List<FieldStorageInfo> fieldStorage = List.of(
+            new FieldStorageInfo("title", "text", FieldType.TEXT, List.of(), List.of("lucene"), List.of(), false)
+        );
+
+        byte[] serialized = serializer.serialize(call, fieldStorage);
+
+        try (StreamInput input = new NamedWriteableAwareStreamInput(StreamInput.wrap(serialized), WRITEABLE_REGISTRY)) {
+            WildcardQueryBuilder wildcardQb = (WildcardQueryBuilder) input.readNamedWriteable(QueryBuilder.class);
+            assertEquals("test*", wildcardQb.value());
+        }
+    }
+
+    /**
+     * Tests that SQL '_' wildcard is converted to Lucene '?'.
+     */
+    public void testWildcardQueryConvertsUnderscoreToQuestionMark() throws IOException {
+        DelegatedPredicateSerializer serializer = serializers.get(ScalarFunction.WILDCARD_QUERY);
+        RexCall call = buildSingleFieldRexCallWithParams("title", "te_t", "WILDCARD_QUERY", Map.of());
+        List<FieldStorageInfo> fieldStorage = List.of(
+            new FieldStorageInfo("title", "text", FieldType.TEXT, List.of(), List.of("lucene"), List.of(), false)
+        );
+
+        byte[] serialized = serializer.serialize(call, fieldStorage);
+
+        try (StreamInput input = new NamedWriteableAwareStreamInput(StreamInput.wrap(serialized), WRITEABLE_REGISTRY)) {
+            WildcardQueryBuilder wildcardQb = (WildcardQueryBuilder) input.readNamedWriteable(QueryBuilder.class);
+            assertEquals("te?t", wildcardQb.value());
+        }
+    }
+
+    /**
+     * Tests that escaped SQL wildcards (\% and \_) are treated as literal characters.
+     */
+    public void testWildcardQueryEscapedWildcardsRemainLiteral() throws IOException {
+        DelegatedPredicateSerializer serializer = serializers.get(ScalarFunction.WILDCARD_QUERY);
+        RexCall call = buildSingleFieldRexCallWithParams("title", "100\\%\\_done", "WILDCARD_QUERY", Map.of());
+        List<FieldStorageInfo> fieldStorage = List.of(
+            new FieldStorageInfo("title", "text", FieldType.TEXT, List.of(), List.of("lucene"), List.of(), false)
+        );
+
+        byte[] serialized = serializer.serialize(call, fieldStorage);
+
+        try (StreamInput input = new NamedWriteableAwareStreamInput(StreamInput.wrap(serialized), WRITEABLE_REGISTRY)) {
+            WildcardQueryBuilder wildcardQb = (WildcardQueryBuilder) input.readNamedWriteable(QueryBuilder.class);
+            assertEquals("100%_done", wildcardQb.value());
+        }
+    }
+
+    /**
+     * Tests mixed SQL wildcards and escaped wildcards in a single pattern.
+     */
+    public void testWildcardQueryMixedEscapedAndUnescaped() throws IOException {
+        DelegatedPredicateSerializer serializer = serializers.get(ScalarFunction.WILDCARD_QUERY);
+        RexCall call = buildSingleFieldRexCallWithParams("title", "%foo\\_bar_", "WILDCARD_QUERY", Map.of());
+        List<FieldStorageInfo> fieldStorage = List.of(
+            new FieldStorageInfo("title", "text", FieldType.TEXT, List.of(), List.of("lucene"), List.of(), false)
+        );
+
+        byte[] serialized = serializer.serialize(call, fieldStorage);
+
+        try (StreamInput input = new NamedWriteableAwareStreamInput(StreamInput.wrap(serialized), WRITEABLE_REGISTRY)) {
+            WildcardQueryBuilder wildcardQb = (WildcardQueryBuilder) input.readNamedWriteable(QueryBuilder.class);
+            assertEquals("*foo_bar?", wildcardQb.value());
+        }
+    }
+
+    /**
+     * Tests that a pattern with no SQL wildcards passes through unchanged.
+     */
+    public void testWildcardQueryNoSqlWildcardsPassesThrough() throws IOException {
+        DelegatedPredicateSerializer serializer = serializers.get(ScalarFunction.WILDCARD_QUERY);
+        RexCall call = buildSingleFieldRexCallWithParams("title", "hello*world?", "WILDCARD_QUERY", Map.of());
+        List<FieldStorageInfo> fieldStorage = List.of(
+            new FieldStorageInfo("title", "text", FieldType.TEXT, List.of(), List.of("lucene"), List.of(), false)
+        );
+
+        byte[] serialized = serializer.serialize(call, fieldStorage);
+
+        try (StreamInput input = new NamedWriteableAwareStreamInput(StreamInput.wrap(serialized), WRITEABLE_REGISTRY)) {
+            WildcardQueryBuilder wildcardQb = (WildcardQueryBuilder) input.readNamedWriteable(QueryBuilder.class);
+            assertEquals("hello*world?", wildcardQb.value());
+        }
+    }
+
     // --- QuerySerializer (no-field) tests ---
 
     /**

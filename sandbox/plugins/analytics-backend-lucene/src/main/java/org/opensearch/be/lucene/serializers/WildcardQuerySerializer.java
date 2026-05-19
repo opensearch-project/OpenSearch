@@ -27,7 +27,49 @@ public class WildcardQuerySerializer extends AbstractRelevanceSerializer {
 
     @Override
     protected QueryBuilder createQueryBuilder(ConversionUtils.RelevanceOperands operands) {
-        return new WildcardQueryBuilder(operands.fieldName(), operands.query());
+        String convertedPattern = convertSqlWildcardToLucene(operands.query());
+        return new WildcardQueryBuilder(operands.fieldName(), convertedPattern);
+    }
+
+    /**
+     * Converts SQL wildcard characters (% and _) to Lucene wildcard characters (* and ?).
+     * Escaped wildcards (\\% and \\_) are treated as literal characters.
+     */
+    private static String convertSqlWildcardToLucene(String text) {
+        final char ESCAPE = '\\';
+        StringBuilder result = new StringBuilder(text.length());
+        boolean escaped = false;
+
+        for (char c : text.toCharArray()) {
+            switch (c) {
+                case ESCAPE:
+                    escaped = true;
+                    result.append(c);
+                    break;
+                case '%':
+                    if (escaped) {
+                        result.deleteCharAt(result.length() - 1);
+                        result.append('%');
+                    } else {
+                        result.append('*');
+                    }
+                    escaped = false;
+                    break;
+                case '_':
+                    if (escaped) {
+                        result.deleteCharAt(result.length() - 1);
+                        result.append('_');
+                    } else {
+                        result.append('?');
+                    }
+                    escaped = false;
+                    break;
+                default:
+                    result.append(c);
+                    escaped = false;
+            }
+        }
+        return result.toString();
     }
 
     @Override
