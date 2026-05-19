@@ -47,6 +47,7 @@ public class ResourceUsageCollectorServiceTests extends OpenSearchSingleNodeTest
             .put(super.nodeSettings())
             .put(ResourceTrackerSettings.GLOBAL_CPU_USAGE_AC_WINDOW_DURATION_SETTING.getKey(), TimeValue.timeValueMillis(500))
             .put(ResourceTrackerSettings.GLOBAL_JVM_USAGE_AC_WINDOW_DURATION_SETTING.getKey(), TimeValue.timeValueMillis(500))
+            .put(ResourceTrackerSettings.GLOBAL_NATIVE_MEMORY_USAGE_AC_WINDOW_DURATION_SETTING.getKey(), TimeValue.timeValueMillis(500))
             .put(ResourceTrackerSettings.GLOBAL_IO_USAGE_AC_WINDOW_DURATION_SETTING.getKey(), TimeValue.timeValueMillis(5000))
             .put(ADMISSION_CONTROL_TRANSPORT_LAYER_MODE.getKey(), AdmissionControlMode.ENFORCED)
             .build();
@@ -65,12 +66,13 @@ public class ResourceUsageCollectorServiceTests extends OpenSearchSingleNodeTest
 
     public void testResourceUsageStats() {
         ResourceUsageCollectorService resourceUsageCollectorService = getInstanceFromNode(ResourceUsageCollectorService.class);
-        resourceUsageCollectorService.collectNodeResourceUsageStats("node1", System.currentTimeMillis(), 97, 99, new IoUsageStats(98));
+        resourceUsageCollectorService.collectNodeResourceUsageStats("node1", System.currentTimeMillis(), 97, 99, new IoUsageStats(98), 99);
         Map<String, NodeResourceUsageStats> nodeStats = resourceUsageCollectorService.getAllNodeStatistics();
         assertTrue(nodeStats.containsKey("node1"));
         assertEquals(99.0, nodeStats.get("node1").cpuUtilizationPercent, 0.0);
         assertEquals(97.0, nodeStats.get("node1").memoryUtilizationPercent, 0.0);
         assertEquals(98, nodeStats.get("node1").getIoUsageStats().getIoUtilisationPercent(), 0.0);
+        assertEquals(99.0, nodeStats.get("node1").nativeMemoryUtilizationPercent, 0.0);
 
         Optional<NodeResourceUsageStats> nodeResourceUsageStatsOptional = resourceUsageCollectorService.getNodeStatistics("node1");
 
@@ -78,6 +80,7 @@ public class ResourceUsageCollectorServiceTests extends OpenSearchSingleNodeTest
         assertEquals(99.0, nodeResourceUsageStatsOptional.get().cpuUtilizationPercent, 0.0);
         assertEquals(97.0, nodeResourceUsageStatsOptional.get().memoryUtilizationPercent, 0.0);
         assertEquals(98, nodeResourceUsageStatsOptional.get().getIoUsageStats().getIoUtilisationPercent(), 0.0);
+        assertEquals(99, nodeResourceUsageStatsOptional.get().nativeMemoryUtilizationPercent, 0.0);
 
         nodeResourceUsageStatsOptional = resourceUsageCollectorService.getNodeStatistics("node2");
         assertTrue(nodeResourceUsageStatsOptional.isEmpty());
@@ -130,7 +133,8 @@ public class ResourceUsageCollectorServiceTests extends OpenSearchSingleNodeTest
                     System.currentTimeMillis(),
                     randomIntBetween(1, 100),
                     randomIntBetween(1, 100),
-                    new IoUsageStats(randomIntBetween(1, 100))
+                    new IoUsageStats(randomIntBetween(1, 100)),
+                    randomIntBetween(1, 100)
                 );
             }
         };
@@ -155,6 +159,7 @@ public class ResourceUsageCollectorServiceTests extends OpenSearchSingleNodeTest
             if (nodeStats.containsKey(nodeId)) {
                 assertThat(nodeStats.get(nodeId).memoryUtilizationPercent, greaterThan(0.0));
                 assertThat(nodeStats.get(nodeId).cpuUtilizationPercent, greaterThan(0.0));
+                assertThat(nodeStats.get(nodeId).nativeMemoryUtilizationPercent, greaterThan(0.0));
                 assertThat(nodeStats.get(nodeId).getIoUsageStats().getIoUtilisationPercent(), greaterThan(0.0));
             }
         }
@@ -167,14 +172,16 @@ public class ResourceUsageCollectorServiceTests extends OpenSearchSingleNodeTest
             System.currentTimeMillis(),
             randomIntBetween(1, 100),
             randomIntBetween(1, 100),
-            new IoUsageStats(randomIntBetween(1, 100))
+            new IoUsageStats(randomIntBetween(1, 100)),
+            randomIntBetween(1, 100)
         );
         resourceUsageCollectorService.collectNodeResourceUsageStats(
             "node2",
             System.currentTimeMillis(),
             randomIntBetween(1, 100),
             randomIntBetween(1, 100),
-            new IoUsageStats(randomIntBetween(1, 100))
+            new IoUsageStats(randomIntBetween(1, 100)),
+            randomIntBetween(1, 100)
         );
 
         ClusterState previousState = ClusterState.builder(new ClusterName("cluster"))

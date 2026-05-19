@@ -1346,4 +1346,49 @@ public class StoreTests extends OpenSearchTestCase {
         writer.addDocument(doc);
         return writer;
     }
+
+    public void testGetDataformatAwareStoreHandlesReturnsMapPassedAtConstruction() {
+        final ShardId shardId = new ShardId("index", "_na_", 1);
+        org.opensearch.index.engine.dataformat.DataFormat testFormat = new org.opensearch.index.engine.dataformat.DataFormat() {
+            @Override
+            public String name() {
+                return "test-format";
+            }
+
+            @Override
+            public long priority() {
+                return 1;
+            }
+
+            @Override
+            public java.util.Set<org.opensearch.index.engine.dataformat.FieldTypeCapabilities> supportedFields() {
+                return java.util.Set.of();
+            }
+        };
+        org.opensearch.plugins.NativeStoreHandle handle = new org.opensearch.plugins.NativeStoreHandle(123L, ptr -> {});
+        Map<org.opensearch.index.engine.dataformat.DataFormat, org.opensearch.plugins.NativeStoreHandle> handles = Map.of(
+            testFormat,
+            handle
+        );
+
+        Store store = new Store(
+            shardId,
+            INDEX_SETTINGS,
+            StoreTests.newDirectory(random()),
+            new DummyShardLock(shardId),
+            Store.OnClose.EMPTY,
+            null,
+            null,
+            handles
+        );
+
+        Map<org.opensearch.index.engine.dataformat.DataFormat, org.opensearch.plugins.NativeStoreHandle> result = store
+            .getDataformatAwareStoreHandles();
+        assertSame("getDataformatAwareStoreHandles should return the same map passed at construction", handles, result);
+        assertEquals(1, result.size());
+        assertSame(handle, result.get(testFormat));
+
+        handle.close();
+        store.close();
+    }
 }

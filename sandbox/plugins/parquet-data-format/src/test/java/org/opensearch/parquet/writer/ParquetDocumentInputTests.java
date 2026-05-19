@@ -15,14 +15,18 @@ import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.List;
 
+import static org.opensearch.parquet.engine.ParquetIndexingEngineTests.populateMetadataFields;
+
 public class ParquetDocumentInputTests extends OpenSearchTestCase {
 
     public void testAddFieldAndGetFinalInput() {
         ParquetDocumentInput input = new ParquetDocumentInput();
         MappedFieldType ft = new NumberFieldMapper.NumberFieldType("age", NumberFieldMapper.NumberType.INTEGER);
         input.addField(ft, 25);
+        input.setRowId("__row_id__", 0L);
+        populateMetadataFields(input);
         List<FieldValuePair> result = input.getFinalInput();
-        assertEquals(1, result.size());
+        assertEquals(5, result.size());
         assertSame(ft, result.getFirst().getFieldType());
         assertEquals(25, result.getFirst().getValue());
     }
@@ -33,30 +37,38 @@ public class ParquetDocumentInputTests extends OpenSearchTestCase {
         MappedFieldType ft2 = new KeywordFieldMapper.KeywordFieldType("b");
         input.addField(ft1, 1);
         input.addField(ft2, "val");
-        assertEquals(2, input.getFinalInput().size());
+        input.setRowId("__row_id__", 0L);
+        populateMetadataFields(input);
+        assertEquals(6, input.getFinalInput().size());
     }
 
     public void testEmptyInput() {
         ParquetDocumentInput input = new ParquetDocumentInput();
-        assertTrue(input.getFinalInput().isEmpty());
+        populateMetadataFields(input);
+        input.setRowId("__row_id__", 0L);
+        assertEquals(4, input.getFinalInput().size());
     }
 
     public void testSetRowId() {
         ParquetDocumentInput input = new ParquetDocumentInput();
+        populateMetadataFields(input);
         input.setRowId("_row_id", 42L);
         assertEquals(42L, input.getRowId());
     }
 
     public void testAddFieldRejectsNullFieldType() {
         ParquetDocumentInput input = new ParquetDocumentInput();
+        populateMetadataFields(input);
         expectThrows(IllegalArgumentException.class, () -> input.addField(null, "ignored"));
     }
 
     public void testCloseClearsState() {
         ParquetDocumentInput input = new ParquetDocumentInput();
+        populateMetadataFields(input);
         MappedFieldType ft = new NumberFieldMapper.NumberFieldType("age", NumberFieldMapper.NumberType.INTEGER);
         input.addField(ft, 25);
-        assertEquals(1, input.getFinalInput().size());
+        input.setRowId("__row_id__", 0L);
+        assertEquals(5, input.getFinalInput().size());
 
         input.close();
         assertTrue(input.getFinalInput().isEmpty());

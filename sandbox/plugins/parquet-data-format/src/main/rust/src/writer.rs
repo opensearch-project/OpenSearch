@@ -299,7 +299,7 @@ impl NativeParquetWriter {
         if file_size <= config.get_sort_in_memory_threshold_bytes() {
             Self::sort_small_file(temp_filename, output_filename, index_name, sort_columns, reverse_sorts, nulls_first, writer_generation)
         } else {
-            Self::sort_large_file(temp_filename, output_filename, index_name, sort_columns, reverse_sorts, nulls_first, config.get_sort_batch_size())
+            Self::sort_large_file(temp_filename, output_filename, index_name, sort_columns, reverse_sorts, nulls_first, config.get_sort_batch_size(), writer_generation)
         }
     }
 
@@ -360,6 +360,7 @@ impl NativeParquetWriter {
         reverse_sorts: &[bool],
         nulls_first: &[bool],
         batch_size: usize,
+        writer_generation: i64,
     ) -> Result<u32, Box<dyn std::error::Error>> {
         log_debug!("Using streaming merge sort for large file: {}", temp_filename);
 
@@ -416,6 +417,7 @@ impl NativeParquetWriter {
             sort_columns,
             reverse_sorts,
             nulls_first,
+            writer_generation,
         )
         .map_err(|e| -> Box<dyn std::error::Error> {
             format!("Streaming merge failed: {}", e).into()

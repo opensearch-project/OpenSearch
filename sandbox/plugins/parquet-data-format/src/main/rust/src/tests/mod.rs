@@ -14,6 +14,8 @@ use tempfile::tempdir;
 
 use crate::test_utils::*;
 use crate::writer::NativeParquetWriter;
+use crate::writer::SETTINGS_STORE;
+use crate::native_settings::NativeSettings;
 
 use std::fs::File;
 use std::io::Read;
@@ -720,4 +722,61 @@ fn test_concurrent_writes_different_files() {
     for (i, filename) in filenames.iter().enumerate() {
         close_writer_and_cleanup_schema(filename, schema_ptrs[i]);
     }
+}
+
+#[test]
+fn test_bloom_filter_false_propagates_through_settings_store() {
+    let index_name = "test-bloom-false-index-unique1";
+    let settings = NativeSettings {
+        index_name: Some(index_name.to_string()),
+        bloom_filter_enabled: Some(false),
+        ..Default::default()
+    };
+    SETTINGS_STORE.insert(index_name.to_string(), settings);
+
+    let stored = SETTINGS_STORE.get(index_name).unwrap();
+    assert_eq!(stored.bloom_filter_enabled, Some(false));
+    assert_eq!(stored.get_bloom_filter_enabled(), false);
+    drop(stored);
+
+    let (_temp_dir, filename) = get_temp_file_path("bloom_test.parquet");
+    let (_schema, schema_ptr) = create_test_ffi_schema();
+    let result = NativeParquetWriter::create_writer(
+        filename.clone(), index_name.to_string(), schema_ptr, vec![], vec![], vec![], 0
+    );
+    assert!(result.is_ok());
+
+    let stored_after = SETTINGS_STORE.get(index_name).unwrap();
+    assert_eq!(
+        stored_after.bloom_filter_enabled, Some(false),
+        "bloom_filter_enabled should remain false after create_writer, but got: {:?}",
+        stored_after.bloom_filter_enabled
+    );
+    assert_eq!(stored_after.get_bloom_filter_enabled(), false);
+    drop(stored_after);
+
+    close_writer_and_cleanup_schema(&filename, schema_ptr);
+    SETTINGS_STORE.remove(index_name);
+}
+
+#[test]
+fn test_bloom_filter_default_when_no_settings() {
+    let index_name = "test-bloom-default-index-unique2";
+
+    let (_temp_dir, filename) = get_temp_file_path("bloom_default.parquet");
+    let (_schema, schema_ptr) = create_test_ffi_schema();
+    let result = NativeParquetWriter::create_writer(
+        filename.clone(), index_name.to_string(), schema_ptr, vec![], vec![], vec![], 0
+    );
+    assert!(result.is_ok());
+
+    let stored = SETTINGS_STORE.get(index_name).unwrap();
+    assert_eq!(
+        stored.get_bloom_filter_enabled(), true,
+        "Default bloom_filter_enabled should be true when no settings exist"
+    );
+    drop(stored);
+
+    close_writer_and_cleanup_schema(&filename, schema_ptr);
+    SETTINGS_STORE.remove(index_name);
 }

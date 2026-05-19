@@ -16,7 +16,7 @@
 use std::any::Any;
 use std::sync::Arc;
 
-use datafusion::arrow::array::{Array, ArrayRef, StringBuilder};
+use datafusion::arrow::array::{ArrayRef, StringBuilder};
 use datafusion::arrow::datatypes::DataType;
 use datafusion::common::ScalarValue;
 use datafusion::error::Result;
@@ -27,7 +27,7 @@ use datafusion::logical_expr::{
 use jsonpath_rust::{JsonPath, JsonPathValue};
 use serde_json::Value;
 
-use super::json_common::{as_utf8_array, convert_ppl_path, parse};
+use super::json_common::{convert_ppl_path, parse, scalar_utf8, StringArrayView};
 use super::{coerce_slot, CoerceMode};
 
 const NAME: &str = "json_extract";
@@ -69,7 +69,7 @@ impl ScalarUDFImpl for JsonExtractUdf {
         Ok(DataType::Utf8)
     }
     fn coerce_types(&self, args: &[DataType]) -> Result<Vec<DataType>> {
-        // Homogeneous string variadic — every slot canonicalizes to Utf8.
+        // Homogeneous string variadic.
         args.iter()
             .enumerate()
             .map(|(i, ty)| coerce_slot(NAME, i, ty, CoerceMode::Utf8))
@@ -97,23 +97,22 @@ impl ScalarUDFImpl for JsonExtractUdf {
             return Ok(ColumnarValue::Scalar(ScalarValue::Utf8(out)));
         }
 
-        // Columnar path: materialize each operand to a StringArray and walk
-        // row-by-row. This is the branch production traffic takes.
+        // Columnar path: walk row-by-row. Branch production traffic takes.
         let arrays: Vec<ArrayRef> = args
             .args
             .iter()
             .map(|v| v.clone().into_array(n))
             .collect::<Result<_>>()?;
-        let columns: Vec<&datafusion::arrow::array::StringArray> =
-            arrays.iter().map(as_utf8_array).collect::<Result<_>>()?;
+        let columns: Vec<StringArrayView<'_>> =
+            arrays.iter().map(StringArrayView::from_array).collect::<Result<_>>()?;
 
         let mut b = StringBuilder::with_capacity(n, n * 16);
         let mut path_buf: Vec<Option<&str>> = Vec::with_capacity(columns.len() - 1);
         for i in 0..n {
-            let doc = cell(columns[0], i);
+            let doc = columns[0].cell(i);
             path_buf.clear();
             for col in &columns[1..] {
-                path_buf.push(cell(col, i));
+                path_buf.push(col.cell(i));
             }
             match extract(doc, &path_buf) {
                 Some(s) => b.append_value(&s),
@@ -121,23 +120,6 @@ impl ScalarUDFImpl for JsonExtractUdf {
             }
         }
         Ok(ColumnarValue::Array(Arc::new(b.finish()) as ArrayRef))
-    }
-}
-
-fn scalar_utf8(v: &ColumnarValue) -> Option<&str> {
-    match v {
-        ColumnarValue::Scalar(
-            ScalarValue::Utf8(s) | ScalarValue::LargeUtf8(s) | ScalarValue::Utf8View(s),
-        ) => s.as_deref(),
-        _ => None,
-    }
-}
-
-fn cell(arr: &datafusion::arrow::array::StringArray, i: usize) -> Option<&str> {
-    if arr.is_null(i) {
-        None
-    } else {
-        Some(arr.value(i))
     }
 }
 
@@ -282,12 +264,12 @@ mod tests {
     }
 
     #[test]
-    fn coerce_types_enforces_string_on_every_slot() {
+    fn coerce_types_threads_each_slot_independently() {
         let udf = JsonExtractUdf::new();
         assert_eq!(
             udf.coerce_types(&[DataType::LargeUtf8, DataType::Utf8View])
                 .unwrap(),
-            vec![DataType::Utf8, DataType::Utf8]
+            vec![DataType::LargeUtf8, DataType::Utf8View]
         );
         let err = udf
             .coerce_types(&[DataType::Utf8, DataType::Int32])

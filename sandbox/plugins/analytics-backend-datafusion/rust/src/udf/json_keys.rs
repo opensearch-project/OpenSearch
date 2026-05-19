@@ -13,7 +13,7 @@
 use std::any::Any;
 use std::sync::Arc;
 
-use datafusion::arrow::array::{Array, ArrayRef, StringBuilder};
+use datafusion::arrow::array::{ArrayRef, StringBuilder};
 use datafusion::arrow::datatypes::DataType;
 use datafusion::common::ScalarValue;
 use datafusion::error::Result;
@@ -23,7 +23,7 @@ use datafusion::logical_expr::{
 };
 use serde_json::Value;
 
-use super::json_common::{as_utf8_array, check_arity, parse};
+use super::json_common::{check_arity, parse, StringArrayView};
 use super::{coerce_args, CoerceMode};
 
 const NAME: &str = "json_keys";
@@ -81,14 +81,10 @@ impl ScalarUDFImpl for JsonKeysUdf {
         }
 
         let arr = args.args[0].clone().into_array(n)?;
-        let strings = as_utf8_array(&arr)?;
+        let strings = StringArrayView::from_array(&arr)?;
         let mut b = StringBuilder::with_capacity(n, n * 16);
         for i in 0..n {
-            if strings.is_null(i) {
-                b.append_null();
-                continue;
-            }
-            match json_keys(strings.value(i)) {
+            match strings.cell(i).and_then(json_keys) {
                 Some(s) => b.append_value(&s),
                 None => b.append_null(),
             }
@@ -146,10 +142,11 @@ mod tests {
     }
 
     #[test]
-    fn coerce_types_enforces_string_arity() {
+    fn coerce_types_rejects_wrong_arity() {
+        // `coerce_args` covers the per-variant accept/reject contract centrally;
+        // here we only need the UDF-specific arity guard.
         let udf = JsonKeysUdf::new();
-        assert_eq!(udf.coerce_types(&[DataType::LargeUtf8]).unwrap(), vec![DataType::Utf8]);
-        assert!(udf.coerce_types(&[DataType::Int64]).unwrap_err().to_string().contains("expected string"));
         assert!(udf.coerce_types(&[]).is_err());
+        assert!(udf.coerce_types(&[DataType::Utf8, DataType::Utf8]).is_err());
     }
 }
