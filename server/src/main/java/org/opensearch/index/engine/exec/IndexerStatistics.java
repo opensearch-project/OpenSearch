@@ -112,7 +112,7 @@ public interface IndexerStatistics {
      * @param verbose if true, includes additional detail (ignored for non-Lucene engines)
      * @return list of segments, sorted by generation
      */
-    default List<org.opensearch.index.engine.Segment> segments(boolean verbose) {
+    default List<Segment> segments(boolean verbose) {
         return List.of();
     }
 }

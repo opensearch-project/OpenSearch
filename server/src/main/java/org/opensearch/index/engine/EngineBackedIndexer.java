@@ -21,7 +21,6 @@ import org.opensearch.index.engine.exec.Indexer;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 import org.opensearch.index.engine.exec.coord.SegmentInfosCatalogSnapshot;
 import org.opensearch.index.mapper.DocumentMapperForType;
-import org.opensearch.index.engine.Segment;
 import org.opensearch.index.mapper.SourceToParse;
 import org.opensearch.index.merge.MergeStats;
 import org.opensearch.index.seqno.SeqNoStats;

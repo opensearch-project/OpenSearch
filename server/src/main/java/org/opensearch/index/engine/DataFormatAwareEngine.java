@@ -14,7 +14,6 @@ import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.store.AlreadyClosedException;
-import org.apache.lucene.util.Version;
 import org.opensearch.OpenSearchException;
 import org.opensearch.common.Booleans;
 import org.opensearch.common.Nullable;
@@ -94,8 +93,8 @@ import org.opensearch.search.suggest.completion.CompletionStats;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
+import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
@@ -1234,46 +1233,8 @@ public class DataFormatAwareEngine implements Indexer {
         // verbose is Lucene-specific (RAM tree breakdown per segment) — not applicable to DFAE, ignored.
         try (GatedCloseable<CatalogSnapshot> snapshotRef = acquireSnapshot()) {
             CatalogSnapshot snapshot = snapshotRef.get();
-
-            String lastCommittedIdStr = committer.getLastCommittedData()
-                .get(CatalogSnapshot.CATALOG_SNAPSHOT_ID);
-            long lastCommittedSnapshotId = -1;
-            if (lastCommittedIdStr != null) {
-                try {
-                    lastCommittedSnapshotId = Long.parseLong(lastCommittedIdStr);
-                } catch (NumberFormatException e) {
-                    logger.warn("Invalid catalog snapshot ID in committed data: {}", lastCommittedIdStr);
-                }
-            }
-            boolean isCommitted = snapshot.getId() == lastCommittedSnapshotId;
-            List<org.opensearch.index.engine.Segment> result = new ArrayList<>(snapshot.getSegments().size());
-
-            for (Segment dfSeg : snapshot.getSegments()) {
-                org.opensearch.index.engine.Segment seg = new org.opensearch.index.engine.Segment(
-                    "_" + Long.toString(dfSeg.generation(), Character.MAX_RADIX)
-                );
-                seg.search      = true;
-                seg.committed   = isCommitted;
-                seg.version     = Version.LATEST;
-                if (dfSeg.dfGroupedSearchableFiles().isEmpty()) {
-                    logger.warn("Segment [{}] has no searchable files; reporting 0 doc count", dfSeg.generation());
-                }
-                long numRows = dfSeg.dfGroupedSearchableFiles().values().stream()
-                    .findFirst().map(WriterFileSet::numRows).orElse(0L);
-                if (numRows > Integer.MAX_VALUE) {
-                    logger.warn("Segment [{}] has {} rows exceeding Integer.MAX_VALUE; clamping docCount",
-                        dfSeg.generation(), numRows);
-                }
-                seg.docCount    = (int) Math.min(numRows, Integer.MAX_VALUE);
-                seg.delDocCount = 0;
-                seg.sizeInBytes = dfSeg.dfGroupedSearchableFiles().values().stream()
-                    .mapToLong(WriterFileSet::getTotalSize).sum();
-                seg.segmentSort = engineConfig.getIndexSort();
-                result.add(seg);
-            }
-
-            result.sort(Comparator.comparingLong(org.opensearch.index.engine.Segment::getGeneration));
-            return result;
+            boolean isCommitted = CatalogEngineStatsUtil.resolveIsCommitted(snapshot, committer.getLastCommittedData(), logger);
+            return CatalogEngineStatsUtil.buildSegments(snapshot.getSegments(), isCommitted, engineConfig.getIndexSort(), logger);
         } catch (IOException ex) {
             throw new OpenSearchException(ex);
         }
@@ -1283,35 +1244,22 @@ public class DataFormatAwareEngine implements Indexer {
     public SegmentsStats segmentsStats(boolean includeSegmentFileSizes, boolean includeUnloadedSegments) {
         // includeUnloadedSegments is a Lucene concept (segments on disk not yet loaded into a SegmentReader).
         // In DFAE, all segments are tracked in the catalog snapshot regardless of load state — no distinction exists.
-        SegmentsStats stats = new SegmentsStats();
         try (GatedCloseable<CatalogSnapshot> snapshot = acquireSnapshot()) {
             List<Segment> segments = snapshot.get().getSegments();
-            stats.add(segments.size());
-            stats.addIndexWriterMemoryInBytes(indexingExecutionEngine.getNativeBytesUsed());
-            stats.updateMaxUnsafeAutoIdTimestamp(maxUnsafeAutoIdTimestamp.get());
-            if (includeSegmentFileSizes) {
-                for (Segment segment : segments) {
-                    for (WriterFileSet wfs : segment.dfGroupedSearchableFiles().values()) {
-                        Map<String, Long> fileSizes = new HashMap<>();
-                        for (String file : wfs.files()) {
-                            java.nio.file.Path filePath = store.shardPath().getDataPath()
-                                .resolve(wfs.directory())
-                                .resolve(file);
-                            try {
-                                fileSizes.put(file, java.nio.file.Files.size(filePath));
-                            } catch (IOException e) {
-                                logger.warn("Failed to read size for file [{}]; reporting 0", filePath, e);
-                                fileSizes.put(file, 0L);
-                            }
-                        }
-                        stats.addFileSizes(fileSizes);
-                    }
-                }
-            }
+            List<WriterFileSet> fileSets = segments.stream().flatMap(s -> s.dfGroupedSearchableFiles().values().stream()).toList();
+            Path dataPath = store.shardPath() != null ? store.shardPath().getDataPath() : null;
+            return CatalogEngineStatsUtil.buildSegmentsStats(
+                segments.size(),
+                indexingExecutionEngine.getNativeBytesUsed(),
+                maxUnsafeAutoIdTimestamp.get(),
+                includeSegmentFileSizes,
+                fileSets,
+                dataPath,
+                logger
+            );
         } catch (IOException ex) {
             throw new OpenSearchException(ex);
         }
-        return stats;
     }
 
     @Override
