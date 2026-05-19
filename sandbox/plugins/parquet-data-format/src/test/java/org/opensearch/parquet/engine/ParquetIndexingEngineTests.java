@@ -20,6 +20,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.dataformat.DataFormat;
+import org.opensearch.index.engine.dataformat.DataFormatTestUtils;
 import org.opensearch.index.engine.dataformat.FileInfos;
 import org.opensearch.index.engine.dataformat.FlushInput;
 import org.opensearch.index.engine.dataformat.RefreshInput;
@@ -264,27 +265,21 @@ public class ParquetIndexingEngineTests extends OpenSearchTestCase {
 
     private static final DataFormat PARQUET_FORMAT_FOR_TESTS = new ParquetDataFormat();
 
-    public static void populateMetadataFields(ParquetDocumentInput input) {
+    static {
         assignTestCapabilities(SEQ_NO_FIELD, PARQUET_FORMAT_FOR_TESTS);
         assignTestCapabilities(ID_FIELD, PARQUET_FORMAT_FOR_TESTS);
         assignTestCapabilities(VERSION_FIELD, PARQUET_FORMAT_FOR_TESTS);
         assignTestCapabilities(PrimaryTermFieldType.INSTANCE, PARQUET_FORMAT_FOR_TESTS);
+    }
+
+    public static void populateMetadataFields(ParquetDocumentInput input) {
         input.addField(SEQ_NO_FIELD, 100L);
         input.addField(ID_FIELD, "id".getBytes(StandardCharsets.UTF_8));
         input.addField(VERSION_FIELD, 1L);
         input.addField(PrimaryTermFieldType.INSTANCE, 1L);
     }
 
-    /**
-     * Assigns the capability map on a {@link MappedFieldType} so that the given {@link DataFormat}
-     * owns the capabilities declared in its {@link DataFormat#supportedFields()} for the field's type name.
-     * Used in tests to simulate what {@code BuilderContext.assignCapabilities} does at mapping build time.
-     */
     public static void assignTestCapabilities(MappedFieldType fieldType, DataFormat format) {
-        format.supportedFields()
-            .stream()
-            .filter(ftc -> ftc.fieldType().equals(fieldType.typeName()))
-            .findFirst()
-            .ifPresent(ftc -> fieldType.setCapabilityMap(Map.of(format, ftc.capabilities())));
+        DataFormatTestUtils.assignTestCapabilities(fieldType, format);
     }
 }

@@ -480,7 +480,6 @@ public abstract class MappedFieldType {
         return capabilityMap;
     }
 
-
     public void setCapabilityMap(Map<DataFormat, Set<FieldTypeCapabilities.Capability>> capabilityMap) {
         this.capabilityMap = Map.copyOf(capabilityMap);
     }

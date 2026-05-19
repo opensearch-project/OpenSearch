@@ -51,7 +51,10 @@ public class LongParquetField extends ParquetField {
 
     @Override
     public Set<FieldTypeCapabilities.Capability> supportedCapabilities() {
-        return Set.of(FieldTypeCapabilities.Capability.COLUMNAR_STORAGE, FieldTypeCapabilities.Capability.BLOOM_FILTER,
-            FieldTypeCapabilities.Capability.POINT_RANGE);
+        return Set.of(
+            FieldTypeCapabilities.Capability.COLUMNAR_STORAGE,
+            FieldTypeCapabilities.Capability.BLOOM_FILTER,
+            FieldTypeCapabilities.Capability.POINT_RANGE
+        );
     }
 }

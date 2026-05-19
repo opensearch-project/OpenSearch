@@ -418,7 +418,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
                 String type = fieldNode.toString();
                 if (type.equals(CONTENT_TYPE)) {
                     builder.nested = Nested.NO;
-                } else if (type.equals(NESTED_CONTENT_TYPE)) {
+                } else if (type.equals(NESTED_CONTENT_TYPE) && isPluggableDataFormatEnabled(parserContext.getSettings())) {
                     nested = true;
                 } else {
                     throw new MapperParsingException(

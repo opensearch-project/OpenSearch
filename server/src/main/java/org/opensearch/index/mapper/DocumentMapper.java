@@ -52,9 +52,9 @@ import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.IndexSortConfig;
 import org.opensearch.index.analysis.IndexAnalyzers;
-import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.DataFormatRegistry;
 import org.opensearch.index.engine.dataformat.DocumentInput;
+import org.opensearch.index.engine.dataformat.FieldCapabilityAssigner;
 import org.opensearch.index.mapper.MapperService.MergeReason;
 import org.opensearch.index.mapper.MetadataFieldMapper.TypeParser;
 import org.opensearch.index.query.NestedQueryBuilder;
@@ -102,11 +102,10 @@ public class DocumentMapper implements ToXContentFragment {
         public Builder(RootObjectMapper.Builder builder, MapperService mapperService, @Nullable DataFormatRegistry dataFormatRegistry) {
             final IndexSettings is = mapperService.getIndexSettings();
             final Settings indexSettings = is.getSettings();
-            // Resolve the index's configured data formats once at mapping build time. The list is
-            // empty when the index has no pluggable data format configured; in that case validation
-            // and capability map assignment are skipped downstream.
-            final List<DataFormat> configuredFormats = dataFormatRegistry == null ? List.of() : dataFormatRegistry.getConfiguredFormats(is);
-            this.builderContext = new Mapper.BuilderContext(indexSettings, new ContentPath(1), dataFormatRegistry, configuredFormats);
+            final FieldCapabilityAssigner assigner = dataFormatRegistry != null
+                ? new FieldCapabilityAssigner(dataFormatRegistry.getConfiguredFormats(is))
+                : null;
+            this.builderContext = new Mapper.BuilderContext(indexSettings, new ContentPath(1), assigner);
             this.rootObjectMapper = builder.build(builderContext);
 
             final DocumentMapper existingMapper = mapperService.documentMapper();

@@ -13,7 +13,6 @@ import org.opensearch.index.engine.dataformat.FieldTypeCapabilities;
 import org.opensearch.parquet.fields.ArrowFieldRegistry;
 
 import java.util.Set;
-import java.util.stream.Collectors;
 
 /**
  * Data format descriptor for the Parquet format.

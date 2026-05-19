@@ -43,7 +43,6 @@ import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.analysis.IndexAnalyzers;
-import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.DataFormatRegistry;
 import org.opensearch.index.engine.dataformat.FieldCapabilityAssigner;
 import org.opensearch.index.query.QueryShardContext;
@@ -51,7 +50,6 @@ import org.opensearch.index.similarity.SimilarityProvider;
 import org.opensearch.script.ScriptService;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
@@ -81,19 +79,6 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
 
         public BuilderContext(Settings indexSettings, ContentPath contentPath) {
             this(indexSettings, contentPath, (FieldCapabilityAssigner) null);
-        }
-
-        public BuilderContext(
-            Settings indexSettings,
-            ContentPath contentPath,
-            @Nullable DataFormatRegistry dataFormatRegistry,
-            List<DataFormat> configuredFormats
-        ) {
-            this(
-                indexSettings,
-                contentPath,
-                dataFormatRegistry != null ? new FieldCapabilityAssigner(configuredFormats) : null
-            );
         }
 
         public BuilderContext(Settings indexSettings, ContentPath contentPath, @Nullable FieldCapabilityAssigner capabilityAssigner) {

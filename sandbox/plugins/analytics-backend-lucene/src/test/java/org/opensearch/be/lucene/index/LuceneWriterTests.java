@@ -25,6 +25,7 @@ import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.NIOFSDirectory;
 import org.opensearch.be.lucene.LuceneDataFormat;
+import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.DeleteInput;
 import org.opensearch.index.engine.dataformat.FileInfos;
 import org.opensearch.index.engine.dataformat.FlushInput;
@@ -260,6 +261,28 @@ public class LuceneWriterTests extends OpenSearchTestCase {
             // Should not throw — unsupported types are silently skipped (handled by other formats)
             input.addField(numericField, 42);
             // The document should have no fields for the unsupported type
+            assertEquals(0, input.getFinalInput().getFields().size());
+        }
+    }
+
+    public void testFieldOwnedByAnotherFormatIsSilentlySkipped() throws IOException {
+        Path baseDir = createTempDir();
+        DataFormat otherFormat = mock(DataFormat.class);
+        when(otherFormat.name()).thenReturn("parquet");
+
+        MappedFieldType fieldOwnedByOther = mock(MappedFieldType.class);
+        when(fieldOwnedByOther.typeName()).thenReturn("integer");
+        when(fieldOwnedByOther.name()).thenReturn("count");
+        when(fieldOwnedByOther.getCapabilityMap()).thenReturn(
+            java.util.Map.of(
+                otherFormat,
+                java.util.Set.of(org.opensearch.index.engine.dataformat.FieldTypeCapabilities.Capability.COLUMNAR_STORAGE)
+            )
+        );
+
+        try (LuceneWriter writer = new LuceneWriter(1L, 0L, dataFormat, baseDir, null, Codec.getDefault(), null)) {
+            LuceneDocumentInput input = new LuceneDocumentInput(dataFormat);
+            input.addField(fieldOwnedByOther, 42);
             assertEquals(0, input.getFinalInput().getFields().size());
         }
     }

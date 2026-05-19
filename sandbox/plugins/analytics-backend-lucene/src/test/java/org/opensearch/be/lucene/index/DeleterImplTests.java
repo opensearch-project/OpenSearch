@@ -15,10 +15,13 @@ import org.opensearch.index.engine.dataformat.DeleteInput;
 import org.opensearch.index.engine.dataformat.DeleteResult;
 import org.opensearch.index.engine.dataformat.DeleterImpl;
 import org.opensearch.index.engine.dataformat.DocumentInput;
+import org.opensearch.index.engine.dataformat.FieldTypeCapabilities;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.Map;
+import java.util.Set;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -47,9 +50,7 @@ public class DeleterImplTests extends OpenSearchTestCase {
         when(idField.name()).thenReturn("_id");
         when(idField.hasDocValues()).thenReturn(false);
         // Stamp this format as the owner so the per-format filter accepts the field
-        when(idField.getCapabilityMap()).thenReturn(
-            java.util.Map.of(dataFormat, java.util.Set.of(org.opensearch.index.engine.dataformat.FieldTypeCapabilities.Capability.STORED_FIELDS))
-        );
+        when(idField.getCapabilityMap()).thenReturn(Map.of(dataFormat, Set.of(FieldTypeCapabilities.Capability.STORED_FIELDS)));
         input.addField(idField, id.getBytes(java.nio.charset.StandardCharsets.UTF_8));
         input.setRowId(DocumentInput.ROW_ID_FIELD, rowId);
         writer.addDoc(input);

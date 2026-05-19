@@ -328,7 +328,8 @@ public class CompositeDataFormatPlugin extends Plugin implements DataFormatPlugi
             dataFormatRegistry.getRegisteredFormats()
                 .stream()
                 .filter(f -> f.name().equals(primaryFormatName))
-                .findFirst().ifPresent(configured::add);
+                .findFirst()
+                .ifPresent(configured::add);
         }
         secondaryFormatNames.stream()
             .filter(name -> name != null && name.isEmpty() == false)

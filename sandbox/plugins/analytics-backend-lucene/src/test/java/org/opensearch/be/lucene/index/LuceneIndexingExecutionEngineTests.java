@@ -26,6 +26,7 @@ import org.opensearch.index.codec.CodecService;
 import org.opensearch.index.engine.EngineConfig;
 import org.opensearch.index.engine.EngineConfigFactory;
 import org.opensearch.index.engine.dataformat.DataFormat;
+import org.opensearch.index.engine.dataformat.DataFormatTestUtils;
 import org.opensearch.index.engine.dataformat.FileInfos;
 import org.opensearch.index.engine.dataformat.FlushInput;
 import org.opensearch.index.engine.dataformat.RefreshInput;
@@ -497,10 +498,6 @@ public class LuceneIndexingExecutionEngineTests extends OpenSearchTestCase {
      * {@link LuceneDocumentInput#addField}.
      */
     public static void assignTestCapabilities(MappedFieldType fieldType, DataFormat format) {
-        format.supportedFields()
-            .stream()
-            .filter(ftc -> ftc.fieldType().equals(fieldType.typeName()))
-            .findFirst()
-            .ifPresent(ftc -> fieldType.setCapabilityMap(Map.of(format, ftc.capabilities())));
+        DataFormatTestUtils.assignTestCapabilities(fieldType, format);
     }
 }

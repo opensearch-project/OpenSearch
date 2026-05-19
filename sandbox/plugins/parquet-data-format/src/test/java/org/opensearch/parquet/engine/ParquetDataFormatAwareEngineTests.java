@@ -221,19 +221,69 @@ public class ParquetDataFormatAwareEngineTests extends AbstractDataFormatAwareEn
         assignTestCapabilities(NAME_FIELD, format);
         input.addField(ID_FIELD, "doc-id".getBytes(StandardCharsets.UTF_8));
         input.addField(NAME_FIELD, "name");
-        addFieldWithCapabilities(input, new NumberFieldMapper.NumberFieldType(BYTE_FIELD_NAME, NumberFieldMapper.NumberType.BYTE), Byte.MAX_VALUE, format);
-        addFieldWithCapabilities(input, new NumberFieldMapper.NumberFieldType(SHORT_FIELD_NAME, NumberFieldMapper.NumberType.SHORT), Short.MAX_VALUE, format);
-        addFieldWithCapabilities(input, new NumberFieldMapper.NumberFieldType(INT_FIELD_NAME, NumberFieldMapper.NumberType.INTEGER), Integer.MAX_VALUE, format);
-        addFieldWithCapabilities(input, new NumberFieldMapper.NumberFieldType(LONG_FIELD_NAME, NumberFieldMapper.NumberType.LONG), Long.MAX_VALUE, format);
-        addFieldWithCapabilities(input, new NumberFieldMapper.NumberFieldType(FLOAT_FIELD_NAME, NumberFieldMapper.NumberType.FLOAT), Float.MAX_VALUE, format);
-        addFieldWithCapabilities(input, new NumberFieldMapper.NumberFieldType(DOUBLE_FIELD_NAME, NumberFieldMapper.NumberType.DOUBLE), Double.MAX_VALUE, format);
-        addFieldWithCapabilities(input, new NumberFieldMapper.NumberFieldType(HALF_FLOAT_FIELD_NAME, NumberFieldMapper.NumberType.HALF_FLOAT), Short.MAX_VALUE, format);
-        addFieldWithCapabilities(input, new NumberFieldMapper.NumberFieldType(UNSIGNED_LONG_FIELD_NAME, NumberFieldMapper.NumberType.UNSIGNED_LONG), Long.MAX_VALUE, format);
+        addFieldWithCapabilities(
+            input,
+            new NumberFieldMapper.NumberFieldType(BYTE_FIELD_NAME, NumberFieldMapper.NumberType.BYTE),
+            Byte.MAX_VALUE,
+            format
+        );
+        addFieldWithCapabilities(
+            input,
+            new NumberFieldMapper.NumberFieldType(SHORT_FIELD_NAME, NumberFieldMapper.NumberType.SHORT),
+            Short.MAX_VALUE,
+            format
+        );
+        addFieldWithCapabilities(
+            input,
+            new NumberFieldMapper.NumberFieldType(INT_FIELD_NAME, NumberFieldMapper.NumberType.INTEGER),
+            Integer.MAX_VALUE,
+            format
+        );
+        addFieldWithCapabilities(
+            input,
+            new NumberFieldMapper.NumberFieldType(LONG_FIELD_NAME, NumberFieldMapper.NumberType.LONG),
+            Long.MAX_VALUE,
+            format
+        );
+        addFieldWithCapabilities(
+            input,
+            new NumberFieldMapper.NumberFieldType(FLOAT_FIELD_NAME, NumberFieldMapper.NumberType.FLOAT),
+            Float.MAX_VALUE,
+            format
+        );
+        addFieldWithCapabilities(
+            input,
+            new NumberFieldMapper.NumberFieldType(DOUBLE_FIELD_NAME, NumberFieldMapper.NumberType.DOUBLE),
+            Double.MAX_VALUE,
+            format
+        );
+        addFieldWithCapabilities(
+            input,
+            new NumberFieldMapper.NumberFieldType(HALF_FLOAT_FIELD_NAME, NumberFieldMapper.NumberType.HALF_FLOAT),
+            Short.MAX_VALUE,
+            format
+        );
+        addFieldWithCapabilities(
+            input,
+            new NumberFieldMapper.NumberFieldType(UNSIGNED_LONG_FIELD_NAME, NumberFieldMapper.NumberType.UNSIGNED_LONG),
+            Long.MAX_VALUE,
+            format
+        );
         addFieldWithCapabilities(input, new TextFieldType(TEXT_FIELD_NAME), randomAlphaOfLength(100), format);
         addFieldWithCapabilities(input, new DateFieldType(DATE_FIELD_NAME), System.currentTimeMillis(), format);
-        addFieldWithCapabilities(input, new DateFieldType(DATE_NANOS_FIELD_NAME, DateFieldMapper.Resolution.NANOSECONDS), System.nanoTime(), format);
+        addFieldWithCapabilities(
+            input,
+            new DateFieldType(DATE_NANOS_FIELD_NAME, DateFieldMapper.Resolution.NANOSECONDS),
+            System.nanoTime(),
+            format
+        );
         addFieldWithCapabilities(input, new IpFieldType(IP_FIELD_NAME), InetAddresses.forString("0.0.0.0"), format);
-        addFieldWithCapabilities(input, new BinaryFieldType(BINARY_FIELD_NAME), randomAlphaOfLength(100).getBytes(StandardCharsets.UTF_8), format);
+        addFieldWithCapabilities(
+            input,
+            new BinaryFieldType(BINARY_FIELD_NAME),
+            randomAlphaOfLength(100).getBytes(StandardCharsets.UTF_8),
+            format
+        );
         addFieldWithCapabilities(input, new BooleanFieldType(BOOLEAN_FIELD_NAME), randomBoolean(), format);
         assignTestCapabilities(matchOnlyTextFieldType, format);
         input.addField(matchOnlyTextFieldType, randomAlphaOfLength(100));

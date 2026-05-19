@@ -42,17 +42,18 @@ public class ParquetDocumentInput implements DocumentInput<List<FieldValuePair>>
     @Override
     public void addField(MappedFieldType fieldType, Object value) {
         ensureOpen();
-        // Check capability map — accept only if this format owns capabilities for this field type
+        if (fieldType == null) {
+            throw new IllegalArgumentException("fieldType must not be null");
+        }
         Map<DataFormat, Set<FieldTypeCapabilities.Capability>> capMap = fieldType.getCapabilityMap();
         if (capMap.isEmpty()) {
-            // No capability map set — no format declared support for this field type, skip it
             return;
         }
-
         Set<FieldTypeCapabilities.Capability> ownedCaps = capMap.get(owningFormat);
-        if (ownedCaps != null && ownedCaps.isEmpty() == false) {
-            collectedFields.add(new FieldValuePair(fieldType, value));
+        if (ownedCaps == null || ownedCaps.isEmpty()) {
+            return;
         }
+        collectedFields.add(new FieldValuePair(fieldType, value));
     }
 
     @Override
