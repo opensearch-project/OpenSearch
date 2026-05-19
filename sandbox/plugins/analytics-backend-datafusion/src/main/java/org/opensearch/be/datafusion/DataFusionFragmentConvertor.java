@@ -33,6 +33,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.analytics.planner.rel.OpenSearchStageInputScan;
 import org.opensearch.analytics.spi.DelegatedPredicateFunction;
+import org.opensearch.analytics.spi.DelegationPossibleFunction;
 import org.opensearch.analytics.spi.FragmentConvertor;
 import org.opensearch.be.datafusion.planner.adapter.NumericConversionFunctionAdapter;
 import org.opensearch.be.datafusion.planner.adapter.TimeConversionFunctionAdapter;
@@ -138,6 +139,7 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
      */
     private static final List<FunctionMappings.Sig> ADDITIONAL_SCALAR_SIGS = List.of(
         FunctionMappings.s(DelegatedPredicateFunction.FUNCTION, DelegatedPredicateFunction.NAME),
+        FunctionMappings.s(DelegationPossibleFunction.FUNCTION, DelegationPossibleFunction.NAME),
         FunctionMappings.s(SqlStdOperatorTable.ASCII, "ascii"),
         FunctionMappings.s(SqlStdOperatorTable.CHAR_LENGTH, "length"),
         FunctionMappings.s(SqlLibraryOperators.CONCAT_FUNCTION, "concat"),

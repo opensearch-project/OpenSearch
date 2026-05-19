@@ -555,6 +555,12 @@ public class CoordinatorResilienceIT extends OpenSearchIntegTestCase {
      * #4 — Intermittent disruption: toggle disconnect on/off; fire query mid-cycle.
      * Bounded timeout proves the coordinator doesn't wedge across reconnect cycles.
      */
+    @AwaitsFix(
+        bugUrl = "https://github.com/opensearch-project/OpenSearch/pull/21711 — flaky on CI: ReplicationTracker"
+            + " global-checkpoint race during cluster recovery after NetworkDisruption. Passes locally with both"
+            + " observed CI seeds; #21711 attempted a teardown fix (ensureGreen) but did not land. Unmute when the"
+            + " core cluster-coordination race is fixed."
+    )
     public void testCoordinatorSurvivesIntermittentNetwork() throws Exception {
         createAndSeedIndex();
         String coord = coordinatorNodeName();
@@ -1505,6 +1511,11 @@ public class CoordinatorResilienceIT extends OpenSearchIntegTestCase {
      * to the disconnected-shard state, then the heal+kill validates the
      * post-disruption recovery path.
      */
+    @AwaitsFix(
+        bugUrl = "https://github.com/opensearch-project/OpenSearch/pull/21711 — flaky on CI: cluster fails to form"
+            + " quorum during stop+restart after NetworkDisruption (FailedToCommitClusterStateException). Same"
+            + " teardown race as testCoordinatorSurvivesIntermittentNetwork. Unmute when fixed upstream."
+    )
     public void testShardHostNodeKillAndRestart() throws Exception {
         createAndSeedIndex();
         String victim = firstNonMatching(coordinatorNodeName());
