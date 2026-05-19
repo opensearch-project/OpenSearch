@@ -85,6 +85,9 @@ public class MonitorService extends AbstractLifecycleComponent {
         return this.fsService;
     }
 
+    /**
+     * Returns the memory reporting service.
+     */
     public MemoryReportingService memoryReportingService() {
         return this.memoryReportingService;
     }

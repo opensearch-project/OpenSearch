@@ -63,18 +63,30 @@ public class AnalyticsBackendTaskCancellationStats implements Writeable, ToXCont
         this.searchShardTaskTotal = in.readVLong();
     }
 
+    /**
+     * Returns the current count of search tasks executing post-cancellation.
+     */
     public long getSearchTaskCurrent() {
         return searchTaskCurrent;
     }
 
+    /**
+     * Returns the total count of search tasks that executed post-cancellation.
+     */
     public long getSearchTaskTotal() {
         return searchTaskTotal;
     }
 
+    /**
+     * Returns the current count of search shard tasks executing post-cancellation.
+     */
     public long getSearchShardTaskCurrent() {
         return searchShardTaskCurrent;
     }
 
+    /**
+     * Returns the total count of search shard tasks that executed post-cancellation.
+     */
     public long getSearchShardTaskTotal() {
         return searchShardTaskTotal;
     }

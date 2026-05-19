@@ -44,6 +44,11 @@ public class NativeMemoryService {
     private volatile AnalyticsBackendNativeMemoryStats cachedStats;
     private volatile long lastRefreshTimestamp;
 
+    /**
+     * Constructs a new NativeMemoryService.
+     *
+     * @param settings the node settings used to configure the refresh interval
+     */
     public NativeMemoryService(Settings settings) {
         this.refreshInterval = REFRESH_INTERVAL_SETTING.get(settings);
         this.lastRefreshTimestamp = 0;
@@ -51,10 +56,19 @@ public class NativeMemoryService {
         logger.debug("using refresh_interval [{}]", refreshInterval);
     }
 
+    /**
+     * Sets the supplier that provides native memory stats from the backend plugin.
+     *
+     * @param supplier the stats supplier
+     */
     public void setStatsSupplier(Supplier<AnalyticsBackendNativeMemoryStats> supplier) {
         this.statsSupplier = supplier;
     }
 
+    /**
+     * Returns the cached native memory stats, refreshing if the cache has expired.
+     * Returns {@code null} if no stats supplier has been set.
+     */
     @Nullable
     public synchronized AnalyticsBackendNativeMemoryStats stats() {
         if (statsSupplier == null) {

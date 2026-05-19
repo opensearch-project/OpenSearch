@@ -85,7 +85,10 @@ public class TaskCancellationStats implements ToXContentFragment, Writeable {
         return this.searchTaskCancellationStats;
     }
 
-    // package private for testing
+    /**
+     * Returns the native task cancellation stats, or {@code null} if unavailable.
+     * Package private for testing.
+     */
     @Nullable
     protected AnalyticsBackendTaskCancellationStats getNativeStats() {
         return this.nativeStats;

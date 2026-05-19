@@ -26,20 +26,37 @@ public class MemoryReportingService {
     private final JvmService jvmService;
     private final NativeMemoryService nativeMemoryService;
 
+    /**
+     * Constructs a new MemoryReportingService.
+     *
+     * @param jvmService          the JVM stats service
+     * @param nativeMemoryService the native memory stats service
+     */
     public MemoryReportingService(JvmService jvmService, NativeMemoryService nativeMemoryService) {
         this.jvmService = jvmService;
         this.nativeMemoryService = nativeMemoryService;
     }
 
+    /**
+     * Returns the current JVM memory statistics.
+     */
     public JvmStats jvmStats() {
         return jvmService.stats();
     }
 
+    /**
+     * Returns the current native (jemalloc) memory statistics, or {@code null} if unavailable.
+     */
     @Nullable
     public AnalyticsBackendNativeMemoryStats nativeStats() {
         return nativeMemoryService.stats();
     }
 
+    /**
+     * Sets the supplier for native memory statistics.
+     *
+     * @param supplier the supplier that provides native memory stats from the backend plugin
+     */
     public void setNativeStatsSupplier(Supplier<AnalyticsBackendNativeMemoryStats> supplier) {
         nativeMemoryService.setStatsSupplier(supplier);
     }

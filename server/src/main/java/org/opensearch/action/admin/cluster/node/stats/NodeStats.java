@@ -494,6 +494,9 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         return remoteStoreNodeStats;
     }
 
+    /**
+     * Returns the analytics backend native memory stats, or {@code null} if not available.
+     */
     @Nullable
     public AnalyticsBackendNativeMemoryStats getAnalyticsBackendNativeMemoryStats() {
         return nativeMemoryStats;

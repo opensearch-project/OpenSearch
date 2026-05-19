@@ -60,6 +60,13 @@ public class TaskCancellationMonitoringService extends AbstractLifecycleComponen
     @Nullable
     private final Supplier<AnalyticsBackendTaskCancellationStats> nativeStatsSupplier;
 
+    /**
+     * Constructs a TaskCancellationMonitoringService without native stats support.
+     *
+     * @param threadPool                          the thread pool for scheduling
+     * @param taskManager                         the task manager to monitor
+     * @param taskCancellationMonitoringSettings  the monitoring settings
+     */
     public TaskCancellationMonitoringService(
         ThreadPool threadPool,
         TaskManager taskManager,
@@ -68,6 +75,14 @@ public class TaskCancellationMonitoringService extends AbstractLifecycleComponen
         this(threadPool, taskManager, taskCancellationMonitoringSettings, null);
     }
 
+    /**
+     * Constructs a TaskCancellationMonitoringService with optional native stats support.
+     *
+     * @param threadPool                          the thread pool for scheduling
+     * @param taskManager                         the task manager to monitor
+     * @param taskCancellationMonitoringSettings  the monitoring settings
+     * @param nativeStatsSupplier                 supplier for native task cancellation stats, or null
+     */
     public TaskCancellationMonitoringService(
         ThreadPool threadPool,
         TaskManager taskManager,
