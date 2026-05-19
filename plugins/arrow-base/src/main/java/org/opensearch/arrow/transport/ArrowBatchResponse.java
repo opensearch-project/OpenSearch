@@ -48,9 +48,17 @@ import java.io.IOException;
  * <p><b>Allocator rules:</b>
  * <ul>
  *   <li><b>Send side:</b> Source the allocator from one of the framework's named pools via
- *       {@link ArrowNativeAllocator#getPoolAllocator(String)} (e.g. {@code POOL_FLIGHT},
- *       {@code POOL_INGEST}, {@code POOL_QUERY}). All allocators must share the same root so
- *       zero-copy transfers pass Arrow's {@code AllocationManager} associate check.</li>
+ *       {@link ArrowNativeAllocator#getPoolAllocator(String)}. Pick the pool that matches the
+ *       semantics of the producing component:
+ *       <ul>
+ *         <li>{@code POOL_FLIGHT} — transport-layer producers/consumers (arrow-flight-rpc and
+ *             plugins built on top of {@code StreamTransportService}).</li>
+ *         <li>{@code POOL_INGEST} — ingest-path producers (parquet-data-format VSR allocators).</li>
+ *         <li>{@code POOL_QUERY} — query-execution producers (analytics-engine fragments and
+ *             coordinator-side intermediate batches).</li>
+ *       </ul>
+ *       All allocators must share the same root so zero-copy transfers pass Arrow's
+ *       {@code AllocationManager} associate check.</li>
  *   <li><b>Send side:</b> Allocators must outlive the transport stream — some transports
  *       (e.g., gRPC zero-copy) retain buffer references beyond stream completion. Do not
  *       create and close a child allocator per request.</li>

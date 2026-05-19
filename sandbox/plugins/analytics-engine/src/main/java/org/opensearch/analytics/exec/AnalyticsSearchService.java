@@ -25,7 +25,8 @@ import org.opensearch.analytics.spi.FragmentInstructionHandlerFactory;
 import org.opensearch.analytics.spi.InstructionNode;
 import org.opensearch.arrow.allocator.ArrowNativeAllocator;
 import org.opensearch.arrow.spi.NativeAllocatorListener;
-import org.opensearch.arrow.spi.NativeAllocatorPoolConfig;import org.opensearch.common.concurrent.GatedCloseable;
+import org.opensearch.arrow.spi.NativeAllocatorPoolConfig;
+import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.tasks.TaskCancelledException;
 import org.opensearch.index.engine.exec.IndexReaderProvider;
@@ -113,12 +114,7 @@ public class AnalyticsSearchService implements AutoCloseable {
 
     @Override
     public void close() {
-        try {
-            nativeAllocator.removeListener(poolListener);
-        } catch (Exception ignored) {
-            // Best-effort — framework may have already torn down ahead of us in some
-            // shutdown paths.
-        }
+        nativeAllocator.removeListener(poolListener);
         allocator.close();
     }
 

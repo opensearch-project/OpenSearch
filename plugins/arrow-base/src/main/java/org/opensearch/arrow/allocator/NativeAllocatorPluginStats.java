@@ -30,12 +30,21 @@ public class NativeAllocatorPluginStats implements PluginNodeStats {
 
     private final NativeAllocatorPoolStats poolStats;
 
-    /** Wraps the given snapshot. */
+    /**
+     * Wraps the given snapshot.
+     *
+     * @param poolStats the pool stats snapshot to expose under {@code _nodes/stats}
+     */
     public NativeAllocatorPluginStats(NativeAllocatorPoolStats poolStats) {
         this.poolStats = poolStats;
     }
 
-    /** Reads from the wire. */
+    /**
+     * Reads from the wire.
+     *
+     * @param in the stream input
+     * @throws IOException if reading fails
+     */
     public NativeAllocatorPluginStats(StreamInput in) throws IOException {
         this.poolStats = new NativeAllocatorPoolStats(in);
     }

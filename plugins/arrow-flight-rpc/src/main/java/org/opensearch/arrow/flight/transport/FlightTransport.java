@@ -282,11 +282,7 @@ class FlightTransport extends TcpTransport {
     protected void stopInternal() {
         try {
             if (poolListener != null) {
-                try {
-                    nativeAllocator.removeListener(poolListener);
-                } catch (IllegalStateException ignored) {
-                    // Framework already torn down — nothing to detach from.
-                }
+                nativeAllocator.removeListener(poolListener);
                 poolListener = null;
             }
             if (flightServer != null) {

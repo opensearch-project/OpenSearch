@@ -33,6 +33,7 @@ import org.opensearch.analytics.planner.dag.FragmentConversionDriver;
 import org.opensearch.analytics.planner.dag.PlanForker;
 import org.opensearch.analytics.planner.dag.QueryDAG;
 import org.opensearch.arrow.allocator.ArrowNativeAllocator;
+import org.opensearch.arrow.spi.NativeAllocatorListener;
 import org.opensearch.arrow.spi.NativeAllocatorPoolConfig;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
@@ -76,9 +77,15 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
     private final Executor searchExecutor;
     private final TaskManager taskManager;
     private final NodeClient client;
-    // TODO: close on shutdown — currently arrow-base's root.close() will warn about this
-    // outstanding child. Consider wrapping in a Guice-bound type owned by AnalyticsPlugin.
+    private final ArrowNativeAllocator nativeAllocator;
+    // Pre-existing leak: DefaultPlanExecutor is Guice-instantiated and not closed by the
+    // framework, so coordinatorAllocator + the registered NativeAllocatorListener leak on
+    // node shutdown. ArrowNativeAllocator.close() will warn about the outstanding child.
+    // Fix would require either (a) making DefaultPlanExecutor LifecycleComponent so Node
+    // closes it, or (b) wrapping in a Guice-bound singleton that AnalyticsPlugin owns and
+    // closes from its own close() method. Out of scope for the SPI-removal migration.
     private final BufferAllocator coordinatorAllocator;
+    private final NativeAllocatorListener poolListener;
     private volatile long perQueryBufferLimit;
 
     @Inject
@@ -102,16 +109,28 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
         this.taskManager = transportService.getTaskManager();
         this.client = client;
         this.scheduler = scheduler;
+        this.nativeAllocator = nativeAllocator;
         // Source the coordinator allocator from the framework's QUERY pool so coordinator-side
         // allocations (held shard responses, intermediate batches during reduce) count against
         // parquet.native.pool.query.max alongside the data-node-side per-fragment allocators in
         // AnalyticsSearchService. Before this, coordinator allocations were root-siblings outside
         // any pool and invisible to _nodes/stats.native_allocator.pools.query.allocated.
-        this.coordinatorAllocator = nativeAllocator.getPoolAllocator(NativeAllocatorPoolConfig.POOL_QUERY)
-            .newChildAllocator("coordinator", 0, Long.MAX_VALUE);
+        BufferAllocator queryPool = nativeAllocator.getPoolAllocator(NativeAllocatorPoolConfig.POOL_QUERY);
+        this.coordinatorAllocator = queryPool.newChildAllocator("coordinator", 0, queryPool.getLimit());
         this.perQueryBufferLimit = AnalyticsPlugin.COORDINATOR_BUFFER_LIMIT.get(clusterService.getSettings());
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(AnalyticsPlugin.COORDINATOR_BUFFER_LIMIT, v -> perQueryBufferLimit = v);
+
+        // Subscribe to QUERY pool resize events so a dynamic update to
+        // parquet.native.pool.query.max propagates into this captured child allocator,
+        // matching the listener pattern used by AnalyticsSearchService and FlightTransport.
+        // Without this, runtime grows are silently ignored once a query is in flight.
+        this.poolListener = (poolName, newLimit) -> {
+            if (NativeAllocatorPoolConfig.POOL_QUERY.equals(poolName)) {
+                coordinatorAllocator.setLimit(newLimit);
+            }
+        };
+        nativeAllocator.addListener(poolListener);
     }
 
     @Override
