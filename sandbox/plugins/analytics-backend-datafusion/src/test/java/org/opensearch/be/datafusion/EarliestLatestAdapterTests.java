@@ -20,7 +20,6 @@ import org.apache.calcite.rex.RexLiteral;
 import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.sql.SqlIdentifier;
 import org.apache.calcite.sql.SqlKind;
-import org.apache.calcite.sql.fun.SqlStdOperatorTable;
 import org.apache.calcite.sql.parser.SqlParserPos;
 import org.apache.calcite.sql.type.ReturnTypes;
 import org.apache.calcite.sql.type.SqlTypeName;
@@ -46,10 +45,8 @@ public class EarliestLatestAdapterTests extends OpenSearchTestCase {
     private SqlUserDefinedFunction latestUdf;
     private RexNode tsRef;
 
-    private final EarliestLatestAdapter.EarliestAdapter earliestAdapter =
-        new EarliestLatestAdapter.EarliestAdapter();
-    private final EarliestLatestAdapter.LatestAdapter latestAdapter =
-        new EarliestLatestAdapter.LatestAdapter();
+    private final EarliestLatestAdapter.EarliestAdapter earliestAdapter = new EarliestLatestAdapter.EarliestAdapter();
+    private final EarliestLatestAdapter.LatestAdapter latestAdapter = new EarliestLatestAdapter.LatestAdapter();
 
     @Override
     public void setUp() throws Exception {
@@ -58,10 +55,7 @@ public class EarliestLatestAdapterTests extends OpenSearchTestCase {
         rexBuilder = new RexBuilder(typeFactory);
         HepPlanner planner = new HepPlanner(new HepProgramBuilder().build());
         cluster = RelOptCluster.create(planner, rexBuilder);
-        timestampType = typeFactory.createTypeWithNullability(
-            typeFactory.createSqlType(SqlTypeName.TIMESTAMP, 3),
-            true
-        );
+        timestampType = typeFactory.createTypeWithNullability(typeFactory.createSqlType(SqlTypeName.TIMESTAMP, 3), true);
         // RexInputRef ($0) typed as TIMESTAMP — stand-in for the @timestamp column.
         tsRef = rexBuilder.makeInputRef(timestampType, 0);
 
@@ -82,15 +76,13 @@ public class EarliestLatestAdapterTests extends OpenSearchTestCase {
 
     private RexCall buildEarliest(String dsl) {
         RexNode lit = rexBuilder.makeLiteral(dsl);
-        RelDataType boolType = typeFactory.createTypeWithNullability(
-            typeFactory.createSqlType(SqlTypeName.BOOLEAN), true);
+        RelDataType boolType = typeFactory.createTypeWithNullability(typeFactory.createSqlType(SqlTypeName.BOOLEAN), true);
         return (RexCall) rexBuilder.makeCall(boolType, earliestUdf, List.of(lit, tsRef));
     }
 
     private RexCall buildLatest(String dsl) {
         RexNode lit = rexBuilder.makeLiteral(dsl);
-        RelDataType boolType = typeFactory.createTypeWithNullability(
-            typeFactory.createSqlType(SqlTypeName.BOOLEAN), true);
+        RelDataType boolType = typeFactory.createTypeWithNullability(typeFactory.createSqlType(SqlTypeName.BOOLEAN), true);
         return (RexCall) rexBuilder.makeCall(boolType, latestUdf, List.of(lit, tsRef));
     }
 
@@ -134,9 +126,11 @@ public class EarliestLatestAdapterTests extends OpenSearchTestCase {
         RexCall rhs = (RexCall) ((RexCall) result).getOperands().get(1);
         assertEquals(SqlKind.PLUS, rhs.getKind());
         assertTrue("inner LHS must be now()", isNowCall(rhs.getOperands().get(0)));
-        assertTrue("inner RHS must be INTERVAL literal",
+        assertTrue(
+            "inner RHS must be INTERVAL literal",
             rhs.getOperands().get(1) instanceof RexLiteral
-                && rhs.getOperands().get(1).getType().getSqlTypeName().getName().startsWith("INTERVAL"));
+                && rhs.getOperands().get(1).getType().getSqlTypeName().getName().startsWith("INTERVAL")
+        );
     }
 
     public void testPositiveOffsetMinutes() {
@@ -242,9 +236,10 @@ public class EarliestLatestAdapterTests extends OpenSearchTestCase {
             }
             assertEquals(SqlKind.PLUS, call.getKind());
             RexNode inner = call.getOperands().get(0);
-            assertTrue("inner of weekday snap must be date_trunc('day', now())",
-                inner instanceof RexCall innerCall
-                    && innerCall.getOperator().getName().equals("date_trunc"));
+            assertTrue(
+                "inner of weekday snap must be date_trunc('day', now())",
+                inner instanceof RexCall innerCall && innerCall.getOperator().getName().equals("date_trunc")
+            );
             return;
         }
         fail("weekday snap RHS must be a RexCall, got " + rhs);
@@ -268,9 +263,10 @@ public class EarliestLatestAdapterTests extends OpenSearchTestCase {
         // First arg is a column reference, not a literal — adapter must return the
         // call unchanged (defensive; PPL grammar doesn't actually allow this).
         RexNode varcharRef = rexBuilder.makeInputRef(
-            typeFactory.createTypeWithNullability(typeFactory.createSqlType(SqlTypeName.VARCHAR), true), 1);
-        RelDataType boolType = typeFactory.createTypeWithNullability(
-            typeFactory.createSqlType(SqlTypeName.BOOLEAN), true);
+            typeFactory.createTypeWithNullability(typeFactory.createSqlType(SqlTypeName.VARCHAR), true),
+            1
+        );
+        RelDataType boolType = typeFactory.createTypeWithNullability(typeFactory.createSqlType(SqlTypeName.BOOLEAN), true);
         RexCall original = (RexCall) rexBuilder.makeCall(boolType, earliestUdf, List.of(varcharRef, tsRef));
         RexNode result = earliestAdapter.adapt(original, List.of(), cluster);
         assertSame("non-literal first arg must short-circuit to the original call", original, result);

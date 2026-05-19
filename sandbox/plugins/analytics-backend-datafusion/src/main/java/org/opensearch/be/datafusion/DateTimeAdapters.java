@@ -99,10 +99,7 @@ final class DateTimeAdapters {
         SqlKind.OTHER_FUNCTION,
         ReturnTypes.ARG1_NULLABLE,
         null,
-        OperandTypes.family(
-            org.apache.calcite.sql.type.SqlTypeFamily.CHARACTER,
-            org.apache.calcite.sql.type.SqlTypeFamily.TIMESTAMP
-        ),
+        OperandTypes.family(org.apache.calcite.sql.type.SqlTypeFamily.CHARACTER, org.apache.calcite.sql.type.SqlTypeFamily.TIMESTAMP),
         SqlFunctionCategory.TIMEDATE
     );
 

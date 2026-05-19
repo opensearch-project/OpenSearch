@@ -204,9 +204,7 @@ public final class EarliestLatestAdapter {
                 result = applyOffset(result, c, value, rawUnit, rexBuilder);
                 i = k;
             } else {
-                throw new IllegalArgumentException(
-                    "Unexpected character '" + c + "' at position " + i + " in input: " + trimmed
-                );
+                throw new IllegalArgumentException("Unexpected character '" + c + "' at position " + i + " in input: " + trimmed);
             }
         }
         return result;
@@ -245,15 +243,30 @@ public final class EarliestLatestAdapter {
             case "M" -> {
                 // MONTH and YEAR use INTERVAL_YEAR_MONTH (months as backing unit), not millis.
                 long months = signedValue;
-                return makeIntervalAdd(base, BigDecimal.valueOf(months), new SqlIntervalQualifier(TimeUnit.MONTH, null, SqlParserPos.ZERO), rexBuilder);
+                return makeIntervalAdd(
+                    base,
+                    BigDecimal.valueOf(months),
+                    new SqlIntervalQualifier(TimeUnit.MONTH, null, SqlParserPos.ZERO),
+                    rexBuilder
+                );
             }
             case "y" -> {
                 long months = signedValue * 12L;
-                return makeIntervalAdd(base, BigDecimal.valueOf(months), new SqlIntervalQualifier(TimeUnit.MONTH, null, SqlParserPos.ZERO), rexBuilder);
+                return makeIntervalAdd(
+                    base,
+                    BigDecimal.valueOf(months),
+                    new SqlIntervalQualifier(TimeUnit.MONTH, null, SqlParserPos.ZERO),
+                    rexBuilder
+                );
             }
             case "q" -> {
                 long months = signedValue * 3L;
-                return makeIntervalAdd(base, BigDecimal.valueOf(months), new SqlIntervalQualifier(TimeUnit.MONTH, null, SqlParserPos.ZERO), rexBuilder);
+                return makeIntervalAdd(
+                    base,
+                    BigDecimal.valueOf(months),
+                    new SqlIntervalQualifier(TimeUnit.MONTH, null, SqlParserPos.ZERO),
+                    rexBuilder
+                );
             }
             default -> throw new IllegalArgumentException("Unsupported offset unit: " + rawUnit);
         }
@@ -355,12 +368,11 @@ public final class EarliestLatestAdapter {
     // ── Absolute timestamp literal parsing (port from EarliestLatestAdapter) ────
 
     private static final DateTimeFormatter[] ABSOLUTE_FORMATTERS = new DateTimeFormatter[] {
-        DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"),
-        DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss'Z'"),
-        DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss"),
+        DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss", Locale.ROOT),
+        DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.ROOT),
+        DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss", Locale.ROOT),
         DateTimeFormatter.ISO_DATE_TIME,
-        new DateTimeFormatterBuilder().appendPattern("MM/dd/yyyy:HH:mm:ss").toFormatter(),
-    };
+        new DateTimeFormatterBuilder().appendPattern("MM/dd/yyyy:HH:mm:ss").toFormatter(Locale.ROOT), };
 
     /** Parses an absolute timestamp; returns epoch millis or null if the input isn't an absolute literal. */
     private static Long tryParseAbsolute(String input) {
