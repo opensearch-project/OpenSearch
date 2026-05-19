@@ -8,16 +8,19 @@
 
 package org.opensearch.analytics.exec;
 
+import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.vector.VectorSchemaRoot;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.metadata.JaninoRelMetadataProvider;
 import org.apache.calcite.rel.metadata.RelMetadataQueryBase;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.action.ActionRequest;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.HandledTransportAction;
 import org.opensearch.action.support.TimeoutTaskCancellationUtility;
+import org.opensearch.analytics.AnalyticsPlugin;
 import org.opensearch.analytics.AnalyticsSettings;
 import org.opensearch.analytics.EngineContext;
 import org.opensearch.analytics.exec.action.AnalyticsQueryAction;
@@ -89,7 +92,10 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
     private final TaskManager taskManager;
     private final NodeClient client;
     private final JoinStrategyMetrics joinStrategyMetrics;
-    private final ArrowAllocatorService allocatorService;
+    // TODO: close on shutdown — currently arrow-base's root.close() will warn about this
+    // outstanding child. Consider wrapping in a Guice-bound type owned by AnalyticsPlugin.
+    private final BufferAllocator coordinatorAllocator;
+    private volatile long perQueryBufferLimit;
 
     @Inject
     public DefaultPlanExecutor(
@@ -114,7 +120,10 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
         this.client = client;
         this.scheduler = scheduler;
         this.joinStrategyMetrics = joinStrategyMetrics;
-        this.allocatorService = allocatorService;
+        this.coordinatorAllocator = allocatorService.newChildAllocator("coordinator", Long.MAX_VALUE);
+        this.perQueryBufferLimit = AnalyticsPlugin.COORDINATOR_BUFFER_LIMIT.get(clusterService.getSettings());
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(AnalyticsPlugin.COORDINATOR_BUFFER_LIMIT, v -> perQueryBufferLimit = v);
     }
 
     @Override
@@ -210,11 +219,42 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
             "analytics_query",
             new AnalyticsQueryTaskRequest(dag.queryId(), null)
         );
-        final QueryContext context = new QueryContext(dag, searchExecutor, queryTask, allocatorService);
+        final BufferAllocator queryAllocator;
+        final boolean ownsAllocator;
+        if (perQueryBufferLimit <= 0) {
+            queryAllocator = coordinatorAllocator;
+            ownsAllocator = false;
+        } else {
+            queryAllocator = coordinatorAllocator.newChildAllocator("query-" + dag.queryId(), 0, perQueryBufferLimit);
+            ownsAllocator = true;
+        }
+        logger.debug("[query-{}] Arrow allocator created, limit={}B", dag.queryId(), perQueryBufferLimit);
+        final QueryContext context;
+        try {
+            context = new QueryContext(dag, searchExecutor, queryTask, queryAllocator, ownsAllocator);
+        } catch (Exception e) {
+            if (ownsAllocator) queryAllocator.close();
+            throw e;
+        }
 
+        // Close the *original* QueryContext on every terminal — success or failure. For coord-
+        // centric queries, QueryExecution.close() also calls config::close on the same context;
+        // QueryContext.close() is idempotent so the duplicate is a no-op. For broadcast queries,
+        // QueryExecution operates on the pass-2 derived (non-owning) context, so it never frees
+        // the owning allocator — this runAfter is the only path that does. Without it, every
+        // broadcast query leaks its per-query Arrow allocator (and any failed/cancelled query
+        // that bails before QueryExecution is even constructed leaks unconditionally).
         ActionListener<Iterable<VectorSchemaRoot>> batchesListener = ActionListener.runAfter(
             ActionListener.wrap(batches -> listener.onResponse(batchesToRows(batches)), listener::onFailure),
-            () -> taskManager.unregister(queryTask)
+            () -> {
+                try {
+                    context.close();
+                } catch (Exception e) {
+                    logger.warn(new ParameterizedMessage("[query-{}] QueryContext.close() threw on teardown", dag.queryId()), e);
+                } finally {
+                    taskManager.unregister(queryTask);
+                }
+            }
         );
 
         TimeValue taskTimeout = queryTask.getCancelAfterTimeInterval();

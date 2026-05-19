@@ -13,7 +13,6 @@ import org.apache.arrow.memory.RootAllocator;
 import org.opensearch.analytics.backend.AnalyticsOperationListener;
 import org.opensearch.analytics.exec.task.AnalyticsQueryTask;
 import org.opensearch.analytics.planner.dag.QueryDAG;
-import org.opensearch.arrow.memory.ArrowAllocatorService;
 
 import java.util.List;
 import java.util.concurrent.Executor;
@@ -24,6 +23,11 @@ import java.util.concurrent.Executors;
  * Per-query context — immutable config (DAG, executor, parent task) + lazy per-query
  * resources (Arrow buffer allocator, virtual-thread executor for LOCAL tasks).
  *
+ * <p>Phased dispatchers (e.g. M1 {@code BroadcastDispatch}) need a derived context pointing at
+ * a different DAG that still shares this context's allocator + lazy executor. Use
+ * {@link #withDag(QueryDAG)} for that. The derived context is non-owning: only the original
+ * context's {@link #close()} releases the allocator + shuts down the executor.
+ *
  * @opensearch.internal
  */
 public class QueryContext {
@@ -31,40 +35,41 @@ public class QueryContext {
     // TODO: make configurable via cluster setting (like search.max_concurrent_shard_requests)
     private static final int DEFAULT_MAX_CONCURRENT_SHARD_REQUESTS = 5;
 
-    /** Default per-query memory limit for Arrow allocations (256 MB). */
-    private static final long DEFAULT_PER_QUERY_MEMORY_LIMIT = 256L * 1024 * 1024;
-
     private final QueryDAG dag;
     private final Executor searchExecutor;
     private final AnalyticsQueryTask parentTask;
     private final int maxConcurrentShardRequests;
-    private final long perQueryMemoryLimit;
     private final List<AnalyticsOperationListener> operationListeners;
-    private final ArrowAllocatorService allocatorService;
+    private final BufferAllocator allocator;
+    private final boolean ownsAllocator;
     /**
-     * Per-query state shared across phased contexts. Instances produced by
-     * {@link #withDag(QueryDAG)} share the same mutable holder so the lazy allocator and
-     * lazy {@code localTaskExecutor} (and the {@link #close()} lifecycle) remain
-     * single-instance across all phases of the same query (e.g. M1 broadcast pass-1 +
-     * pass-2).
+     * Holder for the lazy local-task executor + closed flag, shared across phased contexts so
+     * pass 1 and pass 2 of multi-phase dispatch (e.g. M1 broadcast) reuse a single executor and
+     * a single close-once semantics. Non-shared queries get a holder of their own.
      */
     private final SharedState sharedState;
 
     private static final class SharedState {
-        volatile BufferAllocator bufferAllocator;
         volatile ExecutorService localTaskExecutor;
-        boolean closed;
+        boolean closed;  // guarded by synchronized(this)
     }
 
-    public QueryContext(QueryDAG dag, Executor searchExecutor, AnalyticsQueryTask parentTask, ArrowAllocatorService allocatorService) {
+    public QueryContext(
+        QueryDAG dag,
+        Executor searchExecutor,
+        AnalyticsQueryTask parentTask,
+        BufferAllocator allocator,
+        boolean ownsAllocator
+    ) {
         this(
             dag,
             searchExecutor,
             parentTask,
             DEFAULT_MAX_CONCURRENT_SHARD_REQUESTS,
-            DEFAULT_PER_QUERY_MEMORY_LIMIT,
             List.of(),
-            allocatorService
+            allocator,
+            ownsAllocator,
+            new SharedState()
         );
     }
 
@@ -74,50 +79,31 @@ public class QueryContext {
         Executor searchExecutor,
         AnalyticsQueryTask parentTask,
         int maxConcurrentShardRequests,
-        long perQueryMemoryLimit,
         List<AnalyticsOperationListener> operationListeners,
-        ArrowAllocatorService allocatorService
-    ) {
-        this(
-            dag,
-            searchExecutor,
-            parentTask,
-            maxConcurrentShardRequests,
-            perQueryMemoryLimit,
-            operationListeners,
-            allocatorService,
-            new SharedState()
-        );
-    }
-
-    private QueryContext(
-        QueryDAG dag,
-        Executor searchExecutor,
-        AnalyticsQueryTask parentTask,
-        int maxConcurrentShardRequests,
-        long perQueryMemoryLimit,
-        List<AnalyticsOperationListener> operationListeners,
-        ArrowAllocatorService allocatorService,
+        BufferAllocator allocator,
+        boolean ownsAllocator,
         SharedState sharedState
     ) {
         this.dag = dag;
         this.searchExecutor = searchExecutor;
         this.parentTask = parentTask;
         this.maxConcurrentShardRequests = maxConcurrentShardRequests;
-        this.perQueryMemoryLimit = perQueryMemoryLimit;
         this.operationListeners = operationListeners;
-        this.allocatorService = allocatorService;
+        this.allocator = allocator;
+        this.ownsAllocator = ownsAllocator;
         this.sharedState = sharedState;
-        // sharedState volatile fields (bufferAllocator, localTaskExecutor) are filled lazily on
-        // first accessor call; constructor leaves them null intentionally.
     }
 
     /**
      * Returns a derived context pointing at a different {@link QueryDAG} but sharing this
-     * context's buffer allocator, parent task, executor, and listener list. Used by multi-phase
-     * join dispatch (e.g. M1 broadcast) where pass 1 drives only the build stage and pass 2
-     * drives the probe + root; both phases belong to the same query and must share a single
-     * per-query allocator.
+     * context's buffer allocator, parent task, executor, listener list, and lazy local-task
+     * executor. Used by multi-phase join dispatch (e.g. M1 broadcast) where pass 1 drives only
+     * the build stage and pass 2 drives the probe + root; both phases belong to the same query
+     * and must share a single per-query allocator.
+     *
+     * <p>The derived context is non-owning: closing it is a no-op for the allocator. Only the
+     * original context's {@link #close()} releases the allocator (and shuts down the shared
+     * lazy executor) — the caller is responsible for closing the original exactly once.
      */
     public QueryContext withDag(QueryDAG newDag) {
         return new QueryContext(
@@ -125,9 +111,9 @@ public class QueryContext {
             searchExecutor,
             parentTask,
             maxConcurrentShardRequests,
-            perQueryMemoryLimit,
             operationListeners,
-            allocatorService,
+            allocator,
+            /* ownsAllocator */ false,
             sharedState
         );
     }
@@ -157,22 +143,8 @@ public class QueryContext {
         return operationListeners;
     }
 
-    /** Lazy per-query allocator (child of shared root) with {@link #perQueryMemoryLimit}. */
     public BufferAllocator bufferAllocator() {
-        BufferAllocator alloc = sharedState.bufferAllocator;
-        if (alloc == null) {
-            synchronized (sharedState) {
-                alloc = sharedState.bufferAllocator;
-                if (alloc == null) {
-                    if (sharedState.closed) {
-                        throw new IllegalStateException("QueryContext closed for query " + dag.queryId());
-                    }
-                    alloc = allocatorService.newChildAllocator("query-" + dag.queryId(), perQueryMemoryLimit);
-                    sharedState.bufferAllocator = alloc;
-                }
-            }
-        }
-        return alloc;
+        return allocator;
     }
 
     /** Lazy per-query virtual-thread executor for LOCAL tasks. Shared across phased contexts. */
@@ -195,54 +167,38 @@ public class QueryContext {
         return exec;
     }
 
+    boolean ownsAllocator() {
+        return ownsAllocator;
+    }
+
     /**
-     * Closes the per-query buffer allocator and shuts down the lazy local-task executor if
-     * either was created. Idempotent and serialized with the lazy-init accessors so close
-     * can't race with creation. After close, subsequent accessors throw rather than silently
-     * creating new resources.
+     * Idempotent. Serialised with lazy-init accessors; post-close executor accessors throw.
      *
-     * <p>When multiple {@link QueryContext} instances share the same {@link SharedState} (via
-     * {@link #withDag(QueryDAG)}), closing any one of them closes the shared resources — the
-     * caller is responsible for calling this exactly once per query.
+     * <p>For phased contexts produced by {@link #withDag(QueryDAG)}: only the original context
+     * closes the allocator and shuts down the shared executor. Closing a derived context is a
+     * no-op for the allocator (because {@code ownsAllocator=false}); the executor shutdown is
+     * idempotent across all sharers via {@code sharedState.closed}.
      */
     public void close() {
         synchronized (sharedState) {
             if (sharedState.closed) return;
             sharedState.closed = true;
-            if (sharedState.bufferAllocator != null) {
-                sharedState.bufferAllocator.close();
-                sharedState.bufferAllocator = null;
-            }
             if (sharedState.localTaskExecutor != null) {
                 sharedState.localTaskExecutor.shutdown();
                 sharedState.localTaskExecutor = null;
             }
         }
+        // Allocator close is outside the sharedState lock — close() should not race with
+        // bufferAllocator() (the field is final), and arrow's allocator close() can take a lock
+        // that we don't want to interleave with the executor shutdown.
+        if (ownsAllocator) {
+            allocator.close();
+        }
     }
 
     // ─── Test factories ────────────────────────────────────────────────
 
-    /** Test-only: wraps a fresh {@link RootAllocator} as an {@link ArrowAllocatorService}. */
-    private static ArrowAllocatorService testAllocatorService() {
-        return new ArrowAllocatorService() {
-            private final RootAllocator root = new RootAllocator(Long.MAX_VALUE);
-
-            @Override
-            public BufferAllocator newChildAllocator(String name, long limit) {
-                return root.newChildAllocator(name, 0, limit);
-            }
-
-            @Override
-            public long getAllocatedMemory() {
-                return root.getAllocatedMemory();
-            }
-
-            @Override
-            public long getPeakMemoryAllocation() {
-                return root.getPeakMemoryAllocation();
-            }
-        };
-    }
+    private static final RootAllocator TEST_ROOT = new RootAllocator(Long.MAX_VALUE);
 
     /** Creates a test context with a synchronous executor. */
     public static QueryContext forTest(QueryDAG dag, AnalyticsQueryTask parentTask) {
@@ -251,14 +207,16 @@ public class QueryContext {
 
     /** Creates a test context with a synchronous executor and the supplied operation listeners. */
     public static QueryContext forTest(QueryDAG dag, AnalyticsQueryTask parentTask, List<AnalyticsOperationListener> operationListeners) {
+        BufferAllocator testAllocator = TEST_ROOT.newChildAllocator("test-" + dag.queryId(), 0, Long.MAX_VALUE);
         return new QueryContext(
             dag,
             Runnable::run,
             parentTask,
             DEFAULT_MAX_CONCURRENT_SHARD_REQUESTS,
-            Long.MAX_VALUE,
             operationListeners,
-            testAllocatorService()
+            testAllocator,
+            true,
+            new SharedState()
         );
     }
 }

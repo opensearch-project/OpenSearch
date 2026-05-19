@@ -35,6 +35,7 @@ import org.opensearch.common.inject.Module;
 import org.opensearch.common.inject.TypeLiteral;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.IndexScopedSettings;
+import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsFilter;
 import org.opensearch.core.action.ActionResponse;
@@ -70,6 +71,14 @@ import java.util.function.Supplier;
 public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionPlugin {
 
     private static final Logger logger = LogManager.getLogger(AnalyticsPlugin.class);
+
+    public static final Setting<Long> COORDINATOR_BUFFER_LIMIT = Setting.longSetting(
+        "analytics.coordinator.buffer_limit",
+        256L * 1024 * 1024,
+        0L,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
 
     /**
      * Creates a new analytics engine hub plugin.
@@ -156,8 +165,10 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
     }
 
     @Override
-    public List<org.opensearch.common.settings.Setting<?>> getSettings() {
-        return AnalyticsSettings.ALL_SETTINGS;
+    public List<Setting<?>> getSettings() {
+        List<Setting<?>> all = new ArrayList<>(AnalyticsSettings.ALL_SETTINGS);
+        all.add(COORDINATOR_BUFFER_LIMIT);
+        return all;
     }
 
     @Override
