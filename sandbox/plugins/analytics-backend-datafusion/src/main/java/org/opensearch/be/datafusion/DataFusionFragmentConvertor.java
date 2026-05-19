@@ -115,7 +115,6 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         FunctionMappings.s(SqlLibraryOperators.CONCAT_WS, "concat_ws"),
         FunctionMappings.s(SqlLibraryOperators.ILIKE, "ilike"),
         FunctionMappings.s(SqlLibraryOperators.DATE_PART, "date_part"),
-        // DatetimeOutputCastRewriter target — preserves PPL's space-separator timestamp output (#5420).
         FunctionMappings.s(SqlLibraryOperators.TO_CHAR, "to_char"),
         FunctionMappings.s(IpBinaryCastFunctionAdapter.IP_TO_STRING_OP, "ip_to_string"),
         FunctionMappings.s(IpBinaryCastFunctionAdapter.BINARY_TO_BASE64_OP, "binary_to_base64"),
@@ -423,7 +422,6 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
 
     private byte[] convertToSubstrait(RelNode fragment) {
         RelNode preprocessed = UntypedNullPreprocessor.rewrite(fragment);
-        preprocessed = DatetimeOutputCastRewriter.rewrite(preprocessed);
         preprocessed = PplAggregateCallRewriter.rewrite(preprocessed);
         preprocessed = PplWindowCallRewriter.rewrite(preprocessed);
         preprocessed = ItemTypeRebuilder.rewrite(preprocessed);
@@ -454,7 +452,6 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
     /** Converts a single operator into a Substrait {@link Rel}; children are discarded and rewired by {@link #rewire}. */
     private Rel convertStandalone(RelNode operator) {
         RelNode preprocessed = UntypedNullPreprocessor.rewrite(operator);
-        preprocessed = DatetimeOutputCastRewriter.rewrite(preprocessed);
         preprocessed = PplAggregateCallRewriter.rewrite(preprocessed);
         preprocessed = PplWindowCallRewriter.rewrite(preprocessed);
         preprocessed = ItemTypeRebuilder.rewrite(preprocessed);
