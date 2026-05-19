@@ -32,14 +32,14 @@ public class NativeErrorConverterTests extends OpenSearchTestCase {
     }
 
     public void testPoolLimitExceededWithNativeRequestPrefix() {
-        String message = "[native_request] Failed to allocate 2048 bytes for sort (1024 already reserved) "
+        String message = "[analytics_backend_datafusion] Failed to allocate 2048 bytes for sort (1024 already reserved) "
             + "— 0 available out of 1073741824 limit";
         RuntimeException original = new RuntimeException(message);
 
         Exception result = NativeErrorConverter.convert(original);
 
         assertTrue(result instanceof CircuitBreakingException);
-        assertTrue(result.getMessage().contains("[native_request]"));
+        assertTrue(result.getMessage().contains("[analytics_backend_datafusion]"));
     }
 
     public void testAdmissionRejectionConvertsToRejectedExecution() {

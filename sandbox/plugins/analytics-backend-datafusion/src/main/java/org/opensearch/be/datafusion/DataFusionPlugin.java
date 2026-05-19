@@ -108,6 +108,38 @@ public class DataFusionPlugin extends Plugin
     );
 
     /**
+     * Admission threshold for the jemalloc memory guard (0.0–1.0).
+     * When pool accounting rejects a phantom reservation but jemalloc reports
+     * actual RSS below this fraction of the pool limit, the reservation proceeds
+     * at full parallelism (false-positive override). Lower = more conservative.
+     * Default: 0.70.
+     */
+    public static final Setting<Double> DATAFUSION_MEMORY_GUARD_ADMISSION_THRESHOLD = Setting.doubleSetting(
+        "datafusion.memory_guard.admission_threshold",
+        0.70,
+        0.0,
+        1.0,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
+     * Operator threshold for the jemalloc memory guard (0.0–1.0).
+     * When an operator's try_grow is rejected by the pool but jemalloc reports
+     * actual RSS below this fraction of the pool limit, the grow proceeds
+     * (avoiding unnecessary spill). Higher = more aggressive (fewer spills).
+     * Default: 0.85.
+     */
+    public static final Setting<Double> DATAFUSION_MEMORY_GUARD_OPERATOR_THRESHOLD = Setting.doubleSetting(
+        "datafusion.memory_guard.operator_threshold",
+        0.85,
+        0.0,
+        1.0,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
      * Selects how the coordinator-reduce sink hands shard responses to the native runtime.
      * <ul>
      *   <li>{@code streaming} (default) — use {@link DatafusionReduceSink}: each batch is pushed
@@ -136,7 +168,7 @@ public class DataFusionPlugin extends Plugin
     private volatile SimpleExtension.ExtensionCollection substraitExtensions;
     private volatile ClusterService clusterService;
     private volatile DatafusionSettings datafusionSettings;
-    private volatile CircuitBreaker nativeBreaker;
+    private volatile CircuitBreaker datafusionBreaker;
 
     /**
      * Creates the DataFusion plugin.
@@ -178,9 +210,15 @@ public class DataFusionPlugin extends Plugin
         // cluster settings API take effect without restarting the node.
         clusterService.getClusterSettings().addSettingsUpdateConsumer(DATAFUSION_MEMORY_POOL_LIMIT, this::updateMemoryPoolLimit);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(DATAFUSION_MIN_TARGET_PARTITIONS, this::updateMinTargetPartitions);
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(DATAFUSION_MEMORY_GUARD_ADMISSION_THRESHOLD, v -> updateMemoryGuardThresholds());
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(DATAFUSION_MEMORY_GUARD_OPERATOR_THRESHOLD, v -> updateMemoryGuardThresholds());
 
-        // Apply initial value
+        // Apply initial values
         NativeBridge.setMinTargetPartitions(DATAFUSION_MIN_TARGET_PARTITIONS.get(settings));
+        NativeBridge.setMemoryGuardThresholds(
+            DATAFUSION_MEMORY_GUARD_ADMISSION_THRESHOLD.get(settings),
+            DATAFUSION_MEMORY_GUARD_OPERATOR_THRESHOLD.get(settings)
+        );
 
         this.datafusionSettings = new DatafusionSettings(clusterService);
 
@@ -282,6 +320,13 @@ public class DataFusionPlugin extends Plugin
         logger.info("Updated DataFusion min_target_partitions to {}", value);
     }
 
+    private void updateMemoryGuardThresholds() {
+        double admission = clusterService.getClusterSettings().get(DATAFUSION_MEMORY_GUARD_ADMISSION_THRESHOLD);
+        double operator = clusterService.getClusterSettings().get(DATAFUSION_MEMORY_GUARD_OPERATOR_THRESHOLD);
+        NativeBridge.setMemoryGuardThresholds(admission, operator);
+        logger.info("Updated DataFusion memory guard thresholds: admission={}, operator={}", admission, operator);
+    }
+
     @Override
     public String name() {
         return "datafusion";
@@ -317,16 +362,16 @@ public class DataFusionPlugin extends Plugin
     @Override
     public BreakerSettings getCircuitBreaker(Settings settings) {
         long limit = DATAFUSION_MEMORY_POOL_LIMIT.get(settings);
-        return new BreakerSettings("native_request", limit, 1.0, CircuitBreaker.Type.MEMORY, CircuitBreaker.Durability.TRANSIENT, () -> {
-            long currentLimit = nativeBreaker != null ? nativeBreaker.getLimit() : limit;
+        return new BreakerSettings("analytics_backend_datafusion", limit, 1.0, CircuitBreaker.Type.MEMORY, CircuitBreaker.Durability.TRANSIENT, () -> {
+            long currentLimit = dataFusionService != null ? dataFusionService.getMemoryPoolLimit() : limit;
             long[] stats = dataFusionService != null ? dataFusionService.getMemoryPoolStats() : new long[] { 0, 0 };
-            return new CircuitBreakerStats("native_request", currentLimit, stats[0], 1.0, stats[1]);
+            return new CircuitBreakerStats("analytics_backend_datafusion", currentLimit, stats[0], 1.0, stats[1]);
         });
     }
 
     @Override
     public void setCircuitBreaker(CircuitBreaker circuitBreaker) {
-        this.nativeBreaker = circuitBreaker;
+        this.datafusionBreaker = circuitBreaker;
     }
 
     @Override

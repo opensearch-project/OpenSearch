@@ -60,6 +60,7 @@ public final class NativeBridge {
     private static final MethodHandle GET_MEMORY_POOL_STATS;
     private static final MethodHandle SET_MEMORY_POOL_LIMIT;
     private static final MethodHandle SET_MIN_TARGET_PARTITIONS;
+    private static final MethodHandle SET_MEMORY_GUARD_THRESHOLDS;
     private static final MethodHandle CREATE_READER;
     private static final MethodHandle CLOSE_READER;
     private static final MethodHandle EXECUTE_QUERY;
@@ -149,6 +150,11 @@ public final class NativeBridge {
         SET_MIN_TARGET_PARTITIONS = linker.downcallHandle(
             lib.find("df_set_min_target_partitions").orElseThrow(),
             FunctionDescriptor.ofVoid(ValueLayout.JAVA_LONG)
+        );
+
+        SET_MEMORY_GUARD_THRESHOLDS = linker.downcallHandle(
+            lib.find("df_set_memory_guard_thresholds").orElseThrow(),
+            FunctionDescriptor.ofVoid(ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG)
         );
 
         CREATE_READER = linker.downcallHandle(
@@ -612,6 +618,15 @@ public final class NativeBridge {
             SET_MIN_TARGET_PARTITIONS.invokeExact((long) value);
         } catch (Throwable t) {
             logger.debug("Failed to set min target partitions", t);
+        }
+    }
+
+    /** Sets the memory guard admission and operator thresholds (0.0–1.0). */
+    public static void setMemoryGuardThresholds(double admission, double operator) {
+        try {
+            SET_MEMORY_GUARD_THRESHOLDS.invokeExact((long) (admission * 1000), (long) (operator * 1000));
+        } catch (Throwable t) {
+            logger.debug("Failed to set memory guard thresholds", t);
         }
     }
 

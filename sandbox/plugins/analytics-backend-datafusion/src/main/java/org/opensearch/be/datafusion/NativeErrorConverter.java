@@ -92,7 +92,9 @@ public final class NativeErrorConverter {
         if (parsed == null) {
             return match.original();
         }
-        String message = match.message().contains("[native_request]") ? match.message() : "[native_request] " + match.message();
+        String message = match.message().contains("[analytics_backend_datafusion]")
+            ? match.message()
+            : "[analytics_backend_datafusion] " + match.message();
         CircuitBreakingException cbe = new CircuitBreakingException(message, parsed[0], parsed[1], CircuitBreaker.Durability.TRANSIENT);
         cbe.initCause(match.original());
         return cbe;
