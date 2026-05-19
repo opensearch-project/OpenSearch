@@ -214,6 +214,7 @@ import org.opensearch.persistent.PersistentTasksService;
 import org.opensearch.plugin.stats.AnalyticsBackendTaskCancellationStats;
 import org.opensearch.plugins.ActionPlugin;
 import org.opensearch.plugins.AnalysisPlugin;
+import org.opensearch.plugins.BlockCacheRegistry;
 import org.opensearch.plugins.CachePlugin;
 import org.opensearch.plugins.CircuitBreakerPlugin;
 import org.opensearch.plugins.ClusterPlugin;
@@ -1705,6 +1706,11 @@ public class Node implements Closeable {
                     b.bind(FileCache.class).toInstance(fileCache);
                 } else {
                     b.bind(FileCache.class).toProvider(Providers.of(null));
+                }
+                if (nodeCacheOrchestrator != null) {
+                    b.bind(BlockCacheRegistry.class).toInstance(nodeCacheOrchestrator);
+                } else {
+                    b.bind(BlockCacheRegistry.class).toProvider(Providers.of(null));
                 }
                 b.bind(AliasValidator.class).toInstance(aliasValidator);
                 b.bind(MetadataCreateIndexService.class).toInstance(metadataCreateIndexService);
