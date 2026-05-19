@@ -104,6 +104,7 @@ impl CrossRtStream {
             inner: ReceiverStream::new(rx),
             inner_done: false,
             schema,
+            phantom_corrector: None,
         };
 
         (cross_rt, abort_handle)
