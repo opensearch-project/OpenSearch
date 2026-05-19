@@ -483,6 +483,65 @@ public class QuerySerializerRegistryTests extends OpenSearchTestCase {
         }
     }
 
+    /**
+     * Tests that an escaped backslash (\\) followed by a wildcard correctly produces
+     * a literal backslash plus the converted wildcard.
+     */
+    public void testWildcardQueryEscapedBackslashFollowedByWildcard() throws IOException {
+        DelegatedPredicateSerializer serializer = serializers.get(ScalarFunction.WILDCARD_QUERY);
+        // Java string "\\\\%" is runtime chars: \, \, %
+        // Expected: first \ escapes second \ → literal \, then % is unescaped → *
+        RexCall call = buildSingleFieldRexCallWithParams("title", "\\\\%", "WILDCARD_QUERY", Map.of());
+        List<FieldStorageInfo> fieldStorage = List.of(
+            new FieldStorageInfo("title", "text", FieldType.TEXT, List.of(), List.of("lucene"), List.of(), false)
+        );
+
+        byte[] serialized = serializer.serialize(call, fieldStorage);
+
+        try (StreamInput input = new NamedWriteableAwareStreamInput(StreamInput.wrap(serialized), WRITEABLE_REGISTRY)) {
+            WildcardQueryBuilder wildcardQb = (WildcardQueryBuilder) input.readNamedWriteable(QueryBuilder.class);
+            assertEquals("\\*", wildcardQb.value());
+        }
+    }
+
+    /**
+     * Tests that a backslash before a non-wildcard character preserves both characters.
+     */
+    public void testWildcardQueryBackslashBeforeNonWildcard() throws IOException {
+        DelegatedPredicateSerializer serializer = serializers.get(ScalarFunction.WILDCARD_QUERY);
+        // Java string "\\n" is runtime chars: \, n
+        RexCall call = buildSingleFieldRexCallWithParams("title", "test\\n", "WILDCARD_QUERY", Map.of());
+        List<FieldStorageInfo> fieldStorage = List.of(
+            new FieldStorageInfo("title", "text", FieldType.TEXT, List.of(), List.of("lucene"), List.of(), false)
+        );
+
+        byte[] serialized = serializer.serialize(call, fieldStorage);
+
+        try (StreamInput input = new NamedWriteableAwareStreamInput(StreamInput.wrap(serialized), WRITEABLE_REGISTRY)) {
+            WildcardQueryBuilder wildcardQb = (WildcardQueryBuilder) input.readNamedWriteable(QueryBuilder.class);
+            assertEquals("test\\n", wildcardQb.value());
+        }
+    }
+
+    /**
+     * Tests that a trailing backslash is preserved in the output.
+     */
+    public void testWildcardQueryTrailingBackslash() throws IOException {
+        DelegatedPredicateSerializer serializer = serializers.get(ScalarFunction.WILDCARD_QUERY);
+        // Java string "test\\" is runtime chars: t, e, s, t, \
+        RexCall call = buildSingleFieldRexCallWithParams("title", "test\\", "WILDCARD_QUERY", Map.of());
+        List<FieldStorageInfo> fieldStorage = List.of(
+            new FieldStorageInfo("title", "text", FieldType.TEXT, List.of(), List.of("lucene"), List.of(), false)
+        );
+
+        byte[] serialized = serializer.serialize(call, fieldStorage);
+
+        try (StreamInput input = new NamedWriteableAwareStreamInput(StreamInput.wrap(serialized), WRITEABLE_REGISTRY)) {
+            WildcardQueryBuilder wildcardQb = (WildcardQueryBuilder) input.readNamedWriteable(QueryBuilder.class);
+            assertEquals("test\\", wildcardQb.value());
+        }
+    }
+
     // --- QuerySerializer (no-field) tests ---
 
     /**

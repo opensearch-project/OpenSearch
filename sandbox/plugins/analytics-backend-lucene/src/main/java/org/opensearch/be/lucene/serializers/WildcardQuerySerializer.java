@@ -33,7 +33,8 @@ public class WildcardQuerySerializer extends AbstractRelevanceSerializer {
 
     /**
      * Converts SQL wildcard characters (% and _) to Lucene wildcard characters (* and ?).
-     * Escaped wildcards (\\% and \\_) are treated as literal characters.
+     * Escaped wildcards (\% and \_) are treated as literal characters.
+     * A backslash escaping another backslash (\\) produces a literal backslash.
      */
     private static String convertSqlWildcardToLucene(String text) {
         final char ESCAPE = '\\';
@@ -41,33 +42,36 @@ public class WildcardQuerySerializer extends AbstractRelevanceSerializer {
         boolean escaped = false;
 
         for (char c : text.toCharArray()) {
-            switch (c) {
-                case ESCAPE:
-                    escaped = true;
-                    result.append(c);
-                    break;
-                case '%':
-                    if (escaped) {
-                        result.deleteCharAt(result.length() - 1);
+            if (escaped) {
+                switch (c) {
+                    case '%':
                         result.append('%');
-                    } else {
-                        result.append('*');
-                    }
-                    escaped = false;
-                    break;
-                case '_':
-                    if (escaped) {
-                        result.deleteCharAt(result.length() - 1);
+                        break;
+                    case '_':
                         result.append('_');
-                    } else {
-                        result.append('?');
-                    }
-                    escaped = false;
-                    break;
-                default:
-                    result.append(c);
-                    escaped = false;
+                        break;
+                    case ESCAPE:
+                        result.append(ESCAPE);
+                        break;
+                    default:
+                        result.append(ESCAPE);
+                        result.append(c);
+                        break;
+                }
+                escaped = false;
+            } else if (c == ESCAPE) {
+                escaped = true;
+            } else if (c == '%') {
+                result.append('*');
+            } else if (c == '_') {
+                result.append('?');
+            } else {
+                result.append(c);
             }
+        }
+        // Trailing backslash with nothing to escape — preserve it
+        if (escaped) {
+            result.append(ESCAPE);
         }
         return result.toString();
     }
