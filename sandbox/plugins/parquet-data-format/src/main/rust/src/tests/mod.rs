@@ -1374,11 +1374,11 @@ fn test_chunked_writer_generation_in_metadata_multi_chunk() {
     NativeParquetWriter::write_data(filename.clone(), ap, sp).unwrap();
     NativeParquetWriter::finalize_writer(filename.clone()).unwrap();
 
-    // Known limitation: merge_sorted doesn't propagate writer_generation to output metadata.
-    // The generation is lost during k-way merge. This should be fixed.
+    // Previously writer_generation was lost in the k-way merge path. This has been fixed —
+    // merge_sorted now propagates writer_generation into the output file metadata.
     let gen = read_writer_generation_from_parquet(&filename);
-    assert_eq!(gen, None,
-        "BUG: writer_generation is currently lost in multi-chunk merge path");
+    assert_eq!(gen, Some(7),
+        "writer_generation should be propagated in multi-chunk merge path");
 
     // Data correctness is still maintained
     let ages = read_ages_from_parquet(&filename);
@@ -2857,4 +2857,499 @@ fn test_sort_all_identical_keys_produces_valid_permutation() {
     sorted_mapping.sort();
     assert_eq!(sorted_mapping, vec![0, 1, 2, 3, 4],
         "Mapping must be a valid permutation even with all-identical sort keys");
+}
+
+// ===== Writer properties verification tests =====
+// These tests verify that writer properties (compression, bloom filter, format version,
+// writer generation) configured via NativeSettings are actually honored in the output
+// Parquet file for all finalize_sorted_chunks paths: empty, single-chunk, and multi-chunk.
+
+/// Helper: reads the compression codec from the first row group's first column chunk.
+fn read_compression_from_parquet(filename: &str) -> parquet::basic::Compression {
+    use parquet::file::reader::{FileReader, SerializedFileReader};
+
+    let file = File::open(filename).unwrap();
+    let reader = SerializedFileReader::new(file).unwrap();
+    let metadata = reader.metadata();
+    assert!(metadata.num_row_groups() > 0, "File should have at least one row group");
+    let rg = metadata.row_group(0);
+    assert!(rg.num_columns() > 0, "Row group should have at least one column");
+    rg.column(0).compression()
+}
+
+/// Helper: checks whether bloom filter metadata is present in the first row group's columns.
+fn has_bloom_filter_in_parquet(filename: &str) -> bool {
+    use parquet::file::reader::{FileReader, SerializedFileReader};
+
+    let file = File::open(filename).unwrap();
+    let reader = SerializedFileReader::new(file).unwrap();
+    let metadata = reader.metadata();
+    if metadata.num_row_groups() == 0 {
+        return false;
+    }
+    let rg = metadata.row_group(0);
+    // Check if any column has bloom filter offset set
+    for i in 0..rg.num_columns() {
+        if rg.column(i).bloom_filter_offset().is_some() {
+            return true;
+        }
+    }
+    false
+}
+
+/// Helper: reads the format version from Parquet file key-value metadata.
+fn read_format_version_from_parquet(filename: &str) -> Option<String> {
+    use parquet::file::reader::{FileReader, SerializedFileReader};
+
+    let file = File::open(filename).unwrap();
+    let reader = SerializedFileReader::new(file).unwrap();
+    let metadata = reader.metadata().file_metadata();
+    metadata.key_value_metadata()
+        .and_then(|kvs| {
+            kvs.iter()
+                .find(|kv| kv.key == "opensearch.format_version")
+                .and_then(|kv| kv.value.clone())
+        })
+}
+
+/// Test: Writer properties are honored in the EMPTY path (0 chunks).
+/// Verifies format version is stamped and writer generation is present.
+#[test]
+fn test_writer_properties_honored_empty_path() {
+    let (_temp_dir, filename) = get_temp_file_path("props_empty.parquet");
+    let index_name = "test-props-empty";
+
+    let mut settings = NativeSettings::default();
+    settings.sort_columns = vec!["age".to_string()];
+    settings.reverse_sorts = vec![false];
+    settings.nulls_first = vec![false];
+    settings.sort_in_memory_threshold_bytes = Some(10 * 1024 * 1024);
+    settings.compression_type = Some("SNAPPY".to_string());
+    settings.bloom_filter_enabled = Some(false);
+    SETTINGS_STORE.insert(index_name.to_string(), settings);
+
+    let writer_generation = 99i64;
+    let (_schema, schema_ptr) = create_row_id_schema_ptr();
+    NativeParquetWriter::create_writer(
+        filename.clone(), index_name.to_string(), schema_ptr,
+        vec!["age".to_string()], vec![false], vec![false], writer_generation,
+    ).unwrap();
+
+    // Don't write any data — triggers the empty path
+    NativeParquetWriter::finalize_writer(filename.clone()).unwrap();
+
+    // Verify format version is stamped
+    let format_version = read_format_version_from_parquet(&filename);
+    assert_eq!(format_version.as_deref(), Some("1.0.0.0"),
+        "Empty path should stamp format version in output file");
+
+    // Verify writer generation is stamped
+    let gen = read_writer_generation_from_parquet(&filename);
+    assert_eq!(gen, Some(99),
+        "Empty path should stamp writer_generation in output file");
+
+    // Empty file has no row groups, so we can't check compression or bloom filter
+    // on column chunks. But the properties were applied to the writer.
+
+    SETTINGS_STORE.remove(index_name);
+}
+
+/// Test: Writer properties (SNAPPY compression, bloom filter disabled) are honored
+/// in the SINGLE CHUNK path (chunk_paths.len() == 1).
+#[test]
+fn test_writer_properties_honored_single_chunk_snappy_no_bloom() {
+    let (_temp_dir, filename) = get_temp_file_path("props_single_snappy.parquet");
+    let index_name = "test-props-single-snappy";
+
+    let mut settings = NativeSettings::default();
+    settings.sort_columns = vec!["age".to_string()];
+    settings.reverse_sorts = vec![false];
+    settings.nulls_first = vec![false];
+    settings.sort_in_memory_threshold_bytes = Some(10 * 1024 * 1024); // Large — single chunk
+    settings.compression_type = Some("SNAPPY".to_string());
+    settings.bloom_filter_enabled = Some(false);
+    SETTINGS_STORE.insert(index_name.to_string(), settings);
+
+    let writer_generation = 55i64;
+    let (_schema, schema_ptr) = create_row_id_schema_ptr();
+    NativeParquetWriter::create_writer(
+        filename.clone(), index_name.to_string(), schema_ptr,
+        vec!["age".to_string()], vec![false], vec![false], writer_generation,
+    ).unwrap();
+
+    let (ap, sp) = create_ffi_data_with_row_id(
+        vec![30, 10, 50, 20, 40],
+        vec![Some("C"), Some("A"), Some("E"), Some("B"), Some("D")],
+        vec![0, 1, 2, 3, 4],
+    );
+    NativeParquetWriter::write_data(filename.clone(), ap, sp).unwrap();
+    NativeParquetWriter::finalize_writer(filename.clone()).unwrap();
+
+    // Verify compression is SNAPPY
+    let compression = read_compression_from_parquet(&filename);
+    assert!(matches!(compression, parquet::basic::Compression::SNAPPY),
+        "Single chunk path should honor SNAPPY compression, got: {:?}", compression);
+
+    // Verify bloom filter is NOT present (disabled)
+    assert!(!has_bloom_filter_in_parquet(&filename),
+        "Single chunk path should honor bloom_filter_enabled=false (no bloom filter in file)");
+
+    // Verify format version
+    let format_version = read_format_version_from_parquet(&filename);
+    assert_eq!(format_version.as_deref(), Some("1.0.0.0"),
+        "Single chunk path should stamp format version");
+
+    // Verify writer generation
+    let gen = read_writer_generation_from_parquet(&filename);
+    assert_eq!(gen, Some(55),
+        "Single chunk path should stamp writer_generation");
+
+    // Verify data correctness (sort order)
+    let ages = read_ages_from_parquet(&filename);
+    assert_eq!(ages, vec![10, 20, 30, 40, 50]);
+
+    SETTINGS_STORE.remove(index_name);
+}
+
+/// Test: Writer properties (ZSTD compression, bloom filter enabled) are honored
+/// in the SINGLE CHUNK path.
+#[test]
+fn test_writer_properties_honored_single_chunk_zstd_with_bloom() {
+    let (_temp_dir, filename) = get_temp_file_path("props_single_zstd.parquet");
+    let index_name = "test-props-single-zstd";
+
+    let mut settings = NativeSettings::default();
+    settings.sort_columns = vec!["age".to_string()];
+    settings.reverse_sorts = vec![false];
+    settings.nulls_first = vec![false];
+    settings.sort_in_memory_threshold_bytes = Some(10 * 1024 * 1024);
+    settings.compression_type = Some("ZSTD".to_string());
+    settings.compression_level = Some(3);
+    settings.bloom_filter_enabled = Some(true);
+    settings.bloom_filter_fpp = Some(0.05);
+    settings.bloom_filter_ndv = Some(50_000);
+    SETTINGS_STORE.insert(index_name.to_string(), settings);
+
+    let writer_generation = 12i64;
+    let (_schema, schema_ptr) = create_row_id_schema_ptr();
+    NativeParquetWriter::create_writer(
+        filename.clone(), index_name.to_string(), schema_ptr,
+        vec!["age".to_string()], vec![false], vec![false], writer_generation,
+    ).unwrap();
+
+    let (ap, sp) = create_ffi_data_with_row_id(
+        vec![30, 10, 50, 20, 40],
+        vec![Some("C"), Some("A"), Some("E"), Some("B"), Some("D")],
+        vec![0, 1, 2, 3, 4],
+    );
+    NativeParquetWriter::write_data(filename.clone(), ap, sp).unwrap();
+    NativeParquetWriter::finalize_writer(filename.clone()).unwrap();
+
+    // Verify compression is ZSTD
+    let compression = read_compression_from_parquet(&filename);
+    assert!(matches!(compression, parquet::basic::Compression::ZSTD(_)),
+        "Single chunk path should honor ZSTD compression, got: {:?}", compression);
+
+    // Verify bloom filter IS present (enabled)
+    assert!(has_bloom_filter_in_parquet(&filename),
+        "Single chunk path should honor bloom_filter_enabled=true (bloom filter should be in file)");
+
+    // Verify format version
+    let format_version = read_format_version_from_parquet(&filename);
+    assert_eq!(format_version.as_deref(), Some("1.0.0.0"));
+
+    // Verify writer generation
+    let gen = read_writer_generation_from_parquet(&filename);
+    assert_eq!(gen, Some(12));
+
+    SETTINGS_STORE.remove(index_name);
+}
+
+/// Test: Writer properties (SNAPPY compression, bloom filter disabled) are honored
+/// in the MULTI CHUNK path (k-way merge).
+#[test]
+fn test_writer_properties_honored_multi_chunk_snappy_no_bloom() {
+    let (_temp_dir, filename) = get_temp_file_path("props_multi_snappy.parquet");
+    let index_name = "test-props-multi-snappy";
+
+    let mut settings = NativeSettings::default();
+    settings.sort_columns = vec!["age".to_string()];
+    settings.reverse_sorts = vec![false];
+    settings.nulls_first = vec![false];
+    settings.sort_in_memory_threshold_bytes = Some(64); // Tiny — forces multiple chunks
+    settings.compression_type = Some("SNAPPY".to_string());
+    settings.bloom_filter_enabled = Some(false);
+    SETTINGS_STORE.insert(index_name.to_string(), settings);
+
+    let writer_generation = 77i64;
+    let (_schema, schema_ptr) = create_row_id_schema_ptr();
+    NativeParquetWriter::create_writer(
+        filename.clone(), index_name.to_string(), schema_ptr,
+        vec!["age".to_string()], vec![false], vec![false], writer_generation,
+    ).unwrap();
+
+    let (ap, sp) = create_ffi_data_with_row_id(
+        vec![50, 30, 10, 40, 20, 60, 5, 45, 35, 15],
+        vec![Some("E"), Some("C"), Some("A"), Some("D"), Some("B"),
+             Some("F"), Some("G"), Some("H"), Some("I"), Some("J")],
+        vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
+    );
+    NativeParquetWriter::write_data(filename.clone(), ap, sp).unwrap();
+    NativeParquetWriter::finalize_writer(filename.clone()).unwrap();
+
+    // Verify compression is SNAPPY in the merged output
+    let compression = read_compression_from_parquet(&filename);
+    assert!(matches!(compression, parquet::basic::Compression::SNAPPY),
+        "Multi chunk (k-way merge) path should honor SNAPPY compression, got: {:?}", compression);
+
+    // Verify bloom filter is NOT present
+    assert!(!has_bloom_filter_in_parquet(&filename),
+        "Multi chunk path should honor bloom_filter_enabled=false");
+
+    // Verify format version
+    let format_version = read_format_version_from_parquet(&filename);
+    assert_eq!(format_version.as_deref(), Some("1.0.0.0"),
+        "Multi chunk path should stamp format version");
+
+    // Verify data correctness
+    let ages = read_ages_from_parquet(&filename);
+    assert_eq!(ages, vec![5, 10, 15, 20, 30, 35, 40, 45, 50, 60]);
+
+    SETTINGS_STORE.remove(index_name);
+}
+
+/// Test: Writer properties (ZSTD compression, bloom filter enabled) are honored
+/// in the MULTI CHUNK path (k-way merge).
+#[test]
+fn test_writer_properties_honored_multi_chunk_zstd_with_bloom() {
+    let (_temp_dir, filename) = get_temp_file_path("props_multi_zstd.parquet");
+    let index_name = "test-props-multi-zstd";
+
+    let mut settings = NativeSettings::default();
+    settings.sort_columns = vec!["age".to_string()];
+    settings.reverse_sorts = vec![false];
+    settings.nulls_first = vec![false];
+    settings.sort_in_memory_threshold_bytes = Some(64); // Tiny — forces multiple chunks
+    settings.compression_type = Some("ZSTD".to_string());
+    settings.compression_level = Some(5);
+    settings.bloom_filter_enabled = Some(true);
+    settings.bloom_filter_fpp = Some(0.01);
+    settings.bloom_filter_ndv = Some(200_000);
+    SETTINGS_STORE.insert(index_name.to_string(), settings);
+
+    let writer_generation = 33i64;
+    let (_schema, schema_ptr) = create_row_id_schema_ptr();
+    NativeParquetWriter::create_writer(
+        filename.clone(), index_name.to_string(), schema_ptr,
+        vec!["age".to_string()], vec![false], vec![false], writer_generation,
+    ).unwrap();
+
+    let (ap, sp) = create_ffi_data_with_row_id(
+        vec![50, 30, 10, 40, 20, 60, 5, 45, 35, 15],
+        vec![Some("E"), Some("C"), Some("A"), Some("D"), Some("B"),
+             Some("F"), Some("G"), Some("H"), Some("I"), Some("J")],
+        vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
+    );
+    NativeParquetWriter::write_data(filename.clone(), ap, sp).unwrap();
+    NativeParquetWriter::finalize_writer(filename.clone()).unwrap();
+
+    // Verify compression is ZSTD in the merged output
+    let compression = read_compression_from_parquet(&filename);
+    assert!(matches!(compression, parquet::basic::Compression::ZSTD(_)),
+        "Multi chunk (k-way merge) path should honor ZSTD compression, got: {:?}", compression);
+
+    // Verify bloom filter IS present
+    assert!(has_bloom_filter_in_parquet(&filename),
+        "Multi chunk path should honor bloom_filter_enabled=true");
+
+    // Verify format version
+    let format_version = read_format_version_from_parquet(&filename);
+    assert_eq!(format_version.as_deref(), Some("1.0.0.0"));
+
+    // Verify data correctness
+    let ages = read_ages_from_parquet(&filename);
+    assert_eq!(ages, vec![5, 10, 15, 20, 30, 35, 40, 45, 50, 60]);
+
+    SETTINGS_STORE.remove(index_name);
+}
+
+/// Test: UNCOMPRESSED setting is honored in single chunk path.
+/// This ensures the writer doesn't silently fall back to a default compression.
+#[test]
+fn test_writer_properties_honored_single_chunk_uncompressed() {
+    let (_temp_dir, filename) = get_temp_file_path("props_single_uncompressed.parquet");
+    let index_name = "test-props-single-uncompressed";
+
+    let mut settings = NativeSettings::default();
+    settings.sort_columns = vec!["age".to_string()];
+    settings.reverse_sorts = vec![false];
+    settings.nulls_first = vec![false];
+    settings.sort_in_memory_threshold_bytes = Some(10 * 1024 * 1024);
+    settings.compression_type = Some("UNCOMPRESSED".to_string());
+    settings.bloom_filter_enabled = Some(true);
+    SETTINGS_STORE.insert(index_name.to_string(), settings);
+
+    let (_schema, schema_ptr) = create_row_id_schema_ptr();
+    NativeParquetWriter::create_writer(
+        filename.clone(), index_name.to_string(), schema_ptr,
+        vec!["age".to_string()], vec![false], vec![false], 0,
+    ).unwrap();
+
+    let (ap, sp) = create_ffi_data_with_row_id(
+        vec![30, 10, 50, 20, 40],
+        vec![Some("C"), Some("A"), Some("E"), Some("B"), Some("D")],
+        vec![0, 1, 2, 3, 4],
+    );
+    NativeParquetWriter::write_data(filename.clone(), ap, sp).unwrap();
+    NativeParquetWriter::finalize_writer(filename.clone()).unwrap();
+
+    // Verify compression is UNCOMPRESSED
+    let compression = read_compression_from_parquet(&filename);
+    assert!(matches!(compression, parquet::basic::Compression::UNCOMPRESSED),
+        "Single chunk path should honor UNCOMPRESSED setting, got: {:?}", compression);
+
+    // Verify bloom filter IS present
+    assert!(has_bloom_filter_in_parquet(&filename),
+        "Single chunk path should honor bloom_filter_enabled=true");
+
+    SETTINGS_STORE.remove(index_name);
+}
+
+/// Test: UNCOMPRESSED setting is honored in multi chunk path.
+#[test]
+fn test_writer_properties_honored_multi_chunk_uncompressed() {
+    let (_temp_dir, filename) = get_temp_file_path("props_multi_uncompressed.parquet");
+    let index_name = "test-props-multi-uncompressed";
+
+    let mut settings = NativeSettings::default();
+    settings.sort_columns = vec!["age".to_string()];
+    settings.reverse_sorts = vec![false];
+    settings.nulls_first = vec![false];
+    settings.sort_in_memory_threshold_bytes = Some(64); // Tiny — forces multiple chunks
+    settings.compression_type = Some("UNCOMPRESSED".to_string());
+    settings.bloom_filter_enabled = Some(true);
+    SETTINGS_STORE.insert(index_name.to_string(), settings);
+
+    let (_schema, schema_ptr) = create_row_id_schema_ptr();
+    NativeParquetWriter::create_writer(
+        filename.clone(), index_name.to_string(), schema_ptr,
+        vec!["age".to_string()], vec![false], vec![false], 0,
+    ).unwrap();
+
+    let (ap, sp) = create_ffi_data_with_row_id(
+        vec![50, 30, 10, 40, 20, 60, 5, 45, 35, 15],
+        vec![Some("E"), Some("C"), Some("A"), Some("D"), Some("B"),
+             Some("F"), Some("G"), Some("H"), Some("I"), Some("J")],
+        vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
+    );
+    NativeParquetWriter::write_data(filename.clone(), ap, sp).unwrap();
+    NativeParquetWriter::finalize_writer(filename.clone()).unwrap();
+
+    // Verify compression is UNCOMPRESSED
+    let compression = read_compression_from_parquet(&filename);
+    assert!(matches!(compression, parquet::basic::Compression::UNCOMPRESSED),
+        "Multi chunk path should honor UNCOMPRESSED setting, got: {:?}", compression);
+
+    // Verify bloom filter IS present
+    assert!(has_bloom_filter_in_parquet(&filename),
+        "Multi chunk path should honor bloom_filter_enabled=true");
+
+    // Verify data correctness
+    let ages = read_ages_from_parquet(&filename);
+    assert_eq!(ages, vec![5, 10, 15, 20, 30, 35, 40, 45, 50, 60]);
+
+    SETTINGS_STORE.remove(index_name);
+}
+
+/// Test: Default writer properties (LZ4_RAW compression, bloom filter enabled) are
+/// applied when no explicit settings are configured — single chunk path.
+#[test]
+fn test_writer_properties_defaults_single_chunk() {
+    let (_temp_dir, filename) = get_temp_file_path("props_defaults_single.parquet");
+    let index_name = "test-props-defaults-single";
+
+    // Use defaults — only configure sort
+    let mut settings = NativeSettings::default();
+    settings.sort_columns = vec!["age".to_string()];
+    settings.reverse_sorts = vec![false];
+    settings.nulls_first = vec![false];
+    settings.sort_in_memory_threshold_bytes = Some(10 * 1024 * 1024);
+    SETTINGS_STORE.insert(index_name.to_string(), settings);
+
+    let (_schema, schema_ptr) = create_row_id_schema_ptr();
+    NativeParquetWriter::create_writer(
+        filename.clone(), index_name.to_string(), schema_ptr,
+        vec!["age".to_string()], vec![false], vec![false], 0,
+    ).unwrap();
+
+    let (ap, sp) = create_ffi_data_with_row_id(
+        vec![30, 10, 50, 20, 40],
+        vec![Some("C"), Some("A"), Some("E"), Some("B"), Some("D")],
+        vec![0, 1, 2, 3, 4],
+    );
+    NativeParquetWriter::write_data(filename.clone(), ap, sp).unwrap();
+    NativeParquetWriter::finalize_writer(filename.clone()).unwrap();
+
+    // Default compression is LZ4_RAW
+    let compression = read_compression_from_parquet(&filename);
+    assert!(matches!(compression, parquet::basic::Compression::LZ4_RAW),
+        "Default compression should be LZ4_RAW, got: {:?}", compression);
+
+    // Default bloom filter is enabled
+    assert!(has_bloom_filter_in_parquet(&filename),
+        "Default bloom_filter_enabled should be true");
+
+    // Format version always stamped
+    let format_version = read_format_version_from_parquet(&filename);
+    assert_eq!(format_version.as_deref(), Some("1.0.0.0"));
+
+    SETTINGS_STORE.remove(index_name);
+}
+
+/// Test: Default writer properties are applied in multi chunk path.
+#[test]
+fn test_writer_properties_defaults_multi_chunk() {
+    let (_temp_dir, filename) = get_temp_file_path("props_defaults_multi.parquet");
+    let index_name = "test-props-defaults-multi";
+
+    let mut settings = NativeSettings::default();
+    settings.sort_columns = vec!["age".to_string()];
+    settings.reverse_sorts = vec![false];
+    settings.nulls_first = vec![false];
+    settings.sort_in_memory_threshold_bytes = Some(64); // Tiny — forces multiple chunks
+    SETTINGS_STORE.insert(index_name.to_string(), settings);
+
+    let (_schema, schema_ptr) = create_row_id_schema_ptr();
+    NativeParquetWriter::create_writer(
+        filename.clone(), index_name.to_string(), schema_ptr,
+        vec!["age".to_string()], vec![false], vec![false], 0,
+    ).unwrap();
+
+    let (ap, sp) = create_ffi_data_with_row_id(
+        vec![50, 30, 10, 40, 20, 60, 5, 45, 35, 15],
+        vec![Some("E"), Some("C"), Some("A"), Some("D"), Some("B"),
+             Some("F"), Some("G"), Some("H"), Some("I"), Some("J")],
+        vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
+    );
+    NativeParquetWriter::write_data(filename.clone(), ap, sp).unwrap();
+    NativeParquetWriter::finalize_writer(filename.clone()).unwrap();
+
+    // Default compression is LZ4_RAW
+    let compression = read_compression_from_parquet(&filename);
+    assert!(matches!(compression, parquet::basic::Compression::LZ4_RAW),
+        "Default compression should be LZ4_RAW in multi-chunk path, got: {:?}", compression);
+
+    // Default bloom filter is enabled
+    assert!(has_bloom_filter_in_parquet(&filename),
+        "Default bloom_filter_enabled should be true in multi-chunk path");
+
+    // Format version always stamped
+    let format_version = read_format_version_from_parquet(&filename);
+    assert_eq!(format_version.as_deref(), Some("1.0.0.0"));
+
+    // Data correctness
+    let ages = read_ages_from_parquet(&filename);
+    assert_eq!(ages, vec![5, 10, 15, 20, 30, 35, 40, 45, 50, 60]);
+
+    SETTINGS_STORE.remove(index_name);
 }

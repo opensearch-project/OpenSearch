@@ -292,6 +292,49 @@ public class CompositeRefreshSortedIT extends OpenSearchIntegTestCase {
         verifyLuceneNamesInOrder(new String[] { "charlie", "alice", "bob", "dave", "eve" });
     }
 
+
+    public void testUnsortedRefreshWithLucenePrimary() throws Exception {
+        createIndex(unsortedLuceneOnlySettings());
+
+        indexDoc("charlie", 30, "blue");
+        indexDoc("alice", 50, "red");
+        indexDoc("bob", 10, "green");
+        indexDoc("dave", 50, "yellow");
+        indexDoc("eve", 30, "purple");
+
+        flushAndRefresh();
+
+        DataformatAwareCatalogSnapshot snapshot = getCatalogSnapshot();
+
+        verifyLuceneDocCount(5);
+        verifyLuceneRowIdSequential();
+    }
+
+    /**
+     * Lucene primary with sort (age DESC, name ASC). Verifies that:
+     * - Lucene segment is physically sorted by the configured IndexSort
+     * - __row_id__ is rewritten to sequential 0..N-1 in the final doc order
+     * - Doc count matches
+     */
+    public void testSortedRefreshWithLucenePrimary() throws Exception {
+        createIndex(sortedLuceneOnlySettings());
+
+        // Index in deliberately unsorted order
+        indexDoc("charlie", 30, "blue");
+        indexDoc("alice", 50, "red");
+        indexDoc("bob", 10, "green");
+        indexDoc("dave", 50, "yellow");
+        indexDoc("eve", 30, "purple");
+
+        flushAndRefresh();
+
+        DataformatAwareCatalogSnapshot snapshot = getCatalogSnapshot();
+
+        verifyLuceneDocCount(5);
+        verifyLuceneRowIdSequential();
+        verifyLuceneSortOrder();
+    }
+
     // ══════════════════════════════════════════════════════════════════════
     // Helpers: settings
     // ══════════════════════════════════════════════════════════════════════
@@ -347,6 +390,34 @@ public class CompositeRefreshSortedIT extends OpenSearchIntegTestCase {
             .put("index.pluggable.dataformat", "composite")
             .put("index.composite.primary_data_format", "parquet")
             .putList("index.composite.secondary_data_formats", "lucene")
+            .build();
+    }
+
+
+    private Settings unsortedLuceneOnlySettings() {
+        return Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put("index.refresh_interval", "-1")
+            .put("index.pluggable.dataformat.enabled", true)
+            .put("index.pluggable.dataformat", "composite")
+            .put("index.composite.primary_data_format", "lucene")
+            .putList("index.composite.secondary_data_formats")
+            .build();
+    }
+
+    private Settings sortedLuceneOnlySettings() {
+        return Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put("index.refresh_interval", "-1")
+            .put("index.pluggable.dataformat.enabled", true)
+            .put("index.pluggable.dataformat", "composite")
+            .put("index.composite.primary_data_format", "lucene")
+            .putList("index.composite.secondary_data_formats")
+            .putList("index.sort.field", "age")
+            .putList("index.sort.order", "desc")
+            .putList("index.sort.missing", "_first")
             .build();
     }
 
@@ -506,6 +577,47 @@ public class CompositeRefreshSortedIT extends OpenSearchIntegTestCase {
                         );
                         expectedRowId++;
                     }
+                }
+            }
+        }
+    }
+
+    /**
+     * Verifies that the Lucene segment is physically sorted by the configured IndexSort
+     * (age DESC nulls first). Reads age from sorted numeric doc values.
+     */
+    private void verifyLuceneSortOrder() throws IOException {
+        Path luceneDir = getLuceneDir();
+        try (Directory dir = NIOFSDirectory.open(luceneDir); DirectoryReader reader = DirectoryReader.open(dir)) {
+            for (LeafReaderContext ctx : reader.leaves()) {
+                org.apache.lucene.index.LeafReader leaf = ctx.reader();
+                int maxDoc = leaf.maxDoc();
+                if (maxDoc <= 1) continue;
+
+                SortedNumericDocValues ageDV = leaf.getSortedNumericDocValues("age");
+
+                Long prevAge = null;
+                boolean prevAgeNull = true;
+                for (int doc = 0; doc < maxDoc; doc++) {
+                    Long age = null;
+                    if (ageDV != null && ageDV.advanceExact(doc)) {
+                        age = ageDV.nextValue();
+                    }
+
+                    if (doc > 0) {
+                        // age DESC nulls first
+                        if (prevAgeNull && age == null) {
+                            // both null — ok
+                        } else if (prevAgeNull) {
+                            // prev was null, current is non-null — ok (nulls first)
+                        } else if (age == null) {
+                            fail("null age at doc " + doc + " came after non-null (expected nulls first)");
+                        } else {
+                            assertTrue("age should be DESC at doc " + doc + ", got " + prevAge + " before " + age, prevAge >= age);
+                        }
+                    }
+                    prevAge = age;
+                    prevAgeNull = (age == null);
                 }
             }
         }

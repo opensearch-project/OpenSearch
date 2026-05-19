@@ -23,6 +23,7 @@ import org.apache.lucene.misc.store.HardlinkCopyDirectoryWrapper;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.MMapDirectory;
+import org.jspecify.annotations.Nullable;
 import org.opensearch.be.lucene.LuceneDataFormat;
 import org.opensearch.be.lucene.LuceneFieldFactoryRegistry;
 import org.opensearch.be.lucene.LuceneReader;
@@ -82,6 +83,7 @@ public class LuceneIndexingExecutionEngine implements IndexingExecutionEngine<Lu
     private final MergeIndexWriter sharedWriter;
     private final MapperService mapperService;
     private final Map<Long, LuceneReader> readers;
+    private final Sort indexSort;
     private final Store store;
     private final Path baseDirectory;
     private final Analyzer analyzer;
@@ -109,6 +111,7 @@ public class LuceneIndexingExecutionEngine implements IndexingExecutionEngine<Lu
         this.mapperService = mapperService;
         this.sharedWriter = luceneCommitter.getIndexWriter();
         this.readers = luceneCommitter.readers();
+        this.indexSort = luceneCommitter.getIndexSort();
         this.store = store;
         this.baseDirectory = store.shardPath().resolve(LuceneDataFormat.LUCENE_FORMAT_NAME);
         this.analyzer = sharedWriter.getAnalyzer();
@@ -165,17 +168,6 @@ public class LuceneIndexingExecutionEngine implements IndexingExecutionEngine<Lu
     public Writer<LuceneDocumentInput> createWriter(WriterConfig config) {
         assert sharedWriter.isOpen() : "Cannot create writer — shared IndexWriter is closed";
         try {
-            Sort indexSort = sharedWriter.getConfig().getIndexSort();
-            if ( indexSort != null
-                && indexSort.getSort().length == 1
-                && DocumentInput.ROW_ID_FIELD.equals(indexSort.getSort()[0].getField())) {
-                // When Lucene is primary, apply the customer's IndexSort so segments
-                // are natively sorted and compatible with the shared writer's IndexSort.
-                // When Lucene is secondary, no IndexSort — reorder is done via
-                // ReorderingOneMerge.reorder() in configureSortedMerge().
-                indexSort = null;
-            }
-            //Sort indexSort = isIndexNeedToBeSortedInternally() ? sharedWriter.getConfig().getIndexSort() : null;
             long mappingVersion = mapperService.getIndexSettings().getIndexMetadata().getMappingVersion();
             return new LuceneWriter(
                 config.writerGeneration(),
@@ -184,11 +176,23 @@ public class LuceneIndexingExecutionEngine implements IndexingExecutionEngine<Lu
                 baseDirectory,
                 analyzer,
                 codec,
-                indexSort
+                getChildWriterSortConfiguration()
             );
         } catch (IOException e) {
             throw new RuntimeException("Failed to create LuceneWriter for generation " + config.writerGeneration(), e);
         }
+    }
+
+    private Sort getChildWriterSortConfiguration() {
+        // When Lucene is secondary, then clear child writer's sort configuration and restamp
+        // it at the flush end. In all other cases, propagate same sort configuration as it is.
+        Sort sortConfig = sharedWriter.getConfig().getIndexSort();
+        if ( this.indexSort != null && sortConfig != null
+            && sortConfig.getSort().length == 1
+            && DocumentInput.ROW_ID_FIELD.equals(sortConfig.getSort()[0].getField())) {
+            sortConfig = null;
+        }
+        return sortConfig;
     }
 
     /**

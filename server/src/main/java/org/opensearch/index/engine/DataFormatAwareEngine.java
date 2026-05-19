@@ -104,6 +104,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -186,6 +187,8 @@ public class DataFormatAwareEngine implements Indexer {
 
     // Merge
     private final MergeScheduler mergeScheduler;
+
+    //TODO Refactor these flush managing activities into FlushManager.
 
     // Segments flushed inline by indexing threads (via preIndex) that are pending
     // registration in the catalog. Drained by the next refresh() call.
@@ -801,6 +804,7 @@ public class DataFormatAwareEngine implements Indexer {
                         // Refresh thread drains the queue itself (it's not idle — it does work)
                         Writer<?> writerToFlush;
                         while ((writerToFlush = flushQueue.poll()) != null) {
+                            ensureOpen(); // short-circuit if engine has failed/closed concurrently
                             final long writerFlushStartNanos = System.nanoTime();
                             FileInfos fileInfos = writerToFlush.flush(FlushInput.EMPTY);
                             final long writerFlushElapsedMs = TimeValue.nsecToMSec(System.nanoTime() - writerFlushStartNanos);
@@ -832,12 +836,21 @@ public class DataFormatAwareEngine implements Indexer {
                             flushLatch.countDown();
                         }
 
-                        // Wait for any writers that write threads picked up to finish
-                        try {
-                            flushLatch.await();
-                        } catch (InterruptedException e) {
-                            Thread.currentThread().interrupt();
-                            throw new IOException("Refresh interrupted waiting for flush completion", e);
+                        // Wait for any writers that write threads picked up to finish.
+                        // Use active polling so we detect engine close/failure promptly
+                        // instead of blocking indefinitely on the latch.
+                        while (flushLatch.getCount() > 0) {
+                            if (isClosed.get() || failedEngine.get() != null) {
+                                throw new AlreadyClosedException("engine closed during refresh flush");
+                            }
+                            try {
+                                if (flushLatch.await(1, TimeUnit.SECONDS) == false) {
+                                    continue; // re-check isClosed / failedEngine
+                                }
+                            } catch (InterruptedException e) {
+                                Thread.currentThread().interrupt();
+                                throw new IOException("Refresh interrupted waiting for flush completion", e);
+                            }
                         }
                         this.activeFlushLatch = null;
                         final long flushAllElapsedMs = TimeValue.nsecToMSec(System.nanoTime() - flushAllStartNanos);

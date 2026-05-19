@@ -35,6 +35,7 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.MMapDirectory;
 import org.opensearch.be.lucene.LuceneDataFormat;
 import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.index.engine.dataformat.DeleteInput;
 import org.opensearch.index.engine.dataformat.DeleteResult;
@@ -86,7 +87,7 @@ public class LuceneWriter implements Writer<LuceneDocumentInput> {
     /** Segment info attribute key storing the writer generation for post-addIndexes correlation. */
     public static final String WRITER_GENERATION_ATTRIBUTE = "writer_generation";
 
-    /** Large RAM buffer to avoid intermediate segment flushes within a single writer. */
+    /** Large RAM buffer to avoid intermediate segment flushes within a single writer in production. */
     private static final double RAM_BUFFER_SIZE_MB = 256.0;
 
     private final long writerGeneration;
@@ -131,7 +132,16 @@ public class LuceneWriter implements Writer<LuceneDocumentInput> {
 
         IndexWriterConfig iwc = analyzer != null ? new IndexWriterConfig(analyzer) : new IndexWriterConfig();
         iwc.setOpenMode(IndexWriterConfig.OpenMode.CREATE);
+        // Two flush triggers wired in via overridable hooks:
+        //   - ramBufferSizeMB(): RAM-buffer based flushing. Default 256 MB so production
+        //     accumulates docs into a single in-memory segment before flush.
+        //   - maxBufferedDocs(): doc-count based flushing. Default DISABLE_AUTO_FLUSH so
+        //     production never flushes by doc count. Tests that need deterministic
+        //     multi-segment paths override ramBufferSizeMB() to Double.MAX_VALUE and
+        //     maxBufferedDocs() to a small value (e.g. 20) to force exact spill points
+        //     independent of JVM/Lucene version.
         iwc.setRAMBufferSizeMB(ramBufferSizeMB());
+        iwc.setMaxBufferedDocs(maxBufferedDocs());
         iwc.setMergePolicy(NoMergePolicy.INSTANCE);
         if (indexSort != null) {
             iwc.setIndexSort(indexSort);
@@ -142,17 +152,36 @@ public class LuceneWriter implements Writer<LuceneDocumentInput> {
 
     /**
      * Hook for tests to override the IndexWriter RAM buffer size. Default is
-     * {@link #RAM_BUFFER_SIZE_MB}, which is large enough that a single writer
-     * accumulates all of its docs into one in-memory segment before flush.
-     * Tests that need to force aggressive intra-writer segment creation
-     * (to exercise multi-segment merge paths) can subclass and return a small
-     * value such as {@code 0.1}.
+     * {@link #RAM_BUFFER_SIZE_MB}, large enough that production accumulates all
+     * docs into a single in-memory segment before flush.
+     *
+     * <p>For deterministic multi-segment tests, override this to a very large
+     * value (e.g. {@code 1024.0}) together with a small
+     * {@link #maxBufferedDocs()} value, so doc count alone drives spilling
+     * independent of JVM/Lucene version and per-doc encoding size.
      *
      * <p>This method is invoked from the constructor, so overrides must be
      * stateless (return a constant) — they cannot depend on any instance fields.
      */
     double ramBufferSizeMB() {
         return RAM_BUFFER_SIZE_MB;
+    }
+
+    /**
+     * Hook for tests to override the IndexWriter max-buffered-docs threshold.
+     * Default is {@link IndexWriterConfig#DISABLE_AUTO_FLUSH}, so production
+     * never flushes based on doc count and relies on {@link #ramBufferSizeMB()}.
+     *
+     * <p>Tests exercising the multi-segment merge path should override
+     * {@link #ramBufferSizeMB()} to a very large value (e.g. {@code 1024.0})
+     * and return a small value (e.g. 20) here to force exact, version-independent
+     * spill points.
+     *
+     * <p>This method is invoked from the constructor, so overrides must be
+     * stateless (return a constant) — they cannot depend on any instance fields.
+     */
+    int maxBufferedDocs() {
+        return IndexWriterConfig.DISABLE_AUTO_FLUSH;
     }
 
     /**
@@ -211,6 +240,7 @@ public class LuceneWriter implements Writer<LuceneDocumentInput> {
             docCount,
             flushInput.hasRowIdMapping()
         );
+        indexWriter.flush();
 
         // If sort permutation is provided, configure the reorder merge policy
         if (flushInput.hasRowIdMapping()) {
@@ -238,6 +268,13 @@ public class LuceneWriter implements Writer<LuceneDocumentInput> {
                 );
             }
             configureSortedMerge(mapping);
+        } else if (indexWriter.getConfig().getIndexSort() != null) {
+            // Lucene is primary with IndexSort: Lucene natively reorders docs during
+            // forceMerge, but __row_id__ values were assigned at insertion time and will
+            // be scrambled after sort. Enable the codec's row ID rewrite so the merge
+            // writes sequential 0..N-1 in the final doc order. Pass null mapping since
+            // Lucene's IndexSort handles the reorder — we just need the merge to fire.
+            configureSortedMerge(null);
         }
 
         // Common path: forceMerge to 1 segment, commit, build FileInfos
@@ -253,7 +290,7 @@ public class LuceneWriter implements Writer<LuceneDocumentInput> {
 
         long commitStartNanos = System.nanoTime();
         indexWriter.commit();
-        long commitDurationMs = (System.nanoTime() - commitStartNanos) / 1_000_000;
+        long commitDurationMs = TimeValue.nsecToMSec(System.nanoTime() - commitStartNanos);
         logger.info("flush: commit complete: generation={}, duration={}ms", writerGeneration, commitDurationMs);
 
         // Close the IndexWriter before rewriting segment metadata.
@@ -268,23 +305,20 @@ public class LuceneWriter implements Writer<LuceneDocumentInput> {
         SegmentCommitInfo segmentInfo = segmentInfos.info(0);
         assert segmentInfo.info.maxDoc() == docCount : "Expected " + docCount + " docs in segment, got " + segmentInfo.info.maxDoc();
 
-        // Invariant: when Lucene is the secondary format (no user IndexSort), the
-        // ___row_id__ doc values must be sequential 0..maxDoc-1 after forceMerge —
-        // either naturally (docs added in row ID order) or via OneMerge.reorder() + row ID
-        // rewrite on the codec. This guards the 1:1 offset correspondence with the
-        // Parquet file for the same writer generation. When Lucene is primary with a
-        // user IndexSort on a non-row-id field, row IDs follow the docs and are not
-        // sequential, so the invariant is skipped. Wrapped in `assert` so the I/O cost
-        // is paid only when assertions are enabled.
-        assert segmentInfo.info.getIndexSort() != null
-            || assertRowIdsSequential(directory)
+        // Invariant: ___row_id__ doc values must be sequential 0..maxDoc-1 after forceMerge.
+        // This holds in all cases:
+        //   - Lucene secondary: docs reordered via OneMerge.reorder() + row ID rewrite
+        //   - Lucene primary with IndexSort: Lucene sorts natively + row ID rewrite
+        //   - No sort: docs added sequentially, row IDs naturally sequential
+        // Wrapped in `assert` so the I/O cost is paid only when assertions are enabled.
+        assert assertRowIdsSequential(directory)
             : "___row_id__ doc values not sequential after forceMerge for writer generation [" + writerGeneration + "]";
 
         // Stamp the IndexSort on the segment metadata post-commit so that
         // addIndexes(Directory...) on the shared writer sees matching sort.
         // The segment is always sorted by __row_id__ — either naturally (docs
         // written sequentially) or via OneMerge.reorder() + row ID rewrite.
-        if (segmentInfo.info.getIndexSort() == null) {
+        if (flushInput.hasRowIdMapping()) {
             logger.debug("Overriding segment info manually");
             rewriteSegmentInfoWithSort(segmentInfos, segmentInfo);
         }
@@ -302,7 +336,7 @@ public class LuceneWriter implements Writer<LuceneDocumentInput> {
             }
         }
 
-        long totalFlushDurationMs = (System.nanoTime() - flushStartNanos) / 1_000_000;
+        long totalFlushDurationMs = TimeValue.nsecToMSec(System.nanoTime() - flushStartNanos);
         logger.info(
             "flush: DONE generation={}, totalRows={}, forceMerge={}ms, commit={}ms, total={}ms",
             writerGeneration,
@@ -445,15 +479,30 @@ public class LuceneWriter implements Writer<LuceneDocumentInput> {
     }
 
     /**
-     * MergePolicy that wraps the standard merge selection but returns
-     * ReorderingOneMerge instances that override reorder() with our DocMap.
+     * MergePolicy that unconditionally forces a merge of all segments on {@code forceMerge},
+     * even if there is only one segment. When a {@link RowIdMapping} is provided, the merge
+     * also reorders docs via {@link ReorderingOneMerge}. When mapping is null, a plain
+     * {@code OneMerge} is used (the merge still rewrites the segment, enabling the codec's
+     * row ID rewrite to fire).
+     *
+     * <p>This policy is used in two scenarios:
+     * <ul>
+     *   <li>Lucene secondary with sort permutation from Parquet: mapping is non-null,
+     *       docs are reordered to match Parquet's sort order.</li>
+     *   <li>Lucene primary with IndexSort: mapping is null, Lucene's native sort already
+     *       reordered docs, but the merge is needed to trigger the codec's row ID rewrite.</li>
+     * </ul>
      */
     static class ReorderingMergePolicy extends MergePolicy {
-        private final RowIdMapping mapping;
-        private volatile boolean reorderDone = false;
+        private final RowIdMapping mapping; // nullable
+        private volatile boolean mergeDone = false;
 
+        /**
+         * @param mapping the sort permutation to apply during merge, or null for a plain
+         *                rewrite merge (used when Lucene's IndexSort already sorted the docs)
+         */
         ReorderingMergePolicy(RowIdMapping mapping) {
-            if (mapping.isNewToOldSupported() == false) {
+            if (mapping != null && mapping.isNewToOldSupported() == false) {
                 throw new IllegalArgumentException(
                     "RowIdMapping must support reverse lookup (newToOld) for sorted flush reordering"
                 );
@@ -468,10 +517,10 @@ public class LuceneWriter implements Writer<LuceneDocumentInput> {
 
         @Override
         public MergeSpecification findForcedMerges(SegmentInfos segmentInfos, int maxSegmentCount, Map<SegmentCommitInfo, Boolean> segmentsToMerge, MergeContext mergeContext) {
-            if (reorderDone) {
-                return null; // already reordered, stop the loop
+            if (mergeDone) {
+                return null; // already done, stop the loop
             }
-            reorderDone = true;
+            mergeDone = true;
 
             List<SegmentCommitInfo> segments = new ArrayList<>();
             for (int i = 0; i < segmentInfos.size(); i++) {
@@ -481,7 +530,11 @@ public class LuceneWriter implements Writer<LuceneDocumentInput> {
                 return null;
             }
             MergeSpecification spec = new MergeSpecification();
-            spec.add(new ReorderingOneMerge(segments, mapping));
+            if (mapping != null) {
+                spec.add(new ReorderingOneMerge(segments, mapping));
+            } else {
+                spec.add(new MergePolicy.OneMerge(segments));
+            }
             return spec;
         }
 

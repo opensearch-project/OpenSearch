@@ -290,96 +290,6 @@ public class LuceneWriterSortedFlushTests extends OpenSearchTestCase {
     // ── Tests for Lucene as primary format (with IndexSort) ──
 
     /**
-     * When Lucene is the primary format with IndexSort on a numeric field,
-     * documents should be physically sorted by that field in the segment.
-     * FlushInput.EMPTY is used because sort is handled by Lucene's native IndexSort.
-     */
-    public void testPrimaryFormatWithIndexSortProducesSortedSegment() throws IOException {
-        Path baseDir = createTempDir();
-        Sort indexSort = new Sort(new SortedNumericSortField("age", SortField.Type.LONG));
-
-        // Insert docs with ages in reverse order: 50, 40, 30, 20, 10
-        int numDocs = 5;
-        long[] ages = { 50, 40, 30, 20, 10 };
-
-        try (LuceneWriter writer = new LuceneWriter(1L, 0L, dataFormat, baseDir, null, Codec.getDefault(), indexSort)) {
-            for (int i = 0; i < numDocs; i++) {
-                LuceneDocumentInput input = new LuceneDocumentInput();
-                input.setRowId(LuceneDocumentInput.ROW_ID_FIELD, i);
-                // Add the sort field directly on the document
-                input.getFinalInput().add(new SortedNumericDocValuesField("age", ages[i]));
-                writer.addDoc(input);
-            }
-
-            FileInfos fileInfos = writer.flush(FlushInput.EMPTY);
-            WriterFileSet wfs = fileInfos.getWriterFileSet(dataFormat).get();
-            assertThat(wfs.numRows(), equalTo((long) numDocs));
-
-            try (NIOFSDirectory dir = new NIOFSDirectory(Path.of(wfs.directory()));
-                 IndexReader reader = DirectoryReader.open(dir)) {
-
-                assertThat(reader.numDocs(), equalTo(numDocs));
-                assertThat(reader.leaves().size(), equalTo(1));
-
-                LeafReader leaf = reader.leaves().get(0).reader();
-                SortedNumericDocValues ageDV = leaf.getSortedNumericDocValues("age");
-                assertNotNull("age doc values should exist", ageDV);
-
-                // After IndexSort(age ASC): docs should be ordered 10, 20, 30, 40, 50
-                long previousAge = Long.MIN_VALUE;
-                for (int docId = 0; docId < numDocs; docId++) {
-                    assertTrue(ageDV.advanceExact(docId));
-                    long ageValue = ageDV.nextValue();
-                    assertTrue("age values should be in ascending order, got " + ageValue + " after " + previousAge,
-                        ageValue >= previousAge);
-                    previousAge = ageValue;
-                }
-            }
-        }
-    }
-
-    /**
-     * When Lucene is primary with IndexSort, row IDs should be reordered along with
-     * the documents (they follow the physical doc order, not rewritten to sequential).
-     */
-    public void testPrimaryFormatIndexSortReordersRowIds() throws IOException {
-        Path baseDir = createTempDir();
-        Sort indexSort = new Sort(new SortedNumericSortField("age", SortField.Type.LONG));
-
-        // Docs inserted with ages: 30, 10, 20 → after sort: 10(row1), 20(row2), 30(row0)
-        long[] ages = { 30, 10, 20 };
-        int numDocs = 3;
-
-        try (LuceneWriter writer = new LuceneWriter(1L, 0L, dataFormat, baseDir, null, Codec.getDefault(), indexSort)) {
-            for (int i = 0; i < numDocs; i++) {
-                LuceneDocumentInput input = new LuceneDocumentInput();
-                input.setRowId(LuceneDocumentInput.ROW_ID_FIELD, i);
-                input.getFinalInput().add(new SortedNumericDocValuesField("age", ages[i]));
-                writer.addDoc(input);
-            }
-
-            FileInfos fileInfos = writer.flush(FlushInput.EMPTY);
-            WriterFileSet wfs = fileInfos.getWriterFileSet(dataFormat).get();
-
-            try (NIOFSDirectory dir = new NIOFSDirectory(Path.of(wfs.directory()));
-                 IndexReader reader = DirectoryReader.open(dir)) {
-
-                LeafReader leaf = reader.leaves().get(0).reader();
-                SortedNumericDocValues rowIdDV = leaf.getSortedNumericDocValues(LuceneDocumentInput.ROW_ID_FIELD);
-                assertNotNull(rowIdDV);
-
-                // After sort by age ASC: doc order is age=10(orig row 1), age=20(orig row 2), age=30(orig row 0)
-                // Row IDs follow the docs, so: position 0 → row_id 1, position 1 → row_id 2, position 2 → row_id 0
-                long[] expectedRowIds = { 1, 2, 0 };
-                for (int docId = 0; docId < numDocs; docId++) {
-                    assertTrue(rowIdDV.advanceExact(docId));
-                    assertThat("row_id at position " + docId, rowIdDV.nextValue(), equalTo(expectedRowIds[docId]));
-                }
-            }
-        }
-    }
-
-    /**
      * When Lucene is primary with IndexSort and docs are already in sorted order,
      * the segment should preserve the original order.
      */
@@ -532,12 +442,13 @@ public class LuceneWriterSortedFlushTests extends OpenSearchTestCase {
     /**
      * Sorted flush across multiple in-flight Lucene segments.
      *
-     * <p>By default {@link LuceneWriter} uses a 256 MB RAM buffer so all docs land in
-     * a single in-memory segment before flush. To exercise the multi-segment merge
-     * path — where the configured {@code ReorderingMergePolicy} drives a reorder
-     * that spans more than one source segment — the test overrides the package-private
-     * {@code ramBufferSizeMB()} hook with a tiny value (~0.05 MB) which makes Lucene
-     * spill segments to disk while documents are being added.
+     * <p>By default {@link LuceneWriter} disables doc-count flushing and uses a 256 MB
+     * RAM buffer, so all docs land in a single in-memory segment before flush. To
+     * exercise the multi-segment merge path — where the configured
+     * {@code ReorderingMergePolicy} drives a reorder that spans more than one source
+     * segment — the test overrides the package-private hooks: disables RAM-buffer
+     * flushing and sets {@code maxBufferedDocs()} to a small value (20), which makes
+     * Lucene spill a new segment every 20 docs deterministically.
      *
      * <p>After {@code flush(FlushInput)} with a reverse permutation:
      *   - {@code ___row_id} doc values must be sequential 0..N-1 (rewritten in the merge)
@@ -545,24 +456,116 @@ public class LuceneWriterSortedFlushTests extends OpenSearchTestCase {
      *     the reorder actually moved docs and is not just an effect of natural ordering.
      */
     public void testSortedFlushAcrossMultipleSegmentsReordersAndRewritesRowIds() throws IOException {
-        // Default RAM buffer: a single segment is produced before flush, no inter-segment merge needed.
-        runSortedFlushAndAssert(/* ramBufferSizeMBOverride= */ null);
+        // Default: a single segment is produced before flush, no inter-segment merge needed.
+        runSortedFlushAndAssert(/* maxBufferedDocsOverride= */ null);
 
-        // Tiny RAM buffer: force multiple buffered segments so forceMerge(1) under
-        // ReorderingMergePolicy actually merges across segments.
-        runSortedFlushAndAssert(/* ramBufferSizeMBOverride= */ 0.05);
+        // Force multiple buffered segments deterministically: 200 docs / 20 per buffer
+        // = 10 in-flight segments before forceMerge(1).
+        runSortedFlushAndAssert(/* maxBufferedDocsOverride= */ 20);
+    }
+
+    /**
+     * When Lucene is primary with IndexSort, row IDs should be reordered along with
+     * the documents (they follow the physical doc order, not rewritten to sequential).
+     */
+
+    public void testPrimaryFormatIndexSortReordersRowIds() throws IOException {
+        Path baseDir = createTempDir();
+        Sort indexSort = new Sort(new SortedNumericSortField("age", SortField.Type.LONG));
+
+        // Docs inserted with ages: 30, 10, 20 → after sort: 10(row1), 20(row2), 30(row0)
+        long[] ages = { 30, 10, 20 };
+        int numDocs = 3;
+
+        try (LuceneWriter writer = new LuceneWriter(1L, 0L, dataFormat, baseDir, null, Codec.getDefault(), indexSort)) {
+            for (int i = 0; i < numDocs; i++) {
+                LuceneDocumentInput input = new LuceneDocumentInput();
+                input.setRowId(LuceneDocumentInput.ROW_ID_FIELD, i);
+                input.getFinalInput().add(new SortedNumericDocValuesField("age", ages[i]));
+                writer.addDoc(input);
+            }
+
+            FileInfos fileInfos = writer.flush(FlushInput.EMPTY);
+            WriterFileSet wfs = fileInfos.getWriterFileSet(dataFormat).get();
+
+            try (NIOFSDirectory dir = new NIOFSDirectory(Path.of(wfs.directory()));
+                 IndexReader reader = DirectoryReader.open(dir)) {
+
+                LeafReader leaf = reader.leaves().get(0).reader();
+                SortedNumericDocValues rowIdDV = leaf.getSortedNumericDocValues(LuceneDocumentInput.ROW_ID_FIELD);
+                assertNotNull(rowIdDV);
+
+                // After sort by age ASC: doc order is age=10(orig row 1), age=20(orig row 2), age=30(orig row 0)
+                // Row IDs are rewritten to sequential 0..N-1 in the final doc order.
+                for (int docId = 0; docId < numDocs; docId++) {
+                    assertTrue(rowIdDV.advanceExact(docId));
+                    assertThat("row_id at position " + docId, rowIdDV.nextValue(), equalTo((long) docId));
+                }
+            }
+        }
+    }
+
+
+    /**
+     * When Lucene is the primary format with IndexSort on a numeric field,
+     * documents should be physically sorted by that field in the segment.
+     * FlushInput.EMPTY is used because sort is handled by Lucene's native IndexSort.
+     */
+    public void testPrimaryFormatWithIndexSortProducesSortedSegment() throws IOException {
+        Path baseDir = createTempDir();
+        Sort indexSort = new Sort(new SortedNumericSortField("age", SortField.Type.LONG));
+
+        // Insert docs with ages in reverse order: 50, 40, 30, 20, 10
+        int numDocs = 5;
+        long[] ages = { 50, 40, 30, 20, 10 };
+
+        try (LuceneWriter writer = new LuceneWriter(1L, 0L, dataFormat, baseDir, null, Codec.getDefault(), indexSort)) {
+            for (int i = 0; i < numDocs; i++) {
+                LuceneDocumentInput input = new LuceneDocumentInput();
+                input.setRowId(LuceneDocumentInput.ROW_ID_FIELD, i);
+                // Add the sort field directly on the document
+                input.getFinalInput().add(new SortedNumericDocValuesField("age", ages[i]));
+                writer.addDoc(input);
+            }
+
+            FileInfos fileInfos = writer.flush(FlushInput.EMPTY);
+            WriterFileSet wfs = fileInfos.getWriterFileSet(dataFormat).get();
+            assertThat(wfs.numRows(), equalTo((long) numDocs));
+
+            try (NIOFSDirectory dir = new NIOFSDirectory(Path.of(wfs.directory()));
+                 IndexReader reader = DirectoryReader.open(dir)) {
+
+                assertThat(reader.numDocs(), equalTo(numDocs));
+                assertThat(reader.leaves().size(), equalTo(1));
+
+                LeafReader leaf = reader.leaves().get(0).reader();
+                SortedNumericDocValues ageDV = leaf.getSortedNumericDocValues("age");
+                assertNotNull("age doc values should exist", ageDV);
+
+                // After IndexSort(age ASC): docs should be ordered 10, 20, 30, 40, 50
+                long previousAge = Long.MIN_VALUE;
+                for (int docId = 0; docId < numDocs; docId++) {
+                    assertTrue(ageDV.advanceExact(docId));
+                    long ageValue = ageDV.nextValue();
+                    assertTrue("age values should be in ascending order, got " + ageValue + " after " + previousAge,
+                        ageValue >= previousAge);
+                    previousAge = ageValue;
+                }
+            }
+        }
     }
 
     /**
      * Reusable scenario: index N docs with a {@code marker} side-channel in arrival order,
      * flush with a reverse permutation, then assert reorder + row ID rewrite.
      *
-     * @param ramBufferSizeMBOverride non-null to override the writer's default RAM buffer
-     *                                via the package-private {@code ramBufferSizeMB()} hook
+     * @param maxBufferedDocsOverride non-null to override the writer's default max-buffered-docs
+     *                                via the package-private {@code maxBufferedDocs()} hook
+     *                                (RAM-buffer flushing is disabled in that case)
      */
-    private void runSortedFlushAndAssert(Double ramBufferSizeMBOverride) throws IOException {
+    private void runSortedFlushAndAssert(Integer maxBufferedDocsOverride) throws IOException {
         Path baseDir = createTempDir();
-        // Enough docs that with a tiny RAM buffer Lucene is forced to spill multiple segments.
+        // Enough docs that with a small maxBufferedDocs Lucene is forced to spill multiple segments.
         int numDocs = 200;
         MappedFieldType textField = mockTextField("content");
 
@@ -575,7 +578,7 @@ public class LuceneWriterSortedFlushTests extends OpenSearchTestCase {
         }
         FlushInput sortedFlushInput = new FlushInput(buildMapping(oldRowIds, newRowIds));
 
-        try (LuceneWriter writer = newWriterWithRamBuffer(baseDir, ramBufferSizeMBOverride)) {
+        try (LuceneWriter writer = newWriterWithMaxBufferedDocs(baseDir, maxBufferedDocsOverride)) {
             for (int i = 0; i < numDocs; i++) {
                 LuceneDocumentInput input = new LuceneDocumentInput();
                 input.addField(textField, "doc_" + i);
@@ -624,17 +627,23 @@ public class LuceneWriterSortedFlushTests extends OpenSearchTestCase {
 
     /**
      * Constructs a {@link LuceneWriter} with an optional override of the package-private
-     * {@code ramBufferSizeMB()} hook. Pass {@code null} for the default (256 MB) or a small
-     * value to force aggressive intra-flush segment creation.
+     * {@code maxBufferedDocs()} hook. Pass {@code null} for the default (single segment via
+     * RAM buffer) or a small value (e.g. 20) to force deterministic multi-segment creation.
+     * When overriding, RAM-buffer flushing is disabled so doc count is the sole trigger.
      */
-    private LuceneWriter newWriterWithRamBuffer(Path baseDir, Double ramBufferSizeMBOverride) throws IOException {
-        if (ramBufferSizeMBOverride == null) {
+    private LuceneWriter newWriterWithMaxBufferedDocs(Path baseDir, Integer maxBufferedDocsOverride) throws IOException {
+        if (maxBufferedDocsOverride == null) {
             return new LuceneWriter(1L, 0L, dataFormat, baseDir, null, Codec.getDefault(), null);
         }
-        final double override = ramBufferSizeMBOverride;
+        final int override = maxBufferedDocsOverride;
         return new LuceneWriter(1L, 0L, dataFormat, baseDir, null, Codec.getDefault(), null) {
             @Override
             double ramBufferSizeMB() {
+                return 1024.0;
+            }
+
+            @Override
+            int maxBufferedDocs() {
                 return override;
             }
         };
