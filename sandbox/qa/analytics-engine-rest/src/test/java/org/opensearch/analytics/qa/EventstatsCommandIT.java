@@ -116,19 +116,6 @@ public class EventstatsCommandIT extends AnalyticsRestTestCase {
         assertScalarRow(response, 17L, 68.0 / 11.0, 1, 11);
     }
 
-    /** sql IT: testEventstatsWithNull. Same shape over a fixture that includes null
-     *  age/country/state values. Calcs already has nulls in int0 (6 nulls); window aggregates
-     *  ignore nulls in numeric inputs the same way grouped aggregate does. */
-    public void testEventstatsWithNull() throws IOException {
-        // Same global stats — calcs has 6 null int0 values, included in count()=17 but excluded
-        // from sum/avg/min/max. Result: count=17, avg=68/11, min=1, max=11 (identical to test above).
-        Map<String, Object> response = executePpl(
-            "source=" + DATASET.indexName + " | eventstats count() as cnt, avg(int0) as avg, min(int0) as min, max(int0) as max"
-                + " | stats max(cnt) as cnt, max(avg) as avg, max(min) as min, max(max) as max"
-        );
-        assertScalarRow(response, 17L, 68.0 / 11.0, 1, 11);
-    }
-
     // ── eventstats … by ────────────────────────────────────────────────────────
 
     /** sql IT: testEventstatsBy. eventstats partitioned by a categorical field. */
@@ -149,37 +136,24 @@ public class EventstatsCommandIT extends AnalyticsRestTestCase {
         );
     }
 
-    /** sql IT: testEventstatsByWithNull. Same as testEventstatsBy — calcs by str0 has no
-     *  null partition keys; the int0-null behaviour inside the partitions is what we cover. */
-    public void testEventstatsByWithNull() throws IOException {
-        Map<String, Object> response = executePpl(
-            "source=" + DATASET.indexName + " | eventstats count() as cnt, avg(int0) as avg, min(int0) as min, max(int0) as max by str0"
-                + " | stats max(cnt) as cnt, max(avg) as avg, max(min) as min, max(max) as max by str0"
-                + " | sort str0"
-        );
-        // PPL `stats … by str0` places the by-column last in output.
-        assertRowsEqual(response,
-            row(2L, 1.0, 1, 1, "FURNITURE"),
-            row(6L, 6.0, 3, 8, "OFFICE SUPPLIES"),
-            row(9L, 7.0, 4, 11, "TECHNOLOGY")
-        );
-    }
-
-    /** sql IT: testEventstatsByWithNullBucket. {@code bucket_nullable=false} drops rows
-     *  whose by-key is null from each partition's aggregate. calcs has no null str0, so
-     *  the result matches {@link #testEventstatsBy}. */
+    /** sql IT: testEventstatsByWithNullBucket. {@code bucket_nullable=false} skips the
+     *  null-key partition: rows whose {@code by} key is null get NULL window output, while
+     *  the non-null partition aggregates as usual. {@code str3} has 7 nulls + 10 rows with
+     *  value {@code 'e'} — the contrast between default and {@code bucket_nullable=false}
+     *  is visible in the null partition's row(s). */
     public void testEventstatsByWithNullBucket() throws IOException {
         ensureDataProvisioned();
         Map<String, Object> response = executePpl(
             "source=" + DATASET.indexName + " | eventstats bucket_nullable=false count() as cnt,"
-                + " avg(int0) as avg, min(int0) as min, max(int0) as max by str0"
-                + " | stats max(cnt) as cnt, max(avg) as avg, max(min) as min, max(max) as max by str0"
-                + " | sort str0"
+                + " avg(int0) as avg, min(int0) as min, max(int0) as max by str3"
+                + " | stats max(cnt) as cnt, max(avg) as avg, max(min) as min, max(max) as max by str3"
+                + " | sort str3"
         );
+        // str3=null rows: window output dropped → all aggregates NULL.
+        // str3='e':       10 rows, int0=[1,11,7,3,8,4,11,4,8] (non-null) → cnt=10, avg=6.0, min=1, max=11.
         assertRowsEqual(response,
-            row(2L, 1.0, 1, 1, "FURNITURE"),
-            row(6L, 6.0, 3, 8, "OFFICE SUPPLIES"),
-            row(9L, 7.0, 4, 11, "TECHNOLOGY")
+            row(null, null, null, null, null),
+            row(10L, 6.0, 1, 11, "e")
         );
     }
 

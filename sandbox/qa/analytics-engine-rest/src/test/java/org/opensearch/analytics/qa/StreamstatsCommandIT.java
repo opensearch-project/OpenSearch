@@ -129,16 +129,6 @@ public class StreamstatsCommandIT extends AnalyticsRestTestCase {
         assertScalarRow(response, 17L, 68.0 / 11.0, 1, 11);
     }
 
-    /** sql IT: testStreamstatsWithNull. Same shape; calcs already has int0 nulls. */
-    public void testStreamstatsWithNull() throws IOException {
-        Map<String, Object> response = executePpl(
-            "source=" + DATASET.indexName + " | sort key | streamstats count() as cnt,"
-                + " avg(int0) as avg, min(int0) as min, max(int0) as max"
-                + " | sort -key | head 1 | fields cnt, avg, min, max"
-        );
-        assertScalarRow(response, 17L, 68.0 / 11.0, 1, 11);
-    }
-
     // ── streamstats … by ───────────────────────────────────────────────────────
 
     /** sql IT: testStreamstatsBy. Per-partition running stats. Calcs sorted by key, partitions
@@ -185,33 +175,22 @@ public class StreamstatsCommandIT extends AnalyticsRestTestCase {
         );
     }
 
-    /** sql IT: testStreamstatsByWithNull. Same as testStreamstatsBy on calcs. */
-    public void testStreamstatsByWithNull() throws IOException {
-        Map<String, Object> response = executePpl(
-            "source=" + DATASET.indexName + " | sort key | streamstats count() as cnt by str0"
-                + " | stats max(cnt) as final_cnt by str0 | sort str0"
-        );
-        assertRowsEqual(response,
-            row(2L, "FURNITURE"),
-            row(6L, "OFFICE SUPPLIES"),
-            row(9L, "TECHNOLOGY")
-        );
-    }
-
-    /** sql IT: testStreamstatsByWithNullBucket. {@code bucket_nullable=false} drops null-key
-     *  rows from each partition's running count. calcs has no null str0, so the result
-     *  matches {@link #testStreamstatsBy}. */
+    /** sql IT: testStreamstatsByWithNullBucket. {@code bucket_nullable=false} drops the
+     *  null-key partition: rows whose {@code by} key is null get NULL running output, while
+     *  the non-null partition's running count proceeds as usual. {@code str3} has 7 nulls +
+     *  10 rows with value {@code 'e'}. */
     public void testStreamstatsByWithNullBucket() throws IOException {
         ensureDataProvisioned();
         Map<String, Object> response = executePpl(
             "source=" + DATASET.indexName + " | sort key"
-                + " | streamstats bucket_nullable=false count() as cnt by str0"
-                + " | stats max(cnt) as final_cnt by str0 | sort str0"
+                + " | streamstats bucket_nullable=false count() as cnt by str3"
+                + " | stats max(cnt) as final_cnt by str3 | sort str3"
         );
+        // str3=null rows: running cnt is NULL → max() of NULLs is NULL.
+        // str3='e':       10 rows → final running cnt=10.
         assertRowsEqual(response,
-            row(2L, "FURNITURE"),
-            row(6L, "OFFICE SUPPLIES"),
-            row(9L, "TECHNOLOGY")
+            row(null, null),
+            row(10L, "e")
         );
     }
 
