@@ -206,6 +206,39 @@ public class OperatorCommandIT extends AnalyticsRestTestCase {
         );
     }
 
+    /**
+     * fp MOD reaches DataFusion via the substrait {@code modulus} fp overloads supplied by
+     * {@code opensearch_arithmetic_overloads.yaml} (standard substrait declares integer impls
+     * only). num0=12.3 (fp64) % 2 = ~0.3 — within 1e-6 of decimal 0.3 because fp64 representation
+     * of 12.3 is accurate to ~15 sig digits.
+     */
+    public void testArithmeticModFp() throws IOException {
+        assertSingleRowApprox(
+            "source=" + DATASET.indexName + " | where key = 'key00' | eval r = num0 % 2 | fields r",
+            0.3,
+            1e-6
+        );
+    }
+
+    /** MOD on zero divisor returns NULL — {@link org.opensearch.be.datafusion.ModAdapter} wraps
+     *  in CASE because isthmus can't thread substrait's {@code on_domain_error: NULL} option. */
+    public void testArithmeticModByZero() throws IOException {
+        assertSingleRowField(
+            "source=" + DATASET.indexName + " | where key = 'key00' | eval r = num0 % 0 | fields r",
+            null
+        );
+    }
+
+    /** DIVIDE by zero returns NULL — {@link org.opensearch.be.datafusion.DivideAdapter} wraps in
+     *  CASE for the same isthmus-option-emission gap. Literal-zero divisor exercises the CASE
+     *  path (the non-zero literal short-circuit does not fire). */
+    public void testArithmeticDivideByZero() throws IOException {
+        assertSingleRowField(
+            "source=" + DATASET.indexName + " | where key = 'key00' | eval q = num0 / 0 | fields q",
+            null
+        );
+    }
+
     // ── Project-side comparisons: eval boolean result, filter by it ───────────
 
     public void testEqualsInEvalProjection() throws IOException {

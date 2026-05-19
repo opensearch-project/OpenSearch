@@ -120,6 +120,7 @@ pub(crate) fn coerce_args(
         .collect()
 }
 
+pub mod conv;
 pub mod convert_tz;
 pub mod conversion;
 pub mod crc32;
@@ -161,6 +162,7 @@ pub mod width_bucket;
 // `./gradlew :sandbox:libs:dataformat-native:buildRustLibrary --rerun-tasks`
 // and restart the OpenSearch JVM (the loaded dylib is JVM-cached).
 pub fn register_all(ctx: &SessionContext) {
+    conv::register_all(ctx);
     convert_tz::register_all(ctx);
     conversion::register_all(ctx);
     crc32::register_all(ctx);

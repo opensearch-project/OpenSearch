@@ -182,11 +182,15 @@ public class DataFusionPlugin extends Plugin implements SearchBackEndPlugin<Data
             // already return fp64 per PPL docs so widening operands is safe and avoids
             // proliferating yaml stanzas across every (function, type) pair.
             SimpleExtension.ExtensionCollection roundingOverloads = SimpleExtension.load(List.of("/opensearch_rounding_overloads.yaml"));
+            SimpleExtension.ExtensionCollection arithmeticOverloads = SimpleExtension.load(
+                List.of("/opensearch_arithmetic_overloads.yaml")
+            );
             return DefaultExtensionCatalog.DEFAULT_COLLECTION.merge(delegationExtensions)
                 .merge(scalarExtensions)
                 .merge(arrayExtensions)
                 .merge(aggregateExtensions)
-                .merge(roundingOverloads);
+                .merge(roundingOverloads)
+                .merge(arithmeticOverloads);
         } finally {
             t.setContextClassLoader(previous);
         }

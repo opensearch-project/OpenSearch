@@ -860,6 +860,20 @@ scalar_functions:
         nullability: DECLARED_OUTPUT
         return: i64
 
+  # conv(n, fromBase, toBase) — base conversion. Java side at ConvAdapter; Rust UDF at
+  # rust/src/udf/conv.rs. Semantics: Long.toString(Long.parseLong(n, fromBase), toBase).
+  # The first slot uses `any1` to accept both string and integer sources PPL emits; the
+  # Rust UDF's coerce_types canonicalizes it to Utf8.
+  - name: "conv"
+    description: "Convert n from fromBase to toBase, returning the result as a string."
+    impls:
+      - args:
+          - { value: "any1", name: "n" }
+          - { value: "i32", name: "fromBase" }
+          - { value: "i32", name: "toBase" }
+        nullability: DECLARED_OUTPUT
+        return: "any1"
+
   # span_bucket(value, span) — PPL fixed-width bucket label. Rust UDF at
   # rust/src/udf/span_bucket.rs. Takes two numerics, returns a VARCHAR label
   # like "10-20" identifying the half-open `[binStart, binEnd)` bucket that
