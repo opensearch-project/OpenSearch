@@ -193,6 +193,11 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
             throw e;
         }
 
+        /*
+        Profile and explain are captured within the QueryExecution, however QueryExecution requires the complete
+        batchesListener to construct the ExecutionGraph. To get around this circular dependency we build a profiling
+        listener with an empty QueryExecution reference, and then populate it once constructed.
+         */
         final AtomicReference<QueryExecution> execRef = new AtomicReference<>();
 
         ActionListener<Iterable<Object[]>> rowsListener = profile
