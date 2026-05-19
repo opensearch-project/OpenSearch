@@ -15,7 +15,6 @@ import org.opensearch.analytics.exec.stage.shard.ShardStageTask;
 import org.opensearch.analytics.exec.stage.StageExecution;
 import org.opensearch.analytics.exec.stage.StageMetrics;
 import org.opensearch.analytics.exec.stage.StageTask;
-import org.opensearch.analytics.exec.stage.StageTaskState;
 import org.opensearch.analytics.planner.dag.ShardExecutionTarget;
 import org.opensearch.analytics.planner.dag.Stage;
 
@@ -58,20 +57,22 @@ public final class QueryProfileBuilder {
             long tasksCompleted = taskProfiles.stream().filter(t -> "FINISHED".equals(t.state())).count();
             long tasksFailed = taskProfiles.stream().filter(t -> "FAILED".equals(t.state())).count();
 
-            stageProfiles.add(new StageProfile(
-                exec.getStageId(),
-                stage != null ? stage.getExecutionType().name() : exec.getClass().getSimpleName(),
-                distribution,
-                exec.getState().name(),
-                start,
-                end,
-                elapsed,
-                m.getRowsProcessed(),
-                tasksCompleted,
-                tasksFailed,
-                fragment,
-                taskProfiles
-            ));
+            stageProfiles.add(
+                new StageProfile(
+                    exec.getStageId(),
+                    stage != null ? stage.getExecutionType().name() : exec.getClass().getSimpleName(),
+                    distribution,
+                    exec.getState().name(),
+                    start,
+                    end,
+                    elapsed,
+                    m.getRowsProcessed(),
+                    tasksCompleted,
+                    tasksFailed,
+                    fragment,
+                    taskProfiles
+                )
+            );
         }
 
         long executionTimeMs = (earliestStart != Long.MAX_VALUE && latestEnd > 0) ? latestEnd - earliestStart : 0L;
@@ -85,15 +86,7 @@ public final class QueryProfileBuilder {
             long start = t.startedAtMs();
             long end = t.finishedAtMs();
             long elapsed = (start > 0 && end > 0) ? end - start : 0L;
-            out.add(new TaskProfile(
-                t.id().stageId(),
-                t.id().partitionId(),
-                describeTarget(t),
-                t.state().name(),
-                start,
-                end,
-                elapsed
-            ));
+            out.add(new TaskProfile(t.id().stageId(), t.id().partitionId(), describeTarget(t), t.state().name(), start, end, elapsed));
         }
         return out;
     }

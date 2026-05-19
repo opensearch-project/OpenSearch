@@ -19,7 +19,6 @@ import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.analytics.EngineContext;
 import org.opensearch.analytics.exec.QueryPlanExecutor;
 import org.opensearch.analytics.exec.profile.ProfiledResult;
-import org.opensearch.analytics.exec.profile.QueryProfile;
 import org.opensearch.sql.api.UnifiedQueryContext;
 import org.opensearch.sql.api.UnifiedQueryPlanner;
 import org.opensearch.sql.executor.QueryType;
@@ -114,40 +113,24 @@ public class UnifiedQueryService {
                 columns.add(field.getName());
             }
 
-            if (profile) {
-                PlainActionFuture<ProfiledResult> future = new PlainActionFuture<>();
-                planExecutor.executeWithProfile(logicalPlan, null, future);
-                ProfiledResult result = future.actionGet();
+            // Always use executeWithProfile — the profile overhead is negligible and
+            // this avoids duplicating the execution + row-collection logic.
+            PlainActionFuture<ProfiledResult> future = new PlainActionFuture<>();
+            planExecutor.executeWithProfile(logicalPlan, null, future);
+            ProfiledResult result = future.actionGet();
 
-                if (result.isSuccess() == false) {
-                    Throwable failure = result.failure();
-                    if (failure instanceof RuntimeException re) throw re;
-                    throw new RuntimeException("Query failed: " + failure.getMessage(), failure);
-                }
-
-                QueryProfile queryProfile = result.profile();
-                List<Object[]> rows = new ArrayList<>();
-                for (Object[] row : result.rows()) {
-                    rows.add(row);
-                }
-                return new PPLResponse(columns, rows, queryProfile);
+            if (result.isSuccess() == false) {
+                Throwable failure = result.failure();
+                if (failure instanceof RuntimeException re) throw re;
+                throw new RuntimeException("Query failed: " + failure.getMessage(), failure);
             }
 
-            // Execute directly via the back-end engine — no Janino compilation needed.
-            // The executor API is async; this test frontend keeps a sync surface, so we bridge
-            // via PlainActionFuture. The block happens off the transport thread (the executor
-            // forks to SEARCH internally), so this is safe for test/IT use.
-            PlainActionFuture<Iterable<Object[]>> future = new PlainActionFuture<>();
-            planExecutor.execute(logicalPlan, null, future);
-            Iterable<Object[]> results = future.actionGet();
-
-            // Collect result rows
             List<Object[]> rows = new ArrayList<>();
-            for (Object[] row : results) {
+            for (Object[] row : result.rows()) {
                 rows.add(row);
             }
 
-            return new PPLResponse(columns, rows);
+            return new PPLResponse(columns, rows, profile ? result.profile() : null);
         } catch (Exception e) {
             if (e instanceof RuntimeException) {
                 throw (RuntimeException) e;
