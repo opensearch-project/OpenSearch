@@ -77,6 +77,7 @@ import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -120,6 +121,7 @@ public class DataFormatAwareNRTReplicationEngine implements Indexer {
     private final Store store;
     private final CatalogSnapshotManager catalogSnapshotManager;
     private final Committer committer;
+    private final CatalogSnapshotStatsCache statsCache;
     private volatile long lastWriteNanos = System.nanoTime();
     private final ReentrantReadWriteLock rwl = new ReentrantReadWriteLock();
     private final ReleasableLock readLock = new ReleasableLock(rwl.readLock());
@@ -195,6 +197,17 @@ public class DataFormatAwareNRTReplicationEngine implements Indexer {
 
             this.catalogSnapshotManager = catalogSnapshotManagerRef;
             this.internalRefreshListeners = new ArrayList<>(engineConfig.getInternalRefreshListener());
+
+            // Create and register stats cache as refresh listener
+            this.statsCache = new CatalogSnapshotStatsCache(catalogSnapshotManager, store, engineConfig, () -> {
+                try {
+                    return committer.getLastCommittedData();
+                } catch (IOException e) {
+                    logger.warn("Failed to get last committed data for stats cache", e);
+                    return Collections.emptyMap();
+                }
+            }, logger);
+            this.internalRefreshListeners.add(statsCache);
 
             final SequenceNumbers.CommitInfo seqNoInfo = SequenceNumbers.loadSeqNoInfoFromLuceneCommit(userData.entrySet());
             this.localCheckpointTracker = new LocalCheckpointTracker(seqNoInfo.maxSeqNo, seqNoInfo.localCheckpoint);
@@ -586,6 +599,7 @@ public class DataFormatAwareNRTReplicationEngine implements Indexer {
                 List<Closeable> closeables = new ArrayList<>(readerManagers.values());
                 closeables.add(catalogSnapshotManager);
                 closeables.add(translogManager);
+                // Note: statsCache doesn't implement Closeable, it's a RefreshListener that gets cleaned up automatically
                 IOUtils.close(closeables);
             } catch (Exception e) {
                 logger.error("failed to close engine", e);
@@ -759,8 +773,33 @@ public class DataFormatAwareNRTReplicationEngine implements Indexer {
     }
 
     @Override
+    public List<Segment> segments(boolean verbose) {
+        return statsCache.getSegments();
+    }
+
+    @Override
     public SegmentsStats segmentsStats(boolean includeSegmentFileSizes, boolean includeUnloadedSegments) {
-        return new SegmentsStats();
+        // includeUnloadedSegments is a Lucene concept (segments on disk not yet loaded into a SegmentReader).
+        // In DFANRE, all segments are tracked in the catalog snapshot regardless of load state — no distinction exists.
+
+        if (includeSegmentFileSizes) {
+            // When file sizes are requested, compute on-demand with current snapshot
+            try (GatedCloseable<CatalogSnapshot> snapshotRef = catalogSnapshotManager.acquireSnapshot()) {
+                CatalogSnapshot snapshot = snapshotRef.get();
+
+                return statsCache.buildSegmentsStats(
+                    0L, // nativeBytesUsed - replica has no native memory usage
+                    -1L, // maxUnsafeAutoIdTimestamp - replica doesn't track auto-id timestamps
+                    snapshot
+                );
+            } catch (Exception e) {
+                logger.warn("Failed to compute segments stats with file sizes, falling back to cached stats", e);
+                return statsCache.getSegmentsStats();
+            }
+        } else {
+            // Fast path - return precomputed stats from cache (without file sizes)
+            return statsCache.getSegmentsStats();
+        }
     }
 
     @Override

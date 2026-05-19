@@ -484,6 +484,9 @@ public class CatalogSnapshotManager implements Closeable {
     private CatalogSnapshot acquireLatestSnapshot() {
         CatalogSnapshot snapshot;
         do {
+            if (closed.get()) {
+                throw new IllegalStateException("CatalogSnapshotManager is closed");
+            }
             snapshot = latestCatalogSnapshot;
         } while (!snapshot.tryIncRef());
         return snapshot;

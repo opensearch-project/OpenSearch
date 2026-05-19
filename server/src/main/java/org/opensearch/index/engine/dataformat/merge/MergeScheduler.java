@@ -141,13 +141,21 @@ public class MergeScheduler {
 
         for (OneMerge oneMerge : oneMerges) {
             threadPool.executor(ThreadPool.Names.FORCE_MERGE).execute(() -> {
+                long totalSizeInBytes = oneMerge.getTotalSizeInBytes();
+                long totalNumDocs = oneMerge.getTotalNumDocs();
+                long timeNS = System.nanoTime();
+                long tookMS = 0;
                 try {
+                    mergeStatsTracker.beforeMerge(totalNumDocs, totalSizeInBytes);
                     MergeResult mergeResult = mergeHandler.doMerge(oneMerge);
                     applyMergeChanges.accept(mergeResult, oneMerge);
                     mergeHandler.onMergeFinished(oneMerge);
+                    tookMS = TimeValue.nsecToMSec((System.nanoTime() - timeNS));
                 } catch (Exception e) {
                     logger.error(new ParameterizedMessage("Force merge failed for: {}", oneMerge), e);
                     mergeHandler.onMergeFailure(oneMerge);
+                } finally {
+                    mergeStatsTracker.afterMerge(tookMS, totalNumDocs, totalSizeInBytes);
                 }
             });
         }

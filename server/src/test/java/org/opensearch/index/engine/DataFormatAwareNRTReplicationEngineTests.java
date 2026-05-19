@@ -33,6 +33,7 @@ import org.opensearch.index.engine.dataformat.stub.MockDataFormatPlugin;
 import org.opensearch.index.engine.dataformat.stub.MockSearchBackEndPlugin;
 import org.opensearch.index.engine.exec.FileDeleter;
 import org.opensearch.index.engine.exec.Segment;
+import org.opensearch.index.engine.exec.WriterFileSet;
 import org.opensearch.index.engine.exec.commit.CommitterFactory;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshotManager;
@@ -706,5 +707,95 @@ public class DataFormatAwareNRTReplicationEngineTests extends OpenSearchTestCase
         try (DataFormatAwareNRTReplicationEngine engine = createReplicaEngine(createTempDir())) {
             assertNotNull("translogManager must be available on a fresh engine", engine.translogManager());
         }
+    }
+
+    // ---------- Stats cache (CatalogSnapshotStatsCache) ----------
+
+    public void testSegmentsStatsEmptyOnFreshReplica() throws IOException {
+        try (DataFormatAwareNRTReplicationEngine engine = createReplicaEngine(createTempDir())) {
+            SegmentsStats stats = engine.segmentsStats(false, false);
+            assertNotNull(stats);
+            assertEquals(0, stats.getCount());
+            assertEquals(0L, stats.getIndexWriterMemoryInBytes());
+        }
+    }
+
+    public void testSegmentsStatsUpdatedAfterReplication() throws IOException {
+        Path tmpDir = createTempDir();
+        try (DataFormatAwareNRTReplicationEngine engine = createReplicaEngine(tmpDir)) {
+            WriterFileSet wfs1 = WriterFileSet.builder().directory(tmpDir).writerGeneration(1L).addFile("seg1.mock").addNumRows(7).build();
+            WriterFileSet wfs2 = WriterFileSet.builder().directory(tmpDir).writerGeneration(2L).addFile("seg2.mock").addNumRows(7).build();
+            Segment seg1 = Segment.builder(1L).addSearchableFiles(mockDataFormat, wfs1).build();
+            Segment seg2 = Segment.builder(2L).addSearchableFiles(mockDataFormat, wfs2).build();
+
+            DataformatAwareCatalogSnapshot incoming = buildSnapshotWithSegments(engine, 1L, 1L, 14L, List.of(seg1, seg2));
+            engine.updateCatalogSnapshot(incoming);
+
+            SegmentsStats stats = engine.segmentsStats(false, false);
+            assertNotNull(stats);
+            assertEquals(2, stats.getCount());
+        }
+    }
+
+    public void testSegmentsStatsWithFileSizesPathDoesNotThrow() throws IOException {
+        try (DataFormatAwareNRTReplicationEngine engine = createReplicaEngine(createTempDir())) {
+            SegmentsStats stats = engine.segmentsStats(true, false);
+            assertNotNull(stats);
+            assertEquals(0, stats.getCount());
+        }
+    }
+
+    public void testDocStatsReflectsReplicatedSnapshot() throws IOException {
+        Path tmpDir = createTempDir();
+        try (DataFormatAwareNRTReplicationEngine engine = createReplicaEngine(tmpDir)) {
+            assertEquals(0L, engine.docStats().getCount());
+
+            WriterFileSet wfs = WriterFileSet.builder().directory(tmpDir).writerGeneration(1L).addFile("seg1.mock").addNumRows(10).build();
+            Segment seg = Segment.builder(1L).addSearchableFiles(mockDataFormat, wfs).build();
+            DataformatAwareCatalogSnapshot incoming = buildSnapshotWithSegments(engine, 1L, 1L, 10L, List.of(seg));
+            engine.updateCatalogSnapshot(incoming);
+
+            org.opensearch.index.shard.DocsStats docsStats = engine.docStats();
+            assertNotNull(docsStats);
+            assertEquals(0L, docsStats.getDeleted());
+        }
+    }
+
+    public void testStatsCacheReturnsCachedSegmentsStatsAfterRefresh() throws IOException {
+        Path tmpDir = createTempDir();
+        try (DataFormatAwareNRTReplicationEngine engine = createReplicaEngine(tmpDir)) {
+            assertEquals(0, engine.segmentsStats(false, false).getCount());
+
+            WriterFileSet wfs = WriterFileSet.builder().directory(tmpDir).writerGeneration(1L).addFile("seg1.mock").addNumRows(5).build();
+            Segment seg = Segment.builder(1L).addSearchableFiles(mockDataFormat, wfs).build();
+            DataformatAwareCatalogSnapshot incoming = buildSnapshotWithSegments(engine, 1L, 1L, 5L, List.of(seg));
+            engine.updateCatalogSnapshot(incoming);
+
+            assertEquals(1, engine.segmentsStats(false, false).getCount());
+        }
+    }
+
+    private DataformatAwareCatalogSnapshot buildSnapshotWithSegments(
+        DataFormatAwareNRTReplicationEngine engine,
+        long id,
+        long gen,
+        long maxSeqNo,
+        List<Segment> segments
+    ) {
+        Map<String, String> userData = new HashMap<>();
+        userData.put(SequenceNumbers.MAX_SEQ_NO, Long.toString(maxSeqNo));
+        userData.put(SequenceNumbers.LOCAL_CHECKPOINT_KEY, Long.toString(maxSeqNo));
+        userData.put(Translog.TRANSLOG_UUID_KEY, UUID.randomUUID().toString());
+        userData.put(Engine.HISTORY_UUID_KEY, engine.getHistoryUUID());
+        DataformatAwareCatalogSnapshot snapshot = (DataformatAwareCatalogSnapshot) CatalogSnapshotManager.createInitialSnapshot(
+            id,
+            gen,
+            gen,
+            segments,
+            gen,
+            userData
+        );
+        snapshot.setLastCommitInfo("segments_" + gen, gen, 0L);
+        return snapshot;
     }
 }
