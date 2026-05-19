@@ -1,0 +1,42 @@
+{
+  "schema": [
+    {
+      "name": "category",
+      "type": "string"
+    },
+    {
+      "name": "id",
+      "type": "string"
+    },
+    {
+      "name": "value",
+      "type": "double"
+    },
+    {
+      "name": "json_arr",
+      "type": "string"
+    }
+  ],
+  "datarows": [
+    [
+      "A",
+      "1",
+      100.5,
+      "[\"A\",\"1\",100.5]"
+    ],
+    [
+      "B",
+      "2",
+      200.75,
+      "[\"B\",\"2\",200.75]"
+    ],
+    [
+      "A",
+      "3",
+      150.25,
+      "[\"A\",\"3\",150.25]"
+    ]
+  ],
+  "total": 3,
+  "size": 3
+}

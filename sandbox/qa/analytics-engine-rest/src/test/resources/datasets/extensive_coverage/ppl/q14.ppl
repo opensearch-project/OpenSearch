@@ -1,0 +1,1 @@
+source=data | eval status_flag = if(value > 200, "high", "low") | fields category, value, status_flag | head 5

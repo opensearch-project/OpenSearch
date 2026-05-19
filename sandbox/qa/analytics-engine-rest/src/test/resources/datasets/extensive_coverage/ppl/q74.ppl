@@ -1,0 +1,1 @@
+source=data | fields category, value, total | head 5

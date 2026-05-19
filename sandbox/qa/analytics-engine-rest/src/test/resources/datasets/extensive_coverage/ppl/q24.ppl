@@ -1,0 +1,1 @@
+source=data | eval dt = date(timestamp), tm = time(timestamp) | fields timestamp, dt, tm | head 3

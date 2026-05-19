@@ -1,0 +1,1 @@
+source=data | eval date_val = from_days(738000) | fields id, date_val | head 1

@@ -1,0 +1,1 @@
+source=data | eval secs = to_seconds(timestamp) | fields timestamp, secs | head 3

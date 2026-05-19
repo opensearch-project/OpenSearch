@@ -1,0 +1,1 @@
+source=data | sort value desc | fields category, value | head 5

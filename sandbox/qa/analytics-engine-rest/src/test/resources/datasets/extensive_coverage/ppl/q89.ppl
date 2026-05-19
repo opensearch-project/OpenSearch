@@ -1,0 +1,1 @@
+source=data | patterns text | fields text, patterns_field | head 5

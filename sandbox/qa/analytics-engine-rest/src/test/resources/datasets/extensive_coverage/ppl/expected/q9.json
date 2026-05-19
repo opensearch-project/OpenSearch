@@ -1,0 +1,36 @@
+{
+  "schema": [
+    {
+      "name": "text",
+      "type": "string"
+    },
+    {
+      "name": "text_len",
+      "type": "int"
+    }
+  ],
+  "datarows": [
+    [
+      "hello world test",
+      16
+    ],
+    [
+      "sample data entry",
+      17
+    ],
+    [
+      "test example record",
+      19
+    ],
+    [
+      "another test case",
+      17
+    ],
+    [
+      "final test entry",
+      16
+    ]
+  ],
+  "total": 5,
+  "size": 5
+}

@@ -1,0 +1,1 @@
+source=data | stats values(category) as unique_cats

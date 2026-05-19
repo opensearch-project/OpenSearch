@@ -1,0 +1,28 @@
+{
+  "schema": [
+    {
+      "name": "text",
+      "type": "string"
+    },
+    {
+      "name": "status",
+      "type": "string"
+    }
+  ],
+  "datarows": [
+    [
+      "test validation",
+      "pending"
+    ],
+    [
+      "comprehensive test",
+      "active"
+    ],
+    [
+      "hello world test",
+      "active"
+    ]
+  ],
+  "total": 3,
+  "size": 3
+}

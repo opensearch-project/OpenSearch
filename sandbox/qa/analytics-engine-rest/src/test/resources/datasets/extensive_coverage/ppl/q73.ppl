@@ -1,0 +1,1 @@
+source=data | chart count() by category

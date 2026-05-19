@@ -1,0 +1,1 @@
+source=data | eval cur_time = curtime() | fields id, cur_time | head 1

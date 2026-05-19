@@ -1,0 +1,19 @@
+{
+  "schema": [
+    {
+      "name": "sample_texts",
+      "type": "array"
+    }
+  ],
+  "datarows": [
+    [
+      [
+        "hello world test",
+        "sample data entry",
+        "test example record"
+      ]
+    ]
+  ],
+  "total": 1,
+  "size": 1
+}

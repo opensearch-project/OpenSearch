@@ -1,0 +1,1 @@
+source=data | fields category, value | head 5 | transpose

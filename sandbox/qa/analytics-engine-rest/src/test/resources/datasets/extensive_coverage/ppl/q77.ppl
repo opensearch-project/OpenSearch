@@ -1,0 +1,1 @@
+source=data | fields category, value | appendpipe [stats avg(value) as avg_value]
