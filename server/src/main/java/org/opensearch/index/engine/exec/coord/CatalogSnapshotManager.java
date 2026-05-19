@@ -558,9 +558,7 @@ public class CatalogSnapshotManager implements Closeable {
         // Check for null values (format participated but returned no result)
         for (Map.Entry<DataFormat, WriterFileSet> entry : writerFileSetMap.entrySet()) {
             if (entry.getValue() == null) {
-                throw new IllegalStateException(
-                    "WriterFileSet is null for format [" + entry.getKey().name() + "] — merge was incomplete"
-                );
+                throw new IllegalStateException("WriterFileSet is null for format [" + entry.getKey().name() + "] — merge was incomplete");
             }
         }
         long generation = writerFileSetMap.values().iterator().next().writerGeneration();

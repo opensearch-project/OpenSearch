@@ -14,7 +14,6 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.SortedNumericDocValues;
-import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSortField;
@@ -25,14 +24,13 @@ import org.opensearch.index.engine.dataformat.FileInfos;
 import org.opensearch.index.engine.dataformat.FlushInput;
 import org.opensearch.index.engine.exec.WriterFileSet;
 import org.opensearch.index.mapper.MappedFieldType;
+import org.opensearch.index.mapper.TextFieldMapper;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
 import java.nio.file.Path;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 /**
  * Tests for {@link LuceneWriter#flush(FlushInput)} with sort permutation.
@@ -50,10 +48,7 @@ public class LuceneWriterSortedFlushTests extends OpenSearchTestCase {
     }
 
     private MappedFieldType mockTextField(String name) {
-        MappedFieldType ft = mock(MappedFieldType.class);
-        when(ft.typeName()).thenReturn("text");
-        when(ft.name()).thenReturn(name);
-        return ft;
+        return new TextFieldMapper.TextFieldType(name);
     }
 
     /**
@@ -74,7 +69,7 @@ public class LuceneWriterSortedFlushTests extends OpenSearchTestCase {
         long[] newRowIds = { 4, 3, 2, 1, 0 };
         FlushInput sortedFlushInput = new FlushInput(buildMapping(oldRowIds, newRowIds));
 
-        try (LuceneWriter writer = new LuceneWriter(1L, dataFormat, baseDir, null, Codec.getDefault(), null)) {
+        try (LuceneWriter writer = new LuceneWriter(1L, 0L, dataFormat, baseDir, null, Codec.getDefault(), null)) {
             for (int i = 0; i < numDocs; i++) {
                 LuceneDocumentInput input = new LuceneDocumentInput();
                 input.addField(textField, "doc_" + i);
@@ -133,7 +128,7 @@ public class LuceneWriterSortedFlushTests extends OpenSearchTestCase {
         }
         FlushInput sortedFlushInput = new FlushInput(buildMapping(oldRowIds, newRowIds));
 
-        try (LuceneWriter writer = new LuceneWriter(1L, dataFormat, baseDir, null, Codec.getDefault(), null)) {
+        try (LuceneWriter writer = new LuceneWriter(1L, 0L, dataFormat, baseDir, null, Codec.getDefault(), null)) {
             for (int i = 0; i < numDocs; i++) {
                 LuceneDocumentInput input = new LuceneDocumentInput();
                 input.addField(textField, "doc_" + i);
@@ -170,7 +165,7 @@ public class LuceneWriterSortedFlushTests extends OpenSearchTestCase {
         long[] newRowIds = { 1, 0 };
         FlushInput sortedFlushInput = new FlushInput(buildMapping(oldRowIds, newRowIds));
 
-        try (LuceneWriter writer = new LuceneWriter(1L, dataFormat, baseDir, null, Codec.getDefault(), null)) {
+        try (LuceneWriter writer = new LuceneWriter(1L, 0L, dataFormat, baseDir, null, Codec.getDefault(), null)) {
             FileInfos fileInfos = writer.flush(sortedFlushInput);
             assertTrue(fileInfos.writerFilesMap().isEmpty());
         }
@@ -189,7 +184,7 @@ public class LuceneWriterSortedFlushTests extends OpenSearchTestCase {
         long[] newRowIds = { 2, 0, 1 };
         FlushInput sortedFlushInput = new FlushInput(buildMapping(oldRowIds, newRowIds));
 
-        try (LuceneWriter writer = new LuceneWriter(gen, dataFormat, baseDir, null, Codec.getDefault(), null)) {
+        try (LuceneWriter writer = new LuceneWriter(gen, 0L, dataFormat, baseDir, null, Codec.getDefault(), null)) {
             for (int i = 0; i < 3; i++) {
                 LuceneDocumentInput input = new LuceneDocumentInput();
                 input.addField(textField, "doc_" + i);
@@ -220,7 +215,7 @@ public class LuceneWriterSortedFlushTests extends OpenSearchTestCase {
         }
         FlushInput sortedFlushInput = new FlushInput(buildMapping(oldRowIds, newRowIds));
 
-        try (LuceneWriter writer = new LuceneWriter(1L, dataFormat, baseDir, null, Codec.getDefault(), null)) {
+        try (LuceneWriter writer = new LuceneWriter(1L, 0L, dataFormat, baseDir, null, Codec.getDefault(), null)) {
             for (int i = 0; i < numDocs; i++) {
                 LuceneDocumentInput input = new LuceneDocumentInput();
                 input.addField(textField, "doc_" + i);
@@ -241,18 +236,25 @@ public class LuceneWriterSortedFlushTests extends OpenSearchTestCase {
     }
 
     /**
-     * FlushInput.EMPTY should trigger the unsorted path, producing sequential row IDs.
+     * FlushInput.EMPTY should trigger the unsorted path, leaving docs in insertion order.
+     * To prove no reordering happened, each doc carries a {@code marker} doc value equal
+     * to {@code rowId * 100}. After flush, both {@code __row_id__} and {@code marker} must
+     * appear at the same position in doc order — confirming the segment is identical to
+     * the insertion sequence and that the reorder merge policy was never installed.
      */
     public void testEmptyFlushInputUsesUnsortedPath() throws IOException {
         Path baseDir = createTempDir();
         int numDocs = 5;
         MappedFieldType textField = mockTextField("content");
 
-        try (LuceneWriter writer = new LuceneWriter(1L, dataFormat, baseDir, null, Codec.getDefault(), null)) {
+        try (LuceneWriter writer = new LuceneWriter(1L, 0L, dataFormat, baseDir, null, Codec.getDefault(), null)) {
             for (int i = 0; i < numDocs; i++) {
                 LuceneDocumentInput input = new LuceneDocumentInput();
                 input.addField(textField, "doc_" + i);
                 input.setRowId(LuceneDocumentInput.ROW_ID_FIELD, i);
+                // Marker doc value uniquely tied to row ID — would diverge from row ID
+                // if any reordering had taken place.
+                input.getFinalInput().add(new SortedNumericDocValuesField("marker", i * 100L));
                 writer.addDoc(input);
             }
 
@@ -264,12 +266,22 @@ public class LuceneWriterSortedFlushTests extends OpenSearchTestCase {
 
                 LeafReader leaf = reader.leaves().get(0).reader();
                 SortedNumericDocValues rowIdDV = leaf.getSortedNumericDocValues(LuceneDocumentInput.ROW_ID_FIELD);
+                SortedNumericDocValues markerDV = leaf.getSortedNumericDocValues("marker");
                 assertNotNull(rowIdDV);
+                assertNotNull(markerDV);
 
-                // Unsorted: row IDs should be sequential 0..N-1
+                // Unsorted: row IDs sequential 0..N-1 AND marker[docId] == docId*100,
+                // proving doc at position docId is the doc originally inserted with row ID docId.
                 for (int docId = 0; docId < numDocs; docId++) {
                     assertTrue(rowIdDV.advanceExact(docId));
                     assertThat(rowIdDV.nextValue(), equalTo((long) docId));
+
+                    assertTrue(markerDV.advanceExact(docId));
+                    assertThat(
+                        "marker at position " + docId + " must equal " + (docId * 100L) + " (no reordering)",
+                        markerDV.nextValue(),
+                        equalTo(docId * 100L)
+                    );
                 }
             }
         }
@@ -290,7 +302,7 @@ public class LuceneWriterSortedFlushTests extends OpenSearchTestCase {
         int numDocs = 5;
         long[] ages = { 50, 40, 30, 20, 10 };
 
-        try (LuceneWriter writer = new LuceneWriter(1L, dataFormat, baseDir, null, Codec.getDefault(), indexSort)) {
+        try (LuceneWriter writer = new LuceneWriter(1L, 0L, dataFormat, baseDir, null, Codec.getDefault(), indexSort)) {
             for (int i = 0; i < numDocs; i++) {
                 LuceneDocumentInput input = new LuceneDocumentInput();
                 input.setRowId(LuceneDocumentInput.ROW_ID_FIELD, i);
@@ -338,7 +350,7 @@ public class LuceneWriterSortedFlushTests extends OpenSearchTestCase {
         long[] ages = { 30, 10, 20 };
         int numDocs = 3;
 
-        try (LuceneWriter writer = new LuceneWriter(1L, dataFormat, baseDir, null, Codec.getDefault(), indexSort)) {
+        try (LuceneWriter writer = new LuceneWriter(1L, 0L, dataFormat, baseDir, null, Codec.getDefault(), indexSort)) {
             for (int i = 0; i < numDocs; i++) {
                 LuceneDocumentInput input = new LuceneDocumentInput();
                 input.setRowId(LuceneDocumentInput.ROW_ID_FIELD, i);
@@ -379,7 +391,7 @@ public class LuceneWriterSortedFlushTests extends OpenSearchTestCase {
         long[] ages = { 10, 20, 30, 40, 50 };
         int numDocs = 5;
 
-        try (LuceneWriter writer = new LuceneWriter(1L, dataFormat, baseDir, null, Codec.getDefault(), indexSort)) {
+        try (LuceneWriter writer = new LuceneWriter(1L, 0L, dataFormat, baseDir, null, Codec.getDefault(), indexSort)) {
             for (int i = 0; i < numDocs; i++) {
                 LuceneDocumentInput input = new LuceneDocumentInput();
                 input.setRowId(LuceneDocumentInput.ROW_ID_FIELD, i);
@@ -404,6 +416,228 @@ public class LuceneWriterSortedFlushTests extends OpenSearchTestCase {
                 }
             }
         }
+    }
+
+    /**
+     * When the child IndexWriter is configured with an IndexSort (Lucene as primary),
+     * a FlushInput carrying a RowIdMapping is contradictory — sorting would be applied
+     * twice (once natively by Lucene's IndexSort, once via the row ID permutation).
+     * The flush call must fail fast with an IllegalStateException whose message
+     * names the configured sort and the writer generation, so the misconfiguration
+     * is easy to attribute.
+     */
+    public void testFlushFailsWhenIndexSortAndRowIdMappingAreBothConfigured() throws IOException {
+        Path baseDir = createTempDir();
+        long generation = 7L;
+        Sort indexSort = new Sort(new SortedNumericSortField("age", SortField.Type.LONG));
+        MappedFieldType textField = mockTextField("content");
+
+        long[] oldRowIds = { 0, 1, 2 };
+        long[] newRowIds = { 2, 0, 1 };
+        FlushInput sortedFlushInput = new FlushInput(buildMapping(oldRowIds, newRowIds));
+
+        try (LuceneWriter writer = new LuceneWriter(generation, 0L, dataFormat, baseDir, null, Codec.getDefault(), indexSort)) {
+            for (int i = 0; i < oldRowIds.length; i++) {
+                LuceneDocumentInput input = new LuceneDocumentInput();
+                input.addField(textField, "doc_" + i);
+                input.setRowId(LuceneDocumentInput.ROW_ID_FIELD, i);
+                input.getFinalInput().add(new SortedNumericDocValuesField("age", i));
+                writer.addDoc(input);
+            }
+
+            IllegalStateException ex = expectThrows(IllegalStateException.class, () -> writer.flush(sortedFlushInput));
+            assertThat(
+                "exception message should reference RowIdMapping",
+                ex.getMessage(),
+                org.hamcrest.Matchers.containsString("RowIdMapping")
+            );
+            assertThat(
+                "exception message should include the configured IndexSort",
+                ex.getMessage(),
+                org.hamcrest.Matchers.containsString(indexSort.toString())
+            );
+            assertThat(
+                "exception message should include the writer generation",
+                ex.getMessage(),
+                org.hamcrest.Matchers.containsString(Long.toString(generation))
+            );
+        }
+    }
+
+    /**
+     * After a sorted flush with reorder + row ID rewrite, non-row-id fields must be
+     * physically reordered to follow the docs (their values stay attached to their
+     * original docs, just at new positions), while the {@code ___row_id} field is
+     * rewritten to sequential 0..N-1 in the new doc order. This guarantees:
+     *   - cross-format alignment with Parquet (sequential row IDs at each doc position)
+     *   - user-field correctness (no value loss or reassignment)
+     */
+    public void testSortedFlushReordersOtherFieldsAndRewritesRowIds() throws IOException {
+        Path baseDir = createTempDir();
+        int numDocs = 6;
+        MappedFieldType textField = mockTextField("content");
+
+        // Full reverse permutation: 0→5, 1→4, ..., 5→0
+        long[] oldRowIds = new long[numDocs];
+        long[] newRowIds = new long[numDocs];
+        for (int i = 0; i < numDocs; i++) {
+            oldRowIds[i] = i;
+            newRowIds[i] = numDocs - 1 - i;
+        }
+        FlushInput sortedFlushInput = new FlushInput(buildMapping(oldRowIds, newRowIds));
+
+        try (LuceneWriter writer = new LuceneWriter(1L, 0L, dataFormat, baseDir, null, Codec.getDefault(), null)) {
+            for (int i = 0; i < numDocs; i++) {
+                LuceneDocumentInput input = new LuceneDocumentInput();
+                input.addField(textField, "doc_" + i);
+                input.setRowId(LuceneDocumentInput.ROW_ID_FIELD, i);
+                // User field: doc i carries score i*100
+                input.getFinalInput().add(new SortedNumericDocValuesField("score", i * 100L));
+                writer.addDoc(input);
+            }
+
+            FileInfos fileInfos = writer.flush(sortedFlushInput);
+            WriterFileSet wfs = fileInfos.getWriterFileSet(dataFormat).get();
+
+            try (NIOFSDirectory dir = new NIOFSDirectory(Path.of(wfs.directory()));
+                 IndexReader reader = DirectoryReader.open(dir)) {
+
+                LeafReader leaf = reader.leaves().get(0).reader();
+
+                // Row IDs are rewritten to sequential 0..N-1 in the new doc order
+                SortedNumericDocValues rowIdDV = leaf.getSortedNumericDocValues(LuceneDocumentInput.ROW_ID_FIELD);
+                assertNotNull(rowIdDV);
+                for (int docId = 0; docId < numDocs; docId++) {
+                    assertTrue(rowIdDV.advanceExact(docId));
+                    assertThat(rowIdDV.nextValue(), equalTo((long) docId));
+                }
+
+                // Score field is reordered (not rewritten): new doc at position d came
+                // from original position (numDocs-1-d), so it carries score (numDocs-1-d)*100.
+                SortedNumericDocValues scoreDV = leaf.getSortedNumericDocValues("score");
+                assertNotNull(scoreDV);
+                for (int docId = 0; docId < numDocs; docId++) {
+                    assertTrue(scoreDV.advanceExact(docId));
+                    long expectedScore = (numDocs - 1 - docId) * 100L;
+                    assertThat(
+                        "score at new position " + docId + " should be " + expectedScore,
+                        scoreDV.nextValue(),
+                        equalTo(expectedScore)
+                    );
+                }
+            }
+        }
+    }
+
+    /**
+     * Sorted flush across multiple in-flight Lucene segments.
+     *
+     * <p>By default {@link LuceneWriter} uses a 256 MB RAM buffer so all docs land in
+     * a single in-memory segment before flush. To exercise the multi-segment merge
+     * path — where the configured {@code ReorderingMergePolicy} drives a reorder
+     * that spans more than one source segment — the test overrides the package-private
+     * {@code ramBufferSizeMB()} hook with a tiny value (~0.05 MB) which makes Lucene
+     * spill segments to disk while documents are being added.
+     *
+     * <p>After {@code flush(FlushInput)} with a reverse permutation:
+     *   - {@code ___row_id} doc values must be sequential 0..N-1 (rewritten in the merge)
+     *   - the {@code marker} side-channel must follow the reverse permutation, proving
+     *     the reorder actually moved docs and is not just an effect of natural ordering.
+     */
+    public void testSortedFlushAcrossMultipleSegmentsReordersAndRewritesRowIds() throws IOException {
+        // Default RAM buffer: a single segment is produced before flush, no inter-segment merge needed.
+        runSortedFlushAndAssert(/* ramBufferSizeMBOverride= */ null);
+
+        // Tiny RAM buffer: force multiple buffered segments so forceMerge(1) under
+        // ReorderingMergePolicy actually merges across segments.
+        runSortedFlushAndAssert(/* ramBufferSizeMBOverride= */ 0.05);
+    }
+
+    /**
+     * Reusable scenario: index N docs with a {@code marker} side-channel in arrival order,
+     * flush with a reverse permutation, then assert reorder + row ID rewrite.
+     *
+     * @param ramBufferSizeMBOverride non-null to override the writer's default RAM buffer
+     *                                via the package-private {@code ramBufferSizeMB()} hook
+     */
+    private void runSortedFlushAndAssert(Double ramBufferSizeMBOverride) throws IOException {
+        Path baseDir = createTempDir();
+        // Enough docs that with a tiny RAM buffer Lucene is forced to spill multiple segments.
+        int numDocs = 200;
+        MappedFieldType textField = mockTextField("content");
+
+        // Reverse permutation: doc inserted at position i ends up at position (N-1-i)
+        long[] oldRowIds = new long[numDocs];
+        long[] newRowIds = new long[numDocs];
+        for (int i = 0; i < numDocs; i++) {
+            oldRowIds[i] = i;
+            newRowIds[i] = numDocs - 1 - i;
+        }
+        FlushInput sortedFlushInput = new FlushInput(buildMapping(oldRowIds, newRowIds));
+
+        try (LuceneWriter writer = newWriterWithRamBuffer(baseDir, ramBufferSizeMBOverride)) {
+            for (int i = 0; i < numDocs; i++) {
+                LuceneDocumentInput input = new LuceneDocumentInput();
+                input.addField(textField, "doc_" + i);
+                input.setRowId(LuceneDocumentInput.ROW_ID_FIELD, i);
+                input.getFinalInput().add(new SortedNumericDocValuesField("marker", i * 100L));
+                writer.addDoc(input);
+            }
+
+            FileInfos fileInfos = writer.flush(sortedFlushInput);
+            WriterFileSet wfs = fileInfos.getWriterFileSet(dataFormat).get();
+            assertThat(wfs.numRows(), equalTo((long) numDocs));
+
+            try (NIOFSDirectory dir = new NIOFSDirectory(Path.of(wfs.directory()));
+                 IndexReader reader = DirectoryReader.open(dir)) {
+
+                // Single committed segment after forceMerge(1) regardless of how many
+                // intermediate segments existed during indexing.
+                assertThat(reader.leaves().size(), equalTo(1));
+                LeafReader leaf = reader.leaves().get(0).reader();
+                assertThat(leaf.maxDoc(), equalTo(numDocs));
+
+                SortedNumericDocValues rowIdDV = leaf.getSortedNumericDocValues(LuceneDocumentInput.ROW_ID_FIELD);
+                SortedNumericDocValues markerDV = leaf.getSortedNumericDocValues("marker");
+                assertNotNull(rowIdDV);
+                assertNotNull(markerDV);
+
+                for (int docId = 0; docId < numDocs; docId++) {
+                    // Row IDs rewritten to sequential 0..N-1 in the post-reorder doc order.
+                    assertTrue(rowIdDV.advanceExact(docId));
+                    assertThat(rowIdDV.nextValue(), equalTo((long) docId));
+
+                    // Marker side-channel proves the reverse reorder fired: doc at new
+                    // position docId came from original position (N-1-docId), so its
+                    // marker is (N-1-docId)*100.
+                    assertTrue(markerDV.advanceExact(docId));
+                    long expectedMarker = (numDocs - 1 - docId) * 100L;
+                    assertThat(
+                        "marker at position " + docId + " should be " + expectedMarker,
+                        markerDV.nextValue(),
+                        equalTo(expectedMarker)
+                    );
+                }
+            }
+        }
+    }
+
+    /**
+     * Constructs a {@link LuceneWriter} with an optional override of the package-private
+     * {@code ramBufferSizeMB()} hook. Pass {@code null} for the default (256 MB) or a small
+     * value to force aggressive intra-flush segment creation.
+     */
+    private LuceneWriter newWriterWithRamBuffer(Path baseDir, Double ramBufferSizeMBOverride) throws IOException {
+        if (ramBufferSizeMBOverride == null) {
+            return new LuceneWriter(1L, 0L, dataFormat, baseDir, null, Codec.getDefault(), null);
+        }
+        final double override = ramBufferSizeMBOverride;
+        return new LuceneWriter(1L, 0L, dataFormat, baseDir, null, Codec.getDefault(), null) {
+            @Override
+            double ramBufferSizeMB() {
+                return override;
+            }
+        };
     }
 
     private static PackedRowIdMapping buildMapping(long[] oldRowIds, long[] newRowIds) {

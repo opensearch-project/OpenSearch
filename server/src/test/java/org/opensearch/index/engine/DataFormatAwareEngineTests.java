@@ -29,10 +29,13 @@ import org.opensearch.index.IndexSettings;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.engine.dataformat.DataFormatPlugin;
 import org.opensearch.index.engine.dataformat.DataFormatRegistry;
+import org.opensearch.index.engine.dataformat.IndexingEngineConfig;
+import org.opensearch.index.engine.dataformat.IndexingExecutionEngine;
 import org.opensearch.index.engine.dataformat.stub.InMemoryCommitter;
 import org.opensearch.index.engine.dataformat.stub.MockDataFormat;
 import org.opensearch.index.engine.dataformat.stub.MockDataFormatPlugin;
 import org.opensearch.index.engine.dataformat.stub.MockDocumentInput;
+import org.opensearch.index.engine.dataformat.stub.MockIndexingExecutionEngine;
 import org.opensearch.index.engine.dataformat.stub.MockSearchBackEndPlugin;
 import org.opensearch.index.engine.exec.IndexReaderProvider;
 import org.opensearch.index.engine.exec.WriterFileSet;
@@ -74,9 +77,11 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.opensearch.index.engine.EngineTestCase.createParsedDoc;
 import static org.opensearch.index.engine.EngineTestCase.tombstoneDocSupplier;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -836,6 +841,195 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
         // Second failEngine should not throw
         engine.failEngine("second failure", new RuntimeException("second"));
         expectThrows(AlreadyClosedException.class, () -> engine.ensureOpen());
+    }
+
+    /**
+     * Covers the latch-await branch in {@link DataFormatAwareEngine#refresh}:
+     * <pre>
+     *     try {
+     *         flushLatch.await();
+     *     } catch (InterruptedException e) {
+     *         Thread.currentThread().interrupt();
+     *         throw new IOException("Refresh interrupted waiting for flush completion", e);
+     *     }
+     * </pre>
+     *
+     * <p>If a refresh is interrupted while waiting for cooperative flush completion, the
+     * IOException must propagate out of the refresh, the engine must fail the shard
+     * (so the cluster can re-allocate it rather than continue with a half-flushed catalog),
+     * and the configured {@link Engine.EventListener#onFailedEngine} callback must fire so
+     * the IndexShard can react.
+     *
+     * <p>Determinism: {@link java.util.concurrent.CountDownLatch#await()} checks the
+     * thread's interrupt flag before blocking and throws {@code InterruptedException}
+     * immediately if set — independent of latch count. Pre-setting the interrupt flag on
+     * this thread therefore exercises the exact catch block. None of the locks acquired
+     * earlier in {@code refresh} are interruptible, and the in-process MockWriter
+     * flush does not block, so the flag survives until {@code flushLatch.await()}.
+     */
+    public void testRefreshInterruptedDuringFlushLatchAwaitFailsEngine() throws IOException {
+        AtomicReference<String> failedEngineReason = new AtomicReference<>();
+        AtomicReference<Exception> failedEngineCause = new AtomicReference<>();
+        Engine.EventListener listener = new Engine.EventListener() {
+            @Override
+            public void onFailedEngine(String reason, Exception failure) {
+                failedEngineReason.set(reason);
+                failedEngineCause.set(failure);
+            }
+        };
+
+        Path translogPath = createTempDir();
+        String uuid = Translog.createEmptyTranslog(translogPath, SequenceNumbers.NO_OPS_PERFORMED, shardId, primaryTerm.get());
+        bootstrapStoreWithMetadata(store, uuid);
+
+        // buildDFAEngineConfig doesn't expose eventListener; inject it via a fresh builder.
+        IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(
+            "test",
+            Settings.builder()
+                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
+                .put(IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey(), true)
+                .put(IndexSettings.PLUGGABLE_DATAFORMAT_VALUE_SETTING.getKey(), mockDataFormat.name())
+                .build()
+        );
+        TranslogConfig translogConfig = new TranslogConfig(
+            shardId,
+            translogPath,
+            indexSettings,
+            BigArrays.NON_RECYCLING_INSTANCE,
+            "",
+            false
+        );
+        MapperService mapperService = mock(MapperService.class);
+        when(mapperService.getIndexSettings()).thenReturn(indexSettings);
+        EngineConfig config = new EngineConfig.Builder().shardId(shardId)
+            .threadPool(threadPool)
+            .indexSettings(indexSettings)
+            .store(store)
+            .mergePolicy(NoMergePolicy.INSTANCE)
+            .translogConfig(translogConfig)
+            .flushMergesAfter(TimeValue.timeValueMinutes(5))
+            .externalRefreshListener(List.of())
+            .internalRefreshListener(List.of())
+            .globalCheckpointSupplier(() -> SequenceNumbers.NO_OPS_PERFORMED)
+            .retentionLeasesSupplier(() -> RetentionLeases.EMPTY)
+            .primaryTermSupplier(primaryTerm::get)
+            .tombstoneDocSupplier(tombstoneDocSupplier())
+            .dataFormatRegistry(createMockRegistry())
+            .committerFactory(c -> new InMemoryCommitter(store))
+            .mapperService(mapperService)
+            .eventListener(listener)
+            .build();
+        DataFormatAwareEngine engine = new DataFormatAwareEngine(config);
+        try {
+            // Index a doc so refresh has a writer to drain through the flush queue.
+            engine.index(indexOp(createParsedDocWithInput("1", null)));
+
+            // Pre-set the interrupt flag so flushLatch.await() throws immediately.
+            Thread.currentThread().interrupt();
+
+            RefreshFailedEngineException ex = expectThrows(RefreshFailedEngineException.class, () -> engine.refresh("interrupt-test"));
+
+            // The wrapped IOException with our specific message is the contract.
+            assertThat("refresh failure must wrap an IOException", ex.getCause(), instanceOf(IOException.class));
+            assertThat(
+                "IOException message must identify it as the latch-await path",
+                ex.getCause().getMessage(),
+                containsString("Refresh interrupted waiting for flush completion")
+            );
+            assertThat(
+                "IOException must preserve the InterruptedException as cause",
+                ex.getCause().getCause(),
+                instanceOf(InterruptedException.class)
+            );
+
+            // The shard-failure contract: failEngine ran and fired the listener.
+            assertThat("event listener must observe the failure", failedEngineReason.get(), notNullValue());
+            assertThat("listener reason must mention refresh", failedEngineReason.get(), containsString("refresh"));
+            assertThat("listener must receive the originating exception", failedEngineCause.get(), notNullValue());
+
+            // Engine must be in the failed/closed state — subsequent ops must reject.
+            expectThrows(AlreadyClosedException.class, engine::ensureOpen);
+            expectThrows(AlreadyClosedException.class, () -> engine.refresh("after-fail"));
+            expectThrows(AlreadyClosedException.class, () -> engine.index(indexOp(createParsedDocWithInput("2", null))));
+        } finally {
+            // Drop any lingering interrupt status and ensure cleanup runs cleanly.
+            Thread.interrupted();
+            try {
+                engine.close();
+            } catch (Exception ignored) {
+                // Engine may already be closed by failEngine.
+            }
+        }
+    }
+
+    /**
+     * Covers the refresh-thread branch when a writer's {@code flush()} throws.
+     *
+     * <p>The latch-and-flushQueue contract demands that, no matter which code path
+     * fails, the engine is left in a consistent state for the surrounding orchestration:
+     * <ul>
+     *   <li>The exception must surface to the caller as {@link RefreshFailedEngineException}
+     *       so the IndexShard can react.</li>
+     *   <li>The shared {@code flushQueue} must not leak items that the next refresh would
+     *       wrongly consider in-flight (no orphan writers waiting for nobody).</li>
+     *   <li>{@link DataFormatAwareEngine#failEngine} must run with the originating cause,
+     *       firing {@link Engine.EventListener#onFailedEngine} so the shard is failed.</li>
+     *   <li>Subsequent operations must reject with {@link AlreadyClosedException}.</li>
+     * </ul>
+     *
+     * <p>This test uses a {@link FailingFlushIndexingExecutionEngine} that returns
+     * a writer whose {@code flush()} throws on first call, ensuring the refresh
+     * thread itself is the one that observes the failure (only one writer in the
+     * pool, so there are no write threads racing for it).
+     */
+    public void testRefreshThreadFlushFailureFailsEngineAndDrainsQueue() throws Exception {
+        AtomicReference<Exception> failedEngineCause = new AtomicReference<>();
+        Engine.EventListener listener = new Engine.EventListener() {
+            @Override
+            public void onFailedEngine(String reason, Exception failure) {
+                failedEngineCause.set(failure);
+            }
+        };
+
+        // Wire an indexing engine whose writer fails on flush.
+        FailingFlushIndexingExecutionEngine failingEngine = new FailingFlushIndexingExecutionEngine(mockDataFormat);
+        MockDataFormatPlugin failingPlugin = new MockDataFormatPlugin(mockDataFormat) {
+            @Override
+            public IndexingExecutionEngine<?, ?> indexingEngine(IndexingEngineConfig settings) {
+                return failingEngine;
+            }
+        };
+
+        EngineConfig config = buildFailingEngineConfig(failingPlugin, listener);
+        DataFormatAwareEngine engine = new DataFormatAwareEngine(config);
+        try {
+            // One indexed doc → one writer in the pool. Refresh thread will be the sole flusher.
+            engine.index(indexOp(createParsedDocWithInput("1", null)));
+            assertThat("writer should have been used", failingEngine.writersCreated(), greaterThanOrEqualTo(1));
+
+            RefreshFailedEngineException ex = expectThrows(RefreshFailedEngineException.class, () -> engine.refresh("flush-failure-test"));
+            assertThat("refresh failure must wrap the IOException from flush", ex.getCause(), instanceOf(IOException.class));
+            assertThat(ex.getCause().getMessage(), containsString("simulated flush failure"));
+
+            // failEngine ran with the originating exception.
+            assertThat("event listener must observe the failure", failedEngineCause.get(), notNullValue());
+
+            // No writer leaked in the shared flushQueue. Use reflection (test-only) to
+            // assert the queue is empty without exposing internals on DFAE.
+            assertThat("flushQueue must be drained on failure", flushQueueSize(engine), equalTo(0));
+
+            // Engine is closed for all subsequent operations.
+            expectThrows(AlreadyClosedException.class, engine::ensureOpen);
+            expectThrows(AlreadyClosedException.class, () -> engine.refresh("after-fail"));
+            expectThrows(AlreadyClosedException.class, () -> engine.index(indexOp(createParsedDocWithInput("2", null))));
+        } finally {
+            try {
+                engine.close();
+            } catch (Exception ignored) {
+                // Already closed by failEngine.
+            }
+        }
     }
 
     public void testCatalogSnapshotContainsFormatSpecificFiles() throws IOException {
@@ -1744,5 +1938,155 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
                 );
             }
         }
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // Helpers for writer-flush-failure tests
+    // ═══════════════════════════════════════════════════════════════
+
+    /**
+     * Builds an engine config wired to a custom data format plugin (whose writer can be
+     * configured to fail on flush) and a custom event listener — used by tests that need
+     * to observe shard-failure callbacks while exercising flush-failure paths.
+     */
+    private EngineConfig buildFailingEngineConfig(MockDataFormatPlugin plugin, Engine.EventListener listener) throws IOException {
+        Path translogPath = createTempDir();
+        String uuid = Translog.createEmptyTranslog(translogPath, SequenceNumbers.NO_OPS_PERFORMED, shardId, primaryTerm.get());
+        bootstrapStoreWithMetadata(store, uuid);
+
+        IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(
+            "test",
+            Settings.builder()
+                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
+                .put(IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey(), true)
+                .put(IndexSettings.PLUGGABLE_DATAFORMAT_VALUE_SETTING.getKey(), mockDataFormat.name())
+                .build()
+        );
+        TranslogConfig translogConfig = new TranslogConfig(
+            shardId,
+            translogPath,
+            indexSettings,
+            BigArrays.NON_RECYCLING_INSTANCE,
+            "",
+            false
+        );
+        MapperService mapperService = mock(MapperService.class);
+        when(mapperService.getIndexSettings()).thenReturn(indexSettings);
+
+        PluginsService pluginsService = mock(PluginsService.class);
+        when(pluginsService.filterPlugins(DataFormatPlugin.class)).thenReturn(List.of(plugin));
+        when(pluginsService.filterPlugins(SearchBackEndPlugin.class)).thenReturn(
+            List.of(new MockSearchBackEndPlugin(List.of(mockDataFormat.name())))
+        );
+        DataFormatRegistry registry = new DataFormatRegistry(pluginsService);
+
+        return new EngineConfig.Builder().shardId(shardId)
+            .threadPool(threadPool)
+            .indexSettings(indexSettings)
+            .store(store)
+            .mergePolicy(NoMergePolicy.INSTANCE)
+            .translogConfig(translogConfig)
+            .flushMergesAfter(TimeValue.timeValueMinutes(5))
+            .externalRefreshListener(List.of())
+            .internalRefreshListener(List.of())
+            .globalCheckpointSupplier(() -> SequenceNumbers.NO_OPS_PERFORMED)
+            .retentionLeasesSupplier(() -> RetentionLeases.EMPTY)
+            .primaryTermSupplier(primaryTerm::get)
+            .tombstoneDocSupplier(tombstoneDocSupplier())
+            .dataFormatRegistry(registry)
+            .committerFactory(c -> new InMemoryCommitter(store))
+            .mapperService(mapperService)
+            .eventListener(listener)
+            .build();
+    }
+
+    /**
+     * Reads the size of {@code DataFormatAwareEngine.flushQueue} via reflection so tests
+     * can assert the queue is fully drained on failure paths without exposing internals.
+     */
+    @SuppressWarnings("unchecked")
+    private static int flushQueueSize(DataFormatAwareEngine engine) throws Exception {
+        java.lang.reflect.Field f = DataFormatAwareEngine.class.getDeclaredField("flushQueue");
+        f.setAccessible(true);
+        java.util.Collection<?> queue = (java.util.Collection<?>) f.get(engine);
+        return queue.size();
+    }
+
+    /**
+     * A {@link MockIndexingExecutionEngine} variant whose writer always throws on the
+     * first {@code flush()} call. Tracks the number of writers it has created so tests
+     * can assert that at least one writer entered the flow.
+     */
+    private static final class FailingFlushIndexingExecutionEngine extends MockIndexingExecutionEngine {
+        private final AtomicInteger writersCreated = new AtomicInteger();
+        private final MockDataFormat dataFormat;
+
+        FailingFlushIndexingExecutionEngine(MockDataFormat dataFormat) {
+            super(dataFormat);
+            this.dataFormat = dataFormat;
+        }
+
+        @Override
+        public org.opensearch.index.engine.dataformat.Writer<MockDocumentInput> createWriter(
+            org.opensearch.index.engine.dataformat.WriterConfig config
+        ) {
+            writersCreated.incrementAndGet();
+            return new FailingFlushWriter(config.writerGeneration(), dataFormat);
+        }
+
+        int writersCreated() {
+            return writersCreated.get();
+        }
+    }
+
+    /**
+     * A writer that accepts documents but always throws an {@link IOException} when its
+     * {@code flush()} is invoked. Used to drive the flush-failure paths in
+     * {@link DataFormatAwareEngine#refresh} and {@code preIndex}.
+     */
+    private static final class FailingFlushWriter implements org.opensearch.index.engine.dataformat.Writer<MockDocumentInput> {
+        private final long writerGeneration;
+        private final org.opensearch.index.engine.dataformat.DataFormat dataFormat;
+
+        FailingFlushWriter(long writerGeneration, org.opensearch.index.engine.dataformat.DataFormat dataFormat) {
+            this.writerGeneration = writerGeneration;
+            this.dataFormat = dataFormat;
+        }
+
+        @Override
+        public org.opensearch.index.engine.dataformat.WriteResult addDoc(MockDocumentInput d) {
+            return new org.opensearch.index.engine.dataformat.WriteResult.Success(1L, 1L, 0L);
+        }
+
+        @Override
+        public org.opensearch.index.engine.dataformat.FileInfos flush(org.opensearch.index.engine.dataformat.FlushInput flushInput)
+            throws IOException {
+            throw new IOException("simulated flush failure for writer gen=" + writerGeneration + " format=" + dataFormat.name());
+        }
+
+        @Override
+        public void sync() {}
+
+        @Override
+        public long generation() {
+            return writerGeneration;
+        }
+
+        @Override
+        public boolean isSchemaMutable() {
+            return true;
+        }
+
+        @Override
+        public long mappingVersion() {
+            return 0;
+        }
+
+        @Override
+        public void updateMappingVersion(long newVersion) {}
+
+        @Override
+        public void close() {}
     }
 }

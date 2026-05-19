@@ -29,6 +29,7 @@ import org.opensearch.be.lucene.LuceneReader;
 import org.opensearch.be.lucene.merge.LuceneMerger;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.engine.dataformat.DataFormat;
+import org.opensearch.index.engine.dataformat.DocumentInput;
 import org.opensearch.index.engine.dataformat.IndexingExecutionEngine;
 import org.opensearch.index.engine.dataformat.Merger;
 import org.opensearch.index.engine.dataformat.RefreshInput;
@@ -164,7 +165,17 @@ public class LuceneIndexingExecutionEngine implements IndexingExecutionEngine<Lu
     public Writer<LuceneDocumentInput> createWriter(WriterConfig config) {
         assert sharedWriter.isOpen() : "Cannot create writer — shared IndexWriter is closed";
         try {
-            Sort indexSort = isIndexNeedToBeSortedInternally() ? sharedWriter.getConfig().getIndexSort() : null;
+            Sort indexSort = sharedWriter.getConfig().getIndexSort();
+            if ( indexSort != null
+                && indexSort.getSort().length == 1
+                && DocumentInput.ROW_ID_FIELD.equals(indexSort.getSort()[0].getField())) {
+                // When Lucene is primary, apply the customer's IndexSort so segments
+                // are natively sorted and compatible with the shared writer's IndexSort.
+                // When Lucene is secondary, no IndexSort — reorder is done via
+                // ReorderingOneMerge.reorder() in configureSortedMerge().
+                indexSort = null;
+            }
+            //Sort indexSort = isIndexNeedToBeSortedInternally() ? sharedWriter.getConfig().getIndexSort() : null;
             long mappingVersion = mapperService.getIndexSettings().getIndexMetadata().getMappingVersion();
             return new LuceneWriter(
                 config.writerGeneration(),
@@ -178,11 +189,6 @@ public class LuceneIndexingExecutionEngine implements IndexingExecutionEngine<Lu
         } catch (IOException e) {
             throw new RuntimeException("Failed to create LuceneWriter for generation " + config.writerGeneration(), e);
         }
-    }
-
-    //TODO: Ignoring internal lucene sort implementation for now and honour externally provided sort order.
-    private boolean isIndexNeedToBeSortedInternally() {
-        return false;
     }
 
     /**

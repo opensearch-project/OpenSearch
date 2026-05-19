@@ -1689,14 +1689,11 @@ public class DataFormatAwareEngine implements Indexer {
             // Queue writer for deferred close (temp dirs must survive until refresh does addIndexes)
             pendingWritersToClose.add(writerToFlush);
 
-            logger.debug(
-                "preIndex: write thread flushed writer gen={} in [{}ms]",
-                writerToFlush.generation(),
-                flushElapsedMs
-            );
+            logger.debug("preIndex: write thread flushed writer gen={} in [{}ms]", writerToFlush.generation(), flushElapsedMs);
         } catch (Exception e) {
-            logger.warn("preIndex: flush failed for writer gen={}", writerToFlush.generation(), e);
+            logger.warn("preIndex: flush failed for writer gen={}, failing engine", writerToFlush.generation(), e);
             IOUtils.closeWhileHandlingException(writerToFlush);
+            failEngine("flush failed during preIndex for writer gen=" + writerToFlush.generation(), e);
         } finally {
             // Signal the refresh thread that one more writer has been flushed
             CountDownLatch latch = activeFlushLatch;

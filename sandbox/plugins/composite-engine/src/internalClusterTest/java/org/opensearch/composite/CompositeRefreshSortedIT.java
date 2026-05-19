@@ -226,6 +226,72 @@ public class CompositeRefreshSortedIT extends OpenSearchIntegTestCase {
         verifyLuceneRowIdSequential();
     }
 
+    /**
+     * Parquet-only refresh without any sort configuration. Confirms the
+     * non-sort flush path still emits sequential {@code __row_id__} values
+     * and the expected row count. There is no permutation produced by Parquet,
+     * so this exercises the {@code FlushInput.EMPTY} flow end-to-end.
+     */
+    public void testUnsortedRefreshParquetOnly() throws Exception {
+        createIndex(unsortedParquetOnlySettings());
+
+        // Insertion order is preserved end-to-end since no sort is configured.
+        indexDoc("charlie", 30);
+        indexDoc("alice", 50);
+        indexDoc("bob", 10);
+        indexDoc("dave", 50);
+        indexDoc("eve", 30);
+
+        flushAndRefresh();
+
+        DataformatAwareCatalogSnapshot snapshot = getCatalogSnapshot();
+        assertEquals(Set.of("parquet"), snapshot.getDataFormats());
+        verifyParquetRowCount(snapshot, 5);
+        verifyParquetRowIdSequential(snapshot);
+    }
+
+    /**
+     * Parquet primary + Lucene secondary without sort. Without a sort
+     * permutation, Parquet does not produce a {@code RowIdMapping} and the
+     * Lucene secondary writer takes the unsorted path. Both formats should:
+     *   - hold the same row count,
+     *   - expose sequential {@code __row_id__} (Parquet rows and Lucene docs),
+     *   - align position-for-position on shared keyword fields, since both
+     *     follow insertion order with no reorder applied.
+     */
+    public void testUnsortedRefreshWithLuceneSecondary() throws Exception {
+        createIndex(unsortedParquetWithLuceneSettings());
+
+        // Deliberately unsorted insertion: confirms no sort is applied (otherwise
+        // verifyParquetAndLuceneRowsAlignedSequentially would still pass but only
+        // because both sides reordered the same way; a position-wise match against
+        // insertion order is the stronger check below).
+        indexDoc("charlie", 30, "blue");
+        indexDoc("alice", 50, "red");
+        indexDoc("bob", 10, "green");
+        indexDoc("dave", 50, "yellow");
+        indexDoc("eve", 30, "purple");
+
+        flushAndRefresh();
+
+        DataformatAwareCatalogSnapshot snapshot = getCatalogSnapshot();
+        Set<String> formats = snapshot.getDataFormats();
+        assertTrue("Should have parquet format", formats.contains("parquet"));
+        assertTrue("Should have lucene format", formats.contains("lucene"));
+
+        verifyParquetRowCount(snapshot, 5);
+        verifyParquetRowIdSequential(snapshot);
+        verifyLuceneDocCount(5);
+        verifyLuceneRowIdSequential();
+        // Position-wise alignment of Parquet rows and Lucene docs on shared
+        // keyword fields (name, tag). Without sort, both must be in insertion order.
+        verifyParquetAndLuceneRowsAlignedSequentially(snapshot);
+
+        // Stronger check: insertion order is preserved end-to-end. We assert the
+        // exact name sequence to rule out any silent reordering.
+        verifyLuceneNamesInOrder(new String[] { "charlie", "alice", "bob", "dave", "eve" });
+    }
+
     // ══════════════════════════════════════════════════════════════════════
     // Helpers: settings
     // ══════════════════════════════════════════════════════════════════════
@@ -257,6 +323,30 @@ public class CompositeRefreshSortedIT extends OpenSearchIntegTestCase {
             .putList("index.sort.field", "age", "name")
             .putList("index.sort.order", "desc", "asc")
             .putList("index.sort.missing", "_first", "_last")
+            .build();
+    }
+
+    private Settings unsortedParquetOnlySettings() {
+        return Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put("index.refresh_interval", "-1")
+            .put("index.pluggable.dataformat.enabled", true)
+            .put("index.pluggable.dataformat", "composite")
+            .put("index.composite.primary_data_format", "parquet")
+            .putList("index.composite.secondary_data_formats")
+            .build();
+    }
+
+    private Settings unsortedParquetWithLuceneSettings() {
+        return Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put("index.refresh_interval", "-1")
+            .put("index.pluggable.dataformat.enabled", true)
+            .put("index.pluggable.dataformat", "composite")
+            .put("index.composite.primary_data_format", "parquet")
+            .putList("index.composite.secondary_data_formats", "lucene")
             .build();
     }
 
@@ -522,6 +612,24 @@ public class CompositeRefreshSortedIT extends OpenSearchIntegTestCase {
                 String pqTag = (String) pq.get("tag");
                 assertEquals("name mismatch at position " + i, pqName, luceneNames[i]);
                 assertEquals("tag mismatch at position " + i, pqTag, luceneTags[i]);
+            }
+        }
+    }
+
+    /**
+     * Asserts that the {@code name} keyword field, read in Lucene doc order from
+     * the single-segment index, matches the given expected sequence. Used by
+     * unsorted-path tests to confirm insertion order is preserved end-to-end.
+     */
+    private void verifyLuceneNamesInOrder(String[] expectedNames) throws IOException {
+        Path luceneDir = getLuceneDir();
+        try (Directory dir = NIOFSDirectory.open(luceneDir); DirectoryReader reader = DirectoryReader.open(dir)) {
+            assertEquals("Test assumes a single Lucene leaf for sequential alignment", 1, reader.leaves().size());
+            org.apache.lucene.index.LeafReader leaf = reader.leaves().get(0).reader();
+            String[] actual = readKeywordValuesPerDoc(leaf, "name");
+            assertEquals("Lucene doc count should match expected sequence length", expectedNames.length, actual.length);
+            for (int i = 0; i < expectedNames.length; i++) {
+                assertEquals("name at lucene docId " + i, expectedNames[i], actual[i]);
             }
         }
     }

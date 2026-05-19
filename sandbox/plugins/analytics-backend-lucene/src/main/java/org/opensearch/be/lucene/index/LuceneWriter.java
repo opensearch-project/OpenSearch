@@ -14,15 +14,19 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.index.CodecReader;
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.MergeTrigger;
+import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfo;
 import org.apache.lucene.index.SegmentInfos;
-import org.apache.lucene.index.Term;
+import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.Sorter;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSortField;
@@ -46,9 +50,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Optional;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.Executor;
 
 /**
@@ -127,17 +131,28 @@ public class LuceneWriter implements Writer<LuceneDocumentInput> {
 
         IndexWriterConfig iwc = analyzer != null ? new IndexWriterConfig(analyzer) : new IndexWriterConfig();
         iwc.setOpenMode(IndexWriterConfig.OpenMode.CREATE);
-        iwc.setRAMBufferSizeMB(RAM_BUFFER_SIZE_MB);
-        // When Lucene is primary, apply the customer's IndexSort so segments
-        // are natively sorted and compatible with the shared writer's IndexSort.
-        // When Lucene is secondary, no IndexSort — reorder is done via
-        // ReorderingOneMerge.reorder() in configureSortedMerge().
+        iwc.setRAMBufferSizeMB(ramBufferSizeMB());
+        iwc.setMergePolicy(NoMergePolicy.INSTANCE);
         if (indexSort != null) {
             iwc.setIndexSort(indexSort);
         }
-
         iwc.setCodec(new LuceneWriterCodec(codec, writerGeneration));
         this.indexWriter = new IndexWriter(directory, iwc);
+    }
+
+    /**
+     * Hook for tests to override the IndexWriter RAM buffer size. Default is
+     * {@link #RAM_BUFFER_SIZE_MB}, which is large enough that a single writer
+     * accumulates all of its docs into one in-memory segment before flush.
+     * Tests that need to force aggressive intra-writer segment creation
+     * (to exercise multi-segment merge paths) can subclass and return a small
+     * value such as {@code 0.1}.
+     *
+     * <p>This method is invoked from the constructor, so overrides must be
+     * stateless (return a constant) — they cannot depend on any instance fields.
+     */
+    double ramBufferSizeMB() {
+        return RAM_BUFFER_SIZE_MB;
     }
 
     /**
@@ -199,6 +214,17 @@ public class LuceneWriter implements Writer<LuceneDocumentInput> {
 
         // If sort permutation is provided, configure the reorder merge policy
         if (flushInput.hasRowIdMapping()) {
+            // RowIdMapping shouldn't be available if index has sort configurations.
+            Sort configuredIndexSort = indexWriter.getConfig().getIndexSort();
+            if (configuredIndexSort != null) {
+                throw new IllegalStateException(
+                    "RowIdMapping should not be available when child IndexWriter is configured with IndexSort ["
+                        + configuredIndexSort
+                        + "] for writer generation ["
+                        + writerGeneration
+                        + "]"
+                );
+            }
             RowIdMapping mapping = flushInput.rowIdMapping();
             if (mapping.size() != docCount) {
                 throw new IllegalStateException(
@@ -241,6 +267,18 @@ public class LuceneWriter implements Writer<LuceneDocumentInput> {
 
         SegmentCommitInfo segmentInfo = segmentInfos.info(0);
         assert segmentInfo.info.maxDoc() == docCount : "Expected " + docCount + " docs in segment, got " + segmentInfo.info.maxDoc();
+
+        // Invariant: when Lucene is the secondary format (no user IndexSort), the
+        // ___row_id__ doc values must be sequential 0..maxDoc-1 after forceMerge —
+        // either naturally (docs added in row ID order) or via OneMerge.reorder() + row ID
+        // rewrite on the codec. This guards the 1:1 offset correspondence with the
+        // Parquet file for the same writer generation. When Lucene is primary with a
+        // user IndexSort on a non-row-id field, row IDs follow the docs and are not
+        // sequential, so the invariant is skipped. Wrapped in `assert` so the I/O cost
+        // is paid only when assertions are enabled.
+        assert segmentInfo.info.getIndexSort() != null
+            || assertRowIdsSequential(directory)
+            : "___row_id__ doc values not sequential after forceMerge for writer generation [" + writerGeneration + "]";
 
         // Stamp the IndexSort on the segment metadata post-commit so that
         // addIndexes(Directory...) on the shared writer sees matching sort.
@@ -291,6 +329,62 @@ public class LuceneWriter implements Writer<LuceneDocumentInput> {
     }
 
     /**
+     * Asserts that the {@code ___row_id} doc values in the freshly committed segment
+     * are sequential 0..maxDoc-1 in doc order. This invariant must hold whether the
+     * segment was produced naturally (docs added sequentially) or via reorder + row ID
+     * rewrite during a sorted flush. It guards the 1:1 offset correspondence with the
+     * Parquet file for the same writer generation.
+     *
+     * <p>This method is intended to be invoked from inside an {@code assert} statement
+     * so the I/O cost is paid only when assertions are enabled (tests, dev, CI).
+     *
+     * @return {@code true} if all row IDs are sequential, {@code false} otherwise
+     * @throws AssertionError with a descriptive message if I/O fails or the field is missing
+     */
+    private boolean assertRowIdsSequential(Directory directory) {
+        try (DirectoryReader reader = DirectoryReader.open(directory)) {
+            assert reader.leaves().size() == 1 : "Expected exactly 1 leaf reader, got " + reader.leaves().size();
+            LeafReader leaf = reader.leaves().get(0).reader();
+            SortedNumericDocValues rowIdDV = leaf.getSortedNumericDocValues(LuceneDocumentInput.ROW_ID_FIELD);
+            if (rowIdDV == null) {
+                throw new AssertionError(
+                    "Field [" + LuceneDocumentInput.ROW_ID_FIELD + "] missing from segment for writer generation [" + writerGeneration + "]"
+                );
+            }
+            int maxDoc = leaf.maxDoc();
+            for (int docId = 0; docId < maxDoc; docId++) {
+                if (rowIdDV.advanceExact(docId) == false) {
+                    throw new AssertionError(
+                        "Doc [" + docId + "] missing " + LuceneDocumentInput.ROW_ID_FIELD + " for writer generation [" + writerGeneration + "]"
+                    );
+                }
+                long rowId = rowIdDV.nextValue();
+                if (rowId != docId) {
+                    throw new AssertionError(
+                        "Non-sequential "
+                            + LuceneDocumentInput.ROW_ID_FIELD
+                            + " at docId="
+                            + docId
+                            + " (got "
+                            + rowId
+                            + ", expected "
+                            + docId
+                            + ") for writer generation ["
+                            + writerGeneration
+                            + "]"
+                    );
+                }
+            }
+            return true;
+        } catch (IOException e) {
+            throw new AssertionError(
+                "Failed to verify ___row_id__ invariant for writer generation [" + writerGeneration + "]",
+                e
+            );
+        }
+    }
+
+    /**
      * Rewrites the segment's .si file and segments_N commit to declare the IndexSort.
      * <p>
      * After the child writer commits, the segment on disk has no IndexSort metadata
@@ -333,7 +427,9 @@ public class LuceneWriter implements Writer<LuceneDocumentInput> {
         // Rewrite the .si file with sort metadata
         originalInfo.getCodec().segmentInfoFormat().write(directory, sortedInfo, IOContext.DEFAULT);
 
-        // Replace the segment in SegmentInfos and re-commit so segments_N is consistent
+        // Replace the segment in SegmentInfos and re-commit so segments_N is consistent.
+        // The flush() caller has already asserted segmentInfos.size() == 1, so removing
+        // the original SegmentCommitInfo expresses intent better than clear() + add().
         SegmentCommitInfo newCommitInfo = new SegmentCommitInfo(
             sortedInfo,
             segmentCommitInfo.getDelCount(),
@@ -343,7 +439,7 @@ public class LuceneWriter implements Writer<LuceneDocumentInput> {
             segmentCommitInfo.getDocValuesGen(),
             segmentCommitInfo.getId()
         );
-        segmentInfos.clear();
+        segmentInfos.remove(segmentCommitInfo);
         segmentInfos.add(newCommitInfo);
         segmentInfos.commit(directory);
     }
