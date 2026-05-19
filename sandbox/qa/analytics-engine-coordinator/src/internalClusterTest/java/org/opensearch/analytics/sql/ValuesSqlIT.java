@@ -13,7 +13,7 @@ import org.opensearch.action.admin.indices.create.CreateIndexResponse;
 import org.opensearch.analytics.AnalyticsPlugin;
 import org.opensearch.analytics.exec.DefaultPlanExecutor;
 import org.opensearch.arrow.flight.transport.FlightStreamPlugin;
-import org.opensearch.arrow.plugin.ArrowBasePlugin;
+import org.opensearch.arrow.allocator.ArrowBasePlugin;
 import org.opensearch.be.datafusion.DataFusionPlugin;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.service.ClusterService;
