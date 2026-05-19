@@ -118,6 +118,14 @@ impl ProviderHandle {
     pub fn key(&self) -> i32 {
         self.key
     }
+
+    /// Test-only ctor: manufacture a handle with a chosen key without going through
+    /// the FFM `createProvider` upcall. Drop is a no-op when the FFM `releaseProvider`
+    /// callback isn't registered, which is always the case in unit/fuzz tests.
+    #[cfg(test)]
+    pub fn new_for_test(key: i32) -> Self {
+        ProviderHandle { key }
+    }
 }
 
 impl std::fmt::Debug for ProviderHandle {

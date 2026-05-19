@@ -8,7 +8,6 @@
 
 package org.opensearch.analytics.exec;
 
-import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.vector.VectorSchemaRoot;
 import org.opensearch.analytics.backend.ExchangeSource;
 import org.opensearch.analytics.exec.stage.DataProducer;
@@ -21,7 +20,6 @@ import org.opensearch.analytics.planner.dag.QueryDAG;
 import org.opensearch.analytics.planner.dag.Stage;
 import org.opensearch.analytics.planner.dag.StageExecutionType;
 import org.opensearch.analytics.spi.ExchangeSink;
-import org.opensearch.arrow.memory.ArrowAllocatorService;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.tasks.TaskId;
 import org.opensearch.test.OpenSearchTestCase;
@@ -36,11 +34,11 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 /**
- * Unit tests for {@link PlanWalker}'s terminal-sink close-on-failure contract.
+ * Unit tests for {@link QueryExecution}'s terminal-sink close-on-failure contract.
  * Covers gaps not exercised through {@code RowProducingSink}: non-closeable sources,
  * throwing closes, and the close-fires-exactly-once invariant.
  */
-public class PlanWalkerTests extends OpenSearchTestCase {
+public class QueryExecutionTests extends OpenSearchTestCase {
 
     private StageExecutionBuilder builder;
 
@@ -50,20 +48,93 @@ public class PlanWalkerTests extends OpenSearchTestCase {
         builder = new StageExecutionBuilder(mock(org.opensearch.cluster.service.ClusterService.class), null);
     }
 
+    public void testQueryStateStartsAsCreated() {
+        Stage rootStage = stageWithId(0);
+        TestRootExecution root = new TestRootExecution(rootStage, new CountingCloseSink());
+        builder.registerFactory(StageExecutionType.LOCAL_PASSTHROUGH, (stage, s, cfg) -> root);
+
+        QueryExecution qe = newQueryExecution(rootStage, ActionListener.wrap(r -> {}, e -> {}));
+
+        assertEquals(QueryExecution.State.CREATED, qe.getState());
+    }
+
+    public void testStartTransitionsToRunning() {
+        Stage rootStage = stageWithId(0);
+        TestRootExecution root = new TestRootExecution(rootStage, new CountingCloseSink());
+        builder.registerFactory(StageExecutionType.LOCAL_PASSTHROUGH, (stage, s, cfg) -> root);
+
+        QueryExecution qe = newQueryExecution(rootStage, ActionListener.wrap(r -> {}, e -> {}));
+        qe.start();
+
+        assertEquals(QueryExecution.State.RUNNING, qe.getState());
+    }
+
+    public void testRootStageSuccessTransitionsQueryToSucceeded() {
+        Stage rootStage = stageWithId(0);
+        TestRootExecution root = new TestRootExecution(rootStage, new CountingCloseSink());
+        builder.registerFactory(StageExecutionType.LOCAL_PASSTHROUGH, (stage, s, cfg) -> root);
+
+        QueryExecution qe = newQueryExecution(rootStage, ActionListener.wrap(r -> {}, e -> {}));
+        qe.start();
+        root.succeed();
+
+        assertEquals(QueryExecution.State.SUCCEEDED, qe.getState());
+    }
+
+    public void testCloseRunsTerminalSinkOnSuccess() {
+        Stage rootStage = stageWithId(0);
+        CountingCloseSink sink = new CountingCloseSink();
+        TestRootExecution root = new TestRootExecution(rootStage, sink);
+        builder.registerFactory(StageExecutionType.LOCAL_PASSTHROUGH, (stage, s, cfg) -> root);
+
+        QueryExecution qe = newQueryExecution(rootStage, ActionListener.wrap(r -> {}, e -> {}));
+        qe.start();
+        root.succeed();
+
+        assertEquals("terminal sink closed exactly once on success", 1, sink.closeCalls.get());
+    }
+
+    public void testCancelAllAfterRootFailureKeepsFailedAsTerminal() {
+        // Query was already in FAILED before cancelAll. cancelAll's CANCELLED transition
+        // must be rejected by the CAS — terminal state is sticky.
+        Stage rootStage = stageWithId(0);
+        TestRootExecution root = new TestRootExecution(rootStage, new CountingCloseSink());
+        builder.registerFactory(StageExecutionType.LOCAL_PASSTHROUGH, (stage, s, cfg) -> root);
+
+        QueryExecution qe = newQueryExecution(rootStage, ActionListener.wrap(r -> {}, e -> {}));
+        qe.start();
+        root.failWith(new RuntimeException("primary"));
+        qe.cancelAll("late cancel");
+
+        assertEquals("first terminal wins", QueryExecution.State.FAILED, qe.getState());
+    }
+
+    public void testCancelAllTransitionsToCancelledIdempotently() {
+        Stage rootStage = stageWithId(0);
+        TestRootExecution root = new TestRootExecution(rootStage, new CountingCloseSink());
+        builder.registerFactory(StageExecutionType.LOCAL_PASSTHROUGH, (stage, s, cfg) -> root);
+
+        AtomicInteger failureCount = new AtomicInteger();
+        QueryExecution qe = newQueryExecution(
+            rootStage,
+            ActionListener.wrap(r -> fail("unexpected success"), e -> failureCount.incrementAndGet())
+        );
+        qe.start();
+        qe.cancelAll("first");
+        qe.cancelAll("second");
+
+        assertEquals(QueryExecution.State.CANCELLED, qe.getState());
+        assertEquals("listener fired exactly once across two cancelAll calls", 1, failureCount.get());
+    }
+
     public void testFailedTransitionClosesClosableTerminalSinkExactlyOnce() {
         CountingCloseSink sink = new CountingCloseSink();
         Stage rootStage = stageWithId(0);
         TestRootExecution root = new TestRootExecution(rootStage, sink);
-        builder.registerScheduler(StageExecutionType.LOCAL_PASSTHROUGH, (stage, s, cfg) -> root);
+        builder.registerFactory(StageExecutionType.LOCAL_PASSTHROUGH, (stage, s, cfg) -> root);
 
         AtomicReference<Exception> onFailure = new AtomicReference<>();
-        PlanWalker walker = new PlanWalker(
-            queryCtx(rootStage),
-            builder,
-            ActionListener.wrap(r -> fail("unexpected success"), onFailure::set)
-        );
-        walker.build();
-        walker.wireCompletion();
+        newQueryExecution(rootStage, ActionListener.wrap(r -> fail("unexpected success"), onFailure::set));
 
         RuntimeException rootCause = new RuntimeException("stage failed");
         root.failWith(rootCause);
@@ -87,16 +158,10 @@ public class PlanWalkerTests extends OpenSearchTestCase {
         };
         Stage rootStage = stageWithId(0);
         TestRootExecution root = new TestRootExecution(rootStage, source);
-        builder.registerScheduler(StageExecutionType.LOCAL_PASSTHROUGH, (stage, s, cfg) -> root);
+        builder.registerFactory(StageExecutionType.LOCAL_PASSTHROUGH, (stage, s, cfg) -> root);
 
         AtomicReference<Exception> onFailure = new AtomicReference<>();
-        PlanWalker walker = new PlanWalker(
-            queryCtx(rootStage),
-            builder,
-            ActionListener.wrap(r -> fail("unexpected success"), onFailure::set)
-        );
-        walker.build();
-        walker.wireCompletion();
+        newQueryExecution(rootStage, ActionListener.wrap(r -> fail("unexpected success"), onFailure::set));
 
         RuntimeException rootCause = new RuntimeException("non-sink source path");
         root.failWith(rootCause);
@@ -108,16 +173,10 @@ public class PlanWalkerTests extends OpenSearchTestCase {
         ThrowingCloseSink sink = new ThrowingCloseSink();
         Stage rootStage = stageWithId(0);
         TestRootExecution root = new TestRootExecution(rootStage, sink);
-        builder.registerScheduler(StageExecutionType.LOCAL_PASSTHROUGH, (stage, s, cfg) -> root);
+        builder.registerFactory(StageExecutionType.LOCAL_PASSTHROUGH, (stage, s, cfg) -> root);
 
         AtomicReference<Exception> onFailure = new AtomicReference<>();
-        PlanWalker walker = new PlanWalker(
-            queryCtx(rootStage),
-            builder,
-            ActionListener.wrap(r -> fail("unexpected success"), onFailure::set)
-        );
-        walker.build();
-        walker.wireCompletion();
+        newQueryExecution(rootStage, ActionListener.wrap(r -> fail("unexpected success"), onFailure::set));
 
         RuntimeException rootCause = new RuntimeException("original failure");
         root.failWith(rootCause);
@@ -126,6 +185,12 @@ public class PlanWalkerTests extends OpenSearchTestCase {
     }
 
     // ── helpers ─────────────────────────────────────────────────────────
+
+    private QueryExecution newQueryExecution(Stage rootStage, ActionListener<Iterable<VectorSchemaRoot>> listener) {
+        QueryContext ctx = queryCtx(rootStage);
+        ExecutionGraph graph = ExecutionGraph.build(ctx, builder, StageExecution::start);
+        return new QueryExecution(ctx, graph, StageExecution::start, listener);
+    }
 
     private static Stage stageWithId(int id) {
         Stage stage = mock(Stage.class);
@@ -146,27 +211,11 @@ public class PlanWalkerTests extends OpenSearchTestCase {
             null
         );
         QueryDAG dag = new QueryDAG("q-test", rootStage);
-        ArrowAllocatorService stubAllocatorService = new ArrowAllocatorService() {
-            @Override
-            public BufferAllocator newChildAllocator(String name, long limit) {
-                return null;
-            }
-
-            @Override
-            public long getAllocatedMemory() {
-                return 0;
-            }
-
-            @Override
-            public long getPeakMemoryAllocation() {
-                return 0;
-            }
-        };
-        return new QueryContext(dag, Runnable::run, task, 1, Long.MAX_VALUE, stubAllocatorService);
+        return QueryContext.forTest(dag, task);
     }
 
     /**
-     * Minimal {@link StageExecution} + {@link DataProducer} for driving PlanWalker's
+     * Minimal {@link StageExecution} + {@link DataProducer} for driving QueryExecution's
      * completion listener. Implemented against the public interface so we don't
      * depend on package-private {@code AbstractStageExecution}.
      */
@@ -202,6 +251,16 @@ public class PlanWalkerTests extends OpenSearchTestCase {
         public void start() {}
 
         @Override
+        public java.util.List<org.opensearch.analytics.exec.stage.StageTask> tasks() {
+            return java.util.List.of();
+        }
+
+        @Override
+        public void onTaskTerminal(org.opensearch.analytics.exec.stage.StageTask task, Exception cause) {
+            // no-op
+        }
+
+        @Override
         public void addStateListener(StageStateListener listener) {
             listeners.add(listener);
         }
@@ -212,7 +271,7 @@ public class PlanWalkerTests extends OpenSearchTestCase {
         }
 
         @Override
-        public boolean failFromChild(Exception cause) {
+        public boolean failWithCause(Exception cause) {
             failure.compareAndSet(null, cause);
             State prev = state.getAndSet(State.FAILED);
             if (prev == State.FAILED || prev == State.SUCCEEDED || prev == State.CANCELLED) {
@@ -241,7 +300,17 @@ public class PlanWalkerTests extends OpenSearchTestCase {
         }
 
         void failWith(Exception cause) {
-            failFromChild(cause);
+            failWithCause(cause);
+        }
+
+        void succeed() {
+            State prev = state.getAndSet(State.SUCCEEDED);
+            if (prev == State.FAILED || prev == State.SUCCEEDED || prev == State.CANCELLED) {
+                return;
+            }
+            for (StageStateListener l : listeners) {
+                l.onStateChange(prev, State.SUCCEEDED);
+            }
         }
     }
 
