@@ -625,7 +625,7 @@ public class CompositeMergerTests extends OpenSearchTestCase {
     }
 
     private static WriterFileSet wfs(Path dir, long gen, Set<String> files, long numRows) {
-        return new WriterFileSet(dir.toString(), gen, files, numRows);
+        return new WriterFileSet(dir.toString(), gen, files, numRows, 0L);
     }
 
     private static Segment buildSegment(long generation, DataFormat fmt1, WriterFileSet wfs1, DataFormat fmt2, WriterFileSet wfs2) {
