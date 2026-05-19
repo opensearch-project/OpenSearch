@@ -9,55 +9,45 @@
 package org.opensearch.arrow.memory;
 
 import org.apache.arrow.memory.BufferAllocator;
-import org.apache.arrow.memory.RootAllocator;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import org.opensearch.arrow.allocator.ArrowNativeAllocator;
 
 import java.io.Closeable;
-import java.security.AccessController;
-import java.security.PrivilegedAction;
 
 /**
- * Default {@link ArrowAllocatorService} backed by a single {@link RootAllocator}. The
- * underlying {@link org.apache.arrow.memory.AllocationManager} implementation is selected
- * by Arrow based on classpath and system properties; {@code arrow-base} ships
- * {@code arrow-memory-netty}, so by default Netty-backed allocation is used. Switching to
- * {@code arrow-memory-unsafe} is a build-time choice and does not require changes here.
+ * Default {@link ArrowAllocatorService} that delegates to the unified
+ * {@link ArrowNativeAllocator}. All child allocators share the same root,
+ * ensuring a single memory domain across the node.
  */
-@SuppressWarnings("removal")
 public final class DefaultArrowAllocatorService implements ArrowAllocatorService, Closeable {
 
-    private static final Logger logger = LogManager.getLogger(DefaultArrowAllocatorService.class);
-    private final RootAllocator root;
+    private final ArrowNativeAllocator nativeAllocator;
 
-    /** Creates a new service with an unbounded root; child allocators carry their own limits. */
-    public DefaultArrowAllocatorService() {
-        this.root = AccessController.doPrivileged((PrivilegedAction<RootAllocator>) () -> new RootAllocator(Long.MAX_VALUE));
+    /**
+     * Creates a service backed by the singleton native allocator.
+     *
+     * @param nativeAllocator the unified native allocator instance
+     */
+    public DefaultArrowAllocatorService(ArrowNativeAllocator nativeAllocator) {
+        this.nativeAllocator = nativeAllocator;
     }
 
     @Override
     public BufferAllocator newChildAllocator(String name, long limit) {
-        return root.newChildAllocator(name, 0, limit);
+        return nativeAllocator.getRootAllocator().newChildAllocator(name, 0, limit);
     }
 
     @Override
     public long getAllocatedMemory() {
-        return root.getAllocatedMemory();
+        return nativeAllocator.getRootAllocator().getAllocatedMemory();
     }
 
     @Override
     public long getPeakMemoryAllocation() {
-        return root.getPeakMemoryAllocation();
+        return nativeAllocator.getRootAllocator().getPeakMemoryAllocation();
     }
 
     @Override
     public void close() {
-        try {
-            root.close();
-        } catch (IllegalStateException e) {
-            // Outstanding child allocators remain open — likely a consumer plugin that didn't
-            // clean up. Log at warn so the leak is visible without crashing shutdown.
-            logger.warn("Arrow root allocator closed with outstanding children: {}", e.getMessage());
-        }
+        // Root is owned by ArrowNativeAllocator — don't close here.
     }
 }

@@ -6,5 +6,7 @@
  * compatible open source license.
  */
 
-/** Plugin entry point for the arrow-base plugin. */
-package org.opensearch.arrow.plugin;
+/**
+ * Service Provider Interface for Arrow-agnostic native memory allocation.
+ */
+package org.opensearch.arrow.spi;

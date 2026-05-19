@@ -142,7 +142,7 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
         this.shardPath = shardPath;
         this.schemaSupplier = schemaSupplier;
         this.mappingVersionSupplier = mappingVersionSupplier;
-        this.bufferPool = new ArrowBufferPool(settings);
+        this.bufferPool = new ArrowBufferPool();
         this.indexSettings = indexSettings;
         this.nodeSettings = settings;
         this.threadPool = threadPool;
