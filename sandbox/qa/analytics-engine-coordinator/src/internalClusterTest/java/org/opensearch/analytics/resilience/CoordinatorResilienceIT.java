@@ -26,7 +26,7 @@ import org.opensearch.analytics.exec.stage.StageExecutionFactory;
 import org.opensearch.analytics.planner.dag.StageExecutionType;
 import org.opensearch.analytics.spi.ExchangeSink;
 import org.opensearch.arrow.flight.transport.FlightStreamPlugin;
-import org.opensearch.arrow.plugin.ArrowBasePlugin;
+import org.opensearch.arrow.allocator.ArrowBasePlugin;
 import org.opensearch.be.datafusion.DataFusionPlugin;
 import org.opensearch.be.datafusion.DataFusionService;
 import org.opensearch.index.engine.dataformat.stub.MockCommitterEnginePlugin;
