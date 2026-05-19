@@ -138,14 +138,7 @@ public class CompositeDynamicMappingIT extends OpenSearchIntegTestCase {
         // Verify dynamic fields are now present in the mapping.
         // Note: The cluster-manager applies its own cluster state after publication completes,
         // so there's a brief window where GetMappings on the cluster-manager may return stale data.
-        assertBusy(() -> {
-            GetMappingsResponse updatedMappingsResponse = client().admin().indices().prepareGetMappings(INDEX_NAME).get();
-            Map<String, Object> updatedMappingSource = updatedMappingsResponse.mappings().get(INDEX_NAME).sourceAsMap();
-            @SuppressWarnings("unchecked")
-            Map<String, Object> updatedProperties = (Map<String, Object>) updatedMappingSource.get("properties");
-            assertTrue("Mapping should contain dynamic field 'dynamic_text'", updatedProperties.containsKey("dynamic_text"));
-            assertTrue("Mapping should contain dynamic field 'dynamic_long'", updatedProperties.containsKey("dynamic_long"));
-        });
+        assertMappingsContain(INDEX_NAME, "dynamic_text", "dynamic_long");
 
         // Refresh and flush to produce parquet files
         RefreshResponse refreshResponse = client().admin().indices().prepareRefresh(INDEX_NAME).get();
@@ -184,13 +177,7 @@ public class CompositeDynamicMappingIT extends OpenSearchIntegTestCase {
         }
 
         // Verify new dynamic field in mapping
-        assertBusy(() -> {
-            GetMappingsResponse extraMappingsResponse = client().admin().indices().prepareGetMappings(INDEX_NAME).get();
-            Map<String, Object> extraMappingSource = extraMappingsResponse.mappings().get(INDEX_NAME).sourceAsMap();
-            @SuppressWarnings("unchecked")
-            Map<String, Object> finalProperties = (Map<String, Object>) extraMappingSource.get("properties");
-            assertTrue("Mapping should contain dynamic field 'dynamic_extra'", finalProperties.containsKey("dynamic_extra"));
-        });
+        assertMappingsContain(INDEX_NAME, "dynamic_extra");
 
         // Refresh + flush again
         client().admin().indices().prepareRefresh(INDEX_NAME).get();
@@ -581,22 +568,34 @@ public class CompositeDynamicMappingIT extends OpenSearchIntegTestCase {
     // Private helpers: assertions
     // ══════════════════════════════════════════════════════════════════════
 
+    /**
+     * Asserts that the given fields are present in the index mapping, polling with assertBusy
+     * to account for the cluster-manager applying its own cluster state after publication completes.
+     */
+    private void assertMappingsContain(String indexName, String... expectedFields) throws Exception {
+        assertBusy(() -> {
+            GetMappingsResponse mappings = client().admin().indices().prepareGetMappings(indexName).get();
+            Map<String, Object> mappingSource = mappings.getMappings().get(indexName).sourceAsMap();
+            @SuppressWarnings("unchecked")
+            Map<String, Object> properties = (Map<String, Object>) mappingSource.get("properties");
+            for (String field : expectedFields) {
+                assertTrue("Mapping should contain field '" + field + "'", properties.containsKey(field));
+            }
+        });
+    }
+
     private void assertDynamicFieldCount(List<Map<String, Object>> rows, String fieldName, long expectedCount) {
         long count = rows.stream().filter(row -> row.containsKey(fieldName) && row.get(fieldName) != null).count();
         assertEquals(expectedCount + " rows should have " + fieldName + " field populated", expectedCount, count);
     }
 
     private void assertConcurrentMappings(String indexName, int numThreads) throws Exception {
-        assertBusy(() -> {
-            GetMappingsResponse mappings = client().admin().indices().prepareGetMappings(indexName).get();
-            Map<String, Object> mappingSource = mappings.getMappings().get(indexName).sourceAsMap();
-            @SuppressWarnings("unchecked")
-            Map<String, Object> properties = (Map<String, Object>) mappingSource.get("properties");
-            for (int i = 0; i < numThreads; i++) {
-                assertTrue("Mapping should contain fieldA_" + i, properties.containsKey("fieldA_" + i));
-                assertTrue("Mapping should contain fieldB_" + i, properties.containsKey("fieldB_" + i));
-            }
-        });
+        String[] expectedFields = new String[numThreads * 2];
+        for (int i = 0; i < numThreads; i++) {
+            expectedFields[i * 2] = "fieldA_" + i;
+            expectedFields[i * 2 + 1] = "fieldB_" + i;
+        }
+        assertMappingsContain(indexName, expectedFields);
     }
 
     private void assertConcurrentFieldValues(List<Map<String, Object>> rows, int numThreads) {
