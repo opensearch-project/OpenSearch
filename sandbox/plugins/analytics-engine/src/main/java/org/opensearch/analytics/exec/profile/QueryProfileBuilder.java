@@ -86,7 +86,7 @@ public final class QueryProfileBuilder {
             long start = t.startedAtMs();
             long end = t.finishedAtMs();
             long elapsed = (start > 0 && end > 0) ? end - start : 0L;
-            out.add(new TaskProfile(t.id().stageId(), t.id().partitionId(), describeTarget(t), t.state().name(), start, end, elapsed));
+            out.add(new TaskProfile(describeTarget(t), t.state().name(), elapsed));
         }
         return out;
     }
@@ -98,10 +98,9 @@ public final class QueryProfileBuilder {
                 String nodeId = shardTarget.node() != null ? shardTarget.node().getId() : "(unknown)";
                 return nodeId + "/shard[" + shardTarget.shardId().getId() + "]";
             }
-            String nodeId = target.node() != null ? target.node().getId() : "(unknown)";
-            return nodeId;
+            return target.node() != null ? target.node().getId() : "(unknown)";
         }
-        return "(local)";
+        return task.id().toString();
     }
 
     private static List<String> splitPlanLines(String text) {
