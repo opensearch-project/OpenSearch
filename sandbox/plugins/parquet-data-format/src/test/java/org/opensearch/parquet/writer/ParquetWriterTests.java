@@ -54,8 +54,9 @@ public class ParquetWriterTests extends OpenSearchTestCase {
     public void setUp() throws Exception {
         super.setUp();
         RustBridge.initLogger();
-        nativeAllocator = ArrowNativeAllocator.ensureForTesting();
-        bufferPool = new ArrowBufferPool(Settings.EMPTY);
+        nativeAllocator = new ArrowNativeAllocator(Long.MAX_VALUE);
+        nativeAllocator.getOrCreatePool(org.opensearch.arrow.spi.NativeAllocatorPoolConfig.POOL_INGEST, 0L, Long.MAX_VALUE);
+        bufferPool = new ArrowBufferPool(Settings.EMPTY, nativeAllocator);
         idField = new NumberFieldMapper.NumberFieldType("id", NumberFieldMapper.NumberType.INTEGER);
         nameField = new KeywordFieldMapper.KeywordFieldType("name");
         scoreField = new NumberFieldMapper.NumberFieldType("score", NumberFieldMapper.NumberType.LONG);

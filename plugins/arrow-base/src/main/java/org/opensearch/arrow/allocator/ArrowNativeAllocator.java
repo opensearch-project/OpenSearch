@@ -42,61 +42,14 @@ import java.util.concurrent.TimeUnit;
  * the root limit. When contention rises, pools shrink back toward their guarantee.
  * This prevents idle capacity from being wasted while maintaining isolation under load.
  *
- * <p>The singleton instance is accessible via {@link #instance()} after the
- * plugin creates it. This allows child plugins (in the same classloader) to
- * locate the allocator without explicit injection.
+ * <p>Constructed once by {@link ArrowBasePlugin#createComponents} and exposed to
+ * downstream plugins via Guice and {@code PluginComponentRegistry} so consumers
+ * receive the instance through explicit dependency injection rather than a static
+ * singleton.
  */
 public class ArrowNativeAllocator implements NativeAllocator {
 
     private static final Logger logger = LogManager.getLogger(ArrowNativeAllocator.class);
-
-    private static volatile ArrowNativeAllocator INSTANCE;
-
-    /**
-     * Returns the singleton instance, or throws if the plugin hasn't started.
-     */
-    public static ArrowNativeAllocator instance() {
-        ArrowNativeAllocator inst = INSTANCE;
-        if (inst == null) {
-            throw new IllegalStateException(
-                "ArrowNativeAllocator not initialized. " + "Ensure arrow-base plugin is installed and started."
-            );
-        }
-        return inst;
-    }
-
-    /**
-     * Test-only helper that constructs the singleton outside the plugin lifecycle and
-     * pre-creates the standard pools at unbounded limits. Unit tests of consumer plugins
-     * (analytics-engine, datafusion, parquet, arrow-flight-rpc) can call this in
-     * {@code setUp} to reach a usable {@link #instance()} without spinning up a real
-     * {@link ArrowBasePlugin}.
-     *
-     * <p>If a previous test left an {@code INSTANCE} behind (forgotten {@code tearDown}
-     * or shared-suite race), this method closes the stale instance before creating a
-     * fresh one. The caller MUST still close the returned instance in {@code tearDown}
-     * so the static {@code INSTANCE} slot does not leak between tests; this defensive
-     * close is a recovery path, not a substitute for proper lifecycle.
-     *
-     * @return the freshly-created allocator (also reachable via {@link #instance()})
-     */
-    public static ArrowNativeAllocator ensureForTesting() {
-        ArrowNativeAllocator stale = INSTANCE;
-        if (stale != null) {
-            try {
-                stale.close();
-            } catch (Exception e) {
-                // Best-effort — the existing instance may be in a weird state; we still
-                // want to land in a clean one. INSTANCE will be reset by close().
-                logger.warn("ensureForTesting closed a leftover instance defensively", e);
-            }
-        }
-        ArrowNativeAllocator inst = new ArrowNativeAllocator(Long.MAX_VALUE);
-        inst.getOrCreatePool(NativeAllocatorPoolConfig.POOL_FLIGHT, 0L, Long.MAX_VALUE);
-        inst.getOrCreatePool(NativeAllocatorPoolConfig.POOL_INGEST, 0L, Long.MAX_VALUE);
-        inst.getOrCreatePool(NativeAllocatorPoolConfig.POOL_QUERY, 0L, Long.MAX_VALUE);
-        return inst;
-    }
 
     private final RootAllocator root;
     private final ConcurrentMap<String, ArrowPoolHandle> pools = new ConcurrentHashMap<>();
@@ -131,7 +84,6 @@ public class ArrowNativeAllocator implements NativeAllocator {
             });
         executor.setRemoveOnCancelPolicy(true);
         this.rebalancer = executor;
-        INSTANCE = this;
     }
 
     /**
@@ -291,7 +243,6 @@ public class ArrowNativeAllocator implements NativeAllocator {
         });
         pools.clear();
         root.close();
-        INSTANCE = null;
     }
 
     /**

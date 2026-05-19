@@ -26,8 +26,7 @@ import org.opensearch.analytics.spi.InstructionNode;
 import org.opensearch.arrow.allocator.ArrowNativeAllocator;
 import org.opensearch.arrow.memory.ArrowAllocatorService;
 import org.opensearch.arrow.spi.NativeAllocatorListener;
-import org.opensearch.arrow.spi.NativeAllocatorPoolConfig;
-import org.opensearch.common.concurrent.GatedCloseable;
+import org.opensearch.arrow.spi.NativeAllocatorPoolConfig;import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.tasks.TaskCancelledException;
 import org.opensearch.index.engine.exec.IndexReaderProvider;
@@ -64,33 +63,40 @@ public class AnalyticsSearchService implements AutoCloseable {
     private final NamedWriteableRegistry namedWriteableRegistry;
     private TaskResourceTrackingService taskResourceTrackingService;
     private final BufferAllocator allocator;
+    private final ArrowNativeAllocator nativeAllocator;
     private final NativeAllocatorListener poolListener;
 
-    public AnalyticsSearchService(Map<String, AnalyticsSearchBackendPlugin> backends, ArrowAllocatorService allocatorService) {
-        this(backends, List.of(), allocatorService, null);
+    public AnalyticsSearchService(
+        Map<String, AnalyticsSearchBackendPlugin> backends,
+        ArrowAllocatorService allocatorService,
+        ArrowNativeAllocator nativeAllocator
+    ) {
+        this(backends, List.of(), allocatorService, nativeAllocator, null);
     }
 
     public AnalyticsSearchService(
         Map<String, AnalyticsSearchBackendPlugin> backends,
         ArrowAllocatorService allocatorService,
+        ArrowNativeAllocator nativeAllocator,
         NamedWriteableRegistry namedWriteableRegistry
     ) {
-        this(backends, List.of(), allocatorService, namedWriteableRegistry);
+        this(backends, List.of(), allocatorService, nativeAllocator, namedWriteableRegistry);
     }
 
     public AnalyticsSearchService(
         Map<String, AnalyticsSearchBackendPlugin> backends,
         List<AnalyticsOperationListener> listeners,
         ArrowAllocatorService allocatorService,
+        ArrowNativeAllocator nativeAllocator,
         NamedWriteableRegistry namedWriteableRegistry
     ) {
         this.backends = backends;
         this.listener = new AnalyticsOperationListener.CompositeListener(listeners);
+        this.nativeAllocator = nativeAllocator;
         // Source the service-level allocator from the unified framework's query pool so all
         // analytics-engine allocations are tracked and capped by the framework. Hard-fail if
         // the framework is missing — silently falling back to a separate root would break
         // Arrow's same-root invariant for cross-plugin handoff.
-        ArrowNativeAllocator nativeAllocator = ArrowNativeAllocator.instance();
         BufferAllocator queryPool = nativeAllocator.getPoolAllocator(NativeAllocatorPoolConfig.POOL_QUERY);
         this.allocator = queryPool.newChildAllocator("analytics-search-service", 0, queryPool.getLimit());
         this.namedWriteableRegistry = namedWriteableRegistry;
@@ -111,10 +117,10 @@ public class AnalyticsSearchService implements AutoCloseable {
     @Override
     public void close() {
         try {
-            ArrowNativeAllocator.instance().removeListener(poolListener);
-        } catch (IllegalStateException ignored) {
-            // Framework already torn down — child plugins close after the framework in some
-            // shutdown paths; the listener is gone with the singleton anyway.
+            nativeAllocator.removeListener(poolListener);
+        } catch (Exception ignored) {
+            // Best-effort — framework may have already torn down ahead of us in some
+            // shutdown paths.
         }
         allocator.close();
     }

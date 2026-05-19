@@ -25,6 +25,7 @@ import org.opensearch.analytics.planner.CapabilityRegistry;
 import org.opensearch.analytics.planner.FieldStorageResolver;
 import org.opensearch.analytics.schema.OpenSearchSchemaBuilder;
 import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
+import org.opensearch.arrow.allocator.ArrowNativeAllocator;
 import org.opensearch.arrow.memory.ArrowAllocatorService;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.service.ClusterService;
@@ -103,6 +104,8 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
     ) {
         ArrowAllocatorService allocatorService = pluginComponentRegistry.getComponent(ArrowAllocatorService.class)
             .orElseThrow(() -> new IllegalStateException("ArrowAllocatorService not available; arrow-base plugin must be installed"));
+        ArrowNativeAllocator nativeAllocator = pluginComponentRegistry.getComponent(ArrowNativeAllocator.class)
+            .orElseThrow(() -> new IllegalStateException("ArrowNativeAllocator not available; arrow-base plugin must be installed"));
 
         operatorTable = aggregateOperatorTables();
         DefaultEngineContext ctx = new DefaultEngineContext(clusterService, operatorTable);
@@ -112,7 +115,7 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
         for (AnalyticsSearchBackendPlugin be : backEnds) {
             backEndsByName.put(be.name(), be);
         }
-        searchService = new AnalyticsSearchService(backEndsByName, allocatorService, namedWriteableRegistry);
+        searchService = new AnalyticsSearchService(backEndsByName, allocatorService, nativeAllocator, namedWriteableRegistry);
 
         return List.of(searchService, ctx, capabilityRegistry);
     }

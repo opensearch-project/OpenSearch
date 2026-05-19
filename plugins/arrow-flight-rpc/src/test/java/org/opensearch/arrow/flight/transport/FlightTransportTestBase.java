@@ -131,7 +131,8 @@ public abstract class FlightTransportTestBase extends OpenSearchTestCase {
             mock(Tracer.class),
             null,
             statsCollector,
-            testAllocatorService
+            testAllocatorService,
+            nativeAllocator
         );
         flightTransport.start();
         TransportService transportService = mock(TransportService.class);

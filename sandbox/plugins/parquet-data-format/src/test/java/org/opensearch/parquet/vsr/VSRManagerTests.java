@@ -48,8 +48,9 @@ public class VSRManagerTests extends OpenSearchTestCase {
     public void setUp() throws Exception {
         super.setUp();
         RustBridge.initLogger();
-        nativeAllocator = ArrowNativeAllocator.ensureForTesting();
-        bufferPool = new ArrowBufferPool(Settings.EMPTY);
+        nativeAllocator = new ArrowNativeAllocator(Long.MAX_VALUE);
+        nativeAllocator.getOrCreatePool(org.opensearch.arrow.spi.NativeAllocatorPoolConfig.POOL_INGEST, 0L, Long.MAX_VALUE);
+        bufferPool = new ArrowBufferPool(Settings.EMPTY, nativeAllocator);
         schema = new Schema(List.of(new Field("val", FieldType.nullable(new ArrowType.Int(32, true)), null)));
         Settings indexSettingsBuilder = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)

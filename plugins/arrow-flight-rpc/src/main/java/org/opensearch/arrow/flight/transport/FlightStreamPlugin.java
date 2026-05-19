@@ -9,6 +9,7 @@
 package org.opensearch.arrow.flight.transport;
 
 import org.opensearch.Version;
+import org.opensearch.arrow.allocator.ArrowNativeAllocator;
 import org.opensearch.arrow.flight.bootstrap.ServerConfig;
 import org.opensearch.arrow.flight.bootstrap.tls.DefaultSslContextProvider;
 import org.opensearch.arrow.flight.bootstrap.tls.SslContextProvider;
@@ -68,6 +69,7 @@ public class FlightStreamPlugin extends Plugin implements NetworkPlugin, ActionP
     private final boolean isStreamTransportEnabled;
     private FlightStatsCollector statsCollector;
     private ArrowAllocatorService allocatorService;
+    private ArrowNativeAllocator nativeAllocator;
 
     /**
      * Constructor for FlightStreamPluginImpl.
@@ -105,6 +107,8 @@ public class FlightStreamPlugin extends Plugin implements NetworkPlugin, ActionP
 
         this.allocatorService = pluginComponentRegistry.getComponent(ArrowAllocatorService.class)
             .orElseThrow(() -> new IllegalStateException("ArrowAllocatorService not available; arrow-base plugin must be installed"));
+        this.nativeAllocator = pluginComponentRegistry.getComponent(ArrowNativeAllocator.class)
+            .orElseThrow(() -> new IllegalStateException("ArrowNativeAllocator not available; arrow-base plugin must be installed"));
 
         statsCollector = new FlightStatsCollector();
         return List.of(statsCollector);
@@ -148,7 +152,8 @@ public class FlightStreamPlugin extends Plugin implements NetworkPlugin, ActionP
                     tracer,
                     sslContextProvider,
                     statsCollector,
-                    allocatorService
+                    allocatorService,
+                    nativeAllocator
                 )
             );
         }
@@ -190,7 +195,8 @@ public class FlightStreamPlugin extends Plugin implements NetworkPlugin, ActionP
                     tracer,
                     null,
                     statsCollector,
-                    allocatorService
+                    allocatorService,
+                    nativeAllocator
                 )
             );
         }

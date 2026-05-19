@@ -11,6 +11,7 @@ package org.opensearch.parquet.memory;
 import org.apache.arrow.memory.ArrowBuf;
 import org.apache.arrow.memory.BufferAllocator;
 import org.opensearch.arrow.allocator.ArrowNativeAllocator;
+import org.opensearch.arrow.spi.NativeAllocatorPoolConfig;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -21,9 +22,10 @@ public class ArrowBufferPoolTests extends OpenSearchTestCase {
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        // Wire up the framework singleton so ArrowBufferPool can resolve the ingest pool.
-        // The ctor hard-fails if the framework is missing.
-        nativeAllocator = ArrowNativeAllocator.ensureForTesting();
+        // Each test gets its own allocator with the standard pools pre-created.
+        // Production code receives this via dependency injection; tests build it explicitly.
+        nativeAllocator = new ArrowNativeAllocator(Long.MAX_VALUE);
+        nativeAllocator.getOrCreatePool(NativeAllocatorPoolConfig.POOL_INGEST, 0L, Long.MAX_VALUE);
     }
 
     @Override
@@ -36,7 +38,7 @@ public class ArrowBufferPoolTests extends OpenSearchTestCase {
     }
 
     public void testAllocatedBytesIncreasesOnAllocation() {
-        ArrowBufferPool pool = new ArrowBufferPool(Settings.EMPTY);
+        ArrowBufferPool pool = new ArrowBufferPool(Settings.EMPTY, nativeAllocator);
         BufferAllocator child = pool.createChildAllocator("alloc-test");
         try {
             assertNotNull(child);
@@ -51,7 +53,7 @@ public class ArrowBufferPoolTests extends OpenSearchTestCase {
     }
 
     public void testMultipleChildAllocators() {
-        ArrowBufferPool pool = new ArrowBufferPool(Settings.EMPTY);
+        ArrowBufferPool pool = new ArrowBufferPool(Settings.EMPTY, nativeAllocator);
         BufferAllocator c1 = pool.createChildAllocator("c1");
         BufferAllocator c2 = pool.createChildAllocator("c2");
         try {
@@ -68,7 +70,7 @@ public class ArrowBufferPoolTests extends OpenSearchTestCase {
     }
 
     public void testAllocatedBytesDecreasesAfterFree() {
-        ArrowBufferPool pool = new ArrowBufferPool(Settings.EMPTY);
+        ArrowBufferPool pool = new ArrowBufferPool(Settings.EMPTY, nativeAllocator);
         BufferAllocator child = pool.createChildAllocator("free-test");
         try {
             ArrowBuf buf = child.buffer(1024);
@@ -83,28 +85,20 @@ public class ArrowBufferPoolTests extends OpenSearchTestCase {
         assertEquals(0, pool.getTotalAllocatedBytes());
     }
 
-    public void testHardFailWhenFrameworkMissing() {
-        // Drop the framework, then try to construct a pool — should throw.
-        nativeAllocator.close();
-        nativeAllocator = null;
-        IllegalStateException e = expectThrows(IllegalStateException.class, () -> new ArrowBufferPool(Settings.EMPTY));
-        assertTrue("expected an instance() error message, got: " + e.getMessage(), e.getMessage().contains("ArrowNativeAllocator"));
-    }
-
     public void testChildAllocatorLimitScalesWithDivisor() {
         // Both pools share the same framework ingest pool; divisor distinguishes the children.
         Settings strict = Settings.builder().put("parquet.max_per_vsr_allocation_divisor", 10).build();
         Settings loose = Settings.builder().put("parquet.max_per_vsr_allocation_divisor", 2).build();
-        ArrowBufferPool poolStrict = new ArrowBufferPool(strict);
-        ArrowBufferPool poolLoose = new ArrowBufferPool(loose);
+        ArrowBufferPool poolStrict = new ArrowBufferPool(strict, nativeAllocator);
+        ArrowBufferPool poolLoose = new ArrowBufferPool(loose, nativeAllocator);
         BufferAllocator childStrict = poolStrict.createChildAllocator("c-strict");
         BufferAllocator childLoose = poolLoose.createChildAllocator("c-loose");
         try {
             long limitStrict = childStrict.getLimit();
             long limitLoose = childLoose.getLimit();
-            // ensureForTesting creates the ingest pool with limit Long.MAX_VALUE → both
-            // children clamp at Long.MAX_VALUE. Validate the dynamic-divisor path
-            // separately in testDivisorIsReadDynamicallyOnEachChildCreation.
+            // The setUp ingest pool has limit Long.MAX_VALUE → both children clamp at
+            // Long.MAX_VALUE. Validate the dynamic-divisor path separately in
+            // testDivisorIsReadDynamicallyOnEachChildCreation.
             if (limitStrict != Long.MAX_VALUE && limitLoose != Long.MAX_VALUE) {
                 assertEquals(5L * limitStrict, limitLoose, 1);
             }
@@ -118,11 +112,11 @@ public class ArrowBufferPoolTests extends OpenSearchTestCase {
 
     public void testDivisorIsReadDynamicallyOnEachChildCreation() {
         // Constrain the framework's ingest pool to a finite limit so the divisor matters.
-        nativeAllocator.setPoolLimit(org.opensearch.arrow.spi.NativeAllocatorPoolConfig.POOL_INGEST, 1024L * 1024 * 1024);
+        nativeAllocator.setPoolLimit(NativeAllocatorPoolConfig.POOL_INGEST, 1024L * 1024 * 1024);
 
         // Mutable supplier emulates a dynamic cluster-settings update.
         int[] divisor = new int[] { 10 };
-        ArrowBufferPool pool = new ArrowBufferPool(Settings.EMPTY, () -> divisor[0]);
+        ArrowBufferPool pool = new ArrowBufferPool(Settings.EMPTY, () -> divisor[0], nativeAllocator);
         BufferAllocator beforeUpdate = pool.createChildAllocator("c-before");
         long limitBefore = beforeUpdate.getLimit();
         beforeUpdate.close();

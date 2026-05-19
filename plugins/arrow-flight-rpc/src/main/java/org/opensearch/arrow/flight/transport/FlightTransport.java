@@ -106,6 +106,7 @@ class FlightTransport extends TcpTransport {
     private final NamedWriteableRegistry namedWriteableRegistry;
     private final FlightStatsCollector statsCollector;
     private final ArrowAllocatorService allocatorService;
+    private final ArrowNativeAllocator nativeAllocator;
     private final FlightTransportConfig config = new FlightTransportConfig();
 
     final FlightServerMiddleware.Key<ServerHeaderMiddleware> SERVER_HEADER_KEY = FlightServerMiddleware.Key.of(
@@ -123,7 +124,8 @@ class FlightTransport extends TcpTransport {
         Tracer tracer,
         SslContextProvider sslContextProvider,
         FlightStatsCollector statsCollector,
-        ArrowAllocatorService allocatorService
+        ArrowAllocatorService allocatorService,
+        ArrowNativeAllocator nativeAllocator
     ) {
         super(settings, version, threadPool, pageCacheRecycler, circuitBreakerService, namedWriteableRegistry, networkService, tracer);
         this.portRange = SETTING_FLIGHT_PORTS.get(settings);
@@ -132,6 +134,7 @@ class FlightTransport extends TcpTransport {
         this.sslContextProvider = sslContextProvider;
         this.statsCollector = statsCollector;
         this.allocatorService = allocatorService;
+        this.nativeAllocator = nativeAllocator;
         this.bossEventLoopGroup = createEventLoopGroup("os-grpc-boss-ELG", 1);
         this.workerEventLoopGroup = createEventLoopGroup("os-grpc-worker-ELG", Runtime.getRuntime().availableProcessors());
         this.serverExecutor = threadPool.executor(ServerConfig.GRPC_EXECUTOR_THREAD_POOL_NAME);
@@ -155,7 +158,6 @@ class FlightTransport extends TcpTransport {
             // and capped by the framework alongside ingest, query, and datafusion. Hard-fail if
             // the framework plugin is missing — silently falling back to a separate root would
             // break the same-root invariant for cross-plugin Arrow handoff.
-            ArrowNativeAllocator nativeAllocator = ArrowNativeAllocator.instance();
             BufferAllocator flightPool = nativeAllocator.getPoolAllocator(NativeAllocatorPoolConfig.POOL_FLIGHT);
             flightAllocator = flightPool.newChildAllocator("flight", 0, flightPool.getLimit());
             serverAllocator = flightAllocator.newChildAllocator("server", 0, flightAllocator.getLimit());
@@ -285,7 +287,7 @@ class FlightTransport extends TcpTransport {
         try {
             if (poolListener != null) {
                 try {
-                    ArrowNativeAllocator.instance().removeListener(poolListener);
+                    nativeAllocator.removeListener(poolListener);
                 } catch (IllegalStateException ignored) {
                     // Framework already torn down — nothing to detach from.
                 }

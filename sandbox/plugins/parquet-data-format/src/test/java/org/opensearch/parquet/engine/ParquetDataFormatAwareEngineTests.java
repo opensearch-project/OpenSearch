@@ -121,7 +121,8 @@ public class ParquetDataFormatAwareEngineTests extends AbstractDataFormatAwareEn
     public void setUp() throws Exception {
         super.setUp();
         RustBridge.initLogger();
-        nativeAllocator = org.opensearch.arrow.allocator.ArrowNativeAllocator.ensureForTesting();
+        nativeAllocator = new org.opensearch.arrow.allocator.ArrowNativeAllocator(Long.MAX_VALUE);
+        nativeAllocator.getOrCreatePool(org.opensearch.arrow.spi.NativeAllocatorPoolConfig.POOL_INGEST, 0L, Long.MAX_VALUE);
         schema = buildSchema();
     }
 
@@ -194,7 +195,8 @@ public class ParquetDataFormatAwareEngineTests extends AbstractDataFormatAwareEn
                     () -> 1L,
                     engineConfig.indexSettings(),
                     threadPool,
-                    new PrecomputedChecksumStrategy()
+                    new PrecomputedChecksumStrategy(),
+                    nativeAllocator
                 );
             }
         };

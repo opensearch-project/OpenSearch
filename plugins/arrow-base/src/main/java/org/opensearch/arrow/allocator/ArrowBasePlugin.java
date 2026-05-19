@@ -218,6 +218,7 @@ public class ArrowBasePlugin extends Plugin implements ExtensiblePlugin {
         return List.of(new AbstractModule() {
             @Override
             protected void configure() {
+                bind(ArrowNativeAllocator.class).toInstance(allocator);
                 bind(ArrowAllocatorService.class).toInstance(allocatorService);
             }
         });

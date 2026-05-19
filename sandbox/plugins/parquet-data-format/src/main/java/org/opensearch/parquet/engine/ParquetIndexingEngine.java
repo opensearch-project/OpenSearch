@@ -103,7 +103,8 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
         Supplier<Schema> schemaSupplier,
         Supplier<Long> mappingVersionSupplier,
         IndexSettings indexSettings,
-        ThreadPool threadPool
+        ThreadPool threadPool,
+        org.opensearch.arrow.allocator.ArrowNativeAllocator nativeAllocator
     ) {
         this(
             settings,
@@ -114,7 +115,8 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
             indexSettings,
             threadPool,
             new PrecomputedChecksumStrategy(),
-            () -> ParquetSettings.MAX_PER_VSR_ALLOCATION_DIVISOR.get(settings)
+            () -> ParquetSettings.MAX_PER_VSR_ALLOCATION_DIVISOR.get(settings),
+            nativeAllocator
         );
     }
 
@@ -138,7 +140,8 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
         Supplier<Long> mappingVersionSupplier,
         IndexSettings indexSettings,
         ThreadPool threadPool,
-        FormatChecksumStrategy checksumStrategy
+        FormatChecksumStrategy checksumStrategy,
+        org.opensearch.arrow.allocator.ArrowNativeAllocator nativeAllocator
     ) {
         this(
             settings,
@@ -149,7 +152,8 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
             indexSettings,
             threadPool,
             checksumStrategy,
-            () -> ParquetSettings.MAX_PER_VSR_ALLOCATION_DIVISOR.get(settings)
+            () -> ParquetSettings.MAX_PER_VSR_ALLOCATION_DIVISOR.get(settings),
+            nativeAllocator
         );
     }
 
@@ -177,13 +181,14 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
         IndexSettings indexSettings,
         ThreadPool threadPool,
         FormatChecksumStrategy checksumStrategy,
-        IntSupplier divisorSupplier
+        IntSupplier divisorSupplier,
+        org.opensearch.arrow.allocator.ArrowNativeAllocator nativeAllocator
     ) {
         this.dataFormat = dataFormat;
         this.shardPath = shardPath;
         this.schemaSupplier = schemaSupplier;
         this.mappingVersionSupplier = mappingVersionSupplier;
-        this.bufferPool = new ArrowBufferPool(settings, divisorSupplier);
+        this.bufferPool = new ArrowBufferPool(settings, divisorSupplier, nativeAllocator);
         this.indexSettings = indexSettings;
         this.nodeSettings = settings;
         this.threadPool = threadPool;

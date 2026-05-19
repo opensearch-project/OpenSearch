@@ -36,21 +36,18 @@ public class ArrowBufferPool implements Closeable {
     /**
      * Creates a new ArrowBufferPool backed by the unified native allocator's ingest pool.
      *
-     * @param settings        node settings (used by the {@link #ArrowBufferPool(Settings)}
+     * @param settings        node settings (used by the {@link #ArrowBufferPool(Settings, ArrowNativeAllocator)}
      *                        convenience ctor to derive a static divisor supplier; ignored
      *                        here)
      * @param divisorSupplier supplies the current value of
      *                        {@link ParquetSettings#MAX_PER_VSR_ALLOCATION_DIVISOR}; read on
      *                        every {@link #createChildAllocator(String)} call so dynamic
      *                        cluster-settings updates take effect for new child allocators
-     * @throws IllegalStateException if the {@code arrow-base} plugin is not
-     *                               installed; this is intentional — silently falling back
-     *                               to a private {@code RootAllocator} would break
-     *                               framework-level memory accounting and Arrow's same-root
-     *                               invariant for cross-plugin handoff
+     * @param nativeAllocator the framework's unified native allocator, injected by
+     *                        {@code ParquetDataFormatPlugin#createComponents}
      */
-    public ArrowBufferPool(Settings settings, IntSupplier divisorSupplier) {
-        this.poolAllocator = ArrowNativeAllocator.instance().getPoolAllocator(NativeAllocatorPoolConfig.POOL_INGEST);
+    public ArrowBufferPool(Settings settings, IntSupplier divisorSupplier, ArrowNativeAllocator nativeAllocator) {
+        this.poolAllocator = nativeAllocator.getPoolAllocator(NativeAllocatorPoolConfig.POOL_INGEST);
         this.divisorSupplier = divisorSupplier;
         logger.debug("ArrowBufferPool: poolLimit={}", poolAllocator.getLimit());
     }
@@ -58,13 +55,14 @@ public class ArrowBufferPool implements Closeable {
     /**
      * Test-only convenience constructor that derives the divisor statically from
      * {@code settings}. Production callers go through
-     * {@link #ArrowBufferPool(Settings, IntSupplier)} so the divisor follows dynamic
-     * cluster-settings updates.
+     * {@link #ArrowBufferPool(Settings, IntSupplier, ArrowNativeAllocator)} so the divisor
+     * follows dynamic cluster-settings updates.
      *
      * @param settings node settings
+     * @param nativeAllocator the framework's unified native allocator (typically a fixture)
      */
-    public ArrowBufferPool(Settings settings) {
-        this(settings, () -> ParquetSettings.MAX_PER_VSR_ALLOCATION_DIVISOR.get(settings));
+    public ArrowBufferPool(Settings settings, ArrowNativeAllocator nativeAllocator) {
+        this(settings, () -> ParquetSettings.MAX_PER_VSR_ALLOCATION_DIVISOR.get(settings), nativeAllocator);
     }
 
     /**
