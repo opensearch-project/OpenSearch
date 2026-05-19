@@ -213,22 +213,20 @@ public class StreamstatsCommandIT extends AnalyticsRestTestCase {
 
     // ── Multi-shard correctness — exercises the SINGLETON-gather cost gate ────
 
-    /** Same {@code streamstats … by str0} as {@link #testStreamstatsBy} on a 3-shard index.
-     *
-     *  <p>Currently fails with {@code "Field reference offset (27) must be less than number of
-     *  fields in struct (27)"} — an off-by-one in field indexing somewhere in the multi-shard
-     *  streamstats lowering or substrait emission. The single-shard variant passes, so the
-     *  bug is multi-shard specific. Asserts the failure to pin current behaviour; a future
-     *  PR investigating the field-offset bug should upgrade this test to assert exact rows.
-     *
-     *  <p>Note: this is a real multi-shard correctness gap, not a test-author error. The
-     *  query and assertions mirror {@link #testStreamstatsBy} which passes on single-shard. */
+    /** {@code streamstats … by str0} on a 3-shard index. Pre-fix this crashed with
+     *  "Field reference offset (27) must be less than number of fields in struct (27)" —
+     *  see {@code DataFusionFragmentConvertor.replaceInput} for the lifted-window Project
+     *  case it now handles. */
     public void testStreamstatsBy_3shard() throws IOException {
         ensureMultiShardProvisioned();
-        assertErrorContains(
+        Map<String, Object> response = executePpl(
             "source=" + DATASET_MULTI.indexName + " | sort key | streamstats count() as cnt by str0"
-                + " | stats max(cnt) as final_cnt by str0 | sort str0",
-            "Field reference offset"
+                + " | stats max(cnt) as final_cnt by str0 | sort str0"
+        );
+        assertRowsEqual(response,
+            row(2L, "FURNITURE"),
+            row(6L, "OFFICE SUPPLIES"),
+            row(9L, "TECHNOLOGY")
         );
     }
 

@@ -422,6 +422,13 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
             return Filter.builder().from(filter).input(newInput).build();
         }
         if (wrapper instanceof Project project) {
+            // Lifted-window shape: OpenSearchProject.liftNestedRexOver emits Project(Project(input))
+            // where the lower Project computes a window column the outer references. A flat swap
+            // here would drop the lower Project and break the outer's input refs.
+            if (project.getInput() instanceof Project lower && containsWindowFunction(lower)) {
+                Rel rewiredLower = replaceInput(lower, newInput);
+                return Project.builder().from(project).input(rewiredLower).build();
+            }
             return Project.builder().from(project).input(newInput).build();
         }
         if (wrapper instanceof Fetch fetch) {
@@ -433,6 +440,15 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         throw new UnsupportedOperationException(
             "Cannot attach-on-top a Substrait Rel of type " + wrapper.getClass().getSimpleName() + " — no single-input rewire defined"
         );
+    }
+
+    private static boolean containsWindowFunction(Project project) {
+        for (Expression expr : project.getExpressions()) {
+            if (expr instanceof Expression.WindowFunctionInvocation) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
