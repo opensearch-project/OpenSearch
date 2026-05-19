@@ -17,6 +17,8 @@ import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.IndexSettings;
+import org.opensearch.index.engine.dataformat.DocumentInput;
+import org.opensearch.index.mapper.KeywordFieldMapper;
 import org.opensearch.index.mapper.NumberFieldMapper;
 import org.opensearch.parquet.ParquetDataFormatPlugin;
 import org.opensearch.parquet.bridge.ParquetFileMetadata;
@@ -27,7 +29,11 @@ import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.FixedExecutorBuilder;
 import org.opensearch.threadpool.ThreadPool;
 
+import java.util.ArrayList;
 import java.util.List;
+
+import static org.opensearch.parquet.engine.ParquetIndexingEngineTests.metadataFields;
+import static org.opensearch.parquet.engine.ParquetIndexingEngineTests.populateMetadataFields;
 
 public class VSRManagerTests extends OpenSearchTestCase {
 
@@ -82,8 +88,8 @@ public class VSRManagerTests extends OpenSearchTestCase {
         String filePath = createTempDir().resolve("empty.parquet").toString();
         VSRManager manager = new VSRManager(filePath, indexSettings, schema, bufferPool, 50000, threadPool, 0L);
         ParquetFileMetadata metadata = manager.flush();
-        assertNotNull(metadata);
-        assertEquals(0, metadata.numRows());
+        // With lazy native writer init, flush returns null when no data was written
+        assertNull(metadata);
     }
 
     public void testFlushWithData() throws Exception {
@@ -103,12 +109,19 @@ public class VSRManagerTests extends OpenSearchTestCase {
     }
 
     public void testAddDocument() throws Exception {
+        List<Field> fields = new ArrayList<>();
+        fields.addAll(metadataFields());
+        fields.add(new Field("val", FieldType.nullable(new ArrowType.Int(32, true)), null));
+        schema = new Schema(fields);
+
         String filePath = createTempDir().resolve("add-doc.parquet").toString();
         VSRManager manager = new VSRManager(filePath, indexSettings, schema, bufferPool, 50000, threadPool, 0L);
 
         NumberFieldMapper.NumberFieldType valField = new NumberFieldMapper.NumberFieldType("val", NumberFieldMapper.NumberType.INTEGER);
         ParquetDocumentInput doc = new ParquetDocumentInput();
+        populateMetadataFields(doc);
         doc.addField(valField, 42);
+        doc.setRowId("__row_id__", 0);
         manager.addDocument(doc);
 
         assertEquals(1, manager.getActiveManagedVSR().getRowCount());
@@ -284,5 +297,88 @@ public class VSRManagerTests extends OpenSearchTestCase {
 
         // Close should not throw — it should await the background write gracefully
         manager.close();
+    }
+
+    public void testAddDocumentWithUnknownFieldDynamicallyAddsVector() throws Exception {
+        String filePath = createTempDir().resolve("unknown-field.parquet").toString();
+        VSRManager manager = new VSRManager(filePath, indexSettings, schema, bufferPool, 50000, threadPool, 1L);
+
+        NumberFieldMapper.NumberFieldType valField = new NumberFieldMapper.NumberFieldType("val", NumberFieldMapper.NumberType.INTEGER);
+        KeywordFieldMapper.KeywordFieldType tagField = new KeywordFieldMapper.KeywordFieldType("tag");
+        ParquetDocumentInput doc = new ParquetDocumentInput();
+        populateMetadataFields(doc);
+        doc.setRowId(DocumentInput.ROW_ID_FIELD, 1);
+        doc.addField(valField, 42);
+        doc.addField(tagField, "hello");
+        manager.addDocument(doc);
+
+        ParquetFileMetadata metadata = manager.flush();
+        assertNotNull(metadata);
+        assertEquals(1, metadata.numRows());
+    }
+
+    public void testIsSchemaMutableBeforeAndAfterFlush() throws Exception {
+        String filePath = createTempDir().resolve("schema-mutable.parquet").toString();
+        VSRManager manager = new VSRManager(filePath, indexSettings, schema, bufferPool, 50000, threadPool, 1L);
+
+        assertTrue(manager.isSchemaMutable());
+
+        NumberFieldMapper.NumberFieldType valField = new NumberFieldMapper.NumberFieldType("val", NumberFieldMapper.NumberType.INTEGER);
+        ParquetDocumentInput doc = new ParquetDocumentInput();
+        populateMetadataFields(doc);
+        doc.setRowId(DocumentInput.ROW_ID_FIELD, 1);
+        doc.addField(valField, 1);
+        manager.addDocument(doc);
+
+        manager.flush();
+        assertFalse(manager.isSchemaMutable());
+    }
+
+    public void testSchemaUpdatePropagatesAcrossRotation() throws Exception {
+        String filePath = createTempDir().resolve("schema-rotation.parquet").toString();
+        VSRManager manager = new VSRManager(filePath, indexSettings, schema, bufferPool, 1, threadPool, 1L);
+
+        NumberFieldMapper.NumberFieldType valField = new NumberFieldMapper.NumberFieldType("val", NumberFieldMapper.NumberType.INTEGER);
+        KeywordFieldMapper.KeywordFieldType tagField = new KeywordFieldMapper.KeywordFieldType("tag");
+
+        ParquetDocumentInput doc1 = new ParquetDocumentInput();
+        populateMetadataFields(doc1);
+        doc1.setRowId(DocumentInput.ROW_ID_FIELD, 1L);
+        doc1.addField(valField, 1);
+        doc1.addField(tagField, "a");
+        manager.addDocument(doc1);
+
+        ParquetDocumentInput doc2 = new ParquetDocumentInput();
+        populateMetadataFields(doc2);
+        doc2.setRowId(DocumentInput.ROW_ID_FIELD, 2L);
+        doc2.addField(valField, 2);
+        doc2.addField(tagField, "b");
+        manager.addDocument(doc2);
+
+        ParquetFileMetadata metadata = manager.flush();
+        assertEquals(2, metadata.numRows());
+    }
+
+    public void testAddDocumentWithMultipleUnknownFields() throws Exception {
+        String filePath = createTempDir().resolve("multi-unknown.parquet").toString();
+        VSRManager manager = new VSRManager(filePath, indexSettings, schema, bufferPool, 50000, threadPool, 1L);
+
+        NumberFieldMapper.NumberFieldType valField = new NumberFieldMapper.NumberFieldType("val", NumberFieldMapper.NumberType.INTEGER);
+        KeywordFieldMapper.KeywordFieldType tag1Field = new KeywordFieldMapper.KeywordFieldType("tag1");
+        KeywordFieldMapper.KeywordFieldType tag2Field = new KeywordFieldMapper.KeywordFieldType("tag2");
+        KeywordFieldMapper.KeywordFieldType tag3Field = new KeywordFieldMapper.KeywordFieldType("tag3");
+
+        ParquetDocumentInput doc = new ParquetDocumentInput();
+        populateMetadataFields(doc);
+        doc.setRowId(DocumentInput.ROW_ID_FIELD, 1L);
+        doc.addField(valField, 1);
+        doc.addField(tag1Field, "a");
+        doc.addField(tag2Field, "b");
+        doc.addField(tag3Field, "c");
+        manager.addDocument(doc);
+
+        ParquetFileMetadata metadata = manager.flush();
+        assertNotNull(metadata);
+        assertEquals(1, metadata.numRows());
     }
 }

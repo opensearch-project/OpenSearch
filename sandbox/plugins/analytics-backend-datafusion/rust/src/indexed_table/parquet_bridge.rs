@@ -40,7 +40,7 @@ use datafusion_datasource::source::DataSourceExec;
 use datafusion_datasource::PartitionedFile;
 use futures::future::BoxFuture;
 use futures::FutureExt;
-use object_store::ObjectStore;
+use object_store::{ObjectStore, ObjectStoreExt};
 use prost::bytes::Bytes;
 
 // ── Parquet Metadata Loading ─────────────────────────────────────────

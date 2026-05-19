@@ -8,20 +8,18 @@
 
 package org.opensearch.analytics.exec.stage;
 
+import org.opensearch.analytics.exec.task.TaskRunner;
 import org.opensearch.common.Nullable;
 
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
+
 /**
- * One-shot execution unit for a single stage. Provides state, metrics,
- * lifecycle control, state-change observation, and a
- * cancellation hook. Implementations:
- * <ul>
- *   <li>{@link ShardFragmentStageExecution} — fan-out scan dispatch to data nodes</li>
- *   <li>{@link LocalStageExecution} — coordinator-local execution, backend-provided stage</li>
- * </ul>
- *
- * <p>Tracked in {@code PlanWalker.executions} for the duration of
- * execution so that {@code DefaultPlanExecutor} can push cancellation
- * to in-flight stages on failure.
+ * One-shot execution unit for a single stage.
  *
  * @opensearch.internal
  */
@@ -33,67 +31,138 @@ public interface StageExecution {
 
     StageMetrics getMetrics();
 
-    /**
-     * Begins execution of this stage. Transitions state from
-     * {@link State#CREATED} to {@link State#RUNNING} and initiates
-     * the stage-specific dispatch logic (shard fan-out, shuffle write,
-     * local compute, etc.).
-     *
-     * <p>Must be called at most once. Behaviour is undefined if called
-     * after the execution has already reached a terminal state.
-     */
+    /** CREATED → RUNNING; initiates stage-specific dispatch logic. Called at most once. */
     void start();
 
-    /**
-     * Registers an observer that will be notified on every state
-     * transition. Listeners are fired synchronously from within the
-     * execution's {@code transitionTo(...)} helper; implementations
-     * must be non-blocking and exception-safe.
-     *
-     * <p>Listeners must be registered during the setup phase, before
-     * {@link #start()} is called. Registration after {@code start()}
-     * is unsupported.
-     *
-     * @param listener the observer to register
-     */
+    /** Append-only; register before {@link #start()}. Fired synchronously on every transition. */
     void addStateListener(StageStateListener listener);
 
-    /**
-     * Returns the exception that caused this execution to fail, or
-     * {@code null} if the execution has not failed. Non-null only when
-     * {@link #getState()} is {@link State#FAILED}.
-     *
-     * @return the captured failure, or {@code null}
-     */
+    /** Non-null only when state is {@link State#FAILED}. */
     @Nullable
     Exception getFailure();
 
-    /**
-     * Captures the given failure and attempts to transition to {@link State#FAILED}.
-     * Used by the per-parent listener in {@code PlanWalker} to propagate a child's
-     * failure upward so the root terminal listener surfaces the actual exception.
-     *
-     * @return {@code true} if the transition happened, {@code false} otherwise
-     */
-    boolean failFromChild(Exception cause);
+    /** Capture {@code cause} and transition to FAILED. Returns true if the transition happened. */
+    default boolean failWithCause(Exception cause) {
+        return false;
+    }
+
+    /** Idempotent. Transitions to CANCELLED and tears down stage-owned resources. */
+    void cancel(String reason);
+
+    // ── Scheduler-driven dispatch hooks ───────────────────────────────────
+
+    /** Empty until {@link #start()} populates from resolved targets. */
+    default List<StageTask> tasks() {
+        return List.of();
+    }
+
+    /** Default {@link TaskRunner#NONE} — stages with runnable tasks override. */
+    default TaskRunner<?> taskRunner() {
+        return TaskRunner.NONE;
+    }
+
+    /** Per-task terminal callback. Captures failure / drives the stage's terminal transition. */
+    default void onTaskTerminal(StageTask task, @Nullable Exception cause) {}
 
     /**
-     * Idempotent. Transitions state to CANCELLED, tears down
-     * stage-owned resources (in-flight transport, sinks, drain threads).
+     * Per-stage retry seam. Return a fresh task pointing at an alternate target, or
+     * {@code Optional.empty()} to give up (default). Owns the entire retry policy —
+     * attempt budget, retryable exception classes, alternate selection. The scheduler's
+     * {@code handleFor} consults this on every failure and dispatches the alternate if any.
      */
-    void cancel(String reason);
+    default Optional<StageTask> retargetForRetry(StageTask failed, Exception cause) {
+        return Optional.empty();
+    }
+
+    // ── Cross-stage metadata channel ──────────────────────────────────────
+
+    /**
+     * Control-plane payload (broadcast bytes, per-shard stats) handed to the parent via
+     * {@link #consumeChildMetadata} before the parent is scheduled. Distinct from data flow
+     * through the pre-wired {@code ExchangeSink}. Default null (nothing published).
+     */
+    @Nullable
+    default Object publishedMetadata() {
+        return null;
+    }
+
+    /** Invoked by the cascade right before parent dispatch. Empty map when no children published. */
+    default void consumeChildMetadata(Map<Integer, Object> metadataByChildStageId) {}
+
+    // ── Cascade wiring (called at graph build time) ────────────────────────
+
+    /**
+     * Wires the child→parent state cascade and the reverse parent→sibling cancel sweep.
+     * Called once at graph build time, before any child has transitioned out of CREATED.
+     *
+     * <p>Per-child: SUCCEEDED decrements a shared counter and schedules this parent on
+     * zero (after handing off each child's {@link #publishedMetadata()} via
+     * {@link #consumeChildMetadata}); FAILED propagates via {@link #failWithCause};
+     * CANCELLED is ignored (the cancel initiator already owns the parent's lifecycle).
+     *
+     * <p>Parent: on FAILED / CANCELLED, sweep still-running children — they shouldn't
+     * keep producing into a sink whose owner has terminated.
+     *
+     * <p>Thread-safe under the documented contracts: pending counter is atomic; child
+     * state reads + {@link #cancel} are idempotent; this method runs during graph build
+     * (before any transitions fire), so listener registration never races with firing.
+     */
+    default void attachChildren(List<? extends StageExecution> children, Consumer<StageExecution> scheduler) {
+        if (children.isEmpty()) return;
+
+        AtomicInteger pending = new AtomicInteger(children.size());
+        for (StageExecution child : children) {
+            child.addStateListener((from, to) -> {
+                switch (to) {
+                    case SUCCEEDED -> {
+                        if (pending.decrementAndGet() == 0) {
+                            Map<Integer, Object> metadata = new HashMap<>();
+                            for (StageExecution c : children) {
+                                Object payload = c.publishedMetadata();
+                                if (payload != null) {
+                                    metadata.put(c.getStageId(), payload);
+                                }
+                            }
+                            consumeChildMetadata(metadata);
+                            scheduler.accept(this);
+                        }
+                    }
+                    case FAILED -> {
+                        Exception cause = child.getFailure();
+                        failWithCause(
+                            cause != null
+                                ? cause
+                                : new RuntimeException("child stage " + child.getStageId() + " failed without recorded cause")
+                        );
+                    }
+                    default -> {
+                    }  // CANCELLED intentionally not propagated
+                }
+            });
+        }
+
+        // child.cancel is a no-op when already terminal, so this is safe under top-down sweeps.
+        addStateListener((from, to) -> {
+            if (to == State.FAILED || to == State.CANCELLED) {
+                for (StageExecution child : children) {
+                    if (child.getState().isTerminal() == false) {
+                        child.cancel("parent " + getStageId() + " " + to);
+                    }
+                }
+            }
+        });
+    }
 
     /** Lifecycle states a stage execution moves through. */
     enum State {
-        /** Initial state before {@link #start()} has been invoked. */
         CREATED,
-        /** Dispatch has begun; the stage is actively executing. */
         RUNNING,
-        /** Terminal success — all work completed, output delivered to the sink. */
         SUCCEEDED,
-        /** Terminal failure — an exception was captured and the stage stopped. */
         FAILED,
-        /** Terminal cancellation — the stage was cancelled via parent task or walker. */
-        CANCELLED
+        CANCELLED;
+
+        public boolean isTerminal() {
+            return this == SUCCEEDED || this == FAILED || this == CANCELLED;
+        }
     }
 }

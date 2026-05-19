@@ -19,10 +19,8 @@ import org.opensearch.analytics.spi.AbstractNameMappingAdapter;
 import java.util.List;
 
 /**
- * Adapters for PPL datetime functions that map 1:1 to a DataFusion builtin. Each
- * concrete subclass pairs a PPL function name with its locally-declared Calcite
- * {@link SqlOperator} whose {@code FunctionMappings.Sig} is registered in
- * {@link DataFusionFragmentConvertor#ADDITIONAL_SCALAR_SIGS}.
+ * Adapters for PPL datetime functions that map 1:1 to a DataFusion builtin; signatures
+ * registered in {@link DataFusionFragmentConvertor#ADDITIONAL_SCALAR_SIGS}.
  *
  * @opensearch.internal
  */
@@ -57,6 +55,35 @@ final class DateTimeAdapters {
         SqlFunctionCategory.TIMEDATE
     );
 
+    static final SqlOperator LOCAL_TIME_OP = new SqlFunction(
+        "to_time",
+        SqlKind.OTHER_FUNCTION,
+        ReturnTypes.TIME_NULLABLE,
+        null,
+        OperandTypes.ANY,
+        SqlFunctionCategory.TIMEDATE
+    );
+
+    static final SqlOperator LOCAL_DATE_OP = new SqlFunction(
+        "to_date",
+        SqlKind.OTHER_FUNCTION,
+        ReturnTypes.DATE_NULLABLE,
+        null,
+        OperandTypes.ANY,
+        SqlFunctionCategory.TIMEDATE
+    );
+
+    // 1-arg timestamp(expr) remains on the legacy engine — the TIMESTAMP enum slot is already
+    // bound to TimestampFunctionAdapter for VARCHAR-literal folding.
+    static final SqlOperator LOCAL_TO_TIMESTAMP_OP = new SqlFunction(
+        "to_timestamp",
+        SqlKind.OTHER_FUNCTION,
+        ReturnTypes.TIMESTAMP,
+        null,
+        OperandTypes.ANY,
+        SqlFunctionCategory.TIMEDATE
+    );
+
     static final class NowAdapter extends AbstractNameMappingAdapter {
         NowAdapter() {
             super(LOCAL_NOW_OP, List.of(), List.of());
@@ -72,6 +99,24 @@ final class DateTimeAdapters {
     static final class CurrentTimeAdapter extends AbstractNameMappingAdapter {
         CurrentTimeAdapter() {
             super(LOCAL_CURRENT_TIME_OP, List.of(), List.of());
+        }
+    }
+
+    static final class TimeAdapter extends AbstractNameMappingAdapter {
+        TimeAdapter() {
+            super(LOCAL_TIME_OP, List.of(), List.of());
+        }
+    }
+
+    static final class DateAdapter extends AbstractNameMappingAdapter {
+        DateAdapter() {
+            super(LOCAL_DATE_OP, List.of(), List.of());
+        }
+    }
+
+    static final class DatetimeAdapter extends AbstractNameMappingAdapter {
+        DatetimeAdapter() {
+            super(LOCAL_TO_TIMESTAMP_OP, List.of(), List.of());
         }
     }
 }

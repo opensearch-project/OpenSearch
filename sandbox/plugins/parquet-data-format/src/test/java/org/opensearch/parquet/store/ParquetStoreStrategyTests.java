@@ -44,13 +44,14 @@ public class ParquetStoreStrategyTests extends OpenSearchTestCase {
 
     public void testRemotePathDefault() {
         ParquetStoreStrategy strategy = new ParquetStoreStrategy();
-        String remotePath = strategy.remotePath("parquet", "base/path/", "parquet/_0.parquet", "_0.parquet__UUID1");
+        // basePath from getRemoteBasePath("parquet") already includes the format subdirectory
+        String remotePath = strategy.remotePath("parquet", "base/path/parquet/", "parquet/_0.parquet", "_0.parquet__UUID1");
         assertEquals("base/path/parquet/_0.parquet__UUID1", remotePath);
     }
 
     public void testRemotePathEmptyBasePath() {
         ParquetStoreStrategy strategy = new ParquetStoreStrategy();
         String remotePath = strategy.remotePath("parquet", "", "parquet/_0.parquet", "_0.parquet__UUID1");
-        assertEquals("parquet/_0.parquet__UUID1", remotePath);
+        assertEquals("_0.parquet__UUID1", remotePath);
     }
 }

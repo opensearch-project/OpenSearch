@@ -188,6 +188,11 @@ public class CompositeDocumentInputTests extends OpenSearchTestCase {
         }
 
         @Override
+        public long getFieldCount(String fieldName) {
+            return 0;
+        }
+
+        @Override
         public void close() {}
     }
 }

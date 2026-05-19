@@ -8,21 +8,24 @@
 
 use std::sync::Arc;
 
+use native_bridge_common::log_debug;
 use datafusion::{
     common::DataFusionError,
     datasource::listing::{ListingOptions, ListingTable, ListingTableConfig, ListingTableUrl},
     execution::context::SessionContext,
     execution::runtime_env::RuntimeEnvBuilder,
     execution::SessionStateBuilder,
+    physical_plan::displayable,
     physical_plan::execute_stream,
     prelude::*,
 };
 use datafusion::datasource::file_format::parquet::ParquetFormat;
-use datafusion::execution::cache::cache_manager::CacheManagerConfig;
+use datafusion::execution::cache::cache_manager::{CacheManagerConfig, CachedFileList};
 use datafusion::execution::cache::{CacheAccessor, DefaultListFilesCache};
 use datafusion_substrait::logical_plan::consumer::from_substrait_plan;
 use log::error;
 use object_store::ObjectMeta;
+use object_store::ObjectStore;
 use prost::Message;
 use substrait::proto::Plan;
 
@@ -51,6 +54,8 @@ pub async fn execute_query(
     // wire up context_id correctly.
     query_memory_pool: Option<Arc<dyn datafusion::execution::memory_pool::MemoryPool>>,
     query_config: &crate::datafusion_query_config::DatafusionQueryConfig,
+    context_id: i64,
+    shard_store: Arc<dyn ObjectStore>,
 ) -> Result<i64, DataFusionError> {
     // Pre-populate the list-files cache so DataFusion doesn't re-list the directory
     let list_file_cache = Arc::new(DefaultListFilesCache::default());
@@ -58,7 +63,7 @@ pub async fn execute_query(
         table: None,
         path: table_path.prefix().clone(),
     };
-    list_file_cache.put(&table_scoped_path, object_metas);
+    list_file_cache.put(&table_scoped_path, CachedFileList::new(object_metas.as_ref().clone()));
 
     // Build a per-query RuntimeEnv sharing the global memory pool + caches,
     // but with a fresh list-files cache for this query's shard files.
@@ -86,6 +91,13 @@ pub async fn execute_query(
             error!("Failed to build runtime env: {}", e);
             e
         })?;
+
+    // Register shard-specific object store on file:// scheme for this query.
+    // Routes reads through TieredObjectStore (local + remote) or default LocalFileSystem.
+    runtime_env.register_object_store(
+        &url::Url::parse("file://").unwrap(),
+        shard_store,
+    );
 
     // Build a fresh session state per query. TODO : Tune this during planning per query
     let mut config = SessionConfig::new();
@@ -115,6 +127,7 @@ pub async fn execute_query(
             error!("Failed to infer schema: {}", e);
             e
         })?;
+    let resolved_schema = crate::schema_coerce::coerce_inferred_schema(resolved_schema);
 
     let table_config = ListingTableConfig::new(table_path)
         .with_listing_options(listing_options)
@@ -145,8 +158,13 @@ pub async fn execute_query(
     })?;
 
     // Wrap in CrossRtStream — CPU work runs on DedicatedExecutor
-    let cross_rt_stream =
-        CrossRtStream::new_with_df_error_stream(df_stream, cpu_executor);
+    let (cross_rt_stream, abort_handle) =
+        CrossRtStream::new_with_df_error_stream_cancellable(df_stream, cpu_executor);
+
+    if let Some(h) = abort_handle {
+        crate::query_tracker::set_abort_handle(context_id, h);
+    }
+
     let wrapped = datafusion::physical_plan::stream::RecordBatchStreamAdapter::new(
         cross_rt_stream.schema(),
         cross_rt_stream,
@@ -166,25 +184,46 @@ pub async fn execute_with_context(
     plan_bytes: &[u8],
     cpu_executor: DedicatedExecutor,
 ) -> Result<i64, DataFusionError> {
-    let substrait_plan = Plan::decode(plan_bytes).map_err(|e| {
-        DataFusionError::Execution(format!("Failed to decode Substrait: {}", e))
-    })?;
+    let context_id = handle.query_context.context_id();
+    let token = crate::query_tracker::get_cancellation_token(context_id);
 
-    let logical_plan = from_substrait_plan(&handle.ctx.state(), &substrait_plan).await?;
-    let dataframe = handle.ctx.execute_logical_plan(logical_plan).await?;
-    let physical_plan = dataframe.create_physical_plan().await?;
+    let query_future = async {
+        let substrait_plan = Plan::decode(plan_bytes).map_err(|e| {
+            DataFusionError::Execution(format!("Failed to decode Substrait: {}", e))
+        })?;
 
-    let df_stream = execute_stream(physical_plan, handle.ctx.task_ctx()).map_err(|e| {
-        error!("execute_with_context: failed to create stream: {}", e);
-        e
-    })?;
+        let logical_plan = from_substrait_plan(&handle.ctx.state(), &substrait_plan).await?;
+        log_debug!("DataFusion logical plan:\n{}", logical_plan.display_indent());
+        let dataframe = handle.ctx.execute_logical_plan(logical_plan).await?;
+        let physical_plan = dataframe.create_physical_plan().await?;
+        log_debug!("DataFusion physical plan:\n{}", displayable(physical_plan.as_ref()).indent(true));
 
-    let cross_rt_stream = CrossRtStream::new_with_df_error_stream(df_stream, cpu_executor);
-    let wrapped = datafusion::physical_plan::stream::RecordBatchStreamAdapter::new(
-        cross_rt_stream.schema(),
-        cross_rt_stream,
-    );
+        let df_stream = execute_stream(physical_plan, handle.ctx.task_ctx()).map_err(|e| {
+            error!("execute_with_context: failed to create stream: {}", e);
+            e
+        })?;
 
-    let stream_handle = crate::api::QueryStreamHandle::with_session_context(wrapped, handle.query_context, handle.ctx);
+        let (cross_rt_stream, abort_handle) =
+            CrossRtStream::new_with_df_error_stream_cancellable(df_stream, cpu_executor);
+
+        if let Some(h) = abort_handle {
+            crate::query_tracker::set_abort_handle(context_id, h);
+        }
+
+        let wrapped = datafusion::physical_plan::stream::RecordBatchStreamAdapter::new(
+            cross_rt_stream.schema(),
+            cross_rt_stream,
+        );
+
+        Ok::<i64, DataFusionError>(Box::into_raw(Box::new(wrapped)) as i64)
+    };
+
+    let stream_ptr = crate::cancellation::cancellable(token.as_ref(), context_id, query_future)
+        .await
+        .map_err(|e| DataFusionError::Execution(e))?;
+
+    // Reconstruct the stream from the raw pointer
+    let stream = unsafe { *Box::from_raw(stream_ptr as *mut datafusion::physical_plan::stream::RecordBatchStreamAdapter<CrossRtStream>) };
+    let stream_handle = crate::api::QueryStreamHandle::with_session_context(stream, handle.query_context, handle.ctx);
     Ok(Box::into_raw(Box::new(stream_handle)) as i64)
 }

@@ -94,6 +94,7 @@ tasks.withType(JavaCompile).configureEach {
  *****************************************************************************/
 
 repositories {
+  maven { url = uri("https://ci.opensearch.org/maven2/") }
   mavenCentral()
   gradlePluginPortal()
 }

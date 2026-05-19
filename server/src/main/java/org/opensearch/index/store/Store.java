@@ -92,6 +92,7 @@ import org.opensearch.index.BucketedCompositeDirectory;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.CombinedDeletionPolicy;
 import org.opensearch.index.engine.Engine;
+import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 import org.opensearch.index.engine.exec.coord.SegmentInfosCatalogSnapshot;
 import org.opensearch.index.seqno.SequenceNumbers;
@@ -100,6 +101,7 @@ import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.plugins.IndexStorePlugin;
+import org.opensearch.plugins.NativeStoreHandle;
 
 import java.io.Closeable;
 import java.io.EOFException;
@@ -186,6 +188,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     private final boolean isParentFieldEnabledVersion;
     private final boolean isIndexSortEnabled;
     private final IndexStorePlugin.DirectoryFactory directoryFactory;
+    private volatile Map<DataFormat, NativeStoreHandle> dataformatAwareStoreHandles;
 
     // used to ref count files when a new Reader is opened for PIT/Scroll queries
     // prevents segment files deletion until the PIT/Scroll expires or is discarded
@@ -222,6 +225,19 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         ShardPath shardPath,
         IndexStorePlugin.DirectoryFactory directoryFactory
     ) {
+        this(shardId, indexSettings, directory, shardLock, onClose, shardPath, directoryFactory, Map.of());
+    }
+
+    public Store(
+        ShardId shardId,
+        IndexSettings indexSettings,
+        Directory directory,
+        ShardLock shardLock,
+        OnClose onClose,
+        ShardPath shardPath,
+        IndexStorePlugin.DirectoryFactory directoryFactory,
+        Map<DataFormat, NativeStoreHandle> dataformatAwareStoreHandles
+    ) {
         super(shardId, indexSettings);
         final TimeValue refreshInterval = indexSettings.getValue(INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING);
         logger.debug("store stats are refreshed with refresh_interval [{}]", refreshInterval);
@@ -233,10 +249,27 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         this.isIndexSortEnabled = indexSettings.getIndexSortConfig().hasIndexSort();
         this.isParentFieldEnabledVersion = indexSettings.getIndexVersionCreated().onOrAfter(org.opensearch.Version.V_3_2_0);
         this.directoryFactory = directoryFactory;
+        this.dataformatAwareStoreHandles = dataformatAwareStoreHandles;
 
         assert onClose != null;
         assert shardLock != null;
         assert shardLock.getShardId().equals(shardId);
+    }
+
+    /**
+     * Returns the native store handles for all data formats. On hot: empty map.
+     * On warm: contains per-format NativeStoreHandle for DataFusion reader wiring.
+     */
+    public Map<DataFormat, NativeStoreHandle> getDataformatAwareStoreHandles() {
+        return dataformatAwareStoreHandles;
+    }
+
+    /**
+     * Sets the native store handles for data format plugins. Called after Store creation
+     * by IndexService when native handles are available (warm + pluggable data format).
+     */
+    public void setDataformatAwareStoreHandles(Map<DataFormat, NativeStoreHandle> handles) {
+        this.dataformatAwareStoreHandles = handles != null ? handles : Map.of();
     }
 
     public Directory directory() {

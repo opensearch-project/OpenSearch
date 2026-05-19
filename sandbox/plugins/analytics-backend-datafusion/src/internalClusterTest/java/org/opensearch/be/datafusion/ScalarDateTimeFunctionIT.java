@@ -24,7 +24,6 @@ package org.opensearch.be.datafusion;
  *   <li>{@code DAYOFWEEK / DAY_OF_WEEK} — DF Sun=0..Sat=6, PPL Sun=1..Sat=7</li>
  *   <li>{@code SYSDATE} — DF now() is query-constant, PPL per-row</li>
  *   <li>{@code DATE_FORMAT / TIME_FORMAT} — DF chrono tokens, PPL MySQL dialect</li>
- *   <li>{@code STRFTIME} — DF chrono tokens, PPL POSIX dialect</li>
  *   <li>{@code FROM_UNIXTIME(epoch, fmt)} / {@code DATETIME(expr, tz)} 2-arg overloads —
  *       no matching DF signature</li>
  *   <li>{@code EXTRACT(unit FROM ts)} — isthmus resolves {@link org.apache.calcite.sql.SqlKind#EXTRACT}
@@ -130,5 +129,30 @@ public class ScalarDateTimeFunctionIT extends BaseScalarFunctionIT {
 
     public void testUnixTimestamp() {
         assertScalarLong("unix_timestamp(created_at)", 1718447400L);
+    }
+
+    // ── strftime ──────────────────────────────────────────────────────────────
+    // Fixture row 1: created_at = 2024-06-15T10:30:00Z, unix seconds = 1718447400.
+    // Reference value 1521467703 = 2018-03-19T13:55:03Z — matches the SQL-plugin
+    // CalciteDateTimeFunctionIT golden cases exactly.
+
+    public void testStrftimeIntegerUnixSeconds() {
+        assertScalarString("strftime(1521467703, '%Y-%m-%d %H:%M:%S')", "2018-03-19 13:55:03");
+    }
+
+    public void testStrftimeComplexFormat() {
+        assertScalarString("strftime(1521467703, '%a, %b %d, %Y %I:%M:%S %p %Z')", "Mon, Mar 19, 2018 01:55:03 PM UTC");
+    }
+
+    public void testStrftimeFractionalSeconds() {
+        assertScalarString("strftime(1521467703.123456, '%Y-%m-%d %H:%M:%S.%3Q')", "2018-03-19 13:55:03.123");
+    }
+
+    public void testStrftimeNegativeTimestamp() {
+        assertScalarString("strftime(-1, '%Y-%m-%d %H:%M:%S')", "1969-12-31 23:59:59");
+    }
+
+    public void testStrftimeOnDateField() {
+        assertScalarString("strftime(created_at, '%Y-%m-%d %H:%M:%S')", "2024-06-15 10:30:00");
     }
 }

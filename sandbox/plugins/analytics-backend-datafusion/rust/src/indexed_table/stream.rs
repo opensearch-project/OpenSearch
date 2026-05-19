@@ -258,7 +258,7 @@ pub struct IndexedExec {
     pub(crate) store_url: datafusion::execution::object_store::ObjectStoreUrl,
     pub(crate) row_groups: Vec<RowGroupInfo>,
     pub(crate) projection: Option<Vec<usize>>,
-    pub(crate) properties: PlanProperties,
+    pub(crate) properties: Arc<PlanProperties>,
     pub(crate) metadata: Arc<ParquetMetaData>,
     pub(crate) predicate: Option<Arc<dyn datafusion::physical_expr::PhysicalExpr>>,
     /// Pluggable bitset source (SingleCollector or RustTree).
@@ -309,7 +309,7 @@ impl ExecutionPlan for IndexedExec {
     fn schema(&self) -> SchemaRef {
         self.schema.clone()
     }
-    fn properties(&self) -> &PlanProperties {
+    fn properties(&self) -> &Arc<PlanProperties> {
         &self.properties
     }
     fn children(&self) -> Vec<&Arc<dyn ExecutionPlan>> {
@@ -918,16 +918,24 @@ impl IndexedStream {
                             } else if self.evaluator.needs_row_mask() {
                                 let t_build = Instant::now();
                                 let m = if let Some(buf) = prefetch_mask_buffer.as_ref() {
-                                    // Fast path: evaluator already produced
-                                    // the packed bits. Wrap as BooleanArray
-                                    // with zero per-RG work (just Arc clone
-                                    // of the Buffer).
-                                    let bb = datafusion::arrow::buffer::BooleanBuffer::new(
-                                        buf.clone(),
-                                        0,
-                                        rg.num_rows as usize,
-                                    );
-                                    BooleanArray::new(bb, None)
+                                    if matches!(position_map, PositionMap::Identity { .. }) {
+                                        // Fast path: full-scan regime (no skips),
+                                        // delivered row i == RG position i. Wrap
+                                        // the pre-built packed bits as BooleanArray
+                                        // with zero per-RG allocation.
+                                        let bb = datafusion::arrow::buffer::BooleanBuffer::new(
+                                            buf.clone(),
+                                            0,
+                                            rg.num_rows as usize,
+                                        );
+                                        BooleanArray::new(bb, None)
+                                    } else {
+                                        // Block-granular: RowSelection has skip
+                                        // runs, so delivered rows don't map 1:1
+                                        // to RG positions. Must build the mask
+                                        // through PositionMap.
+                                        build_mask(&candidates, &position_map)
+                                    }
                                 } else {
                                     build_mask(&candidates, &position_map)
                                 };

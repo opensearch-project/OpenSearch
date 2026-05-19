@@ -32,18 +32,28 @@ import java.util.EnumSet;
  * primitive aggregate calls, and the Volcano split rule downstream operates on those
  * primitives.
  *
- * <p><b>Reduction set</b>: narrowed via {@code FUNCTIONS_TO_REDUCE} to AVG only. AVG's
- * reduction uses only SUM, COUNT, DIVIDE, and CAST — all either capability-declared
- * aggregates or baseline scalar operators ({@link OpenSearchProjectRule#BASELINE_SCALAR_OPS}).
- * STDDEV_POP / STDDEV_SAMP / VAR_POP / VAR_SAMP also emit {@code POWER(x, 2)} which is
- * not in the baseline set; extending the set is a one-line change once a backend declares
- * POWER as a project capability.
+ * <p><b>Reduction set</b>: {@code AVG} + {@code STDDEV_POP}/{@code VAR_POP} +
+ * {@code STDDEV_SAMP}/{@code VAR_SAMP}. AVG reduces to SUM/COUNT/DIVIDE/CAST.
+ * STDDEV/VAR additionally emit {@code MULTIPLY} (for {@code x*x}) and
+ * {@code POWER(variance, 0.5)} (sqrt). The {@code SAMP} variants also emit a
+ * {@code CASE WHEN count > 1 THEN sqrt(variance) ELSE NULL END} Bessel's-correction
+ * guard. Every operator emitted by the reduction (MULTIPLY, POWER, DIVIDE, CAST,
+ * CASE, comparisons) is declared as a scalar capability by the DataFusion backend,
+ * so the post-reduction Project flows through capability resolution cleanly. All
+ * emitted aggregates are SUM/COUNT primitives that the resolver decomposes through
+ * the standard single-field path.
  *
  * @opensearch.internal
  */
 public class OpenSearchAggregateReduceRule extends AggregateReduceFunctionsRule {
 
-    private static final EnumSet<SqlKind> FUNCTIONS_TO_REDUCE = EnumSet.of(SqlKind.AVG);
+    private static final EnumSet<SqlKind> FUNCTIONS_TO_REDUCE = EnumSet.of(
+        SqlKind.AVG,
+        SqlKind.STDDEV_POP,
+        SqlKind.STDDEV_SAMP,
+        SqlKind.VAR_POP,
+        SqlKind.VAR_SAMP
+    );
 
     public OpenSearchAggregateReduceRule() {
         super(LogicalAggregate.class, RelBuilder.proto(Contexts.empty()), FUNCTIONS_TO_REDUCE);
