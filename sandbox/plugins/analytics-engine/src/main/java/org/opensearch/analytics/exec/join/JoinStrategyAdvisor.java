@@ -150,6 +150,25 @@ public final class JoinStrategyAdvisor {
     }
 
     /**
+     * Returns {@code true} iff the DAG's root-stage fragment is shaped like a (possibly
+     * wrapper-clad) {@link OpenSearchJoin} that the advisor would consider for strategy
+     * selection. Mirrors the pre-strategy gate in {@link #adviseAndTag} — used by callers that
+     * want to distinguish "advisor returned COORDINATOR_CENTRIC because there's no join"
+     * from "advisor returned COORDINATOR_CENTRIC because the join didn't qualify for
+     * BROADCAST/HASH_SHUFFLE". Without this distinction, every non-join query (scans,
+     * aggregations, etc.) would be counted as a coord-centric join in
+     * {@code JoinStrategyMetrics}, swamping the actual coord-centric join count.
+     */
+    public static boolean containsJoin(QueryDAG dag) {
+        Stage rootStage = dag.rootStage();
+        if (rootStage == null || rootStage.getFragment() == null) {
+            return false;
+        }
+        RelNode rootFragment = unwrapJoinWrappers(RelNodeUtils.unwrapHep(rootStage.getFragment()));
+        return rootFragment instanceof OpenSearchJoin;
+    }
+
+    /**
      * Walks down through unary post-join wrappers ({@link OpenSearchProject}, {@link OpenSearchSort},
      * {@link OpenSearchFilter}) above the root join until it finds a non-wrapper node. Used so the
      * advisor can inspect the underlying {@link OpenSearchJoin} when the planner has left a Project

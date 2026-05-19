@@ -209,7 +209,14 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
         // Kill-switch downgrades and HASH_SHUFFLE → coord-centric fallthrough both collapse to
         // COORDINATOR_CENTRIC here. Tests use the counter delta around a query to assert the
         // BROADCAST path actually fired (vs. silently degrading to M0).
-        joinStrategyMetrics.recordDispatch(dispatchBroadcast ? JoinStrategy.BROADCAST : JoinStrategy.COORDINATOR_CENTRIC);
+        //
+        // Gated on the DAG actually containing a join: scans, aggregations, and other non-join
+        // queries route through the same code path, but counting them as COORDINATOR_CENTRIC
+        // would swamp the metric (in any mixed workload non-joins dominate) and make the
+        // /_analytics/_strategies API misleading for its documented purpose.
+        if (JoinStrategyAdvisor.containsJoin(dag)) {
+            joinStrategyMetrics.recordDispatch(dispatchBroadcast ? JoinStrategy.BROADCAST : JoinStrategy.COORDINATOR_CENTRIC);
+        }
 
         // Register coordinator-level query task with TaskManager (like SearchTask).
         // This gives us a proper unique ID, visibility in _tasks API, and cancellation support.

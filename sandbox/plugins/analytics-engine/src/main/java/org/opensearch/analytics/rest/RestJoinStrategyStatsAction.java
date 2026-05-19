@@ -35,6 +35,13 @@ import static org.opensearch.rest.RestRequest.Method.GET;
  * { "strategies": { "BROADCAST": 3, "HASH_SHUFFLE": 0, "COORDINATOR_CENTRIC": 12 } }
  * </pre>
  *
+ * <p>Counters reflect <b>join-shaped queries only</b> — scans, aggregations, and other
+ * non-join queries are not recorded. The dispatcher records the routed strategy on the
+ * coordinator node that handled the query; this handler returns only the local node's
+ * counters. For cluster-wide totals, callers must fan out to every node and sum (see
+ * {@code BroadcastJoinIT.readBroadcastCounter} for an example). A future revision could
+ * make this a node-stats-style action that aggregates internally.
+ *
  * @opensearch.internal
  */
 public class RestJoinStrategyStatsAction extends BaseRestHandler {
