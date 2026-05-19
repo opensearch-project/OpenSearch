@@ -37,4 +37,20 @@ public class PruneBlockCacheRequest extends BaseNodesRequest<PruneBlockCacheRequ
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
     }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof PruneBlockCacheRequest)) return false;
+        PruneBlockCacheRequest other = (PruneBlockCacheRequest) o;
+        String[] thisIds = nodesIds() == null ? new String[0] : nodesIds();
+        String[] otherIds = other.nodesIds() == null ? new String[0] : other.nodesIds();
+        return java.util.Arrays.equals(thisIds, otherIds) && java.util.Objects.equals(timeout(), other.timeout());
+    }
+
+    @Override
+    public int hashCode() {
+        String[] ids = nodesIds() == null ? new String[0] : nodesIds();
+        return java.util.Objects.hash(java.util.Arrays.hashCode(ids), timeout());
+    }
 }

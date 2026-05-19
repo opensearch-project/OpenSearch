@@ -47,6 +47,19 @@ public class NodePruneBlockCacheResponse extends BaseNodeResponse implements ToX
     }
 
     @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof NodePruneBlockCacheResponse)) return false;
+        NodePruneBlockCacheResponse other = (NodePruneBlockCacheResponse) o;
+        return cleared == other.cleared && getNode().getId().equals(other.getNode().getId());
+    }
+
+    @Override
+    public int hashCode() {
+        return java.util.Objects.hash(getNode().getId(), cleared);
+    }
+
+    @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.field("name", getNode().getName());
         builder.field("transport_address", getNode().getAddress().toString());

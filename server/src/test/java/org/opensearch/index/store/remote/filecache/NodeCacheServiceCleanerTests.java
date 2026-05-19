@@ -318,6 +318,11 @@ public class NodeCacheServiceCleanerTests extends OpenSearchTestCase {
             public void close() {}
 
             @Override
+            public boolean clear() {
+                return true;
+            }
+
+            @Override
             public void evictPrefix(String prefix) {
                 evictedPrefixes.add(prefix);
             }
@@ -344,6 +349,11 @@ public class NodeCacheServiceCleanerTests extends OpenSearchTestCase {
 
             @Override
             public void close() {}
+
+            @Override
+            public boolean clear() {
+                return true;
+            }
 
             @Override
             public void evictPrefix(String prefix) {
@@ -376,6 +386,11 @@ public class NodeCacheServiceCleanerTests extends OpenSearchTestCase {
             public void close() {}
 
             @Override
+            public boolean clear() {
+                return true;
+            }
+
+            @Override
             public void evictPrefix(String prefix) {
                 evicted1.add(prefix);
             }
@@ -388,6 +403,11 @@ public class NodeCacheServiceCleanerTests extends OpenSearchTestCase {
 
             @Override
             public void close() {}
+
+            @Override
+            public boolean clear() {
+                return true;
+            }
 
             @Override
             public void evictPrefix(String prefix) {
@@ -418,6 +438,11 @@ public class NodeCacheServiceCleanerTests extends OpenSearchTestCase {
 
             @Override
             public void close() {}
+
+            @Override
+            public boolean clear() {
+                return true;
+            }
 
             @Override
             public void evictPrefix(String prefix) {

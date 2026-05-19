@@ -1707,8 +1707,8 @@ public class Node implements Closeable {
                 } else {
                     b.bind(FileCache.class).toProvider(Providers.of(null));
                 }
-                if (nodeCacheOrchestrator != null) {
-                    b.bind(BlockCacheRegistry.class).toInstance(nodeCacheOrchestrator);
+                if (nodeCacheService != null) {
+                    b.bind(BlockCacheRegistry.class).toInstance(nodeCacheService);
                 } else {
                     b.bind(BlockCacheRegistry.class).toProvider(Providers.of(null));
                 }

@@ -8,40 +8,41 @@
 
 package org.opensearch.plugins;
 
-import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.AbstractWireSerializingTestCase;
 
 import java.io.IOException;
 
-public class BlockCacheStatsTests extends OpenSearchTestCase {
+public class BlockCacheStatsTests extends AbstractWireSerializingTestCase<BlockCacheStats> {
 
-    private BlockCacheStats createStats() {
-        return new BlockCacheStats(10, 5, 1024, 512, 3, 300, 2, 200, 0, 4096, 8192);
+    @Override
+    protected BlockCacheStats createTestInstance() {
+        return new BlockCacheStats(
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong()
+        );
     }
 
-    public void testSerializationRoundTrip() throws IOException {
-        BlockCacheStats original = createStats();
-        BytesStreamOutput out = new BytesStreamOutput();
-        original.writeTo(out);
-        BlockCacheStats deserialized = new BlockCacheStats(out.bytes().streamInput());
-        assertEquals(original.hits(), deserialized.hits());
-        assertEquals(original.misses(), deserialized.misses());
-        assertEquals(original.hitBytes(), deserialized.hitBytes());
-        assertEquals(original.missBytes(), deserialized.missBytes());
-        assertEquals(original.evictions(), deserialized.evictions());
-        assertEquals(original.evictionBytes(), deserialized.evictionBytes());
-        assertEquals(original.removed(), deserialized.removed());
-        assertEquals(original.removedBytes(), deserialized.removedBytes());
-        assertEquals(original.memoryBytesUsed(), deserialized.memoryBytesUsed());
-        assertEquals(original.diskBytesUsed(), deserialized.diskBytesUsed());
-        assertEquals(original.totalBytes(), deserialized.totalBytes());
+    @Override
+    protected Writeable.Reader<BlockCacheStats> instanceReader() {
+        return BlockCacheStats::new;
     }
 
     public void testToXContentStructure() throws IOException {
-        BlockCacheStats stats = createStats();
+        BlockCacheStats stats = new BlockCacheStats(10, 5, 1024, 512, 3, 300, 2, 200, 0, 4096, 8192, 512);
         XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
         stats.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
@@ -54,15 +55,5 @@ public class BlockCacheStatsTests extends OpenSearchTestCase {
         assertTrue(json.contains("\"hit_count\":10"));
         assertTrue(json.contains("\"miss_count\":5"));
         assertTrue(json.contains("\"used_in_bytes\":4096"));
-    }
-
-    public void testZeroStats() throws IOException {
-        BlockCacheStats stats = new BlockCacheStats(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
-        XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
-        stats.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        builder.endObject();
-        String json = builder.toString();
-        assertTrue(json.contains("\"block_cache\""));
-        assertTrue(json.contains("\"hit_count\":0"));
     }
 }

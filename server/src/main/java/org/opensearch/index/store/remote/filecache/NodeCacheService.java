@@ -225,9 +225,56 @@ public class NodeCacheService implements Closeable, BlockCacheRegistry {
         return blockCaches.stream().filter(bc -> name.equals(bc.cacheName())).findFirst();
     }
 
+    @Override
+    public List<BlockCache> all() {
+        return blockCaches();
+    }
+
     /** Returns a snapshot of all registered block caches. */
     public List<BlockCache> blockCaches() {
         return List.copyOf(blockCaches);
+    }
+
+    /**
+     * Returns a combined {@link BlockCacheStats} snapshot aggregated across all registered block caches.
+     * Returns {@code null} if no block caches are registered.
+     */
+    public BlockCacheStats combinedBlockCacheStats() {
+        if (blockCaches.isEmpty()) {
+            return null;
+        }
+        long hits = 0, misses = 0, hitBytes = 0, missBytes = 0;
+        long evictions = 0, evictionBytes = 0, removed = 0, removedBytes = 0;
+        long memUsed = 0, diskUsed = 0, total = 0, activeInBytes = 0;
+        for (BlockCache bc : blockCaches) {
+            BlockCacheStats s = bc.stats();
+            hits += s.hits();
+            misses += s.misses();
+            hitBytes += s.hitBytes();
+            missBytes += s.missBytes();
+            evictions += s.evictions();
+            evictionBytes += s.evictionBytes();
+            removed += s.removed();
+            removedBytes += s.removedBytes();
+            memUsed += s.memoryBytesUsed();
+            diskUsed += s.diskBytesUsed();
+            total += s.totalBytes();
+            activeInBytes += s.activeInBytes();
+        }
+        return new BlockCacheStats(
+            hits,
+            misses,
+            hitBytes,
+            missBytes,
+            evictions,
+            evictionBytes,
+            removed,
+            removedBytes,
+            memUsed,
+            diskUsed,
+            total,
+            activeInBytes
+        );
     }
 
     /**
@@ -273,6 +320,14 @@ public class NodeCacheService implements Closeable, BlockCacheRegistry {
     // ─────────────────────────────────────────────────────────────────────────
     // Stats aggregation
     // ─────────────────────────────────────────────────────────────────────────
+
+    /**
+     * Returns FileCache-only stats with no block cache contribution.
+     * Used by {@code _nodes/stats/file_cache?detailed} to return FileCache-only stats.
+     */
+    public AggregateFileCacheStats fileCacheStatsOnly() {
+        return fileCache.fileCacheStats();
+    }
 
     /**
      * Returns aggregate stats across all caches for {@code _nodes/stats aggregate_file_cache}.

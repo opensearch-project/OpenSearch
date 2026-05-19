@@ -12,74 +12,60 @@ import org.opensearch.Version;
 import org.opensearch.action.FailedNodeException;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.node.DiscoveryNode;
-import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.AbstractWireSerializingTestCase;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 
 /**
- * Serialization and XContent tests for {@link PruneBlockCacheRequest}, {@link PruneBlockCacheResponse},
+ * Wire-serialization and XContent tests for {@link PruneBlockCacheRequest}, {@link PruneBlockCacheResponse},
  * and {@link NodePruneBlockCacheResponse}.
  */
-public class PruneBlockCacheRequestResponseTests extends OpenSearchTestCase {
+public class PruneBlockCacheRequestResponseTests extends AbstractWireSerializingTestCase<PruneBlockCacheRequest> {
 
-    private DiscoveryNode createNode(String nodeId) {
-        return new DiscoveryNode(
-            nodeId,
-            nodeId,
+    @Override
+    protected PruneBlockCacheRequest createTestInstance() {
+        if (randomBoolean()) {
+            return new PruneBlockCacheRequest();
+        }
+        int count = randomIntBetween(1, 3);
+        String[] nodes = new String[count];
+        for (int i = 0; i < count; i++) {
+            nodes[i] = "node" + i;
+        }
+        return new PruneBlockCacheRequest(nodes);
+    }
+
+    @Override
+    protected Writeable.Reader<PruneBlockCacheRequest> instanceReader() {
+        return PruneBlockCacheRequest::new;
+    }
+
+    @Override
+    protected PruneBlockCacheRequest mutateInstance(PruneBlockCacheRequest instance) {
+        // toggle between no-nodes and single-node to produce a different instance
+        if (instance.nodesIds() == null || instance.nodesIds().length == 0) {
+            return new PruneBlockCacheRequest("mutated-node");
+        }
+        return new PruneBlockCacheRequest();
+    }
+
+    // ── NodePruneBlockCacheResponse ───────────────────────────────────────────
+
+    public void testNodeResponseXContent() throws IOException {
+        DiscoveryNode node = new DiscoveryNode(
+            "node1",
+            "node1",
             buildNewFakeTransportAddress(),
             Collections.emptyMap(),
             Collections.emptySet(),
             Version.CURRENT
         );
-    }
-
-    // ── PruneBlockCacheRequest ────────────────────────────────────────────────
-
-    public void testRequestSerializationNoNodes() throws IOException {
-        PruneBlockCacheRequest original = new PruneBlockCacheRequest();
-        BytesStreamOutput out = new BytesStreamOutput();
-        original.writeTo(out);
-        // just verify round-trip doesn't throw
-        new PruneBlockCacheRequest(out.bytes().streamInput());
-    }
-
-    public void testRequestSerializationWithNodes() throws IOException {
-        PruneBlockCacheRequest original = new PruneBlockCacheRequest("node1", "node2");
-        BytesStreamOutput out = new BytesStreamOutput();
-        original.writeTo(out);
-        PruneBlockCacheRequest deserialized = new PruneBlockCacheRequest(out.bytes().streamInput());
-        assertArrayEquals(original.nodesIds(), deserialized.nodesIds());
-    }
-
-    // ── NodePruneBlockCacheResponse ───────────────────────────────────────────
-
-    public void testNodeResponseSerializationCleared() throws IOException {
-        DiscoveryNode node = createNode("node1");
-        NodePruneBlockCacheResponse original = new NodePruneBlockCacheResponse(node, true);
-        BytesStreamOutput out = new BytesStreamOutput();
-        original.writeTo(out);
-        NodePruneBlockCacheResponse deserialized = new NodePruneBlockCacheResponse(out.bytes().streamInput());
-        assertEquals(original.isCleared(), deserialized.isCleared());
-        assertEquals(original.getNode().getId(), deserialized.getNode().getId());
-    }
-
-    public void testNodeResponseSerializationNotCleared() throws IOException {
-        DiscoveryNode node = createNode("node1");
-        NodePruneBlockCacheResponse original = new NodePruneBlockCacheResponse(node, false);
-        BytesStreamOutput out = new BytesStreamOutput();
-        original.writeTo(out);
-        NodePruneBlockCacheResponse deserialized = new NodePruneBlockCacheResponse(out.bytes().streamInput());
-        assertFalse(deserialized.isCleared());
-    }
-
-    public void testNodeResponseXContent() throws IOException {
-        DiscoveryNode node = createNode("node1");
         NodePruneBlockCacheResponse response = new NodePruneBlockCacheResponse(node, true);
         XContentBuilder builder = XContentFactory.jsonBuilder();
         builder.startObject();
@@ -93,7 +79,14 @@ public class PruneBlockCacheRequestResponseTests extends OpenSearchTestCase {
     // ── PruneBlockCacheResponse ───────────────────────────────────────────────
 
     public void testResponseXContentSingleNode() throws IOException {
-        DiscoveryNode node = createNode("node1");
+        DiscoveryNode node = new DiscoveryNode(
+            "node1",
+            "node1",
+            buildNewFakeTransportAddress(),
+            Collections.emptyMap(),
+            Collections.emptySet(),
+            Version.CURRENT
+        );
         List<NodePruneBlockCacheResponse> nodes = List.of(new NodePruneBlockCacheResponse(node, true));
         PruneBlockCacheResponse response = new PruneBlockCacheResponse(new ClusterName("test"), nodes, Collections.emptyList());
         XContentBuilder builder = XContentFactory.jsonBuilder();
@@ -104,7 +97,14 @@ public class PruneBlockCacheRequestResponseTests extends OpenSearchTestCase {
     }
 
     public void testResponseXContentWithFailure() throws IOException {
-        DiscoveryNode node = createNode("node1");
+        DiscoveryNode node = new DiscoveryNode(
+            "node1",
+            "node1",
+            buildNewFakeTransportAddress(),
+            Collections.emptyMap(),
+            Collections.emptySet(),
+            Version.CURRENT
+        );
         List<NodePruneBlockCacheResponse> nodes = List.of(new NodePruneBlockCacheResponse(node, true));
         List<FailedNodeException> failures = List.of(new FailedNodeException("node2", "simulated", new RuntimeException()));
         PruneBlockCacheResponse response = new PruneBlockCacheResponse(new ClusterName("test"), nodes, failures);

@@ -15,10 +15,14 @@ import org.opensearch.action.admin.cluster.blockcache.NodePruneBlockCacheRespons
 import org.opensearch.action.admin.cluster.blockcache.PruneBlockCacheAction;
 import org.opensearch.action.admin.cluster.blockcache.PruneBlockCacheRequest;
 import org.opensearch.action.admin.cluster.blockcache.PruneBlockCacheResponse;
+import org.opensearch.action.admin.cluster.node.stats.NodeStats;
+import org.opensearch.action.admin.cluster.node.stats.NodesStatsRequest;
+import org.opensearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.opensearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.IndexModule;
+import org.opensearch.plugins.BlockCacheStats;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.repositories.fs.FsRepository;
 import org.opensearch.snapshots.AbstractSnapshotIntegTestCase;
@@ -136,5 +140,72 @@ public class PruneBlockCacheIT extends AbstractSnapshotIntegTestCase {
         // Cluster must still be healthy and queries must still work after prune
         ensureGreen();
         assertDocCount(restoredIndexName, 50L);
+    }
+
+    /**
+     * Verifies that {@code GET _nodes/stats/file_cache?detailed=true} returns a non-null
+     * {@code block_cache} section on warm nodes when the Foyer plugin is loaded.
+     */
+    public void testBlockCacheStatsDetailedWithFoyerPlugin() throws Exception {
+        final String indexName = "test-idx";
+        final String repoName = "test-repo";
+        final String snapshotName = "test-snap";
+        final Client client = client();
+
+        internalCluster().ensureAtLeastNumDataNodes(1);
+        createIndex(
+            indexName,
+            Settings.builder()
+                .put(SETTING_NUMBER_OF_REPLICAS, 0)
+                .put(SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.FS.getSettingsKey())
+                .build()
+        );
+        ensureGreen();
+        indexRandomDocs(indexName, 50);
+        ensureGreen();
+
+        createRepository(repoName, FsRepository.TYPE);
+        final var snapResponse = client.admin()
+            .cluster()
+            .prepareCreateSnapshot(repoName, snapshotName)
+            .setWaitForCompletion(true)
+            .setIndices(indexName)
+            .get();
+        assertThat(snapResponse.getSnapshotInfo().successfulShards(), greaterThan(0));
+        assertThat(snapResponse.getSnapshotInfo().successfulShards(), equalTo(snapResponse.getSnapshotInfo().totalShards()));
+
+        assertTrue(client.admin().indices().prepareDelete(indexName).get().isAcknowledged());
+        ensureGreen();
+
+        internalCluster().ensureAtLeastNumWarmNodes(1);
+        client.admin()
+            .cluster()
+            .prepareRestoreSnapshot(repoName, snapshotName)
+            .setRenamePattern("(.+)")
+            .setRenameReplacement("$1-copy")
+            .setStorageType(RestoreSnapshotRequest.StorageType.REMOTE_SNAPSHOT)
+            .setWaitForCompletion(true)
+            .execute()
+            .actionGet();
+        ensureGreen();
+        assertDocCount(indexName + "-copy", 50L);
+
+        NodesStatsResponse statsResponse = client.admin()
+            .cluster()
+            .nodesStats(new NodesStatsRequest().addMetric(NodesStatsRequest.Metric.FILE_CACHE_STATS.metricName()).fileCacheDetailed(true))
+            .actionGet();
+
+        boolean foundWarmNode = false;
+        for (NodeStats stats : statsResponse.getNodes()) {
+            if (stats.getNode().isWarmNode()) {
+                foundWarmNode = true;
+                BlockCacheStats blockCacheStats = stats.getBlockCacheOnlyStats();
+                assertNotNull("block_cache sub-stats should be present on warm node with Foyer loaded", blockCacheStats);
+                // totalBytes reflects the configured Foyer disk budget
+                assertTrue("block_cache totalBytes should be >= 0", blockCacheStats.totalBytes() >= 0);
+            }
+        }
+        assertTrue("Expected at least one warm node", foundWarmNode);
     }
 }
