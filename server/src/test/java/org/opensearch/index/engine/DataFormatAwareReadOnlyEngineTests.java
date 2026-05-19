@@ -66,8 +66,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
-import static org.hamcrest.Matchers.instanceOf;
 import static org.opensearch.index.engine.EngineTestCase.tombstoneDocSupplier;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -428,8 +428,9 @@ public class DataFormatAwareReadOnlyEngineTests extends OpenSearchTestCase {
 
             engine.finalizeReplication(incoming);
 
-            try (org.opensearch.common.concurrent.GatedCloseable<CatalogSnapshot> ref = engine.getCatalogSnapshotManager()
-                .acquireSnapshot()) {
+            try (
+                org.opensearch.common.concurrent.GatedCloseable<CatalogSnapshot> ref = engine.getCatalogSnapshotManager().acquireSnapshot()
+            ) {
                 assertEquals("latest snapshot ID must match incoming", 1L, ref.get().getId());
             }
         }
@@ -633,14 +634,7 @@ public class DataFormatAwareReadOnlyEngineTests extends OpenSearchTestCase {
         String translogUUID = Translog.createEmptyTranslog(translogPath, SequenceNumbers.NO_OPS_PERFORMED, shardId, primaryTerm.get());
         String historyUUID = UUID.randomUUID().toString();
         bootstrapStoreWithMetadata(hotStore, translogUUID, historyUUID);
-        TranslogConfig translogConfig = new TranslogConfig(
-            shardId,
-            translogPath,
-            hotSettings,
-            BigArrays.NON_RECYCLING_INSTANCE,
-            "",
-            false
-        );
+        TranslogConfig translogConfig = new TranslogConfig(shardId, translogPath, hotSettings, BigArrays.NON_RECYCLING_INSTANCE, "", false);
         DataFormatRegistry registry = createMockRegistry();
         CommitterFactory committerFactory = config -> new InMemoryCommitter(hotStore);
         return new EngineConfig.Builder().shardId(shardId)
@@ -695,5 +689,22 @@ public class DataFormatAwareReadOnlyEngineTests extends OpenSearchTestCase {
             engine.close();
             config.getStore().close();
         }
+    }
+
+    public void testNoOpDeletionPolicyNeverDeletesSnapshots() {
+        DataFormatAwareReadOnlyEngine.NoOpCatalogSnapshotDeletionPolicy policy =
+            new DataFormatAwareReadOnlyEngine.NoOpCatalogSnapshotDeletionPolicy();
+
+        // onInit should return empty list (nothing to delete)
+        List<CatalogSnapshot> initResult = policy.onInit(List.of(mock(CatalogSnapshot.class), mock(CatalogSnapshot.class)));
+        assertTrue("onInit should return empty list", initResult.isEmpty());
+
+        // onCommit should return empty list (nothing to delete)
+        List<CatalogSnapshot> commitResult = policy.onCommit(List.of(mock(CatalogSnapshot.class)));
+        assertTrue("onCommit should return empty list", commitResult.isEmpty());
+
+        // Empty input should also work
+        assertTrue("onInit with empty list should return empty", policy.onInit(List.of()).isEmpty());
+        assertTrue("onCommit with empty list should return empty", policy.onCommit(List.of()).isEmpty());
     }
 }

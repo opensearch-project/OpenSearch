@@ -11,7 +11,6 @@ package org.opensearch.index.engine;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.IndexCommit;
-import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.search.ReferenceManager;
@@ -35,7 +34,6 @@ import org.opensearch.index.engine.dataformat.DataFormatRegistry;
 import org.opensearch.index.engine.dataformat.ReaderManagerConfig;
 import org.opensearch.index.engine.exec.CatalogSnapshotDeletionPolicy;
 import org.opensearch.index.engine.exec.CatalogSnapshotLifecycleListener;
-import org.opensearch.index.engine.exec.CommitFileManager;
 import org.opensearch.index.engine.exec.EngineReaderManager;
 import org.opensearch.index.engine.exec.FileDeleter;
 import org.opensearch.index.engine.exec.Indexer;
@@ -45,8 +43,6 @@ import org.opensearch.index.engine.exec.commit.CommitterConfig;
 import org.opensearch.index.engine.exec.commit.IndexStoreProvider;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshotManager;
-import org.opensearch.index.engine.exec.coord.DataformatAwareCatalogSnapshot;
-import org.opensearch.index.engine.exec.coord.LuceneVersionConverter;
 import org.opensearch.index.mapper.DocumentMapperForType;
 import org.opensearch.index.mapper.SourceToParse;
 import org.opensearch.index.merge.MergeStats;
@@ -67,6 +63,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -76,8 +73,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Supplier;
-
-import static org.opensearch.index.engine.exec.coord.CatalogSnapshotManager.createInitialSnapshot;
 
 /**
  * Read-only engine for primaries operating on pluggable data formats.
@@ -171,7 +166,7 @@ public class DataFormatAwareReadOnlyEngine implements Indexer {
 
             catalogSnapshotManagerRef = new CatalogSnapshotManager(
                 committed,
-                new DataFormatAwareNRTReplicationEngine.ReplicaDeletionPolicy(),
+                new NoOpCatalogSnapshotDeletionPolicy(),
                 compositeDeleter,
                 Map.of(),
                 snapshotListeners,
@@ -740,6 +735,22 @@ public class DataFormatAwareReadOnlyEngine implements Indexer {
     }
 
     // ---- Getters for internal state (used by tests) ----
+
+    /**
+     * No-op deletion policy for the read-only engine.
+     * The warm primary never creates new snapshots, so nothing is ever deleted.
+     */
+    static class NoOpCatalogSnapshotDeletionPolicy implements CatalogSnapshotDeletionPolicy {
+        @Override
+        public List<CatalogSnapshot> onInit(List<CatalogSnapshot> commits) {
+            return Collections.emptyList();
+        }
+
+        @Override
+        public List<CatalogSnapshot> onCommit(List<CatalogSnapshot> commits) {
+            return Collections.emptyList();
+        }
+    }
 
     CatalogSnapshotManager getCatalogSnapshotManager() {
         return catalogSnapshotManager;

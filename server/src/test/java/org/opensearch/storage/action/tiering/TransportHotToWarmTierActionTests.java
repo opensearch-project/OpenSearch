@@ -10,7 +10,6 @@ package org.opensearch.storage.action.tiering;
 
 import org.opensearch.Version;
 import org.opensearch.action.support.broadcast.BroadcastResponse;
-import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.block.ClusterBlocks;
@@ -185,8 +184,11 @@ public class TransportHotToWarmTierActionTests extends OpenSearchTestCase {
                     executePrepareTiering(indexName, prepareHandler, onSuccess, onFinalFailure, attempt + 1);
                     return;
                 }
-                String errorMsg = "Pre-tiering sync failed for DFA index [" + indexName + "] after "
-                    + MAX_PREPARE_RETRIES + " attempts. Please retry.";
+                String errorMsg = "Pre-tiering sync failed for DFA index ["
+                    + indexName
+                    + "] after "
+                    + MAX_PREPARE_RETRIES
+                    + " attempts. Please retry.";
                 onFinalFailure.onResponse(new IllegalStateException(errorMsg, e));
             }
         });
@@ -208,7 +210,9 @@ public class TransportHotToWarmTierActionTests extends OpenSearchTestCase {
         // Verify block was added
         assertTrue(
             "Read-only block setting should be true",
-            stateWithBlock.metadata().index(indexName).getSettings()
+            stateWithBlock.metadata()
+                .index(indexName)
+                .getSettings()
                 .getAsBoolean(IndexMetadata.INDEX_BLOCKS_READ_ONLY_ALLOW_DELETE_SETTING.getKey(), false)
         );
         assertTrue(
@@ -220,12 +224,10 @@ public class TransportHotToWarmTierActionTests extends OpenSearchTestCase {
         AtomicInteger prepareCalls = new AtomicInteger(0);
         AtomicReference<Boolean> tieringCalled = new AtomicReference<>(false);
 
-        executePrepareTiering(
-            indexName,
-            (request, listener) -> {
-                prepareCalls.incrementAndGet();
-                listener.onResponse(new BroadcastResponse(1, 1, 0, Collections.emptyList()));
-            },
+        executePrepareTiering(indexName, (request, listener) -> {
+            prepareCalls.incrementAndGet();
+            listener.onResponse(new BroadcastResponse(1, 1, 0, Collections.emptyList()));
+        },
             ActionListener.wrap(v -> tieringCalled.set(true), e -> fail("Should not fail")),
             ActionListener.wrap(e -> fail("Should not reach final failure"), ex -> fail("unexpected")),
             1
@@ -249,25 +251,19 @@ public class TransportHotToWarmTierActionTests extends OpenSearchTestCase {
         AtomicReference<Exception> capturedFailure = new AtomicReference<>();
         AtomicReference<Boolean> blockRemoved = new AtomicReference<>(false);
 
-        executePrepareTiering(
-            indexName,
-            (request, listener) -> {
-                prepareCalls.incrementAndGet();
-                listener.onFailure(new RuntimeException("Remote store sync failed"));
-            },
-            ActionListener.wrap(v -> fail("Should not succeed"), e -> fail("unexpected")),
-            ActionListener.wrap(e -> {
-                capturedFailure.set(e);
-                // Simulate removing the read-only block on failure
-                ClusterState restored = removeReadOnlyBlock(stateWithBlock, indexName);
-                assertFalse(
-                    "Read-only block should be removed after failure",
-                    restored.blocks().hasIndexBlock(indexName, IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK)
-                );
-                blockRemoved.set(true);
-            }, ex -> fail("unexpected")),
-            1
-        );
+        executePrepareTiering(indexName, (request, listener) -> {
+            prepareCalls.incrementAndGet();
+            listener.onFailure(new RuntimeException("Remote store sync failed"));
+        }, ActionListener.wrap(v -> fail("Should not succeed"), e -> fail("unexpected")), ActionListener.wrap(e -> {
+            capturedFailure.set(e);
+            // Simulate removing the read-only block on failure
+            ClusterState restored = removeReadOnlyBlock(stateWithBlock, indexName);
+            assertFalse(
+                "Read-only block should be removed after failure",
+                restored.blocks().hasIndexBlock(indexName, IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK)
+            );
+            blockRemoved.set(true);
+        }, ex -> fail("unexpected")), 1);
 
         assertEquals("Prepare should have been called 3 times (MAX_PREPARE_RETRIES)", 3, prepareCalls.get());
         assertNotNull("Failure should be captured", capturedFailure.get());
@@ -318,14 +314,12 @@ public class TransportHotToWarmTierActionTests extends OpenSearchTestCase {
             new DefaultShardOperationFailedException(indexName, 0, new RuntimeException("shard sync failed"))
         );
 
-        executePrepareTiering(
-            indexName,
-            (request, listener) -> {
-                prepareCalls.incrementAndGet();
-                // Always return partial shard failures
-                BroadcastResponse response = new BroadcastResponse(3, 2, 1, shardFailures);
-                listener.onResponse(response);
-            },
+        executePrepareTiering(indexName, (request, listener) -> {
+            prepareCalls.incrementAndGet();
+            // Always return partial shard failures
+            BroadcastResponse response = new BroadcastResponse(3, 2, 1, shardFailures);
+            listener.onResponse(response);
+        },
             ActionListener.wrap(v -> fail("Should not succeed"), e -> fail("unexpected")),
             ActionListener.wrap(e -> capturedFailure.set(e), ex -> fail("unexpected")),
             1
@@ -333,10 +327,7 @@ public class TransportHotToWarmTierActionTests extends OpenSearchTestCase {
 
         assertEquals("Prepare should have been called 3 times (MAX_PREPARE_RETRIES)", 3, prepareCalls.get());
         assertNotNull("Failure should be captured", capturedFailure.get());
-        assertTrue(
-            "Error should mention shard failures",
-            capturedFailure.get().getMessage().contains("shard(s) failed")
-        );
+        assertTrue("Error should mention shard failures", capturedFailure.get().getMessage().contains("shard(s) failed"));
     }
 
     /**
@@ -353,20 +344,18 @@ public class TransportHotToWarmTierActionTests extends OpenSearchTestCase {
             new DefaultShardOperationFailedException(indexName, 0, new RuntimeException("shard sync failed"))
         );
 
-        executePrepareTiering(
-            indexName,
-            (request, listener) -> {
-                int call = prepareCalls.incrementAndGet();
-                if (call == 1) {
-                    // First attempt: partial failure
-                    BroadcastResponse response = new BroadcastResponse(2, 1, 1, shardFailures);
-                    listener.onResponse(response);
-                } else {
-                    // Second attempt: success
-                    BroadcastResponse response = new BroadcastResponse(2, 2, 0, Collections.emptyList());
-                    listener.onResponse(response);
-                }
-            },
+        executePrepareTiering(indexName, (request, listener) -> {
+            int call = prepareCalls.incrementAndGet();
+            if (call == 1) {
+                // First attempt: partial failure
+                BroadcastResponse response = new BroadcastResponse(2, 1, 1, shardFailures);
+                listener.onResponse(response);
+            } else {
+                // Second attempt: success
+                BroadcastResponse response = new BroadcastResponse(2, 2, 0, Collections.emptyList());
+                listener.onResponse(response);
+            }
+        },
             ActionListener.wrap(v -> tieringCalled.set(true), e -> fail("unexpected")),
             ActionListener.wrap(e -> fail("Should not reach final failure"), ex -> fail("unexpected")),
             1
@@ -382,10 +371,7 @@ public class TransportHotToWarmTierActionTests extends OpenSearchTestCase {
     public void testIsDfaIndex_NullIndexMetadata_ReturnsFalse() {
         // Build a cluster state without the target index
         Metadata metadata = Metadata.builder().build();
-        ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
-            .metadata(metadata)
-            .blocks(ClusterBlocks.EMPTY_CLUSTER_BLOCK)
-            .build();
+        ClusterState state = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).blocks(ClusterBlocks.EMPTY_CLUSTER_BLOCK).build();
 
         assertFalse("isDfaIndex should return false for non-existent index", isDfaIndex("non-existent-index", state));
     }
@@ -432,7 +418,9 @@ public class TransportHotToWarmTierActionTests extends OpenSearchTestCase {
         );
         assertFalse(
             "Read-only setting should be false",
-            stateWithoutBlock.metadata().index(indexName).getSettings()
+            stateWithoutBlock.metadata()
+                .index(indexName)
+                .getSettings()
                 .getAsBoolean(IndexMetadata.INDEX_BLOCKS_READ_ONLY_ALLOW_DELETE_SETTING.getKey(), false)
         );
     }
@@ -446,18 +434,16 @@ public class TransportHotToWarmTierActionTests extends OpenSearchTestCase {
         AtomicInteger prepareCalls = new AtomicInteger(0);
         AtomicReference<Boolean> tieringCalled = new AtomicReference<>(false);
 
-        executePrepareTiering(
-            indexName,
-            (request, listener) -> {
-                int call = prepareCalls.incrementAndGet();
-                if (call <= 2) {
-                    // First two attempts: exception
-                    listener.onFailure(new RuntimeException("Network error"));
-                } else {
-                    // Third attempt: success
-                    listener.onResponse(new BroadcastResponse(1, 1, 0, Collections.emptyList()));
-                }
-            },
+        executePrepareTiering(indexName, (request, listener) -> {
+            int call = prepareCalls.incrementAndGet();
+            if (call <= 2) {
+                // First two attempts: exception
+                listener.onFailure(new RuntimeException("Network error"));
+            } else {
+                // Third attempt: success
+                listener.onResponse(new BroadcastResponse(1, 1, 0, Collections.emptyList()));
+            }
+        },
             ActionListener.wrap(v -> tieringCalled.set(true), e -> fail("unexpected")),
             ActionListener.wrap(e -> fail("Should not reach final failure"), ex -> fail("unexpected")),
             1
@@ -476,12 +462,10 @@ public class TransportHotToWarmTierActionTests extends OpenSearchTestCase {
         AtomicInteger prepareCalls = new AtomicInteger(0);
         AtomicReference<Exception> capturedFailure = new AtomicReference<>();
 
-        executePrepareTiering(
-            indexName,
-            (request, listener) -> {
-                prepareCalls.incrementAndGet();
-                listener.onFailure(new RuntimeException("Persistent network error"));
-            },
+        executePrepareTiering(indexName, (request, listener) -> {
+            prepareCalls.incrementAndGet();
+            listener.onFailure(new RuntimeException("Persistent network error"));
+        },
             ActionListener.wrap(v -> fail("Should not succeed"), e -> fail("unexpected")),
             ActionListener.wrap(e -> capturedFailure.set(e), ex -> fail("unexpected")),
             1
@@ -489,10 +473,7 @@ public class TransportHotToWarmTierActionTests extends OpenSearchTestCase {
 
         assertEquals("Prepare should have been called 3 times", 3, prepareCalls.get());
         assertNotNull("Failure should be captured", capturedFailure.get());
-        assertTrue(
-            "Error should mention attempts",
-            capturedFailure.get().getMessage().contains("3 attempts")
-        );
+        assertTrue("Error should mention attempts", capturedFailure.get().getMessage().contains("3 attempts"));
     }
 
     /**
@@ -517,7 +498,9 @@ public class TransportHotToWarmTierActionTests extends OpenSearchTestCase {
         );
         assertTrue(
             "Read-only setting should still be true",
-            stateWithBlockAgain.metadata().index(indexName).getSettings()
+            stateWithBlockAgain.metadata()
+                .index(indexName)
+                .getSettings()
                 .getAsBoolean(IndexMetadata.INDEX_BLOCKS_READ_ONLY_ALLOW_DELETE_SETTING.getKey(), false)
         );
 
@@ -599,12 +582,10 @@ public class TransportHotToWarmTierActionTests extends OpenSearchTestCase {
         AtomicInteger prepareCalls = new AtomicInteger(0);
         AtomicReference<Boolean> tieringCalled = new AtomicReference<>(false);
 
-        executePrepareTiering(
-            indexName,
-            (request, listener) -> {
-                prepareCalls.incrementAndGet();
-                listener.onResponse(new BroadcastResponse(2, 2, 0, Collections.emptyList()));
-            },
+        executePrepareTiering(indexName, (request, listener) -> {
+            prepareCalls.incrementAndGet();
+            listener.onResponse(new BroadcastResponse(2, 2, 0, Collections.emptyList()));
+        },
             ActionListener.wrap(v -> tieringCalled.set(true), e -> fail("Should not fail")),
             ActionListener.wrap(e -> fail("Should not reach final failure"), ex -> fail("unexpected")),
             1

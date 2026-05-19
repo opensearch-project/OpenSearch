@@ -83,8 +83,11 @@ public class TransportHotToWarmTierAction extends TransportTierAction {
     protected void clusterManagerOperation(IndexTieringRequest request, ClusterState state, ActionListener<AcknowledgedResponse> listener)
         throws Exception {
         if (isAlreadyWarm(request.getIndex(), state)) {
-            listener.onFailure(new IllegalArgumentException(
-                "Index [" + request.getIndex() + "] is already on warm tier. Hot-to-warm tiering is not needed."));
+            listener.onFailure(
+                new IllegalArgumentException(
+                    "Index [" + request.getIndex() + "] is already on warm tier. Hot-to-warm tiering is not needed."
+                )
+            );
             return;
         }
         if (isDfaIndex(request.getIndex(), state)) {
@@ -101,42 +104,53 @@ public class TransportHotToWarmTierAction extends TransportTierAction {
      * cleanly removed on cancel or failure.
      * On success, proceeds to step 2 (prepare tiering).
      */
-    private void addReadOnlyBlockAndPrepare(IndexTieringRequest request, ClusterState state, ActionListener<AcknowledgedResponse> listener) {
-        clusterService.submitStateUpdateTask("add-read-only-block-for-tiering [" + request.getIndex() + "]", new ClusterStateUpdateTask(Priority.URGENT) {
-            @Override
-            public ClusterState execute(ClusterState currentState) {
-                IndexMetadata indexMetadata = currentState.metadata().index(request.getIndex());
-                if (indexMetadata == null) {
-                    throw new IllegalStateException("Index [" + request.getIndex() + "] not found");
+    private void addReadOnlyBlockAndPrepare(
+        IndexTieringRequest request,
+        ClusterState state,
+        ActionListener<AcknowledgedResponse> listener
+    ) {
+        clusterService.submitStateUpdateTask(
+            "add-read-only-block-for-tiering [" + request.getIndex() + "]",
+            new ClusterStateUpdateTask(Priority.URGENT) {
+                @Override
+                public ClusterState execute(ClusterState currentState) {
+                    IndexMetadata indexMetadata = currentState.metadata().index(request.getIndex());
+                    if (indexMetadata == null) {
+                        throw new IllegalStateException("Index [" + request.getIndex() + "] not found");
+                    }
+                    Settings.Builder indexSettingsBuilder = Settings.builder()
+                        .put(indexMetadata.getSettings())
+                        .put(IndexMetadata.INDEX_BLOCKS_READ_ONLY_ALLOW_DELETE_SETTING.getKey(), true);
+
+                    IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(indexMetadata)
+                        .settings(indexSettingsBuilder)
+                        .settingsVersion(1 + indexMetadata.getSettingsVersion());
+
+                    Metadata.Builder metadataBuilder = Metadata.builder(currentState.metadata()).put(indexMetadataBuilder);
+                    ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks());
+                    blocks.addIndexBlock(request.getIndex(), IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK);
+
+                    return ClusterState.builder(currentState).metadata(metadataBuilder).blocks(blocks).build();
                 }
-                Settings.Builder indexSettingsBuilder = Settings.builder()
-                    .put(indexMetadata.getSettings())
-                    .put(IndexMetadata.INDEX_BLOCKS_READ_ONLY_ALLOW_DELETE_SETTING.getKey(), true);
 
-                IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(indexMetadata)
-                    .settings(indexSettingsBuilder)
-                    .settingsVersion(1 + indexMetadata.getSettingsVersion());
+                @Override
+                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                    logger.info("Read-only block added for index [{}], proceeding with pre-tiering sync", request.getIndex());
+                    executePrepareTiering(request, newState, listener, 1);
+                }
 
-                Metadata.Builder metadataBuilder = Metadata.builder(currentState.metadata()).put(indexMetadataBuilder);
-                ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks());
-                blocks.addIndexBlock(request.getIndex(), IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK);
-
-                return ClusterState.builder(currentState).metadata(metadataBuilder).blocks(blocks).build();
+                @Override
+                public void onFailure(String source, Exception e) {
+                    logger.error("Failed to add read-only block for index [{}]", request.getIndex());
+                    listener.onFailure(
+                        new IllegalStateException(
+                            "Failed to add read-only block for DFA index [" + request.getIndex() + "]. Please retry.",
+                            e
+                        )
+                    );
+                }
             }
-
-            @Override
-            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                logger.info("Read-only block added for index [{}], proceeding with pre-tiering sync", request.getIndex());
-                executePrepareTiering(request, newState, listener, 1);
-            }
-
-            @Override
-            public void onFailure(String source, Exception e) {
-                logger.error("Failed to add read-only block for index [{}]", request.getIndex());
-                listener.onFailure(new IllegalStateException(
-                    "Failed to add read-only block for DFA index [" + request.getIndex() + "]. Please retry.", e));
-            }
-        });
+        );
     }
 
     /**
@@ -145,7 +159,12 @@ public class TransportHotToWarmTierAction extends TransportTierAction {
      * On success, proceeds to step 3 (tier).
      * On final failure, removes the read-only block to avoid leaving the index in a stuck state.
      */
-    private void executePrepareTiering(IndexTieringRequest request, ClusterState state, ActionListener<AcknowledgedResponse> listener, int attempt) {
+    private void executePrepareTiering(
+        IndexTieringRequest request,
+        ClusterState state,
+        ActionListener<AcknowledgedResponse> listener,
+        int attempt
+    ) {
         PrepareTieringRequest prepareTieringRequest = new PrepareTieringRequest(request.getIndex());
         prepareTieringRequest.timeout(request.timeout());
 
@@ -198,8 +217,11 @@ public class TransportHotToWarmTierAction extends TransportTierAction {
                     executePrepareTiering(request, state, listener, attempt + 1);
                     return;
                 }
-                String errorMsg = "Pre-tiering sync failed for DFA index [" + request.getIndex() + "] after "
-                    + MAX_PREPARE_RETRIES + " attempts. Please retry.";
+                String errorMsg = "Pre-tiering sync failed for DFA index ["
+                    + request.getIndex()
+                    + "] after "
+                    + MAX_PREPARE_RETRIES
+                    + " attempts. Please retry.";
                 logger.error(errorMsg, e);
                 removeReadOnlyBlock(request.getIndex());
                 listener.onFailure(new IllegalStateException(errorMsg, e));
@@ -213,39 +235,46 @@ public class TransportHotToWarmTierAction extends TransportTierAction {
      * Best-effort — if this fails, the user can manually remove the block.
      */
     private void removeReadOnlyBlock(String indexName) {
-        clusterService.submitStateUpdateTask("remove-read-only-block-for-tiering [" + indexName + "]", new ClusterStateUpdateTask(Priority.URGENT) {
-            @Override
-            public ClusterState execute(ClusterState currentState) {
-                IndexMetadata indexMetadata = currentState.metadata().index(indexName);
-                if (indexMetadata == null) {
-                    return currentState;
+        clusterService.submitStateUpdateTask(
+            "remove-read-only-block-for-tiering [" + indexName + "]",
+            new ClusterStateUpdateTask(Priority.URGENT) {
+                @Override
+                public ClusterState execute(ClusterState currentState) {
+                    IndexMetadata indexMetadata = currentState.metadata().index(indexName);
+                    if (indexMetadata == null) {
+                        return currentState;
+                    }
+                    Settings.Builder indexSettingsBuilder = Settings.builder()
+                        .put(indexMetadata.getSettings())
+                        .put(IndexMetadata.INDEX_BLOCKS_READ_ONLY_ALLOW_DELETE_SETTING.getKey(), false);
+
+                    IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(indexMetadata)
+                        .settings(indexSettingsBuilder)
+                        .settingsVersion(1 + indexMetadata.getSettingsVersion());
+
+                    Metadata.Builder metadataBuilder = Metadata.builder(currentState.metadata()).put(indexMetadataBuilder);
+                    ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks());
+                    blocks.removeIndexBlock(indexName, IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK);
+
+                    return ClusterState.builder(currentState).metadata(metadataBuilder).blocks(blocks).build();
                 }
-                Settings.Builder indexSettingsBuilder = Settings.builder()
-                    .put(indexMetadata.getSettings())
-                    .put(IndexMetadata.INDEX_BLOCKS_READ_ONLY_ALLOW_DELETE_SETTING.getKey(), false);
 
-                IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(indexMetadata)
-                    .settings(indexSettingsBuilder)
-                    .settingsVersion(1 + indexMetadata.getSettingsVersion());
+                @Override
+                public void onFailure(String source, Exception e) {
+                    logger.warn(
+                        "Failed to remove read-only block for index [{}] after tiering failure. "
+                            + "Block can be removed manually via index settings.",
+                        indexName,
+                        e
+                    );
+                }
 
-                Metadata.Builder metadataBuilder = Metadata.builder(currentState.metadata()).put(indexMetadataBuilder);
-                ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks());
-                blocks.removeIndexBlock(indexName, IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK);
-
-                return ClusterState.builder(currentState).metadata(metadataBuilder).blocks(blocks).build();
+                @Override
+                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                    logger.info("Read-only block removed for index [{}] after tiering failure", indexName);
+                }
             }
-
-            @Override
-            public void onFailure(String source, Exception e) {
-                logger.warn("Failed to remove read-only block for index [{}] after tiering failure. "
-                    + "Block can be removed manually via index settings.", indexName, e);
-            }
-
-            @Override
-            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                logger.info("Read-only block removed for index [{}] after tiering failure", indexName);
-            }
-        });
+        );
     }
 
     /**

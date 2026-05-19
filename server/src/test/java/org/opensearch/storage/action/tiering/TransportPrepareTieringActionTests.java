@@ -192,10 +192,7 @@ public class TransportPrepareTieringActionTests extends OpenSearchTestCase {
             "Exception message should mention uncommitted ops",
             thrown.getMessage().contains("uncommitted translog ops after flush")
         );
-        assertTrue(
-            "Exception message should include the count",
-            thrown.getMessage().contains("5")
-        );
+        assertTrue("Exception message should include the count", thrown.getMessage().contains("5"));
         // Permit should still be released via finally block
         verify(mockPermit).close();
     }
@@ -224,21 +221,15 @@ public class TransportPrepareTieringActionTests extends OpenSearchTestCase {
         ShardRouting primary = TestShardRouting.newShardRouting(sid, "node1", true, ShardRoutingState.STARTED);
         ShardRouting replica = TestShardRouting.newShardRouting(sid, "node2", false, ShardRoutingState.STARTED);
 
-        IndexShardRoutingTable shardRoutingTable = new IndexShardRoutingTable.Builder(sid)
-            .addShard(primary)
-            .addShard(replica)
-            .build();
+        IndexShardRoutingTable shardRoutingTable = new IndexShardRoutingTable.Builder(sid).addShard(primary).addShard(replica).build();
 
-        IndexRoutingTable indexRoutingTable = new IndexRoutingTable.Builder(sid.getIndex())
-            .addIndexShard(shardRoutingTable)
-            .build();
+        IndexRoutingTable indexRoutingTable = new IndexRoutingTable.Builder(sid.getIndex()).addIndexShard(shardRoutingTable).build();
 
         RoutingTable routingTable = RoutingTable.builder().add(indexRoutingTable).build();
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).routingTable(routingTable).build();
 
         // Use the same predicate as TransportPrepareTieringAction.shards()
-        var shardsIterator = clusterState.routingTable()
-            .allShardsSatisfyingPredicate(new String[] { "test-index" }, ShardRouting::primary);
+        var shardsIterator = clusterState.routingTable().allShardsSatisfyingPredicate(new String[] { "test-index" }, ShardRouting::primary);
 
         int count = 0;
         for (ShardRouting shard : shardsIterator) {
