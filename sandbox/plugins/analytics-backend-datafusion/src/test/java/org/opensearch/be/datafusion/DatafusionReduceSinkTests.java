@@ -292,6 +292,11 @@ public class DatafusionReduceSinkTests extends OpenSearchTestCase {
             reduceDone.actionGet(5, TimeUnit.SECONDS);
 
             assertEquals("no rows should be delivered (cancel before any feed)", 0, downstream.totalRows);
+            // Regression: the cancel-during-REDUCING path used to leak outStream/session
+            // because close() set the base's `closed` flag, then reduce()'s finally called
+            // super.close() which short-circuited on that flag — closeImpl never ran a
+            // second time and teardown never happened. reduce() now calls closeImpl directly.
+            assertTrue("teardown must run on the cancel-during-REDUCING path", sink.torndown.get());
         } finally {
             runtimeHandle.close();
         }

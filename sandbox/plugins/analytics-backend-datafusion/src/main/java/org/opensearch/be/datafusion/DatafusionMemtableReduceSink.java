@@ -106,7 +106,7 @@ public final class DatafusionMemtableReduceSink extends AbstractDatafusionReduce
     @Override
     public void reduce(ActionListener<Void> listener) {
         assert reduceStarted.compareAndSet(false, true) : "reduce called more than once";
-        Throwable failure = null;
+        Exception failure = null;
         synchronized (feedLock) {
             if (closed) {
                 listener.onFailure(new IllegalStateException("sink closed before reduce"));
@@ -138,7 +138,7 @@ public final class DatafusionMemtableReduceSink extends AbstractDatafusionReduce
                     streamPtr = 0;
                     drainOutputIntoDownstream(outStream);
                 }
-            } catch (Throwable t) {
+            } catch (Exception t) {
                 failure = accumulate(failure, t);
             } finally {
                 failure = releaseBuffersInto(failure);
@@ -150,36 +150,36 @@ public final class DatafusionMemtableReduceSink extends AbstractDatafusionReduce
         if (failure == null) {
             listener.onResponse(null);
         } else {
-            listener.onFailure(failure instanceof Exception e ? e : new RuntimeException("reduce failed", failure));
+            listener.onFailure(failure);
         }
     }
 
     /** Releases any buffers reduce() didn't consume (cancel-before-reduce path), then session. */
     @Override
-    protected Throwable closeImpl() {
-        Throwable failure = releaseBuffersInto(null);
+    protected Exception closeImpl() {
+        Exception failure = releaseBuffersInto(null);
         if (preparedState == null) {
             try {
                 session.close();
-            } catch (Throwable t) {
+            } catch (Exception t) {
                 failure = accumulate(failure, t);
             }
         }
         return failure;
     }
 
-    private Throwable releaseBuffersInto(Throwable failure) {
+    private Exception releaseBuffersInto(Exception failure) {
         for (ArrowArray a : arrays) {
             try {
                 a.close();
-            } catch (Throwable t) {
+            } catch (Exception t) {
                 failure = accumulate(failure, t);
             }
         }
         for (ArrowSchema s : schemas) {
             try {
                 s.close();
-            } catch (Throwable t) {
+            } catch (Exception t) {
                 failure = accumulate(failure, t);
             }
         }

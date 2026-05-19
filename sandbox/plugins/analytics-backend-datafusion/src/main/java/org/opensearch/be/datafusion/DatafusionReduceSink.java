@@ -71,6 +71,9 @@ public class DatafusionReduceSink extends AbstractDatafusionReduceSink implement
 
     final AtomicReference<SinkState> state = new AtomicReference<>(SinkState.READY);
 
+    /** Guards the teardown body so concurrent + sequential close paths don't run it twice. */
+    final java.util.concurrent.atomic.AtomicBoolean torndown = new java.util.concurrent.atomic.AtomicBoolean();
+
     public DatafusionReduceSink(ExchangeSinkContext ctx, NativeRuntimeHandle runtimeHandle) {
         this(ctx, runtimeHandle, null);
     }
@@ -300,39 +303,43 @@ public class DatafusionReduceSink extends AbstractDatafusionReduceSink implement
      * <ul>
      *   <li>READY: external close (no drain in flight). Tear down inline.</li>
      *   <li>REDUCING: drain is parked. Fire {@code cancel_query} so it unwinds — the
-     *       in-flight {@link #reduce}'s {@code finally} will re-enter via {@code super.close()}
-     *       with state == DONE and do the actual teardown then.</li>
-     *   <li>DONE: this IS the {@code super.close()} call from {@link #reduce}'s finally
-     *       (or an idempotent second external close). Do the teardown.</li>
+     *       in-flight {@link #reduce}'s {@code finally} calls {@code closeImpl} directly
+     *       (NOT {@code super.close()}, because the base's {@code closed} flag was set by
+     *       this very call and would short-circuit re-entry) so teardown runs then.</li>
+     *   <li>DONE: this IS the {@code reduce()} finally call (or an idempotent second close).
+     *       Do the teardown; {@link #torndown} gates against double-running it.</li>
      * </ul>
      */
     @Override
-    protected Throwable closeImpl() {
+    protected Exception closeImpl() {
         SinkState before = state.compareAndExchange(SinkState.READY, SinkState.DONE);
         if (before == SinkState.REDUCING) {
             // Drain parked — dropping senders/outStream now would panic in drop_in_place.
             fireCancelQuery();
-            return null;  // reduce()'s finally re-enters with state=DONE; teardown runs then.
+            return null;  // reduce()'s finally calls closeImpl directly to tear down.
         }
-        // before == READY (we just won) or DONE (reduce's finally calling us) — both tear down.
-        Throwable failure = null;
+        // before == READY (we just won) or DONE (reduce's finally calling us, or duplicate close).
+        if (torndown.compareAndSet(false, true) == false) {
+            return null;
+        }
+        Exception failure = null;
         // 1. Signal EOF on every sender (ChildSink may have closed some already; idempotent).
         for (DatafusionPartitionSender sender : sendersByChildStageId.values()) {
             try {
                 sender.close();
-            } catch (Throwable t) {
+            } catch (Exception t) {
                 failure = accumulate(failure, t);
             }
         }
         try {
             outStream.close();
-        } catch (Throwable t) {
+        } catch (Exception t) {
             failure = accumulate(failure, t);
         }
         if (preparedState == null) {
             try {
                 session.close();
-            } catch (Throwable t) {
+            } catch (Exception t) {
                 failure = accumulate(failure, t);
             }
         }
@@ -359,23 +366,26 @@ public class DatafusionReduceSink extends AbstractDatafusionReduceSink implement
             return;
         }
         assert before == SinkState.READY : "reduce called more than once (state=" + before + ")";
-        Throwable failure = null;
+        Exception failure = null;
         try {
             drainOutputIntoDownstream(outStream);
-        } catch (Throwable t) {
-            failure = t;
+        } catch (Exception e) {
+            failure = e;
         } finally {
             state.set(SinkState.DONE);
             try {
-                super.close();
-            } catch (Throwable t) {
+                Exception closeFailure = closeImpl();
+                if (closeFailure != null) {
+                    failure = accumulate(failure, closeFailure);
+                }
+            } catch (Exception t) {
                 failure = accumulate(failure, t);
             }
         }
         if (failure == null) {
             listener.onResponse(null);
         } else {
-            listener.onFailure(failure instanceof Exception e ? e : new RuntimeException("drain failed", failure));
+            listener.onFailure(failure);
         }
     }
 

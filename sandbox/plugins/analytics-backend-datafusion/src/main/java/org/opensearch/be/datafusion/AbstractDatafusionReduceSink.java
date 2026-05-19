@@ -115,10 +115,10 @@ abstract class AbstractDatafusionReduceSink implements ReducingExchangeSink {
             }
             closed = true;
         }
-        Throwable failure = null;
+        Exception failure = null;
         try {
             failure = closeImpl();
-        } catch (Throwable t) {
+        } catch (Exception t) {
             failure = accumulate(failure, t);
         }
         rethrow(failure);
@@ -136,7 +136,7 @@ abstract class AbstractDatafusionReduceSink implements ReducingExchangeSink {
      * including {@link #session} (gate on {@link #preparedState} == null when the session is
      * owned externally). Return the first failure, or null.
      */
-    protected abstract Throwable closeImpl();
+    protected abstract Exception closeImpl();
 
     /**
      * Imports each batch from {@code outStream} into a fresh {@link VectorSchemaRoot} and
@@ -153,7 +153,7 @@ abstract class AbstractDatafusionReduceSink implements ReducingExchangeSink {
     }
 
     /** Returns {@code t} if {@code acc} is null; otherwise adds {@code t} as a suppressed of {@code acc}. */
-    protected static Throwable accumulate(Throwable acc, Throwable t) {
+    protected static Exception accumulate(Exception acc, Exception t) {
         if (acc == null) {
             return t;
         }
@@ -161,15 +161,12 @@ abstract class AbstractDatafusionReduceSink implements ReducingExchangeSink {
         return acc;
     }
 
-    private static void rethrow(Throwable failure) {
+    private static void rethrow(Exception failure) {
         if (failure == null) {
             return;
         }
         if (failure instanceof RuntimeException re) {
             throw re;
-        }
-        if (failure instanceof Error err) {
-            throw err;
         }
         throw new RuntimeException(failure);
     }
