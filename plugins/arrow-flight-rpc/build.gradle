@@ -65,6 +65,7 @@ dependencies {
 
   // Javassist for bytecode injection chaos testing
   internalClusterTestImplementation 'org.javassist:javassist:3.29.2-GA'
+  internalClusterTestImplementation project(':plugins:arrow-base')
   testFipsRuntimeOnly "org.bouncycastle:bc-fips:${versions.bouncycastle_jce}"
   testFipsRuntimeOnly "org.bouncycastle:bctls-fips:${versions.bouncycastle_tls}"
   testFipsRuntimeOnly "org.bouncycastle:bcutil-fips:${versions.bouncycastle_util}"

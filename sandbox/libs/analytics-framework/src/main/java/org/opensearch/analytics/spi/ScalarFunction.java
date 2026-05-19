@@ -41,6 +41,8 @@ public enum ScalarFunction {
     IN(Category.COMPARISON, SqlKind.IN),
     LIKE(Category.COMPARISON, SqlKind.LIKE),
     PREFIX(Category.COMPARISON, SqlKind.OTHER_FUNCTION),
+    EARLIEST(Category.COMPARISON, SqlKind.OTHER_FUNCTION),
+    LATEST(Category.COMPARISON, SqlKind.OTHER_FUNCTION),
 
     // ── Logical connectives ─────────────────────────────────────────
     AND(Category.SCALAR, SqlKind.AND),
