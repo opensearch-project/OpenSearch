@@ -94,7 +94,9 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         ScalarFunction.MINUS,
         ScalarFunction.TIMES,
         ScalarFunction.DIVIDE,
-        ScalarFunction.MOD
+        ScalarFunction.MOD,
+        ScalarFunction.EARLIEST,
+        ScalarFunction.LATEST
     );
 
     // Project-side scalar functions DataFusion can evaluate natively. Each entry corresponds to a
