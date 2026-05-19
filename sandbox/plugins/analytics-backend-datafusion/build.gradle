@@ -84,11 +84,6 @@ dependencies {
 
   calciteCompile "com.google.guava:guava:${versions.guava}"
   calciteTestCompile "com.google.guava:guava:${versions.guava}"
-  // Avatica's TimeUnit enum is needed by EarliestLatestAdapter to construct
-  // canonical SqlIntervalQualifier instances (the String-arg ctor falls back to
-  // INTERVAL_SECOND for "DAY"/"MONTH"). Provided at runtime by calcite-core.
-  compileOnly "org.apache.calcite.avatica:avatica-core:1.27.0"
-  testCompileOnly "org.apache.calcite.avatica:avatica-core:1.27.0"
 
   // Planner + Lucene backend for end-to-end delegation unit tests
   testImplementation project(':sandbox:plugins:analytics-engine')
