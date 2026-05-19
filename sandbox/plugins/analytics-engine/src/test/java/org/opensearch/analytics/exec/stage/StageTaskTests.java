@@ -8,6 +8,8 @@
 
 package org.opensearch.analytics.exec.stage;
 
+import org.opensearch.analytics.exec.stage.coordinator.LocalStageTask;
+import org.opensearch.analytics.exec.stage.shard.ShardStageTask;
 import org.opensearch.analytics.planner.dag.ExecutionTarget;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -29,9 +31,12 @@ public class StageTaskTests extends OpenSearchTestCase {
         assertEquals(StageTaskState.CREATED, task.state());
     }
 
-    public void testLocalStageTaskCarriesRunnableBody() {
+    public void testLocalStageTaskCarriesListenerConsumerBody() {
         AtomicBoolean ran = new AtomicBoolean(false);
-        Runnable body = () -> ran.set(true);
+        java.util.function.Consumer<org.opensearch.core.action.ActionListener<Void>> body = listener -> {
+            ran.set(true);
+            listener.onResponse(null);
+        };
         LocalStageTask task = new LocalStageTask(new StageTaskId(9, 0), body);
         assertSame(body, task.body());
         assertEquals(new StageTaskId(9, 0), task.id());
@@ -43,7 +48,7 @@ public class StageTaskTests extends OpenSearchTestCase {
     public void testStateMachineSharedAcrossVariants() {
         for (StageTask task : new StageTask[] {
             new ShardStageTask(new StageTaskId(0, 0), newShardTarget()),
-            new LocalStageTask(new StageTaskId(0, 0), () -> {}) }) {
+            new LocalStageTask(new StageTaskId(0, 0), l -> l.onResponse(null)) }) {
             assertTrue(task.transitionTo(StageTaskState.RUNNING));
             assertTrue("startedAtMs stamped on RUNNING", task.startedAtMs() > 0);
             assertEquals(0L, task.finishedAtMs());

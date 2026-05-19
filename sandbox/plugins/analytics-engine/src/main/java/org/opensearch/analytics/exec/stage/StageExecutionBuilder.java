@@ -13,6 +13,10 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.analytics.exec.AnalyticsSearchTransportService;
 import org.opensearch.analytics.exec.QueryContext;
 import org.opensearch.analytics.exec.RowProducingSink;
+import org.opensearch.analytics.exec.stage.coordinator.LocalComputeStageExecutionFactory;
+import org.opensearch.analytics.exec.stage.coordinator.PassThroughStageExecution;
+import org.opensearch.analytics.exec.stage.coordinator.ReduceStageExecutionFactory;
+import org.opensearch.analytics.exec.stage.shard.ShardFragmentStageExecutionFactory;
 import org.opensearch.analytics.planner.dag.Stage;
 import org.opensearch.analytics.planner.dag.StageExecutionType;
 import org.opensearch.analytics.spi.DataConsumer;
@@ -55,7 +59,7 @@ public class StageExecutionBuilder {
     public StageExecutionBuilder(ClusterService clusterService, AnalyticsSearchTransportService dispatcher) {
         this.factories = new HashMap<>();
         registerFactory(StageExecutionType.SHARD_FRAGMENT, new ShardFragmentStageExecutionFactory(clusterService, dispatcher));
-        registerFactory(StageExecutionType.COORDINATOR_REDUCE, new LocalStageExecutionFactory());
+        registerFactory(StageExecutionType.COORDINATOR_REDUCE, new ReduceStageExecutionFactory());
         registerFactory(StageExecutionType.LOCAL_PASSTHROUGH, (stage, sink, config) -> new PassThroughStageExecution(stage, config, sink));
         registerFactory(StageExecutionType.LOCAL_COMPUTE, new LocalComputeStageExecutionFactory());
     }
