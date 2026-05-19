@@ -140,7 +140,16 @@ public class MockDataFusionBackend extends MockBackend implements SearchBackEndP
     protected Set<WindowCapability> windowCapabilities() {
         return Set.of(
             new WindowCapability(
-                Set.of(WindowFunction.SUM, WindowFunction.AVG, WindowFunction.COUNT, WindowFunction.MIN, WindowFunction.MAX),
+                Set.of(
+                    WindowFunction.SUM,
+                    WindowFunction.AVG,
+                    WindowFunction.COUNT,
+                    WindowFunction.MIN,
+                    WindowFunction.MAX,
+                    // ROW_NUMBER backs PPL `top` / `rare` / `dedup` lowering
+                    // (ROW_NUMBER() OVER (PARTITION BY ... ORDER BY ...)).
+                    WindowFunction.ROW_NUMBER
+                ),
                 Set.of(PARQUET_DATA_FORMAT)
             )
         );

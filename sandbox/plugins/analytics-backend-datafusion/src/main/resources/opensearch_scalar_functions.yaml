@@ -612,6 +612,36 @@ scalar_functions:
         variadic: { min: 1 }
         return: string
 
+  - name: "map_extract"
+    description: >-
+      Return the list of values whose key matches `key` in `value`. DataFusion's
+      native `map_extract` returns a list because the underlying map permits
+      duplicate keys; the analytics-engine ITEM adapter wraps every
+      `map_extract` call in `array_element(..., 1)` to project back to a
+      scalar. Signature uses Substrait type variables (`any1`/`any2`) so a
+      single declaration covers every Calcite MAP variant — first caller is
+      PPL `spath`'s JSON_EXTRACT_ALL map (`map<string, string?>`).
+    impls:
+      - args: [{ value: "map<any1, any2>", name: "value" }, { value: any1, name: "key" }]
+        return: "list<any2>"
+
+  - name: "json_extract_all"
+    description: >-
+      Flatten a JSON document into a Map<string, string?> keyed by
+      dot-separated path. Objects flatten to dotted keys (`user.name`); arrays
+      append `{}` (`tags{}`); duplicate logical keys merge into a Java
+      `List.toString()` rendering (`[a, b, c]`); JSON nulls render as the
+      literal string `"null"`. Top-level scalar / null / empty / whitespace
+      input → NULL map; malformed JSON → empty map. Parity with the legacy
+      v2 / Calcite `JsonExtractAllFunctionImpl`. Return type is declared as
+      `any1` here so substrait's extension parser does not need a map-type
+      grammar — the actual call-site RelDataType (MAP<VARCHAR, VARCHAR>) is
+      what isthmus emits into the substrait IR, and the DataFusion-side UDF
+      registers its own concrete return type (`Map<Utf8, Utf8>`).
+    impls:
+      - args: [{ value: string, name: "value" }]
+        return: any1
+
   - name: "json_delete"
     description: "Remove PPL-path matches from a JSON document; missing paths are no-ops."
     impls:
@@ -909,3 +939,110 @@ scalar_functions:
           - { value: "any4", name: "start_param" }
           - { value: "any5", name: "end_param" }
         return: any1
+
+  # num(x) — strict numeric parse with comma-strip + leading-number-plus-unit-suffix fallback.
+  - name: "num"
+    description: "Parse a string to a double. Accepts comma-separated thousands; accepts a numeric value followed by a non-digit unit suffix (returning only the numeric head). Returns NULL for letter-prefixed input or when the input can't be parsed."
+    impls:
+      - args: [{ name: value, value: "string" }]
+        nullability: DECLARED_OUTPUT
+        return: fp64
+      - args: [{ name: value, value: "varchar<L1>" }]
+        nullability: DECLARED_OUTPUT
+        return: fp64
+
+  # auto(x) — num() semantics plus memory-unit multiplier (k/m/g → KB).
+  - name: "auto"
+    description: "Auto-convert: first try memory-unit parse (e.g. '1.5g' → 1 572 864 KB), then fall back to num() parsing. Returns NULL when neither path accepts the input."
+    impls:
+      - args: [{ name: value, value: "string" }]
+        nullability: DECLARED_OUTPUT
+        return: fp64
+      - args: [{ name: value, value: "varchar<L1>" }]
+        nullability: DECLARED_OUTPUT
+        return: fp64
+
+  # memk(x) — memory-unit conversion only.
+  - name: "memk"
+    description: "Parse a memory-size string (e.g. '500k', '1.5m', '2g') and return the equivalent size in kilobytes. 'k' / bare number → value as KB, 'm' → * 1024, 'g' → * 1024 * 1024. Returns NULL on unmatched input."
+    impls:
+      - args: [{ name: value, value: "string" }]
+        nullability: DECLARED_OUTPUT
+        return: fp64
+      - args: [{ name: value, value: "varchar<L1>" }]
+        nullability: DECLARED_OUTPUT
+        return: fp64
+
+  # rmcomma(x) — strip commas then parse; NULL if letters are present.
+  - name: "rmcomma"
+    description: "Strip every comma from the input and parse the result as a double. Returns NULL when the input contains any letter or can't be parsed after comma removal."
+    impls:
+      - args: [{ name: value, value: "string" }]
+        nullability: DECLARED_OUTPUT
+        return: fp64
+      - args: [{ name: value, value: "varchar<L1>" }]
+        nullability: DECLARED_OUTPUT
+        return: fp64
+
+  # rmunit(x) — extract the leading number token and parse.
+  - name: "rmunit"
+    description: "Extract the leading numeric token from the input (optional sign, digits, optional decimal, optional exponent) and parse as a double. Returns NULL when no leading number is present."
+    impls:
+      - args: [{ name: value, value: "string" }]
+        nullability: DECLARED_OUTPUT
+        return: fp64
+      - args: [{ name: value, value: "varchar<L1>" }]
+        nullability: DECLARED_OUTPUT
+        return: fp64
+
+  # dur2sec(x) — "[D+]HH:MM:SS" duration → total seconds.
+  - name: "dur2sec"
+    description: "Convert a duration string of the form [D+]HH:MM:SS to total seconds. Returns NULL on malformed input or on ranges outside {hours<24, minutes<60, seconds<60}."
+    impls:
+      - args: [{ name: value, value: "string" }]
+        nullability: DECLARED_OUTPUT
+        return: fp64
+      - args: [{ name: value, value: "varchar<L1>" }]
+        nullability: DECLARED_OUTPUT
+        return: fp64
+
+  # mstime(x) — "[MM:]SS.SSS" → total seconds.
+  - name: "mstime"
+    description: "Convert a time-of-day string of the form [MM:]SS.SSS to total seconds (double). Minute portion optional; millisecond portion optional, zero-padded to three digits. Returns NULL when seconds >= 60 or on malformed input."
+    impls:
+      - args: [{ name: value, value: "string" }]
+        nullability: DECLARED_OUTPUT
+        return: fp64
+      - args: [{ name: value, value: "varchar<L1>" }]
+        nullability: DECLARED_OUTPUT
+        return: fp64
+
+  # ctime(value, format) — UNIX seconds → formatted string (strftime).
+  - name: "ctime"
+    description: "Render a UNIX epoch (seconds) value as a formatted time string using strftime specifiers."
+    impls:
+      - args:
+          - { name: value, value: "string" }
+          - { name: format, value: "string" }
+        nullability: DECLARED_OUTPUT
+        return: string
+      - args:
+          - { name: value, value: "varchar<L1>" }
+          - { name: format, value: "varchar<L2>" }
+        nullability: DECLARED_OUTPUT
+        return: string
+
+  # mktime(value, format) — formatted time string → UNIX seconds (double).
+  - name: "mktime"
+    description: "Parse a formatted time string back to UNIX epoch seconds (double). Numeric epoch inputs pass through unchanged."
+    impls:
+      - args:
+          - { name: value, value: "string" }
+          - { name: format, value: "string" }
+        nullability: DECLARED_OUTPUT
+        return: fp64
+      - args:
+          - { name: value, value: "varchar<L1>" }
+          - { name: format, value: "varchar<L2>" }
+        nullability: DECLARED_OUTPUT
+        return: fp64
