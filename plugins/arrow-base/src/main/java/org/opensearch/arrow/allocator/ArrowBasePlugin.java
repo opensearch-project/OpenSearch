@@ -8,8 +8,6 @@
 
 package org.opensearch.arrow.allocator;
 
-import org.opensearch.arrow.memory.ArrowAllocatorService;
-import org.opensearch.arrow.memory.DefaultArrowAllocatorService;
 import org.opensearch.arrow.spi.NativeAllocatorPoolConfig;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.service.ClusterService;
@@ -171,7 +169,6 @@ public class ArrowBasePlugin extends Plugin implements ExtensiblePlugin {
     );
 
     private volatile ArrowNativeAllocator allocator;
-    private DefaultArrowAllocatorService allocatorService;
 
     @Override
     public Collection<Object> createComponents(
@@ -204,12 +201,8 @@ public class ArrowBasePlugin extends Plugin implements ExtensiblePlugin {
         ClusterSettings cs = clusterService.getClusterSettings();
         registerSettingsUpdateConsumers(cs, allocator);
 
-        // ArrowBasePlugin component: node-level Arrow allocator service for cross-plugin zero-copy
-        this.allocatorService = new DefaultArrowAllocatorService(allocator);
-
         List<Object> components = new ArrayList<>();
         components.add(allocator);
-        components.add(allocatorService);
         return components;
     }
 
@@ -219,7 +212,6 @@ public class ArrowBasePlugin extends Plugin implements ExtensiblePlugin {
             @Override
             protected void configure() {
                 bind(ArrowNativeAllocator.class).toInstance(allocator);
-                bind(ArrowAllocatorService.class).toInstance(allocatorService);
             }
         });
     }
@@ -332,9 +324,6 @@ public class ArrowBasePlugin extends Plugin implements ExtensiblePlugin {
 
     @Override
     public void close() throws IOException {
-        if (allocatorService != null) {
-            allocatorService.close();
-        }
         if (allocator != null) {
             allocator.close();
             allocator = null;

@@ -9,7 +9,7 @@
 package org.opensearch.arrow.transport;
 
 import org.apache.arrow.vector.VectorSchemaRoot;
-import org.opensearch.arrow.memory.ArrowAllocatorService;
+import org.opensearch.arrow.allocator.ArrowNativeAllocator;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.core.action.ActionResponse;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -47,18 +47,19 @@ import java.io.IOException;
  *
  * <p><b>Allocator rules:</b>
  * <ul>
- *   <li><b>Send side:</b> Use a child of {@link ArrowAllocatorService}.
- *       All allocators must share the same root so zero-copy transfers pass Arrow's
- *       {@code AllocationManager} associate check.</li>
+ *   <li><b>Send side:</b> Source the allocator from one of the framework's named pools via
+ *       {@link ArrowNativeAllocator#getPoolAllocator(String)} (e.g. {@code POOL_FLIGHT},
+ *       {@code POOL_INGEST}, {@code POOL_QUERY}). All allocators must share the same root so
+ *       zero-copy transfers pass Arrow's {@code AllocationManager} associate check.</li>
  *   <li><b>Send side:</b> Allocators must outlive the transport stream — some transports
  *       (e.g., gRPC zero-copy) retain buffer references beyond stream completion. Do not
  *       create and close a child allocator per request.</li>
  *   <li><b>Receive side:</b> The transport transfers vectors from its own allocator into
  *       the response. The consumer can then transfer them into its own allocator — which
- *       must also be a child of {@link ArrowAllocatorService}.</li>
+ *       must also descend from one of the framework's named pools.</li>
  * </ul>
  *
- * <p><b>Cross-plugin footgun:</b> bypassing {@link ArrowAllocatorService}
+ * <p><b>Cross-plugin footgun:</b> bypassing the framework's named pools
  * (e.g. {@code new RootAllocator()} inside a plugin) does not fail fast — allocation and
  * single-plugin use still work. But any zero-copy handoff to another plugin's buffers will trip
  * Arrow's {@code AllocationManager.associate()} check, because roots are compared by identity,

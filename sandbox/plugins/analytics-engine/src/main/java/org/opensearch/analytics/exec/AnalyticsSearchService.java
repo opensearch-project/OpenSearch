@@ -24,7 +24,6 @@ import org.opensearch.analytics.spi.FragmentInstructionHandler;
 import org.opensearch.analytics.spi.FragmentInstructionHandlerFactory;
 import org.opensearch.analytics.spi.InstructionNode;
 import org.opensearch.arrow.allocator.ArrowNativeAllocator;
-import org.opensearch.arrow.memory.ArrowAllocatorService;
 import org.opensearch.arrow.spi.NativeAllocatorListener;
 import org.opensearch.arrow.spi.NativeAllocatorPoolConfig;import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
@@ -48,11 +47,12 @@ import java.util.Map;
  * <p>Does NOT hold {@code IndicesService} — receives an already-resolved
  * {@link IndexShard} from the transport action.
  *
- * <p>Owns a service-lifetime {@link BufferAllocator} shared by every fragment, obtained as a child of the
- * node-level root via {@link ArrowAllocatorService}. One allocator per service means memory accounting is
- * reported at the service level. For the streaming path, Arrow Flight's outbound handler co-locates its
- * transfer target on the same root (see {@code FlightOutboundHandler#processBatchTask}), keeping transfers
- * same-root and avoiding the known cross-allocator bug with foreign-backed buffers from the C Data Interface.
+ * <p>Owns a service-lifetime {@link BufferAllocator} shared by every fragment, obtained as a child of
+ * the framework's QUERY pool via {@link ArrowNativeAllocator#getPoolAllocator(String)}. One allocator
+ * per service means memory accounting is reported at the service level. For the streaming path, Arrow
+ * Flight's outbound handler co-locates its transfer target on the same root (see
+ * {@code FlightOutboundHandler#processBatchTask}), keeping transfers same-root and avoiding the known
+ * cross-allocator bug with foreign-backed buffers from the C Data Interface.
  *
  * @opensearch.internal
  */
@@ -68,25 +68,22 @@ public class AnalyticsSearchService implements AutoCloseable {
 
     public AnalyticsSearchService(
         Map<String, AnalyticsSearchBackendPlugin> backends,
-        ArrowAllocatorService allocatorService,
         ArrowNativeAllocator nativeAllocator
     ) {
-        this(backends, List.of(), allocatorService, nativeAllocator, null);
+        this(backends, List.of(), nativeAllocator, null);
     }
 
     public AnalyticsSearchService(
         Map<String, AnalyticsSearchBackendPlugin> backends,
-        ArrowAllocatorService allocatorService,
         ArrowNativeAllocator nativeAllocator,
         NamedWriteableRegistry namedWriteableRegistry
     ) {
-        this(backends, List.of(), allocatorService, nativeAllocator, namedWriteableRegistry);
+        this(backends, List.of(), nativeAllocator, namedWriteableRegistry);
     }
 
     public AnalyticsSearchService(
         Map<String, AnalyticsSearchBackendPlugin> backends,
         List<AnalyticsOperationListener> listeners,
-        ArrowAllocatorService allocatorService,
         ArrowNativeAllocator nativeAllocator,
         NamedWriteableRegistry namedWriteableRegistry
     ) {

@@ -23,7 +23,6 @@ import org.opensearch.arrow.allocator.ArrowNativeAllocator;
 import org.opensearch.arrow.flight.bootstrap.ServerConfig;
 import org.opensearch.arrow.flight.bootstrap.tls.SslContextProvider;
 import org.opensearch.arrow.flight.stats.FlightStatsCollector;
-import org.opensearch.arrow.memory.ArrowAllocatorService;
 import org.opensearch.arrow.spi.NativeAllocatorListener;
 import org.opensearch.arrow.spi.NativeAllocatorPoolConfig;
 import org.opensearch.cluster.node.DiscoveryNode;
@@ -105,7 +104,6 @@ class FlightTransport extends TcpTransport {
 
     private final NamedWriteableRegistry namedWriteableRegistry;
     private final FlightStatsCollector statsCollector;
-    private final ArrowAllocatorService allocatorService;
     private final ArrowNativeAllocator nativeAllocator;
     private final FlightTransportConfig config = new FlightTransportConfig();
 
@@ -124,7 +122,6 @@ class FlightTransport extends TcpTransport {
         Tracer tracer,
         SslContextProvider sslContextProvider,
         FlightStatsCollector statsCollector,
-        ArrowAllocatorService allocatorService,
         ArrowNativeAllocator nativeAllocator
     ) {
         super(settings, version, threadPool, pageCacheRecycler, circuitBreakerService, namedWriteableRegistry, networkService, tracer);
@@ -133,7 +130,6 @@ class FlightTransport extends TcpTransport {
         this.publishHosts = SETTING_FLIGHT_PUBLISH_HOST.get(settings).toArray(new String[0]);
         this.sslContextProvider = sslContextProvider;
         this.statsCollector = statsCollector;
-        this.allocatorService = allocatorService;
         this.nativeAllocator = nativeAllocator;
         this.bossEventLoopGroup = createEventLoopGroup("os-grpc-boss-ELG", 1);
         this.workerEventLoopGroup = createEventLoopGroup("os-grpc-worker-ELG", Runtime.getRuntime().availableProcessors());

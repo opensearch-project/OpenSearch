@@ -10,13 +10,10 @@ package org.opensearch.arrow.flight.transport;
 
 import org.apache.arrow.flight.FlightClient;
 import org.apache.arrow.flight.Location;
-import org.apache.arrow.memory.BufferAllocator;
-import org.apache.arrow.memory.RootAllocator;
 import org.opensearch.Version;
 import org.opensearch.arrow.allocator.ArrowNativeAllocator;
 import org.opensearch.arrow.flight.bootstrap.ServerConfig;
 import org.opensearch.arrow.flight.stats.FlightStatsCollector;
-import org.opensearch.arrow.memory.ArrowAllocatorService;
 import org.opensearch.arrow.spi.NativeAllocatorPoolConfig;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.network.NetworkService;
@@ -97,29 +94,11 @@ public abstract class FlightTransportTestBase extends OpenSearchTestCase {
         namedWriteableRegistry = new NamedWriteableRegistry(Collections.emptyList());
         statsCollector = new FlightStatsCollector();
 
-        // FlightTransport now sources its allocator from the unified native allocator framework's
-        // flight pool. Construct one here so the static instance() is wired before flightTransport
-        // starts; tearDown closes it to reset the singleton between tests.
+        // FlightTransport sources its allocator from the framework's FLIGHT pool. Construct one
+        // here so the test has a usable allocator; tearDown closes it.
         nativeAllocator = new ArrowNativeAllocator(Long.MAX_VALUE);
         nativeAllocator.getOrCreatePool(NativeAllocatorPoolConfig.POOL_FLIGHT, 0L, Long.MAX_VALUE);
 
-        RootAllocator testRoot = new RootAllocator(Long.MAX_VALUE);
-        ArrowAllocatorService testAllocatorService = new ArrowAllocatorService() {
-            @Override
-            public BufferAllocator newChildAllocator(String name, long limit) {
-                return testRoot.newChildAllocator(name, 0, limit);
-            }
-
-            @Override
-            public long getAllocatedMemory() {
-                return testRoot.getAllocatedMemory();
-            }
-
-            @Override
-            public long getPeakMemoryAllocation() {
-                return testRoot.getPeakMemoryAllocation();
-            }
-        };
         flightTransport = new FlightTransport(
             settings,
             Version.CURRENT,
@@ -131,7 +110,6 @@ public abstract class FlightTransportTestBase extends OpenSearchTestCase {
             mock(Tracer.class),
             null,
             statsCollector,
-            testAllocatorService,
             nativeAllocator
         );
         flightTransport.start();
