@@ -124,8 +124,8 @@ public class QueryExecution {
     }
 
     private void logAllocatorState() {
-        BufferAllocator allocator = config.getAllocatorIfCreated();
-        if (allocator == null) return;
+        if (!config.ownsAllocator()) return;
+        BufferAllocator allocator = config.bufferAllocator();
         long allocated = allocator.getAllocatedMemory();
         if (allocated > 0) {
             logger.warn("[query-{}] Arrow allocator closing with {}B still allocated — potential leak", config.queryId(), allocated);

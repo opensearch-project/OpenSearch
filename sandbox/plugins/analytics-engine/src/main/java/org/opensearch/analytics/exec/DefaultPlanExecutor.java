@@ -8,6 +8,7 @@
 
 package org.opensearch.analytics.exec;
 
+import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.vector.VectorSchemaRoot;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.metadata.JaninoRelMetadataProvider;
@@ -74,7 +75,9 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
     private final Executor searchExecutor;
     private final TaskManager taskManager;
     private final NodeClient client;
-    private final ArrowAllocatorService allocatorService;
+    // TODO: close on shutdown — currently arrow-base's root.close() will warn about this
+    // outstanding child. Consider wrapping in a Guice-bound type owned by AnalyticsPlugin.
+    private final BufferAllocator coordinatorAllocator;
     private volatile long perQueryBufferLimit;
 
     @Inject
@@ -98,9 +101,10 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
         this.taskManager = transportService.getTaskManager();
         this.client = client;
         this.scheduler = scheduler;
-        this.allocatorService = allocatorService;
+        this.coordinatorAllocator = allocatorService.newChildAllocator("coordinator", Long.MAX_VALUE);
         this.perQueryBufferLimit = AnalyticsPlugin.COORDINATOR_BUFFER_LIMIT.get(clusterService.getSettings());
-        clusterService.getClusterSettings().addSettingsUpdateConsumer(AnalyticsPlugin.COORDINATOR_BUFFER_LIMIT, v -> perQueryBufferLimit = v);
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(AnalyticsPlugin.COORDINATOR_BUFFER_LIMIT, v -> perQueryBufferLimit = v);
     }
 
     @Override
@@ -148,7 +152,23 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
             "analytics_query",
             new AnalyticsQueryTaskRequest(dag.queryId(), null)
         );
-        final QueryContext context = new QueryContext(dag, searchExecutor, queryTask, perQueryBufferLimit, allocatorService);
+        final BufferAllocator queryAllocator;
+        final boolean ownsAllocator;
+        if (perQueryBufferLimit <= 0) {
+            queryAllocator = coordinatorAllocator;
+            ownsAllocator = false;
+        } else {
+            queryAllocator = coordinatorAllocator.newChildAllocator("query-" + dag.queryId(), 0, perQueryBufferLimit);
+            ownsAllocator = true;
+        }
+        logger.debug("[query-{}] Arrow allocator created, limit={}B", dag.queryId(), perQueryBufferLimit);
+        final QueryContext context;
+        try {
+            context = new QueryContext(dag, searchExecutor, queryTask, queryAllocator, ownsAllocator);
+        } catch (Exception e) {
+            if (ownsAllocator) queryAllocator.close();
+            throw e;
+        }
 
         ActionListener<Iterable<VectorSchemaRoot>> batchesListener = ActionListener.runAfter(
             ActionListener.wrap(batches -> listener.onResponse(batchesToRows(batches)), listener::onFailure),
