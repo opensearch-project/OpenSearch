@@ -30,6 +30,7 @@ import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Module;
 import org.opensearch.common.inject.TypeLiteral;
+import org.opensearch.common.settings.Setting;
 import org.opensearch.core.action.ActionResponse;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
@@ -61,6 +62,14 @@ import java.util.function.Supplier;
 public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionPlugin {
 
     private static final Logger logger = LogManager.getLogger(AnalyticsPlugin.class);
+
+    public static final Setting<Long> COORDINATOR_BUFFER_LIMIT = Setting.longSetting(
+        "analytics.coordinator.buffer_limit",
+        256L * 1024 * 1024,
+        0L,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
 
     /**
      * Creates a new analytics engine hub plugin.
@@ -127,6 +136,11 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
         return List.of(new ActionHandler<>(AnalyticsQueryAction.INSTANCE, DefaultPlanExecutor.class));
+    }
+
+    @Override
+    public List<Setting<?>> getSettings() {
+        return List.of(COORDINATOR_BUFFER_LIMIT);
     }
 
     @Override
