@@ -127,5 +127,4 @@ public class CompositeWriterTests extends OpenSearchTestCase {
 
         writer.close();
     }
-
 }

@@ -13,7 +13,7 @@ import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.dataformat.FileInfos;
 import org.opensearch.index.engine.dataformat.WriteResult;
 import org.opensearch.index.engine.dataformat.Writer;
-import org.opensearch.index.engine.exec.WriterFileSet;
+import org.opensearch.index.engine.exec.MonoFileWriterSet;
 import org.opensearch.index.store.FormatChecksumStrategy;
 import org.opensearch.parquet.ParquetSettings;
 import org.opensearch.parquet.bridge.ParquetFileMetadata;
@@ -109,13 +109,13 @@ public class ParquetWriter implements Writer<ParquetDocumentInput> {
             checksumStrategy.registerChecksum(fileName, metadata.crc32(), writerGeneration);
         }
 
-        WriterFileSet writerFileSet = WriterFileSet.builder()
-            .directory(filePath.getParent().toAbsolutePath())
-            .writerGeneration(writerGeneration)
-            .addFile(fileName)
-            .addNumRows(metadata.numRows())
-            .build();
-        return FileInfos.builder().putWriterFileSet(dataFormat, writerFileSet).build();
+        MonoFileWriterSet monoFileSet = MonoFileWriterSet.of(
+            filePath.getParent().toAbsolutePath(),
+            writerGeneration,
+            fileName,
+            metadata.numRows()
+        );
+        return FileInfos.builder().putWriterFileSet(dataFormat, monoFileSet).build();
     }
 
     @Override

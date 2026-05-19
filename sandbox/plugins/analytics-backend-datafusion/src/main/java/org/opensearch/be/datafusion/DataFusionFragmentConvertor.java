@@ -33,7 +33,10 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.analytics.planner.rel.OpenSearchStageInputScan;
 import org.opensearch.analytics.spi.DelegatedPredicateFunction;
+import org.opensearch.analytics.spi.DelegationPossibleFunction;
 import org.opensearch.analytics.spi.FragmentConvertor;
+import org.opensearch.be.datafusion.planner.adapter.NumericConversionFunctionAdapter;
+import org.opensearch.be.datafusion.planner.adapter.TimeConversionFunctionAdapter;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -65,9 +68,9 @@ import io.substrait.relation.Sort;
  *
  * <p>Dispatch summary:
  * <ul>
- *   <li>{@link #convertShardScanFragment(String, RelNode)} and
- *       {@link #convertFinalAggFragment(RelNode)} — full-fragment conversions via
- *       {@link #convertToSubstrait(RelNode)}.</li>
+ *   <li>{@link #convertFragment(RelNode)} — full-fragment conversion via
+ *       {@link #convertToSubstrait(RelNode)}, with StageInputScan rewriting
+ *       for reduce-stage fragments.</li>
  *   <li>{@link #attachPartialAggOnTop(RelNode, byte[])} and
  *       {@link #attachFragmentOnTop(RelNode, byte[])} — convert the wrapping
  *       operator standalone, then rewire its input to the decoded inner plan's
@@ -88,7 +91,7 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
      *   <li>{@link DelegatedPredicateFunction} → {@code delegated_predicate} (delegation to a peer backend).</li>
      *   <li>{@link SqlLibraryOperators#ILIKE} → {@code ilike} (case-insensitive LIKE; resolved by
      *       DataFusion's substrait consumer to a case-insensitive {@code LikeExpr}).</li>
-     *   <li>{@link SqlLibraryOperators#DATE_PART} → {@code date_part} (target of YearAdapter's rewrite).</li>
+     *   <li>{@link SqlLibraryOperators#DATE_PART} → {@code date_part} (target of DatePartAdapters' rewrite).</li>
      *   <li>{@link ConvertTzAdapter#LOCAL_CONVERT_TZ_OP} → {@code convert_tz} (Rust UDF).</li>
      *   <li>{@link UnixTimestampAdapter#LOCAL_TO_UNIXTIME_OP} → {@code to_unixtime} (DF native).</li>
      *   <li>{@link JsonFunctionAdapters.JsonAppendAdapter#LOCAL_JSON_APPEND_OP} →
@@ -136,12 +139,18 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
      */
     private static final List<FunctionMappings.Sig> ADDITIONAL_SCALAR_SIGS = List.of(
         FunctionMappings.s(DelegatedPredicateFunction.FUNCTION, DelegatedPredicateFunction.NAME),
+        FunctionMappings.s(DelegationPossibleFunction.FUNCTION, DelegationPossibleFunction.NAME),
         FunctionMappings.s(SqlStdOperatorTable.ASCII, "ascii"),
         FunctionMappings.s(SqlStdOperatorTable.CHAR_LENGTH, "length"),
         FunctionMappings.s(SqlLibraryOperators.CONCAT_FUNCTION, "concat"),
         FunctionMappings.s(SqlLibraryOperators.CONCAT_WS, "concat_ws"),
         FunctionMappings.s(SqlLibraryOperators.ILIKE, "ilike"),
         FunctionMappings.s(SqlLibraryOperators.DATE_PART, "date_part"),
+        // Engine-output cast rewrite target — see DatetimeOutputCastRewriter (issue #5420).
+        // Routes Calcite's TO_CHAR call to DataFusion's native `to_char` so PPL's
+        // documented space-separator timestamp output is preserved on the AE path.
+        FunctionMappings.s(SqlLibraryOperators.TO_CHAR, "to_char"),
+        FunctionMappings.s(SqlLibraryOperators.DATE_TRUNC, "date_trunc"),
         FunctionMappings.s(ConvertTzAdapter.LOCAL_CONVERT_TZ_OP, "convert_tz"),
         FunctionMappings.s(UnixTimestampAdapter.LOCAL_TO_UNIXTIME_OP, "to_unixtime"),
         // Niladic ops from DateTimeAdapters — each maps 1:1 to a DF builtin.
@@ -154,6 +163,9 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         FunctionMappings.s(DateTimeAdapters.LOCAL_DATE_OP, "to_date"),
         // PPL datetime(expr) → DF builtin to_timestamp (DatetimeAdapter renames only).
         FunctionMappings.s(DateTimeAdapters.LOCAL_TO_TIMESTAMP_OP, "to_timestamp"),
+        // date_trunc(granularity, ts) → DF builtin date_trunc. Used by
+        // EarliestFunctionAdapter to express PPL's `@<unit>` snap chunks symbolically.
+        FunctionMappings.s(DateTimeAdapters.LOCAL_DATE_TRUNC_OP, "date_trunc"),
         // PPL datetime + format functions → Rust UDFs registered in rust/src/udf/mod.rs.
         FunctionMappings.s(RustUdfDateTimeAdapters.LOCAL_EXTRACT_OP, "extract"),
         FunctionMappings.s(RustUdfDateTimeAdapters.LOCAL_FROM_UNIXTIME_OP, "from_unixtime"),
@@ -181,6 +193,15 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         FunctionMappings.s(RexExtractMultiAdapter.LOCAL_REX_EXTRACT_MULTI_OP, "rex_extract_multi"),
         FunctionMappings.s(RexOffsetAdapter.LOCAL_REX_OFFSET_OP, "rex_offset"),
         FunctionMappings.s(SqlLibraryOperators.ARRAY_LENGTH, "array_length"),
+        FunctionMappings.s(NumericConversionFunctionAdapter.NUM, "num"),
+        FunctionMappings.s(NumericConversionFunctionAdapter.AUTO, "auto"),
+        FunctionMappings.s(NumericConversionFunctionAdapter.MEMK, "memk"),
+        FunctionMappings.s(NumericConversionFunctionAdapter.RMCOMMA, "rmcomma"),
+        FunctionMappings.s(NumericConversionFunctionAdapter.RMUNIT, "rmunit"),
+        FunctionMappings.s(NumericConversionFunctionAdapter.DUR2SEC, "dur2sec"),
+        FunctionMappings.s(NumericConversionFunctionAdapter.MSTIME, "mstime"),
+        FunctionMappings.s(TimeConversionFunctionAdapter.CTIME, "ctime"),
+        FunctionMappings.s(TimeConversionFunctionAdapter.MKTIME, "mktime"),
         FunctionMappings.s(SqlStdOperatorTable.TRUNCATE, "trunc"),
         FunctionMappings.s(SqlStdOperatorTable.CBRT, "cbrt"),
         FunctionMappings.s(SqlStdOperatorTable.COT, "cot"),
@@ -193,6 +214,7 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         FunctionMappings.s(JsonFunctionAdapters.JsonDeleteAdapter.LOCAL_JSON_DELETE_OP, "json_delete"),
         FunctionMappings.s(JsonFunctionAdapters.JsonExtendAdapter.LOCAL_JSON_EXTEND_OP, "json_extend"),
         FunctionMappings.s(JsonFunctionAdapters.JsonExtractAdapter.LOCAL_JSON_EXTRACT_OP, "json_extract"),
+        FunctionMappings.s(JsonFunctionAdapters.JsonExtractAllAdapter.LOCAL_JSON_EXTRACT_ALL_OP, "json_extract_all"),
         FunctionMappings.s(JsonFunctionAdapters.JsonKeysAdapter.LOCAL_JSON_KEYS_OP, "json_keys"),
         FunctionMappings.s(JsonFunctionAdapters.JsonSetAdapter.LOCAL_JSON_SET_OP, "json_set"),
         FunctionMappings.s(SqlLibraryOperators.REGEXP_CONTAINS, "regex_match"),
@@ -211,9 +233,18 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         FunctionMappings.s(MakeArrayAdapter.LOCAL_MAKE_ARRAY_OP, "make_array"),
         FunctionMappings.s(ArrayToStringAdapter.LOCAL_ARRAY_TO_STRING_OP, "array_to_string"),
         FunctionMappings.s(ArrayElementAdapter.LOCAL_ARRAY_ELEMENT_OP, "array_element"),
+        FunctionMappings.s(ArrayElementAdapter.LOCAL_MAP_EXTRACT_OP, "map_extract"),
         FunctionMappings.s(MvzipAdapter.LOCAL_MVZIP_OP, "mvzip"),
         FunctionMappings.s(MvfindAdapter.LOCAL_MVFIND_OP, "mvfind"),
-        FunctionMappings.s(MvappendAdapter.LOCAL_MVAPPEND_OP, "mvappend")
+        FunctionMappings.s(MvappendAdapter.LOCAL_MVAPPEND_OP, "mvappend"),
+        // PPL bucketing UDFs — see DataFusionAnalyticsBackendPlugin.STANDARD_PROJECT_OPS for
+        // capability registration and per-adapter Javadoc for semantics. Each LOCAL_*_OP is a
+        // locally-declared SqlFunction (see *Adapter.java) so isthmus's ScalarFunctionConverter
+        // binds the Sig by operator identity without importing sql/core's UDF declarations.
+        FunctionMappings.s(SpanBucketAdapter.LOCAL_SPAN_BUCKET_OP, "span_bucket"),
+        FunctionMappings.s(WidthBucketAdapter.LOCAL_WIDTH_BUCKET_OP, "width_bucket"),
+        FunctionMappings.s(MinspanBucketAdapter.LOCAL_MINSPAN_BUCKET_OP, "minspan_bucket"),
+        FunctionMappings.s(RangeBucketAdapter.LOCAL_RANGE_BUCKET_OP, "range_bucket")
     );
 
     /**
@@ -267,9 +298,14 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
     }
 
     @Override
-    public byte[] convertShardScanFragment(String tableName, RelNode fragment) {
-        LOGGER.debug("Converting shard scan fragment for table [{}]", tableName);
-        return convertToSubstrait(fragment);
+    public byte[] convertFragment(RelNode fragment) {
+        LOGGER.debug("Converting fragment [{}]", fragment.getClass().getSimpleName());
+        // Rewrite any OpenSearchStageInputScan leaves to plain TableScan nodes so the
+        // isthmus visitor (which only knows about Calcite core / Logical RelNodes)
+        // emits a ReadRel with the stage-input-id as the named table. No-op when the
+        // fragment has no StageInputScan leaves (shard-scan and Values cases).
+        RelNode rewritten = rewriteStageInputScans(fragment);
+        return convertToSubstrait(rewritten);
     }
 
     @Override
@@ -283,16 +319,6 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
             fieldNames(partialAggFragment)
         );
         return serializePlan(SubstraitPlanRewriter.rewrite(rewired));
-    }
-
-    @Override
-    public byte[] convertFinalAggFragment(RelNode fragment) {
-        LOGGER.debug("Converting final-aggregate fragment");
-        // Rewrite any OpenSearchStageInputScan leaves to plain TableScan nodes so the
-        // isthmus visitor (which only knows about Calcite core / Logical RelNodes)
-        // emits a ReadRel with the stage-input-id as the named table.
-        RelNode rewritten = rewriteStageInputScans(fragment);
-        return convertToSubstrait(rewritten);
     }
 
     @Override
@@ -315,14 +341,16 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         return serializePlan(SubstraitPlanRewriter.rewrite(rewire(inner, wrapper, fieldNames(fragment))));
     }
 
-    // ── Core conversion helpers ─────────────────────────────────────────────────
-
     private byte[] convertToSubstrait(RelNode fragment) {
         // Rewrite SqlTypeName.NULL literals (Calcite's untyped null, emitted for the
         // implicit ELSE arm of CASE) to typed nulls — isthmus' TypeConverter rejects NULL
         // with "Unable to convert the type NULL". The widening only changes literal type
         // tags; semantics and field names (used by Plan.Root.names) are unchanged.
         RelNode preprocessed = UntypedNullPreprocessor.rewrite(fragment);
+        // Rewrite DatetimeOutputCastRule's CAST(<TIMESTAMP> AS VARCHAR) to to_char(...) so
+        // DataFusion emits PPL's space-separator timestamp format instead of Arrow's ISO-T.
+        // See issue #5420.
+        preprocessed = DatetimeOutputCastRewriter.rewrite(preprocessed);
         RelRoot root = RelRoot.of(preprocessed, SqlKind.SELECT);
         SubstraitRelVisitor visitor = createVisitor(preprocessed);
         Rel substraitRel;
@@ -364,6 +392,8 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         // wrapper conversion is just as susceptible to a SqlTypeName.NULL literal lurking in
         // a CASE call attached on top of an inner plan.
         RelNode preprocessed = UntypedNullPreprocessor.rewrite(operator);
+        // Same rationale as convertToSubstrait — issue #5420.
+        preprocessed = DatetimeOutputCastRewriter.rewrite(preprocessed);
         SubstraitRelVisitor visitor = createVisitor(preprocessed);
         return visitor.apply(preprocessed);
     }

@@ -72,6 +72,9 @@ dependencies {
   // Substrait — Calcite RelNode to Substrait plan conversion for DataFusion native runtime
   implementation "io.substrait:isthmus:0.89.1"
   implementation "io.substrait:core:0.89.1"
+  // avatica ByteString is needed at compile time for IpBinaryFunctionAdapter's VARBINARY
+  // literal construction; runtime is provided by analytics-framework's runtimeOnly avatica.
+  compileOnly "org.apache.calcite.avatica:avatica-core:1.27.0"
   implementation "com.fasterxml.jackson.datatype:jackson-datatype-jdk8:${versions.jackson}"
   // jackson-datatype-jsr310 — added to arrow-flight-rpc (the parent plugin that bundles
   // arrow-vector). arrow-vector's JsonStringArrayList eagerly registers JavaTimeModule on

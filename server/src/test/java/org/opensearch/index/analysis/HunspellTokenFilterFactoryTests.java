@@ -31,11 +31,20 @@
 
 package org.opensearch.index.analysis;
 
+import org.apache.lucene.analysis.hunspell.Dictionary;
+import org.opensearch.Version;
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.env.Environment;
+import org.opensearch.index.IndexSettings;
+import org.opensearch.indices.analysis.HunspellService;
+import org.opensearch.test.IndexSettingsModule;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Collections;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
@@ -366,6 +375,147 @@ public class HunspellTokenFilterFactoryTests extends OpenSearchTestCase {
         TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromSettings(settings, getDataPath("/indices/analyze/conf_dir"));
         TokenFilterFactory tokenFilter = analysis.tokenFilter.get("my_hunspell");
         assertThat(tokenFilter, instanceOf(HunspellTokenFilterFactory.class));
+    }
+
+    /**
+     * Test that updateable flag sets analysis mode to SEARCH_TIME.
+     */
+    public void testRefPathWithUpdateableFlag() throws IOException {
+        Settings settings = Settings.builder()
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
+            .put("index.analysis.filter.my_hunspell.type", "hunspell")
+            .put("index.analysis.filter.my_hunspell.ref_path", "analyzers/test-dict")
+            .put("index.analysis.filter.my_hunspell.locale", "en_US")
+            .put("index.analysis.filter.my_hunspell.updateable", true)
+            .build();
+
+        TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromSettings(settings, getDataPath("/indices/analyze/conf_dir"));
+        TokenFilterFactory tokenFilter = analysis.tokenFilter.get("my_hunspell");
+        assertThat(tokenFilter, instanceOf(HunspellTokenFilterFactory.class));
+        HunspellTokenFilterFactory hunspellTokenFilter = (HunspellTokenFilterFactory) tokenFilter;
+
+        assertThat(hunspellTokenFilter.getAnalysisMode(), is(AnalysisMode.SEARCH_TIME));
+    }
+
+    /**
+     * Test that without updateable flag, analysis mode is ALL (default).
+     */
+    public void testRefPathWithoutUpdateableFlagDefaultsToAllMode() throws IOException {
+        Settings settings = Settings.builder()
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
+            .put("index.analysis.filter.my_hunspell.type", "hunspell")
+            .put("index.analysis.filter.my_hunspell.ref_path", "analyzers/test-dict")
+            .put("index.analysis.filter.my_hunspell.locale", "en_US")
+            .build();
+
+        TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromSettings(settings, getDataPath("/indices/analyze/conf_dir"));
+        TokenFilterFactory tokenFilter = analysis.tokenFilter.get("my_hunspell");
+        assertThat(tokenFilter, instanceOf(HunspellTokenFilterFactory.class));
+        HunspellTokenFilterFactory hunspellTokenFilter = (HunspellTokenFilterFactory) tokenFilter;
+
+        assertThat(hunspellTokenFilter.getAnalysisMode(), is(AnalysisMode.ALL));
+    }
+
+    /**
+     * Test that reloadCachedResources() reloads the ref_path dictionary.
+     */
+    public void testReloadCachedResourcesRefPath() throws Exception {
+        Path tempDir = createTempDir();
+        Path dictDir = tempDir.resolve("config").resolve("analyzers/test-dict").resolve("hunspell").resolve("en_US");
+        Files.createDirectories(dictDir);
+        Files.write(dictDir.resolve("en_US.aff"), Collections.singletonList("SET UTF-8"));
+        Files.write(dictDir.resolve("en_US.dic"), java.util.Arrays.asList("1", "test"));
+
+        Settings nodeSettings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), tempDir).build();
+        Environment env = new Environment(nodeSettings, tempDir.resolve("config"));
+        HunspellService hunspellService = new HunspellService(nodeSettings, env, Collections.emptyMap());
+
+        IndexSettings idx = IndexSettingsModule.newIndexSettings(
+            "test",
+            Settings.builder().put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), Version.CURRENT).build()
+        );
+        Settings filterSettings = Settings.builder().put("ref_path", "analyzers/test-dict").put("locale", "en_US").build();
+
+        HunspellTokenFilterFactory factory = new HunspellTokenFilterFactory(idx, "my_hunspell", filterSettings, hunspellService);
+
+        Dictionary dict1 = hunspellService.getDictionaryFromRefPath("analyzers/test-dict", "en_US");
+        assertNotNull(dict1);
+
+        factory.reloadCachedResources();
+        Dictionary dict2 = hunspellService.getDictionaryFromRefPath("analyzers/test-dict", "en_US");
+        assertNotNull(dict2);
+        assertNotSame("Expected fresh Dictionary instance after reloadCachedResources()", dict1, dict2);
+    }
+
+    /**
+     * Test that reloadCachedResources() reloads the traditional locale dictionary.
+     */
+    public void testReloadCachedResourcesTraditionalLocale() throws Exception {
+        Path tempDir = createTempDir();
+        Path dir = tempDir.resolve("config").resolve("hunspell").resolve("en_US");
+        Files.createDirectories(dir);
+        Files.write(dir.resolve("en_US.aff"), Collections.singletonList("SET UTF-8"));
+        Files.write(dir.resolve("en_US.dic"), java.util.Arrays.asList("1", "test"));
+
+        Settings nodeSettings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), tempDir).build();
+        Environment env = new Environment(nodeSettings, tempDir.resolve("config"));
+        HunspellService hunspellService = new HunspellService(nodeSettings, env, Collections.emptyMap());
+
+        IndexSettings idx = IndexSettingsModule.newIndexSettings(
+            "test",
+            Settings.builder().put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), Version.CURRENT).build()
+        );
+        Settings filterSettings = Settings.builder().put("locale", "en_US").build();
+
+        HunspellTokenFilterFactory factory = new HunspellTokenFilterFactory(idx, "my_hunspell", filterSettings, hunspellService);
+
+        Dictionary dict1 = hunspellService.getDictionary("en_US");
+        assertNotNull(dict1);
+
+        factory.reloadCachedResources();
+        Dictionary dict2 = hunspellService.getDictionary("en_US");
+        assertNotNull(dict2);
+        assertNotSame("Expected fresh Dictionary instance after reloadCachedResources()", dict1, dict2);
+    }
+
+    /**
+     * Simulates the MapperService.reloadSearchAnalyzers(registry, true) cacheReload walk.
+     * Verifies that iterating token filters and calling reloadCachedResources() on HunspellTokenFilterFactory
+     * correctly evicts the cached dictionary.
+     */
+    public void testMapperServiceReloadWalk() throws Exception {
+        Path tempDir = createTempDir();
+        Path dictDir = tempDir.resolve("config").resolve("analyzers/test-dict").resolve("hunspell").resolve("en_US");
+        Files.createDirectories(dictDir);
+        Files.write(dictDir.resolve("en_US.aff"), Collections.singletonList("SET UTF-8"));
+        Files.write(dictDir.resolve("en_US.dic"), java.util.Arrays.asList("1", "test"));
+
+        Settings nodeSettings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), tempDir).build();
+        Environment env = new Environment(nodeSettings, tempDir.resolve("config"));
+        HunspellService hunspellService = new HunspellService(nodeSettings, env, Collections.emptyMap());
+
+        IndexSettings idx = IndexSettingsModule.newIndexSettings(
+            "test",
+            Settings.builder().put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), Version.CURRENT).build()
+        );
+        Settings filterSettings = Settings.builder()
+            .put("ref_path", "analyzers/test-dict")
+            .put("locale", "en_US")
+            .put("updateable", true)
+            .build();
+
+        HunspellTokenFilterFactory hunspellFactory = new HunspellTokenFilterFactory(idx, "my_hunspell", filterSettings, hunspellService);
+
+        // Pre-load into cache
+        Dictionary dict1 = hunspellService.getDictionaryFromRefPath("analyzers/test-dict", "en_US");
+        assertNotNull(dict1);
+
+        // Reload cached resources
+        hunspellFactory.reloadCachedResources();
+
+        // Verify eviction
+        Dictionary dict2 = hunspellService.getDictionaryFromRefPath("analyzers/test-dict", "en_US");
+        assertNotSame("Dictionary should be fresh after reload walk", dict1, dict2);
     }
 
 }

@@ -150,14 +150,15 @@ public class TieredSubdirectoryAwareDirectoryTests extends TieredStorageBaseTest
     }
 
     private WithRegistry buildDirectoryWithParquetFormat(DataFormatStoreHandler nativeRegistry) {
-        DataFormatStoreHandlerFactory factory = (sid, warm, repo) -> nativeRegistry;
+        DataFormatStoreHandlerFactory factory = (sid, warm, repo, cacheRegistry) -> nativeRegistry;
         StoreStrategy parquet = new TestParquetStrategy(factory);
         StoreStrategyRegistry registry = StoreStrategyRegistry.open(
             shardPath,
             true,
             NativeStoreRepository.EMPTY,
             Map.of(PARQUET_FORMAT, parquet),
-            remoteSegmentStoreDirectory
+            remoteSegmentStoreDirectory,
+            null
         );
         TieredSubdirectoryAwareDirectory dir = new TieredSubdirectoryAwareDirectory(
             subdirAware,
@@ -520,14 +521,15 @@ public class TieredSubdirectoryAwareDirectoryTests extends TieredStorageBaseTest
 
     public void testConstructorFailureClosesStrategyRegistry() throws IOException {
         DataFormatStoreHandler nativeRegistry = mock(DataFormatStoreHandler.class);
-        DataFormatStoreHandlerFactory factory = (sid, warm, repo) -> nativeRegistry;
+        DataFormatStoreHandlerFactory factory = (sid, warm, repo, cacheRegistry) -> nativeRegistry;
         StoreStrategy parquet = new TestParquetStrategy(factory);
         StoreStrategyRegistry registry = StoreStrategyRegistry.open(
             shardPath,
             true,
             NativeStoreRepository.EMPTY,
             Map.of(PARQUET_FORMAT, parquet),
-            remoteSegmentStoreDirectory
+            remoteSegmentStoreDirectory,
+            null
         );
 
         try {

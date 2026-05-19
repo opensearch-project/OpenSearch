@@ -17,6 +17,7 @@ import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.IndexSettings;
+import org.opensearch.index.engine.dataformat.DocumentInput;
 import org.opensearch.index.mapper.KeywordFieldMapper;
 import org.opensearch.index.mapper.NumberFieldMapper;
 import org.opensearch.parquet.ParquetDataFormatPlugin;
@@ -28,7 +29,11 @@ import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.FixedExecutorBuilder;
 import org.opensearch.threadpool.ThreadPool;
 
+import java.util.ArrayList;
 import java.util.List;
+
+import static org.opensearch.parquet.engine.ParquetIndexingEngineTests.metadataFields;
+import static org.opensearch.parquet.engine.ParquetIndexingEngineTests.populateMetadataFields;
 
 public class VSRManagerTests extends OpenSearchTestCase {
 
@@ -104,12 +109,19 @@ public class VSRManagerTests extends OpenSearchTestCase {
     }
 
     public void testAddDocument() throws Exception {
+        List<Field> fields = new ArrayList<>();
+        fields.addAll(metadataFields());
+        fields.add(new Field("val", FieldType.nullable(new ArrowType.Int(32, true)), null));
+        schema = new Schema(fields);
+
         String filePath = createTempDir().resolve("add-doc.parquet").toString();
         VSRManager manager = new VSRManager(filePath, indexSettings, schema, bufferPool, 50000, threadPool, 0L);
 
         NumberFieldMapper.NumberFieldType valField = new NumberFieldMapper.NumberFieldType("val", NumberFieldMapper.NumberType.INTEGER);
         ParquetDocumentInput doc = new ParquetDocumentInput();
+        populateMetadataFields(doc);
         doc.addField(valField, 42);
+        doc.setRowId("__row_id__", 0);
         manager.addDocument(doc);
 
         assertEquals(1, manager.getActiveManagedVSR().getRowCount());
@@ -294,6 +306,8 @@ public class VSRManagerTests extends OpenSearchTestCase {
         NumberFieldMapper.NumberFieldType valField = new NumberFieldMapper.NumberFieldType("val", NumberFieldMapper.NumberType.INTEGER);
         KeywordFieldMapper.KeywordFieldType tagField = new KeywordFieldMapper.KeywordFieldType("tag");
         ParquetDocumentInput doc = new ParquetDocumentInput();
+        populateMetadataFields(doc);
+        doc.setRowId(DocumentInput.ROW_ID_FIELD, 1);
         doc.addField(valField, 42);
         doc.addField(tagField, "hello");
         manager.addDocument(doc);
@@ -311,6 +325,8 @@ public class VSRManagerTests extends OpenSearchTestCase {
 
         NumberFieldMapper.NumberFieldType valField = new NumberFieldMapper.NumberFieldType("val", NumberFieldMapper.NumberType.INTEGER);
         ParquetDocumentInput doc = new ParquetDocumentInput();
+        populateMetadataFields(doc);
+        doc.setRowId(DocumentInput.ROW_ID_FIELD, 1);
         doc.addField(valField, 1);
         manager.addDocument(doc);
 
@@ -326,11 +342,15 @@ public class VSRManagerTests extends OpenSearchTestCase {
         KeywordFieldMapper.KeywordFieldType tagField = new KeywordFieldMapper.KeywordFieldType("tag");
 
         ParquetDocumentInput doc1 = new ParquetDocumentInput();
+        populateMetadataFields(doc1);
+        doc1.setRowId(DocumentInput.ROW_ID_FIELD, 1L);
         doc1.addField(valField, 1);
         doc1.addField(tagField, "a");
         manager.addDocument(doc1);
 
         ParquetDocumentInput doc2 = new ParquetDocumentInput();
+        populateMetadataFields(doc2);
+        doc2.setRowId(DocumentInput.ROW_ID_FIELD, 2L);
         doc2.addField(valField, 2);
         doc2.addField(tagField, "b");
         manager.addDocument(doc2);
@@ -349,6 +369,8 @@ public class VSRManagerTests extends OpenSearchTestCase {
         KeywordFieldMapper.KeywordFieldType tag3Field = new KeywordFieldMapper.KeywordFieldType("tag3");
 
         ParquetDocumentInput doc = new ParquetDocumentInput();
+        populateMetadataFields(doc);
+        doc.setRowId(DocumentInput.ROW_ID_FIELD, 1L);
         doc.addField(valField, 1);
         doc.addField(tag1Field, "a");
         doc.addField(tag2Field, "b");

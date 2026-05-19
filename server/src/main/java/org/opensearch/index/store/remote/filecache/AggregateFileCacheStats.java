@@ -133,6 +133,14 @@ public class AggregateFileCacheStats implements Writeable, ToXContentFragment {
         return blockFileCacheStats;
     }
 
+    FileCacheStats getFullFileCacheStats() {
+        return fullFileCacheStats;
+    }
+
+    FileCacheStats getPinnedFileCacheStats() {
+        return pinnedFileCacheStats;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(Fields.AGGREGATE_FILE_CACHE);

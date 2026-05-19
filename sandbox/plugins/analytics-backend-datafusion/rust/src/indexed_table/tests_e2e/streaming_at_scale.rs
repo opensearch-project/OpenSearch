@@ -293,6 +293,7 @@ fn wire_large_rec(node: &BoolNode, out: &mut Vec<Arc<dyn RowGroupDocsCollector>>
             out.push(large_collector_for(tag));
         }
         BoolNode::Predicate(_) => {}
+        BoolNode::DelegationPossible { .. } => {}
     }
 }
 
@@ -399,7 +400,7 @@ async fn run_large(
     }
 
     let segment = SegmentFileInfo {
-        segment_ord: 0,
+        writer_generation: 0,
         max_doc: LARGE_N as i64,
         object_path: object_store::path::Path::from(f.path.to_string_lossy().as_ref()),
         parquet_size: size,
@@ -849,7 +850,7 @@ async fn run_large_partitioned(
         offset += n;
     }
     let segment = SegmentFileInfo {
-        segment_ord: 0,
+        writer_generation: 0,
         max_doc: LARGE_N as i64,
         object_path: object_store::path::Path::from(f.path.to_string_lossy().as_ref()),
         parquet_size: size,

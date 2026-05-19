@@ -44,7 +44,7 @@ public class MockDataFusionBackend extends MockBackend implements SearchBackEndP
     public static final String PARQUET_DATA_FORMAT = "parquet";
     private static final Set<String> DATAFUSION_FORMATS = Set.of(PARQUET_DATA_FORMAT);
 
-    private static final Set<EngineCapability> OPERATOR_CAPS = Set.of(EngineCapability.SORT);
+    private static final Set<EngineCapability> OPERATOR_CAPS = Set.of(EngineCapability.SORT, EngineCapability.VALUES);
 
     private static final Set<FieldType> SUPPORTED_TYPES = new HashSet<>();
     static {
@@ -140,7 +140,16 @@ public class MockDataFusionBackend extends MockBackend implements SearchBackEndP
     protected Set<WindowCapability> windowCapabilities() {
         return Set.of(
             new WindowCapability(
-                Set.of(WindowFunction.SUM, WindowFunction.AVG, WindowFunction.COUNT, WindowFunction.MIN, WindowFunction.MAX),
+                Set.of(
+                    WindowFunction.SUM,
+                    WindowFunction.AVG,
+                    WindowFunction.COUNT,
+                    WindowFunction.MIN,
+                    WindowFunction.MAX,
+                    // ROW_NUMBER backs PPL `top` / `rare` / `dedup` lowering
+                    // (ROW_NUMBER() OVER (PARTITION BY ... ORDER BY ...)).
+                    WindowFunction.ROW_NUMBER
+                ),
                 Set.of(PARQUET_DATA_FORMAT)
             )
         );

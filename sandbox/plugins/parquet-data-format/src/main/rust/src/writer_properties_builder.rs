@@ -137,9 +137,11 @@ impl WriterPropertiesBuilder {
         mut builder: parquet::file::properties::WriterPropertiesBuilder,
         config: &NativeSettings
     ) -> parquet::file::properties::WriterPropertiesBuilder {
-        builder = builder.set_bloom_filter_enabled(config.get_bloom_filter_enabled());
-        builder = builder.set_bloom_filter_fpp(config.get_bloom_filter_fpp());
-        builder = builder.set_bloom_filter_ndv(config.get_bloom_filter_ndv());
+        if config.get_bloom_filter_enabled() {
+            builder = builder.set_bloom_filter_enabled(true);
+            builder = builder.set_bloom_filter_fpp(config.get_bloom_filter_fpp());
+            builder = builder.set_bloom_filter_ndv(config.get_bloom_filter_ndv());
+        }
         builder
     }
 
@@ -225,5 +227,45 @@ mod tests {
             WriterPropertiesBuilder::parse_compression_type("GZIP", 6),
             Compression::GZIP(_)
         ));
+    }
+
+    #[test]
+    fn test_bloom_filter_disabled_propagates() {
+        let config = NativeSettings {
+            bloom_filter_enabled: Some(false),
+            ..Default::default()
+        };
+        let props = WriterPropertiesBuilder::build(&config);
+        let col_path = parquet::schema::types::ColumnPath::from("test_col");
+        // When bloom filter is disabled, no bloom filter properties should be set
+        assert!(
+            props.bloom_filter_properties(&col_path).is_none(),
+            "bloom_filter_properties should be None when disabled, got: {:?}",
+            props.bloom_filter_properties(&col_path)
+        );
+    }
+
+    #[test]
+    fn test_bloom_filter_enabled_propagates() {
+        let config = NativeSettings {
+            bloom_filter_enabled: Some(true),
+            bloom_filter_fpp: Some(0.1),
+            bloom_filter_ndv: Some(100_000),
+            ..Default::default()
+        };
+        let props = WriterPropertiesBuilder::build(&config);
+        let col_path = parquet::schema::types::ColumnPath::from("test_col");
+        let bf_props = props.bloom_filter_properties(&col_path);
+        assert!(bf_props.is_some(), "bloom_filter_properties should be Some when enabled");
+    }
+
+    #[test]
+    fn test_bloom_filter_default_is_true() {
+        let config = NativeSettings::default();
+        assert_eq!(config.get_bloom_filter_enabled(), true);
+        let props = WriterPropertiesBuilder::build(&config);
+        let col_path = parquet::schema::types::ColumnPath::from("test_col");
+        let bf_props = props.bloom_filter_properties(&col_path);
+        assert!(bf_props.is_some(), "Default should have bloom filter enabled");
     }
 }

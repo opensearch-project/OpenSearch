@@ -21,10 +21,11 @@ import java.lang.invoke.MethodHandle;
 /**
  * FFM bridge for tiered storage Rust functions.
  *
- * <p>Methods: create/destroy TieredObjectStore, batch register files, remove file.
+ * <p>Methods: create/destroy TieredObjectStore, batch register files, remove file,
+ * and block-cache pointer helpers.
  *
  * <p>The {@code registerFiles} method uses a newline-delimited batch format:
- * {@code path\nremotePath\npath\nremotePath\n...} Empty remotePath for LOCAL files.
+ * {@code path\nremotePath\nsize\npath\nremotePath\nsize\n...}. Empty remotePath for LOCAL files.
  * This avoids per-file FFM overhead when seeding hundreds of files at shard open.
  */
 public final class TieredStorageBridge {
@@ -40,9 +41,15 @@ public final class TieredStorageBridge {
         SymbolLookup lib = NativeLibraryLoader.symbolLookup();
         Linker linker = Linker.nativeLinker();
 
+        // i64 ts_create_tiered_object_store(i64 local, i64 remote, i64 cache)
         CREATE = linker.downcallHandle(
             lib.find("ts_create_tiered_object_store").orElseThrow(),
-            FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG)
+            FunctionDescriptor.of(
+                ValueLayout.JAVA_LONG,   // return: Arc<TieredObjectStore> ptr
+                ValueLayout.JAVA_LONG,   // local_store_box_ptr (0 = default LocalFileSystem)
+                ValueLayout.JAVA_LONG,   // remote_store_box_ptr (0 = no remote)
+                ValueLayout.JAVA_LONG    // cache_box_ptr (0 = no cache)
+            )
         );
         DESTROY = linker.downcallHandle(
             lib.find("ts_destroy_tiered_object_store").orElseThrow(),
@@ -71,20 +78,22 @@ public final class TieredStorageBridge {
         DESTROY_OBJECT_STORE_BOX_PTR = lib.find("ts_destroy_object_store_box_ptr")
             .map(sym -> linker.downcallHandle(sym, FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG)))
             .orElse(null);
+
     }
 
     private TieredStorageBridge() {}
 
     /**
-     * Create a TieredObjectStore with optional local and remote stores.
+     * Create a TieredObjectStore with optional local store, remote store, and block cache.
      *
      * @param localStorePtr  Box&lt;Arc&lt;dyn ObjectStore&gt;&gt; pointer, or 0 for default LocalFileSystem
      * @param remoteStorePtr Box&lt;Arc&lt;dyn ObjectStore&gt;&gt; pointer, or 0 for no remote
-     * @return native pointer to the TieredObjectStore
+     * @param cacheBoxPtr    block cache pointer, or 0 for no cache
+     * @return native Arc&lt;TieredObjectStore&gt; pointer
      */
-    public static long createTieredObjectStore(long localStorePtr, long remoteStorePtr) {
+    public static long createTieredObjectStore(long localStorePtr, long remoteStorePtr, long cacheBoxPtr) {
         try {
-            return NativeLibraryLoader.checkResult((long) CREATE.invokeExact(localStorePtr, remoteStorePtr));
+            return NativeLibraryLoader.checkResult((long) CREATE.invokeExact(localStorePtr, remoteStorePtr, cacheBoxPtr));
         } catch (Throwable t) {
             throw new RuntimeException("Failed to create TieredObjectStore", t);
         }
