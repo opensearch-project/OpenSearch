@@ -610,9 +610,14 @@ public class DataFormatAwareEngine implements Indexer {
             } else if (indexResult.getSeqNo() != UNASSIGNED_SEQ_NO
                 && indexResult.getFailure() != null
                 && !(indexResult.getFailure() instanceof AppendOnlyIndexOperationRetryException)) {
-                    throw new UnsupportedOperationException(
-                        "recording document failure as a no-op in translog is not " + "supported for Data format engine"
+                    final Engine.NoOp noOp = new Engine.NoOp(
+                        indexResult.getSeqNo(),
+                        index.primaryTerm(),
+                        index.origin(),
+                        index.startTime(),
+                        indexResult.getFailure().toString()
                     );
+                    location = translogManager.add(new Translog.NoOp(noOp.seqNo(), noOp.primaryTerm(), noOp.reason()));
                 } else {
                     location = null;
                 }
