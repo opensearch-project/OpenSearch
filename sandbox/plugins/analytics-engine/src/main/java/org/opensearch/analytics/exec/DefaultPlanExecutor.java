@@ -126,10 +126,11 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
         searchExecutor.execute(() -> {
             try {
                 // Non-profile path: unwrap rows from ProfiledResult (profile is null)
-                executeInternal(logicalFragment, false, ActionListener.wrap(
-                    result -> convertingListener.onResponse(result.rows()),
-                    convertingListener::onFailure
-                ));
+                executeInternal(
+                    logicalFragment,
+                    false,
+                    ActionListener.wrap(result -> convertingListener.onResponse(result.rows()), convertingListener::onFailure)
+                );
             } catch (Exception e) {
                 convertingListener.onFailure(e);
             }
@@ -144,9 +145,7 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
             } catch (Exception e) {
                 listener.onFailure(e);
             } catch (AssertionError e) {
-                listener.onFailure(
-                    new IllegalStateException("Analytics-engine executor rejected the plan: " + e.getMessage(), e)
-                );
+                listener.onFailure(new IllegalStateException("Analytics-engine executor rejected the plan: " + e.getMessage(), e));
             }
         });
     }
