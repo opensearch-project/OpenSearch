@@ -12,6 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
 import org.opensearch.be.datafusion.action.DataFusionStatsAction;
+import org.opensearch.be.datafusion.nativelib.NativeBridge;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.service.ClusterService;
@@ -31,8 +32,8 @@ import org.opensearch.index.engine.dataformat.ReaderManagerConfig;
 import org.opensearch.index.engine.exec.EngineReaderManager;
 import org.opensearch.indices.breaker.BreakerSettings;
 import org.opensearch.plugins.ActionPlugin;
-import org.opensearch.plugins.NativeStoreHandle;
 import org.opensearch.plugins.CircuitBreakerPlugin;
+import org.opensearch.plugins.NativeStoreHandle;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.SearchBackEndPlugin;
 import org.opensearch.repositories.RepositoriesService;
@@ -48,8 +49,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.Supplier;
-
-import org.opensearch.be.datafusion.nativelib.NativeBridge;
 
 import io.substrait.extension.DefaultExtensionCatalog;
 import io.substrait.extension.SimpleExtension;
@@ -210,8 +209,10 @@ public class DataFusionPlugin extends Plugin
         // cluster settings API take effect without restarting the node.
         clusterService.getClusterSettings().addSettingsUpdateConsumer(DATAFUSION_MEMORY_POOL_LIMIT, this::updateMemoryPoolLimit);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(DATAFUSION_MIN_TARGET_PARTITIONS, this::updateMinTargetPartitions);
-        clusterService.getClusterSettings().addSettingsUpdateConsumer(DATAFUSION_MEMORY_GUARD_ADMISSION_THRESHOLD, v -> updateMemoryGuardThresholds());
-        clusterService.getClusterSettings().addSettingsUpdateConsumer(DATAFUSION_MEMORY_GUARD_OPERATOR_THRESHOLD, v -> updateMemoryGuardThresholds());
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(DATAFUSION_MEMORY_GUARD_ADMISSION_THRESHOLD, v -> updateMemoryGuardThresholds());
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(DATAFUSION_MEMORY_GUARD_OPERATOR_THRESHOLD, v -> updateMemoryGuardThresholds());
 
         // Apply initial values
         NativeBridge.setMinTargetPartitions(DATAFUSION_MIN_TARGET_PARTITIONS.get(settings));
@@ -362,11 +363,18 @@ public class DataFusionPlugin extends Plugin
     @Override
     public BreakerSettings getCircuitBreaker(Settings settings) {
         long limit = DATAFUSION_MEMORY_POOL_LIMIT.get(settings);
-        return new BreakerSettings("analytics_backend_datafusion", limit, 1.0, CircuitBreaker.Type.MEMORY, CircuitBreaker.Durability.TRANSIENT, () -> {
-            long currentLimit = dataFusionService != null ? dataFusionService.getMemoryPoolLimit() : limit;
-            long[] stats = dataFusionService != null ? dataFusionService.getMemoryPoolStats() : new long[] { 0, 0 };
-            return new CircuitBreakerStats("analytics_backend_datafusion", currentLimit, stats[0], 1.0, stats[1]);
-        });
+        return new BreakerSettings(
+            "analytics_backend_datafusion",
+            limit,
+            1.0,
+            CircuitBreaker.Type.MEMORY,
+            CircuitBreaker.Durability.TRANSIENT,
+            () -> {
+                long currentLimit = dataFusionService != null ? dataFusionService.getMemoryPoolLimit() : limit;
+                long[] stats = dataFusionService != null ? dataFusionService.getMemoryPoolStats() : new long[] { 0, 0 };
+                return new CircuitBreakerStats("analytics_backend_datafusion", currentLimit, stats[0], 1.0, stats[1]);
+            }
+        );
     }
 
     @Override

@@ -81,8 +81,7 @@ public class NativeErrorConverterTests extends OpenSearchTestCase {
     }
 
     public void testNestedCauseChainIsWalked() {
-        String poolMessage = "Failed to allocate 4096 bytes for coalesce (2048 already reserved) "
-            + "— 0 available out of 8589934592 limit";
+        String poolMessage = "Failed to allocate 4096 bytes for coalesce (2048 already reserved) — 0 available out of 8589934592 limit";
         RuntimeException inner = new RuntimeException(poolMessage);
         RuntimeException wrapper = new RuntimeException("Query execution failed", inner);
 
@@ -120,8 +119,7 @@ public class NativeErrorConverterTests extends OpenSearchTestCase {
 
     public void testNullMessageInCauseChainHandledGracefully() {
         RuntimeException withNullMsg = new RuntimeException((String) null);
-        String poolMessage = "Failed to allocate 1024 bytes for test (512 already reserved) "
-            + "— 0 available out of 2048 limit";
+        String poolMessage = "Failed to allocate 1024 bytes for test (512 already reserved) — 0 available out of 2048 limit";
         RuntimeException inner = new RuntimeException(poolMessage);
         RuntimeException chain = new RuntimeException(null, new RuntimeException(null, inner));
 

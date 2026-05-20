@@ -133,7 +133,9 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
                 // executor, OpenSearchUncaughtExceptionHandler exits the cluster JVM. Convert to
                 // an IllegalStateException so the query path treats it as a per-query failure
                 // (HTTP 500 with a bucketable message) instead of cluster-fatal.
-                convertingListener.onFailure(new IllegalStateException("Analytics-engine executor rejected the plan: " + e.getMessage(), e));
+                convertingListener.onFailure(
+                    new IllegalStateException("Analytics-engine executor rejected the plan: " + e.getMessage(), e)
+                );
             }
         });
     }
