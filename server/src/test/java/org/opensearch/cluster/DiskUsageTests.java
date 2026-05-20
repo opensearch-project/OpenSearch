@@ -426,27 +426,9 @@ public class DiskUsageTests extends OpenSearchTestCase {
     public void testFillNodeResourceUsageStatsPerNode() {
         final Map<String, NodeResourceUsageStats> newNodeResourceUsageStats = new HashMap<>();
 
-        DiscoveryNode discoveryNode1 = new DiscoveryNode(
-            "node_1",
-            buildNewFakeTransportAddress(),
-            emptyMap(),
-            emptySet(),
-            Version.CURRENT
-        );
-        DiscoveryNode discoveryNode2 = new DiscoveryNode(
-            "node_2",
-            buildNewFakeTransportAddress(),
-            emptyMap(),
-            emptySet(),
-            Version.CURRENT
-        );
-        DiscoveryNode discoveryNode3 = new DiscoveryNode(
-            "node_3",
-            buildNewFakeTransportAddress(),
-            emptyMap(),
-            emptySet(),
-            Version.CURRENT
-        );
+        DiscoveryNode discoveryNode1 = new DiscoveryNode("node_1", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
+        DiscoveryNode discoveryNode2 = new DiscoveryNode("node_2", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
+        DiscoveryNode discoveryNode3 = new DiscoveryNode("node_3", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
 
         NodeResourceUsageStats node1Stats = new NodeResourceUsageStats(
             discoveryNode1.getId(),
