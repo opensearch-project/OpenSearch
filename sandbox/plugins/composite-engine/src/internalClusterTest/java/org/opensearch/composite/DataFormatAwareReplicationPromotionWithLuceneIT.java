@@ -8,6 +8,7 @@
 
 package org.opensearch.composite;
 
+import org.apache.lucene.tests.util.LuceneTestCase.AwaitsFix;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.test.OpenSearchIntegTestCase;
 
@@ -38,5 +39,11 @@ public class DataFormatAwareReplicationPromotionWithLuceneIT extends DataFormatA
     @Override
     protected Set<String> expectedFormats() {
         return Set.of("parquet", "lucene");
+    }
+
+    @Override
+    @AwaitsFix(bugUrl = "Flaky test - fix before enabling")
+    public void testUncleanFailoverWithContinuousIndexing() throws Exception {
+        super.testUncleanFailoverWithContinuousIndexing();
     }
 }

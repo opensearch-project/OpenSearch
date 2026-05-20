@@ -39,5 +39,6 @@ pub mod session_context;
 pub mod statistics_cache;
 pub mod udaf;
 pub mod udf;
+pub mod native_node_stats;
 pub mod stats;
 pub mod task_monitors;
