@@ -37,6 +37,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.action.support.nodes.BaseNodeResponse;
 import org.opensearch.action.support.nodes.BaseNodesResponse;
+import org.opensearch.cluster.ClusterManagerMetrics;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
@@ -56,6 +57,7 @@ import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.indices.store.TransportNodesListShardStoreMetadata;
 
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Set;
 import java.util.Spliterators;
@@ -91,11 +93,12 @@ public class GatewayAllocator implements ExistingShardsAllocator {
     public GatewayAllocator(
         RerouteService rerouteService,
         TransportNodesListGatewayStartedShards startedAction,
-        TransportNodesListShardStoreMetadata storeAction
+        TransportNodesListShardStoreMetadata storeAction,
+        ClusterManagerMetrics clusterManagerMetrics
     ) {
         this.rerouteService = rerouteService;
-        this.primaryShardAllocator = new InternalPrimaryShardAllocator(startedAction);
-        this.replicaShardAllocator = new InternalReplicaShardAllocator(storeAction);
+        this.primaryShardAllocator = new InternalPrimaryShardAllocator(startedAction, clusterManagerMetrics);
+        this.replicaShardAllocator = new InternalReplicaShardAllocator(storeAction, clusterManagerMetrics);
     }
 
     @Override
@@ -226,7 +229,9 @@ public class GatewayAllocator implements ExistingShardsAllocator {
         AsyncShardFetch<TransportNodesListShardStoreMetadata.NodeStoreFilesMetadata> fetch,
         RoutingAllocation allocation
     ) {
-        ShardRouting primary = allocation.routingNodes().activePrimary(fetch.shardId);
+        assert fetch.shardAttributesMap.size() == 1 : "expected only one shard";
+        ShardId shardId = fetch.shardAttributesMap.keySet().iterator().next();
+        ShardRouting primary = allocation.routingNodes().activePrimary(shardId);
         if (primary != null) {
             fetch.clearCacheForNode(primary.currentNodeId());
         }
@@ -248,21 +253,22 @@ public class GatewayAllocator implements ExistingShardsAllocator {
             String type,
             ShardId shardId,
             String customDataPath,
-            Lister<? extends BaseNodesResponse<T>, T> action
+            Lister<? extends BaseNodesResponse<T>, T> action,
+            ClusterManagerMetrics clusterManagerMetrics
         ) {
-            super(logger, type, shardId, customDataPath, action);
+            super(logger, type, shardId, customDataPath, action, clusterManagerMetrics);
         }
 
         @Override
-        protected void reroute(ShardId shardId, String reason) {
-            logger.trace("{} scheduling reroute for {}", shardId, reason);
+        protected void reroute(String reroutingKey, String reason) {
+            logger.trace("{} scheduling reroute for {}", reroutingKey, reason);
             assert rerouteService != null;
             rerouteService.reroute(
                 "async_shard_fetch",
                 Priority.HIGH,
                 ActionListener.wrap(
-                    r -> logger.trace("{} scheduled reroute completed for {}", shardId, reason),
-                    e -> logger.debug(new ParameterizedMessage("{} scheduled reroute failed for {}", shardId, reason), e)
+                    r -> logger.trace("{} scheduled reroute completed for {}", reroutingKey, reason),
+                    e -> logger.debug(new ParameterizedMessage("{} scheduled reroute failed for {}", reroutingKey, reason), e)
                 )
             );
         }
@@ -271,9 +277,11 @@ public class GatewayAllocator implements ExistingShardsAllocator {
     class InternalPrimaryShardAllocator extends PrimaryShardAllocator {
 
         private final TransportNodesListGatewayStartedShards startedAction;
+        private final ClusterManagerMetrics clusterManagerMetrics;
 
-        InternalPrimaryShardAllocator(TransportNodesListGatewayStartedShards startedAction) {
+        InternalPrimaryShardAllocator(TransportNodesListGatewayStartedShards startedAction, ClusterManagerMetrics clusterManagerMetrics) {
             this.startedAction = startedAction;
+            this.clusterManagerMetrics = clusterManagerMetrics;
         }
 
         @Override
@@ -288,12 +296,17 @@ public class GatewayAllocator implements ExistingShardsAllocator {
                     "shard_started",
                     shardId,
                     IndexMetadata.INDEX_DATA_PATH_SETTING.get(allocation.metadata().index(shard.index()).getSettings()),
-                    startedAction
+                    startedAction,
+                    clusterManagerMetrics
                 )
             );
             AsyncShardFetch.FetchResult<TransportNodesListGatewayStartedShards.NodeGatewayStartedShards> shardState = fetch.fetchData(
                 allocation.nodes(),
-                allocation.getIgnoreNodes(shard.shardId())
+                new HashMap<>() {
+                    {
+                        put(shard.shardId(), allocation.getIgnoreNodes(shard.shardId()));
+                    }
+                }
             );
 
             if (shardState.hasData()) {
@@ -306,9 +319,11 @@ public class GatewayAllocator implements ExistingShardsAllocator {
     class InternalReplicaShardAllocator extends ReplicaShardAllocator {
 
         private final TransportNodesListShardStoreMetadata storeAction;
+        private final ClusterManagerMetrics clusterManagerMetrics;
 
-        InternalReplicaShardAllocator(TransportNodesListShardStoreMetadata storeAction) {
+        InternalReplicaShardAllocator(TransportNodesListShardStoreMetadata storeAction, ClusterManagerMetrics clusterManagerMetrics) {
             this.storeAction = storeAction;
+            this.clusterManagerMetrics = clusterManagerMetrics;
         }
 
         @Override
@@ -323,12 +338,17 @@ public class GatewayAllocator implements ExistingShardsAllocator {
                     "shard_store",
                     shard.shardId(),
                     IndexMetadata.INDEX_DATA_PATH_SETTING.get(allocation.metadata().index(shard.index()).getSettings()),
-                    storeAction
+                    storeAction,
+                    clusterManagerMetrics
                 )
             );
             AsyncShardFetch.FetchResult<TransportNodesListShardStoreMetadata.NodeStoreFilesMetadata> shardStores = fetch.fetchData(
                 allocation.nodes(),
-                allocation.getIgnoreNodes(shard.shardId())
+                new HashMap<>() {
+                    {
+                        put(shard.shardId(), allocation.getIgnoreNodes(shard.shardId()));
+                    }
+                }
             );
             if (shardStores.hasData()) {
                 shardStores.processAllocation(allocation);

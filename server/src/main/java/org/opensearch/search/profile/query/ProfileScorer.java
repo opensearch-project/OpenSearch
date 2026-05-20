@@ -35,8 +35,8 @@ package org.opensearch.search.profile.query;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.TwoPhaseIterator;
-import org.apache.lucene.search.Weight;
 import org.opensearch.search.profile.AbstractProfileBreakdown;
+import org.opensearch.search.profile.ProfilingWrapper;
 import org.opensearch.search.profile.Timer;
 
 import java.io.IOException;
@@ -48,18 +48,15 @@ import java.util.Collection;
  *
  * @opensearch.internal
  */
-final class ProfileScorer extends Scorer {
+final class ProfileScorer extends Scorer implements ProfilingWrapper<Scorer> {
 
     private final Scorer scorer;
-    private ProfileWeight profileWeight;
 
     private final Timer scoreTimer, nextDocTimer, advanceTimer, matchTimer, shallowAdvanceTimer, computeMaxScoreTimer,
         setMinCompetitiveScoreTimer;
 
-    ProfileScorer(ProfileWeight w, Scorer scorer, AbstractProfileBreakdown<QueryTimingType> profile) throws IOException {
-        super(w);
+    ProfileScorer(Scorer scorer, AbstractProfileBreakdown profile) throws IOException {
         this.scorer = scorer;
-        this.profileWeight = w;
         scoreTimer = profile.getTimer(QueryTimingType.SCORE);
         nextDocTimer = profile.getTimer(QueryTimingType.NEXT_DOC);
         advanceTimer = profile.getTimer(QueryTimingType.ADVANCE);
@@ -67,6 +64,27 @@ final class ProfileScorer extends Scorer {
         shallowAdvanceTimer = profile.getTimer(QueryTimingType.SHALLOW_ADVANCE);
         computeMaxScoreTimer = profile.getTimer(QueryTimingType.COMPUTE_MAX_SCORE);
         setMinCompetitiveScoreTimer = profile.getTimer(QueryTimingType.SET_MIN_COMPETITIVE_SCORE);
+    }
+
+    /**
+     * Returns the wrapped scorer.
+     * <p>
+     * This is useful for plugin queries that extend the Scorer API with custom methods not part of the standard
+     * Lucene Scorer interface. For example, neural-search's HybridQuery needs to access its HybridBulkScorer
+     * to call custom methods when profiling is enabled.
+     * </p>
+     * <p>
+     * <b>Note:</b> Calling mutation methods (like {@link #setMinCompetitiveScore(float)}) directly on the
+     * wrapped scorer will bypass profiling instrumentation for those calls. For read-only access or accessing
+     * custom methods not part of the standard Scorer API, this is safe and expected.
+     * </p>
+     *
+     * @return the underlying wrapped scorer
+     * @see ProfileCollector#getDelegate()
+     */
+    @Override
+    public Scorer getDelegate() {
+        return scorer;
     }
 
     @Override
@@ -82,11 +100,6 @@ final class ProfileScorer extends Scorer {
         } finally {
             scoreTimer.stop();
         }
-    }
-
-    @Override
-    public Weight getWeight() {
-        return profileWeight;
     }
 
     @Override

@@ -72,6 +72,7 @@ import org.opensearch.index.translog.Translog;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.indices.recovery.RecoveryTarget;
 import org.opensearch.indices.replication.common.ReplicationListener;
+import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -118,7 +119,8 @@ public class RecoveryDuringReplicationTests extends OpenSearchIndexLevelReplicat
                     indexShard,
                     node,
                     recoveryListener,
-                    logger
+                    logger,
+                    threadPool
                 )
             );
 
@@ -482,7 +484,7 @@ public class RecoveryDuringReplicationTests extends OpenSearchIndexLevelReplicat
             AtomicBoolean recoveryDone = new AtomicBoolean(false);
             final Future<Void> recoveryFuture = shards.asyncRecoverReplica(newReplica, (indexShard, node) -> {
                 recoveryStart.countDown();
-                return new RecoveryTarget(indexShard, node, recoveryListener) {
+                return new RecoveryTarget(indexShard, node, recoveryListener, threadPool) {
                     @Override
                     public void finalizeRecovery(long globalCheckpoint, long trimAboveSeqNo, ActionListener<Void> listener) {
                         recoveryDone.set(true);
@@ -536,7 +538,7 @@ public class RecoveryDuringReplicationTests extends OpenSearchIndexLevelReplicat
             final IndexShard replica = shards.addReplica();
             final Future<Void> recoveryFuture = shards.asyncRecoverReplica(
                 replica,
-                (indexShard, node) -> new RecoveryTarget(indexShard, node, recoveryListener) {
+                (indexShard, node) -> new RecoveryTarget(indexShard, node, recoveryListener, threadPool) {
                     @Override
                     public void indexTranslogOperations(
                         final List<Translog.Operation> operations,
@@ -812,9 +814,10 @@ public class RecoveryDuringReplicationTests extends OpenSearchIndexLevelReplicat
             IndexShard shard,
             DiscoveryNode sourceNode,
             ReplicationListener listener,
-            Logger logger
+            Logger logger,
+            ThreadPool threadPool
         ) {
-            super(shard, sourceNode, listener);
+            super(shard, sourceNode, listener, threadPool);
             this.recoveryBlocked = recoveryBlocked;
             this.releaseRecovery = releaseRecovery;
             this.stageToBlock = stageToBlock;

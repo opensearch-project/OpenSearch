@@ -35,6 +35,7 @@ package org.opensearch.search.aggregations.metrics;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.search.FieldComparator;
 import org.apache.lucene.search.FieldDoc;
+import org.apache.lucene.search.Pruning;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TopDocs;
@@ -210,8 +211,8 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
         ParsedTopHits parsed = (ParsedTopHits) parsedAggregation;
         final SearchHits actualSearchHits = parsed.getHits();
 
-        assertEquals(expectedSearchHits.getTotalHits().value, actualSearchHits.getTotalHits().value);
-        assertEquals(expectedSearchHits.getTotalHits().relation, actualSearchHits.getTotalHits().relation);
+        assertEquals(expectedSearchHits.getTotalHits().value(), actualSearchHits.getTotalHits().value());
+        assertEquals(expectedSearchHits.getTotalHits().relation(), actualSearchHits.getTotalHits().relation());
         assertEquals(expectedSearchHits.getMaxScore(), actualSearchHits.getMaxScore(), 0.0f);
 
         List<SearchHit> expectedHits = Arrays.asList(expectedSearchHits.getHits());
@@ -275,8 +276,8 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
         TotalHits.Relation relation = TotalHits.Relation.EQUAL_TO;
         for (int input = 0; input < inputs.size(); input++) {
             SearchHits internalHits = inputs.get(input).getHits();
-            totalHits += internalHits.getTotalHits().value;
-            if (internalHits.getTotalHits().relation == TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO) {
+            totalHits += internalHits.getTotalHits().value();
+            if (internalHits.getTotalHits().relation() == TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO) {
                 relation = TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO;
             }
             maxScore = max(maxScore, internalHits.getMaxScore());
@@ -356,7 +357,7 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
         FieldComparator[] comparators = new FieldComparator[sortFields.length];
         for (int i = 0; i < sortFields.length; i++) {
             // Values passed to getComparator shouldn't matter
-            comparators[i] = sortFields[i].getComparator(0, false);
+            comparators[i] = sortFields[i].getComparator(0, Pruning.NONE);
         }
         return (lhs, rhs) -> {
             FieldDoc l = (FieldDoc) lhs;
@@ -400,7 +401,7 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
             case 3:
                 topDocs = new TopDocsAndMaxScore(
                     new TopDocs(
-                        new TotalHits(topDocs.topDocs.totalHits.value + between(1, 100), topDocs.topDocs.totalHits.relation),
+                        new TotalHits(topDocs.topDocs.totalHits.value() + between(1, 100), topDocs.topDocs.totalHits.relation()),
                         topDocs.topDocs.scoreDocs
                     ),
                     topDocs.maxScore + randomFloat()
@@ -408,7 +409,7 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
                 break;
             case 4:
                 TotalHits totalHits = new TotalHits(
-                    searchHits.getTotalHits().value + between(1, 100),
+                    searchHits.getTotalHits().value() + between(1, 100),
                     randomFrom(TotalHits.Relation.values())
                 );
                 searchHits = new SearchHits(searchHits.getHits(), totalHits, searchHits.getMaxScore() + randomFloat());

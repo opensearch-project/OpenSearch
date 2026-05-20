@@ -32,11 +32,13 @@
 package org.opensearch.search.aggregations;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.ScoreMode;
 import org.opensearch.core.common.breaker.CircuitBreaker;
 import org.opensearch.core.common.breaker.CircuitBreakingException;
 import org.opensearch.core.indices.breaker.CircuitBreakerService;
+import org.opensearch.core.tasks.TaskCancelledException;
 import org.opensearch.search.SearchShardTarget;
 import org.opensearch.search.aggregations.support.ValuesSourceConfig;
 import org.opensearch.search.internal.SearchContext;
@@ -71,6 +73,7 @@ public abstract class AggregatorBase extends Aggregator {
     private Map<String, Aggregator> subAggregatorbyName;
     private final CircuitBreakerService breakerService;
     private long requestBytesUsed;
+    protected LeafCollectionMode leafCollectorMode = LeafCollectionMode.NORMAL;
 
     /**
      * Constructs a new Aggregator.
@@ -200,6 +203,9 @@ public abstract class AggregatorBase extends Aggregator {
 
     @Override
     public final LeafBucketCollector getLeafCollector(LeafReaderContext ctx) throws IOException {
+        if (tryPrecomputeAggregationForLeaf(ctx)) {
+            throw new CollectionTerminatedException();
+        }
         preGetSubLeafCollectors(ctx);
         final LeafBucketCollector sub = collectableSubAggregators.getLeafCollector(ctx);
         return getLeafCollector(ctx, sub);
@@ -215,6 +221,38 @@ public abstract class AggregatorBase extends Aggregator {
      * Can be overridden by aggregator implementation to be called back when the collection phase starts.
      */
     protected void doPreCollection() throws IOException {}
+
+    /**
+     * Subclasses may override this method if they have an efficient way of computing their aggregation for the given
+     * segment (versus collecting matching documents). If this method returns true, collection for the given segment
+     * will be terminated, rather than executing normally.
+     * <p>
+     * If this method returns true, the aggregator's state should be identical to what it would be if matching
+     * documents from the segment were fully collected. If this method returns false, the aggregator's state should
+     * be unchanged from before this method is called.
+     * @param ctx the context for the given segment
+     * @return true if and only if results for this segment have been precomputed
+     */
+    protected boolean tryPrecomputeAggregationForLeaf(LeafReaderContext ctx) throws IOException {
+        return false;
+    }
+
+    /**
+     * To be used in conjunction with <code>tryPrecomputeAggregationForLeaf()</code>
+     * or <code>getLeafCollector</code> method.
+     */
+    public LeafCollectionMode getLeafCollectorMode() {
+        return leafCollectorMode;
+    }
+
+    /**
+     * To be used in conjunction with <code>tryPrecomputeAggregationForLeaf()</code>
+     * or <code>getLeafCollector</code> method.
+     */
+    public enum LeafCollectionMode {
+        NORMAL,
+        FILTER_REWRITE
+    }
 
     @Override
     public final void preCollection() throws IOException {
@@ -251,8 +289,8 @@ public abstract class AggregatorBase extends Aggregator {
     public Aggregator subAggregator(String aggName) {
         if (subAggregatorbyName == null) {
             subAggregatorbyName = new HashMap<>(subAggregators.length);
-            for (int i = 0; i < subAggregators.length; i++) {
-                subAggregatorbyName.put(subAggregators[i].name(), subAggregators[i]);
+            for (Aggregator subAggregator : subAggregators) {
+                subAggregatorbyName.put(subAggregator.name(), subAggregator);
             }
         }
         return subAggregatorbyName.get(aggName);
@@ -278,6 +316,14 @@ public abstract class AggregatorBase extends Aggregator {
         doPostCollection();
         collectableSubAggregators.postCollection();
     }
+
+    @Override
+    public void reset() {
+        doReset();
+        collectableSubAggregators.reset();
+    }
+
+    public void doReset() {}
 
     /** Called upon release of the aggregator. */
     @Override
@@ -309,4 +355,11 @@ public abstract class AggregatorBase extends Aggregator {
     public String toString() {
         return name;
     }
+
+    protected void checkCancelled() {
+        if (context.isCancelled()) {
+            throw new TaskCancelledException("The query has been cancelled");
+        }
+    }
+
 }

@@ -33,7 +33,7 @@ package org.opensearch.index.mapper;
 
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.NumericDocValuesField;
-import org.apache.lucene.search.DocValuesFieldExistsQuery;
+import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.core.xcontent.XContentParserUtils;
@@ -75,6 +75,11 @@ public class DocCountFieldMapper extends MetadataFieldMapper {
         public DocCountFieldMapper build(BuilderContext context) {
             return new DocCountFieldMapper();
         }
+
+        @Override
+        public boolean isDataCubeMetricSupported() {
+            return true;
+        }
     }
 
     /**
@@ -104,7 +109,7 @@ public class DocCountFieldMapper extends MetadataFieldMapper {
 
         @Override
         public Query existsQuery(QueryShardContext context) {
-            return new DocValuesFieldExistsQuery(NAME);
+            return new FieldExistsQuery(NAME);
         }
 
         @Override

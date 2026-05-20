@@ -33,6 +33,7 @@ package org.opensearch.test;
 
 import com.carrotsearch.randomizedtesting.RandomizedTest;
 import com.carrotsearch.randomizedtesting.annotations.Listeners;
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakLingering;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope.Scope;
@@ -63,14 +64,15 @@ import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.tests.util.TimeUnits;
 import org.opensearch.Version;
 import org.opensearch.bootstrap.BootstrapForTesting;
-import org.opensearch.client.Requests;
 import org.opensearch.cluster.ClusterModule;
+import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.coordination.PersistedStateRegistry;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.CheckedRunnable;
 import org.opensearch.common.Numbers;
 import org.opensearch.common.SuppressForbidden;
+import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.io.PathUtils;
 import org.opensearch.common.io.PathUtilsForTesting;
 import org.opensearch.common.io.stream.BytesStreamOutput;
@@ -83,6 +85,8 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.time.DateUtils;
 import org.opensearch.common.time.FormatNames;
+import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.MockBigArrays;
 import org.opensearch.common.util.MockPageCacheRecycler;
 import org.opensearch.common.util.concurrent.ThreadContext;
@@ -110,6 +114,7 @@ import org.opensearch.core.xcontent.XContentParser.Token;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.env.TestEnvironment;
+import org.opensearch.fips.FipsMode;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.analysis.AnalysisRegistry;
@@ -119,7 +124,8 @@ import org.opensearch.index.analysis.IndexAnalyzers;
 import org.opensearch.index.analysis.NamedAnalyzer;
 import org.opensearch.index.analysis.TokenFilterFactory;
 import org.opensearch.index.analysis.TokenizerFactory;
-import org.opensearch.index.store.remote.filecache.FileCache;
+import org.opensearch.index.remote.RemoteStoreEnums;
+import org.opensearch.index.remote.RemoteStorePathStrategy;
 import org.opensearch.indices.analysis.AnalysisModule;
 import org.opensearch.monitor.jvm.JvmInfo;
 import org.opensearch.plugins.AnalysisPlugin;
@@ -132,6 +138,8 @@ import org.opensearch.test.junit.listeners.LoggingListener;
 import org.opensearch.test.junit.listeners.ReproduceInfoPrinter;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
+import org.opensearch.transport.client.Client;
+import org.opensearch.transport.client.Requests;
 import org.opensearch.transport.nio.MockNioTransportPlugin;
 import org.joda.time.DateTimeZone;
 import org.junit.After;
@@ -141,9 +149,18 @@ import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.internal.AssumptionViolatedException;
 import org.junit.rules.RuleChain;
+import org.junit.rules.TestRule;
+import org.junit.runner.Description;
+import org.junit.runners.model.Statement;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.PrintWriter;
+import java.io.StringWriter;
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
 import java.math.BigInteger;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
@@ -169,6 +186,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.IntFunction;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -179,6 +197,7 @@ import reactor.core.scheduler.Schedulers;
 
 import static java.util.Collections.emptyMap;
 import static org.opensearch.core.common.util.CollectionUtils.arrayAsArrayList;
+import static org.opensearch.index.store.remote.filecache.FileCacheSettings.DATA_TO_FILE_CACHE_SIZE_RATIO_SETTING;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
@@ -189,6 +208,7 @@ import static org.hamcrest.Matchers.hasItem;
 @Listeners({ ReproduceInfoPrinter.class, LoggingListener.class })
 @ThreadLeakScope(Scope.SUITE)
 @ThreadLeakLingering(linger = 5000) // 5 sec lingering
+@ThreadLeakFilters(filters = BouncyCastleThreadFilter.class)
 @TimeoutSuite(millis = 20 * TimeUnits.MINUTE)
 @LuceneTestCase.SuppressSysoutChecks(bugUrl = "we log a lot on purpose")
 // we suppress pretty much all the lucene codecs for now, except asserting
@@ -207,7 +227,12 @@ import static org.hamcrest.Matchers.hasItem;
     "LuceneFixedGap",
     "LuceneVarGapFixedInterval",
     "LuceneVarGapDocFreqInterval",
-    "Lucene50" })
+    "Lucene50",
+    "Lucene90",
+    "Lucene94",
+    "Lucene90",
+    "Lucene95",
+    "Lucene99" })
 @LuceneTestCase.SuppressReproduceLine
 public abstract class OpenSearchTestCase extends LuceneTestCase {
 
@@ -220,6 +245,45 @@ public abstract class OpenSearchTestCase extends LuceneTestCase {
     private static final Collection<String> nettyLoggedLeaks = new ArrayList<>();
     private HeaderWarningAppender headerWarningAppender;
 
+    /**
+     * Define LockFeatureFlag annotation for unit tests.
+     * Enables and make a flag immutable for the duration of the test case.
+     * Flag returned to previous value on test exit.
+     * Usage: LockFeatureFlag("example.featureflag.setting.key.enabled")
+     */
+    @Retention(RetentionPolicy.RUNTIME)
+    @Target({ ElementType.METHOD })
+    public @interface LockFeatureFlag {
+        String value();
+    }
+
+    public static class AnnotatedFeatureFlagRule implements TestRule {
+        /**
+         * Wrap base test case with an
+         * @param base test case to execute.
+         * @param description annotated test description.
+         */
+        @Override
+        public Statement apply(Statement base, Description description) {
+            LockFeatureFlag annotation = description.getAnnotation(LockFeatureFlag.class);
+            if (annotation == null) {
+                return base;
+            }
+            String flagKey = annotation.value();
+            return new Statement() {
+                @Override
+                public void evaluate() throws Throwable {
+                    try (FeatureFlags.TestUtils.FlagWriteLock ignored = new FeatureFlags.TestUtils.FlagWriteLock(flagKey)) {
+                        base.evaluate();
+                    }
+                }
+            };
+        }
+    }
+
+    @Rule
+    public AnnotatedFeatureFlagRule flagLockRule = new AnnotatedFeatureFlagRule();
+
     @AfterClass
     public static void resetPortCounter() {
         portGenerator.set(0);
@@ -228,7 +292,6 @@ public abstract class OpenSearchTestCase extends LuceneTestCase {
     @Override
     public void tearDown() throws Exception {
         Schedulers.shutdownNow();
-        FeatureFlagSetter.clear();
         super.tearDown();
     }
 
@@ -238,8 +301,6 @@ public abstract class OpenSearchTestCase extends LuceneTestCase {
     public static final String TEST_WORKER_SYS_PROPERTY = "org.gradle.test.worker";
 
     public static final String DEFAULT_TEST_WORKER_ID = "--not-gradle--";
-
-    public static final String FIPS_SYSPROP = "tests.fips.enabled";
 
     static {
         TEST_WORKER_VM_ID = System.getProperty(TEST_WORKER_SYS_PROPERTY, DEFAULT_TEST_WORKER_ID);
@@ -636,10 +697,45 @@ public abstract class OpenSearchTestCase extends LuceneTestCase {
         assertThat(StatusLogger.getLogger().getLevel(), equalTo(Level.WARN));
         synchronized (statusData) {
             try {
-                // ensure that there are no status logger messages which would indicate a problem with our Log4j usage; we map the
-                // StatusData instances to Strings as otherwise their toString output is useless
+                /* ensure that there are no status logger messages which would indicate a problem with our Log4j usage; we map the
+                 * StatusData instances to Strings as otherwise their toString output is useless
+                 *
+                 * Filter out known Log4j 2.25+ initialization message about default root logger
+                 */
+                List<StatusData> filteredStatusData = statusData.stream()
+                    .filter(
+                        status -> status.getMessage()
+                            .getFormattedMessage()
+                            .contains("No Root logger was configured, creating default ERROR-level Root logger") == false
+                    )
+                    .toList();
+
+                final Function<StatusData, String> statusToString = (sd) -> {
+                    try (final StringWriter sw = new StringWriter(); final PrintWriter pw = new PrintWriter(sw)) {
+
+                        pw.print(sd.getLevel());
+                        pw.print(":");
+                        pw.print(sd.getMessage().getFormattedMessage());
+
+                        if (sd.getStackTraceElement() != null) {
+                            final var messageSource = sd.getStackTraceElement();
+                            pw.println("Source:");
+                            pw.println(messageSource.getFileName() + "@" + messageSource.getLineNumber());
+                        }
+
+                        if (sd.getThrowable() != null) {
+                            pw.println("Throwable:");
+                            sd.getThrowable().printStackTrace(pw);
+                        }
+                        return sw.toString();
+                    } catch (IOException ioe) {
+                        throw new RuntimeException(ioe);
+                    }
+                };
+
                 assertThat(
-                    statusData.stream().map(status -> status.getMessage().getFormattedMessage()).collect(Collectors.toList()),
+                    filteredStatusData.stream().map(statusToString::apply).collect(Collectors.joining("\r\n")),
+                    filteredStatusData.stream().map(status -> status.getMessage().getFormattedMessage()).collect(Collectors.toList()),
                     empty()
                 );
             } finally {
@@ -774,6 +870,14 @@ public abstract class OpenSearchTestCase extends LuceneTestCase {
     public static long randomNonNegativeLong() {
         long randomLong = randomLong();
         return randomLong == Long.MIN_VALUE ? 0 : Math.abs(randomLong);
+    }
+
+    /**
+     * @return a <code>int</code> between <code>0</code> and <code>Integer.MAX_VALUE</code> (inclusive) chosen uniformly at random.
+     */
+    public static int randomNonNegativeInt() {
+        int randomInt = randomInt();
+        return randomInt == Integer.MIN_VALUE ? 0 : Math.abs(randomInt);
     }
 
     public static float randomFloat() {
@@ -1096,6 +1200,38 @@ public abstract class OpenSearchTestCase extends LuceneTestCase {
     }
 
     /**
+     * Runs the code block for the provided max wait time and sleeping for fixed sleep time, waiting for no assertions to trip.
+     */
+    public static void assertBusyWithFixedSleepTime(CheckedRunnable<Exception> codeBlock, TimeValue maxWaitTime, TimeValue sleepTime)
+        throws Exception {
+        long maxTimeInMillis = maxWaitTime.millis();
+        long sleepTimeInMillis = sleepTime.millis();
+        if (sleepTimeInMillis > maxTimeInMillis) {
+            throw new IllegalArgumentException("sleepTime is more than the maxWaitTime");
+        }
+        long sum = 0;
+        List<AssertionError> failures = new ArrayList<>();
+        while (sum <= maxTimeInMillis) {
+            try {
+                codeBlock.run();
+                return;
+            } catch (AssertionError e) {
+                failures.add(e);
+            }
+            sum += sleepTimeInMillis;
+            Thread.sleep(sleepTimeInMillis);
+        }
+        try {
+            codeBlock.run();
+        } catch (AssertionError e) {
+            for (AssertionError failure : failures) {
+                e.addSuppressed(failure);
+            }
+            throw e;
+        }
+    }
+
+    /**
      * Periodically execute the supplied function until it returns true, or a timeout
      * is reached. This version uses a timeout of 10 seconds. If at all possible,
      * use {@link OpenSearchTestCase#assertBusy(CheckedRunnable)} instead.
@@ -1154,7 +1290,7 @@ public abstract class OpenSearchTestCase extends LuceneTestCase {
     }
 
     /**
-     * Returns a {@link java.nio.file.Path} pointing to the class path relative resource given
+     * Returns a {@link Path} pointing to the class path relative resource given
      * as the first argument. In contrast to
      * <code>getClass().getResource(...).getFile()</code> this method will not
      * return URL encoded paths if the parent path contains spaces or other
@@ -1207,8 +1343,16 @@ public abstract class OpenSearchTestCase extends LuceneTestCase {
 
     public static Settings.Builder remoteIndexSettings(Version version) {
         Settings.Builder builder = Settings.builder()
-            .put(FileCache.DATA_TO_FILE_CACHE_SIZE_RATIO_SETTING.getKey(), 5)
+            .put(DATA_TO_FILE_CACHE_SIZE_RATIO_SETTING.getKey(), 5)
             .put(IndexMetadata.SETTING_VERSION_CREATED, version)
+            .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.REMOTE_SNAPSHOT.getSettingsKey());
+        return builder;
+    }
+
+    public static Settings.Builder warmIndexSettings(Version version) {
+        Settings.Builder builder = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, version)
+            .put(IndexModule.IS_WARM_INDEX_SETTING.getKey(), true)
             .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.REMOTE_SNAPSHOT.getSettingsKey());
         return builder;
     }
@@ -1316,7 +1460,7 @@ public abstract class OpenSearchTestCase extends LuceneTestCase {
         boolean humanReadable,
         String... exceptFieldNames
     ) throws IOException {
-        BytesReference bytes = org.opensearch.core.xcontent.XContentHelper.toXContent(toXContent, mediaType, params, humanReadable);
+        BytesReference bytes = XContentHelper.toXContent(toXContent, mediaType, params, humanReadable);
         try (XContentParser parser = createParser(mediaType.xContent(), bytes)) {
             try (XContentBuilder builder = shuffleXContent(parser, rarely(), exceptFieldNames)) {
                 return BytesReference.bytes(builder);
@@ -1346,7 +1490,7 @@ public abstract class OpenSearchTestCase extends LuceneTestCase {
         throws IOException {
         XContentBuilder xContentBuilder = MediaTypeRegistry.contentBuilder(parser.contentType());
         if (prettyPrint) {
-            xContentBuilder.prettyPrint();
+            xContentBuilder = xContentBuilder.prettyPrint();
         }
         Token token = parser.currentToken() == null ? parser.nextToken() : parser.currentToken();
         if (token == Token.START_ARRAY) {
@@ -1608,8 +1752,8 @@ public abstract class OpenSearchTestCase extends LuceneTestCase {
     protected IndexAnalyzers createDefaultIndexAnalyzers() {
         return new IndexAnalyzers(
             Collections.singletonMap("default", new NamedAnalyzer("default", AnalyzerScope.INDEX, new StandardAnalyzer())),
-            Collections.emptyMap(),
-            Collections.emptyMap()
+            emptyMap(),
+            emptyMap()
         );
     }
 
@@ -1679,7 +1823,7 @@ public abstract class OpenSearchTestCase extends LuceneTestCase {
     }
 
     public static boolean inFipsJvm() {
-        return Boolean.parseBoolean(System.getProperty(FIPS_SYSPROP));
+        return FipsMode.CHECK.isFipsEnabled();
     }
 
     /**
@@ -1689,7 +1833,7 @@ public abstract class OpenSearchTestCase extends LuceneTestCase {
         return getBasePort() + "-" + (getBasePort() + 99); // upper bound is inclusive
     }
 
-    protected static int getBasePort() {
+    protected static int getBasePort(int start) {
         // some tests use MockTransportService to do network based testing. Yet, we run tests in multiple JVMs that means
         // concurrent tests could claim port that another JVM just released and if that test tries to simulate a disconnect it might
         // be smart enough to re-connect depending on what is tested. To reduce the risk, since this is very hard to debug we use
@@ -1713,7 +1857,11 @@ public abstract class OpenSearchTestCase extends LuceneTestCase {
             startAt = (int) Math.floorMod(workerId - 1, 223L) + 1;
         }
         assert startAt >= 0 : "Unexpected test worker Id, resulting port range would be negative";
-        return 10300 + (startAt * 100);
+        return start + (startAt * 100);
+    }
+
+    protected static int getBasePort() {
+        return getBasePort(10300);
     }
 
     protected static InetAddress randomIp(boolean v4) {
@@ -1730,5 +1878,42 @@ public abstract class OpenSearchTestCase extends LuceneTestCase {
         } catch (UnknownHostException e) {
             throw new AssertionError();
         }
+    }
+
+    public static BlobPath getShardLevelBlobPath(
+        Client client,
+        String remoteStoreIndex,
+        BlobPath basePath,
+        String shardId,
+        RemoteStoreEnums.DataCategory dataCategory,
+        RemoteStoreEnums.DataType dataType,
+        String fixedPrefix
+    ) {
+        String indexUUID = client.admin()
+            .indices()
+            .prepareGetSettings(remoteStoreIndex)
+            .get()
+            .getSetting(remoteStoreIndex, IndexMetadata.SETTING_INDEX_UUID);
+        ClusterState state = client.admin().cluster().prepareState().execute().actionGet().getState();
+        Map<String, String> remoteCustomData = state.metadata()
+            .index(remoteStoreIndex)
+            .getCustomData(IndexMetadata.REMOTE_STORE_CUSTOM_KEY);
+        RemoteStoreEnums.PathType type = Objects.isNull(remoteCustomData)
+            ? RemoteStoreEnums.PathType.FIXED
+            : RemoteStoreEnums.PathType.valueOf(remoteCustomData.get(RemoteStoreEnums.PathType.NAME));
+        RemoteStoreEnums.PathHashAlgorithm hashAlgorithm = Objects.nonNull(remoteCustomData)
+            ? remoteCustomData.containsKey(RemoteStoreEnums.PathHashAlgorithm.NAME)
+                ? RemoteStoreEnums.PathHashAlgorithm.valueOf(remoteCustomData.get(RemoteStoreEnums.PathHashAlgorithm.NAME))
+                : null
+            : null;
+        RemoteStorePathStrategy.ShardDataPathInput pathInput = RemoteStorePathStrategy.ShardDataPathInput.builder()
+            .basePath(basePath)
+            .indexUUID(indexUUID)
+            .shardId(shardId)
+            .dataCategory(dataCategory)
+            .dataType(dataType)
+            .fixedPrefix(fixedPrefix)
+            .build();
+        return type.path(pathInput, hashAlgorithm);
     }
 }

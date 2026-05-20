@@ -35,7 +35,9 @@ package org.opensearch.ingest.common;
 import org.opensearch.OpenSearchException;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.common.util.set.Sets;
+import org.opensearch.ingest.TestTemplateService;
 import org.opensearch.test.OpenSearchTestCase;
+import org.junit.Before;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -48,8 +50,14 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class KeyValueProcessorFactoryTests extends OpenSearchTestCase {
 
+    private KeyValueProcessor.Factory factory;
+
+    @Before
+    public void init() {
+        factory = new KeyValueProcessor.Factory(TestTemplateService.instance());
+    }
+
     public void testCreateWithDefaults() throws Exception {
-        KeyValueProcessor.Factory factory = new KeyValueProcessor.Factory();
         Map<String, Object> config = new HashMap<>();
         config.put("field", "field1");
         config.put("field_split", "&");
@@ -57,7 +65,7 @@ public class KeyValueProcessorFactoryTests extends OpenSearchTestCase {
         String processorTag = randomAlphaOfLength(10);
         KeyValueProcessor processor = factory.create(null, processorTag, null, config);
         assertThat(processor.getTag(), equalTo(processorTag));
-        assertThat(processor.getField(), equalTo("field1"));
+        assertThat(processor.getField().newInstance(Collections.emptyMap()).execute(), equalTo("field1"));
         assertThat(processor.getFieldSplit(), equalTo("&"));
         assertThat(processor.getValueSplit(), equalTo("="));
         assertThat(processor.getIncludeKeys(), is(nullValue()));
@@ -66,7 +74,6 @@ public class KeyValueProcessorFactoryTests extends OpenSearchTestCase {
     }
 
     public void testCreateWithAllFieldsSet() throws Exception {
-        KeyValueProcessor.Factory factory = new KeyValueProcessor.Factory();
         Map<String, Object> config = new HashMap<>();
         config.put("field", "field1");
         config.put("field_split", "&");
@@ -78,17 +85,16 @@ public class KeyValueProcessorFactoryTests extends OpenSearchTestCase {
         String processorTag = randomAlphaOfLength(10);
         KeyValueProcessor processor = factory.create(null, processorTag, null, config);
         assertThat(processor.getTag(), equalTo(processorTag));
-        assertThat(processor.getField(), equalTo("field1"));
+        assertThat(processor.getField().newInstance(Collections.emptyMap()).execute(), equalTo("field1"));
         assertThat(processor.getFieldSplit(), equalTo("&"));
         assertThat(processor.getValueSplit(), equalTo("="));
         assertThat(processor.getIncludeKeys(), equalTo(Sets.newHashSet("a", "b")));
         assertThat(processor.getExcludeKeys(), equalTo(Collections.emptySet()));
-        assertThat(processor.getTargetField(), equalTo("target"));
+        assertThat(processor.getTargetField().newInstance(Collections.emptyMap()).execute(), equalTo("target"));
         assertTrue(processor.isIgnoreMissing());
     }
 
     public void testCreateWithMissingField() {
-        KeyValueProcessor.Factory factory = new KeyValueProcessor.Factory();
         Map<String, Object> config = new HashMap<>();
         String processorTag = randomAlphaOfLength(10);
         OpenSearchException exception = expectThrows(
@@ -99,7 +105,6 @@ public class KeyValueProcessorFactoryTests extends OpenSearchTestCase {
     }
 
     public void testCreateWithMissingFieldSplit() {
-        KeyValueProcessor.Factory factory = new KeyValueProcessor.Factory();
         Map<String, Object> config = new HashMap<>();
         config.put("field", "field1");
         String processorTag = randomAlphaOfLength(10);
@@ -111,7 +116,6 @@ public class KeyValueProcessorFactoryTests extends OpenSearchTestCase {
     }
 
     public void testCreateWithMissingValueSplit() {
-        KeyValueProcessor.Factory factory = new KeyValueProcessor.Factory();
         Map<String, Object> config = new HashMap<>();
         config.put("field", "field1");
         config.put("field_split", "&");

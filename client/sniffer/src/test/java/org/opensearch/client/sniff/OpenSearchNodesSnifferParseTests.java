@@ -32,8 +32,6 @@
 
 package org.opensearch.client.sniff;
 
-import com.fasterxml.jackson.core.JsonFactory;
-
 import org.apache.hc.core5.http.ContentType;
 import org.apache.hc.core5.http.HttpEntity;
 import org.apache.hc.core5.http.HttpHost;
@@ -52,6 +50,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
+
+import tools.jackson.core.json.JsonFactory;
 
 import static java.util.Collections.singletonList;
 import static org.hamcrest.Matchers.hasSize;

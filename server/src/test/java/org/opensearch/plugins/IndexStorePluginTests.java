@@ -35,12 +35,18 @@ package org.opensearch.plugins;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.env.ShardLock;
 import org.opensearch.index.IndexModule;
+import org.opensearch.index.IndexSettings;
+import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.store.FsDirectoryFactory;
+import org.opensearch.index.store.Store;
 import org.opensearch.indices.recovery.RecoveryState;
 import org.opensearch.node.MockNode;
 import org.opensearch.test.OpenSearchTestCase;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Map;
@@ -112,6 +118,40 @@ public class IndexStorePluginTests extends OpenSearchTestCase {
         @Override
         public RecoveryState newRecoveryState(ShardRouting shardRouting, DiscoveryNode targetNode, DiscoveryNode sourceNode) {
             return new RecoveryState(shardRouting, targetNode, sourceNode);
+        }
+    }
+
+    public static class FooStoreFactoryPlugin extends Plugin implements IndexStorePlugin {
+        @Override
+        public Map<String, StoreFactory> getStoreFactories() {
+            return Collections.singletonMap("foo_store", new TestStoreFactory());
+        }
+    }
+
+    public static class TestStoreFactory implements IndexStorePlugin.StoreFactory {
+        @Override
+        public Store newStore(
+            ShardId shardId,
+            IndexSettings indexSettings,
+            org.apache.lucene.store.Directory directory,
+            ShardLock shardLock,
+            Store.OnClose onClose,
+            ShardPath shardPath,
+            IndexStorePlugin.DirectoryFactory directoryFactory
+        ) throws IOException {
+            return new Store(shardId, indexSettings, directory, shardLock, onClose, shardPath, directoryFactory);
+        }
+
+        @Override
+        public Store newStore(
+            ShardId shardId,
+            IndexSettings indexSettings,
+            org.apache.lucene.store.Directory directory,
+            ShardLock shardLock,
+            Store.OnClose onClose,
+            ShardPath shardPath
+        ) throws IOException {
+            return new Store(shardId, indexSettings, directory, shardLock, onClose, shardPath);
         }
     }
 

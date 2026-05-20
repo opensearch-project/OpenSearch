@@ -39,13 +39,19 @@ import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.common.collect.MapBuilder;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.action.ActionResponse;
+import org.opensearch.core.tasks.TaskId;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
+import org.opensearch.tasks.TaskInfo;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.client.NoOpNodeClient;
 import org.opensearch.test.rest.FakeRestChannel;
 import org.opensearch.test.rest.FakeRestRequest;
 
+import java.util.List;
+import java.util.Map;
+
 import static java.util.Collections.emptyList;
+import static org.opensearch.tasks.TaskInfoTests.randomResourceStats;
 import static org.hamcrest.Matchers.is;
 
 public class RestTasksActionTests extends OpenSearchTestCase {
@@ -77,7 +83,21 @@ public class RestTasksActionTests extends OpenSearchTestCase {
                 Request request,
                 ActionListener<Response> listener
             ) {
-                listener.onResponse((Response) new ListTasksResponse(emptyList(), emptyList(), emptyList()));
+                final TaskInfo taskInfo = new TaskInfo(
+                    new TaskId("test-node-id", randomLong()),
+                    "test_type",
+                    "test_action",
+                    "test_description",
+                    null,
+                    randomLong(),
+                    randomLongBetween(0, Long.MAX_VALUE),
+                    false,
+                    false,
+                    TaskId.EMPTY_TASK_ID,
+                    Map.of("foo", "bar"),
+                    randomResourceStats(randomBoolean())
+                );
+                listener.onResponse((Response) new ListTasksResponse(List.of(taskInfo), emptyList(), emptyList()));
             }
         };
     }

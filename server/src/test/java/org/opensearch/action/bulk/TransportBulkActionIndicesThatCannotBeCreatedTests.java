@@ -55,12 +55,15 @@ import org.opensearch.index.VersionType;
 import org.opensearch.indices.SystemIndices;
 import org.opensearch.tasks.Task;
 import org.opensearch.telemetry.tracing.noop.NoopTracer;
+import org.opensearch.test.ClusterServiceUtils;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.VersionUtils;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
+import org.opensearch.transport.client.Requests;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
@@ -70,6 +73,7 @@ import java.util.function.Function;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static java.util.Collections.singleton;
+import static org.opensearch.ingest.IngestServiceTests.createIngestServiceWithProcessors;
 import static org.mockito.Mockito.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -80,7 +84,11 @@ public class TransportBulkActionIndicesThatCannotBeCreatedTests extends OpenSear
         bulkRequest.add(new IndexRequest(randomAlphaOfLength(5)));
         bulkRequest.add(new IndexRequest(randomAlphaOfLength(5)));
         bulkRequest.add(new DeleteRequest(randomAlphaOfLength(5)));
-        bulkRequest.add(new UpdateRequest(randomAlphaOfLength(5), randomAlphaOfLength(5)));
+        bulkRequest.add(
+            new UpdateRequest(randomAlphaOfLength(5), randomAlphaOfLength(5)).doc(
+                new IndexRequest(randomAlphaOfLength(5)).source(Requests.INDEX_CONTENT_TYPE, "field1", "value1")
+            )
+        );
         // Test emulating auto_create_index=false
         indicesThatCannotBeCreatedTestCase(emptySet(), bulkRequest, null);
         // Test emulating auto_create_index=true
@@ -96,7 +104,11 @@ public class TransportBulkActionIndicesThatCannotBeCreatedTests extends OpenSear
         bulkRequest.add(new IndexRequest("no"));
         bulkRequest.add(new IndexRequest("can't"));
         bulkRequest.add(new DeleteRequest("do").version(0).versionType(VersionType.EXTERNAL));
-        bulkRequest.add(new UpdateRequest("nothin", randomAlphaOfLength(5)));
+        bulkRequest.add(
+            new UpdateRequest("nothin", randomAlphaOfLength(5)).doc(
+                new IndexRequest(randomAlphaOfLength(5)).source(Requests.INDEX_CONTENT_TYPE, "field1", "value1")
+            )
+        );
         indicesThatCannotBeCreatedTestCase(new HashSet<>(Arrays.asList("no", "can't", "do", "nothin")), bulkRequest, index -> {
             throw new IndexNotFoundException("Can't make it because I say so");
         });
@@ -145,7 +157,7 @@ public class TransportBulkActionIndicesThatCannotBeCreatedTests extends OpenSear
             threadPool,
             mock(TransportService.class),
             clusterService,
-            null,
+            createIngestServiceWithProcessors(Collections.emptyMap()),
             null,
             null,
             mock(ActionFilters.class),
@@ -153,7 +165,11 @@ public class TransportBulkActionIndicesThatCannotBeCreatedTests extends OpenSear
             null,
             new IndexingPressureService(
                 Settings.EMPTY,
-                new ClusterService(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), null)
+                ClusterServiceUtils.createClusterService(
+                    Settings.EMPTY,
+                    new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+                    null
+                )
             ),
             null,
             new SystemIndices(emptyMap()),

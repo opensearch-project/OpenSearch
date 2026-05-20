@@ -33,22 +33,23 @@
 package org.opensearch.action.admin.indices.rollover;
 
 import org.opensearch.OpenSearchException;
+import org.opensearch.action.admin.indices.create.CreateIndexAction;
 import org.opensearch.action.admin.indices.stats.IndicesStatsAction;
 import org.opensearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.opensearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.ActiveShardsObserver;
 import org.opensearch.action.support.IndicesOptions;
+import org.opensearch.action.support.TransportIndicesResolvingAction;
 import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeAction;
-import org.opensearch.client.Client;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateUpdateTask;
 import org.opensearch.cluster.block.ClusterBlockException;
-import org.opensearch.cluster.block.ClusterBlockLevel;
+import org.opensearch.cluster.block.ClusterBlocks;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.Metadata;
-import org.opensearch.cluster.service.ClusterManagerTaskKeys;
+import org.opensearch.cluster.metadata.ResolvedIndices;
 import org.opensearch.cluster.service.ClusterManagerTaskThrottler;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
@@ -60,21 +61,28 @@ import org.opensearch.index.shard.DocsStats;
 import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
+import org.opensearch.transport.client.Client;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
+
+import static org.opensearch.cluster.service.ClusterManagerTask.ROLLOVER_INDEX;
 
 /**
  * Main class to swap the index pointed to by an alias, given some conditions
  *
  * @opensearch.internal
  */
-public class TransportRolloverAction extends TransportClusterManagerNodeAction<RolloverRequest, RolloverResponse> {
+public class TransportRolloverAction extends TransportClusterManagerNodeAction<RolloverRequest, RolloverResponse>
+    implements
+        TransportIndicesResolvingAction<RolloverRequest> {
 
     private final MetadataRolloverService rolloverService;
     private final ActiveShardsObserver activeShardsObserver;
@@ -104,7 +112,7 @@ public class TransportRolloverAction extends TransportClusterManagerNodeAction<R
         this.client = client;
         this.activeShardsObserver = new ActiveShardsObserver(clusterService, threadPool);
         // Task is onboarded for throttling, it will get retried from associated TransportClusterManagerNodeAction.
-        rolloverIndexTaskKey = clusterService.registerClusterManagerTask(ClusterManagerTaskKeys.ROLLOVER_INDEX_KEY, true);
+        rolloverIndexTaskKey = clusterService.registerClusterManagerTask(ROLLOVER_INDEX, true);
     }
 
     @Override
@@ -127,11 +135,10 @@ public class TransportRolloverAction extends TransportClusterManagerNodeAction<R
             request.indicesOptions().expandWildcardsClosed()
         );
 
-        return state.blocks()
-            .indicesBlockedException(
-                ClusterBlockLevel.METADATA_WRITE,
-                indexNameExpressionResolver.concreteIndexNames(state, indicesOptions, request)
-            );
+        return ClusterBlocks.indicesWithRemoteSnapshotBlockedException(
+            new HashSet<>(Arrays.asList(indexNameExpressionResolver.concreteIndexNames(state, indicesOptions, request))),
+            state
+        );
     }
 
     @Override
@@ -258,6 +265,35 @@ public class TransportRolloverAction extends TransportClusterManagerNodeAction<R
         });
     }
 
+    @Override
+    public ResolvedIndices resolveIndices(RolloverRequest rolloverRequest) {
+        try {
+            MetadataRolloverService.RolloverResult preResult = rolloverService.rolloverClusterState(
+                clusterService.state(),
+                rolloverRequest.getRolloverTarget(),
+                rolloverRequest.getNewIndexName(),
+                rolloverRequest.getCreateIndexRequest(),
+                Collections.emptyList(),
+                true,
+                true
+            );
+
+            return ResolvedIndices.of(rolloverRequest.getRolloverTarget())
+                .withLocalSubActions(CreateIndexAction.INSTANCE, ResolvedIndices.Local.of(preResult.rolloverIndexName));
+        } catch (Exception e) {
+            // Exceptions are mostly occurring due to validation errors (e.g. non-existing indices).
+            // These are not propagated to the caller because it should be still
+            // the clusterManagerOperation() that should report these failures.
+            // Instead, we return a basic result which still allows privilege evaluation.
+            if (rolloverRequest.getNewIndexName() != null) {
+                return ResolvedIndices.of(rolloverRequest.getRolloverTarget())
+                    .withLocalSubActions(CreateIndexAction.INSTANCE, ResolvedIndices.Local.of(rolloverRequest.getNewIndexName()));
+            } else {
+                return ResolvedIndices.of(rolloverRequest.getRolloverTarget());
+            }
+        }
+    }
+
     static Map<String, Boolean> evaluateConditions(
         final Collection<Condition<?>> conditions,
         @Nullable final DocsStats docsStats,
@@ -268,7 +304,10 @@ public class TransportRolloverAction extends TransportClusterManagerNodeAction<R
         }
         final long numDocs = docsStats == null ? 0 : docsStats.getCount();
         final long indexSize = docsStats == null ? 0 : docsStats.getTotalSizeInBytes();
-        final Condition.Stats stats = new Condition.Stats(numDocs, metadata.getCreationDate(), new ByteSizeValue(indexSize));
+        final Condition.Stats stats = new Condition.Stats.Builder().numDocs(numDocs)
+            .indexCreated(metadata.getCreationDate())
+            .indexSize(new ByteSizeValue(indexSize))
+            .build();
         return conditions.stream()
             .map(condition -> condition.evaluate(stats))
             .collect(Collectors.toMap(result -> result.condition.toString(), result -> result.matched));
@@ -289,4 +328,5 @@ public class TransportRolloverAction extends TransportClusterManagerNodeAction<R
             return evaluateConditions(conditions, docsStats, metadata);
         }
     }
+
 }

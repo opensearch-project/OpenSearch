@@ -15,12 +15,14 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.store.DirectoryFileTransferTracker;
+import org.opensearch.test.ClusterServiceUtils;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.opensearch.index.remote.RemoteSegmentTransferTracker.currentTimeMsUsingSystemNanos;
@@ -41,7 +43,7 @@ public class RemoteSegmentTransferTrackerTests extends OpenSearchTestCase {
     public void setUp() throws Exception {
         super.setUp();
         threadPool = new TestThreadPool("remote_refresh_segment_pressure_settings_test");
-        clusterService = new ClusterService(
+        clusterService = ClusterServiceUtils.createClusterService(
             Settings.EMPTY,
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
             threadPool
@@ -149,15 +151,19 @@ public class RemoteSegmentTransferTrackerTests extends OpenSearchTestCase {
         Thread.sleep(1);
         transferTracker.updateLocalRefreshTimeMs(currentTimeMsUsingSystemNanos());
 
-        // Sleep for 100ms and then the lag should be within 100ms +/- 20ms
-        Thread.sleep(100);
-        assertTrue(Math.abs(transferTracker.getTimeMsLag() - 100) <= 20);
+        transferTracker.updateLatestLocalFileNameLengthMap(List.of("test"), k -> 1L);
+        // Sleep for 100ms and then the lag should not be shorter
+        long span = 100;
+        Thread.sleep(span);
+        long lag = transferTracker.getTimeMsLag();
+        assertTrue("Actual lag [" + lag + "ms] is not expected to be shorter than span [" + span + "ms]", lag >= span);
 
         transferTracker.updateRemoteRefreshTimeMs(transferTracker.getLocalRefreshTimeMs());
         transferTracker.updateLocalRefreshTimeMs(currentTimeMsUsingSystemNanos());
-        long random = randomIntBetween(50, 200);
-        Thread.sleep(random);
-        assertTrue(Math.abs(transferTracker.getTimeMsLag() - random) <= 20);
+        long randomSpan = randomIntBetween(50, 200);
+        Thread.sleep(randomSpan);
+        lag = transferTracker.getTimeMsLag();
+        assertTrue("Actual lag [" + lag + "ms] is not expected to be shorter than span [" + randomSpan + "ms]", lag >= randomSpan);
     }
 
     public void testAddUploadBytesStarted() {
@@ -252,7 +258,7 @@ public class RemoteSegmentTransferTrackerTests extends OpenSearchTestCase {
             directoryFileTransferTracker,
             remoteStoreStatsTrackerFactory.getMovingAverageWindowSize()
         );
-        long bytesStarted = randomLongBetween(10000, 100000);
+        long bytesStarted = randomLongBetween(12000, 100000);
         long bytesSucceeded = randomLongBetween(1000, 10000);
         long bytesFailed = randomLongBetween(100, 1000);
         transferTracker.addUploadBytesStarted(bytesStarted);
@@ -568,13 +574,9 @@ public class RemoteSegmentTransferTrackerTests extends OpenSearchTestCase {
                 assertEquals((int) deserializedStats.uploadBytesStarted, (int) transferTrackerStats.uploadBytesStarted);
                 assertEquals((int) deserializedStats.uploadBytesSucceeded, (int) transferTrackerStats.uploadBytesSucceeded);
                 assertEquals((int) deserializedStats.uploadBytesFailed, (int) transferTrackerStats.uploadBytesFailed);
-                assertEquals((int) deserializedStats.uploadBytesMovingAverage, transferTrackerStats.uploadBytesMovingAverage, 0);
-                assertEquals(
-                    (int) deserializedStats.uploadBytesPerSecMovingAverage,
-                    transferTrackerStats.uploadBytesPerSecMovingAverage,
-                    0
-                );
-                assertEquals((int) deserializedStats.uploadTimeMovingAverage, transferTrackerStats.uploadTimeMovingAverage, 0);
+                assertEquals(deserializedStats.uploadBytesMovingAverage, transferTrackerStats.uploadBytesMovingAverage, 0);
+                assertEquals(deserializedStats.uploadBytesPerSecMovingAverage, transferTrackerStats.uploadBytesPerSecMovingAverage, 0);
+                assertEquals(deserializedStats.uploadTimeMovingAverage, transferTrackerStats.uploadTimeMovingAverage, 0);
                 assertEquals((int) deserializedStats.totalUploadsStarted, (int) transferTrackerStats.totalUploadsStarted);
                 assertEquals((int) deserializedStats.totalUploadsSucceeded, (int) transferTrackerStats.totalUploadsSucceeded);
                 assertEquals((int) deserializedStats.totalUploadsFailed, (int) transferTrackerStats.totalUploadsFailed);

@@ -38,19 +38,18 @@ import org.opensearch.action.admin.cluster.node.stats.NodeStats;
 import org.opensearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.opensearch.action.search.SearchRequestBuilder;
 import org.opensearch.action.search.SearchResponse;
-import org.opensearch.client.Client;
 import org.opensearch.cluster.health.ClusterHealthStatus;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.routing.OperationRouting;
 import org.opensearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.node.Node;
 import org.opensearch.test.OpenSearchIntegTestCase;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
+import org.opensearch.transport.client.Client;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -70,10 +69,10 @@ import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.not;
 
 @OpenSearchIntegTestCase.ClusterScope(minNumDataNodes = 2)
-public class SearchPreferenceIT extends ParameterizedOpenSearchIntegTestCase {
+public class SearchPreferenceIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
 
-    public SearchPreferenceIT(Settings dynamicSettings) {
-        super(dynamicSettings);
+    public SearchPreferenceIT(Settings staticSettings) {
+        super(staticSettings);
     }
 
     @ParametersFactory
@@ -82,11 +81,6 @@ public class SearchPreferenceIT extends ParameterizedOpenSearchIntegTestCase {
             new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), false).build() },
             new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), true).build() }
         );
-    }
-
-    @Override
-    protected Settings featureFlagSettings() {
-        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.CONCURRENT_SEGMENT_SEARCH, "true").build();
     }
 
     @Override
@@ -160,33 +154,34 @@ public class SearchPreferenceIT extends ParameterizedOpenSearchIntegTestCase {
         assertThat(firstNodeId, not(equalTo(secondNodeId)));
     }
 
-    public void testSimplePreference() {
+    public void testSimplePreference() throws InterruptedException {
         client().admin().indices().prepareCreate("test").setSettings("{\"number_of_replicas\": 1}", MediaTypeRegistry.JSON).get();
         ensureGreen();
 
         client().prepareIndex("test").setSource("field1", "value1").get();
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         SearchResponse searchResponse = client().prepareSearch().setQuery(matchAllQuery()).get();
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(1L));
 
         searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setPreference("_local").execute().actionGet();
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(1L));
 
         searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setPreference("_primary").execute().actionGet();
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(1L));
 
         searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setPreference("_primary_first").execute().actionGet();
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(1L));
 
         searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setPreference("_replica").execute().actionGet();
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(1L));
 
         searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setPreference("_replica_first").execute().actionGet();
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(1L));
 
         searchResponse = client().prepareSearch().setQuery(matchAllQuery()).setPreference("1234").execute().actionGet();
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(1L));
 
     }
 
@@ -264,7 +259,7 @@ public class SearchPreferenceIT extends ParameterizedOpenSearchIntegTestCase {
         assertThat(hitNodes.size(), greaterThan(1));
     }
 
-    public void testCustomPreferenceUnaffectedByOtherShardMovements() {
+    public void testCustomPreferenceUnaffectedByOtherShardMovements() throws InterruptedException {
 
         /*
          * Custom preferences can be used to encourage searches to go to a consistent set of shard copies, meaning that other copies' data
@@ -283,6 +278,7 @@ public class SearchPreferenceIT extends ParameterizedOpenSearchIntegTestCase {
         ensureGreen();
         client().prepareIndex("test").setSource("field1", "value1").get();
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         final String customPreference = randomAlphaOfLength(10);
 
@@ -302,6 +298,7 @@ public class SearchPreferenceIT extends ParameterizedOpenSearchIntegTestCase {
             prepareCreate("test2").setSettings(Settings.builder().put(indexSettings()).put(SETTING_NUMBER_OF_REPLICAS, replicasInNewIndex))
         );
         ensureGreen();
+        indexRandomForConcurrentSearch("test2");
 
         assertSearchesSpecificNode("test", customPreference, nodeId);
 

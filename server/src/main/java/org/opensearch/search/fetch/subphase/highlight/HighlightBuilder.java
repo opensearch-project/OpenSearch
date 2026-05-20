@@ -92,9 +92,9 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
     /** the default number of fragments size in characters */
     public static final int DEFAULT_FRAGMENT_CHAR_SIZE = 100;
     /** the default opening tag  */
-    static final String[] DEFAULT_PRE_TAGS = new String[] { "<em>" };
+    public static final String[] DEFAULT_PRE_TAGS = new String[] { "<em>" };
     /** the default closing tag  */
-    static final String[] DEFAULT_POST_TAGS = new String[] { "</em>" };
+    public static final String[] DEFAULT_POST_TAGS = new String[] { "</em>" };
 
     /** the default opening tags when {@code tag_schema = "styled"}  */
     public static final String[] DEFAULT_STYLED_PRE_TAG = {
@@ -111,6 +111,8 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
     /** the default closing tags when {@code tag_schema = "styled"}  */
     public static final String[] DEFAULT_STYLED_POST_TAGS = { "</em>" };
 
+    static final Character[] DEFAULT_BOUNDARY_CHARS = HighlightBuilder.convertCharArray(SimpleBoundaryScanner.DEFAULT_BOUNDARY_CHARS);
+
     /**
      * a {@link FieldOptions} with default settings
      */
@@ -124,7 +126,7 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
         .numberOfFragments(DEFAULT_NUMBER_OF_FRAGMENTS)
         .encoder(DEFAULT_ENCODER)
         .boundaryMaxScan(SimpleBoundaryScanner.DEFAULT_MAX_SCAN)
-        .boundaryChars(SimpleBoundaryScanner.DEFAULT_BOUNDARY_CHARS)
+        .boundaryChars(DEFAULT_BOUNDARY_CHARS)
         .boundaryScannerLocale(Locale.ROOT)
         .noMatchSize(DEFAULT_NO_MATCH_SIZE)
         .phraseLimit(DEFAULT_PHRASE_LIMIT)

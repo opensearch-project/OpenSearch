@@ -1,8 +1,5 @@
 ---
 "Help":
-    - skip:
-        version: " - 7.7.99"
-        reason: "format changed in 7.8 to accomodate V2 index templates"
 
     - do:
         cat.templates:
@@ -31,9 +28,6 @@
 
 ---
 "Normal templates":
-    - skip:
-        version: " - 7.7.99"
-        reason: "format changed in 7.8 to accomodate V2 index templates"
 
     - do:
         indices.put_template:
@@ -82,9 +76,6 @@
 
 ---
 "Filtered templates":
-    - skip:
-        version: " - 7.7.99"
-        reason: "format changed in 7.8 to accomodate V2 index templates"
 
     - do:
         indices.put_template:
@@ -124,9 +115,6 @@
 
 ---
 "Column headers":
-    - skip:
-        version: " - 7.7.99"
-        reason: "format changed in 7.8 to accomodate V2 index templates"
 
     - do:
         indices.put_template:
@@ -162,9 +150,6 @@
 
 ---
 "Select columns":
-    - skip:
-        version: " - 7.7.99"
-        reason: "format changed in 7.8 to accomodate V2 index templates"
 
     - do:
         indices.put_template:
@@ -197,8 +182,6 @@
 ---
 "Sort templates":
     - skip:
-        version: " - 7.7.99"
-        reason: "format changed in 7.8 to accomodate V2 index templates"
         features: default_shards
 
     - do:
@@ -250,8 +233,6 @@
 ---
 "Multiple template":
     - skip:
-        version: " - 7.7.99"
-        reason: "format changed in 7.8 to accomodate V2 index templates"
         features: default_shards
 
     - do:
@@ -285,8 +266,6 @@
 ---
 "Mixture of legacy and composable templates":
     - skip:
-        version: " - 7.7.99"
-        reason: "format changed in 7.8 to accomodate V2 index templates"
         features: allowed_warnings
 
     - do:

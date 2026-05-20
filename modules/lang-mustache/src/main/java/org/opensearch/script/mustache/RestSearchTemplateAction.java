@@ -33,12 +33,12 @@
 package org.opensearch.script.mustache;
 
 import org.opensearch.action.search.SearchRequest;
-import org.opensearch.client.node.NodeClient;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.action.RestStatusToXContentListener;
 import org.opensearch.rest.action.search.RestSearchAction;
+import org.opensearch.transport.client.node.NodeClient;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -94,6 +94,11 @@ public class RestSearchTemplateAction extends BaseRestHandler {
         SearchTemplateRequest searchTemplateRequest;
         try (XContentParser parser = request.contentOrSourceParamParser()) {
             searchTemplateRequest = SearchTemplateRequest.fromXContent(parser);
+        }
+        // Set the search request pipeline
+        String pipeline = searchTemplateRequest.getSearchPipeline();
+        if (pipeline != null && !pipeline.isEmpty()) {
+            searchRequest.pipeline(pipeline);
         }
         searchTemplateRequest.setRequest(searchRequest);
 

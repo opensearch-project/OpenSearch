@@ -34,15 +34,15 @@ package org.opensearch.cluster.metadata;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.CollectionUtil;
-import org.apache.lucene.util.automaton.Automaton;
-import org.apache.lucene.util.automaton.Operations;
 import org.opensearch.Version;
 import org.opensearch.action.admin.indices.alias.Alias;
+import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
 import org.opensearch.action.support.clustermanager.ClusterManagerNodeRequest;
-import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateUpdateTask;
-import org.opensearch.cluster.service.ClusterManagerTaskKeys;
+import org.opensearch.cluster.applicationtemplates.ClusterStateSystemTemplateLoader;
+import org.opensearch.cluster.applicationtemplates.SystemTemplateMetadata;
+import org.opensearch.cluster.applicationtemplates.SystemTemplatesService;
 import org.opensearch.cluster.service.ClusterManagerTaskThrottler;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Nullable;
@@ -53,9 +53,11 @@ import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.logging.HeaderWarning;
 import org.opensearch.common.regex.Regex;
+import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.IndexScopedSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.set.Sets;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.action.ActionListener;
@@ -66,12 +68,15 @@ import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.IndexService;
+import org.opensearch.index.IndexSettings;
 import org.opensearch.index.mapper.MapperParsingException;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.MapperService.MergeReason;
+import org.opensearch.index.translog.Translog;
 import org.opensearch.indices.IndexTemplateMissingException;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.InvalidIndexTemplateException;
+import org.opensearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -93,6 +98,16 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static org.opensearch.cluster.metadata.MetadataCreateDataStreamService.validateTimestampFieldMapping;
+import static org.opensearch.cluster.metadata.MetadataCreateIndexService.validateIndexTotalPrimaryShardsPerNodeSetting;
+import static org.opensearch.cluster.metadata.MetadataCreateIndexService.validateRefreshIntervalSettings;
+import static org.opensearch.cluster.metadata.MetadataCreateIndexService.validateTranslogFlushIntervalSettingsForCompositeIndex;
+import static org.opensearch.cluster.service.ClusterManagerTask.CREATE_COMPONENT_TEMPLATE;
+import static org.opensearch.cluster.service.ClusterManagerTask.CREATE_INDEX_TEMPLATE;
+import static org.opensearch.cluster.service.ClusterManagerTask.CREATE_INDEX_TEMPLATE_V2;
+import static org.opensearch.cluster.service.ClusterManagerTask.REMOVE_COMPONENT_TEMPLATE;
+import static org.opensearch.cluster.service.ClusterManagerTask.REMOVE_INDEX_TEMPLATE;
+import static org.opensearch.cluster.service.ClusterManagerTask.REMOVE_INDEX_TEMPLATE_V2;
+import static org.opensearch.common.util.concurrent.ThreadContext.ACTION_ORIGIN_TRANSIENT_NAME;
 import static org.opensearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason.NO_LONGER_ASSIGNED;
 
 /**
@@ -115,6 +130,7 @@ public class MetadataIndexTemplateService {
     private final ClusterManagerTaskThrottler.ThrottlingKey removeIndexTemplateV2TaskKey;
     private final ClusterManagerTaskThrottler.ThrottlingKey createComponentTemplateTaskKey;
     private final ClusterManagerTaskThrottler.ThrottlingKey removeComponentTemplateTaskKey;
+    private final ThreadPool threadPool;
 
     @Inject
     public MetadataIndexTemplateService(
@@ -123,7 +139,8 @@ public class MetadataIndexTemplateService {
         AliasValidator aliasValidator,
         IndicesService indicesService,
         IndexScopedSettings indexScopedSettings,
-        NamedXContentRegistry xContentRegistry
+        NamedXContentRegistry xContentRegistry,
+        ThreadPool threadPool
     ) {
         this.clusterService = clusterService;
         this.aliasValidator = aliasValidator;
@@ -131,20 +148,15 @@ public class MetadataIndexTemplateService {
         this.metadataCreateIndexService = metadataCreateIndexService;
         this.indexScopedSettings = indexScopedSettings;
         this.xContentRegistry = xContentRegistry;
+        this.threadPool = threadPool;
 
         // Task is onboarded for throttling, it will get retried from associated TransportClusterManagerNodeAction.
-        createIndexTemplateTaskKey = clusterService.registerClusterManagerTask(ClusterManagerTaskKeys.CREATE_INDEX_TEMPLATE_KEY, true);
-        createIndexTemplateV2TaskKey = clusterService.registerClusterManagerTask(ClusterManagerTaskKeys.CREATE_INDEX_TEMPLATE_V2_KEY, true);
-        removeIndexTemplateTaskKey = clusterService.registerClusterManagerTask(ClusterManagerTaskKeys.REMOVE_INDEX_TEMPLATE_KEY, true);
-        removeIndexTemplateV2TaskKey = clusterService.registerClusterManagerTask(ClusterManagerTaskKeys.REMOVE_INDEX_TEMPLATE_V2_KEY, true);
-        createComponentTemplateTaskKey = clusterService.registerClusterManagerTask(
-            ClusterManagerTaskKeys.CREATE_COMPONENT_TEMPLATE_KEY,
-            true
-        );
-        removeComponentTemplateTaskKey = clusterService.registerClusterManagerTask(
-            ClusterManagerTaskKeys.REMOVE_COMPONENT_TEMPLATE_KEY,
-            true
-        );
+        createIndexTemplateTaskKey = clusterService.registerClusterManagerTask(CREATE_INDEX_TEMPLATE, true);
+        createIndexTemplateV2TaskKey = clusterService.registerClusterManagerTask(CREATE_INDEX_TEMPLATE_V2, true);
+        removeIndexTemplateTaskKey = clusterService.registerClusterManagerTask(REMOVE_INDEX_TEMPLATE, true);
+        removeIndexTemplateV2TaskKey = clusterService.registerClusterManagerTask(REMOVE_INDEX_TEMPLATE_V2, true);
+        createComponentTemplateTaskKey = clusterService.registerClusterManagerTask(CREATE_COMPONENT_TEMPLATE, true);
+        removeComponentTemplateTaskKey = clusterService.registerClusterManagerTask(REMOVE_COMPONENT_TEMPLATE, true);
     }
 
     public void removeTemplates(final RemoveRequest request, final RemoveListener listener) {
@@ -208,6 +220,7 @@ public class MetadataIndexTemplateService {
         final ComponentTemplate template,
         final ActionListener<AcknowledgedResponse> listener
     ) {
+        validateComponentTemplateRequest(template);
         clusterService.submitStateUpdateTask(
             "create-component-template [" + name + "], cause [" + cause + "]",
             new ClusterStateUpdateTask(Priority.URGENT) {
@@ -377,6 +390,7 @@ public class MetadataIndexTemplateService {
         final ActionListener<AcknowledgedResponse> listener
     ) {
         validateNotInUse(clusterService.state().metadata(), name);
+        validateComponentTemplateRequest(clusterService.state().metadata().componentTemplates().get(name));
         clusterService.submitStateUpdateTask("remove-component-template [" + name + "]", new ClusterStateUpdateTask(Priority.URGENT) {
 
             @Override
@@ -438,7 +452,12 @@ public class MetadataIndexTemplateService {
             .collect(Collectors.toSet());
         final Set<String> componentsBeingUsed = new HashSet<>();
         final List<String> templatesStillUsing = metadata.templatesV2().entrySet().stream().filter(e -> {
-            Set<String> intersecting = Sets.intersection(new HashSet<>(e.getValue().composedOf()), matchingComponentTemplates);
+            Set<String> referredComponentTemplates = new HashSet<>(e.getValue().composedOf());
+            String systemTemplateUsed = findContextTemplateName(metadata, e.getValue().context());
+            if (systemTemplateUsed != null) {
+                referredComponentTemplates.add(systemTemplateUsed);
+            }
+            Set<String> intersecting = Sets.intersection(referredComponentTemplates, matchingComponentTemplates);
             if (intersecting.size() > 0) {
                 componentsBeingUsed.addAll(intersecting);
                 return true;
@@ -468,7 +487,7 @@ public class MetadataIndexTemplateService {
         final ComposableIndexTemplate template,
         final ActionListener<AcknowledgedResponse> listener
     ) {
-        validateV2TemplateRequest(clusterService.state().metadata(), name, template);
+        validateV2TemplateRequest(clusterService.state().metadata(), name, template, clusterService.getClusterSettings());
         clusterService.submitStateUpdateTask(
             "create-index-template-v2 [" + name + "], cause [" + cause + "]",
             new ClusterStateUpdateTask(Priority.URGENT) {
@@ -501,7 +520,12 @@ public class MetadataIndexTemplateService {
         );
     }
 
-    public static void validateV2TemplateRequest(Metadata metadata, String name, ComposableIndexTemplate template) {
+    public static void validateV2TemplateRequest(
+        Metadata metadata,
+        String name,
+        ComposableIndexTemplate template,
+        ClusterSettings settings
+    ) {
         if (template.indexPatterns().stream().anyMatch(Regex::isMatchAllPattern)) {
             Settings mergedSettings = resolveSettings(metadata, template);
             if (IndexMetadata.INDEX_HIDDEN_SETTING.exists(mergedSettings)) {
@@ -513,6 +537,8 @@ public class MetadataIndexTemplateService {
         }
 
         final Map<String, ComponentTemplate> componentTemplates = metadata.componentTemplates();
+        final boolean isContextAllowed = FeatureFlags.isEnabled(FeatureFlags.APPLICATION_BASED_CONFIGURATION_TEMPLATES);
+
         final List<String> missingComponentTemplates = template.composedOf()
             .stream()
             .filter(componentTemplate -> componentTemplates.containsKey(componentTemplate) == false)
@@ -524,6 +550,64 @@ public class MetadataIndexTemplateService {
                 "index template [" + name + "] specifies component templates " + missingComponentTemplates + " that do not exist"
             );
         }
+
+        if (template.context() != null && !isContextAllowed) {
+            throw new InvalidIndexTemplateException(
+                name,
+                "index template ["
+                    + name
+                    + "] specifies a context which cannot be used without enabling: "
+                    + SystemTemplatesService.SETTING_APPLICATION_BASED_CONFIGURATION_TEMPLATES_ENABLED.getKey()
+            );
+        }
+
+        if (isContextAllowed
+            && template.composedOf().stream().anyMatch(componentTemplate -> isSystemTemplate(componentTemplates.get(componentTemplate)))) {
+            throw new InvalidIndexTemplateException(
+                name,
+                "index template [" + name + "] specifies a component templates which can only be used in context."
+            );
+        }
+
+        if (template.context() != null && findContextTemplateName(metadata, template.context()) == null) {
+            throw new InvalidIndexTemplateException(
+                name,
+                "index template [" + name + "] specifies a context which is not loaded on the cluster."
+            );
+        }
+    }
+
+    private void validateComponentTemplateRequest(ComponentTemplate componentTemplate) {
+        if (isSystemTemplate(componentTemplate)
+            && !ClusterStateSystemTemplateLoader.TEMPLATE_LOADER_IDENTIFIER.equals(
+                threadPool.getThreadContext().getTransient(ACTION_ORIGIN_TRANSIENT_NAME)
+            )) {
+            throw new IllegalArgumentException("A system template can only be created/updated/deleted with a repository");
+        }
+    }
+
+    static ComponentTemplate findComponentTemplate(Metadata metadata, Context context) {
+        String contextTemplateName = findContextTemplateName(metadata, context);
+        return metadata.componentTemplates().getOrDefault(contextTemplateName, null);
+    }
+
+    static String findContextTemplateName(Metadata metadata, Context context) {
+        if (context == null) {
+            return null;
+        }
+        final boolean searchSpecificVersion = !Context.LATEST_VERSION.equals(context.version());
+        return Optional.ofNullable(metadata.systemTemplatesLookup())
+            .map(coll -> coll.get(context.name()))
+            .map(coll -> coll.get(searchSpecificVersion ? Long.parseLong(context.version()) : coll.lastKey()))
+            .orElse(null);
+    }
+
+    public static boolean isSystemTemplate(ComponentTemplate componentTemplate) {
+        return Optional.ofNullable(componentTemplate)
+            .map(ComponentTemplate::metadata)
+            .map(md -> md.get(ClusterStateSystemTemplateLoader.TEMPLATE_TYPE_KEY))
+            .filter(ob -> SystemTemplateMetadata.COMPONENT_TEMPLATE_TYPE.equals(ob.toString()))
+            .isPresent();
     }
 
     public ClusterState addIndexTemplateV2(
@@ -612,7 +696,8 @@ public class MetadataIndexTemplateService {
                 template.priority(),
                 template.version(),
                 template.metadata(),
-                template.getDataStreamTemplate()
+                template.getDataStreamTemplate(),
+                template.context()
             );
         }
 
@@ -712,13 +797,11 @@ public class MetadataIndexTemplateService {
         final String candidateName,
         final List<String> indexPatterns
     ) {
-        Automaton v2automaton = Regex.simpleMatchToAutomaton(indexPatterns.toArray(Strings.EMPTY_ARRAY));
         Map<String, List<String>> overlappingTemplates = new HashMap<>();
         for (final Map.Entry<String, IndexTemplateMetadata> cursor : state.metadata().templates().entrySet()) {
             String name = cursor.getKey();
             IndexTemplateMetadata template = cursor.getValue();
-            Automaton v1automaton = Regex.simpleMatchToAutomaton(template.patterns().toArray(Strings.EMPTY_ARRAY));
-            if (Operations.isEmpty(Operations.intersection(v2automaton, v1automaton)) == false) {
+            if (patternsActuallyOverlap(indexPatterns, template.patterns())) {
                 logger.debug(
                     "composable template {} and legacy template {} would overlap: {} <=> {}",
                     candidateName,
@@ -761,13 +844,11 @@ public class MetadataIndexTemplateService {
         boolean checkPriority,
         long priority
     ) {
-        Automaton v1automaton = Regex.simpleMatchToAutomaton(indexPatterns.toArray(Strings.EMPTY_ARRAY));
         Map<String, List<String>> overlappingTemplates = new HashMap<>();
         for (Map.Entry<String, ComposableIndexTemplate> entry : state.metadata().templatesV2().entrySet()) {
             String name = entry.getKey();
             ComposableIndexTemplate template = entry.getValue();
-            Automaton v2automaton = Regex.simpleMatchToAutomaton(template.indexPatterns().toArray(Strings.EMPTY_ARRAY));
-            if (Operations.isEmpty(Operations.intersection(v1automaton, v2automaton)) == false) {
+            if (patternsActuallyOverlap(indexPatterns, template.indexPatterns())) {
                 if (checkPriority == false || priority == template.priorityOrZero()) {
                     logger.debug(
                         "legacy template {} and composable template {} would overlap: {} <=> {}",
@@ -784,6 +865,36 @@ public class MetadataIndexTemplateService {
         // results
         overlappingTemplates.remove(candidateName);
         return overlappingTemplates;
+    }
+
+    /**
+     * Checks whether two sets of index patterns practically overlap, using a minimum-string heuristic.
+     * <p>
+     * For each pattern in either set, the wildcard character {@code *} is replaced with the empty string
+     * to produce its "minimum matching string". If that minimum string matches any pattern in the other
+     * set, the two pattern sets are considered to overlap.
+     * <p>
+     * This approach is intentionally more lenient than a full automaton intersection. Full automaton
+     * intersection correctly identifies theoretical overlaps that arise only from creative wildcard usage
+     * (e.g. {@code app-test-*-some-*} and {@code app-test-*-some_other-*} share the synthetic string
+     * {@code app-test--some_other--some-}), but these synthetic strings would never appear as real index
+     * names. The minimum-string heuristic restricts conflict detection to cases where "natural" index
+     * names would match both patterns simultaneously.
+     */
+    static boolean patternsActuallyOverlap(List<String> patterns1, List<String> patterns2) {
+        String[] p2Array = patterns2.toArray(Strings.EMPTY_ARRAY);
+        for (String p1 : patterns1) {
+            if (Regex.simpleMatch(p2Array, p1.replace("*", ""))) {
+                return true;
+            }
+        }
+        String[] p1Array = patterns1.toArray(Strings.EMPTY_ARRAY);
+        for (String p2 : patterns2) {
+            if (Regex.simpleMatch(p1Array, p2.replace("*", ""))) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -865,17 +976,18 @@ public class MetadataIndexTemplateService {
 
     static Set<String> dataStreamsUsingTemplate(final ClusterState state, final String templateName) {
         final ComposableIndexTemplate template = state.metadata().templatesV2().get(templateName);
-        if (template == null) {
+        if (template == null || template.getDataStreamTemplate() == null) {
             return Collections.emptySet();
         }
         final Set<String> dataStreams = state.metadata().dataStreams().keySet();
         Set<String> matches = new HashSet<>();
-        template.indexPatterns()
-            .forEach(
-                indexPattern -> matches.addAll(
-                    dataStreams.stream().filter(stream -> Regex.simpleMatch(indexPattern, stream)).collect(Collectors.toList())
-                )
-            );
+        template.indexPatterns().forEach(indexPattern -> {
+            dataStreams.stream().filter(stream -> Regex.simpleMatch(indexPattern, stream)).filter(stream -> {
+                // Check if this template is the highest priority template and used by this data stream
+                final String usingTemplate = findV2Template(state.metadata(), stream, false);
+                return templateName.equals(usingTemplate);
+            }).forEach(matches::add);
+        });
         return matches;
     }
 
@@ -1069,35 +1181,37 @@ public class MetadataIndexTemplateService {
     @Nullable
     public static String findV2Template(Metadata metadata, String indexName, boolean isHidden) {
         final Predicate<String> patternMatchPredicate = pattern -> Regex.simpleMatch(pattern, indexName);
-        final Map<ComposableIndexTemplate, String> matchedTemplates = new HashMap<>();
+        ComposableIndexTemplate winner = null;
+        String winnerName = null;
+        long highestPriority = -1;
+
         for (Map.Entry<String, ComposableIndexTemplate> entry : metadata.templatesV2().entrySet()) {
             final String name = entry.getKey();
             final ComposableIndexTemplate template = entry.getValue();
+            boolean matched = false;
+
             if (isHidden == false) {
-                final boolean matched = template.indexPatterns().stream().anyMatch(patternMatchPredicate);
-                if (matched) {
-                    matchedTemplates.put(template, name);
-                }
+                matched = template.indexPatterns().stream().anyMatch(patternMatchPredicate);
             } else {
                 final boolean isNotMatchAllTemplate = template.indexPatterns().stream().noneMatch(Regex::isMatchAllPattern);
                 if (isNotMatchAllTemplate) {
-                    if (template.indexPatterns().stream().anyMatch(patternMatchPredicate)) {
-                        matchedTemplates.put(template, name);
-                    }
+                    matched = template.indexPatterns().stream().anyMatch(patternMatchPredicate);
+                }
+            }
+
+            if (matched) {
+                long priority = template.priorityOrZero();
+                if (winner == null || priority > highestPriority) {
+                    winner = template;
+                    winnerName = name;
+                    highestPriority = priority;
                 }
             }
         }
 
-        if (matchedTemplates.size() == 0) {
+        if (winner == null) {
             return null;
         }
-
-        final List<ComposableIndexTemplate> candidates = new ArrayList<>(matchedTemplates.keySet());
-        CollectionUtil.timSort(candidates, Comparator.comparing(ComposableIndexTemplate::priorityOrZero, Comparator.reverseOrder()));
-
-        assert candidates.size() > 0 : "we should have returned early with no candidates";
-        ComposableIndexTemplate winner = candidates.get(0);
-        String winnerName = matchedTemplates.get(winner);
 
         // if the winner template is a global template that specifies the `index.hidden` setting (which is not allowed, so it'd be due to
         // a restored index cluster state that modified a component template used by this global template such that it has this setting)
@@ -1139,7 +1253,7 @@ public class MetadataIndexTemplateService {
             .map(Template::mappings)
             .filter(Objects::nonNull)
             .collect(Collectors.toCollection(LinkedList::new));
-        // Add the actual index template's mappings, since it takes the highest precedence
+        // Add the actual index template's mappings, since it takes the next precedence
         Optional.ofNullable(template.template()).map(Template::mappings).ifPresent(mappings::add);
         if (template.getDataStreamTemplate() != null && indexName.startsWith(DataStream.BACKING_INDEX_PREFIX)) {
             // add a default mapping for the timestamp field, at the lowest precedence, to make bootstrapping data streams more
@@ -1164,6 +1278,15 @@ public class MetadataIndexTemplateService {
                 })
                 .ifPresent(mappings::add);
         }
+
+        // Now use context mappings which take the highest precedence
+        Optional.ofNullable(template.context())
+            .map(ctx -> findContextTemplateName(state.metadata(), ctx))
+            .map(name -> state.metadata().componentTemplates().get(name))
+            .map(ComponentTemplate::template)
+            .map(Template::mappings)
+            .ifPresent(mappings::add);
+
         return Collections.unmodifiableList(mappings);
     }
 
@@ -1225,8 +1348,13 @@ public class MetadataIndexTemplateService {
 
         Settings.Builder templateSettings = Settings.builder();
         componentSettings.forEach(templateSettings::put);
-        // Add the actual index template's settings to the end, since it takes the highest precedence.
+        // Add the actual index template's settings now, since it takes the next precedence.
         Optional.ofNullable(template.template()).map(Template::settings).ifPresent(templateSettings::put);
+
+        // Add the template referred by context since it will take the highest precedence.
+        final ComponentTemplate componentTemplate = findComponentTemplate(metadata, template.context());
+        Optional.ofNullable(componentTemplate).map(ComponentTemplate::template).map(Template::settings).ifPresent(templateSettings::put);
+
         return templateSettings.build();
     }
 
@@ -1268,8 +1396,15 @@ public class MetadataIndexTemplateService {
             .filter(Objects::nonNull)
             .collect(Collectors.toList());
 
-        // Add the actual index template's aliases to the end if they exist
+        // Add the actual index template's aliases now if they exist
         Optional.ofNullable(template.template()).map(Template::aliases).ifPresent(aliases::add);
+
+        // Now use context referenced template's aliases which take the highest precedence
+        if (template.context() != null) {
+            final ComponentTemplate componentTemplate = findComponentTemplate(metadata, template.context());
+            Optional.ofNullable(componentTemplate.template()).map(Template::aliases).ifPresent(aliases::add);
+        }
+
         // Aliases are applied in order, but subsequent alias configuration from the same name is
         // ignored, so in order for the order to be correct, alias configuration should be in order
         // of precedence (with the index template first)
@@ -1506,7 +1641,7 @@ public class MetadataIndexTemplateService {
             if (indexPattern.startsWith("_")) {
                 validationErrors.add("index_pattern [" + indexPattern + "] must not start with '_'");
             }
-            if (Strings.validFileNameExcludingAstrix(indexPattern) == false) {
+            if (Strings.validFileNameExcludingAsterisk(indexPattern) == false) {
                 validationErrors.add(
                     "index_pattern [" + indexPattern + "] must not contain the following characters " + Strings.INVALID_FILENAME_CHARS
                 );
@@ -1529,6 +1664,14 @@ public class MetadataIndexTemplateService {
                 Optional.empty()
             );
             validationErrors.addAll(indexSettingsValidation);
+
+            // validate index refresh interval and translog durability settings
+            validateRefreshIntervalSettings(settings, clusterService.getClusterSettings());
+            validateTranslogFlushIntervalSettingsForCompositeIndex(settings, clusterService.getClusterSettings());
+            validateTranslogDurabilitySettingsInTemplate(settings, clusterService.getClusterSettings());
+
+            // validate index total primary shards per node setting
+            validateIndexTotalPrimaryShardsPerNodeSetting(settings);
         }
 
         if (indexPatterns.stream().anyMatch(Regex::isMatchAllPattern)) {
@@ -1552,6 +1695,29 @@ public class MetadataIndexTemplateService {
                 );
             }
         }
+    }
+
+    /**
+     * Validates {@code index.translog.durability} is not async with the incoming index template
+     * if the {@code cluster.remote_store.index.restrict.async-durability} is set to true.
+     *
+     * @param requestSettings settings passed during template creation
+     * @param clusterSettings current cluster settings
+     */
+    private void validateTranslogDurabilitySettingsInTemplate(Settings requestSettings, ClusterSettings clusterSettings) {
+        if (IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.exists(requestSettings) == false
+            || clusterSettings.get(IndicesService.CLUSTER_REMOTE_INDEX_RESTRICT_ASYNC_DURABILITY_SETTING) == false) {
+            return;
+        }
+        Translog.Durability durability = IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.get(requestSettings);
+        if (durability.equals(Translog.Durability.ASYNC)) {
+            throw new IllegalArgumentException(
+                "index setting [index.translog.durability=async] is not allowed as cluster setting ["
+                    + IndicesService.CLUSTER_REMOTE_INDEX_RESTRICT_ASYNC_DURABILITY_SETTING.getKey()
+                    + "=true]"
+            );
+        }
+
     }
 
     /**
@@ -1584,10 +1750,6 @@ public class MetadataIndexTemplateService {
 
         TimeValue clusterManagerTimeout = ClusterManagerNodeRequest.DEFAULT_CLUSTER_MANAGER_NODE_TIMEOUT;
 
-        /** @deprecated As of 2.1, because supporting inclusive language, replaced by {@link #clusterManagerTimeout} */
-        @Deprecated
-        TimeValue masterTimeout = ClusterManagerNodeRequest.DEFAULT_CLUSTER_MANAGER_NODE_TIMEOUT;
-
         public PutRequest(String cause, String name) {
             this.cause = cause;
             this.name = name;
@@ -1618,6 +1780,10 @@ public class MetadataIndexTemplateService {
             return this;
         }
 
+        public String getMappings() {
+            return mappings;
+        }
+
         public PutRequest aliases(Set<Alias> aliases) {
             this.aliases.addAll(aliases);
             return this;
@@ -1626,12 +1792,6 @@ public class MetadataIndexTemplateService {
         public PutRequest clusterManagerTimeout(TimeValue clusterManagerTimeout) {
             this.clusterManagerTimeout = clusterManagerTimeout;
             return this;
-        }
-
-        /** @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #clusterManagerTimeout(TimeValue)} */
-        @Deprecated
-        public PutRequest masterTimeout(TimeValue masterTimeout) {
-            return clusterManagerTimeout(masterTimeout);
         }
 
         public PutRequest version(Integer version) {
@@ -1666,10 +1826,6 @@ public class MetadataIndexTemplateService {
         final String name;
         TimeValue clusterManagerTimeout = ClusterManagerNodeRequest.DEFAULT_CLUSTER_MANAGER_NODE_TIMEOUT;
 
-        /** @deprecated As of 2.1, because supporting inclusive language, replaced by {@link #clusterManagerTimeout} */
-        @Deprecated
-        TimeValue masterTimeout = ClusterManagerNodeRequest.DEFAULT_CLUSTER_MANAGER_NODE_TIMEOUT;
-
         public RemoveRequest(String name) {
             this.name = name;
         }
@@ -1677,12 +1833,6 @@ public class MetadataIndexTemplateService {
         public RemoveRequest clusterManagerTimeout(TimeValue clusterManagerTimeout) {
             this.clusterManagerTimeout = clusterManagerTimeout;
             return this;
-        }
-
-        /** @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #clusterManagerTimeout} */
-        @Deprecated
-        public RemoveRequest masterTimeout(TimeValue masterTimeout) {
-            return clusterManagerTimeout(masterTimeout);
         }
     }
 

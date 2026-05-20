@@ -58,6 +58,7 @@ public final class GrokProcessor extends AbstractProcessor {
     private final Grok grok;
     private final boolean traceMatch;
     private final boolean ignoreMissing;
+    private final boolean captureAllMatches;
 
     GrokProcessor(
         String tag,
@@ -67,14 +68,16 @@ public final class GrokProcessor extends AbstractProcessor {
         String matchField,
         boolean traceMatch,
         boolean ignoreMissing,
+        boolean captureAllMatches,
         MatcherWatchdog matcherWatchdog
     ) {
         super(tag, description);
         this.matchField = matchField;
         this.matchPatterns = matchPatterns;
-        this.grok = new Grok(patternBank, combinePatterns(matchPatterns, traceMatch), matcherWatchdog, logger::debug);
+        this.grok = new Grok(patternBank, combinePatterns(matchPatterns, traceMatch), matcherWatchdog, logger::debug, captureAllMatches);
         this.traceMatch = traceMatch;
         this.ignoreMissing = ignoreMissing;
+        this.captureAllMatches = captureAllMatches;
         // Joni warnings are only emitted on an attempt to match, and the warning emitted for every call to match which is too verbose
         // so here we emit a warning (if there is one) to the logfile at warn level on construction / processor creation.
         new Grok(patternBank, combinePatterns(matchPatterns, traceMatch), matcherWatchdog, logger::warn).match("___nomatch___");
@@ -130,6 +133,10 @@ public final class GrokProcessor extends AbstractProcessor {
         return matchPatterns;
     }
 
+    boolean isCaptureAllMatches() {
+        return captureAllMatches;
+    }
+
     static String combinePatterns(List<String> patterns, boolean traceMatch) {
         String combinedPattern;
         if (patterns.size() > 1) {
@@ -176,6 +183,7 @@ public final class GrokProcessor extends AbstractProcessor {
             List<String> matchPatterns = ConfigurationUtils.readList(TYPE, processorTag, config, "patterns");
             boolean traceMatch = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "trace_match", false);
             boolean ignoreMissing = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "ignore_missing", false);
+            boolean captureAllMatches = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "capture_all_matches", false);
 
             if (matchPatterns.isEmpty()) {
                 throw newConfigurationException(TYPE, processorTag, "patterns", "List of patterns must not be empty");
@@ -195,6 +203,7 @@ public final class GrokProcessor extends AbstractProcessor {
                     matchField,
                     traceMatch,
                     ignoreMissing,
+                    captureAllMatches,
                     matcherWatchdog
                 );
             } catch (Exception e) {

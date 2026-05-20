@@ -73,6 +73,7 @@ import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -83,6 +84,9 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
+import static org.opensearch.action.admin.cluster.health.ClusterHealthRequest.Level.CLUSTER;
+import static org.opensearch.action.admin.cluster.health.ClusterHealthRequest.Level.INDICES;
+import static org.opensearch.action.admin.cluster.health.ClusterHealthRequest.Level.SHARDS;
 import static org.opensearch.test.ClusterServiceUtils.createClusterService;
 import static org.opensearch.test.ClusterServiceUtils.setState;
 import static org.hamcrest.CoreMatchers.allOf;
@@ -225,7 +229,13 @@ public class ClusterStateHealthTests extends OpenSearchTestCase {
             clusterStateHealth.hasDiscoveredClusterManager(),
             equalTo(clusterService.state().nodes().getClusterManagerNodeId() != null)
         );
-        assertClusterHealth(clusterStateHealth, counter);
+        assertClusterHealth(clusterStateHealth, counter, SHARDS);
+        clusterStateHealth = new ClusterStateHealth(clusterState, concreteIndices, ClusterHealthRequest.Level.CLUSTER);
+        assertClusterHealth(clusterStateHealth, counter, CLUSTER);
+        clusterStateHealth = new ClusterStateHealth(clusterState, concreteIndices, INDICES);
+        assertClusterHealth(clusterStateHealth, counter, INDICES);
+        clusterStateHealth = new ClusterStateHealth(clusterState, concreteIndices, SHARDS);
+        assertClusterHealth(clusterStateHealth, counter, SHARDS);
     }
 
     public void testClusterHealthOnIndexCreation() {
@@ -586,7 +596,11 @@ public class ClusterStateHealthTests extends OpenSearchTestCase {
         return true;
     }
 
-    private void assertClusterHealth(ClusterStateHealth clusterStateHealth, RoutingTableGenerator.ShardCounter counter) {
+    private void assertClusterHealth(
+        ClusterStateHealth clusterStateHealth,
+        RoutingTableGenerator.ShardCounter counter,
+        ClusterHealthRequest.Level level
+    ) {
         assertThat(clusterStateHealth.getStatus(), equalTo(counter.status()));
         assertThat(clusterStateHealth.getActiveShards(), equalTo(counter.active));
         assertThat(clusterStateHealth.getActivePrimaryShards(), equalTo(counter.primaryActive));
@@ -594,5 +608,16 @@ public class ClusterStateHealthTests extends OpenSearchTestCase {
         assertThat(clusterStateHealth.getRelocatingShards(), equalTo(counter.relocating));
         assertThat(clusterStateHealth.getUnassignedShards(), equalTo(counter.unassigned));
         assertThat(clusterStateHealth.getActiveShardsPercent(), is(allOf(greaterThanOrEqualTo(0.0), lessThanOrEqualTo(100.0))));
+        if (level.equals(INDICES) || level.equals(SHARDS)) {
+            assertTrue(clusterStateHealth.getIndices().size() > 0);
+            if (level.equals(SHARDS)) {
+                Collection<ClusterIndexHealth> clusterIndexHealths = clusterStateHealth.getIndices().values();
+                for (ClusterIndexHealth clusterIndexHealth : clusterIndexHealths) {
+                    assertFalse(clusterIndexHealth.getShards().isEmpty());
+                }
+            }
+        } else {
+            assertTrue(clusterStateHealth.getIndices().isEmpty());
+        }
     }
 }

@@ -32,6 +32,7 @@
 
 package org.opensearch.action.search;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TopFieldDocs;
@@ -58,11 +59,15 @@ import org.opensearch.search.internal.ShardSearchContextId;
 import org.opensearch.search.internal.ShardSearchRequest;
 import org.opensearch.search.query.QuerySearchResult;
 import org.opensearch.search.sort.SortBuilders;
+import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.test.InternalAggregationTestCase;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.transport.Transport;
+import org.junit.After;
+import org.junit.Before;
 
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
@@ -75,6 +80,24 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class SearchQueryThenFetchAsyncActionTests extends OpenSearchTestCase {
+    private SearchRequestOperationsListenerAssertingListener assertingListener;
+
+    @Before
+    @Override
+    public void setUp() throws Exception {
+        super.setUp();
+
+        assertingListener = new SearchRequestOperationsListenerAssertingListener();
+    }
+
+    @After
+    @Override
+    public void tearDown() throws Exception {
+        super.tearDown();
+
+        assertingListener.assertFinished();
+    }
+
     public void testBottomFieldSort() throws Exception {
         testCase(false, false);
     }
@@ -215,13 +238,19 @@ public class SearchQueryThenFetchAsyncActionTests extends OpenSearchTestCase {
             null,
             task,
             SearchResponse.Clusters.EMPTY,
-            null
+            new SearchRequestContext(
+                new SearchRequestOperationsListener.CompositeListener(List.of(assertingListener), LogManager.getLogger()),
+                searchRequest,
+                () -> null
+            ),
+            NoopTracer.INSTANCE
         ) {
             @Override
             protected SearchPhase getNextPhase(SearchPhaseResults<SearchPhaseResult> results, SearchPhaseContext context) {
                 return new SearchPhase("test") {
                     @Override
                     public void run() {
+                        assertingListener.onPhaseEnd(new MockSearchPhaseContext(1, searchRequest, this), null);
                         latch.countDown();
                     }
                 };
@@ -245,11 +274,11 @@ public class SearchQueryThenFetchAsyncActionTests extends OpenSearchTestCase {
         SearchPhaseController.ReducedQueryPhase phase = action.results.reduce();
         assertThat(phase.numReducePhases, greaterThanOrEqualTo(1));
         if (withScroll) {
-            assertThat(phase.totalHits.value, equalTo((long) numShards));
-            assertThat(phase.totalHits.relation, equalTo(TotalHits.Relation.EQUAL_TO));
+            assertThat(phase.totalHits.value(), equalTo((long) numShards));
+            assertThat(phase.totalHits.relation(), equalTo(TotalHits.Relation.EQUAL_TO));
         } else {
-            assertThat(phase.totalHits.value, equalTo(2L));
-            assertThat(phase.totalHits.relation, equalTo(TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO));
+            assertThat(phase.totalHits.value(), equalTo(2L));
+            assertThat(phase.totalHits.relation(), equalTo(TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO));
         }
         assertThat(phase.sortedTopDocs.scoreDocs.length, equalTo(1));
         assertThat(phase.sortedTopDocs.scoreDocs[0], instanceOf(FieldDoc.class));

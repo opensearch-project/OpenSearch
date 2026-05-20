@@ -1,18 +1,18 @@
 - [Contributing to OpenSearch](#contributing-to-opensearch)
-  - [First Things First](#first-things-first)
-  - [Ways to Contribute](#ways-to-contribute)
+- [First Things First](#first-things-first)
+- [Ways to Contribute](#ways-to-contribute)
     - [Bug Reports](#bug-reports)
     - [Feature Requests](#feature-requests)
     - [Documentation Changes](#documentation-changes)
     - [Contributing Code](#contributing-code)
-  - [Developer Certificate of Origin](#developer-certificate-of-origin)
-  - [Changelog](#changelog)
-  - [Review Process](#review-process)
-  - [Troubleshooting Failing Builds](#troubleshooting-failing-builds)
+- [Developer Certificate of Origin](#developer-certificate-of-origin)
+- [Review Process](#review-process)
+    - [Tips for Success](#tips)
+- [Troubleshooting Failing Builds](#troubleshooting-failing-builds)
 
 # Contributing to OpenSearch
 
-OpenSearch is a community project that is built and maintained by people just like **you**. We're glad you're interested in helping out. There are several different ways you can do it, but before we talk about that, let's talk about how to get started.
+OpenSearch is a community project built and maintained by people just like **you**. We're glad you're interested in helping out. There are several different ways you can do it, but before we talk about that, let's talk about how to get started.
 
 ## First Things First
 
@@ -30,9 +30,9 @@ Ugh! Bugs!
 
 A bug is when software behaves in a way that you didn't expect and the developer didn't intend. To help us understand what's going on, we first want to make sure you're working from the latest version. Please make sure you're testing against the [latest version](https://github.com/opensearch-project/OpenSearch).
 
-Once you've confirmed that the bug still exists in the latest version, you'll want to check to make sure it's not something we already know about on the [open issues GitHub page](https://github.com/opensearch-project/OpenSearch/issues).
+Once you've confirmed that the bug still exists in the latest version, you'll want to check the bug is not something we already know about. A good way to figure this out is to search for your bug on the [open issues GitHub page](https://github.com/opensearch-project/OpenSearch/issues).
 
-If you've upgraded to the latest version and you can't find it in our open issues list, then you'll need to tell us how to reproduce it. To make the behavior as clear as possible, please provided your steps as `curl` commands which we can copy and paste into a terminal to run it locally, for example:
+If you've upgraded to the latest version and you can't find it in our open issues list, then you'll need to tell us how to reproduce it. To make the behavior as clear as possible, please provide your steps as `curl` commands which we can copy and paste into a terminal to run it locally, for example:
 
 ```sh
 # delete the index
@@ -47,11 +47,11 @@ curl -x PUT localhost:9200/test/test/1 -d '{
 curl ....
 ```
 
-Provide as much information as you can. You may think that the problem lies with your query, when actually it depends on how your data is indexed. The easier it is for us to recreate your problem, the faster it is likely to be fixed.
+Provide as much information as you can. You may think that the problem lies with your query, when actually it depends on how your data is indexed. The easier it is for us to recreate your problem, the faster it is likely to be fixed. It is generally always helpful to provide the basic details of your cluster configuration alongside your reproduction steps.
 
 ### Feature Requests
 
-If you've thought of a way that OpenSearch could be better, we want to hear about it. We track feature requests using GitHub, so please feel free to open an issue which describes the feature you would like to see, why you need it, and how it should work.
+If you've thought of a way that OpenSearch could be better, we want to hear about it. We track feature requests using GitHub, so please feel free to open an issue which describes the feature you would like to see, why you need it, and how it should work. After opening an issue, the fastest way to see your change made is to open a pull request following the requested changes you detailed in your issue. You can learn more about opening a pull request in the [contributing code section](#contributing-code).
 
 ### Documentation Changes
 
@@ -118,42 +118,6 @@ Signed-off-by: Jane Smith <jane.smith@email.com>
 ```
 You may type this line on your own when writing your commit messages. However, if your user.name and user.email are set in your git configs, you can use `-s` or `--signoff` to add the `Signed-off-by` line to the end of the commit message.
 
-## Changelog
-
-OpenSearch maintains version specific changelog by enforcing a change to the ongoing [CHANGELOG](CHANGELOG.md) file adhering to the [Keep A Changelog](https://keepachangelog.com/en/1.0.0/) format. The purpose of the changelog is for the contributors and maintainers to incrementally build the release notes throughout the development process to avoid a painful and error-prone process of attempting to compile the release notes at release time. On each release the "unreleased" entries of the changelog are moved to the appropriate release notes document in the `./release-notes` folder. Also, incrementally building the changelog provides a concise, human-readable list of significant features that have been added to the unreleased version under development.
-
-### Which changes require a CHANGELOG entry?
-Changelogs are intended for operators/administrators, developers integrating with libraries and APIs, and end-users interacting with OpenSearch Dashboards and/or the REST API (collectively referred to as "user"). In short, any change that a user of OpenSearch might want to be aware of should be included in the changelog. The changelog is _not_ intended to replace the git commit log that developers of OpenSearch itself rely upon. The following are some examples of changes that should be in the changelog:
-
-- A newly added feature
-- A fix for a user-facing bug
-- Dependency updates
-- Fixes for security issues
-
-The following are some examples where a changelog entry is not necessary:
-
-- Adding, modifying, or fixing tests
-- An incremental PR for a larger feature (such features should include _one_ changelog entry for the feature)
-- Documentation changes or code refactoring
-- Build-related changes
-
-Any PR that does not include a changelog entry will result in a failure of the validation workflow in GitHub. If the contributor and maintainers agree that no changelog entry is required, then the `skip-changelog` label can be applied to the PR which will result in the workflow passing.
-
-### How to add my changes to [CHANGELOG](CHANGELOG.md)?
-
-Adding in the change is two step process:
-1. Add your changes to the corresponding section within the CHANGELOG file with dummy pull request information, publish the PR
-2. Update the entry for your change in [`CHANGELOG.md`](CHANGELOG.md) and make sure that you reference the pull request there.
-
-### Where should I put my CHANGELOG entry?
-Please review the [branching strategy](https://github.com/opensearch-project/.github/blob/main/RELEASING.md#opensearch-branching) document. The changelog on the `main` branch will contain sections for the _next major_ and _next minor_ releases. Your entry should go into the section it is intended to be released in. In practice, most changes to `main` will be backported to the next minor release so most entries will likely be in that section.
-
-The following examples assume the _next major_ release on main is 3.0, then _next minor_ release is 2.5, and the _current_ release is 2.4.
-
-- **Add a new feature to release in next minor:** Add a changelog entry to `[Unreleased 2.x]` on main, then backport to 2.x (including the changelog entry).
-- **Introduce a breaking API change to release in next major:** Add a changelog entry to `[Unreleased 3.0]` on main, do not backport.
-- **Upgrade a dependency to fix a CVE:** Add a changelog entry to `[Unreleased 2.x]` on main, then backport to 2.x (including the changelog entry), then backport to 2.4 and ensure the changelog entry is added to `[Unreleased 2.4.1]`.
-
 ## Review Process
 
 We deeply appreciate everyone who takes the time to make a contribution. We will review all contributions as quickly as possible. As a reminder, [opening an issue](https://github.com/opensearch-project/OpenSearch/issues/new/choose) discussing your change before you make it is the best way to smooth the PR process. This will prevent a rejection because someone else is already working on the problem, or because the solution is incompatible with the architectural direction.
@@ -164,13 +128,29 @@ If we accept the PR, a [maintainer](MAINTAINERS.md) will merge your change and u
 
 If we reject the PR, we will close the pull request with a comment explaining why. This decision isn't always final: if you feel we have misunderstood your intended change or otherwise think that we should reconsider then please continue the conversation with a comment on the PR and we'll do our best to address any further points you raise.
 
+### Tips for Success (#tips)
+
+We have a lot of mechanisms to help expedite towards an accepted PR. Here are some tips for success:
+1. *Minimize BWC guarantees*: The first PR review cycle heavily focuses on the public facing APIs. This is what we have to "guarantee" as non-breaking for [bwc across major versions](./DEVELOPER_GUIDE.md#backwards-compatibility).
+2. *Do not copy non-compliant code*: Ensure that code is APLv2 compatible. This means that you have not copied any code from other sources unless that code is also APLv2 compatible.
+3. *Utilize feature flags*: Features that are safeguarded behind feature flags are more likely to be merged and backported, as they come with an additional layer of protection. Refer to this [example PR](https://github.com/opensearch-project/OpenSearch/pull/4959) for implementation details.
+4. *Use appropriate Java tags*:
+    - `@opensearch.internal`: Marks internal classes subject to rapid changes.
+    - `@opensearch.api`: Marks public-facing API classes with backward compatibility guarantees.
+    - `@opensearch.experimental`: Indicates rapidly changing [experimental code](./DEVELOPER_GUIDE.md#experimental-development).
+5. *Employ sandbox for significant core changes*: Any new features or enhancements that make changes to core classes (e.g., search phases, codecs, or specialized lucene APIs) are more likely to be merged if they are sandboxed. Sandbox is disabled by default and can be enabled on the Java CLI with `-Dsandbox.enabled=true`.
+6. *Micro-benchmark critical path*: This is a lesser known mechanism, but if you have critical path changes you're afraid will impact performance (the changes touch the garbage collector, heap, direct memory, or CPU) then including a [microbenchmark](https://github.com/opensearch-project/OpenSearch/tree/main/benchmarks) with your PR (and jfr or flamegraph results in the description) is a *GREAT IDEA* and will help expedite the review process.
+7. *Test rigorously*: Ensure thorough testing ([OpenSearchTestCase](./test/framework/src/main/java/org/opensearch/test/OpenSearchTestCase.java) for unit tests, [OpenSearchIntegTestCase](./test/framework/src/main/java/org/opensearch/test/OpenSearchIntegTestCase.java) for integration & cluster tests, [OpenSearchRestTestCase](./test/framework/src/main/java/org/opensearch/test/rest/OpenSearchRestTestCase.java) for testing REST endpoint interfaces, and yaml tests with [ClientYamlTestSuiteIT](./rest-api-spec/src/yamlRestTest/java/org/opensearch/test/rest/ClientYamlTestSuiteIT.java) for REST integration tests)
+
+In general, adding more guardrails to your changes increases the likelihood of swift PR acceptance. We can always relax these guard rails in smaller followup PRs. Reverting a GA feature is much more difficult. Check out the [DEVELOPER_GUIDE](./DEVELOPER_GUIDE.md#submitting-changes) for more useful tips.
+
 ## Troubleshooting Failing Builds
 
-The OpenSearch testing framework offers many capabilities but exhibits significant complexity (it does lot of randomization internally to cover as many edge cases and variations as possible). Unfortunately, this posses a challenge by making it harder to discover important issues/bugs in straightforward way and may lead to so called flaky tests - the tests which flip randomly from success to failure without any code changes. 
+The OpenSearch testing framework offers many capabilities but exhibits significant complexity (it does lot of randomization internally to cover as many edge cases and variations as possible). Unfortunately, this posses a challenge by making it harder to discover important issues/bugs in straightforward way and may lead to so called flaky tests - the tests which flip randomly from success to failure without any code changes.
 
 If your pull request reports a failing test(s) on one of the checks, please:
- - look if there is an existing [issue](https://github.com/opensearch-project/OpenSearch/issues) reported for the test in question 
- - if not, please make sure this is not caused by your changes, run the failing test(s) locally for some time
- - if you are sure the failure is not related, please open a new [bug](https://github.com/opensearch-project/OpenSearch/issues/new?assignees=&labels=bug%2C+untriaged&projects=&template=bug_template.md&title=%5BBUG%5D) with `flaky-test` label
- - add a comment referencing the issue(s) or bug report(s) to your pull request explaining the failing build(s)
- - as a bonus point, try to contribute by fixing the flaky test(s)
+- look if there is an existing [issue](https://github.com/opensearch-project/OpenSearch/issues) reported for the test in question
+- if not, please make sure this is not caused by your changes, run the failing test(s) locally for some time
+- if you are sure the failure is not related, please open a new [bug](https://github.com/opensearch-project/OpenSearch/issues/new?assignees=&labels=bug%2C+untriaged&projects=&template=bug_template.md&title=%5BBUG%5D) with `flaky-test` label
+- add a comment referencing the issue(s) or bug report(s) to your pull request explaining the failing build(s)
+- as a bonus point, try to contribute by fixing the flaky test(s)

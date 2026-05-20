@@ -56,12 +56,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public class MultiBucketCollectorTests extends OpenSearchTestCase {
     private static class ScoreAndDoc extends Scorable {
         float score;
-        int doc = -1;
-
-        @Override
-        public int docID() {
-            return doc;
-        }
 
         @Override
         public float score() {

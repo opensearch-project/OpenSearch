@@ -65,6 +65,7 @@ import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryRewriteContext;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.query.QueryShardException;
+import org.opensearch.index.query.WithFieldName;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.MultiValueMode;
 import org.opensearch.search.SearchSortValuesAndFormats;
@@ -86,7 +87,7 @@ import static org.opensearch.search.sort.NestedSortBuilder.NESTED_FIELD;
  *
  * @opensearch.internal
  */
-public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
+public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> implements WithFieldName {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(FieldSortBuilder.class);
 
     public static final String NAME = "field_sort";
@@ -99,6 +100,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
      * special field name to sort by index order
      */
     public static final String DOC_FIELD_NAME = "_doc";
+    public static final String ID_FIELD_NAME = "_id";
     private static final SortFieldAndFormat SORT_DOC = new SortFieldAndFormat(new SortField(null, SortField.Type.DOC), DocValueFormat.RAW);
     private static final SortFieldAndFormat SORT_DOC_REVERSE = new SortFieldAndFormat(
         new SortField(null, SortField.Type.DOC, true),
@@ -182,6 +184,11 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
     /** Returns the document field this sort should be based on. */
     public String getFieldName() {
         return this.fieldName;
+    }
+
+    @Override
+    public String fieldName() {
+        return getFieldName();
     }
 
     /**
@@ -420,20 +427,19 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
         final SortField field;
         boolean isNanosecond = false;
         if (numericType != null) {
-            if (fieldData instanceof IndexNumericFieldData == false) {
+            if (!(fieldData instanceof IndexNumericFieldData numericFieldData)) {
                 throw new QueryShardException(
                     context,
                     "[numeric_type] option cannot be set on a non-numeric field, got " + fieldType.typeName()
                 );
             }
-            IndexNumericFieldData numericFieldData = (IndexNumericFieldData) fieldData;
             NumericType resolvedType = resolveNumericType(numericType);
             field = numericFieldData.sortField(resolvedType, missing, localSortMode(), nested, reverse);
             isNanosecond = resolvedType == NumericType.DATE_NANOSECONDS;
         } else {
             field = fieldData.sortField(missing, localSortMode(), nested, reverse);
-            if (fieldData instanceof IndexNumericFieldData) {
-                isNanosecond = ((IndexNumericFieldData) fieldData).getNumericType() == NumericType.DATE_NANOSECONDS;
+            if (fieldData instanceof IndexNumericFieldData numericFieldData) {
+                isNanosecond = numericFieldData.getNumericType() == NumericType.DATE_NANOSECONDS;
             }
         }
         DocValueFormat format = fieldType.docValueFormat(null, null);
@@ -469,8 +475,8 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
         }
         DocValueFormat docValueFormat = bottomSortValues.getSortValueFormats()[0];
         final DateMathParser dateMathParser;
-        if (docValueFormat instanceof DocValueFormat.DateTime) {
-            dateMathParser = ((DocValueFormat.DateTime) docValueFormat).getDateMathParser();
+        if (docValueFormat instanceof DocValueFormat.DateTime dateTime) {
+            dateMathParser = dateTime.getDateMathParser();
         } else {
             dateMathParser = null;
         }
@@ -513,13 +519,12 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
             throw new QueryShardException(context, "we only support AVG, MEDIAN and SUM on number based fields");
         }
         if (numericType != null) {
-            if (fieldData instanceof IndexNumericFieldData == false) {
+            if (!(fieldData instanceof IndexNumericFieldData numericFieldData)) {
                 throw new QueryShardException(
                     context,
                     "[numeric_type] option cannot be set on a non-numeric field, got " + fieldType.typeName()
                 );
             }
-            IndexNumericFieldData numericFieldData = (IndexNumericFieldData) fieldData;
             NumericType resolvedType = resolveNumericType(numericType);
             return numericFieldData.newBucketedSort(
                 resolvedType,
@@ -602,7 +607,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
         if (source == null || source.sorts() == null || source.sorts().isEmpty()) {
             return null;
         }
-        return source.sorts().get(0) instanceof FieldSortBuilder ? (FieldSortBuilder) source.sorts().get(0) : null;
+        return source.sorts().get(0) instanceof FieldSortBuilder fieldSortBuilder ? fieldSortBuilder : null;
     }
 
     /**
@@ -611,7 +616,8 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
      * and configurations return <code>null</code>.
      */
     public static MinAndMax<?> getMinMaxOrNull(QueryShardContext context, FieldSortBuilder sortBuilder) throws IOException {
-        return getMinMaxOrNullInternal(context.getIndexReader(), context, sortBuilder);
+        final SortAndFormats sort = SortBuilder.buildSort(Collections.singletonList(sortBuilder), context).get();
+        return getMinMaxOrNullInternal(context.getIndexReader(), context, sortBuilder, sort);
     }
 
     /**
@@ -619,14 +625,21 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
      * The value can be extracted on non-nested indexed mapped fields of type keyword, numeric or date, other fields
      * and configurations return <code>null</code>.
      */
-    public static MinAndMax<?> getMinMaxOrNullForSegment(QueryShardContext context, LeafReaderContext ctx, FieldSortBuilder sortBuilder)
-        throws IOException {
-        return getMinMaxOrNullInternal(ctx.reader(), context, sortBuilder);
+    public static MinAndMax<?> getMinMaxOrNullForSegment(
+        QueryShardContext context,
+        LeafReaderContext ctx,
+        FieldSortBuilder sortBuilder,
+        SortAndFormats sort
+    ) throws IOException {
+        return getMinMaxOrNullInternal(ctx.reader(), context, sortBuilder, sort);
     }
 
-    private static MinAndMax<?> getMinMaxOrNullInternal(IndexReader reader, QueryShardContext context, FieldSortBuilder sortBuilder)
-        throws IOException {
-        SortAndFormats sort = SortBuilder.buildSort(Collections.singletonList(sortBuilder), context).get();
+    private static MinAndMax<?> getMinMaxOrNullInternal(
+        IndexReader reader,
+        QueryShardContext context,
+        FieldSortBuilder sortBuilder,
+        SortAndFormats sort
+    ) throws IOException {
         SortField sortField = sort.sort.getSort()[0];
         if (sortField.getField() == null) {
             return null;
@@ -643,7 +656,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
                 return extractNumericMinAndMax(reader, sortField, fieldType, sortBuilder);
             case STRING:
             case STRING_VAL:
-                if (fieldType instanceof KeywordFieldMapper.KeywordFieldType) {
+                if (fieldType.unwrap() instanceof KeywordFieldMapper.KeywordFieldType) {
                     Terms terms = MultiTerms.getTerms(reader, fieldType.name());
                     if (terms == null) {
                         return null;
@@ -665,8 +678,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
         if (PointValues.size(reader, fieldName) == 0) {
             return null;
         }
-        if (fieldType instanceof NumberFieldType) {
-            NumberFieldType numberFieldType = (NumberFieldType) fieldType;
+        if (fieldType.unwrap() instanceof NumberFieldType numberFieldType) {
             Number minPoint = numberFieldType.parsePoint(PointValues.getMinPackedValue(reader, fieldName));
             Number maxPoint = numberFieldType.parsePoint(PointValues.getMaxPackedValue(reader, fieldName));
             switch (IndexSortConfig.getSortFieldType(sortField)) {
@@ -686,8 +698,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
                 default:
                     return null;
             }
-        } else if (fieldType instanceof DateFieldType) {
-            DateFieldType dateFieldType = (DateFieldType) fieldType;
+        } else if (fieldType.unwrap() instanceof DateFieldType dateFieldType) {
             Function<byte[], Long> dateConverter = createDateConverter(sortBuilder, dateFieldType);
             Long min = dateConverter.apply(PointValues.getMinPackedValue(reader, fieldName));
             Long max = dateConverter.apply(PointValues.getMaxPackedValue(reader, fieldName));

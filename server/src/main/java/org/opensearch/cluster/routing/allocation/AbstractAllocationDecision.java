@@ -107,7 +107,7 @@ public abstract class AbstractAllocationDecision implements ToXContentFragment, 
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeOptionalWriteable(targetNode);
+        out.writeOptionalWriteable((stream, node) -> node.writeToWithAttribute(stream), targetNode);
         if (nodeDecisions != null) {
             out.writeBoolean(true);
             out.writeList(nodeDecisions);

@@ -188,6 +188,10 @@ public class FetchContext {
         return searchContext.sort() != null && searchContext.trackScores();
     }
 
+    public boolean includeNamedQueriesScore() {
+        return searchContext.includeNamedQueriesScore();
+    }
+
     /**
      * Configuration for returning inner hits
      */
@@ -238,8 +242,7 @@ public class FetchContext {
         // Usually the root source simply belongs to the hit we're processing. But if
         // there are multiple layers of inner hits and we're in a nested context, then
         // the root source is found on the inner hits context.
-        if (searchContext instanceof InnerHitSubContext && hitContext.hit().getNestedIdentity() != null) {
-            InnerHitSubContext innerHitsContext = (InnerHitSubContext) searchContext;
+        if (searchContext instanceof InnerHitSubContext innerHitsContext && hitContext.hit().getNestedIdentity() != null) {
             return innerHitsContext.getRootLookup();
         } else {
             return hitContext.sourceLookup();

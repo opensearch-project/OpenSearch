@@ -4,6 +4,8 @@ codecov:
 ignore:
   - "test"
   - "benchmarks"
+  - "**/benchmarks/**"
+  - "plugins/arrow-flight-rpc/**/org/apache/arrow/flight/**"
 
 coverage:
   precision: 2

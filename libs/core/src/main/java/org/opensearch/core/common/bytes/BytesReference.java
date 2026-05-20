@@ -63,11 +63,10 @@ public interface BytesReference extends Comparable<BytesReference>, ToXContentFr
     static BytesReference bytes(XContentBuilder xContentBuilder) {
         xContentBuilder.close();
         OutputStream stream = xContentBuilder.getOutputStream();
-        if (stream instanceof ByteArrayOutputStream) {
-            return new BytesArray(((ByteArrayOutputStream) stream).toByteArray());
-        } else {
-            return ((BytesStream) stream).bytes();
-        }
+        return switch (stream) {
+            case ByteArrayOutputStream baos -> new BytesArray(baos.toByteArray());
+            default -> ((BytesStream) stream).bytes();
+        };
     }
 
     /**
@@ -80,6 +79,11 @@ public interface BytesReference extends Comparable<BytesReference>, ToXContentFr
             return bytesRef.bytes;
         }
         return ArrayUtil.copyOfSubArray(bytesRef.bytes, bytesRef.offset, bytesRef.offset + bytesRef.length);
+    }
+
+    static byte[] toBytesWithoutCompact(BytesReference reference) {
+        final BytesRef bytesRef = reference.toBytesRef();
+        return bytesRef.bytes;
     }
 
     /**
@@ -153,9 +157,11 @@ public interface BytesReference extends Comparable<BytesReference>, ToXContentFr
     byte get(int index);
 
     /**
-     * Returns the integer read from the 4 bytes (BE) starting at the given index.
+     * Returns the integer read from the 4 bytes (big endian) starting at the given index.
      */
-    int getInt(int index);
+    default int getInt(int index) {
+        return ((get(index) & 0xFF) << 24) | ((get(index + 1) & 0xFF) << 16) | ((get(index + 2) & 0xFF) << 8) | (get(index + 3) & 0xFF);
+    }
 
     /**
      * Finds the index of the first occurrence of the given marker between within the given bounds.

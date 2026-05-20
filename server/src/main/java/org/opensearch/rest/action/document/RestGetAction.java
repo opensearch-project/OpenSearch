@@ -34,7 +34,6 @@ package org.opensearch.rest.action.document;
 
 import org.opensearch.action.get.GetRequest;
 import org.opensearch.action.get.GetResponse;
-import org.opensearch.client.node.NodeClient;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.index.VersionType;
@@ -43,6 +42,7 @@ import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.action.RestActions;
 import org.opensearch.rest.action.RestToXContentListener;
 import org.opensearch.search.fetch.subphase.FetchSourceContext;
+import org.opensearch.transport.client.node.NodeClient;
 
 import java.io.IOException;
 import java.util.List;

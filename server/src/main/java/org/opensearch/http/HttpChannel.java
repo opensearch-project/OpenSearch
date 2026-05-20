@@ -32,6 +32,7 @@
 
 package org.opensearch.http;
 
+import org.opensearch.common.Nullable;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.network.CloseableChannel;
 import org.opensearch.core.action.ActionListener;
@@ -66,6 +67,7 @@ public interface HttpChannel extends CloseableChannel {
      *
      * @return the local address of this channel.
      */
+    @Nullable
     InetSocketAddress getLocalAddress();
 
     /**
@@ -73,11 +75,12 @@ public interface HttpChannel extends CloseableChannel {
      *
      * @return the remote address of this channel.
      */
+    @Nullable
     InetSocketAddress getRemoteAddress();
 
     /**
      * Returns the contextual property associated with this specific HTTP channel (the
-     * implementation of how such properties are managed depends on the the particular
+     * implementation of how such properties are managed depends on the particular
      * transport engine).
      *
      * @param name the name of the property

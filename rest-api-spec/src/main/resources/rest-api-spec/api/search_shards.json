@@ -62,6 +62,9 @@
         "default":"open",
         "description":"Whether to expand wildcard expression to concrete indices that are open, closed or both."
       }
+    },
+    "body":{
+      "description":"The search source (in order to specify slice parameters)"
     }
   }
 }

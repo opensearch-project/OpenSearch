@@ -51,7 +51,7 @@ import org.opensearch.action.admin.cluster.snapshots.status.SnapshotStatus;
 import org.opensearch.action.admin.cluster.snapshots.status.SnapshotsStatusRequest;
 import org.opensearch.action.admin.cluster.snapshots.status.SnapshotsStatusResponse;
 import org.opensearch.action.support.IndicesOptions;
-import org.opensearch.action.support.master.AcknowledgedResponse;
+import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
 import org.opensearch.client.OpenSearchRestHighLevelClientTestCase;
 import org.opensearch.client.Request;
 import org.opensearch.client.RequestOptions;
@@ -827,7 +827,7 @@ public class SnapshotClientDocumentationIT extends OpenSearchRestHighLevelClient
     }
 
     private void createTestSnapshots() throws IOException {
-        Request createSnapshot = new Request("put", String.format(Locale.ROOT, "_snapshot/%s/%s", repositoryName, snapshotName));
+        Request createSnapshot = new Request("put", String.format(Locale.ROOT, "/_snapshot/%s/%s", repositoryName, snapshotName));
         createSnapshot.addParameter("wait_for_completion", "true");
         createSnapshot.setJsonEntity("{\"indices\":\"" + indexName + "\"}");
         Response response = highLevelClient().getLowLevelClient().performRequest(createSnapshot);

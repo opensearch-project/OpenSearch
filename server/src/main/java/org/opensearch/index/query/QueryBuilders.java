@@ -50,6 +50,7 @@ import org.opensearch.script.Script;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Utility class to create search queries.
@@ -108,6 +109,17 @@ public final class QueryBuilders {
      */
     public static MatchBoolPrefixQueryBuilder matchBoolPrefixQuery(String name, Object text) {
         return new MatchBoolPrefixQueryBuilder(name, text);
+    }
+
+    /**
+     * Creates a combined_fields query for the provided value across the given field names.
+     *
+     * @param value   The query value (to be analyzed).
+     * @param fields  The target field names.
+     * @return a {@link CombinedFieldsQueryBuilder} instance.
+     */
+    public static CombinedFieldsQueryBuilder combinedFieldsQuery(Object value, String... fields) {
+        return new CombinedFieldsQueryBuilder(value, fields);
     }
 
     /**
@@ -779,5 +791,14 @@ public final class QueryBuilders {
      */
     public static ExistsQueryBuilder existsQuery(String name) {
         return new ExistsQueryBuilder(name);
+    }
+
+    /**
+     *  A query that contains a template with holder that should be resolved by search processors
+     *
+     * @param content The content of the template
+     */
+    public static TemplateQueryBuilder templateQuery(Map<String, Object> content) {
+        return new TemplateQueryBuilder(content);
     }
 }

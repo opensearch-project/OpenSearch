@@ -44,7 +44,9 @@ import org.opensearch.search.aggregations.AbstractAggregationBuilder;
 import org.opensearch.search.aggregations.AggregationBuilder;
 import org.opensearch.search.aggregations.AggregatorFactories;
 import org.opensearch.search.aggregations.AggregatorFactory;
+import org.opensearch.search.aggregations.bucket.filter.FilterAggregatorFactory;
 import org.opensearch.search.aggregations.bucket.nested.NestedAggregatorFactory;
+import org.opensearch.search.aggregations.bucket.nested.ReverseNestedAggregatorFactory;
 import org.opensearch.search.aggregations.support.ValuesSourceRegistry;
 
 import java.io.IOException;
@@ -240,14 +242,16 @@ public class CompositeAggregationBuilder extends AbstractAggregationBuilder<Comp
      * this aggregator or the instance of the parent's factory that is incompatible with
      * the composite aggregation.
      */
-    private AggregatorFactory checkParentIsNullOrNested(AggregatorFactory factory) {
+    private static AggregatorFactory checkParentIsSafe(AggregatorFactory factory) {
         if (factory == null) {
             return null;
-        } else if (factory instanceof NestedAggregatorFactory) {
-            return checkParentIsNullOrNested(factory.getParent());
-        } else {
-            return factory;
-        }
+        } else if (factory instanceof NestedAggregatorFactory
+            || factory instanceof FilterAggregatorFactory
+            || factory instanceof ReverseNestedAggregatorFactory) {
+                return checkParentIsSafe(factory.getParent());
+            } else {
+                return factory;
+            }
     }
 
     private static void validateSources(List<CompositeValuesSourceBuilder<?>> sources) {
@@ -278,7 +282,7 @@ public class CompositeAggregationBuilder extends AbstractAggregationBuilder<Comp
         AggregatorFactory parent,
         AggregatorFactories.Builder subfactoriesBuilder
     ) throws IOException {
-        AggregatorFactory invalid = checkParentIsNullOrNested(parent);
+        AggregatorFactory invalid = checkParentIsSafe(parent);
         if (invalid != null) {
             throw new IllegalArgumentException(
                 "[composite] aggregation cannot be used with a parent aggregation of"

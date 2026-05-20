@@ -15,7 +15,6 @@ import org.opensearch.Version;
 import org.opensearch.action.ActionModule;
 import org.opensearch.action.ActionModule.DynamicActionRegistry;
 import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
-import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.ClusterSettingsResponse;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.Setting;
@@ -47,6 +46,7 @@ import org.opensearch.transport.ConnectTransportException;
 import org.opensearch.transport.TransportException;
 import org.opensearch.transport.TransportResponseHandler;
 import org.opensearch.transport.TransportService;
+import org.opensearch.transport.client.node.NodeClient;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -392,13 +392,13 @@ public class ExtensionsManager {
             public void onFailure(Exception e) {
                 logger.warn("Error registering extension: " + extensionNode.getId(), e);
                 extensionIdMap.remove(extensionNode.getId());
-                if (e.getCause() instanceof ConnectTransportException) {
+                if (e.getCause() instanceof ConnectTransportException connectTransportException) {
                     logger.info("No response from extension to request.", e);
-                    throw (ConnectTransportException) e.getCause();
-                } else if (e.getCause() instanceof RuntimeException) {
-                    throw (RuntimeException) e.getCause();
-                } else if (e.getCause() instanceof Error) {
-                    throw (Error) e.getCause();
+                    throw connectTransportException;
+                } else if (e.getCause() instanceof RuntimeException runtimeException) {
+                    throw runtimeException;
+                } else if (e.getCause() instanceof Error error) {
+                    throw error;
                 } else {
                     throw new RuntimeException(e.getCause());
                 }

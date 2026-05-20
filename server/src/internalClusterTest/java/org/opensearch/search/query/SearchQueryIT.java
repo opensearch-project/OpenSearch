@@ -35,7 +35,7 @@ package org.opensearch.search.query;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.analysis.pattern.PatternReplaceCharFilter;
-import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.tests.analysis.MockTokenizer;
@@ -51,8 +51,8 @@ import org.opensearch.common.regex.Regex;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.time.DateFormatter;
 import org.opensearch.common.unit.Fuzziness;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -67,6 +67,7 @@ import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.index.query.RangeQueryBuilder;
 import org.opensearch.index.query.TermQueryBuilder;
+import org.opensearch.index.query.TermsQueryBuilder;
 import org.opensearch.index.query.WildcardQueryBuilder;
 import org.opensearch.index.query.WrapperQueryBuilder;
 import org.opensearch.index.query.functionscore.ScoreFunctionBuilders;
@@ -78,13 +79,17 @@ import org.opensearch.plugins.AnalysisPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.SearchHits;
+import org.opensearch.search.SearchService;
 import org.opensearch.search.aggregations.AggregationBuilders;
 import org.opensearch.test.InternalSettingsPlugin;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 import org.opensearch.test.junit.annotations.TestIssueLogging;
 
+import java.io.ByteArrayOutputStream;
+import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.Reader;
+import java.nio.ByteBuffer;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
@@ -98,6 +103,9 @@ import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.regex.Pattern;
+
+import org.roaringbitmap.RoaringBitmap;
+import org.roaringbitmap.longlong.Roaring64NavigableMap;
 
 import static java.util.Collections.singletonMap;
 import static org.opensearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
@@ -147,10 +155,10 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
-public class SearchQueryIT extends ParameterizedOpenSearchIntegTestCase {
+public class SearchQueryIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
 
-    public SearchQueryIT(Settings dynamicSettings) {
-        super(dynamicSettings);
+    public SearchQueryIT(Settings staticSettings) {
+        super(staticSettings);
     }
 
     @ParametersFactory
@@ -159,11 +167,6 @@ public class SearchQueryIT extends ParameterizedOpenSearchIntegTestCase {
             new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), false).build() },
             new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), true).build() }
         );
-    }
-
-    @Override
-    protected Settings featureFlagSettings() {
-        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.CONCURRENT_SEGMENT_SEARCH, "true").build();
     }
 
     @Override
@@ -196,7 +199,7 @@ public class SearchQueryIT extends ParameterizedOpenSearchIntegTestCase {
     }
 
     // see https://github.com/elastic/elasticsearch/issues/3177
-    public void testIssue3177() {
+    public void testIssue3177() throws InterruptedException {
         createIndex("test");
         client().prepareIndex("test").setId("1").setSource("field1", "value1").get();
         client().prepareIndex("test").setId("2").setSource("field1", "value2").get();
@@ -205,6 +208,7 @@ public class SearchQueryIT extends ParameterizedOpenSearchIntegTestCase {
         waitForRelocation();
         forceMerge();
         refresh();
+        indexRandomForConcurrentSearch("test");
         assertHitCount(
             client().prepareSearch()
                 .setQuery(matchAllQuery())
@@ -309,7 +313,7 @@ public class SearchQueryIT extends ParameterizedOpenSearchIntegTestCase {
         for (int i = 0; i < queryRounds; i++) {
             MatchQueryBuilder matchQuery = matchQuery("f", English.intToEnglish(between(0, num)));
             searchResponse = client().prepareSearch("test_1").setQuery(constantScoreQuery(matchQuery)).setSize(num).get();
-            long totalHits = searchResponse.getHits().getTotalHits().value;
+            long totalHits = searchResponse.getHits().getTotalHits().value();
             SearchHits hits = searchResponse.getHits();
             for (SearchHit searchHit : hits) {
                 assertThat(searchHit, hasScore(1.0f));
@@ -322,7 +326,7 @@ public class SearchQueryIT extends ParameterizedOpenSearchIntegTestCase {
                 .setSize(num)
                 .get();
             hits = searchResponse.getHits();
-            assertThat(hits.getTotalHits().value, equalTo(totalHits));
+            assertThat(hits.getTotalHits().value(), equalTo(totalHits));
             if (totalHits > 1) {
                 float expected = hits.getAt(0).getScore();
                 for (SearchHit searchHit : hits) {
@@ -383,7 +387,7 @@ public class SearchQueryIT extends ParameterizedOpenSearchIntegTestCase {
         searchResponse = client().prepareSearch()
             .setQuery(commonTermsQuery("field1", "the quick brown").cutoffFrequency(3).lowFreqOperator(Operator.AND))
             .get();
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(2L));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(2L));
         assertFirstHit(searchResponse, hasId("1"));
         assertSecondHit(searchResponse, hasId("2"));
 
@@ -394,7 +398,19 @@ public class SearchQueryIT extends ParameterizedOpenSearchIntegTestCase {
         assertSecondHit(searchResponse, hasId("2"));
         assertThirdHit(searchResponse, hasId("3"));
 
-        searchResponse = client().prepareSearch().setQuery(commonTermsQuery("field1", "the huge fox").lowFreqMinimumShouldMatch("2")).get();
+        // cutoff frequency of 1 makes all terms high frequency so the query gets rewritten as a
+        // conjunction of all terms (the lowFreqMinimumShouldMatch parameter is effectively ignored)
+        searchResponse = client().prepareSearch()
+            .setQuery(commonTermsQuery("field1", "the huge fox").cutoffFrequency(1).lowFreqMinimumShouldMatch("2"))
+            .get();
+        assertHitCount(searchResponse, 1L);
+        assertFirstHit(searchResponse, hasId("2"));
+
+        // cutoff frequency of 100 makes all terms low frequency, so lowFreqMinimumShouldMatch=3
+        // means all terms must match
+        searchResponse = client().prepareSearch()
+            .setQuery(commonTermsQuery("field1", "the huge fox").cutoffFrequency(100).lowFreqMinimumShouldMatch("3"))
+            .get();
         assertHitCount(searchResponse, 1L);
         assertFirstHit(searchResponse, hasId("2"));
 
@@ -465,6 +481,7 @@ public class SearchQueryIT extends ParameterizedOpenSearchIntegTestCase {
 
         client().prepareIndex("test").setId("1").setSource("field1", "value_1", "field2", "value_2").get();
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         SearchResponse searchResponse = client().prepareSearch().setQuery(queryStringQuery("value*")).get();
         assertHitCount(searchResponse, 1L);
@@ -482,11 +499,12 @@ public class SearchQueryIT extends ParameterizedOpenSearchIntegTestCase {
         assertHitCount(searchResponse, 1L);
     }
 
-    public void testLowercaseExpandedTerms() {
+    public void testLowercaseExpandedTerms() throws InterruptedException {
         createIndex("test");
 
         client().prepareIndex("test").setId("1").setSource("field1", "value_1", "field2", "value_2").get();
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         SearchResponse searchResponse = client().prepareSearch().setQuery(queryStringQuery("VALUE_3~1")).get();
         assertHitCount(searchResponse, 1L);
@@ -499,7 +517,7 @@ public class SearchQueryIT extends ParameterizedOpenSearchIntegTestCase {
     }
 
     // Issue #3540
-    public void testDateRangeInQueryString() {
+    public void testDateRangeInQueryString() throws InterruptedException {
         // the mapping needs to be provided upfront otherwise we are not sure how many failures we get back
         // as with dynamic mappings some shards might be lacking behind and parse a different query
         assertAcked(prepareCreate("test").setMapping("past", "type=date", "future", "type=date"));
@@ -510,6 +528,7 @@ public class SearchQueryIT extends ParameterizedOpenSearchIntegTestCase {
         client().prepareIndex("test").setId("1").setSource("past", aMonthAgo, "future", aMonthFromNow).get();
         refresh();
 
+        indexRandomForConcurrentSearch("test");
         SearchResponse searchResponse = client().prepareSearch().setQuery(queryStringQuery("past:[now-2M/d TO now/d]")).get();
         assertHitCount(searchResponse, 1L);
 
@@ -525,7 +544,7 @@ public class SearchQueryIT extends ParameterizedOpenSearchIntegTestCase {
     }
 
     // Issue #7880
-    public void testDateRangeInQueryStringWithTimeZone_7880() {
+    public void testDateRangeInQueryStringWithTimeZone_7880() throws InterruptedException {
         // the mapping needs to be provided upfront otherwise we are not sure how many failures we get back
         // as with dynamic mappings some shards might be lacking behind and parse a different query
         assertAcked(prepareCreate("test").setMapping("past", "type=date"));
@@ -536,6 +555,7 @@ public class SearchQueryIT extends ParameterizedOpenSearchIntegTestCase {
         client().prepareIndex("test").setId("1").setSource("past", now).get();
         refresh();
 
+        indexRandomForConcurrentSearch("test");
         SearchResponse searchResponse = client().prepareSearch()
             .setQuery(queryStringQuery("past:[now-1m/m TO now+1m/m]").timeZone(timeZone.getId()))
             .get();
@@ -543,7 +563,7 @@ public class SearchQueryIT extends ParameterizedOpenSearchIntegTestCase {
     }
 
     // Issue #10477
-    public void testDateRangeInQueryStringWithTimeZone_10477() {
+    public void testDateRangeInQueryStringWithTimeZone_10477() throws InterruptedException {
         // the mapping needs to be provided upfront otherwise we are not sure how many failures we get back
         // as with dynamic mappings some shards might be lacking behind and parse a different query
         assertAcked(prepareCreate("test").setMapping("past", "type=date"));
@@ -552,6 +572,7 @@ public class SearchQueryIT extends ParameterizedOpenSearchIntegTestCase {
         client().prepareIndex("test").setId("2").setSource("past", "2015-04-06T00:00:00+0000").get();
         refresh();
 
+        indexRandomForConcurrentSearch("test");
         // Timezone set with dates
         SearchResponse searchResponse = client().prepareSearch()
             .setQuery(queryStringQuery("past:[2015-04-06T00:00:00+0200 TO 2015-04-06T23:00:00+0200]"))
@@ -725,6 +746,7 @@ public class SearchQueryIT extends ParameterizedOpenSearchIntegTestCase {
         createIndex("test");
 
         client().prepareIndex("test").setId("1").setSource("field1", "value1_1", "field2", "value2_1").setRefreshPolicy(IMMEDIATE).get();
+        indexRandomForConcurrentSearch("test");
 
         WrapperQueryBuilder wrapper = new WrapperQueryBuilder("{ \"term\" : { \"field1\" : \"value1_1\" } }");
         assertHitCount(client().prepareSearch().setQuery(wrapper).get(), 1L);
@@ -741,6 +763,7 @@ public class SearchQueryIT extends ParameterizedOpenSearchIntegTestCase {
 
         client().prepareIndex("test").setId("1").setSource("field1", "value1").get();
         refresh();
+        indexRandomForConcurrentSearch("test");
         SearchResponse searchResponse = client().prepareSearch("test").setQuery(constantScoreQuery(termsQuery("field1", "value1"))).get();
         assertHitCount(searchResponse, 1L);
 
@@ -782,6 +805,7 @@ public class SearchQueryIT extends ParameterizedOpenSearchIntegTestCase {
             client().prepareIndex("test").setId("1").setSource("text", "Unit"),
             client().prepareIndex("test").setId("2").setSource("text", "Unity")
         );
+        indexRandomForConcurrentSearch("test");
 
         SearchResponse searchResponse = client().prepareSearch().setQuery(matchQuery("text", "uniy").fuzziness(Fuzziness.ZERO)).get();
         assertHitCount(searchResponse, 0L);
@@ -868,11 +892,12 @@ public class SearchQueryIT extends ParameterizedOpenSearchIntegTestCase {
         assertFirstHit(searchResponse, hasId("1"));
     }
 
-    public void testMatchQueryZeroTermsQuery() {
+    public void testMatchQueryZeroTermsQuery() throws InterruptedException {
         assertAcked(prepareCreate("test").setMapping("field1", "type=text,analyzer=classic", "field2", "type=text,analyzer=classic"));
         client().prepareIndex("test").setId("1").setSource("field1", "value1").get();
         client().prepareIndex("test").setId("2").setSource("field1", "value2").get();
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         BoolQueryBuilder boolQuery = boolQuery().must(matchQuery("field1", "a").zeroTermsQuery(MatchQuery.ZeroTermsQuery.NONE))
             .must(matchQuery("field1", "value1").zeroTermsQuery(MatchQuery.ZeroTermsQuery.NONE));
@@ -889,11 +914,12 @@ public class SearchQueryIT extends ParameterizedOpenSearchIntegTestCase {
         assertHitCount(searchResponse, 2L);
     }
 
-    public void testMultiMatchQueryZeroTermsQuery() {
+    public void testMultiMatchQueryZeroTermsQuery() throws InterruptedException {
         assertAcked(prepareCreate("test").setMapping("field1", "type=text,analyzer=classic", "field2", "type=text,analyzer=classic"));
         client().prepareIndex("test").setId("1").setSource("field1", "value1", "field2", "value2").get();
         client().prepareIndex("test").setId("2").setSource("field1", "value3", "field2", "value4").get();
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         BoolQueryBuilder boolQuery = boolQuery().must(
             multiMatchQuery("a", "field1", "field2").zeroTermsQuery(MatchQuery.ZeroTermsQuery.NONE)
@@ -913,11 +939,12 @@ public class SearchQueryIT extends ParameterizedOpenSearchIntegTestCase {
         assertHitCount(searchResponse, 2L);
     }
 
-    public void testMultiMatchQueryMinShouldMatch() {
+    public void testMultiMatchQueryMinShouldMatch() throws InterruptedException {
         createIndex("test");
         client().prepareIndex("test").setId("1").setSource("field1", new String[] { "value1", "value2", "value3" }).get();
         client().prepareIndex("test").setId("2").setSource("field2", "value1").get();
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         MultiMatchQueryBuilder multiMatchQuery = multiMatchQuery("value1 value2 foo", "field1", "field2");
 
@@ -959,12 +986,13 @@ public class SearchQueryIT extends ParameterizedOpenSearchIntegTestCase {
         assertHitCount(searchResponse, 0L);
     }
 
-    public void testBoolQueryMinShouldMatchBiggerThanNumberOfShouldClauses() throws IOException {
+    public void testBoolQueryMinShouldMatchBiggerThanNumberOfShouldClauses() throws IOException, InterruptedException {
         createIndex("test");
         client().prepareIndex("test").setId("1").setSource("field1", new String[] { "value1", "value2", "value3" }).get();
         client().prepareIndex("test").setId("2").setSource("field2", "value1").get();
         refresh();
 
+        indexRandomForConcurrentSearch("test");
         BoolQueryBuilder boolQuery = boolQuery().must(termQuery("field1", "value1"))
             .should(boolQuery().should(termQuery("field1", "value1")).should(termQuery("field1", "value2")).minimumShouldMatch(3));
         SearchResponse searchResponse = client().prepareSearch().setQuery(boolQuery).get();
@@ -991,12 +1019,13 @@ public class SearchQueryIT extends ParameterizedOpenSearchIntegTestCase {
         assertHitCount(searchResponse, 0L);
     }
 
-    public void testFuzzyQueryString() {
+    public void testFuzzyQueryString() throws InterruptedException {
         createIndex("test");
         client().prepareIndex("test").setId("1").setSource("str", "foobar", "date", "2012-02-01", "num", 12).get();
         client().prepareIndex("test").setId("2").setSource("str", "fred", "date", "2012-02-05", "num", 20).get();
         refresh();
 
+        indexRandomForConcurrentSearch("test");
         SearchResponse searchResponse = client().prepareSearch().setQuery(queryStringQuery("str:foobaz~1")).get();
         assertNoFailures(searchResponse);
         assertHitCount(searchResponse, 1L);
@@ -1015,6 +1044,7 @@ public class SearchQueryIT extends ParameterizedOpenSearchIntegTestCase {
             client().prepareIndex("test").setId("2").setSource("important", "nothing important", "less_important", "phrase match")
         );
 
+        indexRandomForConcurrentSearch("test");
         SearchResponse searchResponse = client().prepareSearch()
             .setQuery(queryStringQuery("\"phrase match\"").field("important", boost).field("less_important"))
             .get();
@@ -1027,11 +1057,12 @@ public class SearchQueryIT extends ParameterizedOpenSearchIntegTestCase {
         );
     }
 
-    public void testSpecialRangeSyntaxInQueryString() {
+    public void testSpecialRangeSyntaxInQueryString() throws InterruptedException {
         createIndex("test");
         client().prepareIndex("test").setId("1").setSource("str", "foobar", "date", "2012-02-01", "num", 12).get();
         client().prepareIndex("test").setId("2").setSource("str", "fred", "date", "2012-02-05", "num", 20).get();
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         SearchResponse searchResponse = client().prepareSearch().setQuery(queryStringQuery("num:>19")).get();
         assertHitCount(searchResponse, 1L);
@@ -1135,8 +1166,126 @@ public class SearchQueryIT extends ParameterizedOpenSearchIntegTestCase {
         assertHitCount(searchResponse, 0L);
     }
 
+    public void testTermsQueryWithBitmapDocValuesQuery() throws Exception {
+        assertAcked(
+            prepareCreate("products").setMapping(
+                jsonBuilder().startObject()
+                    .startObject("properties")
+                    .startObject("product")
+                    .field("type", "integer")
+                    .field("index", false)
+                    .endObject()
+                    .endObject()
+                    .endObject()
+            )
+        );
+        indexRandom(
+            true,
+            client().prepareIndex("products").setId("1").setSource("product", 1),
+            client().prepareIndex("products").setId("2").setSource("product", 2),
+            client().prepareIndex("products").setId("3").setSource("product", new int[] { 1, 3 }),
+            client().prepareIndex("products").setId("4").setSource("product", 4)
+        );
+
+        RoaringBitmap r = new RoaringBitmap();
+        r.add(1);
+        r.add(4);
+        byte[] array = new byte[r.serializedSizeInBytes()];
+        r.serialize(ByteBuffer.wrap(array));
+        BytesArray bitmap = new BytesArray(array);
+        // directly building the terms query builder, so pass in the bitmap value as BytesArray
+        SearchResponse searchResponse = client().prepareSearch("products")
+            .setQuery(constantScoreQuery(termsQuery("product", bitmap).valueType(TermsQueryBuilder.ValueType.BITMAP)))
+            .get();
+        assertHitCount(searchResponse, 3L);
+        assertSearchHits(searchResponse, "1", "3", "4");
+    }
+
+    public void testTermsQueryWithBitmap64DocValuesQuery() throws Exception {
+        assertAcked(
+            prepareCreate("employees").setMapping(
+                jsonBuilder().startObject()
+                    .startObject("properties")
+                    .startObject("employee_id")
+                    .field("type", "long")
+                    .field("index", false)
+                    .endObject()
+                    .endObject()
+                    .endObject()
+            )
+        );
+        indexRandom(
+            true,
+            client().prepareIndex("employees").setId("1").setSource("employee_id", 1000000000001L),
+            client().prepareIndex("employees").setId("2").setSource("employee_id", 2000000000002L),
+            client().prepareIndex("employees").setId("3").setSource("employee_id", new long[] { 1000000000001L, 3000000000003L }),
+            client().prepareIndex("employees").setId("4").setSource("employee_id", 4000000000004L)
+        );
+        refresh();
+
+        Roaring64NavigableMap bitmap = new Roaring64NavigableMap();
+        bitmap.addLong(1000000000001L);
+        bitmap.addLong(4000000000004L);
+
+        ByteArrayOutputStream bos = new ByteArrayOutputStream();
+        DataOutputStream dos = new DataOutputStream(bos);
+        bitmap.serializePortable(dos);
+        dos.close();
+
+        BytesArray bitmapBytes = new BytesArray(bos.toByteArray());
+
+        // directly building the terms query builder, so pass in the bitmap value as BytesArray
+        SearchResponse searchResponse = client().prepareSearch("employees")
+            .setQuery(constantScoreQuery(termsQuery("employee_id", bitmapBytes).valueType(TermsQueryBuilder.ValueType.BITMAP)))
+            .get();
+        assertHitCount(searchResponse, 3L);
+        assertSearchHits(searchResponse, "1", "3", "4");
+    }
+
+    public void testTermsQueryWithBitmap64IndexAndDocValues() throws Exception {
+        assertAcked(
+            prepareCreate("employees2").setMapping(
+                jsonBuilder().startObject()
+                    .startObject("properties")
+                    .startObject("employee_id")
+                    .field("type", "long")
+                    // Both index and doc values enabled (default)
+                    .endObject()
+                    .endObject()
+                    .endObject()
+            )
+        );
+
+        indexRandom(
+            true,
+            client().prepareIndex("employees2").setId("1").setSource("employee_id", 1000000000001L),
+            client().prepareIndex("employees2").setId("2").setSource("employee_id", 2000000000002L),
+            client().prepareIndex("employees2").setId("3").setSource("employee_id", 3000000000003L)
+        );
+        refresh();
+
+        Roaring64NavigableMap bitmap = new Roaring64NavigableMap();
+        bitmap.addLong(1000000000001L);
+        bitmap.addLong(3000000000003L);
+
+        ByteArrayOutputStream bos = new ByteArrayOutputStream();
+        try (DataOutputStream dos = new DataOutputStream(bos)) {
+            bitmap.serializePortable(dos);
+        }
+
+        BytesArray bitmapBytes = new BytesArray(bos.toByteArray());
+
+        SearchResponse searchResponse = client().prepareSearch("employees2")
+            .setQuery(constantScoreQuery(termsQuery("employee_id", bitmapBytes).valueType(TermsQueryBuilder.ValueType.BITMAP)))
+            .get();
+
+        assertHitCount(searchResponse, 2L);
+        assertSearchHits(searchResponse, "1", "3");
+    }
+
     public void testTermsLookupFilter() throws Exception {
         assertAcked(prepareCreate("lookup").setMapping("terms", "type=text", "other", "type=text"));
+        indexRandomForConcurrentSearch("lookup");
         assertAcked(
             prepareCreate("lookup2").setMapping(
                 jsonBuilder().startObject()
@@ -1152,8 +1301,11 @@ public class SearchQueryIT extends ParameterizedOpenSearchIntegTestCase {
                     .endObject()
             )
         );
+        indexRandomForConcurrentSearch("lookup2");
         assertAcked(prepareCreate("lookup3").setMapping("_source", "enabled=false", "terms", "type=text"));
+        indexRandomForConcurrentSearch("lookup3");
         assertAcked(prepareCreate("test").setMapping("term", "type=text"));
+        indexRandomForConcurrentSearch("test");
 
         indexRandom(
             true,
@@ -1271,6 +1423,77 @@ public class SearchQueryIT extends ParameterizedOpenSearchIntegTestCase {
         assertHitCount(searchResponse, 0L);
     }
 
+    public void testTermsLookupSubqueryRespectsMaxClauseCount() throws Exception {
+        assertAcked(prepareCreate("tl_lookup").setMapping("val", "type=keyword"));
+        assertAcked(prepareCreate("tl_test").setMapping("val", "type=keyword"));
+
+        // Index 6 docs in the lookup index and matching docs in the test index
+        indexRandom(
+            true,
+            client().prepareIndex("tl_lookup").setId("1").setSource("val", "1"),
+            client().prepareIndex("tl_lookup").setId("2").setSource("val", "2"),
+            client().prepareIndex("tl_lookup").setId("3").setSource("val", "3"),
+            client().prepareIndex("tl_lookup").setId("4").setSource("val", "4"),
+            client().prepareIndex("tl_lookup").setId("5").setSource("val", "5"),
+            client().prepareIndex("tl_lookup").setId("6").setSource("val", "6"),
+            client().prepareIndex("tl_test").setId("1").setSource("val", "1"),
+            client().prepareIndex("tl_test").setId("2").setSource("val", "2"),
+            client().prepareIndex("tl_test").setId("3").setSource("val", "3"),
+            client().prepareIndex("tl_test").setId("4").setSource("val", "4"),
+            client().prepareIndex("tl_test").setId("5").setSource("val", "5"),
+            client().prepareIndex("tl_test").setId("6").setSource("val", "6")
+        );
+
+        indexRandomForConcurrentSearch("tl_lookup");
+        indexRandomForConcurrentSearch("tl_test");
+
+        try {
+            // Set max_clause_count to 3, which should limit fetchSize to 3
+            client().admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setTransientSettings(Settings.builder().put(SearchService.INDICES_MAX_CLAUSE_COUNT_SETTING.getKey(), 3))
+                .get();
+
+            // The subquery matches all 6 docs in tl_lookup, but fetchSize is 3 => should fail
+            // The IllegalArgumentException may be wrapped in SearchPhaseExecutionException
+            Exception ex = expectThrows(
+                Exception.class,
+                () -> client().prepareSearch("tl_test")
+                    .setQuery(termsLookupQuery("val", new TermsLookup("tl_lookup", null, "val", matchAllQuery())))
+                    .get()
+            );
+            String errorMsg = ex.getMessage() != null ? ex.getMessage() : ex.getCause().getMessage();
+            assertThat(errorMsg, containsString("exceed fetch limit"));
+
+            // Raise the limit so the same query succeeds
+            client().admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setTransientSettings(
+                    Settings.builder()
+                        .put(
+                            SearchService.INDICES_MAX_CLAUSE_COUNT_SETTING.getKey(),
+                            SearchService.INDICES_MAX_CLAUSE_COUNT_SETTING.getDefault(Settings.EMPTY)
+                        )
+                )
+                .get();
+
+            SearchResponse searchResponse = client().prepareSearch("tl_test")
+                .setQuery(termsLookupQuery("val", new TermsLookup("tl_lookup", null, "val", matchAllQuery())))
+                .get();
+            assertNoFailures(searchResponse);
+            assertHitCount(searchResponse, 6L);
+        } finally {
+            // Reset transient setting
+            client().admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setTransientSettings(Settings.builder().putNull(SearchService.INDICES_MAX_CLAUSE_COUNT_SETTING.getKey()))
+                .get();
+        }
+    }
+
     public void testBasicQueryById() throws Exception {
         assertAcked(prepareCreate("test"));
 
@@ -1279,6 +1502,7 @@ public class SearchQueryIT extends ParameterizedOpenSearchIntegTestCase {
         client().prepareIndex("test").setId("3").setSource("field1", "value3").get();
         refresh();
 
+        indexRandomForConcurrentSearch("test");
         SearchResponse searchResponse = client().prepareSearch().setQuery(idsQuery().addIds("1", "2")).get();
         assertHitCount(searchResponse, 2L);
         assertThat(searchResponse.getHits().getHits().length, equalTo(2));
@@ -1333,6 +1557,7 @@ public class SearchQueryIT extends ParameterizedOpenSearchIntegTestCase {
             .setSource("num_byte", 17, "num_short", 17, "num_integer", 17, "num_long", 17, "num_float", 17, "num_double", 17)
             .get();
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         SearchResponse searchResponse;
         logger.info("--> term query on 1");
@@ -1439,6 +1664,7 @@ public class SearchQueryIT extends ParameterizedOpenSearchIntegTestCase {
         client().prepareIndex("test").setId("3").setSource("field1", "test2", "num_long", 3).get();
         client().prepareIndex("test").setId("4").setSource("field1", "test2", "num_long", 4).get();
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         SearchResponse searchResponse = client().prepareSearch("test")
             .setPostFilter(boolQuery().should(rangeQuery("num_long").from(1).to(2)).should(rangeQuery("num_long").from(3).to(4)))
@@ -1535,7 +1761,7 @@ public class SearchQueryIT extends ParameterizedOpenSearchIntegTestCase {
         assertHitCount(searchResponse, 3L);
     }
 
-    public void testSpanMultiTermQuery() throws IOException {
+    public void testSpanMultiTermQuery() throws IOException, InterruptedException {
         createIndex("test");
 
         client().prepareIndex("test").setId("1").setSource("description", "foo other anything bar", "count", 1).get();
@@ -1543,6 +1769,7 @@ public class SearchQueryIT extends ParameterizedOpenSearchIntegTestCase {
         client().prepareIndex("test").setId("3").setSource("description", "foo other", "count", 3).get();
         client().prepareIndex("test").setId("4").setSource("description", "fop", "count", 4).get();
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         SearchResponse response = client().prepareSearch("test")
             .setQuery(spanOrQuery(spanMultiTermQueryBuilder(fuzzyQuery("description", "fop"))))
@@ -1574,6 +1801,7 @@ public class SearchQueryIT extends ParameterizedOpenSearchIntegTestCase {
         client().prepareIndex("test").setId("1").setSource("description", "the quick brown fox jumped over the lazy dog").get();
         client().prepareIndex("test").setId("2").setSource("description", "the quick black fox leaped over the sleeping dog").get();
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         SearchResponse searchResponse = client().prepareSearch("test")
             .setQuery(
@@ -1612,7 +1840,7 @@ public class SearchQueryIT extends ParameterizedOpenSearchIntegTestCase {
         assertHitCount(searchResponse, 1L);
     }
 
-    public void testSimpleDFSQuery() throws IOException {
+    public void testSimpleDFSQuery() throws IOException, InterruptedException {
         assertAcked(
             prepareCreate("test").setMapping(
                 jsonBuilder().startObject()
@@ -1657,6 +1885,7 @@ public class SearchQueryIT extends ParameterizedOpenSearchIntegTestCase {
             .setSource("online", true, "ts", System.currentTimeMillis() - 123123, "type", "bs")
             .get();
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         SearchResponse response = client().prepareSearch("test")
             .setSearchType(SearchType.DFS_QUERY_THEN_FETCH)
@@ -1679,8 +1908,9 @@ public class SearchQueryIT extends ParameterizedOpenSearchIntegTestCase {
         assertNoFailures(response);
     }
 
-    public void testMultiFieldQueryString() {
+    public void testMultiFieldQueryString() throws InterruptedException {
         client().prepareIndex("test").setId("1").setSource("field1", "value1", "field2", "value2").setRefreshPolicy(IMMEDIATE).get();
+        indexRandomForConcurrentSearch("test");
 
         logger.info("regular");
         assertHitCount(client().prepareSearch("test").setQuery(queryStringQuery("value1").field("field1").field("field2")).get(), 1);
@@ -1700,11 +1930,12 @@ public class SearchQueryIT extends ParameterizedOpenSearchIntegTestCase {
     }
 
     // see #3797
-    public void testMultiMatchLenientIssue3797() {
+    public void testMultiMatchLenientIssue3797() throws InterruptedException {
         createIndex("test");
 
         client().prepareIndex("test").setId("1").setSource("field1", 123, "field2", "value2").get();
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         SearchResponse searchResponse = client().prepareSearch("test")
             .setQuery(multiMatchQuery("value2", "field2").field("field1", 2).lenient(true))
@@ -1728,6 +1959,7 @@ public class SearchQueryIT extends ParameterizedOpenSearchIntegTestCase {
         client().prepareIndex("test").setId("3").setSource("score", 2.0).get();
         client().prepareIndex("test").setId("4").setSource("score", 0.5).get();
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         SearchResponse searchResponse = client().prepareSearch("test")
             .setQuery(functionScoreQuery(ScoreFunctionBuilders.fieldValueFactorFunction("score").missing(1.0)).setMinScore(1.5f))
@@ -1737,12 +1969,13 @@ public class SearchQueryIT extends ParameterizedOpenSearchIntegTestCase {
         assertSecondHit(searchResponse, hasId("1"));
     }
 
-    public void testQueryStringWithSlopAndFields() {
+    public void testQueryStringWithSlopAndFields() throws InterruptedException {
         assertAcked(prepareCreate("test"));
 
         client().prepareIndex("test").setId("1").setSource("desc", "one two three", "type", "customer").get();
         client().prepareIndex("test").setId("2").setSource("desc", "one two three", "type", "product").get();
         refresh();
+        indexRandomForConcurrentSearch("test");
         {
             SearchResponse searchResponse = client().prepareSearch("test")
                 .setQuery(QueryBuilders.queryStringQuery("\"one two\"").defaultField("desc"))
@@ -1809,6 +2042,7 @@ public class SearchQueryIT extends ParameterizedOpenSearchIntegTestCase {
                 .setId("4")
                 .setSource("date", Instant.now().atZone(ZoneOffset.ofHours(1)).toInstant().toEpochMilli(), "num", 4)
         );
+        indexRandomForConcurrentSearch("test");
 
         SearchResponse searchResponse = client().prepareSearch("test")
             .setQuery(QueryBuilders.rangeQuery("date").from("2014-01-01T00:00:00").to("2014-01-01T00:59:00"))
@@ -1877,14 +2111,8 @@ public class SearchQueryIT extends ParameterizedOpenSearchIntegTestCase {
      * Test range with a custom locale, e.g. "de" in this case. Documents here mention the day of week
      * as "Mi" for "Mittwoch (Wednesday" and "Do" for "Donnerstag (Thursday)" and the month in the query
      * as "Dez" for "Dezember (December)".
-     * Note: this test currently needs the JVM arg `-Djava.locale.providers=SPI,COMPAT` to be set.
-     * When running with gradle this is done implicitly through the BuildPlugin, but when running from
-     * an IDE this might need to be set manually in the run configuration. See also CONTRIBUTING.md section
-     * on "Configuring IDEs And Running Tests".
      */
     public void testRangeQueryWithLocaleMapping() throws Exception {
-        assert ("SPI,COMPAT".equals(System.getProperty("java.locale.providers"))) : "`-Djava.locale.providers=SPI,COMPAT` needs to be set";
-
         assertAcked(
             prepareCreate("test").setMapping(
                 jsonBuilder().startObject()
@@ -1901,26 +2129,31 @@ public class SearchQueryIT extends ParameterizedOpenSearchIntegTestCase {
 
         indexRandom(
             true,
-            client().prepareIndex("test").setId("1").setSource("date_field", "Mi, 06 Dez 2000 02:55:00 -0800"),
-            client().prepareIndex("test").setId("2").setSource("date_field", "Do, 07 Dez 2000 02:55:00 -0800")
+            client().prepareIndex("test").setId("1").setSource("date_field", "Mi., 06 Dez. 2000 02:55:00 -0800"),
+            client().prepareIndex("test").setId("2").setSource("date_field", "Do., 07 Dez. 2000 02:55:00 -0800")
         );
 
         SearchResponse searchResponse = client().prepareSearch("test")
-            .setQuery(QueryBuilders.rangeQuery("date_field").gte("Di, 05 Dez 2000 02:55:00 -0800").lte("Do, 07 Dez 2000 00:00:00 -0800"))
+            .setQuery(
+                QueryBuilders.rangeQuery("date_field").gte("Di., 05 Dez. 2000 02:55:00 -0800").lte("Do., 07 Dez. 2000 00:00:00 -0800")
+            )
             .get();
         assertHitCount(searchResponse, 1L);
 
         searchResponse = client().prepareSearch("test")
-            .setQuery(QueryBuilders.rangeQuery("date_field").gte("Di, 05 Dez 2000 02:55:00 -0800").lte("Fr, 08 Dez 2000 00:00:00 -0800"))
+            .setQuery(
+                QueryBuilders.rangeQuery("date_field").gte("Di., 05 Dez. 2000 02:55:00 -0800").lte("Fr., 08 Dez. 2000 00:00:00 -0800")
+            )
             .get();
         assertHitCount(searchResponse, 2L);
     }
 
-    public void testSearchEmptyDoc() {
+    public void testSearchEmptyDoc() throws InterruptedException {
         assertAcked(prepareCreate("test").setSettings("{\"index.analysis.analyzer.default.type\":\"keyword\"}", MediaTypeRegistry.JSON));
         client().prepareIndex("test").setId("1").setSource("{}", MediaTypeRegistry.JSON).get();
 
         refresh();
+        indexRandomForConcurrentSearch("test");
         assertHitCount(client().prepareSearch().setQuery(matchAllQuery()).get(), 1L);
     }
 
@@ -1948,12 +2181,13 @@ public class SearchQueryIT extends ParameterizedOpenSearchIntegTestCase {
     public void testQueryStringParserCache() throws Exception {
         createIndex("test");
         indexRandom(true, false, client().prepareIndex("test").setId("1").setSource("nameTokens", "xyz"));
+        indexRandomForConcurrentSearch("test");
 
         SearchResponse response = client().prepareSearch("test")
             .setSearchType(SearchType.DFS_QUERY_THEN_FETCH)
             .setQuery(QueryBuilders.queryStringQuery("xyz").boost(100))
             .get();
-        assertThat(response.getHits().getTotalHits().value, equalTo(1L));
+        assertThat(response.getHits().getTotalHits().value(), equalTo(1L));
         assertThat(response.getHits().getAt(0).getId(), equalTo("1"));
 
         float first = response.getHits().getAt(0).getScore();
@@ -1963,7 +2197,7 @@ public class SearchQueryIT extends ParameterizedOpenSearchIntegTestCase {
                 .setQuery(QueryBuilders.queryStringQuery("xyz").boost(100))
                 .get();
 
-            assertThat(response.getHits().getTotalHits().value, equalTo(1L));
+            assertThat(response.getHits().getTotalHits().value(), equalTo(1L));
             assertThat(response.getHits().getAt(0).getId(), equalTo("1"));
             float actual = response.getHits().getAt(0).getScore();
             assertThat(i + " expected: " + first + " actual: " + actual, Float.compare(first, actual), equalTo(0));
@@ -1978,6 +2212,7 @@ public class SearchQueryIT extends ParameterizedOpenSearchIntegTestCase {
             .setSource(jsonBuilder().startObject().startObject("int_range").field("gte", 10).field("lte", 20).endObject().endObject())
             .get();
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         RangeQueryBuilder range = new RangeQueryBuilder("int_range").relation("intersects").from(Integer.MIN_VALUE).to(Integer.MAX_VALUE);
         SearchResponse searchResponse = client().prepareSearch("test").setQuery(range).get();
@@ -2013,6 +2248,7 @@ public class SearchQueryIT extends ParameterizedOpenSearchIntegTestCase {
 
         index("index", "_doc", "1", source);
         refresh();
+        indexRandomForConcurrentSearch("index");
 
         QueryBuilder nestedQuery = QueryBuilders.nestedQuery(
             "section",
@@ -2041,6 +2277,7 @@ public class SearchQueryIT extends ParameterizedOpenSearchIntegTestCase {
 
         IndexRequestBuilder indexRequest = client().prepareIndex("test").setId("1").setRouting("custom").setSource("field", "value");
         indexRandom(true, false, indexRequest);
+        indexRandomForConcurrentSearch("test");
         client().admin()
             .cluster()
             .prepareUpdateSettings()
@@ -2073,7 +2310,7 @@ public class SearchQueryIT extends ParameterizedOpenSearchIntegTestCase {
     /**
     * Test that wildcard queries on keyword fields get normalized
     */
-    public void testWildcardQueryNormalizationOnKeywordField() {
+    public void testWildcardQueryNormalizationOnKeywordField() throws InterruptedException {
         assertAcked(
             prepareCreate("test").setSettings(
                 Settings.builder()
@@ -2084,6 +2321,7 @@ public class SearchQueryIT extends ParameterizedOpenSearchIntegTestCase {
         );
         client().prepareIndex("test").setId("1").setSource("field1", "Bbb Aaa").get();
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         {
             WildcardQueryBuilder wildCardQuery = wildcardQuery("field1", "Bb*");
@@ -2099,7 +2337,7 @@ public class SearchQueryIT extends ParameterizedOpenSearchIntegTestCase {
     /**
      * Test that wildcard queries on text fields get normalized
      */
-    public void testWildcardQueryNormalizationOnTextField() {
+    public void testWildcardQueryNormalizationOnTextField() throws InterruptedException {
         assertAcked(
             prepareCreate("test").setSettings(
                 Settings.builder()
@@ -2111,6 +2349,7 @@ public class SearchQueryIT extends ParameterizedOpenSearchIntegTestCase {
         );
         client().prepareIndex("test").setId("1").setSource("field1", "Bbb Aaa").get();
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         {
             // test default case insensitivity: false
@@ -2130,10 +2369,11 @@ public class SearchQueryIT extends ParameterizedOpenSearchIntegTestCase {
     }
 
     /** tests wildcard case sensitivity */
-    public void testWildcardCaseSensitivity() {
+    public void testWildcardCaseSensitivity() throws InterruptedException {
         assertAcked(prepareCreate("test").setMapping("field", "type=text"));
         client().prepareIndex("test").setId("1").setSource("field", "lowercase text").get();
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         // test case sensitive
         SearchResponse response = client().prepareSearch("test").setQuery(wildcardQuery("field", "Text").caseInsensitive(false)).get();
@@ -2151,7 +2391,7 @@ public class SearchQueryIT extends ParameterizedOpenSearchIntegTestCase {
      * Reserved characters should be excluded when the normalization is applied for keyword fields.
      * See https://github.com/elastic/elasticsearch/issues/46300 for details.
      */
-    public void testWildcardQueryNormalizationKeywordSpecialCharacters() {
+    public void testWildcardQueryNormalizationKeywordSpecialCharacters() throws InterruptedException {
         assertAcked(
             prepareCreate("test").setSettings(
                 Settings.builder()
@@ -2163,6 +2403,7 @@ public class SearchQueryIT extends ParameterizedOpenSearchIntegTestCase {
         );
         client().prepareIndex("test").setId("1").setSource("field", "label-1").get();
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         WildcardQueryBuilder wildCardQuery = wildcardQuery("field", "la*");
         SearchResponse searchResponse = client().prepareSearch().setQuery(wildCardQuery).get();
@@ -2209,15 +2450,16 @@ public class SearchQueryIT extends ParameterizedOpenSearchIntegTestCase {
     }
 
     /**
-     * Test correct handling {@link SpanBooleanQueryRewriteWithMaxClause#rewrite(IndexReader, MultiTermQuery)}. That rewrite method is e.g.
+     * Test correct handling {@link SpanBooleanQueryRewriteWithMaxClause#rewrite(IndexSearcher, MultiTermQuery)}. That rewrite method is e.g.
      * set for fuzzy queries with "constant_score" rewrite nested inside a `span_multi` query and would cause NPEs due to an unset
      * {@link AttributeSource}.
      */
-    public void testIssueFuzzyInsideSpanMulti() {
+    public void testIssueFuzzyInsideSpanMulti() throws InterruptedException {
         createIndex("test");
         client().prepareIndex("test").setId("1").setSource("field", "foobarbaz").get();
         ensureGreen();
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         BoolQueryBuilder query = boolQuery().filter(spanMultiTermQueryBuilder(fuzzyQuery("field", "foobarbiz").rewrite("constant_score")));
         SearchResponse response = client().prepareSearch("test").setQuery(query).get();
@@ -2228,7 +2470,7 @@ public class SearchQueryIT extends ParameterizedOpenSearchIntegTestCase {
      * asserts the search response hits include the expected ids
      */
     private void assertHits(SearchHits hits, String... ids) {
-        assertThat(hits.getTotalHits().value, equalTo((long) ids.length));
+        assertThat(hits.getTotalHits().value(), equalTo((long) ids.length));
         Set<String> hitIds = new HashSet<>();
         for (SearchHit hit : hits.getHits()) {
             hitIds.add(hit.getId());

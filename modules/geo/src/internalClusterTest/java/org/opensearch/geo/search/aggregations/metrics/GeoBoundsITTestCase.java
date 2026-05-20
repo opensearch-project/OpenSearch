@@ -179,7 +179,7 @@ public class GeoBoundsITTestCase extends AbstractGeoAggregatorModulePluginTestCa
             .addAggregation(geoBounds(aggName).field(SINGLE_VALUED_FIELD_NAME).wrapLongitude(false))
             .get();
 
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(0L));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(0L));
         GeoBounds geoBounds = searchResponse.getAggregations().get(aggName);
         assertThat(geoBounds, notNullValue());
         assertThat(geoBounds.getName(), equalTo(aggName));
@@ -304,7 +304,7 @@ public class GeoBoundsITTestCase extends AbstractGeoAggregatorModulePluginTestCa
             .addAggregation(geoBounds(aggName).field(GEO_SHAPE_FIELD_NAME).wrapLongitude(false))
             .get();
 
-        MatcherAssert.assertThat(searchResponse.getHits().getTotalHits().value, equalTo(0L));
+        MatcherAssert.assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(0L));
         final GeoBounds geoBounds = searchResponse.getAggregations().get(aggName);
         MatcherAssert.assertThat(geoBounds, notNullValue());
         MatcherAssert.assertThat(geoBounds.getName(), equalTo(aggName));

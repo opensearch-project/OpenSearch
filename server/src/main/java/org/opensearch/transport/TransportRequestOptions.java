@@ -32,13 +32,15 @@
 
 package org.opensearch.transport;
 
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.unit.TimeValue;
 
 /**
  * Options for transport requests
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class TransportRequestOptions {
 
     private final TimeValue timeout;
@@ -62,14 +64,16 @@ public class TransportRequestOptions {
     /**
      * Type of transport request
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public enum Type {
         RECOVERY,
         BULK,
         REG,
         STATE,
-        PING
+        PING,
+        STREAM
     }
 
     public static Builder builder() {
@@ -79,8 +83,9 @@ public class TransportRequestOptions {
     /**
      * Builder for transport request options
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static class Builder {
         private TimeValue timeout;
         private Type type = Type.REG;

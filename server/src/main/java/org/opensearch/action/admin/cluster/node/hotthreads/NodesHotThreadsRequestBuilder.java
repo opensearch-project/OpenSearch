@@ -33,9 +33,9 @@
 package org.opensearch.action.admin.cluster.node.hotthreads;
 
 import org.opensearch.action.support.nodes.NodesOperationRequestBuilder;
-import org.opensearch.client.OpenSearchClient;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.unit.TimeValue;
+import org.opensearch.transport.client.OpenSearchClient;
 
 /**
  * Builder class for requesting OpenSearch Hot Threads

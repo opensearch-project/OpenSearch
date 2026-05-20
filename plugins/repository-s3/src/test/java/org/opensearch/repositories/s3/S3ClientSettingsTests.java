@@ -45,6 +45,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsException;
 import org.opensearch.repositories.s3.utils.AwsRequestSigner;
 import org.opensearch.repositories.s3.utils.Protocol;
+import org.opensearch.secure_sm.AccessController;
 
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
@@ -70,12 +71,15 @@ public class S3ClientSettingsTests extends AbstractS3RepositoryTestCase {
         assertThat(defaultSettings.protocol, is(Protocol.HTTPS));
         assertThat(defaultSettings.proxySettings, is(ProxySettings.NO_PROXY_SETTINGS));
         assertThat(defaultSettings.readTimeoutMillis, is(50 * 1000));
-        assertThat(defaultSettings.requestTimeoutMillis, is(120 * 1000));
+        assertThat(defaultSettings.requestTimeoutMillis, is(5 * 60 * 1000));
         assertThat(defaultSettings.connectionTimeoutMillis, is(10 * 1000));
         assertThat(defaultSettings.connectionTTLMillis, is(5 * 1000));
-        assertThat(defaultSettings.maxConnections, is(100));
+        assertThat(defaultSettings.maxConnections, is(500));
+        assertThat(defaultSettings.maxSyncConnections, is(500));
+        assertThat(defaultSettings.connectionAcquisitionTimeoutMillis, is(15 * 60 * 1000));
         assertThat(defaultSettings.maxRetries, is(3));
         assertThat(defaultSettings.throttleRetries, is(true));
+        assertThat(defaultSettings.legacyMd5ChecksumCalculation, is(false));
     }
 
     public void testDefaultClientSettingsCanBeSet() {
@@ -87,6 +91,17 @@ public class S3ClientSettingsTests extends AbstractS3RepositoryTestCase {
 
         final S3ClientSettings defaultSettings = settings.get("default");
         assertThat(defaultSettings.maxRetries, is(10));
+    }
+
+    public void testLegacyMd5ChecksumCalculationCanBeSet() {
+        S3Service.setDefaultAwsProfilePath();
+        final var legacyMd5ChecksumCalculation = randomBoolean();
+        final Map<String, S3ClientSettings> settings = S3ClientSettings.load(
+            Settings.builder().put("s3.client.other.legacy_md5_checksum_calculation", legacyMd5ChecksumCalculation).build(),
+            configPath()
+        );
+        assertThat(settings.get("default").legacyMd5ChecksumCalculation, is(false));
+        assertThat(settings.get("other").legacyMd5ChecksumCalculation, is(legacyMd5ChecksumCalculation));
     }
 
     public void testNondefaultClientCreatedBySettingItsSettings() {
@@ -295,7 +310,7 @@ public class S3ClientSettingsTests extends AbstractS3RepositoryTestCase {
         assertThat(settings.get("other").region, is(region));
         try (
             S3Service s3Service = new S3Service(configPath());
-            S3Client other = SocketAccess.doPrivileged(() -> s3Service.buildClient(settings.get("other")).client());
+            S3Client other = AccessController.doPrivileged(() -> s3Service.buildClient(settings.get("other")).client());
         ) {
             assertThat(other.serviceClientConfiguration().region(), is(Region.of(region)));
         }
@@ -311,14 +326,14 @@ public class S3ClientSettingsTests extends AbstractS3RepositoryTestCase {
         assertThat(settings.get("default").region, is(""));
         assertThat(settings.get("other").signerOverride, is(signerOverride));
 
-        ClientOverrideConfiguration defaultConfiguration = SocketAccess.doPrivileged(
-            () -> S3Service.buildOverrideConfiguration(settings.get("default"))
+        ClientOverrideConfiguration defaultConfiguration = AccessController.doPrivileged(
+            () -> S3Service.buildOverrideConfiguration(settings.get("default"), null)
         );
         Optional<Signer> defaultSigner = defaultConfiguration.advancedOption(SdkAdvancedClientOption.SIGNER);
         assertFalse(defaultSigner.isPresent());
 
-        ClientOverrideConfiguration configuration = SocketAccess.doPrivileged(
-            () -> S3Service.buildOverrideConfiguration(settings.get("other"))
+        ClientOverrideConfiguration configuration = AccessController.doPrivileged(
+            () -> S3Service.buildOverrideConfiguration(settings.get("other"), null)
         );
         Optional<Signer> otherSigner = configuration.advancedOption(SdkAdvancedClientOption.SIGNER);
         assertTrue(otherSigner.isPresent());

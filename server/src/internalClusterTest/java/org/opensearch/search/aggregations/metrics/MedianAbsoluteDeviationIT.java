@@ -91,8 +91,8 @@ public class MedianAbsoluteDeviationIT extends AbstractNumericTestCase {
     private static double singleValueExactMAD;
     private static double multiValueExactMAD;
 
-    public MedianAbsoluteDeviationIT(Settings dynamicSettings) {
-        super(dynamicSettings);
+    public MedianAbsoluteDeviationIT(Settings staticSettings) {
+        super(staticSettings);
     }
 
     @Override

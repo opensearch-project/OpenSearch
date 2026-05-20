@@ -9,16 +9,11 @@
  * GitHub history for details.
  */
 
-plugins {
-  id "com.gradle.enterprise" version "3.14.1"
-}
-
 ext.disableBuildCache = hasProperty('DISABLE_BUILD_CACHE') || System.getenv().containsKey('DISABLE_BUILD_CACHE')
 
 buildCache {
   local {
     enabled = !disableBuildCache
-    removeUnusedEntriesAfterDays = 14
   }
 }
 
@@ -53,6 +48,8 @@ List projects = [
   'distribution:archives:linux-s390x-tar',
   'distribution:archives:linux-ppc64le-tar',
   'distribution:archives:no-jdk-linux-ppc64le-tar',
+  'distribution:archives:linux-riscv64-tar',
+  'distribution:archives:no-jdk-linux-riscv64-tar',
   'distribution:archives:linux-tar',
   'distribution:archives:no-jdk-linux-tar',
   'distribution:archives:jre-linux-tar',
@@ -61,6 +58,7 @@ List projects = [
   'distribution:docker:docker-arm64-export',
   'distribution:docker:docker-s390x-export',
   'distribution:docker:docker-ppc64le-export',
+  'distribution:docker:docker-riscv64-export',
   'distribution:docker:docker-build-context',
   'distribution:docker:docker-export',
   'distribution:packages:arm64-deb',
@@ -75,11 +73,12 @@ List projects = [
   'distribution:bwc:maintenance',
   'distribution:bwc:minor',
   'distribution:bwc:staged',
+  'distribution:tools:fips-demo-installer-cli',
   'distribution:tools:java-version-checker',
   'distribution:tools:launchers',
   'distribution:tools:plugin-cli',
   'distribution:tools:keystore-cli',
-  'distribution:tools:upgrade-cli',
+  'distribution:tools:heap-prof-cli',
   'server',
   'server:cli',
   'test:framework',
@@ -88,7 +87,6 @@ List projects = [
   'test:fixtures:hdfs-fixture',
   'test:fixtures:krb5kdc-fixture',
   'test:fixtures:minio-fixture',
-  'test:fixtures:old-elasticsearch',
   'test:fixtures:s3-fixture',
   'test:logger-usage',
   'test:telemetry'
@@ -129,7 +127,10 @@ project(':example-plugins').projectDir = new File(rootProject.projectDir, 'plugi
 addSubProjects('', new File(rootProject.projectDir, 'libs'))
 addSubProjects('', new File(rootProject.projectDir, 'modules'))
 addSubProjects('', new File(rootProject.projectDir, 'plugins'))
-addSubProjects('', new File(rootProject.projectDir, 'sandbox'))
+// Sandbox modules require JDK 25+. Include only when explicitly enabled via -Dsandbox.enabled=true.
+if (System.getProperty('sandbox.enabled', 'false') == 'true') {
+  addSubProjects('', new File(rootProject.projectDir, 'sandbox'))
+}
 addSubProjects('', new File(rootProject.projectDir, 'qa'))
 addSubProjects('test', new File(rootProject.projectDir, 'test/external-modules'))
 

@@ -272,6 +272,30 @@ public class DateUtils {
         return instant;
     }
 
+    static final Instant INSTANT_LONG_MIN_VALUE = Instant.ofEpochMilli(Long.MIN_VALUE);
+    static final Instant INSTANT_LONG_MAX_VALUE = Instant.ofEpochMilli(Long.MAX_VALUE);
+
+    /**
+     * Clamps the given {@link Instant} to the valid epoch millisecond range.
+     *
+     * - If the input is before {@code Long.MIN_VALUE}, it returns {@code Instant.ofEpochMilli(Long.MIN_VALUE)}.
+     * - If the input is after {@code Long.MAX_VALUE}, it returns {@code Instant.ofEpochMilli(Long.MAX_VALUE)}.
+     * - Otherwise, it returns the input as-is.
+     *
+     * @param instant the {@link Instant} to clamp
+     * @return the clamped {@link Instant}
+     * @throws NullPointerException if the input is {@code null}
+     */
+    public static Instant clampToMillisRange(Instant instant) {
+        if (instant.isBefore(INSTANT_LONG_MIN_VALUE)) {
+            return INSTANT_LONG_MIN_VALUE;
+        }
+        if (instant.isAfter(INSTANT_LONG_MAX_VALUE)) {
+            return INSTANT_LONG_MAX_VALUE;
+        }
+        return instant;
+    }
+
     /**
      * convert a long value to a java time instant
      * the long value resembles the nanoseconds since the epoch

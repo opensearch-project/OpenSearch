@@ -66,12 +66,11 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Version;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.cluster.metadata.IndexMetadata;
-import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.lucene.Lucene;
+import org.opensearch.common.lucene.LuceneTests;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.common.io.stream.InputStreamStreamInput;
 import org.opensearch.core.common.io.stream.OutputStreamStreamOutput;
@@ -87,9 +86,8 @@ import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.indices.replication.common.ReplicationType;
-import org.opensearch.indices.store.TransportNodesListShardStoreMetadata;
+import org.opensearch.indices.store.TransportNodesListShardStoreMetadataHelper.StoreFilesMetadata;
 import org.opensearch.test.DummyShardLock;
-import org.opensearch.test.FeatureFlagSetter;
 import org.opensearch.test.IndexSettingsModule;
 import org.opensearch.test.OpenSearchTestCase;
 import org.hamcrest.Matchers;
@@ -113,7 +111,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static java.util.Collections.unmodifiableMap;
 import static org.opensearch.index.seqno.SequenceNumbers.LOCAL_CHECKPOINT_KEY;
-import static org.opensearch.index.store.remote.directory.RemoteSnapshotDirectory.SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY_MINIMUM_VERSION;
 import static org.opensearch.test.VersionUtils.randomVersion;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
@@ -392,7 +389,7 @@ public class StoreTests extends OpenSearchTestCase {
         metadata = store.getMetadata();
         assertThat(metadata.asMap().isEmpty(), is(false));
         for (StoreFileMetadata meta : metadata) {
-            try (IndexInput input = store.directory().openInput(meta.name(), IOContext.DEFAULT)) {
+            try (IndexInput input = store.directory().openInput(meta.name(), IOContext.READONCE)) {
                 String checksum = Store.digestToString(CodecUtil.retrieveChecksum(input));
                 assertThat("File: " + meta.name() + " has a different checksum", meta.checksum(), equalTo(checksum));
                 assertThat(meta.writtenBy(), equalTo(Version.LATEST));
@@ -799,7 +796,7 @@ public class StoreTests extends OpenSearchTestCase {
             assertEquals(shardId, theLock.getShardId());
             assertEquals(lock, theLock);
             count.incrementAndGet();
-        }, null);
+        }, null, null);
         assertEquals(count.get(), 0);
 
         final int iters = randomIntBetween(1, 10);
@@ -824,7 +821,8 @@ public class StoreTests extends OpenSearchTestCase {
             StoreTests.newDirectory(random()),
             new DummyShardLock(shardId),
             Store.OnClose.EMPTY,
-            shardPath
+            shardPath,
+            null
         );
         assertEquals(shardPath, store.shardPath());
         store.close();
@@ -858,7 +856,7 @@ public class StoreTests extends OpenSearchTestCase {
 
         final long otherStatsBytes = randomLongBetween(0L, Integer.MAX_VALUE);
         final long otherStatsReservedBytes = randomBoolean() ? StoreStats.UNKNOWN_RESERVED_BYTES : randomLongBetween(0L, Integer.MAX_VALUE);
-        stats.add(new StoreStats(otherStatsBytes, otherStatsReservedBytes));
+        stats.add(new StoreStats.Builder().sizeInBytes(otherStatsBytes).reservedSize(otherStatsReservedBytes).build());
         assertEquals(initialStoreSize + otherStatsBytes, stats.getSize().getBytes());
         assertEquals(Math.max(reservedBytes, 0L) + Math.max(otherStatsReservedBytes, 0L), stats.getReservedSize().getBytes());
 
@@ -980,12 +978,11 @@ public class StoreTests extends OpenSearchTestCase {
                 )
             );
         }
-        TransportNodesListShardStoreMetadata.StoreFilesMetadata outStoreFileMetadata =
-            new TransportNodesListShardStoreMetadata.StoreFilesMetadata(
-                new ShardId("test", "_na_", 0),
-                metadataSnapshot,
-                peerRecoveryRetentionLeases
-            );
+        StoreFilesMetadata outStoreFileMetadata = new StoreFilesMetadata(
+            new ShardId("test", "_na_", 0),
+            metadataSnapshot,
+            peerRecoveryRetentionLeases
+        );
         ByteArrayOutputStream outBuffer = new ByteArrayOutputStream();
         OutputStreamStreamOutput out = new OutputStreamStreamOutput(outBuffer);
         org.opensearch.Version targetNodeVersion = randomVersion(random());
@@ -994,8 +991,7 @@ public class StoreTests extends OpenSearchTestCase {
         ByteArrayInputStream inBuffer = new ByteArrayInputStream(outBuffer.toByteArray());
         InputStreamStreamInput in = new InputStreamStreamInput(inBuffer);
         in.setVersion(targetNodeVersion);
-        TransportNodesListShardStoreMetadata.StoreFilesMetadata inStoreFileMetadata =
-            new TransportNodesListShardStoreMetadata.StoreFilesMetadata(in);
+        StoreFilesMetadata inStoreFileMetadata = new StoreFilesMetadata(in);
         Iterator<StoreFileMetadata> outFiles = outStoreFileMetadata.iterator();
         for (StoreFileMetadata inFile : inStoreFileMetadata) {
             assertThat(inFile.name(), equalTo(outFiles.next().name()));
@@ -1283,38 +1279,10 @@ public class StoreTests extends OpenSearchTestCase {
         assertTrue(diff.identical.isEmpty());
     }
 
-    @SuppressForbidden(reason = "sets the SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY feature flag")
-    public void testReadSegmentsFromOldIndices() throws Exception {
-        int expectedIndexCreatedVersionMajor = SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY_MINIMUM_VERSION.luceneVersion.major;
-        final String pathToTestIndex = "/indices/bwc/es-6.3.0/testIndex-es-6.3.0.zip";
-        Path tmp = createTempDir();
-        TestUtil.unzip(getClass().getResourceAsStream(pathToTestIndex), tmp);
-        final ShardId shardId = new ShardId("index", "_na_", 1);
-        Store store = null;
-
-        try {
-            FeatureFlagSetter.set(FeatureFlags.SEARCHABLE_SNAPSHOT_EXTENDED_COMPATIBILITY);
-            IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(
-                "index",
-                Settings.builder()
-                    .put(IndexMetadata.SETTING_VERSION_CREATED, org.opensearch.Version.CURRENT)
-                    .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.REMOTE_SNAPSHOT.getSettingsKey())
-                    .build()
-            );
-            store = new Store(shardId, indexSettings, StoreTests.newMockFSDirectory(tmp), new DummyShardLock(shardId));
-            assertEquals(expectedIndexCreatedVersionMajor, store.readLastCommittedSegmentsInfo().getIndexCreatedVersionMajor());
-        } finally {
-            if (store != null) {
-                store.close();
-            }
-        }
-    }
-
     public void testReadSegmentsFromOldIndicesFailure() throws IOException {
-        final String pathToTestIndex = "/indices/bwc/es-6.3.0/testIndex-es-6.3.0.zip";
         final ShardId shardId = new ShardId("index", "_na_", 1);
         Path tmp = createTempDir();
-        TestUtil.unzip(getClass().getResourceAsStream(pathToTestIndex), tmp);
+        TestUtil.unzip(getClass().getResourceAsStream(LuceneTests.OLDER_VERSION_INDEX_ZIP_RELATIVE_PATH), tmp);
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(
             "index",
             Settings.builder()
@@ -1377,5 +1345,50 @@ public class StoreTests extends OpenSearchTestCase {
         doc.add(new SortedDocValuesField("dv", new BytesRef(TestUtil.randomRealisticUnicodeString(random()))));
         writer.addDocument(doc);
         return writer;
+    }
+
+    public void testGetDataformatAwareStoreHandlesReturnsMapPassedAtConstruction() {
+        final ShardId shardId = new ShardId("index", "_na_", 1);
+        org.opensearch.index.engine.dataformat.DataFormat testFormat = new org.opensearch.index.engine.dataformat.DataFormat() {
+            @Override
+            public String name() {
+                return "test-format";
+            }
+
+            @Override
+            public long priority() {
+                return 1;
+            }
+
+            @Override
+            public java.util.Set<org.opensearch.index.engine.dataformat.FieldTypeCapabilities> supportedFields() {
+                return java.util.Set.of();
+            }
+        };
+        org.opensearch.plugins.NativeStoreHandle handle = new org.opensearch.plugins.NativeStoreHandle(123L, ptr -> {});
+        Map<org.opensearch.index.engine.dataformat.DataFormat, org.opensearch.plugins.NativeStoreHandle> handles = Map.of(
+            testFormat,
+            handle
+        );
+
+        Store store = new Store(
+            shardId,
+            INDEX_SETTINGS,
+            StoreTests.newDirectory(random()),
+            new DummyShardLock(shardId),
+            Store.OnClose.EMPTY,
+            null,
+            null,
+            handles
+        );
+
+        Map<org.opensearch.index.engine.dataformat.DataFormat, org.opensearch.plugins.NativeStoreHandle> result = store
+            .getDataformatAwareStoreHandles();
+        assertSame("getDataformatAwareStoreHandles should return the same map passed at construction", handles, result);
+        assertEquals(1, result.size());
+        assertSame(handle, result.get(testFormat));
+
+        handle.close();
+        store.close();
     }
 }

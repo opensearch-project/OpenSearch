@@ -200,6 +200,7 @@ public class TransportResyncReplicationAction extends TransportWriteAction<
             location = syncOperationResultOrThrow(operationResult, location);
         }
         if (request.getTrimAboveSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO) {
+            replica.rollTranslogGeneration();
             replica.trimOperationOfPreviousPrimaryTerms(request.getTrimAboveSeqNo());
         }
         return location;

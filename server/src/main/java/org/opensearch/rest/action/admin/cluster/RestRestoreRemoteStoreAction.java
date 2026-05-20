@@ -9,10 +9,10 @@
 package org.opensearch.rest.action.admin.cluster;
 
 import org.opensearch.action.admin.cluster.remotestore.restore.RestoreRemoteStoreRequest;
-import org.opensearch.client.node.NodeClient;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.action.RestToXContentListener;
+import org.opensearch.transport.client.node.NodeClient;
 
 import java.io.IOException;
 import java.util.List;
@@ -40,8 +40,8 @@ public final class RestRestoreRemoteStoreAction extends BaseRestHandler {
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         RestoreRemoteStoreRequest restoreRemoteStoreRequest = new RestoreRemoteStoreRequest();
-        restoreRemoteStoreRequest.masterNodeTimeout(
-            request.paramAsTime("cluster_manager_timeout", restoreRemoteStoreRequest.masterNodeTimeout())
+        restoreRemoteStoreRequest.clusterManagerNodeTimeout(
+            request.paramAsTime("cluster_manager_timeout", restoreRemoteStoreRequest.clusterManagerNodeTimeout())
         );
         restoreRemoteStoreRequest.waitForCompletion(request.paramAsBoolean("wait_for_completion", false));
         restoreRemoteStoreRequest.restoreAllShards(request.paramAsBoolean("restore_all_shards", false));

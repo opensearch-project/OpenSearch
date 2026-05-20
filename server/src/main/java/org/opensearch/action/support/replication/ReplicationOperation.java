@@ -54,6 +54,7 @@ import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.index.seqno.SequenceNumbers;
+import org.opensearch.index.shard.PrimaryShardClosedException;
 import org.opensearch.index.shard.ReplicationGroup;
 import org.opensearch.node.NodeClosedException;
 import org.opensearch.threadpool.ThreadPool;
@@ -141,15 +142,7 @@ public class ReplicationOperation<
         final ShardRouting primaryRouting = primary.routingEntry();
         final ShardId primaryId = primaryRouting.shardId();
         if (activeShardCountFailure != null) {
-            finishAsFailed(
-                new UnavailableShardsException(
-                    primaryId,
-                    "{} Timeout: [{}], request: [{}]",
-                    activeShardCountFailure,
-                    request.timeout(),
-                    request
-                )
-            );
+            finishAsFailed(new UnavailableShardsException(primaryId, "{} Timeout: [{}]", activeShardCountFailure, request.timeout()));
             return;
         }
 
@@ -281,6 +274,18 @@ public class ReplicationOperation<
                     ),
                     replicaException
                 );
+                // When the primary shard is closed mid-replication, we can't know whether the replica observed this
+                // op. Fail the op instead so the coordinator retries against the new primary.
+                if (ExceptionsHelper.unwrapCause(replicaException) instanceof PrimaryShardClosedException) {
+                    finishAsFailed(
+                        new RetryOnPrimaryException(
+                            primary.routingEntry().shardId(),
+                            "primary shard was closed while replicating to " + shard,
+                            replicaException
+                        )
+                    );
+                    return;
+                }
                 // Only report "critical" exceptions
                 // TODO: Reach out to the cluster-manager node to get the latest shard state then report.
                 if (TransportActions.isShardNotAvailableException(replicaException) == false) {

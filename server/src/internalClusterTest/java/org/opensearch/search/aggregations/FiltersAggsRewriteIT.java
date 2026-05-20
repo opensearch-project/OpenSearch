@@ -51,7 +51,7 @@ import java.util.Map;
 public class FiltersAggsRewriteIT extends OpenSearchSingleNodeTestCase {
 
     public void testWrapperQueryIsRewritten() throws IOException {
-        createIndex("test", Settings.EMPTY, "test", "title", "type=text");
+        createIndexWithSimpleMappings("test", Settings.EMPTY, "title", "type=text");
         client().prepareIndex("test").setId("1").setSource("title", "foo bar baz").get();
         client().prepareIndex("test").setId("2").setSource("title", "foo foo foo").get();
         client().prepareIndex("test").setId("3").setSource("title", "bar baz bax").get();
@@ -79,7 +79,7 @@ public class FiltersAggsRewriteIT extends OpenSearchSingleNodeTestCase {
         metadata.put(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20));
         builder.setMetadata(metadata);
         SearchResponse searchResponse = client().prepareSearch("test").setSize(0).addAggregation(builder).get();
-        assertEquals(3, searchResponse.getHits().getTotalHits().value);
+        assertEquals(3, searchResponse.getHits().getTotalHits().value());
         InternalFilters filters = searchResponse.getAggregations().get("titles");
         assertEquals(1, filters.getBuckets().size());
         assertEquals(2, filters.getBuckets().get(0).getDocCount());

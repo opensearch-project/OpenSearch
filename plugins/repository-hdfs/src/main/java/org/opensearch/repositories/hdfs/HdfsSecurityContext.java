@@ -33,6 +33,7 @@ package org.opensearch.repositories.hdfs;
 
 import org.apache.hadoop.security.UserGroupInformation;
 import org.opensearch.SpecialPermission;
+import org.opensearch.common.SuppressForbidden;
 import org.opensearch.env.Environment;
 
 import javax.security.auth.AuthPermission;
@@ -57,6 +58,8 @@ import java.util.Arrays;
  * Keeps track of the current user for a given repository, as well as which
  * permissions to grant the blob store restricted execution methods.
  */
+@SuppressWarnings("removal")
+@SuppressForbidden(reason = "https://github.com/opensearch-project/OpenSearch/issues/19640")
 class HdfsSecurityContext {
 
     private static final Permission[] SIMPLE_AUTH_PERMISSIONS;

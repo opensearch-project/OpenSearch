@@ -101,6 +101,22 @@ public class ConstantScoreQueryBuilder extends AbstractQueryBuilder<ConstantScor
         builder.endObject();
     }
 
+    /**
+     * Adds a filter to the current ConstantScoreQuery.
+     * @param filter the filter to add to the current ConstantScoreQuery
+     * @return query builder with filter combined
+     */
+    public ConstantScoreQueryBuilder filter(QueryBuilder filter) {
+        if (validateFilterParams(filter) == false) {
+            return this;
+        }
+        QueryBuilder filteredFilterBuilder = filterBuilder.filter(filter);
+        if (filteredFilterBuilder != filterBuilder) {
+            return new ConstantScoreQueryBuilder(filteredFilterBuilder);
+        }
+        return this;
+    }
+
     public static ConstantScoreQueryBuilder fromXContent(XContentParser parser) throws IOException {
         QueryBuilder query = null;
         boolean queryFound = false;
@@ -171,8 +187,8 @@ public class ConstantScoreQueryBuilder extends AbstractQueryBuilder<ConstantScor
     @Override
     protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
         QueryBuilder rewrite = filterBuilder.rewrite(queryRewriteContext);
-        if (rewrite instanceof MatchNoneQueryBuilder) {
-            return rewrite; // we won't match anyway
+        if (rewrite instanceof MatchNoneQueryBuilder matchNoneQuery) {
+            return matchNoneQuery; // we won't match anyway
         }
         if (rewrite != filterBuilder) {
             return new ConstantScoreQueryBuilder(rewrite);
@@ -188,7 +204,9 @@ public class ConstantScoreQueryBuilder extends AbstractQueryBuilder<ConstantScor
     @Override
     public void visit(QueryBuilderVisitor visitor) {
         visitor.accept(this);
-        visitor.getChildVisitor(BooleanClause.Occur.FILTER).accept(filterBuilder);
+        if (filterBuilder != null) {
+            filterBuilder.visit(visitor.getChildVisitor(BooleanClause.Occur.FILTER));
+        }
     }
 
 }

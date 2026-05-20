@@ -35,7 +35,6 @@ package org.opensearch.rest.action.admin.cluster;
 import org.opensearch.action.admin.cluster.node.reload.NodesReloadSecureSettingsRequest;
 import org.opensearch.action.admin.cluster.node.reload.NodesReloadSecureSettingsRequestBuilder;
 import org.opensearch.action.admin.cluster.node.reload.NodesReloadSecureSettingsResponse;
-import org.opensearch.client.node.NodeClient;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.settings.SecureString;
@@ -49,6 +48,7 @@ import org.opensearch.rest.RestRequestFilter;
 import org.opensearch.rest.RestResponse;
 import org.opensearch.rest.action.RestActions;
 import org.opensearch.rest.action.RestBuilderListener;
+import org.opensearch.transport.client.node.NodeClient;
 
 import java.io.IOException;
 import java.util.Collections;

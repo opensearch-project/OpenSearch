@@ -32,9 +32,9 @@
 
 package org.opensearch;
 
-import org.opensearch.client.node.NodeClient;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;
+import org.opensearch.transport.client.node.NodeClient;
 
 import java.util.List;
 

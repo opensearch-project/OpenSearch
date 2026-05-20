@@ -26,3 +26,8 @@ com.carrotsearch.randomizedtesting.annotations.Nightly @ We don't run nightly te
 org.junit.Test @defaultMessage Just name your test method testFooBar
 
 java.lang.Math#random() @ Use one of the various randomization methods from LuceneTestCase or OpenSearchTestCase for reproducibility
+
+@defaultMessage Disabling assertions is a JVM-wide setting and will break other tests
+java.lang.ClassLoader#setDefaultAssertionStatus(boolean)
+java.lang.ClassLoader#setPackageAssertionStatus(java.lang.String, boolean)
+java.lang.ClassLoader#setClassAssertionStatus(java.lang.String, boolean)

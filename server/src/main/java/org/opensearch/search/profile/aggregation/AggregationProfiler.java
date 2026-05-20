@@ -32,6 +32,7 @@
 
 package org.opensearch.search.profile.aggregation;
 
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.profile.AbstractProfiler;
 
@@ -41,8 +42,9 @@ import java.util.Map;
 /**
  * Main class to profile aggregations
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class AggregationProfiler extends AbstractProfiler<AggregationProfileBreakdown, Aggregator> {
 
     private final Map<Aggregator, AggregationProfileBreakdown> profileBreakdownLookup = new HashMap<>();

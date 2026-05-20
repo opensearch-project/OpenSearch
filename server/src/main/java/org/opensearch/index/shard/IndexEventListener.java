@@ -33,6 +33,7 @@ package org.opensearch.index.shard;
 
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
@@ -51,8 +52,9 @@ import org.opensearch.indices.cluster.IndicesClusterStateService.AllocatedIndice
  * modify local state without sufficient synchronization.
  * </p>
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public interface IndexEventListener {
 
     /**

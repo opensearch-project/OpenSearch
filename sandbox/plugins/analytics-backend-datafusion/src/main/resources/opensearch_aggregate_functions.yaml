@@ -1,0 +1,38 @@
+%YAML 1.2
+---
+urn: extension:org.opensearch:aggregate_functions
+aggregate_functions:
+  - name: approx_distinct
+    description: >-
+      Approximate distinct count using HyperLogLog. Maps to DataFusion's
+      approx_distinct aggregate function via its Substrait consumer.
+    impls:
+      - args:
+          - value: any
+            name: "input"
+        return: i64
+  - name: min
+    description: >-
+      Min of a set of string values. Standard substrait functions_arithmetic.yaml
+      only defines min for i8..fp64; this overload extends it to strings so PPL
+      `stats min(varchar_field)` can bind a Substrait call and dispatch to
+      DataFusion's native min UDF, which supports Utf8 natively.
+    impls:
+      - args:
+          - name: x
+            value: "string"
+        nullability: DECLARED_OUTPUT
+        decomposable: MANY
+        intermediate: "string?"
+        return: "string?"
+  - name: max
+    description: >-
+      Max of a set of string values. See min above.
+    impls:
+      - args:
+          - name: x
+            value: "string"
+        nullability: DECLARED_OUTPUT
+        decomposable: MANY
+        intermediate: "string?"
+        return: "string?"

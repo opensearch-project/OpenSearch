@@ -40,6 +40,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.SimpleCollector;
 import org.apache.lucene.search.Weight;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.lucene.MinimumScoreCollector;
 import org.opensearch.common.lucene.search.FilteredCollector;
 import org.opensearch.search.aggregations.AggregationCollectorManager;
@@ -62,8 +63,9 @@ import static org.opensearch.search.profile.query.CollectorResult.REASON_SEARCH_
 /**
  * The context used during query collection
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public abstract class QueryCollectorContext {
     private static final Collector EMPTY_COLLECTOR = new SimpleCollector() {
         @Override
@@ -72,6 +74,29 @@ public abstract class QueryCollectorContext {
         @Override
         public ScoreMode scoreMode() {
             return ScoreMode.COMPLETE_NO_SCORES;
+        }
+    };
+
+    public static final QueryCollectorContext EMPTY_CONTEXT = new QueryCollectorContext("empty") {
+
+        @Override
+        Collector create(Collector in) throws IOException {
+            return EMPTY_COLLECTOR;
+        }
+
+        @Override
+        CollectorManager<?, ReduceableSearchResult> createManager(CollectorManager<?, ReduceableSearchResult> in) throws IOException {
+            return new CollectorManager<Collector, ReduceableSearchResult>() {
+                @Override
+                public Collector newCollector() throws IOException {
+                    return EMPTY_COLLECTOR;
+                }
+
+                @Override
+                public ReduceableSearchResult reduce(Collection<Collector> collectors) throws IOException {
+                    return result -> {};
+                }
+            };
         }
     };
 
@@ -224,10 +249,10 @@ public abstract class QueryCollectorContext {
                 children.add(in);
                 for (CollectorManager<? extends Collector, ReduceableSearchResult> manager : subs) {
                     final InternalProfileCollectorManager subCollectorManager;
-                    if (manager instanceof AggregationCollectorManager) {
+                    if (manager instanceof AggregationCollectorManager aggregationCollectorManager) {
                         subCollectorManager = new InternalProfileCollectorManager(
                             manager,
-                            ((AggregationCollectorManager) manager).getCollectorReason(),
+                            aggregationCollectorManager.getCollectorReason(),
                             Collections.emptyList()
                         );
                     } else {

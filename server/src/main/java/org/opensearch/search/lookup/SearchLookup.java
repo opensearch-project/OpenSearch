@@ -33,6 +33,7 @@
 package org.opensearch.search.lookup;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.MapperService;
@@ -41,14 +42,16 @@ import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BiFunction;
 import java.util.function.Supplier;
 
 /**
  * Orchestrator class for search phase lookups
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class SearchLookup {
     /**
      * The maximum depth of field dependencies.
@@ -57,6 +60,12 @@ public class SearchLookup {
      * make a very deep stack, which we want to limit.
      */
     private static final int MAX_FIELD_CHAIN_DEPTH = 5;
+
+    /**
+     * This constant should be used in cases when shard id is unknown.
+     * Mostly it should be used in tests.
+     */
+    public static final int UNKNOWN_SHARD_ID = -1;
 
     /**
      * The chain of fields for which this lookup was created, used for detecting
@@ -69,26 +78,48 @@ public class SearchLookup {
      */
     private final Set<String> fieldChain;
     private final DocLookup docMap;
-    private final SourceLookup sourceLookup;
     private final FieldsLookup fieldsLookup;
     private final BiFunction<MappedFieldType, Supplier<SearchLookup>, IndexFieldData<?>> fieldDataLookup;
+    private final int shardId;
+    private final ConcurrentHashMap<Long, SourceLookup> sourceLookupMap = new ConcurrentHashMap<>();
 
     /**
-     * Create the top level field lookup for a search request. Provides a way to look up fields from  doc_values,
+     * Constructor for backwards compatibility. Use the one with explicit shardId argument.
+     */
+    @Deprecated
+    public SearchLookup(
+        MapperService mapperService,
+        BiFunction<MappedFieldType, Supplier<SearchLookup>, IndexFieldData<?>> fieldDataLookup
+    ) {
+        this(mapperService, fieldDataLookup, UNKNOWN_SHARD_ID);
+    }
+
+    /**
+     * Create the top level field lookup for a search request. Provides a way to look up fields from doc_values,
      * stored fields, or _source.
      */
     public SearchLookup(
         MapperService mapperService,
-        BiFunction<MappedFieldType, Supplier<SearchLookup>, IndexFieldData<?>> fieldDataLookup
+        BiFunction<MappedFieldType, Supplier<SearchLookup>, IndexFieldData<?>> fieldDataLookup,
+        int shardId
+    ) {
+        this(mapperService, fieldDataLookup, shardId, new FieldsLookup(mapperService));
+    }
+
+    public SearchLookup(
+        MapperService mapperService,
+        BiFunction<MappedFieldType, Supplier<SearchLookup>, IndexFieldData<?>> fieldDataLookup,
+        int shardId,
+        FieldsLookup fieldsLookup
     ) {
         this.fieldChain = Collections.emptySet();
         docMap = new DocLookup(
             mapperService,
             fieldType -> fieldDataLookup.apply(fieldType, () -> forkAndTrackFieldReferences(fieldType.name()))
         );
-        sourceLookup = new SourceLookup();
-        fieldsLookup = new FieldsLookup(mapperService);
+        this.fieldsLookup = fieldsLookup;
         this.fieldDataLookup = fieldDataLookup;
+        this.shardId = shardId;
     }
 
     /**
@@ -104,9 +135,9 @@ public class SearchLookup {
             searchLookup.docMap.mapperService(),
             fieldType -> searchLookup.fieldDataLookup.apply(fieldType, () -> forkAndTrackFieldReferences(fieldType.name()))
         );
-        this.sourceLookup = searchLookup.sourceLookup;
         this.fieldsLookup = searchLookup.fieldsLookup;
         this.fieldDataLookup = searchLookup.fieldDataLookup;
+        this.shardId = searchLookup.shardId;
     }
 
     /**
@@ -130,15 +161,33 @@ public class SearchLookup {
         return new SearchLookup(this, newFieldChain);
     }
 
+    /**
+     * SourceLookup is not thread safe, so we create a new instance for each leaf to support concurrent segment search
+     */
     public LeafSearchLookup getLeafSearchLookup(LeafReaderContext context) {
-        return new LeafSearchLookup(context, docMap.getLeafDocLookup(context), sourceLookup, fieldsLookup.getLeafFieldsLookup(context));
+        return new LeafSearchLookup(
+            context,
+            docMap.getLeafDocLookup(context),
+            sourceLookupMap.computeIfAbsent(Thread.currentThread().threadId(), K -> new SourceLookup()),
+            fieldsLookup.getLeafFieldsLookup(context)
+        );
     }
 
     public DocLookup doc() {
         return docMap;
     }
 
+    /**
+     * Returned SourceLookup will be unrelated to any created LeafSearchLookups. Instead, use {@link LeafSearchLookup#source()} to access the related {@link SearchLookup}.
+     */
     public SourceLookup source() {
-        return sourceLookup;
+        return sourceLookupMap.computeIfAbsent(Thread.currentThread().threadId(), K -> new SourceLookup());
+    }
+
+    public int shardId() {
+        if (shardId == UNKNOWN_SHARD_ID) {
+            throw new IllegalStateException("Shard id is unknown for this lookup");
+        }
+        return shardId;
     }
 }

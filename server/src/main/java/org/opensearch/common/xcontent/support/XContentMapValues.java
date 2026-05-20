@@ -43,11 +43,17 @@ import org.opensearch.common.regex.Regex;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.Strings;
 
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.Deque;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 
 /**
@@ -56,6 +62,8 @@ import java.util.function.Function;
  * @opensearch.internal
  */
 public class XContentMapValues {
+
+    private static final String TRANSFORMER_TRIE_LEAF_KEY = "$transformer";
 
     /**
      * Extracts raw values (string, int, and so on) based on the path provided returning all of them
@@ -208,30 +216,114 @@ public class XContentMapValues {
      * then {@code a.b} will be kept in the filtered map.
      */
     public static Map<String, Object> filter(Map<String, ?> map, String[] includes, String[] excludes) {
-        return filter(includes, excludes).apply(map);
+        return filter(includes, excludes, true).apply(map);
+    }
+
+    /**
+     * Only keep properties in {@code map} that match the {@code includes} but
+     * not the {@code excludes}. An empty list of includes is interpreted as a
+     * wildcard while an empty list of excludes does not match anything.
+     * <p>
+     * If a property matches both an include and an exclude, then the exclude
+     * wins.
+     * <p>
+     * If an object matches, then any of its sub properties are automatically
+     * considered as matching as well, both for includes and excludes.
+     * <p>
+     * Dots in field names are treated as sub objects. So for instance if a
+     * document contains {@code a.b} as a property and {@code a} is an include,
+     * then {@code a.b} will be kept in the filtered map.
+     */
+    public static Map<String, Object> filter(Map<String, ?> map, String[] includes, String[] excludes, boolean caseSensitive) {
+        return filter(includes, excludes, caseSensitive).apply(map);
     }
 
     /**
      * Returns a function that filters a document map based on the given include and exclude rules.
      * @see #filter(Map, String[], String[]) for details
      */
-    public static Function<Map<String, ?>, Map<String, Object>> filter(String[] includes, String[] excludes) {
+    public static Function<Map<String, ?>, Map<String, Object>> filter(String[] includes, String[] excludes, boolean caseSensitive) {
+        if (hasNoWildcardsOrDots(includes) && hasNoWildcardsOrDots(excludes)) {
+            return createSetBasedFilter(includes, excludes, caseSensitive);
+        }
+        return createAutomatonFilter(includes, excludes, caseSensitive);
+    }
+
+    private static boolean hasNoWildcardsOrDots(String[] fields) {
+        if (fields == null || fields.length == 0) {
+            return true;
+        }
+
+        for (String field : fields) {
+            if (field.indexOf('*') != -1 || field.indexOf('.') != -1) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * Creates a simple HashSet-based filter for exact field name matching
+     */
+    private static Function<Map<String, ?>, Map<String, Object>> createSetBasedFilter(
+        String[] includes,
+        String[] excludes,
+        boolean caseSensitive
+    ) {
+        Set<String> includeSet = (includes == null || includes.length == 0) ? null : toSet(includes, caseSensitive);
+        Set<String> excludeSet = (excludes == null || excludes.length == 0) ? Collections.emptySet() : toSet(excludes, caseSensitive);
+
+        return (map) -> {
+            Map<String, Object> filtered = new HashMap<>();
+            for (Map.Entry<String, ?> entry : map.entrySet()) {
+                String key = entry.getKey();
+                int dotPos = key.indexOf('.');
+                if (dotPos > 0) {
+                    key = key.substring(0, dotPos);
+                }
+                String k = caseSensitive ? key : key.toLowerCase(Locale.ROOT);
+                if ((includeSet == null || includeSet.contains(k)) && !excludeSet.contains(k)) {
+                    filtered.put(entry.getKey(), entry.getValue());
+                }
+            }
+            return filtered;
+        };
+    }
+
+    private static Set<String> toSet(String[] fields, boolean caseSensitive) {
+        Set<String> set = new HashSet<>(fields.length);
+        for (String field : fields) {
+            set.add(caseSensitive ? field : field.toLowerCase(Locale.ROOT));
+        }
+        return set;
+    }
+
+    /**
+     * Creates an automaton-based filter for complex pattern matching
+     */
+    public static Function<Map<String, ?>, Map<String, Object>> createAutomatonFilter(
+        String[] includes,
+        String[] excludes,
+        boolean caseSensitive
+    ) {
+        Set<String> includeSet = (includes == null || includes.length == 0) ? null : toSet(includes, caseSensitive);
+        Set<String> excludeSet = (excludes == null || excludes.length == 0) ? Collections.emptySet() : toSet(excludes, caseSensitive);
         CharacterRunAutomaton matchAllAutomaton = new CharacterRunAutomaton(Automata.makeAnyString());
 
         CharacterRunAutomaton include;
-        if (includes == null || includes.length == 0) {
+        if (includeSet == null || includeSet.isEmpty()) {
             include = matchAllAutomaton;
         } else {
-            Automaton includeA = Regex.simpleMatchToAutomaton(includes);
+            Automaton includeA = Regex.simpleMatchToAutomaton(includeSet.toArray(new String[0]));
             includeA = makeMatchDotsInFieldNames(includeA);
             include = new CharacterRunAutomaton(includeA);
         }
 
         Automaton excludeA;
-        if (excludes == null || excludes.length == 0) {
+        if (excludeSet.isEmpty()) {
             excludeA = Automata.makeEmpty();
         } else {
-            excludeA = Regex.simpleMatchToAutomaton(excludes);
+            excludeA = Regex.simpleMatchToAutomaton(excludeSet.toArray(new String[0]));
             excludeA = makeMatchDotsInFieldNames(excludeA);
         }
         CharacterRunAutomaton exclude = new CharacterRunAutomaton(excludeA);
@@ -239,16 +331,19 @@ public class XContentMapValues {
         // NOTE: We cannot use Operations.minus because of the special case that
         // we want all sub properties to match as soon as an object matches
 
-        return (map) -> filter(map, include, 0, exclude, 0, matchAllAutomaton);
+        return (map) -> filter(map, include, 0, exclude, 0, matchAllAutomaton, caseSensitive);
     }
 
     /** Make matches on objects also match dots in field names.
      *  For instance, if the original simple regex is `foo`, this will translate
      *  it into `foo` OR `foo.*`. */
     private static Automaton makeMatchDotsInFieldNames(Automaton automaton) {
-        return Operations.union(
-            automaton,
-            Operations.concatenate(Arrays.asList(automaton, Automata.makeChar('.'), Automata.makeAnyString()))
+        Automaton automatonMatchingFields = Operations.concatenate(
+            Arrays.asList(automaton, Automata.makeChar('.'), Automata.makeAnyString())
+        );
+        return Operations.determinize(
+            Operations.union(Arrays.asList(automaton, automatonMatchingFields)),
+            Operations.DEFAULT_DETERMINIZE_WORK_LIMIT
         );
     }
 
@@ -265,18 +360,20 @@ public class XContentMapValues {
         int initialIncludeState,
         CharacterRunAutomaton excludeAutomaton,
         int initialExcludeState,
-        CharacterRunAutomaton matchAllAutomaton
+        CharacterRunAutomaton matchAllAutomaton,
+        boolean caseSensitive
     ) {
         Map<String, Object> filtered = new HashMap<>();
         for (Map.Entry<String, ?> entry : map.entrySet()) {
             String key = entry.getKey();
+            String k = caseSensitive ? key : key.toLowerCase(Locale.ROOT);
 
-            int includeState = step(includeAutomaton, key, initialIncludeState);
+            int includeState = step(includeAutomaton, k, initialIncludeState);
             if (includeState == -1) {
                 continue;
             }
 
-            int excludeState = step(excludeAutomaton, key, initialExcludeState);
+            int excludeState = step(excludeAutomaton, k, initialExcludeState);
             if (excludeState != -1 && excludeAutomaton.isAccept(excludeState)) {
                 continue;
             }
@@ -315,7 +412,8 @@ public class XContentMapValues {
                     subIncludeState,
                     excludeAutomaton,
                     excludeState,
-                    matchAllAutomaton
+                    matchAllAutomaton,
+                    caseSensitive
                 );
                 if (includeAutomaton.isAccept(includeState) || filteredValue.isEmpty() == false) {
                     filtered.put(key, filteredValue);
@@ -329,7 +427,8 @@ public class XContentMapValues {
                     subIncludeState,
                     excludeAutomaton,
                     excludeState,
-                    matchAllAutomaton
+                    matchAllAutomaton,
+                    caseSensitive
                 );
                 if (includeAutomaton.isAccept(includeState) || filteredValue.isEmpty() == false) {
                     filtered.put(key, filteredValue);
@@ -354,7 +453,8 @@ public class XContentMapValues {
         int initialIncludeState,
         CharacterRunAutomaton excludeAutomaton,
         int initialExcludeState,
-        CharacterRunAutomaton matchAllAutomaton
+        CharacterRunAutomaton matchAllAutomaton,
+        boolean caseSensitive
     ) {
         List<Object> filtered = new ArrayList<>();
         boolean isInclude = includeAutomaton.isAccept(initialIncludeState);
@@ -371,7 +471,8 @@ public class XContentMapValues {
                     includeState,
                     excludeAutomaton,
                     excludeState,
-                    matchAllAutomaton
+                    matchAllAutomaton,
+                    caseSensitive
                 );
                 if (filteredValue.isEmpty() == false) {
                     filtered.add(filteredValue);
@@ -383,7 +484,8 @@ public class XContentMapValues {
                     initialIncludeState,
                     excludeAutomaton,
                     initialExcludeState,
-                    matchAllAutomaton
+                    matchAllAutomaton,
+                    caseSensitive
                 );
                 if (filteredValue.isEmpty() == false) {
                     filtered.add(filteredValue);
@@ -568,6 +670,151 @@ public class XContentMapValues {
             return arr;
         } else {
             return Strings.splitStringByCommaToArray(node.toString());
+        }
+    }
+
+    /**
+     * Performs a depth first traversal of a map and applies a transformation for each field matched along the way. For
+     * duplicated paths with transformers (i.e. "test.nested" and "test.nested.field"), only the transformer for
+     * the shorter path is applied.
+     *
+     * @param source Source map to perform transformation on
+     * @param transformers Map from path to transformer to apply to each path. Each transformer is a function that takes
+     *                    the current value and returns a transformed value
+     * @param inPlace If true, modify the source map directly; if false, create a copy
+     * @return Map with transformations applied
+     */
+    public static Map<String, Object> transform(
+        Map<String, Object> source,
+        Map<String, Function<Object, Object>> transformers,
+        boolean inPlace
+    ) {
+        return transform(transformers, inPlace).apply(source);
+    }
+
+    /**
+     * Returns function that performs a depth first traversal of a map and applies a transformation for each field
+     * matched along the way. For duplicated paths with transformers (i.e. "test.nested" and "test.nested.field"), only
+     * the transformer for the shorter path is applied.
+     *
+     * @param transformers Map from path to transformer to apply to each path. Each transformer is a function that takes
+     *                     the current value and returns a transformed value
+     * @param inPlace If true, modify the source map directly; if false, create a copy
+     * @return Function that takes a map and returns a transformed version of the map
+     */
+    public static Function<Map<String, Object>, Map<String, Object>> transform(
+        Map<String, Function<Object, Object>> transformers,
+        boolean inPlace
+    ) {
+        Map<String, Object> transformerTrie = buildTransformerTrie(transformers);
+        return source -> {
+            Deque<TransformContext> stack = new ArrayDeque<>();
+            Map<String, Object> result = inPlace ? source : new HashMap<>(source);
+            stack.push(new TransformContext(result, transformerTrie));
+
+            processStack(stack, inPlace);
+            return result;
+        };
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> buildTransformerTrie(Map<String, Function<Object, Object>> transformers) {
+        Map<String, Object> trie = new HashMap<>();
+        for (Map.Entry<String, Function<Object, Object>> entry : transformers.entrySet()) {
+            String[] pathElements = entry.getKey().split("\\.");
+            Map<String, Object> subTrie = trie;
+            for (String pathElement : pathElements) {
+                subTrie = (Map<String, Object>) subTrie.computeIfAbsent(pathElement, k -> new HashMap<>());
+            }
+            subTrie.put(TRANSFORMER_TRIE_LEAF_KEY, entry.getValue());
+        }
+        return trie;
+    }
+
+    private static void processStack(Deque<TransformContext> stack, boolean inPlace) {
+        while (!stack.isEmpty()) {
+            TransformContext ctx = stack.pop();
+            processMap(ctx.map, ctx.trie, stack, inPlace);
+        }
+    }
+
+    private static void processMap(
+        Map<String, Object> currentMap,
+        Map<String, Object> currentTrie,
+        Deque<TransformContext> stack,
+        boolean inPlace
+    ) {
+        for (Map.Entry<String, Object> entry : currentMap.entrySet()) {
+            processEntry(entry, currentTrie, stack, inPlace);
+        }
+    }
+
+    private static void processEntry(
+        Map.Entry<String, Object> entry,
+        Map<String, Object> currentTrie,
+        Deque<TransformContext> stack,
+        boolean inPlace
+    ) {
+        String key = entry.getKey();
+        Object value = entry.getValue();
+
+        Object subTrieObj = currentTrie.get(key);
+        if (subTrieObj instanceof Map == false) {
+            return;
+        }
+        Map<String, Object> subTrie = nodeMapValue(subTrieObj, "transform");
+
+        // Apply transformation if available
+        Function<Object, Object> transformer = (Function<Object, Object>) subTrie.get(TRANSFORMER_TRIE_LEAF_KEY);
+        if (transformer != null) {
+            entry.setValue(transformer.apply(value));
+            return;
+        }
+
+        // Process nested structures
+        if (value instanceof Map) {
+            Map<String, Object> subMap = nodeMapValue(value, "transform");
+            if (inPlace == false) {
+                subMap = new HashMap<>(subMap);
+                entry.setValue(subMap);
+            }
+            stack.push(new TransformContext(subMap, subTrie));
+        } else if (value instanceof List<?> list) {
+            List<Object> subList = (List<Object>) list;
+            if (inPlace == false) {
+                subList = new ArrayList<>(list);
+                entry.setValue(subList);
+            }
+            processList(subList, subTrie, stack, inPlace);
+        }
+    }
+
+    private static void processList(
+        List<Object> list,
+        Map<String, Object> transformerTrie,
+        Deque<TransformContext> stack,
+        boolean inPlace
+    ) {
+        for (int i = list.size() - 1; i >= 0; i--) {
+            Object value = list.get(i);
+            if (value instanceof Map) {
+                Map<String, Object> subMap = nodeMapValue(value, "transform");
+                if (inPlace == false) {
+                    subMap = new HashMap<>(subMap);
+                    list.set(i, subMap);
+                }
+                stack.push(new TransformContext(subMap, transformerTrie));
+            }
+        }
+    }
+
+    private static class TransformContext {
+        Map<String, Object> map;
+        Map<String, Object> trie;
+
+        TransformContext(Map<String, Object> map, Map<String, Object> trie) {
+            this.map = map;
+            this.trie = trie;
         }
     }
 }

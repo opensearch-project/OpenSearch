@@ -19,6 +19,7 @@ import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.Lock;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.LatchedActionListener;
+import org.opensearch.cluster.metadata.CryptoMetadata;
 import org.opensearch.common.blobstore.AsyncMultiStreamBlobContainer;
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobMetadata;
@@ -28,8 +29,11 @@ import org.opensearch.common.blobstore.stream.write.WritePriority;
 import org.opensearch.common.blobstore.transfer.RemoteTransferContainer;
 import org.opensearch.common.blobstore.transfer.stream.OffsetRangeIndexInputStream;
 import org.opensearch.common.blobstore.transfer.stream.OffsetRangeInputStream;
+import org.opensearch.common.lucene.store.ByteArrayIndexInput;
 import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.index.store.exception.ChecksumCombinationException;
+import org.opensearch.index.store.remote.FormatBlobRouter;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -39,6 +43,8 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
@@ -63,7 +69,15 @@ public class RemoteDirectory extends Directory {
 
     private final UnaryOperator<OffsetRangeInputStream> uploadRateLimiter;
 
-    private final UnaryOperator<InputStream> downloadRateLimiter;
+    private final UnaryOperator<OffsetRangeInputStream> lowPriorityUploadRateLimiter;
+
+    private final DownloadRateLimiterProvider downloadRateLimiterProvider;
+
+    /**
+     * Map containing the mapping of segment files that are pending download as part of the pre-copy (warm) phase of
+     * {@link org.opensearch.index.engine.MergedSegmentWarmer}. The key is the local filename and value is the remote filename.
+     */
+    protected final Map<String, String> pendingDownloadMergedSegments;
 
     /**
      * Number of bytes in the segment file to store checksum
@@ -75,17 +89,22 @@ public class RemoteDirectory extends Directory {
     }
 
     public RemoteDirectory(BlobContainer blobContainer) {
-        this(blobContainer, UnaryOperator.identity(), UnaryOperator.identity());
+        this(blobContainer, UnaryOperator.identity(), UnaryOperator.identity(), UnaryOperator.identity(), UnaryOperator.identity(), null);
     }
 
     public RemoteDirectory(
         BlobContainer blobContainer,
         UnaryOperator<OffsetRangeInputStream> uploadRateLimiter,
-        UnaryOperator<InputStream> downloadRateLimiter
+        UnaryOperator<OffsetRangeInputStream> lowPriorityUploadRateLimiter,
+        UnaryOperator<InputStream> downloadRateLimiter,
+        UnaryOperator<InputStream> lowPriorityDownloadRateLimiter,
+        Map<String, String> pendingDownloadMergedSegments
     ) {
         this.blobContainer = blobContainer;
+        this.lowPriorityUploadRateLimiter = lowPriorityUploadRateLimiter;
         this.uploadRateLimiter = uploadRateLimiter;
-        this.downloadRateLimiter = downloadRateLimiter;
+        this.downloadRateLimiterProvider = new DownloadRateLimiterProvider(downloadRateLimiter, lowPriorityDownloadRateLimiter);
+        this.pendingDownloadMergedSegments = pendingDownloadMergedSegments;
     }
 
     /**
@@ -169,6 +188,22 @@ public class RemoteDirectory extends Directory {
     }
 
     /**
+     * Removes multiple existing files in the directory in a batch operation.
+     *
+     * <p>This method will not throw an exception when a file doesn't exist and simply ignores missing files.
+     * This is consistent with the behavior of {@link #deleteFile(String)}.
+     *
+     * @param names the collection of filenames to delete.
+     * @throws IOException if the files exist but could not be deleted.
+     */
+    public void deleteFiles(List<String> names) throws IOException {
+        if (names == null || names.isEmpty()) {
+            return;
+        }
+        blobContainer.deleteBlobsIgnoringIfNotExists(names);
+    }
+
+    /**
      * Creates and returns a new instance of {@link RemoteIndexOutput} which will be used to copy files to the remote
      * store.
      *
@@ -195,13 +230,45 @@ public class RemoteDirectory extends Directory {
         return openInput(name, fileLength(name), context);
     }
 
+    /**
+     * Opens a stream for reading one block from the existing file and returns {@link RemoteIndexInput} enclosing
+     * the block stream.
+     * @param name the name of an existing file.
+     * @param position block start position
+     * @param length block length
+     * @param fileLength file length
+     * @param context desired {@link IOContext} context
+     * @return the {@link RemoteIndexInput} enclosing the block stream
+     * @throws IOException in case of I/O error
+     * @throws NoSuchFileException if the file does not exist
+     */
+    public IndexInput openBlockInput(String name, long position, long length, long fileLength, IOContext context) throws IOException {
+        try {
+            return getBlockInput(name, position, length, fileLength);
+        } catch (Exception e) {
+            logger.error("Exception while reading blob for file: " + name + " for path " + blobContainer.path());
+            throw e;
+        }
+    }
+
+    /**
+     * Opens a stream for reading the existing file and returns {@link RemoteIndexInput} enclosing
+     * the stream.
+     * @param name the name of an existing file.
+     * @param fileLength file length
+     * @param context desired {@link IOContext} context
+     * @return the {@link RemoteIndexInput} enclosing the block stream
+     * @throws IOException in case of I/O error
+     * @throws NoSuchFileException if the file does not exist
+     */
     public IndexInput openInput(String name, long fileLength, IOContext context) throws IOException {
         InputStream inputStream = null;
         try {
             inputStream = blobContainer.readBlob(name);
-            return new RemoteIndexInput(name, downloadRateLimiter.apply(inputStream), fileLength);
+            UnaryOperator<InputStream> rateLimiter = downloadRateLimiterProvider.get(name);
+            return new RemoteIndexInput(name, rateLimiter.apply(inputStream), fileLength);
         } catch (Exception e) {
-            // Incase the RemoteIndexInput creation fails, close the input stream to avoid file handler leak.
+            // In case the RemoteIndexInput creation fails, close the input stream to avoid file handler leak.
             if (inputStream != null) {
                 try {
                     inputStream.close();
@@ -317,17 +384,23 @@ public class RemoteDirectory extends Directory {
         blobContainer.delete();
     }
 
+    public Optional<FormatBlobRouter> getFormatBlobRouter() {
+        return Optional.empty();
+    }
+
     public boolean copyFrom(
         Directory from,
         String src,
         String remoteFileName,
         IOContext context,
         Runnable postUploadRunner,
-        ActionListener<Void> listener
+        ActionListener<Void> listener,
+        boolean lowPriorityUpload,
+        CryptoMetadata cryptoMetadata
     ) {
         if (blobContainer instanceof AsyncMultiStreamBlobContainer) {
             try {
-                uploadBlob(from, src, remoteFileName, context, postUploadRunner, listener);
+                uploadBlob(from, src, remoteFileName, context, postUploadRunner, listener, lowPriorityUpload, cryptoMetadata);
             } catch (Exception e) {
                 listener.onFailure(e);
             }
@@ -336,71 +409,115 @@ public class RemoteDirectory extends Directory {
         return false;
     }
 
-    private void uploadBlob(
+    protected void uploadBlob(
         Directory from,
         String src,
         String remoteFileName,
         IOContext ioContext,
         Runnable postUploadRunner,
-        ActionListener<Void> listener
+        ActionListener<Void> listener,
+        boolean lowPriorityUpload,
+        CryptoMetadata cryptoMetadata
     ) throws Exception {
-        long expectedChecksum = calculateChecksumOfChecksum(from, src);
-        long contentLength;
-        try (IndexInput indexInput = from.openInput(src, ioContext)) {
-            contentLength = indexInput.length();
-        }
-        boolean remoteIntegrityEnabled = false;
-        if (getBlobContainer() instanceof AsyncMultiStreamBlobContainer) {
-            remoteIntegrityEnabled = ((AsyncMultiStreamBlobContainer) getBlobContainer()).remoteIntegrityCheckSupported();
-        }
-        RemoteTransferContainer remoteTransferContainer = new RemoteTransferContainer(
-            src,
-            remoteFileName,
-            contentLength,
-            true,
-            WritePriority.NORMAL,
-            (size, position) -> uploadRateLimiter.apply(new OffsetRangeIndexInputStream(from.openInput(src, ioContext), size, position)),
-            expectedChecksum,
-            remoteIntegrityEnabled
-        );
-        ActionListener<Void> completionListener = ActionListener.wrap(resp -> {
-            try {
-                postUploadRunner.run();
-                listener.onResponse(null);
-            } catch (Exception e) {
-                logger.error(() -> new ParameterizedMessage("Exception in segment postUpload for file [{}]", src), e);
-                listener.onFailure(e);
-            }
-        }, ex -> {
-            logger.error(() -> new ParameterizedMessage("Failed to upload blob {}", src), ex);
-            IOException corruptIndexException = ExceptionsHelper.unwrapCorruption(ex);
-            if (corruptIndexException != null) {
-                listener.onFailure(corruptIndexException);
-                return;
-            }
-            Throwable throwable = ExceptionsHelper.unwrap(ex, CorruptFileException.class);
-            if (throwable != null) {
-                CorruptFileException corruptFileException = (CorruptFileException) throwable;
-                listener.onFailure(new CorruptIndexException(corruptFileException.getMessage(), corruptFileException.getFileName()));
-                return;
-            }
-            listener.onFailure(ex);
-        });
-
-        completionListener = ActionListener.runBefore(completionListener, () -> {
-            try {
-                remoteTransferContainer.close();
-            } catch (Exception e) {
-                logger.warn("Error occurred while closing streams", e);
-            }
-        });
-
-        WriteContext writeContext = remoteTransferContainer.createWriteContext();
-        ((AsyncMultiStreamBlobContainer) blobContainer).asyncBlobUpload(writeContext, completionListener);
+        uploadBlob(from, src, remoteFileName, ioContext, postUploadRunner, listener, lowPriorityUpload, cryptoMetadata, blobContainer);
     }
 
-    private long calculateChecksumOfChecksum(Directory directory, String file) throws IOException {
-        try (IndexInput indexInput = directory.openInput(file, IOContext.DEFAULT)) {
+    protected void uploadBlob(
+        Directory from,
+        String src,
+        String remoteFileName,
+        IOContext ioContext,
+        Runnable postUploadRunner,
+        ActionListener<Void> listener,
+        boolean lowPriorityUpload,
+        CryptoMetadata cryptoMetadata,
+        BlobContainer targetBlobContainer
+    ) throws Exception {
+        assert ioContext != IOContext.READONCE : "Remote upload will fail with IoContext.READONCE";
+        long expectedChecksum = calculateChecksumOfChecksum(from, src);
+        long contentLength;
+        IndexInput indexInput = from.openInput(src, ioContext);
+        try {
+            contentLength = indexInput.length();
+            boolean remoteIntegrityEnabled = false;
+            if (targetBlobContainer instanceof AsyncMultiStreamBlobContainer asyncContainer) {
+                remoteIntegrityEnabled = asyncContainer.remoteIntegrityCheckSupported();
+            }
+            lowPriorityUpload = lowPriorityUpload || contentLength > ByteSizeUnit.GB.toBytes(15);
+            RemoteTransferContainer.OffsetRangeInputStreamSupplier offsetRangeInputStreamSupplier;
+
+            if (lowPriorityUpload) {
+                offsetRangeInputStreamSupplier = (size, position) -> lowPriorityUploadRateLimiter.apply(
+                    new OffsetRangeIndexInputStream(indexInput.clone(), size, position)
+                );
+            } else {
+                offsetRangeInputStreamSupplier = (size, position) -> uploadRateLimiter.apply(
+                    new OffsetRangeIndexInputStream(indexInput.clone(), size, position)
+                );
+            }
+            RemoteTransferContainer remoteTransferContainer = new RemoteTransferContainer(
+                src,
+                remoteFileName,
+                contentLength,
+                true,
+                lowPriorityUpload ? WritePriority.LOW : WritePriority.NORMAL,
+                offsetRangeInputStreamSupplier,
+                expectedChecksum,
+                remoteIntegrityEnabled,
+                null,
+                cryptoMetadata
+            );
+            ActionListener<Void> completionListener = ActionListener.wrap(resp -> {
+                try {
+                    postUploadRunner.run();
+                    listener.onResponse(null);
+                } catch (Exception e) {
+                    logger.error(() -> new ParameterizedMessage("Exception in segment postUpload for file [{}]", src), e);
+                    listener.onFailure(e);
+                }
+            }, ex -> {
+                logger.error(() -> new ParameterizedMessage("Failed to upload blob {}", src), ex);
+                IOException corruptIndexException = ExceptionsHelper.unwrapCorruption(ex);
+                if (corruptIndexException != null) {
+                    listener.onFailure(corruptIndexException);
+                    return;
+                }
+                Throwable throwable = ExceptionsHelper.unwrap(ex, CorruptFileException.class);
+                if (throwable != null) {
+                    CorruptFileException corruptFileException = (CorruptFileException) throwable;
+                    listener.onFailure(new CorruptIndexException(corruptFileException.getMessage(), corruptFileException.getFileName()));
+                    return;
+                }
+                listener.onFailure(ex);
+            });
+
+            completionListener = ActionListener.runBefore(completionListener, () -> {
+                try {
+                    remoteTransferContainer.close();
+                } catch (Exception e) {
+                    logger.warn("Error occurred while closing streams", e);
+                }
+            });
+
+            completionListener = ActionListener.runAfter(completionListener, () -> {
+                try {
+                    indexInput.close();
+                } catch (IOException e) {
+                    logger.warn("Error occurred while closing index input", e);
+                }
+            });
+
+            WriteContext writeContext = remoteTransferContainer.createWriteContext();
+            ((AsyncMultiStreamBlobContainer) targetBlobContainer).asyncBlobUpload(writeContext, completionListener);
+        } catch (Exception e) {
+            logger.warn("Exception while calling asyncBlobUpload, closing IndexInput to avoid leak");
+            indexInput.close();
+            throw e;
+        }
+    }
+
+    protected long calculateChecksumOfChecksum(Directory directory, String file) throws IOException {
+        try (IndexInput indexInput = directory.openInput(file, IOContext.READONCE)) {
             try {
                 return checksumOfChecksum(indexInput, SEGMENT_CHECKSUM_BYTES);
             } catch (Exception e) {
@@ -414,6 +531,47 @@ public class RemoteDirectory extends Directory {
                     e
                 );
             }
+        }
+    }
+
+    private IndexInput getBlockInput(String name, long position, long length, long fileLength) throws IOException {
+        if (position < 0 || length <= 0 || (position + length > fileLength)) {
+            throw new IllegalArgumentException("Invalid values of block start and size");
+        }
+        byte[] bytes;
+        try (InputStream inputStream = blobContainer.readBlob(name, position, length)) {
+            // TODO - Explore how we can buffer small chunks of data instead of having the whole 8MB block in memory
+            bytes = downloadRateLimiterProvider.get(name).apply(inputStream).readAllBytes();
+        }
+        return new ByteArrayIndexInput(name, bytes);
+    }
+
+    private boolean isMergedSegment(String remoteFilename) {
+        return pendingDownloadMergedSegments != null && pendingDownloadMergedSegments.containsValue(remoteFilename);
+    }
+
+    /**
+     * DownloadRateLimiterProvider returns a low-priority rate limited stream if the segment
+     * being downloaded is a merged segment as part of the pre-copy (warm) phase of
+     * {@link org.opensearch.index.engine.MergedSegmentWarmer}.
+     */
+    private class DownloadRateLimiterProvider {
+        private final UnaryOperator<InputStream> downloadRateLimiter;
+        private final UnaryOperator<InputStream> lowPriorityDownloadRateLimiter;
+
+        DownloadRateLimiterProvider(
+            UnaryOperator<InputStream> downloadRateLimiter,
+            UnaryOperator<InputStream> lowPriorityDownloadRateLimiter
+        ) {
+            this.downloadRateLimiter = downloadRateLimiter;
+            this.lowPriorityDownloadRateLimiter = lowPriorityDownloadRateLimiter;
+        }
+
+        public UnaryOperator<InputStream> get(final String filename) {
+            if (isMergedSegment(filename)) {
+                return lowPriorityDownloadRateLimiter;
+            }
+            return downloadRateLimiter;
         }
     }
 }

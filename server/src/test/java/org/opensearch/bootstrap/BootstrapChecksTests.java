@@ -786,9 +786,9 @@ public class BootstrapChecksTests extends AbstractBootstrapCheckTestCase {
 
         final NodeValidationException e = expectThrows(
             NodeValidationException.class,
-            () -> performDataPathsCheck(paths, DiscoveryNodeRole.SEARCH_ROLE.roleName())
+            () -> performDataPathsCheck(paths, DiscoveryNodeRole.WARM_ROLE.roleName())
         );
-        assertThat(e.getMessage(), containsString("Multiple data paths are not allowed for search nodes"));
+        assertThat(e.getMessage(), containsString("Multiple data paths are not allowed for warm nodes"));
     }
 
     public void testMultipleDataPathsForDataNodeCheck() throws NodeValidationException {
@@ -802,7 +802,7 @@ public class BootstrapChecksTests extends AbstractBootstrapCheckTestCase {
         Path path = PathUtils.get(createTempDir().toString());
         String[] paths = new String[] { path.resolve("a").toString() };
 
-        performDataPathsCheck(paths, DiscoveryNodeRole.SEARCH_ROLE.roleName());
+        performDataPathsCheck(paths, DiscoveryNodeRole.WARM_ROLE.roleName());
     }
 
     private void performDataPathsCheck(String[] paths, String roleName) throws NodeValidationException {

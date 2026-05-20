@@ -82,8 +82,8 @@ public class MinDocCountIT extends AbstractTermsTestCase {
     private static final QueryBuilder QUERY = QueryBuilders.termQuery("match", true);
     private static int cardinality;
 
-    public MinDocCountIT(Settings dynamicSettings) {
-        super(dynamicSettings);
+    public MinDocCountIT(Settings staticSettings) {
+        super(staticSettings);
     }
 
     @Override

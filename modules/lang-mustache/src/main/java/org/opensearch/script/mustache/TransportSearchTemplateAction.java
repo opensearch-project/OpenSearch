@@ -34,9 +34,12 @@ package org.opensearch.script.mustache;
 
 import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.search.SearchResponse;
+import org.opensearch.action.search.TransportSearchAction;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.HandledTransportAction;
-import org.opensearch.client.node.NodeClient;
+import org.opensearch.action.support.TransportIndicesResolvingAction;
+import org.opensearch.cluster.metadata.OptionallyResolvedIndices;
+import org.opensearch.cluster.metadata.ResolvedIndices;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
 import org.opensearch.core.action.ActionListener;
@@ -53,17 +56,20 @@ import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.tasks.Task;
 import org.opensearch.transport.TransportService;
+import org.opensearch.transport.client.node.NodeClient;
 
 import java.io.IOException;
 import java.util.Collections;
 
-public class TransportSearchTemplateAction extends HandledTransportAction<SearchTemplateRequest, SearchTemplateResponse> {
-
+public class TransportSearchTemplateAction extends HandledTransportAction<SearchTemplateRequest, SearchTemplateResponse>
+    implements
+        TransportIndicesResolvingAction<SearchTemplateRequest> {
     private static final String TEMPLATE_LANG = MustacheScriptEngine.NAME;
 
-    private final ScriptService scriptService;
-    private final NamedXContentRegistry xContentRegistry;
-    private final NodeClient client;
+    protected final ScriptService scriptService;
+    protected final NamedXContentRegistry xContentRegistry;
+    protected final NodeClient client;
+    private final TransportSearchAction transportSearchAction;
 
     @Inject
     public TransportSearchTemplateAction(
@@ -71,12 +77,30 @@ public class TransportSearchTemplateAction extends HandledTransportAction<Search
         ActionFilters actionFilters,
         ScriptService scriptService,
         NamedXContentRegistry xContentRegistry,
-        NodeClient client
+        NodeClient client,
+        TransportSearchAction transportSearchAction
     ) {
         super(SearchTemplateAction.NAME, transportService, actionFilters, SearchTemplateRequest::new);
         this.scriptService = scriptService;
         this.xContentRegistry = xContentRegistry;
         this.client = client;
+        this.transportSearchAction = transportSearchAction;
+    }
+
+    public TransportSearchTemplateAction(
+        String actionName,
+        TransportService transportService,
+        ActionFilters actionFilters,
+        ScriptService scriptService,
+        NamedXContentRegistry xContentRegistry,
+        NodeClient client,
+        TransportSearchAction transportSearchAction
+    ) {
+        super(actionName, transportService, actionFilters, SearchTemplateRequest::new);
+        this.scriptService = scriptService;
+        this.xContentRegistry = xContentRegistry;
+        this.client = client;
+        this.transportSearchAction = transportSearchAction;
     }
 
     @Override
@@ -164,6 +188,16 @@ public class TransportSearchTemplateAction extends HandledTransportAction<Search
                             + searchSourceBuilder.trackTotalHitsUpTo()
                     );
                 }
+        }
+    }
+
+    @Override
+    public OptionallyResolvedIndices resolveIndices(SearchTemplateRequest request) {
+        if (request.getRequest() != null) {
+            return transportSearchAction.resolveIndices(request.getRequest());
+        } else {
+            // For the RenderSearchTemplateAction, request.getRequest() will be null.
+            return ResolvedIndices.unknown();
         }
     }
 }

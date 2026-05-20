@@ -37,6 +37,8 @@ import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
 import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.network.InetAddresses;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -44,15 +46,19 @@ import org.opensearch.index.mapper.MapperService.MergeReason;
 
 import java.io.IOException;
 import java.net.InetAddress;
+import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 
 import static org.opensearch.index.query.RangeQueryBuilder.GTE_FIELD;
 import static org.opensearch.index.query.RangeQueryBuilder.GT_FIELD;
 import static org.opensearch.index.query.RangeQueryBuilder.LTE_FIELD;
 import static org.opensearch.index.query.RangeQueryBuilder.LT_FIELD;
+import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
+import static org.junit.Assume.assumeThat;
 
 public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
     private static final String FROM_DATE = "2016-10-31";
@@ -351,7 +357,30 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
         assertThat(e.getMessage(), containsString("should not define a dateTimeFormatter"));
     }
 
+    public void testSerializeDefaultsLegacy() throws Exception {
+        assumeThat("Using legacy datetime format as default", FeatureFlags.isEnabled(FeatureFlags.DATETIME_FORMATTER_CACHING), is(false));
+
+        for (String type : types()) {
+            DocumentMapper docMapper = createDocumentMapper(fieldMapping(b -> b.field("type", type)));
+            RangeFieldMapper mapper = (RangeFieldMapper) docMapper.root().getMapper("field");
+            XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
+            mapper.doXContentBody(builder, true, ToXContent.EMPTY_PARAMS);
+            String got = builder.endObject().toString();
+
+            // if type is date_range we check that the mapper contains the default format and locale
+            // otherwise it should not contain a locale or format
+            assertTrue(got, got.contains("\"format\":\"strict_date_optional_time||epoch_millis\"") == type.equals("date_range"));
+            assertTrue(got, got.contains("\"locale\":" + "\"" + Locale.ROOT + "\"") == type.equals("date_range"));
+        }
+    }
+
     public void testSerializeDefaults() throws Exception {
+        assumeThat(
+            "Using experimental datetime format as default",
+            FeatureFlags.isEnabled(FeatureFlags.DATETIME_FORMATTER_CACHING),
+            is(true)
+        );
+
         for (String type : types()) {
             DocumentMapper docMapper = createDocumentMapper(fieldMapping(b -> b.field("type", type)));
             RangeFieldMapper mapper = (RangeFieldMapper) docMapper.root().getMapper("field");
@@ -379,6 +408,47 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
         assertThat(e.getMessage(), containsString("Invalid format: [[test_format]]: Unknown pattern letter: t"));
     }
 
+    public void testInvalidRangeBounds() throws Exception {
+        final DocumentMapper mapper = createDocumentMapper(rangeFieldMapping("long_range", b -> b.field("store", true)));
+        MapperParsingException mpe = expectThrows(
+            MapperParsingException.class,
+            () -> mapper.parse(
+                source(
+                    b -> b.startObject("field").field(GT_FIELD.getPreferredName(), FROM).field(GTE_FIELD.getPreferredName(), TO).endObject()
+                )
+            )
+        );
+        assertThat(mpe.getDetailedMessage(), containsString("error parsing field [field], invalid lower bound (gt/gte)"));
+
+        mpe = expectThrows(
+            MapperParsingException.class,
+            () -> mapper.parse(
+                source(
+                    b -> b.startObject("field")
+                        .field(GT_FIELD.getPreferredName(), FROM)
+                        .field(LT_FIELD.getPreferredName(), TO)
+                        .field(LTE_FIELD.getPreferredName(), TO)
+                        .endObject()
+                )
+            )
+        );
+        assertThat(mpe.getDetailedMessage(), containsString("error parsing field [field], invalid upper bound (lt/lte)"));
+
+        mpe = expectThrows(
+            MapperParsingException.class,
+            () -> mapper.parse(
+                source(
+                    b -> b.startObject("field")
+                        .field(GT_FIELD.getPreferredName(), FROM)
+                        .field(LT_FIELD.getPreferredName(), TO)
+                        .field(GTE_FIELD.getPreferredName(), TO)
+                        .endObject()
+                )
+            )
+        );
+        assertThat(mpe.getDetailedMessage(), containsString("error parsing field [field], invalid lower bound (gt/gte)"));
+    }
+
     public void testUpdatesWithSameMappings() throws Exception {
         for (final String type : types()) {
             final DocumentMapper mapper = createDocumentMapper(rangeFieldMapping(type, b -> { b.field("store", true); }));
@@ -386,5 +456,50 @@ public class RangeFieldMapperTests extends AbstractNumericFieldMapperTestCase {
             final Mapping mapping = mapper.mapping();
             mapper.merge(mapping, MergeReason.MAPPING_UPDATE);
         }
+    }
+
+    private Settings pluggableSettings() {
+        return Settings.builder().put(getIndexSettings()).put("index.pluggable.dataformat.enabled", true).build();
+    }
+
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testPluggableDataFormatLongRange() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(
+            pluggableSettings(),
+            mapping(b -> b.startObject("field").field("type", "long_range").endObject())
+        );
+        CapturingDocumentInput docInput = new CapturingDocumentInput();
+        mapper.parse(source(b -> b.startObject("field").field("gte", 5).field("lte", 10).endObject()), docInput);
+
+        List<Map.Entry<MappedFieldType, Object>> captured = docInput.getCapturedFields();
+        boolean found = captured.stream().anyMatch(e -> e.getKey().name().equals("field"));
+        assertTrue("Expected range field captured", found);
+    }
+
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testPluggableDataFormatNullValueSkipped() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(
+            pluggableSettings(),
+            mapping(b -> b.startObject("field").field("type", "long_range").endObject())
+        );
+        CapturingDocumentInput docInput = new CapturingDocumentInput();
+        mapper.parse(source(b -> b.nullField("field")), docInput);
+
+        boolean hasField = docInput.getCapturedFields().stream().anyMatch(e -> e.getKey().name().equals("field"));
+        assertFalse("Expected no captured field for null value", hasField);
+    }
+
+    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
+    public void testPluggableDataFormatIpRange() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(
+            pluggableSettings(),
+            mapping(b -> b.startObject("field").field("type", "ip_range").endObject())
+        );
+        CapturingDocumentInput docInput = new CapturingDocumentInput();
+        mapper.parse(source(b -> b.field("field", "192.168.1.0/24")), docInput);
+
+        List<Map.Entry<MappedFieldType, Object>> captured = docInput.getCapturedFields();
+        boolean found = captured.stream().anyMatch(e -> e.getKey().name().equals("field"));
+        assertTrue("Expected ip_range field captured from CIDR", found);
     }
 }

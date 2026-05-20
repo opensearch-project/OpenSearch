@@ -33,7 +33,7 @@
 package org.opensearch.action.main;
 
 import org.opensearch.action.ActionRequestBuilder;
-import org.opensearch.client.OpenSearchClient;
+import org.opensearch.transport.client.OpenSearchClient;
 
 /**
  * Transport request builder for the main opensearch action

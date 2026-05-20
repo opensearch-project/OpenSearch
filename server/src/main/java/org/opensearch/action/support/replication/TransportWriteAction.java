@@ -54,11 +54,11 @@ import org.opensearch.index.IndexingPressureService;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.mapper.MapperParsingException;
 import org.opensearch.index.shard.IndexShard;
-import org.opensearch.index.shard.PrimaryShardClosedException;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.Translog.Location;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.SystemIndices;
+import org.opensearch.ratelimitting.admissioncontrol.enums.AdmissionControlActionType;
 import org.opensearch.telemetry.tracing.Span;
 import org.opensearch.telemetry.tracing.SpanBuilder;
 import org.opensearch.telemetry.tracing.SpanScope;
@@ -104,7 +104,8 @@ public abstract class TransportWriteAction<
         boolean forceExecutionOnPrimary,
         IndexingPressureService indexingPressureService,
         SystemIndices systemIndices,
-        Tracer tracer
+        Tracer tracer,
+        AdmissionControlActionType admissionControlActionType
     ) {
         // We pass ThreadPool.Names.SAME to the super class as we control the dispatching to the
         // ThreadPool.Names.WRITE/ThreadPool.Names.SYSTEM_WRITE thread pools in this class.
@@ -121,12 +122,50 @@ public abstract class TransportWriteAction<
             replicaRequest,
             ThreadPool.Names.SAME,
             true,
-            forceExecutionOnPrimary
+            forceExecutionOnPrimary,
+            admissionControlActionType
         );
         this.executorFunction = executorFunction;
         this.indexingPressureService = indexingPressureService;
         this.systemIndices = systemIndices;
         this.tracer = tracer;
+    }
+
+    protected TransportWriteAction(
+        Settings settings,
+        String actionName,
+        TransportService transportService,
+        ClusterService clusterService,
+        IndicesService indicesService,
+        ThreadPool threadPool,
+        ShardStateAction shardStateAction,
+        ActionFilters actionFilters,
+        Writeable.Reader<Request> request,
+        Writeable.Reader<ReplicaRequest> replicaRequest,
+        Function<IndexShard, String> executorFunction,
+        boolean forceExecutionOnPrimary,
+        IndexingPressureService indexingPressureService,
+        SystemIndices systemIndices,
+        Tracer tracer
+    ) {
+        this(
+            settings,
+            actionName,
+            transportService,
+            clusterService,
+            indicesService,
+            threadPool,
+            shardStateAction,
+            actionFilters,
+            request,
+            replicaRequest,
+            executorFunction,
+            forceExecutionOnPrimary,
+            indexingPressureService,
+            systemIndices,
+            tracer,
+            null
+        );
     }
 
     protected String executor(IndexShard shard) {
@@ -533,20 +572,15 @@ public abstract class TransportWriteAction<
             if (TransportActions.isShardNotAvailableException(exception) == false) {
                 logger.warn(new ParameterizedMessage("[{}] {}", replica.shardId(), message), exception);
             }
-            // If a write action fails due to the closure of the primary shard
-            // then the replicas should not be marked as failed since they are
-            // still up-to-date with the (now closed) primary shard
-            if (exception instanceof PrimaryShardClosedException == false) {
-                shardStateAction.remoteShardFailed(
-                    replica.shardId(),
-                    replica.allocationId().getId(),
-                    primaryTerm,
-                    true,
-                    message,
-                    exception,
-                    listener
-                );
-            }
+            shardStateAction.remoteShardFailed(
+                replica.shardId(),
+                replica.allocationId().getId(),
+                primaryTerm,
+                true,
+                message,
+                exception,
+                listener
+            );
         }
 
         @Override

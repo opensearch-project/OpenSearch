@@ -31,6 +31,9 @@ RUN set -eux ; \\
     case "\$(arch)" in \\
         aarch64) tini_bin='tini-arm64' ;; \\
         x86_64)  tini_bin='tini-amd64' ;; \\
+        ppc64le)  tini_bin='tini-ppc64le' ;; \\
+        arm64)  tini_bin='tini-arm64' ;; \\
+        s390x)  tini_bin='tini-s390x' ;; \\
         *) echo >&2 ; echo >&2 "Unsupported architecture \$(arch)" ; echo >&2 ; exit 1 ;; \\
     esac ; \\
     curl --retry 8 -S -L -O https://github.com/krallin/tini/releases/download/v0.19.0/\${tini_bin} ; \\
@@ -63,16 +66,12 @@ FROM ${base_image}
 
 ENV OPENSEARCH_CONTAINER true
 
-RUN  sed -i 's/mirrorlist/#mirrorlist/g' /etc/yum.repos.d/CentOS-Linux-* && \\
-     sed -i 's|#baseurl=http://mirror.centos.org|baseurl=http://vault.epel.cloud|g' /etc/yum.repos.d/CentOS-Linux-* && \\
-     for iter in {1..10}; do \\
-      ${package_manager} update --setopt=tsflags=nodocs -y && \\
-      ${package_manager} install --setopt=tsflags=nodocs -y \\
-        nc shadow-utils zip unzip && \\
-      ${package_manager} clean all && exit_code=0 && break || exit_code=\$? && echo "${package_manager} error: retry \$iter in 10s" && \\
-      sleep 10; \\
-    done; \\
-    (exit \$exit_code)
+RUN set -e \\
+     && dnf -y update \\
+     && dnf -y install --setopt=tsflags=nodocs \\
+          nmap-ncat shadow-utils zip unzip \\
+     && dnf clean all \\
+     && rm -rf /var/cache/dnf
 
 RUN groupadd -g 1000 opensearch && \\
     adduser -u 1000 -g 1000 -G 0 -d /usr/share/opensearch opensearch && \\

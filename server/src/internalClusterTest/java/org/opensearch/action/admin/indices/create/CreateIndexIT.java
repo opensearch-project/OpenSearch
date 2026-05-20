@@ -39,18 +39,26 @@ import org.opensearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.support.ActiveShardCount;
 import org.opensearch.action.support.IndicesOptions;
-import org.opensearch.action.support.master.AcknowledgedResponse;
+import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
 import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.applicationtemplates.ClusterStateSystemTemplateLoader;
+import org.opensearch.cluster.applicationtemplates.SystemTemplate;
+import org.opensearch.cluster.applicationtemplates.SystemTemplateMetadata;
+import org.opensearch.cluster.applicationtemplates.TemplateRepositoryMetadata;
+import org.opensearch.cluster.metadata.Context;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.MappingMetadata;
 import org.opensearch.cluster.metadata.Metadata;
+import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsException;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.IndexService;
+import org.opensearch.index.IndexSettings;
 import org.opensearch.index.mapper.MapperParsingException;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.query.RangeQueryBuilder;
@@ -59,9 +67,13 @@ import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
 import org.opensearch.test.OpenSearchIntegTestCase.Scope;
 
+import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_WAIT_FOR_ACTIVE_SHARDS;
@@ -78,19 +90,6 @@ import static org.hamcrest.core.IsNull.notNullValue;
 
 @ClusterScope(scope = Scope.TEST)
 public class CreateIndexIT extends OpenSearchIntegTestCase {
-
-    public void testCreationDateGivenFails() {
-        try {
-            prepareCreate("test").setSettings(Settings.builder().put(IndexMetadata.SETTING_CREATION_DATE, 4L)).get();
-            fail();
-        } catch (SettingsException ex) {
-            assertEquals(
-                "unknown setting [index.creation_date] please check that any required plugins are installed, or check the "
-                    + "breaking changes documentation for removed settings",
-                ex.getMessage()
-            );
-        }
-    }
 
     public void testCreationDateGenerated() {
         long timeBeforeRequest = System.currentTimeMillis();
@@ -213,6 +212,15 @@ public class CreateIndexIT extends OpenSearchIntegTestCase {
         }
     }
 
+    public void testPrivateSettingFails() {
+        try {
+            prepareCreate("test").setSettings(Settings.builder().put(IndexMetadata.SETTING_INDEX_UUID, "uuid").build()).get();
+            fail("should have thrown an exception about private settings");
+        } catch (IllegalArgumentException e) {
+            assertTrue(e.getMessage().contains("private index setting [index.uuid] can not be set explicitly"));
+        }
+    }
+
     public void testInvalidShardCountSettingsWithoutPrefix() throws Exception {
         int value = randomIntBetween(-10, 0);
         try {
@@ -250,6 +258,7 @@ public class CreateIndexIT extends OpenSearchIntegTestCase {
         synchronized (indexVersionLock) { // not necessarily needed here but for completeness we lock here too
             indexVersion.incrementAndGet();
         }
+        final AtomicReference<Exception> deleteFailure = new AtomicReference<>();
         client().admin().indices().prepareDelete("test").execute(new ActionListener<AcknowledgedResponse>() { // this happens async!!!
             @Override
             public void onResponse(AcknowledgedResponse deleteIndexResponse) {
@@ -277,7 +286,8 @@ public class CreateIndexIT extends OpenSearchIntegTestCase {
 
             @Override
             public void onFailure(Exception e) {
-                throw new RuntimeException(e);
+                deleteFailure.set(e);
+                latch.countDown();
             }
         });
         numDocs = randomIntBetween(100, 200);
@@ -297,6 +307,7 @@ public class CreateIndexIT extends OpenSearchIntegTestCase {
             }
         }
         latch.await();
+        assertNull(deleteFailure.get());
         refresh();
 
         // we only really assert that we never reuse segments of old indices or anything like this here and that nothing fails with
@@ -306,8 +317,8 @@ public class CreateIndexIT extends OpenSearchIntegTestCase {
             .setQuery(new RangeQueryBuilder("index_version").from(indexVersion.get(), true))
             .get();
         SearchResponse all = client().prepareSearch("test").setIndicesOptions(IndicesOptions.lenientExpandOpen()).get();
-        assertEquals(expected + " vs. " + all, expected.getHits().getTotalHits().value, all.getHits().getTotalHits().value);
-        logger.info("total: {}", expected.getHits().getTotalHits().value);
+        assertEquals(expected + " vs. " + all, expected.getHits().getTotalHits().value(), all.getHits().getTotalHits().value());
+        logger.info("total: {}", expected.getHits().getTotalHits().value());
     }
 
     public void testRestartIndexCreationAfterFullClusterRestart() throws Exception {
@@ -406,4 +417,77 @@ public class CreateIndexIT extends OpenSearchIntegTestCase {
         assertEquals("Should have index name in response", "foo", response.index());
     }
 
+    public void testCreateIndexWithNullReplicaCountPickUpClusterReplica() {
+        int numReplicas = 3;
+        String indexName = "test-idx-1";
+        assertAcked(
+            client().admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setPersistentSettings(Settings.builder().put("cluster.default_number_of_replicas", numReplicas).build())
+                .get()
+        );
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+            .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), (String) null)
+            .build();
+        assertAcked(client().admin().indices().prepareCreate(indexName).setSettings(settings).get());
+        IndicesService indicesService = internalCluster().getInstance(IndicesService.class, internalCluster().getClusterManagerName());
+        for (IndexService indexService : indicesService) {
+            assertEquals(indexName, indexService.index().getName());
+            assertEquals(
+                numReplicas,
+                (int) indexService.getIndexSettings().getSettings().getAsInt(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, null)
+            );
+        }
+    }
+
+    public void testCreateIndexWithContextSettingsAndTemplate() throws Exception {
+        int numReplicas = 1;
+        String indexName = "test-idx-1";
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+            .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), (String) null)
+            .build();
+        Context context = new Context("test");
+
+        String templateContent = "{\n"
+            + "  \"template\": {\n"
+            + "    \"settings\": {\n"
+            + "      \"merge.policy\": \"log_byte_size\"\n"
+            + "    }\n"
+            + "  },\n"
+            + "  \"_meta\": {\n"
+            + "    \"_type\": \"@abc_template\",\n"
+            + "    \"_version\": 1\n"
+            + "  },\n"
+            + "  \"version\": 1\n"
+            + "}\n";
+
+        ClusterStateSystemTemplateLoader loader = new ClusterStateSystemTemplateLoader(
+            internalCluster().clusterManagerClient(),
+            () -> internalCluster().getInstance(ClusterService.class).state()
+        );
+        loader.loadTemplate(
+            new SystemTemplate(
+                BytesReference.fromByteBuffer(ByteBuffer.wrap(templateContent.getBytes(StandardCharsets.UTF_8))),
+                SystemTemplateMetadata.fromComponentTemplateInfo("test", 1L),
+                new TemplateRepositoryMetadata(UUID.randomUUID().toString(), 1L)
+            )
+        );
+
+        assertAcked(client().admin().indices().prepareCreate(indexName).setSettings(settings).setContext(context).get());
+
+        IndicesService indicesService = internalCluster().getInstance(IndicesService.class, internalCluster().getClusterManagerName());
+
+        for (IndexService indexService : indicesService) {
+            assertEquals(indexName, indexService.index().getName());
+            assertEquals(
+                numReplicas,
+                (int) indexService.getIndexSettings().getSettings().getAsInt(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, null)
+            );
+            assertEquals(context, indexService.getMetadata().context());
+            assertEquals("log_byte_size", indexService.getMetadata().getSettings().get(IndexSettings.INDEX_MERGE_POLICY.getKey()));
+        }
+    }
 }

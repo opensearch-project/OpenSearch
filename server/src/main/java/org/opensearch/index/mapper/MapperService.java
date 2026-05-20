@@ -38,6 +38,7 @@ import org.apache.lucene.analysis.DelegatingAnalyzerWrapper;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.MappingMetadata;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.regex.Regex;
@@ -45,6 +46,7 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
+import org.opensearch.common.xcontent.XContentConstraints;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.core.Assertions;
@@ -82,6 +84,7 @@ import java.util.Set;
 import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
@@ -89,8 +92,9 @@ import static java.util.Collections.unmodifiableMap;
 /**
  * The core field mapping service
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class MapperService extends AbstractIndexComponent implements Closeable {
 
     /**
@@ -98,6 +102,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
      *
      * @opensearch.internal
      */
+    @PublicApi(since = "1.0.0")
     public enum MergeReason {
         /**
          * Pre-flight check before sending a mapping update to the cluster-manager
@@ -142,17 +147,64 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         Property.Dynamic,
         Property.IndexScope
     );
+    /**
+     * Per-shard limit on the total number of Lucene fields (across all segments) that may be created by
+     * {@code dynamic_properties} matching. Unlike OpenSearch mapping fields, Lucene fields are cheaper, but
+     * they are still not free—especially when doc values are enabled. This setting caps growth at the Lucene
+     * layer, independently of {@code index.mapping.total_fields.limit} which governs mapping-state fields.
+     * Defaults to 10 000 (10× the OpenSearch mapping default), reflecting the lower per-field cost in Lucene.
+     * Can be raised dynamically if heap headroom is available.
+     */
+    public static final Setting<Long> INDEX_MAPPING_DYNAMIC_PROPERTIES_LUCENE_FIELD_LIMIT_SETTING = Setting.longSetting(
+        "index.mapping.dynamic_properties.lucene_field.limit",
+        10000L,
+        0,
+        Property.Dynamic,
+        Property.IndexScope
+    );
     public static final Setting<Long> INDEX_MAPPING_DEPTH_LIMIT_SETTING = Setting.longSetting(
         "index.mapping.depth.limit",
         20L,
         1,
+        Long.MAX_VALUE,
+        limit -> {
+            // Make sure XContent constraints are not exceeded (otherwise content processing will fail)
+            if (limit > XContentConstraints.DEFAULT_MAX_DEPTH) {
+                throw new IllegalArgumentException(
+                    "The provided value "
+                        + limit
+                        + " of the index setting 'index.mapping.depth.limit' exceeds per-JVM configured limit of "
+                        + XContentConstraints.DEFAULT_MAX_DEPTH
+                        + ". Please change the setting value or increase per-JVM limit "
+                        + "using '"
+                        + XContentConstraints.DEFAULT_MAX_DEPTH_PROPERTY
+                        + "' system property."
+                );
+            }
+        },
         Property.Dynamic,
         Property.IndexScope
     );
     public static final Setting<Long> INDEX_MAPPING_FIELD_NAME_LENGTH_LIMIT_SETTING = Setting.longSetting(
         "index.mapping.field_name_length.limit",
-        Long.MAX_VALUE,
+        50000,
         1L,
+        Long.MAX_VALUE,
+        limit -> {
+            // Make sure XContent constraints are not exceeded (otherwise content processing will fail)
+            if (limit > XContentConstraints.DEFAULT_MAX_NAME_LEN) {
+                throw new IllegalArgumentException(
+                    "The provided value "
+                        + limit
+                        + " of the index setting 'index.mapping.field_name_length.limit' exceeds per-JVM configured limit of "
+                        + XContentConstraints.DEFAULT_MAX_NAME_LEN
+                        + ". Please change the setting value or increase per-JVM limit "
+                        + "using '"
+                        + XContentConstraints.DEFAULT_MAX_NAME_LEN_PROPERTY
+                        + "' system property."
+                );
+            }
+        },
         Property.Dynamic,
         Property.IndexScope
     );
@@ -188,7 +240,17 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
 
     final MapperRegistry mapperRegistry;
 
+    /**
+     * Tracks Lucene field names for the shard, updated on each NRT refresh.
+     * Used by {@link DocumentParser} to enforce the dynamic-properties field-count limit.
+     */
+    private final LuceneFieldTracker luceneFieldTracker = new LuceneFieldTracker();
+
     private final BooleanSupplier idFieldDataEnabled;
+
+    private volatile Set<CompositeMappedFieldType> compositeMappedFieldTypes;
+    private volatile Set<String> fieldsPartOfCompositeMappings;
+    private volatile Set<String> nestedFieldsPartOfCompositeMappings;
 
     public MapperService(
         IndexSettings indexSettings,
@@ -201,6 +263,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         ScriptService scriptService
     ) {
         super(indexSettings);
+
         this.indexVersionCreated = indexSettings.getIndexVersionCreated();
         this.indexAnalyzers = indexAnalyzers;
         this.documentParser = new DocumentMapperParser(
@@ -225,7 +288,12 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         this.idFieldDataEnabled = idFieldDataEnabled;
 
         if (INDEX_MAPPER_DYNAMIC_SETTING.exists(indexSettings.getSettings())) {
-            throw new IllegalArgumentException("Setting " + INDEX_MAPPER_DYNAMIC_SETTING.getKey() + " was removed after version 6.0.0");
+            deprecationLogger.deprecate(
+                index().getName() + INDEX_MAPPER_DYNAMIC_SETTING.getKey(),
+                "Index [{}] has setting [{}] that is not supported in OpenSearch, its value will be ignored.",
+                index().getName(),
+                INDEX_MAPPER_DYNAMIC_SETTING.getKey()
+            );
         }
     }
 
@@ -243,6 +311,14 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
 
     public DocumentMapperParser documentMapperParser() {
         return this.documentParser;
+    }
+
+    /**
+     * Returns the {@link LuceneFieldTracker} for this shard's mapper service.
+     * The tracker is updated on each NRT refresh by {@code InternalEngine}.
+     */
+    public LuceneFieldTracker getLuceneFieldTracker() {
+        return luceneFieldTracker;
     }
 
     /**
@@ -500,7 +576,38 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         }
 
         assert results.values().stream().allMatch(this::assertSerialization);
+
+        // initialize composite fields post merge
+        this.compositeMappedFieldTypes = getCompositeFieldTypesFromMapper();
+        buildCompositeFieldLookup();
         return results;
+    }
+
+    private void buildCompositeFieldLookup() {
+        Set<String> fieldsPartOfCompositeMappings = new HashSet<>();
+        Set<String> nestedFieldsPartOfCompositeMappings = new HashSet<>();
+
+        for (CompositeMappedFieldType fieldType : compositeMappedFieldTypes) {
+            fieldsPartOfCompositeMappings.addAll(fieldType.fields());
+
+            for (String field : fieldType.fields()) {
+                String[] parts = field.split("\\.");
+                if (parts.length > 1) {
+                    StringBuilder path = new StringBuilder();
+                    for (int i = 0; i < parts.length; i++) {
+                        if (i == 0) {
+                            path.append(parts[i]);
+                        } else {
+                            path.append(".").append(parts[i]);
+                        }
+                        nestedFieldsPartOfCompositeMappings.add(path.toString());
+                    }
+                }
+            }
+        }
+
+        this.fieldsPartOfCompositeMappings = fieldsPartOfCompositeMappings;
+        this.nestedFieldsPartOfCompositeMappings = nestedFieldsPartOfCompositeMappings;
     }
 
     private boolean assertSerialization(DocumentMapper mapper) {
@@ -608,6 +715,38 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         return this.mapper == null ? Collections.emptySet() : this.mapper.fieldTypes();
     }
 
+    public boolean isCompositeIndexPresent() {
+        return this.mapper != null && !getCompositeFieldTypes().isEmpty();
+    }
+
+    public Set<CompositeMappedFieldType> getCompositeFieldTypes() {
+        return compositeMappedFieldTypes.stream()
+            .filter(compositeMappedFieldType -> compositeMappedFieldType instanceof CompositeDataCubeFieldType)
+            .collect(Collectors.toSet());
+    }
+
+    private Set<CompositeMappedFieldType> getCompositeFieldTypesFromMapper() {
+        Set<CompositeMappedFieldType> compositeMappedFieldTypes = new HashSet<>();
+        if (this.mapper == null) {
+            return Collections.emptySet();
+        }
+        for (MappedFieldType type : this.mapper.fieldTypes()) {
+            if (type != null && type.unwrap() instanceof CompositeMappedFieldType) {
+                compositeMappedFieldTypes.add((CompositeMappedFieldType) type);
+            }
+        }
+        return compositeMappedFieldTypes;
+    }
+
+    public boolean isFieldPartOfCompositeIndex(String field) {
+        return fieldsPartOfCompositeMappings.contains(field);
+    }
+
+    public boolean isCompositeIndexFieldNestedField(String field) {
+        return nestedFieldsPartOfCompositeMappings.contains(field);
+
+    }
+
     public ObjectMapper getObjectMapper(String name) {
         return this.mapper == null ? null : this.mapper.objectMappers().get(name);
     }
@@ -673,6 +812,13 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     /**
+     * Returns a set containing the registered metadata fields
+     */
+    public Set<String> getMetadataFields() {
+        return Collections.unmodifiableSet(mapperRegistry.getMetadataMapperParsers().keySet());
+    }
+
+    /**
      * An analyzer wrapper that can lookup fields within the index mappings
      */
     final class MapperAnalyzerWrapper extends DelegatingAnalyzerWrapper {
@@ -700,16 +846,36 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     public synchronized List<String> reloadSearchAnalyzers(AnalysisRegistry registry) throws IOException {
-        logger.info("reloading search analyzers");
-        // refresh indexAnalyzers and search analyzers
+        return reloadSearchAnalyzers(registry, false);
+    }
+
+    /**
+     * Reloads search analyzers, optionally reloading cached resources (e.g. hunspell dictionaries) first.
+     *
+     * @param registry The analysis registry
+     * @param reloadCachedResources If true, reloads cached resources (e.g. hunspell dictionaries) before rebuilding analyzers
+     * @return List of reloaded analyzer names
+     */
+    public synchronized List<String> reloadSearchAnalyzers(AnalysisRegistry registry, boolean reloadCachedResources) throws IOException {
+        logger.info("reloading search analyzers (reloadCachedResources={})", reloadCachedResources);
+
+        if (reloadCachedResources) {
+            // Reload cached resources BEFORE building new factories so they pick up fresh data
+            for (NamedAnalyzer namedAnalyzer : indexAnalyzers.getAnalyzers().values()) {
+                if (namedAnalyzer.analyzer() instanceof ReloadableCustomAnalyzer analyzer) {
+                    Arrays.stream(analyzer.getComponents().getTokenFilters()).forEach(TokenFilterFactory::reloadCachedResources);
+                }
+            }
+        }
+
+        // Build new factories — they will load fresh dictionaries from disk
         final Map<String, TokenizerFactory> tokenizerFactories = registry.buildTokenizerFactories(indexSettings);
         final Map<String, CharFilterFactory> charFilterFactories = registry.buildCharFilterFactories(indexSettings);
         final Map<String, TokenFilterFactory> tokenFilterFactories = registry.buildTokenFilterFactories(indexSettings);
         final Map<String, Settings> settings = indexSettings.getSettings().getGroups("index.analysis.analyzer");
         final List<String> reloadedAnalyzers = new ArrayList<>();
         for (NamedAnalyzer namedAnalyzer : indexAnalyzers.getAnalyzers().values()) {
-            if (namedAnalyzer.analyzer() instanceof ReloadableCustomAnalyzer) {
-                ReloadableCustomAnalyzer analyzer = (ReloadableCustomAnalyzer) namedAnalyzer.analyzer();
+            if (namedAnalyzer.analyzer() instanceof ReloadableCustomAnalyzer analyzer) {
                 String analyzerName = namedAnalyzer.name();
                 Settings analyzerSettings = settings.get(analyzerName);
                 analyzer.reload(analyzerName, analyzerSettings, tokenizerFactories, charFilterFactories, tokenFilterFactories);

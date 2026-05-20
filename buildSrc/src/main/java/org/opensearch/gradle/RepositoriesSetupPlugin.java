@@ -82,6 +82,10 @@ public class RepositoriesSetupPlugin implements Plugin<Project> {
             // such that we don't have to pass hardcoded files to gradle
             repos.mavenLocal();
         }
+        repos.maven(repo -> {
+            repo.setName("Maven Cache");
+            repo.setUrl("https://ci.opensearch.org/maven2/");
+        });
         repos.mavenCentral();
 
         String luceneVersion = VersionProperties.getLucene();
@@ -94,7 +98,7 @@ public class RepositoriesSetupPlugin implements Plugin<Project> {
             String revision = matcher.group(1);
             MavenArtifactRepository luceneRepo = repos.maven(repo -> {
                 repo.setName("lucene-snapshots");
-                repo.setUrl("https://d1nvenhzbhpy0q.cloudfront.net/snapshots/lucene/");
+                repo.setUrl("https://ci.opensearch.org/ci/dbc/snapshots/lucene/");
             });
             repos.exclusiveContent(exclusiveRepo -> {
                 exclusiveRepo.filter(

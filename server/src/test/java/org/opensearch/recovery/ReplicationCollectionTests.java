@@ -144,6 +144,7 @@ public class ReplicationCollectionTests extends OpenSearchIndexLevelReplicationT
             final IndexShard shard2 = shards.addReplica();
             final long recoveryId = startRecovery(collection, shards.getPrimaryNode(), shard1);
             final long recoveryId2 = startRecovery(collection, shards.getPrimaryNode(), shard2);
+            assertEquals(2, collection.getOngoingReplicationTargetList(shard1.shardId()).size());
             try {
                 collection.getOngoingReplicationTarget(shard1.shardId());
             } catch (AssertionError e) {
@@ -225,6 +226,6 @@ public class ReplicationCollectionTests extends OpenSearchIndexLevelReplicationT
         final DiscoveryNode rNode = getDiscoveryNode(indexShard.routingEntry().currentNodeId());
         indexShard.markAsRecovering("remote", new RecoveryState(indexShard.routingEntry(), sourceNode, rNode));
         indexShard.prepareForIndexRecovery();
-        return collection.start(new RecoveryTarget(indexShard, sourceNode, listener), timeValue);
+        return collection.start(new RecoveryTarget(indexShard, sourceNode, listener, threadPool), timeValue);
     }
 }

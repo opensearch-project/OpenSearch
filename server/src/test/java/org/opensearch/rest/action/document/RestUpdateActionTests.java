@@ -33,13 +33,13 @@
 package org.opensearch.rest.action.document;
 
 import org.opensearch.action.ActionRequestValidationException;
-import org.opensearch.client.node.NodeClient;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.index.VersionType;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.test.rest.FakeRestRequest;
 import org.opensearch.test.rest.RestActionTestCase;
+import org.opensearch.transport.client.node.NodeClient;
 import org.junit.Before;
 
 import java.util.HashMap;
@@ -68,7 +68,13 @@ public class RestUpdateActionTests extends RestActionTestCase {
         } else {
             params.put("version_type", randomFrom(VersionType.values()).name());
         }
-        String content = "{\n" + "    \"doc\" : {\n" + "        \"name\" : \"new_name\"\n" + "    }\n" + "}";
+        String content = """
+            {
+                "doc" : {
+                    "name" : "new_name"
+                }
+            }
+            """;
         FakeRestRequest updateRequest = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.POST)
             .withPath("test/_update/1")
             .withParams(params)

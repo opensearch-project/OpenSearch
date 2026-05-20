@@ -32,14 +32,19 @@
 
 package org.opensearch.ingest;
 
-import org.opensearch.client.Client;
+import org.opensearch.common.util.concurrent.AtomicArray;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.env.Environment;
 import org.opensearch.index.analysis.AnalysisRegistry;
+import org.opensearch.indices.IndicesService;
 import org.opensearch.script.ScriptService;
 import org.opensearch.threadpool.Scheduler;
+import org.opensearch.transport.client.Client;
 
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
@@ -81,6 +86,42 @@ public interface Processor {
     IngestDocument execute(IngestDocument ingestDocument) throws Exception;
 
     /**
+     * Process batched documents and they could be potentially modified by processors.
+     * Only override this method if the processor can benefit from processing documents in batches, otherwise, please
+     * use default implementation.
+     *
+     * @param ingestDocumentWrappers a list of wrapped IngestDocument
+     * @param handler callback with IngestDocument result and exception wrapped in IngestDocumentWrapper.
+     */
+    default void batchExecute(List<IngestDocumentWrapper> ingestDocumentWrappers, Consumer<List<IngestDocumentWrapper>> handler) {
+        if (ingestDocumentWrappers.isEmpty()) {
+            handler.accept(Collections.emptyList());
+            return;
+        }
+        int size = ingestDocumentWrappers.size();
+        AtomicInteger counter = new AtomicInteger(size);
+        AtomicArray<IngestDocumentWrapper> results = new AtomicArray<>(size);
+        for (int i = 0; i < size; ++i) {
+            innerExecute(i, ingestDocumentWrappers.get(i), results, counter, handler);
+        }
+    }
+
+    private void innerExecute(
+        int slot,
+        IngestDocumentWrapper ingestDocumentWrapper,
+        AtomicArray<IngestDocumentWrapper> results,
+        AtomicInteger counter,
+        Consumer<List<IngestDocumentWrapper>> handler
+    ) {
+        execute(ingestDocumentWrapper.getIngestDocument(), (doc, ex) -> {
+            results.set(slot, new IngestDocumentWrapper(ingestDocumentWrapper.getSlot(), ingestDocumentWrapper.getChildSlot(), doc, ex));
+            if (counter.decrementAndGet() == 0) {
+                handler.accept(results.asList());
+            }
+        });
+    }
+
+    /**
      * Gets the type of a processor
      */
     String getType();
@@ -94,6 +135,13 @@ public interface Processor {
      * Gets the description of a processor.
      */
     String getDescription();
+
+    /**
+     * @return if the processor is systematically generated
+     */
+    default boolean isSystemGenerated() {
+        return false;
+    }
 
     /**
      * A factory that knows how to construct a processor based on a map of maps.
@@ -111,6 +159,13 @@ public interface Processor {
          */
         Processor create(Map<String, Factory> processorFactories, String tag, String description, Map<String, Object> config)
             throws Exception;
+
+        /**
+         * @return if the factory is for system generated processor
+         */
+        default boolean isSystemGenerated() {
+            return false;
+        }
     }
 
     /**
@@ -156,6 +211,8 @@ public interface Processor {
          */
         public final Client client;
 
+        public final IndicesService indicesService;
+
         public Parameters(
             Environment env,
             ScriptService scriptService,
@@ -165,7 +222,8 @@ public interface Processor {
             BiFunction<Long, Runnable, Scheduler.ScheduledCancellable> scheduler,
             IngestService ingestService,
             Client client,
-            Consumer<Runnable> genericExecutor
+            Consumer<Runnable> genericExecutor,
+            IndicesService indicesService
         ) {
             this.env = env;
             this.scriptService = scriptService;
@@ -176,6 +234,7 @@ public interface Processor {
             this.ingestService = ingestService;
             this.client = client;
             this.genericExecutor = genericExecutor;
+            this.indicesService = indicesService;
         }
 
     }

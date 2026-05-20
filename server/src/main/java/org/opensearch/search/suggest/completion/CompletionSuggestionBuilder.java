@@ -308,11 +308,10 @@ public class CompletionSuggestionBuilder extends SuggestionBuilder<CompletionSug
             suggestionContext.setShardSize(shardSize);
         }
         MappedFieldType mappedFieldType = mapperService.fieldType(suggestionContext.getField());
-        if (mappedFieldType == null || mappedFieldType instanceof CompletionFieldMapper.CompletionFieldType == false) {
+        if (mappedFieldType == null || mappedFieldType.unwrap() instanceof CompletionFieldMapper.CompletionFieldType == false) {
             throw new IllegalArgumentException("Field [" + suggestionContext.getField() + "] is not a completion suggest field");
         }
-        if (mappedFieldType instanceof CompletionFieldMapper.CompletionFieldType) {
-            CompletionFieldMapper.CompletionFieldType type = (CompletionFieldMapper.CompletionFieldType) mappedFieldType;
+        if (mappedFieldType.unwrap() instanceof CompletionFieldMapper.CompletionFieldType type) {
             suggestionContext.setFieldType(type);
             if (type.hasContextMappings() && contextBytes != null) {
                 Map<String, List<ContextMapping.InternalQueryContext>> queryContexts = parseContextBytes(

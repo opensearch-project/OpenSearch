@@ -101,7 +101,7 @@ public class ReactorNetty4HttpRequestSizeLimitIT extends OpenSearchReactorNetty4
         HttpServerTransport httpServerTransport = internalCluster().getInstance(HttpServerTransport.class);
         TransportAddress transportAddress = randomFrom(httpServerTransport.boundAddress().boundAddresses());
 
-        try (ReactorHttpClient nettyHttpClient = ReactorHttpClient.create(false)) {
+        try (ReactorHttpClient nettyHttpClient = ReactorHttpClient.create(false, Settings.EMPTY)) {
             final Collection<FullHttpResponse> singleResponse = nettyHttpClient.post(transportAddress.address(), requests.subList(0, 1));
             try {
                 assertThat(singleResponse, hasSize(1));
@@ -131,7 +131,7 @@ public class ReactorNetty4HttpRequestSizeLimitIT extends OpenSearchReactorNetty4
         HttpServerTransport httpServerTransport = internalCluster().getInstance(HttpServerTransport.class);
         TransportAddress transportAddress = randomFrom(httpServerTransport.boundAddress().boundAddresses());
 
-        try (ReactorHttpClient nettyHttpClient = ReactorHttpClient.create(false)) {
+        try (ReactorHttpClient nettyHttpClient = ReactorHttpClient.create(false, Settings.EMPTY)) {
             final Collection<FullHttpResponse> responses = nettyHttpClient.put(transportAddress.address(), requestUris);
             try {
                 assertThat(responses, hasSize(requestUris.size()));

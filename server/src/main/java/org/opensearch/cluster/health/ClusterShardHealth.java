@@ -32,6 +32,7 @@
 
 package org.opensearch.cluster.health;
 
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.routing.IndexShardRoutingTable;
 import org.opensearch.cluster.routing.RecoverySource;
 import org.opensearch.cluster.routing.ShardRouting;
@@ -50,6 +51,7 @@ import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 
@@ -109,44 +111,54 @@ public final class ClusterShardHealth implements Writeable, ToXContentFragment {
     private final int relocatingShards;
     private final int initializingShards;
     private final int unassignedShards;
+    private int delayedUnassignedShards;
     private final boolean primaryActive;
 
-    public ClusterShardHealth(final int shardId, final IndexShardRoutingTable shardRoutingTable) {
+    public ClusterShardHealth(
+        final int shardId,
+        final IndexShardRoutingTable shardRoutingTable,
+        final boolean isSearchOnlyClusterBlockEnabled
+    ) {
         this.shardId = shardId;
         int computeActiveShards = 0;
         int computeRelocatingShards = 0;
         int computeInitializingShards = 0;
         int computeUnassignedShards = 0;
-        for (ShardRouting shardRouting : shardRoutingTable) {
+        int computeDelayedUnassignedShards = 0;
+        List<ShardRouting> shardRoutings = shardRoutingTable.shards();
+        for (int index = 0; index < shardRoutings.size(); index++) {
+            ShardRouting shardRouting = shardRoutings.get(index);
             if (shardRouting.active()) {
                 computeActiveShards++;
                 if (shardRouting.relocating()) {
-                    // the shard is relocating, the one it is relocating to will be in initializing state, so we don't count it
                     computeRelocatingShards++;
                 }
             } else if (shardRouting.initializing()) {
                 computeInitializingShards++;
             } else if (shardRouting.unassigned()) {
                 computeUnassignedShards++;
+                if (shardRouting.unassignedInfo() != null && shardRouting.unassignedInfo().isDelayed()) {
+                    computeDelayedUnassignedShards++;
+                }
             }
         }
-        ClusterHealthStatus computeStatus;
         final ShardRouting primaryRouting = shardRoutingTable.primaryShard();
-        if (primaryRouting.active()) {
-            if (computeActiveShards == shardRoutingTable.size()) {
-                computeStatus = ClusterHealthStatus.GREEN;
-            } else {
-                computeStatus = ClusterHealthStatus.YELLOW;
-            }
-        } else {
-            computeStatus = getInactivePrimaryHealth(primaryRouting);
-        }
-        this.status = computeStatus;
+        this.status = getShardHealth(primaryRouting, computeActiveShards, shardRoutingTable.size(), isSearchOnlyClusterBlockEnabled);
         this.activeShards = computeActiveShards;
         this.relocatingShards = computeRelocatingShards;
         this.initializingShards = computeInitializingShards;
         this.unassignedShards = computeUnassignedShards;
-        this.primaryActive = primaryRouting.active();
+        this.delayedUnassignedShards = computeDelayedUnassignedShards;
+        this.primaryActive = primaryRouting != null && primaryRouting.active();
+    }
+
+    // Original constructor can call the new one
+    public ClusterShardHealth(final int shardId, final IndexShardRoutingTable shardRoutingTable, final IndexMetadata indexMetadata) {
+        this(
+            shardId,
+            shardRoutingTable,
+            indexMetadata.getSettings().getAsBoolean(IndexMetadata.INDEX_BLOCKS_SEARCH_ONLY_SETTING.getKey(), false)
+        );
     }
 
     public ClusterShardHealth(final StreamInput in) throws IOException {
@@ -208,6 +220,10 @@ public final class ClusterShardHealth implements Writeable, ToXContentFragment {
         return unassignedShards;
     }
 
+    public int getDelayedUnassignedShards() {
+        return delayedUnassignedShards;
+    }
+
     @Override
     public void writeTo(final StreamOutput out) throws IOException {
         out.writeVInt(shardId);
@@ -217,6 +233,83 @@ public final class ClusterShardHealth implements Writeable, ToXContentFragment {
         out.writeVInt(initializingShards);
         out.writeVInt(unassignedShards);
         out.writeBoolean(primaryActive);
+    }
+
+    /**
+     * Computes the shard health of an index.
+     * <p>
+     *     Shard health is GREEN when all primary and replica shards of the indices are active.
+     *     Shard health is YELLOW when primary shard is active but at-least one replica shard is inactive.
+     *     Shard health is RED when the primary is not active.
+     * </p>
+     * <p>
+     *     In search-only mode (when {@code isSearchOnlyClusterBlockEnabled} is {@code true}):
+     * </p>
+     * <ul>
+     *     <li>Shard health is GREEN when all expected search replicas are active</li>
+     *     <li>Shard health is YELLOW when some (but not all) search replicas are active</li>
+     *     <li>Shard health is RED when no search replicas are active</li>
+     * </ul>
+     *
+     * @param primaryRouting the routing entry for the primary shard, may be null
+     * @param activeShards the number of active shards (primary and replicas)
+     * @param totalShards the total number of shards (primary and replicas)
+     * @param isSearchOnlyClusterBlockEnabled whether the index is in search-only mode
+     * @return the health status for the shard
+     */
+    public static ClusterHealthStatus getShardHealth(
+        final ShardRouting primaryRouting,
+        final int activeShards,
+        final int totalShards,
+        final boolean isSearchOnlyClusterBlockEnabled
+    ) {
+
+        if (primaryRouting == null) {
+            if (isSearchOnlyClusterBlockEnabled) {
+                return (activeShards < totalShards) ? ClusterHealthStatus.YELLOW : ClusterHealthStatus.GREEN;
+            } else {
+                return ClusterHealthStatus.RED;
+            }
+        }
+
+        if (primaryRouting.active()) {
+            if (activeShards == totalShards) {
+                return ClusterHealthStatus.GREEN;
+            } else {
+                return ClusterHealthStatus.YELLOW;
+            }
+        } else {
+            return getInactivePrimaryHealth(primaryRouting);
+        }
+    }
+
+    /**
+     * Computes the shard health of an index.
+     * <p>
+     *     Shard health is GREEN when all primary and replica shards of the indices are active.
+     *     Shard health is YELLOW when primary shard is active but at-least one replica shard is inactive.
+     *     Shard health is RED when the primary is not active.
+     * </p>
+     * <p>
+     *     In search-only mode (when {@link IndexMetadata#INDEX_BLOCKS_SEARCH_ONLY_SETTING} is enabled):
+     * </p>
+     * <ul>
+     *     <li>Shard health is GREEN when all expected search replicas are active</li>
+     *     <li>Shard health is YELLOW when some (but not all) search replicas are active</li>
+     *     <li>Shard health is RED when no search replicas are active</li>
+     * </ul>
+     */
+    public static ClusterHealthStatus getShardHealth(
+        final ShardRouting primaryRouting,
+        final int activeShards,
+        final int totalShards,
+        final IndexMetadata indexMetadata
+    ) {
+
+        boolean isSearchOnlyClusterBlockEnabled = indexMetadata.getSettings()
+            .getAsBoolean(IndexMetadata.INDEX_BLOCKS_SEARCH_ONLY_SETTING.getKey(), false);
+
+        return getShardHealth(primaryRouting, activeShards, totalShards, isSearchOnlyClusterBlockEnabled);
     }
 
     /**

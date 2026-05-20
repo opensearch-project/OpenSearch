@@ -46,6 +46,8 @@ import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.unit.ByteSizeValue;
 
+import java.util.concurrent.TimeUnit;
+
 /**
  * Settings for the recovery mechanism
  *
@@ -59,6 +61,58 @@ public class RecoverySettings {
     public static final Setting<ByteSizeValue> INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING = Setting.byteSizeSetting(
         "indices.recovery.max_bytes_per_sec",
         new ByteSizeValue(40, ByteSizeUnit.MB),
+        Property.Dynamic,
+        Property.NodeScope
+    );
+
+    /**
+     * Individual speed setting for segment replication, default -1B to reuse the setting of recovery.
+     */
+    public static final Setting<ByteSizeValue> INDICES_REPLICATION_MAX_BYTES_PER_SEC_SETTING = Setting.byteSizeSetting(
+        "indices.replication.max_bytes_per_sec",
+        new ByteSizeValue(-1),
+        Property.Dynamic,
+        Property.NodeScope
+    );
+
+    /**
+     * Dynamic setting to set a threshold for minimum size of a merged segment to be warmed.
+     */
+    public static final Setting<ByteSizeValue> INDICES_REPLICATION_MERGES_WARMER_MIN_SEGMENT_SIZE_THRESHOLD_SETTING = Setting
+        .byteSizeSetting(
+            "indices.replication.merges.warmer.min_segment_size_threshold",
+            new ByteSizeValue(500, ByteSizeUnit.MB),
+            Property.Dynamic,
+            Property.NodeScope
+        );
+
+    /**
+     * Dynamic setting to enable the merged segment warming(pre-copy) feature, default: false
+     */
+    public static final Setting<Boolean> INDICES_MERGED_SEGMENT_REPLICATION_WARMER_ENABLED_SETTING = Setting.boolSetting(
+        "indices.replication.merges.warmer.enabled",
+        false,
+        Property.Dynamic,
+        Property.NodeScope
+    );
+
+    /**
+     * Individual speed setting for merged segment replication, default -1B to reuse the setting of recovery.
+     */
+    public static final Setting<ByteSizeValue> INDICES_MERGED_SEGMENT_REPLICATION_MAX_BYTES_PER_SEC_SETTING = Setting.byteSizeSetting(
+        "indices.replication.merges.warmer.max_bytes_per_sec",
+        new ByteSizeValue(-1),
+        Property.Dynamic,
+        Property.NodeScope
+    );
+
+    /**
+     * Control the maximum waiting time for replicate merged segment to the replica
+     */
+    public static final Setting<TimeValue> INDICES_MERGED_SEGMENT_REPLICATION_TIMEOUT_SETTING = Setting.timeSetting(
+        "indices.replication.merges.warmer.timeout",
+        TimeValue.timeValueMinutes(15),
+        TimeValue.timeValueMinutes(0),
         Property.Dynamic,
         Property.NodeScope
     );
@@ -157,14 +211,56 @@ public class RecoverySettings {
         Property.NodeScope
     );
 
+    public static final Setting<TimeValue> INDICES_INTERNAL_REMOTE_UPLOAD_TIMEOUT = Setting.timeSetting(
+        "indices.recovery.internal_remote_upload_timeout",
+        new TimeValue(1, TimeUnit.HOURS),
+        Property.Dynamic,
+        Property.NodeScope
+    );
+
     // choose 512KB-16B to ensure that the resulting byte[] is not a humongous allocation in G1.
     public static final ByteSizeValue DEFAULT_CHUNK_SIZE = new ByteSizeValue(512 * 1024 - 16, ByteSizeUnit.BYTES);
 
-    private volatile ByteSizeValue maxBytesPerSec;
+    public static final Setting<ByteSizeValue> INDICES_RECOVERY_CHUNK_SIZE_SETTING = Setting.byteSizeSetting(
+        "indices.recovery.chunk_size",
+        DEFAULT_CHUNK_SIZE,
+        new ByteSizeValue(1, ByteSizeUnit.BYTES),
+        new ByteSizeValue(100, ByteSizeUnit.MB),
+        Property.Dynamic,
+        Property.NodeScope
+    );
+
+    public static final Setting<Boolean> INDICES_TRANSLOG_CONCURRENT_RECOVERY_ENABLE = Setting.boolSetting(
+        "indices.translog_concurrent_recovery.enable",
+        false,
+        Property.Dynamic,
+        Property.NodeScope
+    );
+
+    // Limiting the maximum value to 1 million is to avoid excessive memory usage of the bitset in LocalCheckpointTracker during
+    // out-of-order execution of concurrent recovery of translog.
+    // Considering the worst-case scenario, with 1000 concurrent recovery tasks, each task recovering 1 million translogs, the bitset
+    // occupancy is approximately 125MB
+    public static final Setting<Integer> INDICES_TRANSLOG_CONCURRENT_RECOVERY_BATCH_SIZE = Setting.intSetting(
+        "indices.translog_concurrent_recovery.batch_size",
+        500000,
+        1000,
+        1000000,
+        Property.Dynamic,
+        Property.NodeScope
+    );
+
+    private volatile ByteSizeValue mergedSegmentWarmerMinSegmentSizeThreshold;
+    private volatile ByteSizeValue recoveryMaxBytesPerSec;
+    private volatile ByteSizeValue replicationMaxBytesPerSec;
+    private volatile boolean mergedSegmentReplicationWarmerEnabled;
+    private volatile ByteSizeValue mergedSegmentReplicationMaxBytesPerSec;
     private volatile int maxConcurrentFileChunks;
     private volatile int maxConcurrentOperations;
     private volatile int maxConcurrentRemoteStoreStreams;
-    private volatile SimpleRateLimiter rateLimiter;
+    private volatile SimpleRateLimiter recoveryRateLimiter;
+    private volatile SimpleRateLimiter replicationRateLimiter;
+    private volatile SimpleRateLimiter mergedSegmentReplicationRateLimiter;
     private volatile TimeValue retryDelayStateSync;
     private volatile TimeValue retryDelayNetwork;
     private volatile TimeValue activityTimeout;
@@ -172,7 +268,12 @@ public class RecoverySettings {
     private volatile TimeValue internalActionRetryTimeout;
     private volatile TimeValue internalActionLongTimeout;
 
-    private volatile ByteSizeValue chunkSize = DEFAULT_CHUNK_SIZE;
+    private volatile ByteSizeValue chunkSize;
+    private volatile TimeValue internalRemoteUploadTimeout;
+    private volatile TimeValue mergedSegmentReplicationTimeout;
+
+    private volatile boolean isTranslogConcurrentRecoveryEnable;
+    private volatile int translogConcurrentRecoveryBatchSize;
 
     public RecoverySettings(Settings settings, ClusterSettings clusterSettings) {
         this.retryDelayStateSync = INDICES_RECOVERY_RETRY_DELAY_STATE_SYNC_SETTING.get(settings);
@@ -188,16 +289,47 @@ public class RecoverySettings {
         this.internalActionLongTimeout = INDICES_RECOVERY_INTERNAL_LONG_ACTION_TIMEOUT_SETTING.get(settings);
 
         this.activityTimeout = INDICES_RECOVERY_ACTIVITY_TIMEOUT_SETTING.get(settings);
-        this.maxBytesPerSec = INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.get(settings);
-        if (maxBytesPerSec.getBytes() <= 0) {
-            rateLimiter = null;
+        this.recoveryMaxBytesPerSec = INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.get(settings);
+        if (recoveryMaxBytesPerSec.getBytes() <= 0) {
+            recoveryRateLimiter = null;
         } else {
-            rateLimiter = new SimpleRateLimiter(maxBytesPerSec.getMbFrac());
+            recoveryRateLimiter = new SimpleRateLimiter(recoveryMaxBytesPerSec.getMbFrac());
         }
+        this.replicationMaxBytesPerSec = INDICES_REPLICATION_MAX_BYTES_PER_SEC_SETTING.get(settings);
+        this.mergedSegmentReplicationWarmerEnabled = INDICES_MERGED_SEGMENT_REPLICATION_WARMER_ENABLED_SETTING.get(settings);
+        this.mergedSegmentReplicationMaxBytesPerSec = INDICES_MERGED_SEGMENT_REPLICATION_MAX_BYTES_PER_SEC_SETTING.get(settings);
+        this.mergedSegmentReplicationTimeout = INDICES_MERGED_SEGMENT_REPLICATION_TIMEOUT_SETTING.get(settings);
+        this.mergedSegmentWarmerMinSegmentSizeThreshold = INDICES_REPLICATION_MERGES_WARMER_MIN_SEGMENT_SIZE_THRESHOLD_SETTING.get(
+            settings
+        );
+        replicationRateLimiter = getReplicationRateLimiter(replicationMaxBytesPerSec);
+        mergedSegmentReplicationRateLimiter = getReplicationRateLimiter(mergedSegmentReplicationMaxBytesPerSec);
 
-        logger.debug("using max_bytes_per_sec[{}]", maxBytesPerSec);
+        logger.debug("using recovery max_bytes_per_sec[{}]", recoveryMaxBytesPerSec);
+        this.internalRemoteUploadTimeout = INDICES_INTERNAL_REMOTE_UPLOAD_TIMEOUT.get(settings);
+        this.chunkSize = INDICES_RECOVERY_CHUNK_SIZE_SETTING.get(settings);
 
-        clusterSettings.addSettingsUpdateConsumer(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING, this::setMaxBytesPerSec);
+        this.isTranslogConcurrentRecoveryEnable = INDICES_TRANSLOG_CONCURRENT_RECOVERY_ENABLE.get(settings);
+        this.translogConcurrentRecoveryBatchSize = INDICES_TRANSLOG_CONCURRENT_RECOVERY_BATCH_SIZE.get(settings);
+
+        clusterSettings.addSettingsUpdateConsumer(INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING, this::setRecoveryMaxBytesPerSec);
+        clusterSettings.addSettingsUpdateConsumer(INDICES_REPLICATION_MAX_BYTES_PER_SEC_SETTING, this::setReplicationMaxBytesPerSec);
+        clusterSettings.addSettingsUpdateConsumer(
+            RecoverySettings.INDICES_MERGED_SEGMENT_REPLICATION_WARMER_ENABLED_SETTING,
+            this::setIndicesMergedSegmentReplicationWarmerEnabled
+        );
+        clusterSettings.addSettingsUpdateConsumer(
+            INDICES_MERGED_SEGMENT_REPLICATION_MAX_BYTES_PER_SEC_SETTING,
+            this::setMergedSegmentReplicationMaxBytesPerSec
+        );
+        clusterSettings.addSettingsUpdateConsumer(
+            INDICES_MERGED_SEGMENT_REPLICATION_TIMEOUT_SETTING,
+            this::setMergedSegmentReplicationTimeout
+        );
+        clusterSettings.addSettingsUpdateConsumer(
+            INDICES_REPLICATION_MERGES_WARMER_MIN_SEGMENT_SIZE_THRESHOLD_SETTING,
+            this::setMergedSegmentWarmerMinSegmentSizeThreshold
+        );
         clusterSettings.addSettingsUpdateConsumer(INDICES_RECOVERY_MAX_CONCURRENT_FILE_CHUNKS_SETTING, this::setMaxConcurrentFileChunks);
         clusterSettings.addSettingsUpdateConsumer(INDICES_RECOVERY_MAX_CONCURRENT_OPERATIONS_SETTING, this::setMaxConcurrentOperations);
         clusterSettings.addSettingsUpdateConsumer(
@@ -212,10 +344,37 @@ public class RecoverySettings {
             this::setInternalActionLongTimeout
         );
         clusterSettings.addSettingsUpdateConsumer(INDICES_RECOVERY_ACTIVITY_TIMEOUT_SETTING, this::setActivityTimeout);
+        clusterSettings.addSettingsUpdateConsumer(INDICES_INTERNAL_REMOTE_UPLOAD_TIMEOUT, this::setInternalRemoteUploadTimeout);
+        clusterSettings.addSettingsUpdateConsumer(INDICES_RECOVERY_CHUNK_SIZE_SETTING, this::setChunkSize);
+        clusterSettings.addSettingsUpdateConsumer(
+            INDICES_RECOVERY_INTERNAL_ACTION_RETRY_TIMEOUT_SETTING,
+            this::setInternalActionRetryTimeout
+        );
+        clusterSettings.addSettingsUpdateConsumer(INDICES_TRANSLOG_CONCURRENT_RECOVERY_ENABLE, this::setTranslogConcurrentRecoveryEnable);
+        clusterSettings.addSettingsUpdateConsumer(
+            INDICES_TRANSLOG_CONCURRENT_RECOVERY_BATCH_SIZE,
+            this::setTranslogConcurrentRecoveryBatchSize
+        );
     }
 
-    public RateLimiter rateLimiter() {
-        return rateLimiter;
+    private void setMergedSegmentWarmerMinSegmentSizeThreshold(ByteSizeValue value) {
+        this.mergedSegmentWarmerMinSegmentSizeThreshold = value;
+    }
+
+    public ByteSizeValue getMergedSegmentWarmerMinSegmentSizeThreshold() {
+        return this.mergedSegmentWarmerMinSegmentSizeThreshold;
+    }
+
+    public RateLimiter recoveryRateLimiter() {
+        return recoveryRateLimiter;
+    }
+
+    public RateLimiter replicationRateLimiter() {
+        return replicationRateLimiter;
+    }
+
+    public SimpleRateLimiter mergedSegmentReplicationRateLimiter() {
+        return mergedSegmentReplicationRateLimiter;
     }
 
     public TimeValue retryDelayNetwork() {
@@ -242,14 +401,15 @@ public class RecoverySettings {
         return internalActionLongTimeout;
     }
 
+    public TimeValue internalRemoteUploadTimeout() {
+        return internalRemoteUploadTimeout;
+    }
+
     public ByteSizeValue getChunkSize() {
         return chunkSize;
     }
 
-    public void setChunkSize(ByteSizeValue chunkSize) { // only settable for tests
-        if (chunkSize.bytesAsInt() <= 0) {
-            throw new IllegalArgumentException("chunkSize must be > 0");
-        }
+    public void setChunkSize(ByteSizeValue chunkSize) {
         this.chunkSize = chunkSize;
     }
 
@@ -273,15 +433,63 @@ public class RecoverySettings {
         this.internalActionLongTimeout = internalActionLongTimeout;
     }
 
-    private void setMaxBytesPerSec(ByteSizeValue maxBytesPerSec) {
-        this.maxBytesPerSec = maxBytesPerSec;
-        if (maxBytesPerSec.getBytes() <= 0) {
-            rateLimiter = null;
-        } else if (rateLimiter != null) {
-            rateLimiter.setMBPerSec(maxBytesPerSec.getMbFrac());
+    public void setInternalRemoteUploadTimeout(TimeValue internalRemoteUploadTimeout) {
+        this.internalRemoteUploadTimeout = internalRemoteUploadTimeout;
+    }
+
+    public void setInternalActionRetryTimeout(TimeValue internalActionRetryTimeout) {
+        this.internalActionRetryTimeout = internalActionRetryTimeout;
+    }
+
+    private void setRecoveryMaxBytesPerSec(ByteSizeValue recoveryMaxBytesPerSec) {
+        this.recoveryMaxBytesPerSec = recoveryMaxBytesPerSec;
+        if (recoveryMaxBytesPerSec.getBytes() <= 0) {
+            recoveryRateLimiter = null;
+        } else if (recoveryRateLimiter != null) {
+            recoveryRateLimiter.setMBPerSec(recoveryMaxBytesPerSec.getMbFrac());
         } else {
-            rateLimiter = new SimpleRateLimiter(maxBytesPerSec.getMbFrac());
+            recoveryRateLimiter = new SimpleRateLimiter(recoveryMaxBytesPerSec.getMbFrac());
         }
+        if (replicationMaxBytesPerSec.getBytes() < 0) {
+            replicationRateLimiter = getReplicationRateLimiter(replicationMaxBytesPerSec);
+        }
+        if (mergedSegmentReplicationMaxBytesPerSec.getBytes() < 0) {
+            mergedSegmentReplicationRateLimiter = getReplicationRateLimiter(mergedSegmentReplicationMaxBytesPerSec);
+        }
+    }
+
+    private void setReplicationMaxBytesPerSec(ByteSizeValue replicationMaxBytesPerSec) {
+        this.replicationMaxBytesPerSec = replicationMaxBytesPerSec;
+        replicationRateLimiter = getReplicationRateLimiter(replicationMaxBytesPerSec);
+    }
+
+    private SimpleRateLimiter getReplicationRateLimiter(ByteSizeValue replicationMaxBytesPerSec) {
+        if (replicationMaxBytesPerSec.getBytes() >= 0) {
+            if (replicationMaxBytesPerSec.getBytes() == 0) {
+                return null;
+            } else {
+                return new SimpleRateLimiter(replicationMaxBytesPerSec.getMbFrac());
+            }
+        } else { // when replicationMaxBytesPerSec = -1B, use setting of recovery
+            if (recoveryMaxBytesPerSec.getBytes() <= 0) {
+                return null;
+            } else {
+                return new SimpleRateLimiter(recoveryMaxBytesPerSec.getMbFrac());
+            }
+        }
+    }
+
+    public TimeValue getMergedSegmentReplicationTimeout() {
+        return mergedSegmentReplicationTimeout;
+    }
+
+    private void setMergedSegmentReplicationMaxBytesPerSec(ByteSizeValue mergedSegmentReplicationMaxBytesPerSec) {
+        this.mergedSegmentReplicationMaxBytesPerSec = mergedSegmentReplicationMaxBytesPerSec;
+        mergedSegmentReplicationRateLimiter = getReplicationRateLimiter(mergedSegmentReplicationMaxBytesPerSec);
+    }
+
+    public void setMergedSegmentReplicationTimeout(TimeValue mergedSegmentReplicationTimeout) {
+        this.mergedSegmentReplicationTimeout = mergedSegmentReplicationTimeout;
     }
 
     public int getMaxConcurrentFileChunks() {
@@ -306,5 +514,29 @@ public class RecoverySettings {
 
     private void setMaxConcurrentRemoteStoreStreams(int maxConcurrentRemoteStoreStreams) {
         this.maxConcurrentRemoteStoreStreams = maxConcurrentRemoteStoreStreams;
+    }
+
+    public boolean isMergedSegmentReplicationWarmerEnabled() {
+        return mergedSegmentReplicationWarmerEnabled;
+    }
+
+    public void setIndicesMergedSegmentReplicationWarmerEnabled(boolean mergedSegmentReplicationWarmerEnabled) {
+        this.mergedSegmentReplicationWarmerEnabled = mergedSegmentReplicationWarmerEnabled;
+    }
+
+    public boolean isTranslogConcurrentRecoveryEnable() {
+        return isTranslogConcurrentRecoveryEnable;
+    }
+
+    private void setTranslogConcurrentRecoveryEnable(boolean translogConcurrentRecoveryEnable) {
+        isTranslogConcurrentRecoveryEnable = translogConcurrentRecoveryEnable;
+    }
+
+    public int getTranslogConcurrentRecoveryBatchSize() {
+        return translogConcurrentRecoveryBatchSize;
+    }
+
+    private void setTranslogConcurrentRecoveryBatchSize(int translogConcurrentRecoveryBatchSize) {
+        this.translogConcurrentRecoveryBatchSize = translogConcurrentRecoveryBatchSize;
     }
 }

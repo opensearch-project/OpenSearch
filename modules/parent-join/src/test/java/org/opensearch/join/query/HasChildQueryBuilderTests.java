@@ -69,10 +69,12 @@ import org.opensearch.test.TestGeoShapeFieldMapperPlugin;
 import org.opensearch.test.VersionUtils;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -300,15 +302,15 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
         BooleanQuery booleanQuery = (BooleanQuery) lateParsingQuery.getInnerQuery();
         assertThat(booleanQuery.clauses().size(), equalTo(2));
         // check the inner ids query, we have to call rewrite to get to check the type it's executed against
-        assertThat(booleanQuery.clauses().get(0).getOccur(), equalTo(BooleanClause.Occur.MUST));
-        assertThat(booleanQuery.clauses().get(0).getQuery(), instanceOf(TermInSetQuery.class));
-        TermInSetQuery termsQuery = (TermInSetQuery) booleanQuery.clauses().get(0).getQuery();
+        assertThat(booleanQuery.clauses().get(0).occur(), equalTo(BooleanClause.Occur.MUST));
+        assertThat(booleanQuery.clauses().get(0).query(), instanceOf(TermInSetQuery.class));
+        TermInSetQuery termsQuery = (TermInSetQuery) booleanQuery.clauses().get(0).query();
         // The query is of type MultiTermQueryConstantScoreBlendedWrapper and is sealed inside Apache Lucene,
         // no access to inner queries without using the reflection, falling back to stringified query comparison
         assertThat(termsQuery.toString(), equalTo("_id:([ff 69 64])"));
         // check the type filter
-        assertThat(booleanQuery.clauses().get(1).getOccur(), equalTo(BooleanClause.Occur.FILTER));
-        assertEquals(new TermQuery(new Term("join_field", type)), booleanQuery.clauses().get(1).getQuery());
+        assertThat(booleanQuery.clauses().get(1).occur(), equalTo(BooleanClause.Occur.FILTER));
+        assertEquals(new TermQuery(new Term("join_field", type)), booleanQuery.clauses().get(1).query());
     }
 
     @Override
@@ -391,5 +393,14 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
         HasChildQueryBuilder queryBuilder = hasChildQuery(CHILD_DOC, new TermQueryBuilder("custom_string", "value"), ScoreMode.None);
         OpenSearchException e = expectThrows(OpenSearchException.class, () -> queryBuilder.toQuery(queryShardContext));
         assertEquals("[joining] queries cannot be executed when 'search.allow_expensive_queries' is set to false.", e.getMessage());
+    }
+
+    public void testVisit() {
+        HasChildQueryBuilder builder = doCreateTestQueryBuilder();
+
+        List<QueryBuilder> visitedQueries = new ArrayList<>();
+        builder.visit(createTestVisitor(visitedQueries));
+
+        assertEquals(2, visitedQueries.size());
     }
 }

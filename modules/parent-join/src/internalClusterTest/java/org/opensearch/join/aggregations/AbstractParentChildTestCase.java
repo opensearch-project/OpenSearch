@@ -35,10 +35,10 @@ package org.opensearch.join.aggregations;
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.search.SearchRequestBuilder;
 import org.opensearch.action.search.SearchResponse;
-import org.opensearch.client.Requests;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.join.query.ParentChildTestCase;
+import org.opensearch.transport.client.Requests;
 import org.junit.Before;
 
 import java.util.ArrayList;

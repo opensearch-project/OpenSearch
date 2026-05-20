@@ -48,11 +48,11 @@ import org.opensearch.cluster.routing.allocation.decider.ReplicaAfterPrimaryActi
 import org.opensearch.cluster.routing.allocation.decider.SameShardAllocationDecider;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.ClusterSettings;
-import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.snapshots.EmptySnapshotsInfoService;
+import org.opensearch.test.ClusterServiceUtils;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.gateway.TestGatewayAllocator;
 import org.hamcrest.Matchers;
@@ -68,7 +68,7 @@ import static org.hamcrest.Matchers.hasItem;
 public class GatewayServiceTests extends OpenSearchTestCase {
 
     private GatewayService createService(final Settings.Builder settings) {
-        final ClusterService clusterService = new ClusterService(
+        final ClusterService clusterService = ClusterServiceUtils.createClusterService(
             Settings.builder().put("cluster.name", "GatewayServiceTests").build(),
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
             null
@@ -107,22 +107,6 @@ public class GatewayServiceTests extends OpenSearchTestCase {
         // ensure default is set when setting expected_nodes
         service = createService(Settings.builder().put("gateway.recover_after_time", timeValue.toString()));
         assertThat(service.recoverAfterTime().millis(), Matchers.equalTo(timeValue.millis()));
-    }
-
-    public void testDeprecatedSettings() {
-        GatewayService service = createService(Settings.builder());
-
-        service = createService(Settings.builder().put("gateway.expected_nodes", 1));
-        assertSettingDeprecationsAndWarnings(new Setting<?>[] { GatewayService.EXPECTED_NODES_SETTING });
-
-        service = createService(Settings.builder().put("gateway.expected_master_nodes", 1));
-        assertSettingDeprecationsAndWarnings(new Setting<?>[] { GatewayService.EXPECTED_MASTER_NODES_SETTING });
-
-        service = createService(Settings.builder().put("gateway.recover_after_nodes", 1));
-        assertSettingDeprecationsAndWarnings(new Setting<?>[] { GatewayService.RECOVER_AFTER_NODES_SETTING });
-
-        service = createService(Settings.builder().put("gateway.recover_after_master_nodes", 1));
-        assertSettingDeprecationsAndWarnings(new Setting<?>[] { GatewayService.RECOVER_AFTER_MASTER_NODES_SETTING });
     }
 
     public void testRecoverStateUpdateTask() throws Exception {

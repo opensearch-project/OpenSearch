@@ -33,7 +33,7 @@
 package org.opensearch.action.admin.indices.mapping.get;
 
 import org.opensearch.action.ActionRequestValidationException;
-import org.opensearch.action.support.master.info.ClusterInfoRequest;
+import org.opensearch.action.support.clustermanager.info.ClusterInfoRequest;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 

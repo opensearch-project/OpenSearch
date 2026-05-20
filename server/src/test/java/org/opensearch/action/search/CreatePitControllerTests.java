@@ -12,7 +12,6 @@ import org.apache.lucene.search.TotalHits;
 import org.opensearch.Version;
 import org.opensearch.action.LatchedActionListener;
 import org.opensearch.action.StepListener;
-import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNode;
@@ -39,6 +38,7 @@ import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.RemoteClusterConnectionTests;
 import org.opensearch.transport.Transport;
+import org.opensearch.transport.client.node.NodeClient;
 import org.junit.Before;
 
 import java.util.ArrayList;

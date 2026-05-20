@@ -101,8 +101,8 @@ public class MockNioTransport extends TcpTransport {
 
     private final ConcurrentMap<String, MockTcpChannelFactory> profileToChannelFactory = newConcurrentMap();
     private final TransportThreadWatchdog transportThreadWatchdog;
-    private volatile NioSelectorGroup nioGroup;
-    private volatile MockTcpChannelFactory clientChannelFactory;
+    protected volatile NioSelectorGroup nioGroup;
+    protected volatile MockTcpChannelFactory clientChannelFactory;
 
     public MockNioTransport(
         Settings settings,
@@ -369,7 +369,7 @@ public class MockNioTransport extends TcpTransport {
         }
     }
 
-    private static class MockSocketChannel extends NioSocketChannel implements TcpChannel {
+    protected static class MockSocketChannel extends NioSocketChannel implements TcpChannel {
 
         private final boolean isServer;
         private final String profile;
@@ -467,7 +467,7 @@ public class MockNioTransport extends TcpTransport {
                     final Thread thread = entry.getKey();
                     final String stackTrace = Arrays.stream(thread.getStackTrace()).map(Object::toString).collect(Collectors.joining("\n"));
                     final Thread.State threadState = thread.getState();
-                    if (blockedSinceInNanos == registry.get(thread)) {
+                    if (blockedSinceInNanos.equals(registry.get(thread))) {
                         logger.warn(
                             "Potentially blocked execution on network thread [{}] [{}] [{} milliseconds]: \n{}",
                             thread.getName(),

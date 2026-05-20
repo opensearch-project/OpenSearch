@@ -44,11 +44,10 @@ import org.opensearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.search.SearchPhaseExecutionException;
 import org.opensearch.action.search.SearchResponse;
-import org.opensearch.action.support.master.AcknowledgedResponse;
+import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
 import org.opensearch.common.FieldMemoryStats;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.Fuzziness;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.mapper.MapperParsingException;
@@ -65,7 +64,7 @@ import org.opensearch.search.suggest.completion.context.CategoryContextMapping;
 import org.opensearch.search.suggest.completion.context.ContextMapping;
 import org.opensearch.search.suggest.completion.context.GeoContextMapping;
 import org.opensearch.test.InternalSettingsPlugin;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -100,7 +99,7 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
 @SuppressCodecs("*") // requires custom completion format
-public class CompletionSuggestSearchIT extends ParameterizedOpenSearchIntegTestCase {
+public class CompletionSuggestSearchIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
     public CompletionSuggestSearchIT(Settings settings) {
         super(settings);
     }
@@ -111,11 +110,6 @@ public class CompletionSuggestSearchIT extends ParameterizedOpenSearchIntegTestC
             new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), false).build() },
             new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), true).build() }
         );
-    }
-
-    @Override
-    protected Settings featureFlagSettings() {
-        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.CONCURRENT_SEGMENT_SEARCH, "true").build();
     }
 
     private final String INDEX = RandomStrings.randomAsciiOfLength(random(), 10).toLowerCase(Locale.ROOT);
@@ -1182,7 +1176,7 @@ public class CompletionSuggestSearchIT extends ParameterizedOpenSearchIntegTestC
             int weight = randomIntBetween(0, 100);
             weights[id] = Math.max(weight, weights[id]);
             String suggestion = "suggestion-" + String.format(Locale.ENGLISH, "%03d", id);
-            logger.info("Creating {}, id {}, weight {}", suggestion, i, id, weight);
+            logger.info("Creating {}, i {}, id {}, weight {}", suggestion, i, id, weight);
             indexRequestBuilders.add(
                 client().prepareIndex(INDEX)
                     .setRefreshPolicy(WAIT_UNTIL)
@@ -1199,12 +1193,12 @@ public class CompletionSuggestSearchIT extends ParameterizedOpenSearchIntegTestC
         indexRandom(true, indexRequestBuilders);
 
         Arrays.sort(termIds, Comparator.comparingInt(o -> weights[(int) o]).reversed().thenComparingInt(a -> (int) a));
-        logger.info("Expected terms id ordered {}", (Object[]) termIds);
+        logger.info("Expected terms id ordered {}", Arrays.toString(termIds));
         String[] expected = new String[numUnique];
         for (int i = 0; i < termIds.length; i++) {
             expected[i] = "suggestion-" + String.format(Locale.ENGLISH, "%03d", termIds[i]);
         }
-        logger.info("Expected suggestions field values {}", (Object[]) expected);
+        logger.info("Expected suggestions field values {}", Arrays.toString(expected));
         CompletionSuggestionBuilder completionSuggestionBuilder = SuggestBuilders.completionSuggestion(FIELD)
             .prefix("sugg")
             .skipDuplicates(true)
@@ -1387,7 +1381,7 @@ public class CompletionSuggestSearchIT extends ParameterizedOpenSearchIntegTestC
         refresh();
 
         assertSuggestions("b");
-        assertThat(2L, equalTo(client().prepareSearch(INDEX).setSize(0).get().getHits().getTotalHits().value));
+        assertThat(2L, equalTo(client().prepareSearch(INDEX).setSize(0).get().getHits().getTotalHits().value()));
         for (IndexShardSegments seg : client().admin().indices().prepareSegments().get().getIndices().get(INDEX)) {
             ShardSegments[] shards = seg.getShards();
             for (ShardSegments shardSegments : shards) {

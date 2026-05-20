@@ -38,6 +38,7 @@ import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.FieldComparator;
+import org.apache.lucene.search.Pruning;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.comparators.TermOrdValComparator;
@@ -94,7 +95,7 @@ public class BytesRefFieldComparatorSource extends IndexFieldData.XFieldComparat
     protected void setScorer(Scorable scorer, LeafReaderContext context) {}
 
     @Override
-    public FieldComparator<?> newComparator(String fieldname, int numHits, boolean enableSkipping, boolean reversed) {
+    public FieldComparator<?> newComparator(String fieldname, int numHits, Pruning pruning, boolean reversed) {
         assert indexFieldData == null || fieldname.equals(indexFieldData.getFieldName());
 
         final boolean sortMissingLast = sortMissingLast(missingValue) ^ reversed;
@@ -105,7 +106,7 @@ public class BytesRefFieldComparatorSource extends IndexFieldData.XFieldComparat
                 indexFieldData.getFieldName(),
                 sortMissingLast,
                 reversed,
-                enableSkipping
+                filterPruning(pruning)
             ) {
 
                 @Override

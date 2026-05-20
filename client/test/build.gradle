@@ -28,10 +28,11 @@
  * under the License.
  */
 apply plugin: 'opensearch.build'
+apply from: "$rootDir/gradle/fips.gradle"
 
 java {
-  targetCompatibility = JavaVersion.VERSION_11
-  sourceCompatibility = JavaVersion.VERSION_11
+  targetCompatibility = JavaVersion.VERSION_1_8
+  sourceCompatibility = JavaVersion.VERSION_1_8
 }
 
 base {
@@ -43,6 +44,7 @@ dependencies {
   api "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
   api "junit:junit:${versions.junit}"
   api "org.hamcrest:hamcrest:${versions.hamcrest}"
+  fipsOnly "org.bouncycastle:bc-fips:${versions.bouncycastle_jce}"
 }
 
 tasks.named('forbiddenApisMain').configure {
@@ -69,3 +71,10 @@ dependenciesInfo.enabled = false
 //we aren't releasing this jar
 thirdPartyAudit.enabled = false
 test.enabled = false
+
+tasks.withType(JavaCompile) {
+  // Suppressing '[options] target value 8 is obsolete and will be removed in a future release'
+  configure(options) {
+    options.compilerArgs << '-Xlint:-options'
+  }
+}

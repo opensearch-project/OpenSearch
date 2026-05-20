@@ -32,12 +32,16 @@
 
 package org.opensearch.common.lucene.uid;
 
+import org.apache.lucene.index.FilterLeafReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.util.CloseableThreadLocal;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
+import org.opensearch.index.codec.CriteriaBasedCodec;
 
 import java.io.IOException;
 import java.util.List;
@@ -110,8 +114,9 @@ public final class VersionsAndSeqNoResolver {
     /**
      * Wraps an {@link LeafReaderContext}, a doc ID <b>relative to the context doc base</b> and a version.
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static class DocIdAndVersion {
         public final int docId;
         public final long version;
@@ -153,7 +158,8 @@ public final class VersionsAndSeqNoResolver {
      * <li>a doc ID and a version otherwise
      * </ul>
      */
-    public static DocIdAndVersion loadDocIdAndVersion(IndexReader reader, Term term, boolean loadSeqNo) throws IOException {
+    public static DocIdAndVersion loadDocIdAndVersion(IndexReader reader, Term term, boolean loadSeqNo, String currentCriteria)
+        throws IOException {
         PerThreadIDVersionAndSeqNoLookup[] lookups = getLookupState(reader, term.field());
         List<LeafReaderContext> leaves = reader.leaves();
         // iterate backwards to optimize for the frequently updated documents
@@ -163,6 +169,18 @@ public final class VersionsAndSeqNoResolver {
             PerThreadIDVersionAndSeqNoLookup lookup = lookups[leaf.ord];
             DocIdAndVersion result = lookup.lookupVersion(term.bytes(), loadSeqNo, leaf);
             if (result != null) {
+                if (result.version > 0 && currentCriteria != null) {
+                    SegmentReader unwrappedReader = (SegmentReader) (FilterLeafReader.unwrap(leaf.reader()));
+                    String prevCriteria = unwrappedReader.getSegmentInfo().info.getAttribute(CriteriaBasedCodec.BUCKET_NAME);
+                    assert prevCriteria != null;
+                    if (prevCriteria.equals(currentCriteria) == false) {
+                        throw new UnsupportedOperationException(
+                            "Updating grouping criteria is not allowed for context aware enabled indices.",
+                            null
+                        );
+                    }
+                }
+
                 return result;
             }
         }

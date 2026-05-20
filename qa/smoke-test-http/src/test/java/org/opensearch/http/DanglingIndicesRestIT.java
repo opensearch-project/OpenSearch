@@ -152,8 +152,8 @@ public class DanglingIndicesRestIT extends HttpSmokeTestCase {
      * 1, then create two indices and delete them both while one node in
      * the cluster is stopped. The deletion of the second pushes the deletion
      * of the first out of the graveyard. When the stopped node is resumed,
-     * only the second index will be found into the graveyard and the the
-     * other will be considered dangling, and can therefore be listed and
+     * only the second index will be found into the graveyard and the other
+     * will be considered dangling, and can therefore be listed and
      * deleted through the API
      */
     public void testDanglingIndicesCanBeDeleted() throws Exception {

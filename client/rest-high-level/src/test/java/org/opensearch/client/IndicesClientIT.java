@@ -65,7 +65,7 @@ import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.action.support.WriteRequest;
 import org.opensearch.action.support.broadcast.BroadcastResponse;
-import org.opensearch.action.support.master.AcknowledgedResponse;
+import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
 import org.opensearch.client.indices.AnalyzeRequest;
 import org.opensearch.client.indices.AnalyzeResponse;
 import org.opensearch.client.indices.CloseIndexRequest;
@@ -134,6 +134,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_CREATION_DATE;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.opensearch.common.xcontent.support.XContentMapValues.extractRawValues;
@@ -256,6 +257,57 @@ public class IndicesClientIT extends OpenSearchRestHighLevelClientTestCase {
         }
     }
 
+    public void testCreateIndexWithCreationDate() throws IOException {
+        {
+            // Create index with creation_date setting - should succeed now that it's not private
+            String indexName = "creation_date_index";
+            assertFalse(indexExists(indexName));
+
+            CreateIndexRequest createIndexRequest = new CreateIndexRequest(indexName);
+
+            Settings.Builder settings = Settings.builder();
+            settings.put(SETTING_CREATION_DATE, 1234567890L);
+            createIndexRequest.settings(settings);
+
+            CreateIndexResponse createIndexResponse = execute(
+                createIndexRequest,
+                highLevelClient().indices()::create,
+                highLevelClient().indices()::createAsync
+            );
+            assertTrue(
+                "Index creation should be acknowledged when setting creation_date during index creation",
+                createIndexResponse.isAcknowledged()
+            );
+            assertTrue("Index should exist after creation with creation_date setting", indexExists(indexName));
+        }
+    }
+
+    public void testUpdateIndexSettingsFailFinalSetting() throws IOException {
+        {
+            // Create index and attempt to update creation_date - should fail as it's a final setting
+            String indexName = "final_setting_index";
+            createIndex(indexName, Settings.EMPTY);
+
+            UpdateSettingsRequest updateSettingsRequest = new UpdateSettingsRequest(indexName);
+            Settings.Builder settings = Settings.builder();
+            settings.put(SETTING_CREATION_DATE, 9876543210L);
+            updateSettingsRequest.settings(settings);
+
+            OpenSearchException exception = expectThrows(
+                OpenSearchException.class,
+                () -> execute(
+                    updateSettingsRequest,
+                    highLevelClient().indices()::putSettings,
+                    highLevelClient().indices()::putSettingsAsync
+                )
+            );
+            assertTrue(
+                "Exception message should indicate that index.creation_date cannot be updated. Got: " + exception.getMessage(),
+                exception.getMessage().contains("Can't update non dynamic settings [[index.creation_date]]")
+            );
+        }
+    }
+
     public void testGetSettings() throws IOException {
         String indexName = "get_settings_index";
         Settings basicSettings = Settings.builder().put("number_of_shards", 1).put("number_of_replicas", 0).build();
@@ -279,6 +331,24 @@ public class IndicesClientIT extends OpenSearchRestHighLevelClientTestCase {
             highLevelClient().indices()::getSettingsAsync
         );
         assertEquals("30s", updatedResponse.getSetting(indexName, "index.refresh_interval"));
+    }
+
+    public void testGetPrivateSettings() throws IOException {
+        String indexName = "get_settings_index";
+        Settings basicSettings = Settings.builder().put("number_of_shards", 1).put("number_of_replicas", 0).build();
+
+        createIndex(indexName, basicSettings);
+
+        GetSettingsRequest getSettingsRequest = new GetSettingsRequest().indices(indexName);
+        GetSettingsResponse getSettingsResponse = execute(
+            getSettingsRequest,
+            highLevelClient().indices()::getSettings,
+            highLevelClient().indices()::getSettingsAsync
+        );
+
+        assertNull(getSettingsResponse.getSetting(indexName, "index.refresh_interval"));
+        assertNotNull(getSettingsResponse.getSetting(indexName, "index.creation_date"));
+        assertNotNull(getSettingsResponse.getSetting(indexName, "index.uuid"));
     }
 
     public void testGetSettingsNonExistentIndex() throws IOException {
@@ -701,7 +771,7 @@ public class IndicesClientIT extends OpenSearchRestHighLevelClientTestCase {
         closeIndex(index);
         ResponseException exception = expectThrows(
             ResponseException.class,
-            () -> client().performRequest(new Request(HttpGet.METHOD_NAME, index + "/_search"))
+            () -> client().performRequest(new Request(HttpGet.METHOD_NAME, "/" + index + "/_search"))
         );
         assertThat(exception.getResponse().getStatusLine().getStatusCode(), equalTo(RestStatus.BAD_REQUEST.getStatus()));
         assertThat(exception.getMessage().contains(index), equalTo(true));
@@ -714,7 +784,7 @@ public class IndicesClientIT extends OpenSearchRestHighLevelClientTestCase {
         );
         assertTrue(openIndexResponse.isAcknowledged());
 
-        Response response = client().performRequest(new Request(HttpGet.METHOD_NAME, index + "/_search"));
+        Response response = client().performRequest(new Request(HttpGet.METHOD_NAME, "/" + index + "/_search"));
         assertThat(response.getStatusLine().getStatusCode(), equalTo(RestStatus.OK.getStatus()));
     }
 
@@ -771,7 +841,7 @@ public class IndicesClientIT extends OpenSearchRestHighLevelClientTestCase {
 
             ResponseException exception = expectThrows(
                 ResponseException.class,
-                () -> client().performRequest(new Request(HttpGet.METHOD_NAME, indexResult.getIndex() + "/_search"))
+                () -> client().performRequest(new Request(HttpGet.METHOD_NAME, "/" + indexResult.getIndex() + "/_search"))
             );
             assertThat(exception.getResponse().getStatusLine().getStatusCode(), equalTo(RestStatus.BAD_REQUEST.getStatus()));
             assertThat(exception.getMessage().contains(indexResult.getIndex()), equalTo(true));
@@ -1270,7 +1340,7 @@ public class IndicesClientIT extends OpenSearchRestHighLevelClientTestCase {
             assertThat(getAliasesResponse.getException(), nullValue());
         }
         createIndex(index, Settings.EMPTY);
-        client().performRequest(new Request(HttpPut.METHOD_NAME, index + "/_alias/" + alias));
+        client().performRequest(new Request(HttpPut.METHOD_NAME, "/" + index + "/_alias/" + alias));
         {
             GetAliasesRequest getAliasesRequest = new GetAliasesRequest().indices(index, "non_existent_index");
             GetAliasesResponse getAliasesResponse = execute(

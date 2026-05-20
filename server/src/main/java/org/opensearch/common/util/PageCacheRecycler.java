@@ -33,6 +33,7 @@
 package org.opensearch.common.util;
 
 import org.apache.lucene.util.RamUsageEstimator;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.recycler.AbstractRecyclerC;
 import org.opensearch.common.recycler.Recycler;
 import org.opensearch.common.settings.Setting;
@@ -55,6 +56,7 @@ import static org.opensearch.common.recycler.Recyclers.none;
  *
  * @opensearch.internal
  */
+@ExperimentalApi
 public class PageCacheRecycler {
 
     public static final Setting<Type> TYPE_SETTING = new Setting<>(

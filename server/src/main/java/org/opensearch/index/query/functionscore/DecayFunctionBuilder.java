@@ -259,11 +259,11 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
         // dates and time and geo need special handling
         parser.nextToken();
         // TODO these ain't gonna work with runtime fields
-        if (fieldType instanceof DateFieldMapper.DateFieldType) {
+        if (fieldType.unwrap() instanceof DateFieldMapper.DateFieldType) {
             return parseDateVariable(parser, context, fieldType, mode);
-        } else if (fieldType instanceof GeoPointFieldType) {
+        } else if (fieldType.unwrap() instanceof GeoPointFieldType) {
             return parseGeoVariable(parser, context, fieldType, mode);
-        } else if (fieldType instanceof NumberFieldMapper.NumberFieldType) {
+        } else if (fieldType.unwrap() instanceof NumberFieldMapper.NumberFieldType) {
             return parseNumberVariable(parser, context, fieldType, mode);
         } else {
             throw new ParsingException(
@@ -560,6 +560,11 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
         protected NumericDoubleValues distance(LeafReaderContext context) {
             final SortedNumericDoubleValues doubleValues = fieldData.load(context).getDoubleValues();
             return FieldData.replaceMissing(mode.select(new SortingNumericDoubleValues() {
+                @Override
+                public int advance(int target) throws IOException {
+                    return doubleValues.advance(target);
+                }
+
                 @Override
                 public boolean advanceExact(int docId) throws IOException {
                     if (doubleValues.advanceExact(docId)) {

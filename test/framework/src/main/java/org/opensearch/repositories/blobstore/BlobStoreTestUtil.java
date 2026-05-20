@@ -51,20 +51,20 @@ import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobMetadata;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.BlobStore;
+import org.opensearch.common.settings.ClusterSettings;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.xcontent.LoggingDeprecationHandler;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentParser;
-import org.opensearch.index.IndexModule;
 import org.opensearch.repositories.IndexId;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.RepositoryData;
 import org.opensearch.repositories.ShardGenerations;
 import org.opensearch.snapshots.SnapshotId;
 import org.opensearch.snapshots.SnapshotInfo;
-import org.opensearch.snapshots.SnapshotMissingException;
 import org.opensearch.test.InternalTestCluster;
 import org.opensearch.threadpool.ThreadPool;
 
@@ -90,7 +90,6 @@ import java.util.stream.Collectors;
 
 import static org.opensearch.test.OpenSearchTestCase.buildNewFakeTransportAddress;
 import static org.opensearch.test.OpenSearchTestCase.randomIntBetween;
-import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasKey;
@@ -143,7 +142,7 @@ public final class BlobStoreTestUtil {
                 }
                 assertIndexUUIDs(repository, repositoryData);
                 assertSnapshotUUIDs(repository, repositoryData);
-                assertShardIndexGenerations(repository, blobContainer, repositoryData);
+                assertShardIndexGenerations(repository, repositoryData);
                 return null;
             } catch (AssertionError e) {
                 return e;
@@ -167,35 +166,40 @@ public final class BlobStoreTestUtil {
         assertTrue(indexGenerations.length <= 2);
     }
 
-    private static void assertShardIndexGenerations(BlobStoreRepository repository, BlobContainer repoRoot, RepositoryData repositoryData)
-        throws IOException {
+    private static void assertShardIndexGenerations(BlobStoreRepository repository, RepositoryData repositoryData) throws IOException {
         final ShardGenerations shardGenerations = repositoryData.shardGenerations();
-        final BlobContainer indicesContainer = repoRoot.children().get("indices");
         for (IndexId index : shardGenerations.indices()) {
             final List<String> gens = shardGenerations.getGens(index);
             if (gens.isEmpty() == false) {
-                final BlobContainer indexContainer = indicesContainer.children().get(index.getId());
-                final Map<String, BlobContainer> shardContainers = indexContainer.children();
-                if (isRemoteSnapshot(repository, repositoryData, index)) {
-                    // If the source of the data is another snapshot (i.e. searchable snapshot)
-                    // then assert that there is no shard data (because it exists in the source snapshot)
-                    assertThat(shardContainers, anEmptyMap());
-                } else {
-                    for (int i = 0; i < gens.size(); i++) {
-                        final String generation = gens.get(i);
-                        assertThat(generation, not(ShardGenerations.DELETED_SHARD_GEN));
-                        if (generation != null && generation.equals(ShardGenerations.NEW_SHARD_GEN) == false) {
-                            final String shardId = Integer.toString(i);
-                            assertThat(shardContainers, hasKey(shardId));
-                            assertThat(
-                                shardContainers.get(shardId).listBlobsByPrefix(BlobStoreRepository.INDEX_FILE_PREFIX),
-                                hasKey(BlobStoreRepository.INDEX_FILE_PREFIX + generation)
-                            );
-                        }
+                final Map<String, BlobContainer> shardContainers = getShardContainers(index, repository, repositoryData);
+                for (int i = 0; i < gens.size(); i++) {
+                    final String generation = gens.get(i);
+                    assertThat(generation, not(ShardGenerations.DELETED_SHARD_GEN));
+                    if (generation != null && generation.equals(ShardGenerations.NEW_SHARD_GEN) == false) {
+                        final String shardId = Integer.toString(i);
+                        assertThat(shardContainers, hasKey(shardId));
+                        assertThat(
+                            shardContainers.get(shardId).listBlobsByPrefix(BlobStoreRepository.INDEX_FILE_PREFIX),
+                            hasKey(BlobStoreRepository.INDEX_FILE_PREFIX + generation)
+                        );
                     }
                 }
             }
         }
+    }
+
+    private static Map<String, BlobContainer> getShardContainers(
+        IndexId indexId,
+        BlobStoreRepository repository,
+        RepositoryData repositoryData
+    ) {
+        final Map<String, BlobContainer> shardContainers = new HashMap<>();
+        int shardCount = repositoryData.shardGenerations().getGens(indexId).size();
+        for (int i = 0; i < shardCount; i++) {
+            final BlobContainer shardContainer = repository.shardContainer(indexId, i);
+            shardContainers.put(String.valueOf(i), shardContainer);
+        }
+        return shardContainers;
     }
 
     private static void assertIndexUUIDs(BlobStoreRepository repository, RepositoryData repositoryData) throws IOException {
@@ -306,23 +310,25 @@ public final class BlobStoreTestUtil {
                             .stream()
                             .noneMatch(shardFailure -> shardFailure.index().equals(index) && shardFailure.shardId() == shardId)) {
                         final Map<String, BlobMetadata> shardPathContents = shardContainer.listBlobs();
-
-                        assertTrue(
-                            shardPathContents.containsKey(
-                                String.format(Locale.ROOT, BlobStoreRepository.SHALLOW_SNAPSHOT_NAME_FORMAT, snapshotId.getUUID())
-                            )
-                                || shardPathContents.containsKey(
-                                    String.format(Locale.ROOT, BlobStoreRepository.SNAPSHOT_NAME_FORMAT, snapshotId.getUUID())
+                        if (snapshotInfo.getPinnedTimestamp() == 0) {
+                            assertTrue(
+                                shardPathContents.containsKey(
+                                    String.format(Locale.ROOT, BlobStoreRepository.SHALLOW_SNAPSHOT_NAME_FORMAT, snapshotId.getUUID())
                                 )
-                        );
+                                    || shardPathContents.containsKey(
+                                        String.format(Locale.ROOT, BlobStoreRepository.SNAPSHOT_NAME_FORMAT, snapshotId.getUUID())
+                                    )
+                            );
 
-                        assertThat(
-                            shardPathContents.keySet()
-                                .stream()
-                                .filter(name -> name.startsWith(BlobStoreRepository.INDEX_FILE_PREFIX))
-                                .count(),
-                            lessThanOrEqualTo(2L)
-                        );
+                            assertThat(
+                                shardPathContents.keySet()
+                                    .stream()
+                                    .filter(name -> name.startsWith(BlobStoreRepository.INDEX_FILE_PREFIX))
+                                    .count(),
+                                lessThanOrEqualTo(2L)
+                            );
+                        }
+
                     }
                 }
             }
@@ -457,26 +463,9 @@ public final class BlobStoreTestUtil {
             return null;
         }).when(clusterService).addStateApplier(any(ClusterStateApplier.class));
         when(clusterApplierService.threadPool()).thenReturn(threadPool);
+        when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
         return clusterService;
-    }
-
-    private static boolean isRemoteSnapshot(BlobStoreRepository repository, RepositoryData repositoryData, IndexId indexId)
-        throws IOException {
-        final Collection<SnapshotId> snapshotIds = repositoryData.getSnapshotIds();
-        for (SnapshotId snapshotId : snapshotIds) {
-            try {
-                if (isRemoteSnapshot(repository.getSnapshotIndexMetaData(repositoryData, snapshotId, indexId))) {
-                    return true;
-                }
-            } catch (SnapshotMissingException e) {
-                // Index does not exist in this snapshot so continue looping
-            }
-        }
-        return false;
-    }
-
-    private static boolean isRemoteSnapshot(IndexMetadata metadata) {
-        final String storeType = metadata.getSettings().get(IndexModule.INDEX_STORE_TYPE_SETTING.getKey());
-        return storeType != null && storeType.equals(IndexModule.Type.REMOTE_SNAPSHOT.getSettingsKey());
     }
 }

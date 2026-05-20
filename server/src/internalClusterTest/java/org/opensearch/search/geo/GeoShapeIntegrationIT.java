@@ -41,14 +41,13 @@ import org.opensearch.cluster.routing.IndexShardRoutingTable;
 import org.opensearch.common.geo.builders.PointBuilder;
 import org.opensearch.common.geo.builders.ShapeBuilder;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.mapper.GeoShapeFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.indices.IndicesService;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -61,10 +60,10 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
-public class GeoShapeIntegrationIT extends ParameterizedOpenSearchIntegTestCase {
+public class GeoShapeIntegrationIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
 
-    public GeoShapeIntegrationIT(Settings dynamicSettings) {
-        super(dynamicSettings);
+    public GeoShapeIntegrationIT(Settings staticSettings) {
+        super(staticSettings);
     }
 
     @ParametersFactory
@@ -73,11 +72,6 @@ public class GeoShapeIntegrationIT extends ParameterizedOpenSearchIntegTestCase 
             new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), false).build() },
             new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), true).build() }
         );
-    }
-
-    @Override
-    protected Settings featureFlagSettings() {
-        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.CONCURRENT_SEGMENT_SEARCH, "true").build();
     }
 
     @Override
@@ -200,7 +194,7 @@ public class GeoShapeIntegrationIT extends ParameterizedOpenSearchIntegTestCase 
 
         indexRandom(true, client().prepareIndex("test").setId("0").setSource("shape", polygonGeoJson));
         SearchResponse searchResponse = client().prepareSearch("test").setQuery(matchAllQuery()).get();
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(1L));
     }
 
     public void testMappingUpdate() throws Exception {
@@ -208,14 +202,16 @@ public class GeoShapeIntegrationIT extends ParameterizedOpenSearchIntegTestCase 
         assertAcked(client().admin().indices().prepareCreate("test").setMapping("shape", "type=geo_shape").get());
         ensureGreen();
 
-        String update = "{\n"
-            + "  \"properties\": {\n"
-            + "    \"shape\": {\n"
-            + "      \"type\": \"geo_shape\",\n"
-            + "      \"strategy\": \"recursive\"\n"
-            + "    }\n"
-            + "  }\n"
-            + "}";
+        String update = """
+            {
+              "properties": {
+                "shape": {
+                  "type": "geo_shape",
+                  "strategy": "recursive"
+                }
+              }
+            }
+            """;
 
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
@@ -228,27 +224,31 @@ public class GeoShapeIntegrationIT extends ParameterizedOpenSearchIntegTestCase 
      * Test that the indexed shape routing can be provided if it is required
      */
     public void testIndexShapeRouting() throws Exception {
-        String mapping = "{\n"
-            + "    \"_routing\": {\n"
-            + "      \"required\": true\n"
-            + "    },\n"
-            + "    \"properties\": {\n"
-            + "      \"shape\": {\n"
-            + "        \"type\": \"geo_shape\"\n"
-            + "      }\n"
-            + "    }\n"
-            + "  }";
+        String mapping = """
+            {
+                "_routing": {
+                  "required": true
+                },
+                "properties": {
+                  "shape": {
+                    "type": "geo_shape"
+                  }
+                }
+              }
+            """;
 
         // create index
         assertAcked(client().admin().indices().prepareCreate("test").setMapping(mapping).get());
         ensureGreen();
 
-        String source = "{\n"
-            + "    \"shape\" : {\n"
-            + "        \"type\" : \"bbox\",\n"
-            + "        \"coordinates\" : [[-45.0, 45.0], [45.0, -45.0]]\n"
-            + "    }\n"
-            + "}";
+        String source = """
+            {
+                "shape" : {
+                    "type" : "bbox",
+                    "coordinates" : [[-45.0, 45.0], [45.0, -45.0]]
+                }
+            }
+            """;
 
         indexRandom(true, client().prepareIndex("test").setId("0").setSource(source, MediaTypeRegistry.JSON).setRouting("ABC"));
 
@@ -256,26 +256,30 @@ public class GeoShapeIntegrationIT extends ParameterizedOpenSearchIntegTestCase 
             .setQuery(geoShapeQuery("shape", "0").indexedShapeIndex("test").indexedShapeRouting("ABC"))
             .get();
 
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(1L));
     }
 
     public void testIndexPolygonDateLine() throws Exception {
-        String mappingVector = "{\n"
-            + "    \"properties\": {\n"
-            + "      \"shape\": {\n"
-            + "        \"type\": \"geo_shape\"\n"
-            + "      }\n"
-            + "    }\n"
-            + "  }";
+        String mappingVector = """
+            {
+                "properties": {
+                  "shape": {
+                    "type": "geo_shape"
+                  }
+                }
+              }
+            """;
 
-        String mappingQuad = "{\n"
-            + "    \"properties\": {\n"
-            + "      \"shape\": {\n"
-            + "        \"type\": \"geo_shape\",\n"
-            + "        \"tree\": \"quadtree\"\n"
-            + "      }\n"
-            + "    }\n"
-            + "  }";
+        String mappingQuad = """
+            {
+                "properties": {
+                  "shape": {
+                    "type": "geo_shape",
+                    "tree": "quadtree"
+                  }
+                }
+              }
+            """;
 
         // create index
         assertAcked(client().admin().indices().prepareCreate("vector").setMapping(mappingVector).get());
@@ -284,7 +288,11 @@ public class GeoShapeIntegrationIT extends ParameterizedOpenSearchIntegTestCase 
         assertAcked(client().admin().indices().prepareCreate("quad").setMapping(mappingQuad).get());
         ensureGreen();
 
-        String source = "{\n" + "    \"shape\" : \"POLYGON((179 0, -179 0, -179 2, 179 2, 179 0))\"" + "}";
+        String source = """
+            {
+                "shape" : "POLYGON((179 0, -179 0, -179 2, 179 2, 179 0))"
+            }
+            """;
 
         indexRandom(true, client().prepareIndex("quad").setId("0").setSource(source, MediaTypeRegistry.JSON));
         indexRandom(true, client().prepareIndex("vector").setId("0").setSource(source, MediaTypeRegistry.JSON));
@@ -298,19 +306,19 @@ public class GeoShapeIntegrationIT extends ParameterizedOpenSearchIntegTestCase 
                 .setQuery(geoShapeQuery("shape", new PointBuilder(-179.75, 1)))
                 .get();
 
-            assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
+            assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(1L));
 
             searchResponse = client().prepareSearch("quad").setQuery(geoShapeQuery("shape", new PointBuilder(90, 1))).get();
 
-            assertThat(searchResponse.getHits().getTotalHits().value, equalTo(0L));
+            assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(0L));
 
             searchResponse = client().prepareSearch("quad").setQuery(geoShapeQuery("shape", new PointBuilder(-180, 1))).get();
 
-            assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
+            assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(1L));
 
             searchResponse = client().prepareSearch("quad").setQuery(geoShapeQuery("shape", new PointBuilder(180, 1))).get();
 
-            assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
+            assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(1L));
         } finally {
             ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
             updateSettingsRequest.persistentSettings(Settings.builder().put("search.allow_expensive_queries", (String) null));
@@ -319,19 +327,19 @@ public class GeoShapeIntegrationIT extends ParameterizedOpenSearchIntegTestCase 
 
         SearchResponse searchResponse = client().prepareSearch("vector").setQuery(geoShapeQuery("shape", new PointBuilder(90, 1))).get();
 
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(0L));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(0L));
 
         searchResponse = client().prepareSearch("vector").setQuery(geoShapeQuery("shape", new PointBuilder(-179.75, 1))).get();
 
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(1L));
 
         searchResponse = client().prepareSearch("vector").setQuery(geoShapeQuery("shape", new PointBuilder(-180, 1))).get();
 
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(1L));
 
         searchResponse = client().prepareSearch("vector").setQuery(geoShapeQuery("shape", new PointBuilder(180, 1))).get();
 
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(1L));
     }
 
     private String findNodeName(String index) {

@@ -35,12 +35,16 @@ package org.opensearch.cluster.routing.allocation;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.opensearch.Version;
+import org.opensearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.opensearch.cluster.ClusterInfoService;
+import org.opensearch.cluster.ClusterManagerMetrics;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.RestoreInProgress;
 import org.opensearch.cluster.health.ClusterHealthStatus;
 import org.opensearch.cluster.health.ClusterStateHealth;
 import org.opensearch.cluster.metadata.AutoExpandReplicas;
+import org.opensearch.cluster.metadata.AutoExpandSearchReplicas;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNode;
@@ -54,9 +58,13 @@ import org.opensearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.opensearch.cluster.routing.allocation.command.AllocationCommands;
 import org.opensearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.opensearch.cluster.routing.allocation.decider.Decision;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.gateway.GatewayAllocator;
 import org.opensearch.gateway.PriorityComparator;
+import org.opensearch.gateway.ShardsBatchGatewayAllocator;
 import org.opensearch.snapshots.SnapshotsInfoService;
+import org.opensearch.telemetry.metrics.noop.NoopMetricsRegistry;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -66,6 +74,7 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -73,6 +82,7 @@ import java.util.stream.Collectors;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static org.opensearch.cluster.routing.UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING;
+import static org.opensearch.cluster.routing.allocation.ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_BATCH_MODE;
 
 /**
  * This service manages the node allocation of a cluster. For this reason the
@@ -87,10 +97,12 @@ public class AllocationService {
     private static final Logger logger = LogManager.getLogger(AllocationService.class);
 
     private final AllocationDeciders allocationDeciders;
+    private Settings settings;
     private Map<String, ExistingShardsAllocator> existingShardsAllocators;
     private final ShardsAllocator shardsAllocator;
     private final ClusterInfoService clusterInfoService;
     private SnapshotsInfoService snapshotsInfoService;
+    private final ClusterManagerMetrics clusterManagerMetrics;
 
     // only for tests that use the GatewayAllocator as the unique ExistingShardsAllocator
     public AllocationService(
@@ -100,7 +112,13 @@ public class AllocationService {
         ClusterInfoService clusterInfoService,
         SnapshotsInfoService snapshotsInfoService
     ) {
-        this(allocationDeciders, shardsAllocator, clusterInfoService, snapshotsInfoService);
+        this(
+            allocationDeciders,
+            shardsAllocator,
+            clusterInfoService,
+            snapshotsInfoService,
+            new ClusterManagerMetrics(NoopMetricsRegistry.INSTANCE)
+        );
         setExistingShardsAllocators(Collections.singletonMap(GatewayAllocator.ALLOCATOR_NAME, gatewayAllocator));
     }
 
@@ -108,12 +126,26 @@ public class AllocationService {
         AllocationDeciders allocationDeciders,
         ShardsAllocator shardsAllocator,
         ClusterInfoService clusterInfoService,
-        SnapshotsInfoService snapshotsInfoService
+        SnapshotsInfoService snapshotsInfoService,
+        ClusterManagerMetrics clusterManagerMetrics
+    ) {
+        this(allocationDeciders, shardsAllocator, clusterInfoService, snapshotsInfoService, Settings.EMPTY, clusterManagerMetrics);
+    }
+
+    public AllocationService(
+        AllocationDeciders allocationDeciders,
+        ShardsAllocator shardsAllocator,
+        ClusterInfoService clusterInfoService,
+        SnapshotsInfoService snapshotsInfoService,
+        Settings settings,
+        ClusterManagerMetrics clusterManagerMetrics
     ) {
         this.allocationDeciders = allocationDeciders;
         this.shardsAllocator = shardsAllocator;
         this.clusterInfoService = clusterInfoService;
         this.snapshotsInfoService = snapshotsInfoService;
+        this.settings = settings;
+        this.clusterManagerMetrics = clusterManagerMetrics;
     }
 
     /**
@@ -166,7 +198,11 @@ public class AllocationService {
     protected ClusterState buildResultAndLogHealthChange(ClusterState oldState, RoutingAllocation allocation, String reason) {
         ClusterState newState = buildResult(oldState, allocation);
 
-        logClusterHealthStateChange(new ClusterStateHealth(oldState), new ClusterStateHealth(newState), reason);
+        logClusterHealthStateChange(
+            new ClusterStateHealth(oldState, ClusterHealthRequest.Level.CLUSTER),
+            new ClusterStateHealth(newState, ClusterHealthRequest.Level.CLUSTER),
+            reason
+        );
 
         return newState;
     }
@@ -338,11 +374,19 @@ public class AllocationService {
             clusterState.metadata(),
             allocation
         );
-        if (autoExpandReplicaChanges.isEmpty()) {
+
+        final Map<Integer, List<String>> autoExpandSearchReplicaChanges = AutoExpandSearchReplicas.getAutoExpandSearchReplicaChanges(
+            clusterState.metadata(),
+            allocation
+        );
+
+        if (autoExpandReplicaChanges.isEmpty() && autoExpandSearchReplicaChanges.isEmpty()) {
             return clusterState;
         } else {
             final RoutingTable.Builder routingTableBuilder = RoutingTable.builder(clusterState.routingTable());
             final Metadata.Builder metadataBuilder = Metadata.builder(clusterState.metadata());
+            final Set<String> updatedIndices = new HashSet<>();
+
             for (Map.Entry<Integer, List<String>> entry : autoExpandReplicaChanges.entrySet()) {
                 final int numberOfReplicas = entry.getKey();
                 final String[] indices = entry.getValue().toArray(new String[0]);
@@ -350,21 +394,36 @@ public class AllocationService {
                 // operation which make these copies stale
                 routingTableBuilder.updateNumberOfReplicas(numberOfReplicas, indices);
                 metadataBuilder.updateNumberOfReplicas(numberOfReplicas, indices);
-                // update settings version for each index
-                for (final String index : indices) {
-                    final IndexMetadata indexMetadata = metadataBuilder.get(index);
-                    final IndexMetadata.Builder indexMetadataBuilder = new IndexMetadata.Builder(indexMetadata).settingsVersion(
-                        1 + indexMetadata.getSettingsVersion()
-                    );
-                    metadataBuilder.put(indexMetadataBuilder);
-                }
+                updatedIndices.addAll(Set.of(indices));
                 logger.info("updating number_of_replicas to [{}] for indices {}", numberOfReplicas, indices);
             }
+
+            for (Map.Entry<Integer, List<String>> entry : autoExpandSearchReplicaChanges.entrySet()) {
+                final int numberOfSearchReplicas = entry.getKey();
+                final String[] indices = entry.getValue().toArray(new String[0]);
+                // we do *not* update the in sync allocation ids as they will be removed upon the first index
+                // operation which make these copies stale
+                routingTableBuilder.updateNumberOfSearchReplicas(numberOfSearchReplicas, indices);
+                metadataBuilder.updateNumberOfSearchReplicas(numberOfSearchReplicas, indices);
+                updatedIndices.addAll(Set.of(indices));
+                logger.info("updating number_of_search_replicas to [{}] for indices {}", numberOfSearchReplicas, indices);
+            }
+
+            // update settings version for each updated index
+            for (final String index : updatedIndices) {
+                final IndexMetadata indexMetadata = metadataBuilder.get(index);
+                final IndexMetadata.Builder indexMetadataBuilder = new IndexMetadata.Builder(indexMetadata).settingsVersion(
+                    1 + indexMetadata.getSettingsVersion()
+                );
+                metadataBuilder.put(indexMetadataBuilder);
+            }
+
             final ClusterState fixedState = ClusterState.builder(clusterState)
                 .routingTable(routingTableBuilder.build())
                 .metadata(metadataBuilder)
                 .build();
             assert AutoExpandReplicas.getAutoExpandReplicaChanges(fixedState.metadata(), allocation).isEmpty();
+            assert AutoExpandSearchReplicas.getAutoExpandSearchReplicaChanges(fixedState.metadata(), allocation).isEmpty();
             return fixedState;
         }
     }
@@ -532,12 +591,19 @@ public class AllocationService {
         assert hasDeadNodes(allocation) == false : "dead nodes should be explicitly cleaned up. See disassociateDeadNodes";
         assert AutoExpandReplicas.getAutoExpandReplicaChanges(allocation.metadata(), allocation).isEmpty()
             : "auto-expand replicas out of sync with number of nodes in the cluster";
-        assert assertInitialized();
+        assert AutoExpandSearchReplicas.getAutoExpandSearchReplicaChanges(allocation.metadata(), allocation).isEmpty()
+            : "auto-expand search replicas out of sync with number of search nodes in the cluster";
 
+        assert assertInitialized();
+        long rerouteStartTimeNS = System.nanoTime();
         removeDelayMarkers(allocation);
 
         allocateExistingUnassignedShards(allocation);  // try to allocate existing shard copies first
         shardsAllocator.allocate(allocation);
+        clusterManagerMetrics.recordLatency(
+            clusterManagerMetrics.rerouteHistogram,
+            (double) Math.max(0, TimeValue.nsecToMSec(System.nanoTime() - rerouteStartTimeNS))
+        );
         assert RoutingNodes.assertShardStats(allocation.routingNodes());
     }
 
@@ -547,6 +613,19 @@ public class AllocationService {
         for (final ExistingShardsAllocator existingShardsAllocator : existingShardsAllocators.values()) {
             existingShardsAllocator.beforeAllocation(allocation);
         }
+
+        /*
+         Use batch mode if enabled and there is no custom allocator set for Allocation service
+         */
+        if (isBatchModeEnabled(allocation)) {
+            /*
+             If we do not have any custom allocator set then we will be using ShardsBatchGatewayAllocator
+             Currently AllocationService will not run any custom Allocator that implements allocateAllUnassignedShards
+             */
+            allocateAllUnassignedShards(allocation);
+            return;
+        }
+        logger.warn("Falling back to single shard assignment since batch mode disable or multiple custom allocators set");
 
         final RoutingNodes.UnassignedShards.UnassignedIterator primaryIterator = allocation.routingNodes().unassigned().iterator();
         while (primaryIterator.hasNext()) {
@@ -567,6 +646,14 @@ public class AllocationService {
                 getAllocatorForShard(shardRouting, allocation).allocateUnassigned(shardRouting, allocation, replicaIterator);
             }
         }
+    }
+
+    private void allocateAllUnassignedShards(RoutingAllocation allocation) {
+        ExistingShardsAllocator allocator = existingShardsAllocators.get(ShardsBatchGatewayAllocator.ALLOCATOR_NAME);
+        Optional.ofNullable(allocator.allocateAllUnassignedShards(allocation, true)).ifPresent(Runnable::run);
+        allocator.afterPrimariesBeforeReplicas(allocation);
+        // Replicas Assignment
+        Optional.ofNullable(allocator.allocateAllUnassignedShards(allocation, false)).ifPresent(Runnable::run);
     }
 
     private void disassociateDeadNodes(RoutingAllocation allocation) {
@@ -667,11 +754,22 @@ public class AllocationService {
 
     private ExistingShardsAllocator getAllocatorForShard(ShardRouting shardRouting, RoutingAllocation routingAllocation) {
         assert assertInitialized();
-        final String allocatorName = ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_SETTING.get(
-            routingAllocation.metadata().getIndexSafe(shardRouting.index()).getSettings()
-        );
+        String allocatorName;
+        if (isBatchModeEnabled(routingAllocation)) {
+            allocatorName = ShardsBatchGatewayAllocator.ALLOCATOR_NAME;
+        } else {
+            allocatorName = ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_SETTING.get(
+                routingAllocation.metadata().getIndexSafe(shardRouting.index()).getSettings()
+            );
+        }
         final ExistingShardsAllocator existingShardsAllocator = existingShardsAllocators.get(allocatorName);
         return existingShardsAllocator != null ? existingShardsAllocator : new NotFoundAllocator(allocatorName);
+    }
+
+    private boolean isBatchModeEnabled(RoutingAllocation routingAllocation) {
+        return EXISTING_SHARDS_ALLOCATOR_BATCH_MODE.get(settings)
+            && routingAllocation.nodes().getMinNodeVersion().onOrAfter(Version.V_2_14_0)
+            && existingShardsAllocators.size() == 2;
     }
 
     private boolean assertInitialized() {

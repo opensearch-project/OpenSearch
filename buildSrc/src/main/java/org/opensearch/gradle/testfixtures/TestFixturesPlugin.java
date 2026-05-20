@@ -34,14 +34,16 @@ package org.opensearch.gradle.testfixtures;
 import com.avast.gradle.dockercompose.ComposeExtension;
 import com.avast.gradle.dockercompose.DockerComposePlugin;
 import com.avast.gradle.dockercompose.ServiceInfo;
+import com.avast.gradle.dockercompose.tasks.ComposeBuild;
 import com.avast.gradle.dockercompose.tasks.ComposeDown;
 import com.avast.gradle.dockercompose.tasks.ComposePull;
 import com.avast.gradle.dockercompose.tasks.ComposeUp;
 
-import org.apache.tools.ant.taskdefs.condition.Os;
 import org.opensearch.gradle.SystemPropertyCommandLineArgumentProvider;
 import org.opensearch.gradle.docker.DockerSupportPlugin;
 import org.opensearch.gradle.docker.DockerSupportService;
+import org.opensearch.gradle.docker.DockerSupportService.DockerAvailability;
+import org.opensearch.gradle.docker.DockerSupportService.DockerComposeV2Availability;
 import org.opensearch.gradle.info.BuildParams;
 import org.opensearch.gradle.precommit.TestingConventionsTasks;
 import org.opensearch.gradle.util.GradleUtils;
@@ -66,9 +68,7 @@ import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
-import java.util.Arrays;
 import java.util.Collections;
-import java.util.Optional;
 import java.util.function.BiConsumer;
 
 public class TestFixturesPlugin implements Plugin<Project> {
@@ -76,15 +76,6 @@ public class TestFixturesPlugin implements Plugin<Project> {
     private static final Logger LOGGER = Logging.getLogger(TestFixturesPlugin.class);
     private static final String DOCKER_COMPOSE_THROTTLE = "dockerComposeThrottle";
     static final String DOCKER_COMPOSE_YML = "docker-compose.yml";
-
-    private static String[] DOCKER_COMPOSE_BINARIES_UNIX = { "/usr/local/bin/docker-compose", "/usr/bin/docker-compose" };
-
-    private static String[] DOCKER_COMPOSE_BINARIES_WINDOWS = {
-        System.getenv("PROGRAMFILES") + "\\Docker\\Docker\\resources\\bin\\docker-compose.exe" };
-
-    private static String[] DOCKER_COMPOSE_BINARIES = Os.isFamily(Os.FAMILY_WINDOWS)
-        ? DOCKER_COMPOSE_BINARIES_WINDOWS
-        : DOCKER_COMPOSE_BINARIES_UNIX;
 
     @Inject
     protected FileSystemOperations getFileSystemOperations() {
@@ -164,12 +155,13 @@ public class TestFixturesPlugin implements Plugin<Project> {
             final Integer timeout = ext.has("dockerComposeHttpTimeout") ? (Integer) ext.get("dockerComposeHttpTimeout") : 120;
             composeExtension.getEnvironment().put("COMPOSE_HTTP_TIMEOUT", timeout);
 
-            Optional<String> dockerCompose = Arrays.asList(DOCKER_COMPOSE_BINARIES)
-                .stream()
-                .filter(path -> project.file(path).exists())
-                .findFirst();
+            final DockerAvailability dockerAvailability = dockerSupport.get().getDockerAvailability();
+            if (dockerAvailability.isAvailable && dockerAvailability.isDockerComposeAvailable()) {
+                composeExtension.getExecutable().set(dockerAvailability.dockerComposeAvailability.getPath());
+            }
 
-            composeExtension.getExecutable().set(dockerCompose.isPresent() ? dockerCompose.get() : "/usr/bin/docker");
+            composeExtension.getUseDockerComposeV2()
+                .set(dockerSupport.get().getDockerAvailability().dockerComposeAvailability instanceof DockerComposeV2Availability);
 
             tasks.named("composeUp").configure(t -> {
                 // Avoid running docker-compose tasks in parallel in CI due to some issues on certain Linux distributions
@@ -199,6 +191,7 @@ public class TestFixturesPlugin implements Plugin<Project> {
         maybeSkipTasks(tasks, dockerSupport, getTaskClass("org.opensearch.gradle.test.RestIntegTestTask"));
         maybeSkipTasks(tasks, dockerSupport, TestingConventionsTasks.class);
         maybeSkipTasks(tasks, dockerSupport, getTaskClass("org.opensearch.gradle.test.AntFixture"));
+        maybeSkipTasks(tasks, dockerSupport, ComposeBuild.class);
         maybeSkipTasks(tasks, dockerSupport, ComposeUp.class);
         maybeSkipTasks(tasks, dockerSupport, ComposePull.class);
         maybeSkipTasks(tasks, dockerSupport, ComposeDown.class);
@@ -225,7 +218,7 @@ public class TestFixturesPlugin implements Plugin<Project> {
 
     private void maybeSkipTask(Provider<DockerSupportService> dockerSupport, Task task) {
         task.onlyIf(spec -> {
-            boolean isComposeAvailable = dockerSupport.get().getDockerAvailability().isComposeAvailable;
+            boolean isComposeAvailable = dockerSupport.get().getDockerAvailability().isDockerComposeAvailable();
             if (isComposeAvailable == false) {
                 LOGGER.info("Task {} requires docker-compose but it is unavailable. Task will be skipped.", task.getPath());
             }
@@ -244,7 +237,7 @@ public class TestFixturesPlugin implements Plugin<Project> {
         task.doFirst(new Action<Task>() {
             @Override
             public void execute(Task theTask) {
-                TestFixtureExtension extension = theTask.getProject().getExtensions().getByType(TestFixtureExtension.class);
+                TestFixtureExtension extension = fixtureProject.getExtensions().getByType(TestFixtureExtension.class);
 
                 fixtureProject.getExtensions()
                     .getByType(ComposeExtension.class)

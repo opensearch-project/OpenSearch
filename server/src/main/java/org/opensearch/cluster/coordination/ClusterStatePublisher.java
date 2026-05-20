@@ -34,14 +34,16 @@ package org.opensearch.cluster.coordination;
 import org.opensearch.cluster.ClusterChangedEvent;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.action.ActionListener;
 
 /**
  * Publishes the cluster state
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public interface ClusterStatePublisher {
     /**
      * Publish all the changes to the cluster from the cluster-manager (can be called just by the cluster-manager). The publish
@@ -59,8 +61,9 @@ public interface ClusterStatePublisher {
     /**
      * An acknowledgement listener.
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     interface AckListener {
         /**
          * Should be called when the cluster coordination layer has committed the cluster state (i.e. even if this publication fails,

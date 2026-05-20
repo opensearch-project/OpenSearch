@@ -1,0 +1,101 @@
+{
+  "from": 0,
+  "size": 0,
+  "timeout": "1m",
+  "query": {
+    "bool": {
+      "must": [
+        {
+          "wildcard": {
+            "Title": {
+              "wildcard": "*Google*",
+              "boost": 1.0
+            }
+          }
+        },
+        {
+          "bool": {
+            "must": [
+              {
+                "exists": {
+                  "field": "SearchPhrase",
+                  "boost": 1.0
+                }
+              }
+            ],
+            "must_not": [
+              {
+                "term": {
+                  "SearchPhrase": {
+                    "value": "",
+                    "boost": 1.0
+                  }
+                }
+              }
+            ],
+            "adjust_pure_negative": true,
+            "boost": 1.0
+          }
+        },
+        {
+          "bool": {
+            "must_not": [
+              {
+                "wildcard": {
+                  "URL": {
+                    "wildcard": "*.google.*",
+                    "boost": 1.0
+                  }
+                }
+              }
+            ],
+            "adjust_pure_negative": true,
+            "boost": 1.0
+          }
+        }
+      ],
+      "adjust_pure_negative": true,
+      "boost": 1.0
+    }
+  },
+  "_source": {
+    "includes": [
+      "URL",
+      "SearchPhrase",
+      "UserID",
+      "Title"
+    ],
+    "excludes": []
+  },
+  "aggregations": {
+    "SearchPhrase": {
+      "terms": {
+        "field": "SearchPhrase",
+        "size": 10,
+        "min_doc_count": 1,
+        "shard_min_doc_count": 0,
+        "show_term_doc_count_error": false,
+        "order": [
+          {
+            "c": "desc"
+          },
+          {
+            "_key": "asc"
+          }
+        ]
+      },
+      "aggregations": {
+        "dc(UserID)": {
+          "cardinality": {
+            "field": "UserID"
+          }
+        },
+        "c": {
+          "value_count": {
+            "field": "_index"
+          }
+        }
+      }
+    }
+  }
+}

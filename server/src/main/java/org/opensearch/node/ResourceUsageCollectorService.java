@@ -78,14 +78,25 @@ public class ResourceUsageCollectorService extends AbstractLifecycleComponent im
         String nodeId,
         long timestamp,
         double memoryUtilizationPercent,
-        double cpuUtilizationPercent
+        double cpuUtilizationPercent,
+        IoUsageStats ioUsageStats,
+        double nativeMemoryUtilizationPercent
     ) {
         nodeIdToResourceUsageStats.compute(nodeId, (id, resourceUsageStats) -> {
             if (resourceUsageStats == null) {
-                return new NodeResourceUsageStats(nodeId, timestamp, memoryUtilizationPercent, cpuUtilizationPercent);
+                return new NodeResourceUsageStats(
+                    nodeId,
+                    timestamp,
+                    memoryUtilizationPercent,
+                    cpuUtilizationPercent,
+                    ioUsageStats,
+                    nativeMemoryUtilizationPercent
+                );
             } else {
                 resourceUsageStats.cpuUtilizationPercent = cpuUtilizationPercent;
                 resourceUsageStats.memoryUtilizationPercent = memoryUtilizationPercent;
+                resourceUsageStats.setIoUsageStats(ioUsageStats);
+                resourceUsageStats.nativeMemoryUtilizationPercent = nativeMemoryUtilizationPercent;
                 resourceUsageStats.timestamp = timestamp;
                 return resourceUsageStats;
             }
@@ -124,12 +135,14 @@ public class ResourceUsageCollectorService extends AbstractLifecycleComponent im
      * Fetch local node resource usage statistics and add it to store along with the current timestamp
      */
     private void collectLocalNodeResourceUsageStats() {
-        if (nodeResourceUsageTracker.isReady() && clusterService.state() != null) {
+        if (nodeResourceUsageTracker.isReady() && clusterService.isStateInitialised()) {
             collectNodeResourceUsageStats(
                 clusterService.state().nodes().getLocalNodeId(),
                 System.currentTimeMillis(),
                 nodeResourceUsageTracker.getMemoryUtilizationPercent(),
-                nodeResourceUsageTracker.getCpuUtilizationPercent()
+                nodeResourceUsageTracker.getCpuUtilizationPercent(),
+                nodeResourceUsageTracker.getIoUsageStats(),
+                nodeResourceUsageTracker.getNativeMemoryUtilizationPercent()
             );
         }
     }

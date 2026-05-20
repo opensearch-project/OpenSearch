@@ -32,19 +32,29 @@
 package org.opensearch.action.admin.indices.alias.get;
 
 import org.opensearch.Version;
+import org.opensearch.action.support.ActionFilters;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.AliasMetadata;
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.Metadata;
+import org.opensearch.cluster.metadata.ResolvedIndices;
+import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.indices.SystemIndexDescriptor;
 import org.opensearch.indices.SystemIndices;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.TransportService;
 
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class TransportGetAliasesActionTests extends OpenSearchTestCase {
     private final SystemIndices EMPTY_SYSTEM_INDICES = new SystemIndices(Collections.emptyMap());
@@ -240,6 +250,41 @@ public class TransportGetAliasesActionTests extends OpenSearchTestCase {
             "this request accesses aliases with names reserved for system indices: [.y], but in a future major version, direct"
                 + "access to system indices and their aliases will not be allowed"
         );
+    }
+
+    public void testResolveIndices() {
+        ClusterService clusterService = mock(ClusterService.class);
+        when(clusterService.state()).thenReturn(systemIndexTestClusterState());
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        ThreadPool threadPool = mock(ThreadPool.class);
+        when(threadPool.getThreadContext()).thenReturn(threadContext);
+
+        TransportGetAliasesAction action = new TransportGetAliasesAction(
+            mock(TransportService.class),
+            clusterService,
+            threadPool,
+            mock(ActionFilters.class),
+            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)),
+            mock(SystemIndices.class)
+        );
+
+        {
+            // Request an alias: Return the indices in the alias
+            ResolvedIndices resolvedIndices = action.resolveIndices(new GetAliasesRequest("d"));
+            assertEquals(
+                ResolvedIndices.of("c").withLocalSubActions("indices:admin/aliases/get[aliases]", ResolvedIndices.Local.of("d")),
+                resolvedIndices
+            );
+        }
+
+        {
+            // Request an index: Return the index itself
+            ResolvedIndices resolvedIndices = action.resolveIndices(new GetAliasesRequest().indices("c"));
+            assertEquals(
+                ResolvedIndices.of("c").withLocalSubActions("indices:admin/aliases/get[aliases]", ResolvedIndices.Local.of("d")),
+                resolvedIndices
+            );
+        }
     }
 
     public ClusterState systemIndexTestClusterState() {

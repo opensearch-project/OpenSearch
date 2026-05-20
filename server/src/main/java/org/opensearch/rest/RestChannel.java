@@ -33,6 +33,7 @@
 package org.opensearch.rest;
 
 import org.opensearch.common.Nullable;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -44,6 +45,7 @@ import java.io.IOException;
  *
  * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public interface RestChannel {
 
     XContentBuilder newBuilder() throws IOException;
@@ -63,6 +65,11 @@ public interface RestChannel {
      * @return true iff an error response should contain additional details like exception traces.
      */
     boolean detailedErrorsEnabled();
+
+    /**
+     * @return true if detailed stack traces should be included in the response.
+     */
+    boolean detailedErrorStackTraceEnabled();
 
     void sendResponse(RestResponse response);
 }

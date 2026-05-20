@@ -65,8 +65,8 @@ public class RemoteClustersIT extends AbstractMultiClusterRemoteTestCase {
             .source(XContentFactory.jsonBuilder().startObject().field("foo", "bar").endObject()), RequestOptions.DEFAULT);
         cluster2Client().index(new IndexRequest("test2").id("id2").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .source(XContentFactory.jsonBuilder().startObject().field("foo", "bar").endObject()), RequestOptions.DEFAULT);
-        assertEquals(1L, cluster1Client().search(new SearchRequest("test1"), RequestOptions.DEFAULT).getHits().getTotalHits().value);
-        assertEquals(2L, cluster2Client().search(new SearchRequest("test2"), RequestOptions.DEFAULT).getHits().getTotalHits().value);
+        assertEquals(1L, cluster1Client().search(new SearchRequest("test1"), RequestOptions.DEFAULT).getHits().getTotalHits().value());
+        assertEquals(2L, cluster2Client().search(new SearchRequest("test2"), RequestOptions.DEFAULT).getHits().getTotalHits().value());
     }
 
     @After
@@ -97,7 +97,7 @@ public class RemoteClustersIT extends AbstractMultiClusterRemoteTestCase {
         assertTrue(rci.isConnected());
 
         assertEquals(2L, cluster1Client().search(
-            new SearchRequest("cluster2:test2"), RequestOptions.DEFAULT).getHits().getTotalHits().value);
+            new SearchRequest("cluster2:test2"), RequestOptions.DEFAULT).getHits().getTotalHits().value());
     }
 
     public void testSniffModeConnectionFails() throws IOException {
@@ -133,6 +133,6 @@ public class RemoteClustersIT extends AbstractMultiClusterRemoteTestCase {
         }, 10, TimeUnit.SECONDS);
 
         assertEquals(2L, cluster1Client().search(
-            new SearchRequest("haproxynosn:test2"), RequestOptions.DEFAULT).getHits().getTotalHits().value);
+            new SearchRequest("haproxynosn:test2"), RequestOptions.DEFAULT).getHits().getTotalHits().value());
     }
 }

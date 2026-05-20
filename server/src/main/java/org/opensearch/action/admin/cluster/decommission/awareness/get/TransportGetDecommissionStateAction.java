@@ -48,7 +48,8 @@ public class TransportGetDecommissionStateAction extends TransportClusterManager
             threadPool,
             actionFilters,
             GetDecommissionStateRequest::new,
-            indexNameExpressionResolver
+            indexNameExpressionResolver,
+            true
         );
     }
 

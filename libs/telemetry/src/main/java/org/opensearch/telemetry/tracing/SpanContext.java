@@ -31,4 +31,19 @@ public final class SpanContext {
     Span getSpan() {
         return span;
     }
+
+    /**
+     * Sets the error for the current span behind this context
+     * @param cause error
+     */
+    public void setError(final Exception cause) {
+        span.setError(cause);
+    }
+
+    /**
+     * Ends current span
+     */
+    public void endSpan() {
+        span.endSpan();
+    }
 }

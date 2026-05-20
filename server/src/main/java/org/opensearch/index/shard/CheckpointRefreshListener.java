@@ -21,7 +21,7 @@ import java.io.IOException;
  *
  * @opensearch.internal
  */
-public class CheckpointRefreshListener extends CloseableRetryableRefreshListener {
+public class CheckpointRefreshListener extends ReleasableRetryableRefreshListener {
 
     protected static Logger logger = LogManager.getLogger(CheckpointRefreshListener.class);
 
@@ -43,7 +43,7 @@ public class CheckpointRefreshListener extends CloseableRetryableRefreshListener
         if (didRefresh
             && shard.state() == IndexShardState.STARTED
             && shard.getReplicationTracker().isPrimaryMode()
-            && !shard.indexSettings.isSegRepWithRemoteEnabled()) {
+            && shard.indexSettings.isAssignedOnRemoteNode() == false) {
             publisher.publish(shard, shard.getLatestReplicationCheckpoint());
         }
         return true;

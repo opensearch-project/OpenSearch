@@ -28,7 +28,7 @@
  * under the License.
  */
 
-import org.opensearch.gradle.JavaPackageType 
+import org.opensearch.gradle.JavaPackageType
 
 apply plugin: 'opensearch.internal-distribution-archive-setup'
 
@@ -38,12 +38,21 @@ CopySpec archiveFiles(CopySpec modulesFiles, String distributionType, String pla
       into('lib') {
         with libFiles()
       }
+      into('agent') {
+        with agentFiles()
+      }
       into('config') {
-        dirMode 0750
-        fileMode 0660
+        dirPermissions {
+          unix 0750
+        }
+        filePermissions {
+          unix 0660
+        }
         with configFiles(distributionType, java)
         from {
-          dirMode 0750
+          dirPermissions {
+            unix 0750
+          }
           jvmOptionsDir.getParent()
         }
       }
@@ -61,13 +70,17 @@ CopySpec archiveFiles(CopySpec modulesFiles, String distributionType, String pla
       }
       into('') {
         from {
-          dirMode 0755
+          dirPermissions {
+            unix 0755
+          }
           logsDir.getParent()
         }
       }
       into('') {
         from {
-          dirMode 0755
+          dirPermissions {
+            unix 0755
+          }
           pluginsDir.getParent()
         }
       }
@@ -90,7 +103,7 @@ CopySpec archiveFiles(CopySpec modulesFiles, String distributionType, String pla
 distribution_archives {
   integTestZip {
     content {
-      archiveFiles(transportModulesFiles, 'zip', null, 'x64', JavaPackageType.NONE)
+      archiveFiles(integTestModulesFiles, 'zip', null, 'x64', JavaPackageType.NONE)
     }
   }
 
@@ -180,7 +193,7 @@ distribution_archives {
     }
   }
 
-  
+
   linuxPpc64leTar {
     archiveClassifier = 'linux-ppc64le'
     content {
@@ -192,6 +205,20 @@ distribution_archives {
     archiveClassifier = 'no-jdk-linux-ppc64le'
     content {
       archiveFiles(modulesFiles('linux-ppc64le'), 'tar', 'linux', 'ppc64le', JavaPackageType.NONE)
+    }
+  }
+
+  linuxRiscv64Tar {
+    archiveClassifier = 'linux-riscv64'
+    content {
+      archiveFiles(modulesFiles('linux-riscv64'), 'tar', 'linux', 'riscv64', JavaPackageType.JDK)
+    }
+  }
+
+  noJdkLinuxRiscv64Tar {
+    archiveClassifier = 'no-jdk-linux-riscv64'
+    content {
+      archiveFiles(modulesFiles('linux-riscv64'), 'tar', 'linux', 'riscv64', JavaPackageType.NONE)
     }
   }
 
@@ -215,4 +242,20 @@ subprojects {
   apply plugin: 'opensearch.internal-distribution-archive-check'
 
   group = "org.opensearch.distribution"
+}
+
+tasks.configureEach { t ->
+  if (t.name ==~ /^build.+Tar$/) {
+    def base = t.name - 'Tar'   // buildLinuxTar -> buildLinux
+    def stage = tasks.findByName(base)
+    if (stage != null) {
+      t.dependsOn(stage)
+    }
+  }
+}
+
+tasks.each {
+  if (it.name.startsWith("build")) {
+    it.dependsOn project(':libs:agent-sm:agent').tasks.named('assemble')
+  }
 }

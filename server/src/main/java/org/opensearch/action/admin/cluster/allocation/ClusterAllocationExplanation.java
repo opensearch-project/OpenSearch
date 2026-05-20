@@ -40,6 +40,7 @@ import org.opensearch.cluster.routing.UnassignedInfo;
 import org.opensearch.cluster.routing.allocation.AllocationDecision;
 import org.opensearch.cluster.routing.allocation.ShardAllocationDecision;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
@@ -58,8 +59,9 @@ import static org.opensearch.cluster.routing.allocation.AbstractAllocationDecisi
  * or if it is not unassigned, then which nodes it could possibly be relocated to.
  * It is an immutable class.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public final class ClusterAllocationExplanation implements ToXContentObject, Writeable {
 
     private final ShardRouting shardRouting;
@@ -93,7 +95,7 @@ public final class ClusterAllocationExplanation implements ToXContentObject, Wri
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         shardRouting.writeTo(out);
-        out.writeOptionalWriteable(currentNode);
+        out.writeOptionalWriteable((stream, node) -> node.writeToWithAttribute(stream), currentNode);
         out.writeOptionalWriteable(relocationTargetNode);
         out.writeOptionalWriteable(clusterInfo);
         shardAllocationDecision.writeTo(out);

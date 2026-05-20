@@ -8,6 +8,11 @@
 
 package org.opensearch.indices.replication;
 
+import org.apache.logging.log4j.Logger;
+import org.apache.lucene.index.SegmentInfos;
+import org.opensearch.action.admin.indices.segments.IndexShardSegments;
+import org.opensearch.action.admin.indices.segments.IndicesSegmentResponse;
+import org.opensearch.action.admin.indices.segments.ShardSegments;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -16,24 +21,30 @@ import org.opensearch.cluster.routing.IndexRoutingTable;
 import org.opensearch.cluster.routing.IndexShardRoutingTable;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.collect.Tuple;
+import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.set.Sets;
 import org.opensearch.core.index.Index;
-import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.SegmentReplicationShardStats;
 import org.opensearch.index.engine.Engine;
+import org.opensearch.index.engine.Segment;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.indices.IndicesService;
+import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.transport.TransportService;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
@@ -45,8 +56,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static java.util.Arrays.asList;
-import static org.opensearch.test.OpenSearchIntegTestCase.client;
-import static org.opensearch.test.OpenSearchTestCase.assertBusy;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 
 public class SegmentReplicationBaseIT extends OpenSearchIntegTestCase {
@@ -58,11 +67,6 @@ public class SegmentReplicationBaseIT extends OpenSearchIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return asList(MockTransportService.TestPlugin.class);
-    }
-
-    @Override
-    protected boolean addMockInternalEngine() {
-        return false;
     }
 
     @Override
@@ -116,15 +120,15 @@ public class SegmentReplicationBaseIT extends OpenSearchIntegTestCase {
 
     public static void waitForSearchableDocs(String indexName, long docCount, List<String> nodes) throws Exception {
         // wait until the replica has the latest segment generation.
-        assertBusy(() -> {
+        assertBusyWithFixedSleepTime(() -> {
             for (String node : nodes) {
                 final SearchResponse response = client(node).prepareSearch(indexName).setSize(0).setPreference("_only_local").get();
-                final long hits = response.getHits().getTotalHits().value;
+                final long hits = response.getHits().getTotalHits().value();
                 if (hits < docCount) {
                     fail("Expected search hits on node: " + node + " to be at least " + docCount + " but was: " + hits);
                 }
             }
-        }, 1, TimeUnit.MINUTES);
+        }, TimeValue.timeValueMinutes(2), TimeValue.timeValueSeconds(2));
     }
 
     protected void waitForSearchableDocs(long docCount, String... nodes) throws Exception {
@@ -178,17 +182,6 @@ public class SegmentReplicationBaseIT extends OpenSearchIntegTestCase {
 
     private IndexShard getIndexShard(ClusterState state, ShardRouting routing, String indexName) {
         return getIndexShard(state.nodes().get(routing.currentNodeId()).getName(), routing.shardId(), indexName);
-    }
-
-    /**
-     * Fetch IndexShard by shardId, multiple shards per node allowed.
-     */
-    protected IndexShard getIndexShard(String node, ShardId shardId, String indexName) {
-        final Index index = resolveIndex(indexName);
-        IndicesService indicesService = internalCluster().getInstance(IndicesService.class, node);
-        IndexService indexService = indicesService.indexServiceSafe(index);
-        final Optional<Integer> id = indexService.shardIds().stream().filter(sid -> sid == shardId.id()).findFirst();
-        return indexService.getShard(id.get());
     }
 
     /**
@@ -246,5 +239,37 @@ public class SegmentReplicationBaseIT extends OpenSearchIntegTestCase {
                 assertEquals(0, shardStat.getCheckpointsBehindCount());
             }
         }, 30, TimeUnit.SECONDS);
+    }
+
+    /**
+     * Returns the latest SIS for a shard but does not incref the segments.
+     */
+    protected SegmentInfos getLatestSegmentInfos(IndexShard shard) throws IOException {
+        final Tuple<GatedCloseable<SegmentInfos>, ReplicationCheckpoint> tuple = shard.getLatestSegmentInfosAndCheckpoint();
+        try (final GatedCloseable<SegmentInfos> closeable = tuple.v1()) {
+            return closeable.get();
+        }
+    }
+
+    public static void waitForSegmentCount(String indexName, int segmentCount, Logger logger) throws Exception {
+        assertBusy(() -> {
+            Set<String> primarySegments = Sets.newHashSet();
+            Set<String> replicaSegments = Sets.newHashSet();
+            final IndicesSegmentResponse response = client().admin().indices().prepareSegments(indexName).get();
+            for (IndexShardSegments indexShardSegments : response.getIndices().get(indexName).getShards().values()) {
+                for (ShardSegments shardSegment : indexShardSegments.getShards()) {
+                    for (Segment segment : shardSegment.getSegments()) {
+                        if (shardSegment.getShardRouting().primary()) {
+                            primarySegments.add(segment.getName());
+                        } else {
+                            replicaSegments.add(segment.getName());
+                        }
+                    }
+                }
+            }
+            logger.info("primary segments: {}, replica segments: {}", primarySegments, replicaSegments);
+            assertEquals(segmentCount, primarySegments.size());
+            assertEquals(segmentCount, replicaSegments.size());
+        }, 1, TimeUnit.MINUTES);
     }
 }

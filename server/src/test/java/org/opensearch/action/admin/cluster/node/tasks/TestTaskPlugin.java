@@ -46,7 +46,6 @@ import org.opensearch.action.support.nodes.TransportNodesAction;
 import org.opensearch.action.support.tasks.BaseTasksRequest;
 import org.opensearch.action.support.tasks.BaseTasksResponse;
 import org.opensearch.action.support.tasks.TransportTasksAction;
-import org.opensearch.client.OpenSearchClient;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.service.ClusterService;
@@ -75,6 +74,7 @@ import org.opensearch.transport.TransportRequest;
 import org.opensearch.transport.TransportRequestOptions;
 import org.opensearch.transport.TransportResponseHandler;
 import org.opensearch.transport.TransportService;
+import org.opensearch.transport.client.OpenSearchClient;
 
 import java.io.IOException;
 import java.util.ArrayList;

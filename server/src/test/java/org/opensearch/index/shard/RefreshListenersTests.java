@@ -134,7 +134,8 @@ public class RefreshListenersTests extends OpenSearchTestCase {
             createTempDir("translog"),
             indexSettings,
             BigArrays.NON_RECYCLING_INSTANCE,
-            ""
+            "",
+            false
         );
         Engine.EventListener eventListener = new Engine.EventListener() {
             @Override
@@ -158,7 +159,7 @@ public class RefreshListenersTests extends OpenSearchTestCase {
             .mergePolicy(newMergePolicy())
             .analyzer(iwc.getAnalyzer())
             .similarity(iwc.getSimilarity())
-            .codecService(new CodecService(null, indexSettings, logger))
+            .codecService(new CodecService(null, indexSettings, logger, List.of()))
             .eventListener(eventListener)
             .queryCache(IndexSearcher.getDefaultQueryCache())
             .queryCachingPolicy(IndexSearcher.getDefaultQueryCachingPolicy())

@@ -33,7 +33,6 @@
 package org.opensearch.plugins;
 
 import org.opensearch.bootstrap.BootstrapCheck;
-import org.opensearch.client.Client;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.IndexTemplateMetadata;
@@ -58,6 +57,7 @@ import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.script.ScriptService;
 import org.opensearch.threadpool.ExecutorBuilder;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.client.Client;
 import org.opensearch.watcher.ResourceWatcherService;
 
 import java.io.Closeable;
@@ -153,6 +153,63 @@ public abstract class Plugin implements Closeable {
         Supplier<RepositoriesService> repositoriesServiceSupplier
     ) {
         return Collections.emptyList();
+    }
+
+    /**
+     * Returns components added by this plugin, with access to components from previously
+     * initialized plugins via the registry.
+     * <p>
+     * Plugins are initialized in dependency order (as declared by {@code extendedPlugins}),
+     * so the registry contains all components from plugins that this plugin depends on.
+     * Override this method instead of the registry-less overload when you need to obtain
+     * services from a dependency plugin at creation time.
+     * <p>
+     * The default implementation delegates to
+     * {@link #createComponents(Client, ClusterService, ThreadPool, ResourceWatcherService,
+     * ScriptService, NamedXContentRegistry, Environment, NodeEnvironment,
+     * NamedWriteableRegistry, IndexNameExpressionResolver, Supplier)} and ignores the registry.
+     *
+     * @param client A client to make requests to the system
+     * @param clusterService A service to allow watching and updating cluster state
+     * @param threadPool A service to allow retrieving an executor to run an async action
+     * @param resourceWatcherService A service to watch for changes to node local files
+     * @param scriptService A service to allow running scripts on the local node
+     * @param xContentRegistry the registry for extensible xContent parsing
+     * @param environment the environment for path and setting configurations
+     * @param nodeEnvironment the node environment used coordinate access to the data paths
+     * @param namedWriteableRegistry the registry for {@link NamedWriteable} object parsing
+     * @param indexNameExpressionResolver A service that resolves expression to index and alias names
+     * @param repositoriesServiceSupplier A supplier for the service that manages snapshot repositories; will return null when this method
+     *                                   is called, but will return the repositories service once the node is initialized.
+     * @param pluginComponentRegistry A registry of components from previously initialized plugins
+     */
+    public Collection<Object> createComponents(
+        Client client,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ResourceWatcherService resourceWatcherService,
+        ScriptService scriptService,
+        NamedXContentRegistry xContentRegistry,
+        Environment environment,
+        NodeEnvironment nodeEnvironment,
+        NamedWriteableRegistry namedWriteableRegistry,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Supplier<RepositoriesService> repositoriesServiceSupplier,
+        PluginComponentRegistry pluginComponentRegistry
+    ) {
+        return createComponents(
+            client,
+            clusterService,
+            threadPool,
+            resourceWatcherService,
+            scriptService,
+            xContentRegistry,
+            environment,
+            nodeEnvironment,
+            namedWriteableRegistry,
+            indexNameExpressionResolver,
+            repositoriesServiceSupplier
+        );
     }
 
     /**
@@ -268,5 +325,14 @@ public abstract class Plugin implements Closeable {
      */
     public Collection<IndexSettingProvider> getAdditionalIndexSettingProviders() {
         return Collections.emptyList();
+    }
+
+    /**
+     * Returns the {@link SecureSettingsFactory} instance that could be used to configure the
+     * security related components (fe. transports)
+     * @return the {@link SecureSettingsFactory} instance
+     */
+    public Optional<SecureSettingsFactory> getSecureSettingFactory(Settings settings) {
+        return Optional.empty();
     }
 }

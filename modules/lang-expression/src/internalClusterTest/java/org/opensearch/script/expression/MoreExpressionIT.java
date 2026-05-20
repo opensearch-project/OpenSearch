@@ -41,7 +41,6 @@ import org.opensearch.action.search.SearchType;
 import org.opensearch.action.update.UpdateRequestBuilder;
 import org.opensearch.common.lucene.search.function.CombineFunction;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.query.QueryBuilders;
@@ -57,7 +56,7 @@ import org.opensearch.search.aggregations.metrics.Stats;
 import org.opensearch.search.aggregations.pipeline.SimpleValue;
 import org.opensearch.search.sort.SortBuilders;
 import org.opensearch.search.sort.SortOrder;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 import org.opensearch.test.hamcrest.OpenSearchAssertions;
 
 import java.util.Arrays;
@@ -80,10 +79,10 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.notNullValue;
 
 // TODO: please convert to unit tests!
-public class MoreExpressionIT extends ParameterizedOpenSearchIntegTestCase {
+public class MoreExpressionIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
 
-    public MoreExpressionIT(Settings dynamicSettings) {
-        super(dynamicSettings);
+    public MoreExpressionIT(Settings staticSettings) {
+        super(staticSettings);
     }
 
     @ParametersFactory
@@ -92,11 +91,6 @@ public class MoreExpressionIT extends ParameterizedOpenSearchIntegTestCase {
             new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), false).build() },
             new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), true).build() }
         );
-    }
-
-    @Override
-    protected Settings featureFlagSettings() {
-        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.CONCURRENT_SEGMENT_SEARCH, "true").build();
     }
 
     @Override
@@ -125,7 +119,7 @@ public class MoreExpressionIT extends ParameterizedOpenSearchIntegTestCase {
         ensureGreen("test");
         client().prepareIndex("test").setId("1").setSource("foo", 4).setRefreshPolicy(IMMEDIATE).get();
         SearchResponse rsp = buildRequest("doc['foo'] + 1").get();
-        assertEquals(1, rsp.getHits().getTotalHits().value);
+        assertEquals(1, rsp.getHits().getTotalHits().value());
         assertEquals(5.0, rsp.getHits().getAt(0).field("foo").getValue(), 0.0D);
     }
 
@@ -135,7 +129,7 @@ public class MoreExpressionIT extends ParameterizedOpenSearchIntegTestCase {
         client().prepareIndex("test").setId("1").setSource("foo", 4).setRefreshPolicy(IMMEDIATE).get();
         SearchResponse rsp = buildRequest("doc['foo'] + abs(1)").get();
         assertSearchResponse(rsp);
-        assertEquals(1, rsp.getHits().getTotalHits().value);
+        assertEquals(1, rsp.getHits().getTotalHits().value());
         assertEquals(5.0, rsp.getHits().getAt(0).field("foo").getValue(), 0.0D);
     }
 
@@ -144,7 +138,7 @@ public class MoreExpressionIT extends ParameterizedOpenSearchIntegTestCase {
         ensureGreen("test");
         client().prepareIndex("test").setId("1").setSource("foo", 4).setRefreshPolicy(IMMEDIATE).get();
         SearchResponse rsp = buildRequest("doc['foo'].value + 1").get();
-        assertEquals(1, rsp.getHits().getTotalHits().value);
+        assertEquals(1, rsp.getHits().getTotalHits().value());
         assertEquals(5.0, rsp.getHits().getAt(0).field("foo").getValue(), 0.0D);
     }
 
@@ -166,7 +160,7 @@ public class MoreExpressionIT extends ParameterizedOpenSearchIntegTestCase {
         SearchResponse rsp = req.get();
         assertSearchResponse(rsp);
         SearchHits hits = rsp.getHits();
-        assertEquals(3, hits.getTotalHits().value);
+        assertEquals(3, hits.getTotalHits().value());
         assertEquals("1", hits.getAt(0).getId());
         assertEquals("3", hits.getAt(1).getId());
         assertEquals("2", hits.getAt(2).getId());
@@ -189,22 +183,22 @@ public class MoreExpressionIT extends ParameterizedOpenSearchIntegTestCase {
             client().prepareIndex("test").setId("2").setSource("id", 2, "date0", "2013-12-25T11:56:45Z", "date1", "1983-10-13T23:15:00Z")
         );
         SearchResponse rsp = buildRequest("doc['date0'].getSeconds() - doc['date0'].getMinutes()").get();
-        assertEquals(2, rsp.getHits().getTotalHits().value);
+        assertEquals(2, rsp.getHits().getTotalHits().value());
         SearchHits hits = rsp.getHits();
         assertEquals(5.0, hits.getAt(0).field("foo").getValue(), 0.0D);
         assertEquals(-11.0, hits.getAt(1).field("foo").getValue(), 0.0D);
         rsp = buildRequest("doc['date0'].getHourOfDay() + doc['date1'].getDayOfMonth()").get();
-        assertEquals(2, rsp.getHits().getTotalHits().value);
+        assertEquals(2, rsp.getHits().getTotalHits().value());
         hits = rsp.getHits();
         assertEquals(5.0, hits.getAt(0).field("foo").getValue(), 0.0D);
         assertEquals(24.0, hits.getAt(1).field("foo").getValue(), 0.0D);
         rsp = buildRequest("doc['date1'].getMonth() + 1").get();
-        assertEquals(2, rsp.getHits().getTotalHits().value);
+        assertEquals(2, rsp.getHits().getTotalHits().value());
         hits = rsp.getHits();
         assertEquals(9.0, hits.getAt(0).field("foo").getValue(), 0.0D);
         assertEquals(10.0, hits.getAt(1).field("foo").getValue(), 0.0D);
         rsp = buildRequest("doc['date1'].getYear()").get();
-        assertEquals(2, rsp.getHits().getTotalHits().value);
+        assertEquals(2, rsp.getHits().getTotalHits().value());
         hits = rsp.getHits();
         assertEquals(1985.0, hits.getAt(0).field("foo").getValue(), 0.0D);
         assertEquals(1983.0, hits.getAt(1).field("foo").getValue(), 0.0D);
@@ -219,22 +213,22 @@ public class MoreExpressionIT extends ParameterizedOpenSearchIntegTestCase {
             client().prepareIndex("test").setId("2").setSource("id", 2, "date0", "2013-12-25T11:56:45Z", "date1", "1983-10-13T23:15:00Z")
         );
         SearchResponse rsp = buildRequest("doc['date0'].date.secondOfMinute - doc['date0'].date.minuteOfHour").get();
-        assertEquals(2, rsp.getHits().getTotalHits().value);
+        assertEquals(2, rsp.getHits().getTotalHits().value());
         SearchHits hits = rsp.getHits();
         assertEquals(5.0, hits.getAt(0).field("foo").getValue(), 0.0D);
         assertEquals(-11.0, hits.getAt(1).field("foo").getValue(), 0.0D);
         rsp = buildRequest("doc['date0'].date.getHourOfDay() + doc['date1'].date.dayOfMonth").get();
-        assertEquals(2, rsp.getHits().getTotalHits().value);
+        assertEquals(2, rsp.getHits().getTotalHits().value());
         hits = rsp.getHits();
         assertEquals(5.0, hits.getAt(0).field("foo").getValue(), 0.0D);
         assertEquals(24.0, hits.getAt(1).field("foo").getValue(), 0.0D);
         rsp = buildRequest("doc['date1'].date.monthOfYear + 1").get();
-        assertEquals(2, rsp.getHits().getTotalHits().value);
+        assertEquals(2, rsp.getHits().getTotalHits().value());
         hits = rsp.getHits();
         assertEquals(10.0, hits.getAt(0).field("foo").getValue(), 0.0D);
         assertEquals(11.0, hits.getAt(1).field("foo").getValue(), 0.0D);
         rsp = buildRequest("doc['date1'].date.year").get();
-        assertEquals(2, rsp.getHits().getTotalHits().value);
+        assertEquals(2, rsp.getHits().getTotalHits().value());
         hits = rsp.getHits();
         assertEquals(1985.0, hits.getAt(0).field("foo").getValue(), 0.0D);
         assertEquals(1983.0, hits.getAt(1).field("foo").getValue(), 0.0D);
@@ -272,7 +266,7 @@ public class MoreExpressionIT extends ParameterizedOpenSearchIntegTestCase {
         SearchResponse rsp = buildRequest("doc['double0'].count() + doc['double1'].count()").get();
         assertSearchResponse(rsp);
         SearchHits hits = rsp.getHits();
-        assertEquals(3, hits.getTotalHits().value);
+        assertEquals(3, hits.getTotalHits().value());
         assertEquals(5.0, hits.getAt(0).field("foo").getValue(), 0.0D);
         assertEquals(2.0, hits.getAt(1).field("foo").getValue(), 0.0D);
         assertEquals(5.0, hits.getAt(2).field("foo").getValue(), 0.0D);
@@ -280,7 +274,7 @@ public class MoreExpressionIT extends ParameterizedOpenSearchIntegTestCase {
         rsp = buildRequest("doc['double0'].sum()").get();
         assertSearchResponse(rsp);
         hits = rsp.getHits();
-        assertEquals(3, hits.getTotalHits().value);
+        assertEquals(3, hits.getTotalHits().value());
         assertEquals(7.5, hits.getAt(0).field("foo").getValue(), 0.0D);
         assertEquals(5.0, hits.getAt(1).field("foo").getValue(), 0.0D);
         assertEquals(6.0, hits.getAt(2).field("foo").getValue(), 0.0D);
@@ -288,7 +282,7 @@ public class MoreExpressionIT extends ParameterizedOpenSearchIntegTestCase {
         rsp = buildRequest("doc['double0'].avg() + doc['double1'].avg()").get();
         assertSearchResponse(rsp);
         hits = rsp.getHits();
-        assertEquals(3, hits.getTotalHits().value);
+        assertEquals(3, hits.getTotalHits().value());
         assertEquals(4.3, hits.getAt(0).field("foo").getValue(), 0.0D);
         assertEquals(8.0, hits.getAt(1).field("foo").getValue(), 0.0D);
         assertEquals(5.5, hits.getAt(2).field("foo").getValue(), 0.0D);
@@ -296,7 +290,7 @@ public class MoreExpressionIT extends ParameterizedOpenSearchIntegTestCase {
         rsp = buildRequest("doc['double0'].median()").get();
         assertSearchResponse(rsp);
         hits = rsp.getHits();
-        assertEquals(3, hits.getTotalHits().value);
+        assertEquals(3, hits.getTotalHits().value());
         assertEquals(1.5, hits.getAt(0).field("foo").getValue(), 0.0D);
         assertEquals(5.0, hits.getAt(1).field("foo").getValue(), 0.0D);
         assertEquals(1.25, hits.getAt(2).field("foo").getValue(), 0.0D);
@@ -304,7 +298,7 @@ public class MoreExpressionIT extends ParameterizedOpenSearchIntegTestCase {
         rsp = buildRequest("doc['double0'].min()").get();
         assertSearchResponse(rsp);
         hits = rsp.getHits();
-        assertEquals(3, hits.getTotalHits().value);
+        assertEquals(3, hits.getTotalHits().value());
         assertEquals(1.0, hits.getAt(0).field("foo").getValue(), 0.0D);
         assertEquals(5.0, hits.getAt(1).field("foo").getValue(), 0.0D);
         assertEquals(-1.5, hits.getAt(2).field("foo").getValue(), 0.0D);
@@ -312,7 +306,7 @@ public class MoreExpressionIT extends ParameterizedOpenSearchIntegTestCase {
         rsp = buildRequest("doc['double0'].max()").get();
         assertSearchResponse(rsp);
         hits = rsp.getHits();
-        assertEquals(3, hits.getTotalHits().value);
+        assertEquals(3, hits.getTotalHits().value());
         assertEquals(5.0, hits.getAt(0).field("foo").getValue(), 0.0D);
         assertEquals(5.0, hits.getAt(1).field("foo").getValue(), 0.0D);
         assertEquals(5.0, hits.getAt(2).field("foo").getValue(), 0.0D);
@@ -320,7 +314,7 @@ public class MoreExpressionIT extends ParameterizedOpenSearchIntegTestCase {
         rsp = buildRequest("doc['double0'].sum()/doc['double0'].count()").get();
         assertSearchResponse(rsp);
         hits = rsp.getHits();
-        assertEquals(3, hits.getTotalHits().value);
+        assertEquals(3, hits.getTotalHits().value());
         assertEquals(2.5, hits.getAt(0).field("foo").getValue(), 0.0D);
         assertEquals(5.0, hits.getAt(1).field("foo").getValue(), 0.0D);
         assertEquals(1.5, hits.getAt(2).field("foo").getValue(), 0.0D);
@@ -329,7 +323,7 @@ public class MoreExpressionIT extends ParameterizedOpenSearchIntegTestCase {
         rsp = buildRequest("doc['double2'].count()").get();
         assertSearchResponse(rsp);
         hits = rsp.getHits();
-        assertEquals(3, hits.getTotalHits().value);
+        assertEquals(3, hits.getTotalHits().value());
         assertEquals(1.0, hits.getAt(0).field("foo").getValue(), 0.0D);
         assertEquals(0.0, hits.getAt(1).field("foo").getValue(), 0.0D);
         assertEquals(0.0, hits.getAt(2).field("foo").getValue(), 0.0D);
@@ -338,7 +332,7 @@ public class MoreExpressionIT extends ParameterizedOpenSearchIntegTestCase {
         rsp = buildRequest("doc['double2'].empty ? 5.0 : 2.0").get();
         assertSearchResponse(rsp);
         hits = rsp.getHits();
-        assertEquals(3, hits.getTotalHits().value);
+        assertEquals(3, hits.getTotalHits().value());
         assertEquals(2.0, hits.getAt(0).field("foo").getValue(), 0.0D);
         assertEquals(5.0, hits.getAt(1).field("foo").getValue(), 0.0D);
         assertEquals(5.0, hits.getAt(2).field("foo").getValue(), 0.0D);
@@ -376,7 +370,7 @@ public class MoreExpressionIT extends ParameterizedOpenSearchIntegTestCase {
         SearchResponse rsp = buildRequest("doc['x'] + 1").get();
         OpenSearchAssertions.assertSearchResponse(rsp);
         SearchHits hits = rsp.getHits();
-        assertEquals(2, rsp.getHits().getTotalHits().value);
+        assertEquals(2, rsp.getHits().getTotalHits().value());
         assertEquals(5.0, hits.getAt(0).field("foo").getValue(), 0.0D);
         assertEquals(1.0, hits.getAt(1).field("foo").getValue(), 0.0D);
     }
@@ -411,7 +405,7 @@ public class MoreExpressionIT extends ParameterizedOpenSearchIntegTestCase {
         String script = "doc['x'] * a + b + ((c + doc['x']) > 5000000009 ? 1 : 0)";
         SearchResponse rsp = buildRequest(script, "a", 2, "b", 3.5, "c", 5000000000L).get();
         SearchHits hits = rsp.getHits();
-        assertEquals(3, hits.getTotalHits().value);
+        assertEquals(3, hits.getTotalHits().value());
         assertEquals(24.5, hits.getAt(0).field("foo").getValue(), 0.0D);
         assertEquals(9.5, hits.getAt(1).field("foo").getValue(), 0.0D);
         assertEquals(13.5, hits.getAt(2).field("foo").getValue(), 0.0D);
@@ -504,10 +498,6 @@ public class MoreExpressionIT extends ParameterizedOpenSearchIntegTestCase {
     }
 
     public void testSpecialValueVariable() throws Exception {
-        assumeFalse(
-            "Concurrent search case muted pending fix: https://github.com/opensearch-project/OpenSearch/issues/10079",
-            internalCluster().clusterService().getClusterSettings().get(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING)
-        );
         // i.e. _value for aggregations
         createIndex("test");
         ensureGreen("test");
@@ -537,7 +527,7 @@ public class MoreExpressionIT extends ParameterizedOpenSearchIntegTestCase {
             );
 
         SearchResponse rsp = req.get();
-        assertEquals(3, rsp.getHits().getTotalHits().value);
+        assertEquals(3, rsp.getHits().getTotalHits().value());
 
         Stats stats = rsp.getAggregations().get("int_agg");
         assertEquals(39.0, stats.getMax(), 0.0001);
@@ -691,22 +681,22 @@ public class MoreExpressionIT extends ParameterizedOpenSearchIntegTestCase {
         // access .lat
         SearchResponse rsp = buildRequest("doc['location'].lat").get();
         assertSearchResponse(rsp);
-        assertEquals(1, rsp.getHits().getTotalHits().value);
+        assertEquals(1, rsp.getHits().getTotalHits().value());
         assertEquals(61.5240, rsp.getHits().getAt(0).field("foo").getValue(), 1.0D);
         // access .lon
         rsp = buildRequest("doc['location'].lon").get();
         assertSearchResponse(rsp);
-        assertEquals(1, rsp.getHits().getTotalHits().value);
+        assertEquals(1, rsp.getHits().getTotalHits().value());
         assertEquals(105.3188, rsp.getHits().getAt(0).field("foo").getValue(), 1.0D);
         // access .empty
         rsp = buildRequest("doc['location'].empty ? 1 : 0").get();
         assertSearchResponse(rsp);
-        assertEquals(1, rsp.getHits().getTotalHits().value);
+        assertEquals(1, rsp.getHits().getTotalHits().value());
         assertEquals(0, rsp.getHits().getAt(0).field("foo").getValue(), 1.0D);
         // call haversin
         rsp = buildRequest("haversin(38.9072, 77.0369, doc['location'].lat, doc['location'].lon)").get();
         assertSearchResponse(rsp);
-        assertEquals(1, rsp.getHits().getTotalHits().value);
+        assertEquals(1, rsp.getHits().getTotalHits().value());
         assertEquals(3170D, rsp.getHits().getAt(0).field("foo").getValue(), 50D);
     }
 
@@ -728,14 +718,14 @@ public class MoreExpressionIT extends ParameterizedOpenSearchIntegTestCase {
         // access .value
         SearchResponse rsp = buildRequest("doc['vip'].value").get();
         assertSearchResponse(rsp);
-        assertEquals(3, rsp.getHits().getTotalHits().value);
+        assertEquals(3, rsp.getHits().getTotalHits().value());
         assertEquals(1.0D, rsp.getHits().getAt(0).field("foo").getValue(), 1.0D);
         assertEquals(0.0D, rsp.getHits().getAt(1).field("foo").getValue(), 1.0D);
         assertEquals(0.0D, rsp.getHits().getAt(2).field("foo").getValue(), 1.0D);
         // access .empty
         rsp = buildRequest("doc['vip'].empty ? 1 : 0").get();
         assertSearchResponse(rsp);
-        assertEquals(3, rsp.getHits().getTotalHits().value);
+        assertEquals(3, rsp.getHits().getTotalHits().value());
         assertEquals(0.0D, rsp.getHits().getAt(0).field("foo").getValue(), 1.0D);
         assertEquals(0.0D, rsp.getHits().getAt(1).field("foo").getValue(), 1.0D);
         assertEquals(1.0D, rsp.getHits().getAt(2).field("foo").getValue(), 1.0D);
@@ -743,7 +733,7 @@ public class MoreExpressionIT extends ParameterizedOpenSearchIntegTestCase {
         // vip's have a 50% discount
         rsp = buildRequest("doc['vip'] ? doc['price']/2 : doc['price']").get();
         assertSearchResponse(rsp);
-        assertEquals(3, rsp.getHits().getTotalHits().value);
+        assertEquals(3, rsp.getHits().getTotalHits().value());
         assertEquals(0.5D, rsp.getHits().getAt(0).field("foo").getValue(), 1.0D);
         assertEquals(2.0D, rsp.getHits().getAt(1).field("foo").getValue(), 1.0D);
         assertEquals(2.0D, rsp.getHits().getAt(2).field("foo").getValue(), 1.0D);
@@ -762,7 +752,7 @@ public class MoreExpressionIT extends ParameterizedOpenSearchIntegTestCase {
         builder.setQuery(QueryBuilders.boolQuery().filter(QueryBuilders.scriptQuery(script)));
         SearchResponse rsp = builder.get();
         assertSearchResponse(rsp);
-        assertEquals(1, rsp.getHits().getTotalHits().value);
+        assertEquals(1, rsp.getHits().getTotalHits().value());
         assertEquals(1.0D, rsp.getHits().getAt(0).field("foo").getValue(), 0.0D);
     }
 }

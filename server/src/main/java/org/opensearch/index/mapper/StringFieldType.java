@@ -55,6 +55,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import static org.opensearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
+import static org.apache.lucene.search.FuzzyQuery.defaultRewriteMethod;
 
 /** Base class for {@link MappedFieldType} implementations that use the same
  * representation for internal index terms as the external representation so
@@ -85,20 +86,25 @@ public abstract class StringFieldType extends TermBasedFieldType {
         int prefixLength,
         int maxExpansions,
         boolean transpositions,
+        MultiTermQuery.RewriteMethod method,
         QueryShardContext context
     ) {
-        if (context.allowExpensiveQueries() == false) {
+        if (!context.allowExpensiveQueries()) {
             throw new OpenSearchException(
                 "[fuzzy] queries cannot be executed when '" + ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false."
             );
         }
         failIfNotIndexed();
+        if (method == null) {
+            method = defaultRewriteMethod(maxExpansions);
+        }
         return new FuzzyQuery(
             new Term(name(), indexedValueForSearch(value)),
             fuzziness.asDistance(BytesRefs.toString(value)),
             prefixLength,
             maxExpansions,
-            transpositions
+            transpositions,
+            method
         );
     }
 
@@ -114,7 +120,7 @@ public abstract class StringFieldType extends TermBasedFieldType {
         }
         failIfNotIndexed();
         if (method == null) {
-            method = MultiTermQuery.CONSTANT_SCORE_REWRITE;
+            method = MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE;
         }
         if (caseInsensitive) {
             return AutomatonQueries.caseInsensitivePrefixQuery((new Term(name(), indexedValueForSearch(value))), method);
@@ -198,7 +204,7 @@ public abstract class StringFieldType extends TermBasedFieldType {
             return AutomatonQueries.caseInsensitiveWildcardQuery(term, method);
         }
         if (method == null) {
-            method = MultiTermQuery.CONSTANT_SCORE_REWRITE;
+            method = MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE;
         }
         return new WildcardQuery(term, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, method);
     }
@@ -219,7 +225,7 @@ public abstract class StringFieldType extends TermBasedFieldType {
         }
         failIfNotIndexed();
         if (method == null) {
-            method = MultiTermQuery.CONSTANT_SCORE_REWRITE;
+            method = MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE;
         }
         return new RegexpQuery(
             new Term(name(), indexedValueForSearch(value)),

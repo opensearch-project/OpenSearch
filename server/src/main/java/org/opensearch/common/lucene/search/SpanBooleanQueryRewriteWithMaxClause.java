@@ -38,16 +38,16 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
-import org.apache.lucene.queries.SpanMatchNoDocsQuery;
 import org.apache.lucene.queries.spans.SpanMultiTermQueryWrapper;
 import org.apache.lucene.queries.spans.SpanOrQuery;
 import org.apache.lucene.queries.spans.SpanQuery;
 import org.apache.lucene.queries.spans.SpanTermQuery;
-import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.AttributeSource;
 import org.apache.lucene.util.BytesRef;
+import org.opensearch.lucene.queries.SpanMatchNoDocsQuery;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -67,7 +67,7 @@ public class SpanBooleanQueryRewriteWithMaxClause extends SpanMultiTermQueryWrap
     private final boolean hardLimit;
 
     public SpanBooleanQueryRewriteWithMaxClause() {
-        this(BooleanQuery.getMaxClauseCount(), true);
+        this(IndexSearcher.getMaxClauseCount(), true);
     }
 
     public SpanBooleanQueryRewriteWithMaxClause(int maxExpansions, boolean hardLimit) {
@@ -84,11 +84,11 @@ public class SpanBooleanQueryRewriteWithMaxClause extends SpanMultiTermQueryWrap
     }
 
     @Override
-    public SpanQuery rewrite(IndexReader reader, MultiTermQuery query) throws IOException {
+    public SpanQuery rewrite(IndexSearcher searcher, MultiTermQuery query) throws IOException {
         final MultiTermQuery.RewriteMethod delegate = new MultiTermQuery.RewriteMethod() {
             @Override
-            public Query rewrite(IndexReader reader, MultiTermQuery query) throws IOException {
-                Collection<SpanQuery> queries = collectTerms(reader, query);
+            public Query rewrite(IndexSearcher searcher, MultiTermQuery query) throws IOException {
+                Collection<SpanQuery> queries = collectTerms(searcher.getIndexReader(), query);
                 if (queries.size() == 0) {
                     return new SpanMatchNoDocsQuery(query.getField(), "no expansion found for " + query.toString());
                 } else if (queries.size() == 1) {
@@ -124,7 +124,7 @@ public class SpanBooleanQueryRewriteWithMaxClause extends SpanMultiTermQueryWrap
                                         + query.toString()
                                         + " ] "
                                         + "exceeds maxClauseCount [ Boolean maxClauseCount is set to "
-                                        + BooleanQuery.getMaxClauseCount()
+                                        + IndexSearcher.getMaxClauseCount()
                                         + "]"
                                 );
                             } else {
@@ -137,6 +137,6 @@ public class SpanBooleanQueryRewriteWithMaxClause extends SpanMultiTermQueryWrap
                 return queries;
             }
         };
-        return (SpanQuery) delegate.rewrite(reader, query);
+        return (SpanQuery) delegate.rewrite(searcher, query);
     }
 }

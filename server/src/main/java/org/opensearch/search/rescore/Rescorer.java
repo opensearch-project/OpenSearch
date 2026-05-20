@@ -35,6 +35,7 @@ package org.opensearch.search.rescore;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.TopDocs;
+import org.opensearch.common.annotation.PublicApi;
 
 import java.io.IOException;
 
@@ -46,8 +47,9 @@ import java.io.IOException;
  * fairly well behaved and documents that tradeoffs that it is making. There
  * is also an {@code ExampleRescorer} that is worth looking at.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public interface Rescorer {
     /**
      * Modifies the result of the previously executed search ({@link TopDocs})

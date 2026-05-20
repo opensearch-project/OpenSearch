@@ -32,10 +32,15 @@
 package org.opensearch.index.mapper;
 
 import org.apache.lucene.document.InetAddressPoint;
+import org.apache.lucene.document.SortedSetDocValuesField;
+import org.apache.lucene.sandbox.search.DocValuesMultiRangeQuery;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
+import org.apache.lucene.search.PointRangeQuery;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -46,6 +51,8 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
+import java.util.Objects;
 
 public class IpFieldTypeTests extends FieldTypeTestCase {
 
@@ -72,29 +79,122 @@ public class IpFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testTermQuery() {
-        MappedFieldType ft = new IpFieldMapper.IpFieldType("field");
+        MappedFieldType ft = new IpFieldMapper.IpFieldType("field", true, false, true, null, Collections.emptyMap());
 
         String ip = "2001:db8::2:1";
-        assertEquals(InetAddressPoint.newExactQuery("field", InetAddresses.forString(ip)), ft.termQuery(ip, null));
+
+        Query query = InetAddressPoint.newExactQuery("field", InetAddresses.forString(ip));
+
+        assertEquals(
+            new IndexOrDocValuesQuery(
+                query,
+                SortedSetDocValuesField.newSlowExactQuery("field", new BytesRef(((PointRangeQuery) query).getLowerPoint()))
+            ),
+            ft.termQuery(ip, null)
+        );
 
         ip = "192.168.1.7";
-        assertEquals(InetAddressPoint.newExactQuery("field", InetAddresses.forString(ip)), ft.termQuery(ip, null));
+        query = InetAddressPoint.newExactQuery("field", InetAddresses.forString(ip));
+        assertEquals(
+            new IndexOrDocValuesQuery(
+                query,
+                SortedSetDocValuesField.newSlowExactQuery("field", new BytesRef(((PointRangeQuery) query).getLowerPoint()))
+            ),
+            ft.termQuery(ip, null)
+        );
 
         ip = "2001:db8::2:1";
         String prefix = ip + "/64";
-        assertEquals(InetAddressPoint.newPrefixQuery("field", InetAddresses.forString(ip), 64), ft.termQuery(prefix, null));
+
+        query = InetAddressPoint.newPrefixQuery("field", InetAddresses.forString(ip), 64);
+        assertEquals(
+            new IndexOrDocValuesQuery(
+                query,
+                SortedSetDocValuesField.newSlowRangeQuery(
+                    "field",
+                    ipToByteRef("2001:db8:0:0:0:0:0:0"),
+                    ipToByteRef("2001:db8:0:0:ffff:ffff:ffff:ffff"),
+                    true,
+                    true
+                )
+            ),
+            ft.termQuery(prefix, null)
+        );
 
         ip = "192.168.1.7";
         prefix = ip + "/16";
-        assertEquals(InetAddressPoint.newPrefixQuery("field", InetAddresses.forString(ip), 16), ft.termQuery(prefix, null));
+        query = InetAddressPoint.newPrefixQuery("field", InetAddresses.forString(ip), 16);
+        assertEquals(
+            new IndexOrDocValuesQuery(
+                query,
+                SortedSetDocValuesField.newSlowRangeQuery(
+                    "field",
+                    ipToByteRef("::ffff:192.168.0.0"),
+                    ipToByteRef("::ffff:192.168.255.255"),
+                    true,
+                    true
+                )
+            ),
+            ft.termQuery(prefix, null)
+        );
 
-        MappedFieldType unsearchable = new IpFieldMapper.IpFieldType("field", false, false, true, null, Collections.emptyMap());
+        MappedFieldType unsearchable = new IpFieldMapper.IpFieldType("field", false, false, false, null, Collections.emptyMap());
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> unsearchable.termQuery("::1", null));
-        assertEquals("Cannot search on field [field] since it is not indexed.", e.getMessage());
+        assertEquals("Cannot search on field [field] since it is both not indexed, and does not have doc_values enabled.", e.getMessage());
+    }
+
+    public void testDvOnlyTermQuery() {
+        IpFieldMapper.IpFieldType dvOnly = new IpFieldMapper.IpFieldType("field", false, false, true, null, Collections.emptyMap());
+        String ip = "2001:db8::2:1";
+
+        Query query = InetAddressPoint.newExactQuery("field", InetAddresses.forString(ip));
+
+        assertEquals(
+            SortedSetDocValuesField.newSlowExactQuery("field", new BytesRef(((PointRangeQuery) query).getLowerPoint())),
+            dvOnly.termQuery(ip, null)
+        );
+
+        ip = "192.168.1.7";
+        query = InetAddressPoint.newExactQuery("field", InetAddresses.forString(ip));
+        assertEquals(
+            SortedSetDocValuesField.newSlowExactQuery("field", new BytesRef(((PointRangeQuery) query).getLowerPoint())),
+            dvOnly.termQuery(ip, null)
+        );
+
+        ip = "2001:db8::2:1";
+        String prefix = ip + "/64";
+
+        assertEquals(
+            SortedSetDocValuesField.newSlowRangeQuery(
+                "field",
+                ipToByteRef("2001:db8:0:0:0:0:0:0"),
+                ipToByteRef("2001:db8:0:0:ffff:ffff:ffff:ffff"),
+                true,
+                true
+            ),
+            dvOnly.termQuery(prefix, null)
+        );
+
+        ip = "192.168.1.7";
+        prefix = ip + "/16";
+        assertEquals(
+            SortedSetDocValuesField.newSlowRangeQuery(
+                "field",
+                ipToByteRef("::ffff:192.168.0.0"),
+                ipToByteRef("::ffff:192.168.255.255"),
+                true,
+                true
+            ),
+            dvOnly.termQuery(prefix, null)
+        );
+    }
+
+    private static BytesRef ipToByteRef(String ipString) {
+        return new BytesRef(Objects.requireNonNull(InetAddresses.ipStringToBytes(ipString)));
     }
 
     public void testTermsQuery() {
-        MappedFieldType ft = new IpFieldMapper.IpFieldType("field");
+        MappedFieldType ft = new IpFieldMapper.IpFieldType("field", true, false, false, null, Collections.emptyMap());
 
         assertEquals(
             InetAddressPoint.newSetQuery("field", InetAddresses.forString("::2"), InetAddresses.forString("::5")),
@@ -106,56 +206,174 @@ public class IpFieldTypeTests extends FieldTypeTestCase {
         );
 
         // if the list includes a prefix query we fallback to a bool query
+        Query actual = ft.termsQuery(Arrays.asList("::42", "::2/16"), null);
+        assertTrue(actual instanceof ConstantScoreQuery);
+        assertTrue(((ConstantScoreQuery) actual).getQuery() instanceof BooleanQuery);
+        BooleanQuery bq = (BooleanQuery) ((ConstantScoreQuery) actual).getQuery();
+        assertEquals(2, bq.clauses().size());
+        assertTrue(bq.clauses().stream().allMatch(c -> c.occur() == Occur.SHOULD));
+    }
+
+    public void testDvOnlyTermsQuery() {
+        MappedFieldType dvOnly = new IpFieldMapper.IpFieldType("field", false, false, true, null, Collections.emptyMap());
+
         assertEquals(
-            new ConstantScoreQuery(
-                new BooleanQuery.Builder().add(ft.termQuery("::42", null), Occur.SHOULD)
-                    .add(ft.termQuery("::2/16", null), Occur.SHOULD)
-                    .build()
+            SortedSetDocValuesField.newSlowSetQuery("field", List.of(ipToByteRef("::2"), ipToByteRef("::5"))),
+            dvOnly.termsQuery(Arrays.asList(InetAddresses.forString("::2"), InetAddresses.forString("::5")), null)
+        );
+        assertEquals(
+            SortedSetDocValuesField.newSlowSetQuery("field", List.of(ipToByteRef("::2"), ipToByteRef("::5"))),
+            dvOnly.termsQuery(Arrays.asList("::2", "::5"), null)
+        );
+        assertEquals(SortedSetDocValuesField.newSlowExactQuery("field", ipToByteRef("::2")), dvOnly.termsQuery(List.of("::2"), null));
+        assertEquals(
+            SortedSetDocValuesField.newSlowRangeQuery(
+                "field",
+                ipToByteRef("::"),
+                ipToByteRef("::ffff:ffff:ffff:ffff:ffff:ffff:ffff"),
+                true,
+                true
             ),
-            ft.termsQuery(Arrays.asList("::42", "::2/16"), null)
+            dvOnly.termsQuery(List.of("::2/16"), null)
+        );
+        // multirange handles both
+        DocValuesMultiRangeQuery.SortedSetStabbingBuilder expect = new DocValuesMultiRangeQuery.SortedSetStabbingBuilder("field");
+        expect.add(ipToByteRef("::42"));
+        expect.add(ipToByteRef("::"), ipToByteRef("::ffff:ffff:ffff:ffff:ffff:ffff:ffff"));
+        assertEquals(expect.build(), dvOnly.termsQuery(Arrays.asList("::42", "::2/16"), null));
+    }
+
+    public void testDvVsPoint() {
+        MappedFieldType indexOnly = new IpFieldMapper.IpFieldType("field", true, false, false, null, Collections.emptyMap());
+        MappedFieldType dvOnly = new IpFieldMapper.IpFieldType("field", false, false, true, null, Collections.emptyMap());
+        MappedFieldType indexDv = new IpFieldMapper.IpFieldType("field", true, false, true, null, Collections.emptyMap());
+        assertNotEquals("obey DocValues", indexOnly.termsQuery(List.of("::2/16"), null), indexDv.termsQuery(List.of("::2/16"), null));
+        assertEquals(dvOnly.termQuery("::2/16", null), dvOnly.termsQuery(List.of("::2/16"), null));
+        assertEquals(
+            new IndexOrDocValuesQuery(indexOnly.termsQuery(List.of("::2/16"), null), dvOnly.termsQuery(List.of("::2/16"), null)),
+            indexDv.termsQuery(List.of("::2/16"), null)
         );
     }
 
     public void testRangeQuery() {
         MappedFieldType ft = new IpFieldMapper.IpFieldType("field");
-
+        Query query = InetAddressPoint.newRangeQuery("field", InetAddresses.forString("::"), InetAddressPoint.MAX_VALUE);
         assertEquals(
-            InetAddressPoint.newRangeQuery("field", InetAddresses.forString("::"), InetAddressPoint.MAX_VALUE),
+            new IndexOrDocValuesQuery(
+                query,
+                SortedSetDocValuesField.newSlowRangeQuery(
+                    ((PointRangeQuery) query).getField(),
+                    new BytesRef(((PointRangeQuery) query).getLowerPoint()),
+                    new BytesRef(((PointRangeQuery) query).getUpperPoint()),
+                    true,
+                    true
+                )
+            ),
             ft.rangeQuery(null, null, randomBoolean(), randomBoolean(), null, null, null, null)
         );
 
+        query = InetAddressPoint.newRangeQuery("field", InetAddresses.forString("::"), InetAddresses.forString("192.168.2.0"));
         assertEquals(
-            InetAddressPoint.newRangeQuery("field", InetAddresses.forString("::"), InetAddresses.forString("192.168.2.0")),
+            new IndexOrDocValuesQuery(
+                query,
+                SortedSetDocValuesField.newSlowRangeQuery(
+                    ((PointRangeQuery) query).getField(),
+                    new BytesRef(((PointRangeQuery) query).getLowerPoint()),
+                    new BytesRef(((PointRangeQuery) query).getUpperPoint()),
+                    true,
+                    true
+                )
+            ),
             ft.rangeQuery(null, "192.168.2.0", randomBoolean(), true, null, null, null, null)
         );
 
+        query = InetAddressPoint.newRangeQuery("field", InetAddresses.forString("::"), InetAddresses.forString("192.168.1.255"));
         assertEquals(
-            InetAddressPoint.newRangeQuery("field", InetAddresses.forString("::"), InetAddresses.forString("192.168.1.255")),
+            new IndexOrDocValuesQuery(
+                query,
+                SortedSetDocValuesField.newSlowRangeQuery(
+                    ((PointRangeQuery) query).getField(),
+                    new BytesRef(((PointRangeQuery) query).getLowerPoint()),
+                    new BytesRef(((PointRangeQuery) query).getUpperPoint()),
+                    true,
+                    true
+                )
+            ),
             ft.rangeQuery(null, "192.168.2.0", randomBoolean(), false, null, null, null, null)
         );
 
+        query = InetAddressPoint.newRangeQuery("field", InetAddresses.forString("2001:db8::"), InetAddressPoint.MAX_VALUE);
         assertEquals(
-            InetAddressPoint.newRangeQuery("field", InetAddresses.forString("2001:db8::"), InetAddressPoint.MAX_VALUE),
+            new IndexOrDocValuesQuery(
+                query,
+                SortedSetDocValuesField.newSlowRangeQuery(
+                    ((PointRangeQuery) query).getField(),
+                    new BytesRef(((PointRangeQuery) query).getLowerPoint()),
+                    new BytesRef(((PointRangeQuery) query).getUpperPoint()),
+                    true,
+                    true
+                )
+            ),
             ft.rangeQuery("2001:db8::", null, true, randomBoolean(), null, null, null, null)
         );
 
+        query = InetAddressPoint.newRangeQuery("field", InetAddresses.forString("2001:db8::1"), InetAddressPoint.MAX_VALUE);
         assertEquals(
-            InetAddressPoint.newRangeQuery("field", InetAddresses.forString("2001:db8::1"), InetAddressPoint.MAX_VALUE),
+            new IndexOrDocValuesQuery(
+                query,
+                SortedSetDocValuesField.newSlowRangeQuery(
+                    ((PointRangeQuery) query).getField(),
+                    new BytesRef(((PointRangeQuery) query).getLowerPoint()),
+                    new BytesRef(((PointRangeQuery) query).getUpperPoint()),
+                    true,
+                    true
+                )
+            ),
             ft.rangeQuery("2001:db8::", null, false, randomBoolean(), null, null, null, null)
         );
 
+        query = InetAddressPoint.newRangeQuery("field", InetAddresses.forString("2001:db8::"), InetAddresses.forString("2001:db8::ffff"));
         assertEquals(
-            InetAddressPoint.newRangeQuery("field", InetAddresses.forString("2001:db8::"), InetAddresses.forString("2001:db8::ffff")),
+            new IndexOrDocValuesQuery(
+                query,
+                SortedSetDocValuesField.newSlowRangeQuery(
+                    ((PointRangeQuery) query).getField(),
+                    new BytesRef(((PointRangeQuery) query).getLowerPoint()),
+                    new BytesRef(((PointRangeQuery) query).getUpperPoint()),
+                    true,
+                    true
+                )
+            ),
             ft.rangeQuery("2001:db8::", "2001:db8::ffff", true, true, null, null, null, null)
         );
 
+        query = InetAddressPoint.newRangeQuery("field", InetAddresses.forString("2001:db8::1"), InetAddresses.forString("2001:db8::fffe"));
         assertEquals(
-            InetAddressPoint.newRangeQuery("field", InetAddresses.forString("2001:db8::1"), InetAddresses.forString("2001:db8::fffe")),
+            new IndexOrDocValuesQuery(
+                query,
+                SortedSetDocValuesField.newSlowRangeQuery(
+                    ((PointRangeQuery) query).getField(),
+                    new BytesRef(((PointRangeQuery) query).getLowerPoint()),
+                    new BytesRef(((PointRangeQuery) query).getUpperPoint()),
+                    true,
+                    true
+                )
+            ),
             ft.rangeQuery("2001:db8::", "2001:db8::ffff", false, false, null, null, null, null)
         );
 
+        query = InetAddressPoint.newRangeQuery("field", InetAddresses.forString("2001:db8::2"), InetAddresses.forString("2001:db8::"));
         assertEquals(
-            InetAddressPoint.newRangeQuery("field", InetAddresses.forString("2001:db8::2"), InetAddresses.forString("2001:db8::")),
+            new IndexOrDocValuesQuery(
+                query,
+                SortedSetDocValuesField.newSlowRangeQuery(
+                    ((PointRangeQuery) query).getField(),
+                    new BytesRef(((PointRangeQuery) query).getLowerPoint()),
+                    new BytesRef(((PointRangeQuery) query).getUpperPoint()),
+                    true,
+                    true
+                )
+            ),
             // same lo/hi values but inclusive=false so this won't match anything
             ft.rangeQuery("2001:db8::1", "2001:db8::1", false, false, null, null, null, null)
         );
@@ -178,30 +396,60 @@ public class IpFieldTypeTests extends FieldTypeTestCase {
             )
         );
 
+        query = InetAddressPoint.newRangeQuery("field", InetAddresses.forString("::"), InetAddresses.forString("::fffe:ffff:ffff"));
         assertEquals(
-            InetAddressPoint.newRangeQuery("field", InetAddresses.forString("::"), InetAddresses.forString("::fffe:ffff:ffff")),
+            new IndexOrDocValuesQuery(
+                query,
+                SortedSetDocValuesField.newSlowRangeQuery(
+                    ((PointRangeQuery) query).getField(),
+                    new BytesRef(((PointRangeQuery) query).getLowerPoint()),
+                    new BytesRef(((PointRangeQuery) query).getUpperPoint()),
+                    true,
+                    true
+                )
+            ),
             // same lo/hi values but inclusive=false so this won't match anything
             ft.rangeQuery("::", "0.0.0.0", true, false, null, null, null, null)
         );
 
+        query = InetAddressPoint.newRangeQuery("field", InetAddresses.forString("::1:0:0:0"), InetAddressPoint.MAX_VALUE);
         assertEquals(
-            InetAddressPoint.newRangeQuery("field", InetAddresses.forString("::1:0:0:0"), InetAddressPoint.MAX_VALUE),
+            new IndexOrDocValuesQuery(
+                query,
+                SortedSetDocValuesField.newSlowRangeQuery(
+                    ((PointRangeQuery) query).getField(),
+                    new BytesRef(((PointRangeQuery) query).getLowerPoint()),
+                    new BytesRef(((PointRangeQuery) query).getUpperPoint()),
+                    true,
+                    true
+                )
+            ),
             // same lo/hi values but inclusive=false so this won't match anything
             ft.rangeQuery("255.255.255.255", "ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff", false, true, null, null, null, null)
         );
 
+        query = InetAddressPoint.newRangeQuery("field", InetAddresses.forString("192.168.1.7"), InetAddresses.forString("2001:db8::"));
         assertEquals(
             // lower bound is ipv4, upper bound is ipv6
-            InetAddressPoint.newRangeQuery("field", InetAddresses.forString("192.168.1.7"), InetAddresses.forString("2001:db8::")),
+            new IndexOrDocValuesQuery(
+                query,
+                SortedSetDocValuesField.newSlowRangeQuery(
+                    ((PointRangeQuery) query).getField(),
+                    new BytesRef(((PointRangeQuery) query).getLowerPoint()),
+                    new BytesRef(((PointRangeQuery) query).getUpperPoint()),
+                    true,
+                    true
+                )
+            ),
             ft.rangeQuery("::ffff:c0a8:107", "2001:db8::", true, true, null, null, null, null)
         );
 
-        MappedFieldType unsearchable = new IpFieldMapper.IpFieldType("field", false, false, true, null, Collections.emptyMap());
+        MappedFieldType unsearchable = new IpFieldMapper.IpFieldType("field", false, false, false, null, Collections.emptyMap());
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
             () -> unsearchable.rangeQuery("::1", "2001::", true, true, null, null, null, null)
         );
-        assertEquals("Cannot search on field [field] since it is not indexed.", e.getMessage());
+        assertEquals("Cannot search on field [field] since it is both not indexed, and does not have doc_values enabled.", e.getMessage());
     }
 
     public void testFetchSourceValue() throws IOException {

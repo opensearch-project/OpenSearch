@@ -34,6 +34,7 @@ package org.opensearch.client.indices;
 
 import org.apache.lucene.util.CollectionUtil;
 import org.opensearch.cluster.metadata.AliasMetadata;
+import org.opensearch.cluster.metadata.Context;
 import org.opensearch.cluster.metadata.MappingMetadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.xcontent.XContentParser;
@@ -61,6 +62,7 @@ public class GetIndexResponse {
     private Map<String, Settings> settings;
     private Map<String, Settings> defaultSettings;
     private Map<String, String> dataStreams;
+    private Map<String, Context> contexts;
     private String[] indices;
 
     GetIndexResponse(
@@ -69,7 +71,8 @@ public class GetIndexResponse {
         Map<String, List<AliasMetadata>> aliases,
         Map<String, Settings> settings,
         Map<String, Settings> defaultSettings,
-        Map<String, String> dataStreams
+        Map<String, String> dataStreams,
+        Map<String, Context> contexts
     ) {
         this.indices = indices;
         // to have deterministic order
@@ -88,6 +91,9 @@ public class GetIndexResponse {
         }
         if (dataStreams != null) {
             this.dataStreams = dataStreams;
+        }
+        if (contexts != null) {
+            this.contexts = contexts;
         }
     }
 
@@ -121,6 +127,10 @@ public class GetIndexResponse {
 
     public Map<String, String> getDataStreams() {
         return dataStreams;
+    }
+
+    public Map<String, Context> contexts() {
+        return contexts;
     }
 
     /**
@@ -167,6 +177,7 @@ public class GetIndexResponse {
         Settings indexSettings = null;
         Settings indexDefaultSettings = null;
         String dataStream = null;
+        Context context = null;
         // We start at START_OBJECT since fromXContent ensures that
         while (parser.nextToken() != Token.END_OBJECT) {
             ensureExpectedToken(Token.FIELD_NAME, parser.currentToken(), parser);
@@ -185,6 +196,9 @@ public class GetIndexResponse {
                     case "defaults":
                         indexDefaultSettings = Settings.fromXContent(parser);
                         break;
+                    case "context":
+                        context = Context.fromXContent(parser);
+                        break;
                     default:
                         parser.skipChildren();
                 }
@@ -197,7 +211,7 @@ public class GetIndexResponse {
                 parser.skipChildren();
             }
         }
-        return new IndexEntry(indexAliases, indexMappings, indexSettings, indexDefaultSettings, dataStream);
+        return new IndexEntry(indexAliases, indexMappings, indexSettings, indexDefaultSettings, dataStream, context);
     }
 
     // This is just an internal container to make stuff easier for returning
@@ -207,19 +221,22 @@ public class GetIndexResponse {
         Settings indexSettings = Settings.EMPTY;
         Settings indexDefaultSettings = Settings.EMPTY;
         String dataStream;
+        Context context;
 
         IndexEntry(
             List<AliasMetadata> indexAliases,
             MappingMetadata indexMappings,
             Settings indexSettings,
             Settings indexDefaultSettings,
-            String dataStream
+            String dataStream,
+            Context context
         ) {
             if (indexAliases != null) this.indexAliases = indexAliases;
             if (indexMappings != null) this.indexMappings = indexMappings;
             if (indexSettings != null) this.indexSettings = indexSettings;
             if (indexDefaultSettings != null) this.indexDefaultSettings = indexDefaultSettings;
             if (dataStream != null) this.dataStream = dataStream;
+            if (context != null) this.context = context;
         }
     }
 
@@ -229,6 +246,7 @@ public class GetIndexResponse {
         Map<String, Settings> settings = new HashMap<>();
         Map<String, Settings> defaultSettings = new HashMap<>();
         Map<String, String> dataStreams = new HashMap<>();
+        Map<String, Context> contexts = new HashMap<>();
         List<String> indices = new ArrayList<>();
 
         if (parser.currentToken() == null) {
@@ -254,12 +272,15 @@ public class GetIndexResponse {
                 if (indexEntry.dataStream != null) {
                     dataStreams.put(indexName, indexEntry.dataStream);
                 }
+                if (indexEntry.context != null) {
+                    contexts.put(indexName, indexEntry.context);
+                }
             } else if (parser.currentToken() == Token.START_ARRAY) {
                 parser.skipChildren();
             } else {
                 parser.nextToken();
             }
         }
-        return new GetIndexResponse(indices.toArray(new String[0]), mappings, aliases, settings, defaultSettings, dataStreams);
+        return new GetIndexResponse(indices.toArray(new String[0]), mappings, aliases, settings, defaultSettings, dataStreams, contexts);
     }
 }

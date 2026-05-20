@@ -35,6 +35,7 @@ package org.opensearch.cluster.metadata;
 import org.opensearch.Version;
 import org.opensearch.cluster.Diff;
 import org.opensearch.cluster.NamedDiff;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.time.DateFormatter;
@@ -68,8 +69,9 @@ import java.util.Objects;
  * tombstones remain in the cluster state for a fixed period of time, after which
  * they are purged.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public final class IndexGraveyard implements Metadata.Custom {
 
     /**
@@ -107,11 +109,6 @@ public final class IndexGraveyard implements Metadata.Custom {
     @Override
     public String getWriteableName() {
         return TYPE;
-    }
-
-    @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.CURRENT.minimumCompatibilityVersion();
     }
 
     @Override
@@ -191,8 +188,9 @@ public final class IndexGraveyard implements Metadata.Custom {
     /**
      * A class to build an IndexGraveyard.
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static final class Builder {
         private List<Tombstone> tombstones;
         private int numPurged = -1;
@@ -367,8 +365,9 @@ public final class IndexGraveyard implements Metadata.Custom {
     /**
      * An individual tombstone entry for representing a deleted index.
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static final class Tombstone implements ToXContentObject, Writeable {
 
         private static final String INDEX_KEY = "index";
@@ -487,6 +486,13 @@ public final class IndexGraveyard implements Metadata.Custom {
                 return new Tombstone(index, deleteDateInMillis);
             }
         }
+    }
+
+    @Override
+    @Deprecated(forRemoval = true) // Implementation is identical to NamedDiffable
+    public Version getMinimalSupportedVersion() {
+        // TODO: Only including this method to work around bug in japicmp.
+        return Version.CURRENT.minimumCompatibilityVersion();
     }
 
 }

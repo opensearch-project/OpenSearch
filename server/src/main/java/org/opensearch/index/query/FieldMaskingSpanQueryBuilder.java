@@ -53,8 +53,13 @@ import java.util.Objects;
  *
  * @opensearch.internal
  */
-public class FieldMaskingSpanQueryBuilder extends AbstractQueryBuilder<FieldMaskingSpanQueryBuilder> implements SpanQueryBuilder {
-    public static final ParseField SPAN_FIELD_MASKING_FIELD = new ParseField("span_field_masking", "field_masking_span");
+public class FieldMaskingSpanQueryBuilder extends AbstractQueryBuilder<FieldMaskingSpanQueryBuilder>
+    implements
+        SpanQueryBuilder,
+        WithFieldName {
+
+    public static final String NAME = "span_field_masking";
+    public static final ParseField SPAN_FIELD_MASKING_FIELD = new ParseField(NAME, "field_masking_span");
 
     private static final ParseField FIELD_FIELD = new ParseField("field");
     private static final ParseField QUERY_FIELD = new ParseField("query");
@@ -98,6 +103,7 @@ public class FieldMaskingSpanQueryBuilder extends AbstractQueryBuilder<FieldMask
     /**
      * @return the field name for this query
      */
+    @Override
     public String fieldName() {
         return this.fieldName;
     }
@@ -134,13 +140,13 @@ public class FieldMaskingSpanQueryBuilder extends AbstractQueryBuilder<FieldMask
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if (QUERY_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     QueryBuilder query = parseInnerQueryBuilder(parser);
-                    if (query instanceof SpanQueryBuilder == false) {
+                    if (!(query instanceof SpanQueryBuilder spanQuery)) {
                         throw new ParsingException(
                             parser.getTokenLocation(),
                             "[" + SPAN_FIELD_MASKING_FIELD.getPreferredName() + "] query must be of type span query"
                         );
                     }
-                    inner = (SpanQueryBuilder) query;
+                    inner = spanQuery;
                     SpanQueryBuilderUtil.checkNoBoost(SPAN_FIELD_MASKING_FIELD.getPreferredName(), currentFieldName, parser, inner);
                 } else {
                     throw new ParsingException(

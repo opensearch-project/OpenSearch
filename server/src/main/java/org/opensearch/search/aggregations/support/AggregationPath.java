@@ -32,6 +32,7 @@
 
 package org.opensearch.search.aggregations.support;
 
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.Strings;
 import org.opensearch.search.aggregations.AggregationExecutionException;
 import org.opensearch.search.aggregations.Aggregator;
@@ -39,7 +40,6 @@ import org.opensearch.search.aggregations.Aggregator.BucketComparator;
 import org.opensearch.search.aggregations.InternalAggregations;
 import org.opensearch.search.aggregations.bucket.SingleBucketAggregator;
 import org.opensearch.search.aggregations.metrics.NumericMetricsAggregator;
-import org.opensearch.search.profile.aggregation.ProfilingAggregator;
 import org.opensearch.search.sort.SortOrder;
 
 import java.util.ArrayList;
@@ -131,8 +131,9 @@ public class AggregationPath {
     /**
      * Element in an agg path
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static class PathElement {
 
         private final String fullName;
@@ -234,7 +235,7 @@ public class AggregationPath {
     public Aggregator resolveTopmostAggregator(Aggregator root) {
         AggregationPath.PathElement token = pathElements.get(0);
         // TODO both unwrap and subAggregator are only used here!
-        Aggregator aggregator = ProfilingAggregator.unwrap(root.subAggregator(token.name));
+        Aggregator aggregator = root.subAggregator(token.name).unwrapAggregator();
         assert (aggregator instanceof SingleBucketAggregator) || (aggregator instanceof NumericMetricsAggregator)
             : "this should be picked up before aggregation execution - on validate";
         return aggregator;

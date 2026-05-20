@@ -35,6 +35,7 @@ package org.opensearch.rest.action.cat;
 import org.opensearch.Version;
 import org.opensearch.action.admin.indices.stats.CommonStats;
 import org.opensearch.action.admin.indices.stats.IndexStats;
+import org.opensearch.action.pagination.PageToken;
 import org.opensearch.cluster.health.ClusterHealthStatus;
 import org.opensearch.cluster.health.ClusterIndexHealth;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -43,6 +44,8 @@ import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.cluster.routing.TestShardRouting;
 import org.opensearch.common.Table;
 import org.opensearch.common.UUIDs;
+import org.opensearch.common.breaker.ResponseLimitSettings;
+import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
@@ -50,10 +53,15 @@ import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.indices.SystemIndexDescriptor;
 import org.opensearch.indices.SystemIndices;
+import org.opensearch.rest.action.list.RestIndicesListAction;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.rest.FakeRestRequest;
+import org.junit.Before;
 
+import java.time.Instant;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -67,19 +75,21 @@ import static org.mockito.Mockito.when;
 
 public class RestIndicesActionTests extends OpenSearchTestCase {
 
-    public void testBuildTable() {
-        final int numIndices = randomIntBetween(3, 20);
-        final Map<String, Settings> indicesSettings = new LinkedHashMap<>();
-        final Map<String, IndexMetadata> indicesMetadatas = new LinkedHashMap<>();
-        final Map<String, ClusterIndexHealth> indicesHealths = new LinkedHashMap<>();
-        final Map<String, IndexStats> indicesStats = new LinkedHashMap<>();
+    private static final String SYSTEM_INDEX_NAME = ".system-index";
+    private static final String SYSTEM_INDEX_DESCRIPTION = "Example of a system index";
 
-        String systemIndexName = ".system-index";
+    final Map<String, Settings> indicesSettings = new LinkedHashMap<>();
+    final Map<String, IndexMetadata> indicesMetadatas = new LinkedHashMap<>();
+    final Map<String, ClusterIndexHealth> indicesHealths = new LinkedHashMap<>();
+    final Map<String, IndexStats> indicesStats = new LinkedHashMap<>();
+
+    @Before
+    public void setup() {
+        final int numIndices = randomIntBetween(3, 20);
         List<String> indexNames = new ArrayList<>();
-        indexNames.add(systemIndexName);
+        indexNames.add(SYSTEM_INDEX_NAME);
         for (int i = 0; i < numIndices; i++) {
-            String indexName = "index-" + i;
-            indexNames.add(indexName);
+            indexNames.add("index-" + i);
         }
 
         for (String indexName : indexNames) {
@@ -91,7 +101,7 @@ public class RestIndicesActionTests extends OpenSearchTestCase {
             indicesSettings.put(indexName, indexSettings);
 
             IndexMetadata.State indexState = randomBoolean() ? IndexMetadata.State.OPEN : IndexMetadata.State.CLOSE;
-            if (frequently()) {
+            if (frequently() || SYSTEM_INDEX_NAME.equals(indexName)) {
                 ClusterHealthStatus healthStatus = randomFrom(ClusterHealthStatus.values());
                 int numberOfShards = randomIntBetween(1, 3);
                 int numberOfReplicas = healthStatus == ClusterHealthStatus.YELLOW ? 1 : randomInt(1);
@@ -146,17 +156,94 @@ public class RestIndicesActionTests extends OpenSearchTestCase {
                 }
             }
         }
+    }
 
-        final RestIndicesAction action = new RestIndicesAction(
-            new SystemIndices(Map.of("testplugin", List.of(new SystemIndexDescriptor(systemIndexName, "Example of a system index"))))
+    public void testBuildTable() {
+        final RestIndicesAction action = newAction(systemIndices());
+        final Table table = action.buildTable(
+            new FakeRestRequest(),
+            indicesSettings,
+            indicesHealths,
+            indicesStats,
+            indicesMetadatas,
+            action.getTableIterator(new String[0], indicesSettings),
+            null
         );
-        final Table table = action.buildTable(new FakeRestRequest(), indicesSettings, indicesHealths, indicesStats, indicesMetadatas);
 
-        // now, verify the table is correct
-        verifyTableHeaders(table);
+        assertNotNull(table);
+        assertTableHeaders(table);
+        assertThat(table.getRows().size(), equalTo(indicesMetadatas.size()));
+        assertTableRows(table);
+    }
+
+    public void testBuildPaginatedTable() {
+        final RestIndicesAction action = newAction(systemIndices());
+        final RestIndicesListAction indicesListAction = new RestIndicesListAction(responseLimitSettings(), systemIndices());
+        List<String> indicesList = new ArrayList<>(indicesMetadatas.keySet());
+        String[] indicesToBeQueried = indicesList.subList(0, indicesMetadatas.size() / 2).toArray(new String[0]);
+        PageToken pageToken = new PageToken("foo", "indices");
+        final Table table = action.buildTable(
+            new FakeRestRequest(),
+            indicesSettings,
+            indicesHealths,
+            indicesStats,
+            indicesMetadatas,
+            indicesListAction.getTableIterator(indicesToBeQueried, indicesSettings),
+            pageToken
+        );
+
+        assertNotNull(table);
+        assertTableHeaders(table);
+        assertNotNull(table.getPageToken());
+        assertEquals(pageToken.getNextToken(), table.getPageToken().getNextToken());
+        assertEquals(pageToken.getPaginatedEntity(), table.getPageToken().getPaginatedEntity());
+
+        assertThat(table.getRows().size(), equalTo(indicesMetadatas.size() / 2));
+        assertTableRows(table);
+    }
+
+    public void testBuildTableWithSystemParam() {
+        final RestIndicesAction action = newAction(systemIndices());
+        final Table table = action.buildTable(
+            new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withParams(Map.of("system", "true")).build(),
+            indicesSettings,
+            indicesHealths,
+            indicesStats,
+            indicesMetadatas,
+            action.getTableIterator(new String[0], indicesSettings),
+            null
+        );
+
+        assertTableHeaders(table);
+        List<Table.Cell> headers = table.getHeaders();
+        assertThat(headers.get(12).value, equalTo("desc"));
 
         final List<List<Table.Cell>> rows = table.getRows();
-        assertThat(rows.size(), equalTo(indicesMetadatas.size()));
+        assertThat(rows.size(), equalTo(1));
+        assertThat(rows.get(0).get(2).value, equalTo(SYSTEM_INDEX_NAME));
+        assertThat(rows.get(0).get(12).value, equalTo(SYSTEM_INDEX_DESCRIPTION));
+    }
+
+    private void assertTableHeaders(Table table) {
+        List<Table.Cell> headers = table.getHeaders();
+        assertThat(headers.get(0).value, equalTo("health"));
+        assertThat(headers.get(1).value, equalTo("status"));
+        assertThat(headers.get(2).value, equalTo("index"));
+        assertThat(headers.get(3).value, equalTo("uuid"));
+        assertThat(headers.get(4).value, equalTo("pri"));
+        assertThat(headers.get(5).value, equalTo("rep"));
+        boolean foundRaw = false;
+        boolean foundString = false;
+        for (Table.Cell cell : headers) {
+            if ("last_index_request_timestamp".equals(cell.value)) foundRaw = true;
+            if ("last_index_request_timestamp_string".equals(cell.value)) foundString = true;
+        }
+        assertTrue(foundRaw);
+        assertTrue(foundString);
+    }
+
+    private void assertTableRows(Table table) {
+        final List<List<Table.Cell>> rows = table.getRows();
 
         for (final List<Table.Cell> row : rows) {
             final String indexName = (String) row.get(2).value;
@@ -184,35 +271,78 @@ public class RestIndicesActionTests extends OpenSearchTestCase {
                 assertThat(row.get(5).value, nullValue());
             }
         }
+    }
 
-        final Table tableWithSystemIndexOnly = action.buildTable(
-            new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withParams(Map.of("system", "true")).build(),
-            indicesSettings,
-            indicesHealths,
-            indicesStats,
-            indicesMetadatas
+    public void testLastIndexRequestTimestampColumns() {
+        final RestIndicesAction action = newAction(emptySystemIndices());
+        long knownTs = 1710000000000L;
+        IndexStats indexStats = mock(IndexStats.class);
+        CommonStats commonStats = mock(CommonStats.class);
+        org.opensearch.index.shard.IndexingStats indexingStats = mock(org.opensearch.index.shard.IndexingStats.class);
+        org.opensearch.index.shard.IndexingStats.Stats stats = mock(org.opensearch.index.shard.IndexingStats.Stats.class);
+        when(indexStats.getTotal()).thenReturn(commonStats);
+        when(indexStats.getPrimaries()).thenReturn(commonStats);
+        when(commonStats.getIndexing()).thenReturn(indexingStats);
+        when(indexingStats.getTotal()).thenReturn(stats);
+        when(stats.getMaxLastIndexRequestTimestamp()).thenReturn(knownTs);
+        Map<String, IndexStats> testStats = new LinkedHashMap<>();
+        String testIndex = "test-index";
+        testStats.put(testIndex, indexStats);
+        Map<String, Settings> testSettings = new LinkedHashMap<>();
+        testSettings.put(testIndex, Settings.EMPTY);
+        Map<String, IndexMetadata> testMetadatas = new LinkedHashMap<>();
+        Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build();
+        testMetadatas.put(
+            testIndex,
+            IndexMetadata.builder(testIndex).settings(indexSettings).numberOfShards(1).numberOfReplicas(0).build()
+        );
+        Map<String, ClusterIndexHealth> testHealths = new LinkedHashMap<>();
+        Table table = action.buildTable(
+            new FakeRestRequest(),
+            testSettings,
+            testHealths,
+            testStats,
+            testMetadatas,
+            action.getTableIterator(new String[] { testIndex }, testSettings),
+            null
         );
 
-        // now, verify the table is correct
-        verifyTableHeaders(tableWithSystemIndexOnly);
-
-        final List<List<Table.Cell>> systemIndexRows = tableWithSystemIndexOnly.getRows();
-        assertThat(systemIndexRows.size(), equalTo(1));
-
-        for (final List<Table.Cell> row : systemIndexRows) {
-            final String indexName = (String) row.get(2).value;
-
-            assertThat(indexName, equalTo(".system-index"));
+        List<Table.Cell> header = table.getHeaders();
+        int rawIdx = -1;
+        int strIdx = -1;
+        for (int i = 0; i < header.size(); i++) {
+            if ("last_index_request_timestamp".equals(header.get(i).value)) rawIdx = i;
+            if ("last_index_request_timestamp_string".equals(header.get(i).value)) strIdx = i;
+        }
+        assertTrue(rawIdx != -1);
+        assertTrue(strIdx != -1);
+        List<List<Table.Cell>> rows = table.getRows();
+        assertEquals(1, rows.size());
+        List<Table.Cell> row = rows.get(0);
+        assertEquals(String.valueOf(knownTs), row.get(rawIdx).value.toString());
+        String timestampString = row.get(strIdx).value.toString();
+        try {
+            Instant parsed = Instant.parse(timestampString);
+            assertEquals(knownTs, parsed.toEpochMilli());
+        } catch (DateTimeParseException e) {
+            fail("Timestamp string is not a valid ISO-8601 date: " + timestampString);
         }
     }
 
-    private void verifyTableHeaders(Table table) {
-        List<Table.Cell> headers = table.getHeaders();
-        assertThat(headers.get(0).value, equalTo("health"));
-        assertThat(headers.get(1).value, equalTo("status"));
-        assertThat(headers.get(2).value, equalTo("index"));
-        assertThat(headers.get(3).value, equalTo("uuid"));
-        assertThat(headers.get(4).value, equalTo("pri"));
-        assertThat(headers.get(5).value, equalTo("rep"));
+    private RestIndicesAction newAction(SystemIndices systemIndices) {
+        return new RestIndicesAction(responseLimitSettings(), systemIndices);
+    }
+
+    private ResponseLimitSettings responseLimitSettings() {
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        return new ResponseLimitSettings(clusterSettings, Settings.EMPTY);
+    }
+
+    private SystemIndices systemIndices() {
+        return new SystemIndices(Map.of("testplugin", List.of(new SystemIndexDescriptor(SYSTEM_INDEX_NAME, SYSTEM_INDEX_DESCRIPTION))));
+    }
+
+    private SystemIndices emptySystemIndices() {
+        return new SystemIndices(Collections.emptyMap());
     }
 }

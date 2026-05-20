@@ -41,7 +41,6 @@ import org.opensearch.action.search.SearchResponse;
 import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.DistanceUnit;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.common.bytes.BytesArray;
@@ -57,7 +56,7 @@ import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.opensearch.search.sort.SortOrder;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -90,10 +89,10 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.core.IsNull.notNullValue;
 
-public class PercolatorQuerySearchIT extends ParameterizedOpenSearchIntegTestCase {
+public class PercolatorQuerySearchIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
 
-    public PercolatorQuerySearchIT(Settings dynamicSettings) {
-        super(dynamicSettings);
+    public PercolatorQuerySearchIT(Settings staticSettings) {
+        super(staticSettings);
     }
 
     @ParametersFactory
@@ -102,11 +101,6 @@ public class PercolatorQuerySearchIT extends ParameterizedOpenSearchIntegTestCas
             new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), false).build() },
             new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), true).build() }
         );
-    }
-
-    @Override
-    protected Settings featureFlagSettings() {
-        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.CONCURRENT_SEGMENT_SEARCH, "true").build();
     }
 
     @Override
@@ -297,43 +291,40 @@ public class PercolatorQuerySearchIT extends ParameterizedOpenSearchIntegTestCas
             .get();
         logger.info("response={}", response);
         assertHitCount(response, 2);
-        assertThat(response.getHits().getAt(0).getId(), equalTo("3"));
-        assertThat(response.getHits().getAt(1).getId(), equalTo("1"));
+        assertSearchHits(response, "3", "1");
 
         source = BytesReference.bytes(jsonBuilder().startObject().field("field1", 11).endObject());
         response = client().prepareSearch().setQuery(new PercolateQueryBuilder("query", source, MediaTypeRegistry.JSON)).get();
         assertHitCount(response, 1);
-        assertThat(response.getHits().getAt(0).getId(), equalTo("1"));
+        assertSearchHits(response, "1");
 
         // Test double range:
         source = BytesReference.bytes(jsonBuilder().startObject().field("field2", 12).endObject());
         response = client().prepareSearch().setQuery(new PercolateQueryBuilder("query", source, MediaTypeRegistry.JSON)).get();
         assertHitCount(response, 2);
-        assertThat(response.getHits().getAt(0).getId(), equalTo("6"));
-        assertThat(response.getHits().getAt(1).getId(), equalTo("4"));
+        assertSearchHits(response, "6", "4");
 
         source = BytesReference.bytes(jsonBuilder().startObject().field("field2", 11).endObject());
         response = client().prepareSearch().setQuery(new PercolateQueryBuilder("query", source, MediaTypeRegistry.JSON)).get();
         assertHitCount(response, 1);
-        assertThat(response.getHits().getAt(0).getId(), equalTo("4"));
+        assertSearchHits(response, "4");
 
         // Test IP range:
         source = BytesReference.bytes(jsonBuilder().startObject().field("field3", "192.168.1.5").endObject());
         response = client().prepareSearch().setQuery(new PercolateQueryBuilder("query", source, MediaTypeRegistry.JSON)).get();
         assertHitCount(response, 2);
-        assertThat(response.getHits().getAt(0).getId(), equalTo("9"));
-        assertThat(response.getHits().getAt(1).getId(), equalTo("7"));
+        assertSearchHits(response, "9", "7");
 
         source = BytesReference.bytes(jsonBuilder().startObject().field("field3", "192.168.1.4").endObject());
         response = client().prepareSearch().setQuery(new PercolateQueryBuilder("query", source, MediaTypeRegistry.JSON)).get();
         assertHitCount(response, 1);
-        assertThat(response.getHits().getAt(0).getId(), equalTo("7"));
+        assertSearchHits(response, "7");
 
         // Test date range:
         source = BytesReference.bytes(jsonBuilder().startObject().field("field4", "2016-05-15").endObject());
         response = client().prepareSearch().setQuery(new PercolateQueryBuilder("query", source, MediaTypeRegistry.JSON)).get();
         assertHitCount(response, 1);
-        assertThat(response.getHits().getAt(0).getId(), equalTo("10"));
+        assertSearchHits(response, "10");
     }
 
     public void testPercolatorGeoQueries() throws Exception {
@@ -1338,7 +1329,7 @@ public class PercolatorQuerySearchIT extends ParameterizedOpenSearchIntegTestCas
                 )
             )
             .get();
-        assertEquals(1, response.getHits().getTotalHits().value);
+        assertEquals(1, response.getHits().getTotalHits().value());
 
         response = client().prepareSearch("test")
             .setQuery(
@@ -1350,7 +1341,7 @@ public class PercolatorQuerySearchIT extends ParameterizedOpenSearchIntegTestCas
             )
             .addSort("_doc", SortOrder.ASC)
             .get();
-        assertEquals(1, response.getHits().getTotalHits().value);
+        assertEquals(1, response.getHits().getTotalHits().value());
 
         response = client().prepareSearch("test")
             .setQuery(
@@ -1363,7 +1354,7 @@ public class PercolatorQuerySearchIT extends ParameterizedOpenSearchIntegTestCas
                 )
             )
             .get();
-        assertEquals(1, response.getHits().getTotalHits().value);
+        assertEquals(1, response.getHits().getTotalHits().value());
 
     }
 }

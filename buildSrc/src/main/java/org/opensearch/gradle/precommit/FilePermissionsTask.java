@@ -35,6 +35,7 @@ import org.apache.tools.ant.taskdefs.condition.Os;
 import org.opensearch.gradle.util.GradleUtils;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.GradleException;
+import org.gradle.api.Project;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.file.FileTree;
 import org.gradle.api.tasks.IgnoreEmptyDirectories;
@@ -47,6 +48,8 @@ import org.gradle.api.tasks.StopExecutionException;
 import org.gradle.api.tasks.TaskAction;
 import org.gradle.api.tasks.util.PatternFilterable;
 import org.gradle.api.tasks.util.PatternSet;
+
+import javax.inject.Inject;
 
 import java.io.File;
 import java.io.IOException;
@@ -71,10 +74,14 @@ public class FilePermissionsTask extends DefaultTask {
         // exclude sh files that might have the executable bit set
         .exclude("**/*.sh");
 
-    private File outputMarker = new File(getProject().getBuildDir(), "markers/filePermissions");
+    private final File outputMarker;
+    private final Project project;
 
-    public FilePermissionsTask() {
+    @Inject
+    public FilePermissionsTask(Project project) {
         setDescription("Checks java source files for correct file permissions");
+        this.project = project;
+        this.outputMarker = new File(project.getBuildDir(), "markers/filePermissions");
     }
 
     private static boolean isExecutableFile(File file) {
@@ -98,11 +105,11 @@ public class FilePermissionsTask extends DefaultTask {
     @IgnoreEmptyDirectories
     @PathSensitive(PathSensitivity.RELATIVE)
     public FileCollection getFiles() {
-        return GradleUtils.getJavaSourceSets(getProject())
+        return GradleUtils.getJavaSourceSets(project)
             .stream()
             .map(sourceSet -> sourceSet.getAllSource().matching(filesFilter))
             .reduce(FileTree::plus)
-            .orElse(getProject().files().getAsFileTree());
+            .orElse(project.files().getAsFileTree());
     }
 
     @TaskAction

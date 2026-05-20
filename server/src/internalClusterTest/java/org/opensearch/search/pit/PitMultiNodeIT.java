@@ -13,7 +13,6 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.opensearch.action.LatchedActionListener;
 import org.opensearch.action.admin.cluster.state.ClusterStateRequest;
 import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
-import org.opensearch.action.admin.indices.flush.FlushRequest;
 import org.opensearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.opensearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.opensearch.action.search.CreatePitAction;
@@ -27,17 +26,15 @@ import org.opensearch.action.search.GetAllPitNodesResponse;
 import org.opensearch.action.search.GetAllPitsAction;
 import org.opensearch.action.search.PitTestsUtil;
 import org.opensearch.action.search.SearchResponse;
-import org.opensearch.client.Requests;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.action.ActionFuture;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.search.builder.PointInTimeBuilder;
 import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.OpenSearchIntegTestCase;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 import org.junit.After;
@@ -67,7 +64,7 @@ import static org.hamcrest.Matchers.containsString;
  * Multi node integration tests for PIT creation and search operation with PIT ID.
  */
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.SUITE, numDataNodes = 2)
-public class PitMultiNodeIT extends ParameterizedOpenSearchIntegTestCase {
+public class PitMultiNodeIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
     public PitMultiNodeIT(Settings settings) {
         super(settings);
     }
@@ -80,15 +77,11 @@ public class PitMultiNodeIT extends ParameterizedOpenSearchIntegTestCase {
         );
     }
 
-    @Override
-    protected Settings featureFlagSettings() {
-        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.CONCURRENT_SEGMENT_SEARCH, "true").build();
-    }
-
     @Before
     public void setupIndex() throws ExecutionException, InterruptedException {
         createIndex("index", Settings.builder().put("index.number_of_shards", 2).put("index.number_of_replicas", 0).build());
         client().prepareIndex("index").setId("1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).execute().get();
+        flush(); // clear the translog to ensure accurate stats
         ensureGreen();
     }
 
@@ -101,6 +94,7 @@ public class PitMultiNodeIT extends ParameterizedOpenSearchIntegTestCase {
         CreatePitRequest request = new CreatePitRequest(TimeValue.timeValueDays(1), true);
         request.setIndices(new String[] { "index" });
         indexRandomForConcurrentSearch("index");
+        flush(); // clear the translog to ensure accurate stats
         ActionFuture<CreatePitResponse> execute = client().execute(CreatePitAction.INSTANCE, request);
         CreatePitResponse pitResponse = execute.get();
         SearchResponse searchResponse = client().prepareSearch("index")
@@ -110,7 +104,7 @@ public class PitMultiNodeIT extends ParameterizedOpenSearchIntegTestCase {
         assertEquals(2, searchResponse.getSuccessfulShards());
         assertEquals(2, searchResponse.getTotalShards());
         validatePitStats("index", 2, 2);
-        PitTestsUtil.assertUsingGetAllPits(client(), pitResponse.getId(), pitResponse.getCreationTime());
+        PitTestsUtil.assertUsingGetAllPits(client(), pitResponse.getId(), pitResponse.getCreationTime(), TimeValue.timeValueDays(1));
         assertSegments(false, client(), pitResponse.getId());
     }
 
@@ -123,7 +117,12 @@ public class PitMultiNodeIT extends ParameterizedOpenSearchIntegTestCase {
                 ActionFuture<CreatePitResponse> execute = client().execute(CreatePitAction.INSTANCE, request);
                 ExecutionException ex = expectThrows(ExecutionException.class, execute::get);
                 assertTrue(ex.getMessage().contains("Failed to execute phase [create_pit]"));
-                validatePitStats("index", 0, 0);
+                // If the search must make a transport call to start the search then a
+                // PIT context may be temporarily created on a separate thread. The test
+                // will end up racing with the PIT decrement call and can very briefly
+                // observe non-zero PIT stats, so we poll here and wait for stats to eventually
+                // resolve to zero. In almost all cases the first call will observe zero stats.
+                assertBusy(() -> validatePitStats("index", 0, 0));
                 return super.onNodeStopped(nodeName);
             }
         });
@@ -137,7 +136,12 @@ public class PitMultiNodeIT extends ParameterizedOpenSearchIntegTestCase {
             public Settings onNodeStopped(String nodeName) throws Exception {
                 ActionFuture<CreatePitResponse> execute = client().execute(CreatePitAction.INSTANCE, request);
                 CreatePitResponse pitResponse = execute.get();
-                PitTestsUtil.assertUsingGetAllPits(client(), pitResponse.getId(), pitResponse.getCreationTime());
+                PitTestsUtil.assertUsingGetAllPits(
+                    client(),
+                    pitResponse.getId(),
+                    pitResponse.getCreationTime(),
+                    TimeValue.timeValueDays(1)
+                );
                 assertSegments(false, "index", 1, client(), pitResponse.getId());
                 assertEquals(1, pitResponse.getSuccessfulShards());
                 assertEquals(2, pitResponse.getTotalShards());
@@ -170,7 +174,12 @@ public class PitMultiNodeIT extends ParameterizedOpenSearchIntegTestCase {
                 assertEquals(0, searchResponse.getSkippedShards());
                 assertEquals(2, searchResponse.getTotalShards());
                 validatePitStats("index", 1, 1);
-                PitTestsUtil.assertUsingGetAllPits(client(), pitResponse.getId(), pitResponse.getCreationTime());
+                PitTestsUtil.assertUsingGetAllPits(
+                    client(),
+                    pitResponse.getId(),
+                    pitResponse.getCreationTime(),
+                    TimeValue.timeValueDays(1)
+                );
                 return super.onNodeStopped(nodeName);
             }
         });
@@ -362,9 +371,6 @@ public class PitMultiNodeIT extends ParameterizedOpenSearchIntegTestCase {
 
     public void validatePitStats(String index, long expectedPitCurrent, long expectedOpenContexts) throws ExecutionException,
         InterruptedException {
-        // Clear the index transaction log
-        FlushRequest flushRequest = Requests.flushRequest(index);
-        client().admin().indices().flush(flushRequest).get();
         // Test stats
         IndicesStatsRequest indicesStatsRequest = new IndicesStatsRequest();
         indicesStatsRequest.indices(index);
@@ -497,5 +503,4 @@ public class PitMultiNodeIT extends ParameterizedOpenSearchIntegTestCase {
             ThreadPool.terminate(testThreadPool, 500, TimeUnit.MILLISECONDS);
         }
     }
-
 }

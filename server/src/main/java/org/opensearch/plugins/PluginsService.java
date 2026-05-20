@@ -36,13 +36,13 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.DocValuesFormat;
+import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.PostingsFormat;
-import org.apache.lucene.util.SPIClassIterator;
 import org.opensearch.Build;
 import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
 import org.opensearch.action.admin.cluster.node.info.PluginsAndModules;
-import org.opensearch.bootstrap.JarHell;
+import org.opensearch.common.bootstrap.JarHell;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.inject.Module;
 import org.opensearch.common.lifecycle.LifecycleComponent;
@@ -52,6 +52,8 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.service.ReportingService;
 import org.opensearch.index.IndexModule;
+import org.opensearch.lucene.util.SPIClassIterator;
+import org.opensearch.semver.SemverRange;
 import org.opensearch.threadpool.ExecutorBuilder;
 import org.opensearch.transport.TransportSettings;
 
@@ -62,8 +64,6 @@ import java.net.URLClassLoader;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.security.AccessController;
-import java.security.PrivilegedAction;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -125,10 +125,48 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
      */
     public PluginsService(
         Settings settings,
-        Path configPath,
         Path modulesDirectory,
         Path pluginsDirectory,
         Collection<Class<? extends Plugin>> classpathPlugins
+    ) {
+        // Used for testing
+        this(
+            settings,
+            null,
+            modulesDirectory,
+            pluginsDirectory,
+            classpathPlugins.stream()
+                .map(
+                    p -> new PluginInfo(
+                        p.getName(),
+                        "classpath plugin",
+                        "NA",
+                        Version.CURRENT,
+                        "1.8",
+                        p.getName(),
+                        null,
+                        Collections.emptyList(),
+                        false
+                    )
+                )
+                .collect(Collectors.toList())
+        );
+    }
+
+    /**
+     * Constructs a new PluginService
+     * @param settings The settings of the system
+     * @param modulesDirectory The directory modules exist in, or null if modules should not be loaded from the filesystem
+     * @param pluginsDirectory The directory plugins exist in, or null if plugins should not be loaded from the filesystem
+     * @param classpathPlugins Plugins that exist in the classpath which should be loaded
+     */
+    @SuppressWarnings("unchecked")
+    public PluginsService(
+        Settings settings,
+        Path configPath,
+        Path modulesDirectory,
+        Path pluginsDirectory,
+        Collection<PluginInfo> classpathPlugins
     ) {
         this.settings = settings;
         this.configPath = configPath;
@@ -138,25 +176,19 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         // we need to build a List of plugins for checking mandatory plugins
         final List<String> pluginsNames = new ArrayList<>();
         // first we load plugins that are on the classpath. this is for tests
-        for (Class<? extends Plugin> pluginClass : classpathPlugins) {
-            Plugin plugin = loadPlugin(pluginClass, settings, configPath);
-            PluginInfo pluginInfo = new PluginInfo(
-                pluginClass.getName(),
-                "classpath plugin",
-                "NA",
-                Version.CURRENT,
-                "1.8",
-                pluginClass.getName(),
-                null,
-                Collections.emptyList(),
-                false
-            );
-            if (logger.isTraceEnabled()) {
-                logger.trace("plugin loaded from classpath [{}]", pluginInfo);
+        for (PluginInfo pluginInfo : classpathPlugins) {
+            try {
+                Class<? extends Plugin> pluginClazz = (Class<? extends Plugin>) Class.forName(pluginInfo.getClassname());
+                Plugin plugin = loadPlugin(pluginClazz, settings, configPath);
+                if (logger.isTraceEnabled()) {
+                    logger.trace("plugin loaded from classpath [{}]", pluginInfo);
+                }
+                pluginsLoaded.add(new Tuple<>(pluginInfo, plugin));
+                pluginsList.add(pluginInfo);
+                pluginsNames.add(pluginInfo.getName());
+            } catch (ClassNotFoundException e) {
+                logger.error("Failed to load classpath plugin: " + pluginInfo.getClassname());
             }
-            pluginsLoaded.add(new Tuple<>(pluginInfo, plugin));
-            pluginsList.add(pluginInfo);
-            pluginsNames.add(pluginInfo.getName());
         }
 
         Set<Bundle> seenBundles = new LinkedHashSet<>();
@@ -194,6 +226,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
 
         List<Tuple<PluginInfo, Plugin>> loaded = loadBundles(seenBundles);
         pluginsLoaded.addAll(loaded);
+        loadExtensions(pluginsLoaded);
 
         this.info = new PluginsAndModules(pluginsList, modulesList);
         this.plugins = Collections.unmodifiableList(pluginsLoaded);
@@ -323,11 +356,13 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
     static class Bundle {
         final PluginInfo plugin;
         final Set<URL> urls;
+        /** URLs from {@code plugins/lib/<name>/} only — the public API surface exposed to extending plugins. */
+        final Set<URL> libUrls;
 
         Bundle(PluginInfo plugin, Path dir) throws IOException {
             this.plugin = Objects.requireNonNull(plugin);
             Set<URL> urls = new LinkedHashSet<>();
-            // gather urls for jar files
+            // gather urls for jar files in the plugin directory
             try (DirectoryStream<Path> jarStream = Files.newDirectoryStream(dir, "*.jar")) {
                 for (Path jar : jarStream) {
                     // normalize with toRealPath to get symlinks out of our hair
@@ -337,7 +372,26 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
                     }
                 }
             }
+            // also gather jars from plugins/lib/<plugin_name>/ if it exists.
+            // opensearch-plugin installs shared library jars there when a plugin zip
+            // contains a top-level lib/ directory.
+            Set<URL> libUrls = new LinkedHashSet<>();
+            if (dir.getParent() != null) {
+                Path sharedLibDir = dir.getParent().resolve("lib").resolve(dir.getFileName());
+                if (Files.isDirectory(sharedLibDir)) {
+                    try (DirectoryStream<Path> jarStream = Files.newDirectoryStream(sharedLibDir, "*.jar")) {
+                        for (Path jar : jarStream) {
+                            URL url = jar.toRealPath().toUri().toURL();
+                            libUrls.add(url);
+                            if (urls.add(url) == false) {
+                                throw new IllegalStateException("duplicate codebase: " + url);
+                            }
+                        }
+                    }
+                }
+            }
             this.urls = Objects.requireNonNull(urls);
+            this.libUrls = Collections.unmodifiableSet(libUrls);
         }
 
         @Override
@@ -354,6 +408,50 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         }
     }
 
+    public static void checkJarHellForPlugin(
+        Set<URL> classpath,
+        PluginInfo candidateInfo,
+        Path candidateDir,
+        Path pluginsDir,
+        Path modulesDir
+    ) throws Exception {
+        Set<Bundle> bundles = new HashSet<>(getPluginBundles(pluginsDir));
+        bundles.addAll(getModuleBundles(modulesDir));
+        bundles.add(new Bundle(candidateInfo, candidateDir));
+
+        List<Bundle> sortedBundles = sortBundles(bundles);
+        Map<String, Set<URL>> transitiveUrls = new HashMap<>();
+        for (Bundle bundle : sortedBundles) {
+            checkBundleJarHell(classpath, bundle, transitiveUrls);
+        }
+    }
+
+    /**
+     * Finds plugins that depend on the given plugin.
+     *
+     * @param pluginsDir the plugins directory
+     * @param pluginName the plugin name to find dependents for
+     * @return a Tuple where v1() is the list of plugins with required dependencies,
+     *         and v2() is the list of plugins with optional dependencies
+     */
+    public static Tuple<List<String>, List<String>> findPluginsByDependency(Path pluginsDir, String pluginName) throws IOException {
+        List<String> requiredBy = new ArrayList<>();
+        List<String> optionallyExtendedBy = new ArrayList<>();
+        Set<Bundle> bundles = getPluginBundles(pluginsDir);
+        for (Bundle bundle : bundles) {
+            for (String extendedPlugin : bundle.plugin.getExtendedPlugins()) {
+                if (extendedPlugin.equals(pluginName)) {
+                    if (bundle.plugin.isExtendedPluginOptional(extendedPlugin)) {
+                        optionallyExtendedBy.add(bundle.plugin.getName());
+                    } else {
+                        requiredBy.add(bundle.plugin.getName());
+                    }
+                }
+            }
+        }
+        return new Tuple<>(requiredBy, optionallyExtendedBy);
+    }
+
     /**
      * Extracts all installed plugin directories from the provided {@code rootPath}.
      *
@@ -367,6 +465,10 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         if (Files.exists(rootPath)) {
             try (DirectoryStream<Path> stream = Files.newDirectoryStream(rootPath)) {
                 for (Path plugin : stream) {
+                    // skip the reserved lib/ subdirectory used for shared library jars
+                    if ("lib".equals(plugin.getFileName().toString()) && Files.isDirectory(plugin)) {
+                        continue;
+                    }
                     if (plugin.getFileName().toString().startsWith(".") && !Files.isDirectory(plugin)) {
                         logger.warn(
                             "Non-plugin file located in the plugins folder with the following name: [" + plugin.getFileName() + "]"
@@ -386,13 +488,13 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
     /**
      * Verify the given plugin is compatible with the current OpenSearch installation.
      */
-    static void verifyCompatibility(PluginInfo info) {
-        if (info.getOpenSearchVersion().equals(Version.CURRENT) == false) {
+    public static void verifyCompatibility(PluginInfo info) {
+        if (!isPluginVersionCompatible(info, Version.CURRENT)) {
             throw new IllegalArgumentException(
                 "Plugin ["
                     + info.getName()
                     + "] was built for OpenSearch version "
-                    + info.getOpenSearchVersion()
+                    + info.getOpenSearchVersionRangesString()
                     + " but version "
                     + Version.CURRENT
                     + " is running"
@@ -401,7 +503,17 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         JarHell.checkJavaVersion(info.getName(), info.getJavaVersion());
     }
 
-    static void checkForFailedPluginRemovals(final Path pluginsDirectory) throws IOException {
+    public static boolean isPluginVersionCompatible(final PluginInfo pluginInfo, final Version coreVersion) {
+        // Core version must satisfy the semver range in plugin info
+        for (SemverRange range : pluginInfo.getOpenSearchVersionRanges()) {
+            if (!range.isSatisfiedBy(coreVersion)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    public static void checkForFailedPluginRemovals(final Path pluginsDirectory) throws IOException {
         /*
          * Check for the existence of a marker file that indicates any plugins are in a garbage state from a failed attempt to remove the
          * plugin.
@@ -512,7 +624,13 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         for (String dependency : bundle.plugin.getExtendedPlugins()) {
             Bundle depBundle = bundles.get(dependency);
             if (depBundle == null) {
-                throw new IllegalArgumentException("Missing plugin [" + dependency + "], dependency of [" + name + "]");
+                if (bundle.plugin.isExtendedPluginOptional(dependency)) {
+                    logger.warn("Missing plugin [" + dependency + "], dependency of [" + name + "]");
+                    logger.warn("Some features of this plugin may not function without the dependencies being installed.\n");
+                    continue;
+                } else {
+                    throw new IllegalArgumentException("Missing plugin [" + dependency + "], dependency of [" + name + "]");
+                }
             }
             addSortedBundle(depBundle, bundles, sortedBundles, dependencyStack);
             assert sortedBundles.contains(depBundle);
@@ -526,15 +644,16 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         List<Tuple<PluginInfo, Plugin>> plugins = new ArrayList<>();
         Map<String, Plugin> loaded = new HashMap<>();
         Map<String, Set<URL>> transitiveUrls = new HashMap<>();
+        // tracks a lib-only classloader per plugin name, used as the parent for extending plugins
+        Map<String, ClassLoader> libLoaders = new HashMap<>();
         List<Bundle> sortedBundles = sortBundles(bundles);
         for (Bundle bundle : sortedBundles) {
             checkBundleJarHell(JarHell.parseClassPath(), bundle, transitiveUrls);
 
-            final Plugin plugin = loadBundle(bundle, loaded);
+            final Plugin plugin = loadBundle(bundle, loaded, libLoaders);
             plugins.add(new Tuple<>(bundle.plugin, plugin));
         }
 
-        loadExtensions(plugins);
         return Collections.unmodifiableList(plugins);
     }
 
@@ -544,9 +663,9 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
             .flatMap(t -> t.v1().getExtendedPlugins().stream().map(extendedPlugin -> Tuple.tuple(extendedPlugin, t.v2())))
             .collect(Collectors.groupingBy(Tuple::v1, Collectors.mapping(Tuple::v2, Collectors.toList())));
         for (Tuple<PluginInfo, Plugin> pluginTuple : plugins) {
-            if (pluginTuple.v2() instanceof ExtensiblePlugin) {
+            if (pluginTuple.v2() instanceof ExtensiblePlugin extensiblePlugin) {
                 loadExtensionsForPlugin(
-                    (ExtensiblePlugin) pluginTuple.v2(),
+                    extensiblePlugin,
                     extendingPluginsByName.getOrDefault(pluginTuple.v1().getName(), Collections.emptyList())
                 );
             }
@@ -641,13 +760,19 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
             Set<URL> urls = new HashSet<>();
             for (String extendedPlugin : exts) {
                 Set<URL> pluginUrls = transitiveUrls.get(extendedPlugin);
+                if (bundle.plugin.isExtendedPluginOptional(extendedPlugin)) {
+                    continue;
+                }
                 assert pluginUrls != null : "transitive urls should have already been set for " + extendedPlugin;
 
                 Set<URL> intersection = new HashSet<>(urls);
                 intersection.retainAll(pluginUrls);
                 if (intersection.isEmpty() == false) {
-                    throw new IllegalStateException(
-                        "jar hell! extended plugins " + exts + " have duplicate codebases with each other: " + intersection
+                    logger.info(
+                        "Plugin [{}] extends multiple plugins/modules that share common dependencies: {}. "
+                            + "This is expected when extended plugins share common ancestors.",
+                        bundle.plugin.getName(),
+                        intersection
                     );
                 }
 
@@ -682,25 +807,42 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         }
     }
 
-    private Plugin loadBundle(Bundle bundle, Map<String, Plugin> loaded) {
+    @SuppressWarnings("removal")
+    private Plugin loadBundle(Bundle bundle, Map<String, Plugin> loaded, Map<String, ClassLoader> libLoaders) {
         String name = bundle.plugin.getName();
 
         verifyCompatibility(bundle.plugin);
 
-        // collect loaders of extended plugins
+        // collect lib-only loaders of extended plugins as parents.
+        // this exposes only the SPI jars (plugins/lib/<name>/) of each extended plugin,
+        // not the full implementation classloader, so extending plugins cannot accidentally
+        // depend on internal implementation classes of the plugin they extend.
         List<ClassLoader> extendedLoaders = new ArrayList<>();
         for (String extendedPluginName : bundle.plugin.getExtendedPlugins()) {
             Plugin extendedPlugin = loaded.get(extendedPluginName);
+            if (extendedPlugin == null && bundle.plugin.isExtendedPluginOptional(extendedPluginName)) {
+                // extended plugin is optional and is not installed
+                continue;
+            }
             assert extendedPlugin != null;
             if (ExtensiblePlugin.class.isInstance(extendedPlugin) == false) {
                 throw new IllegalStateException("Plugin [" + name + "] cannot extend non-extensible plugin [" + extendedPluginName + "]");
             }
-            extendedLoaders.add(extendedPlugin.getClass().getClassLoader());
+            // prefer the lib-only classloader if the extended plugin has one; fall back to its full classloader
+            ClassLoader extLoader = libLoaders.getOrDefault(extendedPluginName, extendedPlugin.getClass().getClassLoader());
+            extendedLoaders.add(extLoader);
         }
 
         // create a child to load the plugin in this bundle
         ClassLoader parentLoader = PluginLoaderIndirection.createLoader(getClass().getClassLoader(), extendedLoaders);
         ClassLoader loader = URLClassLoader.newInstance(bundle.urls.toArray(new URL[0]), parentLoader);
+
+        // if this plugin has lib jars, build a scoped classloader containing only those jars
+        // so that plugins extending this one see only the public API surface
+        if (bundle.libUrls.isEmpty() == false) {
+            ClassLoader libParent = PluginLoaderIndirection.createLoader(getClass().getClassLoader(), extendedLoaders);
+            libLoaders.put(name, URLClassLoader.newInstance(bundle.libUrls.toArray(new URL[0]), libParent));
+        }
 
         // reload SPI with any new services from the plugin
         reloadLuceneSPI(loader);
@@ -710,10 +852,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
             // Set context class loader to plugin's class loader so that plugins
             // that have dependencies with their own SPI endpoints have a chance to load
             // and initialize them appropriately.
-            AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-                Thread.currentThread().setContextClassLoader(loader);
-                return null;
-            });
+            Thread.currentThread().setContextClassLoader(loader);
 
             logger.debug("Loading plugin [" + name + "]...");
             Class<? extends Plugin> pluginClass = loadPluginClass(bundle.plugin.getClassname(), loader);
@@ -732,10 +871,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
             loaded.put(name, plugin);
             return plugin;
         } finally {
-            AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-                Thread.currentThread().setContextClassLoader(cl);
-                return null;
-            });
+            Thread.currentThread().setContextClassLoader(cl);
         }
     }
 
@@ -750,6 +886,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         // Codecs:
         PostingsFormat.reloadPostingsFormats(loader);
         DocValuesFormat.reloadDocValuesFormats(loader);
+        KnnVectorsFormat.reloadKnnVectorsFormat(loader);
         Codec.reloadCodecs(loader);
     }
 

@@ -1,7 +1,7 @@
 {
   "indices.split":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/indices-split-index.html",
+      "url":"https://opensearch.org/docs/latest/api-reference/index-apis/split/",
       "description":"Allows you to split an existing index into a new index with more primary shards."
     },
     "stability":"stable",

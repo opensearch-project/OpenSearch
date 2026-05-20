@@ -9,6 +9,7 @@
 package org.opensearch.index.translog;
 
 import org.opensearch.index.remote.RemoteTranslogTransferTracker;
+import org.opensearch.indices.RemoteStoreSettings;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
 import org.opensearch.repositories.RepositoryMissingException;
@@ -34,11 +35,17 @@ public class RemoteBlobStoreInternalTranslogFactory implements TranslogFactory {
 
     private final RemoteTranslogTransferTracker remoteTranslogTransferTracker;
 
+    private final RemoteStoreSettings remoteStoreSettings;
+
+    private final boolean isServerSideEncryptionEnabled;
+
     public RemoteBlobStoreInternalTranslogFactory(
         Supplier<RepositoriesService> repositoriesServiceSupplier,
         ThreadPool threadPool,
         String repositoryName,
-        RemoteTranslogTransferTracker remoteTranslogTransferTracker
+        RemoteTranslogTransferTracker remoteTranslogTransferTracker,
+        RemoteStoreSettings remoteStoreSettings,
+        boolean isServerSideEncryptionEnabled
     ) {
         Repository repository;
         try {
@@ -49,6 +56,8 @@ public class RemoteBlobStoreInternalTranslogFactory implements TranslogFactory {
         this.repository = repository;
         this.threadPool = threadPool;
         this.remoteTranslogTransferTracker = remoteTranslogTransferTracker;
+        this.remoteStoreSettings = remoteStoreSettings;
+        this.isServerSideEncryptionEnabled = isServerSideEncryptionEnabled;
     }
 
     @Override
@@ -59,23 +68,70 @@ public class RemoteBlobStoreInternalTranslogFactory implements TranslogFactory {
         LongSupplier globalCheckpointSupplier,
         LongSupplier primaryTermSupplier,
         LongConsumer persistedSequenceNumberConsumer,
-        BooleanSupplier primaryModeSupplier
+        BooleanSupplier startedPrimarySupplier
     ) throws IOException {
-
-        assert repository instanceof BlobStoreRepository : "repository should be instance of BlobStoreRepository";
-        BlobStoreRepository blobStoreRepository = ((BlobStoreRepository) repository);
-        return new RemoteFsTranslog(
+        assert config.getIndexSettings().isDerivedSourceEnabled() == false; // For derived source supported index, primary method must be
+                                                                            // used
+        return this.newTranslog(
             config,
             translogUUID,
             deletionPolicy,
             globalCheckpointSupplier,
             primaryTermSupplier,
             persistedSequenceNumberConsumer,
-            blobStoreRepository,
-            threadPool,
-            primaryModeSupplier,
-            remoteTranslogTransferTracker
+            startedPrimarySupplier,
+            TranslogOperationHelper.DEFAULT
         );
+    }
+
+    @Override
+    public Translog newTranslog(
+        TranslogConfig config,
+        String translogUUID,
+        TranslogDeletionPolicy deletionPolicy,
+        LongSupplier globalCheckpointSupplier,
+        LongSupplier primaryTermSupplier,
+        LongConsumer persistedSequenceNumberConsumer,
+        BooleanSupplier startedPrimarySupplier,
+        TranslogOperationHelper translogOperationHelper
+    ) throws IOException {
+
+        assert repository instanceof BlobStoreRepository : "repository should be instance of BlobStoreRepository";
+        BlobStoreRepository blobStoreRepository = ((BlobStoreRepository) repository);
+        if (RemoteStoreSettings.isPinnedTimestampsEnabled()) {
+            return new RemoteFsTimestampAwareTranslog(
+                config,
+                translogUUID,
+                deletionPolicy,
+                globalCheckpointSupplier,
+                primaryTermSupplier,
+                persistedSequenceNumberConsumer,
+                blobStoreRepository,
+                threadPool,
+                startedPrimarySupplier,
+                remoteTranslogTransferTracker,
+                remoteStoreSettings,
+                translogOperationHelper,
+                isServerSideEncryptionEnabled
+            );
+        } else {
+            return new RemoteFsTranslog(
+                config,
+                translogUUID,
+                deletionPolicy,
+                globalCheckpointSupplier,
+                primaryTermSupplier,
+                persistedSequenceNumberConsumer,
+                blobStoreRepository,
+                threadPool,
+                startedPrimarySupplier,
+                remoteTranslogTransferTracker,
+                remoteStoreSettings,
+                translogOperationHelper,
+                null,
+                isServerSideEncryptionEnabled
+            );
+        }
     }
 
     public Repository getRepository() {

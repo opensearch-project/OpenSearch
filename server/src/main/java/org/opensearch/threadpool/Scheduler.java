@@ -302,7 +302,7 @@ public interface Scheduler {
             if (t != null) return;
             // Scheduler only allows Runnable's so we expect no checked exceptions here. If anyone uses submit directly on `this`, we
             // accept the wrapped exception in the output.
-            if (r instanceof RunnableFuture && ((RunnableFuture<?>) r).isDone()) {
+            if (r instanceof RunnableFuture<?> runnableFuture && runnableFuture.isDone()) {
                 // only check this if task is done, which it always is except for periodic tasks. Periodic tasks will hang on
                 // RunnableFuture.get()
                 ExceptionsHelper.reThrowIfNotNull(OpenSearchExecutors.rethrowErrors(r));

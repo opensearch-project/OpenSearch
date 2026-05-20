@@ -128,6 +128,7 @@ public class RangeAggregationBuilderTests extends AbstractSerializingTestCase<Ra
         );
         assertThat(builder.getName(), equalTo("test"));
         assertThat(builder.field(), equalTo("f"));
+        assertThat(builder.fieldName(), equalTo("f"));
         assertThat(builder.ranges, equalTo(List.of(new RangeAggregator.Range("1", null, 0d))));
     }
 }

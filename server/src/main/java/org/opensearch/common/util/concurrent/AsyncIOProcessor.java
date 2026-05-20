@@ -32,6 +32,7 @@
 package org.opensearch.common.util.concurrent;
 
 import org.apache.logging.log4j.Logger;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.collect.Tuple;
 
 import java.io.IOException;
@@ -50,8 +51,9 @@ import java.util.function.Supplier;
  * hijack a worker if nobody else is currently processing queued items. If the internal queue has reached it's capacity incoming threads
  * might be blocked until other items are processed
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public abstract class AsyncIOProcessor<Item> {
     private final Logger logger;
     private final ArrayBlockingQueue<Tuple<Item, Consumer<Exception>>> queue;

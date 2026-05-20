@@ -1,7 +1,7 @@
 {
   "remote_store.restore":{
     "documentation":{
-      "url": "https://opensearch.org/docs/latest/opensearch/rest-api/remote-store#restore",
+      "url": "https://opensearch.org/docs/latest/tuning-your-cluster/availability-and-recovery/remote-store/index/#restoring-from-a-backup",
       "description":"Restores from remote store."
     },
     "stability":"experimental",

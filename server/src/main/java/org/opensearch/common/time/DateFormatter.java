@@ -32,6 +32,7 @@
 
 package org.opensearch.common.time;
 
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.Strings;
 import org.joda.time.DateTime;
 
@@ -49,8 +50,9 @@ import java.util.stream.Collectors;
 /**
  * Base Date formatter
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public interface DateFormatter {
 
     /**

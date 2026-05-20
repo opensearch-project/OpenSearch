@@ -32,6 +32,7 @@
 
 package org.opensearch.search.aggregations.support;
 
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.script.AggregationScript;
 import org.opensearch.search.DocValueFormat;
 
@@ -58,8 +59,9 @@ import java.util.function.LongSupplier;
  * a sum aggregation).  When adding a new ValuesSourceType, new aggregators should be added and registered at the same time, to add support
  * for the new type to existing aggregations, as appropriate.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public interface ValuesSourceType {
     /**
      * Called when an aggregation is operating over a known empty set (usually because the field isn't specified), this method allows for

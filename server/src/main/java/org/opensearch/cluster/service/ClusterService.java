@@ -32,6 +32,7 @@
 
 package org.opensearch.cluster.service;
 
+import org.opensearch.cluster.ClusterManagerMetrics;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateApplier;
@@ -40,11 +41,12 @@ import org.opensearch.cluster.ClusterStateTaskConfig;
 import org.opensearch.cluster.ClusterStateTaskExecutor;
 import org.opensearch.cluster.ClusterStateTaskListener;
 import org.opensearch.cluster.LocalNodeClusterManagerListener;
-import org.opensearch.cluster.LocalNodeMasterListener;
 import org.opensearch.cluster.NodeConnectionsService;
+import org.opensearch.cluster.StreamNodeConnectionsService;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.OperationRouting;
 import org.opensearch.cluster.routing.RerouteService;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
@@ -52,6 +54,7 @@ import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.IndexingPressureService;
 import org.opensearch.node.Node;
+import org.opensearch.telemetry.metrics.noop.NoopMetricsRegistry;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.util.Collections;
@@ -60,8 +63,9 @@ import java.util.Map;
 /**
  * Main Cluster Service
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class ClusterService extends AbstractLifecycleComponent {
     private final ClusterManagerService clusterManagerService;
 
@@ -90,11 +94,20 @@ public class ClusterService extends AbstractLifecycleComponent {
     private IndexingPressureService indexingPressureService;
 
     public ClusterService(Settings settings, ClusterSettings clusterSettings, ThreadPool threadPool) {
+        this(settings, clusterSettings, threadPool, new ClusterManagerMetrics(NoopMetricsRegistry.INSTANCE));
+    }
+
+    public ClusterService(
+        Settings settings,
+        ClusterSettings clusterSettings,
+        ThreadPool threadPool,
+        ClusterManagerMetrics clusterManagerMetrics
+    ) {
         this(
             settings,
             clusterSettings,
-            new ClusterManagerService(settings, clusterSettings, threadPool),
-            new ClusterApplierService(Node.NODE_NAME_SETTING.get(settings), settings, clusterSettings, threadPool)
+            new ClusterManagerService(settings, clusterSettings, threadPool, clusterManagerMetrics),
+            new ClusterApplierService(Node.NODE_NAME_SETTING.get(settings), settings, clusterSettings, threadPool, clusterManagerMetrics)
         );
     }
 
@@ -117,6 +130,10 @@ public class ClusterService extends AbstractLifecycleComponent {
 
     public synchronized void setNodeConnectionsService(NodeConnectionsService nodeConnectionsService) {
         clusterApplierService.setNodeConnectionsService(nodeConnectionsService);
+    }
+
+    public synchronized void setStreamNodeConnectionsService(StreamNodeConnectionsService streamNodeConnectionsService) {
+        clusterApplierService.setStreamNodeConnectionsService(streamNodeConnectionsService);
     }
 
     public void setRerouteService(RerouteService rerouteService) {
@@ -171,6 +188,21 @@ public class ClusterService extends AbstractLifecycleComponent {
     }
 
     /**
+     * Returns true if the state in appliedClusterState is not null
+     */
+    public boolean isStateInitialised() {
+        return clusterApplierService.isStateInitialised();
+    }
+
+    /**
+     * The state that is persisted to store but may not be applied to cluster.
+     * @return ClusterState
+     */
+    public ClusterState preCommitState() {
+        return clusterApplierService.preCommitState();
+    }
+
+    /**
      * Adds a high priority applier of updated cluster states.
      */
     public void addHighPriorityApplier(ClusterStateApplier applier) {
@@ -219,22 +251,7 @@ public class ClusterService extends AbstractLifecycleComponent {
         clusterApplierService.addLocalNodeClusterManagerListener(listener);
     }
 
-    /**
-     * Add a listener for on/off local node cluster-manager events
-     * @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #addLocalNodeClusterManagerListener}
-     */
-    @Deprecated
-    public void addLocalNodeMasterListener(LocalNodeMasterListener listener) {
-        addLocalNodeClusterManagerListener(listener);
-    }
-
     public ClusterManagerService getClusterManagerService() {
-        return clusterManagerService;
-    }
-
-    /** @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #getClusterManagerService()} */
-    @Deprecated
-    public MasterService getMasterService() {
         return clusterManagerService;
     }
 
@@ -263,12 +280,6 @@ public class ClusterService extends AbstractLifecycleComponent {
         return true;
     }
 
-    /** @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #assertClusterOrClusterManagerStateThread} */
-    @Deprecated
-    public static boolean assertClusterOrMasterStateThread() {
-        return assertClusterOrClusterManagerStateThread();
-    }
-
     public ClusterName getClusterName() {
         return clusterName;
     }
@@ -294,12 +305,12 @@ public class ClusterService extends AbstractLifecycleComponent {
     /**
      * Functionality for register task key to cluster manager node.
      *
-     * @param taskKey - task key of task
+     * @param task - cluster manager task
      * @param throttlingEnabled - throttling is enabled for task or not i.e does data node perform retries on it or not
      * @return throttling task key which needs to be passed while submitting task to cluster manager
      */
-    public ClusterManagerTaskThrottler.ThrottlingKey registerClusterManagerTask(String taskKey, boolean throttlingEnabled) {
-        return clusterManagerService.registerClusterManagerTask(taskKey, throttlingEnabled);
+    public ClusterManagerTaskThrottler.ThrottlingKey registerClusterManagerTask(ClusterManagerTask task, boolean throttlingEnabled) {
+        return clusterManagerService.registerClusterManagerTask(task, throttlingEnabled);
     }
 
     /**

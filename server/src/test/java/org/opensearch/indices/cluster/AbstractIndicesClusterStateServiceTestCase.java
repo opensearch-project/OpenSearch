@@ -35,6 +35,7 @@ package org.opensearch.indices.cluster;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.IndexShardRoutingTable;
 import org.opensearch.cluster.routing.RoutingNode;
 import org.opensearch.cluster.routing.ShardRouting;
@@ -46,6 +47,7 @@ import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
+import org.opensearch.index.engine.MergedSegmentWarmerFactory;
 import org.opensearch.index.remote.RemoteStoreStatsTrackerFactory;
 import org.opensearch.index.seqno.RetentionLeaseSyncer;
 import org.opensearch.index.shard.IndexEventListener;
@@ -59,6 +61,8 @@ import org.opensearch.indices.cluster.IndicesClusterStateService.Shard;
 import org.opensearch.indices.recovery.PeerRecoveryTargetService;
 import org.opensearch.indices.recovery.RecoveryListener;
 import org.opensearch.indices.recovery.RecoveryState;
+import org.opensearch.indices.replication.checkpoint.MergedSegmentPublisher;
+import org.opensearch.indices.replication.checkpoint.ReferencedSegmentsPublisher;
 import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.test.OpenSearchTestCase;
@@ -264,7 +268,11 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends OpenSea
             final RetentionLeaseSyncer retentionLeaseSyncer,
             final DiscoveryNode targetNode,
             final DiscoveryNode sourceNode,
-            final RemoteStoreStatsTrackerFactory remoteStoreStatsTrackerFactory
+            final RemoteStoreStatsTrackerFactory remoteStoreStatsTrackerFactory,
+            final DiscoveryNodes discoveryNodes,
+            final MergedSegmentWarmerFactory mergedSegmentWarmerFactory,
+            final MergedSegmentPublisher mergedSegmentPublisher,
+            final ReferencedSegmentsPublisher referencedSegmentsPublisher
         ) throws IOException {
             failRandomly();
             RecoveryState recoveryState = new RecoveryState(shardRouting, targetNode, sourceNode);
@@ -387,7 +395,8 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends OpenSea
             BiConsumer<IndexShard, ActionListener<ResyncTask>> primaryReplicaSyncer,
             long applyingClusterStateVersion,
             Set<String> inSyncAllocationIds,
-            IndexShardRoutingTable routingTable
+            IndexShardRoutingTable routingTable,
+            DiscoveryNodes discoveryNodes
         ) throws IOException {
             failRandomly();
             assertThat(this.shardId(), equalTo(shardRouting.shardId()));

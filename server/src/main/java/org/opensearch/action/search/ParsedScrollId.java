@@ -32,13 +32,16 @@
 
 package org.opensearch.action.search;
 
+import org.opensearch.common.annotation.PublicApi;
+
 import java.util.Arrays;
 
 /**
  * Search scroll id that has been parsed
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class ParsedScrollId {
 
     public static final String QUERY_THEN_FETCH_TYPE = "queryThenFetch";
@@ -50,11 +53,13 @@ public class ParsedScrollId {
     private final String type;
 
     private final SearchContextIdForNode[] context;
+    private final String[] originalIndices;
 
-    ParsedScrollId(String source, String type, SearchContextIdForNode[] context) {
+    ParsedScrollId(String source, String type, SearchContextIdForNode[] context, String[] originalIndices) {
         this.source = source;
         this.type = type;
         this.context = context;
+        this.originalIndices = originalIndices;
     }
 
     public String getSource() {
@@ -67,6 +72,10 @@ public class ParsedScrollId {
 
     public SearchContextIdForNode[] getContext() {
         return context;
+    }
+
+    public String[] getOriginalIndices() {
+        return originalIndices;
     }
 
     public boolean hasLocalIndices() {

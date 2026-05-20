@@ -32,14 +32,9 @@
 
 package org.opensearch.action.admin.indices.forcemerge;
 
-import org.opensearch.client.node.NodeClient;
-import org.opensearch.common.xcontent.json.JsonXContent;
-import org.opensearch.core.common.bytes.BytesArray;
-import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.action.admin.indices.RestForceMergeAction;
-import org.opensearch.test.rest.FakeRestChannel;
 import org.opensearch.test.rest.FakeRestRequest;
 import org.opensearch.test.rest.RestActionTestCase;
 import org.junit.Before;
@@ -47,28 +42,11 @@ import org.junit.Before;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.hamcrest.Matchers.equalTo;
-import static org.mockito.Mockito.mock;
-
 public class RestForceMergeActionTests extends RestActionTestCase {
 
     @Before
     public void setUpAction() {
         controller().registerHandler(new RestForceMergeAction());
-    }
-
-    public void testBodyRejection() throws Exception {
-        final RestForceMergeAction handler = new RestForceMergeAction();
-        String json = JsonXContent.contentBuilder().startObject().field("max_num_segments", 1).endObject().toString();
-        final FakeRestRequest request = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withContent(
-            new BytesArray(json),
-            MediaTypeRegistry.JSON
-        ).withPath("/_forcemerge").build();
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> handler.handleRequest(request, new FakeRestChannel(request, randomBoolean(), 1), mock(NodeClient.class))
-        );
-        assertThat(e.getMessage(), equalTo("request [GET /_forcemerge] does not support having a body"));
     }
 
     public void testDeprecationMessage() {

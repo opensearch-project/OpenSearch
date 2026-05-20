@@ -48,6 +48,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.join.BitSetProducer;
@@ -95,7 +96,7 @@ final class ShardSplittingQuery extends Query {
             }
 
             @Override
-            public Scorer scorer(LeafReaderContext context) throws IOException {
+            public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
                 LeafReader leafReader = context.reader();
                 FixedBitSet bitSet = new FixedBitSet(leafReader.maxDoc());
                 Terms terms = leafReader.terms(RoutingFieldMapper.NAME);
@@ -130,7 +131,8 @@ final class ShardSplittingQuery extends Query {
                         TwoPhaseIterator twoPhaseIterator = parentBitSet == null
                             ? new RoutingPartitionedDocIdSetIterator(visitor)
                             : new NestedRoutingPartitionedDocIdSetIterator(visitor, parentBitSet);
-                        return new ConstantScoreScorer(this, score(), scoreMode, twoPhaseIterator);
+                        final Scorer scorer = new ConstantScoreScorer(score(), scoreMode, twoPhaseIterator);
+                        return new DefaultScorerSupplier(scorer);
                     } else {
                         // here we potentially guard the docID consumers with our parent bitset if we have one.
                         // this ensures that we are only marking root documents in the nested case and if necessary
@@ -171,7 +173,8 @@ final class ShardSplittingQuery extends Query {
                     }
                 }
 
-                return new ConstantScoreScorer(this, score(), scoreMode, new BitSetIterator(bitSet, bitSet.length()));
+                final Scorer scorer = new ConstantScoreScorer(score(), scoreMode, new BitSetIterator(bitSet, bitSet.length()));
+                return new DefaultScorerSupplier(scorer);
             }
 
             @Override

@@ -54,6 +54,7 @@ import org.opensearch.rest.action.admin.indices.RestIndexPutAliasAction;
 import org.opensearch.rest.action.admin.indices.RestRefreshAction;
 import org.opensearch.rest.action.admin.indices.RestUpdateSettingsAction;
 import org.opensearch.rest.action.document.RestBulkAction;
+import org.opensearch.rest.action.document.RestBulkStreamingAction;
 import org.opensearch.rest.action.document.RestDeleteAction;
 import org.opensearch.rest.action.document.RestGetAction;
 import org.opensearch.rest.action.document.RestIndexAction;
@@ -125,8 +126,9 @@ public class OpenSearchDashboardsModulePlugin extends Plugin implements SystemIn
                 // apis needed to access saved objects
                 new OpenSearchDashboardsWrappedRestHandler(new RestGetAction()),
                 new OpenSearchDashboardsWrappedRestHandler(new RestMultiGetAction(settings)),
-                new OpenSearchDashboardsWrappedRestHandler(new RestSearchAction()),
+                new OpenSearchDashboardsWrappedRestHandler(new RestSearchAction(clusterSettings)),
                 new OpenSearchDashboardsWrappedRestHandler(new RestBulkAction(settings)),
+                new OpenSearchDashboardsWrappedRestHandler(new RestBulkStreamingAction(settings)),
                 new OpenSearchDashboardsWrappedRestHandler(new RestDeleteAction()),
                 new OpenSearchDashboardsWrappedRestHandler(new RestDeleteByQueryAction()),
 

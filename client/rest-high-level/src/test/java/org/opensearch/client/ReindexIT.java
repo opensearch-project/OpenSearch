@@ -236,7 +236,7 @@ public class ReindexIT extends OpenSearchRestHighLevelClientTestCase {
             assertEquals(0, bulkResponse.getSearchFailures().size());
             assertEquals(
                 2,
-                highLevelClient().search(new SearchRequest(sourceIndex), RequestOptions.DEFAULT).getHits().getTotalHits().value
+                highLevelClient().search(new SearchRequest(sourceIndex), RequestOptions.DEFAULT).getHits().getTotalHits().value()
             );
         }
         {

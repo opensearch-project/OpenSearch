@@ -60,6 +60,24 @@ public class OsStats implements Writeable, ToXContentFragment {
     private final Swap swap;
     private final Cgroup cgroup;
 
+    /**
+     * Private constructor that takes a builder.
+     * This is the sole entry point for creating a new OsStats object.
+     * @param builder The builder instance containing all the values.
+     */
+    private OsStats(Builder builder) {
+        this.timestamp = builder.timestamp;
+        this.cpu = builder.cpu;
+        this.mem = builder.mem;
+        this.swap = builder.swap;
+        this.cgroup = builder.cgroup;
+    }
+
+    /**
+     * This constructor will be deprecated starting in version 3.4.0.
+     * Use {@link Builder} instead.
+     */
+    @Deprecated
     public OsStats(final long timestamp, final Cpu cpu, final Mem mem, final Swap swap, final Cgroup cgroup) {
         this.timestamp = timestamp;
         this.cpu = Objects.requireNonNull(cpu);
@@ -126,6 +144,53 @@ public class OsStats implements Writeable, ToXContentFragment {
 
         static final String FREE_PERCENT = "free_percent";
         static final String USED_PERCENT = "used_percent";
+    }
+
+    /**
+     * Builder for the {@link OsStats} class.
+     * Provides a fluent API for constructing a OsStats object.
+     */
+    public static class Builder {
+        private long timestamp = 0;
+        private Cpu cpu = null;
+        private Mem mem = null;
+        private Swap swap = null;
+        private Cgroup cgroup = null;
+
+        public Builder() {}
+
+        public Builder timestamp(long timestamp) {
+            this.timestamp = timestamp;
+            return this;
+        }
+
+        public Builder cpu(Cpu cpu) {
+            this.cpu = cpu;
+            return this;
+        }
+
+        public Builder mem(Mem mem) {
+            this.mem = mem;
+            return this;
+        }
+
+        public Builder swap(Swap swap) {
+            this.swap = swap;
+            return this;
+        }
+
+        public Builder cgroup(Cgroup cgroup) {
+            this.cgroup = cgroup;
+            return this;
+        }
+
+        /**
+         * Creates a {@link OsStats} object from the builder's current state.
+         * @return A new OsStats instance.
+         */
+        public OsStats build() {
+            return new OsStats(this);
+        }
     }
 
     @Override

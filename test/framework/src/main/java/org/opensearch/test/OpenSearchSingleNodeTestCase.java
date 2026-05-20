@@ -33,13 +33,12 @@ package org.opensearch.test;
 
 import com.carrotsearch.randomizedtesting.RandomizedContext;
 
+import org.opensearch.Version;
 import org.opensearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.opensearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.opensearch.action.admin.indices.get.GetIndexResponse;
 import org.opensearch.action.support.IndicesOptions;
-import org.opensearch.client.Client;
-import org.opensearch.client.Requests;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.health.ClusterHealthStatus;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -68,6 +67,7 @@ import org.opensearch.node.MockNode;
 import org.opensearch.node.Node;
 import org.opensearch.node.NodeValidationException;
 import org.opensearch.plugins.Plugin;
+import org.opensearch.plugins.PluginInfo;
 import org.opensearch.script.MockScriptService;
 import org.opensearch.search.SearchService;
 import org.opensearch.search.internal.SearchContext;
@@ -75,6 +75,8 @@ import org.opensearch.telemetry.TelemetrySettings;
 import org.opensearch.test.telemetry.MockTelemetryPlugin;
 import org.opensearch.test.telemetry.tracing.StrictCheckSpanProcessor;
 import org.opensearch.transport.TransportSettings;
+import org.opensearch.transport.client.Client;
+import org.opensearch.transport.client.Requests;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
@@ -85,6 +87,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 import static org.opensearch.cluster.coordination.ClusterBootstrapService.INITIAL_CLUSTER_MANAGER_NODES_SETTING;
 import static org.opensearch.discovery.SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING;
@@ -255,13 +258,11 @@ public abstract class OpenSearchSingleNodeTestCase extends OpenSearchTestCase {
             .put(FeatureFlags.TELEMETRY_SETTING.getKey(), true)
             .put(TelemetrySettings.TRACER_ENABLED_SETTING.getKey(), true)
             .put(TelemetrySettings.TRACER_FEATURE_ENABLED_SETTING.getKey(), true)
-            .put(nodeSettings()) // allow test cases to provide their own settings or override these
-            .put(featureFlagSettings);
-        if (FeatureFlags.CONCURRENT_SEGMENT_SEARCH_SETTING.get(featureFlagSettings)) {
             // By default, for tests we will put the target slice count of 2. This will increase the probability of having multiple slices
             // when tests are run with concurrent segment search enabled
-            settingsBuilder.put(SearchService.CONCURRENT_SEGMENT_SEARCH_TARGET_MAX_SLICE_COUNT_KEY, 2);
-        }
+            .put(SearchService.CONCURRENT_SEGMENT_SEARCH_MAX_SLICE_COUNT_KEY, 2)
+            .put(nodeSettings()) // allow test cases to provide their own settings or override these
+            .put(featureFlagSettings);
 
         Collection<Class<? extends Plugin>> plugins = getPlugins();
         if (plugins.contains(getTestTransportPlugin()) == false) {
@@ -274,7 +275,26 @@ public abstract class OpenSearchSingleNodeTestCase extends OpenSearchTestCase {
         plugins.add(MockScriptService.TestPlugin.class);
 
         plugins.add(MockTelemetryPlugin.class);
-        Node node = new MockNode(settingsBuilder.build(), plugins, forbidPrivateIndexSettings());
+        Node node = new MockNode(
+            settingsBuilder.build(),
+            plugins.stream()
+                .map(
+                    p -> new PluginInfo(
+                        p.getName(),
+                        "classpath plugin",
+                        "NA",
+                        Version.CURRENT,
+                        "1.8",
+                        p.getName(),
+                        null,
+                        Collections.emptyList(),
+                        false
+                    )
+                )
+                .collect(Collectors.toList()),
+            null,
+            forbidPrivateIndexSettings()
+        );
         try {
             node.start();
         } catch (NodeValidationException e) {
@@ -319,17 +339,15 @@ public abstract class OpenSearchSingleNodeTestCase extends OpenSearchTestCase {
      * Create a new index on the singleton node with the provided index settings.
      */
     protected IndexService createIndex(String index, Settings settings) {
-        return createIndex(index, settings, null, (XContentBuilder) null);
+        return createIndex(index, settings, null);
     }
 
     /**
-     * Create a new index on the singleton node with the provided index settings.
-     * @deprecated types are being removed
+     * Create a new index on the singleton node with the provided index settings and mappings.
      */
-    @Deprecated
-    protected IndexService createIndex(String index, Settings settings, String type, XContentBuilder mappings) {
+    protected IndexService createIndex(String index, Settings settings, XContentBuilder mappings) {
         CreateIndexRequestBuilder createIndexRequestBuilder = client().admin().indices().prepareCreate(index).setSettings(settings);
-        if (type != null && mappings != null) {
+        if (mappings != null) {
             createIndexRequestBuilder.setMapping(mappings);
         }
         return createIndex(index, createIndexRequestBuilder);
@@ -337,13 +355,40 @@ public abstract class OpenSearchSingleNodeTestCase extends OpenSearchTestCase {
 
     /**
      * Create a new index on the singleton node with the provided index settings.
-     * @deprecated types are being removed
+     * @deprecated types have been removed
+     */
+    @Deprecated
+    protected IndexService createIndex(String index, Settings settings, String type, XContentBuilder mappings) {
+        return createIndex(index, settings, mappings);
+    }
+
+    /**
+     * Create a new index on the singleton node with the provided index settings.
+     * @deprecated types have been removed
      */
     @Deprecated
     protected IndexService createIndex(String index, Settings settings, String type, String... mappings) {
+        return createIndexWithSimpleMappings(index, settings, mappings);
+    }
+
+    /**
+     * Creates an index with mappings provided in the format expected by {@link org.opensearch.action.admin.indices.create.CreateIndexRequest#simpleMapping(String...)}
+     */
+    protected IndexService createIndexWithSimpleMappings(String index, Settings settings, String... mappings) {
         CreateIndexRequestBuilder createIndexRequestBuilder = client().admin().indices().prepareCreate(index).setSettings(settings);
         if (mappings != null) {
             createIndexRequestBuilder.setMapping(mappings);
+        }
+        return createIndex(index, createIndexRequestBuilder);
+    }
+
+    /**
+     * Create a new index on the singleton node with the provided index settings and mappings source.
+     */
+    protected IndexService createIndexWithMappingSource(String index, Settings settings, String mappingSource) {
+        CreateIndexRequestBuilder createIndexRequestBuilder = client().admin().indices().prepareCreate(index).setSettings(settings);
+        if (mappingSource != null) {
+            createIndexRequestBuilder.setMapping(mappingSource);
         }
         return createIndex(index, createIndexRequestBuilder);
     }
@@ -440,6 +485,7 @@ public abstract class OpenSearchSingleNodeTestCase extends OpenSearchTestCase {
             featureSettings.put(builtInFlag.getKey(), builtInFlag.getDefaultRaw(Settings.EMPTY));
         }
         featureSettings.put(FeatureFlags.TELEMETRY_SETTING.getKey(), true);
+        featureSettings.put(FeatureFlags.APPLICATION_BASED_CONFIGURATION_TEMPLATES_SETTING.getKey(), true);
         return featureSettings.build();
     }
 

@@ -32,19 +32,24 @@
 
 package org.opensearch.indexing;
 
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.opensearch.action.DocWriteResponse;
 import org.opensearch.action.bulk.BulkResponse;
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.index.IndexResponse;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.cluster.metadata.MetadataCreateIndexService;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.mapper.MapperParsingException;
 import org.opensearch.indices.InvalidIndexNameException;
-import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.search.SearchHit;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 import org.opensearch.test.hamcrest.OpenSearchAssertions;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 import java.util.Random;
@@ -57,7 +62,17 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
-public class IndexActionIT extends OpenSearchIntegTestCase {
+public class IndexActionIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
+
+    public IndexActionIT(Settings settings) {
+        super(settings);
+    }
+
+    @ParametersFactory
+    public static Collection<Object[]> parameters() {
+        return replicationSettings;
+    }
+
     /**
      * This test tries to simulate load while creating an index and indexing documents
      * while the index is being created.
@@ -66,52 +81,44 @@ public class IndexActionIT extends OpenSearchIntegTestCase {
     public void testAutoGenerateIdNoDuplicates() throws Exception {
         int numberOfIterations = scaledRandomIntBetween(10, 50);
         for (int i = 0; i < numberOfIterations; i++) {
+            String indexName = "test-" + i;
             Exception firstError = null;
-            createIndex("test");
+            createIndex(indexName);
             int numOfDocs = randomIntBetween(10, 100);
             logger.info("indexing [{}] docs", numOfDocs);
             List<IndexRequestBuilder> builders = new ArrayList<>(numOfDocs);
             for (int j = 0; j < numOfDocs; j++) {
-                builders.add(client().prepareIndex("test").setSource("field", "value_" + j));
+                builders.add(client().prepareIndex(indexName).setSource("field", "value_" + j));
             }
             indexRandom(true, builders);
             logger.info("verifying indexed content");
             int numOfChecks = randomIntBetween(8, 12);
             for (int j = 0; j < numOfChecks; j++) {
                 try {
-                    logger.debug("running search with all types");
-                    SearchResponse response = client().prepareSearch("test").get();
-                    if (response.getHits().getTotalHits().value != numOfDocs) {
+                    logger.debug("running search");
+                    SearchResponse response = client().prepareSearch(indexName).get();
+                    if (response.getHits().getTotalHits().value() != numOfDocs) {
+                        // Fetch all docs to identify the unexpected documents
+                        SearchResponse allDocs = client().prepareSearch(indexName)
+                            .setSize((int) response.getHits().getTotalHits().value())
+                            .get();
+                        StringBuilder docDetails = new StringBuilder();
+                        for (SearchHit hit : allDocs.getHits().getHits()) {
+                            docDetails.append("\n  id=").append(hit.getId()).append(" source=").append(hit.getSourceAsString());
+                        }
                         final String message = "Count is "
-                            + response.getHits().getTotalHits().value
+                            + response.getHits().getTotalHits().value()
                             + " but "
                             + numOfDocs
                             + " was expected. "
-                            + OpenSearchAssertions.formatShardStatus(response);
+                            + OpenSearchAssertions.formatShardStatus(response)
+                            + "\nAll documents:"
+                            + docDetails;
                         logger.error("{}. search response: \n{}", message, response);
                         fail(message);
                     }
                 } catch (Exception e) {
-                    logger.error("search for all docs types failed", e);
-                    if (firstError == null) {
-                        firstError = e;
-                    }
-                }
-                try {
-                    logger.debug("running search with a specific type");
-                    SearchResponse response = client().prepareSearch("test").get();
-                    if (response.getHits().getTotalHits().value != numOfDocs) {
-                        final String message = "Count is "
-                            + response.getHits().getTotalHits().value
-                            + " but "
-                            + numOfDocs
-                            + " was expected. "
-                            + OpenSearchAssertions.formatShardStatus(response);
-                        logger.error("{}. search response: \n{}", message, response);
-                        fail(message);
-                    }
-                } catch (Exception e) {
-                    logger.error("search for all docs of a specific type failed", e);
+                    logger.error("search for all docs failed", e);
                     if (firstError == null) {
                         firstError = e;
                     }
@@ -120,7 +127,7 @@ public class IndexActionIT extends OpenSearchIntegTestCase {
             if (firstError != null) {
                 fail(firstError.getMessage());
             }
-            internalCluster().wipeIndices("test");
+            internalCluster().wipeIndices(indexName);
         }
     }
 

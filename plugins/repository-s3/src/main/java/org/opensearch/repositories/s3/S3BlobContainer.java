@@ -43,9 +43,6 @@ import software.amazon.awssdk.services.s3.model.CompleteMultipartUploadRequest;
 import software.amazon.awssdk.services.s3.model.CompletedMultipartUpload;
 import software.amazon.awssdk.services.s3.model.CompletedPart;
 import software.amazon.awssdk.services.s3.model.CreateMultipartUploadRequest;
-import software.amazon.awssdk.services.s3.model.Delete;
-import software.amazon.awssdk.services.s3.model.DeleteObjectsRequest;
-import software.amazon.awssdk.services.s3.model.DeleteObjectsResponse;
 import software.amazon.awssdk.services.s3.model.GetObjectAttributesRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectAttributesResponse;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
@@ -55,18 +52,18 @@ import software.amazon.awssdk.services.s3.model.ListObjectsV2Request;
 import software.amazon.awssdk.services.s3.model.ListObjectsV2Response;
 import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
 import software.amazon.awssdk.services.s3.model.ObjectAttributes;
-import software.amazon.awssdk.services.s3.model.ObjectIdentifier;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
-import software.amazon.awssdk.services.s3.model.S3Error;
-import software.amazon.awssdk.services.s3.model.ServerSideEncryption;
 import software.amazon.awssdk.services.s3.model.UploadPartRequest;
 import software.amazon.awssdk.services.s3.model.UploadPartResponse;
 import software.amazon.awssdk.services.s3.paginators.ListObjectsV2Iterable;
+import software.amazon.awssdk.services.s3.paginators.ListObjectsV2Publisher;
+import software.amazon.awssdk.utils.CollectionUtils;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.opensearch.ExceptionsHelper;
+import org.opensearch.action.support.PlainActionFuture;
+import org.opensearch.cluster.metadata.CryptoMetadata;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.StreamContext;
@@ -77,6 +74,7 @@ import org.opensearch.common.blobstore.BlobMetadata;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.BlobStoreException;
 import org.opensearch.common.blobstore.DeleteResult;
+import org.opensearch.common.blobstore.InputStreamWithMetadata;
 import org.opensearch.common.blobstore.stream.read.ReadContext;
 import org.opensearch.common.blobstore.stream.write.WriteContext;
 import org.opensearch.common.blobstore.stream.write.WritePriority;
@@ -84,34 +82,45 @@ import org.opensearch.common.blobstore.support.AbstractBlobContainer;
 import org.opensearch.common.blobstore.support.PlainBlobMetadata;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.io.InputStreamContainer;
+import org.opensearch.common.util.concurrent.FutureUtils;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.unit.ByteSizeValue;
+import org.opensearch.repositories.s3.async.S3AsyncDeleteHelper;
+import org.opensearch.repositories.s3.async.SizeBasedBlockingQ;
 import org.opensearch.repositories.s3.async.UploadRequest;
 import org.opensearch.repositories.s3.utils.HttpRangeUtils;
+import org.opensearch.repositories.s3.utils.SseKmsUtil;
+import org.opensearch.secure_sm.AccessController;
 
+import java.io.BufferedInputStream;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import org.reactivestreams.Subscriber;
+import org.reactivestreams.Subscription;
+
 import static org.opensearch.repositories.s3.S3Repository.MAX_FILE_SIZE;
 import static org.opensearch.repositories.s3.S3Repository.MAX_FILE_SIZE_USING_MULTIPART;
 import static org.opensearch.repositories.s3.S3Repository.MIN_PART_SIZE_USING_MULTIPART;
+import static org.opensearch.repositories.s3.utils.SseKmsUtil.configureEncryptionSettings;
 
 class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamBlobContainer {
 
     private static final Logger logger = LogManager.getLogger(S3BlobContainer.class);
+    private static final long DEFAULT_OPERATION_TIMEOUT = TimeUnit.SECONDS.toSeconds(30);
 
     private final S3BlobStore blobStore;
     private final String keyPath;
@@ -125,9 +134,15 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
     @Override
     public boolean blobExists(String blobName) {
         try (AmazonS3Reference clientReference = blobStore.clientReference()) {
-            SocketAccess.doPrivileged(
+            AccessController.doPrivileged(
                 () -> clientReference.get()
-                    .headObject(HeadObjectRequest.builder().bucket(blobStore.bucket()).key(buildKey(blobName)).build())
+                    .headObject(
+                        HeadObjectRequest.builder()
+                            .bucket(blobStore.bucket())
+                            .key(buildKey(blobName))
+                            .expectedBucketOwner(blobStore.expectedBucketOwner())
+                            .build()
+                    )
             );
             return true;
         } catch (NoSuchKeyException e) {
@@ -135,6 +150,13 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
         } catch (final Exception e) {
             throw new BlobStoreException("Failed to check if blob [" + blobName + "] exists", e);
         }
+    }
+
+    @ExperimentalApi
+    @Override
+    public InputStreamWithMetadata readBlobWithMetadata(String blobName) throws IOException {
+        S3RetryingInputStream s3RetryingInputStream = new S3RetryingInputStream(blobStore, buildKey(blobName));
+        return new InputStreamWithMetadata(s3RetryingInputStream, s3RetryingInputStream.getMetadata());
     }
 
     @Override
@@ -168,19 +190,64 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
      */
     @Override
     public void writeBlob(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists) throws IOException {
+        writeBlobWithMetadata(blobName, inputStream, blobSize, failIfAlreadyExists, null);
+    }
+
+    /**
+     * Write blob with its object metadata and optional encryption settings.
+     */
+    @ExperimentalApi
+    @Override
+    public void writeBlobWithMetadata(
+        String blobName,
+        InputStream inputStream,
+        long blobSize,
+        boolean failIfAlreadyExists,
+        @Nullable Map<String, String> metadata,
+        @Nullable CryptoMetadata cryptoMetadata
+    ) throws IOException {
         assert inputStream.markSupported() : "No mark support on inputStream breaks the S3 SDK's ability to retry requests";
-        SocketAccess.doPrivilegedIOException(() -> {
+        AccessController.doPrivilegedChecked(() -> {
             if (blobSize <= getLargeBlobThresholdInBytes()) {
-                executeSingleUpload(blobStore, buildKey(blobName), inputStream, blobSize);
+                executeSingleUpload(blobStore, buildKey(blobName), inputStream, blobSize, metadata, cryptoMetadata);
             } else {
-                executeMultipartUpload(blobStore, buildKey(blobName), inputStream, blobSize);
+                executeMultipartUpload(blobStore, buildKey(blobName), inputStream, blobSize, metadata, cryptoMetadata);
             }
-            return null;
         });
+    }
+
+    /**
+     * Write blob with its object metadata.
+     */
+    @ExperimentalApi
+    @Override
+    public void writeBlobWithMetadata(
+        String blobName,
+        InputStream inputStream,
+        long blobSize,
+        boolean failIfAlreadyExists,
+        @Nullable Map<String, String> metadata
+    ) throws IOException {
+        // Delegate to crypto-aware version with null CryptoMetadata
+        writeBlobWithMetadata(blobName, inputStream, blobSize, failIfAlreadyExists, metadata, null);
     }
 
     @Override
     public void asyncBlobUpload(WriteContext writeContext, ActionListener<Void> completionListener) throws IOException {
+        CryptoMetadata crypto = writeContext.getCryptoMetadata();
+
+        String indexKmsKey = null;
+        String indexEncContext = null;
+
+        if (crypto != null) {
+            indexKmsKey = crypto.getKeyArn().orElse(null);
+            indexEncContext = crypto.getEncryptionContext().orElse(null);
+        }
+        String mergeEncContext = SseKmsUtil.mergeAndEncodeEncryptionContexts(
+            indexEncContext,
+            blobStore.serverSideEncryptionEncryptionContext()
+        );
+
         UploadRequest uploadRequest = new UploadRequest(
             blobStore.bucket(),
             buildKey(writeContext.getFileName()),
@@ -188,12 +255,55 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
             writeContext.getWritePriority(),
             writeContext.getUploadFinalizer(),
             writeContext.doRemoteDataIntegrityCheck(),
-            writeContext.getExpectedChecksum()
+            writeContext.getExpectedChecksum(),
+            blobStore.isUploadRetryEnabled(),
+            writeContext.getMetadata(),
+            blobStore.serverSideEncryptionType(),
+            indexKmsKey != null ? indexKmsKey : blobStore.serverSideEncryptionKmsKey(),
+            blobStore.serverSideEncryptionBucketKey(),
+            mergeEncContext,
+            blobStore.expectedBucketOwner()
         );
         try {
-            long partSize = blobStore.getAsyncTransferManager().calculateOptimalPartSize(writeContext.getFileSize());
-            StreamContext streamContext = SocketAccess.doPrivileged(() -> writeContext.getStreamProvider(partSize));
-            try (AmazonAsyncS3Reference amazonS3Reference = SocketAccess.doPrivileged(blobStore::asyncClientReference)) {
+            // If file size is greater than the queue capacity than SizeBasedBlockingQ will always reject the upload.
+            // Therefore, redirecting it to slow client.
+            if ((uploadRequest.getWritePriority() == WritePriority.LOW
+                && blobStore.getLowPrioritySizeBasedBlockingQ().isMaxCapacityBelowContentLength(uploadRequest.getContentLength()) == false)
+                || (uploadRequest.getWritePriority() != WritePriority.HIGH
+                    && uploadRequest.getWritePriority() != WritePriority.URGENT
+                    && blobStore.getNormalPrioritySizeBasedBlockingQ()
+                        .isMaxCapacityBelowContentLength(uploadRequest.getContentLength()) == false)) {
+                StreamContext streamContext = AccessController.doPrivileged(
+                    () -> writeContext.getStreamProvider(uploadRequest.getContentLength())
+                );
+                InputStreamContainer inputStream = streamContext.provideStream(0);
+                try {
+                    executeMultipartUpload(
+                        blobStore,
+                        uploadRequest.getKey(),
+                        inputStream.getInputStream(),
+                        uploadRequest.getContentLength(),
+                        uploadRequest.getMetadata(),
+                        crypto
+                    );
+                    completionListener.onResponse(null);
+                } catch (Exception ex) {
+                    logger.error(
+                        () -> new ParameterizedMessage(
+                            "Failed to upload large file {} of size {} ",
+                            uploadRequest.getKey(),
+                            uploadRequest.getContentLength()
+                        ),
+                        ex
+                    );
+                    completionListener.onFailure(ex);
+                }
+                return;
+            }
+            long partSize = blobStore.getAsyncTransferManager()
+                .calculateOptimalPartSize(writeContext.getFileSize(), writeContext.getWritePriority(), blobStore.isUploadRetryEnabled());
+            StreamContext streamContext = AccessController.doPrivileged(() -> writeContext.getStreamProvider(partSize));
+            try (AmazonAsyncS3Reference amazonS3Reference = AccessController.doPrivileged(blobStore::asyncClientReference)) {
 
                 S3AsyncClient s3AsyncClient;
                 if (writeContext.getWritePriority() == WritePriority.URGENT) {
@@ -203,16 +313,30 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
                 } else {
                     s3AsyncClient = amazonS3Reference.get().client();
                 }
-                CompletableFuture<Void> completableFuture = blobStore.getAsyncTransferManager()
-                    .uploadObject(s3AsyncClient, uploadRequest, streamContext, blobStore.getStatsMetricPublisher());
-                completableFuture.whenComplete((response, throwable) -> {
-                    if (throwable == null) {
-                        completionListener.onResponse(response);
-                    } else {
-                        Exception ex = throwable instanceof Error ? new Exception(throwable) : (Exception) throwable;
-                        completionListener.onFailure(ex);
-                    }
-                });
+
+                if (writeContext.getWritePriority() == WritePriority.URGENT
+                    || writeContext.getWritePriority() == WritePriority.HIGH
+                    || blobStore.isPermitBackedTransferEnabled() == false) {
+                    createFileCompletableFuture(s3AsyncClient, uploadRequest, streamContext, completionListener);
+                } else if (writeContext.getWritePriority() == WritePriority.LOW) {
+                    blobStore.getLowPrioritySizeBasedBlockingQ()
+                        .produce(
+                            new SizeBasedBlockingQ.Item(
+                                writeContext.getFileSize(),
+                                () -> createFileCompletableFuture(s3AsyncClient, uploadRequest, streamContext, completionListener)
+                            )
+                        );
+                } else if (writeContext.getWritePriority() == WritePriority.NORMAL) {
+                    blobStore.getNormalPrioritySizeBasedBlockingQ()
+                        .produce(
+                            new SizeBasedBlockingQ.Item(
+                                writeContext.getFileSize(),
+                                () -> createFileCompletableFuture(s3AsyncClient, uploadRequest, streamContext, completionListener)
+                            )
+                        );
+                } else {
+                    throw new IllegalStateException("Cannot perform upload for other priority types.");
+                }
             }
         } catch (Exception e) {
             logger.info("exception error from blob container for file {}", writeContext.getFileName());
@@ -220,10 +344,28 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
         }
     }
 
+    private CompletableFuture<Void> createFileCompletableFuture(
+        S3AsyncClient s3AsyncClient,
+        UploadRequest uploadRequest,
+        StreamContext streamContext,
+        ActionListener<Void> completionListener
+    ) {
+        CompletableFuture<Void> completableFuture = blobStore.getAsyncTransferManager()
+            .uploadObject(s3AsyncClient, uploadRequest, streamContext, blobStore.getStatsMetricPublisher());
+        return completableFuture.whenComplete((response, throwable) -> {
+            if (throwable == null) {
+                completionListener.onResponse(response);
+            } else {
+                Exception ex = throwable instanceof Error ? new Exception(throwable) : (Exception) throwable;
+                completionListener.onFailure(ex);
+            }
+        });
+    }
+
     @ExperimentalApi
     @Override
     public void readBlobAsync(String blobName, ActionListener<ReadContext> listener) {
-        try (AmazonAsyncS3Reference amazonS3Reference = SocketAccess.doPrivileged(blobStore::asyncClientReference)) {
+        try (AmazonAsyncS3Reference amazonS3Reference = AccessController.doPrivileged(blobStore::asyncClientReference)) {
             final S3AsyncClient s3AsyncClient = amazonS3Reference.get().client();
             final String bucketName = blobStore.bucket();
             final String blobKey = buildKey(blobName);
@@ -256,7 +398,7 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
                             );
                         }
                     }
-                    listener.onResponse(new ReadContext(blobSize, blobPartInputStreamFutures, blobChecksum));
+                    listener.onResponse(new ReadContext.Builder(blobSize, blobPartInputStreamFutures).blobChecksum(blobChecksum).build());
                 } catch (Exception ex) {
                     listener.onFailure(ex);
                 }
@@ -282,124 +424,33 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
 
     @Override
     public DeleteResult delete() throws IOException {
-        final AtomicLong deletedBlobs = new AtomicLong();
-        final AtomicLong deletedBytes = new AtomicLong();
-        try (AmazonS3Reference clientReference = blobStore.clientReference()) {
-            ListObjectsV2Iterable listObjectsIterable = SocketAccess.doPrivileged(
-                () -> clientReference.get()
-                    .listObjectsV2Paginator(
-                        ListObjectsV2Request.builder()
-                            .bucket(blobStore.bucket())
-                            .prefix(keyPath)
-                            .overrideConfiguration(
-                                o -> o.addMetricPublisher(blobStore.getStatsMetricPublisher().listObjectsMetricPublisher)
-                            )
-                            .build()
-                    )
-            );
-
-            Iterator<ListObjectsV2Response> listObjectsResponseIterator = listObjectsIterable.iterator();
-            while (listObjectsResponseIterator.hasNext()) {
-                ListObjectsV2Response listObjectsResponse = SocketAccess.doPrivileged(listObjectsResponseIterator::next);
-                List<String> blobsToDelete = listObjectsResponse.contents().stream().map(s3Object -> {
-                    deletedBlobs.incrementAndGet();
-                    deletedBytes.addAndGet(s3Object.size());
-
-                    return s3Object.key();
-                }).collect(Collectors.toList());
-
-                if (!listObjectsResponseIterator.hasNext()) {
-                    blobsToDelete.add(keyPath);
-                }
-
-                doDeleteBlobs(blobsToDelete, false);
-            }
-        } catch (SdkException e) {
-            throw new IOException("Exception when deleting blob container [" + keyPath + "]", e);
-        }
-
-        return new DeleteResult(deletedBlobs.get(), deletedBytes.get());
+        PlainActionFuture<DeleteResult> future = new PlainActionFuture<>();
+        deleteAsync(future);
+        return getFutureValue(future);
     }
 
     @Override
     public void deleteBlobsIgnoringIfNotExists(List<String> blobNames) throws IOException {
-        doDeleteBlobs(blobNames, true);
+        PlainActionFuture<Void> future = new PlainActionFuture<>();
+        deleteBlobsAsyncIgnoringIfNotExists(blobNames, future);
+        getFutureValue(future);
     }
 
-    private void doDeleteBlobs(List<String> blobNames, boolean relative) throws IOException {
-        if (blobNames.isEmpty()) {
-            return;
-        }
-        final Set<String> outstanding;
-        if (relative) {
-            outstanding = blobNames.stream().map(this::buildKey).collect(Collectors.toSet());
-        } else {
-            outstanding = new HashSet<>(blobNames);
-        }
-        try (AmazonS3Reference clientReference = blobStore.clientReference()) {
-            // S3 API allows 1k blobs per delete so we split up the given blobs into requests of bulk size deletes
-            final List<DeleteObjectsRequest> deleteRequests = new ArrayList<>();
-            final List<String> partition = new ArrayList<>();
-            for (String key : outstanding) {
-                partition.add(key);
-                if (partition.size() == blobStore.getBulkDeletesSize()) {
-                    deleteRequests.add(bulkDelete(blobStore.bucket(), partition));
-                    partition.clear();
-                }
+    private <T> T getFutureValue(PlainActionFuture<T> future) throws IOException {
+        try {
+            return future.get(DEFAULT_OPERATION_TIMEOUT, TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IOException("Future got interrupted", e);
+        } catch (ExecutionException e) {
+            if (e.getCause() instanceof IOException) {
+                throw (IOException) e.getCause();
             }
-            if (partition.isEmpty() == false) {
-                deleteRequests.add(bulkDelete(blobStore.bucket(), partition));
-            }
-            SocketAccess.doPrivilegedVoid(() -> {
-                SdkException aex = null;
-                for (DeleteObjectsRequest deleteRequest : deleteRequests) {
-                    List<String> keysInRequest = deleteRequest.delete()
-                        .objects()
-                        .stream()
-                        .map(ObjectIdentifier::key)
-                        .collect(Collectors.toList());
-                    try {
-                        DeleteObjectsResponse deleteObjectsResponse = clientReference.get().deleteObjects(deleteRequest);
-                        outstanding.removeAll(keysInRequest);
-                        outstanding.addAll(deleteObjectsResponse.errors().stream().map(S3Error::key).collect(Collectors.toSet()));
-                        if (!deleteObjectsResponse.errors().isEmpty()) {
-                            logger.warn(
-                                () -> new ParameterizedMessage(
-                                    "Failed to delete some blobs {}",
-                                    deleteObjectsResponse.errors()
-                                        .stream()
-                                        .map(s3Error -> "[" + s3Error.key() + "][" + s3Error.code() + "][" + s3Error.message() + "]")
-                                        .collect(Collectors.toList())
-                                )
-                            );
-                        }
-                    } catch (SdkException e) {
-                        // The AWS client threw any unexpected exception and did not execute the request at all so we do not
-                        // remove any keys from the outstanding deletes set.
-                        aex = ExceptionsHelper.useOrSuppress(aex, e);
-                    }
-                }
-                if (aex != null) {
-                    throw aex;
-                }
-            });
-        } catch (Exception e) {
-            throw new IOException("Failed to delete blobs [" + outstanding + "]", e);
+            throw new RuntimeException(e.getCause());
+        } catch (TimeoutException e) {
+            FutureUtils.cancel(future);
+            throw new IOException("Delete operation timed out after 30 seconds", e);
         }
-        assert outstanding.isEmpty();
-    }
-
-    private DeleteObjectsRequest bulkDelete(String bucket, List<String> blobs) {
-        return DeleteObjectsRequest.builder()
-            .bucket(bucket)
-            .delete(
-                Delete.builder()
-                    .objects(blobs.stream().map(blob -> ObjectIdentifier.builder().key(blob).build()).collect(Collectors.toList()))
-                    .quiet(true)
-                    .build()
-            )
-            .overrideConfiguration(o -> o.addMetricPublisher(blobStore.getStatsMetricPublisher().deleteObjectsMetricPublisher))
-            .build();
     }
 
     @Override
@@ -478,14 +529,14 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
         ListObjectsV2Request listObjectsRequest,
         int limit
     ) {
-        return SocketAccess.doPrivileged(() -> {
+        return AccessController.doPrivileged(() -> {
             final List<ListObjectsV2Response> results = new ArrayList<>();
             int totalObjects = 0;
             ListObjectsV2Iterable listObjectsIterable = clientReference.get().listObjectsV2Paginator(listObjectsRequest);
             for (ListObjectsV2Response listObjectsV2Response : listObjectsIterable) {
                 results.add(listObjectsV2Response);
                 totalObjects += listObjectsV2Response.contents().size();
-                if (limit != -1 && totalObjects > limit) {
+                if (limit != -1 && totalObjects >= limit) {
                     break;
                 }
             }
@@ -499,6 +550,7 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
             .prefix(keyPath)
             .delimiter("/")
             .overrideConfiguration(o -> o.addMetricPublisher(blobStore.getStatsMetricPublisher().listObjectsMetricPublisher))
+            .expectedBucketOwner(blobStore.expectedBucketOwner())
             .build();
     }
 
@@ -513,8 +565,14 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
     /**
      * Uploads a blob using a single upload request
      */
-    void executeSingleUpload(final S3BlobStore blobStore, final String blobName, final InputStream input, final long blobSize)
-        throws IOException {
+    void executeSingleUpload(
+        final S3BlobStore blobStore,
+        final String blobName,
+        final InputStream input,
+        final long blobSize,
+        final Map<String, String> metadata,
+        @Nullable CryptoMetadata cryptoMetadata
+    ) throws IOException {
 
         // Extra safety checks
         if (blobSize > MAX_FILE_SIZE.getBytes()) {
@@ -530,15 +588,25 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
             .contentLength(blobSize)
             .storageClass(blobStore.getStorageClass())
             .acl(blobStore.getCannedACL())
-            .overrideConfiguration(o -> o.addMetricPublisher(blobStore.getStatsMetricPublisher().putObjectMetricPublisher));
-        if (blobStore.serverSideEncryption()) {
-            putObjectRequestBuilder.serverSideEncryption(ServerSideEncryption.AES256);
+            .overrideConfiguration(o -> o.addMetricPublisher(blobStore.getStatsMetricPublisher().putObjectMetricPublisher))
+            .expectedBucketOwner(blobStore.expectedBucketOwner());
+
+        if (CollectionUtils.isNotEmpty(metadata)) {
+            putObjectRequestBuilder = putObjectRequestBuilder.metadata(metadata);
         }
+
+        configureEncryptionSettings(putObjectRequestBuilder, blobStore, cryptoMetadata);
 
         PutObjectRequest putObjectRequest = putObjectRequestBuilder.build();
         try (AmazonS3Reference clientReference = blobStore.clientReference()) {
-            SocketAccess.doPrivilegedVoid(
-                () -> clientReference.get().putObject(putObjectRequest, RequestBody.fromInputStream(input, blobSize))
+            final InputStream requestInputStream;
+            if (blobStore.isUploadRetryEnabled()) {
+                requestInputStream = new BufferedInputStream(input, (int) (blobSize + 1));
+            } else {
+                requestInputStream = input;
+            }
+            AccessController.doPrivileged(
+                () -> clientReference.get().putObject(putObjectRequest, RequestBody.fromInputStream(requestInputStream, blobSize))
             );
         } catch (final SdkException e) {
             throw new IOException("Unable to upload object [" + blobName + "] using a single upload", e);
@@ -548,8 +616,14 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
     /**
      * Uploads a blob using multipart upload requests.
      */
-    void executeMultipartUpload(final S3BlobStore blobStore, final String blobName, final InputStream input, final long blobSize)
-        throws IOException {
+    void executeMultipartUpload(
+        final S3BlobStore blobStore,
+        final String blobName,
+        final InputStream input,
+        final long blobSize,
+        final Map<String, String> metadata,
+        @Nullable CryptoMetadata cryptoMetadata
+    ) throws IOException {
 
         ensureMultiPartUploadSize(blobSize);
         final long partSize = blobStore.bufferSizeInBytes();
@@ -572,16 +646,26 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
             .key(blobName)
             .storageClass(blobStore.getStorageClass())
             .acl(blobStore.getCannedACL())
-            .overrideConfiguration(o -> o.addMetricPublisher(blobStore.getStatsMetricPublisher().multipartUploadMetricCollector));
+            .overrideConfiguration(o -> o.addMetricPublisher(blobStore.getStatsMetricPublisher().multipartUploadMetricCollector))
+            .expectedBucketOwner(blobStore.expectedBucketOwner());
 
-        if (blobStore.serverSideEncryption()) {
-            createMultipartUploadRequestBuilder.serverSideEncryption(ServerSideEncryption.AES256);
+        if (CollectionUtils.isNotEmpty(metadata)) {
+            createMultipartUploadRequestBuilder.metadata(metadata);
+        }
+
+        configureEncryptionSettings(createMultipartUploadRequestBuilder, blobStore, cryptoMetadata);
+
+        final InputStream requestInputStream;
+        if (blobStore.isUploadRetryEnabled()) {
+            requestInputStream = new BufferedInputStream(input, (int) (partSize + 1));
+        } else {
+            requestInputStream = input;
         }
 
         CreateMultipartUploadRequest createMultipartUploadRequest = createMultipartUploadRequestBuilder.build();
         try (AmazonS3Reference clientReference = blobStore.clientReference()) {
             uploadId.set(
-                SocketAccess.doPrivileged(() -> clientReference.get().createMultipartUpload(createMultipartUploadRequest).uploadId())
+                AccessController.doPrivileged(() -> clientReference.get().createMultipartUpload(createMultipartUploadRequest).uploadId())
             );
             if (Strings.isEmpty(uploadId.get())) {
                 throw new IOException("Failed to initialize multipart upload " + blobName);
@@ -598,13 +682,13 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
                     .partNumber(i)
                     .contentLength((i < nbParts) ? partSize : lastPartSize)
                     .overrideConfiguration(o -> o.addMetricPublisher(blobStore.getStatsMetricPublisher().multipartUploadMetricCollector))
+                    .expectedBucketOwner(blobStore.expectedBucketOwner())
                     .build();
 
                 bytesCount += uploadPartRequest.contentLength();
-
-                final UploadPartResponse uploadResponse = SocketAccess.doPrivileged(
+                final UploadPartResponse uploadResponse = AccessController.doPrivileged(
                     () -> clientReference.get()
-                        .uploadPart(uploadPartRequest, RequestBody.fromInputStream(input, uploadPartRequest.contentLength()))
+                        .uploadPart(uploadPartRequest, RequestBody.fromInputStream(requestInputStream, uploadPartRequest.contentLength()))
                 );
                 parts.add(CompletedPart.builder().partNumber(uploadPartRequest.partNumber()).eTag(uploadResponse.eTag()).build());
             }
@@ -621,9 +705,10 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
                 .uploadId(uploadId.get())
                 .multipartUpload(CompletedMultipartUpload.builder().parts(parts).build())
                 .overrideConfiguration(o -> o.addMetricPublisher(blobStore.getStatsMetricPublisher().multipartUploadMetricCollector))
+                .expectedBucketOwner(blobStore.expectedBucketOwner())
                 .build();
 
-            SocketAccess.doPrivilegedVoid(() -> clientReference.get().completeMultipartUpload(completeMultipartUploadRequest));
+            AccessController.doPrivileged(() -> clientReference.get().completeMultipartUpload(completeMultipartUploadRequest));
             success = true;
 
         } catch (final SdkException e) {
@@ -634,9 +719,10 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
                     .bucket(bucketName)
                     .key(blobName)
                     .uploadId(uploadId.get())
+                    .expectedBucketOwner(blobStore.expectedBucketOwner())
                     .build();
                 try (AmazonS3Reference clientReference = blobStore.clientReference()) {
-                    SocketAccess.doPrivilegedVoid(() -> clientReference.get().abortMultipartUpload(abortRequest));
+                    AccessController.doPrivileged(() -> clientReference.get().abortMultipartUpload(abortRequest));
                 }
             }
         }
@@ -700,13 +786,15 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
         @Nullable Integer partNumber
     ) {
         final boolean isMultipartObject = partNumber != null;
-        final GetObjectRequest.Builder getObjectRequestBuilder = GetObjectRequest.builder().bucket(bucketName).key(blobKey);
+        final GetObjectRequest.Builder getObjectRequestBuilder = GetObjectRequest.builder()
+            .bucket(bucketName)
+            .key(blobKey)
+            .expectedBucketOwner(blobStore.expectedBucketOwner());
 
         if (isMultipartObject) {
             getObjectRequestBuilder.partNumber(partNumber);
         }
-
-        return SocketAccess.doPrivileged(
+        return AccessController.doPrivileged(
             () -> s3AsyncClient.getObject(getObjectRequestBuilder.build(), AsyncResponseTransformer.toBlockingInputStream())
                 .thenApply(response -> transformResponseToInputStreamContainer(response, isMultipartObject))
         );
@@ -746,8 +834,155 @@ class S3BlobContainer extends AbstractBlobContainer implements AsyncMultiStreamB
             .bucket(bucketName)
             .key(blobName)
             .objectAttributes(ObjectAttributes.CHECKSUM, ObjectAttributes.OBJECT_SIZE, ObjectAttributes.OBJECT_PARTS)
+            .expectedBucketOwner(blobStore.expectedBucketOwner())
             .build();
 
-        return SocketAccess.doPrivileged(() -> s3AsyncClient.getObjectAttributes(getObjectAttributesRequest));
+        return AccessController.doPrivileged(() -> s3AsyncClient.getObjectAttributes(getObjectAttributesRequest));
+    }
+
+    @Override
+    public void deleteAsync(ActionListener<DeleteResult> completionListener) {
+        logger.debug("Starting async deletion for path [{}]", keyPath);
+        try (AmazonAsyncS3Reference asyncClientReference = blobStore.asyncClientReference()) {
+            S3AsyncClient s3AsyncClient = asyncClientReference.get().client();
+
+            ListObjectsV2Request listRequest = ListObjectsV2Request.builder()
+                .bucket(blobStore.bucket())
+                .prefix(keyPath)
+                .overrideConfiguration(o -> o.addMetricPublisher(blobStore.getStatsMetricPublisher().listObjectsMetricPublisher))
+                .build();
+            ListObjectsV2Publisher listPublisher = s3AsyncClient.listObjectsV2Paginator(listRequest);
+
+            AtomicLong deletedBlobs = new AtomicLong();
+            AtomicLong deletedBytes = new AtomicLong();
+
+            CompletableFuture<Void> listingFuture = new CompletableFuture<>();
+
+            listPublisher.subscribe(new Subscriber<>() {
+                private Subscription subscription;
+                private final List<String> objectsToDelete = new ArrayList<>();
+                private CompletableFuture<Void> deletionChain = CompletableFuture.completedFuture(null);
+
+                @Override
+                public void onSubscribe(Subscription s) {
+                    this.subscription = s;
+                    logger.debug("Subscribed to list objects publisher for path [{}]", keyPath);
+                    subscription.request(1);
+                }
+
+                @Override
+                public void onNext(ListObjectsV2Response response) {
+                    response.contents().forEach(s3Object -> {
+                        deletedBlobs.incrementAndGet();
+                        deletedBytes.addAndGet(s3Object.size());
+                        objectsToDelete.add(s3Object.key());
+                    });
+
+                    logger.debug("Found {} objects to delete in current batch for path [{}]", response.contents().size(), keyPath);
+
+                    int bulkDeleteSize = blobStore.getBulkDeletesSize();
+                    if (objectsToDelete.size() >= bulkDeleteSize) {
+                        int fullBatchesCount = objectsToDelete.size() / bulkDeleteSize;
+                        int itemsToDelete = fullBatchesCount * bulkDeleteSize;
+
+                        List<String> batchToDelete = new ArrayList<>(objectsToDelete.subList(0, itemsToDelete));
+                        objectsToDelete.subList(0, itemsToDelete).clear();
+
+                        logger.debug("Executing bulk delete of {} objects for path [{}]", batchToDelete.size(), keyPath);
+                        deletionChain = S3AsyncDeleteHelper.executeDeleteChain(
+                            s3AsyncClient,
+                            blobStore,
+                            batchToDelete,
+                            deletionChain,
+                            () -> subscription.request(1)
+                        );
+                    } else {
+                        subscription.request(1);
+                    }
+                }
+
+                @Override
+                public void onError(Throwable t) {
+                    logger.error(() -> new ParameterizedMessage("Failed to list objects for deletion in path [{}]", keyPath), t);
+                    listingFuture.completeExceptionally(new IOException("Failed to list objects for deletion", t));
+                }
+
+                @Override
+                public void onComplete() {
+                    logger.debug(
+                        "Completed listing objects for path [{}], remaining objects to delete: {}",
+                        keyPath,
+                        objectsToDelete.size()
+                    );
+                    if (!objectsToDelete.isEmpty()) {
+                        logger.debug("Executing final bulk delete of {} objects for path [{}]", objectsToDelete.size(), keyPath);
+                        deletionChain = S3AsyncDeleteHelper.executeDeleteChain(
+                            s3AsyncClient,
+                            blobStore,
+                            objectsToDelete,
+                            deletionChain,
+                            null
+                        );
+                    }
+                    deletionChain.whenComplete((v, throwable) -> {
+                        if (throwable != null) {
+                            logger.error(
+                                () -> new ParameterizedMessage("Failed to complete deletion chain for path [{}]", keyPath),
+                                throwable
+                            );
+                            listingFuture.completeExceptionally(throwable);
+                        } else {
+                            logger.debug("Successfully completed deletion chain for path [{}]", keyPath);
+                            listingFuture.complete(null);
+                        }
+                    });
+                }
+            });
+
+            listingFuture.whenComplete((v, throwable) -> {
+                if (throwable != null) {
+                    logger.error(() -> new ParameterizedMessage("Failed to complete async deletion for path [{}]", keyPath), throwable);
+                    completionListener.onFailure(
+                        throwable instanceof Exception e ? e : new IOException("Unexpected error during async deletion", throwable)
+                    );
+                } else {
+                    logger.debug(
+                        "Successfully completed async deletion for path [{}]. Deleted {} blobs totaling {} bytes",
+                        keyPath,
+                        deletedBlobs.get(),
+                        deletedBytes.get()
+                    );
+                    completionListener.onResponse(new DeleteResult(deletedBlobs.get(), deletedBytes.get()));
+                }
+            });
+        } catch (Exception e) {
+            logger.error(() -> new ParameterizedMessage("Failed to initiate async deletion for path [{}]", keyPath), e);
+            completionListener.onFailure(new IOException("Failed to initiate async deletion", e));
+        }
+    }
+
+    @Override
+    public void deleteBlobsAsyncIgnoringIfNotExists(List<String> blobNames, ActionListener<Void> completionListener) {
+        if (blobNames.isEmpty()) {
+            completionListener.onResponse(null);
+            return;
+        }
+
+        try (AmazonAsyncS3Reference asyncClientReference = blobStore.asyncClientReference()) {
+            S3AsyncClient s3AsyncClient = asyncClientReference.get().client();
+
+            List<String> keysToDelete = blobNames.stream().map(this::buildKey).collect(Collectors.toList());
+
+            S3AsyncDeleteHelper.executeDeleteChain(s3AsyncClient, blobStore, keysToDelete, CompletableFuture.completedFuture(null), null)
+                .whenComplete((v, throwable) -> {
+                    if (throwable != null) {
+                        completionListener.onFailure(new IOException("Failed to delete blobs " + blobNames, throwable));
+                    } else {
+                        completionListener.onResponse(null);
+                    }
+                });
+        } catch (Exception e) {
+            completionListener.onFailure(new IOException("Failed to initiate async blob deletion", e));
+        }
     }
 }

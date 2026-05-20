@@ -31,7 +31,7 @@
  */
 package org.opensearch.index.mapper;
 
-import org.apache.lucene.search.DocValuesFieldExistsQuery;
+import org.apache.lucene.search.FieldExistsQuery;
 import org.opensearch.index.query.QueryShardException;
 
 import java.io.IOException;
@@ -56,7 +56,7 @@ public class DocCountFieldTypeTests extends FieldTypeTestCase {
 
     public void testExistsQuery() {
         MappedFieldType ft = new DocCountFieldMapper.DocCountFieldType();
-        assertTrue(ft.existsQuery(randomMockShardContext()) instanceof DocValuesFieldExistsQuery);
+        assertTrue(ft.existsQuery(randomMockShardContext()) instanceof FieldExistsQuery);
     }
 
     public void testFetchSourceValue() throws IOException {

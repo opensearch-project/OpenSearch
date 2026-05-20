@@ -38,7 +38,7 @@ public class InternalTranslogManagerTests extends TranslogManagerTestCase {
         LocalCheckpointTracker tracker = new LocalCheckpointTracker(NO_OPS_PERFORMED, NO_OPS_PERFORMED);
         try {
             translogManager = new InternalTranslogManager(
-                new TranslogConfig(shardId, primaryTranslogDir, INDEX_SETTINGS, BigArrays.NON_RECYCLING_INSTANCE, ""),
+                new TranslogConfig(shardId, primaryTranslogDir, INDEX_SETTINGS, BigArrays.NON_RECYCLING_INSTANCE, "", false),
                 primaryTerm,
                 globalCheckpoint::get,
                 createTranslogDeletionPolicy(INDEX_SETTINGS),
@@ -49,7 +49,8 @@ public class InternalTranslogManagerTests extends TranslogManagerTestCase {
                 TranslogEventListener.NOOP_TRANSLOG_EVENT_LISTENER,
                 () -> {},
                 new InternalTranslogFactory(),
-                () -> Boolean.TRUE
+                () -> Boolean.TRUE,
+                TranslogOperationHelper.DEFAULT
             );
             final int docs = randomIntBetween(1, 100);
             for (int i = 0; i < docs; i++) {
@@ -68,7 +69,7 @@ public class InternalTranslogManagerTests extends TranslogManagerTestCase {
             translogManager.syncTranslog();
             translogManager.close();
             translogManager = new InternalTranslogManager(
-                new TranslogConfig(shardId, primaryTranslogDir, INDEX_SETTINGS, BigArrays.NON_RECYCLING_INSTANCE, ""),
+                new TranslogConfig(shardId, primaryTranslogDir, INDEX_SETTINGS, BigArrays.NON_RECYCLING_INSTANCE, "", false),
                 primaryTerm,
                 globalCheckpoint::get,
                 createTranslogDeletionPolicy(INDEX_SETTINGS),
@@ -89,7 +90,8 @@ public class InternalTranslogManagerTests extends TranslogManagerTestCase {
                 },
                 () -> {},
                 new InternalTranslogFactory(),
-                () -> Boolean.TRUE
+                () -> Boolean.TRUE,
+                TranslogOperationHelper.DEFAULT
             );
             AtomicInteger opsRecovered = new AtomicInteger();
             int opsRecoveredFromTranslog = translogManager.recoverFromTranslog((snapshot) -> {
@@ -117,7 +119,7 @@ public class InternalTranslogManagerTests extends TranslogManagerTestCase {
         LocalCheckpointTracker tracker = new LocalCheckpointTracker(NO_OPS_PERFORMED, NO_OPS_PERFORMED);
         try {
             translogManager = new InternalTranslogManager(
-                new TranslogConfig(shardId, primaryTranslogDir, INDEX_SETTINGS, BigArrays.NON_RECYCLING_INSTANCE, ""),
+                new TranslogConfig(shardId, primaryTranslogDir, INDEX_SETTINGS, BigArrays.NON_RECYCLING_INSTANCE, "", false),
                 primaryTerm,
                 globalCheckpoint::get,
                 createTranslogDeletionPolicy(INDEX_SETTINGS),
@@ -128,7 +130,8 @@ public class InternalTranslogManagerTests extends TranslogManagerTestCase {
                 TranslogEventListener.NOOP_TRANSLOG_EVENT_LISTENER,
                 () -> {},
                 new InternalTranslogFactory(),
-                () -> Boolean.TRUE
+                () -> Boolean.TRUE,
+                TranslogOperationHelper.DEFAULT
             );
             final int docs = randomIntBetween(1, 100);
             for (int i = 0; i < docs; i++) {
@@ -147,7 +150,7 @@ public class InternalTranslogManagerTests extends TranslogManagerTestCase {
             translogManager.syncTranslog();
             translogManager.close();
             translogManager = new InternalTranslogManager(
-                new TranslogConfig(shardId, primaryTranslogDir, INDEX_SETTINGS, BigArrays.NON_RECYCLING_INSTANCE, ""),
+                new TranslogConfig(shardId, primaryTranslogDir, INDEX_SETTINGS, BigArrays.NON_RECYCLING_INSTANCE, "", false),
                 primaryTerm,
                 globalCheckpoint::get,
                 createTranslogDeletionPolicy(INDEX_SETTINGS),
@@ -158,7 +161,8 @@ public class InternalTranslogManagerTests extends TranslogManagerTestCase {
                 TranslogEventListener.NOOP_TRANSLOG_EVENT_LISTENER,
                 () -> {},
                 new InternalTranslogFactory(),
-                () -> Boolean.TRUE
+                () -> Boolean.TRUE,
+                TranslogOperationHelper.DEFAULT
             );
             AtomicInteger opsRecovered = new AtomicInteger();
             int opsRecoveredFromTranslog = translogManager.recoverFromTranslog((snapshot) -> {
@@ -182,7 +186,7 @@ public class InternalTranslogManagerTests extends TranslogManagerTestCase {
         LocalCheckpointTracker tracker = new LocalCheckpointTracker(NO_OPS_PERFORMED, NO_OPS_PERFORMED);
         try {
             translogManager = new InternalTranslogManager(
-                new TranslogConfig(shardId, primaryTranslogDir, INDEX_SETTINGS, BigArrays.NON_RECYCLING_INSTANCE, ""),
+                new TranslogConfig(shardId, primaryTranslogDir, INDEX_SETTINGS, BigArrays.NON_RECYCLING_INSTANCE, "", false),
                 primaryTerm,
                 globalCheckpoint::get,
                 createTranslogDeletionPolicy(INDEX_SETTINGS),
@@ -193,7 +197,8 @@ public class InternalTranslogManagerTests extends TranslogManagerTestCase {
                 TranslogEventListener.NOOP_TRANSLOG_EVENT_LISTENER,
                 () -> {},
                 new InternalTranslogFactory(),
-                () -> Boolean.TRUE
+                () -> Boolean.TRUE,
+                TranslogOperationHelper.DEFAULT
             );
             final int docs = randomIntBetween(1, 100);
             for (int i = 0; i < docs; i++) {
@@ -214,7 +219,7 @@ public class InternalTranslogManagerTests extends TranslogManagerTestCase {
 
             translogManager.close();
             translogManager = new InternalTranslogManager(
-                new TranslogConfig(shardId, primaryTranslogDir, INDEX_SETTINGS, BigArrays.NON_RECYCLING_INSTANCE, ""),
+                new TranslogConfig(shardId, primaryTranslogDir, INDEX_SETTINGS, BigArrays.NON_RECYCLING_INSTANCE, "", false),
                 primaryTerm,
                 globalCheckpoint::get,
                 createTranslogDeletionPolicy(INDEX_SETTINGS),
@@ -225,7 +230,8 @@ public class InternalTranslogManagerTests extends TranslogManagerTestCase {
                 TranslogEventListener.NOOP_TRANSLOG_EVENT_LISTENER,
                 () -> {},
                 new InternalTranslogFactory(),
-                () -> Boolean.TRUE
+                () -> Boolean.TRUE,
+                TranslogOperationHelper.DEFAULT
             );
             AtomicInteger opsRecovered = new AtomicInteger();
             int opsRecoveredFromTranslog = translogManager.recoverFromTranslog((snapshot) -> {
@@ -253,7 +259,7 @@ public class InternalTranslogManagerTests extends TranslogManagerTestCase {
             ParsedDocument doc = testParsedDocument("1", null, testDocumentWithTextField(), B_1, null);
             AtomicReference<InternalTranslogManager> translogManagerAtomicReference = new AtomicReference<>();
             translogManager = new InternalTranslogManager(
-                new TranslogConfig(shardId, primaryTranslogDir, INDEX_SETTINGS, BigArrays.NON_RECYCLING_INSTANCE, ""),
+                new TranslogConfig(shardId, primaryTranslogDir, INDEX_SETTINGS, BigArrays.NON_RECYCLING_INSTANCE, "", false),
                 primaryTerm,
                 globalCheckpoint::get,
                 createTranslogDeletionPolicy(INDEX_SETTINGS),
@@ -274,7 +280,8 @@ public class InternalTranslogManagerTests extends TranslogManagerTestCase {
                 },
                 () -> {},
                 new InternalTranslogFactory(),
-                () -> Boolean.TRUE
+                () -> Boolean.TRUE,
+                TranslogOperationHelper.DEFAULT
             );
             translogManagerAtomicReference.set(translogManager);
             Engine.Index index = indexForDoc(doc);

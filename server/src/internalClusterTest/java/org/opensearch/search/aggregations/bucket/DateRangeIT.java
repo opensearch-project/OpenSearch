@@ -38,7 +38,6 @@ import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.search.SearchPhaseExecutionException;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.script.Script;
 import org.opensearch.script.ScriptType;
@@ -49,7 +48,7 @@ import org.opensearch.search.aggregations.bucket.range.Range;
 import org.opensearch.search.aggregations.bucket.range.Range.Bucket;
 import org.opensearch.search.aggregations.metrics.Sum;
 import org.opensearch.test.OpenSearchIntegTestCase;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 import org.hamcrest.Matchers;
 
 import java.time.ZoneId;
@@ -81,10 +80,10 @@ import static org.hamcrest.core.IsNull.notNullValue;
 import static org.hamcrest.core.IsNull.nullValue;
 
 @OpenSearchIntegTestCase.SuiteScopeTestCase
-public class DateRangeIT extends ParameterizedOpenSearchIntegTestCase {
+public class DateRangeIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
 
-    public DateRangeIT(Settings dynamicSettings) {
-        super(dynamicSettings);
+    public DateRangeIT(Settings staticSettings) {
+        super(staticSettings);
     }
 
     @ParametersFactory
@@ -93,11 +92,6 @@ public class DateRangeIT extends ParameterizedOpenSearchIntegTestCase {
             new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), false).build() },
             new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), true).build() }
         );
-    }
-
-    @Override
-    protected Settings featureFlagSettings() {
-        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.CONCURRENT_SEGMENT_SEARCH, "true").build();
     }
 
     private static IndexRequestBuilder indexDoc(int month, int day, int value) throws Exception {
@@ -900,7 +894,7 @@ public class DateRangeIT extends ParameterizedOpenSearchIntegTestCase {
             )
             .get();
 
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(2L));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(2L));
         Histogram histo = searchResponse.getAggregations().get("histo");
         assertThat(histo, Matchers.notNullValue());
         Histogram.Bucket bucket = histo.getBuckets().get(1);
@@ -1107,7 +1101,7 @@ public class DateRangeIT extends ParameterizedOpenSearchIntegTestCase {
             .setSize(0)
             .addAggregation(dateRange("date_range").field("date").addRange("00:16:40", "00:50:00").addRange("00:50:00", "01:06:40"))
             .get();
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(3L));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(3L));
         List<Range.Bucket> buckets = checkBuckets(searchResponse.getAggregations().get("date_range"), "date_range", 2);
         assertBucket(buckets.get(0), 2L, "00:16:40-00:50:00", 1000000L, 3000000L);
         assertBucket(buckets.get(1), 1L, "00:50:00-01:06:40", 3000000L, 4000000L);
@@ -1120,7 +1114,7 @@ public class DateRangeIT extends ParameterizedOpenSearchIntegTestCase {
                 dateRange("date_range").field("date").addRange("00.16.40", "00.50.00").addRange("00.50.00", "01.06.40").format("HH.mm.ss")
             )
             .get();
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(3L));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(3L));
         buckets = checkBuckets(searchResponse.getAggregations().get("date_range"), "date_range", 2);
         assertBucket(buckets.get(0), 2L, "00.16.40-00.50.00", 1000000L, 3000000L);
         assertBucket(buckets.get(1), 1L, "00.50.00-01.06.40", 3000000L, 4000000L);
@@ -1133,7 +1127,7 @@ public class DateRangeIT extends ParameterizedOpenSearchIntegTestCase {
                 dateRange("date_range").field("date").addRange(1000000, 3000000).addRange(3000000, 4000000).format("epoch_millis")
             )
             .get();
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(3L));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(3L));
         buckets = checkBuckets(searchResponse.getAggregations().get("date_range"), "date_range", 2);
         assertBucket(buckets.get(0), 2L, "1000000-3000000", 1000000L, 3000000L);
         assertBucket(buckets.get(1), 1L, "3000000-4000000", 3000000L, 4000000L);
@@ -1170,7 +1164,7 @@ public class DateRangeIT extends ParameterizedOpenSearchIntegTestCase {
             .setSize(0)
             .addAggregation(dateRange("date_range").field("date").addRange(1000, 3000).addRange(3000, 4000))
             .get();
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(3L));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(3L));
         List<Bucket> buckets = checkBuckets(searchResponse.getAggregations().get("date_range"), "date_range", 2);
         assertBucket(buckets.get(0), 2L, "1000-3000", 1000000L, 3000000L);
         assertBucket(buckets.get(1), 1L, "3000-4000", 3000000L, 4000000L);
@@ -1180,7 +1174,7 @@ public class DateRangeIT extends ParameterizedOpenSearchIntegTestCase {
             .setSize(0)
             .addAggregation(dateRange("date_range").field("date").addRange("1000", "3000").addRange("3000", "4000"))
             .get();
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(3L));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(3L));
         buckets = checkBuckets(searchResponse.getAggregations().get("date_range"), "date_range", 2);
         assertBucket(buckets.get(0), 2L, "1000-3000", 1000000L, 3000000L);
         assertBucket(buckets.get(1), 1L, "3000-4000", 3000000L, 4000000L);
@@ -1190,7 +1184,7 @@ public class DateRangeIT extends ParameterizedOpenSearchIntegTestCase {
             .setSize(0)
             .addAggregation(dateRange("date_range").field("date").addRange(1.0e3, 3000.8123).addRange(3000.8123, 4.0e3))
             .get();
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(3L));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(3L));
         buckets = checkBuckets(searchResponse.getAggregations().get("date_range"), "date_range", 2);
         assertBucket(buckets.get(0), 2L, "1000-3000", 1000000L, 3000000L);
         assertBucket(buckets.get(1), 1L, "3000-4000", 3000000L, 4000000L);
@@ -1203,7 +1197,7 @@ public class DateRangeIT extends ParameterizedOpenSearchIntegTestCase {
                 dateRange("date_range").field("date").addRange("00.16.40", "00.50.00").addRange("00.50.00", "01.06.40").format("HH.mm.ss")
             )
             .get();
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(3L));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(3L));
         buckets = checkBuckets(searchResponse.getAggregations().get("date_range"), "date_range", 2);
         assertBucket(buckets.get(0), 2L, "00.16.40-00.50.00", 1000000L, 3000000L);
         assertBucket(buckets.get(1), 1L, "00.50.00-01.06.40", 3000000L, 4000000L);
@@ -1216,7 +1210,7 @@ public class DateRangeIT extends ParameterizedOpenSearchIntegTestCase {
                 dateRange("date_range").field("date").addRange(1000000, 3000000).addRange(3000000, 4000000).format("epoch_millis")
             )
             .get();
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(3L));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(3L));
         buckets = checkBuckets(searchResponse.getAggregations().get("date_range"), "date_range", 2);
         assertBucket(buckets.get(0), 2L, "1000000-3000000", 1000000L, 3000000L);
         assertBucket(buckets.get(1), 1L, "3000000-4000000", 3000000L, 4000000L);

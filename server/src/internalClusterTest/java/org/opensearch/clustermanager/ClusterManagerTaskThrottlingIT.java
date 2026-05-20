@@ -86,7 +86,7 @@ public class ClusterManagerTaskThrottlingIT extends OpenSearchIntegTestCase {
 
             assertEquals(totalRequest + throttledRequest.get(), requestCountOnClusterManager.get());
             assertBusy(
-                () -> { assertEquals(clusterService().getMasterService().numberOfThrottledPendingTasks(), throttledRequest.get()); }
+                () -> { assertEquals(clusterService().getClusterManagerService().numberOfThrottledPendingTasks(), throttledRequest.get()); }
             );
         } finally {
             clusterSettingCleanUp();

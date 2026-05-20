@@ -33,8 +33,8 @@
 package org.opensearch.action.admin.indices.refresh;
 
 import org.opensearch.action.support.broadcast.BroadcastOperationRequestBuilder;
-import org.opensearch.client.OpenSearchClient;
 import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.transport.client.OpenSearchClient;
 
 /**
  * A refresh request making all operations performed since the last refresh available for search. The (near) real-time

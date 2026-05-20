@@ -34,8 +34,12 @@ package org.opensearch.script.mustache;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.search.ShardSearchFailure;
+import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.common.Strings;
+import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.ToXContent;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.search.internal.InternalSearchResponse;
 import org.opensearch.test.AbstractXContentTestCase;
@@ -44,6 +48,7 @@ import java.io.IOException;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertToXContentEquivalent;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
@@ -176,5 +181,79 @@ public class MultiSearchTemplateResponseTests extends AbstractXContentTestCase<M
             assertToXContentEquivalence,
             ToXContent.EMPTY_PARAMS
         );
+    }
+
+    public void testToXContentWithFailures() throws Exception {
+        long overallTookInMillis = randomNonNegativeLong();
+        MultiSearchTemplateResponse.Item[] items = new MultiSearchTemplateResponse.Item[2];
+
+        long tookInMillis = 1L;
+        int totalShards = 2;
+        int successfulShards = 2;
+        int skippedShards = 0;
+        InternalSearchResponse internalSearchResponse = InternalSearchResponse.empty();
+        SearchTemplateResponse searchTemplateResponse = new SearchTemplateResponse();
+        SearchResponse searchResponse = new SearchResponse(
+            internalSearchResponse,
+            null,
+            totalShards,
+            successfulShards,
+            skippedShards,
+            tookInMillis,
+            ShardSearchFailure.EMPTY_ARRAY,
+            SearchResponse.Clusters.EMPTY
+        );
+        searchTemplateResponse.setResponse(searchResponse);
+        items[0] = new MultiSearchTemplateResponse.Item(searchTemplateResponse, null);
+
+        items[1] = new MultiSearchTemplateResponse.Item(null, new IllegalArgumentException("Invalid argument"));
+
+        MultiSearchTemplateResponse response = new MultiSearchTemplateResponse(items, overallTookInMillis);
+
+        XContentType contentType = randomFrom(XContentType.values());
+        XContentBuilder expectedResponse = MediaTypeRegistry.contentBuilder(contentType)
+            .startObject()
+            .field("took", overallTookInMillis)
+            .startArray("responses")
+            .startObject()
+            .field("took", 1)
+            .field("timed_out", false)
+            .startObject("_shards")
+            .field("total", 2)
+            .field("successful", 2)
+            .field("skipped", 0)
+            .field("failed", 0)
+            .endObject()
+            .startObject("hits")
+            .startObject("total")
+            .field("value", 0)
+            .field("relation", "eq")
+            .endObject()
+            .field("max_score", 0.0F)
+            .startArray("hits")
+            .endArray()
+            .endObject()
+            .field("status", 200)
+            .endObject()
+            .startObject()
+            .startObject("error")
+            .field("type", "illegal_argument_exception")
+            .field("reason", "Invalid argument")
+            .startArray("root_cause")
+            .startObject()
+            .field("type", "illegal_argument_exception")
+            .field("reason", "Invalid argument")
+            .endObject()
+            .endArray()
+            .endObject()
+            .field("status", 400)
+            .endObject()
+            .endArray()
+            .endObject();
+
+        XContentBuilder actualResponse = MediaTypeRegistry.contentBuilder(contentType);
+        response.toXContent(actualResponse, ToXContent.EMPTY_PARAMS);
+
+        assertToXContentEquivalent(BytesReference.bytes(expectedResponse), BytesReference.bytes(actualResponse), contentType);
     }
 }

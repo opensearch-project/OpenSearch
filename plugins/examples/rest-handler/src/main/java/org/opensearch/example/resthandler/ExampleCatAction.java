@@ -31,12 +31,12 @@
 
 package org.opensearch.example.resthandler;
 
-import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.Table;
 import org.opensearch.rest.BytesRestResponse;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.action.cat.AbstractCatAction;
 import org.opensearch.rest.action.cat.RestTable;
+import org.opensearch.transport.client.node.NodeClient;
 
 import java.util.List;
 

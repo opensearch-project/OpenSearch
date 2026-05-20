@@ -39,6 +39,8 @@ import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.BoostQuery;
+import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MultiTermQuery;
@@ -59,6 +61,7 @@ import org.opensearch.common.unit.Fuzziness;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.analysis.IndexAnalyzers;
 import org.opensearch.index.analysis.NamedAnalyzer;
+import org.opensearch.index.compositeindex.datacube.DimensionType;
 import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.opensearch.index.query.QueryShardContext;
@@ -73,6 +76,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.function.Supplier;
 
 import static org.opensearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
@@ -155,6 +159,7 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
         );
         private final Parameter<Boolean> hasNorms = TextParams.norms(false, m -> toType(m).fieldType.omitNorms() == false);
         private final Parameter<SimilarityProvider> similarity = TextParams.similarity(m -> toType(m).similarity);
+        private final Parameter<Boolean> useSimilarity = Parameter.boolParam("use_similarity", true, m -> toType(m).useSimilarity, false);
 
         private final Parameter<String> normalizer = Parameter.stringParam("normalizer", false, m -> toType(m).normalizerName, "default");
 
@@ -211,6 +216,7 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
                 indexOptions,
                 hasNorms,
                 similarity,
+                useSimilarity,
                 normalizer,
                 splitQueriesOnWhitespace,
                 boost,
@@ -218,7 +224,7 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
             );
         }
 
-        private KeywordFieldType buildFieldType(BuilderContext context, FieldType fieldType) {
+        protected KeywordFieldType buildFieldType(BuilderContext context, FieldType fieldType) {
             NamedAnalyzer normalizer = Lucene.KEYWORD_ANALYZER;
             NamedAnalyzer searchAnalyzer = Lucene.KEYWORD_ANALYZER;
             String normalizerName = this.normalizer.getValue();
@@ -254,19 +260,59 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
                 this
             );
         }
+
+        @Override
+        public Optional<DimensionType> getSupportedDataCubeDimensionType() {
+            return Optional.of(DimensionType.ORDINAL);
+        }
     }
 
     public static final TypeParser PARSER = new TypeParser((n, c) -> new Builder(n, c.getIndexAnalyzers()));
+
+    @Override
+    protected void canDeriveSourceInternal() {
+        if (this.ignoreAbove != Integer.MAX_VALUE || !Objects.equals(this.normalizerName, "default")) {
+            throw new UnsupportedOperationException(
+                "Unable to derive source for [" + name() + "] with " + "ignore_above and/or normalizer set"
+            );
+        }
+        checkStoredAndDocValuesForDerivedSource();
+    }
+
+    /**
+     * 1. If it has doc values, build source using doc values
+     * 2. If doc_values is disabled in field mapping, then build source using stored field
+     * <p>
+     * Support:
+     *    1. If "ignore_above" is set in the field mapping, then we won't be supporting derived source for now,
+     *       considering for these cases we will need to have explicit stored field.
+     *    2. If "normalizer" is set in the field mapping, then also we won't support derived source, as with
+     *       normalizer it is hard to regenerate original source
+     * <p>
+     * Considerations:
+     *    1. When using doc values, for multi value field, result would be deduplicated and in sorted order
+     *    2. When using stored field, order and duplicate values would be preserved
+     */
+    @Override
+    protected DerivedFieldGenerator derivedFieldGenerator() {
+        return new DerivedFieldGenerator(
+            mappedFieldType,
+            new SortedSetDocValuesFetcher(mappedFieldType, simpleName()),
+            new StoredFieldFetcher(mappedFieldType, simpleName())
+        );
+    }
 
     /**
      * Field type for keyword fields
      *
      * @opensearch.internal
      */
-    public static final class KeywordFieldType extends StringFieldType {
+    public static class KeywordFieldType extends StringFieldType {
 
         private final int ignoreAbove;
         private final String nullValue;
+        private final boolean useSimilarity;
+        private final boolean splitQueriesOnWhitespace;
 
         public KeywordFieldType(String name, FieldType fieldType, NamedAnalyzer normalizer, NamedAnalyzer searchAnalyzer, Builder builder) {
             super(
@@ -282,13 +328,32 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
             setBoost(builder.boost.getValue());
             this.ignoreAbove = builder.ignoreAbove.getValue();
             this.nullValue = builder.nullValue.getValue();
+            this.useSimilarity = builder.useSimilarity.getValue();
+            this.splitQueriesOnWhitespace = builder.splitQueriesOnWhitespace.getValue();
         }
 
         public KeywordFieldType(String name, boolean isSearchable, boolean hasDocValues, Map<String, String> meta) {
+            this(name, isSearchable, hasDocValues, false, meta);
+        }
+
+        public KeywordFieldType(String name, boolean isSearchable, boolean hasDocValues, boolean useSimilarity, Map<String, String> meta) {
+            this(name, isSearchable, hasDocValues, useSimilarity, false, meta);
+        }
+
+        public KeywordFieldType(
+            String name,
+            boolean isSearchable,
+            boolean hasDocValues,
+            boolean useSimilarity,
+            boolean splitQueriesOnWhitespace,
+            Map<String, String> meta
+        ) {
             super(name, isSearchable, false, hasDocValues, TextSearchInfo.SIMPLE_MATCH_ONLY, meta);
             setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
             this.ignoreAbove = Integer.MAX_VALUE;
             this.nullValue = null;
+            this.useSimilarity = useSimilarity;
+            this.splitQueriesOnWhitespace = splitQueriesOnWhitespace;
         }
 
         public KeywordFieldType(String name) {
@@ -306,12 +371,16 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
             );
             this.ignoreAbove = Integer.MAX_VALUE;
             this.nullValue = null;
+            this.useSimilarity = false;
+            this.splitQueriesOnWhitespace = false;
         }
 
         public KeywordFieldType(String name, NamedAnalyzer analyzer) {
             super(name, true, false, true, new TextSearchInfo(Defaults.FIELD_TYPE, null, analyzer, analyzer), Collections.emptyMap());
             this.ignoreAbove = Integer.MAX_VALUE;
             this.nullValue = null;
+            this.useSimilarity = false;
+            this.splitQueriesOnWhitespace = false;
         }
 
         @Override
@@ -387,26 +456,107 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
             return getTextSearchInfo().getSearchAnalyzer().normalize(name(), value.toString());
         }
 
+        protected Object rewriteForDocValue(Object value) {
+            return value;
+        }
+
+        @Override
+        public Query termQueryCaseInsensitive(Object value, QueryShardContext context) {
+            failIfNotIndexedAndNoDocValues();
+            checkToDisableCaching(context);
+            if (isSearchable()) {
+                return super.termQueryCaseInsensitive(value, context);
+            } else {
+                BytesRef bytesRef = indexedValueForSearch(rewriteForDocValue(value));
+                Term term = new Term(name(), bytesRef);
+                Query query = AutomatonQueries.createAutomatonQuery(
+                    term,
+                    AutomatonQueries.toCaseInsensitiveString(bytesRef.utf8ToString()),
+                    MultiTermQuery.DOC_VALUES_REWRITE
+                );
+                if (boost() != 1f) {
+                    query = new BoostQuery(query, boost());
+                }
+                return query;
+            }
+        }
+
+        @Override
+        public Query termQuery(Object value, QueryShardContext context) {
+            failIfNotIndexedAndNoDocValues();
+            checkToDisableCaching(context);
+            if (isSearchable()) {
+                Query query = super.termQuery(value, context);
+                if (!this.useSimilarity) {
+                    query = new ConstantScoreQuery(super.termQuery(value, context));
+                }
+                if (boost() != 1f) {
+                    query = new BoostQuery(query, boost());
+                }
+                return query;
+            } else {
+                Query query = SortedSetDocValuesField.newSlowRangeQuery(
+                    name(),
+                    indexedValueForSearch(rewriteForDocValue(value)),
+                    indexedValueForSearch(rewriteForDocValue(value)),
+                    true,
+                    true
+                );
+                if (boost() != 1f) {
+                    query = new BoostQuery(query, boost());
+                }
+                return query;
+            }
+        }
+
         @Override
         public Query termsQuery(List<?> values, QueryShardContext context) {
             failIfNotIndexedAndNoDocValues();
+            checkToDisableCaching(context);
             // has index and doc_values enabled
             if (isSearchable() && hasDocValues()) {
-                BytesRef[] bytesRefs = new BytesRef[values.size()];
-                for (int i = 0; i < bytesRefs.length; i++) {
-                    bytesRefs[i] = indexedValueForSearch(values.get(i));
+                if (!context.keywordFieldIndexOrDocValuesEnabled()) {
+                    return super.termsQuery(values, context);
                 }
-                Query indexQuery = new TermInSetQuery(name(), bytesRefs);
-                Query dvQuery = new TermInSetQuery(MultiTermQuery.DOC_VALUES_REWRITE, name(), bytesRefs);
-                return new IndexOrDocValuesQuery(indexQuery, dvQuery);
+                BytesRefsCollectionBuilder iBytesRefs = new BytesRefsCollectionBuilder(values.size());
+                BytesRefsCollectionBuilder dVByteRefs = null;
+                for (int i = 0; i < values.size(); i++) {
+                    Object value = values.get(i);
+                    BytesRef idxBytes = indexedValueForSearch(value);
+                    iBytesRefs.accept(idxBytes);
+
+                    Object rewritten = rewriteForDocValue(value);
+                    if (dVByteRefs == null) { // needs to check
+                        if (rewritten != value && !rewritten.equals(value)) {
+                            // first time index and dv are divergent
+                            dVByteRefs = new BytesRefsCollectionBuilder(values.size());
+                            for (int rewind = 0; rewind <= i; rewind++) {
+                                Object rewrittenOld = rewind < i ? rewriteForDocValue(values.get(rewind)) : rewritten;
+                                BytesRef dvBytesOld = indexedValueForSearch(rewrittenOld);
+                                dVByteRefs.accept(dvBytesOld);
+                            }
+                        }
+                    } else {
+                        BytesRef dvBytes = indexedValueForSearch(rewritten);
+                        dVByteRefs.accept(dvBytes);
+                    }
+                }
+                if (dVByteRefs == null) { // index and docValues are the same, pack them once
+                    return TermInSetQuery.newIndexOrDocValuesQuery(MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE, name(), iBytesRefs.get());
+                } else {
+                    Query indexQuery = new TermInSetQuery(MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE, name(), iBytesRefs.get());
+                    Query dvQuery = new TermInSetQuery(MultiTermQuery.DOC_VALUES_REWRITE, name(), dVByteRefs.get());
+                    return new IndexOrDocValuesQuery(indexQuery, dvQuery);
+                }
             }
             // if we only have doc_values enabled, we construct a new query with doc_values re-written
             if (hasDocValues()) {
-                BytesRef[] bytesRefs = new BytesRef[values.size()];
-                for (int i = 0; i < bytesRefs.length; i++) {
-                    bytesRefs[i] = indexedValueForSearch(values.get(i));
+                BytesRefsCollectionBuilder bytesCollector = new BytesRefsCollectionBuilder(values.size());
+                for (Object value : values) {
+                    BytesRef dvBytes = indexedValueForSearch(rewriteForDocValue(value));
+                    bytesCollector.accept(dvBytes);
                 }
-                return new TermInSetQuery(MultiTermQuery.DOC_VALUES_REWRITE, name(), bytesRefs);
+                return new TermInSetQuery(MultiTermQuery.DOC_VALUES_REWRITE, name(), bytesCollector.get());
             }
             // has index enabled, we're going to return the query as is
             return super.termsQuery(values, context);
@@ -428,19 +578,31 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
                 );
             }
             failIfNotIndexedAndNoDocValues();
+            checkToDisableCaching(context);
             if (isSearchable() && hasDocValues()) {
+                if (!context.keywordFieldIndexOrDocValuesEnabled()) {
+                    return super.prefixQuery(value, method, caseInsensitive, context);
+                }
                 Query indexQuery = super.prefixQuery(value, method, caseInsensitive, context);
-                Query dvQuery = super.prefixQuery(value, MultiTermQuery.DOC_VALUES_REWRITE, caseInsensitive, context);
+                Query dvQuery = super.prefixQuery(
+                    (String) rewriteForDocValue(value),
+                    MultiTermQuery.DOC_VALUES_REWRITE,
+                    caseInsensitive,
+                    context
+                );
                 return new IndexOrDocValuesQuery(indexQuery, dvQuery);
             }
             if (hasDocValues()) {
                 if (caseInsensitive) {
                     return AutomatonQueries.caseInsensitivePrefixQuery(
-                        (new Term(name(), indexedValueForSearch(value))),
+                        (new Term(name(), indexedValueForSearch(rewriteForDocValue(value)))),
                         MultiTermQuery.DOC_VALUES_REWRITE
                     );
                 }
-                return new PrefixQuery(new Term(name(), indexedValueForSearch(value)), MultiTermQuery.DOC_VALUES_REWRITE);
+                return new PrefixQuery(
+                    new Term(name(), indexedValueForSearch(rewriteForDocValue(value))),
+                    MultiTermQuery.DOC_VALUES_REWRITE
+                );
             }
             return super.prefixQuery(value, method, caseInsensitive, context);
         }
@@ -460,10 +622,14 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
                 );
             }
             failIfNotIndexedAndNoDocValues();
+            checkToDisableCaching(context);
             if (isSearchable() && hasDocValues()) {
+                if (!context.keywordFieldIndexOrDocValuesEnabled()) {
+                    return super.regexpQuery(value, syntaxFlags, matchFlags, maxDeterminizedStates, method, context);
+                }
                 Query indexQuery = super.regexpQuery(value, syntaxFlags, matchFlags, maxDeterminizedStates, method, context);
                 Query dvQuery = super.regexpQuery(
-                    value,
+                    (String) rewriteForDocValue(value),
                     syntaxFlags,
                     matchFlags,
                     maxDeterminizedStates,
@@ -474,7 +640,7 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
             }
             if (hasDocValues()) {
                 return new RegexpQuery(
-                    new Term(name(), indexedValueForSearch(value)),
+                    new Term(name(), indexedValueForSearch(rewriteForDocValue(value))),
                     syntaxFlags,
                     matchFlags,
                     RegexpQuery.DEFAULT_PROVIDER,
@@ -495,6 +661,7 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
                 );
             }
             failIfNotIndexedAndNoDocValues();
+            checkToDisableCaching(context);
             if (isSearchable() && hasDocValues()) {
                 Query indexQuery = new TermRangeQuery(
                     name(),
@@ -505,8 +672,8 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
                 );
                 Query dvQuery = new TermRangeQuery(
                     name(),
-                    lowerTerm == null ? null : indexedValueForSearch(lowerTerm),
-                    upperTerm == null ? null : indexedValueForSearch(upperTerm),
+                    lowerTerm == null ? null : indexedValueForSearch(rewriteForDocValue(lowerTerm)),
+                    upperTerm == null ? null : indexedValueForSearch(rewriteForDocValue(upperTerm)),
                     includeLower,
                     includeUpper,
                     MultiTermQuery.DOC_VALUES_REWRITE
@@ -516,8 +683,8 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
             if (hasDocValues()) {
                 return new TermRangeQuery(
                     name(),
-                    lowerTerm == null ? null : indexedValueForSearch(lowerTerm),
-                    upperTerm == null ? null : indexedValueForSearch(upperTerm),
+                    lowerTerm == null ? null : indexedValueForSearch(rewriteForDocValue(lowerTerm)),
+                    upperTerm == null ? null : indexedValueForSearch(rewriteForDocValue(upperTerm)),
                     includeLower,
                     includeUpper,
                     MultiTermQuery.DOC_VALUES_REWRITE
@@ -543,15 +710,19 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
             QueryShardContext context
         ) {
             failIfNotIndexedAndNoDocValues();
+            checkToDisableCaching(context);
             if (context.allowExpensiveQueries() == false) {
                 throw new OpenSearchException(
                     "[fuzzy] queries cannot be executed when '" + ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to " + "false."
                 );
             }
             if (isSearchable() && hasDocValues()) {
-                Query indexQuery = super.fuzzyQuery(value, fuzziness, prefixLength, maxExpansions, transpositions, context);
+                if (!context.keywordFieldIndexOrDocValuesEnabled()) {
+                    return super.fuzzyQuery(value, fuzziness, prefixLength, maxExpansions, transpositions, method, context);
+                }
+                Query indexQuery = super.fuzzyQuery(value, fuzziness, prefixLength, maxExpansions, transpositions, method, context);
                 Query dvQuery = super.fuzzyQuery(
-                    value,
+                    rewriteForDocValue(value),
                     fuzziness,
                     prefixLength,
                     maxExpansions,
@@ -563,15 +734,15 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
             }
             if (hasDocValues()) {
                 return new FuzzyQuery(
-                    new Term(name(), indexedValueForSearch(value)),
-                    fuzziness.asDistance(BytesRefs.toString(value)),
+                    new Term(name(), indexedValueForSearch(rewriteForDocValue(value))),
+                    fuzziness.asDistance(BytesRefs.toString(rewriteForDocValue(value))),
                     prefixLength,
                     maxExpansions,
                     transpositions,
                     MultiTermQuery.DOC_VALUES_REWRITE
                 );
             }
-            return super.fuzzyQuery(value, fuzziness, prefixLength, maxExpansions, transpositions, context);
+            return super.fuzzyQuery(value, fuzziness, prefixLength, maxExpansions, transpositions, method, context);
         }
 
         @Override
@@ -587,24 +758,41 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
                 );
             }
             failIfNotIndexedAndNoDocValues();
+            checkToDisableCaching(context);
             // keyword field types are always normalized, so ignore case sensitivity and force normalize the
             // wildcard
             // query text
             if (isSearchable() && hasDocValues()) {
+                if (!context.keywordFieldIndexOrDocValuesEnabled()) {
+                    return super.wildcardQuery(value, method, caseInsensitive, true, context);
+                }
                 Query indexQuery = super.wildcardQuery(value, method, caseInsensitive, true, context);
-                Query dvQuery = super.wildcardQuery(value, MultiTermQuery.DOC_VALUES_REWRITE, caseInsensitive, true, context);
+                Query dvQuery = super.wildcardQuery(
+                    (String) rewriteForDocValue(value),
+                    MultiTermQuery.DOC_VALUES_REWRITE,
+                    caseInsensitive,
+                    true,
+                    context
+                );
                 return new IndexOrDocValuesQuery(indexQuery, dvQuery);
             }
             if (hasDocValues()) {
                 Term term;
                 value = normalizeWildcardPattern(name(), value, getTextSearchInfo().getSearchAnalyzer());
-                term = new Term(name(), value);
+                term = new Term(name(), (String) rewriteForDocValue(value));
                 if (caseInsensitive) {
                     return AutomatonQueries.caseInsensitiveWildcardQuery(term, method);
                 }
                 return new WildcardQuery(term, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, MultiTermQuery.DOC_VALUES_REWRITE);
             }
             return super.wildcardQuery(value, method, caseInsensitive, true, context);
+        }
+
+        private void checkToDisableCaching(QueryShardContext context) {
+            // Mark the query as non-cacheable if the defaults for useSimilarity or splitQueriesOnWhitespace are not used.
+            if (useSimilarity || splitQueriesOnWhitespace) {
+                context.setIsCacheable(false);
+            }
         }
 
     }
@@ -617,6 +805,7 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
     private final String indexOptions;
     private final FieldType fieldType;
     private final SimilarityProvider similarity;
+    private final boolean useSimilarity;
     private final String normalizerName;
     private final boolean splitQueriesOnWhitespace;
 
@@ -640,6 +829,7 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
         this.indexOptions = builder.indexOptions.getValue();
         this.fieldType = fieldType;
         this.similarity = builder.similarity.getValue();
+        this.useSimilarity = builder.useSimilarity.getValue();
         this.normalizerName = builder.normalizer.getValue();
         this.splitQueriesOnWhitespace = builder.splitQueriesOnWhitespace.getValue();
 
@@ -654,6 +844,10 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
         return ignoreAbove;
     }
 
+    boolean useSimilarity() {
+        return useSimilarity;
+    }
+
     @Override
     protected KeywordFieldMapper clone() {
         return (KeywordFieldMapper) super.clone();
@@ -666,25 +860,9 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
 
     @Override
     protected void parseCreateField(ParseContext context) throws IOException {
-        String value;
-        if (context.externalValueSet()) {
-            value = context.externalValue().toString();
-        } else {
-            XContentParser parser = context.parser();
-            if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
-                value = nullValue;
-            } else {
-                value = parser.textOrNull();
-            }
-        }
-
-        if (value == null || value.length() > ignoreAbove) {
+        String value = parseKeywordValue(context);
+        if (value == null) {
             return;
-        }
-
-        NamedAnalyzer normalizer = fieldType().normalizer();
-        if (normalizer != null) {
-            value = normalizeValue(normalizer, name(), value);
         }
 
         // convert to utf8 only once before feeding postings/dv/stored fields
@@ -703,7 +881,40 @@ public final class KeywordFieldMapper extends ParametrizedFieldMapper {
         }
     }
 
-    private static String normalizeValue(NamedAnalyzer normalizer, String field, String value) throws IOException {
+    @Override
+    protected void parseCreateFieldForPluggableFormat(ParseContext context) throws IOException {
+        String value = parseKeywordValue(context);
+        if (value == null) {
+            return;
+        }
+        context.documentInput().addField(fieldType(), value);
+    }
+
+    private String parseKeywordValue(ParseContext context) throws IOException {
+        String value;
+        if (context.externalValueSet()) {
+            value = context.externalValue().toString();
+        } else {
+            XContentParser parser = context.parser();
+            if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
+                value = nullValue;
+            } else {
+                value = parser.textOrNull();
+            }
+        }
+
+        if (value == null || value.length() > ignoreAbove) {
+            return null;
+        }
+
+        NamedAnalyzer normalizer = fieldType().normalizer();
+        if (normalizer != null) {
+            value = normalizeValue(normalizer, name(), value);
+        }
+        return value;
+    }
+
+    static String normalizeValue(NamedAnalyzer normalizer, String field, String value) throws IOException {
         try (TokenStream ts = normalizer.tokenStream(field, value)) {
             final CharTermAttribute termAtt = ts.addAttribute(CharTermAttribute.class);
             ts.reset();

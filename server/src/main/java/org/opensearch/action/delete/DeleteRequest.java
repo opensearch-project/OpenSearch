@@ -47,6 +47,8 @@ import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.mapper.MapperService;
+import org.opensearch.transport.client.Client;
+import org.opensearch.transport.client.Requests;
 
 import java.io.IOException;
 
@@ -56,14 +58,14 @@ import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 
 /**
  * A request to delete a document from an index based on its type and id. Best created using
- * {@link org.opensearch.client.Requests#deleteRequest(String)}.
+ * {@link Requests#deleteRequest(String)}.
  * <p>
  * The operation requires the {@link #index()}, and {@link #id(String)} to
  * be set.
  *
  * @see DeleteResponse
- * @see org.opensearch.client.Client#delete(DeleteRequest)
- * @see org.opensearch.client.Requests#deleteRequest(String)
+ * @see Client#delete(DeleteRequest)
+ * @see Requests#deleteRequest(String)
  *
  * @opensearch.api
  */

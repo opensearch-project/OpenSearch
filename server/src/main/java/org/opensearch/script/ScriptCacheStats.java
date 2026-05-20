@@ -166,7 +166,10 @@ public class ScriptCacheStats implements Writeable, ToXContentFragment {
             cacheEvictions += stat.getCacheEvictions();
             compilationLimitTriggered += stat.getCompilationLimitTriggered();
         }
-        return new ScriptStats(compilations, cacheEvictions, compilationLimitTriggered);
+        return new ScriptStats.Builder().compilations(compilations)
+            .cacheEvictions(cacheEvictions)
+            .compilationLimitTriggered(compilationLimitTriggered)
+            .build();
     }
 
     static final class Fields {

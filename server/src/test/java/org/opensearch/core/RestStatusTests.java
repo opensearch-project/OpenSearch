@@ -13,6 +13,7 @@ import org.opensearch.core.action.ShardOperationFailedException;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.rest.RestStatus;
+import org.opensearch.core.rest.StatusType;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.test.OpenSearchTestCase;
 
@@ -26,6 +27,7 @@ public class RestStatusTests extends OpenSearchTestCase {
         int successfulShards = randomIntBetween(1, totalShards);
 
         assertEquals(RestStatus.OK, RestStatus.status(successfulShards, totalShards));
+        assertEquals(StatusType.SUCCESS.toString(), RestStatus.status(successfulShards, totalShards).getStatusType());
     }
 
     public void testStatusReturns503ForUnavailableShards() {
@@ -33,6 +35,7 @@ public class RestStatusTests extends OpenSearchTestCase {
         int successfulShards = 0;
 
         assertEquals(RestStatus.SERVICE_UNAVAILABLE, RestStatus.status(successfulShards, totalShards));
+        assertEquals(StatusType.SYSTEM_FAILURE.toString(), RestStatus.status(successfulShards, totalShards).getStatusType());
     }
 
     public void testStatusReturnsFailureStatusWhenFailuresExist() {
@@ -55,7 +58,12 @@ public class RestStatusTests extends OpenSearchTestCase {
             heapOfFailures.add(failure);
         }
 
-        assertEquals(heapOfFailures.peek().status(), RestStatus.status(successfulShards, totalShards, failures));
+        final RestStatus status = heapOfFailures.peek().status();
+        // RestStatus.status will return RestStatus.OK when the highest failure code is 100 level.
+        final RestStatus expected = status.getStatusFamilyCode() == 1 ? RestStatus.OK : status;
+
+        assertEquals(expected, RestStatus.status(successfulShards, totalShards, failures));
+        assertEquals(expected.getStatusType(), RestStatus.status(successfulShards, totalShards, failures).getStatusType());
     }
 
     public void testSerialization() throws IOException {

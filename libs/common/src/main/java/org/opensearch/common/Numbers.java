@@ -83,44 +83,60 @@ public final class Numbers {
      *  stored value cannot be converted to a long that stores the exact same
      *  value. */
     public static long toLongExact(Number n) {
-        if (n instanceof Byte || n instanceof Short || n instanceof Integer || n instanceof Long) {
-            return n.longValue();
-        } else if (n instanceof Float || n instanceof Double) {
-            double d = n.doubleValue();
-            if (d != Math.round(d)) {
-                throw new IllegalArgumentException(n + " is not an integer value");
+        return switch (n) {
+            case Byte b -> b.longValue();
+            case Short s -> s.longValue();
+            case Integer i -> i.longValue();
+            case Long l -> l;
+            case Float f -> {
+                double d = f.doubleValue();
+                if (d != Math.round(d)) {
+                    throw new IllegalArgumentException(f + " is not an integer value");
+                }
+                yield f.longValue();
             }
-            return n.longValue();
-        } else if (n instanceof BigDecimal) {
-            return ((BigDecimal) n).toBigIntegerExact().longValueExact();
-        } else if (n instanceof BigInteger) {
-            return ((BigInteger) n).longValueExact();
-        } else {
-            throw new IllegalArgumentException(
+            case Double d -> {
+                if (d != Math.round(d)) {
+                    throw new IllegalArgumentException(d + " is not an integer value");
+                }
+                yield d.longValue();
+            }
+            case BigDecimal bd -> bd.toBigIntegerExact().longValueExact();
+            case BigInteger bi -> bi.longValueExact();
+            default -> throw new IllegalArgumentException(
                 "Cannot check whether [" + n + "] of class [" + n.getClass().getName() + "] is actually a long"
             );
-        }
+        };
     }
 
     /** Return the {@link BigInteger} that {@code n} stores, or throws an exception if the
      *  stored value cannot be converted to a {@link BigInteger} that stores the exact same
      *  value. */
     public static BigInteger toBigIntegerExact(Number n) {
-        if (n instanceof Byte || n instanceof Short || n instanceof Integer || n instanceof Long) {
-            return BigInteger.valueOf(n.longValue());
-        } else if (n instanceof Float || n instanceof Double) {
-            double d = n.doubleValue();
-            if (d != Math.round(d)) {
-                throw new IllegalArgumentException(n + " is not an integer value");
+        return switch (n) {
+            case Byte b -> BigInteger.valueOf(b.longValue());
+            case Short s -> BigInteger.valueOf(s.longValue());
+            case Integer i -> BigInteger.valueOf(i.longValue());
+            case Long l -> BigInteger.valueOf(l.longValue());
+            case Float f -> {
+                double d = f.doubleValue();
+                if (d != Math.round(d)) {
+                    throw new IllegalArgumentException(f + " is not an integer value");
+                }
+                yield BigInteger.valueOf(f.longValue());
             }
-            return BigInteger.valueOf(n.longValue());
-        } else if (n instanceof BigDecimal) {
-            return ((BigDecimal) n).toBigIntegerExact();
-        } else if (n instanceof BigInteger) {
-            return ((BigInteger) n);
-        } else {
-            throw new IllegalArgumentException("Cannot convert [" + n + "] of class [" + n.getClass().getName() + "] to a BigInteger");
-        }
+            case Double d -> {
+                if (d != Math.round(d)) {
+                    throw new IllegalArgumentException(d + " is not an integer value");
+                }
+                yield BigInteger.valueOf(d.longValue());
+            }
+            case BigDecimal bd -> bd.toBigIntegerExact();
+            case BigInteger bi -> bi;
+            default -> throw new IllegalArgumentException(
+                "Cannot convert [" + n + "] of class [" + n.getClass().getName() + "] to a BigInteger"
+            );
+        };
     }
 
     /** Return the unsigned long (as {@link BigInteger}) that {@code n} stores, or throws an exception if the

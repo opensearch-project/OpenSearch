@@ -31,6 +31,8 @@
 
 package org.opensearch.index.translog;
 
+import org.opensearch.common.annotation.PublicApi;
+
 import java.io.IOException;
 import java.nio.channels.FileChannel;
 import java.nio.file.OpenOption;
@@ -40,9 +42,10 @@ import java.nio.file.StandardOpenOption;
 /**
  * only for testing until we have a disk-full FileSystem
  *
- * @opensearch.internal
+ * @opensearch.api
  */
 @FunctionalInterface
+@PublicApi(since = "1.0.0")
 public interface ChannelFactory {
     default FileChannel open(Path path) throws IOException {
         return open(path, StandardOpenOption.WRITE, StandardOpenOption.READ, StandardOpenOption.CREATE_NEW);

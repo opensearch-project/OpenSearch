@@ -123,6 +123,14 @@ public abstract class AbstractScopedSettings {
         this.keySettings = keySettings;
     }
 
+    /**
+     *  Returns the list of setting updaters registered in this scope.
+     * @return an unmodifiable view of the setting updaters
+     */
+    public List<SettingUpdater<?>> getSettingUpdaters() {
+        return Collections.unmodifiableList(settingUpdaters);
+    }
+
     protected void validateSettingKey(Setting<?> setting) {
         if (isValidKey(setting.getKey()) == false
             && (setting.isGroupSetting() && isValidGroupKey(setting.getKey()) || isValidAffixKey(setting.getKey())) == false
@@ -760,6 +768,23 @@ public abstract class AbstractScopedSettings {
     }
 
     /**
+     * Returns <code>true</code> if the setting for the given key is unmodifiableOnRestore. Otherwise <code>false</code>.
+     */
+    public boolean isUnmodifiableOnRestoreSetting(String key) {
+        final Setting<?> setting = get(key);
+        return setting != null && setting.isUnmodifiableOnRestore();
+    }
+
+    /**
+     * Returns <code>true</code> if the setting for the given key is sensitive, meaning it requires
+     * security admin privileges to be updated dynamically. Otherwise <code>false</code>.
+     */
+    public boolean isSensitiveSetting(String key) {
+        final Setting<?> setting = get(key);
+        return setting != null && setting.isSensitive();
+    }
+
+    /**
      * Returns a settings object that contains all settings that are not
      * already set in the given source. The diff contains either the default value for each
      * setting or the settings value in the given default settings.
@@ -788,6 +813,36 @@ public abstract class AbstractScopedSettings {
             throw new SettingsException("setting " + setting.getKey() + " has not been registered");
         }
         return setting.get(this.lastSettingsApplied, settings);
+    }
+
+    /**
+     * Returns the value for the given setting if it is explicitly set,
+     * otherwise will return null instead of default value
+     **/
+    public <T> T getOrNull(Setting<T> setting) {
+        if (setting.getProperties().contains(scope) == false) {
+            throw new SettingsException(
+                "settings scope doesn't match the setting scope [" + this.scope + "] not in [" + setting.getProperties() + "]"
+            );
+        }
+        if (get(setting.getKey()) == null) {
+            throw new SettingsException("setting " + setting.getKey() + " has not been registered");
+        }
+        if (setting.exists(lastSettingsApplied)) {
+            return setting.get(lastSettingsApplied);
+        }
+        if (setting.exists(settings)) {
+            return setting.get(settings);
+        }
+        if (setting.fallbackSetting != null) {
+            if (setting.fallbackSetting.exists(lastSettingsApplied)) {
+                return setting.fallbackSetting.get(lastSettingsApplied);
+            }
+            if (setting.fallbackSetting.exists(settings)) {
+                return setting.fallbackSetting.get(settings);
+            }
+        }
+        return null;
     }
 
     /**

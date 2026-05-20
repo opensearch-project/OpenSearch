@@ -15,18 +15,21 @@ import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.Set;
 
+import io.opentelemetry.api.trace.SpanKind;
+import io.opentelemetry.context.Context;
 import io.opentelemetry.sdk.trace.samplers.Sampler;
 
 import static org.opensearch.telemetry.OTelTelemetrySettings.TRACER_EXPORTER_DELAY_SETTING;
 import static org.opensearch.telemetry.TelemetrySettings.TRACER_ENABLED_SETTING;
 import static org.opensearch.telemetry.TelemetrySettings.TRACER_SAMPLER_PROBABILITY;
+import static org.mockito.Mockito.mock;
 
 public class ProbabilisticSamplerTests extends OpenSearchTestCase {
 
     // When ProbabilisticSampler is created with OTelTelemetrySettings as null
     public void testProbabilisticSamplerWithNullSettings() {
         // Verify that the constructor throws IllegalArgumentException when given null settings
-        assertThrows(NullPointerException.class, () -> { new ProbabilisticSampler(null); });
+        assertThrows(NullPointerException.class, () -> { ProbabilisticSampler.create(null, null, null); });
     }
 
     public void testDefaultGetSampler() {
@@ -37,10 +40,9 @@ public class ProbabilisticSamplerTests extends OpenSearchTestCase {
         );
 
         // Probabilistic Sampler
-        ProbabilisticSampler probabilisticSampler = new ProbabilisticSampler(telemetrySettings);
+        Sampler probabilisticSampler = ProbabilisticSampler.create(telemetrySettings, Settings.EMPTY, null);
 
-        assertNotNull(probabilisticSampler.getSampler());
-        assertEquals(0.01, probabilisticSampler.getSamplingRatio(), 0.0d);
+        assertEquals(0.01, ((ProbabilisticSampler) probabilisticSampler).getSamplingRatio(), 0.0d);
     }
 
     public void testGetSamplerWithUpdatedSamplingRatio() {
@@ -51,14 +53,16 @@ public class ProbabilisticSamplerTests extends OpenSearchTestCase {
         );
 
         // Probabilistic Sampler
-        ProbabilisticSampler probabilisticSampler = new ProbabilisticSampler(telemetrySettings);
-        assertEquals(0.01d, probabilisticSampler.getSamplingRatio(), 0.0d);
+        Sampler probabilisticSampler = ProbabilisticSampler.create(telemetrySettings, Settings.EMPTY, null);
+
+        assertEquals(0.01d, ((ProbabilisticSampler) probabilisticSampler).getSamplingRatio(), 0.0d);
 
         telemetrySettings.setSamplingProbability(0.02);
 
-        // Need to call getSampler() to update the value of tracerHeadSamplerSamplingRatio
-        Sampler updatedProbabilisticSampler = probabilisticSampler.getSampler();
-        assertEquals(0.02, probabilisticSampler.getSamplingRatio(), 0.0d);
-    }
+        // Need to call shouldSample() to update the value of samplingRatio
+        probabilisticSampler.shouldSample(mock(Context.class), "00000000000000000000000000000000", "", SpanKind.INTERNAL, null, null);
 
+        // Need to call getSampler() to update the value of tracerHeadSamplerSamplingRatio
+        assertEquals(0.02, ((ProbabilisticSampler) probabilisticSampler).getSamplingRatio(), 0.0d);
+    }
 }

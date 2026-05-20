@@ -36,6 +36,7 @@ import org.apache.lucene.util.CollectionUtil;
 import org.opensearch.client.AbstractResponseTestCase;
 import org.opensearch.client.GetAliasesResponseTests;
 import org.opensearch.cluster.metadata.AliasMetadata;
+import org.opensearch.cluster.metadata.Context;
 import org.opensearch.cluster.metadata.MappingMetadata;
 import org.opensearch.common.settings.IndexScopedSettings;
 import org.opensearch.common.settings.Settings;
@@ -66,6 +67,7 @@ public class GetIndexResponseTests extends AbstractResponseTestCase<
         final Map<String, Settings> settings = new HashMap<>();
         final Map<String, Settings> defaultSettings = new HashMap<>();
         final Map<String, String> dataStreams = new HashMap<>();
+        final Map<String, Context> contexts = new HashMap<>();
         IndexScopedSettings indexScopedSettings = IndexScopedSettings.DEFAULT_SCOPED_SETTINGS;
         boolean includeDefaults = randomBoolean();
         for (String index : indices) {
@@ -90,6 +92,10 @@ public class GetIndexResponseTests extends AbstractResponseTestCase<
             if (randomBoolean()) {
                 dataStreams.put(index, randomAlphaOfLength(5).toLowerCase(Locale.ROOT));
             }
+
+            if (randomBoolean()) {
+                contexts.put(index, new Context(randomAlphaOfLength(5).toLowerCase(Locale.ROOT)));
+            }
         }
         return new org.opensearch.action.admin.indices.get.GetIndexResponse(
             indices,
@@ -97,7 +103,8 @@ public class GetIndexResponseTests extends AbstractResponseTestCase<
             aliases,
             settings,
             defaultSettings,
-            dataStreams
+            dataStreams,
+            null
         );
     }
 
@@ -116,6 +123,7 @@ public class GetIndexResponseTests extends AbstractResponseTestCase<
         assertEquals(serverTestInstance.getSettings(), clientInstance.getSettings());
         assertEquals(serverTestInstance.defaultSettings(), clientInstance.getDefaultSettings());
         assertEquals(serverTestInstance.getAliases(), clientInstance.getAliases());
+        assertEquals(serverTestInstance.contexts(), clientInstance.contexts());
     }
 
     private static MappingMetadata createMappingsForIndex() {

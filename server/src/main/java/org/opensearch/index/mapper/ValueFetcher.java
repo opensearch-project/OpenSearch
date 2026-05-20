@@ -33,6 +33,7 @@
 package org.opensearch.index.mapper;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.search.fetch.subphase.FetchFieldsPhase;
 import org.opensearch.search.lookup.SourceLookup;
 
@@ -43,8 +44,9 @@ import java.util.List;
  * A helper class for fetching field values during the {@link FetchFieldsPhase}. Each {@link MappedFieldType}
  * is in charge of defining a value fetcher through {@link MappedFieldType#valueFetcher}.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public interface ValueFetcher {
     /**
      * Given access to a document's _source, return this field's values.

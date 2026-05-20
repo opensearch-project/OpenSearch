@@ -62,8 +62,8 @@ import org.opensearch.action.search.SearchType;
 import org.opensearch.action.support.ActiveShardCount;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.action.support.WriteRequest;
+import org.opensearch.action.support.clustermanager.AcknowledgedRequest;
 import org.opensearch.action.support.clustermanager.ClusterManagerNodeRequest;
-import org.opensearch.action.support.master.AcknowledgedRequest;
 import org.opensearch.action.support.replication.ReplicationRequest;
 import org.opensearch.action.update.UpdateRequest;
 import org.opensearch.client.RequestConverters.EndpointBuilder;
@@ -1367,6 +1367,7 @@ public class RequestConvertersTests extends OpenSearchTestCase {
         scriptParams.put("field", "name");
         scriptParams.put("value", "soren");
         searchTemplateRequest.setScriptParams(scriptParams);
+        searchTemplateRequest.setSearchPipeline("pipeline");
 
         // Verify that the resulting REST request looks as expected.
         Request request = RequestConverters.searchTemplate(searchTemplateRequest);
@@ -1391,6 +1392,7 @@ public class RequestConvertersTests extends OpenSearchTestCase {
         searchTemplateRequest.setScript("template1");
         searchTemplateRequest.setScriptType(ScriptType.STORED);
         searchTemplateRequest.setProfile(randomBoolean());
+        searchTemplateRequest.setSearchPipeline("pipeline");
 
         Map<String, Object> scriptParams = new HashMap<>();
         scriptParams.put("field", "name");
@@ -1399,7 +1401,7 @@ public class RequestConvertersTests extends OpenSearchTestCase {
 
         // Verify that the resulting REST request looks as expected.
         Request request = RequestConverters.searchTemplate(searchTemplateRequest);
-        String endpoint = "_render/template";
+        String endpoint = "/_render/template";
 
         assertEquals(HttpGet.METHOD_NAME, request.getMethod());
         assertEquals(endpoint, request.getEndpoint());
@@ -1431,6 +1433,7 @@ public class RequestConvertersTests extends OpenSearchTestCase {
             searchTemplateRequest.setScript("{\"query\": { \"match\" : { \"{{field}}\" : \"{{value}}\" }}}");
             searchTemplateRequest.setScriptType(ScriptType.INLINE);
             searchTemplateRequest.setProfile(randomBoolean());
+            searchTemplateRequest.setSearchPipeline("pipeline");
 
             Map<String, Object> scriptParams = new HashMap<>();
             scriptParams.put("field", "name");
@@ -1565,7 +1568,7 @@ public class RequestConvertersTests extends OpenSearchTestCase {
 
         Request request = RequestConverters.mtermVectors(mtvRequest);
         assertEquals(HttpGet.METHOD_NAME, request.getMethod());
-        assertEquals("_mtermvectors", request.getEndpoint());
+        assertEquals("/_mtermvectors", request.getEndpoint());
         assertToXContentBody(mtvRequest, request.getEntity());
     }
 
@@ -1585,7 +1588,7 @@ public class RequestConvertersTests extends OpenSearchTestCase {
 
         Request request = RequestConverters.mtermVectors(mtvRequest);
         assertEquals(HttpGet.METHOD_NAME, request.getMethod());
-        assertEquals("_mtermvectors", request.getEndpoint());
+        assertEquals("/_mtermvectors", request.getEndpoint());
         assertToXContentBody(mtvRequest, request.getEntity());
     }
 
@@ -1969,7 +1972,10 @@ public class RequestConvertersTests extends OpenSearchTestCase {
         if (randomBoolean()) {
             if (randomBoolean()) {
                 boolean fetchSource = randomBoolean();
-                consumer.accept(new FetchSourceContext(fetchSource));
+                FetchSourceContext fetchSourceContext = fetchSource
+                    ? FetchSourceContext.FETCH_SOURCE
+                    : FetchSourceContext.DO_NOT_FETCH_SOURCE;
+                consumer.accept(fetchSourceContext);
                 if (fetchSource == false) {
                     expectedParams.put("_source", "false");
                 }

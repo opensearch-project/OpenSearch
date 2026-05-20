@@ -31,20 +31,32 @@
 
 package org.opensearch.index.mapper;
 
+import org.apache.lucene.document.Field;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
+import org.apache.lucene.document.StoredField;
+import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.MultiReader;
 import org.apache.lucene.index.SortedNumericDocValues;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.IndexSortSortedNumericDocValuesRangeQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.search.Sort;
+import org.apache.lucene.search.SortField;
+import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -62,21 +74,31 @@ import org.opensearch.index.mapper.DateFieldMapper.DateFieldType;
 import org.opensearch.index.mapper.DateFieldMapper.Resolution;
 import org.opensearch.index.mapper.MappedFieldType.Relation;
 import org.opensearch.index.mapper.ParseContext.Document;
+import org.opensearch.index.query.BaseQueryRewriteContext;
 import org.opensearch.index.query.DateRangeIncludingNowQuery;
 import org.opensearch.index.query.QueryRewriteContext;
 import org.opensearch.index.query.QueryShardContext;
+import org.opensearch.search.approximate.ApproximatePointRangeQuery;
+import org.opensearch.search.approximate.ApproximateScoreQuery;
+import org.opensearch.test.TestSearchContext;
 import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
+import java.util.Locale;
+
+import static org.apache.lucene.document.LongPoint.pack;
 
 public class DateFieldTypeTests extends FieldTypeTestCase {
 
     private static final long nowInMillis = 0;
 
     public void testIsFieldWithinRangeEmptyReader() throws IOException {
-        QueryRewriteContext context = new QueryRewriteContext(xContentRegistry(), writableRegistry(), null, () -> nowInMillis);
+        QueryRewriteContext context = new BaseQueryRewriteContext(xContentRegistry(), writableRegistry(), null, () -> nowInMillis);
         IndexReader reader = new MultiReader();
         DateFieldType ft = new DateFieldType("my_date");
         assertEquals(
@@ -113,7 +135,7 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
         doTestIsFieldWithinQuery(ft, reader, DateTimeZone.UTC, null);
         doTestIsFieldWithinQuery(ft, reader, DateTimeZone.UTC, alternateFormat);
 
-        QueryRewriteContext context = new QueryRewriteContext(xContentRegistry(), writableRegistry(), null, () -> nowInMillis);
+        QueryRewriteContext context = new BaseQueryRewriteContext(xContentRegistry(), writableRegistry(), null, () -> nowInMillis);
 
         // Fields with no value indexed.
         DateFieldType ft2 = new DateFieldType("my_date2");
@@ -125,7 +147,7 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
 
     private void doTestIsFieldWithinQuery(DateFieldType ft, DirectoryReader reader, DateTimeZone zone, DateMathParser alternateFormat)
         throws IOException {
-        QueryRewriteContext context = new QueryRewriteContext(xContentRegistry(), writableRegistry(), null, () -> nowInMillis);
+        QueryRewriteContext context = new BaseQueryRewriteContext(xContentRegistry(), writableRegistry(), null, () -> nowInMillis);
         assertEquals(
             Relation.INTERSECTS,
             ft.isFieldWithinQuery(reader, "2015-10-09", "2016-01-02", randomBoolean(), randomBoolean(), null, null, context)
@@ -206,9 +228,18 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
         MappedFieldType ft = new DateFieldType("field");
         String date = "2015-10-12T14:10:55";
         long instant = DateFormatters.from(DateFieldMapper.getDefaultDateTimeFormatter().parse(date)).toInstant().toEpochMilli();
-        Query expected = new IndexOrDocValuesQuery(
-            LongPoint.newRangeQuery("field", instant, instant + 999),
-            SortedNumericDocValuesField.newSlowRangeQuery("field", instant, instant + 999)
+        Query expected = new ApproximateScoreQuery(
+            new IndexOrDocValuesQuery(
+                LongPoint.newRangeQuery("field", instant, instant + 999),
+                SortedNumericDocValuesField.newSlowRangeQuery("field", instant, instant + 999)
+            ),
+            new ApproximatePointRangeQuery(
+                "field",
+                pack(new long[] { instant }).bytes,
+                pack(new long[] { instant + 999 }).bytes,
+                new long[] { instant }.length,
+                ApproximatePointRangeQuery.LONG_FORMAT
+            )
         );
         assertEquals(expected, ft.termQuery(date, context));
 
@@ -216,14 +247,14 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
             "field",
             false,
             false,
-            true,
+            false,
             DateFieldMapper.getDefaultDateTimeFormatter(),
             Resolution.MILLISECONDS,
             null,
             Collections.emptyMap()
         );
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> unsearchable.termQuery(date, context));
-        assertEquals("Cannot search on field [field] since it is not indexed.", e.getMessage());
+        assertEquals("Cannot search on field [field] since it is both not indexed, and does not have doc_values enabled.", e.getMessage());
     }
 
     public void testRangeQuery() throws IOException {
@@ -256,21 +287,41 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
         String date2 = "2016-04-28T11:33:52";
         long instant1 = DateFormatters.from(DateFieldMapper.getDefaultDateTimeFormatter().parse(date1)).toInstant().toEpochMilli();
         long instant2 = DateFormatters.from(DateFieldMapper.getDefaultDateTimeFormatter().parse(date2)).toInstant().toEpochMilli() + 999;
-        Query expected = new IndexOrDocValuesQuery(
-            LongPoint.newRangeQuery("field", instant1, instant2),
-            SortedNumericDocValuesField.newSlowRangeQuery("field", instant1, instant2)
+        ApproximatePointRangeQuery approximatePointRangeQuery = new ApproximatePointRangeQuery(
+            "field",
+            pack(new long[] { instant1 }).bytes,
+            pack(new long[] { instant2 }).bytes,
+            new long[] { instant1 }.length,
+            ApproximatePointRangeQuery.LONG_FORMAT
         );
-        assertEquals(
-            expected,
-            ft.rangeQuery(date1, date2, true, true, null, null, null, context).rewrite(new IndexSearcher(new MultiReader()))
-        );
-
-        instant1 = nowInMillis;
-        instant2 = instant1 + 100;
-        expected = new DateRangeIncludingNowQuery(
+        Query expected = new ApproximateScoreQuery(
             new IndexOrDocValuesQuery(
                 LongPoint.newRangeQuery("field", instant1, instant2),
                 SortedNumericDocValuesField.newSlowRangeQuery("field", instant1, instant2)
+            ),
+            approximatePointRangeQuery
+        );
+        Query rangeQuery = ft.rangeQuery(date1, date2, true, true, null, null, null, context);
+        assertTrue(rangeQuery instanceof ApproximateScoreQuery);
+        ((ApproximateScoreQuery) rangeQuery).setContext(new TestSearchContext(context));
+        assertEquals(expected, rangeQuery.rewrite(new IndexSearcher(new MultiReader())));
+
+        instant1 = nowInMillis;
+        instant2 = instant1 + 100;
+        expected = new ApproximateScoreQuery(
+            new DateRangeIncludingNowQuery(
+                new IndexOrDocValuesQuery(
+                    LongPoint.newRangeQuery("field", instant1, instant2),
+                    SortedNumericDocValuesField.newSlowRangeQuery("field", instant1, instant2)
+                )
+            ),
+            new ApproximatePointRangeQuery(
+                "field",
+                pack(new long[] { instant1 }).bytes,
+                pack(new long[] { instant2 }).bytes,
+                new long[] { instant1 }.length,
+                ApproximatePointRangeQuery.LONG_FORMAT
+
             )
         );
         assertEquals(expected, ft.rangeQuery("now", instant2, true, true, null, null, null, context));
@@ -279,7 +330,7 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
             "field",
             false,
             false,
-            true,
+            false,
             DateFieldMapper.getDefaultDateTimeFormatter(),
             Resolution.MILLISECONDS,
             null,
@@ -289,7 +340,7 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
             IllegalArgumentException.class,
             () -> unsearchable.rangeQuery(date1, date2, true, true, null, null, null, context)
         );
-        assertEquals("Cannot search on field [field] since it is not indexed.", e.getMessage());
+        assertEquals("Cannot search on field [field] since it is both not indexed, and does not have doc_values enabled.", e.getMessage());
     }
 
     public void testRangeQueryWithIndexSort() {
@@ -329,13 +380,21 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
         long instant1 = DateFormatters.from(DateFieldMapper.getDefaultDateTimeFormatter().parse(date1)).toInstant().toEpochMilli();
         long instant2 = DateFormatters.from(DateFieldMapper.getDefaultDateTimeFormatter().parse(date2)).toInstant().toEpochMilli() + 999;
 
-        Query pointQuery = LongPoint.newRangeQuery("field", instant1, instant2);
         Query dvQuery = SortedNumericDocValuesField.newSlowRangeQuery("field", instant1, instant2);
-        Query expected = new IndexSortSortedNumericDocValuesRangeQuery(
-            "field",
-            instant1,
-            instant2,
-            new IndexOrDocValuesQuery(pointQuery, dvQuery)
+        Query expected = new ApproximateScoreQuery(
+            new IndexSortSortedNumericDocValuesRangeQuery(
+                "field",
+                instant1,
+                instant2,
+                new IndexOrDocValuesQuery(LongPoint.newRangeQuery("field", instant1, instant2), dvQuery)
+            ),
+            new ApproximatePointRangeQuery(
+                "field",
+                pack(new long[] { instant1 }).bytes,
+                pack(new long[] { instant2 }).bytes,
+                new long[] { instant1 }.length,
+                ApproximatePointRangeQuery.LONG_FORMAT
+            )
         );
         assertEquals(expected, ft.rangeQuery(date1, date2, true, true, null, null, null, context));
     }
@@ -411,5 +470,188 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
         String nullValueDate = "2020-05-15T21:33:02.123456789Z";
         MappedFieldType nullValueMapper = fieldType(Resolution.NANOSECONDS, "strict_date_time||epoch_millis", nullValueDate);
         assertEquals(Collections.singletonList(nullValueDate), fetchSourceValue(nullValueMapper, null));
+    }
+
+    public void testDateResolutionForOverflow() throws IOException {
+        Directory dir = newDirectory();
+        IndexWriter w = new IndexWriter(dir, new IndexWriterConfig(null));
+
+        DateFieldType ft = new DateFieldType(
+            "test_date",
+            true,
+            true,
+            true,
+            DateFormatter.forPattern("yyyy-MM-dd HH:mm:ss||yyyy-MM-dd||epoch_millis||strict_date_optional_time"),
+            Resolution.MILLISECONDS,
+            null,
+            Collections.emptyMap()
+        );
+
+        List<String> dates = Arrays.asList(
+            null,
+            "2020-01-01T00:00:00Z",
+            null,
+            "2021-01-01T00:00:00Z",
+            "+292278994-08-17T07:12:55.807Z",
+            null,
+            "-292275055-05-16T16:47:04.192Z"
+        );
+
+        int numNullDates = 0;
+        long minDateValue = Long.MAX_VALUE;
+        long maxDateValue = Long.MIN_VALUE;
+
+        for (int i = 0; i < dates.size(); i++) {
+            ParseContext.Document doc = new ParseContext.Document();
+            String dateStr = dates.get(i);
+
+            if (dateStr != null) {
+                long timestamp = Resolution.MILLISECONDS.convert(DateFormatters.from(ft.dateTimeFormatter().parse(dateStr)).toInstant());
+                doc.add(new LongPoint(ft.name(), timestamp));
+                doc.add(new SortedNumericDocValuesField(ft.name(), timestamp));
+                doc.add(new StoredField(ft.name(), timestamp));
+                doc.add(new StoredField("id", i));
+                minDateValue = Math.min(minDateValue, timestamp);
+                maxDateValue = Math.max(maxDateValue, timestamp);
+            } else {
+                numNullDates++;
+                doc.add(new StoredField("id", i));
+            }
+            w.addDocument(doc);
+        }
+
+        DirectoryReader reader = DirectoryReader.open(w);
+        IndexSearcher searcher = new IndexSearcher(reader);
+
+        Settings indexSettings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+            .build();
+        QueryShardContext context = new QueryShardContext(
+            0,
+            new IndexSettings(IndexMetadata.builder("foo").settings(indexSettings).build(), indexSettings),
+            BigArrays.NON_RECYCLING_INSTANCE,
+            null,
+            null,
+            null,
+            null,
+            null,
+            xContentRegistry(),
+            writableRegistry(),
+            null,
+            null,
+            () -> nowInMillis,
+            null,
+            null,
+            () -> true,
+            null
+        );
+
+        Query rangeQuery = ft.rangeQuery(
+            "-292275055-05-16T16:47:04.192Z",
+            "+292278994-08-17T07:12:55.807Z",
+            true,
+            true,
+            null,
+            null,
+            null,
+            context
+        );
+
+        TopDocs topDocs = searcher.search(rangeQuery, dates.size());
+        assertEquals("Number of non-null date documents", dates.size() - numNullDates, topDocs.totalHits.value());
+
+        for (ScoreDoc scoreDoc : topDocs.scoreDocs) {
+            org.apache.lucene.document.Document doc = reader.storedFields().document(scoreDoc.doc);
+            IndexableField dateField = doc.getField(ft.name());
+            if (dateField != null) {
+                long dateValue = dateField.numericValue().longValue();
+                assertTrue(
+                    "Date value " + dateValue + " should be within valid range",
+                    dateValue >= minDateValue && dateValue <= maxDateValue
+                );
+            }
+        }
+
+        DateFieldType ftWithNullValue = new DateFieldType(
+            "test_date",
+            true,
+            true,
+            true,
+            DateFormatter.forPattern("yyyy-MM-dd HH:mm:ss||yyyy-MM-dd||epoch_millis||strict_date_optional_time"),
+            Resolution.MILLISECONDS,
+            "2020-01-01T00:00:00Z",
+            Collections.emptyMap()
+        );
+
+        Query nullValueQuery = ftWithNullValue.termQuery("2020-01-01T00:00:00Z", context);
+        topDocs = searcher.search(nullValueQuery, dates.size());
+        assertEquals("Documents matching the 2020-01-01 date", 1, topDocs.totalHits.value());
+
+        IOUtils.close(reader, w, dir);
+    }
+
+    public void testDateFieldTypeWithNulls() throws IOException {
+        DateFieldType ft = new DateFieldType(
+            "domainAttributes.dueDate",
+            true,
+            true,
+            true,
+            DateFormatter.forPattern("yyyy-MM-dd HH:mm:ss||yyyy-MM-dd||epoch_millis||date_optional_time"),
+            Resolution.MILLISECONDS,
+            null,
+            Collections.emptyMap()
+        );
+
+        Directory dir = newDirectory();
+        IndexWriter w = new IndexWriter(dir, new IndexWriterConfig(null));
+
+        int nullDocs = 3500;
+        int datedDocs = 50;
+
+        for (int i = 0; i < nullDocs; i++) {
+            ParseContext.Document doc = new ParseContext.Document();
+            doc.add(new StringField("domainAttributes.firmId", "12345678910111213", Field.Store.YES));
+            w.addDocument(doc);
+        }
+
+        for (int i = 1; i <= datedDocs; i++) {
+            ParseContext.Document doc = new ParseContext.Document();
+            String dateStr = String.format(Locale.ROOT, "2022-03-%02dT15:40:58.324", (i % 30) + 1);
+            long timestamp = Resolution.MILLISECONDS.convert(DateFormatters.from(ft.dateTimeFormatter().parse(dateStr)).toInstant());
+            doc.add(new StringField("domainAttributes.firmId", "12345678910111213", Field.Store.YES));
+            doc.add(new LongPoint(ft.name(), timestamp));
+            doc.add(new SortedNumericDocValuesField(ft.name(), timestamp));
+            doc.add(new StoredField(ft.name(), timestamp));
+            w.addDocument(doc);
+        }
+
+        DirectoryReader reader = DirectoryReader.open(w);
+        IndexSearcher searcher = new IndexSearcher(reader);
+
+        BooleanQuery.Builder queryBuilder = new BooleanQuery.Builder();
+        queryBuilder.add(new TermQuery(new Term("domainAttributes.firmId", "12345678910111213")), BooleanClause.Occur.MUST);
+
+        Sort sort = new Sort(new SortField(ft.name(), SortField.Type.DOC, false));
+
+        for (int i = 0; i < 100; i++) {
+            TopDocs topDocs = searcher.search(queryBuilder.build(), nullDocs + datedDocs, sort);
+            assertEquals("Total hits should match total documents", nullDocs + datedDocs, topDocs.totalHits.value());
+            for (ScoreDoc scoreDoc : topDocs.scoreDocs) {
+                org.apache.lucene.document.Document doc = reader.storedFields().document(scoreDoc.doc);
+                IndexableField dateField = doc.getField(ft.name());
+                if (dateField != null) {
+                    long dateValue = dateField.numericValue().longValue();
+                    Instant dateInstant = Instant.ofEpochMilli(dateValue);
+                    assertTrue(
+                        "Date should be in March 2022",
+                        dateInstant.isAfter(Instant.parse("2022-03-01T00:00:00Z"))
+                            && dateInstant.isBefore(Instant.parse("2022-04-01T00:00:00Z"))
+                    );
+                }
+            }
+        }
+        IOUtils.close(reader, w, dir);
     }
 }

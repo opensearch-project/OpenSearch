@@ -264,7 +264,15 @@ public class SearchAsYouTypeFieldMapper extends ParametrizedFieldMapper {
             }
             ft.setPrefixField(prefixFieldType);
             ft.setShingleFields(shingleFieldTypes);
-            return new SearchAsYouTypeFieldMapper(name, ft, copyTo.build(), prefixFieldMapper, shingleFieldMappers, this);
+            return new SearchAsYouTypeFieldMapper(
+                name,
+                ft,
+                multiFieldsBuilder.build(this, context),
+                copyTo.build(),
+                prefixFieldMapper,
+                shingleFieldMappers,
+                this
+            );
         }
     }
 
@@ -482,6 +490,11 @@ public class SearchAsYouTypeFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
+        protected void parseCreateFieldForPluggableFormat(ParseContext context) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
         protected void mergeOptions(FieldMapper other, List<String> conflicts) {
 
         }
@@ -514,6 +527,11 @@ public class SearchAsYouTypeFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         protected void parseCreateField(ParseContext context) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        protected void parseCreateFieldForPluggableFormat(ParseContext context) {
             throw new UnsupportedOperationException();
         }
 
@@ -623,12 +641,13 @@ public class SearchAsYouTypeFieldMapper extends ParametrizedFieldMapper {
     public SearchAsYouTypeFieldMapper(
         String simpleName,
         SearchAsYouTypeFieldType mappedFieldType,
+        MultiFields multiFields,
         CopyTo copyTo,
         PrefixFieldMapper prefixField,
         ShingleFieldMapper[] shingleFields,
         Builder builder
     ) {
-        super(simpleName, mappedFieldType, MultiFields.empty(), copyTo);
+        super(simpleName, mappedFieldType, multiFields, copyTo);
         this.prefixField = prefixField;
         this.shingleFields = shingleFields;
         this.maxShingleSize = builder.maxShingleSize.getValue();
@@ -641,7 +660,7 @@ public class SearchAsYouTypeFieldMapper extends ParametrizedFieldMapper {
 
     @Override
     protected void parseCreateField(ParseContext context) throws IOException {
-        final String value = context.externalValueSet() ? context.externalValue().toString() : context.parser().textOrNull();
+        final String value = extractValue(context);
         if (value == null) {
             return;
         }
@@ -654,6 +673,19 @@ public class SearchAsYouTypeFieldMapper extends ParametrizedFieldMapper {
         if (fieldType().fieldType.omitNorms()) {
             createFieldNamesField(context);
         }
+    }
+
+    @Override
+    protected void parseCreateFieldForPluggableFormat(ParseContext context) throws IOException {
+        final String value = extractValue(context);
+        if (value == null) {
+            return;
+        }
+        context.documentInput().addField(fieldType(), value);
+    }
+
+    private String extractValue(ParseContext context) throws IOException {
+        return context.externalValueSet() ? context.externalValue().toString() : context.parser().textOrNull();
     }
 
     @Override

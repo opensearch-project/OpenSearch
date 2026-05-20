@@ -1,8 +1,6 @@
 ---
 "Clone index ignores target template mapping":
   - skip:
-      version: " - 7.3.99"
-      reason: index cloning was added in 7.4.0
       features: allowed_warnings
   # create index
   - do:

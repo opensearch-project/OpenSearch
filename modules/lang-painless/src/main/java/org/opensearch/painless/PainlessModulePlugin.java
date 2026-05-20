@@ -33,7 +33,6 @@
 package org.opensearch.painless;
 
 import org.opensearch.action.ActionRequest;
-import org.opensearch.client.Client;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.service.ClusterService;
@@ -60,13 +59,17 @@ import org.opensearch.plugins.ScriptPlugin;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.rest.RestController;
 import org.opensearch.rest.RestHandler;
+import org.opensearch.script.ContextAwareGroupingScript;
+import org.opensearch.script.DerivedFieldScript;
 import org.opensearch.script.IngestScript;
 import org.opensearch.script.ScoreScript;
 import org.opensearch.script.ScriptContext;
 import org.opensearch.script.ScriptEngine;
 import org.opensearch.script.ScriptService;
+import org.opensearch.script.UpdateScript;
 import org.opensearch.search.aggregations.pipeline.MovingFunctionScript;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.client.Client;
 import org.opensearch.watcher.ResourceWatcherService;
 
 import java.util.ArrayList;
@@ -107,6 +110,19 @@ public final class PainlessModulePlugin extends Plugin implements ScriptPlugin, 
         List<Allowlist> ingest = new ArrayList<>(Allowlist.BASE_ALLOWLISTS);
         ingest.add(AllowlistLoader.loadFromResourceFiles(Allowlist.class, "org.opensearch.ingest.txt"));
         map.put(IngestScript.CONTEXT, ingest);
+
+        // Functions available to update scripts
+        List<Allowlist> update = new ArrayList<>(Allowlist.BASE_ALLOWLISTS);
+        update.add(AllowlistLoader.loadFromResourceFiles(Allowlist.class, "org.opensearch.update.txt"));
+        map.put(UpdateScript.CONTEXT, update);
+
+        // Functions available to derived fields
+        List<Allowlist> derived = new ArrayList<>(Allowlist.BASE_ALLOWLISTS);
+        derived.add(AllowlistLoader.loadFromResourceFiles(Allowlist.class, "org.opensearch.derived.txt"));
+        map.put(DerivedFieldScript.CONTEXT, derived);
+
+        // Only basic painless support for ContextAwareGrouping script
+        map.put(ContextAwareGroupingScript.CONTEXT, new ArrayList<>(Allowlist.BASE_ALLOWLISTS));
 
         allowlists = map;
     }

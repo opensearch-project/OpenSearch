@@ -32,11 +32,13 @@
 package org.opensearch.action.support.clustermanager.info;
 
 import org.opensearch.action.support.ActionFilters;
+import org.opensearch.action.support.TransportIndicesResolvingAction;
 import org.opensearch.action.support.clustermanager.TransportClusterManagerNodeReadAction;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.block.ClusterBlockException;
 import org.opensearch.cluster.block.ClusterBlockLevel;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
+import org.opensearch.cluster.metadata.ResolvedIndices;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.action.ActionResponse;
@@ -50,7 +52,9 @@ import org.opensearch.transport.TransportService;
  * @opensearch.internal
  */
 public abstract class TransportClusterInfoAction<Request extends ClusterInfoRequest<Request>, Response extends ActionResponse> extends
-    TransportClusterManagerNodeReadAction<Request, Response> {
+    TransportClusterManagerNodeReadAction<Request, Response>
+    implements
+        TransportIndicesResolvingAction<Request> {
 
     public TransportClusterInfoAction(
         String actionName,
@@ -62,6 +66,7 @@ public abstract class TransportClusterInfoAction<Request extends ClusterInfoRequ
         IndexNameExpressionResolver indexNameExpressionResolver
     ) {
         super(actionName, transportService, clusterService, threadPool, actionFilters, request, indexNameExpressionResolver);
+        this.localExecuteSupported = true;
     }
 
     @Override
@@ -73,37 +78,28 @@ public abstract class TransportClusterInfoAction<Request extends ClusterInfoRequ
     @Override
     protected ClusterBlockException checkBlock(Request request, ClusterState state) {
         return state.blocks()
-            .indicesBlockedException(ClusterBlockLevel.METADATA_READ, indexNameExpressionResolver.concreteIndexNames(state, request));
-    }
-
-    /** @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #clusterManagerOperation(ClusterInfoRequest, ClusterState, ActionListener)} */
-    @Deprecated
-    protected final void masterOperation(final Request request, final ClusterState state, final ActionListener<Response> listener) {
-        clusterManagerOperation(request, state, listener);
+            .indicesBlockedException(ClusterBlockLevel.METADATA_READ, resolveIndices(state, request).namesOfConcreteIndicesAsArray());
     }
 
     @Override
     protected final void clusterManagerOperation(final Request request, final ClusterState state, final ActionListener<Response> listener) {
-        String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(state, request);
+        String[] concreteIndices = resolveIndices(state, request).namesOfConcreteIndicesAsArray();
         doClusterManagerOperation(request, concreteIndices, state, listener);
     }
 
-    // TODO: Add abstract keyword after removing the deprecated doMasterOperation()
-    protected void doClusterManagerOperation(
+    @Override
+    public ResolvedIndices resolveIndices(Request request) {
+        return ResolvedIndices.of(resolveIndices(clusterService.state(), request));
+    }
+
+    private ResolvedIndices.Local.Concrete resolveIndices(ClusterState state, Request request) {
+        return indexNameExpressionResolver.concreteResolvedIndices(state, request);
+    }
+
+    protected abstract void doClusterManagerOperation(
         Request request,
         String[] concreteIndices,
         ClusterState state,
         ActionListener<Response> listener
-    ) {
-        doMasterOperation(request, concreteIndices, state, listener);
-    }
-
-    /**
-     * @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #doClusterManagerOperation(ClusterInfoRequest, String[], ClusterState, ActionListener)}
-     */
-    @Deprecated
-    protected void doMasterOperation(Request request, String[] concreteIndices, ClusterState state, ActionListener<Response> listener) {
-        throw new UnsupportedOperationException("Must be overridden");
-    }
-
+    );
 }

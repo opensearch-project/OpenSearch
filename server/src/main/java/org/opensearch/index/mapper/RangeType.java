@@ -41,7 +41,6 @@ import org.apache.lucene.document.IntRange;
 import org.apache.lucene.document.LongRange;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.IndexableField;
-import org.apache.lucene.queries.BinaryDocValuesRangeQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
@@ -53,6 +52,7 @@ import org.opensearch.common.time.DateFormatter;
 import org.opensearch.common.time.DateMathParser;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.query.QueryShardContext;
+import org.opensearch.lucene.queries.BinaryDocValuesRangeQuery;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -94,11 +94,11 @@ public enum RangeType {
 
         @Override
         public InetAddress parseValue(Object value, boolean coerce, @Nullable DateMathParser dateMathParser) {
-            if (value instanceof InetAddress) {
-                return (InetAddress) value;
+            if (value instanceof InetAddress inetAddress) {
+                return inetAddress;
             } else {
-                if (value instanceof BytesRef) {
-                    value = ((BytesRef) value).utf8ToString();
+                if (value instanceof BytesRef bytesRef) {
+                    value = bytesRef.utf8ToString();
                 }
                 return InetAddresses.forString(value.toString());
             }
@@ -318,7 +318,7 @@ public enum RangeType {
             Long low = lowerTerm == null
                 ? minValue()
                 : dateMathParser.parse(
-                    lowerTerm instanceof BytesRef ? ((BytesRef) lowerTerm).utf8ToString() : lowerTerm.toString(),
+                    lowerTerm instanceof BytesRef bytesRef ? bytesRef.utf8ToString() : lowerTerm.toString(),
                     context::nowInMillis,
                     roundUp,
                     zone
@@ -327,7 +327,7 @@ public enum RangeType {
             Long high = upperTerm == null
                 ? maxValue()
                 : dateMathParser.parse(
-                    upperTerm instanceof BytesRef ? ((BytesRef) upperTerm).utf8ToString() : upperTerm.toString(),
+                    upperTerm instanceof BytesRef bytesRef2 ? bytesRef2.utf8ToString() : upperTerm.toString(),
                     context::nowInMillis,
                     roundUp,
                     zone

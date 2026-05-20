@@ -39,7 +39,9 @@ import org.apache.lucene.queries.intervals.Intervals;
 import org.apache.lucene.queries.intervals.IntervalsSource;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CompiledAutomaton;
+import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
 import org.opensearch.common.unit.Fuzziness;
 import org.opensearch.core.ParseField;
@@ -441,6 +443,9 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
             for (IntervalsSourceProvider provider : subSources) {
                 ss.add(provider.getSource(ctx, fieldType));
             }
+            if (maxGaps == 0 && mode == IntervalMode.ORDERED && IntervalBuilder.canCombineSources(ss) == false) {
+                throw new IllegalArgumentException("Too many disjunctions to expand");
+            }
             IntervalsSource source = IntervalBuilder.combineSources(ss, maxGaps, mode);
             if (filter != null) {
                 return filter.filter(source, ctx, fieldType);
@@ -718,7 +723,8 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
                 flags,
                 caseInsensitive ? RegExp.ASCII_CASE_INSENSITIVE : 0
             );
-            final CompiledAutomaton automaton = new CompiledAutomaton(regexp.toAutomaton());
+            final Automaton automaton = Operations.determinize(regexp.toAutomaton(), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
+            final CompiledAutomaton compiledAutomaton = new CompiledAutomaton(automaton);
 
             if (useField != null) {
                 fieldType = context.fieldMapper(useField);
@@ -726,14 +732,14 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
                 checkPositions(fieldType);
 
                 IntervalsSource regexpSource = maxExpansions == null
-                    ? Intervals.multiterm(automaton, regexp.toString())
-                    : Intervals.multiterm(automaton, maxExpansions, regexp.toString());
+                    ? Intervals.multiterm(compiledAutomaton, regexp.toString())
+                    : Intervals.multiterm(compiledAutomaton, maxExpansions, regexp.toString());
                 return Intervals.fixField(useField, regexpSource);
             } else {
                 checkPositions(fieldType);
                 return maxExpansions == null
-                    ? Intervals.multiterm(automaton, regexp.toString())
-                    : Intervals.multiterm(automaton, maxExpansions, regexp.toString());
+                    ? Intervals.multiterm(compiledAutomaton, regexp.toString())
+                    : Intervals.multiterm(compiledAutomaton, maxExpansions, regexp.toString());
             }
         }
 

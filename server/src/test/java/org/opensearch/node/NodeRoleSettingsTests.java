@@ -18,6 +18,7 @@ import java.util.Collections;
 import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 
 public class NodeRoleSettingsTests extends OpenSearchTestCase {
 
@@ -41,6 +42,15 @@ public class NodeRoleSettingsTests extends OpenSearchTestCase {
             Arrays.asList(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE, DiscoveryNodeRole.DATA_ROLE),
             NodeRoleSettings.NODE_ROLES_SETTING.get(roleSettings)
         );
+    }
+
+    /**
+     * Validate search role cannot coexist with any other role on a node.
+     */
+    public void testSearchRoleCannotCoExistWithAnyOtherRole() {
+        Settings roleSettings = Settings.builder().put(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), "search, test_role").build();
+        Exception exception = expectThrows(IllegalArgumentException.class, () -> NodeRoleSettings.NODE_ROLES_SETTING.get(roleSettings));
+        assertThat(exception.getMessage(), containsString("search role cannot be combined with any other role on a node."));
     }
 
     /**
@@ -71,5 +81,14 @@ public class NodeRoleSettingsTests extends OpenSearchTestCase {
         assertEquals(1, nodeRoles.size());
         assertEquals(testRole, nodeRoles.get(0).roleName());
         assertEquals(testRole, nodeRoles.get(0).roleNameAbbreviation());
+    }
+
+    public void testNodeRolesFromEnvironmentVariables() {
+        Settings roleSettings = Settings.builder()
+            .put(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), "${node.roles.test}")
+            .replacePropertyPlaceholders()
+            .build();
+        List<DiscoveryNodeRole> nodeRoles = NodeRoleSettings.NODE_ROLES_SETTING.get(roleSettings);
+        assertThat(nodeRoles, empty());
     }
 }

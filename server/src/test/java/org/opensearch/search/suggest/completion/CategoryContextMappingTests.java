@@ -787,7 +787,7 @@ public class CategoryContextMappingTests extends OpenSearchSingleNodeTestCase {
             .endObject()
             .endObject();
 
-        MapperService mapperService = createIndex("test", Settings.EMPTY, "type1", mapping).mapperService();
+        MapperService mapperService = createIndex("test", Settings.EMPTY, mapping).mapperService();
         CompletionFieldType completionFieldType = (CompletionFieldType) mapperService.fieldType("completion");
 
         Exception e = expectThrows(IllegalArgumentException.class, () -> completionFieldType.getContextMappings().get("brand"));
@@ -799,7 +799,9 @@ public class CategoryContextMappingTests extends OpenSearchSingleNodeTestCase {
         ParseContext.Document document = new ParseContext.Document();
 
         KeywordFieldMapper.KeywordFieldType keyword = new KeywordFieldMapper.KeywordFieldType("category");
-        document.add(new KeywordFieldMapper.KeywordField(keyword.name(), new BytesRef("category1"), new FieldType()));
+        FieldType keywordFieldType = new FieldType();
+        keywordFieldType.setStored(true);
+        document.add(new KeywordFieldMapper.KeywordField(keyword.name(), new BytesRef("category1"), keywordFieldType));
         // Ignore doc values
         document.add(new SortedSetDocValuesField(keyword.name(), new BytesRef("category1")));
         Set<String> context = mapping.parseContext(document);

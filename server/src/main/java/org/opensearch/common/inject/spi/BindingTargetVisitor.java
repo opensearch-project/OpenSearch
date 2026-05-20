@@ -29,6 +29,8 @@
 
 package org.opensearch.common.inject.spi;
 
+import org.opensearch.common.annotation.PublicApi;
+
 /**
  * Visits each of the strategies used to find an instance to satisfy an injection.
  *
@@ -36,8 +38,9 @@ package org.opensearch.common.inject.spi;
  *            {@code return null} if no return type is needed.
  * @since 2.0
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public interface BindingTargetVisitor<T, V> {
 
     /**

@@ -1299,6 +1299,41 @@ public class DateFormatters {
             .withResolverStyle(ResolverStyle.STRICT)
     );
 
+    /**
+     * Returns RFC 3339 a popular ISO 8601 profile compatible date time formatter and parser.
+     * This is not fully compatible to the existing spec, its more linient and closely follows w3c note on datetime
+     */
+
+    public static final DateFormatter RFC3339_LENIENT_DATE_FORMATTER = new JavaDateFormatter(
+        "rfc3339_lenient",
+        new OpenSearchDateTimeFormatter(STRICT_DATE_OPTIONAL_TIME_PRINTER),
+        new RFC3339CompatibleDateTimeFormatter(
+            new DateTimeFormatterBuilder().append(DATE_FORMATTER)
+                .optionalStart()
+                .appendLiteral('T')
+                .appendValue(HOUR_OF_DAY, 1, 2, SignStyle.NOT_NEGATIVE)
+                .appendLiteral(':')
+                .appendValue(MINUTE_OF_HOUR, 1, 2, SignStyle.NOT_NEGATIVE)
+                .optionalStart()
+                .appendLiteral(':')
+                .appendValue(SECOND_OF_MINUTE, 1, 2, SignStyle.NOT_NEGATIVE)
+                .optionalStart()
+                .appendFraction(NANO_OF_SECOND, 1, 9, true)
+                .optionalEnd()
+                .optionalStart()
+                .appendLiteral(',')
+                .appendFraction(NANO_OF_SECOND, 1, 9, false)
+                .optionalEnd()
+                .optionalStart()
+                .appendOffsetId()
+                .optionalEnd()
+                .optionalEnd()
+                .optionalEnd()
+                .toFormatter(Locale.ROOT)
+                .withResolverStyle(ResolverStyle.STRICT)
+        )
+    );
+
     private static final DateTimeFormatter HOUR_MINUTE_SECOND_FORMATTER = new DateTimeFormatterBuilder().append(HOUR_MINUTE_FORMATTER)
         .appendLiteral(":")
         .appendValue(SECOND_OF_MINUTE, 1, 2, SignStyle.NOT_NEGATIVE)
@@ -2084,6 +2119,8 @@ public class DateFormatters {
         } else if (FormatNames.EPOCH_MILLIS.matches(input)) {
             return EpochTime.MILLIS_FORMATTER;
             // strict date formats here, must be at least 4 digits for year and two for months and two for day
+        } else if (FormatNames.EPOCH_MICROS.matches(input)) {
+            return EpochTime.MICROS_FORMATTER;
         } else if (FormatNames.STRICT_BASIC_WEEK_DATE.matches(input)) {
             return STRICT_BASIC_WEEK_DATE;
         } else if (FormatNames.STRICT_BASIC_WEEK_DATE_TIME.matches(input)) {
@@ -2152,6 +2189,8 @@ public class DateFormatters {
             return STRICT_YEAR_MONTH;
         } else if (FormatNames.STRICT_YEAR_MONTH_DAY.matches(input)) {
             return STRICT_YEAR_MONTH_DAY;
+        } else if (FormatNames.RFC3339_LENIENT.matches(input)) {
+            return RFC3339_LENIENT_DATE_FORMATTER;
         } else {
             try {
                 return new JavaDateFormatter(

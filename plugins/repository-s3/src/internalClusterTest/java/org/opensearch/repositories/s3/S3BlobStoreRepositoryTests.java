@@ -31,6 +31,8 @@
 
 package org.opensearch.repositories.s3;
 
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
+
 import com.sun.net.httpserver.Headers;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
@@ -59,7 +61,9 @@ import org.opensearch.repositories.RepositoryMissingException;
 import org.opensearch.repositories.RepositoryStats;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.repositories.blobstore.OpenSearchMockAPIBasedRepositoryIntegTestCase;
+import org.opensearch.repositories.s3.async.AsyncTransferManager;
 import org.opensearch.repositories.s3.utils.AwsRequestSigner;
+import org.opensearch.secure_sm.AccessController;
 import org.opensearch.snapshots.mockstore.BlobStoreWrapper;
 import org.opensearch.test.BackgroundIndexer;
 import org.opensearch.test.OpenSearchIntegTestCase;
@@ -73,7 +77,9 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
 import fixture.s3.S3HttpHandler;
@@ -84,6 +90,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 @SuppressForbidden(reason = "this test uses a HttpServer to emulate an S3 endpoint")
+@ThreadLeakFilters(filters = EventLoopThreadFilter.class)
 // Need to set up a new cluster for each test because cluster settings use randomized authentication settings
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST)
 public class S3BlobStoreRepositoryTests extends OpenSearchMockAPIBasedRepositoryIntegTestCase {
@@ -95,16 +102,16 @@ public class S3BlobStoreRepositoryTests extends OpenSearchMockAPIBasedRepository
     @Override
     public void setUp() throws Exception {
         signerOverride = AwsRequestSigner.VERSION_FOUR_SIGNER.getName();
-        previousOpenSearchPathConf = SocketAccess.doPrivileged(() -> System.setProperty("opensearch.path.conf", "config"));
+        previousOpenSearchPathConf = AccessController.doPrivileged(() -> System.setProperty("opensearch.path.conf", "config"));
         super.setUp();
     }
 
     @Override
     public void tearDown() throws Exception {
         if (previousOpenSearchPathConf != null) {
-            SocketAccess.doPrivileged(() -> System.setProperty("opensearch.path.conf", previousOpenSearchPathConf));
+            AccessController.doPrivileged(() -> System.setProperty("opensearch.path.conf", previousOpenSearchPathConf));
         } else {
-            SocketAccess.doPrivileged(() -> System.clearProperty("opensearch.path.conf"));
+            AccessController.doPrivileged(() -> System.clearProperty("opensearch.path.conf"));
         }
         super.tearDown();
     }
@@ -137,14 +144,14 @@ public class S3BlobStoreRepositoryTests extends OpenSearchMockAPIBasedRepository
 
     @Override
     protected HttpHandler createErroneousHttpHandler(final HttpHandler delegate) {
-        return new S3StatsCollectorHttpHandler(new S3ErroneousHttpHandler(delegate, randomIntBetween(2, 3)));
+        return new S3StatsCollectorHttpHandler(new S3ErroneousHttpHandler(delegate, randomDoubleBetween(0, 0.25, false)));
     }
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         final MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString(S3ClientSettings.ACCESS_KEY_SETTING.getConcreteSettingForNamespace("test").getKey(), "access");
-        secureSettings.setString(S3ClientSettings.SECRET_KEY_SETTING.getConcreteSettingForNamespace("test").getKey(), "secret");
+        secureSettings.setString(S3ClientSettings.SECRET_KEY_SETTING.getConcreteSettingForNamespace("test").getKey(), "secret_password");
 
         final Settings.Builder builder = Settings.builder()
             .put(ThreadPool.ESTIMATED_TIME_INTERVAL_SETTING.getKey(), 0) // We have tests that verify an exact wait time
@@ -165,7 +172,6 @@ public class S3BlobStoreRepositoryTests extends OpenSearchMockAPIBasedRepository
         return builder.build();
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/10735")
     @Override
     public void testRequestStats() throws Exception {
         final String repository = createRepository(randomName());
@@ -207,7 +213,12 @@ public class S3BlobStoreRepositoryTests extends OpenSearchMockAPIBasedRepository
             } catch (RepositoryMissingException e) {
                 return null;
             }
-        }).filter(Objects::nonNull).map(Repository::stats).reduce(RepositoryStats::merge).get();
+        }).filter(b -> {
+            if (b instanceof BlobStoreRepository) {
+                return ((BlobStoreRepository) b).blobStore() != null;
+            }
+            return false;
+        }).map(Repository::stats).reduce(RepositoryStats::merge).get();
 
         Map<BlobStore.Metric, Map<String, Long>> extendedStats = repositoryStats.extendedStats;
         Map<String, Long> aggregatedStats = new HashMap<>();
@@ -230,9 +241,13 @@ public class S3BlobStoreRepositoryTests extends OpenSearchMockAPIBasedRepository
      * S3RepositoryPlugin that allows to disable chunked encoding and to set a low threshold between single upload and multipart upload.
      */
     public static class TestS3RepositoryPlugin extends S3RepositoryPlugin {
-
         public TestS3RepositoryPlugin(final Settings settings, final Path configPath) {
-            super(settings, configPath);
+            super(
+                settings,
+                configPath,
+                new S3Service(configPath, Executors.newSingleThreadScheduledExecutor()),
+                new S3AsyncService(configPath, Executors.newSingleThreadScheduledExecutor())
+            );
         }
 
         @Override
@@ -243,13 +258,42 @@ public class S3BlobStoreRepositoryTests extends OpenSearchMockAPIBasedRepository
         }
 
         @Override
+        public void close() throws IOException {
+            super.close();
+            Stream.of(service.getClientExecutorService(), s3AsyncService.getClientExecutorService())
+                .forEach(e -> assertTrue(ThreadPool.terminate(e, 5, TimeUnit.SECONDS)));
+        }
+
+        @Override
         protected S3Repository createRepository(
             RepositoryMetadata metadata,
             NamedXContentRegistry registry,
             ClusterService clusterService,
             RecoverySettings recoverySettings
         ) {
-            return new S3Repository(metadata, registry, service, clusterService, recoverySettings, null, null, null, null, null, false) {
+            AsyncTransferManager asyncUploadUtils = new AsyncTransferManager(
+                S3Repository.PARALLEL_MULTIPART_UPLOAD_MINIMUM_PART_SIZE_SETTING.get(clusterService.getSettings()).getBytes(),
+                normalExecutorBuilder.getStreamReader(),
+                priorityExecutorBuilder.getStreamReader(),
+                urgentExecutorBuilder.getStreamReader(),
+                transferSemaphoresHolder
+            );
+            return new S3Repository(
+                metadata,
+                registry,
+                service,
+                clusterService,
+                recoverySettings,
+                asyncUploadUtils,
+                urgentExecutorBuilder,
+                priorityExecutorBuilder,
+                normalExecutorBuilder,
+                s3AsyncService,
+                S3Repository.PARALLEL_MULTIPART_UPLOAD_ENABLED_SETTING.get(clusterService.getSettings()),
+                normalPrioritySizeBasedBlockingQ,
+                lowPrioritySizeBasedBlockingQ,
+                genericStatsMetricPublisher
+            ) {
 
                 @Override
                 public BlobStore blobStore() {
@@ -306,8 +350,8 @@ public class S3BlobStoreRepositoryTests extends OpenSearchMockAPIBasedRepository
     @SuppressForbidden(reason = "this test uses a HttpServer to emulate an S3 endpoint")
     private static class S3ErroneousHttpHandler extends ErroneousHttpHandler {
 
-        S3ErroneousHttpHandler(final HttpHandler delegate, final int maxErrorsPerRequest) {
-            super(delegate, maxErrorsPerRequest);
+        S3ErroneousHttpHandler(final HttpHandler delegate, final double maxErrorsPercentage) {
+            super(delegate, maxErrorsPercentage);
         }
 
         @Override

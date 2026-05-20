@@ -16,6 +16,24 @@
     - match:  { tokens.5.token: 飲む }
     - match:  { tokens.6.token: 行く }
 ---
+"Completion Analyzer":
+    - do:
+        indices.analyze:
+          body:
+            text:         寿司がおいしいね
+            analyzer:     kuromoji_completion
+    - length: { tokens: 10 }
+    - match:  { tokens.0.token: "寿司" }
+    - match:  { tokens.1.token: "susi" }
+    - match:  { tokens.2.token: "sushi" }
+    - match:  { tokens.3.token: "が" }
+    - match:  { tokens.4.token: "ga" }
+    - match:  { tokens.5.token: "おいしい" }
+    - match:  { tokens.6.token: "oisii" }
+    - match:  { tokens.7.token: "oishii" }
+    - match:  { tokens.8.token: "ね" }
+    - match:  { tokens.9.token: "ne" }
+---
 "Tokenizer":
     - do:
         indices.analyze:
@@ -57,3 +75,15 @@
             filter:       [kuromoji_stemmer]
     - length: { tokens: 1 }
     - match:  { tokens.0.token: サーバ }
+---
+"Completion filter":
+    - do:
+        indices.analyze:
+          body:
+            text:         寿司
+            tokenizer:    kuromoji_tokenizer
+            filter:       [kuromoji_completion]
+    - length: { tokens: 3 }
+    - match:  { tokens.0.token: "寿司" }
+    - match:  { tokens.1.token: "susi" }
+    - match:  { tokens.2.token: "sushi" }

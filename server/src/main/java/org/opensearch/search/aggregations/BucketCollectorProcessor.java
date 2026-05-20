@@ -10,6 +10,8 @@ package org.opensearch.search.aggregations;
 
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.MultiCollector;
+import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.lucene.MinimumScoreCollector;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.profile.query.InternalProfileCollector;
@@ -26,7 +28,10 @@ import java.util.Queue;
 /**
  * Processor to perform collector level processing specific to {@link BucketCollector} in different stages like: a) PostCollection
  * after search on each leaf is completed and b) process the collectors to perform reduce after collection is completed
+ *
+ * @opensearch.api
  */
+@PublicApi(since = "2.10.0")
 public class BucketCollectorProcessor {
 
     /**
@@ -58,18 +63,63 @@ public class BucketCollectorProcessor {
         collectors.offer(collectorTree);
         while (!collectors.isEmpty()) {
             Collector currentCollector = collectors.poll();
-            if (currentCollector instanceof InternalProfileCollector) {
-                collectors.offer(((InternalProfileCollector) currentCollector).getCollector());
-            } else if (currentCollector instanceof MinimumScoreCollector) {
-                collectors.offer(((MinimumScoreCollector) currentCollector).getCollector());
-            } else if (currentCollector instanceof MultiCollector) {
-                for (Collector innerCollector : ((MultiCollector) currentCollector).getCollectors()) {
+            if (currentCollector instanceof InternalProfileCollector internalProfileCollector) {
+                collectors.offer(internalProfileCollector.getCollector());
+            } else if (currentCollector instanceof MinimumScoreCollector minimumScoreCollector) {
+                collectors.offer(minimumScoreCollector.getCollector());
+            } else if (currentCollector instanceof MultiCollector multiCollector) {
+                for (Collector innerCollector : multiCollector.getCollectors()) {
                     collectors.offer(innerCollector);
                 }
-            } else if (currentCollector instanceof BucketCollector) {
-                ((BucketCollector) currentCollector).postCollection();
+            } else if (currentCollector instanceof BucketCollector bucketCollector) {
+                // Perform build aggregation during post collection
+                if (currentCollector instanceof Aggregator aggregator) {
+                    // Do not perform postCollection for MultiBucketCollector as we are unwrapping that below
+                    bucketCollector.postCollection();
+                    aggregator.buildTopLevel();
+                } else if (currentCollector instanceof MultiBucketCollector multiBucketCollector) {
+                    for (Collector innerCollector : multiBucketCollector.getCollectors()) {
+                        collectors.offer(innerCollector);
+                    }
+                }
             }
         }
+    }
+
+    /**
+     * For streaming aggregation, build one aggregation batch result
+     */
+    @ExperimentalApi
+    public List<InternalAggregation> buildAggBatch(Collector collectorTree) throws IOException {
+        final List<InternalAggregation> aggregations = new ArrayList<>();
+
+        final Queue<Collector> collectors = new LinkedList<>();
+        collectors.offer(collectorTree);
+        while (!collectors.isEmpty()) {
+            Collector currentCollector = collectors.poll();
+            if (currentCollector instanceof InternalProfileCollector internalProfileCollector) {
+                collectors.offer(internalProfileCollector.getCollector());
+            } else if (currentCollector instanceof MinimumScoreCollector minimumScoreCollector) {
+                collectors.offer(minimumScoreCollector.getCollector());
+            } else if (currentCollector instanceof MultiCollector multiCollector) {
+                for (Collector innerCollector : multiCollector.getCollectors()) {
+                    collectors.offer(innerCollector);
+                }
+            } else if (currentCollector instanceof BucketCollector bucketCollector) {
+                // Perform build aggregation during post collection
+                if (currentCollector instanceof Aggregator aggregator) {
+                    // Call postCollection() before building to ensure collectors finalize their data
+                    // This is critical for aggregators like CardinalityAggregator that defer processing until postCollect()
+                    bucketCollector.postCollection();
+                    aggregations.add(aggregator.buildTopLevelBatch());
+                } else if (currentCollector instanceof MultiBucketCollector multiBucketCollector) {
+                    for (Collector innerCollector : multiBucketCollector.getCollectors()) {
+                        collectors.offer(innerCollector);
+                    }
+                }
+            }
+        }
+        return aggregations;
     }
 
     /**
@@ -86,20 +136,45 @@ public class BucketCollectorProcessor {
         final Deque<Collector> allCollectors = new LinkedList<>(collectors);
         while (!allCollectors.isEmpty()) {
             final Collector currentCollector = allCollectors.pop();
-            if (currentCollector instanceof Aggregator) {
-                aggregators.add((Aggregator) currentCollector);
-            } else if (currentCollector instanceof InternalProfileCollector) {
-                if (((InternalProfileCollector) currentCollector).getCollector() instanceof Aggregator) {
-                    aggregators.add((Aggregator) ((InternalProfileCollector) currentCollector).getCollector());
-                } else if (((InternalProfileCollector) currentCollector).getCollector() instanceof MultiBucketCollector) {
-                    allCollectors.addAll(
-                        Arrays.asList(((MultiBucketCollector) ((InternalProfileCollector) currentCollector).getCollector()).getCollectors())
-                    );
+            if (currentCollector instanceof Aggregator aggregator) {
+                aggregators.add(aggregator);
+            } else if (currentCollector instanceof InternalProfileCollector internalProfileCollector) {
+                if (internalProfileCollector.getCollector() instanceof Aggregator aggregator) {
+                    aggregators.add(aggregator);
+                } else if (internalProfileCollector.getCollector() instanceof MultiBucketCollector multiBucketCollector) {
+                    allCollectors.addAll(Arrays.asList(multiBucketCollector.getCollectors()));
                 }
-            } else if (currentCollector instanceof MultiBucketCollector) {
-                allCollectors.addAll(Arrays.asList(((MultiBucketCollector) currentCollector).getCollectors()));
+            } else if (currentCollector instanceof MultiBucketCollector multiBucketCollector) {
+                allCollectors.addAll(Arrays.asList(multiBucketCollector.getCollectors()));
             }
         }
         return aggregators;
+    }
+
+    /**
+     * Unwraps the input collection of {@link Collector} to get the list of the {@link InternalAggregation}. The
+     * input is expected to contain the collectors related to Aggregations only as that is passed to {@link AggregationCollectorManager}
+     * during the reduce phase. This list of {@link InternalAggregation} is used to optionally perform reduce at shard level before
+     * returning response to coordinator
+     * @param collectors collection of aggregation collectors to reduce
+     * @return list of unwrapped {@link InternalAggregation}
+     */
+    public List<InternalAggregation> toInternalAggregations(Collection<Collector> collectors) throws IOException {
+        List<InternalAggregation> internalAggregations = new ArrayList<>();
+
+        final Deque<Collector> allCollectors = new LinkedList<>(collectors);
+        while (!allCollectors.isEmpty()) {
+            Collector currentCollector = allCollectors.pop();
+            if (currentCollector instanceof InternalProfileCollector internalProfileCollector) {
+                currentCollector = internalProfileCollector.getCollector();
+            }
+
+            if (currentCollector instanceof Aggregator aggregator) {
+                internalAggregations.add(aggregator.getPostCollectionAggregation());
+            } else if (currentCollector instanceof MultiBucketCollector multiBucketCollector) {
+                allCollectors.addAll(Arrays.asList(multiBucketCollector.getCollectors()));
+            }
+        }
+        return internalAggregations;
     }
 }

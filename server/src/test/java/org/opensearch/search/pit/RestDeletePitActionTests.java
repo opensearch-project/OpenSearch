@@ -10,7 +10,6 @@ package org.opensearch.search.pit;
 
 import org.opensearch.action.search.DeletePitRequest;
 import org.opensearch.action.search.DeletePitResponse;
-import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.SetOnce;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.bytes.BytesArray;
@@ -21,6 +20,7 @@ import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.client.NoOpNodeClient;
 import org.opensearch.test.rest.FakeRestChannel;
 import org.opensearch.test.rest.FakeRestRequest;
+import org.opensearch.transport.client.node.NodeClient;
 
 import java.util.Collections;
 
@@ -79,31 +79,6 @@ public class RestDeletePitActionTests extends OpenSearchTestCase {
             action.handleRequest(request, channel, nodeClient);
 
             assertThat(pitCalled.get(), equalTo(true));
-        }
-    }
-
-    public void testDeleteAllPitWithBody() {
-        SetOnce<Boolean> pitCalled = new SetOnce<>();
-        try (NodeClient nodeClient = new NoOpNodeClient(this.getTestName()) {
-            @Override
-            public void deletePits(DeletePitRequest request, ActionListener<DeletePitResponse> listener) {
-                pitCalled.set(true);
-                assertThat(request.getPitIds(), hasSize(1));
-                assertThat(request.getPitIds().get(0), equalTo("_all"));
-            }
-        }) {
-            RestDeletePitAction action = new RestDeletePitAction();
-            RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withContent(
-                new BytesArray("{\"pit_id\": [\"BODY\"]}"),
-                MediaTypeRegistry.JSON
-            ).withPath("/_all").build();
-            FakeRestChannel channel = new FakeRestChannel(request, false, 0);
-
-            IllegalArgumentException ex = expectThrows(
-                IllegalArgumentException.class,
-                () -> action.handleRequest(request, channel, nodeClient)
-            );
-            assertTrue(ex.getMessage().contains("request [GET /_all] does not support having a body"));
         }
     }
 

@@ -40,6 +40,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.set.Sets;
 import org.opensearch.core.index.Index;
 import org.opensearch.index.IndexNotFoundException;
+import org.opensearch.rest.action.admin.indices.AliasesNotFoundException;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.VersionUtils;
 
@@ -164,11 +165,11 @@ public class MetadataIndexAliasesServiceTests extends OpenSearchTestCase {
 
         // Show that removing non-existing alias with mustExist == true fails
         final ClusterState finalCS = after;
-        final IllegalArgumentException iae = expectThrows(
-            IllegalArgumentException.class,
+        final AliasesNotFoundException iae = expectThrows(
+            AliasesNotFoundException.class,
             () -> service.applyAliasActions(finalCS, singletonList(new AliasAction.Remove(index, "test_2", true)))
         );
-        assertThat(iae.getMessage(), containsString("required alias [test_2] does not exist"));
+        assertThat(iae.getMessage(), containsString("aliases [test_2] missing"));
     }
 
     public void testMultipleIndices() {

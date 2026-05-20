@@ -32,29 +32,38 @@
 package org.opensearch.search.aggregations.metrics;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.DocIdStream;
 import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.util.NumericUtils;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.DoubleArray;
+import org.opensearch.index.codec.composite.CompositeIndexFieldInfo;
+import org.opensearch.index.compositeindex.datacube.MetricStat;
 import org.opensearch.index.fielddata.SortedNumericDoubleValues;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.LeafBucketCollector;
 import org.opensearch.search.aggregations.LeafBucketCollectorBase;
+import org.opensearch.search.aggregations.StarTreeBucketCollector;
+import org.opensearch.search.aggregations.StarTreePreComputeCollector;
 import org.opensearch.search.aggregations.support.ValuesSource;
 import org.opensearch.search.aggregations.support.ValuesSourceConfig;
 import org.opensearch.search.internal.SearchContext;
+import org.opensearch.search.startree.StarTreeQueryHelper;
 
 import java.io.IOException;
 import java.util.Map;
+
+import static org.opensearch.search.startree.StarTreeQueryHelper.getSupportedStarTree;
 
 /**
  * Aggregate all docs into a single sum value
  *
  * @opensearch.internal
  */
-public class SumAggregator extends NumericMetricsAggregator.SingleValue {
+public class SumAggregator extends NumericMetricsAggregator.SingleValue implements StarTreePreComputeCollector {
 
     private final ValuesSource.Numeric valuesSource;
     private final DocValueFormat format;
@@ -85,7 +94,26 @@ public class SumAggregator extends NumericMetricsAggregator.SingleValue {
     }
 
     @Override
+    protected boolean tryPrecomputeAggregationForLeaf(LeafReaderContext ctx) throws IOException {
+        if (valuesSource == null) {
+            return false;
+        }
+        CompositeIndexFieldInfo supportedStarTree = getSupportedStarTree(this.context.getQueryShardContext());
+        if (supportedStarTree != null) {
+            if (parent != null && subAggregators.length == 0) {
+                // If this a child aggregator, then the parent will trigger star-tree pre-computation.
+                // Returning NO_OP_COLLECTOR explicitly because the getLeafCollector() are invoked starting from innermost aggregators
+                return true;
+            }
+            precomputeLeafUsingStarTree(ctx, supportedStarTree);
+            return true;
+        }
+        return false;
+    }
+
+    @Override
     public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, final LeafBucketCollector sub) throws IOException {
+
         if (valuesSource == null) {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
@@ -95,27 +123,100 @@ public class SumAggregator extends NumericMetricsAggregator.SingleValue {
         return new LeafBucketCollectorBase(sub, values) {
             @Override
             public void collect(int doc, long bucket) throws IOException {
-                sums = bigArrays.grow(sums, bucket + 1);
-                compensations = bigArrays.grow(compensations, bucket + 1);
-
                 if (values.advanceExact(doc)) {
-                    final int valuesCount = values.docValueCount();
-                    // Compute the sum of double values with Kahan summation algorithm which is more
-                    // accurate than naive summation.
-                    double sum = sums.get(bucket);
-                    double compensation = compensations.get(bucket);
-                    kahanSummation.reset(sum, compensation);
-
-                    for (int i = 0; i < valuesCount; i++) {
+                    setKahanSummation(bucket);
+                    for (int i = 0; i < values.docValueCount(); i++) {
                         double value = values.nextValue();
                         kahanSummation.add(value);
                     }
-
                     compensations.set(bucket, kahanSummation.delta());
                     sums.set(bucket, kahanSummation.value());
                 }
             }
+
+            @Override
+            public void collect(DocIdStream stream, long bucket) throws IOException {
+                setKahanSummation(bucket);
+                stream.forEach((doc) -> {
+                    if (values.advanceExact(doc)) {
+                        for (int i = 0; i < values.docValueCount(); i++) {
+                            kahanSummation.add(values.nextValue());
+                        }
+                    }
+                });
+                compensations.set(bucket, kahanSummation.delta());
+                sums.set(bucket, kahanSummation.value());
+            }
+
+            @Override
+            public void collectRange(int min, int max) throws IOException {
+                setKahanSummation(0);
+                for (int docId = min; docId < max; docId++) {
+                    if (values.advanceExact(docId)) {
+                        for (int i = 0; i < values.docValueCount(); i++) {
+                            kahanSummation.add(values.nextValue());
+                        }
+                    }
+                }
+                sums.set(0, kahanSummation.value());
+                compensations.set(0, kahanSummation.delta());
+            }
+
+            private void setKahanSummation(long bucket) {
+                sums = bigArrays.grow(sums, bucket + 1);
+                compensations = bigArrays.grow(compensations, bucket + 1);
+                // Compute the sum of double values with Kahan summation algorithm which is more
+                // accurate than naive summation.
+                double sum = sums.get(bucket);
+                double compensation = compensations.get(bucket);
+                kahanSummation.reset(sum, compensation);
+            }
         };
+    }
+
+    private void precomputeLeafUsingStarTree(LeafReaderContext ctx, CompositeIndexFieldInfo starTree) throws IOException {
+        final CompensatedSum kahanSummation = new CompensatedSum(sums.get(0), compensations.get(0));
+
+        StarTreeQueryHelper.precomputeLeafUsingStarTree(
+            context,
+            valuesSource,
+            ctx,
+            starTree,
+            MetricStat.SUM.getTypeName(),
+            value -> kahanSummation.add(NumericUtils.sortableLongToDouble(value)),
+            () -> {
+                sums.set(0, kahanSummation.value());
+                compensations.set(0, kahanSummation.delta());
+            }
+        );
+    }
+
+    /**
+     * The parent aggregator invokes this method to get a StarTreeBucketCollector,
+     * which exposes collectStarTreeEntry() to be evaluated on filtered star tree entries
+     */
+    public StarTreeBucketCollector getStarTreeBucketCollector(
+        LeafReaderContext ctx,
+        CompositeIndexFieldInfo starTree,
+        StarTreeBucketCollector parentCollector
+    ) throws IOException {
+        final CompensatedSum kahanSummation = new CompensatedSum(0, 0);
+        return StarTreeQueryHelper.getStarTreeBucketMetricCollector(
+            starTree,
+            MetricStat.SUM.getTypeName(),
+            valuesSource,
+            parentCollector,
+            (bucket) -> {
+                sums = context.bigArrays().grow(sums, bucket + 1);
+                compensations = context.bigArrays().grow(compensations, bucket + 1);
+            },
+            (bucket, metricValue) -> {
+                kahanSummation.reset(sums.get(bucket), compensations.get(bucket));
+                kahanSummation.add(NumericUtils.sortableLongToDouble(metricValue));
+                sums.set(bucket, kahanSummation.value());
+                compensations.set(bucket, kahanSummation.delta());
+            }
+        );
     }
 
     @Override
@@ -137,6 +238,16 @@ public class SumAggregator extends NumericMetricsAggregator.SingleValue {
     @Override
     public InternalAggregation buildEmptyAggregation() {
         return new InternalSum(name, 0.0, format, metadata());
+    }
+
+    @Override
+    public void doReset() {
+        if (sums != null) {
+            sums.fill(0, sums.size(), 0.0);
+        }
+        if (compensations != null) {
+            compensations.fill(0, compensations.size(), 0.0);
+        }
     }
 
     @Override

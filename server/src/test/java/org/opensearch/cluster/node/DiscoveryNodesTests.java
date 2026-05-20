@@ -34,12 +34,15 @@ package org.opensearch.cluster.node;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 
-import org.opensearch.LegacyESVersion;
 import org.opensearch.Version;
+import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.settings.Setting;
+import org.opensearch.core.common.io.stream.BufferedChecksumStreamOutput;
+import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.test.OpenSearchTestCase;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -328,6 +331,28 @@ public class DiscoveryNodesTests extends OpenSearchTestCase {
         assertThat(discoveryNodes.resolveNodes("master:false", "_all"), arrayContainingInAnyOrder(allNodes));
     }
 
+    public void testWriteVerifiableTo() throws IOException {
+        final DiscoveryNodes discoveryNodes = buildDiscoveryNodes();
+        BytesStreamOutput out = new BytesStreamOutput();
+        BufferedChecksumStreamOutput checksumOut = new BufferedChecksumStreamOutput(out);
+        discoveryNodes.writeVerifiableTo(checksumOut);
+        StreamInput in = out.bytes().streamInput();
+        DiscoveryNodes result = DiscoveryNodes.readFrom(in, discoveryNodes.getLocalNode());
+        assertEquals(result, discoveryNodes);
+
+        final DiscoveryNodes.Builder discoveryNodesBuilder = DiscoveryNodes.builder()
+            .clusterManagerNodeId(discoveryNodes.getClusterManagerNodeId());
+        discoveryNodes.getNodes()
+            .entrySet()
+            .stream()
+            .sorted(Map.Entry.comparingByKey())
+            .forEachOrdered(entry -> discoveryNodesBuilder.add(entry.getValue()));
+        BytesStreamOutput out2 = new BytesStreamOutput();
+        BufferedChecksumStreamOutput checksumOut2 = new BufferedChecksumStreamOutput(out2);
+        discoveryNodesBuilder.build().writeVerifiableTo(checksumOut2);
+        assertEquals(checksumOut.getChecksum(), checksumOut2.getChecksum());
+    }
+
     private static AtomicInteger idGenerator = new AtomicInteger();
 
     private static List<DiscoveryNode> randomNodes(final int numNodes) {
@@ -467,7 +492,7 @@ public class DiscoveryNodesTests extends OpenSearchTestCase {
                 buildNewFakeTransportAddress(),
                 Collections.emptyMap(),
                 new HashSet<>(randomSubsetOf(DiscoveryNodeRole.BUILT_IN_ROLES)),
-                LegacyESVersion.fromString("5.1.0")
+                Version.fromString("5.1.0")
             )
         );
         discoBuilder.add(
@@ -477,7 +502,7 @@ public class DiscoveryNodesTests extends OpenSearchTestCase {
                 buildNewFakeTransportAddress(),
                 Collections.emptyMap(),
                 new HashSet<>(randomSubsetOf(DiscoveryNodeRole.BUILT_IN_ROLES)),
-                LegacyESVersion.fromString("6.3.0")
+                Version.fromString("6.3.0")
             )
         );
         discoBuilder.add(
@@ -493,21 +518,7 @@ public class DiscoveryNodesTests extends OpenSearchTestCase {
         discoBuilder.localNodeId("name_1");
         discoBuilder.clusterManagerNodeId("name_2");
         DiscoveryNodes build = discoBuilder.build();
-        assertEquals(Version.fromString("1.1.0"), build.getMaxNodeVersion());
-        assertEquals(LegacyESVersion.fromString("5.1.0"), build.getMinNodeVersion());
-    }
-
-    private DiscoveryNode buildDiscoveryNodeFromExisting(DiscoveryNode existing, Version newVersion) {
-        return new DiscoveryNode(
-            existing.getName(),
-            existing.getId(),
-            existing.getEphemeralId(),
-            existing.getHostName(),
-            existing.getHostAddress(),
-            existing.getAddress(),
-            existing.getAttributes(),
-            existing.getRoles(),
-            newVersion
-        );
+        assertEquals(Version.fromString("6.3.0"), build.getMaxNodeVersion());
+        assertEquals(Version.fromString("1.1.0"), build.getMinNodeVersion());
     }
 }

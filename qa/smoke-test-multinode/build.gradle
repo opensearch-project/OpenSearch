@@ -47,7 +47,7 @@ testClusters.integTest {
 
 integTest {
   doFirst {
-    project.delete(repo)
+    delete(repo)
     repo.mkdirs()
   }
 }

@@ -79,7 +79,7 @@ public class Netty4HttpPipeliningHandlerTests extends OpenSearchTestCase {
     @After
     public void tearDown() throws Exception {
         waitingRequests.keySet().forEach(this::finishRequest);
-        shutdownExecutorService();
+        shutdownExecutorServices();
         super.tearDown();
     }
 
@@ -88,7 +88,7 @@ public class Netty4HttpPipeliningHandlerTests extends OpenSearchTestCase {
         return finishingRequests.get(url);
     }
 
-    private void shutdownExecutorService() throws InterruptedException {
+    private void shutdownExecutorServices() throws InterruptedException {
         if (!handlerService.isShutdown()) {
             handlerService.shutdown();
             handlerService.awaitTermination(10, TimeUnit.SECONDS);
@@ -232,7 +232,7 @@ public class Netty4HttpPipeliningHandlerTests extends OpenSearchTestCase {
     }
 
     private Netty4HttpRequest createHttpRequest(String uri) {
-        return new Netty4HttpRequest(new DefaultFullHttpRequest(HTTP_1_1, HttpMethod.GET, uri));
+        return new Netty4HttpRequest(new DefaultFullHttpRequest(HTTP_1_1, HttpMethod.GET, uri), HttpResponseHeadersFactories.newDefault());
     }
 
     private class WorkEmulatorHandler extends SimpleChannelInboundHandler<HttpPipelinedRequest> {

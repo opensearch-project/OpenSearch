@@ -33,13 +33,15 @@
 package org.opensearch.common.lucene.search;
 
 import org.apache.lucene.search.TopDocs;
+import org.opensearch.common.annotation.PublicApi;
 
 /**
  * Wrapper around a {@link TopDocs} instance and the maximum score.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
 // TODO: Remove this class when https://github.com/elastic/elasticsearch/issues/32981 is addressed.
+@PublicApi(since = "1.0.0")
 public final class TopDocsAndMaxScore {
 
     public final TopDocs topDocs;

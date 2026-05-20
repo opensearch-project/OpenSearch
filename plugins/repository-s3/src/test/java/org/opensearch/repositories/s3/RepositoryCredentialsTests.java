@@ -39,7 +39,6 @@ import software.amazon.awssdk.services.s3.S3Client;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.SuppressForbidden;
@@ -48,6 +47,7 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsFilter;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.indices.recovery.RecoverySettings;
+import org.opensearch.plugins.ExtensiblePlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.PluginsService;
 import org.opensearch.repositories.RepositoriesService;
@@ -55,12 +55,13 @@ import org.opensearch.rest.AbstractRestChannel;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestResponse;
 import org.opensearch.rest.action.admin.cluster.RestGetRepositoriesAction;
+import org.opensearch.secure_sm.AccessController;
+import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
 import org.opensearch.test.rest.FakeRestRequest;
+import org.opensearch.transport.client.node.NodeClient;
 
 import java.nio.file.Path;
-import java.security.AccessController;
-import java.security.PrivilegedAction;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.concurrent.CountDownLatch;
@@ -68,21 +69,20 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.opensearch.repositories.s3.S3ClientSettings.ACCESS_KEY_SETTING;
 import static org.opensearch.repositories.s3.S3ClientSettings.SECRET_KEY_SETTING;
-import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
+@SuppressWarnings("removal")
 @SuppressForbidden(reason = "test requires to set a System property to allow insecure settings when running in IDE")
 public class RepositoryCredentialsTests extends OpenSearchSingleNodeTestCase implements ConfigPathSupport {
 
     static {
-        AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
+        AccessController.doPrivileged(() -> {
             // required for client settings overwriting when running in IDE
             System.setProperty("opensearch.allow_insecure_settings", "true");
-            return null;
         });
     }
 
@@ -108,7 +108,7 @@ public class RepositoryCredentialsTests extends OpenSearchSingleNodeTestCase imp
     }
 
     public void testRepositoryCredentialsOverrideSecureCredentials() {
-        SocketAccess.doPrivileged(() -> System.setProperty("opensearch.path.conf", configPath().toString()));
+        AccessController.doPrivileged(() -> System.setProperty("opensearch.path.conf", configPath().toString()));
         final String repositoryName = "repo-creds-override";
         final Settings.Builder repositorySettings = Settings.builder()
             // repository settings for credentials override node secure settings
@@ -146,7 +146,7 @@ public class RepositoryCredentialsTests extends OpenSearchSingleNodeTestCase imp
     }
 
     public void testReinitSecureCredentials() {
-        SocketAccess.doPrivileged(() -> System.setProperty("opensearch.path.conf", configPath().toString()));
+        AccessController.doPrivileged(() -> System.setProperty("opensearch.path.conf", configPath().toString()));
         final String clientName = randomFrom("default", "other");
 
         final Settings.Builder repositorySettings = Settings.builder();
@@ -234,7 +234,7 @@ public class RepositoryCredentialsTests extends OpenSearchSingleNodeTestCase imp
     }
 
     public void testInsecureRepositoryCredentials() throws Exception {
-        SocketAccess.doPrivileged(() -> System.setProperty("opensearch.path.conf", configPath().toString()));
+        AccessController.doPrivileged(() -> System.setProperty("opensearch.path.conf", configPath().toString()));
         final String repositoryName = "repo-insecure-creds";
         createRepository(
             repositoryName,
@@ -276,14 +276,8 @@ public class RepositoryCredentialsTests extends OpenSearchSingleNodeTestCase imp
     }
 
     private void createRepository(final String name, final Settings repositorySettings) {
-        assertAcked(
-            client().admin()
-                .cluster()
-                .preparePutRepository(name)
-                .setType(S3Repository.TYPE)
-                .setVerify(false)
-                .setSettings(repositorySettings)
-        );
+        Settings.Builder settings = Settings.builder().put(repositorySettings);
+        OpenSearchIntegTestCase.putRepository(client().admin().cluster(), name, S3Repository.TYPE, false, settings);
     }
 
     /**
@@ -296,13 +290,33 @@ public class RepositoryCredentialsTests extends OpenSearchSingleNodeTestCase imp
         }
 
         @Override
+        public void loadExtensions(ExtensiblePlugin.ExtensionLoader loader) {
+            // No-op in tests — avoids interference with async client initialization
+        }
+
+        @Override
         protected S3Repository createRepository(
             RepositoryMetadata metadata,
             NamedXContentRegistry registry,
             ClusterService clusterService,
             RecoverySettings recoverySettings
         ) {
-            return new S3Repository(metadata, registry, service, clusterService, recoverySettings, null, null, null, null, null, false) {
+            return new S3Repository(
+                metadata,
+                registry,
+                service,
+                clusterService,
+                recoverySettings,
+                null,
+                null,
+                null,
+                null,
+                null,
+                false,
+                null,
+                null,
+                null
+            ) {
                 @Override
                 protected void assertSnapshotOrGenericThread() {
                     // eliminate thread name check as we create repo manually on test/main threads
@@ -329,7 +343,7 @@ public class RepositoryCredentialsTests extends OpenSearchSingleNodeTestCase imp
 
             @Override
             AmazonS3WithCredentials buildClient(final S3ClientSettings clientSettings) {
-                final AmazonS3WithCredentials client = SocketAccess.doPrivileged(() -> super.buildClient(clientSettings));
+                final AmazonS3WithCredentials client = AccessController.doPrivileged(() -> super.buildClient(clientSettings));
                 final AwsCredentialsProvider credentials = buildCredentials(logger, clientSettings);
                 return AmazonS3WithCredentials.create(new ClientAndCredentials(client.client(), credentials), credentials);
             }

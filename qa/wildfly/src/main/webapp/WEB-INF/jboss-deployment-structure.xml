@@ -3,5 +3,8 @@
         <exclusions>
             <module name="org.jboss.resteasy.resteasy-jackson2-provider" />
         </exclusions>
+        <dependencies>
+            <module name="org.reactivestreams"/>
+        </dependencies>
     </deployment>
 </jboss-deployment-structure>

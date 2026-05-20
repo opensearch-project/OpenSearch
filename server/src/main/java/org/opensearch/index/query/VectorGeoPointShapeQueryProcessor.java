@@ -54,6 +54,7 @@ import org.opensearch.geometry.Point;
 import org.opensearch.geometry.Polygon;
 import org.opensearch.geometry.Rectangle;
 import org.opensearch.geometry.ShapeType;
+import org.opensearch.index.mapper.DerivedFieldType;
 import org.opensearch.index.mapper.GeoPointFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
 
@@ -76,9 +77,21 @@ public class VectorGeoPointShapeQueryProcessor {
         return getVectorQueryFromShape(shape, fieldName, relation, context);
     }
 
+    private boolean isGeoPointField(MappedFieldType fieldType) {
+        if (fieldType == null) {
+            return false;
+        }
+        MappedFieldType delegateFieldType = fieldType.unwrap();
+        if (delegateFieldType instanceof DerivedFieldType) {
+            MappedFieldType derivedFieldType = ((DerivedFieldType) delegateFieldType).getFieldMapper().fieldType();
+            delegateFieldType = derivedFieldType == null ? null : derivedFieldType.unwrap();
+        }
+        return delegateFieldType instanceof GeoPointFieldMapper.GeoPointFieldType;
+    }
+
     private void validateIsGeoPointFieldType(String fieldName, QueryShardContext context) {
         MappedFieldType fieldType = context.fieldMapper(fieldName);
-        if (fieldType instanceof GeoPointFieldMapper.GeoPointFieldType == false) {
+        if (isGeoPointField(fieldType) == false) {
             throw new QueryShardException(
                 context,
                 "Expected "

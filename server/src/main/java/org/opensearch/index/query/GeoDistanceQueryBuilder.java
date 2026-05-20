@@ -63,7 +63,7 @@ import java.util.Objects;
  *
  * @opensearch.internal
  */
-public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQueryBuilder> {
+public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQueryBuilder> implements WithFieldName {
     public static final String NAME = "geo_distance";
 
     /** Default for distance unit computation. */
@@ -129,6 +129,7 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
     }
 
     /** Name of the field this query is operating on. */
+    @Override
     public String fieldName() {
         return this.fieldName;
     }

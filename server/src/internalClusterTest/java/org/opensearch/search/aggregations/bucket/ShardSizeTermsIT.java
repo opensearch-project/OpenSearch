@@ -47,8 +47,8 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class ShardSizeTermsIT extends ShardSizeTestCase {
 
-    public ShardSizeTermsIT(Settings dynamicSettings) {
-        super(dynamicSettings);
+    public ShardSizeTermsIT(Settings staticSettings) {
+        super(staticSettings);
     }
 
     public void testNoShardSizeString() throws Exception {
@@ -86,6 +86,7 @@ public class ShardSizeTermsIT extends ShardSizeTestCase {
                 terms("keys").field("key")
                     .size(3)
                     .shardSize(3)
+                    .showTermDocCountError(true)
                     .collectMode(randomFrom(SubAggCollectionMode.values()))
                     .order(BucketOrder.count(false))
             )
@@ -98,8 +99,11 @@ public class ShardSizeTermsIT extends ShardSizeTestCase {
         expected.put("1", 8L);
         expected.put("3", 8L);
         expected.put("2", 4L);
+        Long expectedDocCount;
         for (Terms.Bucket bucket : buckets) {
-            assertThat(bucket.getDocCount(), equalTo(expected.get(bucket.getKeyAsString())));
+            expectedDocCount = expected.get(bucket.getKeyAsString());
+            // Doc count can vary when using concurrent segment search. See https://github.com/opensearch-project/OpenSearch/issues/11680
+            assertTrue((bucket.getDocCount() == expectedDocCount) || bucket.getDocCount() + bucket.getDocCountError() >= expectedDocCount);
         }
     }
 
@@ -221,6 +225,7 @@ public class ShardSizeTermsIT extends ShardSizeTestCase {
                 terms("keys").field("key")
                     .size(3)
                     .shardSize(3)
+                    .showTermDocCountError(true)
                     .collectMode(randomFrom(SubAggCollectionMode.values()))
                     .order(BucketOrder.count(false))
             )
@@ -233,8 +238,11 @@ public class ShardSizeTermsIT extends ShardSizeTestCase {
         expected.put(1, 8L);
         expected.put(3, 8L);
         expected.put(2, 4L);
+        Long expectedDocCount;
         for (Terms.Bucket bucket : buckets) {
-            assertThat(bucket.getDocCount(), equalTo(expected.get(bucket.getKeyAsNumber().intValue())));
+            expectedDocCount = expected.get(bucket.getKeyAsNumber().intValue());
+            // Doc count can vary when using concurrent segment search. See https://github.com/opensearch-project/OpenSearch/issues/11680
+            assertTrue((bucket.getDocCount() == expectedDocCount) || bucket.getDocCount() + bucket.getDocCountError() >= expectedDocCount);
         }
     }
 
@@ -355,6 +363,7 @@ public class ShardSizeTermsIT extends ShardSizeTestCase {
                 terms("keys").field("key")
                     .size(3)
                     .shardSize(3)
+                    .showTermDocCountError(true)
                     .collectMode(randomFrom(SubAggCollectionMode.values()))
                     .order(BucketOrder.count(false))
             )
@@ -367,8 +376,11 @@ public class ShardSizeTermsIT extends ShardSizeTestCase {
         expected.put(1, 8L);
         expected.put(3, 8L);
         expected.put(2, 4L);
+        Long expectedDocCount;
         for (Terms.Bucket bucket : buckets) {
-            assertThat(bucket.getDocCount(), equalTo(expected.get(bucket.getKeyAsNumber().intValue())));
+            expectedDocCount = expected.get(bucket.getKeyAsNumber().intValue());
+            // Doc count can vary when using concurrent segment search. See https://github.com/opensearch-project/OpenSearch/issues/11680
+            assertTrue((bucket.getDocCount() == expectedDocCount) || bucket.getDocCount() + bucket.getDocCountError() >= expectedDocCount);
         }
     }
 

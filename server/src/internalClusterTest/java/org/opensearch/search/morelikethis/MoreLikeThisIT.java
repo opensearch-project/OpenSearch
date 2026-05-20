@@ -41,7 +41,6 @@ import org.opensearch.action.search.SearchPhaseExecutionException;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.cluster.health.ClusterHealthStatus;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.query.MoreLikeThisQueryBuilder;
@@ -50,7 +49,7 @@ import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.InternalSettingsPlugin;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -60,8 +59,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 
-import static org.opensearch.client.Requests.indexRequest;
-import static org.opensearch.client.Requests.refreshRequest;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -75,14 +72,16 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertOrderedSea
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertRequestBuilderThrows;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertSearchHits;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertSearchResponse;
+import static org.opensearch.transport.client.Requests.indexRequest;
+import static org.opensearch.transport.client.Requests.refreshRequest;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class MoreLikeThisIT extends ParameterizedOpenSearchIntegTestCase {
+public class MoreLikeThisIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
 
-    public MoreLikeThisIT(Settings dynamicSettings) {
-        super(dynamicSettings);
+    public MoreLikeThisIT(Settings staticSettings) {
+        super(staticSettings);
     }
 
     @ParametersFactory
@@ -91,11 +90,6 @@ public class MoreLikeThisIT extends ParameterizedOpenSearchIntegTestCase {
             new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), false).build() },
             new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), true).build() }
         );
-    }
-
-    @Override
-    protected Settings featureFlagSettings() {
-        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.CONCURRENT_SEGMENT_SEARCH, "true").build();
     }
 
     @Override
@@ -859,7 +853,7 @@ public class MoreLikeThisIT extends ParameterizedOpenSearchIntegTestCase {
         moreLikeThisQueryBuilder.minTermFreq(1);
         moreLikeThisQueryBuilder.minDocFreq(1);
         SearchResponse searchResponse = client().prepareSearch("index").setQuery(moreLikeThisQueryBuilder).get();
-        assertEquals(2, searchResponse.getHits().getTotalHits().value);
+        assertEquals(2, searchResponse.getHits().getTotalHits().value());
     }
 
     // Issue #29678

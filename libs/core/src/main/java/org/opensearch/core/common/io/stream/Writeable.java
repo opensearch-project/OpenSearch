@@ -32,6 +32,8 @@
 
 package org.opensearch.core.common.io.stream;
 
+import org.opensearch.common.annotation.PublicApi;
+
 import java.io.IOException;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -41,8 +43,9 @@ import java.util.concurrent.ConcurrentHashMap;
  * across the wire" using OpenSearch's internal protocol. If the implementer also implements equals and hashCode then a copy made by
  * serializing and deserializing must be equal and have the same hashCode. It isn't required that such a copy be entirely unchanged.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "2.8.0")
 public interface Writeable {
     /**
      * A WriteableRegistry registers {@link Writer} methods for writing data types over a
@@ -80,7 +83,7 @@ public interface Writeable {
 
         public static void registerClassAlias(final Class<?> classInstance, final Class<?> classGeneric) {
             if (WRITER_CUSTOM_CLASS_MAP.putIfAbsent(classInstance, classGeneric) != null) {
-                throw new IllegalArgumentException("Streamable custom class already registered [" + classInstance.getClass() + "]");
+                throw new IllegalArgumentException("Streamable custom class already registered [" + classInstance.getName() + "]");
             }
         }
 
@@ -93,7 +96,7 @@ public interface Writeable {
         }
 
         /**
-         * Returns the ristered reader keyed by the unique ordinal
+         * Returns the registered reader keyed by the unique ordinal
          */
         @SuppressWarnings("unchecked")
         public static <R extends Reader<?>> R getReader(final byte b) {
@@ -135,8 +138,11 @@ public interface Writeable {
      *     out.writeMapOfLists(someMap, StreamOutput::writeString, StreamOutput::writeString);
      * }
      * </code></pre>
+     *
+     * @opensearch.api
      */
     @FunctionalInterface
+    @PublicApi(since = "2.8.0")
     interface Writer<V> {
 
         /**
@@ -161,8 +167,11 @@ public interface Writeable {
      *     this.someMap = in.readMapOfLists(StreamInput::readString, StreamInput::readString);
      * }
      * </code></pre>
+     *
+     * @opensearch.api
      */
     @FunctionalInterface
+    @PublicApi(since = "2.8.0")
     interface Reader<V> {
 
         /**

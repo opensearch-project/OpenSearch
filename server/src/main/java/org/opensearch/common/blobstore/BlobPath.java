@@ -33,17 +33,20 @@
 package org.opensearch.common.blobstore;
 
 import org.opensearch.common.Nullable;
+import org.opensearch.common.annotation.PublicApi;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * The list of paths where a blob can reside.  The contents of the paths are dependent upon the implementation of {@link BlobContainer}.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class BlobPath implements Iterable<String> {
 
     private static final String SEPARATOR = "/";
@@ -77,6 +80,15 @@ public class BlobPath implements Iterable<String> {
         return new BlobPath(Collections.unmodifiableList(paths));
     }
 
+    /**
+     * Add additional level of paths to the existing path and returns new {@link BlobPath} with the updated paths.
+     */
+    public BlobPath add(Iterable<String> paths) {
+        List<String> updatedPaths = new ArrayList<>(this.paths);
+        paths.iterator().forEachRemaining(updatedPaths::add);
+        return new BlobPath(Collections.unmodifiableList(updatedPaths));
+    }
+
     public String buildAsString() {
         String p = String.join(SEPARATOR, paths);
         if (p.isEmpty() || p.endsWith(SEPARATOR)) {
@@ -97,6 +109,19 @@ public class BlobPath implements Iterable<String> {
         } else {
             return new BlobPath(new ArrayList<>(paths.subList(0, paths.size() - 1)));
         }
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        BlobPath that = (BlobPath) o;
+        return Objects.equals(paths, that.paths);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hashCode(paths);
     }
 
     @Override

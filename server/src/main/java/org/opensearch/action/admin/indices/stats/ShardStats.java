@@ -32,6 +32,7 @@
 
 package org.opensearch.action.admin.indices.stats;
 
+import org.opensearch.Version;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.annotation.PublicApi;
@@ -44,6 +45,7 @@ import org.opensearch.index.engine.CommitStats;
 import org.opensearch.index.seqno.RetentionLeaseStats;
 import org.opensearch.index.seqno.SeqNoStats;
 import org.opensearch.index.shard.ShardPath;
+import org.opensearch.indices.pollingingest.PollingIngestStats;
 
 import java.io.IOException;
 
@@ -65,6 +67,9 @@ public class ShardStats implements Writeable, ToXContentFragment {
     @Nullable
     private RetentionLeaseStats retentionLeaseStats;
 
+    @Nullable
+    private PollingIngestStats pollingIngestStats;
+
     /**
      * Gets the current retention lease stats.
      *
@@ -78,6 +83,23 @@ public class ShardStats implements Writeable, ToXContentFragment {
     private String statePath;
     private boolean isCustomDataPath;
 
+    /**
+     * Private constructor that takes a builder.
+     * This is the sole entry point for creating a new ShardStats object.
+     * @param builder The builder instance containing all the values.
+     */
+    private ShardStats(Builder builder) {
+        this.shardRouting = builder.shardRouting;
+        this.dataPath = builder.shardPath.getRootDataPath().toString();
+        this.statePath = builder.shardPath.getRootStatePath().toString();
+        this.isCustomDataPath = builder.shardPath.isCustomDataPath();
+        this.commitStats = builder.commitStats;
+        this.commonStats = builder.commonStats;
+        this.seqNoStats = builder.seqNoStats;
+        this.retentionLeaseStats = builder.retentionLeaseStats;
+        this.pollingIngestStats = builder.pollingIngestStats;
+    }
+
     public ShardStats(StreamInput in) throws IOException {
         shardRouting = new ShardRouting(in);
         commonStats = new CommonStats(in);
@@ -87,15 +109,24 @@ public class ShardStats implements Writeable, ToXContentFragment {
         isCustomDataPath = in.readBoolean();
         seqNoStats = in.readOptionalWriteable(SeqNoStats::new);
         retentionLeaseStats = in.readOptionalWriteable(RetentionLeaseStats::new);
+        if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
+            pollingIngestStats = in.readOptionalWriteable(PollingIngestStats::new);
+        }
     }
 
+    /**
+     * This constructor will be deprecated starting in version 3.4.0.
+     * Use {@link Builder} instead.
+     */
+    @Deprecated
     public ShardStats(
         final ShardRouting routing,
         final ShardPath shardPath,
         final CommonStats commonStats,
         final CommitStats commitStats,
         final SeqNoStats seqNoStats,
-        final RetentionLeaseStats retentionLeaseStats
+        final RetentionLeaseStats retentionLeaseStats,
+        final PollingIngestStats pollingIngestStats
     ) {
         this.shardRouting = routing;
         this.dataPath = shardPath.getRootDataPath().toString();
@@ -105,6 +136,7 @@ public class ShardStats implements Writeable, ToXContentFragment {
         this.commonStats = commonStats;
         this.seqNoStats = seqNoStats;
         this.retentionLeaseStats = retentionLeaseStats;
+        this.pollingIngestStats = pollingIngestStats;
     }
 
     /**
@@ -128,6 +160,11 @@ public class ShardStats implements Writeable, ToXContentFragment {
         return this.seqNoStats;
     }
 
+    @Nullable
+    public PollingIngestStats getPollingIngestStats() {
+        return this.pollingIngestStats;
+    }
+
     public String getDataPath() {
         return dataPath;
     }
@@ -140,6 +177,65 @@ public class ShardStats implements Writeable, ToXContentFragment {
         return isCustomDataPath;
     }
 
+    /**
+     * Builder for the {@link ShardStats} class.
+     * Provides a fluent API for constructing a ShardStats object.
+     */
+    public static class Builder {
+        private ShardRouting shardRouting = null;
+        private ShardPath shardPath = null;
+        private CommonStats commonStats = null;
+        private CommitStats commitStats = null;
+        private SeqNoStats seqNoStats = null;
+        private RetentionLeaseStats retentionLeaseStats = null;
+        private PollingIngestStats pollingIngestStats = null;
+
+        public Builder() {}
+
+        public Builder shardRouting(ShardRouting shardRouting) {
+            this.shardRouting = shardRouting;
+            return this;
+        }
+
+        public Builder shardPath(ShardPath shardPath) {
+            this.shardPath = shardPath;
+            return this;
+        }
+
+        public Builder commonStats(CommonStats commonStats) {
+            this.commonStats = commonStats;
+            return this;
+        }
+
+        public Builder commitStats(CommitStats commitStats) {
+            this.commitStats = commitStats;
+            return this;
+        }
+
+        public Builder seqNoStats(SeqNoStats seqNoStats) {
+            this.seqNoStats = seqNoStats;
+            return this;
+        }
+
+        public Builder retentionLeaseStats(RetentionLeaseStats retentionLeaseStats) {
+            this.retentionLeaseStats = retentionLeaseStats;
+            return this;
+        }
+
+        public Builder pollingIngestStats(PollingIngestStats pollingIngestStats) {
+            this.pollingIngestStats = pollingIngestStats;
+            return this;
+        }
+
+        /**
+         * Creates a {@link ShardStats} object from the builder's current state.
+         * @return A new ShardStats instance.
+         */
+        public ShardStats build() {
+            return new ShardStats(this);
+        }
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         shardRouting.writeTo(out);
@@ -150,6 +246,9 @@ public class ShardStats implements Writeable, ToXContentFragment {
         out.writeBoolean(isCustomDataPath);
         out.writeOptionalWriteable(seqNoStats);
         out.writeOptionalWriteable(retentionLeaseStats);
+        if (out.getVersion().onOrAfter((Version.V_3_0_0))) {
+            out.writeOptionalWriteable(pollingIngestStats);
+        }
     }
 
     @Override
@@ -170,6 +269,9 @@ public class ShardStats implements Writeable, ToXContentFragment {
         }
         if (retentionLeaseStats != null) {
             retentionLeaseStats.toXContent(builder, params);
+        }
+        if (pollingIngestStats != null) {
+            pollingIngestStats.toXContent(builder, params);
         }
         builder.startObject(Fields.SHARD_PATH);
         builder.field(Fields.STATE_PATH, statePath);

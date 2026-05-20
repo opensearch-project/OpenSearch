@@ -41,7 +41,7 @@ import org.opensearch.action.index.IndexResponse;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.action.support.WriteRequest.RefreshPolicy;
-import org.opensearch.action.support.master.AcknowledgedResponse;
+import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.AliasMetadata;
 import org.opensearch.cluster.metadata.IndexAbstraction;
@@ -75,9 +75,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
-import static org.opensearch.client.Requests.createIndexRequest;
-import static org.opensearch.client.Requests.deleteRequest;
-import static org.opensearch.client.Requests.indexRequest;
 import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_METADATA_BLOCK;
 import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_READ_ONLY_BLOCK;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_BLOCKS_METADATA;
@@ -90,6 +87,9 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertBlocked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertSearchResponse;
+import static org.opensearch.transport.client.Requests.createIndexRequest;
+import static org.opensearch.transport.client.Requests.deleteRequest;
+import static org.opensearch.transport.client.Requests.indexRequest;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyArray;
@@ -406,7 +406,7 @@ public class IndexAliasesIT extends OpenSearchIntegTestCase {
         SearchResponse searchResponse = client().prepareSearch("foos").setQuery(QueryBuilders.matchAllQuery()).get();
         assertHits(searchResponse.getHits(), "1", "5");
         assertThat(
-            client().prepareSearch("foos").setSize(0).setQuery(QueryBuilders.matchAllQuery()).get().getHits().getTotalHits().value,
+            client().prepareSearch("foos").setSize(0).setQuery(QueryBuilders.matchAllQuery()).get().getHits().getTotalHits().value(),
             equalTo(2L)
         );
 
@@ -414,7 +414,7 @@ public class IndexAliasesIT extends OpenSearchIntegTestCase {
         searchResponse = client().prepareSearch("bars").setQuery(QueryBuilders.matchAllQuery()).get();
         assertHits(searchResponse.getHits(), "2");
         assertThat(
-            client().prepareSearch("bars").setSize(0).setQuery(QueryBuilders.matchAllQuery()).get().getHits().getTotalHits().value,
+            client().prepareSearch("bars").setSize(0).setQuery(QueryBuilders.matchAllQuery()).get().getHits().getTotalHits().value(),
             equalTo(1L)
         );
 
@@ -422,7 +422,13 @@ public class IndexAliasesIT extends OpenSearchIntegTestCase {
         searchResponse = client().prepareSearch("foos", "test1").setQuery(QueryBuilders.matchAllQuery()).get();
         assertHits(searchResponse.getHits(), "1", "2", "3", "4", "5");
         assertThat(
-            client().prepareSearch("foos", "test1").setSize(0).setQuery(QueryBuilders.matchAllQuery()).get().getHits().getTotalHits().value,
+            client().prepareSearch("foos", "test1")
+                .setSize(0)
+                .setQuery(QueryBuilders.matchAllQuery())
+                .get()
+                .getHits()
+                .getTotalHits()
+                .value(),
             equalTo(5L)
         );
 
@@ -435,20 +441,22 @@ public class IndexAliasesIT extends OpenSearchIntegTestCase {
                 .setQuery(QueryBuilders.matchAllQuery())
                 .get()
                 .getHits()
-                .getTotalHits().value,
+                .getTotalHits()
+                .value(),
             equalTo(5L)
         );
 
         logger.info("--> checking filtering alias for two indices and non-filtering alias for both indices");
         searchResponse = client().prepareSearch("foos", "aliasToTests").setQuery(QueryBuilders.matchAllQuery()).get();
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(8L));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(8L));
         assertThat(
             client().prepareSearch("foos", "aliasToTests")
                 .setSize(0)
                 .setQuery(QueryBuilders.matchAllQuery())
                 .get()
                 .getHits()
-                .getTotalHits().value,
+                .getTotalHits()
+                .value(),
             equalTo(8L)
         );
 
@@ -461,7 +469,8 @@ public class IndexAliasesIT extends OpenSearchIntegTestCase {
                 .setQuery(QueryBuilders.termQuery("name", "something"))
                 .get()
                 .getHits()
-                .getTotalHits().value,
+                .getTotalHits()
+                .value(),
             equalTo(2L)
         );
     }
@@ -526,7 +535,8 @@ public class IndexAliasesIT extends OpenSearchIntegTestCase {
                 .setQuery(QueryBuilders.matchAllQuery())
                 .get()
                 .getHits()
-                .getTotalHits().value,
+                .getTotalHits()
+                .value(),
             equalTo(4L)
         );
 
@@ -538,7 +548,8 @@ public class IndexAliasesIT extends OpenSearchIntegTestCase {
                 .setQuery(QueryBuilders.matchAllQuery())
                 .get()
                 .getHits()
-                .getTotalHits().value,
+                .getTotalHits()
+                .value(),
             equalTo(5L)
         );
 
@@ -550,7 +561,8 @@ public class IndexAliasesIT extends OpenSearchIntegTestCase {
                 .setQuery(QueryBuilders.matchAllQuery())
                 .get()
                 .getHits()
-                .getTotalHits().value,
+                .getTotalHits()
+                .value(),
             equalTo(4L)
         );
 
@@ -562,7 +574,8 @@ public class IndexAliasesIT extends OpenSearchIntegTestCase {
                 .setQuery(QueryBuilders.matchAllQuery())
                 .get()
                 .getHits()
-                .getTotalHits().value,
+                .getTotalHits()
+                .value(),
             equalTo(6L)
         );
 
@@ -574,7 +587,8 @@ public class IndexAliasesIT extends OpenSearchIntegTestCase {
                 .setQuery(QueryBuilders.matchAllQuery())
                 .get()
                 .getHits()
-                .getTotalHits().value,
+                .getTotalHits()
+                .value(),
             equalTo(6L)
         );
 
@@ -586,7 +600,8 @@ public class IndexAliasesIT extends OpenSearchIntegTestCase {
                 .setQuery(QueryBuilders.matchAllQuery())
                 .get()
                 .getHits()
-                .getTotalHits().value,
+                .getTotalHits()
+                .value(),
             equalTo(8L)
         );
     }
@@ -641,7 +656,7 @@ public class IndexAliasesIT extends OpenSearchIntegTestCase {
 
         logger.info("--> checking counts before delete");
         assertThat(
-            client().prepareSearch("bars").setSize(0).setQuery(QueryBuilders.matchAllQuery()).get().getHits().getTotalHits().value,
+            client().prepareSearch("bars").setSize(0).setQuery(QueryBuilders.matchAllQuery()).get().getHits().getTotalHits().value(),
             equalTo(1L)
         );
     }
@@ -1457,7 +1472,7 @@ public class IndexAliasesIT extends OpenSearchIntegTestCase {
     }
 
     private void assertHits(SearchHits hits, String... ids) {
-        assertThat(hits.getTotalHits().value, equalTo((long) ids.length));
+        assertThat(hits.getTotalHits().value(), equalTo((long) ids.length));
         Set<String> hitIds = new HashSet<>();
         for (SearchHit hit : hits.getHits()) {
             hitIds.add(hit.getId());

@@ -39,7 +39,6 @@ import org.apache.lucene.document.LatLonPoint;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.queries.BlendedTermQuery;
 import org.apache.lucene.queries.CommonTermsQuery;
 import org.apache.lucene.queries.intervals.IntervalQuery;
 import org.apache.lucene.queries.intervals.Intervals;
@@ -75,6 +74,7 @@ import org.opensearch.common.lucene.search.function.FunctionScoreQuery;
 import org.opensearch.common.lucene.search.function.RandomScoreFunction;
 import org.opensearch.common.network.InetAddresses;
 import org.opensearch.index.search.OpenSearchToParentBlockJoinQuery;
+import org.opensearch.lucene.queries.BlendedTermQuery;
 import org.opensearch.percolator.QueryAnalyzer.QueryExtraction;
 import org.opensearch.percolator.QueryAnalyzer.Result;
 import org.opensearch.test.OpenSearchTestCase;
@@ -110,7 +110,7 @@ public class QueryAnalyzerTests extends OpenSearchTestCase {
     }
 
     public void testExtractQueryMetadata_termsQuery() {
-        TermInSetQuery termsQuery = new TermInSetQuery("_field", new BytesRef("_term1"), new BytesRef("_term2"));
+        TermInSetQuery termsQuery = new TermInSetQuery("_field", List.of(new BytesRef("_term1"), new BytesRef("_term2")));
         Result result = analyze(termsQuery, Version.CURRENT);
         assertThat(result.verified, is(true));
         assertThat(result.minimumShouldMatch, equalTo(1));

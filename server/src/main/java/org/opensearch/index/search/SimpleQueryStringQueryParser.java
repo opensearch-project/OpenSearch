@@ -159,6 +159,7 @@ public class SimpleQueryStringQueryParser extends SimpleQueryParser {
                     settings.fuzzyPrefixLength,
                     settings.fuzzyMaxExpansions,
                     settings.fuzzyTranspositions,
+                    null,
                     context
                 );
                 disjuncts.add(wrapWithBoost(query, entry.getValue()));
@@ -222,8 +223,8 @@ public class SimpleQueryStringQueryParser extends SimpleQueryParser {
     }
 
     private static Query wrapWithBoost(Query query, float boost) {
-        if (query instanceof MatchNoDocsQuery) {
-            return query;
+        if (query instanceof MatchNoDocsQuery matchNoDocsQuery) {
+            return matchNoDocsQuery;
         }
         if (boost != AbstractQueryBuilder.DEFAULT_BOOST) {
             return new BoostQuery(query, boost);

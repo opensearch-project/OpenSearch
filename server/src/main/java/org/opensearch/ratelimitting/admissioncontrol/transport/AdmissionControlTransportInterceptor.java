@@ -9,12 +9,13 @@
 package org.opensearch.ratelimitting.admissioncontrol.transport;
 
 import org.opensearch.ratelimitting.admissioncontrol.AdmissionControlService;
+import org.opensearch.ratelimitting.admissioncontrol.enums.AdmissionControlActionType;
 import org.opensearch.transport.TransportInterceptor;
 import org.opensearch.transport.TransportRequest;
 import org.opensearch.transport.TransportRequestHandler;
 
 /**
- * This class allows throttling to intercept requests on both the sender and the receiver side.
+ * This class allows throttling by intercepting requests on both the sender and the receiver side.
  */
 public class AdmissionControlTransportInterceptor implements TransportInterceptor {
 
@@ -33,8 +34,15 @@ public class AdmissionControlTransportInterceptor implements TransportIntercepto
         String action,
         String executor,
         boolean forceExecution,
-        TransportRequestHandler<T> actualHandler
+        TransportRequestHandler<T> actualHandler,
+        AdmissionControlActionType admissionControlActionType
     ) {
-        return new AdmissionControlTransportHandler<>(action, actualHandler, this.admissionControlService, forceExecution);
+        return new AdmissionControlTransportHandler<>(
+            action,
+            actualHandler,
+            this.admissionControlService,
+            forceExecution,
+            admissionControlActionType
+        );
     }
 }

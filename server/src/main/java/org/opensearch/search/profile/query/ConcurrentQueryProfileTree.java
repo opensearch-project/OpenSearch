@@ -10,11 +10,17 @@ package org.opensearch.search.profile.query;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Collector;
+import org.apache.lucene.search.Query;
 import org.opensearch.search.profile.ContextualProfileBreakdown;
+import org.opensearch.search.profile.ProfileMetric;
+import org.opensearch.search.profile.ProfileMetricUtil;
 import org.opensearch.search.profile.ProfileResult;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
+import java.util.function.Supplier;
 
 /**
  * This class returns a list of {@link ProfileResult} that can be serialized back to the client in the concurrent execution.
@@ -23,16 +29,22 @@ import java.util.Map;
  */
 public class ConcurrentQueryProfileTree extends AbstractQueryProfileTree {
 
+    private final Function<Query, Collection<Supplier<ProfileMetric>>> customProfileMetrics;
+
+    public ConcurrentQueryProfileTree(Function<Query, Collection<Supplier<ProfileMetric>>> customProfileMetrics) {
+        this.customProfileMetrics = customProfileMetrics;
+    }
+
     @Override
-    protected ContextualProfileBreakdown<QueryTimingType> createProfileBreakdown() {
-        return new ConcurrentQueryProfileBreakdown();
+    protected ContextualProfileBreakdown createProfileBreakdown(Query query) {
+        return new ConcurrentQueryProfileBreakdown(ProfileMetricUtil.getQueryProfileMetrics(customProfileMetrics.apply(query)));
     }
 
     @Override
     protected ProfileResult createProfileResult(
         String type,
         String description,
-        ContextualProfileBreakdown<QueryTimingType> breakdown,
+        ContextualProfileBreakdown breakdown,
         List<ProfileResult> childrenProfileResults
     ) {
         assert breakdown instanceof ConcurrentQueryProfileBreakdown;
@@ -62,7 +74,7 @@ public class ConcurrentQueryProfileTree extends AbstractQueryProfileTree {
     @Override
     public List<ProfileResult> getTree() {
         for (Integer root : roots) {
-            final ContextualProfileBreakdown<QueryTimingType> parentBreakdown = breakdowns.get(root);
+            final ContextualProfileBreakdown parentBreakdown = breakdowns.get(root);
             assert parentBreakdown instanceof ConcurrentQueryProfileBreakdown;
             final Map<Collector, List<LeafReaderContext>> parentCollectorToLeaves = ((ConcurrentQueryProfileBreakdown) parentBreakdown)
                 .getSliceCollectorsToLeaves();
@@ -82,7 +94,7 @@ public class ConcurrentQueryProfileTree extends AbstractQueryProfileTree {
         final List<Integer> children = tree.get(parentToken);
         if (children != null) {
             for (Integer currentChild : children) {
-                final ContextualProfileBreakdown<QueryTimingType> currentChildBreakdown = breakdowns.get(currentChild);
+                final ContextualProfileBreakdown currentChildBreakdown = breakdowns.get(currentChild);
                 currentChildBreakdown.associateCollectorsToLeaves(collectorToLeaves);
                 updateCollectorToLeavesForChildBreakdowns(currentChild, collectorToLeaves);
             }

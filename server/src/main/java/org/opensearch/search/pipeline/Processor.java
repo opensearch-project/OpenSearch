@@ -22,13 +22,6 @@ import java.util.Map;
  */
 public interface Processor {
     /**
-     * Processor configuration key to let the factory know the context for pipeline creation.
-     * <p>
-     * See {@link PipelineSource}.
-     */
-    String PIPELINE_SOURCE = "pipeline_source";
-
-    /**
      * Gets the type of processor
      */
     String getType();
@@ -101,5 +94,26 @@ public interface Processor {
         SEARCH_REQUEST,
         // A named pipeline is being validated before being written to cluster state
         VALIDATE_PIPELINE
+    }
+
+    /**
+     * Type of the processor
+     */
+    enum ProcessorType {
+        /**
+         * Search request processor
+         * {@link SearchRequestProcessor}
+         */
+        SEARCH_REQUEST,
+        /**
+         * Search response processor
+         * {@link SearchResponseProcessor}
+         */
+        SEARCH_RESPONSE,
+        /**
+         * Search phase results processor
+         * {@link SearchPhaseResultsProcessor}
+         */
+        SEARCH_PHASE_RESULTS
     }
 }

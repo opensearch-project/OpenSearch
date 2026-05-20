@@ -16,8 +16,6 @@ import org.junit.Before;
 
 import java.nio.file.Path;
 
-import static org.opensearch.remotestore.RemoteStoreBaseIntegTestCase.remoteStoreClusterSettings;
-
 /**
  * This class runs Segment Replication Integ test suite with remote store enabled.
  */

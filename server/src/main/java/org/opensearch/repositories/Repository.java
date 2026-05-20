@@ -41,6 +41,8 @@ import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.Priority;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.lifecycle.LifecycleComponent;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.core.action.ActionListener;
@@ -48,9 +50,11 @@ import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.snapshots.IndexShardSnapshotStatus;
 import org.opensearch.index.snapshots.blobstore.RemoteStoreShardShallowCopySnapshot;
+import org.opensearch.index.store.RemoteSegmentStoreDirectoryFactory;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.lockmanager.RemoteStoreLockManagerFactory;
 import org.opensearch.indices.recovery.RecoveryState;
+import org.opensearch.node.remotestore.RemoteStorePinnedTimestampService;
 import org.opensearch.snapshots.SnapshotId;
 import org.opensearch.snapshots.SnapshotInfo;
 
@@ -75,14 +79,18 @@ import java.util.function.Function;
  * <li>When all shard calls return cluster-manager calls {@link #finalizeSnapshot} with possible list of failures</li>
  * </ul>
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public interface Repository extends LifecycleComponent {
 
     /**
      * An factory interface for constructing repositories.
      * See {@link org.opensearch.plugins.RepositoryPlugin}.
+     *
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     interface Factory {
         /**
          * Constructs a repository.
@@ -158,6 +166,34 @@ public interface Repository extends LifecycleComponent {
     );
 
     /**
+     * Finalizes snapshotting process
+     * <p>
+     * This method is called on cluster-manager after all shards are snapshotted.
+     *
+     * @param shardGenerations      updated shard generations
+     * @param repositoryStateId     the unique id identifying the state of the repository when the snapshot began
+     * @param clusterMetadata       cluster metadata
+     * @param snapshotInfo     SnapshotInfo instance to write for this snapshot
+     * @param repositoryMetaVersion version of the updated repository metadata to write
+     * @param stateTransformer      a function that filters the last cluster state update that the snapshot finalization will execute and
+     *                              is used to remove any state tracked for the in-progress snapshot from the cluster state
+     * @param repositoryUpdatePriority  priority for the cluster state update task
+     * @param listener              listener to be invoked with the new {@link RepositoryData} after completing the snapshot
+     */
+    default void finalizeSnapshot(
+        ShardGenerations shardGenerations,
+        long repositoryStateId,
+        Metadata clusterMetadata,
+        SnapshotInfo snapshotInfo,
+        Version repositoryMetaVersion,
+        Function<ClusterState, ClusterState> stateTransformer,
+        Priority repositoryUpdatePriority,
+        ActionListener<RepositoryData> listener
+    ) {
+        throw new UnsupportedOperationException();
+    }
+
+    /**
      * Deletes snapshots
      *
      * @param snapshotIds           snapshot ids
@@ -175,11 +211,59 @@ public interface Repository extends LifecycleComponent {
     /**
      * Deletes snapshots and releases respective lock files from remote store repository.
      *
-     * @param snapshotIds                   snapshot ids
-     * @param repositoryStateId             the unique id identifying the state of the repository when the snapshot deletion began
-     * @param repositoryMetaVersion         version of the updated repository metadata to write
-     * @param remoteStoreLockManagerFactory RemoteStoreLockManagerFactory to be used for cleaning up remote store lock files
-     * @param listener                      completion listener
+     * @param snapshotIds                           snapshot ids
+     * @param repositoryStateId                     the unique id identifying the state of the repository when the snapshot deletion began
+     * @param repositoryMetaVersion                 version of the updated repository metadata to write
+     * @param remoteStoreLockManagerFactory         RemoteStoreLockManagerFactory to be used for cleaning up remote store lock files
+     * @param remoteSegmentStoreDirectoryFactory    RemoteSegmentStoreDirectoryFactory to be used for cleaning up remote store segment files
+     * @param remoteStorePinnedTimestampService     service for pinning and unpinning of the timestamp
+     * @param snapshotIdsPinnedTimestampMap         map of snapshots ids and the pinned timestamp
+     * @param isShallowSnapshotV2                   true for shallow snapshots v2
+     * @param listener                              completion listener
+     */
+    default void deleteSnapshotsInternal(
+        Collection<SnapshotId> snapshotIds,
+        long repositoryStateId,
+        Version repositoryMetaVersion,
+        RemoteStoreLockManagerFactory remoteStoreLockManagerFactory,
+        RemoteSegmentStoreDirectoryFactory remoteSegmentStoreDirectoryFactory,
+        RemoteStorePinnedTimestampService remoteStorePinnedTimestampService,
+        Map<SnapshotId, Long> snapshotIdsPinnedTimestampMap,
+        boolean isShallowSnapshotV2,
+        ActionListener<RepositoryData> listener
+    ) {
+        throw new UnsupportedOperationException();
+    }
+
+    /**
+     * Deletes snapshots and unpin the snapshot timestamp using remoteStorePinnedTimestampService
+     *
+     * @param snapshotsWithPinnedTimestamp          map of snapshot ids and the pinned timestamps
+     * @param repositoryStateId                     the unique id identifying the state of the repository when the snapshot deletion began
+     * @param repositoryMetaVersion                 version of the updated repository metadata to write
+     * @param remoteSegmentStoreDirectoryFactory    RemoteSegmentStoreDirectoryFactory to be used for cleaning up remote store segment files
+     * @param remoteStorePinnedTimestampService     service for pinning and unpinning of the timestamp
+     * @param listener                              completion listener
+     */
+    default void deleteSnapshotsWithPinnedTimestamp(
+        Map<SnapshotId, Long> snapshotsWithPinnedTimestamp,
+        long repositoryStateId,
+        Version repositoryMetaVersion,
+        RemoteSegmentStoreDirectoryFactory remoteSegmentStoreDirectoryFactory,
+        RemoteStorePinnedTimestampService remoteStorePinnedTimestampService,
+        ActionListener<RepositoryData> listener
+    ) {
+        throw new UnsupportedOperationException();
+    }
+
+    /**
+     * Deletes snapshots and releases respective lock files from remote store repository
+     *
+     * @param snapshotIds
+     * @param repositoryStateId
+     * @param repositoryMetaVersion
+     * @param remoteStoreLockManagerFactory
+     * @param listener
      */
     default void deleteSnapshotsAndReleaseLockFiles(
         Collection<SnapshotId> snapshotIds,
@@ -202,14 +286,26 @@ public interface Repository extends LifecycleComponent {
     long getRestoreThrottleTimeInNanos();
 
     /**
-     * Returns restore throttle time in nanoseconds
+     * Returns upload throttle time in nanoseconds
      */
     long getRemoteUploadThrottleTimeInNanos();
+
+    /**
+     * Returns low priority upload throttle time in nanoseconds
+     */
+    default long getLowPriorityRemoteUploadThrottleTimeInNanos() {
+        return 0;
+    }
 
     /**
      * Returns restore throttle time in nanoseconds
      */
     long getRemoteDownloadThrottleTimeInNanos();
+
+    /**
+     * Returns low priority remote download throttle time in nanoseconds
+     */
+    long getLowPriorityRemoteDownloadThrottleTimeInNanos();
 
     /**
      * Returns stats on the repository usage
@@ -265,18 +361,69 @@ public interface Repository extends LifecycleComponent {
      * <p>
      * As snapshot process progresses, implementation of this method should update {@link IndexShardSnapshotStatus} object and check
      * {@link IndexShardSnapshotStatus#isAborted()} to see if the snapshot process should be aborted.
-     * @param store                    store to be snapshotted
-     * @param mapperService            the shards mapper service
-     * @param snapshotId               snapshot id
-     * @param indexId                  id for the index being snapshotted
-     * @param snapshotIndexCommit      commit point
-     * @param shardStateIdentifier     a unique identifier of the state of the shard that is stored with the shard's snapshot and used
-     *                                 to detect if the shard has changed between snapshots. If {@code null} is passed as the identifier
-     *                                 snapshotting will be done by inspecting the physical files referenced by {@code snapshotIndexCommit}
-     * @param snapshotStatus           snapshot status
-     * @param repositoryMetaVersion    version of the updated repository metadata to write
-     * @param userMetadata             user metadata of the snapshot found in {@link SnapshotsInProgress.Entry#userMetadata()}
-     * @param listener                 listener invoked on completion
+     *
+     * @param store                 store to be snapshotted
+     * @param mapperService         the shards mapper service
+     * @param snapshotId            snapshot id
+     * @param indexId               id for the index being snapshotted
+     * @param snapshotIndexCommit   commit point
+     * @param shardStateIdentifier  a unique identifier of the state of the shard that is stored with the shard's snapshot and used
+     *                              to detect if the shard has changed between snapshots. If {@code null} is passed as the identifier
+     *                              snapshotting will be done by inspecting the physical files referenced by {@code snapshotIndexCommit}
+     * @param snapshotStatus        snapshot status
+     * @param repositoryMetaVersion version of the updated repository metadata to write
+     * @param userMetadata          user metadata of the snapshot found in {@link SnapshotsInProgress.Entry#userMetadata()}
+     * @param listener              listener invoked on completion
+     */
+    default void snapshotShard(
+        Store store,
+        MapperService mapperService,
+        SnapshotId snapshotId,
+        IndexId indexId,
+        IndexCommit snapshotIndexCommit,
+        @Nullable String shardStateIdentifier,
+        IndexShardSnapshotStatus snapshotStatus,
+        Version repositoryMetaVersion,
+        Map<String, Object> userMetadata,
+        ActionListener<String> listener
+    ) {
+        snapshotShard(
+            store,
+            mapperService,
+            snapshotId,
+            indexId,
+            snapshotIndexCommit,
+            shardStateIdentifier,
+            snapshotStatus,
+            repositoryMetaVersion,
+            userMetadata,
+            listener,
+            null
+        );
+    }
+
+    /**
+     * Creates a snapshot of the shard based on the index commit point.
+     * <p>
+     * The index commit point can be obtained by using {@link org.opensearch.index.engine.Engine#acquireLastIndexCommit} method.
+     * Repository implementations shouldn't release the snapshot index commit point. It is done by the method caller.
+     * <p>
+     * As snapshot process progresses, implementation of this method should update {@link IndexShardSnapshotStatus} object and check
+     * {@link IndexShardSnapshotStatus#isAborted()} to see if the snapshot process should be aborted.
+     *
+     * @param store                 store to be snapshotted
+     * @param mapperService         the shards mapper service
+     * @param snapshotId            snapshot id
+     * @param indexId               id for the index being snapshotted
+     * @param snapshotIndexCommit   commit point
+     * @param shardStateIdentifier  a unique identifier of the state of the shard that is stored with the shard's snapshot and used
+     *                              to detect if the shard has changed between snapshots. If {@code null} is passed as the identifier
+     *                              snapshotting will be done by inspecting the physical files referenced by {@code snapshotIndexCommit}
+     * @param snapshotStatus        snapshot status
+     * @param repositoryMetaVersion version of the updated repository metadata to write
+     * @param userMetadata          user metadata of the snapshot found in {@link SnapshotsInProgress.Entry#userMetadata()}
+     * @param listener              listener invoked on completion
+     * @param indexMetadata         index metadata for the shard being snapshotted
      */
     void snapshotShard(
         Store store,
@@ -288,7 +435,8 @@ public interface Repository extends LifecycleComponent {
         IndexShardSnapshotStatus snapshotStatus,
         Version repositoryMetaVersion,
         Map<String, Object> userMetadata,
-        ActionListener<String> listener
+        ActionListener<String> listener,
+        @Nullable IndexMetadata indexMetadata
     );
 
     /**
@@ -320,6 +468,45 @@ public interface Repository extends LifecycleComponent {
         IndexShardSnapshotStatus snapshotStatus,
         long primaryTerm,
         long startTime,
+        ActionListener<String> listener
+    ) {
+        throw new UnsupportedOperationException();
+    }
+
+    /**
+     * Adds a reference of remote store data for a index commit point.
+     * <p>
+     * The index commit point can be obtained by using {@link org.opensearch.index.engine.Engine#acquireLastIndexCommit} method.
+     * Or for closed index can be obtained by reading last remote uploaded metadata by using {@link org.opensearch.index.shard.IndexShard#fetchLastRemoteUploadedSegmentMetadata()} method.
+     * Repository implementations shouldn't release the snapshot index commit point. It is done by the method caller.
+     * <p>
+     * As snapshot process progresses, implementation of this method should update {@link IndexShardSnapshotStatus} object and check
+     * {@link IndexShardSnapshotStatus#isAborted()} to see if the snapshot process should be aborted.
+     * @param store                    store to be snapshotted
+     * @param snapshotId               snapshot id
+     * @param indexId                  id for the index being snapshotted
+     * @param snapshotIndexCommit      commit point
+     * @param shardStateIdentifier     a unique identifier of the state of the shard that is stored with the shard's snapshot and used
+     *                                 to detect if the shard has changed between snapshots. If {@code null} is passed as the identifier
+     *                                 snapshotting will be done by inspecting the physical files referenced by {@code snapshotIndexCommit}
+     * @param snapshotStatus           snapshot status
+     * @param primaryTerm              current Primary Term
+     * @param commitGeneration         current commit generation
+     * @param startTime                start time of the snapshot commit, this will be used as the start time for snapshot.
+     * @param indexFilesToFileLengthMap map of index files to file length
+     * @param listener                 listener invoked on completion
+     */
+    default void snapshotRemoteStoreIndexShard(
+        Store store,
+        SnapshotId snapshotId,
+        IndexId indexId,
+        @Nullable IndexCommit snapshotIndexCommit,
+        @Nullable String shardStateIdentifier,
+        IndexShardSnapshotStatus snapshotStatus,
+        long primaryTerm,
+        long commitGeneration,
+        long startTime,
+        @Nullable Map<String, Long> indexFilesToFileLengthMap,
         ActionListener<String> listener
     ) {
         throw new UnsupportedOperationException();
@@ -378,6 +565,18 @@ public interface Repository extends LifecycleComponent {
      * @return snapshot status
      */
     IndexShardSnapshotStatus getShardSnapshotStatus(SnapshotId snapshotId, IndexId indexId, ShardId shardId);
+
+    /**
+     * Retrieve shard snapshot status for the stored snapshot
+     *
+     * @param snapshotInfo snapshot info
+     * @param indexId    the snapshotted index id for the shard to get status for
+     * @param shardId    shard id
+     * @return snapshot status
+     */
+    default IndexShardSnapshotStatus getShardSnapshotStatus(SnapshotInfo snapshotInfo, IndexId indexId, ShardId shardId) {
+        return getShardSnapshotStatus(snapshotInfo.snapshotId(), indexId, shardId);
+    }
 
     /**
      * Update the repository with the incoming cluster state. This method is invoked from {@link RepositoriesService#applyClusterState} and
@@ -460,6 +659,10 @@ public interface Repository extends LifecycleComponent {
         return false;
     }
 
+    default boolean isReloadableSettings(RepositoryMetadata newRepositoryMetadata) {
+        return false;
+    }
+
     /**
      * Reload the repository inplace
      */
@@ -469,4 +672,24 @@ public interface Repository extends LifecycleComponent {
      * Validate the repository metadata
      */
     default void validateMetadata(RepositoryMetadata repositoryMetadata) {}
+
+    /**
+     * Returns the native (Rust) object store wrapper for this repository, or
+     * {@link NativeStoreRepository#EMPTY} if native object store is not supported or not initialized.
+     *
+     * <p>The returned value is a {@link NativeStoreRepository} wrapper managed by the
+     * repository implementation. Callers must NOT cache or use the wrapper across
+     * repository lifecycle boundaries. The wrapper is invalidated when the repository
+     * is closed — accessing it after close throws {@link IllegalStateException}.
+     *
+     * <p>Only sandbox tiered storage code should call this method. The default
+     * implementation returns {@link NativeStoreRepository#EMPTY} (no native store).
+     *
+     * @return the native (Rust) object store wrapper, or {@link NativeStoreRepository#EMPTY} if not available
+     * @throws IllegalStateException if the native store has been closed
+     * @opensearch.experimental
+     */
+    default NativeStoreRepository getNativeStore() {
+        return NativeStoreRepository.EMPTY;
+    }
 }

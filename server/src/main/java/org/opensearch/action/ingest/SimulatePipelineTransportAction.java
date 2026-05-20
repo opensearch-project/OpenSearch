@@ -69,7 +69,7 @@ public class SimulatePipelineTransportAction extends HandledTransportAction<Simu
             (Writeable.Reader<SimulatePipelineRequest>) SimulatePipelineRequest::new
         );
         this.ingestService = ingestService;
-        this.executionService = new SimulateExecutionService(threadPool);
+        this.executionService = new SimulateExecutionService(threadPool, ingestService);
     }
 
     @Override

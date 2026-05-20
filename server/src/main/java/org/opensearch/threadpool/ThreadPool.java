@@ -38,11 +38,11 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.Version;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.SizeValue;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.common.util.concurrent.OpenSearchThreadPoolExecutor;
 import org.opensearch.common.util.concurrent.ThreadContext;
@@ -54,17 +54,22 @@ import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.core.service.ReportingService;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.gateway.remote.ClusterStateChecksum;
 import org.opensearch.node.Node;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.RejectedExecutionHandler;
 import java.util.concurrent.ScheduledExecutorService;
@@ -94,19 +99,23 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
     public static class Names {
         public static final String SAME = "same";
         public static final String GENERIC = "generic";
+        public static final String TRANSLOG_RECOVERY = "translog_recovery";
         @Deprecated
         public static final String LISTENER = "listener";
         public static final String GET = "get";
         public static final String ANALYZE = "analyze";
         public static final String WRITE = "write";
         public static final String SEARCH = "search";
+        public static final String STREAM_SEARCH = "stream_search";
         public static final String SEARCH_THROTTLED = "search_throttled";
         public static final String MANAGEMENT = "management";
         public static final String FLUSH = "flush";
         public static final String REFRESH = "refresh";
         public static final String WARMER = "warmer";
         public static final String SNAPSHOT = "snapshot";
+        public static final String SNAPSHOT_DELETION = "snapshot_deletion";
         public static final String FORCE_MERGE = "force_merge";
+        public static final String MERGE = "merge";
         public static final String FETCH_SHARD_STARTED = "fetch_shard_started";
         public static final String FETCH_SHARD_STORE = "fetch_shard_store";
         public static final String SYSTEM_READ = "system_read";
@@ -116,8 +125,15 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         public static final String REMOTE_PURGE = "remote_purge";
         public static final String REMOTE_REFRESH_RETRY = "remote_refresh_retry";
         public static final String REMOTE_RECOVERY = "remote_recovery";
+        /** Thread pool name for remote downloads in tiered storage. */
+        public static final String REMOTE_DOWNLOAD = "remote_download";
+        public static final String REMOTE_STATE_READ = "remote_state_read";
         public static final String INDEX_SEARCHER = "index_searcher";
+        public static final String REMOTE_STATE_CHECKSUM = "remote_state_checksum";
     }
+
+    static Set<String> scalingThreadPoolKeys = new HashSet<>(Arrays.asList("max", "core"));
+    static Set<String> fixedThreadPoolKeys = new HashSet<>(Arrays.asList("size"));
 
     /**
      * The threadpool type.
@@ -129,7 +145,8 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         DIRECT("direct"),
         FIXED("fixed"),
         RESIZABLE("resizable"),
-        SCALING("scaling");
+        SCALING("scaling"),
+        FORK_JOIN("fork_join");
 
         private final String type;
 
@@ -166,17 +183,21 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         HashMap<String, ThreadPoolType> map = new HashMap<>();
         map.put(Names.SAME, ThreadPoolType.DIRECT);
         map.put(Names.GENERIC, ThreadPoolType.SCALING);
+        map.put(Names.TRANSLOG_RECOVERY, ThreadPoolType.FIXED);
         map.put(Names.LISTENER, ThreadPoolType.FIXED);
         map.put(Names.GET, ThreadPoolType.FIXED);
         map.put(Names.ANALYZE, ThreadPoolType.FIXED);
         map.put(Names.WRITE, ThreadPoolType.FIXED);
         map.put(Names.SEARCH, ThreadPoolType.RESIZABLE);
+        map.put(Names.STREAM_SEARCH, ThreadPoolType.RESIZABLE);
         map.put(Names.MANAGEMENT, ThreadPoolType.SCALING);
         map.put(Names.FLUSH, ThreadPoolType.SCALING);
         map.put(Names.REFRESH, ThreadPoolType.SCALING);
         map.put(Names.WARMER, ThreadPoolType.SCALING);
         map.put(Names.SNAPSHOT, ThreadPoolType.SCALING);
+        map.put(Names.SNAPSHOT_DELETION, ThreadPoolType.SCALING);
         map.put(Names.FORCE_MERGE, ThreadPoolType.FIXED);
+        map.put(Names.MERGE, ThreadPoolType.SCALING);
         map.put(Names.FETCH_SHARD_STARTED, ThreadPoolType.SCALING);
         map.put(Names.FETCH_SHARD_STORE, ThreadPoolType.SCALING);
         map.put(Names.SEARCH_THROTTLED, ThreadPoolType.RESIZABLE);
@@ -187,9 +208,10 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         map.put(Names.REMOTE_PURGE, ThreadPoolType.SCALING);
         map.put(Names.REMOTE_REFRESH_RETRY, ThreadPoolType.SCALING);
         map.put(Names.REMOTE_RECOVERY, ThreadPoolType.SCALING);
-        if (FeatureFlags.isEnabled(FeatureFlags.CONCURRENT_SEGMENT_SEARCH)) {
-            map.put(Names.INDEX_SEARCHER, ThreadPoolType.RESIZABLE);
-        }
+        map.put(Names.REMOTE_DOWNLOAD, ThreadPoolType.SCALING);
+        map.put(Names.REMOTE_STATE_READ, ThreadPoolType.FIXED);
+        map.put(Names.INDEX_SEARCHER, ThreadPoolType.RESIZABLE);
+        map.put(Names.REMOTE_STATE_CHECKSUM, ThreadPoolType.FIXED);
         THREAD_POOL_TYPES = Collections.unmodifiableMap(map);
     }
 
@@ -218,6 +240,12 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         Setting.Property.NodeScope
     );
 
+    public static final Setting<Settings> CLUSTER_THREAD_POOL_SIZE_SETTING = Setting.groupSetting(
+        "cluster.thread_pool.",
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
     public ThreadPool(final Settings settings, final ExecutorBuilder<?>... customBuilders) {
         this(settings, null, customBuilders);
     }
@@ -231,16 +259,30 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
 
         final Map<String, ExecutorBuilder> builders = new HashMap<>();
         final int allocatedProcessors = OpenSearchExecutors.allocatedProcessors(settings);
+        final int halfProc = halfAllocatedProcessors(allocatedProcessors);
         final int halfProcMaxAt5 = halfAllocatedProcessorsMaxFive(allocatedProcessors);
         final int halfProcMaxAt10 = halfAllocatedProcessorsMaxTen(allocatedProcessors);
         final int genericThreadPoolMax = boundedBy(4 * allocatedProcessors, 128, 512);
+        final int snapshotDeletionPoolMax = boundedBy(4 * allocatedProcessors, 64, 256);
         builders.put(Names.GENERIC, new ScalingExecutorBuilder(Names.GENERIC, 4, genericThreadPoolMax, TimeValue.timeValueSeconds(30)));
+        builders.put(Names.TRANSLOG_RECOVERY, new FixedExecutorBuilder(settings, Names.TRANSLOG_RECOVERY, allocatedProcessors, -1));
         builders.put(Names.WRITE, new FixedExecutorBuilder(settings, Names.WRITE, allocatedProcessors, 10000));
         builders.put(Names.GET, new FixedExecutorBuilder(settings, Names.GET, allocatedProcessors, 1000));
         builders.put(Names.ANALYZE, new FixedExecutorBuilder(settings, Names.ANALYZE, 1, 16));
         builders.put(
             Names.SEARCH,
             new ResizableExecutorBuilder(settings, Names.SEARCH, searchThreadPoolSize(allocatedProcessors), 1000, runnableTaskListener)
+        );
+        // TODO: configure the appropriate size and explore use of virtual threads
+        builders.put(
+            Names.STREAM_SEARCH,
+            new ResizableExecutorBuilder(
+                settings,
+                Names.STREAM_SEARCH,
+                searchThreadPoolSize(allocatedProcessors),
+                1000,
+                runnableTaskListener
+            )
         );
         builders.put(Names.SEARCH_THROTTLED, new ResizableExecutorBuilder(settings, Names.SEARCH_THROTTLED, 1, 100, runnableTaskListener));
         builders.put(Names.MANAGEMENT, new ScalingExecutorBuilder(Names.MANAGEMENT, 1, 5, TimeValue.timeValueMinutes(5)));
@@ -252,10 +294,18 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         builders.put(Names.WARMER, new ScalingExecutorBuilder(Names.WARMER, 1, halfProcMaxAt5, TimeValue.timeValueMinutes(5)));
         builders.put(Names.SNAPSHOT, new ScalingExecutorBuilder(Names.SNAPSHOT, 1, halfProcMaxAt5, TimeValue.timeValueMinutes(5)));
         builders.put(
+            Names.SNAPSHOT_DELETION,
+            new ScalingExecutorBuilder(Names.SNAPSHOT_DELETION, 1, snapshotDeletionPoolMax, TimeValue.timeValueMinutes(5))
+        );
+        builders.put(
             Names.FETCH_SHARD_STARTED,
             new ScalingExecutorBuilder(Names.FETCH_SHARD_STARTED, 1, 2 * allocatedProcessors, TimeValue.timeValueMinutes(5))
         );
-        builders.put(Names.FORCE_MERGE, new FixedExecutorBuilder(settings, Names.FORCE_MERGE, 1, -1));
+        builders.put(
+            Names.FORCE_MERGE,
+            new FixedExecutorBuilder(settings, Names.FORCE_MERGE, oneEighthAllocatedProcessors(allocatedProcessors), -1)
+        );
+        builders.put(Names.MERGE, new ScalingExecutorBuilder(Names.MERGE, 1, allocatedProcessors, TimeValue.timeValueMinutes(5)));
         builders.put(
             Names.FETCH_SHARD_STORE,
             new ScalingExecutorBuilder(Names.FETCH_SHARD_STORE, 1, 2 * allocatedProcessors, TimeValue.timeValueMinutes(5))
@@ -264,13 +314,13 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         builders.put(Names.SYSTEM_WRITE, new FixedExecutorBuilder(settings, Names.SYSTEM_WRITE, halfProcMaxAt5, 1000, false));
         builders.put(
             Names.TRANSLOG_TRANSFER,
-            new ScalingExecutorBuilder(Names.TRANSLOG_TRANSFER, 1, halfProcMaxAt10, TimeValue.timeValueMinutes(5))
+            new ScalingExecutorBuilder(Names.TRANSLOG_TRANSFER, 1, halfProc, TimeValue.timeValueMinutes(5))
         );
         builders.put(Names.TRANSLOG_SYNC, new FixedExecutorBuilder(settings, Names.TRANSLOG_SYNC, allocatedProcessors * 4, 10000));
-        builders.put(Names.REMOTE_PURGE, new ScalingExecutorBuilder(Names.REMOTE_PURGE, 1, halfProcMaxAt5, TimeValue.timeValueMinutes(5)));
+        builders.put(Names.REMOTE_PURGE, new ScalingExecutorBuilder(Names.REMOTE_PURGE, 1, halfProc, TimeValue.timeValueMinutes(5)));
         builders.put(
             Names.REMOTE_REFRESH_RETRY,
-            new ScalingExecutorBuilder(Names.REMOTE_REFRESH_RETRY, 1, halfProcMaxAt10, TimeValue.timeValueMinutes(5))
+            new ScalingExecutorBuilder(Names.REMOTE_REFRESH_RETRY, 1, halfProc, TimeValue.timeValueMinutes(5))
         );
         builders.put(
             Names.REMOTE_RECOVERY,
@@ -281,12 +331,33 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
                 TimeValue.timeValueMinutes(5)
             )
         );
-        if (FeatureFlags.isEnabled(FeatureFlags.CONCURRENT_SEGMENT_SEARCH)) {
-            builders.put(
+        builders.put(
+            Names.REMOTE_DOWNLOAD,
+            new ScalingExecutorBuilder(
+                Names.REMOTE_DOWNLOAD,
+                1,
+                twiceAllocatedProcessors(allocatedProcessors),
+                TimeValue.timeValueMinutes(5)
+            )
+        );
+        builders.put(
+            Names.REMOTE_STATE_READ,
+            new FixedExecutorBuilder(settings, Names.REMOTE_STATE_READ, boundedBy(4 * allocatedProcessors, 4, 32), 120000)
+        );
+        builders.put(
+            Names.INDEX_SEARCHER,
+            new ResizableExecutorBuilder(
+                settings,
                 Names.INDEX_SEARCHER,
-                new ResizableExecutorBuilder(settings, Names.INDEX_SEARCHER, allocatedProcessors, 1000, runnableTaskListener)
-            );
-        }
+                twiceAllocatedProcessors(allocatedProcessors),
+                1000,
+                runnableTaskListener
+            )
+        );
+        builders.put(
+            Names.REMOTE_STATE_CHECKSUM,
+            new FixedExecutorBuilder(settings, Names.REMOTE_STATE_CHECKSUM, ClusterStateChecksum.COMPONENT_SIZE, 1000)
+        );
 
         for (final ExecutorBuilder<?> builder : customBuilders) {
             if (builders.containsKey(builder.name())) {
@@ -381,12 +452,125 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         return holder.info;
     }
 
+    public void registerClusterSettingsListeners(ClusterSettings clusterSettings) {
+        clusterSettings.addSettingsUpdateConsumer(CLUSTER_THREAD_POOL_SIZE_SETTING, this::setThreadPool, this::validateSetting);
+    }
+
+    /*
+    Scaling threadpool can provide only max and core
+    Fixed/ResizableQueue can provide only size
+
+    For example valid settings would be for scaling and fixed thead pool
+        cluster.threadpool.snapshot.max : "5",
+        cluster.threadpool.snapshot.core : "5",
+        cluster.threadpool.get.size : "2",
+     */
+    private void validateSetting(Settings tpSettings) {
+        Map<String, Settings> tpGroups = tpSettings.getAsGroups();
+        for (Map.Entry<String, Settings> entry : tpGroups.entrySet()) {
+            String tpName = entry.getKey();
+            if (executors.containsKey(tpName) == false) {
+                throw new IllegalArgumentException("illegal thread_pool name : " + tpName);
+            }
+            Settings tpGroup = entry.getValue();
+            ExecutorHolder holder = executors.get(tpName);
+            // Skip validation for ForkJoinPool type since it does not support setting updates
+            if (holder.info.type == ThreadPoolType.FORK_JOIN) {
+                continue;
+            }
+            assert holder.executor instanceof OpenSearchThreadPoolExecutor;
+            OpenSearchThreadPoolExecutor threadPoolExecutor = (OpenSearchThreadPoolExecutor) holder.executor;
+            if (holder.info.type == ThreadPoolType.SCALING) {
+                if (scalingThreadPoolKeys.containsAll(tpGroup.keySet()) == false) {
+                    throw new IllegalArgumentException(
+                        "illegal thread_pool config : " + tpGroup.keySet() + " should only have " + scalingThreadPoolKeys
+                    );
+                }
+                int max = tpGroup.getAsInt("max", threadPoolExecutor.getMaximumPoolSize());
+                int core = tpGroup.getAsInt("core", threadPoolExecutor.getCorePoolSize());
+                if (core < 1 || max < 1) {
+                    throw new IllegalArgumentException("illegal value for [cluster.thread_pool." + tpName + "], has to be positive value");
+                } else if (core > max) {
+                    throw new IllegalArgumentException("core threadpool size cannot be greater than max");
+                }
+            } else {
+                if (fixedThreadPoolKeys.containsAll(tpGroup.keySet()) == false) {
+                    throw new IllegalArgumentException(
+                        "illegal thread_pool config : " + tpGroup.keySet() + " should only have " + fixedThreadPoolKeys
+                    );
+                }
+                int size = tpGroup.getAsInt("size", threadPoolExecutor.getMaximumPoolSize());
+                if (size < 1) {
+                    throw new IllegalArgumentException("illegal value for [cluster.thread_pool." + tpName + "], has to be positive value");
+                }
+            }
+        }
+    }
+
+    public void setThreadPool(Settings tpSettings) {
+        Map<String, Settings> tpGroups = tpSettings.getAsGroups();
+        for (Map.Entry<String, Settings> entry : tpGroups.entrySet()) {
+            String tpName = entry.getKey();
+            Settings tpGroup = entry.getValue();
+            ExecutorHolder holder = executors.get(tpName);
+            if (holder == null) {
+                throw new IllegalArgumentException("illegal thread_pool name : " + tpName);
+            }
+            if (holder.info.type == ThreadPoolType.FORK_JOIN) {
+                continue;
+            }
+            assert holder.executor instanceof OpenSearchThreadPoolExecutor;
+            OpenSearchThreadPoolExecutor executor = (OpenSearchThreadPoolExecutor) holder.executor;
+            if (holder.info.type == ThreadPoolType.SCALING) {
+                int max = tpGroup.getAsInt("max", executor.getMaximumPoolSize());
+                int core = tpGroup.getAsInt("core", executor.getCorePoolSize());
+                /*
+                 If we are decreasing, core pool size has to be decreased first.
+                 If we are increasing ,max pool size has to be increased first
+                 This ensures that core pool is always smaller than max pool size .
+                 Other wise IllegalArgumentException will be thrown from ThreadPoolExecutor
+                 */
+                if (core < executor.getCorePoolSize()) {
+                    executor.setCorePoolSize(core);
+                    executor.setMaximumPoolSize(max);
+                } else {
+                    executor.setMaximumPoolSize(max);
+                    executor.setCorePoolSize(core);
+                }
+            } else {
+                int size = tpGroup.getAsInt("size", executor.getMaximumPoolSize());
+                if (size < executor.getCorePoolSize()) {
+                    executor.setCorePoolSize(size);
+                    executor.setMaximumPoolSize(size);
+                } else {
+                    executor.setMaximumPoolSize(size);
+                    executor.setCorePoolSize(size);
+                }
+            }
+        }
+    }
+
     public ThreadPoolStats stats() {
         List<ThreadPoolStats.Stats> stats = new ArrayList<>();
         for (ExecutorHolder holder : executors.values()) {
             final String name = holder.info.getName();
             // no need to have info on "same" thread pool
             if ("same".equals(name)) {
+                continue;
+            }
+            if (holder.info.type == ThreadPoolType.FORK_JOIN) {
+                stats.add(
+                    new ThreadPoolStats.Stats.Builder().name(name)
+                        .threads(0)
+                        .queue(0)
+                        .active(0)
+                        .rejected(0)
+                        .largest(0)
+                        .completed(0)
+                        .waitTimeNanos(-1)
+                        .parallelism(holder.info.getMax())
+                        .build()
+                );
                 continue;
             }
             int threads = -1;
@@ -396,20 +580,33 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
             int largest = -1;
             long completed = -1;
             long waitTimeNanos = -1;
-            if (holder.executor() instanceof OpenSearchThreadPoolExecutor) {
-                OpenSearchThreadPoolExecutor threadPoolExecutor = (OpenSearchThreadPoolExecutor) holder.executor();
+            int parallelism = -1;
+
+            if (holder.executor() instanceof OpenSearchThreadPoolExecutor threadPoolExecutor) {
                 threads = threadPoolExecutor.getPoolSize();
                 queue = threadPoolExecutor.getQueue().size();
                 active = threadPoolExecutor.getActiveCount();
                 largest = threadPoolExecutor.getLargestPoolSize();
                 completed = threadPoolExecutor.getCompletedTaskCount();
                 waitTimeNanos = threadPoolExecutor.getPoolWaitTimeNanos();
+
                 RejectedExecutionHandler rejectedExecutionHandler = threadPoolExecutor.getRejectedExecutionHandler();
-                if (rejectedExecutionHandler instanceof XRejectedExecutionHandler) {
-                    rejected = ((XRejectedExecutionHandler) rejectedExecutionHandler).rejected();
+                if (rejectedExecutionHandler instanceof XRejectedExecutionHandler xRejectedExecutionHandler) {
+                    rejected = xRejectedExecutionHandler.rejected();
                 }
             }
-            stats.add(new ThreadPoolStats.Stats(name, threads, queue, active, rejected, largest, completed, waitTimeNanos));
+            stats.add(
+                new ThreadPoolStats.Stats.Builder().name(name)
+                    .threads(threads)
+                    .queue(queue)
+                    .active(active)
+                    .rejected(rejected)
+                    .largest(largest)
+                    .completed(completed)
+                    .waitTimeNanos(waitTimeNanos)
+                    .parallelism(parallelism)
+                    .build()
+            );
         }
         return new ThreadPoolStats(stats);
     }
@@ -448,14 +645,14 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
     /**
      * Schedules a one-shot command to run after a given delay. The command is run in the context of the calling thread.
      *
-     * @param command the command to run
-     * @param delay delay before the task executes
+     * @param command  the command to run
+     * @param delay    delay before the task executes
      * @param executor the name of the thread pool on which to execute this task. SAME means "execute on the scheduler thread" which changes
-     *        the meaning of the ScheduledFuture returned by this method. In that case the ScheduledFuture will complete only when the
-     *        command completes.
+     *                 the meaning of the ScheduledFuture returned by this method. In that case the ScheduledFuture will complete only when the
+     *                 command completes.
      * @return a ScheduledFuture who's get will return when the task is has been added to its target thread pool and throw an exception if
-     *         the task is canceled before it was added to its target thread pool. Once the task has been added to its target thread pool
-     *         the ScheduledFuture will cannot interact with it.
+     * the task is canceled before it was added to its target thread pool. Once the task has been added to its target thread pool
+     * the ScheduledFuture will cannot interact with it.
      * @throws OpenSearchRejectedExecutionException if the task cannot be scheduled for execution
      */
     @Override
@@ -510,8 +707,9 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         stopCachedTimeThread();
         scheduler.shutdown();
         for (ExecutorHolder executor : executors.values()) {
-            if (executor.executor() instanceof ThreadPoolExecutor) {
-                executor.executor().shutdown();
+            ExecutorService es = executor.executor();
+            if (es instanceof ThreadPoolExecutor || es instanceof ForkJoinPool) {
+                es.shutdown();
             }
         }
     }
@@ -520,8 +718,9 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         stopCachedTimeThread();
         scheduler.shutdownNow();
         for (ExecutorHolder executor : executors.values()) {
-            if (executor.executor() instanceof ThreadPoolExecutor) {
-                executor.executor().shutdownNow();
+            ExecutorService es = executor.executor();
+            if (es instanceof ThreadPoolExecutor || es instanceof ForkJoinPool) {
+                es.shutdownNow();
             }
         }
     }
@@ -529,7 +728,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
     public boolean awaitTermination(long timeout, TimeUnit unit) throws InterruptedException {
         boolean result = scheduler.awaitTermination(timeout, unit);
         for (ExecutorHolder executor : executors.values()) {
-            if (executor.executor() instanceof ThreadPoolExecutor) {
+            if (executor.executor() instanceof ThreadPoolExecutor || executor.executor() instanceof ForkJoinPool) {
                 result &= executor.executor().awaitTermination(timeout, unit);
             }
         }
@@ -553,6 +752,14 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
      */
     static int boundedBy(int value, int min, int max) {
         return Math.min(max, Math.max(min, value));
+    }
+
+    static int oneEighthAllocatedProcessors(final int allocatedProcessors) {
+        return boundedBy(allocatedProcessors / 8, 1, Integer.MAX_VALUE);
+    }
+
+    static int halfAllocatedProcessors(int allocatedProcessors) {
+        return (allocatedProcessors + 1) / 2;
     }
 
     static int halfAllocatedProcessorsMaxFive(final int allocatedProcessors) {
@@ -722,7 +929,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         public final Info info;
 
         ExecutorHolder(ExecutorService executor, Info info) {
-            assert executor instanceof OpenSearchThreadPoolExecutor || executor == DIRECT_EXECUTOR;
+            assert executor instanceof OpenSearchThreadPoolExecutor || executor == DIRECT_EXECUTOR || executor instanceof ForkJoinPool;
             this.executor = executor;
             this.info = info;
         }
@@ -767,12 +974,30 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         public Info(StreamInput in) throws IOException {
             name = in.readString();
             final String typeStr = in.readString();
+            ThreadPoolType resolvedType;
             // Opensearch on or after 3.0.0 version doesn't know about "fixed_auto_queue_size" thread pool. Convert it to RESIZABLE.
             if (typeStr.equalsIgnoreCase("fixed_auto_queue_size")) {
-                type = ThreadPoolType.RESIZABLE;
+                resolvedType = ThreadPoolType.RESIZABLE;
             } else {
-                type = ThreadPoolType.fromType(typeStr);
+                try {
+                    resolvedType = ThreadPoolType.fromType(typeStr);
+                } catch (IllegalArgumentException e) {
+                    // Only fallback for older versions
+                    if (in.getVersion().onOrBefore(Version.V_3_3_0)) { // ForkJoinPool Introduced in 3.4.0 onwards
+                        resolvedType = ThreadPoolType.FIXED;
+                    } else {
+                        throw new IllegalArgumentException(
+                            "Unknown ThreadPoolType '"
+                                + typeStr
+                                + "' for version "
+                                + in.getVersion()
+                                + ". "
+                                + "This may be a protocol or node version mismatch."
+                        );
+                    }
+                }
             }
+            type = resolvedType;
             min = in.readInt();
             max = in.readInt();
             keepAlive = in.readOptionalTimeValue();
@@ -785,6 +1010,9 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
             if (type == ThreadPoolType.RESIZABLE && out.getVersion().before(Version.V_3_0_0)) {
                 // Opensearch on older version doesn't know about "resizable" thread pool. Convert RESIZABLE to FIXED
                 // to avoid serialization/de-serization issue between nodes with different OpenSearch version
+                out.writeString(ThreadPoolType.FIXED.getType());
+            } else if (type == ThreadPoolType.FORK_JOIN && out.getVersion().before(Version.V_3_4_0)) {
+                // Opensearch on older version doesn't know about "fork_join" thread pool. Convert FORK_JOIN to FIXED
                 out.writeString(ThreadPoolType.FIXED.getType());
             } else {
                 out.writeString(type.getType());
@@ -831,17 +1059,27 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
                 builder.field("core", min);
                 assert max != -1;
                 builder.field("max", max);
+                if (keepAlive != null) {
+                    builder.field("keep_alive", keepAlive.toString());
+                }
+                if (queueSize == null) {
+                    builder.field("queue_size", -1);
+                } else {
+                    builder.field("queue_size", queueSize.singles());
+                }
+            } else if (type == ThreadPoolType.FORK_JOIN) {
+                builder.field("parallelism", max);
             } else {
                 assert max != -1;
                 builder.field("size", max);
-            }
-            if (keepAlive != null) {
-                builder.field("keep_alive", keepAlive.toString());
-            }
-            if (queueSize == null) {
-                builder.field("queue_size", -1);
-            } else {
-                builder.field("queue_size", queueSize.singles());
+                if (keepAlive != null) {
+                    builder.field("keep_alive", keepAlive.toString());
+                }
+                if (queueSize == null) {
+                    builder.field("queue_size", -1);
+                } else {
+                    builder.field("queue_size", queueSize.singles());
+                }
             }
             builder.endObject();
             return builder;

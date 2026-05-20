@@ -47,7 +47,6 @@ import com.azure.storage.blob.BlobServiceClient;
 import com.azure.storage.blob.BlobServiceClientBuilder;
 import com.azure.storage.blob.models.ParallelTransferOptions;
 import com.azure.storage.blob.specialized.BlockBlobAsyncClient;
-import com.azure.storage.common.implementation.connectionstring.StorageConnectionString;
 import com.azure.storage.common.implementation.connectionstring.StorageEndpoint;
 import com.azure.storage.common.policy.RequestRetryOptions;
 import com.azure.storage.common.policy.RetryPolicyType;
@@ -58,15 +57,17 @@ import org.opensearch.common.settings.SettingsException;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.unit.ByteSizeValue;
+import org.opensearch.secure_sm.AccessController;
 
-import java.net.Authenticator;
-import java.net.PasswordAuthentication;
+import java.io.IOException;
 import java.net.URISyntaxException;
 import java.security.InvalidKeyException;
 import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -99,6 +100,32 @@ public class AzureStorageService implements AutoCloseable {
     // 'package' for testing
     volatile Map<String, AzureStorageSettings> storageSettings = emptyMap();
     private final Map<AzureStorageSettings, ClientState> clients = new ConcurrentHashMap<>();
+    private final ExecutorService executor;
+
+    private static final class IdentityClientThreadFactory implements ThreadFactory {
+        final ThreadGroup group;
+        final AtomicInteger threadNumber = new AtomicInteger(1);
+        final String namePrefix;
+
+        @SuppressWarnings("removal")
+        IdentityClientThreadFactory(String namePrefix) {
+            this.namePrefix = namePrefix;
+            SecurityManager s = System.getSecurityManager();
+            group = (s != null) ? s.getThreadGroup() : Thread.currentThread().getThreadGroup();
+        }
+
+        @Override
+        public Thread newThread(Runnable r) {
+            Thread t = new Thread(
+                group,
+                () -> AccessController.doPrivileged(r),
+                namePrefix + "[T#" + threadNumber.getAndIncrement() + "]",
+                0
+            );
+            t.setDaemon(true);
+            return t;
+        }
+    }
 
     static {
         // See please:
@@ -106,12 +133,18 @@ public class AzureStorageService implements AutoCloseable {
         // - https://github.com/Azure/azure-sdk-for-java/pull/25004
         // - https://github.com/Azure/azure-sdk-for-java/pull/24374
         Configuration.getGlobalConfiguration().put("AZURE_JACKSON_ADAPTER_USE_ACCESS_HELPER", "true");
+        // See please:
+        // - https://github.com/Azure/azure-sdk-for-java/issues/37464
+        Configuration.getGlobalConfiguration().put("AZURE_ENABLE_SHUTDOWN_HOOK_WITH_PRIVILEGE", "true");
     }
 
     public AzureStorageService(Settings settings) {
         // eagerly load client settings so that secure settings are read
         final Map<String, AzureStorageSettings> clientsSettings = AzureStorageSettings.load(settings);
         refreshAndClearCache(clientsSettings);
+        executor = AccessController.doPrivileged(
+            () -> Executors.newCachedThreadPool(new IdentityClientThreadFactory("azure-identity-client"))
+        );
     }
 
     /**
@@ -162,22 +195,17 @@ public class AzureStorageService implements AutoCloseable {
     private ClientState buildClient(AzureStorageSettings azureStorageSettings, BiConsumer<HttpRequest, HttpResponse> statsCollector)
         throws InvalidKeyException, URISyntaxException {
         final BlobServiceClientBuilder builder = createClientBuilder(azureStorageSettings);
-
         final NioEventLoopGroup eventLoopGroup = new NioEventLoopGroup(new NioThreadFactory());
         final NettyAsyncHttpClientBuilder clientBuilder = new NettyAsyncHttpClientBuilder().eventLoopGroup(eventLoopGroup);
 
-        SocketAccess.doPrivilegedVoidException(() -> {
+        AccessController.doPrivilegedChecked(() -> {
             final ProxySettings proxySettings = azureStorageSettings.getProxySettings();
             if (proxySettings != ProxySettings.NO_PROXY_SETTINGS) {
+                final ProxyOptions proxyOptions = new ProxyOptions(proxySettings.getType().toProxyType(), proxySettings.getAddress());
                 if (proxySettings.isAuthenticated()) {
-                    Authenticator.setDefault(new Authenticator() {
-                        @Override
-                        protected PasswordAuthentication getPasswordAuthentication() {
-                            return new PasswordAuthentication(proxySettings.getUsername(), proxySettings.getPassword().toCharArray());
-                        }
-                    });
+                    proxyOptions.setCredentials(proxySettings.getUsername(), proxySettings.getPassword());
                 }
-                clientBuilder.proxy(new ProxyOptions(proxySettings.getType().toProxyType(), proxySettings.getAddress()));
+                clientBuilder.proxy(proxyOptions);
             }
         });
 
@@ -216,8 +244,7 @@ public class AzureStorageService implements AutoCloseable {
      * <a href="https://github.com/Azure/azure-sdk-for-java/blob/main/sdk/storage/azure-storage-blob/migrationGuides/V8_V12.md#miscellaneous">migration guide</a> for mode details:
      */
     private BlobServiceClientBuilder applyLocationMode(final BlobServiceClientBuilder builder, final AzureStorageSettings settings) {
-        final StorageConnectionString storageConnectionString = StorageConnectionString.create(settings.getConnectString(), logger);
-        final StorageEndpoint endpoint = storageConnectionString.getBlobEndpoint();
+        final StorageEndpoint endpoint = settings.getStorageEndpoint(logger);
 
         if (endpoint == null || endpoint.getPrimaryUri() == null) {
             throw new IllegalArgumentException("connectionString missing required settings to derive blob service primary endpoint.");
@@ -247,9 +274,8 @@ public class AzureStorageService implements AutoCloseable {
         return builder;
     }
 
-    private static BlobServiceClientBuilder createClientBuilder(AzureStorageSettings settings) throws InvalidKeyException,
-        URISyntaxException {
-        return SocketAccess.doPrivilegedException(() -> new BlobServiceClientBuilder().connectionString(settings.getConnectString()));
+    private BlobServiceClientBuilder createClientBuilder(AzureStorageSettings settings) throws InvalidKeyException, URISyntaxException {
+        return AccessController.doPrivileged(() -> settings.configure(new BlobServiceClientBuilder(), executor, logger));
     }
 
     /**
@@ -295,9 +321,19 @@ public class AzureStorageService implements AutoCloseable {
     }
 
     @Override
-    public void close() {
+    public void close() throws IOException {
         this.clients.values().forEach(this::closeInternally);
         this.clients.clear();
+        this.executor.shutdown();
+        try {
+            if (this.executor.awaitTermination(30, TimeUnit.SECONDS) == false) {
+                this.executor.shutdownNow();
+                logger.warning("The executor was not shutdown gracefully with 30 seconds");
+            }
+        } catch (final InterruptedException ex) {
+            Thread.currentThread().interrupt();
+            throw new IOException(ex);
+        }
     }
 
     public Duration getBlobRequestTimeout(String clientName) {
@@ -389,6 +425,7 @@ public class AzureStorageService implements AutoCloseable {
         private final AtomicInteger threadNumber = new AtomicInteger(1);
         private final String namePrefix;
 
+        @SuppressWarnings("removal")
         NioThreadFactory() {
             SecurityManager s = System.getSecurityManager();
             group = (s != null) ? s.getThreadGroup() : Thread.currentThread().getThreadGroup();
@@ -396,7 +433,7 @@ public class AzureStorageService implements AutoCloseable {
         }
 
         public Thread newThread(Runnable r) {
-            final Thread t = new Thread(group, r, namePrefix + threadNumber.getAndIncrement(), 0);
+            final Thread t = new Thread(group, () -> AccessController.doPrivileged(r), namePrefix + threadNumber.getAndIncrement(), 0);
 
             if (t.isDaemon()) {
                 t.setDaemon(false);

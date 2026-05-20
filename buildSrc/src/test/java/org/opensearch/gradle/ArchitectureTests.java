@@ -20,6 +20,7 @@ public class ArchitectureTests extends GradleUnitTestCase {
         assertEquals(Architecture.ARM64, currentArchitecture("aarch64"));
         assertEquals(Architecture.S390X, currentArchitecture("s390x"));
         assertEquals(Architecture.PPC64LE, currentArchitecture("ppc64le"));
+        assertEquals(Architecture.RISCV64, currentArchitecture("riscv64"));
     }
 
     public void testInvalidCurrentArchitecture() {

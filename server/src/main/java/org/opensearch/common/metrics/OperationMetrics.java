@@ -8,6 +8,7 @@
 
 package org.opensearch.common.metrics;
 
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
@@ -18,6 +19,7 @@ import java.util.concurrent.atomic.AtomicLong;
 public class OperationMetrics {
     /**
      * The mean time it takes to complete the measured item.
+     * Time unit should be nanoseconds to accurate record the time.
      */
     private final MeanMetric time = new MeanMetric();
     /**
@@ -29,12 +31,30 @@ public class OperationMetrics {
      * The non-decreasing count of failures
      */
     private final CounterMetric failed = new CounterMetric();
+    /**
+     * The target time unit used in the stats
+     */
+    private TimeUnit targetTimeUnit = TimeUnit.MILLISECONDS;
+
+    public OperationMetrics() {}
+
+    public OperationMetrics(TimeUnit targetTimeUnit) {
+        this.targetTimeUnit = targetTimeUnit;
+    }
 
     /**
      * Invoked before the given operation begins.
      */
     public void before() {
         current.incrementAndGet();
+    }
+
+    /**
+     * Invoke before the given operation begins in multiple items at the same time.
+     * @param n number of items
+     */
+    public void beforeN(int n) {
+        current.addAndGet(n);
     }
 
     /**
@@ -47,10 +67,32 @@ public class OperationMetrics {
     }
 
     /**
+     * Invoked upon completion (success or failure) of the given operation for multiple items.
+     * @param n number of items completed
+     * @param currentTime elapsed time of the operation
+     */
+    public void afterN(int n, long currentTime) {
+        current.addAndGet(-n);
+        for (int i = 0; i < n; ++i) {
+            time.inc(currentTime);
+        }
+    }
+
+    /**
      * Invoked upon failure of the operation.
      */
     public void failed() {
         failed.inc();
+    }
+
+    /**
+     * Invoked upon failure of the operation on multiple items.
+     * @param n number of items on operation.
+     */
+    public void failedN(int n) {
+        for (int i = 0; i < n; ++i) {
+            failed.inc();
+        }
     }
 
     public void add(OperationMetrics other) {
@@ -63,6 +105,12 @@ public class OperationMetrics {
      * @return an immutable snapshot of the current metric values.
      */
     public OperationStats createStats() {
-        return new OperationStats(time.count(), time.sum(), current.get(), failed.count());
+        return new OperationStats(
+            time.count(),
+            targetTimeUnit.convert(time.sum(), TimeUnit.NANOSECONDS),
+            current.get(),
+            failed.count(),
+            targetTimeUnit
+        );
     }
 }

@@ -77,7 +77,7 @@ ${path.logs}
 #
 # Block initial recovery after a full cluster restart until N nodes are started:
 #
-#gateway.recover_after_nodes: 3
+#gateway.recover_after_data_nodes: 3
 #
 # For more information, consult the gateway module documentation.
 #
@@ -115,12 +115,6 @@ ${path.logs}
 # the core.
 #
 #opensearch.experimental.feature.extensions.enabled: false
-#
-#
-# Gates the concurrent segment search feature. This feature enables concurrent segment search in a separate
-# index searcher threadpool.
-#
-#opensearch.experimental.feature.concurrent_segment_search.enabled: false
 #
 #
 # Gates the optimization of datetime formatters caching along with change in default datetime formatter

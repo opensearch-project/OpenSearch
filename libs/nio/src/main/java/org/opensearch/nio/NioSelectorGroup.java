@@ -183,10 +183,9 @@ public class NioSelectorGroup implements NioGroup {
                     Thread.currentThread().interrupt();
                     throw new IllegalStateException("Interrupted while waiting for selector to start.", e);
                 } catch (ExecutionException e) {
-                    if (e.getCause() instanceof RuntimeException) {
-                        throw (RuntimeException) e.getCause();
-                    } else {
-                        throw new RuntimeException("Exception during selector start.", e);
+                    switch (e.getCause()) {
+                        case RuntimeException re -> throw re;
+                        default -> throw new RuntimeException("Exception during selector start.", e);
                     }
                 }
             }

@@ -35,7 +35,6 @@ package org.opensearch.index.search;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.queries.BlendedTermQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
@@ -47,6 +46,7 @@ import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.query.AbstractQueryBuilder;
 import org.opensearch.index.query.MultiMatchQueryBuilder;
 import org.opensearch.index.query.QueryShardContext;
+import org.opensearch.lucene.queries.BlendedTermQuery;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -221,7 +221,7 @@ public class MultiMatchQuery extends MatchQuery {
         protected Query newSynonymQuery(String field, TermAndBoost[] terms) {
             BytesRef[] values = new BytesRef[terms.length];
             for (int i = 0; i < terms.length; i++) {
-                values[i] = terms[i].term;
+                values[i] = terms[i].term();
             }
             return blendTerms(context, values, commonTermsCutoff, tieBreaker, lenient, blendedFields);
         }
@@ -248,7 +248,7 @@ public class MultiMatchQuery extends MatchQuery {
         protected Query analyzePhrase(String field, TokenStream stream, int slop) throws IOException {
             List<Query> disjunctions = new ArrayList<>();
             for (FieldAndBoost fieldType : blendedFields) {
-                Query query = fieldType.fieldType.phraseQuery(stream, slop, enablePositionIncrements);
+                Query query = fieldType.fieldType.phraseQuery(stream, slop, enablePositionIncrements, context);
                 if (fieldType.boost != 1f) {
                     query = new BoostQuery(query, fieldType.boost);
                 }
@@ -261,7 +261,7 @@ public class MultiMatchQuery extends MatchQuery {
         protected Query analyzeMultiPhrase(String field, TokenStream stream, int slop) throws IOException {
             List<Query> disjunctions = new ArrayList<>();
             for (FieldAndBoost fieldType : blendedFields) {
-                Query query = fieldType.fieldType.multiPhraseQuery(stream, slop, enablePositionIncrements);
+                Query query = fieldType.fieldType.multiPhraseQuery(stream, slop, enablePositionIncrements, context);
                 if (fieldType.boost != 1f) {
                     query = new BoostQuery(query, fieldType.boost);
                 }
@@ -309,8 +309,7 @@ public class MultiMatchQuery extends MatchQuery {
                     }
                 }
                 float boost = ft.boost;
-                while (query instanceof BoostQuery) {
-                    BoostQuery bq = (BoostQuery) query;
+                while (query instanceof BoostQuery bq) {
                     query = bq.getQuery();
                     boost *= bq.getBoost();
                 }
@@ -341,6 +340,7 @@ public class MultiMatchQuery extends MatchQuery {
             // best effort: add clauses that are not term queries so that they have an opportunity to match
             // however their score contribution will be different
             // TODO: can we improve this?
+
             return new DisjunctionMaxQuery(queries, tieBreaker);
         }
     }

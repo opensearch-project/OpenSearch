@@ -69,4 +69,8 @@ final class SingletonSortedNumericDoubleValues extends SortedNumericDoubleValues
         return in.doubleValue();
     }
 
+    @Override
+    public int advance(int target) throws IOException {
+        return in.advance(target);
+    }
 }

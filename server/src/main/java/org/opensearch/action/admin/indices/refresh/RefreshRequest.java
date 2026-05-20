@@ -35,6 +35,8 @@ package org.opensearch.action.admin.indices.refresh;
 import org.opensearch.action.support.broadcast.BroadcastRequest;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.transport.client.IndicesAdminClient;
+import org.opensearch.transport.client.Requests;
 
 import java.io.IOException;
 
@@ -43,8 +45,8 @@ import java.io.IOException;
  * capabilities depends on the index engine used. For example, the internal one requires refresh to be called, but by
  * default a refresh is scheduled periodically.
  *
- * @see org.opensearch.client.Requests#refreshRequest(String...)
- * @see org.opensearch.client.IndicesAdminClient#refresh(RefreshRequest)
+ * @see Requests#refreshRequest(String...)
+ * @see IndicesAdminClient#refresh(RefreshRequest)
  * @see RefreshResponse
  *
  * @opensearch.api

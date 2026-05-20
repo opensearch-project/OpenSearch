@@ -43,27 +43,33 @@ import org.opensearch.action.admin.indices.stats.CommonStats;
 import org.opensearch.action.admin.indices.stats.IndexStats;
 import org.opensearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.opensearch.action.admin.indices.stats.IndicesStatsResponse;
+import org.opensearch.action.pagination.IndexPaginationStrategy;
+import org.opensearch.action.pagination.PageToken;
 import org.opensearch.action.support.GroupedActionListener;
 import org.opensearch.action.support.IndicesOptions;
-import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.health.ClusterHealthStatus;
 import org.opensearch.cluster.health.ClusterIndexHealth;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.Table;
+import org.opensearch.common.breaker.ResponseLimitBreachedException;
+import org.opensearch.common.breaker.ResponseLimitSettings;
+import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.time.DateFormatter;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.action.ActionResponse;
 import org.opensearch.core.common.Strings;
 import org.opensearch.index.IndexSettings;
+import org.opensearch.index.merge.MergedSegmentWarmerStats;
 import org.opensearch.indices.SystemIndexDescriptor;
 import org.opensearch.indices.SystemIndices;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestResponse;
 import org.opensearch.rest.action.RestResponseListener;
+import org.opensearch.rest.action.list.AbstractListAction;
+import org.opensearch.transport.client.node.NodeClient;
 
 import java.time.Instant;
 import java.time.ZoneOffset;
@@ -71,9 +77,11 @@ import java.time.ZonedDateTime;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.Spliterators;
 import java.util.function.Function;
@@ -83,6 +91,7 @@ import java.util.stream.StreamSupport;
 import static java.util.Arrays.asList;
 import static java.util.Collections.unmodifiableList;
 import static org.opensearch.action.support.clustermanager.ClusterManagerNodeRequest.DEFAULT_CLUSTER_MANAGER_NODE_TIMEOUT;
+import static org.opensearch.common.breaker.ResponseLimitSettings.LimitEntity.INDICES;
 import static org.opensearch.rest.RestRequest.Method.GET;
 
 /**
@@ -90,7 +99,7 @@ import static org.opensearch.rest.RestRequest.Method.GET;
  *
  * @opensearch.api
  */
-public class RestIndicesAction extends AbstractCatAction {
+public class RestIndicesAction extends AbstractListAction {
 
     private static final DateFormatter STRICT_DATE_TIME_FORMATTER = DateFormatter.forPattern("strict_date_time");
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestIndicesAction.class);
@@ -100,8 +109,10 @@ public class RestIndicesAction extends AbstractCatAction {
         "Please only use one of the request parameters [master_timeout, cluster_manager_timeout].";
 
     private final SystemIndices systemIndices;
+    private final ResponseLimitSettings responseLimitSettings;
 
-    public RestIndicesAction(SystemIndices systemIndices) {
+    public RestIndicesAction(ResponseLimitSettings responseLimitSettings, SystemIndices systemIndices) {
+        this.responseLimitSettings = responseLimitSettings;
         this.systemIndices = systemIndices;
     }
 
@@ -124,6 +135,11 @@ public class RestIndicesAction extends AbstractCatAction {
     protected void documentation(StringBuilder sb) {
         sb.append("/_cat/indices\n");
         sb.append("/_cat/indices/{index}\n");
+    }
+
+    @Override
+    public boolean isRequestLimitCheckSupported() {
+        return true;
     }
 
     @Override
@@ -161,48 +177,76 @@ public class RestIndicesAction extends AbstractCatAction {
                 new ActionListener<GetSettingsResponse>() {
                     @Override
                     public void onResponse(final GetSettingsResponse getSettingsResponse) {
-                        final GroupedActionListener<ActionResponse> groupedListener = createGroupedListener(request, 4, listener);
-                        groupedListener.onResponse(getSettingsResponse);
-
                         // The list of indices that will be returned is determined by the indices returned from the Get Settings call.
                         // All the other requests just provide additional detail, and wildcards may be resolved differently depending on the
                         // type of request in the presence of security plugins (looking at you, ClusterHealthRequest), so
                         // force the IndicesOptions for all the sub-requests to be as inclusive as possible.
                         final IndicesOptions subRequestIndicesOptions = IndicesOptions.lenientExpandHidden();
-
-                        // Indices that were successfully resolved during the get settings request might be deleted when the subsequent
-                        // cluster
-                        // state, cluster health and indices stats requests execute. We have to distinguish two cases:
-                        // 1) the deleted index was explicitly passed as parameter to the /_cat/indices request. In this case we want the
-                        // subsequent requests to fail.
-                        // 2) the deleted index was resolved as part of a wildcard or _all. In this case, we want the subsequent requests
-                        // not to
-                        // fail on the deleted index (as we want to ignore wildcards that cannot be resolved).
-                        // This behavior can be ensured by letting the cluster state, cluster health and indices stats requests re-resolve
-                        // the
-                        // index names with the same indices options that we used for the initial cluster state request (strictExpand).
-                        sendIndicesStatsRequest(
-                            indices,
-                            subRequestIndicesOptions,
-                            includeUnloadedSegments,
-                            client,
-                            ActionListener.wrap(groupedListener::onResponse, groupedListener::onFailure)
-                        );
+                        // Indices that were successfully resolved during the get settings request might be deleted when the
+                        // subsequent cluster state, cluster health and indices stats requests execute. We have to distinguish two cases:
+                        // 1) the deleted index was explicitly passed as parameter to the /_cat/indices request. In this case we
+                        // want the subsequent requests to fail.
+                        // 2) the deleted index was resolved as part of a wildcard or _all. In this case, we want the subsequent
+                        // requests not to fail on the deleted index (as we want to ignore wildcards that cannot be resolved).
+                        // This behavior can be ensured by letting the cluster state, cluster health and indices stats requests
+                        // re-resolve the index names with the same indices options that we used for the initial cluster state
+                        // request (strictExpand).
                         sendClusterStateRequest(
                             indices,
                             subRequestIndicesOptions,
                             local,
                             clusterManagerNodeTimeout,
                             client,
-                            ActionListener.wrap(groupedListener::onResponse, groupedListener::onFailure)
-                        );
-                        sendClusterHealthRequest(
-                            indices,
-                            subRequestIndicesOptions,
-                            local,
-                            clusterManagerNodeTimeout,
-                            client,
-                            ActionListener.wrap(groupedListener::onResponse, groupedListener::onFailure)
+                            new ActionListener<ClusterStateResponse>() {
+                                @Override
+                                public void onResponse(ClusterStateResponse clusterStateResponse) {
+                                    validateRequestLimit(clusterStateResponse, listener);
+                                    IndexPaginationStrategy paginationStrategy = getPaginationStrategy(clusterStateResponse);
+                                    // For non-paginated queries, indicesToBeQueried would be same as indices retrieved from
+                                    // rest request and unresolved, while for paginated queries, it would be a list of indices
+                                    // already resolved by ClusterStateRequest and to be displayed in a page.
+                                    final String[] indicesToBeQueried = Objects.isNull(paginationStrategy)
+                                        ? indices
+                                        : paginationStrategy.getRequestedEntities().toArray(new String[0]);
+                                    final GroupedActionListener<ActionResponse> groupedListener = createGroupedListener(
+                                        request,
+                                        4,
+                                        listener,
+                                        indicesToBeQueried,
+                                        Objects.isNull(paginationStrategy) ? null : paginationStrategy.getResponseToken()
+                                    );
+                                    groupedListener.onResponse(getSettingsResponse);
+                                    groupedListener.onResponse(clusterStateResponse);
+
+                                    // For paginated queries, if strategy outputs no indices to be returned,
+                                    // avoid fetching indices stats.
+                                    if (shouldSkipIndicesStatsRequest(paginationStrategy)) {
+                                        groupedListener.onResponse(IndicesStatsResponse.getEmptyResponse());
+                                    } else {
+                                        sendIndicesStatsRequest(
+                                            indicesToBeQueried,
+                                            subRequestIndicesOptions,
+                                            includeUnloadedSegments,
+                                            client,
+                                            ActionListener.wrap(groupedListener::onResponse, groupedListener::onFailure)
+                                        );
+                                    }
+
+                                    sendClusterHealthRequest(
+                                        indicesToBeQueried,
+                                        subRequestIndicesOptions,
+                                        local,
+                                        clusterManagerNodeTimeout,
+                                        client,
+                                        ActionListener.wrap(groupedListener::onResponse, groupedListener::onFailure)
+                                    );
+                                }
+
+                                @Override
+                                public void onFailure(Exception e) {
+                                    listener.onFailure(e);
+                                }
+                            }
                         );
                     }
 
@@ -213,6 +257,16 @@ public class RestIndicesAction extends AbstractCatAction {
                 }
             );
         };
+
+    }
+
+    private void validateRequestLimit(final ClusterStateResponse clusterStateResponse, final ActionListener<Table> listener) {
+        if (isRequestLimitCheckSupported() && Objects.nonNull(clusterStateResponse) && Objects.nonNull(clusterStateResponse.getState())) {
+            int limit = responseLimitSettings.getCatIndicesResponseLimit();
+            if (ResponseLimitSettings.isResponseLimitBreached(clusterStateResponse.getState().getMetadata(), INDICES, limit)) {
+                listener.onFailure(new ResponseLimitBreachedException("Too many indices requested.", limit, INDICES));
+            }
+        }
     }
 
     /**
@@ -297,7 +351,9 @@ public class RestIndicesAction extends AbstractCatAction {
     private GroupedActionListener<ActionResponse> createGroupedListener(
         final RestRequest request,
         final int size,
-        final ActionListener<Table> listener
+        final ActionListener<Table> listener,
+        final String[] indicesToBeQueried,
+        final PageToken pageToken
     ) {
         return new GroupedActionListener<>(new ActionListener<Collection<ActionResponse>>() {
             @Override
@@ -321,7 +377,15 @@ public class RestIndicesAction extends AbstractCatAction {
                     IndicesStatsResponse statsResponse = extractResponse(responses, IndicesStatsResponse.class);
                     Map<String, IndexStats> indicesStats = statsResponse.getIndices();
 
-                    Table responseTable = buildTable(request, indicesSettings, indicesHealths, indicesStats, indicesStates);
+                    Table responseTable = buildTable(
+                        request,
+                        indicesSettings,
+                        indicesHealths,
+                        indicesStats,
+                        indicesStates,
+                        getTableIterator(indicesToBeQueried, indicesSettings),
+                        pageToken
+                    );
                     listener.onResponse(responseTable);
                 } catch (Exception e) {
                     onFailure(e);
@@ -350,7 +414,11 @@ public class RestIndicesAction extends AbstractCatAction {
 
     @Override
     protected Table getTableWithHeader(final RestRequest request) {
-        Table table = new Table();
+        return getTableWithHeader(request, null);
+    }
+
+    protected Table getTableWithHeader(final RestRequest request, final PageToken pageToken) {
+        Table table = new Table(pageToken);
         table.startHeaders();
         table.addCell("health", "alias:h;desc:current health status");
         table.addCell("status", "alias:s;desc:open/close status");
@@ -534,6 +602,78 @@ public class RestIndicesAction extends AbstractCatAction {
         );
         table.addCell("pri.merges.total_time", "default:false;text-align:right;desc:time spent in merges");
 
+        table.addCell(
+            "merges.warmer.total_invocations",
+            "alias:mswti,mergedSegmentWarmerTotalInvocations;default:false;text-align:right;desc:total invocations of merged segment warmer"
+        );
+        table.addCell(
+            "pri.merges.warmer.total_invocations",
+            "default:false;text-align:right;desc:total invocations of merged segment warmer"
+        );
+
+        table.addCell(
+            "merges.warmer.total_time",
+            "alias:mswtt,mergedSegmentWarmerTotalTime;default:false;text-align:right;desc:total wallclock time spent in the warming operation"
+        );
+        table.addCell(
+            "pri.merges.warmer.total_time",
+            "default:false;text-align:right;desc:total wallclock time spent in the warming operation"
+        );
+
+        table.addCell(
+            "merges.warmer.ongoing_count",
+            "alias:mswoc,mergedSegmentWarmerOngoingCount;default:false;text-align:right;desc:point-in-time metric for number of in-progress warm operations"
+        );
+        table.addCell(
+            "pri.merges.warmer.ongoing_count",
+            "default:false;text-align:right;desc:point-in-time metric for number of in-progress warm operations"
+        );
+
+        table.addCell(
+            "merges.warmer.total_bytes_received",
+            "alias:mswtbr,mergedSegmentWarmerTotalBytesReceived;default:false;text-align:right;desc:total bytes received by a replica shard during the warm operation"
+        );
+        table.addCell(
+            "pri.merges.warmer.total_bytes_received",
+            "default:false;text-align:right;desc:total bytes received by a replica shard during the warm operation"
+        );
+
+        table.addCell(
+            "merges.warmer.total_bytes_sent",
+            "alias:mswtbs,mergedSegmentWarmerTotalBytesSent;default:false;text-align:right;desc:total bytes sent by a primary shard during the warm operation"
+        );
+        table.addCell(
+            "pri.merges.warmer.total_bytes_sent",
+            "default:false;text-align:right;desc:total bytes sent by a primary shard during the warm operation"
+        );
+
+        table.addCell(
+            "merges.warmer.total_receive_time",
+            "alias:mswtrt,mergedSegmentWarmerTotalReceiveTime;default:false;text-align:right;desc:total wallclock time spent receiving merged segments by a replica shard"
+        );
+        table.addCell(
+            "pri.merges.warmer.total_receive_time",
+            "default:false;text-align:right;desc:total wallclock time spent receiving merged segments by a replica shard"
+        );
+
+        table.addCell(
+            "merges.warmer.total_failure_count",
+            "alias:mswtfc,mergedSegmentWarmerTotalFailureCount;default:false;text-align:right;desc:total failures in merged segment warmer"
+        );
+        table.addCell(
+            "pri.merges.warmer.total_failure_count",
+            "default:false;text-align:right;desc:total failures in merged segment warmer"
+        );
+
+        table.addCell(
+            "merges.warmer.total_send_time",
+            "alias:mswtst,mergedSegmentWarmerTotalSendTime;default:false;text-align:right;desc:total wallclock time spent sending merged segments by a primary shard"
+        );
+        table.addCell(
+            "pri.merges.warmer.total_send_time",
+            "default:false;text-align:right;desc:total wallclock time spent sending merged segments by a primary shard"
+        );
+
         table.addCell("refresh.total", "sibling:pri;alias:rto,refreshTotal;default:false;text-align:right;desc:total refreshes");
         table.addCell("pri.refresh.total", "default:false;text-align:right;desc:total refreshes");
 
@@ -596,31 +736,60 @@ public class RestIndicesAction extends AbstractCatAction {
             "sibling:pri;alias:sqto,searchQueryTotal;default:false;text-align:right;desc:total query phase ops"
         );
         table.addCell("pri.search.query_total", "default:false;text-align:right;desc:total query phase ops");
-        if (FeatureFlags.isEnabled(FeatureFlags.CONCURRENT_SEGMENT_SEARCH)) {
-            table.addCell(
-                "search.concurrent_query_current",
-                "sibling:pri;alias:scqc,searchConcurrentQueryCurrent;default:false;text-align:right;desc:current concurrent query phase ops"
-            );
-            table.addCell("pri.search.concurrent_query_current", "default:false;text-align:right;desc:current concurrent query phase ops");
 
-            table.addCell(
-                "search.concurrent_query_time",
-                "sibling:pri;alias:scqti,searchConcurrentQueryTime;default:false;text-align:right;desc:time spent in concurrent query phase"
-            );
-            table.addCell("pri.search.concurrent_query_time", "default:false;text-align:right;desc:time spent in concurrent query phase");
+        table.addCell(
+            "search.query_failed",
+            "sibling:pri;alias:sqf,searchQueryFailed;default:false;text-align:right;desc:failed query phase ops"
+        );
+        table.addCell("pri.search.query_failed", "default:false;text-align:right;desc:failed query phase ops");
 
-            table.addCell(
-                "search.concurrent_query_total",
-                "sibling:pri;alias:scqto,searchConcurrentQueryTotal;default:false;text-align:right;desc:total query phase ops"
-            );
-            table.addCell("pri.search.concurrent_query_total", "default:false;text-align:right;desc:total query phase ops");
+        table.addCell(
+            "search.concurrent_query_current",
+            "sibling:pri;alias:scqc,searchConcurrentQueryCurrent;default:false;text-align:right;desc:current concurrent query phase ops"
+        );
+        table.addCell("pri.search.concurrent_query_current", "default:false;text-align:right;desc:current concurrent query phase ops");
 
-            table.addCell(
-                "search.concurrent_avg_slice_count",
-                "sibling:pri;alias:casc,searchConcurrentAvgSliceCount;default:false;text-align:right;desc:average query concurrency"
-            );
-            table.addCell("pri.search.concurrent_avg_slice_count", "default:false;text-align:right;desc:average query concurrency");
-        }
+        table.addCell(
+            "search.concurrent_query_time",
+            "sibling:pri;alias:scqti,searchConcurrentQueryTime;default:false;text-align:right;desc:time spent in concurrent query phase"
+        );
+        table.addCell("pri.search.concurrent_query_time", "default:false;text-align:right;desc:time spent in concurrent query phase");
+
+        table.addCell(
+            "search.concurrent_query_total",
+            "sibling:pri;alias:scqto,searchConcurrentQueryTotal;default:false;text-align:right;desc:total query phase ops"
+        );
+        table.addCell("pri.search.concurrent_query_total", "default:false;text-align:right;desc:total query phase ops");
+
+        table.addCell(
+            "search.concurrent_avg_slice_count",
+            "sibling:pri;alias:casc,searchConcurrentAvgSliceCount;default:false;text-align:right;desc:average query concurrency"
+        );
+        table.addCell("pri.search.concurrent_avg_slice_count", "default:false;text-align:right;desc:average query concurrency");
+
+        table.addCell(
+            "search.startree_query_current",
+            "sibling:pri;alias:stqc,startreeQueryCurrent;default:false;text-align:right;desc:current star tree query ops"
+        );
+        table.addCell("pri.search.startree.query_current", "default:false;text-align:right;desc:current star tree query ops");
+
+        table.addCell(
+            "search.startree_query_time",
+            "sibling:pri;alias:stqti,startreeQueryTime;default:false;text-align:right;desc:time spent in star tree queries"
+        );
+        table.addCell("pri.search.startree.query_time", "default:false;text-align:right;desc:time spent in star tree queries");
+
+        table.addCell(
+            "search.startree_query_failed",
+            "sibling:pri;alias:stqf,startreeQueryFailed;default:false;text-align:right;desc:failed star tree query phase ops"
+        );
+        table.addCell("pri.search.startree_query_failed", "default:false;text-align:right;desc:failed star tree query phase ops");
+
+        table.addCell(
+            "search.startree_query_total",
+            "sibling:pri;alias:stqto,startreeQueryCurrent;default:false;text-align:right;desc:total star tree resolved queries"
+        );
+        table.addCell("pri.search.startree.query_total", "default:false;text-align:right;desc:total star tree resolved queries");
 
         table.addCell(
             "search.scroll_current",
@@ -716,28 +885,42 @@ public class RestIndicesAction extends AbstractCatAction {
 
         table.addCell("search.throttled", "alias:sth;default:false;desc:indicates if the index is search throttled");
 
+        table.addCell(
+            "last_index_request_timestamp",
+            "alias:last_index_ts,lastIndexRequestTimestamp;default:false;text-align:right;desc:timestamp of the last processed index request (epoch millis)"
+        );
+        table.addCell(
+            "last_index_request_timestamp_string",
+            "alias:last_index_ts_string,lastIndexRequestTimestampString;default:false;text-align:right;desc:timestamp of the last processed index request (ISO8601 string)"
+        );
+
         table.endHeaders();
         return table;
     }
 
     // package private for testing
-    Table buildTable(
+    protected Table buildTable(
         final RestRequest request,
         final Map<String, Settings> indicesSettings,
         final Map<String, ClusterIndexHealth> indicesHealths,
         final Map<String, IndexStats> indicesStats,
-        final Map<String, IndexMetadata> indicesMetadatas
+        final Map<String, IndexMetadata> indicesMetadatas,
+        final Iterator<Tuple<String, Settings>> tableIterator,
+        final PageToken pageToken
     ) {
-
         final String healthParam = request.param("health");
         final boolean systemParam = request.paramAsBoolean("system", false);
-        final Table table = getTableWithHeader(request);
+        final Table table = getTableWithHeader(request, pageToken);
 
-        indicesSettings.forEach((indexName, settings) -> {
+        while (tableIterator.hasNext()) {
+            final Tuple<String, Settings> tuple = tableIterator.next();
+            String indexName = tuple.v1();
+            Settings settings = tuple.v2();
+
             if (indicesMetadatas.containsKey(indexName) == false) {
                 // the index exists in the Get Indices response but is not present in the cluster state:
                 // it is likely that the index was deleted in the meanwhile, so we ignore it.
-                return;
+                continue;
             }
 
             final IndexMetadata indexMetadata = indicesMetadatas.get(indexName);
@@ -766,14 +949,14 @@ public class RestIndicesAction extends AbstractCatAction {
                     skip = ClusterHealthStatus.RED != healthStatusFilter;
                 }
                 if (skip) {
-                    return;
+                    continue;
                 }
             }
 
             if (systemParam) {
                 if (!systemIndices.isSystemIndex(indexName)) {
                     // System filter is enabled but index is not a system index
-                    return;
+                    continue;
                 }
             }
 
@@ -907,6 +1090,37 @@ public class RestIndicesAction extends AbstractCatAction {
             table.addCell(totalStats.getMerge() == null ? null : totalStats.getMerge().getTotalTime());
             table.addCell(primaryStats.getMerge() == null ? null : primaryStats.getMerge().getTotalTime());
 
+            MergedSegmentWarmerStats mergedSegmentWarmerTotalStats = totalStats.getMerge() == null
+                ? null
+                : totalStats.getMerge().getWarmerStats();
+            MergedSegmentWarmerStats mergedSegmentWarmerPrimaryStats = primaryStats.getMerge() == null
+                ? null
+                : primaryStats.getMerge().getWarmerStats();
+
+            table.addCell(mergedSegmentWarmerTotalStats == null ? null : mergedSegmentWarmerTotalStats.getTotalInvocationsCount());
+            table.addCell(mergedSegmentWarmerPrimaryStats == null ? null : mergedSegmentWarmerPrimaryStats.getTotalInvocationsCount());
+
+            table.addCell(mergedSegmentWarmerTotalStats == null ? null : mergedSegmentWarmerTotalStats.getTotalTime());
+            table.addCell(mergedSegmentWarmerPrimaryStats == null ? null : mergedSegmentWarmerPrimaryStats.getTotalTime());
+
+            table.addCell(mergedSegmentWarmerTotalStats == null ? null : mergedSegmentWarmerTotalStats.getOngoingCount());
+            table.addCell(mergedSegmentWarmerPrimaryStats == null ? null : mergedSegmentWarmerPrimaryStats.getOngoingCount());
+
+            table.addCell(mergedSegmentWarmerTotalStats == null ? null : mergedSegmentWarmerTotalStats.getTotalReceivedSize());
+            table.addCell(mergedSegmentWarmerPrimaryStats == null ? null : mergedSegmentWarmerPrimaryStats.getTotalReceivedSize());
+
+            table.addCell(mergedSegmentWarmerTotalStats == null ? null : mergedSegmentWarmerTotalStats.getTotalSentSize());
+            table.addCell(mergedSegmentWarmerPrimaryStats == null ? null : mergedSegmentWarmerPrimaryStats.getTotalSentSize());
+
+            table.addCell(mergedSegmentWarmerTotalStats == null ? null : mergedSegmentWarmerTotalStats.getTotalReceiveTime());
+            table.addCell(mergedSegmentWarmerPrimaryStats == null ? null : mergedSegmentWarmerPrimaryStats.getTotalReceiveTime());
+
+            table.addCell(mergedSegmentWarmerTotalStats == null ? null : mergedSegmentWarmerTotalStats.getTotalFailureCount());
+            table.addCell(mergedSegmentWarmerPrimaryStats == null ? null : mergedSegmentWarmerPrimaryStats.getTotalFailureCount());
+
+            table.addCell(mergedSegmentWarmerTotalStats == null ? null : mergedSegmentWarmerTotalStats.getTotalSendTime());
+            table.addCell(mergedSegmentWarmerPrimaryStats == null ? null : mergedSegmentWarmerPrimaryStats.getTotalSendTime());
+
             table.addCell(totalStats.getRefresh() == null ? null : totalStats.getRefresh().getTotal());
             table.addCell(primaryStats.getRefresh() == null ? null : primaryStats.getRefresh().getTotal());
 
@@ -943,19 +1157,32 @@ public class RestIndicesAction extends AbstractCatAction {
             table.addCell(totalStats.getSearch() == null ? null : totalStats.getSearch().getTotal().getQueryCount());
             table.addCell(primaryStats.getSearch() == null ? null : primaryStats.getSearch().getTotal().getQueryCount());
 
-            if (FeatureFlags.isEnabled(FeatureFlags.CONCURRENT_SEGMENT_SEARCH)) {
-                table.addCell(totalStats.getSearch() == null ? null : totalStats.getSearch().getTotal().getConcurrentQueryCurrent());
-                table.addCell(primaryStats.getSearch() == null ? null : primaryStats.getSearch().getTotal().getConcurrentQueryCurrent());
+            table.addCell(totalStats.getSearch() == null ? null : totalStats.getSearch().getTotal().getQueryFailedCount());
+            table.addCell(primaryStats.getSearch() == null ? null : primaryStats.getSearch().getTotal().getQueryFailedCount());
 
-                table.addCell(totalStats.getSearch() == null ? null : totalStats.getSearch().getTotal().getConcurrentQueryTime());
-                table.addCell(primaryStats.getSearch() == null ? null : primaryStats.getSearch().getTotal().getConcurrentQueryTime());
+            table.addCell(totalStats.getSearch() == null ? null : totalStats.getSearch().getTotal().getConcurrentQueryCurrent());
+            table.addCell(primaryStats.getSearch() == null ? null : primaryStats.getSearch().getTotal().getConcurrentQueryCurrent());
 
-                table.addCell(totalStats.getSearch() == null ? null : totalStats.getSearch().getTotal().getConcurrentQueryCount());
-                table.addCell(primaryStats.getSearch() == null ? null : primaryStats.getSearch().getTotal().getConcurrentQueryCount());
+            table.addCell(totalStats.getSearch() == null ? null : totalStats.getSearch().getTotal().getConcurrentQueryTime());
+            table.addCell(primaryStats.getSearch() == null ? null : primaryStats.getSearch().getTotal().getConcurrentQueryTime());
 
-                table.addCell(totalStats.getSearch() == null ? null : totalStats.getSearch().getTotal().getConcurrentAvgSliceCount());
-                table.addCell(primaryStats.getSearch() == null ? null : primaryStats.getSearch().getTotal().getConcurrentAvgSliceCount());
-            }
+            table.addCell(totalStats.getSearch() == null ? null : totalStats.getSearch().getTotal().getConcurrentQueryCount());
+            table.addCell(primaryStats.getSearch() == null ? null : primaryStats.getSearch().getTotal().getConcurrentQueryCount());
+
+            table.addCell(totalStats.getSearch() == null ? null : totalStats.getSearch().getTotal().getConcurrentAvgSliceCount());
+            table.addCell(primaryStats.getSearch() == null ? null : primaryStats.getSearch().getTotal().getConcurrentAvgSliceCount());
+
+            table.addCell(totalStats.getSearch() == null ? null : totalStats.getSearch().getTotal().getStarTreeQueryCurrent());
+            table.addCell(primaryStats.getSearch() == null ? null : primaryStats.getSearch().getTotal().getStarTreeQueryCurrent());
+
+            table.addCell(totalStats.getSearch() == null ? null : totalStats.getSearch().getTotal().getStarTreeQueryTime());
+            table.addCell(primaryStats.getSearch() == null ? null : primaryStats.getSearch().getTotal().getStarTreeQueryTime());
+
+            table.addCell(totalStats.getSearch() == null ? null : totalStats.getSearch().getTotal().getStarTreeQueryFailed());
+            table.addCell(primaryStats.getSearch() == null ? null : primaryStats.getSearch().getTotal().getStarTreeQueryFailed());
+
+            table.addCell(totalStats.getSearch() == null ? null : totalStats.getSearch().getTotal().getStarTreeQueryCount());
+            table.addCell(primaryStats.getSearch() == null ? null : primaryStats.getSearch().getTotal().getStarTreeQueryCount());
 
             table.addCell(totalStats.getSearch() == null ? null : totalStats.getSearch().getTotal().getScrollCurrent());
             table.addCell(primaryStats.getSearch() == null ? null : primaryStats.getSearch().getTotal().getScrollCurrent());
@@ -1013,8 +1240,14 @@ public class RestIndicesAction extends AbstractCatAction {
 
             table.addCell(searchThrottled);
 
+            table.addCell(totalStats.getIndexing() == null ? null : totalStats.getIndexing().getTotal().getMaxLastIndexRequestTimestamp());
+            Long ts = totalStats.getIndexing() == null ? null : totalStats.getIndexing().getTotal().getMaxLastIndexRequestTimestamp();
+            table.addCell(
+                ts == null || ts == 0 ? null : STRICT_DATE_TIME_FORMATTER.format(Instant.ofEpochMilli(ts).atZone(ZoneOffset.UTC))
+            );
+
             table.endRow();
-        });
+        }
 
         return table;
     }
@@ -1023,4 +1256,38 @@ public class RestIndicesAction extends AbstractCatAction {
     private static <A extends ActionResponse> A extractResponse(final Collection<? extends ActionResponse> responses, Class<A> c) {
         return (A) responses.stream().filter(c::isInstance).findFirst().get();
     }
+
+    @Override
+    public boolean isActionPaginated() {
+        return false;
+    }
+
+    protected IndexPaginationStrategy getPaginationStrategy(ClusterStateResponse clusterStateResponse) {
+        return null;
+    }
+
+    /**
+     * Provides the iterator to be used for building the response table.
+     */
+    protected Iterator<Tuple<String, Settings>> getTableIterator(String[] indices, Map<String, Settings> indexSettingsMap) {
+        return new Iterator<>() {
+            final Iterator<String> settingsMapIter = indexSettingsMap.keySet().iterator();
+
+            @Override
+            public boolean hasNext() {
+                return settingsMapIter.hasNext();
+            }
+
+            @Override
+            public Tuple<String, Settings> next() {
+                String index = settingsMapIter.next();
+                return new Tuple<>(index, indexSettingsMap.get(index));
+            }
+        };
+    }
+
+    private boolean shouldSkipIndicesStatsRequest(IndexPaginationStrategy paginationStrategy) {
+        return Objects.nonNull(paginationStrategy) && paginationStrategy.getRequestedEntities().isEmpty();
+    }
+
 }

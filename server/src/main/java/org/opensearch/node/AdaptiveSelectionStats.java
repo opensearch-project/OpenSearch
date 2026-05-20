@@ -32,6 +32,7 @@
 
 package org.opensearch.node;
 
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.set.Sets;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -52,13 +53,29 @@ import java.util.stream.Collectors;
  * EWMA of queue size, service time, and response time, as well as outgoing
  * searches to each node and the "rank" based on the ARS formula.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class AdaptiveSelectionStats implements Writeable, ToXContentFragment {
 
     private final Map<String, Long> clientOutgoingConnections;
     private final Map<String, ResponseCollectorService.ComputedNodeStats> nodeComputedStats;
 
+    /**
+     * Private constructor that takes a builder.
+     * This is the sole entry point for creating a new AdaptiveSelectionStats object.
+     * @param builder The builder instance containing all the values.
+     */
+    private AdaptiveSelectionStats(Builder builder) {
+        this.clientOutgoingConnections = builder.clientOutgoingConnections;
+        this.nodeComputedStats = builder.nodeComputedStats;
+    }
+
+    /**
+     * This constructor will be deprecated starting in version 3.4.0.
+     * Use {@link Builder} instead.
+     */
+    @Deprecated
     public AdaptiveSelectionStats(
         Map<String, Long> clientConnections,
         Map<String, ResponseCollectorService.ComputedNodeStats> nodeComputedStats
@@ -126,5 +143,34 @@ public class AdaptiveSelectionStats implements Writeable, ToXContentFragment {
         return nodeComputedStats.entrySet()
             .stream()
             .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().rank(clientOutgoingConnections.getOrDefault(e.getKey(), 0L))));
+    }
+
+    /**
+     * Builder for the {@link AdaptiveSelectionStats} class.
+     * Provides a fluent API for constructing a AdaptiveSelectionStats object.
+     */
+    public static class Builder {
+        private Map<String, Long> clientOutgoingConnections;
+        private Map<String, ResponseCollectorService.ComputedNodeStats> nodeComputedStats;
+
+        public Builder() {}
+
+        public Builder clientOutgoingConnections(Map<String, Long> clientOutgoingConnections) {
+            this.clientOutgoingConnections = clientOutgoingConnections;
+            return this;
+        }
+
+        public Builder nodeComputedStats(Map<String, ResponseCollectorService.ComputedNodeStats> nodeComputedStats) {
+            this.nodeComputedStats = nodeComputedStats;
+            return this;
+        }
+
+        /**
+         * Creates a {@link AdaptiveSelectionStats} object from the builder's current state.
+         * @return A new AdaptiveSelectionStats instance.
+         */
+        public AdaptiveSelectionStats build() {
+            return new AdaptiveSelectionStats(this);
+        }
     }
 }

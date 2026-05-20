@@ -32,22 +32,40 @@
 
 package org.opensearch.search.aggregations.metrics;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.index.Terms;
+import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.search.CollectionTerminatedException;
+import org.apache.lucene.search.DisiPriorityQueue;
+import org.apache.lucene.search.DisiWrapper;
+import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.DocIdStream;
 import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.Weight;
+import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.opensearch.OpenSearchStatusException;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.hash.MurmurHash3;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
+import org.opensearch.common.settings.Setting;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.BitArray;
 import org.opensearch.common.util.BitMixer;
 import org.opensearch.common.util.LongArray;
 import org.opensearch.common.util.ObjectArray;
+import org.opensearch.core.common.unit.ByteSizeValue;
+import org.opensearch.core.rest.RestStatus;
 import org.opensearch.index.fielddata.SortedBinaryDocValues;
 import org.opensearch.index.fielddata.SortedNumericDoubleValues;
 import org.opensearch.search.aggregations.Aggregator;
@@ -58,8 +76,11 @@ import org.opensearch.search.aggregations.support.ValuesSourceConfig;
 import org.opensearch.search.internal.SearchContext;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.function.BiConsumer;
+
+import static org.opensearch.search.SearchService.CARDINALITY_AGGREGATION_PRUNING_THRESHOLD;
 
 /**
  * An aggregator that computes approximate counts of unique values.
@@ -68,20 +89,65 @@ import java.util.function.BiConsumer;
  */
 public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue {
 
-    private final int precision;
-    private final ValuesSource valuesSource;
+    private static final Logger logger = LogManager.getLogger(CardinalityAggregator.class);
+
+    /**
+     * Exception thrown when OrdinalsCollector exceeds memory threshold.
+     * Uses singleton pattern and optimized constructor for performance in control flow scenarios.
+     */
+    static class MemoryLimitExceededException extends RuntimeException {
+        static final MemoryLimitExceededException INSTANCE = new MemoryLimitExceededException();
+
+        private MemoryLimitExceededException() {
+            // Optimized constructor for control flow exceptions:
+            // - null message/cause: no debugging info needed
+            // - false enableSuppression: disable suppressed exception tracking
+            // - false writableStackTrace: disable expensive stack trace generation (~100x faster)
+            super(null, null, false, false);
+        }
+    }
+
+    /**
+     * Setting to enable/disable hybrid collector for cardinality aggregation.
+     */
+    public static final Setting<Boolean> CARDINALITY_AGGREGATION_HYBRID_COLLECTOR_ENABLED = Setting.boolSetting(
+        "search.aggregations.cardinality.hybrid_collector.enabled",
+        true,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
+     * Setting for hybrid collector memory threshold. Supports both percentage (e.g., "1%")
+     * and absolute values (e.g., "10mb", "1gb").
+     * Note: This threshold is applied at the Lucene segment level since collectors are created per segment.
+     */
+    public static final Setting<ByteSizeValue> CARDINALITY_AGGREGATION_HYBRID_COLLECTOR_MEMORY_THRESHOLD = Setting.memorySizeSetting(
+        "search.aggregations.cardinality.hybrid_collector.memory_threshold",
+        "1%",
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    final CardinalityAggregatorFactory.ExecutionMode executionMode;
+    final int precision;
+    final ValuesSource valuesSource;
+
+    private final ValuesSourceConfig valuesSourceConfig;
 
     // Expensive to initialize, so we only initialize it when we have an actual value source
     @Nullable
-    private HyperLogLogPlusPlus counts;
+    HyperLogLogPlusPlus counts;
 
-    private Collector collector;
+    Collector collector;
 
-    private int emptyCollectorsUsed;
-    private int numericCollectorsUsed;
-    private int ordinalsCollectorsUsed;
-    private int ordinalsCollectorsOverheadTooHigh;
-    private int stringHashingCollectorsUsed;
+    int emptyCollectorsUsed;
+    int numericCollectorsUsed;
+    int ordinalsCollectorsUsed;
+    int hybridCollectorsUsed;
+    int ordinalsCollectorsOverheadTooHigh;
+    int stringHashingCollectorsUsed;
+    int dynamicPrunedSegments;
 
     public CardinalityAggregator(
         String name,
@@ -89,13 +155,16 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
         int precision,
         SearchContext context,
         Aggregator parent,
-        Map<String, Object> metadata
+        Map<String, Object> metadata,
+        CardinalityAggregatorFactory.ExecutionMode executionMode
     ) throws IOException {
         super(name, context, parent, metadata);
         // TODO: Stop using nulls here
         this.valuesSource = valuesSourceConfig.hasValues() ? valuesSourceConfig.getValuesSource() : null;
         this.precision = precision;
         this.counts = valuesSource == null ? null : new HyperLogLogPlusPlus(precision, context.bigArrays(), 1);
+        this.valuesSourceConfig = valuesSourceConfig;
+        this.executionMode = executionMode;
     }
 
     @Override
@@ -118,27 +187,150 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
             return new DirectCollector(counts, hashValues);
         }
 
-        if (valuesSource instanceof ValuesSource.Bytes.WithOrdinals) {
-            ValuesSource.Bytes.WithOrdinals source = (ValuesSource.Bytes.WithOrdinals) valuesSource;
+        Collector collector = null;
+        if (valuesSource instanceof ValuesSource.Bytes.WithOrdinals source) {
             final SortedSetDocValues ordinalValues = source.ordinalsValues(ctx);
             final long maxOrd = ordinalValues.getValueCount();
             if (maxOrd == 0) {
                 emptyCollectorsUsed++;
                 return new EmptyCollector();
-            }
-
-            final long ordinalsMemoryUsage = OrdinalsCollector.memoryOverhead(maxOrd);
-            final long countsMemoryUsage = HyperLogLogPlusPlus.memoryUsage(precision);
-            // only use ordinals if they don't increase memory usage by more than 25%
-            if (ordinalsMemoryUsage < countsMemoryUsage / 4) {
+            } else if (executionMode == CardinalityAggregatorFactory.ExecutionMode.ORDINALS) { // Force OrdinalsCollector
                 ordinalsCollectorsUsed++;
-                return new OrdinalsCollector(counts, ordinalValues, context.bigArrays());
+                collector = new OrdinalsCollector(counts, ordinalValues, context.bigArrays());
+            } else if (executionMode == null) {
+                // no hint provided, fall back to heuristics
+                CardinalityAggregationContext cardinalityContext = context.cardinalityAggregationContext();
+
+                if (cardinalityContext.isHybridCollectorEnabled()) {
+                    // Use HybridCollector with configurable memory threshold
+                    MurmurHash3Values hashValues = MurmurHash3Values.hash(source.bytesValues(ctx));
+                    hybridCollectorsUsed++;
+                    collector = new HybridCollector(counts, ordinalValues, hashValues, context.bigArrays(), cardinalityContext);
+                } else {
+                    final long ordinalsMemoryUsage = OrdinalsCollector.memoryOverhead(maxOrd);
+                    final long countsMemoryUsage = HyperLogLogPlusPlus.memoryUsage(precision);
+                    if (ordinalsMemoryUsage < countsMemoryUsage / 4) {
+                        ordinalsCollectorsUsed++;
+                        collector = new OrdinalsCollector(counts, ordinalValues, context.bigArrays());
+                    } else {
+                        ordinalsCollectorsOverheadTooHigh++;
+                    }
+                }
             }
-            ordinalsCollectorsOverheadTooHigh++;
         }
 
-        stringHashingCollectorsUsed++;
-        return new DirectCollector(counts, MurmurHash3Values.hash(valuesSource.bytesValues(ctx)));
+        if (collector == null) { // not able to build an OrdinalsCollector, or hint is direct
+            stringHashingCollectorsUsed++;
+            collector = new DirectCollector(counts, MurmurHash3Values.hash(valuesSource.bytesValues(ctx)));
+        }
+
+        if (canPrune(parent, subAggregators, valuesSourceConfig)) {
+            Terms terms = ctx.reader().terms(valuesSourceConfig.fieldContext().field());
+            if (terms == null) return collector;
+            if (exceedMaxThreshold(terms)) {
+                return collector;
+            }
+
+            Collector pruningCollector = tryWrapWithPruningCollector(collector, terms, ctx);
+            if (pruningCollector == null) {
+                return collector;
+            }
+
+            if (!tryScoreWithPruningCollector(ctx, pruningCollector)) {
+                return collector;
+            }
+            logger.debug("Dynamic pruned segment {} of shard {}", ctx.ord, context.indexShard().shardId());
+            dynamicPrunedSegments++;
+
+            return getNoOpCollector();
+        }
+
+        return collector;
+    }
+
+    private boolean canPrune(Aggregator parent, Aggregator[] subAggregators, ValuesSourceConfig valuesSourceConfig) {
+        return parent == null && subAggregators.length == 0 && valuesSourceConfig.missing() == null && valuesSourceConfig.script() == null;
+    }
+
+    private boolean exceedMaxThreshold(Terms terms) throws IOException {
+        if (terms.size() > context.cardinalityAggregationPruningThreshold()) {
+            logger.debug(
+                "Cannot prune because terms size {} is greater than the threshold {}",
+                terms.size(),
+                context.cardinalityAggregationPruningThreshold()
+            );
+            return true;
+        }
+        return false;
+    }
+
+    private Collector tryWrapWithPruningCollector(Collector collector, Terms terms, LeafReaderContext ctx) {
+        try {
+            return new PruningCollector(collector, terms.iterator(), ctx, context, valuesSourceConfig.fieldContext().field());
+        } catch (Exception e) {
+            logger.warn("Failed to build collector for dynamic pruning.", e);
+            return null;
+        }
+    }
+
+    private boolean tryScoreWithPruningCollector(LeafReaderContext ctx, Collector pruningCollector) throws IOException {
+        try {
+            Weight weight = context.query().rewrite(context.searcher()).createWeight(context.searcher(), ScoreMode.TOP_DOCS, 1f);
+            Scorer scorer = weight.scorer(ctx);
+            if (scorer == null) {
+                return false;
+            }
+            pruningCollector.setScorer(scorer);
+            DocIdSetIterator iterator = scorer.iterator();
+            bulkCollect(ctx.reader().getLiveDocs(), iterator, pruningCollector);
+
+            pruningCollector.postCollect();
+            Releasables.close(pruningCollector);
+        } catch (Exception e) {
+            throw new OpenSearchStatusException(
+                "Failed when performing dynamic pruning in cardinality aggregation. You can set cluster setting ["
+                    + CARDINALITY_AGGREGATION_PRUNING_THRESHOLD.getKey()
+                    + "] to 0 to disable.",
+                RestStatus.INTERNAL_SERVER_ERROR,
+                e
+            );
+        }
+        return true;
+    }
+
+    private void bulkCollect(Bits acceptDocs, DocIdSetIterator iterator, Collector pruningCollector) throws IOException {
+        DocIdSetIterator competitiveIterator = pruningCollector.competitiveIterator();
+
+        int doc = iterator.nextDoc();
+        while (doc < DocIdSetIterator.NO_MORE_DOCS) {
+            assert competitiveIterator.docID() <= doc; // invariant
+            if (competitiveIterator.docID() < doc) {
+                int competitiveNext = competitiveIterator.advance(doc);
+                if (competitiveNext != doc) {
+                    doc = iterator.advance(competitiveNext);
+                    continue;
+                }
+            }
+            if ((acceptDocs == null || acceptDocs.get(doc))) {
+                pruningCollector.collect(doc);
+            }
+            doc = iterator.nextDoc();
+        }
+    }
+
+    private Collector getNoOpCollector() {
+        return new Collector() {
+            @Override
+            public void close() {}
+
+            @Override
+            public void postCollect() throws IOException {}
+
+            @Override
+            public void collect(int doc, long owningBucketOrd) throws IOException {
+                throw new CollectionTerminatedException();
+            }
+        };
     }
 
     @Override
@@ -175,7 +367,7 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
         if (counts == null || owningBucketOrdinal >= counts.maxOrd() || counts.cardinality(owningBucketOrdinal) == 0) {
             return buildEmptyAggregation();
         }
-        // We need to build a copy because the returned Aggregation needs remain usable after
+        // We need to build a copy because the returned Aggregation needs to remain usable after
         // this Aggregator (and its HLL++ counters) is released.
         AbstractHyperLogLogPlusPlus copy = counts.clone(owningBucketOrdinal, BigArrays.NON_RECYCLING_INSTANCE);
         return new InternalCardinality(name, copy, metadata());
@@ -197,8 +389,10 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
         add.accept("empty_collectors_used", emptyCollectorsUsed);
         add.accept("numeric_collectors_used", numericCollectorsUsed);
         add.accept("ordinals_collectors_used", ordinalsCollectorsUsed);
+        add.accept("hybrid_collectors_used", hybridCollectorsUsed);
         add.accept("ordinals_collectors_overhead_too_high", ordinalsCollectorsOverheadTooHigh);
         add.accept("string_hashing_collectors_used", stringHashingCollectorsUsed);
+        add.accept("dynamic_pruned_segments", dynamicPrunedSegments);
     }
 
     /**
@@ -206,10 +400,138 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
      *
      * @opensearch.internal
      */
-    private abstract static class Collector extends LeafBucketCollector implements Releasable {
+    abstract static class Collector extends LeafBucketCollector implements Releasable {
 
         public abstract void postCollect() throws IOException;
 
+    }
+
+    /**
+     * This collector enhance the delegate collector with pruning ability on term field
+     * The iterators of term field values are wrapped into a priority queue, and able to
+     * pop/prune the values after being collected
+     */
+    private static class PruningCollector extends Collector {
+
+        private final Collector delegate;
+        private final DisiPriorityQueue queue;
+        private final DocIdSetIterator competitiveIterator;
+
+        PruningCollector(Collector delegate, TermsEnum terms, LeafReaderContext ctx, SearchContext context, String field)
+            throws IOException {
+            this.delegate = delegate;
+
+            Map<BytesRef, Scorer> postingMap = new HashMap<>();
+            while (terms.next() != null) {
+                BytesRef term = terms.term();
+                TermQuery termQuery = new TermQuery(new Term(field, term));
+                Weight subWeight = termQuery.createWeight(context.searcher(), ScoreMode.COMPLETE_NO_SCORES, 1f);
+                Scorer scorer = subWeight.scorer(ctx);
+                postingMap.put(term, scorer);
+            }
+
+            this.queue = DisiPriorityQueue.ofMaxSize(postingMap.size());
+            for (Scorer scorer : postingMap.values()) {
+                queue.add(new DisiWrapper(scorer, false));
+            }
+
+            competitiveIterator = new DisjunctionDISI(queue);
+        }
+
+        @Override
+        public void close() {
+            delegate.close();
+        }
+
+        @Override
+        public void collect(int doc, long owningBucketOrd) throws IOException {
+            delegate.collect(doc, owningBucketOrd);
+            prune(doc);
+        }
+
+        /**
+         * Note: the queue may be empty or the queue top may be null after pruning
+         */
+        private void prune(int doc) {
+            if (queue.size() == 0) {
+                return;
+            }
+            DisiWrapper top = queue.top();
+            if (top == null) {
+                return;
+            }
+            int curTopDoc = top.doc;
+            if (curTopDoc == doc) {
+                do {
+                    queue.pop();
+                    top = queue.updateTop();
+                } while (queue.size() > 1 && top.doc == curTopDoc);
+            }
+        }
+
+        @Override
+        public DocIdSetIterator competitiveIterator() {
+            return competitiveIterator;
+        }
+
+        @Override
+        public void postCollect() throws IOException {
+            delegate.postCollect();
+        }
+    }
+
+    /**
+     * This DISI is a disjunction of all terms in a segment
+     * And it will be the competitive iterator of the leaf pruning collector
+     * After pruning done after collect, queue top doc may exceed the next doc of (lead) iterator
+     * To still providing a docID slower than the lead iterator for the next iteration
+     * We keep track of a slowDocId that will be updated later during advance
+     */
+    private static class DisjunctionDISI extends DocIdSetIterator {
+        private final DisiPriorityQueue queue;
+        private int slowDocId = -1;
+
+        public DisjunctionDISI(DisiPriorityQueue queue) {
+            this.queue = queue;
+        }
+
+        @Override
+        public int docID() {
+            return slowDocId;
+        }
+
+        @Override
+        public int advance(int target) throws IOException {
+            DisiWrapper top = queue.top();
+            if (top == null) {
+                return slowDocId = NO_MORE_DOCS;
+            }
+
+            // This would be the outcome of last pruning
+            // this DISI's docID is already making to the target
+            if (top.doc >= target) {
+                slowDocId = top.doc;
+                return top.doc;
+            }
+
+            do {
+                top.doc = top.approximation.advance(target);
+                top = queue.updateTop();
+            } while (top.doc < target);
+            slowDocId = queue.size() == 0 ? NO_MORE_DOCS : queue.top().doc;
+
+            return slowDocId;
+        }
+
+        @Override
+        public int nextDoc() throws IOException {
+            return advance(slowDocId + 1);
+        }
+
+        @Override
+        public long cost() {
+            return queue.top() == null ? 0 : queue.top().approximation.cost();
+        }
     }
 
     /**
@@ -217,7 +539,7 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
      *
      * @opensearch.internal
      */
-    private static class EmptyCollector extends Collector {
+    static class EmptyCollector extends Collector {
 
         @Override
         public void collect(int doc, long bucketOrd) {
@@ -240,7 +562,7 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
      *
      * @opensearch.internal
      */
-    private static class DirectCollector extends Collector {
+    static class DirectCollector extends Collector {
 
         private final MurmurHash3Values hashes;
         private final HyperLogLogPlusPlus counts;
@@ -277,7 +599,7 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
      *
      * @opensearch.internal
      */
-    private static class OrdinalsCollector extends Collector {
+    static class OrdinalsCollector extends Collector {
 
         private static final long SHALLOW_FIXEDBITSET_SIZE = RamUsageEstimator.shallowSizeOfInstance(FixedBitSet.class);
 
@@ -293,8 +615,22 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
         private final int maxOrd;
         private final HyperLogLogPlusPlus counts;
         private ObjectArray<BitArray> visitedOrds;
+        private long currentMemoryUsage = 0;
+
+        private final long memoryThreshold;
+        private final boolean memoryMonitoringEnabled;
 
         OrdinalsCollector(HyperLogLogPlusPlus counts, SortedSetDocValues values, BigArrays bigArrays) {
+            this(counts, values, bigArrays, Long.MAX_VALUE, false);
+        }
+
+        OrdinalsCollector(
+            HyperLogLogPlusPlus counts,
+            SortedSetDocValues values,
+            BigArrays bigArrays,
+            long memoryThreshold,
+            boolean memoryMonitoringEnabled
+        ) {
             if (values.getValueCount() > Integer.MAX_VALUE) {
                 throw new IllegalArgumentException();
             }
@@ -302,19 +638,54 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
             this.bigArrays = bigArrays;
             this.counts = counts;
             this.values = values;
+            this.memoryThreshold = memoryThreshold;
+            this.memoryMonitoringEnabled = memoryMonitoringEnabled;
             visitedOrds = bigArrays.newObjectArray(1);
         }
 
         @Override
         public void collect(int doc, long bucketOrd) throws IOException {
-            visitedOrds = bigArrays.grow(visitedOrds, bucketOrd + 1);
-            BitArray bits = visitedOrds.get(bucketOrd);
+            collect(doc, getBitArray(bucketOrd));
+        }
+
+        @Override
+        public void collect(DocIdStream stream, long owningBucketOrd) throws IOException {
+            final BitArray bits = getBitArray(owningBucketOrd);
+            stream.forEach((doc) -> collect(doc, bits));
+        }
+
+        @Override
+        public void collectRange(int minDoc, int maxDoc) throws IOException {
+            final BitArray bits = getBitArray(0);
+            for (int doc = minDoc; doc < maxDoc; ++doc) {
+                collect(doc, bits);
+            }
+        }
+
+        private BitArray getBitArray(long bucket) {
+            visitedOrds = bigArrays.grow(visitedOrds, bucket + 1);
+            BitArray bits = visitedOrds.get(bucket);
             if (bits == null) {
                 bits = new BitArray(maxOrd, bigArrays);
-                visitedOrds.set(bucketOrd, bits);
+                visitedOrds.set(bucket, bits);
+
+                // Check memory threshold only when monitoring is enabled (hybrid collector)
+                if (memoryMonitoringEnabled) {
+                    currentMemoryUsage += memoryOverhead(maxOrd);
+                    if (currentMemoryUsage > memoryThreshold) {
+                        // Throw singleton exception for efficient control flow to HybridCollector
+                        throw MemoryLimitExceededException.INSTANCE;
+                    }
+                }
             }
+            return bits;
+        }
+
+        private void collect(final int doc, final BitArray bits) throws IOException {
             if (values.advanceExact(doc)) {
-                for (long ord = values.nextOrd(); ord != SortedSetDocValues.NO_MORE_ORDS; ord = values.nextOrd()) {
+                int count = values.docValueCount();
+                long ord;
+                while ((count-- > 0) && (ord = values.nextOrd()) != SortedSetDocValues.NO_MORE_DOCS) {
                     bits.set((int) ord);
                 }
             }
@@ -352,6 +723,10 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
                     }
                 }
             }
+        }
+
+        public long getCurrentMemoryUsage() {
+            return currentMemoryUsage;
         }
 
         @Override
@@ -486,6 +861,94 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
                 MurmurHash3.hash128(bytes.bytes, bytes.offset, bytes.length, 0, hash);
                 return hash.h1;
             }
+        }
+    }
+
+    /**
+     * Hybrid Collector that starts with OrdinalsCollector and switches to DirectCollector
+     * when memory consumption exceeds a threshold. Uses exception-based control flow for
+     * optimal performance - zero overhead when memory is under threshold.
+     */
+    static class HybridCollector extends Collector {
+        private final HyperLogLogPlusPlus counts;
+        private final MurmurHash3Values hashValues;
+        private final CardinalityAggregationContext cardinalityContext;
+
+        private Collector activeCollector;
+        private final OrdinalsCollector ordinalsCollector;
+
+        HybridCollector(
+            HyperLogLogPlusPlus counts,
+            SortedSetDocValues ordinalValues,
+            MurmurHash3Values hashValues,
+            BigArrays bigArrays,
+            CardinalityAggregationContext cardinalityContext
+        ) {
+            this.counts = counts;
+            this.hashValues = hashValues;
+            this.cardinalityContext = cardinalityContext;
+
+            // Start with OrdinalsCollector with memory monitoring enabled
+            this.ordinalsCollector = new OrdinalsCollector(counts, ordinalValues, bigArrays, cardinalityContext.getMemoryThreshold(), true);
+            this.activeCollector = ordinalsCollector;
+        }
+
+        @Override
+        public void collect(int doc, long bucketOrd) throws IOException {
+            try {
+                activeCollector.collect(doc, bucketOrd);
+            } catch (MemoryLimitExceededException e) {
+                switchToDirectCollector();
+                // Retry collection with DirectCollector
+                activeCollector.collect(doc, bucketOrd);
+            }
+        }
+
+        @Override
+        public void collect(DocIdStream stream, long owningBucketOrd) throws IOException {
+            try {
+                activeCollector.collect(stream, owningBucketOrd);
+            } catch (MemoryLimitExceededException e) {
+                switchToDirectCollector();
+                // Retry collection with DirectCollector
+                activeCollector.collect(stream, owningBucketOrd);
+            }
+        }
+
+        @Override
+        public void collectRange(int minDoc, int maxDoc) throws IOException {
+            try {
+                activeCollector.collectRange(minDoc, maxDoc);
+            } catch (MemoryLimitExceededException e) {
+                switchToDirectCollector();
+                // Retry collection with DirectCollector
+                activeCollector.collectRange(minDoc, maxDoc);
+            }
+        }
+
+        private void switchToDirectCollector() throws IOException {
+            // Post collect all the already computed data from OrdinalsCollector
+            ordinalsCollector.postCollect();
+            ordinalsCollector.close();
+            logger.debug("Hybrid collector switching to DirectCollector due to memory threshold exceeded");
+
+            // Create DirectCollector with computed data
+            activeCollector = new DirectCollector(counts, hashValues);
+        }
+
+        @Override
+        public void postCollect() throws IOException {
+            activeCollector.postCollect();
+        }
+
+        @Override
+        public void close() {
+            Releasables.close(activeCollector);
+        }
+
+        // Visible for testing
+        Collector getActiveCollector() {
+            return activeCollector;
         }
     }
 }

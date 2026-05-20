@@ -35,8 +35,9 @@ package org.opensearch.action.admin.indices.alias;
 import org.opensearch.OpenSearchGenerationException;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.AliasesRequest;
+import org.opensearch.action.CompositeIndicesRequest;
 import org.opensearch.action.support.IndicesOptions;
-import org.opensearch.action.support.master.AcknowledgedRequest;
+import org.opensearch.action.support.clustermanager.AcknowledgedRequest;
 import org.opensearch.cluster.metadata.AliasAction;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.xcontent.XContentFactory;
@@ -76,7 +77,7 @@ import static org.opensearch.core.xcontent.ObjectParser.fromList;
  * @opensearch.api
  */
 @PublicApi(since = "1.0.0")
-public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesRequest> implements ToXContentObject {
+public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesRequest> implements ToXContentObject, CompositeIndicesRequest {
 
     private List<AliasActions> allAliasActions = new ArrayList<>();
     private String origin = "";
@@ -220,9 +221,11 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
             ADD_PARSER.declareField(AliasActions::searchRouting, XContentParser::text, SEARCH_ROUTING, ValueType.INT);
             ADD_PARSER.declareField(AliasActions::writeIndex, XContentParser::booleanValue, IS_WRITE_INDEX, ValueType.BOOLEAN);
             ADD_PARSER.declareField(AliasActions::isHidden, XContentParser::booleanValue, IS_HIDDEN, ValueType.BOOLEAN);
-            ADD_PARSER.declareField(AliasActions::mustExist, XContentParser::booleanValue, MUST_EXIST, ValueType.BOOLEAN);
         }
         private static final ObjectParser<AliasActions, Void> REMOVE_PARSER = parser(REMOVE.getPreferredName(), AliasActions::remove);
+        static {
+            REMOVE_PARSER.declareField(AliasActions::mustExist, XContentParser::booleanValue, MUST_EXIST, ValueType.BOOLEAN);
+        }
         private static final ObjectParser<AliasActions, Void> REMOVE_INDEX_PARSER = parser(
             REMOVE_INDEX.getPreferredName(),
             AliasActions::removeIndex
@@ -554,6 +557,9 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
             if (null != isHidden) {
                 builder.field(IS_HIDDEN.getPreferredName(), isHidden);
             }
+            if (null != mustExist) {
+                builder.field(MUST_EXIST.getPreferredName(), mustExist);
+            }
             builder.endObject();
             builder.endObject();
             return builder;
@@ -582,6 +588,8 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
                 + searchRouting
                 + ",writeIndex="
                 + writeIndex
+                + ",mustExist="
+                + mustExist
                 + "]";
         }
 
@@ -600,12 +608,13 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
                 && Objects.equals(indexRouting, other.indexRouting)
                 && Objects.equals(searchRouting, other.searchRouting)
                 && Objects.equals(writeIndex, other.writeIndex)
-                && Objects.equals(isHidden, other.isHidden);
+                && Objects.equals(isHidden, other.isHidden)
+                && Objects.equals(mustExist, other.mustExist);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(type, indices, aliases, filter, routing, indexRouting, searchRouting, writeIndex, isHidden);
+            return Objects.hash(type, indices, aliases, filter, routing, indexRouting, searchRouting, writeIndex, isHidden, mustExist);
         }
     }
 

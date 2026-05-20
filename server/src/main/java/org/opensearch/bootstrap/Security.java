@@ -34,13 +34,17 @@ package org.opensearch.bootstrap;
 
 import org.opensearch.cli.Command;
 import org.opensearch.common.SuppressForbidden;
+import org.opensearch.common.bootstrap.JarHell;
 import org.opensearch.common.io.PathUtils;
+import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.transport.PortsRange;
 import org.opensearch.env.Environment;
 import org.opensearch.http.HttpTransportSettings;
+import org.opensearch.javaagent.bootstrap.AgentPolicy;
 import org.opensearch.plugins.PluginInfo;
 import org.opensearch.plugins.PluginsService;
-import org.opensearch.secure_sm.SecureSM;
+import org.opensearch.secure_sm.policy.PolicyFile;
 import org.opensearch.transport.TcpTransport;
 
 import java.io.IOException;
@@ -56,7 +60,6 @@ import java.nio.file.Path;
 import java.security.NoSuchAlgorithmException;
 import java.security.Permissions;
 import java.security.Policy;
-import java.security.URIParameter;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -66,9 +69,14 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import static org.opensearch.bootstrap.FilePermissionUtils.addDirectoryPath;
 import static org.opensearch.bootstrap.FilePermissionUtils.addSingleFilePath;
+import static org.opensearch.transport.AuxTransport.AUX_PORT_DEFAULTS;
+import static org.opensearch.transport.AuxTransport.AUX_TRANSPORT_PORT;
+import static org.opensearch.transport.AuxTransport.AUX_TRANSPORT_TYPES_SETTING;
 
 /**
  * Initializes SecurityManager with necessary permissions.
@@ -119,7 +127,12 @@ import static org.opensearch.bootstrap.FilePermissionUtils.addSingleFilePath;
  *
  * @opensearch.internal
  */
+@SuppressWarnings("removal")
 final class Security {
+    private static final Pattern CODEBASE_JAR_WITH_CLASSIFIER = Pattern.compile(
+        "^(.+)-\\d+\\.\\d+[^-]*.*?[-]?((?:linux-|windows-|osx-)?[^-]+)?\\.jar$"
+    );
+
     /** no instantiation */
     private Security() {}
 
@@ -133,22 +146,25 @@ final class Security {
 
         // enable security policy: union of template and environment-based paths, and possibly plugin permissions
         Map<String, URL> codebases = getCodebaseJarMap(JarHell.parseClassPath());
-        Policy.setPolicy(
-            new OpenSearchPolicy(
-                codebases,
-                createPermissions(environment),
-                getPluginPermissions(environment),
-                filterBadDefaults,
-                createRecursiveDataPathPermission(environment)
-            )
-        );
 
         // enable security manager
         final String[] classesThatCanExit = new String[] {
             // SecureSM matches class names as regular expressions so we escape the $ that arises from the nested class name
             OpenSearchUncaughtExceptionHandler.PrivilegedHaltAction.class.getName().replace("$", "\\$"),
             Command.class.getName() };
-        System.setSecurityManager(new SecureSM(classesThatCanExit));
+
+        AgentPolicy.setPolicy(
+            new OpenSearchPolicy(
+                codebases,
+                createPermissions(environment),
+                getPluginPermissions(environment),
+                filterBadDefaults,
+                createRecursiveDataPathPermission(environment)
+            ),
+            Set.of() /* trusted hosts */,
+            Set.of() /* trusted file systems */,
+            new AgentPolicy.AnyCanExit(classesThatCanExit)
+        );
 
         // do some basic tests
         selfTest();
@@ -230,42 +246,75 @@ final class Security {
         try {
             List<String> propertiesSet = new ArrayList<>();
             try {
+                final Map<Map.Entry<String, URL>, String> jarsWithPossibleClassifiers = new HashMap<>();
                 // set codebase properties
                 for (Map.Entry<String, URL> codebase : codebases.entrySet()) {
-                    String name = codebase.getKey();
-                    URL url = codebase.getValue();
+                    final String name = codebase.getKey();
+                    final URL url = codebase.getValue();
 
                     // We attempt to use a versionless identifier for each codebase. This assumes a specific version
                     // format in the jar filename. While we cannot ensure all jars in all plugins use this format, nonconformity
                     // only means policy grants would need to include the entire jar filename as they always have before.
-                    String property = "codebase." + name;
-                    String aliasProperty = "codebase." + name.replaceFirst("-\\d+\\.\\d+.*\\.jar", "");
-                    if (aliasProperty.equals(property) == false) {
-                        propertiesSet.add(aliasProperty);
-                        String previous = System.setProperty(aliasProperty, url.toString());
-                        if (previous != null) {
-                            throw new IllegalStateException(
-                                "codebase property already set: " + aliasProperty + " -> " + previous + ", cannot set to " + url.toString()
-                            );
-                        }
-                    }
-                    propertiesSet.add(property);
-                    String previous = System.setProperty(property, url.toString());
-                    if (previous != null) {
-                        throw new IllegalStateException(
-                            "codebase property already set: " + property + " -> " + previous + ", cannot set to " + url.toString()
-                        );
+                    final Matcher matcher = CODEBASE_JAR_WITH_CLASSIFIER.matcher(name);
+                    if (matcher.matches() && matcher.group(2) != null) {
+                        // There is a JAR that, possibly, has a classifier or SNAPSHOT at the end, examples are:
+                        // - netty-tcnative-boringssl-static-2.0.61.Final-linux-x86_64.jar
+                        // - kafka-server-common-3.6.1-test.jar
+                        // - lucene-core-9.11.0-snapshot-8a555eb.jar
+                        // - zstd-jni-1.5.6-1.jar
+                        jarsWithPossibleClassifiers.put(codebase, matcher.group(2));
+                    } else {
+                        String property = "codebase." + name;
+                        String aliasProperty = "codebase." + disambiguateAlias(name);
+                        addCodebaseToSystemProperties(propertiesSet, url, property, aliasProperty);
                     }
                 }
-                return Policy.getInstance("JavaPolicy", new URIParameter(policyFile.toURI()));
+
+                // set codebase properties for JARs that might present with classifiers
+                for (Map.Entry<Map.Entry<String, URL>, String> jarWithPossibleClassifier : jarsWithPossibleClassifiers.entrySet()) {
+                    final Map.Entry<String, URL> codebase = jarWithPossibleClassifier.getKey();
+                    final String name = codebase.getKey();
+                    final URL url = codebase.getValue();
+
+                    String property = "codebase." + name;
+                    String aliasProperty = "codebase." + name.replaceFirst("-\\d+\\.\\d+.*\\.jar", "");
+                    if (System.getProperties().containsKey(aliasProperty)) {
+                        aliasProperty = aliasProperty + "@" + jarWithPossibleClassifier.getValue();
+                    }
+
+                    addCodebaseToSystemProperties(propertiesSet, url, property, aliasProperty);
+                }
+
+                return new PolicyFile(policyFile);
             } finally {
                 // clear codebase properties
                 for (String property : propertiesSet) {
                     System.clearProperty(property);
                 }
             }
-        } catch (NoSuchAlgorithmException | URISyntaxException e) {
+        } catch (final RuntimeException e) {
             throw new IllegalArgumentException("unable to parse policy file `" + policyFile + "`", e);
+        }
+    }
+
+    /** adds the codebase to properties and System properties */
+    @SuppressForbidden(reason = "accesses System properties to configure codebases")
+    private static void addCodebaseToSystemProperties(List<String> propertiesSet, final URL url, String property, String aliasProperty) {
+        if (aliasProperty.equals(property) == false) {
+            propertiesSet.add(aliasProperty);
+            String previous = System.setProperty(aliasProperty, url.toString());
+            if (previous != null) {
+                throw new IllegalStateException(
+                    "codebase property already set: " + aliasProperty + " -> " + previous + ", cannot set to " + url.toString()
+                );
+            }
+        }
+        propertiesSet.add(property);
+        String previous = System.setProperty(property, url.toString());
+        if (previous != null) {
+            throw new IllegalStateException(
+                "codebase property already set: " + property + " -> " + previous + ", cannot set to " + url.toString()
+            );
         }
     }
 
@@ -364,6 +413,7 @@ final class Security {
     private static void addBindPermissions(Permissions policy, Settings settings) {
         addSocketPermissionForHttp(policy, settings);
         addSocketPermissionForTransportProfiles(policy, settings);
+        addSocketPermissionForAux(policy, settings);
     }
 
     /**
@@ -376,6 +426,29 @@ final class Security {
         // http is simple
         final String httpRange = HttpTransportSettings.SETTING_HTTP_PORT.get(settings).getPortRangeString();
         addSocketPermissionForPortRange(policy, httpRange);
+    }
+
+    /**
+     * Add dynamic {@link SocketPermission} based on AffixSetting AUX_TRANSPORT_PORT.
+     * If an auxiliary transport type is enabled but has no corresponding port range setting fall back to AUX_PORT_DEFAULTS.
+     *
+     * @param policy the {@link Permissions} instance to apply the dynamic {@link SocketPermission}s to.
+     * @param settings the {@link Settings} instance to read the gRPC settings from
+     */
+    private static void addSocketPermissionForAux(final Permissions policy, final Settings settings) {
+        Set<PortsRange> portsRanges = new HashSet<>();
+        for (String auxType : AUX_TRANSPORT_TYPES_SETTING.get(settings)) {
+            Setting<PortsRange> auxTypePortSettings = AUX_TRANSPORT_PORT.getConcreteSettingForNamespace(auxType);
+            if (auxTypePortSettings.exists(settings)) {
+                portsRanges.add(auxTypePortSettings.get(settings));
+            } else {
+                portsRanges.add(new PortsRange(AUX_PORT_DEFAULTS));
+            }
+        }
+
+        for (PortsRange portRange : portsRanges) {
+            addSocketPermissionForPortRange(policy, portRange.getPortRangeString());
+        }
     }
 
     /**
@@ -447,5 +520,22 @@ final class Security {
         } catch (SecurityException problem) {
             throw new SecurityException("Security misconfiguration: cannot access java.io.tmpdir", problem);
         }
+    }
+
+    /**
+     * Disambiguates conflicting aliases for the artifacts that known to have different groups and
+     * major versions but the same artifact name. Examples are:
+     *    jackson-core-2.21.2.jar -> coming from com.fasterxml.jackson.core
+     *    jackson-core-3.1.0.jar -> coming from tools.jackson.core
+     * @param name artifact name
+     * @return disambiguated alias
+     */
+    private static String disambiguateAlias(final String name) {
+        String disambiguated = name;
+        // Disambiguate Jackson 2.x / 3.x artifacts
+        if (disambiguated.matches("^jackson-(.+)-[3].\\d+.*\\.jar$") == true) {
+            disambiguated = disambiguated.replaceAll("^jackson-", "jackson3-");
+        }
+        return disambiguated.replaceFirst("-\\d+\\.\\d+.*\\.jar", "");
     }
 }

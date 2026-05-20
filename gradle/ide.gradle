@@ -12,11 +12,13 @@
 import org.opensearch.gradle.info.BuildParams
 import org.jetbrains.gradle.ext.Remote
 import org.jetbrains.gradle.ext.JUnit
+import groovy.xml.XmlNodePrinter
+import groovy.xml.XmlParser
 
 buildscript {
   repositories {
     maven {
-      url "https://plugins.gradle.org/m2/"
+      url = "https://plugins.gradle.org/m2/"
     }
   }
   dependencies {
@@ -28,7 +30,7 @@ allprojects {
   apply plugin: 'idea'
 
   tasks.named('idea').configure {
-    doFirst { throw new GradleException("Use of the 'idea' task has been deprecated. For details on importing into IntelliJ see CONTRIBUTING.md.") }
+    doFirst { throw new GradleException("Use of the 'idea' task has been deprecated. For details on importing into IntelliJ see DEVELOPER_GUIDE.md.") }
   }
 }
 
@@ -81,7 +83,14 @@ if (System.getProperty('idea.active') == 'true') {
         }
         runConfigurations {
           defaults(JUnit) {
-            vmParameters = '-ea -Djava.locale.providers=SPI,COMPAT'
+            project(':libs:agent-sm:agent').afterEvaluate { agentProject ->
+              vmParameters = '-ea -Djava.locale.providers=SPI,CLDR'
+              def jarName = "${agentProject.base.archivesName.get()}-${project.version}.jar"
+              vmParameters += ' -javaagent:' + agentProject.layout.buildDirectory
+                .dir('distributions')
+                .map { it.file(jarName) }
+                .get()
+            }
           }
         }
         copyright {
@@ -111,10 +120,12 @@ if (System.getProperty('idea.active') == 'true') {
  */
 void modifyXml(Object path, Action<? super Node> action) {
   File xmlFile = project.file(path)
-  Node xml = new XmlParser().parse(xmlFile)
-  action.execute(xml)
+  if (xmlFile.exists()) {
+    Node xml = new XmlParser().parse(xmlFile)
+    action.execute(xml)
 
-  xmlFile.withPrintWriter { writer ->
-    new XmlNodePrinter(writer).print(xml)
+    xmlFile.withPrintWriter { writer ->
+      new XmlNodePrinter(writer).print(xml)
+    }
   }
 }

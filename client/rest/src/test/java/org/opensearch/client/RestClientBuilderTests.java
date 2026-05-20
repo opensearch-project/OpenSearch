@@ -37,6 +37,7 @@ import org.apache.hc.client5.http.impl.async.HttpAsyncClientBuilder;
 import org.apache.hc.core5.http.Header;
 import org.apache.hc.core5.http.HttpHost;
 import org.apache.hc.core5.http.message.BasicHeader;
+import org.apache.hc.core5.reactor.IOReactorConfig;
 import org.apache.hc.core5.util.Timeout;
 
 import java.io.IOException;
@@ -143,6 +144,12 @@ public class RestClientBuilderTests extends RestClientTestCase {
             builder.setHttpClientConfigCallback(new RestClientBuilder.HttpClientConfigCallback() {
                 @Override
                 public HttpAsyncClientBuilder customizeHttpClient(HttpAsyncClientBuilder httpClientBuilder) {
+                    IOReactorConfig.Builder iOReactorConfig = IOReactorConfig.custom();
+                    iOReactorConfig.setTcpKeepCount(randomIntBetween(4, 10));
+                    iOReactorConfig.setTcpKeepInterval(randomIntBetween(5, 10));
+                    iOReactorConfig.setTcpKeepIdle(randomIntBetween(100, 200));
+                    iOReactorConfig.setIoThreadCount(2);
+                    httpClientBuilder.setIOReactorConfig(iOReactorConfig.build());
                     return httpClientBuilder;
                 }
             });

@@ -48,7 +48,7 @@ public class TestClasspathUtils {
     public static void setupJarJdkClasspath(File projectRoot) {
         try {
             URL originLocation = TestClasspathUtils.class.getClassLoader()
-                .loadClass("org.opensearch.bootstrap.JdkJarHellCheck")
+                .loadClass("org.opensearch.common.bootstrap.JdkJarHellCheck")
                 .getProtectionDomain()
                 .getCodeSource()
                 .getLocation();

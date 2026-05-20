@@ -65,6 +65,16 @@ public class TranslogCheckpointTransferSnapshot implements TransferSnapshot, Clo
     }
 
     @Override
+    public Set<TransferFileSnapshot> getTranslogFileSnapshotWithMetadata() throws IOException {
+        for (Tuple<TranslogFileSnapshot, CheckpointFileSnapshot> tuple : translogCheckpointFileInfoTupleSet) {
+            TransferFileSnapshot translogFileSnapshot = tuple.v1();
+            TransferFileSnapshot checkpointFileSnapshot = tuple.v2();
+            translogFileSnapshot.setMetadataFileInputStream(checkpointFileSnapshot.inputStream());
+        }
+        return getTranslogFileSnapshots();
+    }
+
+    @Override
     public TranslogTransferMetadata getTranslogTransferMetadata() {
         return new TranslogTransferMetadata(
             primaryTerm,

@@ -12,8 +12,10 @@ import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.CollectorManager;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.profile.query.CollectorResult;
+import org.opensearch.search.query.ReduceableSearchResult;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Objects;
 
@@ -40,6 +42,19 @@ public class NonGlobalAggCollectorManager extends AggregationCollectorManager {
         } else {
             return super.newCollector();
         }
+    }
+
+    @Override
+    public ReduceableSearchResult reduce(Collection<Collector> collectors) throws IOException {
+        // If there are no leaves then in concurrent search case postCollection, and subsequently buildAggregation, will not be called in
+        // search path. Since we build the InternalAggregation in postCollection that will not get created in such cases either. Therefore
+        // we need to manually processPostCollection here to build empty InternalAggregation objects for this collector tree.
+        if (context.searcher().getLeafContexts().isEmpty()) {
+            for (Collector c : collectors) {
+                context.bucketCollectorProcessor().processPostCollection(c);
+            }
+        }
+        return super.reduce(collectors);
     }
 
     @Override

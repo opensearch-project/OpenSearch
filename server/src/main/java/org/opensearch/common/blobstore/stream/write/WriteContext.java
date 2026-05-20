@@ -8,11 +8,13 @@
 
 package org.opensearch.common.blobstore.stream.write;
 
+import org.opensearch.cluster.metadata.CryptoMetadata;
 import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.StreamContext;
 
 import java.io.IOException;
+import java.util.Map;
 
 /**
  * WriteContext is used to encapsulate all data needed by <code>BlobContainer#writeStreams</code>
@@ -29,6 +31,8 @@ public class WriteContext {
     private final CheckedConsumer<Boolean, IOException> uploadFinalizer;
     private final boolean doRemoteDataIntegrityCheck;
     private final Long expectedChecksum;
+    private final Map<String, String> metadata;
+    private final CryptoMetadata cryptoMetadata;
 
     /**
      * Construct a new WriteContext object
@@ -41,7 +45,7 @@ public class WriteContext {
      * @param doRemoteDataIntegrityCheck A boolean to inform vendor plugins whether remote data integrity checks need to be done
      * @param expectedChecksum           This parameter expected only when the vendor plugin is expected to do server side data integrity verification
      */
-    public WriteContext(
+    private WriteContext(
         String fileName,
         StreamContextSupplier streamContextSupplier,
         long fileSize,
@@ -49,7 +53,9 @@ public class WriteContext {
         WritePriority writePriority,
         CheckedConsumer<Boolean, IOException> uploadFinalizer,
         boolean doRemoteDataIntegrityCheck,
-        @Nullable Long expectedChecksum
+        @Nullable Long expectedChecksum,
+        @Nullable Map<String, String> metadata,
+        @Nullable CryptoMetadata cryptoMetadata
     ) {
         this.fileName = fileName;
         this.streamContextSupplier = streamContextSupplier;
@@ -59,6 +65,8 @@ public class WriteContext {
         this.uploadFinalizer = uploadFinalizer;
         this.doRemoteDataIntegrityCheck = doRemoteDataIntegrityCheck;
         this.expectedChecksum = expectedChecksum;
+        this.metadata = metadata;
+        this.cryptoMetadata = cryptoMetadata;
     }
 
     /**
@@ -73,6 +81,8 @@ public class WriteContext {
         this.uploadFinalizer = writeContext.uploadFinalizer;
         this.doRemoteDataIntegrityCheck = writeContext.doRemoteDataIntegrityCheck;
         this.expectedChecksum = writeContext.expectedChecksum;
+        this.metadata = writeContext.metadata;
+        this.cryptoMetadata = writeContext.cryptoMetadata;
     }
 
     /**
@@ -130,5 +140,102 @@ public class WriteContext {
      */
     public Long getExpectedChecksum() {
         return expectedChecksum;
+    }
+
+    /**
+     * @return the upload metadata.
+     */
+    public Map<String, String> getMetadata() {
+        return metadata;
+    }
+
+    /**
+     * @return the CryptoMetadata for index-level encryption settings.
+     */
+    public CryptoMetadata getCryptoMetadata() {
+        return cryptoMetadata;
+    }
+
+    /**
+     * Builder for {@link WriteContext}.
+     *
+     * @opensearch.internal
+     */
+    public static class Builder {
+        private String fileName;
+        private StreamContextSupplier streamContextSupplier;
+        private long fileSize;
+        private boolean failIfAlreadyExists;
+        private WritePriority writePriority;
+        private CheckedConsumer<Boolean, IOException> uploadFinalizer;
+        private boolean doRemoteDataIntegrityCheck;
+        private Long expectedChecksum;
+        private Map<String, String> metadata;
+        private CryptoMetadata cryptoMetadata;
+
+        public Builder fileName(String fileName) {
+            this.fileName = fileName;
+            return this;
+        }
+
+        public Builder streamContextSupplier(StreamContextSupplier streamContextSupplier) {
+            this.streamContextSupplier = streamContextSupplier;
+            return this;
+        }
+
+        public Builder fileSize(long fileSize) {
+            this.fileSize = fileSize;
+            return this;
+        }
+
+        public Builder writePriority(WritePriority writePriority) {
+            this.writePriority = writePriority;
+            return this;
+        }
+
+        public Builder failIfAlreadyExists(boolean failIfAlreadyExists) {
+            this.failIfAlreadyExists = failIfAlreadyExists;
+            return this;
+        }
+
+        public Builder uploadFinalizer(CheckedConsumer<Boolean, IOException> uploadFinalizer) {
+            this.uploadFinalizer = uploadFinalizer;
+            return this;
+        }
+
+        public Builder doRemoteDataIntegrityCheck(boolean doRemoteDataIntegrityCheck) {
+            this.doRemoteDataIntegrityCheck = doRemoteDataIntegrityCheck;
+            return this;
+        }
+
+        public Builder expectedChecksum(Long expectedChecksum) {
+            this.expectedChecksum = expectedChecksum;
+            return this;
+        }
+
+        public Builder metadata(Map<String, String> metadata) {
+            this.metadata = metadata;
+            return this;
+        }
+
+        public Builder cryptoMetadata(CryptoMetadata cryptoMetadata) {
+            this.cryptoMetadata = cryptoMetadata;
+            return this;
+        }
+
+        public WriteContext build() {
+            return new WriteContext(
+                fileName,
+                streamContextSupplier,
+                fileSize,
+                failIfAlreadyExists,
+                writePriority,
+                uploadFinalizer,
+                doRemoteDataIntegrityCheck,
+                expectedChecksum,
+                metadata,
+                cryptoMetadata
+            );
+        }
     }
 }

@@ -7,24 +7,6 @@
  */
 
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
- */
-/*
  * Modifications Copyright OpenSearch Contributors. See
  * GitHub history for details.
  */
@@ -34,25 +16,39 @@ package org.opensearch.action.support.clustermanager;
 import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
 import org.opensearch.action.ActionRequestValidationException;
+import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
+import org.opensearch.action.admin.cluster.settings.TransportClusterUpdateSettingsAction;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.action.support.ThreadedActionListener;
+import org.opensearch.action.support.clustermanager.term.GetTermVersionResponse;
 import org.opensearch.action.support.replication.ClusterStateCreationUtils;
+import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.EmptyClusterInfoService;
 import org.opensearch.cluster.NotClusterManagerException;
 import org.opensearch.cluster.block.ClusterBlock;
 import org.opensearch.cluster.block.ClusterBlockException;
 import org.opensearch.cluster.block.ClusterBlockLevel;
 import org.opensearch.cluster.block.ClusterBlocks;
+import org.opensearch.cluster.coordination.ClusterStateTermVersion;
+import org.opensearch.cluster.coordination.CoordinationMetadata;
 import org.opensearch.cluster.coordination.FailedToCommitClusterStateException;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
+import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.cluster.node.DiscoveryNodes;
+import org.opensearch.cluster.routing.allocation.AllocationService;
+import org.opensearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
+import org.opensearch.cluster.routing.allocation.decider.AllocationDeciders;
+import org.opensearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider;
 import org.opensearch.cluster.service.ClusterManagerThrottlingException;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.UUIDs;
 import org.opensearch.common.action.ActionFuture;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.settings.SettingsException;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.action.ActionListener;
@@ -61,10 +57,15 @@ import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.discovery.ClusterManagerNotDiscoveredException;
+import org.opensearch.gateway.remote.ClusterMetadataManifest;
+import org.opensearch.gateway.remote.RemoteClusterStateService;
 import org.opensearch.node.NodeClosedException;
+import org.opensearch.node.remotestore.RemoteStoreNodeService;
+import org.opensearch.snapshots.EmptySnapshotsInfoService;
 import org.opensearch.tasks.Task;
 import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.gateway.TestGatewayAllocator;
 import org.opensearch.test.transport.CapturingTransport;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
@@ -77,8 +78,11 @@ import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CyclicBarrier;
@@ -86,10 +90,21 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import org.mockito.Mockito;
+
+import static org.opensearch.index.remote.RemoteMigrationIndexMetadataUpdaterTests.createIndexMetadataWithRemoteStoreSettings;
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY;
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_ROUTING_TABLE_REPOSITORY_NAME_ATTRIBUTE_KEY;
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY;
+import static org.opensearch.node.remotestore.RemoteStoreNodeAttribute.REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY;
+import static org.opensearch.node.remotestore.RemoteStoreNodeService.REMOTE_STORE_COMPATIBILITY_MODE_SETTING;
 import static org.opensearch.test.ClusterServiceUtils.createClusterService;
 import static org.opensearch.test.ClusterServiceUtils.setState;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.when;
 
 public class TransportClusterManagerNodeActionTests extends OpenSearchTestCase {
     private static ThreadPool threadPool;
@@ -205,6 +220,8 @@ public class TransportClusterManagerNodeActionTests extends OpenSearchTestCase {
     }
 
     class Action extends TransportClusterManagerNodeAction<Request, Response> {
+        private boolean localExecuteSupported = false;
+
         Action(String actionName, TransportService transportService, ClusterService clusterService, ThreadPool threadPool) {
             super(
                 actionName,
@@ -215,6 +232,18 @@ public class TransportClusterManagerNodeActionTests extends OpenSearchTestCase {
                 Request::new,
                 new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY))
             );
+        }
+
+        Action(
+            String actionName,
+            TransportService transportService,
+            ClusterService clusterService,
+            ThreadPool threadPool,
+            RemoteClusterStateService clusterStateService
+        ) {
+            this(actionName, transportService, clusterService, threadPool);
+            this.remoteClusterStateService = clusterStateService;
+            this.localExecuteSupported = true;
         }
 
         @Override
@@ -242,6 +271,10 @@ public class TransportClusterManagerNodeActionTests extends OpenSearchTestCase {
         @Override
         protected ClusterBlockException checkBlock(Request request, ClusterState state) {
             return null; // default implementation, overridden in specific tests
+        }
+
+        public boolean localExecuteSupportedByAction() {
+            return localExecuteSupported;
         }
     }
 
@@ -295,7 +328,7 @@ public class TransportClusterManagerNodeActionTests extends OpenSearchTestCase {
 
         new Action("internal:testAction", transportService, clusterService, threadPool) {
             @Override
-            protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<Response> listener) {
+            protected void clusterManagerOperation(Task task, Request request, ClusterState state, ActionListener<Response> listener) {
                 if (clusterManagerOperationFailure) {
                     listener.onFailure(exception);
                 } else {
@@ -577,6 +610,83 @@ public class TransportClusterManagerNodeActionTests extends OpenSearchTestCase {
         assertThat(listener.get(), equalTo(response));
     }
 
+    public void testStepDownToNoMasterThenNewMasterElected() throws ExecutionException, InterruptedException {
+        Request request = new Request().clusterManagerNodeTimeout(TimeValue.timeValueHours(1));
+        PlainActionFuture<Response> listener = new PlainActionFuture<>();
+
+        final Response response = new Response();
+
+        setState(clusterService, ClusterStateCreationUtils.state(localNode, localNode, allNodes));
+
+        new Action("internal:testAction", transportService, clusterService, threadPool) {
+            @Override
+            protected void clusterManagerOperation(Request request, ClusterState state, ActionListener<Response> listener)
+                throws Exception {
+                // Master steps down but no new master elected yet (master = null)
+                setState(clusterService, ClusterStateCreationUtils.state(localNode, null, allNodes));
+                listener.onFailure(new NotClusterManagerException("Fake error"));
+            }
+        }.execute(request, listener);
+
+        // No transport request yet, waiting for a master to appear
+        assertThat(transport.capturedRequests().length, equalTo(0));
+        assertFalse(listener.isDone());
+
+        // Now a new master is elected (remoteNode)
+        setState(clusterService, ClusterStateCreationUtils.state(localNode, remoteNode, allNodes));
+
+        // The request should now be forwarded to the new master
+        assertThat(transport.capturedRequests().length, equalTo(1));
+        CapturingTransport.CapturedRequest capturedRequest = transport.capturedRequests()[0];
+        assertTrue(capturedRequest.node.isClusterManagerNode());
+        assertThat(capturedRequest.request, equalTo(request));
+        assertThat(capturedRequest.action, equalTo("internal:testAction"));
+
+        transport.handleResponse(capturedRequest.requestId, response);
+        assertTrue(listener.isDone());
+        assertThat(listener.get(), equalTo(response));
+    }
+
+    public void testStepDownToNoMasterThenSameNodeReelected() throws ExecutionException, InterruptedException {
+        Request request = new Request().clusterManagerNodeTimeout(TimeValue.timeValueHours(1));
+        PlainActionFuture<Response> listener = new PlainActionFuture<>();
+
+        final Response response = new Response();
+        final int[] callCount = { 0 };
+
+        // Set initial state with a higher base version so re-election produces a version
+        // that the predicate recognizes as newer than the original
+        setState(clusterService, ClusterState.builder(ClusterStateCreationUtils.state(localNode, localNode, allNodes)).version(10));
+
+        new Action("internal:testAction", transportService, clusterService, threadPool) {
+            @Override
+            protected void clusterManagerOperation(Request request, ClusterState state, ActionListener<Response> listener)
+                throws Exception {
+                callCount[0]++;
+                if (callCount[0] == 1) {
+                    // First call: master steps down, no new master yet
+                    setState(clusterService, ClusterStateCreationUtils.state(localNode, null, allNodes));
+                    listener.onFailure(new FailedToCommitClusterStateException("Fake error"));
+                } else {
+                    // Second call: we're master again, succeed
+                    listener.onResponse(response);
+                }
+            }
+        }.execute(request, listener);
+
+        // Waiting for a master, no transport request, not done yet
+        assertFalse(listener.isDone());
+        assertThat(transport.capturedRequests().length, equalTo(0));
+
+        // Same node becomes master again with higher version
+        setState(clusterService, ClusterState.builder(ClusterStateCreationUtils.state(localNode, localNode, allNodes)).version(11));
+
+        // Should have re-executed locally and succeeded
+        assertTrue(listener.isDone());
+        assertThat(listener.get(), equalTo(response));
+        assertThat(callCount[0], equalTo(2));
+    }
+
     // Validate TransportMasterNodeAction.testDelegateToClusterManager() works correctly on node with the deprecated MASTER_ROLE.
     public void testDelegateToClusterManagerOnNodeWithDeprecatedMasterRole() throws ExecutionException, InterruptedException {
         DiscoveryNode localNode = new DiscoveryNode(
@@ -623,7 +733,7 @@ public class TransportClusterManagerNodeActionTests extends OpenSearchTestCase {
 
         TransportClusterManagerNodeAction action = new Action("internal:testAction", transportService, clusterService, threadPool) {
             @Override
-            protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<Response> listener) {
+            protected void clusterManagerOperation(Task task, Request request, ClusterState state, ActionListener<Response> listener) {
                 if (exception.getAndSet(false)) {
                     throw new ClusterManagerThrottlingException("Throttling Exception : Limit exceeded for test");
                 } else {
@@ -660,7 +770,7 @@ public class TransportClusterManagerNodeActionTests extends OpenSearchTestCase {
         CapturingTransport.CapturedRequest[] capturedRequests = transport.getCapturedRequestsAndClear();
         assertThat(capturedRequests.length, equalTo(1));
         CapturingTransport.CapturedRequest capturedRequest = capturedRequests[0];
-        assertTrue(capturedRequest.node.isMasterNode());
+        assertTrue(capturedRequest.node.isClusterManagerNode());
         assertThat(capturedRequest.request, equalTo(request));
         assertThat(capturedRequest.action, equalTo("internal:testAction"));
         transport.handleRemoteError(
@@ -694,7 +804,7 @@ public class TransportClusterManagerNodeActionTests extends OpenSearchTestCase {
 
         TransportClusterManagerNodeAction action = new Action("internal:testAction", transportService, clusterService, threadPool) {
             @Override
-            protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<Response> listener)
+            protected void clusterManagerOperation(Task task, Request request, ClusterState state, ActionListener<Response> listener)
                 throws Exception {
                 if (exception.getAndSet(false)) {
                     throw new Exception("Different exception");
@@ -709,5 +819,342 @@ public class TransportClusterManagerNodeActionTests extends OpenSearchTestCase {
 
         assertFalse(retried.get());
         assertFalse(exception.get());
+    }
+
+    public void testFetchFromRemoteStore() throws InterruptedException, BrokenBarrierException, ExecutionException, IOException {
+        Map<String, String> attributes = new HashMap<>();
+        attributes.put(REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY, "repo1");
+        attributes.put(REMOTE_STORE_ROUTING_TABLE_REPOSITORY_NAME_ATTRIBUTE_KEY, "repo2");
+
+        localNode = new DiscoveryNode(
+            "local_node",
+            buildNewFakeTransportAddress(),
+            attributes,
+            Collections.singleton(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE),
+            Version.CURRENT
+        );
+        remoteNode = new DiscoveryNode(
+            "remote_node",
+            buildNewFakeTransportAddress(),
+            attributes,
+            Collections.singleton(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE),
+            Version.CURRENT
+        );
+        allNodes = new DiscoveryNode[] { localNode, remoteNode };
+
+        setState(clusterService, ClusterStateCreationUtils.state(localNode, remoteNode, allNodes));
+
+        ClusterState state = clusterService.state();
+        RemoteClusterStateService remoteClusterStateService = Mockito.mock(RemoteClusterStateService.class);
+        ClusterMetadataManifest manifest = ClusterMetadataManifest.builder()
+            .clusterTerm(state.term() + 1)
+            .stateVersion(state.version() + 1)
+            .build();
+        when(
+            remoteClusterStateService.getClusterMetadataManifestByTermVersion(
+                eq(state.getClusterName().value()),
+                eq(state.metadata().clusterUUID()),
+                eq(state.term() + 1),
+                eq(state.version() + 1)
+            )
+        ).thenReturn(Optional.of(manifest));
+        when(remoteClusterStateService.getClusterStateForManifest(state.getClusterName().value(), manifest, localNode.getId(), true))
+            .thenReturn(buildClusterState(state, state.term() + 1, state.version() + 1));
+
+        PlainActionFuture<Response> listener = new PlainActionFuture<>();
+        Request request = new Request();
+        Action action = new Action("internal:testAction", transportService, clusterService, threadPool, remoteClusterStateService);
+        action.execute(request, listener);
+
+        CapturingTransport.CapturedRequest capturedRequest = transport.capturedRequests()[0];
+        // mismatch term and version
+        GetTermVersionResponse termResp = new GetTermVersionResponse(
+            new ClusterStateTermVersion(state.getClusterName(), state.metadata().clusterUUID(), state.term() + 1, state.version() + 1),
+            true
+        );
+        transport.handleResponse(capturedRequest.requestId, termResp);
+        // no more transport calls
+        assertThat(transport.capturedRequests().length, equalTo(1));
+        assertTrue(listener.isDone());
+    }
+
+    private ClusterState buildClusterState(ClusterState state, long term, long version) {
+        CoordinationMetadata.Builder coordMetadataBuilder = CoordinationMetadata.builder().term(term);
+        Metadata newMetadata = Metadata.builder().coordinationMetadata(coordMetadataBuilder.build()).build();
+        return ClusterState.builder(state).version(version).metadata(newMetadata).build();
+    }
+
+    /**
+     * Tests that when the clusterStateLatestChecker's GetTermVersion request fails with a
+     * ConnectTransportException, the handleTransportException path correctly triggers a retry
+     * and the request is eventually forwarded to a new master.
+     */
+    public void testClusterStateLatestCheckerHandlesTransportException() throws ExecutionException, InterruptedException {
+        Map<String, String> attributes = new HashMap<>();
+        attributes.put(REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY, "repo1");
+        attributes.put(REMOTE_STORE_ROUTING_TABLE_REPOSITORY_NAME_ATTRIBUTE_KEY, "repo2");
+
+        localNode = new DiscoveryNode(
+            "local_node",
+            buildNewFakeTransportAddress(),
+            attributes,
+            Collections.singleton(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE),
+            Version.CURRENT
+        );
+        remoteNode = new DiscoveryNode(
+            "remote_node",
+            buildNewFakeTransportAddress(),
+            attributes,
+            Collections.singleton(DiscoveryNodeRole.CLUSTER_MANAGER_ROLE),
+            Version.CURRENT
+        );
+        allNodes = new DiscoveryNode[] { localNode, remoteNode };
+
+        setState(clusterService, ClusterStateCreationUtils.state(localNode, remoteNode, allNodes));
+
+        RemoteClusterStateService remoteClusterStateService = Mockito.mock(RemoteClusterStateService.class);
+
+        Request request = new Request().clusterManagerNodeTimeout(TimeValue.timeValueSeconds(60));
+        PlainActionFuture<Response> listener = new PlainActionFuture<>();
+        Action action = new Action("internal:testAction", transportService, clusterService, threadPool, remoteClusterStateService);
+        action.execute(request, listener);
+
+        // The first captured request is the GetTermVersion request to the remote master
+        CapturingTransport.CapturedRequest[] capturedRequests = transport.getCapturedRequestsAndClear();
+        assertThat(capturedRequests.length, equalTo(1));
+        CapturingTransport.CapturedRequest capturedRequest = capturedRequests[0];
+
+        // Simulate a ConnectTransportException on the GetTermVersion request
+        transport.handleRemoteError(capturedRequest.requestId, new ConnectTransportException(remoteNode, "Fake connection error"));
+
+        // The action should now be waiting for a new master via the observer
+        assertFalse(listener.isDone());
+
+        // Elect localNode as the new master — this triggers the observer and re-executes locally
+        setState(clusterService, ClusterStateCreationUtils.state(localNode, localNode, allNodes));
+
+        assertTrue(listener.isDone());
+        assertNotNull(listener.get());
+    }
+
+    /**
+     * Tests that when executeOnClusterManager's transport request fails with a NodeClosedException
+     * wrapped in a RemoteTransportException, the handleTransportException path correctly retries.
+     */
+    public void testExecuteOnClusterManagerHandlesNodeClosedException() throws ExecutionException, InterruptedException {
+        Request request = new Request().clusterManagerNodeTimeout(TimeValue.timeValueSeconds(60));
+        setState(clusterService, ClusterStateCreationUtils.state(localNode, remoteNode, allNodes));
+
+        PlainActionFuture<Response> listener = new PlainActionFuture<>();
+        new Action("internal:testAction", transportService, clusterService, threadPool).execute(request, listener);
+
+        CapturingTransport.CapturedRequest[] capturedRequests = transport.getCapturedRequestsAndClear();
+        assertThat(capturedRequests.length, equalTo(1));
+        CapturingTransport.CapturedRequest capturedRequest = capturedRequests[0];
+
+        // Simulate a NodeClosedException (remote master shutting down)
+        transport.handleRemoteError(capturedRequest.requestId, new NodeClosedException(remoteNode));
+
+        // Should be waiting for a new master
+        assertFalse(listener.isDone());
+
+        // New master elected (localNode)
+        setState(clusterService, ClusterStateCreationUtils.state(localNode, localNode, allNodes));
+
+        assertTrue(listener.isDone());
+        assertNotNull(listener.get());
+    }
+
+    public void testDontAllowSwitchingToStrictCompatibilityModeForMixedCluster() {
+        // request to change cluster compatibility mode to STRICT
+        Settings currentCompatibilityModeSettings = Settings.builder()
+            .put(REMOTE_STORE_COMPATIBILITY_MODE_SETTING.getKey(), RemoteStoreNodeService.CompatibilityMode.MIXED)
+            .build();
+        Settings intendedCompatibilityModeSettings = Settings.builder()
+            .put(REMOTE_STORE_COMPATIBILITY_MODE_SETTING.getKey(), RemoteStoreNodeService.CompatibilityMode.STRICT)
+            .build();
+        ClusterUpdateSettingsRequest request = new ClusterUpdateSettingsRequest();
+        request.persistentSettings(intendedCompatibilityModeSettings);
+
+        // mixed cluster (containing both remote and non-remote nodes)
+        DiscoveryNode nonRemoteNode1 = new DiscoveryNode(UUIDs.base64UUID(), buildNewFakeTransportAddress(), Version.CURRENT);
+        DiscoveryNode remoteNode1 = new DiscoveryNode(
+            UUIDs.base64UUID(),
+            buildNewFakeTransportAddress(),
+            getRemoteStoreNodeAttributes(),
+            DiscoveryNodeRole.BUILT_IN_ROLES,
+            Version.CURRENT
+        );
+
+        DiscoveryNodes discoveryNodes = DiscoveryNodes.builder()
+            .add(nonRemoteNode1)
+            .localNodeId(nonRemoteNode1.getId())
+            .add(remoteNode1)
+            .localNodeId(remoteNode1.getId())
+            .build();
+
+        Metadata metadata = Metadata.builder().persistentSettings(currentCompatibilityModeSettings).build();
+
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).nodes(discoveryNodes).build();
+        AllocationService allocationService = new AllocationService(
+            new AllocationDeciders(Collections.singleton(new MaxRetryAllocationDecider())),
+            new TestGatewayAllocator(),
+            new BalancedShardsAllocator(Settings.EMPTY),
+            EmptyClusterInfoService.INSTANCE,
+            EmptySnapshotsInfoService.INSTANCE
+        );
+        TransportClusterUpdateSettingsAction transportClusterUpdateSettingsAction = new TransportClusterUpdateSettingsAction(
+            transportService,
+            clusterService,
+            threadPool,
+            allocationService,
+            new ActionFilters(Collections.emptySet()),
+            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)),
+            clusterService.getClusterSettings()
+        );
+
+        final SettingsException exception = expectThrows(
+            SettingsException.class,
+            () -> transportClusterUpdateSettingsAction.validateCompatibilityModeSettingRequest(request, clusterState)
+        );
+        assertEquals(
+            "can not switch to STRICT compatibility mode when the cluster contains both remote and non-remote nodes",
+            exception.getMessage()
+        );
+
+        DiscoveryNode nonRemoteNode2 = new DiscoveryNode(UUIDs.base64UUID(), buildNewFakeTransportAddress(), Version.CURRENT);
+        DiscoveryNode remoteNode2 = new DiscoveryNode(
+            UUIDs.base64UUID(),
+            buildNewFakeTransportAddress(),
+            getRemoteStoreNodeAttributes(),
+            DiscoveryNodeRole.BUILT_IN_ROLES,
+            Version.CURRENT
+        );
+
+        // cluster with only non-remote nodes
+        discoveryNodes = DiscoveryNodes.builder()
+            .add(nonRemoteNode1)
+            .localNodeId(nonRemoteNode1.getId())
+            .add(nonRemoteNode2)
+            .localNodeId(nonRemoteNode2.getId())
+            .build();
+
+        metadata = createIndexMetadataWithRemoteStoreSettings("test-index");
+        ClusterState sameTypeClusterState = ClusterState.builder(clusterState).nodes(discoveryNodes).metadata(metadata).build();
+        transportClusterUpdateSettingsAction.validateCompatibilityModeSettingRequest(request, sameTypeClusterState);
+
+        // cluster with only non-remote nodes
+        discoveryNodes = DiscoveryNodes.builder()
+            .add(remoteNode1)
+            .localNodeId(remoteNode1.getId())
+            .add(remoteNode2)
+            .localNodeId(remoteNode2.getId())
+            .build();
+        sameTypeClusterState = ClusterState.builder(sameTypeClusterState).nodes(discoveryNodes).metadata(metadata).build();
+        transportClusterUpdateSettingsAction.validateCompatibilityModeSettingRequest(request, sameTypeClusterState);
+    }
+
+    public void testDontAllowSwitchingCompatibilityModeForClusterWithMultipleVersions() {
+        // request to change cluster compatibility mode
+        boolean toStrictMode = randomBoolean();
+        Settings currentCompatibilityModeSettings = Settings.builder()
+            .put(REMOTE_STORE_COMPATIBILITY_MODE_SETTING.getKey(), RemoteStoreNodeService.CompatibilityMode.MIXED)
+            .build();
+        Settings intendedCompatibilityModeSettings = Settings.builder()
+            .put(
+                REMOTE_STORE_COMPATIBILITY_MODE_SETTING.getKey(),
+                toStrictMode ? RemoteStoreNodeService.CompatibilityMode.STRICT : RemoteStoreNodeService.CompatibilityMode.MIXED
+            )
+            .build();
+        ClusterUpdateSettingsRequest request = new ClusterUpdateSettingsRequest();
+        request.persistentSettings(intendedCompatibilityModeSettings);
+
+        // two different but compatible open search versions for the discovery nodes
+        final Version version1 = Version.V_2_13_0;
+        final Version version2 = Version.V_2_13_1;
+
+        DiscoveryNode discoveryNode1 = new DiscoveryNode(
+            UUIDs.base64UUID(),
+            buildNewFakeTransportAddress(),
+            toStrictMode ? getRemoteStoreNodeAttributes() : Collections.emptyMap(),
+            DiscoveryNodeRole.BUILT_IN_ROLES,
+            version1
+        );
+        DiscoveryNode discoveryNode2 = new DiscoveryNode(
+            UUIDs.base64UUID(),
+            buildNewFakeTransportAddress(),
+            toStrictMode ? getRemoteStoreNodeAttributes() : Collections.emptyMap(),
+            DiscoveryNodeRole.BUILT_IN_ROLES,
+            version2 // not same as discoveryNode1
+        );
+
+        DiscoveryNodes discoveryNodes = DiscoveryNodes.builder()
+            .add(discoveryNode1)
+            .localNodeId(discoveryNode1.getId())
+            .add(discoveryNode2)
+            .localNodeId(discoveryNode2.getId())
+            .build();
+
+        Metadata metadata = Metadata.builder().persistentSettings(currentCompatibilityModeSettings).build();
+
+        ClusterState differentVersionClusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(metadata)
+            .nodes(discoveryNodes)
+            .build();
+        AllocationService allocationService = new AllocationService(
+            new AllocationDeciders(Collections.singleton(new MaxRetryAllocationDecider())),
+            new TestGatewayAllocator(),
+            new BalancedShardsAllocator(Settings.EMPTY),
+            EmptyClusterInfoService.INSTANCE,
+            EmptySnapshotsInfoService.INSTANCE
+        );
+        TransportClusterUpdateSettingsAction transportClusterUpdateSettingsAction = new TransportClusterUpdateSettingsAction(
+            transportService,
+            clusterService,
+            threadPool,
+            allocationService,
+            new ActionFilters(Collections.emptySet()),
+            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)),
+            clusterService.getClusterSettings()
+        );
+
+        // changing compatibility mode when all nodes are not of the same version
+        final SettingsException exception = expectThrows(
+            SettingsException.class,
+            () -> transportClusterUpdateSettingsAction.validateCompatibilityModeSettingRequest(request, differentVersionClusterState)
+        );
+        assertThat(
+            exception.getMessage(),
+            containsString("can not change the compatibility mode when all the nodes in cluster are not of the same version")
+        );
+
+        // changing compatibility mode when all nodes are of the same version
+        discoveryNode2 = new DiscoveryNode(
+            UUIDs.base64UUID(),
+            buildNewFakeTransportAddress(),
+            toStrictMode ? getRemoteStoreNodeAttributes() : Collections.emptyMap(),
+            DiscoveryNodeRole.BUILT_IN_ROLES,
+            version1 // same as discoveryNode1
+        );
+        discoveryNodes = DiscoveryNodes.builder()
+            .add(discoveryNode1)
+            .localNodeId(discoveryNode1.getId())
+            .add(discoveryNode2)
+            .localNodeId(discoveryNode2.getId())
+            .build();
+
+        ClusterState sameVersionClusterState = ClusterState.builder(differentVersionClusterState)
+            .nodes(discoveryNodes)
+            .metadata(createIndexMetadataWithRemoteStoreSettings("test"))
+            .build();
+        transportClusterUpdateSettingsAction.validateCompatibilityModeSettingRequest(request, sameVersionClusterState);
+    }
+
+    private Map<String, String> getRemoteStoreNodeAttributes() {
+        Map<String, String> remoteStoreNodeAttributes = new HashMap<>();
+        remoteStoreNodeAttributes.put(REMOTE_STORE_CLUSTER_STATE_REPOSITORY_NAME_ATTRIBUTE_KEY, "my-cluster-repo-1");
+        remoteStoreNodeAttributes.put(REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY, "my-segment-repo-1");
+        remoteStoreNodeAttributes.put(REMOTE_STORE_TRANSLOG_REPOSITORY_NAME_ATTRIBUTE_KEY, "my-translog-repo-1");
+        return remoteStoreNodeAttributes;
     }
 }

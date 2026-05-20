@@ -55,14 +55,15 @@ import java.util.List;
 import java.util.Map;
 
 import static org.opensearch.tasks.Task.X_OPAQUE_ID;
+import static org.opensearch.tasks.Task.X_REQUEST_ID;
 
 /**
  * The default rest channel for incoming requests. This class implements the basic logic for sending a rest
- * response. It will set necessary headers nad ensure that bytes are released after the response is sent.
+ * response. It will set necessary headers and ensure that bytes are released after the response is sent.
  *
  * @opensearch.internal
  */
-public class DefaultRestChannel extends AbstractRestChannel implements RestChannel {
+class DefaultRestChannel extends AbstractRestChannel implements RestChannel {
 
     static final String CLOSE = "close";
     static final String CONNECTION = "connection";
@@ -149,6 +150,9 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
             opaque = request.header(X_OPAQUE_ID);
             if (opaque != null) {
                 setHeaderField(httpResponse, X_OPAQUE_ID, opaque);
+            }
+            if (request.header(X_REQUEST_ID) != null) {
+                setHeaderField(httpResponse, X_REQUEST_ID, request.header(X_REQUEST_ID));
             }
 
             // Add all custom headers

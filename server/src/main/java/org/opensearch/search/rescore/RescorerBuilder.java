@@ -32,6 +32,7 @@
 
 package org.opensearch.search.rescore;
 
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.common.ParsingException;
 import org.opensearch.core.common.Strings;
@@ -51,8 +52,9 @@ import java.util.Objects;
 /**
  * The abstract base builder for instances of {@link RescorerBuilder}.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public abstract class RescorerBuilder<RB extends RescorerBuilder<RB>>
     implements
         NamedWriteable,

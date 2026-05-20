@@ -48,7 +48,6 @@ import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.script.AggregationScript;
 import org.opensearch.script.BucketAggregationScript;
 import org.opensearch.script.BucketAggregationSelectorScript;
-import org.opensearch.script.ClassPermission;
 import org.opensearch.script.FieldScript;
 import org.opensearch.script.FilterScript;
 import org.opensearch.script.NumberSortScript;
@@ -58,10 +57,10 @@ import org.opensearch.script.ScriptEngine;
 import org.opensearch.script.ScriptException;
 import org.opensearch.script.TermsSetQueryScript;
 import org.opensearch.search.lookup.SearchLookup;
+import org.opensearch.secure_sm.AccessController;
 
-import java.security.AccessControlContext;
-import java.security.AccessController;
-import java.security.PrivilegedAction;
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -173,33 +172,13 @@ public class ExpressionScriptEngine implements ScriptEngine {
     @Override
     public <T> T compile(String scriptName, String scriptSource, ScriptContext<T> context, Map<String, String> params) {
         // classloader created here
-        final SecurityManager sm = System.getSecurityManager();
         SpecialPermission.check();
-        Expression expr = AccessController.doPrivileged(new PrivilegedAction<Expression>() {
-            @Override
-            public Expression run() {
-                try {
-                    // snapshot our context here, we check on behalf of the expression
-                    AccessControlContext engineContext = AccessController.getContext();
-                    ClassLoader loader = getClass().getClassLoader();
-                    if (sm != null) {
-                        loader = new ClassLoader(loader) {
-                            @Override
-                            protected Class<?> loadClass(String name, boolean resolve) throws ClassNotFoundException {
-                                try {
-                                    engineContext.checkPermission(new ClassPermission(name));
-                                } catch (SecurityException e) {
-                                    throw new ClassNotFoundException(name, e);
-                                }
-                                return super.loadClass(name, resolve);
-                            }
-                        };
-                    }
-                    // NOTE: validation is delayed to allow runtime vars, and we don't have access to per index stuff here
-                    return JavascriptCompiler.compile(scriptSource, JavascriptCompiler.DEFAULT_FUNCTIONS, loader);
-                } catch (ParseException e) {
-                    throw convertToScriptException("compile error", scriptSource, scriptSource, e);
-                }
+        Expression expr = AccessController.doPrivileged(() -> {
+            try {
+                // NOTE: validation is delayed to allow runtime vars, and we don't have access to per index stuff here
+                return JavascriptCompiler.compile(scriptSource, JavascriptCompiler.DEFAULT_FUNCTIONS);
+            } catch (ParseException e) {
+                throw convertToScriptException("compile error", scriptSource, scriptSource, e);
             }
         });
         if (contexts.containsKey(context) == false) {
@@ -249,7 +228,12 @@ public class ExpressionScriptEngine implements ScriptEngine {
                             placeholder.setValue(((Number) value).doubleValue());
                         }
                     });
-                    return expr.evaluate(functionValuesArray);
+
+                    try {
+                        return expr.evaluate(functionValuesArray);
+                    } catch (final IOException ex) {
+                        throw new UncheckedIOException(ex);
+                    }
                 }
             };
         };
@@ -316,14 +300,14 @@ public class ExpressionScriptEngine implements ScriptEngine {
         // instead of complicating SimpleBindings (which should stay simple)
         SimpleBindings bindings = new SimpleBindings();
         boolean needsScores = false;
-        ReplaceableConstDoubleValueSource specialValue = null;
+        PerThreadReplaceableConstDoubleValueSource specialValue = null;
         for (String variable : expr.variables) {
             try {
                 if (variable.equals("_score")) {
                     bindings.add("_score", DoubleValuesSource.SCORES);
                     needsScores = true;
                 } else if (variable.equals("_value")) {
-                    specialValue = new ReplaceableConstDoubleValueSource();
+                    specialValue = new PerThreadReplaceableConstDoubleValueSource();
                     bindings.add("_value", specialValue);
                     // noop: _value is special for aggregations, and is handled in ExpressionScriptBindings
                     // TODO: if some uses it in a scoring expression, they will get a nasty failure when evaluating...need a
@@ -388,7 +372,7 @@ public class ExpressionScriptEngine implements ScriptEngine {
         // NOTE: if we need to do anything complicated with bindings in the future, we can just extend Bindings,
         // instead of complicating SimpleBindings (which should stay simple)
         SimpleBindings bindings = new SimpleBindings();
-        ReplaceableConstDoubleValueSource specialValue = null;
+        PerThreadReplaceableConstDoubleValueSource specialValue = null;
         boolean needsScores = false;
         for (String variable : expr.variables) {
             try {
@@ -396,7 +380,7 @@ public class ExpressionScriptEngine implements ScriptEngine {
                     bindings.add("_score", DoubleValuesSource.SCORES);
                     needsScores = true;
                 } else if (variable.equals("_value")) {
-                    specialValue = new ReplaceableConstDoubleValueSource();
+                    specialValue = new PerThreadReplaceableConstDoubleValueSource();
                     bindings.add("_value", specialValue);
                     // noop: _value is special for aggregations, and is handled in ExpressionScriptBindings
                     // TODO: if some uses it in a scoring expression, they will get a nasty failure when evaluating...need a
@@ -425,8 +409,8 @@ public class ExpressionScriptEngine implements ScriptEngine {
         List<String> stack = new ArrayList<>();
         stack.add(portion);
         StringBuilder pointer = new StringBuilder();
-        if (cause instanceof ParseException) {
-            int offset = ((ParseException) cause).getErrorOffset();
+        if (cause instanceof ParseException parseException) {
+            int offset = parseException.getErrorOffset();
             for (int i = 0; i < offset; i++) {
                 pointer.append(' ');
             }
@@ -488,14 +472,14 @@ public class ExpressionScriptEngine implements ScriptEngine {
 
         IndexFieldData<?> fieldData = lookup.doc().getForField(fieldType);
         final DoubleValuesSource valueSource;
-        if (fieldType instanceof GeoPointFieldType) {
+        if (fieldType.unwrap() instanceof GeoPointFieldType) {
             // geo
             if (methodname == null) {
                 valueSource = GeoField.getVariable(fieldData, fieldname, variablename);
             } else {
                 valueSource = GeoField.getMethod(fieldData, fieldname, methodname);
             }
-        } else if (fieldType instanceof DateFieldMapper.DateFieldType) {
+        } else if (fieldType.unwrap() instanceof DateFieldMapper.DateFieldType) {
             if (dateAccessor) {
                 // date object
                 if (methodname == null) {
@@ -532,8 +516,8 @@ public class ExpressionScriptEngine implements ScriptEngine {
         // NOTE: by checking for the variable in vars first, it allows masking document fields with a global constant,
         // but if we were to reverse it, we could provide a way to supply dynamic defaults for documents missing the field?
         Object value = params.get(variable);
-        if (value instanceof Number) {
-            bindings.add(variable, DoubleValuesSource.constant(((Number) value).doubleValue()));
+        if (value instanceof Number number) {
+            bindings.add(variable, DoubleValuesSource.constant(number.doubleValue()));
         } else {
             throw new ParseException("Parameter [" + variable + "] must be a numeric type", 0);
         }

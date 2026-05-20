@@ -90,8 +90,8 @@ public final class OpenSearchToParentBlockJoinQuery extends Query {
             // a MatchNoDocsQuery if it realizes that it cannot match any docs and rewrites
             // to a MatchNoDocsQuery. In that case it would be fine to lose information
             // about the nested path.
-            if (innerRewrite instanceof ToParentBlockJoinQuery) {
-                return new OpenSearchToParentBlockJoinQuery((ToParentBlockJoinQuery) innerRewrite, path, scoreMode);
+            if (innerRewrite instanceof ToParentBlockJoinQuery toParentQuery) {
+                return new OpenSearchToParentBlockJoinQuery(toParentQuery, path, scoreMode);
             } else {
                 return innerRewrite;
             }

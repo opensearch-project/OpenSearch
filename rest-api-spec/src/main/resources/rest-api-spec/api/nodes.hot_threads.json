@@ -1,7 +1,7 @@
 {
   "nodes.hot_threads":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/cluster-nodes-hot-threads.html",
+      "url":"https://opensearch.org/docs/latest/api-reference/nodes-apis/nodes-hot-threads/",
       "description":"Returns information about hot threads on each node in the cluster."
     },
     "stability":"stable",

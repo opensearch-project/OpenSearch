@@ -154,6 +154,9 @@ final class RequestConverters {
         parameters.withRefreshPolicy(bulkRequest.getRefreshPolicy());
         parameters.withPipeline(bulkRequest.pipeline());
         parameters.withRouting(bulkRequest.routing());
+        if (bulkRequest.requireAlias() != null) {
+            parameters.withRequireAlias(bulkRequest.requireAlias());
+        }
         // Bulk API only supports newline delimited JSON or Smile. Before executing
         // the bulk, we need to check that all requests have the same content-type
         // and this content-type is supported by the Bulk API.
@@ -177,7 +180,7 @@ final class RequestConverters {
         }
 
         if (bulkContentType == null) {
-            bulkContentType = MediaTypeRegistry.JSON;
+            bulkContentType = REQUEST_BODY_CONTENT_TYPE;
         }
 
         final byte separator = bulkContentType.xContent().streamSeparator();
@@ -231,6 +234,10 @@ final class RequestConverters {
                         if (updateRequest.fetchSource() != null) {
                             metadata.field("_source", updateRequest.fetchSource());
                         }
+                    }
+
+                    if (action.isRequireAlias()) {
+                        metadata.field("require_alias", action.isRequireAlias());
                     }
                     metadata.endObject();
                 }
@@ -417,7 +424,7 @@ final class RequestConverters {
             }
         }
         if (mediaType == null) {
-            mediaType = Requests.INDEX_CONTENT_TYPE;
+            mediaType = REQUEST_BODY_CONTENT_TYPE;
         }
         request.addParameters(parameters.asMap());
         request.setEntity(createEntity(updateRequest, mediaType));
@@ -533,7 +540,7 @@ final class RequestConverters {
         Request request;
 
         if (searchTemplateRequest.isSimulate()) {
-            request = new Request(HttpGet.METHOD_NAME, "_render/template");
+            request = new Request(HttpGet.METHOD_NAME, "/_render/template");
         } else {
             SearchRequest searchRequest = searchTemplateRequest.getRequest();
             String endpoint = endpoint(searchRequest.indices(), "_search/template");
@@ -796,8 +803,7 @@ final class RequestConverters {
     }
 
     static Request mtermVectors(MultiTermVectorsRequest mtvrequest) throws IOException {
-        String endpoint = "_mtermvectors";
-        Request request = new Request(HttpGet.METHOD_NAME, endpoint);
+        Request request = new Request(HttpGet.METHOD_NAME, "/_mtermvectors");
         request.setEntity(createEntity(mtvrequest, REQUEST_BODY_CONTENT_TYPE));
         return request;
     }
@@ -938,14 +944,6 @@ final class RequestConverters {
                 return putParam("fields", String.join(",", fields));
             }
             return this;
-        }
-
-        /**
-         * @deprecated As of 2.0, because supporting inclusive language, replaced by {@link #withClusterManagerTimeout(TimeValue)}
-         */
-        @Deprecated
-        Params withMasterTimeout(TimeValue clusterManagerTimeout) {
-            return putParam("master_timeout", clusterManagerTimeout);
         }
 
         Params withClusterManagerTimeout(TimeValue clusterManagerTimeout) {
@@ -1258,7 +1256,7 @@ final class RequestConverters {
      */
     static MediaType enforceSameContentType(IndexRequest indexRequest, @Nullable MediaType mediaType) {
         MediaType requestContentType = indexRequest.getContentType();
-        if (requestContentType != MediaTypeRegistry.JSON && requestContentType != MediaTypeRegistry.fromFormat("smile")) {
+        if (requestContentType != REQUEST_BODY_CONTENT_TYPE && requestContentType != MediaTypeRegistry.fromFormat("smile")) {
             throw new IllegalArgumentException(
                 "Unsupported content-type found for request with content-type ["
                     + requestContentType

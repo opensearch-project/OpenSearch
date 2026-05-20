@@ -83,9 +83,6 @@ setup:
         index: [test, other]
 ---
 "Simple Composite aggregation with GeoTile grid":
-  - skip:
-      version: " - 7.4.99"
-      reason: geotile_grid is not supported until 7.5.0
   - do:
       search:
         rest_total_hits_as_int: true
@@ -127,9 +124,6 @@ setup:
 
 ---
 "Simple Composite aggregation with geotile grid add aggregate after":
-  - skip:
-      version: " - 7.4.99"
-      reason: geotile_grid is not supported until 7.5.0
   - do:
       search:
         index: test

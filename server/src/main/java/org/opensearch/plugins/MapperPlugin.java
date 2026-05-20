@@ -33,9 +33,11 @@
 package org.opensearch.plugins;
 
 import org.opensearch.index.mapper.Mapper;
+import org.opensearch.index.mapper.MappingTransformer;
 import org.opensearch.index.mapper.MetadataFieldMapper;
 
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -90,4 +92,12 @@ public interface MapperPlugin {
      * get field mappings and field capabilities API will return every field that's present in the mappings.
      */
     Function<String, Predicate<String>> NOOP_FIELD_FILTER = index -> NOOP_FIELD_PREDICATE;
+
+    /**
+     * Returns mapper transformer implementations added by this plugin.
+     *
+     */
+    default List<MappingTransformer> getMappingTransformers() {
+        return Collections.emptyList();
+    }
 }

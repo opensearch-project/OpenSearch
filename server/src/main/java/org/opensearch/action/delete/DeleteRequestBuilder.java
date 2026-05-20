@@ -34,10 +34,10 @@ package org.opensearch.action.delete;
 
 import org.opensearch.action.support.WriteRequestBuilder;
 import org.opensearch.action.support.replication.ReplicationRequestBuilder;
-import org.opensearch.client.OpenSearchClient;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.index.VersionType;
+import org.opensearch.transport.client.OpenSearchClient;
 
 /**
  * A delete document action request builder.

@@ -39,22 +39,36 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.ArrayUtils;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.tasks.TaskId;
+import org.opensearch.geometry.LinearRing;
+import org.opensearch.index.query.GeoShapeQueryBuilder;
 import org.opensearch.index.query.QueryBuilders;
+import org.opensearch.rest.RestRequest;
+import org.opensearch.rest.action.search.RestSearchAction;
 import org.opensearch.search.AbstractSearchTestCase;
 import org.opensearch.search.Scroll;
 import org.opensearch.search.builder.PointInTimeBuilder;
 import org.opensearch.search.builder.SearchSourceBuilder;
+import org.opensearch.search.fetch.subphase.FetchSourceContext;
 import org.opensearch.search.rescore.QueryRescorerBuilder;
+import org.opensearch.search.sort.FieldSortBuilder;
+import org.opensearch.search.sort.ShardDocSortBuilder;
+import org.opensearch.search.sort.SortBuilders;
+import org.opensearch.search.sort.SortOrder;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.VersionUtils;
+import org.opensearch.test.rest.FakeRestRequest;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.IntConsumer;
 
 import static java.util.Collections.emptyMap;
+import static org.opensearch.action.search.SearchType.DFS_QUERY_THEN_FETCH;
 import static org.opensearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItems;
+import static org.mockito.Mockito.mock;
 
 public class SearchRequestTests extends AbstractSearchTestCase {
 
@@ -72,6 +86,35 @@ public class SearchRequestTests extends AbstractSearchTestCase {
             randomNonNegativeLong(),
             randomBoolean()
         );
+    }
+
+    public void testClone() throws IOException {
+        SearchRequest searchRequest = new SearchRequest();
+        SearchRequest clonedRequest = searchRequest.deepCopy();
+        assertEquals(searchRequest.hashCode(), clonedRequest.hashCode());
+        assertNotSame(searchRequest, clonedRequest);
+
+        String[] includes = new String[] { "field1.*" };
+        String[] excludes = new String[] { "field2.*" };
+        FetchSourceContext fetchSourceContext = new FetchSourceContext(true, includes, excludes);
+        SearchSourceBuilder source = new SearchSourceBuilder().fetchSource(fetchSourceContext);
+        SearchRequest complexSearchRequest = createSearchRequest().source(source);
+        complexSearchRequest.requestCache(false);
+        complexSearchRequest.scroll(new TimeValue(1000));
+        SearchRequest clonedComplexRequest = complexSearchRequest.deepCopy();
+        assertEquals(complexSearchRequest.hashCode(), clonedComplexRequest.hashCode());
+        assertNotSame(complexSearchRequest, clonedComplexRequest);
+        assertEquals(fetchSourceContext, clonedComplexRequest.source().fetchSource());
+        assertNotSame(fetchSourceContext, clonedComplexRequest.source().fetchSource());
+        // Change the value of the original includes array and excludes array
+        includes[0] = "new_field1.*";
+        excludes[0] = "new_field2.*";
+        // Values in the original fetchSource object should be updated
+        assertEquals("new_field1.*", complexSearchRequest.source().fetchSource().includes()[0]);
+        assertEquals("new_field2.*", complexSearchRequest.source().fetchSource().excludes()[0]);
+        // Values in the cloned fetchSource object should not be updated
+        assertEquals("field1.*", clonedComplexRequest.source().fetchSource().includes()[0]);
+        assertEquals("field2.*", clonedComplexRequest.source().fetchSource().excludes()[0]);
     }
 
     public void testWithLocalReduction() {
@@ -200,6 +243,146 @@ public class SearchRequestTests extends AbstractSearchTestCase {
             assertEquals(1, validationErrors.validationErrors().size());
             assertEquals("using [point in time] is not allowed in a scroll context", validationErrors.validationErrors().get(0));
         }
+        {
+            // _shard_doc without PIT -> reject
+            SearchRequest searchRequest = new SearchRequest().source(new SearchSourceBuilder().sort(SortBuilders.shardDocSort()));
+            ActionRequestValidationException e = searchRequest.validate();
+            assertNotNull(e);
+            assertEquals(1, e.validationErrors().size());
+            assertEquals(
+                "_shard_doc is only supported with point-in-time (PIT). Add a PIT or remove _shard_doc.",
+                e.validationErrors().get(0)
+            );
+        }
+        {
+            // _shard_doc with scroll -> reject (even if PIT is present, scroll is illegal)
+            SearchRequest searchRequest = new SearchRequest().source(
+                // include PIT to mirror real usage; scroll + PIT is already invalid, but we assert shard_doc+scroll error is present
+                new SearchSourceBuilder().pointInTimeBuilder(new PointInTimeBuilder("id")).sort(SortBuilders.shardDocSort())
+            ).scroll(TimeValue.timeValueSeconds(30));
+            ActionRequestValidationException e = searchRequest.validate();
+            assertNotNull(e);
+            assertTrue(
+                "Expected shard_doc + scroll error",
+                e.validationErrors().contains("_shard_doc cannot be used with scroll. Use PIT + search_after instead.")
+            );
+        }
+        {
+            // Smuggled as FieldSortBuilder("_shard_doc") without PIT -> reject
+            SearchRequest searchRequest = new SearchRequest().source(
+                new SearchSourceBuilder().sort(new FieldSortBuilder(ShardDocSortBuilder.NAME))
+            );
+            ActionRequestValidationException e = searchRequest.validate();
+            assertNotNull(e);
+            assertEquals(1, e.validationErrors().size());
+            assertEquals(
+                "_shard_doc is only supported with point-in-time (PIT). Add a PIT or remove _shard_doc.",
+                e.validationErrors().get(0)
+            );
+        }
+        {
+            // Duplicate _shard_doc with PIT -> reject
+            SearchRequest searchRequest = new SearchRequest().source(
+                new SearchSourceBuilder().pointInTimeBuilder(new PointInTimeBuilder("id"))
+                    .sort(SortBuilders.shardDocSort()) // first
+                    .sort(SortBuilders.shardDocSort().order(SortOrder.DESC)) // second
+            );
+            ActionRequestValidationException e = searchRequest.validate();
+            assertNotNull(e);
+            assertEquals(1, e.validationErrors().size());
+            assertEquals("duplicate _shard_doc sort detected. Specify it at most once.", e.validationErrors().get(0));
+        }
+        {
+            // Duplicate detection insensitive to order differences (ASC + DESC is still duplicate)
+            SearchRequest searchRequest = new SearchRequest().source(
+                new SearchSourceBuilder().pointInTimeBuilder(new PointInTimeBuilder("id"))
+                    .sort(SortBuilders.shardDocSort().order(SortOrder.ASC))
+                    .sort(SortBuilders.shardDocSort().order(SortOrder.DESC))
+            );
+            ActionRequestValidationException e = searchRequest.validate();
+            assertNotNull(e);
+            assertEquals(1, e.validationErrors().size());
+            assertEquals("duplicate _shard_doc sort detected. Specify it at most once.", e.validationErrors().get(0));
+        }
+        {
+            // Duplicate via mixed builders: ShardDocSortBuilder + FieldSortBuilder("_shard_doc") -> reject
+            SearchRequest searchRequest = new SearchRequest().source(
+                new SearchSourceBuilder().pointInTimeBuilder(new PointInTimeBuilder("id"))
+                    .sort(SortBuilders.shardDocSort())
+                    .sort(new FieldSortBuilder(ShardDocSortBuilder.NAME))
+            );
+            ActionRequestValidationException e = searchRequest.validate();
+            assertNotNull(e);
+            assertEquals(1, e.validationErrors().size());
+            assertEquals("duplicate _shard_doc sort detected. Specify it at most once.", e.validationErrors().get(0));
+        }
+        {
+            // _shard_doc + search_after but NO PIT -> reject (explicitly exercising this combo)
+            SearchRequest searchRequest = new SearchRequest().source(
+                new SearchSourceBuilder().sort(SortBuilders.shardDocSort()).searchAfter(new Object[] { 1L })
+            );
+            ActionRequestValidationException e = searchRequest.validate();
+            assertNotNull(e);
+            assertEquals(1, e.validationErrors().size());
+            assertEquals(
+                "_shard_doc is only supported with point-in-time (PIT). Add a PIT or remove _shard_doc.",
+                e.validationErrors().get(0)
+            );
+        }
+        {
+            // Error aggregation with SCROLL: collect multiple errors including shard_doc+scroll
+            SearchRequest searchRequest = new SearchRequest().source(
+                new SearchSourceBuilder().pointInTimeBuilder(new PointInTimeBuilder("id"))  // PIT + scroll already illegal
+                    .sort(SortBuilders.shardDocSort())                    // shard_doc + scroll = illegal
+                    .from(10)                                             // also illegal with scroll
+                    .size(0)                                              // also illegal with scroll
+            ).scroll(TimeValue.timeValueSeconds(30));
+
+            ActionRequestValidationException e = searchRequest.validate();
+            assertNotNull(e);
+            assertThat(
+                e.validationErrors(),
+                hasItems(
+                    "using [point in time] is not allowed in a scroll context",
+                    "_shard_doc cannot be used with scroll. Use PIT + search_after instead.",
+                    "using [from] is not allowed in a scroll context",
+                    "[size] cannot be [0] in a scroll context"
+                )
+            );
+        }
+        {
+            // PIT present + search_after but NO _shard_doc -> valid (control for PIT/search_after)
+            SearchRequest searchRequest = new SearchRequest().source(
+                new SearchSourceBuilder().pointInTimeBuilder(new PointInTimeBuilder("id"))
+                    .sort("_id", SortOrder.ASC)
+                    .searchAfter(new Object[] { "x" })
+            );
+            ActionRequestValidationException e = searchRequest.validate();
+            assertNull(e);
+        }
+        {
+            // FieldSortBuilder("_shard_doc") WITH PIT -> valid (object-style declared as FieldSort)
+            SearchRequest searchRequest = new SearchRequest().source(
+                new SearchSourceBuilder().pointInTimeBuilder(new PointInTimeBuilder("id"))
+                    .sort(new FieldSortBuilder(ShardDocSortBuilder.NAME).order(SortOrder.ASC))
+            );
+            ActionRequestValidationException e = searchRequest.validate();
+            assertNull(e);
+        }
+        {
+            // Good: PIT + _shard_doc -> valid
+            SearchRequest searchRequest = new SearchRequest().source(
+                new SearchSourceBuilder().pointInTimeBuilder(new PointInTimeBuilder("id")).sort(SortBuilders.shardDocSort())
+            );
+            ActionRequestValidationException e = searchRequest.validate();
+            assertNull("PIT + _shard_doc should be valid", e);
+        }
+        {
+            // Control: no PIT, no _shard_doc -> valid
+            SearchRequest searchRequest = new SearchRequest().source(new SearchSourceBuilder().sort("_id", SortOrder.ASC));
+            ActionRequestValidationException e = searchRequest.validate();
+            assertNull(e);
+        }
     }
 
     public void testCopyConstructor() throws IOException {
@@ -208,6 +391,19 @@ public class SearchRequestTests extends AbstractSearchTestCase {
         assertEquals(deserializedRequest, searchRequest);
         assertEquals(deserializedRequest.hashCode(), searchRequest.hashCode());
         assertNotSame(deserializedRequest, searchRequest);
+    }
+
+    public void testParseSearchRequestWithUnsupportedSearchType() throws IOException {
+        RestRequest restRequest = new FakeRestRequest();
+        SearchRequest searchRequest = createSearchRequest();
+        IntConsumer setSize = mock(IntConsumer.class);
+        restRequest.params().put("search_type", "query_and_fetch");
+
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> RestSearchAction.parseSearchRequest(searchRequest, restRequest, null, namedWriteableRegistry, setSize)
+        );
+        assertEquals("Unsupported search type [query_and_fetch]", exception.getMessage());
     }
 
     public void testEqualsAndHashcode() throws IOException {
@@ -236,10 +432,7 @@ public class SearchRequestTests extends AbstractSearchTestCase {
         );
         mutators.add(
             () -> mutation.searchType(
-                randomValueOtherThan(
-                    searchRequest.searchType(),
-                    () -> randomFrom(SearchType.DFS_QUERY_THEN_FETCH, SearchType.QUERY_THEN_FETCH)
-                )
+                randomValueOtherThan(searchRequest.searchType(), () -> randomFrom(DFS_QUERY_THEN_FETCH, SearchType.QUERY_THEN_FETCH))
             )
         );
         mutators.add(() -> mutation.source(randomValueOtherThan(searchRequest.source(), this::createSearchSourceBuilder)));
@@ -266,6 +459,19 @@ public class SearchRequestTests extends AbstractSearchTestCase {
         assertThat(
             toDescription(new SearchRequest().scroll(TimeValue.timeValueMinutes(5))),
             equalTo("indices[], search_type[QUERY_THEN_FETCH], scroll[5m], source[]")
+        );
+    }
+
+    public void testDescriptionOnSourceError() {
+        LinearRing linearRing = new LinearRing(new double[] { -25, -35, -25 }, new double[] { -25, -35, -25 });
+        GeoShapeQueryBuilder queryBuilder = new GeoShapeQueryBuilder("geo", linearRing);
+        SearchRequest request = new SearchRequest();
+        request.source(new SearchSourceBuilder().query(queryBuilder));
+        assertThat(
+            toDescription(request),
+            equalTo(
+                "indices[], search_type[QUERY_THEN_FETCH], source[<error: java.lang.UnsupportedOperationException: line ring cannot be serialized using GeoJson>]"
+            )
         );
     }
 

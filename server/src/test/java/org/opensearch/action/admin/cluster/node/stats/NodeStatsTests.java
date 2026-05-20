@@ -32,29 +32,58 @@
 
 package org.opensearch.action.admin.cluster.node.stats;
 
+import org.opensearch.Version;
 import org.opensearch.action.admin.indices.stats.CommonStats;
 import org.opensearch.action.admin.indices.stats.CommonStatsFlags;
+import org.opensearch.action.admin.indices.stats.IndexShardStats;
+import org.opensearch.action.admin.indices.stats.ShardStats;
+import org.opensearch.action.admin.indices.stats.StatusCounterStats;
 import org.opensearch.action.search.SearchRequestStats;
 import org.opensearch.cluster.coordination.PendingClusterStateStats;
 import org.opensearch.cluster.coordination.PersistedStateStats;
 import org.opensearch.cluster.coordination.PublishClusterStateStats;
 import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.routing.ShardRouting;
+import org.opensearch.cluster.routing.ShardRoutingState;
+import org.opensearch.cluster.routing.TestShardRouting;
 import org.opensearch.cluster.routing.WeightedRoutingStats;
 import org.opensearch.cluster.service.ClusterManagerThrottlingStats;
 import org.opensearch.cluster.service.ClusterStateStats;
+import org.opensearch.common.cache.CacheType;
+import org.opensearch.common.cache.service.NodeCacheStats;
+import org.opensearch.common.cache.stats.CacheStats;
+import org.opensearch.common.cache.stats.DefaultCacheStatsHolder;
+import org.opensearch.common.cache.stats.DefaultCacheStatsHolderTests;
+import org.opensearch.common.cache.stats.ImmutableCacheStatsHolder;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.metrics.OperationStats;
+import org.opensearch.common.settings.ClusterSettings;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.common.xcontent.XContentHelper;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.indices.breaker.AllCircuitBreakerStats;
 import org.opensearch.core.indices.breaker.CircuitBreakerStats;
+import org.opensearch.core.xcontent.ToXContent;
+import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.discovery.DiscoveryStats;
 import org.opensearch.gateway.remote.RemotePersistenceStats;
 import org.opensearch.http.HttpStats;
 import org.opensearch.index.ReplicationStats;
 import org.opensearch.index.SegmentReplicationRejectionStats;
+import org.opensearch.index.cache.query.QueryCacheStats;
+import org.opensearch.index.engine.SegmentsStats;
+import org.opensearch.index.fielddata.FieldDataStats;
+import org.opensearch.index.flush.FlushStats;
 import org.opensearch.index.remote.RemoteSegmentStats;
 import org.opensearch.index.remote.RemoteTranslogTransferTracker;
+import org.opensearch.index.shard.DocsStats;
+import org.opensearch.index.shard.IndexingStats;
+import org.opensearch.index.shard.ShardPath;
+import org.opensearch.index.store.StoreStats;
 import org.opensearch.index.translog.RemoteTranslogStats;
 import org.opensearch.indices.NodeIndicesStats;
 import org.opensearch.ingest.IngestStats;
@@ -63,24 +92,35 @@ import org.opensearch.monitor.jvm.JvmStats;
 import org.opensearch.monitor.os.OsStats;
 import org.opensearch.monitor.process.ProcessStats;
 import org.opensearch.node.AdaptiveSelectionStats;
+import org.opensearch.node.IoUsageStats;
 import org.opensearch.node.NodeResourceUsageStats;
 import org.opensearch.node.NodesResourceUsageStats;
 import org.opensearch.node.ResponseCollectorService;
+import org.opensearch.node.remotestore.RemoteStoreNodeStats;
+import org.opensearch.ratelimitting.admissioncontrol.controllers.AdmissionController;
+import org.opensearch.ratelimitting.admissioncontrol.controllers.CpuBasedAdmissionController;
+import org.opensearch.ratelimitting.admissioncontrol.enums.AdmissionControlActionType;
+import org.opensearch.ratelimitting.admissioncontrol.stats.AdmissionControlStats;
+import org.opensearch.ratelimitting.admissioncontrol.stats.AdmissionControllerStats;
 import org.opensearch.script.ScriptCacheStats;
 import org.opensearch.script.ScriptStats;
+import org.opensearch.search.suggest.completion.CompletionStats;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.VersionUtils;
 import org.opensearch.threadpool.ThreadPoolStats;
 import org.opensearch.transport.TransportStats;
 
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
@@ -383,13 +423,13 @@ public class NodeStatsTests extends OpenSearchTestCase {
                     assertEquals(totalStats.getCount(), deserializedIngestStats.getTotalStats().getCount());
                     assertEquals(totalStats.getCurrent(), deserializedIngestStats.getTotalStats().getCurrent());
                     assertEquals(totalStats.getFailedCount(), deserializedIngestStats.getTotalStats().getFailedCount());
-                    assertEquals(totalStats.getTotalTimeInMillis(), deserializedIngestStats.getTotalStats().getTotalTimeInMillis());
+                    assertEquals(totalStats.getTotalTime(), deserializedIngestStats.getTotalStats().getTotalTime());
                     assertEquals(ingestStats.getPipelineStats().size(), deserializedIngestStats.getPipelineStats().size());
                     for (IngestStats.PipelineStat pipelineStat : ingestStats.getPipelineStats()) {
                         String pipelineId = pipelineStat.getPipelineId();
                         OperationStats deserializedPipelineStats = getPipelineStats(deserializedIngestStats.getPipelineStats(), pipelineId);
                         assertEquals(pipelineStat.getStats().getFailedCount(), deserializedPipelineStats.getFailedCount());
-                        assertEquals(pipelineStat.getStats().getTotalTimeInMillis(), deserializedPipelineStats.getTotalTimeInMillis());
+                        assertEquals(pipelineStat.getStats().getTotalTime(), deserializedPipelineStats.getTotalTime());
                         assertEquals(pipelineStat.getStats().getCurrent(), deserializedPipelineStats.getCurrent());
                         assertEquals(pipelineStat.getStats().getCount(), deserializedPipelineStats.getCount());
                         List<IngestStats.ProcessorStat> processorStats = ingestStats.getProcessorStats().get(pipelineId);
@@ -398,10 +438,7 @@ public class NodeStatsTests extends OpenSearchTestCase {
                         for (IngestStats.ProcessorStat processorStat : processorStats) {
                             IngestStats.ProcessorStat deserializedProcessorStat = it.next();
                             assertEquals(processorStat.getStats().getFailedCount(), deserializedProcessorStat.getStats().getFailedCount());
-                            assertEquals(
-                                processorStat.getStats().getTotalTimeInMillis(),
-                                deserializedProcessorStat.getStats().getTotalTimeInMillis()
-                            );
+                            assertEquals(processorStat.getStats().getTotalTime(), deserializedProcessorStat.getStats().getTotalTime());
                             assertEquals(processorStat.getStats().getCurrent(), deserializedProcessorStat.getStats().getCurrent());
                             assertEquals(processorStat.getStats().getCount(), deserializedProcessorStat.getStats().getCount());
                         }
@@ -540,15 +577,59 @@ public class NodeStatsTests extends OpenSearchTestCase {
                     assertEquals(replicationStats.getTotalBytesBehind(), deserializedReplicationStats.getTotalBytesBehind());
                     assertEquals(replicationStats.getMaxReplicationLag(), deserializedReplicationStats.getMaxReplicationLag());
                 }
+                AdmissionControlStats admissionControlStats = nodeStats.getAdmissionControlStats();
+                AdmissionControlStats deserializedAdmissionControlStats = deserializedNodeStats.getAdmissionControlStats();
+                if (admissionControlStats == null) {
+                    assertNull(deserializedAdmissionControlStats);
+                } else {
+                    assertEquals(
+                        admissionControlStats.getAdmissionControllerStatsList().size(),
+                        deserializedAdmissionControlStats.getAdmissionControllerStatsList().size()
+                    );
+                    AdmissionControllerStats admissionControllerStats = admissionControlStats.getAdmissionControllerStatsList().get(0);
+                    AdmissionControllerStats deserializedAdmissionControllerStats = deserializedAdmissionControlStats
+                        .getAdmissionControllerStatsList()
+                        .get(0);
+                    assertEquals(
+                        admissionControllerStats.getAdmissionControllerName(),
+                        deserializedAdmissionControllerStats.getAdmissionControllerName()
+                    );
+                    assertEquals(1, (long) admissionControllerStats.getRejectionCount().get(AdmissionControlActionType.SEARCH.getType()));
+                    assertEquals(
+                        admissionControllerStats.getRejectionCount().get(AdmissionControlActionType.SEARCH.getType()),
+                        deserializedAdmissionControllerStats.getRejectionCount().get(AdmissionControlActionType.SEARCH.getType())
+                    );
+
+                    assertEquals(2, (long) admissionControllerStats.getRejectionCount().get(AdmissionControlActionType.INDEXING.getType()));
+                    assertEquals(
+                        admissionControllerStats.getRejectionCount().get(AdmissionControlActionType.INDEXING.getType()),
+                        deserializedAdmissionControllerStats.getRejectionCount().get(AdmissionControlActionType.INDEXING.getType())
+                    );
+                }
+                NodeCacheStats nodeCacheStats = nodeStats.getNodeCacheStats();
+                NodeCacheStats deserializedNodeCacheStats = deserializedNodeStats.getNodeCacheStats();
+                if (nodeCacheStats == null) {
+                    assertNull(deserializedNodeCacheStats);
+                } else {
+                    assertEquals(nodeCacheStats, deserializedNodeCacheStats);
+                }
+
+                RemoteStoreNodeStats remoteStoreNodeStats = nodeStats.getRemoteStoreNodeStats();
+                RemoteStoreNodeStats deserializedRemoteStoreNodeStats = deserializedNodeStats.getRemoteStoreNodeStats();
+                if (remoteStoreNodeStats == null) {
+                    assertNull(deserializedRemoteStoreNodeStats);
+                } else {
+                    assertEquals(remoteStoreNodeStats, deserializedRemoteStoreNodeStats);
+                }
             }
         }
     }
 
-    public static NodeStats createNodeStats() {
+    public static NodeStats createNodeStats() throws IOException {
         return createNodeStats(false);
     }
 
-    public static NodeStats createNodeStats(boolean remoteStoreStats) {
+    public static NodeStats createNodeStats(boolean remoteStoreStats) throws IOException {
         DiscoveryNode node = new DiscoveryNode(
             "test_node",
             buildNewFakeTransportAddress(),
@@ -564,23 +645,24 @@ public class NodeStatsTests extends OpenSearchTestCase {
             }
             long memTotal = randomNonNegativeLong();
             long swapTotal = randomNonNegativeLong();
-            osStats = new OsStats(
-                System.currentTimeMillis(),
-                new OsStats.Cpu(randomShort(), loadAverages),
-                new OsStats.Mem(memTotal, randomLongBetween(0, memTotal)),
-                new OsStats.Swap(swapTotal, randomLongBetween(0, swapTotal)),
-                new OsStats.Cgroup(
-                    randomAlphaOfLength(8),
-                    randomNonNegativeLong(),
-                    randomAlphaOfLength(8),
-                    randomNonNegativeLong(),
-                    randomNonNegativeLong(),
-                    new OsStats.Cgroup.CpuStat(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong()),
-                    randomAlphaOfLength(8),
-                    Long.toString(randomNonNegativeLong()),
-                    Long.toString(randomNonNegativeLong())
+            osStats = new OsStats.Builder().timestamp(System.currentTimeMillis())
+                .cpu(new OsStats.Cpu(randomShort(), loadAverages))
+                .mem(new OsStats.Mem(memTotal, randomLongBetween(0, memTotal)))
+                .swap(new OsStats.Swap(swapTotal, randomLongBetween(0, swapTotal)))
+                .cgroup(
+                    new OsStats.Cgroup(
+                        randomAlphaOfLength(8),
+                        randomNonNegativeLong(),
+                        randomAlphaOfLength(8),
+                        randomNonNegativeLong(),
+                        randomNonNegativeLong(),
+                        new OsStats.Cgroup.CpuStat(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong()),
+                        randomAlphaOfLength(8),
+                        Long.toString(randomNonNegativeLong()),
+                        Long.toString(randomNonNegativeLong())
+                    )
                 )
-            );
+                .build();
         }
         ProcessStats processStats = frequently()
             ? new ProcessStats(
@@ -631,24 +713,22 @@ public class NodeStatsTests extends OpenSearchTestCase {
                 );
             }
             JvmStats.Classes classes = new JvmStats.Classes(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong());
-            jvmStats = frequently()
-                ? new JvmStats(
+            jvmStats = new JvmStats(
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                new JvmStats.Mem(
                     randomNonNegativeLong(),
                     randomNonNegativeLong(),
-                    new JvmStats.Mem(
-                        randomNonNegativeLong(),
-                        randomNonNegativeLong(),
-                        randomNonNegativeLong(),
-                        randomNonNegativeLong(),
-                        randomNonNegativeLong(),
-                        memoryPools
-                    ),
-                    threads,
-                    garbageCollectors,
-                    randomBoolean() ? Collections.emptyList() : bufferPoolList,
-                    classes
-                )
-                : null;
+                    randomNonNegativeLong(),
+                    randomNonNegativeLong(),
+                    randomNonNegativeLong(),
+                    memoryPools
+                ),
+                threads,
+                garbageCollectors,
+                randomBoolean() ? Collections.emptyList() : bufferPoolList,
+                classes
+            );
         }
         ThreadPoolStats threadPoolStats = null;
         if (frequently()) {
@@ -656,16 +736,16 @@ public class NodeStatsTests extends OpenSearchTestCase {
             List<ThreadPoolStats.Stats> threadPoolStatsList = new ArrayList<>();
             for (int i = 0; i < numThreadPoolStats; i++) {
                 threadPoolStatsList.add(
-                    new ThreadPoolStats.Stats(
-                        randomAlphaOfLengthBetween(3, 10),
-                        randomIntBetween(1, 1000),
-                        randomIntBetween(1, 1000),
-                        randomIntBetween(1, 1000),
-                        randomNonNegativeLong(),
-                        randomIntBetween(1, 1000),
-                        randomIntBetween(1, 1000),
-                        randomIntBetween(-1, 10)
-                    )
+                    new ThreadPoolStats.Stats.Builder().name(randomAlphaOfLengthBetween(3, 10))
+                        .threads(randomIntBetween(1, 1000))
+                        .queue(randomIntBetween(1, 1000))
+                        .active(randomIntBetween(1, 1000))
+                        .rejected(randomNonNegativeLong())
+                        .largest(randomIntBetween(1, 1000))
+                        .completed(randomIntBetween(1, 1000))
+                        .waitTimeNanos(randomIntBetween(-1, 10))
+                        .parallelism(-1) // Non-ForkJoinPool: use -1
+                        .build()
                 );
             }
             threadPoolStats = new ThreadPoolStats(threadPoolStatsList);
@@ -677,34 +757,32 @@ public class NodeStatsTests extends OpenSearchTestCase {
             for (int i = 0; i < numDeviceStats; i++) {
                 FsInfo.DeviceStats previousDeviceStats = randomBoolean()
                     ? null
-                    : new FsInfo.DeviceStats(
-                        randomInt(),
-                        randomInt(),
-                        randomAlphaOfLengthBetween(3, 10),
-                        randomNonNegativeLong(),
-                        randomNonNegativeLong(),
-                        randomNonNegativeLong(),
-                        randomNonNegativeLong(),
-                        randomNonNegativeLong(),
-                        randomNonNegativeLong(),
-                        randomNonNegativeLong(),
-                        randomNonNegativeLong(),
-                        null
-                    );
-                deviceStatsArray[i] = new FsInfo.DeviceStats(
-                    randomInt(),
-                    randomInt(),
-                    randomAlphaOfLengthBetween(3, 10),
-                    randomNonNegativeLong(),
-                    randomNonNegativeLong(),
-                    randomNonNegativeLong(),
-                    randomNonNegativeLong(),
-                    randomNonNegativeLong(),
-                    randomNonNegativeLong(),
-                    randomNonNegativeLong(),
-                    randomNonNegativeLong(),
-                    previousDeviceStats
-                );
+                    : new FsInfo.DeviceStats.Builder().majorDeviceNumber(randomInt())
+                        .minorDeviceNumber(randomInt())
+                        .deviceName(randomAlphaOfLengthBetween(3, 10))
+                        .currentReadsCompleted(randomNonNegativeLong())
+                        .currentSectorsRead(randomNonNegativeLong())
+                        .currentWritesCompleted(randomNonNegativeLong())
+                        .currentSectorsWritten(randomNonNegativeLong())
+                        .currentReadTime(randomNonNegativeLong())
+                        .currentWriteTime(randomNonNegativeLong())
+                        .currentQueueSize(randomNonNegativeLong())
+                        .currentIOTime(randomNonNegativeLong())
+                        .previousDeviceStats(null)
+                        .build();
+                deviceStatsArray[i] = new FsInfo.DeviceStats.Builder().majorDeviceNumber(randomInt())
+                    .minorDeviceNumber(randomInt())
+                    .deviceName(randomAlphaOfLengthBetween(3, 10))
+                    .currentReadsCompleted(randomNonNegativeLong())
+                    .currentSectorsRead(randomNonNegativeLong())
+                    .currentWritesCompleted(randomNonNegativeLong())
+                    .currentSectorsWritten(randomNonNegativeLong())
+                    .currentReadTime(randomNonNegativeLong())
+                    .currentWriteTime(randomNonNegativeLong())
+                    .currentQueueSize(randomNonNegativeLong())
+                    .currentIOTime(randomNonNegativeLong())
+                    .previousDeviceStats(previousDeviceStats)
+                    .build();
             }
             FsInfo.IoStats ioStats = new FsInfo.IoStats(deviceStatsArray);
             int numPaths = randomIntBetween(0, 10);
@@ -721,16 +799,17 @@ public class NodeStatsTests extends OpenSearchTestCase {
             fsInfo = new FsInfo(randomNonNegativeLong(), ioStats, paths);
         }
         TransportStats transportStats = frequently()
-            ? new TransportStats(
-                randomNonNegativeLong(),
-                randomNonNegativeLong(),
-                randomNonNegativeLong(),
-                randomNonNegativeLong(),
-                randomNonNegativeLong(),
-                randomNonNegativeLong()
-            )
+            ? new TransportStats.Builder().serverOpen(randomNonNegativeLong())
+                .totalOutboundConnections(randomNonNegativeLong())
+                .rxCount(randomNonNegativeLong())
+                .rxSize(randomNonNegativeLong())
+                .txCount(randomNonNegativeLong())
+                .txSize(randomNonNegativeLong())
+                .build()
             : null;
-        HttpStats httpStats = frequently() ? new HttpStats(randomNonNegativeLong(), randomNonNegativeLong()) : null;
+        HttpStats httpStats = frequently()
+            ? new HttpStats.Builder().serverOpen(randomNonNegativeLong()).totalOpen(randomNonNegativeLong()).build()
+            : null;
         AllCircuitBreakerStats allCircuitBreakerStats = null;
         if (frequently()) {
             int numCircuitBreakerStats = randomIntBetween(0, 10);
@@ -747,11 +826,14 @@ public class NodeStatsTests extends OpenSearchTestCase {
             allCircuitBreakerStats = new AllCircuitBreakerStats(circuitBreakerStatsArray);
         }
         ScriptStats scriptStats = frequently()
-            ? new ScriptStats(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong())
+            ? new ScriptStats.Builder().compilations(randomNonNegativeLong())
+                .cacheEvictions(randomNonNegativeLong())
+                .compilationLimitTriggered(randomNonNegativeLong())
+                .build()
             : null;
         ClusterStateStats stateStats = new ClusterStateStats();
         RemotePersistenceStats remoteStateStats = new RemotePersistenceStats();
-        stateStats.setPersistenceStats(Arrays.asList(remoteStateStats));
+        stateStats.setPersistenceStats(Arrays.asList(remoteStateStats.getUploadStats()));
         DiscoveryStats discoveryStats = frequently()
             ? new DiscoveryStats(
                 randomBoolean() ? new PendingClusterStateStats(randomInt(), randomInt(), randomInt()) : null,
@@ -826,7 +908,9 @@ public class NodeStatsTests extends OpenSearchTestCase {
                     nodeStats.put(nodeId, stats);
                 }
             }
-            adaptiveSelectionStats = new AdaptiveSelectionStats(nodeConnections, nodeStats);
+            adaptiveSelectionStats = new AdaptiveSelectionStats.Builder().clientOutgoingConnections(nodeConnections)
+                .nodeComputedStats(nodeStats)
+                .build();
         }
         NodesResourceUsageStats nodesResourceUsageStats = null;
         if (frequently()) {
@@ -845,6 +929,8 @@ public class NodeStatsTests extends OpenSearchTestCase {
                         nodeId,
                         System.currentTimeMillis(),
                         randomDoubleBetween(1.0, 100.0, true),
+                        randomDoubleBetween(1.0, 100.0, true),
+                        new IoUsageStats(100.0),
                         randomDoubleBetween(1.0, 100.0, true)
                     );
                     resourceUsageStatsMap.put(nodeId, stats);
@@ -862,6 +948,26 @@ public class NodeStatsTests extends OpenSearchTestCase {
             clusterManagerThrottlingStats = new ClusterManagerThrottlingStats();
             clusterManagerThrottlingStats.onThrottle("test-task", randomInt());
         }
+
+        AdmissionControlStats admissionControlStats = null;
+        if (frequently()) {
+            AdmissionController admissionController = new AdmissionController(
+                CpuBasedAdmissionController.CPU_BASED_ADMISSION_CONTROLLER,
+                null,
+                null
+            ) {
+                @Override
+                public void apply(String action, AdmissionControlActionType admissionControlActionType) {
+                    return;
+                }
+            };
+            admissionController.addRejectionCount(AdmissionControlActionType.SEARCH.getType(), 1);
+            admissionController.addRejectionCount(AdmissionControlActionType.INDEXING.getType(), 2);
+            AdmissionControllerStats stats = new AdmissionControllerStats(admissionController);
+            List<AdmissionControllerStats> statsList = new ArrayList();
+            statsList.add(stats);
+            admissionControlStats = new AdmissionControlStats(statsList);
+        }
         ScriptCacheStats scriptCacheStats = scriptStats != null ? scriptStats.toScriptCacheStats() : null;
 
         WeightedRoutingStats weightedRoutingStats = null;
@@ -869,6 +975,49 @@ public class NodeStatsTests extends OpenSearchTestCase {
         weightedRoutingStats.updateFailOpenCount();
 
         NodeIndicesStats indicesStats = getNodeIndicesStats(remoteStoreStats);
+
+        NodeCacheStats nodeCacheStats = null;
+        if (frequently()) {
+            int numIndices = randomIntBetween(1, 10);
+            int numShardsPerIndex = randomIntBetween(1, 50);
+
+            List<String> dimensionNames = List.of("index", "shard", "tier");
+            DefaultCacheStatsHolder statsHolder = new DefaultCacheStatsHolder(dimensionNames, "dummyStoreName");
+            for (int indexNum = 0; indexNum < numIndices; indexNum++) {
+                String indexName = "index" + indexNum;
+                for (int shardNum = 0; shardNum < numShardsPerIndex; shardNum++) {
+                    String shardName = "[" + indexName + "][" + shardNum + "]";
+                    for (String tierName : new String[] { "dummy_tier_1", "dummy_tier_2" }) {
+                        List<String> dimensionValues = List.of(indexName, shardName, tierName);
+                        CacheStats toIncrement = new CacheStats(randomInt(20), randomInt(20), randomInt(20), randomInt(20), randomInt(20));
+                        DefaultCacheStatsHolderTests.populateStatsHolderFromStatsValueMap(
+                            statsHolder,
+                            Map.of(dimensionValues, toIncrement)
+                        );
+                    }
+                }
+            }
+            CommonStatsFlags flags = new CommonStatsFlags();
+            for (CacheType cacheType : CacheType.values()) {
+                if (frequently()) {
+                    flags.includeCacheType(cacheType);
+                }
+            }
+            ImmutableCacheStatsHolder cacheStats = statsHolder.getImmutableCacheStatsHolder(dimensionNames.toArray(new String[0]));
+            TreeMap<CacheType, ImmutableCacheStatsHolder> cacheStatsMap = new TreeMap<>();
+            cacheStatsMap.put(CacheType.INDICES_REQUEST_CACHE, cacheStats);
+            nodeCacheStats = new NodeCacheStats(cacheStatsMap, flags);
+        }
+
+        RemoteStoreNodeStats remoteStoreNodeStats = null;
+        if (frequently()) {
+            remoteStoreNodeStats = new RemoteStoreNodeStats() {
+                @Override
+                public long getLastSuccessfulFetchOfPinnedTimestamps() {
+                    return 123456L;
+                }
+            };
+        }
 
         // TODO: Only remote_store based aspects of NodeIndicesStats are being tested here.
         // It is possible to test other metrics in NodeIndicesStats as well since it extends Writeable now
@@ -899,14 +1048,23 @@ public class NodeStatsTests extends OpenSearchTestCase {
             null,
             null,
             segmentReplicationRejectionStats,
-            null
+            null,
+            admissionControlStats,
+            nodeCacheStats,
+            remoteStoreNodeStats
         );
     }
 
     private static NodeIndicesStats getNodeIndicesStats(boolean remoteStoreStats) {
         NodeIndicesStats indicesStats = null;
         if (remoteStoreStats) {
-            indicesStats = new NodeIndicesStats(new CommonStats(CommonStatsFlags.ALL), new HashMap<>(), new SearchRequestStats());
+            ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+            indicesStats = new NodeIndicesStats(
+                new CommonStats(CommonStatsFlags.ALL),
+                new HashMap<>(),
+                new SearchRequestStats(clusterSettings),
+                new StatusCounterStats()
+            );
             RemoteSegmentStats remoteSegmentStats = indicesStats.getSegments().getRemoteSegmentStats();
             remoteSegmentStats.addUploadBytesStarted(10L);
             remoteSegmentStats.addUploadBytesSucceeded(10L);
@@ -929,30 +1087,426 @@ public class NodeStatsTests extends OpenSearchTestCase {
     }
 
     private static RemoteTranslogTransferTracker.Stats getRandomRemoteTranslogTransferTrackerStats() {
-        return new RemoteTranslogTransferTracker.Stats(
-            new ShardId("test-idx", "test-idx", randomIntBetween(1, 10)),
-            0L,
-            randomLongBetween(100, 500),
-            randomLongBetween(50, 100),
-            randomLongBetween(100, 200),
-            randomLongBetween(10000, 50000),
-            randomLongBetween(5000, 10000),
-            randomLongBetween(10000, 20000),
-            0L,
-            0D,
-            0D,
-            0D,
-            0L,
-            0L,
-            0L,
-            0L,
-            0D,
-            0D,
-            0D
-        );
+        return new RemoteTranslogTransferTracker.Stats.Builder().shardId(new ShardId("test-idx", "test-idx", randomIntBetween(1, 10)))
+            .lastSuccessfulUploadTimestamp(0L)
+            .totalUploadsStarted(randomLongBetween(100, 500))
+            .totalUploadsSucceeded(randomLongBetween(50, 100))
+            .totalUploadsFailed(randomLongBetween(100, 200))
+            .uploadBytesStarted(randomLongBetween(10000, 50000))
+            .uploadBytesSucceeded(randomLongBetween(5000, 10000))
+            .uploadBytesFailed(randomLongBetween(10000, 20000))
+            .totalUploadTimeInMillis(0L)
+            .uploadBytesMovingAverage(0D)
+            .uploadBytesPerSecMovingAverage(0D)
+            .uploadTimeMovingAverage(0D)
+            .lastSuccessfulDownloadTimestamp(0L)
+            .totalDownloadsSucceeded(0L)
+            .downloadBytesSucceeded(0L)
+            .totalDownloadTimeInMillis(0L)
+            .downloadBytesMovingAverage(0D)
+            .downloadBytesPerSecMovingAverage(0D)
+            .downloadTimeMovingAverage(0D)
+            .build();
     }
 
     private OperationStats getPipelineStats(List<IngestStats.PipelineStat> pipelineStats, String id) {
         return pipelineStats.stream().filter(p1 -> p1.getPipelineId().equals(id)).findFirst().map(p2 -> p2.getStats()).orElse(null);
+    }
+
+    public static class MockNodeIndicesStats extends NodeIndicesStats {
+
+        public MockNodeIndicesStats(StreamInput in) throws IOException {
+            super(in);
+        }
+
+        public MockNodeIndicesStats(
+            CommonStats oldStats,
+            Map<Index, List<IndexShardStats>> statsByShard,
+            SearchRequestStats searchRequestStats,
+            StatusCounterStats statusCounterStats
+        ) {
+            super(oldStats, statsByShard, searchRequestStats, statusCounterStats);
+        }
+
+        public MockNodeIndicesStats(
+            CommonStats oldStats,
+            Map<Index, List<IndexShardStats>> statsByShard,
+            SearchRequestStats searchRequestStats,
+            StatusCounterStats statusCounterStats,
+            StatsLevel level
+        ) {
+            super(oldStats, statsByShard, searchRequestStats, statusCounterStats, level);
+        }
+
+        public CommonStats getStats() {
+            return this.stats;
+        }
+
+        public Map<Index, CommonStats> getStatsByIndex() {
+            return this.statsByIndex;
+        }
+
+        public Map<Index, List<IndexShardStats>> getStatsByShard() {
+            return this.statsByShard;
+        }
+    }
+
+    public void testOldVersionNodes() throws IOException {
+        long numDocs = randomLongBetween(0, 10000);
+        long numDeletedDocs = randomLongBetween(0, 100);
+        CommonStats commonStats = new CommonStats(CommonStatsFlags.NONE);
+
+        commonStats.docs = new DocsStats.Builder().count(numDocs).deleted(numDeletedDocs).totalSizeInBytes(0).build();
+        commonStats.store = new StoreStats.Builder().sizeInBytes(100).reservedSize(0L).build();
+        commonStats.indexing = new IndexingStats();
+        DocsStats hostDocStats = new DocsStats.Builder().count(numDocs).deleted(numDeletedDocs).totalSizeInBytes(0).build();
+
+        CommonStatsFlags commonStatsFlags = new CommonStatsFlags();
+        commonStatsFlags.clear();
+        commonStatsFlags.set(CommonStatsFlags.Flag.Docs, true);
+        commonStatsFlags.set(CommonStatsFlags.Flag.Store, true);
+        commonStatsFlags.set(CommonStatsFlags.Flag.Indexing, true);
+
+        Index newIndex = new Index("index", "_na_");
+
+        MockNodeIndicesStats mockNodeIndicesStats = generateMockNodeIndicesStats(commonStats, newIndex, commonStatsFlags, null);
+
+        // To test out scenario when the incoming node stats response is from a node with an older ES Version.
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.setVersion(Version.V_2_13_0);
+            mockNodeIndicesStats.writeTo(out);
+            try (StreamInput in = out.bytes().streamInput()) {
+                in.setVersion(Version.V_2_13_0);
+                MockNodeIndicesStats newNodeIndicesStats = new MockNodeIndicesStats(in);
+
+                List<IndexShardStats> incomingIndexStats = newNodeIndicesStats.getStatsByShard().get(newIndex);
+                incomingIndexStats.forEach(indexShardStats -> {
+                    ShardStats shardStats = Arrays.stream(indexShardStats.getShards()).findFirst().get();
+                    DocsStats incomingDocStats = shardStats.getStats().docs;
+
+                    assertEquals(incomingDocStats.getCount(), hostDocStats.getCount());
+                    assertEquals(incomingDocStats.getTotalSizeInBytes(), hostDocStats.getTotalSizeInBytes());
+                    assertEquals(incomingDocStats.getAverageSizeInBytes(), hostDocStats.getAverageSizeInBytes());
+                    assertEquals(incomingDocStats.getDeleted(), hostDocStats.getDeleted());
+                });
+            }
+        }
+    }
+
+    public void testNodeIndicesStatsSerialization() throws IOException {
+        long numDocs = randomLongBetween(0, 10000);
+        long numDeletedDocs = randomLongBetween(0, 100);
+        List<NodeIndicesStats.StatsLevel> levelParams = new ArrayList<>();
+        levelParams.add(NodeIndicesStats.StatsLevel.INDICES);
+        levelParams.add(NodeIndicesStats.StatsLevel.SHARDS);
+        levelParams.add(NodeIndicesStats.StatsLevel.NODE);
+        CommonStats commonStats = new CommonStats(CommonStatsFlags.NONE);
+
+        commonStats.docs = new DocsStats.Builder().count(numDocs).deleted(numDeletedDocs).totalSizeInBytes(0).build();
+        commonStats.store = new StoreStats.Builder().sizeInBytes(100).reservedSize(0L).build();
+        commonStats.indexing = new IndexingStats();
+
+        CommonStatsFlags commonStatsFlags = new CommonStatsFlags();
+        commonStatsFlags.clear();
+        commonStatsFlags.set(CommonStatsFlags.Flag.Docs, true);
+        commonStatsFlags.set(CommonStatsFlags.Flag.Store, true);
+        commonStatsFlags.set(CommonStatsFlags.Flag.Indexing, true);
+        commonStatsFlags.setIncludeIndicesStatsByLevel(true);
+
+        levelParams.forEach(level -> {
+            Index newIndex = new Index("index", "_na_");
+
+            MockNodeIndicesStats mockNodeIndicesStats = generateMockNodeIndicesStats(commonStats, newIndex, commonStatsFlags, level);
+
+            // To test out scenario when the incoming node stats response is from a node with an older ES Version.
+            try (BytesStreamOutput out = new BytesStreamOutput()) {
+                mockNodeIndicesStats.writeTo(out);
+                try (StreamInput in = out.bytes().streamInput()) {
+                    MockNodeIndicesStats newNodeIndicesStats = new MockNodeIndicesStats(in);
+                    switch (level) {
+                        case NODE:
+                            assertNull(newNodeIndicesStats.getStatsByIndex());
+                            assertNull(newNodeIndicesStats.getStatsByShard());
+                            break;
+                        case INDICES:
+                            assertNull(newNodeIndicesStats.getStatsByShard());
+                            assertNotNull(newNodeIndicesStats.getStatsByIndex());
+                            break;
+                        case SHARDS:
+                            assertNull(newNodeIndicesStats.getStatsByIndex());
+                            assertNotNull(newNodeIndicesStats.getStatsByShard());
+                            break;
+                    }
+                }
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        });
+    }
+
+    public void testNodeIndicesStatsToXContent() {
+        long numDocs = randomLongBetween(0, 10000);
+        long numDeletedDocs = randomLongBetween(0, 100);
+        List<NodeIndicesStats.StatsLevel> levelParams = new ArrayList<>();
+        levelParams.add(NodeIndicesStats.StatsLevel.INDICES);
+        levelParams.add(NodeIndicesStats.StatsLevel.SHARDS);
+        levelParams.add(NodeIndicesStats.StatsLevel.NODE);
+        CommonStats commonStats = new CommonStats(CommonStatsFlags.NONE);
+
+        commonStats.docs = new DocsStats.Builder().count(numDocs).deleted(numDeletedDocs).totalSizeInBytes(0).build();
+        commonStats.store = new StoreStats.Builder().sizeInBytes(100).reservedSize(0L).build();
+        commonStats.indexing = new IndexingStats();
+
+        CommonStatsFlags commonStatsFlags = new CommonStatsFlags();
+        commonStatsFlags.clear();
+        commonStatsFlags.set(CommonStatsFlags.Flag.Docs, true);
+        commonStatsFlags.set(CommonStatsFlags.Flag.Store, true);
+        commonStatsFlags.set(CommonStatsFlags.Flag.Indexing, true);
+        commonStatsFlags.setIncludeIndicesStatsByLevel(true);
+
+        levelParams.forEach(level -> {
+
+            Index newIndex = new Index("index", "_na_");
+
+            MockNodeIndicesStats mockNodeIndicesStats = generateMockNodeIndicesStats(commonStats, newIndex, commonStatsFlags, level);
+
+            XContentBuilder builder = null;
+            try {
+                builder = XContentFactory.jsonBuilder();
+                builder.startObject();
+                builder = mockNodeIndicesStats.toXContent(
+                    builder,
+                    new ToXContent.MapParams(Collections.singletonMap("level", level.getRestName()))
+                );
+                builder.endObject();
+
+                Map<String, Object> xContentMap = xContentBuilderToMap(builder);
+                LinkedHashMap indicesStatsMap = (LinkedHashMap) xContentMap.get(NodeIndicesStats.StatsLevel.INDICES.getRestName());
+
+                switch (level) {
+                    case NODE:
+                        assertFalse(indicesStatsMap.containsKey(NodeIndicesStats.StatsLevel.INDICES.getRestName()));
+                        assertFalse(indicesStatsMap.containsKey(NodeIndicesStats.StatsLevel.SHARDS.getRestName()));
+                        break;
+                    case INDICES:
+                        assertTrue(indicesStatsMap.containsKey(NodeIndicesStats.StatsLevel.INDICES.getRestName()));
+                        assertFalse(indicesStatsMap.containsKey(NodeIndicesStats.StatsLevel.SHARDS.getRestName()));
+                        break;
+                    case SHARDS:
+                        assertFalse(indicesStatsMap.containsKey(NodeIndicesStats.StatsLevel.INDICES.getRestName()));
+                        assertTrue(indicesStatsMap.containsKey(NodeIndicesStats.StatsLevel.SHARDS.getRestName()));
+                        break;
+                }
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+
+        });
+    }
+
+    public void testNodeIndicesStatsWithAndWithoutAggregations() throws IOException {
+
+        CommonStatsFlags commonStatsFlags = new CommonStatsFlags(
+            CommonStatsFlags.Flag.Docs,
+            CommonStatsFlags.Flag.Store,
+            CommonStatsFlags.Flag.Indexing,
+            CommonStatsFlags.Flag.Completion,
+            CommonStatsFlags.Flag.Flush,
+            CommonStatsFlags.Flag.FieldData,
+            CommonStatsFlags.Flag.QueryCache,
+            CommonStatsFlags.Flag.Segments
+        );
+
+        int numberOfIndexes = randomIntBetween(1, 3);
+        List<Index> indexList = new ArrayList<>();
+        for (int i = 0; i < numberOfIndexes; i++) {
+            Index index = new Index("test-index-" + i, "_na_");
+            indexList.add(index);
+        }
+
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        HashMap<Index, List<IndexShardStats>> statsByShards = createRandomShardByStats(indexList);
+
+        final MockNodeIndicesStats nonAggregatedNodeIndicesStats = new MockNodeIndicesStats(
+            new CommonStats(commonStatsFlags),
+            statsByShards,
+            new SearchRequestStats(clusterSettings),
+            new StatusCounterStats()
+        );
+
+        commonStatsFlags.setIncludeIndicesStatsByLevel(true);
+
+        Arrays.stream(NodeIndicesStats.StatsLevel.values()).forEach(level -> {
+            MockNodeIndicesStats aggregatedNodeIndicesStats = new MockNodeIndicesStats(
+                new CommonStats(commonStatsFlags),
+                statsByShards,
+                new SearchRequestStats(clusterSettings),
+                new StatusCounterStats(),
+                level
+            );
+
+            XContentBuilder nonAggregatedBuilder = null;
+            XContentBuilder aggregatedBuilder = null;
+            try {
+                nonAggregatedBuilder = XContentFactory.jsonBuilder();
+                nonAggregatedBuilder.startObject();
+                nonAggregatedBuilder = nonAggregatedNodeIndicesStats.toXContent(
+                    nonAggregatedBuilder,
+                    new ToXContent.MapParams(Collections.singletonMap("level", level.getRestName()))
+                );
+                nonAggregatedBuilder.endObject();
+                Map<String, Object> nonAggregatedContentMap = xContentBuilderToMap(nonAggregatedBuilder);
+
+                aggregatedBuilder = XContentFactory.jsonBuilder();
+                aggregatedBuilder.startObject();
+                aggregatedBuilder = aggregatedNodeIndicesStats.toXContent(
+                    aggregatedBuilder,
+                    new ToXContent.MapParams(Collections.singletonMap("level", level.getRestName()))
+                );
+                aggregatedBuilder.endObject();
+                Map<String, Object> aggregatedContentMap = xContentBuilderToMap(aggregatedBuilder);
+
+                assertEquals(aggregatedContentMap, nonAggregatedContentMap);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        });
+    }
+
+    private CommonStats createRandomCommonStats() {
+        CommonStats commonStats = new CommonStats(CommonStatsFlags.NONE);
+        commonStats.docs = new DocsStats.Builder().count(randomLongBetween(0, 10000))
+            .deleted(randomLongBetween(0, 100))
+            .totalSizeInBytes(randomLongBetween(0, 1000))
+            .build();
+        commonStats.store = new StoreStats.Builder().sizeInBytes(randomLongBetween(0, 100))
+            .reservedSize(randomLongBetween(0, 1000))
+            .build();
+        commonStats.indexing = new IndexingStats();
+        commonStats.completion = new CompletionStats();
+        commonStats.flush = new FlushStats.Builder().total(randomLongBetween(0, 100))
+            .periodic(randomLongBetween(0, 100))
+            .totalTimeInMillis(randomLongBetween(0, 100))
+            .build();
+        commonStats.fieldData = new FieldDataStats.Builder().memorySize(randomLongBetween(0, 100))
+            .evictions(randomLongBetween(0, 100))
+            .fieldMemoryStats(null)
+            .build();
+        commonStats.queryCache = new QueryCacheStats.Builder().ramBytesUsed(randomLongBetween(0, 100))
+            .hitCount(randomLongBetween(0, 100))
+            .missCount(randomLongBetween(0, 100))
+            .cacheCount(randomLongBetween(0, 100))
+            .cacheSize(randomLongBetween(0, 100))
+            .build();
+        commonStats.segments = new SegmentsStats();
+
+        return commonStats;
+    }
+
+    private HashMap<Index, List<IndexShardStats>> createRandomShardByStats(List<Index> indexes) {
+        DiscoveryNode localNode = new DiscoveryNode("node", buildNewFakeTransportAddress(), Version.CURRENT);
+        HashMap<Index, List<IndexShardStats>> statsByShards = new HashMap<>();
+        indexes.forEach(index -> {
+            List<IndexShardStats> indexShardStatsList = new ArrayList<>();
+
+            int numberOfShards = randomIntBetween(1, 4);
+            for (int i = 0; i < numberOfShards; i++) {
+                ShardRoutingState shardRoutingState = ShardRoutingState.fromValue((byte) randomIntBetween(2, 3));
+
+                ShardRouting shardRouting = TestShardRouting.newShardRouting(
+                    index.getName(),
+                    i,
+                    localNode.getId(),
+                    randomBoolean(),
+                    shardRoutingState
+                );
+
+                Path path = createTempDir().resolve("indices")
+                    .resolve(shardRouting.shardId().getIndex().getUUID())
+                    .resolve(String.valueOf(shardRouting.shardId().id()));
+
+                ShardStats shardStats = new ShardStats.Builder().shardRouting(shardRouting)
+                    .shardPath(new ShardPath(false, path, path, shardRouting.shardId()))
+                    .commonStats(createRandomCommonStats())
+                    .commitStats(null)
+                    .seqNoStats(null)
+                    .retentionLeaseStats(null)
+                    .pollingIngestStats(null)
+                    .build();
+                List<ShardStats> shardStatsList = new ArrayList<>();
+                shardStatsList.add(shardStats);
+                IndexShardStats indexShardStats = new IndexShardStats(shardRouting.shardId(), shardStatsList.toArray(new ShardStats[0]));
+                indexShardStatsList.add(indexShardStats);
+            }
+            statsByShards.put(index, indexShardStatsList);
+        });
+
+        return statsByShards;
+    }
+
+    private Map<String, Object> xContentBuilderToMap(XContentBuilder xContentBuilder) {
+        return XContentHelper.convertToMap(BytesReference.bytes(xContentBuilder), true, xContentBuilder.contentType()).v2();
+    }
+
+    public MockNodeIndicesStats generateMockNodeIndicesStats(
+        CommonStats commonStats,
+        Index index,
+        CommonStatsFlags commonStatsFlags,
+        NodeIndicesStats.StatsLevel level
+    ) {
+        DiscoveryNode localNode = new DiscoveryNode("local", buildNewFakeTransportAddress(), Version.CURRENT);
+        Map<Index, List<IndexShardStats>> statsByShard = new HashMap<>();
+        List<IndexShardStats> indexShardStatsList = new ArrayList<>();
+        Index statsIndex = null;
+        for (int i = 0; i < 2; i++) {
+            ShardRoutingState shardRoutingState = ShardRoutingState.fromValue((byte) randomIntBetween(2, 3));
+            ShardRouting shardRouting = TestShardRouting.newShardRouting(
+                index.getName(),
+                i,
+                localNode.getId(),
+                randomBoolean(),
+                shardRoutingState
+            );
+
+            if (statsIndex == null) {
+                statsIndex = shardRouting.shardId().getIndex();
+            }
+
+            Path path = createTempDir().resolve("indices")
+                .resolve(shardRouting.shardId().getIndex().getUUID())
+                .resolve(String.valueOf(shardRouting.shardId().id()));
+
+            ShardStats shardStats = new ShardStats.Builder().shardRouting(shardRouting)
+                .shardPath(new ShardPath(false, path, path, shardRouting.shardId()))
+                .commonStats(commonStats)
+                .commitStats(null)
+                .seqNoStats(null)
+                .retentionLeaseStats(null)
+                .pollingIngestStats(null)
+                .build();
+            IndexShardStats indexShardStats = new IndexShardStats(shardRouting.shardId(), new ShardStats[] { shardStats });
+            indexShardStatsList.add(indexShardStats);
+        }
+
+        statsByShard.put(statsIndex, indexShardStatsList);
+
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+
+        if (commonStatsFlags.getIncludeIndicesStatsByLevel()) {
+            return new MockNodeIndicesStats(
+                new CommonStats(commonStatsFlags),
+                statsByShard,
+                new SearchRequestStats(clusterSettings),
+                new StatusCounterStats(),
+                level
+            );
+        } else {
+            return new MockNodeIndicesStats(
+                new CommonStats(commonStatsFlags),
+                statsByShard,
+                new SearchRequestStats(clusterSettings),
+                new StatusCounterStats()
+            );
+        }
     }
 }

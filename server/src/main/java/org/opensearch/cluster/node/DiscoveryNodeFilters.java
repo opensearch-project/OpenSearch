@@ -33,6 +33,7 @@
 package org.opensearch.cluster.node;
 
 import org.opensearch.common.Nullable;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.network.InetAddresses;
 import org.opensearch.common.network.NetworkAddress;
 import org.opensearch.common.regex.Regex;
@@ -48,15 +49,17 @@ import java.util.stream.Collectors;
 /**
  * Filters Discovery nodes
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class DiscoveryNodeFilters {
 
     /**
      * Operation type.
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public enum OpType {
         AND,
         OR
@@ -94,7 +97,7 @@ public class DiscoveryNodeFilters {
             updated = new DiscoveryNodeFilters(opType, new HashMap<>());
         } else {
             assert opType == original.opType : "operation type should match with node filter parameter";
-            updated = new DiscoveryNodeFilters(original.opType, original.filters);
+            updated = new DiscoveryNodeFilters(original.opType, new HashMap<>(original.filters));
         }
         for (Map.Entry<String, String> entry : filters.entrySet()) {
             String[] values = Strings.tokenizeToStringArray(entry.getValue(), ",");

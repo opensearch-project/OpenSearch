@@ -1,0 +1,24 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ */
+
+grant {
+  // needed because Kafka Consumer needs the access to MBeans
+  permission javax.management.MBeanServerPermission "createMBeanServer";
+  permission javax.management.MBeanTrustPermission "register";
+  permission javax.management.MBeanPermission "*", "*";
+  permission java.lang.management.ManagementPermission "monitor";
+  permission java.lang.management.ManagementPermission "control";
+
+  // Allow host/ip name service lookups
+  permission java.net.SocketPermission "*", "connect";
+  permission java.net.SocketPermission "*", "resolve";
+
+  // Needed for Kafka consumer to load native snappy library
+  permission java.lang.RuntimePermission "loadLibrary.*";
+  permission java.io.FilePermission "${java.io.tmpdir}${/}snappy-*", "read,write";
+};

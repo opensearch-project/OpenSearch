@@ -32,18 +32,24 @@
 
 package org.opensearch.http;
 
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.lifecycle.LifecycleComponent;
 import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.common.transport.BoundTransportAddress;
 import org.opensearch.core.service.ReportingService;
 import org.opensearch.rest.RestChannel;
+import org.opensearch.rest.RestHandler;
 import org.opensearch.rest.RestRequest;
+
+import java.util.Map;
+import java.util.Optional;
 
 /**
  * HTTP Transport server
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public interface HttpServerTransport extends LifecycleComponent, ReportingService<HttpInfo> {
 
     String HTTP_SERVER_WORKER_THREAD_NAME_PREFIX = "http_server_worker";
@@ -59,6 +65,17 @@ public interface HttpServerTransport extends LifecycleComponent, ReportingServic
      * Dispatches HTTP requests.
      */
     interface Dispatcher {
+        /**
+         * Finds the matching {@link RestHandler} that the request is going to be dispatched to, if any.
+         * @param uri request URI
+         * @param rawPath request raw path
+         * @param method request HTTP method
+         * @param params request parameters
+         * @return matching {@link RestHandler} that the request is going to be dispatched to, {@code Optional.empty()} if none match
+         */
+        default Optional<RestHandler> dispatchHandler(String uri, String rawPath, RestRequest.Method method, Map<String, String> params) {
+            return Optional.empty();
+        }
 
         /**
          * Dispatches the {@link RestRequest} to the relevant request handler or responds to the given rest channel directly if

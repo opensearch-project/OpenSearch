@@ -243,8 +243,6 @@ setup:
 ---
 "Composite aggregation with format":
   - skip:
-      version: " - 7.1.99"
-      reason:  calendar_interval introduced in 7.2.0
       features: allowed_warnings
 
   - do:
@@ -308,9 +306,6 @@ setup:
 
 ---
 "Composite aggregation with format and calendar_interval":
-  - skip:
-      version: " - 7.1.99"
-      reason:  calendar_interval introduced in 7.2.0
 
   - do:
       search:
@@ -369,9 +364,7 @@ setup:
 
 ---
 "Composite aggregation with date_histogram offset":
-  - skip:
-      version: " - 7.5.99"
-      reason:  offset introduced in 7.6.0
+
 
   - do:
       search:
@@ -510,10 +503,135 @@ setup:
   - match: { aggregations.1.2.buckets.1.doc_count:  1 }
 
 ---
-"Composite aggregation with unmapped field":
+"Composite aggregation with filtered nested parent":
   - skip:
-      version: " - 7.1.99"
-      reason:  starting in 7.2 the composite aggregation handles unmapped fields as keywords
+      version: " - 2.12.99"
+      reason:  fixed in 2.13.0
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          aggregations:
+            1:
+              nested:
+                path: nested
+              aggs:
+                2:
+                  filter:
+                    range:
+                      nested.nested_long:
+                        gt: 0
+                        lt: 100
+                  aggs:
+                    3:
+                      composite:
+                        sources: [
+                          "nested": {
+                            "terms": {
+                              "field": "nested.nested_long"
+                            }
+                          }
+                        ]
+
+  - match: {hits.total: 6}
+  - length: { aggregations.1.2.3.buckets: 2 }
+  - match: { aggregations.1.2.3.buckets.0.key.nested: 10 }
+  - match: { aggregations.1.2.3.buckets.0.doc_count:  2 }
+  - match: { aggregations.1.2.3.buckets.1.key.nested: 20 }
+  - match: { aggregations.1.2.3.buckets.1.doc_count:  2 }
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          aggregations:
+            1:
+              nested:
+                path: nested
+              aggs:
+                2:
+                  filter:
+                    range:
+                      nested.nested_long:
+                        gt: 0
+                        lt: 100
+                  aggs:
+                    3:
+                      composite:
+                        after: { "nested": 10 }
+                        sources: [
+                          "nested": {
+                            "terms": {
+                              "field": "nested.nested_long"
+                            }
+                          }
+                        ]
+  - match: {hits.total: 6}
+  - length: { aggregations.1.2.3.buckets: 1 }
+  - match: { aggregations.1.2.3.buckets.0.key.nested: 20 }
+  - match: { aggregations.1.2.3.buckets.0.doc_count:  2 }
+
+---
+"Composite aggregation with filtered reverse nested parent":
+  - skip:
+      version: " - 2.12.99"
+      reason:  fixed in 2.13.0
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          aggregations:
+            1:
+              nested:
+                path: nested
+              aggs:
+                2:
+                  filter:
+                    range:
+                      nested.nested_long:
+                        gt: 0
+                        lt: 20
+                  aggs:
+                    3:
+                      reverse_nested: {}
+                      aggs:
+                        4:
+                          composite:
+                            sources: [
+                              {
+                                "long": {
+                                  "terms": {
+                                    "field": "long"
+                                  }
+                                }
+                              },
+                              {
+                                "kw": {
+                                  "terms": {
+                                    "field": "keyword"
+                                  }
+                                }
+                              }
+                            ]
+  - match: {hits.total: 6}
+  - length: { aggregations.1.2.3.4.buckets: 4 }
+  - match: { aggregations.1.2.3.4.buckets.0.key.long: 0 }
+  - match: { aggregations.1.2.3.4.buckets.0.key.kw: "bar" }
+  - match: { aggregations.1.2.3.4.buckets.0.doc_count: 1 }
+  - match: { aggregations.1.2.3.4.buckets.1.key.long: 10 }
+  - match: { aggregations.1.2.3.4.buckets.1.key.kw: "foo" }
+  - match: { aggregations.1.2.3.4.buckets.1.doc_count: 1 }
+  - match: { aggregations.1.2.3.4.buckets.2.key.long: 20 }
+  - match: { aggregations.1.2.3.4.buckets.2.key.kw: "foo" }
+  - match: { aggregations.1.2.3.4.buckets.2.doc_count: 1 }
+  - match: { aggregations.1.2.3.4.buckets.3.key.long: 100 }
+  - match: { aggregations.1.2.3.4.buckets.3.key.kw: "bar" }
+  - match: { aggregations.1.2.3.4.buckets.3.doc_count: 1 }
+
+---
+"Composite aggregation with unmapped field":
 
   - do:
       search:
@@ -592,9 +710,6 @@ setup:
 
 ---
 "Missing source":
-  - skip:
-      version: " - 7.1.99"
-      reason:  null/empty sources disallowed in 7.2
 
   - do:
         catch: /Composite \[sources\] cannot be null or empty/
@@ -621,9 +736,6 @@ setup:
 
 ---
 "Duplicate sources":
-  - skip:
-      version: " - 7.1.99"
-      reason:  duplicate names disallowed in 7.2
 
   - do:
         catch: /Composite source names must be unique, found duplicates[:] \[keyword\]/
@@ -653,9 +765,7 @@ setup:
 
 ---
 "Mixed ip and unmapped fields":
-  - skip:
-      version: " - 7.5.99"
-      reason: This will fail against 7.x until the fix is backported there
+
   # It is important that the index *without* the ip field be sorted *before*
   # the index *with* the ip field because that has caused bugs in the past.
   - do:
@@ -699,9 +809,7 @@ setup:
 
 ---
 "date_histogram with time_zone":
-  - skip:
-      version: " - 7.6.0"
-      reason: Fixed in 7.6.0
+
   - do:
       index:
         index:   test
@@ -767,9 +875,7 @@ setup:
 
 ---
 "date_histogram on date_nanos":
-  - skip:
-      version: " - 7.6.99"
-      reason: Fixed in 7.7.0
+
   - do:
         indices.create:
           index: test_nanos
@@ -868,9 +974,7 @@ setup:
 
 ---
 "Terms source from part of sorted":
-  - skip:
-      version: " - 7.6.99"
-      reason:  fixed in 7.7.0
+
 
   - do:
         indices.create:
@@ -911,10 +1015,6 @@ setup:
   - match: { aggregations.test.buckets.0.doc_count: 1 }
 ---
 "Simple Composite aggregation with missing order":
-  - skip:
-      version: " - 1.2.99"
-      reason:  missing_order is supported in 1.3.0.
-
   - do:
       search:
         rest_total_hits_as_int: true
@@ -941,3 +1041,63 @@ setup:
   - match: { aggregations.test.buckets.1.doc_count: 2 }
   - match: { aggregations.test.buckets.2.key.kw: null }
   - match: { aggregations.test.buckets.2.doc_count: 2 }
+
+---
+"composite aggregation date_histogram profile shows filter rewrite info":
+  - skip:
+      version: " - 2.99.99"
+      reason:  debug info for filter rewrite added in 3.0.0 (to be backported to 2.14.0)
+
+  - do:
+      indices.create:
+        index: test_2
+        body:
+          settings:
+            number_of_replicas: 0
+            number_of_shards: 1
+            refresh_interval: -1
+          mappings:
+            properties:
+              date:
+                type: date
+  - do:
+      bulk:
+        index: test_2
+        refresh: true
+        body:
+          - '{"index": {}}'
+          - '{"date": "2016-01-01"}'
+          - '{"index": {}}'
+          - '{"date": "2016-01-02"}'
+          - '{"index": {}}'
+          - '{"date": "2016-02-01"}'
+          - '{"index": {}}'
+          - '{"date": "2016-03-01"}'
+
+  - do:
+      search:
+        index: test_2
+        body:
+          size: 0
+          profile: true
+          aggregations:
+            test:
+              composite:
+                sources: [
+                  {
+                    "date": {
+                      "date_histogram": {
+                        "field": "date",
+                        "calendar_interval": "1d",
+                        "format": "strict_date"
+                      }
+                    }
+                  }
+                ]
+
+  - match: { hits.total.value: 4 }
+  - length: { aggregations.test.buckets: 4 }
+  - match: { profile.shards.0.aggregations.0.debug.optimized_segments: 1 }
+  - match: { profile.shards.0.aggregations.0.debug.unoptimized_segments: 0 }
+  - match: { profile.shards.0.aggregations.0.debug.leaf_visited: 1 }
+  - match: { profile.shards.0.aggregations.0.debug.inner_visited: 0 }

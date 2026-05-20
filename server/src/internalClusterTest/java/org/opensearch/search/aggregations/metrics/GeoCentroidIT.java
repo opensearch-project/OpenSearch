@@ -55,8 +55,8 @@ import static org.hamcrest.Matchers.sameInstance;
 public class GeoCentroidIT extends AbstractGeoTestCase {
     private static final String aggName = "geoCentroid";
 
-    public GeoCentroidIT(Settings dynamicSettings) {
-        super(dynamicSettings);
+    public GeoCentroidIT(Settings staticSettings) {
+        super(staticSettings);
     }
 
     public void testEmptyAggregation() throws Exception {
@@ -67,7 +67,7 @@ public class GeoCentroidIT extends AbstractGeoTestCase {
         assertSearchResponse(response);
 
         GeoCentroid geoCentroid = response.getAggregations().get(aggName);
-        assertThat(response.getHits().getTotalHits().value, equalTo(0L));
+        assertThat(response.getHits().getTotalHits().value(), equalTo(0L));
         assertThat(geoCentroid, notNullValue());
         assertThat(geoCentroid.getName(), equalTo(aggName));
         GeoPoint centroid = geoCentroid.centroid();

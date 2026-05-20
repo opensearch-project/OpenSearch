@@ -41,11 +41,12 @@ import org.opensearch.common.geo.GeoDistance;
 import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.DistanceUnit;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.index.query.BoolQueryBuilder;
 import org.opensearch.index.query.GeoValidationMethod;
+import org.opensearch.index.query.MatchAllQueryBuilder;
 import org.opensearch.search.builder.SearchSourceBuilder;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 import org.opensearch.test.VersionUtils;
 
 import java.io.IOException;
@@ -57,6 +58,8 @@ import java.util.List;
 import java.util.concurrent.ExecutionException;
 
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.opensearch.index.query.QueryBuilders.boolQuery;
+import static org.opensearch.index.query.QueryBuilders.existsQuery;
 import static org.opensearch.index.query.QueryBuilders.matchAllQuery;
 import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING;
 import static org.opensearch.search.sort.SortBuilders.fieldSort;
@@ -65,7 +68,7 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertOrderedSea
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertSortValues;
 import static org.hamcrest.Matchers.closeTo;
 
-public class GeoDistanceSortBuilderIT extends ParameterizedOpenSearchIntegTestCase {
+public class GeoDistanceSortBuilderIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
     public GeoDistanceSortBuilderIT(Settings settings) {
         super(settings);
     }
@@ -76,11 +79,6 @@ public class GeoDistanceSortBuilderIT extends ParameterizedOpenSearchIntegTestCa
             new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), false).build() },
             new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), true).build() }
         );
-    }
-
-    @Override
-    protected Settings featureFlagSettings() {
-        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.CONCURRENT_SEGMENT_SEARCH, "true").build();
     }
 
     private static final String LOCATION_FIELD = "location";
@@ -434,6 +432,58 @@ public class GeoDistanceSortBuilderIT extends ParameterizedOpenSearchIntegTestCa
             resp,
             new Object[] { 0.65, Double.NEGATIVE_INFINITY },
             new Object[] { Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY }
+        );
+    }
+
+    public void testGeoDistanceQueryThenSort() throws Exception {
+        assertAcked(prepareCreate("index").setMapping("admin", "type=keyword", LOCATION_FIELD, "type=geo_point"));
+
+        indexRandom(
+            true,
+            client().prepareIndex("index")
+                .setId("d1")
+                .setSource(
+                    jsonBuilder().startObject()
+                        .startObject(LOCATION_FIELD)
+                        .field("lat", 48.8331)
+                        .field("lon", 2.3264)
+                        .endObject()
+                        .field("admin", "11")
+                        .endObject()
+                )
+        );
+
+        GeoDistanceSortBuilder geoDistanceSortBuilder = new GeoDistanceSortBuilder(LOCATION_FIELD, new GeoPoint(40.7128, -74.0060));
+
+        BoolQueryBuilder bool = boolQuery().filter(existsQuery(LOCATION_FIELD));
+
+        SearchResponse searchResponse = client().prepareSearch()
+            .setQuery(bool)
+            .addSort(geoDistanceSortBuilder.unit(DistanceUnit.KILOMETERS).ignoreUnmapped(true).order(SortOrder.DESC))
+            .setSize(4)
+            .get();
+        assertOrderedSearchHits(searchResponse, "d1");
+        assertThat(
+            (Double) searchResponse.getHits().getAt(0).getSortValues()[0],
+            closeTo(GeoDistance.ARC.calculate(40.7128, -74.0060, 48.8331, 2.3264, DistanceUnit.KILOMETERS), 1.e-1)
+        );
+
+        geoDistanceSortBuilder = new GeoDistanceSortBuilder(LOCATION_FIELD, new GeoPoint(9.227400, 49.189800));
+        searchResponse = client().prepareSearch()
+            .setQuery(new MatchAllQueryBuilder())
+            .addSort(
+                geoDistanceSortBuilder.unit(DistanceUnit.KILOMETERS)
+                    .ignoreUnmapped(true)
+                    .order(SortOrder.DESC)
+                    .geoDistance(GeoDistance.ARC)
+                    .sortMode(SortMode.MIN)
+            )
+            .setSize(10)
+            .get();
+        assertOrderedSearchHits(searchResponse, "d1");
+        assertThat(
+            (Double) searchResponse.getHits().getAt(0).getSortValues()[0],
+            closeTo(GeoDistance.ARC.calculate(9.227400, 49.189800, 48.8331, 2.3264, DistanceUnit.KILOMETERS), 1.e-1)
         );
     }
 }

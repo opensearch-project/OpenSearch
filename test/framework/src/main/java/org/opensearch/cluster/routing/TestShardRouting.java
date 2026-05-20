@@ -205,6 +205,32 @@ public class TestShardRouting {
         );
     }
 
+    public static ShardRouting newShardRoutingRemoteRestore(
+        String index,
+        ShardId shardId,
+        String currentNodeId,
+        String relocatingNodeId,
+        boolean primary,
+        ShardRoutingState state,
+        UnassignedInfo unassignedInfo
+    ) {
+        return new ShardRouting(
+            shardId,
+            currentNodeId,
+            relocatingNodeId,
+            primary,
+            state,
+            new RecoverySource.RemoteStoreRecoverySource(
+                UUIDs.randomBase64UUID(),
+                Version.V_EMPTY,
+                new IndexId(shardId.getIndexName(), shardId.getIndexName())
+            ),
+            unassignedInfo,
+            buildAllocationId(state),
+            -1
+        );
+    }
+
     public static ShardRouting newShardRouting(
         ShardId shardId,
         String currentNodeId,
@@ -245,6 +271,7 @@ public class TestShardRouting {
                 }
             case STARTED:
             case RELOCATING:
+            case SPLITTING:
                 return null;
             default:
                 throw new IllegalStateException("illegal state");
@@ -261,6 +288,9 @@ public class TestShardRouting {
             case RELOCATING:
                 AllocationId allocationId = AllocationId.newInitializing();
                 return AllocationId.newRelocation(allocationId);
+            case SPLITTING:
+                AllocationId splitAllocId = AllocationId.newInitializing();
+                return AllocationId.newSplit(splitAllocId, 2);
             default:
                 throw new IllegalStateException("illegal state");
         }
@@ -273,6 +303,7 @@ public class TestShardRouting {
                 return new UnassignedInfo(OpenSearchTestCase.randomFrom(UnassignedInfo.Reason.values()), "auto generated for test");
             case STARTED:
             case RELOCATING:
+            case SPLITTING:
                 return null;
             default:
                 throw new IllegalStateException("illegal state");
@@ -291,6 +322,51 @@ public class TestShardRouting {
                 Version.CURRENT,
                 new IndexId("some_index", UUIDs.randomBase64UUID(random()))
             )
+        );
+    }
+
+    public static ShardRouting newShardRouting(
+        ShardId shardId,
+        String currentNodeId,
+        String relocatingNodeId,
+        boolean primary,
+        boolean searchOnly,
+        ShardRoutingState state,
+        UnassignedInfo unassignedInfo
+    ) {
+        return new ShardRouting(
+            shardId,
+            currentNodeId,
+            relocatingNodeId,
+            primary,
+            searchOnly,
+            state,
+            buildRecoveryTarget(primary, state),
+            unassignedInfo,
+            buildAllocationId(state),
+            -1
+        );
+    }
+
+    public static ShardRouting newShardRouting(
+        ShardId shardId,
+        String currentNodeId,
+        boolean primary,
+        boolean searchOnly,
+        ShardRoutingState state,
+        RecoverySource recoverySource
+    ) {
+        return new ShardRouting(
+            shardId,
+            currentNodeId,
+            null,
+            primary,
+            searchOnly,
+            state,
+            recoverySource,
+            buildUnassignedInfo(state),
+            buildAllocationId(state),
+            -1
         );
     }
 }

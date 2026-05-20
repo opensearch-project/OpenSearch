@@ -33,6 +33,7 @@ package org.opensearch;
 
 import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.common.Strings;
@@ -69,8 +70,9 @@ import static org.opensearch.core.xcontent.XContentParserUtils.ensureFieldName;
 /**
  * A core library base class for all opensearch exceptions.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class OpenSearchException extends RuntimeException implements Writeable, ToXContentFragment {
 
     protected static final Version UNKNOWN_VERSION_ADDED = Version.fromId(0);
@@ -94,7 +96,7 @@ public class OpenSearchException extends RuntimeException implements Writeable, 
     private static final String INDEX_METADATA_KEY = "opensearch.index";
     private static final String INDEX_METADATA_KEY_UUID = "opensearch.index_uuid";
     private static final String SHARD_METADATA_KEY = "opensearch.shard";
-    private static final String OPENSEARCH_PREFIX_KEY = "opensearch.";
+    public static final String OPENSEARCH_PREFIX_KEY = "opensearch.";
 
     private static final String TYPE = "type";
     private static final String REASON = "reason";
@@ -246,7 +248,10 @@ public class OpenSearchException extends RuntimeException implements Writeable, 
         return metadata.get(key);
     }
 
-    protected Map<String, List<String>> getMetadata() {
+    /**
+     * Returns the map of metadata keys and values.
+     */
+    public Map<String, List<String>> getMetadata() {
         return metadata;
     }
 
@@ -286,7 +291,10 @@ public class OpenSearchException extends RuntimeException implements Writeable, 
         return headers.get(key);
     }
 
-    protected Map<String, List<String>> getHeaders() {
+    /**
+     * Returns the map of header keys and values.
+     */
+    public Map<String, List<String>> getHeaders() {
         return headers;
     }
 
@@ -320,8 +328,8 @@ public class OpenSearchException extends RuntimeException implements Writeable, 
         if (getCause() != null) {
             StringBuilder sb = new StringBuilder();
             sb.append(toString()).append("; ");
-            if (getCause() instanceof OpenSearchException) {
-                sb.append(((OpenSearchException) getCause()).getDetailedMessage());
+            if (getCause() instanceof OpenSearchException ose) {
+                sb.append(ose.getDetailedMessage());
             } else {
                 sb.append(getCause());
             }
@@ -401,8 +409,7 @@ public class OpenSearchException extends RuntimeException implements Writeable, 
             headerToXContent(builder, entry.getKey().substring(OPENSEARCH_PREFIX_KEY.length()), entry.getValue());
         }
 
-        if (throwable instanceof OpenSearchException) {
-            OpenSearchException exception = (OpenSearchException) throwable;
+        if (throwable instanceof OpenSearchException exception) {
             exception.metadataToXContent(builder, params);
         }
 
@@ -594,8 +601,8 @@ public class OpenSearchException extends RuntimeException implements Writeable, 
     public static void generateThrowableXContent(XContentBuilder builder, ToXContent.Params params, Throwable t) throws IOException {
         t = ExceptionsHelper.unwrapCause(t);
 
-        if (t instanceof OpenSearchException) {
-            ((OpenSearchException) t).toXContent(builder, params);
+        if (t instanceof OpenSearchException ose) {
+            ose.toXContent(builder, params);
         } else {
             innerToXContent(builder, params, t, getExceptionName(t), t.getMessage(), emptyMap(), emptyMap(), t.getCause());
         }
@@ -620,14 +627,8 @@ public class OpenSearchException extends RuntimeException implements Writeable, 
 
         // Render the exception with a simple message
         if (detailed == false) {
-            Throwable t = e;
-            for (int counter = 0; counter < 10 && t != null; counter++) {
-                if (t instanceof OpenSearchException) {
-                    break;
-                }
-                t = t.getCause();
-            }
-            builder.field(ERROR, ExceptionsHelper.summaryMessage(t != null ? t : e));
+            Throwable unwrapped = ExceptionsHelper.unwrapToOpenSearchException(e);
+            builder.field(ERROR, ExceptionsHelper.summaryMessage(unwrapped));
             return;
         }
 
@@ -672,8 +673,8 @@ public class OpenSearchException extends RuntimeException implements Writeable, 
      */
     public OpenSearchException[] guessRootCauses() {
         final Throwable cause = getCause();
-        if (cause != null && cause instanceof OpenSearchException) {
-            return ((OpenSearchException) cause).guessRootCauses();
+        if (cause instanceof OpenSearchException ose) {
+            return ose.guessRootCauses();
         }
         return new OpenSearchException[] { this };
     }
@@ -685,9 +686,9 @@ public class OpenSearchException extends RuntimeException implements Writeable, 
      */
     public static OpenSearchException[] guessRootCauses(Throwable t) {
         Throwable ex = ExceptionsHelper.unwrapCause(t);
-        if (ex instanceof OpenSearchException) {
+        if (ex instanceof OpenSearchException ose) {
             // OpenSearchException knows how to guess its own root cause
-            return ((OpenSearchException) ex).guessRootCauses();
+            return ose.guessRootCauses();
         }
         if (ex instanceof XContentParseException) {
             /*

@@ -42,6 +42,7 @@ import org.opensearch.cluster.routing.RecoverySource;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.ShardRoutingHelper;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.Priority;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
@@ -52,6 +53,7 @@ import org.opensearch.env.Environment;
 import org.opensearch.env.TestEnvironment;
 import org.opensearch.index.engine.EngineConfigFactory;
 import org.opensearch.index.engine.InternalEngineFactory;
+import org.opensearch.index.engine.exec.EngineBackedIndexerFactory;
 import org.opensearch.index.seqno.RetentionLeaseSyncer;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardState;
@@ -136,7 +138,7 @@ public class BlobStoreRepositoryRestoreTests extends IndexShardTestCase {
                 shard.indexSettings().getIndexMetadata(),
                 null,
                 null,
-                new InternalEngineFactory(),
+                new EngineBackedIndexerFactory(new InternalEngineFactory()),
                 new EngineConfigFactory(shard.indexSettings()),
                 () -> {},
                 RetentionLeaseSyncer.EMPTY,
@@ -213,10 +215,12 @@ public class BlobStoreRepositoryRestoreTests extends IndexShardTestCase {
                         Collections.emptyList(),
                         true,
                         Collections.emptyMap(),
-                        false
+                        false,
+                        0
                     ),
                     Version.CURRENT,
                     Function.identity(),
+                    Priority.NORMAL,
                     f
                 )
             );

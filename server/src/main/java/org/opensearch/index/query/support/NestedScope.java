@@ -32,6 +32,8 @@
 
 package org.opensearch.index.query.support;
 
+import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.index.IndexSettings;
 import org.opensearch.index.mapper.ObjectMapper;
 
 import java.util.Deque;
@@ -40,11 +42,17 @@ import java.util.LinkedList;
 /**
  * During query parsing this keeps track of the current nested level.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public final class NestedScope {
 
     private final Deque<ObjectMapper> levelStack = new LinkedList<>();
+    private final IndexSettings indexSettings;
+
+    public NestedScope(IndexSettings indexSettings) {
+        this.indexSettings = indexSettings;
+    }
 
     /**
      * @return For the current nested level returns the object mapper that belongs to that
@@ -58,7 +66,21 @@ public final class NestedScope {
      */
     public ObjectMapper nextLevel(ObjectMapper level) {
         ObjectMapper previous = levelStack.peek();
-        levelStack.push(level);
+        if (levelStack.size() < indexSettings.getMaxNestedQueryDepth()) {
+            levelStack.push(level);
+        } else {
+            throw new IllegalArgumentException(
+                "The depth of Nested Query is ["
+                    + (levelStack.size() + 1)
+                    + "] has exceeded "
+                    + "the allowed maximum of ["
+                    + indexSettings.getMaxNestedQueryDepth()
+                    + "]. "
+                    + "This maximum can be set by changing the ["
+                    + IndexSettings.MAX_NESTED_QUERY_DEPTH_SETTING.getKey()
+                    + "] index level setting."
+            );
+        }
         return previous;
     }
 

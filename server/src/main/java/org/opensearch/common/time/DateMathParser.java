@@ -32,6 +32,7 @@
 
 package org.opensearch.common.time;
 
+import org.opensearch.common.annotation.PublicApi;
 import org.joda.time.DateTimeZone;
 
 import java.time.Instant;
@@ -41,8 +42,9 @@ import java.util.function.LongSupplier;
 /**
  * An abstraction over date math parsing to allow different implementation for joda and java time.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public interface DateMathParser {
 
     /**

@@ -37,10 +37,12 @@ import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.util.BytesRef;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.util.BigArrays;
@@ -74,8 +76,9 @@ import java.util.function.Supplier;
  * stored, but we need to keep it so that its FieldType can be used to generate
  * queries.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class IdFieldMapper extends MetadataFieldMapper {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(IdFieldMapper.class);
     static final String ID_FIELD_DATA_DEPRECATION_MESSAGE =
@@ -161,15 +164,15 @@ public class IdFieldMapper extends MetadataFieldMapper {
         @Override
         public Query termsQuery(List<?> values, QueryShardContext context) {
             failIfNotIndexed();
-            BytesRef[] bytesRefs = new BytesRef[values.size()];
-            for (int i = 0; i < bytesRefs.length; i++) {
+            BytesRefsCollectionBuilder bytesRefs = new BytesRefsCollectionBuilder(values.size());
+            for (int i = 0; i < values.size(); i++) {
                 Object idObject = values.get(i);
                 if (idObject instanceof BytesRef) {
                     idObject = ((BytesRef) idObject).utf8ToString();
                 }
-                bytesRefs[i] = Uid.encodeId(idObject.toString());
+                bytesRefs.accept(Uid.encodeId(idObject.toString()));
             }
-            return new TermInSetQuery(name(), bytesRefs);
+            return new TermInSetQuery(MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE, name(), bytesRefs.get());
         }
 
         @Override
@@ -295,7 +298,13 @@ public class IdFieldMapper extends MetadataFieldMapper {
     @Override
     public void preParse(ParseContext context) {
         BytesRef id = Uid.encodeId(context.sourceToParse().id());
-        context.doc().add(new Field(NAME, id, Defaults.FIELD_TYPE));
+        if (context.indexSettings().isPluggableDataFormatEnabled()) {
+            byte[] idToStore = new byte[id.length];
+            System.arraycopy(id.bytes, id.offset, idToStore, 0, id.length);
+            context.documentInput().addField(fieldType(), idToStore);
+        } else {
+            context.doc().add(new Field(NAME, id, Defaults.FIELD_TYPE));
+        }
     }
 
     @Override

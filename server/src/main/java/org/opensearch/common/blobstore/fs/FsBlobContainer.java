@@ -32,6 +32,8 @@
 
 package org.opensearch.common.blobstore.fs;
 
+import org.opensearch.cluster.metadata.CryptoMetadata;
+import org.opensearch.common.Nullable;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobMetadata;
@@ -205,6 +207,19 @@ public class FsBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
+    public void writeBlobWithMetadata(
+        String blobName,
+        InputStream inputStream,
+        long blobSize,
+        boolean failIfAlreadyExists,
+        @Nullable Map<String, String> metadata,
+        @Nullable CryptoMetadata cryptoMetadata
+    ) throws IOException {
+        // FsBlobContainer doesn't handle metadata or encryption
+        writeBlob(blobName, inputStream, blobSize, failIfAlreadyExists);
+    }
+
+    @Override
     public void writeBlobAtomic(final String blobName, final InputStream inputStream, final long blobSize, boolean failIfAlreadyExists)
         throws IOException {
         final String tempBlob = tempBlobName(blobName);
@@ -225,6 +240,7 @@ public class FsBlobContainer extends AbstractBlobContainer {
     }
 
     private void writeToPath(InputStream inputStream, Path tempBlobPath, long blobSize) throws IOException {
+        Files.createDirectories(path);
         try (OutputStream outputStream = Files.newOutputStream(tempBlobPath, StandardOpenOption.CREATE_NEW)) {
             final int bufferSize = blobStore.bufferSizeInBytes();
             org.opensearch.common.util.io.Streams.copy(

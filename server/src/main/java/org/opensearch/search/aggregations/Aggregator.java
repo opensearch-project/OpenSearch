@@ -33,6 +33,8 @@
 package org.opensearch.search.aggregations;
 
 import org.opensearch.OpenSearchParseException;
+import org.opensearch.common.SetOnce;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -57,16 +59,20 @@ import java.util.function.BiConsumer;
  *
  * @opensearch.internal
  */
+@PublicApi(since = "1.0.0")
 public abstract class Aggregator extends BucketCollector implements Releasable {
+
+    private final SetOnce<InternalAggregation> internalAggregation = new SetOnce<>();
 
     /**
      * Parses the aggregation request and creates the appropriate aggregator factory for it.
      *
      * @see AggregationBuilder
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
     @FunctionalInterface
+    @PublicApi(since = "1.0.0")
     public interface Parser {
         /**
          * Returns the aggregator factory with which this parser is associated, may return {@code null} indicating the
@@ -78,6 +84,13 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
          * @throws java.io.IOException      When parsing fails
          */
         AggregationBuilder parse(String aggregationName, XContentParser parser) throws IOException;
+    }
+
+    /**
+     * Returns the InternalAggregation stored during post collection
+     */
+    public InternalAggregation getPostCollectionAggregation() {
+        return internalAggregation.get();
     }
 
     /**
@@ -158,11 +171,21 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
     }
 
     /**
+     * Returns the underlying Aggregator responsible for creating the bucket collector.
+     * For most aggregators, this is the aggregator itself.
+     * For wrappers like ProfilingAggregator, it's the delegate.
+     */
+    public Aggregator unwrapAggregator() {
+        return this;
+    }
+
+    /**
      * Compare two buckets by their ordinal.
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
     @FunctionalInterface
+    @PublicApi(since = "1.0.0")
     public interface BucketComparator {
         /**
          * Compare two buckets by their ordinal.
@@ -181,13 +204,26 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
 
     /**
      * Build the result of this aggregation if it is at the "top level"
-     * of the aggregation tree. If, instead, it is a sub-aggregation of
-     * another aggregation then the aggregation that contains it will call
-     * {@link #buildAggregations(long[])}.
+     * of the aggregation tree and save it. This should get called
+     * during post collection. If, instead, it is a sub-aggregation
+     * of another aggregation then the aggregation that contains
+     * it will call {@link #buildAggregations(long[])}.
      */
     public final InternalAggregation buildTopLevel() throws IOException {
         assert parent() == null;
-        return buildAggregations(new long[] { 0 })[0];
+        this.internalAggregation.set(buildAggregations(new long[] { 0 })[0]);
+        return internalAggregation.get();
+    }
+
+    /**
+     * For streaming aggregation, build the aggregation batch result and
+     * reset so this aggregator can continue with a clean state
+     */
+    public final InternalAggregation buildTopLevelBatch() throws IOException {
+        assert parent() == null;
+        InternalAggregation batch = buildAggregations(new long[] { 0 })[0];
+        reset();
+        return batch;
     }
 
     /**

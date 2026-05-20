@@ -34,6 +34,7 @@ package org.opensearch.gradle.docker;
 import org.apache.tools.ant.taskdefs.condition.Os;
 import org.opensearch.gradle.Version;
 import org.opensearch.gradle.info.BuildParams;
+import org.opensearch.gradle.util.ExecutableUtils;
 import org.gradle.api.GradleException;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
@@ -50,7 +51,6 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -65,24 +65,20 @@ import java.util.stream.Collectors;
  */
 public abstract class DockerSupportService implements BuildService<DockerSupportService.Parameters> {
 
-    private static Logger LOGGER = Logging.getLogger(DockerSupportService.class);
-    // Defines the possible locations of the Docker CLI. These will be searched in order.
-    private static String[] DOCKER_BINARIES_UNIX = { "/usr/bin/docker", "/usr/local/bin/docker" };
+    private static final Logger LOGGER = Logging.getLogger(DockerSupportService.class);
 
-    private static String[] DOCKER_BINARIES_WINDOWS = {
-        System.getenv("PROGRAMFILES") + "\\Docker\\Docker\\resources\\bin\\docker.exe",
-        System.getenv("SystemRoot") + "\\System32\\docker.exe" /* Github Actions */ };
+    private static final String DOCKER_FILENAME = Os.isFamily(Os.FAMILY_WINDOWS) ? "docker.exe" : "docker";
 
-    private static String[] DOCKER_BINARIES = Os.isFamily(Os.FAMILY_WINDOWS) ? DOCKER_BINARIES_WINDOWS : DOCKER_BINARIES_UNIX;
+    private static final String DOCKER_COMPOSE_FILENAME = Os.isFamily(Os.FAMILY_WINDOWS) ? "docker-compose.exe" : "docker-compose";
 
-    private static String[] DOCKER_COMPOSE_BINARIES_UNIX = { "/usr/local/bin/docker-compose", "/usr/bin/docker-compose" };
+    private static final String[] DEFAULT_PATH_UNIX = { "/usr/bin", "/usr/local/bin" };
 
-    private static String[] DOCKER_COMPOSE_BINARIES_WINDOWS = {
-        System.getenv("PROGRAMFILES") + "\\Docker\\Docker\\resources\\bin\\docker-compose.exe" };
+    private static final String[] DEFAULT_PATH_WINDOWS = {
+        System.getenv("PROGRAMFILES") + "\\Docker\\Docker\\resources\\bin",
+        System.getenv("SystemRoot") + "\\System32" /* Github Actions */
+    };
 
-    private static String[] DOCKER_COMPOSE_BINARIES = Os.isFamily(Os.FAMILY_WINDOWS)
-        ? DOCKER_COMPOSE_BINARIES_WINDOWS
-        : DOCKER_COMPOSE_BINARIES_UNIX;
+    private static final String[] DEFAULT_PATH = Os.isFamily(Os.FAMILY_WINDOWS) ? DEFAULT_PATH_WINDOWS : DEFAULT_PATH_UNIX;
 
     private static final Version MINIMUM_DOCKER_VERSION = Version.fromString("17.05.0");
 
@@ -105,7 +101,7 @@ public abstract class DockerSupportService implements BuildService<DockerSupport
             Result lastResult = null;
             Version version = null;
             boolean isVersionHighEnough = false;
-            boolean isComposeAvailable = false;
+            DockerComposeAvailability dockerComposeAvailability = null;
 
             // Check if the Docker binary exists
             final Optional<String> dockerBinary = getDockerPath();
@@ -113,21 +109,35 @@ public abstract class DockerSupportService implements BuildService<DockerSupport
                 dockerPath = dockerBinary.get();
 
                 // Since we use a multi-stage Docker build, check the Docker version meets minimum requirement
-                lastResult = runCommand(dockerPath, "version", "--format", "{{.Server.Version}}");
+                lastResult = runCommand(execOperations, dockerPath, "version", "--format", "{{.Server.Version}}");
 
                 if (lastResult.isSuccess()) {
-                    version = Version.fromString(lastResult.stdout.trim(), Version.Mode.RELAXED);
+                    // On some systems, Docker reports version prefixed with 'v', on some without,
+                    // for example:
+                    //
+                    // $ docker info
+                    // Client: Docker Engine - Community
+                    // Version: v29.1.2
+                    // Context: default
+                    // Debug Mode: false
+                    //
+                    // $ docker info
+                    // Client:
+                    // Version: 28.2.2
+                    // Context: default
+                    // Debug Mode: false
+                    //
+                    final String versionString = lastResult.stdout.trim().replaceAll("^v", "");
+                    version = Version.fromString(versionString, Version.Mode.RELAXED);
 
                     isVersionHighEnough = version.onOrAfter(MINIMUM_DOCKER_VERSION);
 
                     if (isVersionHighEnough) {
                         // Check that we can execute a privileged command
-                        lastResult = runCommand(dockerPath, "images");
-
+                        lastResult = runCommand(execOperations, dockerPath, "images");
                         // If docker all checks out, see if docker-compose is available and working
-                        Optional<String> composePath = getDockerComposePath();
-                        if (lastResult.isSuccess() && composePath.isPresent()) {
-                            isComposeAvailable = runCommand(composePath.get(), "version").isSuccess();
+                        if (lastResult.isSuccess()) {
+                            dockerComposeAvailability = DockerComposeAvailability.detect(execOperations, dockerPath).orElse(null);
                         }
                     }
                 }
@@ -137,7 +147,7 @@ public abstract class DockerSupportService implements BuildService<DockerSupport
 
             this.dockerAvailability = new DockerAvailability(
                 isAvailable,
-                isComposeAvailable,
+                dockerComposeAvailability,
                 isVersionHighEnough,
                 dockerPath,
                 version,
@@ -163,10 +173,11 @@ public abstract class DockerSupportService implements BuildService<DockerSupport
 
         // No Docker binary was located
         if (availability.path == null) {
+            final String[] dockerPaths = ExecutableUtils.mergePaths(DEFAULT_PATH, ExecutableUtils.getPathEnv());
             final String message = String.format(
                 Locale.ROOT,
                 "Docker (checked [%s]) is required to run the following task%s: \n%s",
-                String.join(", ", DOCKER_BINARIES),
+                String.join(", ", dockerPaths),
                 tasks.size() > 1 ? "s" : "",
                 String.join("\n", tasks)
             );
@@ -276,26 +287,14 @@ public abstract class DockerSupportService implements BuildService<DockerSupport
     }
 
     /**
-     * Searches the entries in {@link #DOCKER_BINARIES} for the Docker CLI. This method does
+     * Searches for the Docker CLI in the system PATH and default locations. This method does
      * not check whether the Docker installation appears usable, see {@link #getDockerAvailability()}
      * instead.
      *
      * @return the path to a CLI, if available.
      */
     private Optional<String> getDockerPath() {
-        // Check if the Docker binary exists
-        return Arrays.asList(DOCKER_BINARIES).stream().filter(path -> new File(path).exists()).findFirst();
-    }
-
-    /**
-     * Searches the entries in {@link #DOCKER_COMPOSE_BINARIES} for the Docker Compose CLI. This method does
-     * not check whether the installation appears usable, see {@link #getDockerAvailability()} instead.
-     *
-     * @return the path to a CLI, if available.
-     */
-    private Optional<String> getDockerComposePath() {
-        // Check if the Docker binary exists
-        return Arrays.asList(DOCKER_COMPOSE_BINARIES).stream().filter(path -> new File(path).exists()).findFirst();
+        return ExecutableUtils.findExecutableInKnownPaths(DOCKER_FILENAME, DEFAULT_PATH);
     }
 
     private void throwDockerRequiredException(final String message) {
@@ -317,7 +316,7 @@ public abstract class DockerSupportService implements BuildService<DockerSupport
      * while running the command, or the process was killed after reaching the 10s timeout,
      * then the exit code will be -1.
      */
-    private Result runCommand(String... args) {
+    private static Result runCommand(ExecOperations execOperations, String... args) {
         if (args.length == 0) {
             throw new IllegalArgumentException("Cannot execute with no command");
         }
@@ -352,9 +351,9 @@ public abstract class DockerSupportService implements BuildService<DockerSupport
         public final boolean isAvailable;
 
         /**
-         * True if docker-compose is available.
+         * Non-null if docker-compose v1 or v2 is available.
          */
-        public final boolean isComposeAvailable;
+        public final DockerComposeAvailability dockerComposeAvailability;
 
         /**
          * True if the installed Docker version is &gt;= 17.05
@@ -378,18 +377,90 @@ public abstract class DockerSupportService implements BuildService<DockerSupport
 
         DockerAvailability(
             boolean isAvailable,
-            boolean isComposeAvailable,
+            DockerComposeAvailability dockerComposeAvailability,
             boolean isVersionHighEnough,
             String path,
             Version version,
             Result lastCommand
         ) {
             this.isAvailable = isAvailable;
-            this.isComposeAvailable = isComposeAvailable;
+            this.dockerComposeAvailability = dockerComposeAvailability;
             this.isVersionHighEnough = isVersionHighEnough;
             this.path = path;
             this.version = version;
             this.lastCommand = lastCommand;
+        }
+
+        public boolean isDockerComposeAvailable() {
+            return dockerComposeAvailability != null;
+        }
+    }
+
+    /**
+     * Marker interface for Docker Compose availability
+     */
+    public interface DockerComposeAvailability {
+        /**
+         * Detects Docker Compose V1/V2 availability
+         */
+        private static Optional<DockerComposeAvailability> detect(ExecOperations execOperations, String dockerPath) {
+            Optional<String> composePath = getDockerComposePath();
+            if (composePath.isPresent()) {
+                if (runCommand(execOperations, composePath.get(), "version").isSuccess()) {
+                    return Optional.of(new DockerComposeV1Availability(composePath.get()));
+                }
+            }
+
+            if (runCommand(execOperations, dockerPath, "compose", "version").isSuccess()) {
+                return Optional.of(new DockerComposeV2Availability(dockerPath));
+            }
+
+            return Optional.empty();
+        }
+
+        /**
+         * Searches the entries in env variable PATH with fallback to {@link #DEFAULT_PATH} for the Docker Compose CLI. This method does
+         * not check whether the installation appears usable, see {@link #getDockerAvailability()} instead.
+         *
+         * @return the path to a CLI, if available.
+         */
+        private static Optional<String> getDockerComposePath() {
+            return ExecutableUtils.findExecutableInKnownPaths(DOCKER_COMPOSE_FILENAME, DEFAULT_PATH);
+        }
+
+        /**
+         * The path to the Docker CLI, or null
+         */
+        public String getPath();
+    }
+
+    /**
+     * Docker Compose V1 availability
+     */
+    public static class DockerComposeV1Availability implements DockerComposeAvailability {
+        private final String path;
+
+        DockerComposeV1Availability(String path) {
+            this.path = path;
+        }
+
+        public String getPath() {
+            return this.path;
+        }
+    }
+
+    /**
+     * Docker Compose V2 availability
+     */
+    public static class DockerComposeV2Availability implements DockerComposeAvailability {
+        private final String path;
+
+        DockerComposeV2Availability(String path) {
+            this.path = path;
+        }
+
+        public String getPath() {
+            return this.path;
         }
     }
 

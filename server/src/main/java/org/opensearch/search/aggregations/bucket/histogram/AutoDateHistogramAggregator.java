@@ -31,8 +31,12 @@
 
 package org.opensearch.search.aggregations.bucket.histogram;
 
+import org.apache.lucene.index.DocValues;
+import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
+import org.apache.lucene.search.DocIdStream;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.CollectionUtil;
 import org.opensearch.common.Rounding;
@@ -51,7 +55,10 @@ import org.opensearch.search.aggregations.LeafBucketCollector;
 import org.opensearch.search.aggregations.LeafBucketCollectorBase;
 import org.opensearch.search.aggregations.bucket.DeferableBucketAggregator;
 import org.opensearch.search.aggregations.bucket.DeferringBucketCollector;
+import org.opensearch.search.aggregations.bucket.HistogramSkiplistLeafCollector;
 import org.opensearch.search.aggregations.bucket.MergingBucketsDeferringCollector;
+import org.opensearch.search.aggregations.bucket.filterrewrite.DateHistogramAggregatorBridge;
+import org.opensearch.search.aggregations.bucket.filterrewrite.FilterRewriteOptimizationContext;
 import org.opensearch.search.aggregations.bucket.histogram.AutoDateHistogramAggregationBuilder.RoundingInfo;
 import org.opensearch.search.aggregations.bucket.terms.LongKeyedBucketOrds;
 import org.opensearch.search.aggregations.support.ValuesSource;
@@ -64,6 +71,8 @@ import java.util.Map;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.LongToIntFunction;
+
+import static org.opensearch.search.aggregations.bucket.filterrewrite.DateHistogramAggregatorBridge.segmentMatchAll;
 
 /**
  * An aggregator for date values that attempts to return a specific number of
@@ -80,6 +89,7 @@ import java.util.function.LongToIntFunction;
  * @opensearch.internal
  */
 abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
+
     static AutoDateHistogramAggregator build(
         String name,
         AggregatorFactories factories,
@@ -128,6 +138,11 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
 
     protected final RoundingInfo[] roundingInfos;
     protected final int targetBuckets;
+    protected int roundingIdx;
+    protected Rounding.Prepared preparedRounding;
+    private final String fieldName;
+
+    private final FilterRewriteOptimizationContext filterRewriteOptimizationContext;
 
     private AutoDateHistogramAggregator(
         String name,
@@ -140,7 +155,6 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
         Aggregator parent,
         Map<String, Object> metadata
     ) throws IOException {
-
         super(name, factories, aggregationContext, parent, metadata);
         this.targetBuckets = targetBuckets;
         // TODO: Remove null usage here, by using a different aggregator for create
@@ -148,7 +162,76 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
         this.formatter = valuesSourceConfig.format();
         this.roundingInfos = roundingInfos;
         this.roundingPreparer = roundingPreparer;
+        this.preparedRounding = prepareRounding(0);
+        this.fieldName = (valuesSource instanceof ValuesSource.Numeric.FieldData)
+            ? ((ValuesSource.Numeric.FieldData) valuesSource).getIndexFieldName()
+            : null;
+
+        DateHistogramAggregatorBridge bridge = new DateHistogramAggregatorBridge() {
+            @Override
+            protected boolean canOptimize() {
+                return canOptimize(valuesSourceConfig, roundingInfos[0].rounding);
+            }
+
+            @Override
+            protected void prepare() throws IOException {
+                buildRanges(context);
+            }
+
+            /**
+             * The filter rewrite optimization uses this method to pre-emptively update the preparedRounding
+             * when considering the optimized path for a single segment. This is necessary since the optimized path
+             * skips doc collection entirely which is where the preparedRounding is normally updated.
+             *
+             * @param low lower bound of rounding to prepare
+             * @param high upper bound of rounding to prepare
+             * @return select a prepared rounding which satisfies the conditions:
+             * 1. Is at least as large as our previously prepared rounding
+             * 2. Must span a range of [low, high] with buckets <= targetBuckets
+             */
+            @Override
+            protected Rounding getRounding(final long low, final long high) {
+                // max - min / targetBuckets = bestDuration
+                // find the right innerInterval this bestDuration belongs to
+                // since we cannot exceed targetBuckets, bestDuration should go up,
+                // so the right innerInterval should be an upper bound
+                long bestDuration = (high - low) / targetBuckets;
+
+                int prevRoundingIdx = roundingIdx;
+                roundingIdx = 0;
+                while (roundingIdx < roundingInfos.length - 1) {
+                    final RoundingInfo curRoundingInfo = roundingInfos[roundingIdx];
+                    final int temp = curRoundingInfo.innerIntervals[curRoundingInfo.innerIntervals.length - 1];
+                    // If the interval duration is covered by the maximum inner interval,
+                    // we can start with this outer interval for creating the buckets
+                    if (bestDuration <= temp * curRoundingInfo.roughEstimateDurationMillis) {
+                        break;
+                    }
+                    roundingIdx++;
+                }
+
+                // Ensure preparedRounding never shrinks
+                if (roundingIdx > prevRoundingIdx) {
+                    preparedRounding = prepareRounding(roundingIdx);
+                }
+
+                return roundingInfos[roundingIdx].rounding;
+            }
+
+            @Override
+            protected Prepared getRoundingPrepared() {
+                return preparedRounding;
+            }
+
+            @Override
+            protected Function<Long, Long> bucketOrdProducer() {
+                return (key) -> getBucketOrds().add(0, preparedRounding.round(key));
+            }
+        };
+        filterRewriteOptimizationContext = new FilterRewriteOptimizationContext(bridge, parent, subAggregators.length, context);
     }
+
+    protected abstract LongKeyedBucketOrds getBucketOrds();
 
     @Override
     public final ScoreMode scoreMode() {
@@ -169,14 +252,35 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
         return deferringCollector;
     }
 
-    protected abstract LeafBucketCollector getLeafCollector(SortedNumericDocValues values, LeafBucketCollector sub) throws IOException;
+    protected abstract LeafBucketCollector getLeafCollector(
+        SortedNumericDocValues values,
+        DocValuesSkipper skipper,
+        LeafBucketCollector sub
+    ) throws IOException;
+
+    @Override
+    protected boolean tryPrecomputeAggregationForLeaf(LeafReaderContext ctx) throws IOException {
+        return filterRewriteOptimizationContext.tryOptimize(
+            ctx,
+            this::incrementBucketDocCount,
+            segmentMatchAll(context, ctx),
+            collectableSubAggregators
+        );
+    }
 
     @Override
     public final LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
         if (valuesSource == null) {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
-        return getLeafCollector(valuesSource.longValues(ctx), sub);
+
+        final SortedNumericDocValues values = valuesSource.longValues(ctx);
+        DocValuesSkipper skipper = null;
+        if (this.fieldName != null) {
+            skipper = ctx.reader().getDocValuesSkipper(this.fieldName);
+        }
+
+        return getLeafCollector(values, skipper, sub);
     }
 
     protected final InternalAggregation[] buildAggregations(
@@ -194,6 +298,7 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
                 subAggregationResults
             ),
             (owningBucketOrd, buckets) -> {
+                checkCancelled();
                 // the contract of the histogram aggregation is that shards must return
                 // buckets ordered by key in ascending order
                 CollectionUtil.introSort(buckets, BucketOrder.key(true).comparator());
@@ -231,6 +336,12 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
         }
     }
 
+    @Override
+    public void collectDebugInfo(BiConsumer<String, Object> add) {
+        super.collectDebugInfo(add);
+        filterRewriteOptimizationContext.populateDebugInfo(add);
+    }
+
     /**
      * Initially it uses the most fine grained rounding configuration possible
      * but as more data arrives it rebuckets the data until it "fits" in the
@@ -247,8 +358,6 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
      * @opensearch.internal
      */
     private static class FromSingle extends AutoDateHistogramAggregator {
-        private int roundingIdx;
-        private Rounding.Prepared preparedRounding;
         /**
          * Map from value to bucket ordinals.
          * <p>
@@ -262,6 +371,9 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
         private LongKeyedBucketOrds.FromSingle bucketOrds;
         private long min = Long.MAX_VALUE;
         private long max = Long.MIN_VALUE;
+
+        // Debug tracking counters for collector types
+        private int skiplistCollectorCount = 0;
 
         FromSingle(
             String name,
@@ -286,12 +398,34 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
                 metadata
             );
 
-            preparedRounding = prepareRounding(0);
             bucketOrds = new LongKeyedBucketOrds.FromSingle(context.bigArrays());
         }
 
         @Override
-        protected LeafBucketCollector getLeafCollector(SortedNumericDocValues values, LeafBucketCollector sub) throws IOException {
+        protected LongKeyedBucketOrds getBucketOrds() {
+            return bucketOrds;
+        }
+
+        @Override
+        protected LeafBucketCollector getLeafCollector(SortedNumericDocValues values, DocValuesSkipper skipper, LeafBucketCollector sub)
+            throws IOException {
+            // Check if skiplist optimization is available
+            final NumericDocValues singleton = DocValues.unwrapSingleton(values);
+            if (HistogramSkiplistLeafCollector.canUseSkiplist(null, parent, skipper, singleton)) {
+                // Increment skiplist collector count
+                skiplistCollectorCount++;
+                return new HistogramSkiplistLeafCollector(
+                    singleton,
+                    skipper,
+                    (owningBucketOrd) -> preparedRounding,  // for FromSingle there will be no parent/
+                    () -> bucketOrds,
+                    sub,
+                    FromSingle.this,
+                    (owningBucket, rounded) -> increaseRoundingIfNeeded(rounded)  // Pass supplier to allow rounding change
+                );
+            }
+
+            // Fall back to standard LeafBucketCollectorBase when skiplist unavailable
             return new LeafBucketCollectorBase(sub, values) {
                 @Override
                 public void collect(int doc, long owningBucketOrd) throws IOException {
@@ -314,6 +448,16 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
                     }
                 }
 
+                @Override
+                public void collect(DocIdStream stream, long owningBucketOrd) throws IOException {
+                    super.collect(stream, owningBucketOrd);
+                }
+
+                @Override
+                public void collectRange(int min, int max) throws IOException {
+                    super.collectRange(min, max);
+                }
+
                 private void collectValue(int doc, long rounded) throws IOException {
                     long bucketOrd = bucketOrds.add(0, rounded);
                     if (bucketOrd < 0) { // already seen
@@ -325,35 +469,63 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
                     increaseRoundingIfNeeded(rounded);
                 }
 
-                private void increaseRoundingIfNeeded(long rounded) {
-                    if (roundingIdx >= roundingInfos.length - 1) {
-                        return;
-                    }
-                    min = Math.min(min, rounded);
-                    max = Math.max(max, rounded);
-                    if (bucketOrds.size() <= targetBuckets * roundingInfos[roundingIdx].getMaximumInnerInterval()
-                        && max - min <= targetBuckets * roundingInfos[roundingIdx].getMaximumRoughEstimateDurationMillis()) {
-                        return;
-                    }
-                    do {
-                        try (LongKeyedBucketOrds oldOrds = bucketOrds) {
-                            preparedRounding = prepareRounding(++roundingIdx);
-                            long[] mergeMap = new long[Math.toIntExact(oldOrds.size())];
-                            bucketOrds = new LongKeyedBucketOrds.FromSingle(context.bigArrays());
-                            LongKeyedBucketOrds.BucketOrdsEnum ordsEnum = oldOrds.ordsEnum(0);
-                            while (ordsEnum.next()) {
-                                long oldKey = ordsEnum.value();
-                                long newKey = preparedRounding.round(oldKey);
-                                long newBucketOrd = bucketOrds.add(0, newKey);
-                                mergeMap[(int) ordsEnum.ord()] = newBucketOrd >= 0 ? newBucketOrd : -1 - newBucketOrd;
-                            }
-                            merge(mergeMap, bucketOrds.size());
-                        }
-                    } while (roundingIdx < roundingInfos.length - 1
-                        && (bucketOrds.size() > targetBuckets * roundingInfos[roundingIdx].getMaximumInnerInterval()
-                            || max - min > targetBuckets * roundingInfos[roundingIdx].getMaximumRoughEstimateDurationMillis()));
-                }
             };
+        }
+
+        /**
+         * Examine our current bucket count and the most recently added bucket to determine if an update to
+         * preparedRounding is required to keep total bucket count in compliance with targetBuckets.
+         *
+         * @param rounded the most recently collected value rounded
+         */
+        private void increaseRoundingIfNeeded(long rounded) {
+            // If we are already using the rounding with the largest interval nothing can be done
+            if (roundingIdx >= roundingInfos.length - 1) {
+                return;
+            }
+
+            // Re calculate the max and min values we expect to bucket according to most recently rounded val
+            min = Math.min(min, rounded);
+            max = Math.max(max, rounded);
+
+            /**
+             * Quick explanation of the two below conditions:
+             *
+             * 1. [targetBuckets * roundingInfos[roundingIdx].getMaximumInnerInterval()]
+             * Represents the total bucket count possible before we will exceed targetBuckets
+             * even if we use the maximum inner interval of our current rounding. For example, consider the
+             * DAYS_OF_MONTH rounding where the maximum inner interval is 7 days (i.e. 1 week buckets).
+             * targetBuckets * roundingInfos[roundingIdx].getMaximumInnerInterval() would then be the number of
+             * 1 day buckets possible such that if we re-bucket to 1 week buckets we will have more 1 week buckets
+             * than our targetBuckets limit. If the current count of buckets exceeds this limit we must update
+             * our rounding.
+             *
+             * 2. [targetBuckets * roundingInfos[roundingIdx].getMaximumRoughEstimateDurationMillis()]
+             * The total duration of ms covered by our current rounding. In the case of MINUTES_OF_HOUR rounding
+             * getMaximumRoughEstimateDurationMillis is 60000. If our current total range in millis (max - min)
+             * exceeds this range we must update our rounding.
+             */
+            if (bucketOrds.size() <= targetBuckets * roundingInfos[roundingIdx].getMaximumInnerInterval()
+                && max - min <= targetBuckets * roundingInfos[roundingIdx].getMaximumRoughEstimateDurationMillis()) {
+                return;
+            }
+            do {
+                try (LongKeyedBucketOrds oldOrds = bucketOrds) {
+                    preparedRounding = prepareRounding(++roundingIdx);
+                    long[] mergeMap = new long[Math.toIntExact(oldOrds.size())];
+                    bucketOrds = new LongKeyedBucketOrds.FromSingle(context.bigArrays());
+                    LongKeyedBucketOrds.BucketOrdsEnum ordsEnum = oldOrds.ordsEnum(0);
+                    while (ordsEnum.next()) {
+                        long oldKey = ordsEnum.value();
+                        long newKey = preparedRounding.round(oldKey);
+                        long newBucketOrd = bucketOrds.add(0, newKey);
+                        mergeMap[(int) ordsEnum.ord()] = newBucketOrd >= 0 ? newBucketOrd : -1 - newBucketOrd;
+                    }
+                    merge(mergeMap, bucketOrds.size());
+                }
+            } while (roundingIdx < roundingInfos.length - 1
+                && (bucketOrds.size() > targetBuckets * roundingInfos[roundingIdx].getMaximumInnerInterval()
+                    || max - min > targetBuckets * roundingInfos[roundingIdx].getMaximumRoughEstimateDurationMillis()));
         }
 
         @Override
@@ -365,6 +537,7 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
         public void collectDebugInfo(BiConsumer<String, Object> add) {
             super.collectDebugInfo(add);
             add.accept("surviving_buckets", bucketOrds.size());
+            add.accept("skiplist_collectors_used", skiplistCollectorCount);
         }
 
         @Override
@@ -471,6 +644,8 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
          */
         private int rebucketCount = 0;
 
+        private int skiplistCollectorCount = 0;
+
         FromMany(
             String name,
             AggregatorFactories factories,
@@ -508,7 +683,43 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
         }
 
         @Override
-        protected LeafBucketCollector getLeafCollector(SortedNumericDocValues values, LeafBucketCollector sub) throws IOException {
+        protected LongKeyedBucketOrds getBucketOrds() {
+            return bucketOrds;
+        }
+
+        @Override
+        protected LeafBucketCollector getLeafCollector(SortedNumericDocValues values, DocValuesSkipper skipper, LeafBucketCollector sub)
+            throws IOException {
+
+            final NumericDocValues singleton = DocValues.unwrapSingleton(values);
+            if (HistogramSkiplistLeafCollector.canUseSkiplist(null, parent, skipper, singleton)) {
+                /**
+                 * HistogramSkiplistLeafCollector in its current state can only handle one owningBucketOrd at a time.
+                 * When parent is null, i.e. then ForSingle class will get used. ForMany is used when auto date is sub agg.
+                 * In the special case where in FilterRewrite (SubAggRangeCollector) logic, we can use Skiplist because we
+                 * will one range (and thus owningBucketOrd) at time.
+                 *
+                 * In the future we can enhance HistogramSkiplistLeafCollector to handle multiple owningBucketOrd,
+                 * similar to FromMany.
+                 */
+                skiplistCollectorCount++;
+
+                return new HistogramSkiplistLeafCollector(
+                    singleton,
+                    skipper,
+                    (owningBucketOrd) -> preparedRoundings[roundingIndexFor(owningBucketOrd)],
+                    () -> bucketOrds,
+                    sub,
+                    FromMany.this,
+                    (owningBucketOrd, rounded) -> {
+                        int roundingIdx = roundingIndexFor(owningBucketOrd);
+                        liveBucketCountUnderestimate = context.bigArrays().grow(liveBucketCountUnderestimate, owningBucketOrd + 1);
+                        int estimatedBucketCount = liveBucketCountUnderestimate.increment(owningBucketOrd, 1);
+                        increaseRoundingIfNeeded(owningBucketOrd, estimatedBucketCount, rounded, roundingIdx);
+                    }
+                );
+            }
+
             return new LeafBucketCollectorBase(sub, values) {
                 @Override
                 public void collect(int doc, long owningBucketOrd) throws IOException {
@@ -531,6 +742,16 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
                     }
                 }
 
+                @Override
+                public void collect(DocIdStream stream, long owningBucketOrd) throws IOException {
+                    super.collect(stream, owningBucketOrd);
+                }
+
+                @Override
+                public void collectRange(int min, int max) throws IOException {
+                    super.collectRange(min, max);
+                }
+
                 private int collectValue(long owningBucketOrd, int roundingIdx, int doc, long rounded) throws IOException {
                     long bucketOrd = bucketOrds.add(owningBucketOrd, rounded);
                     if (bucketOrd < 0) { // already seen
@@ -544,64 +765,66 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
                     return increaseRoundingIfNeeded(owningBucketOrd, estimatedBucketCount, rounded, roundingIdx);
                 }
 
-                /**
-                 * Increase the rounding of {@code owningBucketOrd} using
-                 * estimated, bucket counts, {@link FromMany#rebucket()} rebucketing} the all
-                 * buckets if the estimated number of wasted buckets is too high.
-                 */
-                private int increaseRoundingIfNeeded(long owningBucketOrd, int oldEstimatedBucketCount, long newKey, int oldRounding) {
-                    if (oldRounding >= roundingInfos.length - 1) {
-                        return oldRounding;
-                    }
-                    if (mins.size() < owningBucketOrd + 1) {
-                        long oldSize = mins.size();
-                        mins = context.bigArrays().grow(mins, owningBucketOrd + 1);
-                        mins.fill(oldSize, mins.size(), Long.MAX_VALUE);
-                    }
-                    if (maxes.size() < owningBucketOrd + 1) {
-                        long oldSize = maxes.size();
-                        maxes = context.bigArrays().grow(maxes, owningBucketOrd + 1);
-                        maxes.fill(oldSize, maxes.size(), Long.MIN_VALUE);
-                    }
-
-                    long min = Math.min(mins.get(owningBucketOrd), newKey);
-                    mins.set(owningBucketOrd, min);
-                    long max = Math.max(maxes.get(owningBucketOrd), newKey);
-                    maxes.set(owningBucketOrd, max);
-                    if (oldEstimatedBucketCount <= targetBuckets * roundingInfos[oldRounding].getMaximumInnerInterval()
-                        && max - min <= targetBuckets * roundingInfos[oldRounding].getMaximumRoughEstimateDurationMillis()) {
-                        return oldRounding;
-                    }
-                    long oldRoughDuration = roundingInfos[oldRounding].roughEstimateDurationMillis;
-                    int newRounding = oldRounding;
-                    int newEstimatedBucketCount;
-                    do {
-                        newRounding++;
-                        double ratio = (double) oldRoughDuration / (double) roundingInfos[newRounding].getRoughEstimateDurationMillis();
-                        newEstimatedBucketCount = (int) Math.ceil(oldEstimatedBucketCount * ratio);
-                    } while (newRounding < roundingInfos.length - 1
-                        && (newEstimatedBucketCount > targetBuckets * roundingInfos[newRounding].getMaximumInnerInterval()
-                            || max - min > targetBuckets * roundingInfos[newRounding].getMaximumRoughEstimateDurationMillis()));
-                    setRounding(owningBucketOrd, newRounding);
-                    mins.set(owningBucketOrd, preparedRoundings[newRounding].round(mins.get(owningBucketOrd)));
-                    maxes.set(owningBucketOrd, preparedRoundings[newRounding].round(maxes.get(owningBucketOrd)));
-                    wastedBucketsOverestimate += oldEstimatedBucketCount - newEstimatedBucketCount;
-                    if (wastedBucketsOverestimate > nextRebucketAt) {
-                        rebucket();
-                        // Bump the threshold for the next rebucketing
-                        wastedBucketsOverestimate = 0;
-                        nextRebucketAt *= 2;
-                    } else {
-                        liveBucketCountUnderestimate.set(owningBucketOrd, newEstimatedBucketCount);
-                    }
-                    return newRounding;
-                }
             };
+        }
+
+        /**
+         * Increase the rounding of {@code owningBucketOrd} using
+         * estimated, bucket counts, {@link FromMany#rebucket()} rebucketing} the all
+         * buckets if the estimated number of wasted buckets is too high.
+         */
+        private int increaseRoundingIfNeeded(long owningBucketOrd, int oldEstimatedBucketCount, long newKey, int oldRounding) {
+            if (oldRounding >= roundingInfos.length - 1) {
+                return oldRounding;
+            }
+            if (mins.size() < owningBucketOrd + 1) {
+                long oldSize = mins.size();
+                mins = context.bigArrays().grow(mins, owningBucketOrd + 1);
+                mins.fill(oldSize, mins.size(), Long.MAX_VALUE);
+            }
+            if (maxes.size() < owningBucketOrd + 1) {
+                long oldSize = maxes.size();
+                maxes = context.bigArrays().grow(maxes, owningBucketOrd + 1);
+                maxes.fill(oldSize, maxes.size(), Long.MIN_VALUE);
+            }
+
+            long min = Math.min(mins.get(owningBucketOrd), newKey);
+            mins.set(owningBucketOrd, min);
+            long max = Math.max(maxes.get(owningBucketOrd), newKey);
+            maxes.set(owningBucketOrd, max);
+            if (oldEstimatedBucketCount <= targetBuckets * roundingInfos[oldRounding].getMaximumInnerInterval()
+                && max - min <= targetBuckets * roundingInfos[oldRounding].getMaximumRoughEstimateDurationMillis()) {
+                return oldRounding;
+            }
+            long oldRoughDuration = roundingInfos[oldRounding].roughEstimateDurationMillis;
+            int newRounding = oldRounding;
+            int newEstimatedBucketCount;
+            do {
+                newRounding++;
+                double ratio = (double) oldRoughDuration / (double) roundingInfos[newRounding].getRoughEstimateDurationMillis();
+                newEstimatedBucketCount = (int) Math.ceil(oldEstimatedBucketCount * ratio);
+            } while (newRounding < roundingInfos.length - 1
+                && (newEstimatedBucketCount > targetBuckets * roundingInfos[newRounding].getMaximumInnerInterval()
+                    || max - min > targetBuckets * roundingInfos[newRounding].getMaximumRoughEstimateDurationMillis()));
+            setRounding(owningBucketOrd, newRounding);
+            mins.set(owningBucketOrd, preparedRoundings[newRounding].round(mins.get(owningBucketOrd)));
+            maxes.set(owningBucketOrd, preparedRoundings[newRounding].round(maxes.get(owningBucketOrd)));
+            wastedBucketsOverestimate += oldEstimatedBucketCount - newEstimatedBucketCount;
+            if (wastedBucketsOverestimate > nextRebucketAt) {
+                rebucket();
+                // Bump the threshold for the next rebucketing
+                wastedBucketsOverestimate = 0;
+                nextRebucketAt *= 2;
+            } else {
+                liveBucketCountUnderestimate.set(owningBucketOrd, newEstimatedBucketCount);
+            }
+            return newRounding;
         }
 
         private void rebucket() {
             rebucketCount++;
             try (LongKeyedBucketOrds oldOrds = bucketOrds) {
+                checkCancelled();
                 long[] mergeMap = new long[Math.toIntExact(oldOrds.size())];
                 bucketOrds = new LongKeyedBucketOrds.FromMany(context.bigArrays());
                 for (long owningBucketOrd = 0; owningBucketOrd <= oldOrds.maxOwningBucketOrd(); owningBucketOrd++) {
@@ -642,6 +865,7 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
             add.accept("wasted_buckets_overestimate", wastedBucketsOverestimate);
             add.accept("next_rebucket_at", nextRebucketAt);
             add.accept("rebucket_count", rebucketCount);
+            add.accept("skiplist_collectors_used", skiplistCollectorCount);
         }
 
         private void setRounding(long owningBucketOrd, int newRounding) {

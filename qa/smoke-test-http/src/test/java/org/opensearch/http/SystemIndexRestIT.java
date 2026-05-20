@@ -37,7 +37,7 @@ import org.opensearch.action.support.WriteRequest;
 import org.opensearch.client.Request;
 import org.opensearch.client.RequestOptions;
 import org.opensearch.client.Response;
-import org.opensearch.client.node.NodeClient;
+import org.opensearch.transport.client.node.NodeClient;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.common.settings.ClusterSettings;
@@ -120,6 +120,79 @@ public class SystemIndexRestIT extends HttpSmokeTestCase {
             putDocDirectlyRequest.setOptions(expectWarnings(expectedWarning));
             Response response = getRestClient().performRequest(putDocDirectlyRequest);
             assertThat(response.getStatusLine().getStatusCode(), equalTo(201));
+        }
+    }
+
+    public void testSystemIndexCreatedWithoutAnyTemplates() throws Exception {
+        // create template
+        {
+            Request templateRequest = new Request("POST", "_component_template/error_mapping_test_template");
+            String jsonBody = """
+                {
+                  "template": {
+                    "mappings": {
+                      "properties": {
+                        "error" : {
+                          "type": "nested",
+                          "properties": {
+                            "message": {
+                              "type": "text"
+                            },
+                            "status": {
+                              "type": "integer"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }""";
+
+            templateRequest.setJsonEntity(jsonBody);
+            Response resp = getRestClient().performRequest(templateRequest);
+            assertThat(resp.getStatusLine().getStatusCode(), equalTo(200));
+        }
+
+
+        // apply template to indices
+        {
+            Request applyTemplateRequest = new Request("POST", "_index_template/match_all_test_template");
+            String jsonBody = """
+                {
+                  "index_patterns": [
+                    "*system-idx*"
+                  ],
+                  "template": {
+                    "settings": {}
+                  },
+                  "priority": 10,
+                  "composed_of": [
+                    "error_mapping_test_template"
+                  ],
+                  "version": 1
+                }""";
+
+            applyTemplateRequest.setJsonEntity(jsonBody);
+            Response resp = getRestClient().performRequest(applyTemplateRequest);
+            assertThat(resp.getStatusLine().getStatusCode(), equalTo(200));
+        }
+
+        // create system index - success
+        {
+            Request indexRequest = new Request("PUT", "/" + SystemIndexTestPlugin.SYSTEM_INDEX_NAME);
+            String jsonBody = """
+                {
+                  "mappings": {
+                    "properties": {
+                      "error": {
+                        "type": "text"
+                      }
+                    }
+                  }
+                }""";
+            indexRequest.setJsonEntity(jsonBody);
+            Response resp = getRestClient().performRequest(indexRequest);
+            assertThat(resp.getStatusLine().getStatusCode(), equalTo(200));
         }
     }
 

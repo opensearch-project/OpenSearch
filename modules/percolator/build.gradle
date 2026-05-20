@@ -31,8 +31,8 @@ apply plugin: 'opensearch.yaml-rest-test'
 apply plugin: 'opensearch.internal-cluster-test'
 
 opensearchplugin {
-  description 'Percolator module adds capability to index queries and query these queries by specifying documents'
-  classname 'org.opensearch.percolator.PercolatorModulePlugin'
+  description = 'Percolator module adds capability to index queries and query these queries by specifying documents'
+  classname = 'org.opensearch.percolator.PercolatorModulePlugin'
   hasClientJar = true
 }
 

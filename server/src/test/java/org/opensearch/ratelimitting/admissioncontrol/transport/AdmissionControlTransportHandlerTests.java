@@ -29,7 +29,8 @@ public class AdmissionControlTransportHandlerTests extends OpenSearchTestCase {
             action,
             handler,
             mock(AdmissionControlService.class),
-            false
+            false,
+            null
         );
         admissionControlTransportHandler.messageReceived(mock(TransportRequest.class), mock(TransportChannel.class), mock(Task.class));
         assertEquals(1, handler.count);
@@ -38,33 +39,32 @@ public class AdmissionControlTransportHandlerTests extends OpenSearchTestCase {
     public void testHandlerInvokedRejectedException() throws Exception {
         String action = "TEST";
         AdmissionControlService admissionControlService = mock(AdmissionControlService.class);
-        doThrow(new OpenSearchRejectedExecutionException()).when(admissionControlService).applyTransportAdmissionControl(action);
+        doThrow(new OpenSearchRejectedExecutionException()).when(admissionControlService).applyTransportAdmissionControl(action, null);
         InterceptingRequestHandler<TransportRequest> handler = new InterceptingRequestHandler<>(action);
         admissionControlTransportHandler = new AdmissionControlTransportHandler<TransportRequest>(
             action,
             handler,
             admissionControlService,
-            false
+            false,
+            null
         );
-        try {
-            admissionControlTransportHandler.messageReceived(mock(TransportRequest.class), mock(TransportChannel.class), mock(Task.class));
-        } catch (OpenSearchRejectedExecutionException exception) {
-            assertEquals(0, handler.count);
-            handler.messageReceived(mock(TransportRequest.class), mock(TransportChannel.class), mock(Task.class));
-        }
+        admissionControlTransportHandler.messageReceived(mock(TransportRequest.class), mock(TransportChannel.class), mock(Task.class));
+        assertEquals(0, handler.count);
+        handler.messageReceived(mock(TransportRequest.class), mock(TransportChannel.class), mock(Task.class));
         assertEquals(1, handler.count);
     }
 
     public void testHandlerInvokedRandomException() throws Exception {
         String action = "TEST";
         AdmissionControlService admissionControlService = mock(AdmissionControlService.class);
-        doThrow(new NullPointerException()).when(admissionControlService).applyTransportAdmissionControl(action);
+        doThrow(new NullPointerException()).when(admissionControlService).applyTransportAdmissionControl(action, null);
         InterceptingRequestHandler<TransportRequest> handler = new InterceptingRequestHandler<>(action);
         admissionControlTransportHandler = new AdmissionControlTransportHandler<TransportRequest>(
             action,
             handler,
             admissionControlService,
-            false
+            false,
+            null
         );
         try {
             admissionControlTransportHandler.messageReceived(mock(TransportRequest.class), mock(TransportChannel.class), mock(Task.class));

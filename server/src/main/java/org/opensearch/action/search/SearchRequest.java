@@ -32,13 +32,16 @@
 
 package org.opensearch.action.search;
 
+import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
 import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.IndicesRequest;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -49,6 +52,11 @@ import org.opensearch.search.Scroll;
 import org.opensearch.search.builder.PointInTimeBuilder;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.search.internal.SearchContext;
+import org.opensearch.search.sort.FieldSortBuilder;
+import org.opensearch.search.sort.ShardDocSortBuilder;
+import org.opensearch.search.sort.SortBuilder;
+import org.opensearch.transport.client.Client;
+import org.opensearch.transport.client.Requests;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -60,14 +68,14 @@ import static org.opensearch.action.ValidateActions.addValidationError;
 
 /**
  * A request to execute search against one or more indices (or all). Best created using
- * {@link org.opensearch.client.Requests#searchRequest(String...)}.
+ * {@link Requests#searchRequest(String...)}.
  * <p>
  * Note, the search {@link #source(org.opensearch.search.builder.SearchSourceBuilder)}
  * is required. The search source is the different search options, including aggregations and such.
  * </p>
  *
- * @see org.opensearch.client.Requests#searchRequest(String...)
- * @see org.opensearch.client.Client#search(SearchRequest)
+ * @see Requests#searchRequest(String...)
+ * @see Client#search(SearchRequest)
  * @see SearchResponse
  *
  * @opensearch.api
@@ -158,6 +166,18 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         }
         indices(indices);
         this.source = source;
+    }
+
+    /**
+     * Deep clone a SearchRequest
+     *
+     * @return a copy of the current SearchRequest
+     */
+    public SearchRequest deepCopy() throws IOException {
+        BytesStreamOutput out = new BytesStreamOutput();
+        this.writeTo(out);
+        StreamInput in = out.bytes().streamInput();
+        return new SearchRequest(in);
     }
 
     /**
@@ -333,7 +353,43 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
                 validationException = addValidationError("using [point in time] is not allowed in a scroll context", validationException);
             }
         }
+
+        // _shard_doc validation
+        if (source != null && source.sorts() != null && !source.sorts().isEmpty()) {
+            int shardDocCount = 0;
+            for (SortBuilder<?> sb : source.sorts()) {
+                if (isShardDocSort(sb)) shardDocCount++;
+            }
+            final boolean hasPit = pointInTimeBuilder() != null;
+
+            if (shardDocCount > 0 && scroll) {
+                validationException = addValidationError(
+                    "_shard_doc cannot be used with scroll. Use PIT + search_after instead.",
+                    validationException
+                );
+            }
+            if (shardDocCount > 0 && !hasPit) {
+                validationException = addValidationError(
+                    "_shard_doc is only supported with point-in-time (PIT). Add a PIT or remove _shard_doc.",
+                    validationException
+                );
+            }
+            if (shardDocCount > 1) {
+                validationException = addValidationError(
+                    "duplicate _shard_doc sort detected. Specify it at most once.",
+                    validationException
+                );
+            }
+        }
         return validationException;
+    }
+
+    private static boolean isShardDocSort(SortBuilder<?> sb) {
+        if (sb instanceof ShardDocSortBuilder) return true;
+        if (sb instanceof FieldSortBuilder) {
+            return ShardDocSortBuilder.NAME.equals(((FieldSortBuilder) sb).getFieldName());
+        }
+        return false;
     }
 
     /**
@@ -359,7 +415,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
      * request. When created through {@link #subSearchRequest(SearchRequest, String[], String, long, boolean)}, this method returns
      * the provided current time, otherwise it will return {@link System#currentTimeMillis()}.
      */
-    long getOrCreateAbsoluteStartMillis() {
+    public long getOrCreateAbsoluteStartMillis() {
         return absoluteStartMillis == DEFAULT_ABSOLUTE_START_MILLIS ? System.currentTimeMillis() : absoluteStartMillis;
     }
 
@@ -496,7 +552,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
     }
 
     /**
-     * The tye of search to execute.
+     * The type of search to execute.
      */
     public SearchType searchType() {
         return searchType;
@@ -592,6 +648,15 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
      */
     public int getMaxConcurrentShardRequests() {
         return maxConcurrentShardRequests == 0 ? 5 : maxConcurrentShardRequests;
+    }
+
+    /**
+     * Returns the raw value of maxConcurrentShardRequests without applying the default.
+     * A value of {@code 0} means the user has not explicitly set this parameter.
+     */
+    @ExperimentalApi
+    public int getMaxConcurrentShardRequestsRaw() {
+        return maxConcurrentShardRequests;
     }
 
     /**
@@ -712,7 +777,13 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             sb.append("scroll[").append(scroll.keepAlive()).append("], ");
         }
         if (source != null) {
-            sb.append("source[").append(source.toString(FORMAT_PARAMS)).append("]");
+            sb.append("source[");
+            try {
+                sb.append(source.toString(FORMAT_PARAMS));
+            } catch (final OpenSearchException ex) {
+                sb.append("<error: ").append(ex.getMessage()).append(">");
+            }
+            sb.append("]");
         } else {
             sb.append("source[]");
         }

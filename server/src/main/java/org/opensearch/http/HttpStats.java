@@ -32,6 +32,7 @@
 
 package org.opensearch.http;
 
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
@@ -43,13 +44,29 @@ import java.io.IOException;
 /**
  * Stats for HTTP connections
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class HttpStats implements Writeable, ToXContentFragment {
 
     private final long serverOpen;
     private final long totalOpen;
 
+    /**
+     * Private constructor that takes a builder.
+     * This is the sole entry point for creating a new HttpStats object.
+     * @param builder The builder instance containing all the values.
+     */
+    private HttpStats(Builder builder) {
+        this.serverOpen = builder.serverOpen;
+        this.totalOpen = builder.totalOpen;
+    }
+
+    /**
+     * This constructor will be deprecated starting in version 3.4.0.
+     * Use {@link Builder} instead.
+     */
+    @Deprecated
     public HttpStats(long serverOpen, long totalOpened) {
         this.serverOpen = serverOpen;
         this.totalOpen = totalOpened;
@@ -78,6 +95,35 @@ public class HttpStats implements Writeable, ToXContentFragment {
         static final String HTTP = "http";
         static final String CURRENT_OPEN = "current_open";
         static final String TOTAL_OPENED = "total_opened";
+    }
+
+    /**
+     * Builder for the {@link HttpStats} class.
+     * Provides a fluent API for constructing a HttpStats object.
+     */
+    public static class Builder {
+        private long serverOpen = 0;
+        private long totalOpen = 0;
+
+        public Builder() {}
+
+        public Builder serverOpen(long serverOpen) {
+            this.serverOpen = serverOpen;
+            return this;
+        }
+
+        public Builder totalOpen(long totalOpen) {
+            this.totalOpen = totalOpen;
+            return this;
+        }
+
+        /**
+         * Creates a {@link HttpStats} object from the builder's current state.
+         * @return A new HttpStats instance.
+         */
+        public HttpStats build() {
+            return new HttpStats(this);
+        }
     }
 
     @Override

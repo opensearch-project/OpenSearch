@@ -96,7 +96,8 @@ public class JdkDownloadPlugin implements Plugin<Project> {
         project.getExtensions().add(EXTENSION_NAME, jdksContainer);
     }
 
-    private void setupRepository(Project project, Jdk jdk) {
+    // pkg private for tests
+    void setupRepository(Project project, Jdk jdk) {
         RepositoryHandler repositories = project.getRepositories();
 
         /*
@@ -195,7 +196,8 @@ public class JdkDownloadPlugin implements Plugin<Project> {
         return (NamedDomainObjectContainer<Jdk>) project.getExtensions().getByName(EXTENSION_NAME);
     }
 
-    private static String dependencyNotation(Jdk jdk) {
+    // pkg private for tests
+    static String dependencyNotation(Jdk jdk) {
         String platformDep = jdk.getPlatform().equals("darwin") || jdk.getPlatform().equals("mac")
             ? (jdk.getVendor().equals(VENDOR_OPENJDK) ? "osx" : "mac")
             : jdk.getPlatform();

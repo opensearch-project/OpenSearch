@@ -65,6 +65,7 @@ public class MustacheModulePlugin extends Plugin implements ScriptPlugin, Action
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
         return Arrays.asList(
             new ActionHandler<>(SearchTemplateAction.INSTANCE, TransportSearchTemplateAction.class),
+            new ActionHandler<>(RenderSearchTemplateAction.INSTANCE, TransportRenderSearchTemplateAction.class),
             new ActionHandler<>(MultiSearchTemplateAction.INSTANCE, TransportMultiSearchTemplateAction.class)
         );
     }

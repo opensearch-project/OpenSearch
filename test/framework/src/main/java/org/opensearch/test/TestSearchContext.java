@@ -107,6 +107,7 @@ public class TestSearchContext extends SearchContext {
     SearchShardTask task;
     SortAndFormats sort;
     boolean trackScores = false;
+    boolean includeNamedQueriesScore = false;
     int trackTotalHitsUpTo = SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO;
 
     ContextIndexSearcher searcher;
@@ -171,7 +172,7 @@ public class TestSearchContext extends SearchContext {
         this.indexShard = indexShard;
         this.queryShardContext = queryShardContext;
         this.searcher = searcher;
-        this.concurrentSegmentSearchEnabled = searcher != null && (searcher.getExecutor() != null);
+        this.concurrentSegmentSearchEnabled = searcher != null; /* executor is always set */
         this.maxSliceCount = randomIntBetween(0, 2);
         this.scrollContext = scrollContext;
     }
@@ -407,6 +408,17 @@ public class TestSearchContext extends SearchContext {
     @Override
     public boolean trackScores() {
         return trackScores;
+    }
+
+    @Override
+    public SearchContext includeNamedQueriesScore(boolean includeNamedQueriesScore) {
+        this.includeNamedQueriesScore = includeNamedQueriesScore;
+        return this;
+    }
+
+    @Override
+    public boolean includeNamedQueriesScore() {
+        return includeNamedQueriesScore;
     }
 
     @Override
@@ -701,6 +713,16 @@ public class TestSearchContext extends SearchContext {
             && sort.sort.getSort()[0].getReverse() == false;
     }
 
+    @Override
+    public boolean getStarTreeIndexEnabled() {
+        return indexService != null && indexService.getIndexSettings().getStarTreeIndexEnabled();
+    }
+
+    @Override
+    public boolean shouldUseIntraSegmentSearch() {
+        return false;
+    }
+
     /**
      * Clean the query results by consuming all of it
      */
@@ -714,7 +736,7 @@ public class TestSearchContext extends SearchContext {
      * Add profilers to the query
      */
     public TestSearchContext withProfilers() {
-        this.profilers = new Profilers(searcher, concurrentSegmentSearchEnabled);
+        this.profilers = new Profilers(searcher, concurrentSegmentSearchEnabled, query -> List.of());
         return this;
     }
 }

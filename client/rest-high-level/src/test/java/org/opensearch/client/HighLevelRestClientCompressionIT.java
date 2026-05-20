@@ -67,7 +67,7 @@ public class HighLevelRestClientCompressionIT extends OpenSearchRestHighLevelCli
         SearchResponse searchResponse = execute(searchRequest, highLevelClient()::search, highLevelClient()::searchAsync, requestOptions);
 
         assertThat(searchResponse.status().getStatus(), equalTo(200));
-        assertEquals(1L, searchResponse.getHits().getTotalHits().value);
+        assertEquals(1L, searchResponse.getHits().getTotalHits().value());
         assertEquals(SAMPLE_DOCUMENT, searchResponse.getHits().getHits()[0].getSourceAsString());
     }
 

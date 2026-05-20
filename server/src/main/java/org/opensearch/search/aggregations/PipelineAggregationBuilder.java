@@ -33,6 +33,7 @@ package org.opensearch.search.aggregations;
 
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.ValidateActions;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.NamedWriteable;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
@@ -54,8 +55,9 @@ import java.util.Objects;
  * A factory that knows how to create an {@link PipelineAggregator} of a
  * specific type.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public abstract class PipelineAggregationBuilder
     implements
         NamedWriteable,
@@ -203,14 +205,12 @@ public abstract class PipelineAggregationBuilder
 
             @Override
             public void validateParentAggSequentiallyOrdered(String type, String name) {
-                if (parent instanceof HistogramAggregationBuilder) {
-                    HistogramAggregationBuilder histoParent = (HistogramAggregationBuilder) parent;
-                    if (histoParent.minDocCount() != 0) {
+                if (parent instanceof HistogramAggregationBuilder histogramAggregationBuilder) {
+                    if (histogramAggregationBuilder.minDocCount() != 0) {
                         addValidationError("parent histogram of " + type + " aggregation [" + name + "] must have min_doc_count of 0");
                     }
-                } else if (parent instanceof DateHistogramAggregationBuilder) {
-                    DateHistogramAggregationBuilder histoParent = (DateHistogramAggregationBuilder) parent;
-                    if (histoParent.minDocCount() != 0) {
+                } else if (parent instanceof DateHistogramAggregationBuilder dateHistogramAggregationBuilder) {
+                    if (dateHistogramAggregationBuilder.minDocCount() != 0) {
                         addValidationError("parent histogram of " + type + " aggregation [" + name + "] must have min_doc_count of 0");
                     }
                 } else if (parent instanceof AutoDateHistogramAggregationBuilder) {

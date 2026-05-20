@@ -29,8 +29,6 @@
 
 package org.opensearch.common.logging;
 
-import com.fasterxml.jackson.core.io.JsonStringEncoder;
-
 import org.apache.logging.log4j.core.LogEvent;
 import org.apache.logging.log4j.core.config.Configuration;
 import org.apache.logging.log4j.core.config.plugins.Plugin;
@@ -38,10 +36,12 @@ import org.apache.logging.log4j.core.pattern.ConverterKeys;
 import org.apache.logging.log4j.core.pattern.ExtendedThrowablePatternConverter;
 import org.apache.logging.log4j.core.pattern.PatternConverter;
 import org.apache.logging.log4j.core.pattern.ThrowablePatternConverter;
-import org.apache.logging.log4j.util.Strings;
+import org.opensearch.core.common.Strings;
 
 import java.nio.charset.Charset;
 import java.util.StringJoiner;
+
+import tools.jackson.core.io.JsonStringEncoder;
 
 /**
 
@@ -84,7 +84,7 @@ public final class JsonThrowablePatternConverter extends ThrowablePatternConvert
     @Override
     public void format(final LogEvent event, final StringBuilder toAppendTo) {
         String consoleStacktrace = formatStacktrace(event);
-        if (Strings.isNotEmpty(consoleStacktrace)) {
+        if (!Strings.isNullOrEmpty(consoleStacktrace)) {
             String jsonStacktrace = formatJson(consoleStacktrace);
 
             toAppendTo.append(", ");

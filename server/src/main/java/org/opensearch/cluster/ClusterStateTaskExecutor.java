@@ -33,6 +33,7 @@ package org.opensearch.cluster;
 
 import org.opensearch.cluster.service.ClusterManagerTaskThrottler;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.annotation.PublicApi;
 
 import java.util.IdentityHashMap;
 import java.util.List;
@@ -41,8 +42,9 @@ import java.util.Map;
 /**
  * Interface that updates the cluster state based on the task
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public interface ClusterStateTaskExecutor<T> {
     /**
      * Update the cluster state based on the current state and the given tasks. Return the *same instance* if no state
@@ -55,16 +57,6 @@ public interface ClusterStateTaskExecutor<T> {
      */
     default boolean runOnlyOnClusterManager() {
         return true;
-    }
-
-    /**
-     * indicates whether this executor should only run if the current node is cluster-manager
-     *
-     * @deprecated As of 2.1, because supporting inclusive language, replaced by {@link #runOnlyOnClusterManager()}
-     */
-    @Deprecated
-    default boolean runOnlyOnMaster() {
-        return runOnlyOnClusterManager();
     }
 
     /**
@@ -103,8 +95,9 @@ public interface ClusterStateTaskExecutor<T> {
      * Represents the result of a batched execution of cluster state update tasks
      * @param <T> the type of the cluster state update task
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     class ClusterTasksResult<T> {
         @Nullable
         public final ClusterState resultingState;
@@ -127,8 +120,9 @@ public interface ClusterStateTaskExecutor<T> {
         /**
          * Builder for cluster state task.
          *
-         * @opensearch.internal
+         * @opensearch.api
          */
+        @PublicApi(since = "1.0.0")
         public static class Builder<T> {
             private final Map<T, TaskResult> executionResults = new IdentityHashMap<>();
 

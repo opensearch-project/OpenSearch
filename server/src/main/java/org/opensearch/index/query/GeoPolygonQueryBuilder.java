@@ -61,7 +61,7 @@ import java.util.Objects;
  *
  * @opensearch.internal
  */
-public class GeoPolygonQueryBuilder extends AbstractQueryBuilder<GeoPolygonQueryBuilder> {
+public class GeoPolygonQueryBuilder extends AbstractQueryBuilder<GeoPolygonQueryBuilder> implements WithFieldName {
     public static final String NAME = "geo_polygon";
 
     /**
@@ -131,6 +131,7 @@ public class GeoPolygonQueryBuilder extends AbstractQueryBuilder<GeoPolygonQuery
         out.writeBoolean(ignoreUnmapped);
     }
 
+    @Override
     public String fieldName() {
         return fieldName;
     }
@@ -179,7 +180,7 @@ public class GeoPolygonQueryBuilder extends AbstractQueryBuilder<GeoPolygonQuery
                 throw new QueryShardException(context, "failed to find geo_point field [" + fieldName + "]");
             }
         }
-        if (!(fieldType instanceof GeoPointFieldType)) {
+        if (!(fieldType.unwrap() instanceof GeoPointFieldType)) {
             throw new QueryShardException(context, "field [" + fieldName + "] is not a geo_point field");
         }
 

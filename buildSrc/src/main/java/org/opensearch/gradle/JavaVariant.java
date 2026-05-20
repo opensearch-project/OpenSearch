@@ -25,7 +25,7 @@ import java.util.regex.Pattern;
 abstract class JavaVariant implements Buildable, Iterable<File> {
 
     private static final List<String> ALLOWED_ARCHITECTURES = Collections.unmodifiableList(
-        Arrays.asList("aarch64", "x64", "s390x", "ppc64le")
+        Arrays.asList("aarch64", "x64", "s390x", "ppc64le", "riscv64")
     );
     private static final List<String> ALLOWED_VENDORS = Collections.unmodifiableList(Arrays.asList("adoptium", "adoptopenjdk", "openjdk"));
     private static final List<String> ALLOWED_PLATFORMS = Collections.unmodifiableList(

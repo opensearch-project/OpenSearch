@@ -38,6 +38,7 @@ import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
+import org.opensearch.index.analysis.AnalysisTestsHelper;
 import org.opensearch.index.analysis.IndexAnalyzers;
 import org.opensearch.index.mapper.DocumentMapper;
 import org.opensearch.index.mapper.DocumentMapperParser;
@@ -46,6 +47,8 @@ import org.opensearch.index.mapper.MapperService.MergeReason;
 import org.opensearch.index.similarity.SimilarityService;
 import org.opensearch.indices.IndicesModule;
 import org.opensearch.indices.mapper.MapperRegistry;
+import org.opensearch.plugins.AnalysisPlugin;
+import org.opensearch.script.ScriptService;
 import org.opensearch.test.IndexSettingsModule;
 
 import java.io.IOException;
@@ -65,8 +68,18 @@ public class MapperTestUtils {
         Settings indexSettings,
         String indexName
     ) throws IOException {
+        return newMapperService(xContentRegistry, tempDir, indexSettings, indexName, null);
+    }
+
+    public static MapperService newMapperService(
+        NamedXContentRegistry xContentRegistry,
+        Path tempDir,
+        Settings indexSettings,
+        String indexName,
+        ScriptService scriptService
+    ) throws IOException {
         IndicesModule indicesModule = new IndicesModule(Collections.emptyList());
-        return newMapperService(xContentRegistry, tempDir, indexSettings, indicesModule, indexName);
+        return newMapperService(xContentRegistry, tempDir, indexSettings, indicesModule, indexName, scriptService);
     }
 
     public static MapperService newMapperService(
@@ -74,7 +87,8 @@ public class MapperTestUtils {
         Path tempDir,
         Settings settings,
         IndicesModule indicesModule,
-        String indexName
+        String indexName,
+        ScriptService scriptService
     ) throws IOException {
         Settings.Builder settingsBuilder = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), tempDir).put(settings);
         if (settings.get(IndexMetadata.SETTING_VERSION_CREATED) == null) {
@@ -93,8 +107,40 @@ public class MapperTestUtils {
             mapperRegistry,
             () -> null,
             () -> false,
+            scriptService
+        );
+    }
+
+    public static MapperService newMapperServiceWithHelperAnalyzer(
+        NamedXContentRegistry xContentRegistry,
+        Path tempDir,
+        Settings settings,
+        IndicesModule indicesModule,
+        String indexName
+    ) throws IOException {
+        Settings.Builder settingsBuilder = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), tempDir).put(settings);
+        if (settings.get(IndexMetadata.SETTING_VERSION_CREATED) == null) {
+            settingsBuilder.put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT);
+        }
+        Settings finalSettings = settingsBuilder.build();
+        MapperRegistry mapperRegistry = indicesModule.getMapperRegistry();
+        IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(indexName, finalSettings);
+        IndexAnalyzers indexAnalyzers = createMockTestAnalysis(finalSettings);
+        SimilarityService similarityService = new SimilarityService(indexSettings, null, Collections.emptyMap());
+        return new MapperService(
+            indexSettings,
+            indexAnalyzers,
+            xContentRegistry,
+            similarityService,
+            mapperRegistry,
+            () -> null,
+            () -> false,
             null
         );
+    }
+
+    public static IndexAnalyzers createMockTestAnalysis(Settings nodeSettings, AnalysisPlugin... analysisPlugins) throws IOException {
+        return AnalysisTestsHelper.createTestAnalysisFromSettings(nodeSettings, analysisPlugins).indexAnalyzers;
     }
 
     public static void assertConflicts(String mapping1, String mapping2, DocumentMapperParser parser, String... conflicts)

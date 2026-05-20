@@ -60,9 +60,6 @@
 
 ---
 "Close index with wait_for_active_shards set to all":
-  - skip:
-      version: " - 7.1.99"
-      reason:  "closed indices are replicated starting version 7.2.0"
 
   - do:
       indices.create:
@@ -80,9 +77,6 @@
   - match: { shards_acknowledged: true }
 ---
 "Close index response with result per index":
-  - skip:
-      version: " - 7.2.99"
-      reason: "close index response reports result per index starting version 7.3.0"
 
   - do:
       indices.create:

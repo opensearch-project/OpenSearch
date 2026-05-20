@@ -11,8 +11,9 @@ package org.opensearch.cluster.routing;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.allocation.RoutingAllocation;
-import org.opensearch.common.settings.Settings;
-import org.opensearch.index.IndexModule;
+import org.opensearch.common.util.FeatureFlags;
+
+import static org.opensearch.action.admin.indices.tiering.TieringUtils.isWarmIndex;
 
 /**
  *  {@link RoutingPool} defines the different node types based on the assigned capabilities. The methods
@@ -36,7 +37,7 @@ public enum RoutingPool {
      * Helps to determine the appropriate {@link RoutingPool} for a given node from the {@link DiscoveryNode}
      */
     public static RoutingPool getNodePool(DiscoveryNode node) {
-        if (node.isSearchNode()) {
+        if (node.isWarmNode()) {
             return REMOTE_CAPABLE;
         }
         return LOCAL_ONLY;
@@ -60,10 +61,10 @@ public enum RoutingPool {
      * @return {@link RoutingPool} for the given index.
      */
     public static RoutingPool getIndexPool(IndexMetadata indexMetadata) {
-        Settings indexSettings = indexMetadata.getSettings();
-        if (IndexModule.Type.REMOTE_SNAPSHOT.match(indexSettings.get(IndexModule.INDEX_STORE_TYPE_SETTING.getKey()))) {
-            return REMOTE_CAPABLE;
-        }
-        return LOCAL_ONLY;
+        return indexMetadata.isRemoteSnapshot()
+            || (FeatureFlags.isEnabled(FeatureFlags.WRITABLE_WARM_INDEX_EXPERIMENTAL_FLAG) && isWarmIndex(indexMetadata))
+                ? REMOTE_CAPABLE
+                : LOCAL_ONLY;
+
     }
 }

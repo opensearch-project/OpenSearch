@@ -52,34 +52,32 @@ public class DeviceStatsTests extends OpenSearchTestCase {
         ;
         final int queueSize = randomIntBetween(1, 1 << 16);
         final int ioTime = randomIntBetween(1, 1 << 16);
-        FsInfo.DeviceStats previous = new FsInfo.DeviceStats(
-            majorDeviceNumber,
-            minorDeviceNumber,
-            deviceName,
-            readsCompleted,
-            sectorsRead,
-            writesCompleted,
-            sectorsWritten,
-            readTime,
-            writeTime,
-            queueSize,
-            ioTime,
-            null
-        );
-        FsInfo.DeviceStats current = new FsInfo.DeviceStats(
-            majorDeviceNumber,
-            minorDeviceNumber,
-            deviceName,
-            readsCompleted + 1024,
-            sectorsRead + 16384,
-            writesCompleted + 2048,
-            sectorsWritten + 32768,
-            readTime + 500,
-            writeTime + 100,
-            queueSize + 20,
-            ioTime + 8192,
-            previous
-        );
+        FsInfo.DeviceStats previous = new FsInfo.DeviceStats.Builder().majorDeviceNumber(majorDeviceNumber)
+            .minorDeviceNumber(minorDeviceNumber)
+            .deviceName(deviceName)
+            .currentReadsCompleted(readsCompleted)
+            .currentSectorsRead(sectorsRead)
+            .currentWritesCompleted(writesCompleted)
+            .currentSectorsWritten(sectorsWritten)
+            .currentReadTime(readTime)
+            .currentWriteTime(writeTime)
+            .currentQueueSize(queueSize)
+            .currentIOTime(ioTime)
+            .previousDeviceStats(null)
+            .build();
+        FsInfo.DeviceStats current = new FsInfo.DeviceStats.Builder().majorDeviceNumber(majorDeviceNumber)
+            .minorDeviceNumber(minorDeviceNumber)
+            .deviceName(deviceName)
+            .currentReadsCompleted(readsCompleted + 1024)
+            .currentSectorsRead(sectorsRead + 16384)
+            .currentWritesCompleted(writesCompleted + 2048)
+            .currentSectorsWritten(sectorsWritten + 32768)
+            .currentReadTime(readTime + 500)
+            .currentWriteTime(writeTime + 100)
+            .currentQueueSize(queueSize + 20)
+            .currentIOTime(ioTime + 8192)
+            .previousDeviceStats(previous)
+            .build();
         assertThat(current.operations(), equalTo(1024L + 2048L));
         assertThat(current.readOperations(), equalTo(1024L));
         assertThat(current.writeOperations(), equalTo(2048L));

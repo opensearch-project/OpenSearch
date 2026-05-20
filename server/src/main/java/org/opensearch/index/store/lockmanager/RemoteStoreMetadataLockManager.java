@@ -12,6 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexOutput;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.index.store.RemoteBufferedOutputDirectory;
 
 import java.io.FileNotFoundException;
@@ -20,6 +21,7 @@ import java.nio.file.NoSuchFileException;
 import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -28,8 +30,9 @@ import java.util.stream.Collectors;
  * It uses {@code LockFileInfo} instance to get the information about the lock file on which operations need to
  * be executed.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "2.8.0")
 public class RemoteStoreMetadataLockManager implements RemoteStoreLockManager {
     private static final Logger logger = LogManager.getLogger(RemoteStoreMetadataLockManager.class);
     private final RemoteBufferedOutputDirectory lockDirectory;
@@ -73,7 +76,7 @@ public class RemoteStoreMetadataLockManager implements RemoteStoreLockManager {
         }
     }
 
-    public String fetchLock(String filenamePrefix, String acquirerId) throws IOException {
+    public String fetchLockedMetadataFile(String filenamePrefix, String acquirerId) throws IOException {
         Collection<String> lockFiles = lockDirectory.listFilesByPrefix(filenamePrefix);
         List<String> lockFilesForAcquirer = lockFiles.stream()
             .filter(lockFile -> acquirerId.equals(FileLockInfo.LockFileUtils.getAcquirerIdFromLock(lockFile)))
@@ -84,6 +87,11 @@ public class RemoteStoreMetadataLockManager implements RemoteStoreLockManager {
         }
         assert lockFilesForAcquirer.size() == 1;
         return lockFilesForAcquirer.get(0);
+    }
+
+    public Set<String> fetchLockedMetadataFiles(String filenamePrefix) throws IOException {
+        Collection<String> lockFiles = lockDirectory.listFilesByPrefix(filenamePrefix);
+        return lockFiles.stream().map(FileLockInfo.LockFileUtils::getFileToLockNameFromLock).collect(Collectors.toSet());
     }
 
     /**

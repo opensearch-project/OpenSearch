@@ -33,14 +33,14 @@ package org.opensearch.search.lookup;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.opensearch.ExceptionsHelper;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.index.fielddata.IndexFieldData;
 import org.opensearch.index.fielddata.ScriptDocValues;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.MapperService;
+import org.opensearch.secure_sm.AccessController;
 
 import java.io.IOException;
-import java.security.AccessController;
-import java.security.PrivilegedAction;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
@@ -50,8 +50,9 @@ import java.util.function.Function;
 /**
  * Looks up a doc from a leaf reader
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class LeafDocLookup implements Map<String, ScriptDocValues<?>> {
 
     private final Map<String, ScriptDocValues<?>> localCacheFieldData = new HashMap<>(4);
@@ -76,6 +77,7 @@ public class LeafDocLookup implements Map<String, ScriptDocValues<?>> {
         this.docId = docId;
     }
 
+    @SuppressWarnings("removal")
     @Override
     public ScriptDocValues<?> get(Object key) {
         // assume its a string...
@@ -88,12 +90,7 @@ public class LeafDocLookup implements Map<String, ScriptDocValues<?>> {
             }
             // load fielddata on behalf of the script: otherwise it would need additional permissions
             // to deal with pagedbytes/ramusagestimator/etc
-            scriptValues = AccessController.doPrivileged(new PrivilegedAction<ScriptDocValues<?>>() {
-                @Override
-                public ScriptDocValues<?> run() {
-                    return fieldDataLookup.apply(fieldType).load(reader).getScriptValues();
-                }
-            });
+            scriptValues = AccessController.doPrivileged(() -> fieldDataLookup.apply(fieldType).load(reader).getScriptValues());
             localCacheFieldData.put(fieldName, scriptValues);
         }
         try {

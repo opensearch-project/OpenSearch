@@ -39,6 +39,7 @@ import org.opensearch.Version;
 import org.opensearch.action.support.ThreadedActionListener;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.Booleans;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
 import org.opensearch.common.lifecycle.Lifecycle;
 import org.opensearch.common.metrics.MeanMetric;
@@ -70,6 +71,7 @@ import org.opensearch.monitor.jvm.JvmInfo;
 import org.opensearch.node.Node;
 import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.nativeprotocol.NativeOutboundHandler;
 
 import java.io.IOException;
 import java.io.StreamCorruptedException;
@@ -111,8 +113,9 @@ import static org.opensearch.common.util.concurrent.ConcurrentCollections.newCon
 /**
  * The TCP Transport layer
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public abstract class TcpTransport extends AbstractLifecycleComponent implements Transport {
     private static final Logger logger = LogManager.getLogger(TcpTransport.class);
 
@@ -147,7 +150,8 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     private final TransportHandshaker handshaker;
     private final TransportKeepAlive keepAlive;
     private final OutboundHandler outboundHandler;
-    private final InboundHandler inboundHandler;
+    protected final InboundHandler inboundHandler;
+    private final NativeOutboundHandler handshakerHandler;
     private final ResponseHandlers responseHandlers = new ResponseHandlers();
     private final RequestHandlers requestHandlers = new RequestHandlers();
 
@@ -186,11 +190,20 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         }
         BigArrays bigArrays = new BigArrays(pageCacheRecycler, circuitBreakerService, CircuitBreaker.IN_FLIGHT_REQUESTS);
 
-        this.outboundHandler = new OutboundHandler(nodeName, version, features, statsTracker, threadPool, bigArrays);
+        this.outboundHandler = new OutboundHandler(statsTracker, threadPool);
+        this.handshakerHandler = new NativeOutboundHandler(
+            nodeName,
+            version,
+            features,
+            statsTracker,
+            threadPool,
+            bigArrays,
+            outboundHandler
+        );
         this.handshaker = new TransportHandshaker(
             version,
             threadPool,
-            (node, channel, requestId, v) -> outboundHandler.sendRequest(
+            (node, channel, requestId, v) -> handshakerHandler.sendRequest(
                 node,
                 channel,
                 requestId,
@@ -203,8 +216,45 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
             )
         );
         this.keepAlive = new TransportKeepAlive(threadPool, this.outboundHandler::sendBytes);
-        this.inboundHandler = new InboundHandler(
+        this.inboundHandler = createInboundHandler(
+            nodeName,
+            version,
+            features,
+            statsTracker,
             threadPool,
+            bigArrays,
+            outboundHandler,
+            namedWriteableRegistry,
+            handshaker,
+            keepAlive,
+            requestHandlers,
+            responseHandlers,
+            tracer
+        );
+    }
+
+    protected InboundHandler createInboundHandler(
+        String nodeName,
+        Version version,
+        String[] features,
+        StatsTracker statsTracker,
+        ThreadPool threadPool,
+        BigArrays bigArrays,
+        OutboundHandler outboundHandler,
+        NamedWriteableRegistry namedWriteableRegistry,
+        TransportHandshaker handshaker,
+        TransportKeepAlive keepAlive,
+        RequestHandlers requestHandlers,
+        ResponseHandlers responseHandlers,
+        Tracer tracer
+    ) {
+        return new InboundHandler(
+            nodeName,
+            version,
+            features,
+            statsTracker,
+            threadPool,
+            bigArrays,
             outboundHandler,
             namedWriteableRegistry,
             handshaker,
@@ -223,6 +273,10 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         return statsTracker;
     }
 
+    public PageCacheRecycler getPageCacheRecycler() {
+        return pageCacheRecycler;
+    }
+
     public ThreadPool getThreadPool() {
         return threadPool;
     }
@@ -236,7 +290,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
 
     @Override
     public synchronized void setMessageListener(TransportMessageListener listener) {
-        outboundHandler.setMessageListener(listener);
+        handshakerHandler.setMessageListener(listener);
         inboundHandler.setMessageListener(listener);
     }
 
@@ -258,7 +312,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         private final boolean compress;
         private final AtomicBoolean isClosing = new AtomicBoolean(false);
 
-        NodeChannels(DiscoveryNode node, List<TcpChannel> channels, ConnectionProfile connectionProfile, Version handshakeVersion) {
+        public NodeChannels(DiscoveryNode node, List<TcpChannel> channels, ConnectionProfile connectionProfile, Version handshakeVersion) {
             this.node = node;
             this.channels = Collections.unmodifiableList(channels);
             assert channels.size() == connectionProfile.getNumConnections() : "expected channels size to be == "
@@ -317,7 +371,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
                 throw new NodeNotConnectedException(node, "connection already closed");
             }
             TcpChannel channel = channel(options.type());
-            outboundHandler.sendRequest(node, channel, requestId, action, request, options, getVersion(), compress, false);
+            handshakerHandler.sendRequest(node, channel, requestId, action, request, options, getVersion(), compress, false);
         }
     }
 
@@ -503,38 +557,8 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
             throw new BindTransportException("Failed to resolve publish address", e);
         }
 
-        final int publishPort = resolvePublishPort(profileSettings, boundAddresses, publishInetAddress);
-        final TransportAddress publishAddress = new TransportAddress(new InetSocketAddress(publishInetAddress, publishPort));
-        return new BoundTransportAddress(transportBoundAddresses, publishAddress);
-    }
-
-    // package private for tests
-    static int resolvePublishPort(ProfileSettings profileSettings, List<InetSocketAddress> boundAddresses, InetAddress publishInetAddress) {
-        int publishPort = profileSettings.publishPort;
-
-        // if port not explicitly provided, search for port of address in boundAddresses that matches publishInetAddress
-        if (publishPort < 0) {
-            for (InetSocketAddress boundAddress : boundAddresses) {
-                InetAddress boundInetAddress = boundAddress.getAddress();
-                if (boundInetAddress.isAnyLocalAddress() || boundInetAddress.equals(publishInetAddress)) {
-                    publishPort = boundAddress.getPort();
-                    break;
-                }
-            }
-        }
-
-        // if no matching boundAddress found, check if there is a unique port for all bound addresses
-        if (publishPort < 0) {
-            final Set<Integer> ports = new HashSet<>();
-            for (InetSocketAddress boundAddress : boundAddresses) {
-                ports.add(boundAddress.getPort());
-            }
-            if (ports.size() == 1) {
-                publishPort = ports.iterator().next();
-            }
-        }
-
-        if (publishPort < 0) {
+        final int publishPort = Transport.resolvePublishPort(profileSettings.publishPort, boundAddresses, publishInetAddress);
+        if (publishPort == -1) {
             String profileExplanation = profileSettings.isDefaultProfile ? "" : " for profile " + profileSettings.profileName;
             throw new BindTransportException(
                 "Failed to auto-resolve publish port"
@@ -550,7 +574,9 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
                     + TransportSettings.PUBLISH_PORT.getKey()
             );
         }
-        return publishPort;
+
+        final TransportAddress publishAddress = new TransportAddress(new InetSocketAddress(publishInetAddress, publishPort));
+        return new BoundTransportAddress(transportBoundAddresses, publishAddress);
     }
 
     @Override
@@ -760,6 +786,14 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     protected abstract void stopInternal();
 
     /**
+     * @deprecated Use {{@link #inboundMessage(TcpChannel, InboundMessage)}} instead
+     */
+    @Deprecated
+    public void inboundMessage(TcpChannel channel, ProtocolInboundMessage message) {
+        inboundMessage(channel, (InboundMessage) message);
+    }
+
+    /**
      * Handles inbound message that has been decoded.
      *
      * @param channel the channel the message is from
@@ -923,7 +957,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
      *
      * @throws IllegalStateException if the transport is not started / open
      */
-    private void ensureOpen() {
+    protected void ensureOpen() {
         if (lifecycle.started() == false) {
             throw new IllegalStateException("transport has been stopped");
         }
@@ -936,14 +970,13 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         final long messagesSent = statsTracker.getMessagesSent();
         final long messagesReceived = statsTracker.getMessagesReceived();
         final long bytesRead = statsTracker.getBytesRead();
-        return new TransportStats(
-            acceptedChannels.size(),
-            outboundConnectionCount.get(),
-            messagesReceived,
-            bytesRead,
-            messagesSent,
-            bytesWritten
-        );
+        return new TransportStats.Builder().serverOpen(acceptedChannels.size())
+            .totalOutboundConnections(outboundConnectionCount.get())
+            .rxCount(messagesReceived)
+            .rxSize(bytesRead)
+            .txCount(messagesSent)
+            .txSize(bytesWritten)
+            .build();
     }
 
     /**
@@ -966,7 +999,10 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
 
     /**
      * Representation of a transport profile settings for a {@code transport.profiles.$profilename.*}
+     *
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static final class ProfileSettings {
         public final String profileName;
         public final boolean tcpNoDelay;

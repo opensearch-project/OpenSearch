@@ -39,6 +39,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
+import org.opensearch.cluster.ClusterManagerMetrics;
 import org.opensearch.cluster.ClusterModule;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateTaskListener;
@@ -47,12 +48,14 @@ import org.opensearch.cluster.NodeConnectionsService;
 import org.opensearch.cluster.OpenSearchAllocationTestCase;
 import org.opensearch.cluster.coordination.AbstractCoordinatorTestCase.Cluster.ClusterNode;
 import org.opensearch.cluster.coordination.CoordinationMetadata.VotingConfiguration;
+import org.opensearch.cluster.coordination.Coordinator.Mode;
 import org.opensearch.cluster.coordination.LinearizabilityChecker.History;
 import org.opensearch.cluster.coordination.LinearizabilityChecker.SequentialSpec;
 import org.opensearch.cluster.coordination.PersistedStateRegistry.PersistedStateType;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
+import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.allocation.AllocationService;
 import org.opensearch.cluster.service.ClusterApplierService;
 import org.opensearch.cluster.service.ClusterService;
@@ -88,10 +91,12 @@ import org.opensearch.monitor.NodeHealthService;
 import org.opensearch.monitor.StatusInfo;
 import org.opensearch.node.remotestore.RemoteStoreNodeService;
 import org.opensearch.repositories.RepositoriesService;
+import org.opensearch.telemetry.metrics.noop.NoopMetricsRegistry;
 import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.disruption.DisruptableMockTransport;
 import org.opensearch.test.disruption.DisruptableMockTransport.ConnectionStatus;
+import org.opensearch.test.telemetry.TestInMemoryMetricsRegistry;
 import org.opensearch.threadpool.Scheduler;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportInterceptor;
@@ -563,7 +568,7 @@ public class AbstractCoordinatorTestCase extends OpenSearchTestCase {
             final ClusterNode leader = getAnyLeader();
             final long leaderTerm = leader.coordinator.getCurrentTerm();
 
-            final int pendingTaskCount = leader.clusterManagerService.getFakeMasterServicePendingTaskCount();
+            final int pendingTaskCount = leader.clusterManagerService.getFakeClusterManagerServicePendingTaskCount();
             runFor((pendingTaskCount + 1) * DEFAULT_CLUSTER_STATE_UPDATE_DELAY, "draining task queue");
 
             final Matcher<Long> isEqualToLeaderVersion = equalTo(leader.coordinator.getLastAcceptedState().getVersion());
@@ -651,6 +656,12 @@ public class AbstractCoordinatorTestCase extends OpenSearchTestCase {
                     assertFalse(
                         nodeId + " is not in the applied state on " + leaderId,
                         leader.getLastAppliedClusterState().getNodes().nodeExists(nodeId)
+                    );
+                }
+                if (clusterNode.coordinator.getMode() == Mode.LEADER || clusterNode.coordinator.getMode() == Mode.FOLLOWER) {
+                    assertFalse(
+                        "Election scheduler should stop after cluster has stabilised",
+                        clusterNode.coordinator.isElectionSchedulerRunning()
                     );
                 }
             }
@@ -1049,6 +1060,7 @@ public class AbstractCoordinatorTestCase extends OpenSearchTestCase {
             private RepositoriesService repositoriesService;
             private RemoteStoreNodeService remoteStoreNodeService;
             List<BiConsumer<DiscoveryNode, ClusterState>> extraJoinValidators = new ArrayList<>();
+            private TestInMemoryMetricsRegistry metricsRegistry = new TestInMemoryMetricsRegistry();
 
             ClusterNode(int nodeIndex, boolean clusterManagerEligible, Settings nodeSettings, NodeHealthService nodeHealthService) {
                 this(
@@ -1137,12 +1149,16 @@ public class AbstractCoordinatorTestCase extends OpenSearchTestCase {
                     settings,
                     clusterSettings,
                     deterministicTaskQueue,
-                    threadPool
+                    threadPool,
+                    new ClusterManagerMetrics(NoopMetricsRegistry.INSTANCE)
                 );
                 clusterService = new ClusterService(settings, clusterSettings, clusterManagerService, clusterApplierService);
-                clusterService.setNodeConnectionsService(
-                    new NodeConnectionsService(clusterService.getSettings(), threadPool, transportService)
+                NodeConnectionsService nodeConnectionsService = createTestNodeConnectionsService(
+                    clusterService.getSettings(),
+                    threadPool,
+                    transportService
                 );
+                clusterService.setNodeConnectionsService(nodeConnectionsService);
                 repositoriesService = new RepositoriesService(
                     settings,
                     clusterService,
@@ -1173,8 +1189,11 @@ public class AbstractCoordinatorTestCase extends OpenSearchTestCase {
                     getElectionStrategy(),
                     nodeHealthService,
                     persistedStateRegistry,
-                    remoteStoreNodeService
+                    remoteStoreNodeService,
+                    new ClusterManagerMetrics(metricsRegistry),
+                    null
                 );
+                coordinator.setNodeConnectionsService(nodeConnectionsService);
                 clusterManagerService.setClusterStatePublisher(coordinator);
                 final GatewayService gatewayService = new GatewayService(
                     settings,
@@ -1192,6 +1211,10 @@ public class AbstractCoordinatorTestCase extends OpenSearchTestCase {
                 gatewayService.start();
                 clusterService.start();
                 coordinator.startInitialJoin();
+            }
+
+            public TestInMemoryMetricsRegistry getMetricsRegistry() {
+                return metricsRegistry;
             }
 
             void close() {
@@ -1576,6 +1599,24 @@ public class AbstractCoordinatorTestCase extends OpenSearchTestCase {
         }
     }
 
+    public static NodeConnectionsService createTestNodeConnectionsService(
+        Settings settings,
+        ThreadPool threadPool,
+        TransportService transportService
+    ) {
+        return new NodeConnectionsService(settings, threadPool, transportService) {
+            @Override
+            public void connectToNodes(DiscoveryNodes discoveryNodes, Runnable onCompletion) {
+                // just update targetsByNode to ensure disconnect runs for these nodes
+                // we rely on disconnect to run for keeping track of pendingDisconnects and ensuring node-joins can happen
+                for (final DiscoveryNode discoveryNode : discoveryNodes) {
+                    this.targetsByNode.put(discoveryNode, createConnectionTarget(discoveryNode));
+                }
+                onCompletion.run();
+            }
+        };
+    }
+
     static class DisruptableClusterApplierService extends ClusterApplierService {
         private final String nodeName;
         private final DeterministicTaskQueue deterministicTaskQueue;
@@ -1587,9 +1628,10 @@ public class AbstractCoordinatorTestCase extends OpenSearchTestCase {
             Settings settings,
             ClusterSettings clusterSettings,
             DeterministicTaskQueue deterministicTaskQueue,
-            ThreadPool threadPool
+            ThreadPool threadPool,
+            ClusterManagerMetrics clusterManagerMetrics
         ) {
-            super(nodeName, settings, clusterSettings, threadPool);
+            super(nodeName, settings, clusterSettings, threadPool, clusterManagerMetrics);
             this.nodeName = nodeName;
             this.deterministicTaskQueue = deterministicTaskQueue;
             addStateApplier(event -> {
@@ -1626,11 +1668,6 @@ public class AbstractCoordinatorTestCase extends OpenSearchTestCase {
             } else {
                 super.onNewClusterState(source, clusterStateSupplier, listener);
             }
-        }
-
-        @Override
-        protected void connectToNodesAndWait(ClusterState newClusterState) {
-            // don't do anything, and don't block
         }
 
         @Override

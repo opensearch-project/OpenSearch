@@ -142,7 +142,7 @@ public class DirectCandidateGeneratorTests extends OpenSearchTestCase {
             DirectCandidateGeneratorBuilder generator = randomCandidateGenerator();
             XContentBuilder builder = MediaTypeRegistry.contentBuilder(randomFrom(XContentType.values()));
             if (randomBoolean()) {
-                builder.prettyPrint();
+                builder = builder.prettyPrint();
             }
             generator.toXContent(builder, ToXContent.EMPTY_PARAMS);
             try (XContentParser parser = createParser(shuffleXContent(builder))) {
@@ -234,8 +234,8 @@ public class DirectCandidateGeneratorTests extends OpenSearchTestCase {
                     )
                 );
                 assertThat(candidateSet.candidates.length, equalTo(1));
-                assertThat(candidateSet.candidates[0].termStats.docFreq, equalTo(numDocs - 1));
-                assertThat(candidateSet.candidates[0].termStats.totalTermFreq, equalTo((long) numDocs - 1));
+                assertThat(candidateSet.candidates[0].termStats.docFreq(), equalTo(numDocs - 1));
+                assertThat(candidateSet.candidates[0].termStats.totalTermFreq(), equalTo((long) numDocs - 1));
 
                 // test that it doesn't overflow
                 assertThat(generator.thresholdTermFrequency(Integer.MAX_VALUE), equalTo(Integer.MAX_VALUE));
@@ -250,8 +250,8 @@ public class DirectCandidateGeneratorTests extends OpenSearchTestCase {
                     )
                 );
                 assertThat(candidateSet.candidates.length, equalTo(1));
-                assertThat(candidateSet.candidates[0].termStats.docFreq, equalTo(numDocs - 1));
-                assertThat(candidateSet.candidates[0].termStats.totalTermFreq, equalTo((long) numDocs - 1));
+                assertThat(candidateSet.candidates[0].termStats.docFreq(), equalTo(numDocs - 1));
+                assertThat(candidateSet.candidates[0].termStats.totalTermFreq(), equalTo((long) numDocs - 1));
 
                 // test that it doesn't overflow
                 assertThat(generator.thresholdTermFrequency(Integer.MAX_VALUE), equalTo(Integer.MAX_VALUE));

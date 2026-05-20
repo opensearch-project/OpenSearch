@@ -33,6 +33,7 @@ import org.mockito.Mockito;
 import org.mockito.stubbing.Answer;
 
 import static java.util.Arrays.asList;
+import static org.opensearch.index.SegmentReplicationPressureService.MAX_INDEXING_CHECKPOINTS;
 import static org.opensearch.index.SegmentReplicationPressureService.MAX_REPLICATION_LIMIT_STALE_REPLICA_SETTING;
 import static org.opensearch.index.SegmentReplicationPressureService.MAX_REPLICATION_TIME_BACKPRESSURE_SETTING;
 import static org.opensearch.index.SegmentReplicationPressureService.SEGMENT_REPLICATION_INDEXING_PRESSURE_ENABLED;
@@ -53,6 +54,7 @@ public class SegmentReplicationPressureServiceTests extends OpenSearchIndexLevel
         .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
         .put(SEGMENT_REPLICATION_INDEXING_PRESSURE_ENABLED.getKey(), true)
         .put(MAX_REPLICATION_TIME_BACKPRESSURE_SETTING.getKey(), TimeValue.timeValueSeconds(5))
+        .put(MAX_INDEXING_CHECKPOINTS.getKey(), 4)
         .build();
 
     public void testIsSegrepLimitBreached() throws Exception {
@@ -200,6 +202,7 @@ public class SegmentReplicationPressureServiceTests extends OpenSearchIndexLevel
             .put(SEGMENT_REPLICATION_INDEXING_PRESSURE_ENABLED.getKey(), true)
             .put(MAX_REPLICATION_TIME_BACKPRESSURE_SETTING.getKey(), TimeValue.timeValueMillis(10))
             .put(MAX_REPLICATION_LIMIT_STALE_REPLICA_SETTING.getKey(), TimeValue.timeValueMillis(20))
+            .put(MAX_INDEXING_CHECKPOINTS.getKey(), 4)
             .build();
 
         try (ReplicationGroup shards = createGroup(1, settings, new NRTReplicationEngineFactory())) {
@@ -217,6 +220,8 @@ public class SegmentReplicationPressureServiceTests extends OpenSearchIndexLevel
             assertEquals(5, shardStats.getCheckpointsBehindCount());
 
             // call the background task
+            assertTrue(service.getFailStaleReplicaTask().mustReschedule());
+            assertTrue(service.getFailStaleReplicaTask().isScheduled());
             service.getFailStaleReplicaTask().runInternal();
 
             // verify that remote shard failed method is called which fails the replica shards falling behind.
@@ -254,6 +259,41 @@ public class SegmentReplicationPressureServiceTests extends OpenSearchIndexLevel
             // verify that remote shard failed method is never called as it is disabled.
             verify(shardStateAction, never()).remoteShardFailed(any(), anyString(), anyLong(), anyBoolean(), anyString(), any(), any());
             replicateSegments(primaryShard, shards.getReplicas());
+        }
+    }
+
+    public void testFailStaleReplicaTaskToggleOnOff() throws Exception {
+        final Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
+            .put(SEGMENT_REPLICATION_INDEXING_PRESSURE_ENABLED.getKey(), true)
+            .put(MAX_REPLICATION_TIME_BACKPRESSURE_SETTING.getKey(), TimeValue.timeValueMillis(10))
+            .put(MAX_REPLICATION_LIMIT_STALE_REPLICA_SETTING.getKey(), TimeValue.timeValueMillis(1))
+            .build();
+
+        try (ReplicationGroup shards = createGroup(1, settings, new NRTReplicationEngineFactory())) {
+            shards.startAll();
+            final IndexShard primaryShard = shards.getPrimary();
+            SegmentReplicationPressureService service = buildPressureService(settings, primaryShard);
+
+            // index docs in batches without refreshing
+            indexInBatches(5, shards, primaryShard);
+
+            // assert that replica shard is few checkpoints behind primary
+            Set<SegmentReplicationShardStats> replicationStats = primaryShard.getReplicationStatsForTrackedReplicas();
+            assertEquals(1, replicationStats.size());
+            SegmentReplicationShardStats shardStats = replicationStats.stream().findFirst().get();
+            assertEquals(5, shardStats.getCheckpointsBehindCount());
+
+            assertTrue(service.getFailStaleReplicaTask().mustReschedule());
+            assertTrue(service.getFailStaleReplicaTask().isScheduled());
+            replicateSegments(primaryShard, shards.getReplicas());
+
+            service.setReplicationTimeLimitFailReplica(TimeValue.ZERO);
+            assertFalse(service.getFailStaleReplicaTask().mustReschedule());
+            assertFalse(service.getFailStaleReplicaTask().isScheduled());
+            service.setReplicationTimeLimitFailReplica(TimeValue.timeValueMillis(1));
+            assertTrue(service.getFailStaleReplicaTask().mustReschedule());
+            assertTrue(service.getFailStaleReplicaTask().isScheduled());
         }
     }
 

@@ -57,7 +57,7 @@ import static org.opensearch.core.xcontent.ConstructingObjectParser.constructorA
  *
  * @opensearch.internal
  */
-public class DistanceFeatureQueryBuilder extends AbstractQueryBuilder<DistanceFeatureQueryBuilder> {
+public class DistanceFeatureQueryBuilder extends AbstractQueryBuilder<DistanceFeatureQueryBuilder> implements WithFieldName {
     public static final String NAME = "distance_feature";
 
     private static final ParseField FIELD_FIELD = new ParseField("field");
@@ -136,7 +136,8 @@ public class DistanceFeatureQueryBuilder extends AbstractQueryBuilder<DistanceFe
         return fieldType.distanceFeatureQuery(origin.origin(), pivot, 1.0f, context);
     }
 
-    String fieldName() {
+    @Override
+    public String fieldName() {
         return field;
     }
 
@@ -210,10 +211,10 @@ public class DistanceFeatureQueryBuilder extends AbstractQueryBuilder<DistanceFe
 
         @Override
         public final boolean equals(Object other) {
-            if ((other instanceof Origin) == false) {
+            if (!(other instanceof Origin otherOriginObj)) {
                 return false;
             }
-            Object otherOrigin = ((Origin) other).origin();
+            Object otherOrigin = otherOriginObj.origin();
             return this.origin().equals(otherOrigin);
         }
 

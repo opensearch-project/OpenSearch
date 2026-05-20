@@ -48,12 +48,12 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.action.DocWriteRequest;
 import org.opensearch.action.bulk.BackoffPolicy;
 import org.opensearch.action.bulk.BulkItemResponse;
+import org.opensearch.action.bulk.BulkRequest;
 import org.opensearch.action.index.IndexRequest;
-import org.opensearch.client.Client;
-import org.opensearch.client.ParentTaskAssigningClient;
 import org.opensearch.client.RestClient;
 import org.opensearch.client.RestClientBuilder;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.lucene.uid.Versions;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.Strings;
@@ -70,6 +70,8 @@ import org.opensearch.index.reindex.spi.RemoteReindexExtension;
 import org.opensearch.script.Script;
 import org.opensearch.script.ScriptService;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.client.Client;
+import org.opensearch.transport.client.ParentTaskAssigningClient;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -131,6 +133,7 @@ public class Reindexer {
     public void execute(BulkByScrollTask task, ReindexRequest request, ActionListener<BulkByScrollResponse> listener) {
         ActionListener<BulkByScrollResponse> remoteReindexActionListener = getRemoteReindexWrapperListener(listener, request);
         BulkByScrollParallelizationHelper.executeSlicedAction(
+            clusterService.state().metadata(),
             task,
             request,
             ReindexAction.INSTANCE,
@@ -141,7 +144,8 @@ public class Reindexer {
                 ParentTaskAssigningClient assigningClient = new ParentTaskAssigningClient(client, clusterService.localNode(), task);
                 AsyncIndexBySearchAction searchAction = new AsyncIndexBySearchAction(
                     task,
-                    logger,
+                    // Added prefix based logger(destination index) to distinguish multiple reindex jobs for easier debugging.
+                    Loggers.getLogger(Reindexer.class, String.valueOf(request.getDestination().index())),
                     assigningClient,
                     threadPool,
                     scriptService,
@@ -352,6 +356,11 @@ public class Reindexer {
                 return new Reindexer.AsyncIndexBySearchAction.ReindexScriptApplier(worker, scriptService, script, script.getParams());
             }
             return super.buildScriptApplier();
+        }
+
+        @Override
+        protected BulkRequest buildBulkRequest() {
+            return new BulkRequest().pipeline(mainRequest.getDestination().getPipeline());
         }
 
         @Override

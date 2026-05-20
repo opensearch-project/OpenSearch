@@ -32,6 +32,7 @@
 
 package org.opensearch.transport;
 
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.network.CloseableChannel;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.action.ActionListener;
@@ -45,8 +46,9 @@ import java.util.Optional;
  * abstraction used by the {@link TcpTransport} and {@link TransportService}. All tcp transport
  * implementations must return channels that adhere to the required method contracts.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public interface TcpChannel extends CloseableChannel {
 
     /**
@@ -83,6 +85,18 @@ public interface TcpChannel extends CloseableChannel {
     void sendMessage(BytesReference reference, ActionListener<Void> listener);
 
     /**
+     * Sends a tcp message to the channel. The listener will be executed once the send process has been
+     * completed.
+     *
+     * @param requestId request Id
+     * @param reference to send to channel
+     * @param listener to execute upon send completion
+     */
+    default void sendMessage(long requestId, BytesReference reference, ActionListener<Void> listener) {
+        sendMessage(reference, listener);
+    }
+
+    /**
      * Adds a listener that will be executed when the channel is connected. If the channel is still
      * unconnected when this listener is added, the listener will be executed by the thread that eventually
      * finishes the channel connection. If the channel is already connected when the listener is added the
@@ -99,7 +113,7 @@ public interface TcpChannel extends CloseableChannel {
 
     /**
      * Returns the contextual property associated with this specific TCP channel (the
-     * implementation of how such properties are managed depends on the the particular
+     * implementation of how such properties are managed depends on the particular
      * transport engine).
      *
      * @param name the name of the property
@@ -114,8 +128,9 @@ public interface TcpChannel extends CloseableChannel {
     /**
      * Channel statistics
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     class ChannelStats {
 
         private volatile long lastAccessedTime;

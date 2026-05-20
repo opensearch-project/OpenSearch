@@ -38,6 +38,7 @@ import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.transport.client.Client;
 
 import java.io.IOException;
 
@@ -47,7 +48,7 @@ import static org.opensearch.core.xcontent.XContentParserUtils.ensureExpectedTok
  * The response of the delete action.
  *
  * @see org.opensearch.action.delete.DeleteRequest
- * @see org.opensearch.client.Client#delete(DeleteRequest)
+ * @see Client#delete(DeleteRequest)
  *
  * @opensearch.api
  */

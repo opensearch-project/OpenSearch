@@ -36,7 +36,6 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.IndexSettings;
@@ -44,13 +43,12 @@ import org.opensearch.index.query.Operator;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.search.fetch.subphase.highlight.HighlightBuilder;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 
-import static org.opensearch.client.Requests.searchRequest;
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.opensearch.index.query.QueryBuilders.boolQuery;
 import static org.opensearch.index.query.QueryBuilders.matchAllQuery;
@@ -64,14 +62,15 @@ import static org.opensearch.search.builder.SearchSourceBuilder.searchSource;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHighlight;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
+import static org.opensearch.transport.client.Requests.searchRequest;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.startsWith;
 
-public class HighlighterWithAnalyzersTests extends ParameterizedOpenSearchIntegTestCase {
+public class HighlighterWithAnalyzersTests extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
 
-    public HighlighterWithAnalyzersTests(Settings dynamicSettings) {
-        super(dynamicSettings);
+    public HighlighterWithAnalyzersTests(Settings staticSettings) {
+        super(staticSettings);
     }
 
     @ParametersFactory
@@ -80,11 +79,6 @@ public class HighlighterWithAnalyzersTests extends ParameterizedOpenSearchIntegT
             new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), false).build() },
             new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), true).build() }
         );
-    }
-
-    @Override
-    protected Settings featureFlagSettings() {
-        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.CONCURRENT_SEGMENT_SEARCH, "true").build();
     }
 
     @Override
@@ -316,7 +310,7 @@ public class HighlighterWithAnalyzersTests extends ParameterizedOpenSearchIntegT
         ).highlighter(highlight().field("field1").order("score").preTags("<x>").postTags("</x>"));
 
         searchResponse = client().search(searchRequest("first_test_index").source(source)).actionGet();
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(2L));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(2L));
         for (int i = 0; i < 2; i++) {
             assertHighlight(
                 searchResponse,

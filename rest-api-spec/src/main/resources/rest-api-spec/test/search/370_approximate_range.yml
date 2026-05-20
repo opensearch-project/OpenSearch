@@ -1,0 +1,72 @@
+---
+"search with approximate range":
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            properties:
+              date:
+                type: date
+                index: true
+                doc_values: true
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{"index": {"_index": "test", "_id": "1" }}'
+          - '{ "date": "2018-10-29T12:12:12.987Z" }'
+          - '{ "index": { "_index": "test", "_id": "2" }}'
+          - '{ "date": "2020-10-29T12:12:12.987Z" }'
+          - '{ "index": { "_index": "test", "_id": "3" } }'
+          - '{ "date": "2024-10-29T12:12:12.987Z" }'
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          query:
+            range: {
+              date: {
+                gte: "2018-10-29T12:12:12.987Z"
+              },
+            }
+
+  - match: { hits.total: 3 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          sort: [{ date: asc }]
+          query:
+            range: {
+              date: {
+                gte: "2018-10-29T12:12:12.987Z"
+              },
+            }
+
+
+  - match: { hits.total: 3 }
+  - match: { hits.hits.0._id: "1" }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          sort: [{ date: desc }]
+          query:
+            range: {
+              date: {
+                gte: "2018-10-29T12:12:12.987Z",
+                lte: "2020-10-29T12:12:12.987Z"
+              },
+            }
+
+  - match: { hits.total: 2 }
+  - match: { hits.hits.0._id: "2" }

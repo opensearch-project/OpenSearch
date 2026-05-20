@@ -32,6 +32,7 @@
 
 package org.opensearch.action.bulk;
 
+import org.opensearch.Version;
 import org.opensearch.action.DocWriteResponse;
 import org.opensearch.action.support.WriteResponse;
 import org.opensearch.action.support.replication.ReplicationResponse;
@@ -48,19 +49,41 @@ import java.io.IOException;
  */
 public class BulkShardResponse extends ReplicationResponse implements WriteResponse {
 
+    public static final int DEFAULT_QUEUE_SIZE = 0;
+    public static final long DEFAULT_SERVICE_TIME_IN_NANOS = 500000000L;
     private final ShardId shardId;
     private final BulkItemResponse[] responses;
+    /**
+     * The service time for the bulk requests on this shard.
+     * This algorithm is adapted from the search layer, so its parameter names are consistent with those on the query side.
+     * In query scenarios, it refers to returning the exponentially weighted moving average (EWMA) of task execution time.
+     */
+    private final long serviceTimeEWMAInNanos;
+    private final int nodeQueueSize;
 
     BulkShardResponse(StreamInput in) throws IOException {
         super(in);
         shardId = new ShardId(in);
         responses = in.readArray(i -> new BulkItemResponse(shardId, i), BulkItemResponse[]::new);
+        if (in.getVersion().onOrAfter(Version.V_3_6_0)) {
+            serviceTimeEWMAInNanos = in.readLong();
+            nodeQueueSize = in.readInt();
+        } else {
+            serviceTimeEWMAInNanos = DEFAULT_SERVICE_TIME_IN_NANOS;
+            nodeQueueSize = DEFAULT_QUEUE_SIZE;
+        }
     }
 
     // NOTE: public for testing only
     public BulkShardResponse(ShardId shardId, BulkItemResponse[] responses) {
+        this(shardId, responses, DEFAULT_SERVICE_TIME_IN_NANOS, DEFAULT_QUEUE_SIZE);
+    }
+
+    public BulkShardResponse(ShardId shardId, BulkItemResponse[] responses, long serviceTimeEWMAInNanos, int nodeQueueSize) {
         this.shardId = shardId;
         this.responses = responses;
+        this.serviceTimeEWMAInNanos = serviceTimeEWMAInNanos;
+        this.nodeQueueSize = nodeQueueSize;
     }
 
     public ShardId getShardId() {
@@ -69,6 +92,14 @@ public class BulkShardResponse extends ReplicationResponse implements WriteRespo
 
     public BulkItemResponse[] getResponses() {
         return responses;
+    }
+
+    public long getServiceTimeEWMAInNanos() {
+        return serviceTimeEWMAInNanos;
+    }
+
+    public int getNodeQueueSize() {
+        return nodeQueueSize;
     }
 
     @Override
@@ -90,5 +121,9 @@ public class BulkShardResponse extends ReplicationResponse implements WriteRespo
         super.writeTo(out);
         shardId.writeTo(out);
         out.writeArray((o, item) -> item.writeThin(out), responses);
+        if (out.getVersion().onOrAfter(Version.V_3_6_0)) {
+            out.writeLong(serviceTimeEWMAInNanos);
+            out.writeInt(nodeQueueSize);
+        }
     }
 }

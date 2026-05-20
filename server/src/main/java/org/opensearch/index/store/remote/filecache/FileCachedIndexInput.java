@@ -13,6 +13,7 @@ import org.apache.lucene.store.RandomAccessInput;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Reference Counted IndexInput. The first FileCachedIndexInput for a file/block is called origin.
@@ -39,9 +40,9 @@ public class FileCachedIndexInput extends IndexInput implements RandomAccessInpu
     protected IndexInput luceneIndexInput;
 
     /** indicates if this IndexInput instance is a clone or not */
-    private final boolean isClone;
+    protected final boolean isClone;
 
-    private volatile boolean closed = false;
+    protected final AtomicBoolean closed = new AtomicBoolean(false);
 
     public FileCachedIndexInput(FileCache cache, Path filePath, IndexInput underlyingIndexInput) {
         this(cache, filePath, underlyingIndexInput, false);
@@ -139,7 +140,7 @@ public class FileCachedIndexInput extends IndexInput implements RandomAccessInpu
 
     @Override
     public void close() throws IOException {
-        if (!closed) {
+        if (!closed.get()) {
             // if the underlying lucene index input is a clone,
             // the following line won't close/unmap the file.
             luceneIndexInput.close();
@@ -148,7 +149,7 @@ public class FileCachedIndexInput extends IndexInput implements RandomAccessInpu
             if (isClone) {
                 cache.decRef(filePath);
             }
-            closed = true;
+            closed.set(true);
         }
     }
 }

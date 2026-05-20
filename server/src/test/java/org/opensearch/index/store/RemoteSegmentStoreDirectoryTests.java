@@ -8,8 +8,8 @@
 
 package org.opensearch.index.store;
 
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexFormatTooNewException;
@@ -22,27 +22,29 @@ import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.OutputStreamIndexOutput;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.Version;
-import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.blobstore.AsyncMultiStreamBlobContainer;
 import org.opensearch.common.blobstore.stream.write.WriteContext;
 import org.opensearch.common.io.VersionedCodecStreamWrapper;
 import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.lucene.store.ByteArrayIndexInput;
+import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.concurrent.OpenSearchExecutors;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.bytes.BytesReference;
-import org.opensearch.index.engine.NRTReplicationEngineFactory;
+import org.opensearch.core.index.Index;
+import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.index.engine.exec.coord.SegmentInfosCatalogSnapshot;
+import org.opensearch.index.remote.RemoteStoreEnums.PathHashAlgorithm;
+import org.opensearch.index.remote.RemoteStoreEnums.PathType;
+import org.opensearch.index.remote.RemoteStorePathStrategy;
 import org.opensearch.index.remote.RemoteStoreUtils;
-import org.opensearch.index.shard.IndexShard;
-import org.opensearch.index.shard.IndexShardTestCase;
-import org.opensearch.index.store.lockmanager.RemoteStoreMetadataLockManager;
 import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadata;
-import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadataHandler;
-import org.opensearch.indices.replication.common.ReplicationType;
+import org.opensearch.index.store.remote.metadata.RemoteSegmentMetadataHandlerFactory;
+import org.opensearch.indices.RemoteStoreSettings;
+import org.opensearch.test.MockLogAppender;
+import org.opensearch.test.junit.annotations.TestLogging;
 import org.opensearch.threadpool.ThreadPool;
-import org.junit.After;
 import org.junit.Before;
 
 import java.io.ByteArrayInputStream;
@@ -51,12 +53,13 @@ import java.nio.file.NoSuchFileException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 import org.mockito.Mockito;
 
@@ -65,8 +68,10 @@ import static org.opensearch.index.store.RemoteSegmentStoreDirectory.MetadataFil
 import static org.opensearch.test.RemoteStoreTestUtils.createMetadataFileBytes;
 import static org.opensearch.test.RemoteStoreTestUtils.getDummyMetadata;
 import static org.hamcrest.CoreMatchers.is;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.Mockito.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.eq;
@@ -77,86 +82,15 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
-    private static final Logger logger = LogManager.getLogger(RemoteSegmentStoreDirectoryTests.class);
-    private RemoteDirectory remoteDataDirectory;
-    private RemoteDirectory remoteMetadataDirectory;
-    private RemoteStoreMetadataLockManager mdLockManager;
-
-    private RemoteSegmentStoreDirectory remoteSegmentStoreDirectory;
-    private TestUploadListener testUploadTracker;
-    private IndexShard indexShard;
-    private SegmentInfos segmentInfos;
-    private ThreadPool threadPool;
-
-    private final String metadataFilename = RemoteSegmentStoreDirectory.MetadataFilenameUtils.getMetadataFilename(
-        12,
-        23,
-        34,
-        1,
-        1,
-        "node-1"
-    );
-
-    private final String metadataFilenameDup = RemoteSegmentStoreDirectory.MetadataFilenameUtils.getMetadataFilename(
-        12,
-        23,
-        34,
-        2,
-        1,
-        "node-2"
-    );
-    private final String metadataFilename2 = RemoteSegmentStoreDirectory.MetadataFilenameUtils.getMetadataFilename(
-        12,
-        13,
-        34,
-        1,
-        1,
-        "node-1"
-    );
-    private final String metadataFilename3 = RemoteSegmentStoreDirectory.MetadataFilenameUtils.getMetadataFilename(
-        10,
-        38,
-        34,
-        1,
-        1,
-        "node-1"
-    );
+public class RemoteSegmentStoreDirectoryTests extends BaseRemoteSegmentStoreDirectoryTests {
 
     @Before
     public void setup() throws IOException {
-        remoteDataDirectory = mock(RemoteDirectory.class);
-        remoteMetadataDirectory = mock(RemoteDirectory.class);
-        mdLockManager = mock(RemoteStoreMetadataLockManager.class);
-        threadPool = mock(ThreadPool.class);
-        testUploadTracker = new TestUploadListener();
-
-        Settings indexSettings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, org.opensearch.Version.CURRENT)
-            .put(IndexMetadata.SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
-            .build();
-        ExecutorService executorService = OpenSearchExecutors.newDirectExecutorService();
-
-        indexShard = newStartedShard(false, indexSettings, new NRTReplicationEngineFactory());
-        remoteSegmentStoreDirectory = new RemoteSegmentStoreDirectory(
-            remoteDataDirectory,
-            remoteMetadataDirectory,
-            mdLockManager,
-            threadPool,
-            indexShard.shardId()
+        new RemoteStoreSettings(
+            Settings.builder().put(RemoteStoreSettings.CLUSTER_REMOTE_STORE_PINNED_TIMESTAMP_ENABLED.getKey(), false).build(),
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
         );
-        try (Store store = indexShard.store()) {
-            segmentInfos = store.readLastCommittedSegmentsInfo();
-        }
-
-        when(threadPool.executor(ThreadPool.Names.REMOTE_PURGE)).thenReturn(executorService);
-        when(threadPool.executor(ThreadPool.Names.REMOTE_RECOVERY)).thenReturn(executorService);
-    }
-
-    @After
-    public void tearDown() throws Exception {
-        indexShard.close("test tearDown", true, false);
-        super.tearDown();
+        setupRemoteSegmentStoreDirectory();
     }
 
     public void testUploadedSegmentMetadataToString() {
@@ -204,6 +138,39 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
         );
     }
 
+    public void testUploadedSegmentMetadataFromStringWithFormatSlash() {
+        // Format-aware originalFilename uses "/" delimiter: "parquet/_0.pqt"
+        String input = "parquet/_0.pqt::_0.pqt__uuidxyz::4567::372000::" + Version.LATEST.major;
+        RemoteSegmentStoreDirectory.UploadedSegmentMetadata metadata = RemoteSegmentStoreDirectory.UploadedSegmentMetadata.fromString(
+            input
+        );
+        assertEquals("parquet/_0.pqt", metadata.getOriginalFilename());
+        assertEquals("_0.pqt__uuidxyz", metadata.getUploadedFilename());
+        assertEquals("4567", metadata.getChecksum());
+        assertEquals(372000L, metadata.getLength());
+        assertEquals(input, metadata.toString());
+    }
+
+    public void testUploadedSegmentMetadataRoundTripWithFormatSlash() {
+        // Create metadata with format-aware originalFilename, serialize, deserialize
+        RemoteSegmentStoreDirectory.UploadedSegmentMetadata metadata = new RemoteSegmentStoreDirectory.UploadedSegmentMetadata(
+            "parquet/_0.pqt",
+            "_0.pqt__uuid123",
+            "9999",
+            5000
+        );
+        metadata.setWrittenByMajor(Version.LATEST.major);
+        String serialized = metadata.toString();
+        RemoteSegmentStoreDirectory.UploadedSegmentMetadata deserialized = RemoteSegmentStoreDirectory.UploadedSegmentMetadata.fromString(
+            serialized
+        );
+        assertEquals(metadata.getOriginalFilename(), deserialized.getOriginalFilename());
+        assertEquals(metadata.getUploadedFilename(), deserialized.getUploadedFilename());
+        assertEquals(metadata.getChecksum(), deserialized.getChecksum());
+        assertEquals(metadata.getLength(), deserialized.getLength());
+        assertEquals(serialized, deserialized.toString());
+    }
+
     public void testGetPrimaryTermGenerationUuid() {
         String[] filenameTokens = "abc__9223372036854775795__9223372036854775784__uuid_xyz".split(SEPARATOR);
         assertEquals(12, RemoteSegmentStoreDirectory.MetadataFilenameUtils.getPrimaryTerm(filenameTokens));
@@ -211,9 +178,12 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
     }
 
     public void testInitException() throws IOException {
-        when(remoteMetadataDirectory.listFilesByPrefixInLexicographicOrder(RemoteSegmentStoreDirectory.MetadataFilenameUtils.METADATA_PREFIX, METADATA_FILES_TO_FETCH)).thenThrow(
-            new IOException("Error")
-        );
+        when(
+            remoteMetadataDirectory.listFilesByPrefixInLexicographicOrder(
+                RemoteSegmentStoreDirectory.MetadataFilenameUtils.METADATA_PREFIX,
+                METADATA_FILES_TO_FETCH
+            )
+        ).thenThrow(new IOException("Error"));
 
         assertThrows(IOException.class, () -> remoteSegmentStoreDirectory.init());
     }
@@ -231,64 +201,13 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
     }
 
     public void testInitMultipleMetadataFile() throws IOException {
-        when(remoteMetadataDirectory.listFilesByPrefixInLexicographicOrder(RemoteSegmentStoreDirectory.MetadataFilenameUtils.METADATA_PREFIX, METADATA_FILES_TO_FETCH)).thenReturn(
-            List.of(metadataFilename, metadataFilenameDup)
-        );
-        assertThrows(IllegalStateException.class, () -> remoteSegmentStoreDirectory.init());
-    }
-
-    private Map<String, Map<String, String>> populateMetadata() throws IOException {
-        List<String> metadataFiles = new ArrayList<>();
-
-        metadataFiles.add(metadataFilename);
-        metadataFiles.add(metadataFilename2);
-        metadataFiles.add(metadataFilename3);
-
         when(
             remoteMetadataDirectory.listFilesByPrefixInLexicographicOrder(
                 RemoteSegmentStoreDirectory.MetadataFilenameUtils.METADATA_PREFIX,
                 METADATA_FILES_TO_FETCH
             )
-        ).thenReturn(List.of(metadataFilename));
-        when(
-            remoteMetadataDirectory.listFilesByPrefixInLexicographicOrder(
-                RemoteSegmentStoreDirectory.MetadataFilenameUtils.METADATA_PREFIX,
-                Integer.MAX_VALUE
-            )
-        ).thenReturn(metadataFiles);
-
-        Map<String, Map<String, String>> metadataFilenameContentMapping = Map.of(
-            metadataFilename,
-            getDummyMetadata("_0", 1),
-            metadataFilename2,
-            getDummyMetadata("_0", 1),
-            metadataFilename3,
-            getDummyMetadata("_0", 1)
-        );
-
-        when(remoteMetadataDirectory.getBlobStream(metadataFilename)).thenAnswer(
-            I -> createMetadataFileBytes(
-                metadataFilenameContentMapping.get(metadataFilename),
-                indexShard.getLatestReplicationCheckpoint(),
-                segmentInfos
-            )
-        );
-        when(remoteMetadataDirectory.getBlobStream(metadataFilename2)).thenAnswer(
-            I -> createMetadataFileBytes(
-                metadataFilenameContentMapping.get(metadataFilename2),
-                indexShard.getLatestReplicationCheckpoint(),
-                segmentInfos
-            )
-        );
-        when(remoteMetadataDirectory.getBlobStream(metadataFilename3)).thenAnswer(
-            I -> createMetadataFileBytes(
-                metadataFilenameContentMapping.get(metadataFilename3),
-                indexShard.getLatestReplicationCheckpoint(),
-                segmentInfos
-            )
-        );
-
-        return metadataFilenameContentMapping;
+        ).thenReturn(List.of(metadataFilename, metadataFilenameDup));
+        assertThrows(IllegalStateException.class, () -> remoteSegmentStoreDirectory.init());
     }
 
     public void testInit() throws IOException {
@@ -337,7 +256,7 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
         populateMetadata();
         remoteSegmentStoreDirectory.init();
 
-        doThrow(new IOException("Error")).when(remoteDataDirectory).deleteFile(any());
+        doThrow(new IOException("Error")).when(remoteDataDirectory).deleteFile(anyString());
         assertThrows(IOException.class, () -> remoteSegmentStoreDirectory.deleteFile("_0.si"));
     }
 
@@ -382,6 +301,7 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
         remoteSegmentStoreDirectory.init();
 
         IndexInput indexInput = mock(IndexInput.class);
+        // Mock String-based openInput
         when(remoteDataDirectory.openInput(startsWith("_0.si"), anyLong(), eq(IOContext.DEFAULT))).thenReturn(indexInput);
 
         assertEquals(indexInput, remoteSegmentStoreDirectory.openInput("_0.si", IOContext.DEFAULT));
@@ -395,6 +315,7 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
         populateMetadata();
         remoteSegmentStoreDirectory.init();
 
+        // Mock String-based openInput to throw
         when(remoteDataDirectory.openInput(startsWith("_0.si"), anyLong(), eq(IOContext.DEFAULT))).thenThrow(new IOException("Error"));
 
         assertThrows(IOException.class, () -> remoteSegmentStoreDirectory.openInput("_0.si", IOContext.DEFAULT));
@@ -486,6 +407,77 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
         assertThrows(NoSuchFileException.class, () -> remoteSegmentStoreDirectory.isLockAcquired(testPrimaryTerm, testGeneration));
     }
 
+    private List<String> getDummyMetadataFiles(int count) {
+        List<String> sortedMetadataFiles = new ArrayList<>();
+        for (int counter = 0; counter < count; counter++) {
+            sortedMetadataFiles.add(
+                RemoteSegmentStoreDirectory.MetadataFilenameUtils.getMetadataFilename(counter, 23, 34, 1, 1, "node-1", 0L)
+            );
+        }
+        return sortedMetadataFiles;
+    }
+
+    public void testGetMetadataFilesForActiveSegments() throws IOException {
+        populateMetadata();
+        remoteSegmentStoreDirectory.init();
+
+        // scenario 1: if activeSegments([[0, 1, 2], 3(l), 4(l), 5(l), 6(l), 7(l), 8(l), 9]) => [9]
+        List<String> sortedMdFiles = getDummyMetadataFiles(10);
+        Set<String> lockedMdFiles = new HashSet<>();
+        for (int idx = 3; idx <= 8; idx++) {
+            lockedMdFiles.add(sortedMdFiles.get(idx));
+        }
+        Set<String> expectedMdFilesForActiveSegments = Set.of(sortedMdFiles.get(8));
+        assertEquals(
+            "scenario 1 failed",
+            expectedMdFilesForActiveSegments,
+            remoteSegmentStoreDirectory.getMetadataFilesToFilterActiveSegments(3, sortedMdFiles, lockedMdFiles)
+        );
+
+        // scenario 2: if activeSegments([[0, 1, 2], 3, 4, 5, 6(l), 7(l), 8(l), 9]) => [2, 6, 8]
+        lockedMdFiles.clear();
+        lockedMdFiles.add(sortedMdFiles.get(6));
+        lockedMdFiles.add(sortedMdFiles.get(7));
+        lockedMdFiles.add(sortedMdFiles.get(8));
+        expectedMdFilesForActiveSegments = Set.of(sortedMdFiles.get(2), sortedMdFiles.get(6), sortedMdFiles.get(8));
+        assertEquals(
+            "scenario 2 failed",
+            expectedMdFilesForActiveSegments,
+            remoteSegmentStoreDirectory.getMetadataFilesToFilterActiveSegments(3, sortedMdFiles, lockedMdFiles)
+        );
+
+        // scenario 3: if activeSegments([[0, 1, 2], 3, 4, 5(l), 6, 7(l), 8(l), 9]) => [3, 5, 7, 8]
+        lockedMdFiles.clear();
+        lockedMdFiles.add(sortedMdFiles.get(5));
+        lockedMdFiles.add(sortedMdFiles.get(7));
+        lockedMdFiles.add(sortedMdFiles.get(8));
+        expectedMdFilesForActiveSegments = Set.of(sortedMdFiles.get(2), sortedMdFiles.get(5), sortedMdFiles.get(7), sortedMdFiles.get(8));
+        assertEquals(
+            "scenario 3 failed",
+            expectedMdFilesForActiveSegments,
+            remoteSegmentStoreDirectory.getMetadataFilesToFilterActiveSegments(3, sortedMdFiles, lockedMdFiles)
+        );
+
+        // scenario 3: if activeSegments([[0(l), 1(l), 2(l), 3(l), 4(l), 5(l), 6(l), 7(l), 8(l), 9(l)])
+        lockedMdFiles.addAll(sortedMdFiles);
+        expectedMdFilesForActiveSegments = Set.of();
+        assertEquals(
+            "scenario 4 failed",
+            expectedMdFilesForActiveSegments,
+            remoteSegmentStoreDirectory.getMetadataFilesToFilterActiveSegments(0, sortedMdFiles, lockedMdFiles)
+        );
+
+        // scenario 5: if (activeSegments([[0, 1, 2, 3]]) => []
+        sortedMdFiles = sortedMdFiles.subList(0, 4);
+        lockedMdFiles.clear();
+        expectedMdFilesForActiveSegments = Set.of();
+        assertEquals(
+            "scenario 5 failed",
+            expectedMdFilesForActiveSegments,
+            remoteSegmentStoreDirectory.getMetadataFilesToFilterActiveSegments(4, sortedMdFiles, lockedMdFiles)
+        );
+    }
+
     public void testGetMetadataFileForCommit() throws IOException {
         long testPrimaryTerm = 2;
         long testGeneration = 3;
@@ -498,7 +490,6 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
 
         String output = remoteSegmentStoreDirectory.getMetadataFileForCommit(testPrimaryTerm, testGeneration);
         assertEquals("metadata__" + testPrimaryTerm + "__" + testGeneration + "__pqr", output);
-
     }
 
     public void testCopyFrom() throws IOException {
@@ -552,7 +543,7 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
             @Override
             public void onFailure(Exception e) {}
         };
-        remoteSegmentStoreDirectory.copyFrom(storeDirectory, filename, IOContext.DEFAULT, completionListener);
+        remoteSegmentStoreDirectory.copyFrom(storeDirectory, filename, IOContext.DEFAULT, completionListener, false, null);
         assertTrue(latch.await(5000, TimeUnit.SECONDS));
         assertTrue(remoteSegmentStoreDirectory.getSegmentsUploadedToRemoteStore().containsKey(filename));
         storeDirectory.close();
@@ -567,7 +558,8 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
             remoteMetadataDirectory,
             mdLockManager,
             threadPool,
-            indexShard.shardId()
+            indexShard.shardId(),
+            new HashMap<>()
         );
 
         populateMetadata();
@@ -596,11 +588,46 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
                 latch.countDown();
             }
         };
-        remoteSegmentStoreDirectory.copyFrom(storeDirectory, filename, IOContext.DEFAULT, completionListener);
+        remoteSegmentStoreDirectory.copyFrom(storeDirectory, filename, IOContext.DEFAULT, completionListener, false, null);
         assertTrue(latch.await(5000, TimeUnit.SECONDS));
         assertFalse(remoteSegmentStoreDirectory.getSegmentsUploadedToRemoteStore().containsKey(filename));
 
         storeDirectory.close();
+    }
+
+    public void testCleanupAsync() throws Exception {
+        populateMetadata();
+        RemoteSegmentStoreDirectoryFactory remoteSegmentStoreDirectoryFactory = mock(RemoteSegmentStoreDirectoryFactory.class);
+        RemoteSegmentStoreDirectory remoteSegmentDirectory = new RemoteSegmentStoreDirectory(
+            remoteDataDirectory,
+            remoteMetadataDirectory,
+            mdLockManager,
+            threadPool,
+            indexShard.shardId(),
+            new HashMap<>()
+        );
+        when(remoteSegmentStoreDirectoryFactory.newDirectory(any(), any(), any(), any())).thenReturn(remoteSegmentDirectory);
+        String repositoryName = "test-repository";
+        String indexUUID = "test-idx-uuid";
+        ShardId shardId = new ShardId(Index.UNKNOWN_INDEX_NAME, indexUUID, Integer.parseInt("0"));
+        RemoteStorePathStrategy pathStrategy = randomFrom(
+            new RemoteStorePathStrategy(PathType.FIXED),
+            new RemoteStorePathStrategy(randomFrom(PathType.HASHED_INFIX, PathType.HASHED_PREFIX), randomFrom(PathHashAlgorithm.values()))
+        );
+
+        RemoteSegmentStoreDirectory.remoteDirectoryCleanup(
+            remoteSegmentStoreDirectoryFactory,
+            repositoryName,
+            indexUUID,
+            shardId,
+            pathStrategy,
+            false
+        );
+        verify(remoteSegmentStoreDirectoryFactory).newDirectory(repositoryName, indexUUID, shardId, pathStrategy);
+        verify(threadPool, times(0)).executor(ThreadPool.Names.REMOTE_PURGE);
+        verify(remoteMetadataDirectory).delete();
+        verify(remoteDataDirectory).delete();
+        verify(mdLockManager).delete();
     }
 
     public void testCopyFromException() throws IOException {
@@ -724,7 +751,8 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
             eq(IOContext.DEFAULT)
         );
         VersionedCodecStreamWrapper<RemoteSegmentMetadata> streamWrapper = new VersionedCodecStreamWrapper<>(
-            new RemoteSegmentMetadataHandler(),
+            new RemoteSegmentMetadataHandlerFactory(),
+            RemoteSegmentMetadata.CURRENT_VERSION,
             RemoteSegmentMetadata.CURRENT_VERSION,
             RemoteSegmentMetadata.METADATA_CODEC
         );
@@ -868,7 +896,7 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
 
         BytesStreamOutput output = new BytesStreamOutput();
         OutputStreamIndexOutput indexOutput = new OutputStreamIndexOutput("segment metadata", "metadata output stream", output, 4096);
-        CodecUtil.writeHeader(indexOutput, RemoteSegmentMetadata.METADATA_CODEC, 2);
+        CodecUtil.writeHeader(indexOutput, RemoteSegmentMetadata.METADATA_CODEC, 3);
         indexOutput.writeMapOfStrings(metadata);
         CodecUtil.writeFooter(indexOutput);
         indexOutput.close();
@@ -962,43 +990,183 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
         verify(remoteMetadataDirectory, times(0)).openInput(any(String.class), eq(IOContext.DEFAULT));
     }
 
+    @TestLogging(value = "_root:debug", reason = "Validate logging output")
     public void testDeleteStaleCommitsActualDelete() throws Exception {
+        try (final MockLogAppender appender = MockLogAppender.createForLoggers(LogManager.getRootLogger())) {
+            appender.addExpectation(
+                new MockLogAppender.PatternSeenWithLoggerPrefixExpectation(
+                    "Metadata files to delete message",
+                    "org.opensearch.index.store.RemoteSegmentStoreDirectory",
+                    Level.DEBUG,
+                    "metadataFilesEligibleToDelete=\\[" + metadataFilename3 + "\\] metadataFilesToBeDeleted=\\[" + metadataFilename3 + "\\]"
+                )
+            );
+
+            final Map<String, Map<String, String>> metadataFilenameContentMapping = populateMetadata();
+            // Collect files to delete from all metadata files
+            final Set<String> expectedFilesToDelete = metadataFilenameContentMapping.get(metadataFilename3)
+                .values()
+                .stream()
+                .map(metadata -> metadata.split(RemoteSegmentStoreDirectory.UploadedSegmentMetadata.SEPARATOR)[1])
+                .collect(Collectors.toSet());
+
+            remoteSegmentStoreDirectory.init();
+
+            // popluateMetadata() adds stub to return 3 metadata files
+            // We are passing lastNMetadataFilesToKeep=2 here so that oldest 1 metadata file will be deleted
+            remoteSegmentStoreDirectory.deleteStaleSegmentsAsync(2);
+
+            // Verify batch deletion was called with the list of files (order-independent)
+            assertBusy(() -> {
+                verify(remoteDataDirectory).deleteFiles(
+                    org.mockito.ArgumentMatchers.argThat(files -> files != null && new HashSet<>(files).equals(expectedFilesToDelete))
+                );
+                assertThat(remoteSegmentStoreDirectory.canDeleteStaleCommits.get(), is(true));
+            });
+            verify(remoteMetadataDirectory).deleteFile(metadataFilename3);
+            appender.assertAllExpectationsMatched();
+        }
+    }
+
+    public void testDeleteStaleCommitsActualDeleteWithLocks() throws Exception {
         Map<String, Map<String, String>> metadataFilenameContentMapping = populateMetadata();
         remoteSegmentStoreDirectory.init();
 
+        // Locking one of the metadata files to ensure that it is not getting deleted.
+        when(mdLockManager.fetchLockedMetadataFiles(any())).thenReturn(Set.of(metadataFilename2));
+
+        // Collect files that should be deleted in batch
+        Set<String> expectedFilesToDelete = metadataFilenameContentMapping.get(metadataFilename3)
+            .values()
+            .stream()
+            .map(metadata -> metadata.split(RemoteSegmentStoreDirectory.UploadedSegmentMetadata.SEPARATOR)[1])
+            .collect(Collectors.toSet());
+
         // popluateMetadata() adds stub to return 3 metadata files
         // We are passing lastNMetadataFilesToKeep=2 here so that oldest 1 metadata file will be deleted
+        remoteSegmentStoreDirectory.deleteStaleSegmentsAsync(1);
+
+        // Verify batch deletion was called (order-independent)
+        assertBusy(() -> {
+            verify(remoteDataDirectory).deleteFiles(
+                org.mockito.ArgumentMatchers.argThat(files -> files != null && new HashSet<>(files).equals(expectedFilesToDelete))
+            );
+            assertThat(remoteSegmentStoreDirectory.canDeleteStaleCommits.get(), is(true));
+        });
+        verify(remoteMetadataDirectory).deleteFile(metadataFilename3);
+        verify(remoteMetadataDirectory, times(0)).deleteFile(metadataFilename2);
+    }
+
+    public void testDeleteStaleCommitsNoDeletesDueToLocks() throws Exception {
+        remoteSegmentStoreDirectory.init();
+
+        // Locking all the old metadata files to ensure that none of the segment files are getting deleted.
+        when(mdLockManager.fetchLockedMetadataFiles(any())).thenReturn(Set.of(metadataFilename2, metadataFilename3));
+
+        // popluateMetadata() adds stub to return 3 metadata files
+        // We are passing lastNMetadataFilesToKeep=2 here so that oldest 1 metadata file will be deleted
+        remoteSegmentStoreDirectory.deleteStaleSegmentsAsync(1);
+
+        assertBusy(() -> assertThat(remoteSegmentStoreDirectory.canDeleteStaleCommits.get(), is(true)));
+        verify(remoteMetadataDirectory, times(0)).deleteFile(anyString());
+    }
+
+    public void testDeleteStaleCommitsExceptionWhileFetchingLocks() throws Exception {
+        remoteSegmentStoreDirectory.init();
+
+        // Locking one of the metadata files to ensure that it is not getting deleted.
+        when(mdLockManager.fetchLockedMetadataFiles(any())).thenThrow(new RuntimeException("Rate limit exceeded"));
+
+        // popluateMetadata() adds stub to return 3 metadata files
+        // We are passing lastNMetadataFilesToKeep=2 here so that oldest 1 metadata file will be deleted
+        remoteSegmentStoreDirectory.deleteStaleSegmentsAsync(1);
+
+        verify(remoteMetadataDirectory, times(0)).deleteFile(anyString());
+    }
+
+    public void testDeleteStaleCommitsDeleteDedup() throws Exception {
+        Map<String, Map<String, String>> metadataFilenameContentMapping = new HashMap<>(populateMetadata());
+        metadataFilenameContentMapping.put(metadataFilename4, metadataFilenameContentMapping.get(metadataFilename3));
+
+        when(
+            remoteMetadataDirectory.listFilesByPrefixInLexicographicOrder(
+                RemoteSegmentStoreDirectory.MetadataFilenameUtils.METADATA_PREFIX,
+                Integer.MAX_VALUE
+            )
+        ).thenReturn(new ArrayList<>(List.of(metadataFilename, metadataFilename2, metadataFilename3, metadataFilename4)));
+
+        when(remoteMetadataDirectory.getBlobStream(metadataFilename4)).thenAnswer(
+            I -> createMetadataFileBytes(
+                metadataFilenameContentMapping.get(metadataFilename4),
+                indexShard.getLatestReplicationCheckpoint(),
+                segmentInfos
+            )
+        );
+
+        remoteSegmentStoreDirectory.init();
+
+        // popluateMetadata() adds stub to return 4 metadata files
+        // We are passing lastNMetadataFilesToKeep=2 here so that oldest 2 metadata files will be deleted
         remoteSegmentStoreDirectory.deleteStaleSegmentsAsync(2);
 
+        // Collect unique stale segment files (deduplication happens in the implementation)
+        Set<String> staleSegmentFiles = new HashSet<>();
         for (String metadata : metadataFilenameContentMapping.get(metadataFilename3).values()) {
-            String uploadedFilename = metadata.split(RemoteSegmentStoreDirectory.UploadedSegmentMetadata.SEPARATOR)[1];
-            verify(remoteDataDirectory).deleteFile(uploadedFilename);
+            staleSegmentFiles.add(metadata.split(RemoteSegmentStoreDirectory.UploadedSegmentMetadata.SEPARATOR)[1]);
         }
-        ;
-        assertBusy(() -> assertThat(remoteSegmentStoreDirectory.canDeleteStaleCommits.get(), is(true)));
+        for (String metadata : metadataFilenameContentMapping.get(metadataFilename4).values()) {
+            staleSegmentFiles.add(metadata.split(RemoteSegmentStoreDirectory.UploadedSegmentMetadata.SEPARATOR)[1]);
+        }
+
+        // Collect expected files to be deleted
+        Set<String> expectedFilesToDelete_3 = metadataFilenameContentMapping.get(metadataFilename3)
+            .values()
+            .stream()
+            .map(metadata -> metadata.split(RemoteSegmentStoreDirectory.UploadedSegmentMetadata.SEPARATOR)[1])
+            .collect(Collectors.toSet());
+
+        assertBusy(() -> {
+            assertThat(remoteSegmentStoreDirectory.canDeleteStaleCommits.get(), is(true));
+            // Verify deleteFiles was called for metadataFilename3 with its files
+            verify(remoteDataDirectory).deleteFiles(
+                argThat(files -> files != null && new HashSet<>(files).equals(expectedFilesToDelete_3))
+            );
+            verify(remoteDataDirectory).deleteFiles(new ArrayList<>());
+        });
+
         verify(remoteMetadataDirectory).deleteFile(metadataFilename3);
+        verify(remoteMetadataDirectory).deleteFile(metadataFilename4);
     }
 
     public void testDeleteStaleCommitsActualDeleteIOException() throws Exception {
         Map<String, Map<String, String>> metadataFilenameContentMapping = populateMetadata();
         remoteSegmentStoreDirectory.init();
 
-        String segmentFileWithException = metadataFilenameContentMapping.get(metadataFilename3)
+        // Collect files that will be attempted to delete in batch
+        Set<String> expectedFilesToDelete = metadataFilenameContentMapping.get(metadataFilename3)
             .values()
             .stream()
-            .findAny()
-            .get()
-            .split(RemoteSegmentStoreDirectory.UploadedSegmentMetadata.SEPARATOR)[1];
-        doThrow(new IOException("Error")).when(remoteDataDirectory).deleteFile(segmentFileWithException);
+            .map(metadata -> metadata.split(RemoteSegmentStoreDirectory.UploadedSegmentMetadata.SEPARATOR)[1])
+            .collect(Collectors.toSet());
+
+        // Make batch deletion throw an exception (order-independent matcher)
+        doThrow(new IOException("Error")).when(remoteDataDirectory)
+            .deleteFiles(
+                org.mockito.ArgumentMatchers.argThat(files -> files != null && new HashSet<>(files).equals(expectedFilesToDelete))
+            );
+
         // popluateMetadata() adds stub to return 3 metadata files
         // We are passing lastNMetadataFilesToKeep=2 here so that oldest 1 metadata file will be deleted
         remoteSegmentStoreDirectory.deleteStaleSegmentsAsync(2);
 
-        for (String metadata : metadataFilenameContentMapping.get(metadataFilename3).values()) {
-            String uploadedFilename = metadata.split(RemoteSegmentStoreDirectory.UploadedSegmentMetadata.SEPARATOR)[1];
-            verify(remoteDataDirectory).deleteFile(uploadedFilename);
-        }
-        assertBusy(() -> assertThat(remoteSegmentStoreDirectory.canDeleteStaleCommits.get(), is(true)));
+        // Verify batch deletion was attempted
+        assertBusy(() -> {
+            verify(remoteDataDirectory).deleteFiles(
+                org.mockito.ArgumentMatchers.argThat(files -> files != null && new HashSet<>(files).equals(expectedFilesToDelete))
+            );
+            assertThat(remoteSegmentStoreDirectory.canDeleteStaleCommits.get(), is(true));
+        });
+        // Metadata file should not be deleted when batch deletion fails
         verify(remoteMetadataDirectory, times(0)).deleteFile(metadataFilename3);
     }
 
@@ -1006,23 +1174,129 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
         Map<String, Map<String, String>> metadataFilenameContentMapping = populateMetadata();
         remoteSegmentStoreDirectory.init();
 
-        String segmentFileWithException = metadataFilenameContentMapping.get(metadataFilename)
+        // Collect files that will be deleted in batch
+        Set<String> expectedFilesToDelete = metadataFilenameContentMapping.get(metadataFilename3)
             .values()
             .stream()
-            .findAny()
-            .get()
-            .split(RemoteSegmentStoreDirectory.UploadedSegmentMetadata.SEPARATOR)[1];
-        doThrow(new NoSuchFileException(segmentFileWithException)).when(remoteDataDirectory).deleteFile(segmentFileWithException);
+            .map(metadata -> metadata.split(RemoteSegmentStoreDirectory.UploadedSegmentMetadata.SEPARATOR)[1])
+            .collect(Collectors.toSet());
+
+        // The batch deleteFiles operation should handle NoSuchFileException gracefully
+        // (deleteBlobsIgnoringIfNotExists is used internally)
+        // So we don't throw an exception here - the implementation handles missing files
+
         // popluateMetadata() adds stub to return 3 metadata files
         // We are passing lastNMetadataFilesToKeep=2 here so that oldest 1 metadata file will be deleted
         remoteSegmentStoreDirectory.deleteStaleSegmentsAsync(2);
 
-        for (String metadata : metadataFilenameContentMapping.get(metadataFilename3).values()) {
-            String uploadedFilename = metadata.split(RemoteSegmentStoreDirectory.UploadedSegmentMetadata.SEPARATOR)[1];
-            verify(remoteDataDirectory).deleteFile(uploadedFilename);
-        }
-        assertBusy(() -> assertThat(remoteSegmentStoreDirectory.canDeleteStaleCommits.get(), is(true)));
+        // Verify batch deletion was called (order-independent)
+        assertBusy(() -> {
+            verify(remoteDataDirectory).deleteFiles(argThat(files -> files != null && new HashSet<>(files).equals(expectedFilesToDelete)));
+            assertThat(remoteSegmentStoreDirectory.canDeleteStaleCommits.get(), is(true));
+        });
+        // Metadata file should still be deleted even if some segment files don't exist
         verify(remoteMetadataDirectory).deleteFile(metadataFilename3);
+    }
+
+    /**
+     * Test that deleteStaleSegments correctly batches file deletions
+     * Validates that deleteFiles is called with a collection instead of individual deleteFile calls
+     */
+    public void testDeleteStaleSegmentsBatchesDeletions() throws Exception {
+        Map<String, Map<String, String>> metadataFilenameContentMapping = populateMetadata();
+        remoteSegmentStoreDirectory.init();
+
+        // Collect expected files to be deleted
+        Set<String> expectedFilesToDelete = metadataFilenameContentMapping.get(metadataFilename3)
+            .values()
+            .stream()
+            .map(metadata -> metadata.split(RemoteSegmentStoreDirectory.UploadedSegmentMetadata.SEPARATOR)[1])
+            .collect(Collectors.toSet());
+
+        // Get the cache after deletion
+        Map<String, RemoteSegmentStoreDirectory.UploadedSegmentMetadata> cacheBefore = remoteSegmentStoreDirectory
+            .getSegmentsUploadedToRemoteStore();
+
+        // Execute deletion
+        remoteSegmentStoreDirectory.deleteStaleSegmentsAsync(2);
+
+        // Verify that deleteFiles was called with the batch of files (order-independent)
+        assertBusy(() -> {
+            verify(remoteDataDirectory).deleteFiles(argThat(files -> files != null && new HashSet<>(files).equals(expectedFilesToDelete)));
+            assertThat(remoteSegmentStoreDirectory.canDeleteStaleCommits.get(), is(true));
+        });
+
+        // Verify metadata file was deleted
+        verify(remoteMetadataDirectory).deleteFile(metadataFilename3);
+    }
+
+    public void testDeleteStaleSegmentsBatchesDeletions_cache() throws Exception {
+        Map<String, Map<String, String>> metadataFilenameContentMapping = populateMetadata();
+        remoteSegmentStoreDirectory.init();
+
+        // Collect expected files to be deleted
+        Set<String> expectedFilesToDelete = metadataFilenameContentMapping.get(metadataFilename)
+            .values()
+            .stream()
+            .map(metadata -> metadata.split(RemoteSegmentStoreDirectory.UploadedSegmentMetadata.SEPARATOR)[1])
+            .collect(Collectors.toSet());
+
+        // Execute deletion
+        remoteSegmentStoreDirectory.deleteStaleSegmentsAsync(0);
+
+        // Verify that deleteFiles was called with the batch of files (order-independent)
+        assertBusy(() -> {
+            verify(remoteDataDirectory).deleteFiles(argThat(files -> files != null && new HashSet<>(files).equals(expectedFilesToDelete)));
+            assertThat(remoteSegmentStoreDirectory.canDeleteStaleCommits.get(), is(true));
+        });
+
+        // Verify metadata file was deleted
+        verify(remoteMetadataDirectory).deleteFile(metadataFilename3);
+
+        // Get the cache after deletion
+        Map<String, RemoteSegmentStoreDirectory.UploadedSegmentMetadata> cacheAfter = remoteSegmentStoreDirectory
+            .getSegmentsUploadedToRemoteStore();
+
+        assertEquals(0, cacheAfter.size());
+    }
+
+    /**
+     * Test error handling maintains existing behavior when batch deletion fails
+     * Validates that when deleteFiles throws an exception, the metadata file is not deleted
+     * and the cache remains consistent
+     */
+    public void testDeleteStaleSegmentsBatchDeletionErrorHandling() throws Exception {
+        Map<String, Map<String, String>> metadataFilenameContentMapping = populateMetadata();
+        remoteSegmentStoreDirectory.init();
+
+        // Collect files that will be attempted to delete
+        Set<String> filesToDelete = metadataFilenameContentMapping.get(metadataFilename)
+            .values()
+            .stream()
+            .map(metadata -> metadata.split(RemoteSegmentStoreDirectory.UploadedSegmentMetadata.SEPARATOR)[1])
+            .collect(Collectors.toSet());
+
+        // Make deleteFiles throw an exception for any collection that matches our expected files
+        doThrow(new IOException("Batch deletion failed")).when(remoteDataDirectory).deleteFiles(org.mockito.ArgumentMatchers.any());
+
+        // Execute deletion
+        remoteSegmentStoreDirectory.deleteStaleSegmentsAsync(0);
+
+        // Wait for async operation to complete
+        assertBusy(() -> assertThat(remoteSegmentStoreDirectory.canDeleteStaleCommits.get(), is(true)));
+
+        // Verify that metadata file was NOT deleted due to the error
+        verify(remoteMetadataDirectory, times(0)).deleteFile(metadataFilename);
+
+        // Verify cache still contains the files (they weren't successfully deleted)
+        Map<String, RemoteSegmentStoreDirectory.UploadedSegmentMetadata> cache = remoteSegmentStoreDirectory
+            .getSegmentsUploadedToRemoteStore();
+
+        for (String localFile : metadataFilenameContentMapping.get(metadataFilename).keySet()) {
+            if (localFile.contains("segments")) {
+                assertTrue("File " + localFile + " should still be in cache after failed deletion", cache.containsKey(localFile));
+            }
+        }
     }
 
     public void testSegmentMetadataCurrentVersion() {
@@ -1034,7 +1308,7 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
           If author doesn't want to support old metadata files. Then this can be ignored.
           After taking appropriate action, fix this test by setting the correct version here
          */
-        assertEquals(RemoteSegmentMetadata.CURRENT_VERSION, 1);
+        assertEquals(RemoteSegmentMetadata.CURRENT_VERSION, 2);
     }
 
     private void indexDocs(int startDocId, int numberOfDocs) throws IOException {
@@ -1059,6 +1333,243 @@ public class RemoteSegmentStoreDirectoryTests extends IndexShardTestCase {
         long count = file1.chars().filter(ch -> ch == SEPARATOR.charAt(0)).count();
         // There should not be any `_` in mdFile name as it is used a separator .
         assertEquals(14, count);
+    }
+
+    public void testInitializeToSpecificTimestampNoMetadataFiles() throws IOException {
+        when(
+            remoteMetadataDirectory.listFilesByPrefixInLexicographicOrder(
+                RemoteSegmentStoreDirectory.MetadataFilenameUtils.METADATA_PREFIX,
+                Integer.MAX_VALUE
+            )
+        ).thenReturn(new ArrayList<>());
+        assertNull(remoteSegmentStoreDirectory.initializeToSpecificTimestamp(1234L));
+    }
+
+    public void testInitializeToSpecificTimestampNoMdMatchingTimestamp() throws IOException {
+        String metadataPrefix = "metadata__1__2__3__4__5__";
+        List<String> metadataFiles = new ArrayList<>();
+        metadataFiles.add(metadataPrefix + RemoteStoreUtils.invertLong(2000));
+        metadataFiles.add(metadataPrefix + RemoteStoreUtils.invertLong(3000));
+        metadataFiles.add(metadataPrefix + RemoteStoreUtils.invertLong(4000));
+
+        when(
+            remoteMetadataDirectory.listFilesByPrefixInLexicographicOrder(
+                RemoteSegmentStoreDirectory.MetadataFilenameUtils.METADATA_PREFIX,
+                Integer.MAX_VALUE
+            )
+        ).thenReturn(metadataFiles);
+        assertNull(remoteSegmentStoreDirectory.initializeToSpecificTimestamp(1234L));
+    }
+
+    public void testInitializeToSpecificTimestampMatchingMdFile() throws IOException {
+        String metadataPrefix = "metadata__1__2__3__4__5__";
+        List<String> metadataFiles = new ArrayList<>();
+        metadataFiles.add(metadataPrefix + RemoteStoreUtils.invertLong(1000) + "__1");
+        metadataFiles.add(metadataPrefix + RemoteStoreUtils.invertLong(2000) + "__1");
+        metadataFiles.add(metadataPrefix + RemoteStoreUtils.invertLong(3000) + "__1");
+
+        Map<String, String> metadata = new HashMap<>();
+        metadata.put("_0.cfe", "_0.cfe::_0.cfe__" + UUIDs.base64UUID() + "::1234::512::" + Version.LATEST.major);
+        metadata.put("_0.cfs", "_0.cfs::_0.cfs__" + UUIDs.base64UUID() + "::2345::1024::" + Version.LATEST.major);
+
+        when(
+            remoteMetadataDirectory.listFilesByPrefixInLexicographicOrder(
+                RemoteSegmentStoreDirectory.MetadataFilenameUtils.METADATA_PREFIX,
+                Integer.MAX_VALUE
+            )
+        ).thenReturn(metadataFiles);
+        when(remoteMetadataDirectory.getBlobStream(metadataPrefix + RemoteStoreUtils.invertLong(1000) + "__1")).thenReturn(
+            createMetadataFileBytes(metadata, indexShard.getLatestReplicationCheckpoint(), segmentInfos)
+        );
+
+        RemoteSegmentMetadata remoteSegmentMetadata = remoteSegmentStoreDirectory.initializeToSpecificTimestamp(1234L);
+        assertNotNull(remoteSegmentMetadata);
+        Map<String, RemoteSegmentStoreDirectory.UploadedSegmentMetadata> uploadedSegments = remoteSegmentStoreDirectory
+            .getSegmentsUploadedToRemoteStore();
+        assertEquals(2, uploadedSegments.size());
+        assertTrue(uploadedSegments.containsKey("_0.cfe"));
+        assertTrue(uploadedSegments.containsKey("_0.cfs"));
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // Tests for new CatalogSnapshot-based uploadMetadata
+    // ═══════════════════════════════════════════════════════════════
+
+    public void testUploadMetadataWithCatalogSnapshot() throws IOException {
+        indexDocs(142364, 5);
+        flushShard(indexShard, true);
+        SegmentInfos segInfos = indexShard.store().readLastCommittedSegmentsInfo();
+        long primaryTerm = indexShard.getLatestReplicationCheckpoint().getPrimaryTerm();
+        String primaryTermLong = RemoteStoreUtils.invertLong(primaryTerm);
+        long generation = segInfos.getGeneration();
+        String generationLong = RemoteStoreUtils.invertLong(generation);
+        String latestMetadataFileName = "metadata__" + primaryTermLong + "__" + generationLong + "__abc";
+        List<String> metadataFiles = List.of(latestMetadataFileName);
+        when(
+            remoteMetadataDirectory.listFilesByPrefixInLexicographicOrder(
+                RemoteSegmentStoreDirectory.MetadataFilenameUtils.METADATA_PREFIX,
+                METADATA_FILES_TO_FETCH
+            )
+        ).thenReturn(metadataFiles);
+        Map<String, Map<String, String>> metadataFilenameContentMapping = Map.of(
+            latestMetadataFileName,
+            getDummyMetadata("_0", (int) generation)
+        );
+        when(remoteMetadataDirectory.getBlobStream(latestMetadataFileName)).thenReturn(
+            createMetadataFileBytes(
+                metadataFilenameContentMapping.get(latestMetadataFileName),
+                indexShard.getLatestReplicationCheckpoint(),
+                segmentInfos
+            )
+        );
+
+        remoteSegmentStoreDirectory.init();
+
+        Directory storeDirectory = mock(Directory.class);
+        BytesStreamOutput output = new BytesStreamOutput();
+        IndexOutput indexOutput = new OutputStreamIndexOutput("segment metadata", "metadata output stream", output, 4096);
+        when(storeDirectory.createOutput(startsWith("metadata__" + primaryTermLong + "__" + generationLong), eq(IOContext.DEFAULT)))
+            .thenReturn(indexOutput);
+
+        // Create CatalogSnapshot from SegmentInfos
+        SegmentInfosCatalogSnapshot catalogSnapshot = new SegmentInfosCatalogSnapshot(segInfos);
+
+        remoteSegmentStoreDirectory.uploadMetadata(
+            segInfos.files(true),
+            catalogSnapshot,
+            storeDirectory,
+            generation,
+            indexShard.getLatestReplicationCheckpoint(),
+            ""
+        );
+
+        verify(remoteMetadataDirectory).copyFrom(
+            eq(storeDirectory),
+            startsWith("metadata__" + primaryTermLong + "__" + generationLong),
+            startsWith("metadata__" + primaryTermLong + "__" + generationLong),
+            eq(IOContext.DEFAULT)
+        );
+    }
+
+    public void testUploadMetadataWithCatalogSnapshot_MissingSegment() throws IOException {
+        populateMetadata();
+        remoteSegmentStoreDirectory.init();
+
+        Directory storeDirectory = mock(Directory.class);
+        IndexOutput indexOutput = mock(IndexOutput.class);
+
+        String generation = RemoteStoreUtils.invertLong(segmentInfos.getGeneration());
+        long primaryTermLong = indexShard.getLatestReplicationCheckpoint().getPrimaryTerm();
+        String primaryTerm = RemoteStoreUtils.invertLong(primaryTermLong);
+        when(storeDirectory.createOutput(startsWith("metadata__" + primaryTerm + "__" + generation), eq(IOContext.DEFAULT))).thenReturn(
+            indexOutput
+        );
+
+        SegmentInfosCatalogSnapshot catalogSnapshot = new SegmentInfosCatalogSnapshot(segmentInfos);
+
+        Collection<String> segmentFiles = List.of("_123.si");
+        assertThrows(
+            NoSuchFileException.class,
+            () -> remoteSegmentStoreDirectory.uploadMetadata(
+                segmentFiles,
+                catalogSnapshot,
+                storeDirectory,
+                12L,
+                indexShard.getLatestReplicationCheckpoint(),
+                ""
+            )
+        );
+        verify(indexOutput).close();
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // Tests for UploadedSegmentMetadata with format-aware filenames
+    // ═══════════════════════════════════════════════════════════════
+
+    public void testUploadedSegmentMetadataFromString_WithFormatDelimiter() {
+        // Format: originalFilename::uploadedFilename::checksum::length::writtenByMajor
+        // Where originalFilename uses "/" convention (e.g., "parquet/_0.parquet")
+        String metadataString = "parquet/_0.parquet::_0.parquet__UUID1::checksum456::200::" + Version.LATEST.major;
+        RemoteSegmentStoreDirectory.UploadedSegmentMetadata metadata = RemoteSegmentStoreDirectory.UploadedSegmentMetadata.fromString(
+            metadataString
+        );
+
+        assertEquals("parquet/_0.parquet", metadata.getOriginalFilename());
+        assertEquals("_0.parquet__UUID1", metadata.getUploadedFilename());
+        assertEquals("checksum456", metadata.getChecksum());
+        assertEquals(200, metadata.getLength());
+    }
+
+    public void testUploadedSegmentMetadataToString_WithFormatDelimiter() {
+        RemoteSegmentStoreDirectory.UploadedSegmentMetadata metadata = new RemoteSegmentStoreDirectory.UploadedSegmentMetadata(
+            "parquet/_0.parquet",
+            "_0.parquet__UUID1",
+            "checksum456",
+            200
+        );
+        metadata.setWrittenByMajor(Version.LATEST.major);
+
+        String result = metadata.toString();
+        assertTrue("toString should contain parquet/", result.contains("parquet/_0.parquet"));
+        assertTrue("toString should contain uploaded filename", result.contains("_0.parquet__UUID1"));
+
+        // Verify round-trip
+        RemoteSegmentStoreDirectory.UploadedSegmentMetadata parsed = RemoteSegmentStoreDirectory.UploadedSegmentMetadata.fromString(result);
+        assertEquals("parquet/_0.parquet", parsed.getOriginalFilename());
+        assertEquals("_0.parquet__UUID1", parsed.getUploadedFilename());
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // Tests for readLatestNMetadataFiles
+    // ═══════════════════════════════════════════════════════════════
+
+    public void testReadLatestNMetadataFiles_Empty() throws IOException {
+        when(
+            remoteMetadataDirectory.listFilesByPrefixInLexicographicOrder(
+                RemoteSegmentStoreDirectory.MetadataFilenameUtils.METADATA_PREFIX,
+                3
+            )
+        ).thenReturn(new ArrayList<>());
+
+        Map<String, RemoteSegmentMetadata> result = remoteSegmentStoreDirectory.readLatestNMetadataFiles(3);
+        assertNotNull(result);
+        assertEquals(0, result.size());
+    }
+
+    public void testReadLatestNMetadataFiles_SingleFile() throws IOException {
+        populateMetadata();
+
+        when(
+            remoteMetadataDirectory.listFilesByPrefixInLexicographicOrder(
+                RemoteSegmentStoreDirectory.MetadataFilenameUtils.METADATA_PREFIX,
+                1
+            )
+        ).thenReturn(List.of(metadataFilename));
+
+        Map<String, RemoteSegmentMetadata> result = remoteSegmentStoreDirectory.readLatestNMetadataFiles(1);
+        assertNotNull(result);
+        assertEquals(1, result.size());
+        assertTrue(result.containsKey(metadataFilename));
+    }
+
+    public void testMarkMergedSegmentPendingDownload() {
+        String localSegmentName1 = "_1.si";
+        String remoteSegmentName1 = "_1.si__uuid";
+        String localSegmentName2 = "_1.dvd";
+        String remoteSegmentName2 = "_1.dvd__uuid";
+        remoteSegmentStoreDirectory.markMergedSegmentsPendingDownload(
+            Map.of(localSegmentName1, remoteSegmentName1, localSegmentName2, remoteSegmentName2)
+        );
+
+        assertTrue(remoteSegmentStoreDirectory.isMergedSegmentPendingDownload(localSegmentName1));
+        assertTrue(remoteSegmentStoreDirectory.isMergedSegmentPendingDownload(localSegmentName2));
+        assertFalse(remoteSegmentStoreDirectory.isMergedSegmentPendingDownload("_3.si"));
+        assertEquals(remoteSegmentName1, remoteSegmentStoreDirectory.getExistingRemoteFilename(localSegmentName1));
+        assertEquals(remoteSegmentName2, remoteSegmentStoreDirectory.getExistingRemoteFilename(localSegmentName2));
+
+        remoteSegmentStoreDirectory.unmarkMergedSegmentsPendingDownload(Set.of(localSegmentName1));
+        assertFalse(remoteSegmentStoreDirectory.isMergedSegmentPendingDownload(localSegmentName1));
+        assertNull(remoteSegmentStoreDirectory.getExistingRemoteFilename(localSegmentName1));
     }
 
     private static class WrapperIndexOutput extends IndexOutput {

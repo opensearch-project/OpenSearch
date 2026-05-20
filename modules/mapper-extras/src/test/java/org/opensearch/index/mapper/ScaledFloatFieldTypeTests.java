@@ -34,11 +34,13 @@ package org.opensearch.index.mapper;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.DoublePoint;
+import org.apache.lucene.document.LongField;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
@@ -49,6 +51,7 @@ import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.index.fielddata.IndexNumericFieldData;
 import org.opensearch.index.fielddata.LeafNumericFieldData;
 import org.opensearch.index.fielddata.SortedNumericDoubleValues;
+import org.opensearch.search.approximate.ApproximateScoreQuery;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -63,7 +66,9 @@ public class ScaledFloatFieldTypeTests extends FieldTypeTestCase {
         );
         double value = (randomDouble() * 2 - 1) * 10000;
         long scaledValue = Math.round(value * ft.getScalingFactor());
-        assertEquals(LongPoint.newExactQuery("scaled_float", scaledValue), ft.termQuery(value, null));
+        Query dvQuery = SortedNumericDocValuesField.newSlowExactQuery("scaled_float", scaledValue);
+        Query query = new IndexOrDocValuesQuery(LongPoint.newExactQuery("scaled_float", scaledValue), dvQuery);
+        assertEquals(query, ft.termQuery(value, null));
     }
 
     public void testTermsQuery() {
@@ -75,7 +80,7 @@ public class ScaledFloatFieldTypeTests extends FieldTypeTestCase {
         long scaledValue1 = Math.round(value1 * ft.getScalingFactor());
         double value2 = (randomDouble() * 2 - 1) * 10000;
         long scaledValue2 = Math.round(value2 * ft.getScalingFactor());
-        assertEquals(LongPoint.newSetQuery("scaled_float", scaledValue1, scaledValue2), ft.termsQuery(Arrays.asList(value1, value2), null));
+        assertEquals(LongField.newSetQuery("scaled_float", scaledValue1, scaledValue2), ft.termsQuery(Arrays.asList(value1, value2), null));
     }
 
     public void testRangeQuery() throws IOException {
@@ -87,18 +92,23 @@ public class ScaledFloatFieldTypeTests extends FieldTypeTestCase {
             true,
             false,
             false,
+            false,
             Collections.emptyMap(),
             0.1 + randomDouble() * 100,
             null
         );
         Directory dir = newDirectory();
         IndexWriter w = new IndexWriter(dir, new IndexWriterConfig(null));
+        long[] scaled_floats = new long[1000];
+        double[] doubles = new double[1000];
         final int numDocs = 1000;
         for (int i = 0; i < numDocs; ++i) {
             Document doc = new Document();
             double value = (randomDouble() * 2 - 1) * 10000;
             long scaledValue = Math.round(value * ft.getScalingFactor());
             double rounded = scaledValue / ft.getScalingFactor();
+            scaled_floats[i] = scaledValue;
+            doubles[i] = rounded;
             doc.add(new LongPoint("scaled_float", scaledValue));
             doc.add(new DoublePoint("double", rounded));
             w.addDocument(doc);
@@ -112,9 +122,36 @@ public class ScaledFloatFieldTypeTests extends FieldTypeTestCase {
             Double u = randomBoolean() ? null : (randomDouble() * 2 - 1) * 10000;
             boolean includeLower = randomBoolean();
             boolean includeUpper = randomBoolean();
-            Query doubleQ = NumberFieldMapper.NumberType.DOUBLE.rangeQuery("double", l, u, includeLower, includeUpper, false, MOCK_QSC);
-            Query scaledFloatQ = ft.rangeQuery(l, u, includeLower, includeUpper, MOCK_QSC);
-            assertEquals(searcher.count(doubleQ), searcher.count(scaledFloatQ));
+
+            // Use the same rounding logic for query bounds as used in indexing
+            Double queryL = l;
+            Double queryU = u;
+            if (l != null) {
+                long scaledL = Math.round(l * ft.getScalingFactor());
+                queryL = scaledL / ft.getScalingFactor();
+            }
+            if (u != null) {
+                long scaledU = Math.round(u * ft.getScalingFactor());
+                queryU = scaledU / ft.getScalingFactor();
+            }
+
+            Query doubleQ = NumberFieldMapper.NumberType.DOUBLE.rangeQuery(
+                "double",
+                queryL,
+                queryU,
+                includeLower,
+                includeUpper,
+                false,
+                true,
+                MOCK_QSC
+            );
+            Query scaledFloatQ = ft.rangeQuery(queryL, queryU, includeLower, includeUpper, MOCK_QSC);
+            int expectedCount = searcher.count(doubleQ);
+            int scaledCount = searcher.count(scaledFloatQ);
+
+            // System.out.println("l=" + l + " queryL=" + queryL + " u=" + u + " queryU=" + queryU + " scalingFactor=" +
+            // ft.getScalingFactor() + " expected= "+ expectedCount + " count= " + scaledCount);
+            assertEquals(expectedCount, scaledCount);
         }
         IOUtils.close(reader, dir);
     }
@@ -122,35 +159,40 @@ public class ScaledFloatFieldTypeTests extends FieldTypeTestCase {
     public void testRoundsUpperBoundCorrectly() {
         ScaledFloatFieldMapper.ScaledFloatFieldType ft = new ScaledFloatFieldMapper.ScaledFloatFieldType("scaled_float", 100);
         Query scaledFloatQ = ft.rangeQuery(null, 0.1, true, false, MOCK_QSC);
-        assertEquals("scaled_float:[-9223372036854775808 TO 9]", scaledFloatQ.toString());
+        assertEquals("scaled_float:[-9223372036854775808 TO 9]", getQueryString(scaledFloatQ));
         scaledFloatQ = ft.rangeQuery(null, 0.1, true, true, MOCK_QSC);
-        assertEquals("scaled_float:[-9223372036854775808 TO 10]", scaledFloatQ.toString());
+        assertEquals("scaled_float:[-9223372036854775808 TO 10]", getQueryString(scaledFloatQ));
         scaledFloatQ = ft.rangeQuery(null, 0.095, true, false, MOCK_QSC);
-        assertEquals("scaled_float:[-9223372036854775808 TO 9]", scaledFloatQ.toString());
+        assertEquals("scaled_float:[-9223372036854775808 TO 9]", getQueryString(scaledFloatQ));
         scaledFloatQ = ft.rangeQuery(null, 0.095, true, true, MOCK_QSC);
-        assertEquals("scaled_float:[-9223372036854775808 TO 9]", scaledFloatQ.toString());
+        assertEquals("scaled_float:[-9223372036854775808 TO 10]", getQueryString(scaledFloatQ));
         scaledFloatQ = ft.rangeQuery(null, 0.105, true, false, MOCK_QSC);
-        assertEquals("scaled_float:[-9223372036854775808 TO 10]", scaledFloatQ.toString());
+        assertEquals("scaled_float:[-9223372036854775808 TO 10]", getQueryString(scaledFloatQ));
         scaledFloatQ = ft.rangeQuery(null, 0.105, true, true, MOCK_QSC);
-        assertEquals("scaled_float:[-9223372036854775808 TO 10]", scaledFloatQ.toString());
+        assertEquals("scaled_float:[-9223372036854775808 TO 11]", getQueryString(scaledFloatQ));
         scaledFloatQ = ft.rangeQuery(null, 79.99, true, true, MOCK_QSC);
-        assertEquals("scaled_float:[-9223372036854775808 TO 7999]", scaledFloatQ.toString());
+        assertEquals("scaled_float:[-9223372036854775808 TO 7999]", getQueryString(scaledFloatQ));
     }
 
     public void testRoundsLowerBoundCorrectly() {
         ScaledFloatFieldMapper.ScaledFloatFieldType ft = new ScaledFloatFieldMapper.ScaledFloatFieldType("scaled_float", 100);
         Query scaledFloatQ = ft.rangeQuery(-0.1, null, false, true, MOCK_QSC);
-        assertEquals("scaled_float:[-9 TO 9223372036854775807]", scaledFloatQ.toString());
+        assertEquals("scaled_float:[-9 TO 9223372036854775807]", getQueryString(scaledFloatQ));
         scaledFloatQ = ft.rangeQuery(-0.1, null, true, true, MOCK_QSC);
-        assertEquals("scaled_float:[-10 TO 9223372036854775807]", scaledFloatQ.toString());
+        assertEquals("scaled_float:[-10 TO 9223372036854775807]", getQueryString(scaledFloatQ));
         scaledFloatQ = ft.rangeQuery(-0.095, null, false, true, MOCK_QSC);
-        assertEquals("scaled_float:[-9 TO 9223372036854775807]", scaledFloatQ.toString());
+        assertEquals("scaled_float:[-8 TO 9223372036854775807]", getQueryString(scaledFloatQ));
         scaledFloatQ = ft.rangeQuery(-0.095, null, true, true, MOCK_QSC);
-        assertEquals("scaled_float:[-9 TO 9223372036854775807]", scaledFloatQ.toString());
+        assertEquals("scaled_float:[-9 TO 9223372036854775807]", getQueryString(scaledFloatQ));
         scaledFloatQ = ft.rangeQuery(-0.105, null, false, true, MOCK_QSC);
-        assertEquals("scaled_float:[-10 TO 9223372036854775807]", scaledFloatQ.toString());
+        assertEquals("scaled_float:[-9 TO 9223372036854775807]", getQueryString(scaledFloatQ));
         scaledFloatQ = ft.rangeQuery(-0.105, null, true, true, MOCK_QSC);
-        assertEquals("scaled_float:[-10 TO 9223372036854775807]", scaledFloatQ.toString());
+        assertEquals("scaled_float:[-10 TO 9223372036854775807]", getQueryString(scaledFloatQ));
+    }
+
+    private String getQueryString(Query query) {
+        assertTrue(query instanceof ApproximateScoreQuery);
+        return ((IndexOrDocValuesQuery) ((ApproximateScoreQuery) query).getOriginalQuery()).getIndexQuery().toString();
     }
 
     public void testValueForSearch() {
@@ -219,5 +261,86 @@ public class ScaledFloatFieldTypeTests extends FieldTypeTestCase {
             .build(context)
             .fieldType();
         assertEquals(Collections.singletonList(2.71), fetchSourceValue(nullValueMapper, ""));
+    }
+
+    public void testRandomPriceValues() {
+        ScaledFloatFieldMapper.ScaledFloatFieldType ft = new ScaledFloatFieldMapper.ScaledFloatFieldType("price", 100);
+        Query q = ft.rangeQuery(null, 19.99, true, true, MOCK_QSC);
+        assertEquals("price:[-9223372036854775808 TO 1999]", getQueryString(q));
+        q = ft.rangeQuery(null, 99.99, true, true, MOCK_QSC);
+        assertEquals("price:[-9223372036854775808 TO 9999]", getQueryString(q));
+        q = ft.rangeQuery(null, 9.99, true, true, MOCK_QSC);
+        assertEquals("price:[-9223372036854775808 TO 999]", getQueryString(q));
+    }
+
+    public void testIndexingQueryingConsistency() throws IOException {
+        ScaledFloatFieldMapper.ScaledFloatFieldType ft = new ScaledFloatFieldMapper.ScaledFloatFieldType("scaled_float", 100);
+        Directory dir = newDirectory();
+        IndexWriter w = new IndexWriter(dir, new IndexWriterConfig(null));
+        // Index the problematic value
+        Document doc = new Document();
+        double value = 79.99;
+        long scaledValue = Math.round(value * 100);
+        doc.add(new LongPoint("scaled_float", scaledValue));
+        w.addDocument(doc);
+        DirectoryReader reader = DirectoryReader.open(w);
+        w.close();
+        IndexSearcher searcher = newSearcher(reader);
+        // Range query should find it
+        Query rangeQ = ft.rangeQuery(79.0, 80.0, true, true, MOCK_QSC);
+        assertEquals(1, searcher.count(rangeQ));
+        // Exact range should find it
+        Query exactQ = ft.rangeQuery(value, value, true, true, MOCK_QSC);
+        assertEquals(1, searcher.count(exactQ));
+        IOUtils.close(reader, dir);
+    }
+
+    public void testLargeNumberIndexingAndQuerying() throws IOException {
+        double largeValue = 92233720368547750.0;
+        double scalingFactor = 100.0;
+        ScaledFloatFieldMapper.ScaledFloatFieldType ft = new ScaledFloatFieldMapper.ScaledFloatFieldType(
+            "scaled_float",
+            true,
+            false,
+            true,
+            true,
+            Collections.emptyMap(),
+            scalingFactor,
+            null
+        );
+        Directory dir = newDirectory();
+        IndexWriter w = new IndexWriter(dir, new IndexWriterConfig(null));
+        // Index the document with the large value
+        Document doc = new Document();
+        long scaledValue = Math.round(largeValue * scalingFactor);
+        doc.add(new LongPoint("scaled_float", scaledValue));
+        doc.add(new SortedNumericDocValuesField("scaled_float", scaledValue));
+        w.addDocument(doc);
+        // Add another doc with a different value to ensure we're finding the right one
+        Document doc2 = new Document();
+        double otherValue = 1000.0;
+        long scaledValue2 = Math.round(otherValue * scalingFactor);
+        doc2.add(new LongPoint("scaled_float", scaledValue2));
+        doc2.add(new SortedNumericDocValuesField("scaled_float", scaledValue2));
+        w.addDocument(doc2);
+        DirectoryReader reader = DirectoryReader.open(w);
+        w.close();
+        IndexSearcher searcher = newSearcher(reader);
+        // Test 1: Term query should find the exact document
+        Query termQuery = ft.termQuery(largeValue, MOCK_QSC);
+        assertEquals("Term query should find exactly one document", 1, searcher.count(termQuery));
+        // Test 2: Range query containing the value should find it
+        Query rangeQuery = ft.rangeQuery(largeValue - 1, largeValue + 1, true, true, MOCK_QSC);
+        assertEquals("Range query should find the large value", 1, searcher.count(rangeQuery));
+        // Test 3: Exact range query (value to value) should find it
+        Query exactRangeQuery = ft.rangeQuery(largeValue, largeValue, true, true, MOCK_QSC);
+        assertEquals("Exact range query should find the document", 1, searcher.count(exactRangeQuery));
+        // Test 4: Range query excluding the value should not find it
+        Query exclusiveRangeQuery = ft.rangeQuery(largeValue, largeValue + 1, false, false, MOCK_QSC);
+        assertEquals("Exclusive range should not find the document", 0, searcher.count(exclusiveRangeQuery));
+        // Test 5: Terms query with multiple values should work
+        Query termsQuery = ft.termsQuery(Arrays.asList(largeValue, otherValue), MOCK_QSC);
+        assertEquals("Terms query should find both documents", 2, searcher.count(termsQuery));
+        IOUtils.close(reader, dir);
     }
 }

@@ -44,6 +44,7 @@ import java.util.stream.Stream;
  */
 public enum FormatNames {
     ISO8601(null, "iso8601"),
+    RFC3339_LENIENT(null, "rfc3339_lenient"),
     BASIC_DATE("basicDate", "basic_date"),
     BASIC_DATE_TIME("basicDateTime", "basic_date_time"),
     BASIC_DATE_TIME_NO_MILLIS("basicDateTimeNoMillis", "basic_date_time_no_millis"),
@@ -90,6 +91,7 @@ public enum FormatNames {
     YEAR_MONTH_DAY("yearMonthDay", "year_month_day"),
     EPOCH_SECOND(null, "epoch_second"),
     EPOCH_MILLIS(null, "epoch_millis"),
+    EPOCH_MICROS(null, "epoch_micros"),
     // strict date formats here, must be at least 4 digits for year and two for months and two for day"
     STRICT_BASIC_WEEK_DATE("strictBasicWeekDate", "strict_basic_week_date"),
     STRICT_BASIC_WEEK_DATE_TIME("strictBasicWeekDateTime", "strict_basic_week_date_time"),

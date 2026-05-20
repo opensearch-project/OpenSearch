@@ -50,11 +50,11 @@ class MatrixStatsResults implements Writeable {
     /** object holding results - computes results in place */
     protected final RunningStats results;
     /** pearson product correlation coefficients */
-    protected final Map<String, HashMap<String, Double>> correlation;
+    protected final Map<String, Map<String, Double>> correlation;
 
     /** Base ctor */
-    MatrixStatsResults() {
-        results = new RunningStats();
+    MatrixStatsResults(String[] fieldNames) {
+        results = new RunningStats(fieldNames);
         this.correlation = new HashMap<>();
     }
 
@@ -70,7 +70,7 @@ class MatrixStatsResults implements Writeable {
     protected MatrixStatsResults(StreamInput in) {
         try {
             results = new RunningStats(in);
-            correlation = (Map<String, HashMap<String, Double>>) in.readGenericValue();
+            correlation = (Map<String, Map<String, Double>>) in.readGenericValue();
         } catch (IOException e) {
             throw new OpenSearchException("Error trying to create multifield_stats results from stream input", e);
         }
@@ -92,77 +92,93 @@ class MatrixStatsResults implements Writeable {
 
     /** return the field counts - not public, used for getProperty() */
     protected Map<String, Long> getFieldCounts() {
-        return Collections.unmodifiableMap(results.counts);
+        if (results.usesMaps()) {
+            return Collections.unmodifiableMap(results.counts);
+        }
+        return Collections.unmodifiableMap(results.convertLongArrayToMap(results.countsArr));
     }
 
-    /** return the fied count for the requested field */
+    /** return the field count for the requested field */
     public long getFieldCount(String field) {
-        if (results.counts.containsKey(field) == false) {
+        Map<String, Long> counts = getFieldCounts();
+        if (counts.containsKey(field) == false) {
             return 0;
         }
-        return results.counts.get(field);
+        return counts.get(field);
+    }
+
+    private Map<String, Double> getMapHelper(RunningStats results, Map<String, Double> map, double[] array) {
+        if (results.usesMaps()) {
+            return Collections.unmodifiableMap(map);
+        }
+        return Collections.unmodifiableMap(results.convertDoubleArrayToMap(array));
     }
 
     /** return the means - not public, used for getProperty() */
     protected Map<String, Double> getMeans() {
-        return Collections.unmodifiableMap(results.means);
+        return getMapHelper(results, results.means, results.meansArr);
     }
 
     /** return the mean for the requested field */
     public double getMean(String field) {
-        checkField(field, results.means);
-        return results.means.get(field);
+        Map<String, Double> means = getMeans();
+        checkField(field, means);
+        return means.get(field);
     }
 
     /** return the variances - not public, used for getProperty() */
     protected Map<String, Double> getVariances() {
-        return Collections.unmodifiableMap(results.variances);
+        return getMapHelper(results, results.variances, results.variancesArr);
     }
 
     /** return the variance for the requested field */
     public double getVariance(String field) {
-        checkField(field, results.variances);
-        return results.variances.get(field);
+        Map<String, Double> variances = getVariances();
+        checkField(field, variances);
+        return variances.get(field);
     }
 
     /** return the skewness - not public, used for getProperty() */
     protected Map<String, Double> getSkewness() {
-        return Collections.unmodifiableMap(results.skewness);
+        return getMapHelper(results, results.skewness, results.skewnessArr);
     }
 
     /** return the skewness for the requested field */
     public double getSkewness(String field) {
-        checkField(field, results.skewness);
-        return results.skewness.get(field);
+        Map<String, Double> skewness = getSkewness();
+        checkField(field, skewness);
+        return skewness.get(field);
     }
 
     /** return the kurtosis */
     protected Map<String, Double> getKurtosis() {
-        return Collections.unmodifiableMap(results.kurtosis);
+        return getMapHelper(results, results.kurtosis, results.kurtosisArr);
     }
 
     /** return the kurtosis for the requested field */
     public double getKurtosis(String field) {
-        checkField(field, results.kurtosis);
-        return results.kurtosis.get(field);
+        Map<String, Double> kurtosis = getKurtosis();
+        checkField(field, kurtosis);
+        return kurtosis.get(field);
     }
 
     /** return the covariances as a map - not public, used for getProperty() */
-    protected Map<String, HashMap<String, Double>> getCovariances() {
+    protected Map<String, Map<String, Double>> getCovariances() {
         return Collections.unmodifiableMap(results.covariances);
     }
 
     /** return the covariance between two fields */
     public double getCovariance(String fieldX, String fieldY) {
+        Map<String, Double> variances = getVariances();
         if (fieldX.equals(fieldY)) {
-            checkField(fieldX, results.variances);
-            return results.variances.get(fieldX);
+            checkField(fieldX, variances);
+            return variances.get(fieldX);
         }
-        return getValFromUpperTriangularMatrix(results.covariances, fieldX, fieldY);
+        return getValFromUpperTriangularMatrix(getCovariances(), fieldX, fieldY);
     }
 
     /** return the correlations as a map - not public, used for getProperty() */
-    protected Map<String, HashMap<String, Double>> getCorrelations() {
+    protected Map<String, Map<String, Double>> getCorrelations() {
         return Collections.unmodifiableMap(correlation);
     }
 
@@ -206,6 +222,9 @@ class MatrixStatsResults implements Writeable {
 
     /** Computes final covariance, variance, and correlation */
     private void compute() {
+        if (!results.usesMaps()) {
+            results.switchToMaps();
+        }
         final double nM1 = results.docCount - 1D;
         // compute final skewness and kurtosis
         for (String fieldName : results.means.keySet()) {
@@ -220,10 +239,10 @@ class MatrixStatsResults implements Writeable {
 
         // compute final covariances and correlation
         double cor;
-        for (Map.Entry<String, HashMap<String, Double>> row : results.covariances.entrySet()) {
+        for (Map.Entry<String, Map<String, Double>> row : results.covariances.entrySet()) {
             final String rowName = row.getKey();
-            final HashMap<String, Double> covRow = row.getValue();
-            final HashMap<String, Double> corRow = new HashMap<>();
+            final Map<String, Double> covRow = row.getValue();
+            final Map<String, Double> corRow = new HashMap<>();
             for (Map.Entry<String, Double> col : covRow.entrySet()) {
                 final String colName = col.getKey();
                 // update covariance

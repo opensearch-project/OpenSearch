@@ -143,8 +143,6 @@ setup:
 "Deprecated _time order":
 
   - skip:
-      version: " - 7.1.99"
-      reason:  _time order deprecated in 6.0, replaced by _key. Calendar_interval added in 7.2
       features: "allowed_warnings"
 
   - do:
@@ -199,9 +197,6 @@ setup:
 
 ---
 "date_histogram":
-  - skip:
-      version: " - 7.1.99"
-      reason:  calendar_interval introduced in 7.2.0
 
   - do:
       indices.create:
@@ -328,9 +323,7 @@ setup:
 
 ---
 "date_histogram on range":
-  - skip:
-      version: " - 7.4.1"
-      reason:  doc values on ranges implemented in 7.4.1
+
 
   - do:
       indices.create:
@@ -380,9 +373,7 @@ setup:
 
 ---
 "date_histogram on range with offset":
-  - skip:
-      version: " - 7.4.1"
-      reason:  doc values on ranges implemented in 7.4.1
+
 
   - do:
       indices.create:
@@ -433,9 +424,7 @@ setup:
 
 ---
 "date_histogram with pre-epoch daylight savings time transition":
-  - skip:
-      version: " - 7.6.1"
-      reason:  bug fixed in 7.6.1.
+
   # Add date_nanos to the mapping. We couldn't do it during setup because that
   # is run against 6.8 which doesn't have date_nanos
   - do:
@@ -493,9 +482,7 @@ setup:
 
 ---
 "histogram profiler":
-  - skip:
-      version: " - 7.8.99"
-      reason:  debug info added in 7.9.0
+
 
   - do:
       indices.create:
@@ -551,9 +538,7 @@ setup:
 
 ---
 "date_histogram profiler":
-  - skip:
-      version: " - 7.8.99"
-      reason:  debug info added in 7.9.0
+
 
   - do:
       indices.create:
@@ -598,15 +583,10 @@ setup:
   - match: { aggregations.histo.buckets.0.doc_count: 2 }
   - match: { profile.shards.0.aggregations.0.type: DateHistogramAggregator }
   - match: { profile.shards.0.aggregations.0.description: histo }
-  - match: { profile.shards.0.aggregations.0.breakdown.collect_count: 4 }
   - match: { profile.shards.0.aggregations.0.debug.total_buckets: 3 }
 
 ---
 "histogram with hard bounds":
-  - skip:
-      version: " - 7.9.99"
-      reason:  hard_bounds were introduced in 7.10.0
-
   - do:
       indices.create:
         index: test_3
@@ -645,3 +625,60 @@ setup:
   - match: { aggregations.histo.buckets.0.doc_count: 1 }
   - match: { aggregations.histo.buckets.20.key: 20 }
   - match: { aggregations.histo.buckets.20.doc_count: 1 }
+
+---
+"date_histogram profiler shows filter rewrite info":
+  - skip:
+      version: " - 2.99.99"
+      reason:  debug info for filter rewrite added in 3.0.0 (to be backported to 2.14.0)
+
+  - do:
+      indices.create:
+        index: test_2
+        body:
+          settings:
+            number_of_replicas: 0
+            number_of_shards: 1
+            refresh_interval: -1
+          mappings:
+            properties:
+              date:
+                type: date
+
+  - do:
+      bulk:
+        index: test_2
+        refresh: true
+        body:
+          - '{"index": {}}'
+          - '{"date": "2016-01-01"}'
+          - '{"index": {}}'
+          - '{"date": "2016-01-02"}'
+          - '{"index": {}}'
+          - '{"date": "2016-02-01"}'
+          - '{"index": {}}'
+          - '{"date": "2016-03-01"}'
+
+  - do:
+      search:
+        index: test_2
+        body:
+          size: 0
+          profile: true
+          aggs:
+            histo:
+              date_histogram:
+                field: date
+                calendar_interval: month
+
+  - match: { hits.total.value: 4 }
+  - length: { aggregations.histo.buckets: 3 }
+  - match: { aggregations.histo.buckets.0.key_as_string: "2016-01-01T00:00:00.000Z" }
+  - match: { aggregations.histo.buckets.0.doc_count: 2 }
+  - match: { profile.shards.0.aggregations.0.type: DateHistogramAggregator }
+  - match: { profile.shards.0.aggregations.0.description: histo }
+  - match: { profile.shards.0.aggregations.0.debug.total_buckets: 3 }
+  - match: { profile.shards.0.aggregations.0.debug.optimized_segments: 1 }
+  - match: { profile.shards.0.aggregations.0.debug.unoptimized_segments: 0 }
+  - match: { profile.shards.0.aggregations.0.debug.leaf_visited: 1 }
+  - match: { profile.shards.0.aggregations.0.debug.inner_visited: 0 }

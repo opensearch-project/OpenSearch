@@ -40,6 +40,8 @@ import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.ObjectParser;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.search.approximate.ApproximateMatchAllQuery;
+import org.opensearch.search.approximate.ApproximateScoreQuery;
 
 import java.io.IOException;
 
@@ -88,7 +90,7 @@ public class MatchAllQueryBuilder extends AbstractQueryBuilder<MatchAllQueryBuil
 
     @Override
     protected Query doToQuery(QueryShardContext context) {
-        return Queries.newMatchAllQuery();
+        return new ApproximateScoreQuery(Queries.newMatchAllQuery(), new ApproximateMatchAllQuery());
     }
 
     @Override

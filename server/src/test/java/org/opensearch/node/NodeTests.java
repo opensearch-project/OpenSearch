@@ -35,16 +35,21 @@ import org.apache.lucene.tests.util.LuceneTestCase;
 import org.opensearch.bootstrap.BootstrapCheck;
 import org.opensearch.bootstrap.BootstrapContext;
 import org.opensearch.cluster.ClusterName;
+import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
+import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.network.NetworkModule;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsException;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.common.breaker.CircuitBreaker;
+import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.common.transport.BoundTransportAddress;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.indices.breaker.CircuitBreakerService;
+import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.index.IndexService;
@@ -56,25 +61,40 @@ import org.opensearch.monitor.fs.FsInfo;
 import org.opensearch.monitor.fs.FsProbe;
 import org.opensearch.plugins.CircuitBreakerPlugin;
 import org.opensearch.plugins.Plugin;
+import org.opensearch.plugins.TelemetryAwarePlugin;
+import org.opensearch.plugins.TelemetryPlugin;
+import org.opensearch.repositories.RepositoriesService;
+import org.opensearch.script.ScriptService;
+import org.opensearch.storage.metrics.TierActionMetrics;
+import org.opensearch.telemetry.Telemetry;
+import org.opensearch.telemetry.TelemetrySettings;
+import org.opensearch.telemetry.metrics.MetricsRegistry;
+import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.MockHttpTransport;
 import org.opensearch.test.NodeRoles;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.client.Client;
+import org.opensearch.watcher.ResourceWatcherService;
 
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Supplier;
 
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
+import static org.opensearch.common.util.FeatureFlags.TELEMETRY;
 import static org.opensearch.test.NodeRoles.addRoles;
 import static org.opensearch.test.NodeRoles.dataNode;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
@@ -357,17 +377,17 @@ public class NodeTests extends OpenSearchTestCase {
     }
 
     public void testCreateWithFileCache() throws Exception {
-        Settings searchRoleSettings = addRoles(baseSettings().build(), Set.of(DiscoveryNodeRole.SEARCH_ROLE));
+        Settings warmRoleSettings = addRoles(baseSettings().build(), Set.of(DiscoveryNodeRole.WARM_ROLE));
         List<Class<? extends Plugin>> plugins = basePlugins();
         ByteSizeValue cacheSize = new ByteSizeValue(16, ByteSizeUnit.GB);
-        Settings searchRoleSettingsWithConfig = baseSettings().put(searchRoleSettings)
-            .put(Node.NODE_SEARCH_CACHE_SIZE_SETTING.getKey(), cacheSize)
+        Settings warmRoleSettingsWithConfig = baseSettings().put(warmRoleSettings)
+            .put(Node.NODE_SEARCH_CACHE_SIZE_SETTING.getKey(), cacheSize.toString())
             .build();
-        Settings onlySearchRoleSettings = Settings.builder()
-            .put(searchRoleSettingsWithConfig)
+        Settings onlyWarmRoleSettings = Settings.builder()
+            .put(warmRoleSettingsWithConfig)
             .put(
                 NodeRoles.removeRoles(
-                    searchRoleSettingsWithConfig,
+                    warmRoleSettingsWithConfig,
                     Set.of(
                         DiscoveryNodeRole.DATA_ROLE,
                         DiscoveryNodeRole.CLUSTER_MANAGER_ROLE,
@@ -378,29 +398,123 @@ public class NodeTests extends OpenSearchTestCase {
             )
             .build();
 
-        // Test exception thrown with configuration missing
-        assertThrows(SettingsException.class, () -> new MockNode(searchRoleSettings, plugins));
+        // Test exception thrown when computed cache budget is 0 (80% × 0 SSD in test env).
+        // NodeCacheOrchestrator.validate() throws IllegalArgumentException
+        assertThrows(SettingsException.class, () -> new MockNode(warmRoleSettings, plugins));
 
         // Test file cache is initialized
-        try (MockNode mockNode = new MockNode(searchRoleSettingsWithConfig, plugins)) {
+        try (MockNode mockNode = new MockNode(warmRoleSettingsWithConfig, plugins)) {
             NodeEnvironment.NodePath fileCacheNodePath = mockNode.getNodeEnvironment().fileCacheNodePath();
             assertEquals(cacheSize.getBytes(), fileCacheNodePath.fileCacheReservedSize.getBytes());
         }
 
-        // Test data + search node with defined cache size
-        try (MockNode mockNode = new MockNode(searchRoleSettingsWithConfig, plugins)) {
+        // Test data + warm node with defined cache size
+        try (MockNode mockNode = new MockNode(warmRoleSettingsWithConfig, plugins)) {
             NodeEnvironment.NodePath fileCacheNodePath = mockNode.getNodeEnvironment().fileCacheNodePath();
             assertEquals(cacheSize.getBytes(), fileCacheNodePath.fileCacheReservedSize.getBytes());
         }
 
-        // Test dedicated search node with no configuration
-        try (MockNode mockNode = new MockNode(onlySearchRoleSettings, plugins)) {
+        // Test dedicated warm node with no configuration
+        try (MockNode mockNode = new MockNode(onlyWarmRoleSettings, plugins)) {
             NodeEnvironment.NodePath fileCacheNodePath = mockNode.getNodeEnvironment().fileCacheNodePath();
             assertTrue(fileCacheNodePath.fileCacheReservedSize.getBytes() > 0);
             FsProbe fsProbe = new FsProbe(mockNode.getNodeEnvironment(), mockNode.fileCache());
             FsInfo fsInfo = fsProbe.stats(null);
             FsInfo.Path cachePathInfo = fsInfo.iterator().next();
             assertEquals(cachePathInfo.getFileCacheReserved().getBytes(), fileCacheNodePath.fileCacheReservedSize.getBytes());
+        }
+    }
+
+    public void testTieredStorageWiringWithFeatureFlag() throws Exception {
+        Settings warmRoleSettings = addRoles(
+            baseSettings().put(FeatureFlags.WRITABLE_WARM_INDEX_EXPERIMENTAL_FLAG, true)
+                .put(Node.NODE_SEARCH_CACHE_SIZE_SETTING.getKey(), "1gb")
+                .build(),
+            Set.of(DiscoveryNodeRole.WARM_ROLE)
+        );
+        List<Class<? extends Plugin>> plugins = basePlugins();
+        try (MockNode mockNode = new MockNode(warmRoleSettings, plugins)) {
+            assertNotNull(mockNode);
+            // Verify TierActionMetrics was bound in Guice
+            assertNotNull(mockNode.injector().getInstance(TierActionMetrics.class));
+            // Verify remote_download thread pool exists
+            ThreadPool threadPool = mockNode.injector().getInstance(ThreadPool.class);
+            assertNotNull(threadPool.executor(ThreadPool.Names.REMOTE_DOWNLOAD));
+        }
+    }
+
+    public void testTelemetryAwarePlugins() throws IOException {
+        Settings.Builder settings = baseSettings();
+        List<Class<? extends Plugin>> plugins = basePlugins();
+        plugins.add(MockTelemetryAwarePlugin.class);
+        try (Node node = new MockNode(settings.build(), plugins)) {
+            MockTelemetryAwareComponent mockTelemetryAwareComponent = node.injector().getInstance(MockTelemetryAwareComponent.class);
+            assertNotNull(mockTelemetryAwareComponent.getTracer());
+            assertNotNull(mockTelemetryAwareComponent.getMetricsRegistry());
+            TelemetryAwarePlugin telemetryAwarePlugin = node.getPluginsService().filterPlugins(TelemetryAwarePlugin.class).get(0);
+            assertTrue(telemetryAwarePlugin instanceof MockTelemetryAwarePlugin);
+        }
+    }
+
+    @LockFeatureFlag(TELEMETRY)
+    public void testTelemetryPluginShouldNOTImplementTelemetryAwarePlugin() throws IOException {
+        Settings.Builder settings = baseSettings();
+        List<Class<? extends Plugin>> plugins = basePlugins();
+        plugins.add(MockTelemetryPlugin.class);
+        settings.put(TelemetrySettings.TRACER_FEATURE_ENABLED_SETTING.getKey(), true);
+        assertThrows(IllegalStateException.class, () -> new MockNode(settings.build(), plugins));
+    }
+
+    private static class MockTelemetryAwareComponent {
+        private final Tracer tracer;
+        private final MetricsRegistry metricsRegistry;
+
+        public MockTelemetryAwareComponent(Tracer tracer, MetricsRegistry metricsRegistry) {
+            this.tracer = tracer;
+            this.metricsRegistry = metricsRegistry;
+        }
+
+        public Tracer getTracer() {
+            return tracer;
+        }
+
+        public MetricsRegistry getMetricsRegistry() {
+            return metricsRegistry;
+        }
+    }
+
+    public static class MockTelemetryAwarePlugin extends Plugin implements TelemetryAwarePlugin {
+        @Override
+        public Collection<Object> createComponents(
+            Client client,
+            ClusterService clusterService,
+            ThreadPool threadPool,
+            ResourceWatcherService resourceWatcherService,
+            ScriptService scriptService,
+            NamedXContentRegistry xContentRegistry,
+            Environment environment,
+            NodeEnvironment nodeEnvironment,
+            NamedWriteableRegistry namedWriteableRegistry,
+            IndexNameExpressionResolver indexNameExpressionResolver,
+            Supplier<RepositoriesService> repositoriesServiceSupplier,
+            Tracer tracer,
+            MetricsRegistry metricsRegistry
+        ) {
+            return List.of(new MockTelemetryAwareComponent(tracer, metricsRegistry));
+        }
+
+    }
+
+    public static class MockTelemetryPlugin extends Plugin implements TelemetryPlugin, TelemetryAwarePlugin {
+
+        @Override
+        public Optional<Telemetry> getTelemetry(TelemetrySettings telemetrySettings) {
+            return Optional.empty();
+        }
+
+        @Override
+        public String getName() {
+            return null;
         }
     }
 

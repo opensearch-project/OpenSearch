@@ -42,6 +42,7 @@ import org.opensearch.cluster.routing.UnassignedInfo.AllocationStatus;
 import org.opensearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.Randomness;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.core.Assertions;
 import org.opensearch.core.index.Index;
@@ -58,13 +59,14 @@ import java.util.List;
 import java.util.ListIterator;
 import java.util.Map;
 import java.util.NoSuchElementException;
-import java.util.Objects;
 import java.util.Queue;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
+import static org.opensearch.node.remotestore.RemoteStoreNodeService.isMigratingToRemoteStore;
 
 /**
  * {@link RoutingNodes} represents a copy the routing information contained in the {@link ClusterState cluster state}.
@@ -79,8 +81,9 @@ import java.util.stream.Stream;
  * <li> {@link #failShard} fails/cancels an assigned shard.
  * </ul>
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class RoutingNodes implements Iterable<RoutingNode> {
     private final Metadata metadata;
 
@@ -99,6 +102,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
     private int relocatingShards = 0;
 
     private final Map<String, Set<String>> nodesPerAttributeNames;
+    private final Map<String, Set<String>> searchNodesPerAttributeNames;
     private final Map<String, Recoveries> recoveriesPerNode = new HashMap<>();
     private final Map<String, Recoveries> initialReplicaRecoveries = new HashMap<>();
     private final Map<String, Recoveries> initialPrimaryRecoveries = new HashMap<>();
@@ -112,6 +116,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         this.readOnly = readOnly;
         final RoutingTable routingTable = clusterState.routingTable();
         this.nodesPerAttributeNames = Collections.synchronizedMap(new HashMap<>());
+        this.searchNodesPerAttributeNames = Collections.synchronizedMap(new HashMap<>());
 
         // fill in the nodeToShards with the "live" nodes
         for (final DiscoveryNode cursor : clusterState.nodes().getDataNodes().values()) {
@@ -123,7 +128,15 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         // also fill replicaSet information
         for (final IndexRoutingTable indexRoutingTable : routingTable.indicesRouting().values()) {
             for (IndexShardRoutingTable indexShard : indexRoutingTable) {
-                assert indexShard.primary != null;
+                IndexMetadata idxMetadata = metadata.index(indexShard.shardId().getIndex());
+                boolean isSearchOnlyClusterBlockEnabled = false;
+                if (idxMetadata != null) {
+                    isSearchOnlyClusterBlockEnabled = idxMetadata.getSettings()
+                        .getAsBoolean(IndexMetadata.INDEX_BLOCKS_SEARCH_ONLY_SETTING.getKey(), false);
+                }
+                if (isSearchOnlyClusterBlockEnabled == false) {
+                    assert indexShard.primary != null : "Primary shard routing can't be null for non-search-only indices";
+                }
                 for (ShardRouting shard : indexShard) {
                     // to get all the shards belonging to an index, including the replicas,
                     // we define a replica set and keep track of it. A replica set is identified
@@ -161,6 +174,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
                 }
             }
         }
+        assert nodesToShards.values().stream().allMatch(RoutingNode::invariant);
     }
 
     private void addRecovery(ShardRouting routing) {
@@ -179,8 +193,18 @@ public class RoutingNodes implements Iterable<RoutingNode> {
 
         final int howMany = increment ? 1 : -1;
         assert routing.initializing() : "routing must be initializing: " + routing;
+
+        IndexMetadata idxMetadata = metadata.index(routing.index());
+        boolean isSearchOnlyClusterBlockEnabled = false;
+        if (idxMetadata != null) {
+            isSearchOnlyClusterBlockEnabled = idxMetadata.getSettings()
+                .getAsBoolean(IndexMetadata.INDEX_BLOCKS_SEARCH_ONLY_SETTING.getKey(), false);
+        }
+
         // TODO: check primary == null || primary.active() after all tests properly add ReplicaAfterPrimaryActiveAllocationDecider
-        assert primary == null || primary.assignedToNode() : "shard is initializing but its primary is not assigned to a node";
+        if (isSearchOnlyClusterBlockEnabled == false) {
+            assert primary == null || primary.assignedToNode() : "shard is initializing but its primary is not assigned to a node";
+        }
 
         // Primary shard routing, excluding the relocating primaries.
         if (routing.primary() && (primary == null || primary == routing)) {
@@ -293,10 +317,28 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         return nodesToShards.values().stream();
     }
 
+    /**
+     * Retrieves all unique values for a specific awareness attribute across all nodes
+     * Eg: "zone" : ["zone1", "zone2", "zone3"]
+     * @param attributeName The name of the awareness attribute to collect values for
+     * @return A set of unique attribute values for the specified attribute
+     */
     public Set<String> nodesPerAttributesCounts(String attributeName) {
+        return nodesPerAttributesCounts(attributeName, routingNode -> true);
+    }
+
+    /**
+     * Retrieves all unique values for a specific awareness attribute across filtered nodes
+     * Eg: "zone" : ["zone1", "zone2", "zone3"]
+     * @param attributeName The name of the awareness attribute to collect values for
+     * @param routingNodeFilter filters the routing nodes based on given condition
+     * @return A set of unique attribute values for the specified attribute
+     */
+    public Set<String> nodesPerAttributesCounts(String attributeName, Predicate<RoutingNode> routingNodeFilter) {
+
         return nodesPerAttributeNames.computeIfAbsent(
             attributeName,
-            ignored -> stream().map(r -> r.node().getAttributes().get(attributeName)).filter(Objects::nonNull).collect(Collectors.toSet())
+            ignored -> stream().filter(routingNodeFilter).map(r -> r.node().getAttributes().get(attributeName)).collect(Collectors.toSet())
         );
     }
 
@@ -381,7 +423,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         // be accessible. Therefore, we need to protect against the version being null
         // (meaning the node will be going away).
         return assignedShards(shardId).stream()
-            .filter(shr -> !shr.primary() && shr.active())
+            .filter(shr -> !shr.primary() && shr.active() && !shr.isSearchOnly())
             .filter(shr -> node(shr.currentNodeId()) != null)
             .max(
                 Comparator.comparing(
@@ -405,7 +447,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         // It's possible for replicaNodeVersion to be null. Therefore, we need to protect against the version being null
         // (meaning the node will be going away).
         return assignedShards(shardId).stream()
-            .filter(shr -> !shr.primary() && shr.active())
+            .filter(shr -> !shr.primary() && shr.active() && !shr.isSearchOnly())
             .filter(shr -> node(shr.currentNodeId()) != null)
             .min(
                 Comparator.comparing(
@@ -414,6 +456,20 @@ public class RoutingNodes implements Iterable<RoutingNode> {
                 )
             )
             .orElse(null);
+    }
+
+    /**
+     * Returns one active replica shard on a remote node for the given shard id or <code>null</code> if
+     * no such replica is found.
+     * <p>
+     * Since we aim to continue moving forward during remote store migration, replicas already migrated to remote nodes
+     * are preferred for primary promotion
+     */
+    public ShardRouting activeReplicaOnRemoteNode(ShardId shardId) {
+        return assignedShards(shardId).stream().filter(shr -> !shr.primary() && shr.active() && !shr.isSearchOnly()).filter((shr) -> {
+            RoutingNode nd = node(shr.currentNodeId());
+            return (nd != null && nd.node().isRemoteStoreNode());
+        }).findFirst().orElse(null);
     }
 
     /**
@@ -508,6 +564,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         assert unassignedShard.unassigned() : "expected an unassigned shard " + unassignedShard;
         ShardRouting initializedShard = unassignedShard.initialize(nodeId, existingAllocationId, expectedSize);
         node(nodeId).add(initializedShard);
+        assert node(nodeId).invariant();
         inactiveShardCount++;
         if (initializedShard.primary()) {
             inactivePrimaryCount++;
@@ -536,6 +593,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         ShardRouting target = source.getTargetRelocatingShard();
         updateAssigned(startedShard, source);
         node(target.currentNodeId()).add(target);
+        assert node(target.currentNodeId()).invariant();
         assignedShardsAdd(target);
         addRecovery(target);
         changes.relocationStarted(startedShard, target);
@@ -727,34 +785,23 @@ public class RoutingNodes implements Iterable<RoutingNode> {
             + " was matched but wasn't removed";
     }
 
-    public void swapPrimaryWithReplica(
-        Logger logger,
-        ShardRouting primaryShard,
-        ShardRouting replicaShard,
-        RoutingChangesObserver changes
-    ) {
-        assert primaryShard.primary() : "Invalid primary shard provided";
-        assert !replicaShard.primary() : "Invalid Replica shard provided";
-
-        ShardRouting newPrimary = primaryShard.moveActivePrimaryToReplica();
-        ShardRouting newReplica = replicaShard.moveActiveReplicaToPrimary();
-        updateAssigned(primaryShard, newPrimary);
-        updateAssigned(replicaShard, newReplica);
-        logger.info("Swap relocation performed for shard [{}]", newPrimary.shortSummary());
-        changes.replicaPromoted(newPrimary);
-    }
-
     private void unassignPrimaryAndPromoteActiveReplicaIfExists(
         ShardRouting failedShard,
         UnassignedInfo unassignedInfo,
         RoutingChangesObserver routingChangesObserver
     ) {
         assert failedShard.primary();
-        ShardRouting activeReplica;
-        if (metadata.isSegmentReplicationEnabled(failedShard.getIndexName())) {
-            activeReplica = activeReplicaWithOldestVersion(failedShard.shardId());
-        } else {
-            activeReplica = activeReplicaWithHighestVersion(failedShard.shardId());
+        ShardRouting activeReplica = null;
+        if (isMigratingToRemoteStore(metadata)) {
+            // we might not find any replica on remote node
+            activeReplica = activeReplicaOnRemoteNode(failedShard.shardId());
+        }
+        if (activeReplica == null) {
+            if (metadata.isSegmentReplicationEnabled(failedShard.getIndexName())) {
+                activeReplica = activeReplicaWithOldestVersion(failedShard.shardId());
+            } else {
+                activeReplica = activeReplicaWithHighestVersion(failedShard.shardId());
+            }
         }
         if (activeReplica == null) {
             moveToUnassigned(failedShard, unassignedInfo);
@@ -813,6 +860,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
     private ShardRouting promoteActiveReplicaShardToPrimary(ShardRouting replicaShard) {
         assert replicaShard.active() : "non-active shard cannot be promoted to primary: " + replicaShard;
         assert replicaShard.primary() == false : "primary shard cannot be promoted to primary: " + replicaShard;
+        assert replicaShard.isSearchOnly() == false : "search only replica cannot be promoted to primary: " + replicaShard;
         ShardRouting primaryShard = replicaShard.moveActiveReplicaToPrimary();
         updateAssigned(replicaShard, primaryShard);
         return primaryShard;
@@ -827,6 +875,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
     private void remove(ShardRouting shard) {
         assert shard.unassigned() == false : "only assigned shards can be removed here (" + shard + ")";
         node(shard.currentNodeId()).remove(shard);
+        assert node(shard.currentNodeId()).invariant();
         if (shard.initializing() && shard.relocatingNodeId() == null) {
             inactiveShardCount--;
             assert inactiveShardCount >= 0;
@@ -906,6 +955,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
             + " by shard assigned to same node but was "
             + newShard;
         node(oldShard.currentNodeId()).update(oldShard, newShard);
+        assert node(oldShard.currentNodeId()).invariant();
         List<ShardRouting> shardsWithMatchingShardId = assignedShards.computeIfAbsent(oldShard.shardId(), k -> new ArrayList<>());
         int previousShardIndex = shardsWithMatchingShardId.indexOf(oldShard);
         assert previousShardIndex >= 0 : "shard to update " + oldShard + " does not exist in list of assigned shards";
@@ -943,8 +993,9 @@ public class RoutingNodes implements Iterable<RoutingNode> {
     /**
      * Unassigned shard list.
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static final class UnassignedShards implements Iterable<ShardRouting> {
 
         private final RoutingNodes nodes;
@@ -1044,8 +1095,9 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         /**
          * An unassigned iterator.
          *
-         * @opensearch.internal
+         * @opensearch.api
          */
+        @PublicApi(since = "1.0.0")
         public class UnassignedIterator implements Iterator<ShardRouting>, ExistingShardsAllocator.UnassignedAllocationHandler {
 
             private final ListIterator<ShardRouting> iterator;
@@ -1430,7 +1482,9 @@ public class RoutingNodes implements Iterable<RoutingNode> {
      */
     public Iterator<ShardRouting> nodeInterleavedShardIterator(ShardMovementStrategy shardMovementStrategy) {
         final Queue<Iterator<ShardRouting>> queue = new ArrayDeque<>();
-        for (Map.Entry<String, RoutingNode> entry : nodesToShards.entrySet()) {
+        List<Map.Entry<String, RoutingNode>> nodesToShardsEntrySet = new ArrayList<>(nodesToShards.entrySet());
+        Randomness.shuffle(nodesToShardsEntrySet);
+        for (Map.Entry<String, RoutingNode> entry : nodesToShardsEntrySet) {
             queue.add(entry.getValue().copyShards().iterator());
         }
         if (shardMovementStrategy == ShardMovementStrategy.PRIMARY_FIRST) {

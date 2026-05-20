@@ -141,7 +141,7 @@ public class SearchTemplateResponseTests extends AbstractXContentTestCase<Search
             SearchResponse expectedResponse = expectedInstance.getResponse();
             SearchResponse newResponse = newInstance.getResponse();
 
-            assertEquals(expectedResponse.getHits().getTotalHits().value, newResponse.getHits().getTotalHits().value);
+            assertEquals(expectedResponse.getHits().getTotalHits().value(), newResponse.getHits().getTotalHits().value());
             assertEquals(expectedResponse.getHits().getMaxScore(), newResponse.getHits().getMaxScore(), 0.0001);
         }
     }
@@ -234,6 +234,7 @@ public class SearchTemplateResponseTests extends AbstractXContentTestCase<Search
             .endObject()
             .endArray()
             .endObject()
+            .field("status", 200)
             .endObject();
 
         XContentBuilder actualResponse = MediaTypeRegistry.contentBuilder(contentType);

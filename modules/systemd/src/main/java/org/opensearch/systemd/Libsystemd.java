@@ -34,8 +34,7 @@ package org.opensearch.systemd;
 
 import com.sun.jna.Native;
 
-import java.security.AccessController;
-import java.security.PrivilegedAction;
+import org.opensearch.secure_sm.AccessController;
 
 /**
  * Provides access to the native method sd_notify from libsystemd.
@@ -43,10 +42,7 @@ import java.security.PrivilegedAction;
 class Libsystemd {
 
     static {
-        AccessController.doPrivileged((PrivilegedAction<Object>) () -> {
-            Native.register(Libsystemd.class, "libsystemd.so.0");
-            return null;
-        });
+        AccessController.doPrivileged(() -> Native.register(Libsystemd.class, "libsystemd.so.0"));
     }
 
     /**

@@ -17,6 +17,7 @@ import org.opensearch.common.util.CancellableThreads;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.index.engine.NRTReplicationEngineFactory;
+import org.opensearch.index.engine.exec.EngineBackedIndexerFactory;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexShardTestCase;
 import org.opensearch.index.store.StoreFileMetadata;
@@ -53,7 +54,7 @@ public class SegmentReplicationSourceHandlerTests extends IndexShardTestCase {
         super.setUp();
         final Settings settings = Settings.builder().put(IndexMetadata.SETTING_REPLICATION_TYPE, "SEGMENT").put(Settings.EMPTY).build();
         primary = newStartedShard(true, settings);
-        replica = newShard(false, settings, new NRTReplicationEngineFactory());
+        replica = newShard(false, settings, new EngineBackedIndexerFactory(new NRTReplicationEngineFactory()));
         recoverReplica(replica, primary, true);
         replicaDiscoveryNode = replica.recoveryState().getTargetNode();
     }
@@ -68,18 +69,16 @@ public class SegmentReplicationSourceHandlerTests extends IndexShardTestCase {
         chunkWriter = (fileMetadata, position, content, lastChunk, totalTranslogOps, listener) -> listener.onResponse(null);
 
         final ReplicationCheckpoint latestReplicationCheckpoint = primary.getLatestReplicationCheckpoint();
-        final CopyState copyState = new CopyState(latestReplicationCheckpoint, primary);
         SegmentReplicationSourceHandler handler = new SegmentReplicationSourceHandler(
             localNode,
             chunkWriter,
-            threadPool,
-            copyState,
+            primary,
             replica.routingEntry().allocationId().getId(),
             5000,
             1
         );
 
-        final List<StoreFileMetadata> expectedFiles = List.copyOf(copyState.getMetadataMap().values());
+        final List<StoreFileMetadata> expectedFiles = List.copyOf(handler.getCheckpoint().getMetadataMap().values());
 
         final GetSegmentFilesRequest getSegmentFilesRequest = new GetSegmentFilesRequest(
             1L,
@@ -106,12 +105,10 @@ public class SegmentReplicationSourceHandlerTests extends IndexShardTestCase {
         chunkWriter = mock(FileChunkWriter.class);
 
         final ReplicationCheckpoint latestReplicationCheckpoint = primary.getLatestReplicationCheckpoint();
-        final CopyState copyState = new CopyState(latestReplicationCheckpoint, primary);
         SegmentReplicationSourceHandler handler = new SegmentReplicationSourceHandler(
             localNode,
             chunkWriter,
-            threadPool,
-            copyState,
+            primary,
             replica.routingEntry().allocationId().getId(),
             5000,
             1
@@ -148,12 +145,11 @@ public class SegmentReplicationSourceHandlerTests extends IndexShardTestCase {
         );
 
         final ReplicationCheckpoint latestReplicationCheckpoint = primary.getLatestReplicationCheckpoint();
-        final CopyState copyState = new CopyState(latestReplicationCheckpoint, primary);
+        final CopyState copyState = new CopyState(primary);
         SegmentReplicationSourceHandler handler = new SegmentReplicationSourceHandler(
             localNode,
             chunkWriter,
-            threadPool,
-            copyState,
+            primary,
             primary.routingEntry().allocationId().getId(),
             5000,
             1
@@ -180,19 +176,18 @@ public class SegmentReplicationSourceHandlerTests extends IndexShardTestCase {
                 assertEquals(e.getClass(), OpenSearchException.class);
             }
         });
-        copyState.decRef();
+        copyState.close();
     }
 
     public void testReplicationAlreadyRunning() throws IOException {
         chunkWriter = mock(FileChunkWriter.class);
 
         final ReplicationCheckpoint latestReplicationCheckpoint = primary.getLatestReplicationCheckpoint();
-        final CopyState copyState = new CopyState(latestReplicationCheckpoint, primary);
+        final CopyState copyState = new CopyState(primary);
         SegmentReplicationSourceHandler handler = new SegmentReplicationSourceHandler(
             localNode,
             chunkWriter,
-            threadPool,
-            copyState,
+            primary,
             replica.routingEntry().allocationId().getId(),
             5000,
             1
@@ -217,12 +212,10 @@ public class SegmentReplicationSourceHandlerTests extends IndexShardTestCase {
         chunkWriter = mock(FileChunkWriter.class);
 
         final ReplicationCheckpoint latestReplicationCheckpoint = primary.getLatestReplicationCheckpoint();
-        final CopyState copyState = new CopyState(latestReplicationCheckpoint, primary);
         SegmentReplicationSourceHandler handler = new SegmentReplicationSourceHandler(
             localNode,
             chunkWriter,
-            threadPool,
-            copyState,
+            primary,
             primary.routingEntry().allocationId().getId(),
             5000,
             1

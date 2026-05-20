@@ -37,13 +37,16 @@ import org.opensearch.common.Nullable;
 import org.opensearch.common.metrics.OperationMetrics;
 import org.opensearch.script.ScriptService;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import java.util.function.LongSupplier;
+
+import reactor.util.annotation.NonNull;
 
 /**
  * A pipeline is a list of {@link Processor} instances grouped under a unique id.
@@ -121,6 +124,54 @@ public final class Pipeline {
         return new Pipeline(id, description, version, compoundProcessor);
     }
 
+    public static Pipeline createSystemIngestPipeline(
+        @NonNull final String index,
+        @NonNull final Map<String, Processor.Factory> systemIngestProcessorFactories,
+        @NonNull final Map<String, Object> config
+    ) {
+        final String id = index + "_system_generated_ingest_pipeline";
+        final String description = "This is an in-memory systematically generated ingest pipeline.";
+        final List<Processor> processors = new ArrayList<>();
+        // This config is based on the index and will be used by all the factories. Each factory should not modify it so
+        // make it an unmodifiable map.
+        final Map<String, Object> processorConfig = Collections.unmodifiableMap(config);
+        // if no config we create an empty pipeline with no processor.
+        if (config.isEmpty()) {
+            return new Pipeline(id, description, null, new CompoundProcessor());
+        }
+
+        systemIngestProcessorFactories.values().forEach((factory) -> {
+            try {
+                final Processor processor = factory.create(systemIngestProcessorFactories, null, null, processorConfig);
+                if (processor != null) {
+                    if (processor.isSystemGenerated() == false) {
+                        throw new RuntimeException(
+                            "Cannot create the system generated ingest pipeline "
+                                + "for the index ["
+                                + index
+                                + "] because the processor ["
+                                + processor.getClass().getName()
+                                + "] is not a system generated ingest processor."
+                        );
+                    }
+                    processors.add(processor);
+                }
+            } catch (Exception e) {
+                throw new RuntimeException(
+                    "Failed to systematically create the system ingest processor from the factory "
+                        + factory.getClass().getName()
+                        + " for the index "
+                        + index
+                        + ". "
+                        + e.getMessage(),
+                    e
+                );
+            }
+        });
+
+        return new Pipeline(id, description, null, new CompoundProcessor(false, processors, Collections.emptyList()));
+    }
+
     /**
      * Modifies the data of a document to be indexed based on the processor this pipeline holds
      * <p>
@@ -131,8 +182,8 @@ public final class Pipeline {
         final long startTimeInNanos = relativeTimeProvider.getAsLong();
         metrics.before();
         compoundProcessor.execute(ingestDocument, (result, e) -> {
-            long ingestTimeInMillis = TimeUnit.NANOSECONDS.toMillis(relativeTimeProvider.getAsLong() - startTimeInNanos);
-            metrics.after(ingestTimeInMillis);
+            long ingestTimeInNanos = relativeTimeProvider.getAsLong() - startTimeInNanos;
+            metrics.after(ingestTimeInNanos);
             if (e != null) {
                 metrics.failed();
             }
@@ -200,5 +251,29 @@ public final class Pipeline {
      */
     public OperationMetrics getMetrics() {
         return metrics;
+    }
+
+    /**
+     * Modifies the data of batched multiple documents to be indexed based on the processor this pipeline holds
+     * <p>
+     * If {@code null} is returned then this document will be dropped and not indexed, otherwise
+     * this document will be kept and indexed. Document and the exception happened during processing are kept in
+     * IngestDocumentWrapper and callback to upper level.
+     *
+     * @param ingestDocumentWrappers a list of wrapped IngestDocument to ingest.
+     * @param handler callback with IngestDocument result and exception wrapped in IngestDocumentWrapper.
+     */
+    public void batchExecute(List<IngestDocumentWrapper> ingestDocumentWrappers, Consumer<List<IngestDocumentWrapper>> handler) {
+        final long startTimeInNanos = relativeTimeProvider.getAsLong();
+        int size = ingestDocumentWrappers.size();
+        metrics.beforeN(size);
+        compoundProcessor.batchExecute(ingestDocumentWrappers, results -> {
+            long ingestTimeInNanos = relativeTimeProvider.getAsLong() - startTimeInNanos;
+            metrics.afterN(results.size(), ingestTimeInNanos);
+
+            int failedCount = (int) results.stream().filter(t -> t.getException() != null).count();
+            metrics.failedN(failedCount);
+            handler.accept(results);
+        });
     }
 }

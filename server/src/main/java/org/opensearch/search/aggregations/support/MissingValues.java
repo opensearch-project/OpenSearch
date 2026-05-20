@@ -227,6 +227,10 @@ public enum MissingValues {
                 return "anon SortedNumericDoubleValues of [" + super.toString() + "]";
             }
 
+            @Override
+            public int advance(int target) throws IOException {
+                return values.advance(target);
+            }
         };
     }
 
@@ -265,6 +269,11 @@ public enum MissingValues {
                 return "anon ValuesSource.Bytes.WithOrdinals of [" + super.toString() + "]";
             }
 
+            @Override
+            public String getIndexFieldName() {
+                return valuesSource.getIndexFieldName();
+            }
+
         };
     }
 
@@ -301,10 +310,10 @@ public enum MissingValues {
                     return values.nextOrd();
                 } else {
                     // we want to return the next missing ord but set this to
-                    // NO_MORE_ORDS so on the next call we indicate there are no
+                    // NO_MORE_DOCS so on the next call we indicate there are no
                     // more values
                     long ordToReturn = nextMissingOrd;
-                    nextMissingOrd = SortedSetDocValues.NO_MORE_ORDS;
+                    nextMissingOrd = SortedSetDocValues.NO_MORE_DOCS;
                     return ordToReturn;
                 }
             }
@@ -320,7 +329,8 @@ public enum MissingValues {
 
             @Override
             public int docValueCount() {
-                return values.docValueCount();
+                // If we don't have ordinals, then we just have the missing value
+                return hasOrds ? values.docValueCount() : 1;
             }
 
             @Override
@@ -355,7 +365,8 @@ public enum MissingValues {
 
             @Override
             public int docValueCount() {
-                return values.docValueCount();
+                // If we don't have ordinals, then we just have the missing value
+                return hasOrds ? values.docValueCount() : 1;
             }
 
             @Override
@@ -364,15 +375,17 @@ public enum MissingValues {
                     final long ord = values.nextOrd();
                     if (ord < insertedOrd) {
                         return ord;
+                    } else if (ord == SortedSetDocValues.NO_MORE_DOCS /* no more docs */) {
+                        return SortedSetDocValues.NO_MORE_DOCS;
                     } else {
                         return ord + 1;
                     }
                 } else {
                     // we want to return the next missing ord but set this to
-                    // NO_MORE_ORDS so on the next call we indicate there are no
+                    // NO_MORE_DOCS so on the next call we indicate there are no
                     // more values
                     long ordToReturn = nextMissingOrd;
-                    nextMissingOrd = SortedSetDocValues.NO_MORE_ORDS;
+                    nextMissingOrd = SortedSetDocValues.NO_MORE_DOCS;
                     return ordToReturn;
                 }
             }

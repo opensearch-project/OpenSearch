@@ -43,6 +43,7 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.service.ClusterApplier;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
 import org.opensearch.common.settings.Setting;
@@ -81,8 +82,9 @@ import static org.opensearch.common.settings.Setting.positiveTimeSetting;
  * This component does not block on disconnections at all, because a disconnection might need to wait for an ongoing (background) connection
  * attempt to complete first.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class NodeConnectionsService extends AbstractLifecycleComponent {
     private static final Logger logger = LogManager.getLogger(NodeConnectionsService.class);
 
@@ -101,16 +103,21 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
 
     // contains an entry for every node in the latest cluster state, as well as for nodes from which we are in the process of
     // disconnecting
-    private final Map<DiscoveryNode, ConnectionTarget> targetsByNode = new HashMap<>();
+    protected final Map<DiscoveryNode, ConnectionTarget> targetsByNode = new HashMap<>();
 
     private final TimeValue reconnectInterval;
-    private volatile ConnectionChecker connectionChecker;
+    protected volatile ConnectionChecker connectionChecker;
 
     @Inject
     public NodeConnectionsService(Settings settings, ThreadPool threadPool, TransportService transportService) {
         this.threadPool = threadPool;
         this.transportService = transportService;
         this.reconnectInterval = NodeConnectionsService.CLUSTER_NODE_RECONNECT_INTERVAL_SETTING.get(settings);
+    }
+
+    // exposed for testing
+    protected ConnectionTarget createConnectionTarget(DiscoveryNode discoveryNode) {
+        return new ConnectionTarget(discoveryNode);
     }
 
     /**
@@ -155,6 +162,14 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
             }
         }
         runnables.forEach(Runnable::run);
+    }
+
+    public void setPendingDisconnections(Set<DiscoveryNode> nodes) {
+        nodes.forEach(transportService::setPendingDisconnection);
+    }
+
+    public void clearPendingDisconnections() {
+        transportService.clearPendingDisconnections();
     }
 
     /**
@@ -209,7 +224,7 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
      * nodes which are in the process of disconnecting. The onCompletion handler is called after all ongoing connection/disconnection
      * attempts have completed.
      */
-    private void connectDisconnectedTargets(Runnable onCompletion) {
+    protected void connectDisconnectedTargets(Runnable onCompletion) {
         final List<Runnable> runnables = new ArrayList<>();
         synchronized (mutex) {
             final Collection<ConnectionTarget> connectionTargets = targetsByNode.values();
@@ -319,7 +334,7 @@ public class NodeConnectionsService extends AbstractLifecycleComponent {
      *
      * @opensearch.internal
      */
-    private class ConnectionTarget {
+    protected class ConnectionTarget {
         private final DiscoveryNode discoveryNode;
 
         private PlainListenableActionFuture<Void> future = PlainListenableActionFuture.newListenableFuture();

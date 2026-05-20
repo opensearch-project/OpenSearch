@@ -43,8 +43,9 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopDocsCollector;
 import org.apache.lucene.search.TopFieldCollector;
+import org.apache.lucene.search.TopFieldCollectorManager;
 import org.apache.lucene.search.TopFieldDocs;
-import org.apache.lucene.search.TopScoreDocCollector;
+import org.apache.lucene.search.TopScoreDocCollectorManager;
 import org.apache.lucene.search.TotalHits;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.search.MaxScoreCollector;
@@ -157,12 +158,12 @@ class TopHitsAggregator extends MetricsAggregator {
                     // but here we create collectors ourselves and we need prevent OOM because of crazy an offset and size.
                     topN = Math.min(topN, subSearchContext.searcher().getIndexReader().maxDoc());
                     if (sort == null) {
-                        collectors = new Collectors(TopScoreDocCollector.create(topN, Integer.MAX_VALUE), null);
+                        collectors = new Collectors(new TopScoreDocCollectorManager(topN, null, Integer.MAX_VALUE).newCollector(), null);
                     } else {
                         // TODO: can we pass trackTotalHits=subSearchContext.trackTotalHits(){
                         // Note that this would require to catch CollectionTerminatedException
                         collectors = new Collectors(
-                            TopFieldCollector.create(sort.sort, topN, Integer.MAX_VALUE),
+                            new TopFieldCollectorManager(sort.sort, topN, null, Integer.MAX_VALUE, false).newCollector(),
                             subSearchContext.trackScores() ? new MaxScoreCollector() : null
                         );
                     }
@@ -214,7 +215,7 @@ class TopHitsAggregator extends MetricsAggregator {
             docIdsToLoad[i] = topDocs.scoreDocs[i].doc;
         }
         subSearchContext.docIdsToLoad(docIdsToLoad, 0, docIdsToLoad.length);
-        fetchPhase.execute(subSearchContext);
+        fetchPhase.execute(subSearchContext, "fetch_top_hits_aggregation[" + name + "]");
         FetchSearchResult fetchResult = subSearchContext.fetchResult();
         SearchHit[] internalHits = fetchResult.fetchResult().hits().getHits();
         for (int i = 0; i < internalHits.length; i++) {

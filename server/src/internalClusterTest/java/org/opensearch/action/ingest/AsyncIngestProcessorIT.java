@@ -36,7 +36,6 @@ import org.opensearch.action.bulk.BulkResponse;
 import org.opensearch.action.get.GetRequest;
 import org.opensearch.action.get.GetResponse;
 import org.opensearch.action.index.IndexRequest;
-import org.opensearch.client.Client;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.core.common.bytes.BytesArray;
@@ -55,6 +54,7 @@ import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.script.ScriptService;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.client.Client;
 import org.opensearch.watcher.ResourceWatcherService;
 
 import java.util.Collection;
@@ -136,13 +136,6 @@ public class AsyncIngestProcessorIT extends OpenSearchSingleNodeTestCase {
                     public void execute(IngestDocument ingestDocument, BiConsumer<IngestDocument, Exception> handler) {
                         threadPool.generic().execute(() -> {
                             String id = (String) ingestDocument.getSourceAndMetadata().get("_id");
-                            if (usually()) {
-                                try {
-                                    Thread.sleep(10);
-                                } catch (InterruptedException e) {
-                                    // ignore
-                                }
-                            }
                             ingestDocument.setFieldValue("foo", "bar-" + id);
                             handler.accept(ingestDocument, null);
                         });

@@ -34,6 +34,7 @@ package org.opensearch.cluster.routing.allocation;
 
 import org.opensearch.cluster.routing.UnassignedInfo.AllocationStatus;
 import org.opensearch.cluster.routing.allocation.decider.Decision;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
@@ -45,8 +46,9 @@ import java.util.Locale;
  * An enum which represents the various decision types that can be taken by the
  * allocators and deciders for allocating a shard to a node.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public enum AllocationDecision implements Writeable {
     /**
      * The shard can be allocated to a node.

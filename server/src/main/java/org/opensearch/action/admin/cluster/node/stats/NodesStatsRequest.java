@@ -172,17 +172,6 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
         return this;
     }
 
-    /**
-     * Helper method for adding metrics during deserialization.
-     * @param includeMetric Whether or not to include a metric.
-     * @param metricName Name of the metric to add.
-     */
-    private void optionallyAddMetric(boolean includeMetric, String metricName) {
-        if (includeMetric) {
-            requestedMetrics.add(metricName);
-        }
-    }
-
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
@@ -218,7 +207,10 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
         SEARCH_PIPELINE("search_pipeline"),
         RESOURCE_USAGE_STATS("resource_usage_stats"),
         SEGMENT_REPLICATION_BACKPRESSURE("segment_replication_backpressure"),
-        REPOSITORIES("repositories");
+        REPOSITORIES("repositories"),
+        ADMISSION_CONTROL("admission_control"),
+        CACHE_STATS("caches"),
+        REMOTE_STORE("remote_store");
 
         private String metricName;
 

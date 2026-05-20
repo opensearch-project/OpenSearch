@@ -42,14 +42,13 @@ import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.search.SearchType;
 import org.opensearch.action.search.ShardSearchFailure;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.profile.ProfileResult;
 import org.opensearch.search.profile.ProfileShardResult;
 import org.opensearch.search.sort.SortOrder;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedDynamicSettingsOpenSearchIntegTestCase;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -68,7 +67,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
-public class QueryProfilerIT extends ParameterizedOpenSearchIntegTestCase {
+public class QueryProfilerIT extends ParameterizedDynamicSettingsOpenSearchIntegTestCase {
     private final boolean concurrentSearchEnabled;
     private static final String MAX_PREFIX = "max_";
     private static final String MIN_PREFIX = "min_";
@@ -86,11 +85,6 @@ public class QueryProfilerIT extends ParameterizedOpenSearchIntegTestCase {
             new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), false).build(), false },
             new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), true).build(), true }
         );
-    }
-
-    @Override
-    protected Settings featureFlagSettings() {
-        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.CONCURRENT_SEGMENT_SEARCH, "true").build();
     }
 
     /**
@@ -208,10 +202,10 @@ public class QueryProfilerIT extends ParameterizedOpenSearchIntegTestCase {
             );
         }
 
-        if (vanillaResponse.getHits().getTotalHits().value != profileResponse.getHits().getTotalHits().value) {
+        if (vanillaResponse.getHits().getTotalHits().value() != profileResponse.getHits().getTotalHits().value()) {
             Set<SearchHit> vanillaSet = new HashSet<>(Arrays.asList(vanillaResponse.getHits().getHits()));
             Set<SearchHit> profileSet = new HashSet<>(Arrays.asList(profileResponse.getHits().getHits()));
-            if (vanillaResponse.getHits().getTotalHits().value > profileResponse.getHits().getTotalHits().value) {
+            if (vanillaResponse.getHits().getTotalHits().value() > profileResponse.getHits().getTotalHits().value()) {
                 vanillaSet.removeAll(profileSet);
                 fail("Vanilla hits were larger than profile hits.  Non-overlapping elements were: " + vanillaSet.toString());
             } else {
@@ -328,7 +322,6 @@ public class QueryProfilerIT extends ParameterizedOpenSearchIntegTestCase {
                 assertThat(result.getTime(), greaterThan(0L));
             }
         }
-
     }
 
     /**
@@ -731,5 +724,4 @@ public class QueryProfilerIT extends ParameterizedOpenSearchIntegTestCase {
             assertThat(breakdown.size(), equalTo(27));
         }
     }
-
 }

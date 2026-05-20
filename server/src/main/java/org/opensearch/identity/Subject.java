@@ -5,7 +5,8 @@
 
 package org.opensearch.identity;
 
-import org.opensearch.identity.tokens.AuthToken;
+import org.opensearch.common.CheckedRunnable;
+import org.opensearch.common.annotation.ExperimentalApi;
 
 import java.security.Principal;
 
@@ -14,6 +15,7 @@ import java.security.Principal;
  *
  * @opensearch.experimental
  */
+@ExperimentalApi
 public interface Subject {
 
     /**
@@ -22,11 +24,9 @@ public interface Subject {
     Principal getPrincipal();
 
     /**
-     * Authenticate via an auth token
-     * throws UnsupportedAuthenticationMethod
-     * throws InvalidAuthenticationToken
-     * throws SubjectNotFound
-     * throws SubjectDisabled
+     * runAs allows the caller to run a {@link CheckedRunnable} as this subject
      */
-    void authenticate(final AuthToken token);
+    default <E extends Exception> void runAs(CheckedRunnable<E> r) throws E {
+        r.run();
+    };
 }

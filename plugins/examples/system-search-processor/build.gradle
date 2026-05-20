@@ -1,0 +1,32 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ *
+ * Modifications Copyright OpenSearch Contributors. See
+ * GitHub history for details.
+ */
+apply plugin: 'opensearch.opensearchplugin'
+apply plugin: 'opensearch.yaml-rest-test'
+
+opensearchplugin {
+  name = 'example-system-search-processor'
+  description = 'An example plugin implementing some system generated search processor.'
+  classname = 'org.opensearch.example.systemsearchprocessor.ExampleSystemSearchProcessorPlugin'
+  licenseFile = rootProject.file('licenses/APACHE-LICENSE-2.0.txt')
+  noticeFile = rootProject.file('NOTICE.txt')
+}
+
+dependencies {
+  compileOnly project(':modules:lang-painless')
+}
+
+testClusters {
+  yamlRestTest {
+    // add built-in modules to the cluster
+    module ":modules:search-pipeline-common"
+    module ":modules:lang-painless"
+  }
+}

@@ -2,10 +2,9 @@
   - [Getting Started](#getting-started)
     - [Git Clone OpenSearch Repo](#git-clone-opensearch-repo)
     - [Install Prerequisites](#install-prerequisites)
-      - [JDK 11](#jdk-11)
-      - [JDK 14](#jdk-14)
-      - [JDK 17](#jdk-17)
+      - [JDK](#jdk)
       - [Custom Runtime JDK](#custom-runtime-jdk)
+      - [Rust and Protoc](#rust-and-protoc)
       - [Windows](#windows)
       - [Docker](#docker)
     - [Build](#build)
@@ -57,10 +56,12 @@
       - [Developer API](#developer-api)
       - [User API](#user-api)
       - [Experimental Development](#experimental-development)
+      - [API Compatibility Checks](#api-compatibility-checks)
     - [Backports](#backports)
     - [LineLint](#linelint)
     - [Lucene Snapshots](#lucene-snapshots)
     - [Flaky Tests](#flaky-tests)
+    - [Gradle Check Metrics Dashboard](#gradle-check-metrics-dashboard)
 
 # Developer Guide
 
@@ -74,40 +75,37 @@ Fork [opensearch-project/OpenSearch](https://github.com/opensearch-project/OpenS
 
 ### Install Prerequisites
 
-#### JDK 11
+#### JDK
 
-OpenSearch builds using Java 11 at a minimum, using the Adoptium distribution. This means you must have a JDK 11 installed with the environment variable `JAVA_HOME` referencing the path to Java home for your JDK 11 installation, e.g. `JAVA_HOME=/usr/lib/jvm/jdk-11`. This is configured in [buildSrc/build.gradle](buildSrc/build.gradle) and [distribution/tools/java-version-checker/build.gradle](distribution/tools/java-version-checker/build.gradle).
+OpenSearch recommends building with the [Temurin/Adoptium](https://adoptium.net/temurin/releases/) distribution. JDK 21 is the minimum supported. You must have a supported JDK installed with the environment variable `JAVA_HOME` referencing the path to Java home for your JDK installation, e.g. `JAVA_HOME=/usr/lib/jvm/jdk-21`.
 
-```
-allprojects {
-  targetCompatibility = JavaVersion.VERSION_11
-  sourceCompatibility = JavaVersion.VERSION_11
-}
-```
-
-```
-sourceCompatibility = JavaVersion.VERSION_11
-targetCompatibility = JavaVersion.VERSION_11
-```
+In addition, certain backward compatibility tests check out and compile the previous major version of OpenSearch, and therefore require installing [JDK 11](https://adoptium.net/temurin/releases/?version=11) and [JDK 17](https://adoptium.net/temurin/releases/?version=17) and setting the `JAVA11_HOME` and `JAVA17_HOME` environment variables. More to that, since 8.10 release, Gradle has deprecated the usage of the any JDKs below JDK-16. For smooth development experience, the recommendation is to install at least [JDK 17](https://adoptium.net/temurin/releases/?version=17) or [JDK 21](https://adoptium.net/temurin/releases/?version=21). If you still want to build with JDK-11 only, please add `-Dorg.gradle.warning.mode=none` when invoking any Gradle build task from command line, for example:
 
 Download Java 11 from [here](https://adoptium.net/releases.html?variant=openjdk11).
 
-#### JDK 14
-
-To run the full suite of tests, download and install [JDK 14](https://jdk.java.net/archive/) and set `JAVA11_HOME`, and `JAVA14_HOME`. They are required by the [backwards compatibility test](./TESTING.md#testing-backwards-compatibility).
-
-#### JDK 17
-
-By default, the test tasks use bundled JDK runtime, configured in [buildSrc/version.properties](buildSrc/version.properties), and set to JDK 17 (LTS).
-
 ```
-bundled_jdk_vendor = adoptium
-bundled_jdk = 17.0.2+8
+./gradlew check -Dorg.gradle.warning.mode=none
 ```
+
+By default, the test tasks use bundled JDK runtime, configured in version catalog [gradle/libs.versions.toml](gradle/libs.versions.toml).
 
 #### Custom Runtime JDK
 
 Other kind of test tasks (integration, cluster, etc.) use the same runtime as `JAVA_HOME`. However, the build also supports compiling with one version of JDK, and testing on a different version. To do this, set `RUNTIME_JAVA_HOME` pointing to the Java home of another JDK installation, e.g. `RUNTIME_JAVA_HOME=/usr/lib/jvm/jdk-14`. Alternatively, the runtime JDK version could be provided as the command line argument, using combination of `runtime.java=<major JDK version>` property and `JAVA<major JDK version>_HOME` environment variable, for example `./gradlew -Druntime.java=17 ...` (in this case, the tooling expects `JAVA17_HOME` environment variable to be set).
+
+#### Rust and Protoc
+
+Sandbox plugins such as `analytics-backend-datafusion` include a native Rust component that is compiled via Cargo during the Gradle build. Building the full project (including sandbox) requires:
+
+1. **Rust toolchain**: Install via [rustup](https://rustup.rs/):
+   ```
+   curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- --default-toolchain stable -y
+   ```
+
+2. **Protocol Buffers compiler (`protoc`)**: Required by the [Substrait](https://substrait.io/) dependency used in DataFusion / analytics plugins.
+    - macOS: `brew install protobuf`
+    - Ubuntu/Debian: `apt-get install -y protobuf-compiler`
+    - Or download from [protobuf releases](https://github.com/protocolbuffers/protobuf/releases)
 
 #### Windows
 
@@ -138,7 +136,7 @@ All distributions built will be under `distributions/archives`.
 #### Generated Code
 
 OpenSearch uses code generators like [Protobuf](https://protobuf.dev/).
-OpenSearch build system already takes a dependency of generating code from protobuf, incase you run into compilation errors, run:
+OpenSearch build system already takes a dependency of generating code from protobuf, if you run into compilation errors, run:
 
 ```
 ./gradlew generateProto
@@ -183,6 +181,29 @@ Run OpenSearch using `gradlew run`.
 ./gradlew run
 ```
 
+[Plugins](plugins/) may be installed by passing a `-PinstalledPlugins` property:
+
+```bash
+./gradlew run -PinstalledPlugins="['plugin1', 'plugin2']"
+```
+
+External plugins may also be fetched and installed from maven snapshots:
+
+```bash
+./gradlew run -PinstalledPlugins="['opensearch-job-scheduler', 'opensearch-sql-plugin']"
+```
+
+You can specify a plugin version to pull to test a specific version in the org.opensearch.plugin groupId:
+```bash
+./gradlew run -PinstalledPlugins="['opensearch-job-scheduler:3.3.x.x']"
+```
+
+or install with fully qualified maven coordinates:
+```bash
+./gradlew run -PinstalledPlugins="['com.example:my-cool-plugin:3.3.x.x']"
+```
+
+
 That will build OpenSearch and start it, writing its log above Gradle's status message. We log a lot of stuff on startup, specifically these lines tell you that OpenSearch is ready.
 
 ```
@@ -194,7 +215,9 @@ It's typically easier to wait until the console stops scrolling, and then run `c
 
 ```bash
 curl localhost:9200
-
+```
+The expected reponse should be
+```
 {
   "name" : "runTask-0",
   "cluster_name" : "runTask",
@@ -222,7 +245,7 @@ Use `-Dtests.opensearch.` to pass additional settings to the running instance. F
 
 ### IntelliJ IDEA
 
-When importing into IntelliJ you will need to define an appropriate JDK. The convention is that **this SDK should be named "11"**, and the project import will detect it automatically. For more details on defining an SDK in IntelliJ please refer to [this documentation](https://www.jetbrains.com/help/idea/sdk.html#define-sdk). Note that SDK definitions are global, so you can add the JDK from any project, or after project import. Importing with a missing JDK will still work, IntelliJ will report a problem and will refuse to build until resolved.
+When importing into IntelliJ you will need to define an appropriate JDK. For more details on defining an SDK in IntelliJ please refer to [this documentation](https://www.jetbrains.com/help/idea/sdk.html#define-sdk). Note that SDK definitions are global, so you can add the JDK from any project, or after project import. Importing with a missing JDK will still work, IntelliJ will report a problem and will refuse to build until resolved.
 
 You can import the OpenSearch project into IntelliJ IDEA as follows.
 
@@ -245,7 +268,7 @@ Follow links in the [Java Tutorial](https://code.visualstudio.com/docs/java/java
 
 ### Eclipse
 
-When importing to Eclipse, you need to have [Eclipse Buildship](https://projects.eclipse.org/projects/tools.buildship) plugin installed and, preferably, have JDK 11 set as default JRE in **Preferences -> Java -> Installed JREs**. Once this is done, generate Eclipse projects using Gradle wrapper:
+When importing to Eclipse, you need to have [Eclipse Buildship](https://projects.eclipse.org/projects/tools.buildship) plugin installed and, have JDK 21 set as default JRE in **Preferences -> Java -> Installed JREs**. Once this is done, generate Eclipse projects using Gradle wrapper:
 
     ./gradlew eclipse
 
@@ -253,7 +276,7 @@ You can now import the OpenSearch project into Eclipse as follows.
 
 1. Select **File > Import -> Existing Gradle Project**
 2. In the subsequent dialog navigate to the root of `build.gradle` file
-3. In the subsequent dialog, if JDK 11 is not set as default JRE, please make sure to check **[Override workspace settings]**, keep **[Gradle Wrapper]** and provide the correct path to JDK11 using **[Java Home]** property under **[Advanced Options]**. Otherwise, you may run into cryptic import failures and only top level project is going to be imported.
+3. In the subsequent dialog, if JDK 21 is not set as default JRE, please make sure to check **[Override workspace settings]**, keep **[Gradle Wrapper]** and provide the correct path to JDK21 using **[Java Home]** property under **[Advanced Options]**. Otherwise, you may run into cryptic import failures and only top level project is going to be imported.
 4. In the subsequent dialog, you should see **[Gradle project structure]** populated, please click **[Finish]** to complete the import
 
 **Note:** it may look non-intuitive why one needs to use Gradle wrapper and then import existing Gradle project (in general, **File > Import -> Existing Gradle Project** should be enough). Practically, as it stands now, Eclipse Buildship plugin does not import OpenSearch project dependencies correctly but does work in conjunction with Gradle wrapper.
@@ -290,11 +313,11 @@ Another example is the `discovery-gce` plugin. It is *vital* to folks running in
 
 ### `sandbox`
 
-This is where the community can add experimental features in to OpenSearch. There are three directories inside the sandbox - `libs`, `modules` and `plugins` - which mirror the subdirectories in the project root and have the same guidelines for deciding on where a new feature goes. The artifacts from `libs` and `modules` will be automatically included in the **snapshot** distributions. Once a certain feature is deemed worthy to be included in the OpenSearch release, it will be promoted to the corresponding subdirectory in the project root. **Note**: The sandbox code do not have any other guarantees such as backwards compatibility or long term support and can be removed at any time.
+This is where the community can add experimental features in to OpenSearch. There are three directories inside the sandbox - `libs`, `modules` and `plugins` - which mirror the subdirectories in the project root and have the same guidelines for deciding on where a new feature goes. The artifacts from `libs` and `modules` can be included in the **snapshot** distributions when sandbox is enabled. Once a certain feature is deemed worthy to be included in the OpenSearch release, it will be promoted to the corresponding subdirectory in the project root. **Note**: The sandbox code do not have any other guarantees such as backwards compatibility or long term support and can be removed at any time.
 
-To exclude the modules from snapshot distributions, use the `sandbox.enabled` system property.
+To include sandbox modules in snapshot distributions, use the `sandbox.enabled` system property.
 
-    ./gradlew assemble -Dsandbox.enabled=false
+    ./gradlew assemble -Dsandbox.enabled=true
 
 ### `qa`
 
@@ -342,7 +365,7 @@ Please follow these formatting guidelines:
 * Wildcard imports (`import foo.bar.baz.*`) are forbidden and will cause the build to fail.
 * If *absolutely* necessary, you can disable formatting for regions of code with the `// tag::NAME` and `// end::NAME` directives, but note that these are intended for use in documentation, so please make it clear what you have done, and only do this where the benefit clearly outweighs the decrease in consistency.
 * Note that JavaDoc and block comments i.e. `/* ... */` are not formatted, but line comments i.e `// ...` are.
-* There is an implicit rule that negative boolean expressions should use the form `foo == false` instead of `!foo` for better readability of the code. While this isn't strictly enforced, if might get called out in PR reviews as something to change.
+* There is an implicit rule that negative boolean expressions should use the form `foo == false` instead of `!foo` for better readability of the code. While this isn't strictly enforced, it might get called out in PR reviews as something to change.
 
 ## Adding Dependencies
 
@@ -578,7 +601,7 @@ explicitly marked by an annotation should not be extended by external implementa
 any time. The `@DeprecatedApi` annotation could also be added to any classes annotated with `@PublicApi` (or documented as `@opensearch.api`) or their methods that
 are either changed (with replacement) or planned to be removed across major versions.
 
-The APIs which are designated to be public but have not been stabilized yet should be marked with `@ExperimentalApi` (or documented as `@opensearch.experimental`) 
+The APIs which are designated to be public but have not been stabilized yet should be marked with `@ExperimentalApi` (or documented as `@opensearch.experimental`)
 annotation. The presence of this annotation signals that API may change at any time (major, minor or even patch releases). In general, the classes annotated with
 `@PublicApi` may expose other classes or methods annotated with `@ExperimentalApi`, in such cases the backward compatibility guarantees would not apply to latter
 (see please [Experimental Development](#experimental-development) for more details).
@@ -590,8 +613,7 @@ The User API consists of integration specifications (e.g., [Query Domain Specifi
 [`_cat`](https://opensearch.org/docs/latest/api-reference/cat/index/)) users rely on to integrate and use OpenSearch. Backwards compatibility is critical to the
 User API, therefore OpenSearch commits to using [semantic versioning](https://opensearch.org/blog/what-is-semver/) for all User facing APIs. To support this
 developers must leverage `Version` checks for any user facing endpoints or API specifications that change across minor versions. Developers must also inform
-users of any changes by adding the `>breaking` label on Pull Requests, adding an entry to the [CHANGELOG](https://github.com/opensearch-project/OpenSearch/blob/main/CHANGELOG.md)
-and a log message to the OpenSearch deprecation log files using the `DeprecationLogger`.
+users of any changes by adding the `>breaking` label on Pull Requests and a log message to the OpenSearch deprecation log files using the `DeprecationLogger`.
 
 #### Experimental Development
 
@@ -599,7 +621,22 @@ Rapidly developing new features often benefit from several release cycles before
 uses an Experimental Development process leveraging [Feature Flags](https://featureflags.io/feature-flags/). This allows a feature to be developed using the same process as
 a LTS feature but with additional guard rails and communication mechanisms to signal to the users and development community the feature is not yet stable, may change in a future
 release, or be removed altogether. Any Developer or User APIs implemented along with the experimental feature should be marked with `@ExperimentalApi` (or documented as
-`@opensearch.experimental`) annotation to signal the implementation is not subject to LTS and does not follow backwards compatibility guidelines.
+`@opensearch.experimental`) annotation to signal the implementation is not subject to LTS and does not follow backwards compatibility guidelines. When writing tests for
+functionality gated behind a feature flag please refer to `FeatureFlags.TestUtils` and the `@LockFeatureFlag` annotation.
+
+#### API Compatibility Checks
+
+The compatibility checks for public APIs are performed using [japicmp](https://siom79.github.io/japicmp/) and are available as separate Gradle tasks (those are run on demand at the moment):
+
+```
+./gradlew japicmp
+```
+
+By default, the API compatibility checks are run against the latest released version of the OpenSearch, however the target version to compare to could be provided using system property during the build, fe.:
+
+```
+./gradlew japicmp  -Djapicmp.compare.version=2.14.0-SNAPSHOT
+```
 
 ### Backports
 
@@ -629,13 +666,19 @@ Note that these snapshots do not follow the Maven [naming convention](https://ma
 
 ### Flaky Tests
 
-OpenSearch has a very large test suite with long running, often failing (flaky), integration tests. Such individual tests are labelled as [Flaky Random Test Failure](https://github.com/opensearch-project/OpenSearch/issues?q=is%3Aopen+is%3Aissue+label%3A%22flaky-test%22). Your help is wanted fixing these!
+If you encounter a test failure locally or in CI that is seemingly unrelated to the change in your pull request, it may be a known flaky test or a new test failure. OpenSearch has a very large test suite with long running, often failing (flaky), integration tests. Such individual tests are labelled as [Flaky Random Test Failure](https://github.com/opensearch-project/OpenSearch/issues?q=is%3Aopen+is%3Aissue+label%3A%22flaky-test%22). Your help is wanted fixing these!
 
-If you encounter a build/test failure in CI that is unrelated to the change in your pull request, it may be a known flaky test, or a new test failure.
+The automation [gradle-check-flaky-test-detector](https://build.ci.opensearch.org/job/gradle-check-flaky-test-detector/), which runs in OpenSearch public Jenkins, identifies failing flaky issues that are part of post-merge actions. Once a flaky test is identified, the automation creates an issue with detailed report that includes links to all relevant commits, the Gradle check build log, the test report, and pull requests that are impacted with the flaky test failures. This automation leverages data from the [OpenSearch Metrics Project](https://github.com/opensearch-project/opensearch-metrics) to establish a baseline for creating the issue and updating the flaky test report. For all flaky test issues created by automation, visit this [link](https://github.com/opensearch-project/OpenSearch/issues?q=is%3Aissue+is%3Aopen+label%3A%3Etest-failure+author%3Aopensearch-ci-bot).
 
-1. Follow failed CI links, and locate the failing test(s).
-2. Copy-paste the failure into a comment of your PR.
-3. Search through [issues](https://github.com/opensearch-project/OpenSearch/issues?q=is%3Aopen+is%3Aissue+label%3A%22flaky-test%22) using the name of the failed test for whether this is a known flaky test.
-4. If an existing issue is found, paste a link to the known issue in a comment to your PR.
-5. If no existing issue is found, open one.
-6. Retry CI via the GitHub UX or by pushing an update to your PR.
+If you still see a failing test that is not part of the post merge actions, please do:
+
+* Follow failed CI links, and locate the failing test(s) or use the [Gradle Check Metrics Dashboard](#gradle-check-metrics-dashboard).
+* Copy-paste the failure into a comment of your PR.
+* Search through issues using the name of the failed test for whether this is a known flaky test.
+* If no existing issue is found, open one.
+* Retry CI via the GitHub UX or by pushing an update to your PR.
+
+
+### Gradle Check Metrics Dashboard
+
+To get the comprehensive insights and analysis of the Gradle Check test failures, visit the [OpenSearch Gradle Check Metrics Dashboard](https://metrics.opensearch.org/_dashboards/app/dashboards#/view/e5e64d40-ed31-11ee-be99-69d1dbc75083). This dashboard is part of the [OpenSearch Metrics Project](https://github.com/opensearch-project/opensearch-metrics) initiative. The dashboard contains multiple data points that can help investigate and resolve flaky failures. Additionally, this dashboard can be used to drill down, slice, and dice the data using multiple supported filters, which further aids in troubleshooting and resolving issues.

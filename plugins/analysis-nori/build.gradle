@@ -30,8 +30,8 @@
 apply plugin: 'opensearch.yaml-rest-test'
 
 opensearchplugin {
-  description 'The Korean (nori) Analysis plugin integrates Lucene nori analysis module into opensearch.'
-  classname 'org.opensearch.plugin.analysis.nori.AnalysisNoriPlugin'
+  description = 'The Korean (nori) Analysis plugin integrates Lucene nori analysis module into opensearch.'
+  classname = 'org.opensearch.plugin.analysis.nori.AnalysisNoriPlugin'
 }
 
 dependencies {

@@ -171,7 +171,21 @@ public class Setting<T> implements ToXContentObject {
         /**
          * Extension scope
          */
-        ExtensionScope
+        ExtensionScope,
+
+        /**
+         * Mark this setting as immutable on snapshot restore
+         * i.e. the setting will not be allowed to be removed or modified during restore
+         */
+        UnmodifiableOnRestore,
+
+        /**
+         * Marks a setting as sensitive. Can only be applied to dynamic settings.
+         * The Sensitive property has default enforcement but enables plugins to implement
+         * different policies for these settings. In practice the security plugin will
+         * require higher privileges for modifying sensitive settings.
+         */
+        Sensitive
     }
 
     private final Key key;
@@ -208,10 +222,16 @@ public class Setting<T> implements ToXContentObject {
             final EnumSet<Property> propertiesAsSet = EnumSet.copyOf(Arrays.asList(properties));
             if (propertiesAsSet.contains(Property.Dynamic) && propertiesAsSet.contains(Property.Final)) {
                 throw new IllegalArgumentException("final setting [" + key + "] cannot be dynamic");
+            } else if (propertiesAsSet.contains(Property.UnmodifiableOnRestore) && propertiesAsSet.contains(Property.Dynamic)) {
+                throw new IllegalArgumentException("UnmodifiableOnRestore setting [" + key + "] cannot be dynamic");
+            }
+            if (propertiesAsSet.contains(Property.Sensitive) && propertiesAsSet.contains(Property.Dynamic) == false) {
+                throw new IllegalArgumentException("sensitive setting [" + key + "] must be dynamic");
             }
             checkPropertyRequiresIndexScope(propertiesAsSet, Property.NotCopyableOnResize);
             checkPropertyRequiresIndexScope(propertiesAsSet, Property.InternalIndex);
             checkPropertyRequiresIndexScope(propertiesAsSet, Property.PrivateIndex);
+            checkPropertyRequiresIndexScope(propertiesAsSet, Property.UnmodifiableOnRestore);
             checkPropertyRequiresNodeScope(propertiesAsSet, Property.Consistent);
             this.properties = propertiesAsSet;
         }
@@ -346,6 +366,18 @@ public class Setting<T> implements ToXContentObject {
      */
     public final boolean isFinal() {
         return properties.contains(Property.Final);
+    }
+
+    public final boolean isUnmodifiableOnRestore() {
+        return properties.contains(Property.UnmodifiableOnRestore);
+    }
+
+    /**
+     * Returns <code>true</code> if this setting is sensitive, meaning it requires security admin
+     * privileges to be updated dynamically. Otherwise <code>false</code>.
+     */
+    public final boolean isSensitive() {
+        return properties.contains(Property.Sensitive);
     }
 
     public final boolean isInternalIndex() {
@@ -488,9 +520,8 @@ public class Setting<T> implements ToXContentObject {
                     map = new HashMap<>();
                     while (it.hasNext()) {
                         final Setting<?> setting = it.next();
-                        if (setting instanceof AffixSetting) {
+                        if (setting instanceof AffixSetting<?> as) {
                             // Collect all possible concrete settings
-                            AffixSetting<?> as = ((AffixSetting<?>) setting);
                             for (String ns : as.getNamespaces(settings)) {
                                 Setting<?> s = as.getConcreteSettingForNamespace(ns);
                                 map.put(s, s.get(settings, false));
@@ -978,6 +1009,9 @@ public class Setting<T> implements ToXContentObject {
          * Get a setting with the given namespace filled in for prefix and suffix.
          */
         public Setting<T> getConcreteSettingForNamespace(String namespace) {
+            if (namespace == null) {
+                throw new IllegalArgumentException("Namespace should not be null");
+            }
             String fullKey = key.toConcreteKey(namespace).toString();
             return getConcreteSetting(namespace, fullKey);
         }
@@ -1852,6 +1886,10 @@ public class Setting<T> implements ToXContentObject {
         );
     }
 
+    public static Setting<Double> doubleSetting(String key, double defaultValue, Validator<Double> validator, Property... properties) {
+        return new Setting<>(key, Double.toString(defaultValue), Double::parseDouble, validator, properties);
+    }
+
     /**
      * A writeable parser for double
      *
@@ -1956,6 +1994,15 @@ public class Setting<T> implements ToXContentObject {
             validator,
             properties
         );
+    }
+
+    public static Setting<Double> doubleSetting(
+        String key,
+        Setting<Double> fallbackSetting,
+        Validator<Double> validator,
+        Property... properties
+    ) {
+        return new Setting<>(new SimpleKey(key), fallbackSetting, fallbackSetting::getRaw, Double::parseDouble, validator, properties);
     }
 
     /// simpleString
@@ -2804,6 +2851,12 @@ public class Setting<T> implements ToXContentObject {
         return affixKeySetting(new AffixKey(prefix), delegateFactoryWithNamespace);
     }
 
+    public static <T> AffixSetting<T> suffixKeySetting(String suffix, Function<String, Setting<T>> delegateFactory) {
+        BiFunction<String, String, Setting<T>> delegateFactoryWithNamespace = (ns, k) -> delegateFactory.apply(k);
+        AffixKey affixKey = new AffixKey(null, suffix);
+        return affixKeySetting(affixKey, delegateFactoryWithNamespace);
+    }
+
     /**
      * This setting type allows to validate settings that have the same type and a common prefix and suffix. For instance
      * storage.${backend}.enable=[true|false] can easily be added with this setting. Yet, affix key settings don't support updaters
@@ -2943,12 +2996,14 @@ public class Setting<T> implements ToXContentObject {
             assert prefix != null || suffix != null : "Either prefix or suffix must be non-null";
 
             this.prefix = prefix;
-            if (prefix.endsWith(".") == false) {
+            if (prefix != null && prefix.endsWith(".") == false) {
                 throw new IllegalArgumentException("prefix must end with a '.'");
             }
             this.suffix = suffix;
             if (suffix == null) {
                 pattern = Pattern.compile("(" + Pattern.quote(prefix) + "((?:[-\\w]+[.])*[-\\w]+$))");
+            } else if (prefix == null) {
+                pattern = Pattern.compile("((?:[-\\w]+[.])*[-\\w]+\\." + Pattern.quote(suffix) + ")");
             } else {
                 // the last part of this regexp is to support both list and group keys
                 pattern = Pattern.compile("(" + Pattern.quote(prefix) + "([-\\w]+)\\." + Pattern.quote(suffix) + ")(?:\\..*)?");

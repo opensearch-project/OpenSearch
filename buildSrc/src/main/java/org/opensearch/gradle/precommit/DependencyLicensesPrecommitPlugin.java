@@ -33,11 +33,16 @@
 package org.opensearch.gradle.precommit;
 
 import org.opensearch.gradle.dependencies.CompileOnlyResolvePlugin;
+import org.opensearch.gradle.util.GradleUtils;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
 import org.gradle.api.artifacts.Configuration;
-import org.gradle.api.artifacts.ProjectDependency;
+import org.gradle.api.artifacts.component.ComponentIdentifier;
+import org.gradle.api.artifacts.component.ProjectComponentIdentifier;
+import org.gradle.api.file.FileCollection;
 import org.gradle.api.plugins.JavaPlugin;
+import org.gradle.api.provider.Provider;
+import org.gradle.api.specs.Spec;
 import org.gradle.api.tasks.TaskProvider;
 
 public class DependencyLicensesPrecommitPlugin extends PrecommitPlugin {
@@ -48,15 +53,16 @@ public class DependencyLicensesPrecommitPlugin extends PrecommitPlugin {
         TaskProvider<DependencyLicensesTask> dependencyLicenses = project.getTasks()
             .register("dependencyLicenses", DependencyLicensesTask.class);
 
+        final Configuration runtimeClasspath = project.getConfigurations().getByName(JavaPlugin.RUNTIME_CLASSPATH_CONFIGURATION_NAME);
+        final Configuration compileOnly = project.getConfigurations()
+            .getByName(CompileOnlyResolvePlugin.RESOLVEABLE_COMPILE_ONLY_CONFIGURATION_NAME);
+        Spec<ComponentIdentifier> spec = ci -> ci instanceof ProjectComponentIdentifier == false;
+        final Provider<FileCollection> provider = project.provider(
+            () -> GradleUtils.getFirstLevelModuleDependencyFiles(project, runtimeClasspath, spec).minus(compileOnly)
+        );
+
         // only require dependency licenses for non-opensearch deps
-        dependencyLicenses.configure(t -> {
-            Configuration runtimeClasspath = project.getConfigurations().getByName(JavaPlugin.RUNTIME_CLASSPATH_CONFIGURATION_NAME);
-            Configuration compileOnly = project.getConfigurations()
-                .getByName(CompileOnlyResolvePlugin.RESOLVEABLE_COMPILE_ONLY_CONFIGURATION_NAME);
-            t.setDependencies(
-                runtimeClasspath.fileCollection(dependency -> dependency instanceof ProjectDependency == false).minus(compileOnly)
-            );
-        });
+        dependencyLicenses.configure(t -> t.getDependencies().set(provider));
 
         // we also create the updateShas helper task that is associated with dependencyLicenses
         project.getTasks().register("updateShas", UpdateShasTask.class, t -> t.setParentTask(dependencyLicenses));

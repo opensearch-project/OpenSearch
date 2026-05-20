@@ -670,4 +670,24 @@ public class SettingsUpdaterTests extends OpenSearchTestCase {
         assertThat(exception.getMessage(), equalTo("[high]=2 is lower than [low]=5"));
     }
 
+    public void testRejectSensitiveSettingInTransient() {
+        Setting<String> sensitiveSetting = Setting.simpleString(
+            "sensitive.setting",
+            Property.Dynamic,
+            Property.NodeScope,
+            Property.Sensitive
+        );
+        final Set<Setting<?>> settingsSet = Stream.concat(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS.stream(), Stream.of(sensitiveSetting))
+            .collect(Collectors.toSet());
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, settingsSet);
+        SettingsUpdater updater = new SettingsUpdater(clusterSettings);
+        ClusterState state = ClusterState.builder(new ClusterName("foo")).metadata(Metadata.builder().build()).build();
+
+        IllegalArgumentException ex = expectThrows(
+            IllegalArgumentException.class,
+            () -> updater.updateSettings(state, Settings.builder().put("sensitive.setting", "value").build(), Settings.EMPTY, logger)
+        );
+        assertThat(ex.getMessage(), equalTo("sensitive setting [sensitive.setting] must be updated using persistent settings"));
+    }
+
 }

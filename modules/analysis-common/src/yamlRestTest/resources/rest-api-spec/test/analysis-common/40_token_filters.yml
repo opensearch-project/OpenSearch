@@ -824,6 +824,11 @@
                   my_truncate:
                     type: truncate
                     length: 3
+                normalizer:
+                  my_truncate_norm:
+                    type: custom
+                    filter:
+                      - my_truncate
     - do:
         indices.analyze:
           index: test
@@ -831,6 +836,14 @@
             text:      foobar
             tokenizer: keyword
             filter:    [my_truncate]
+    - length: { tokens: 1 }
+    - match:  { tokens.0.token: foo }
+    - do:
+        indices.analyze:
+          index: test
+          body:
+            text:      foobar
+            normalizer: my_truncate_norm
     - length: { tokens: 1 }
     - match:  { tokens.0.token: foo }
 
@@ -1780,6 +1793,37 @@
             filter:    [german_stem]
     - length: { tokens: 1 }
     - match:  { tokens.0.token: abschliess }
+
+---
+"persian_stem":
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            analysis:
+              filter:
+                my_persian_stem:
+                  type: persian_stem
+  - do:
+      indices.analyze:
+        index: test
+        body:
+          text: جامدات
+          tokenizer: keyword
+          filter:    [my_persian_stem]
+  - length: { tokens: 1 }
+  - match:  { tokens.0.token: جامد }
+
+  # Test pre-configured token filter too:
+  - do:
+      indices.analyze:
+        body:
+          text: جامدات
+          tokenizer: keyword
+          filter:    [persian_stem]
+  - length: { tokens: 1 }
+  - match:  { tokens.0.token: جامد }
 
 ---
 "russian_stem":

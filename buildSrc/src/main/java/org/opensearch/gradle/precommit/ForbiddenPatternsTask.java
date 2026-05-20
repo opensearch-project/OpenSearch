@@ -34,6 +34,7 @@ package org.opensearch.gradle.precommit;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.GradleException;
 import org.gradle.api.InvalidUserDataException;
+import org.gradle.api.Project;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.file.FileTree;
 import org.gradle.api.plugins.JavaPluginExtension;
@@ -47,6 +48,8 @@ import org.gradle.api.tasks.SkipWhenEmpty;
 import org.gradle.api.tasks.TaskAction;
 import org.gradle.api.tasks.util.PatternFilterable;
 import org.gradle.api.tasks.util.PatternSet;
+
+import javax.inject.Inject;
 
 import java.io.File;
 import java.io.IOException;
@@ -80,8 +83,13 @@ public class ForbiddenPatternsTask extends DefaultTask {
         .exclude("**/*.ico")
         .exclude("**/*.jar")
         .exclude("**/*.zip")
+        .exclude("**/*.p12")
         .exclude("**/*.jks")
         .exclude("**/*.crt")
+        .exclude("**/*.der")
+        .exclude("**/*.pem")
+        .exclude("**/*.key")
+        .exclude("**/*.bcfks")
         .exclude("**/*.keystore")
         .exclude("**/*.png");
 
@@ -89,8 +97,10 @@ public class ForbiddenPatternsTask extends DefaultTask {
      * The rules: a map from the rule name, to a rule regex pattern.
      */
     private final Map<String, String> patterns = new HashMap<>();
+    private final Project project;
 
-    public ForbiddenPatternsTask() {
+    @Inject
+    public ForbiddenPatternsTask(Project project) {
         setDescription("Checks source files for invalid patterns like nocommits or tabs");
         getInputs().property("excludes", filesFilter.getExcludes());
         getInputs().property("rules", patterns);
@@ -99,6 +109,8 @@ public class ForbiddenPatternsTask extends DefaultTask {
         patterns.put("nocommit", "nocommit|NOCOMMIT");
         patterns.put("nocommit should be all lowercase or all uppercase", "((?i)nocommit)(?<!(nocommit|NOCOMMIT))");
         patterns.put("tab", "\t");
+
+        this.project = project;
     }
 
     @InputFiles
@@ -106,13 +118,13 @@ public class ForbiddenPatternsTask extends DefaultTask {
     @IgnoreEmptyDirectories
     @PathSensitive(PathSensitivity.RELATIVE)
     public FileCollection getFiles() {
-        return getProject().getExtensions()
+        return project.getExtensions()
             .getByType(JavaPluginExtension.class)
             .getSourceSets()
             .stream()
             .map(sourceSet -> sourceSet.getAllSource().matching(filesFilter))
             .reduce(FileTree::plus)
-            .orElse(getProject().files().getAsFileTree());
+            .orElse(project.files().getAsFileTree());
     }
 
     @TaskAction
@@ -131,7 +143,7 @@ public class ForbiddenPatternsTask extends DefaultTask {
                 .boxed()
                 .collect(Collectors.toList());
 
-            String path = getProject().getRootProject().getProjectDir().toURI().relativize(f.toURI()).toString();
+            String path = project.getRootProject().getProjectDir().toURI().relativize(f.toURI()).toString();
             failures.addAll(
                 invalidLines.stream()
                     .map(l -> new AbstractMap.SimpleEntry<>(l + 1, lines.get(l)))
@@ -155,7 +167,7 @@ public class ForbiddenPatternsTask extends DefaultTask {
 
     @OutputFile
     public File getOutputMarker() {
-        return new File(getProject().getBuildDir(), "markers/" + getName());
+        return new File(project.getBuildDir(), "markers/" + getName());
     }
 
     @Input

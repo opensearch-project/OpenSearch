@@ -111,7 +111,8 @@ public class PrimaryReplicaSyncerTests extends IndexShardTestCase {
             null,
             1000L,
             Collections.singleton(allocationId),
-            new IndexShardRoutingTable.Builder(shard.shardId()).addShard(shard.routingEntry()).build()
+            new IndexShardRoutingTable.Builder(shard.shardId()).addShard(shard.routingEntry()).build(),
+            IndexShardTestUtils.getFakeDiscoveryNodes(shard.routingEntry())
         );
         shard.updateLocalCheckpointForShard(allocationId, globalCheckPoint);
         assertEquals(globalCheckPoint, shard.getLastKnownGlobalCheckpoint());
@@ -125,7 +126,7 @@ public class PrimaryReplicaSyncerTests extends IndexShardTestCase {
         if (syncNeeded) {
             assertTrue("Sync action was not called", syncActionCalled.get());
             ResyncReplicationRequest resyncRequest = resyncRequests.remove(0);
-            assertThat(resyncRequest.getTrimAboveSeqNo(), equalTo(numDocs - 1L));
+            assertThat(resyncRequest.getTrimAboveSeqNo(), equalTo(globalCheckPoint));
 
             assertThat(
                 "trimAboveSeqNo has to be specified in request #0 only",
@@ -190,7 +191,8 @@ public class PrimaryReplicaSyncerTests extends IndexShardTestCase {
             null,
             1000L,
             Collections.singleton(allocationId),
-            new IndexShardRoutingTable.Builder(shard.shardId()).addShard(shard.routingEntry()).build()
+            new IndexShardRoutingTable.Builder(shard.shardId()).addShard(shard.routingEntry()).build(),
+            IndexShardTestUtils.getFakeDiscoveryNodes(shard.routingEntry())
         );
 
         CountDownLatch syncCalledLatch = new CountDownLatch(1);

@@ -62,6 +62,7 @@ public class SegmentReplicationSuiteIT extends SegmentReplicationBaseIT {
         ensureYellow(INDEX_NAME);
         client().prepareIndex(INDEX_NAME).setId(Integer.toString(docCount)).setSource("field", "value" + docCount).execute().get();
         internalCluster().startDataOnlyNode();
+        ensureGreen(INDEX_NAME);
         client().admin().indices().delete(new DeleteIndexRequest(INDEX_NAME)).actionGet();
     }
 

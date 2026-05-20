@@ -32,13 +32,13 @@
 
 package org.opensearch.script.mustache;
 
-import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.action.RestToXContentListener;
 import org.opensearch.rest.action.search.RestMultiSearchAction;
 import org.opensearch.rest.action.search.RestSearchAction;
+import org.opensearch.transport.client.node.NodeClient;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -107,6 +107,11 @@ public class RestMultiSearchTemplateAction extends BaseRestHandler {
             (searchRequest, bytes) -> {
                 SearchTemplateRequest searchTemplateRequest = SearchTemplateRequest.fromXContent(bytes);
                 if (searchTemplateRequest.getScript() != null) {
+                    // Set the search request pipeline
+                    String pipeline = searchTemplateRequest.getSearchPipeline();
+                    if (pipeline != null && !pipeline.isEmpty()) {
+                        searchRequest.pipeline(pipeline);
+                    }
                     searchTemplateRequest.setRequest(searchRequest);
                     multiRequest.add(searchTemplateRequest);
                 } else {

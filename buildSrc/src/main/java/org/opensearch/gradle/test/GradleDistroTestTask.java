@@ -34,8 +34,11 @@ package org.opensearch.gradle.test;
 
 import org.opensearch.gradle.vagrant.VagrantMachine;
 import org.opensearch.gradle.vagrant.VagrantShellTask;
+import org.gradle.api.Project;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.options.Option;
+
+import javax.inject.Inject;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -49,6 +52,13 @@ public class GradleDistroTestTask extends VagrantShellTask {
     private String taskName;
     private String testClass;
     private List<String> extraArgs = new ArrayList<>();
+    private final Project project;
+
+    @Inject
+    public GradleDistroTestTask(Project project) {
+        super(project);
+        this.project = project;
+    }
 
     public void setTaskName(String taskName) {
         this.taskName = taskName;
@@ -84,17 +94,15 @@ public class GradleDistroTestTask extends VagrantShellTask {
     }
 
     private List<String> getScript(boolean isWindows) {
-        String cacheDir = getProject().getBuildDir() + "/gradle-cache";
+        String cacheDir = project.getBuildDir() + "/gradle-cache";
         StringBuilder line = new StringBuilder();
         line.append(isWindows ? "& .\\gradlew " : "./gradlew ");
         line.append(taskName);
         line.append(" --project-cache-dir ");
-        line.append(
-            isWindows ? VagrantMachine.convertWindowsPath(getProject(), cacheDir) : VagrantMachine.convertLinuxPath(getProject(), cacheDir)
-        );
+        line.append(isWindows ? VagrantMachine.convertWindowsPath(project, cacheDir) : VagrantMachine.convertLinuxPath(project, cacheDir));
         line.append(" -S");
         line.append(" --parallel");
-        line.append(" -D'org.gradle.logging.level'=" + getProject().getGradle().getStartParameter().getLogLevel());
+        line.append(" -D'org.gradle.logging.level'=" + project.getGradle().getStartParameter().getLogLevel());
         if (testClass != null) {
             line.append(" --tests=");
             line.append(testClass);

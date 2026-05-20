@@ -54,7 +54,6 @@ import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.TaskAction;
 import org.gradle.api.tasks.util.PatternFilterable;
 import org.gradle.api.tasks.util.PatternSet;
-import org.gradle.internal.Factory;
 
 import javax.inject.Inject;
 
@@ -71,21 +70,20 @@ import java.util.stream.Collectors;
  */
 public class CopyRestTestsTask extends DefaultTask {
     private static final String REST_TEST_PREFIX = "rest-api-spec/test";
-    final ListProperty<String> includeCore = getProject().getObjects().listProperty(String.class);
+    final ListProperty<String> includeCore;
 
     String sourceSetName;
     Configuration coreConfig;
     Configuration additionalConfig;
+    private final Project project;
 
     private final PatternFilterable corePatternSet;
 
-    public CopyRestTestsTask() {
-        corePatternSet = getPatternSetFactory().create();
-    }
-
     @Inject
-    protected Factory<PatternSet> getPatternSetFactory() {
-        throw new UnsupportedOperationException();
+    public CopyRestTestsTask(Project project) {
+        this.project = project;
+        this.corePatternSet = new PatternSet();
+        this.includeCore = project.getObjects().listProperty(String.class);
     }
 
     @Inject
@@ -123,8 +121,8 @@ public class CopyRestTestsTask extends DefaultTask {
             }
         }
         ConfigurableFileCollection fileCollection = additionalConfig == null
-            ? getProject().files(coreFileTree)
-            : getProject().files(coreFileTree, additionalConfig.getAsFileTree());
+            ? project.files(coreFileTree)
+            : project.files(coreFileTree, additionalConfig.getAsFileTree());
 
         // copy tests only if explicitly requested
         return includeCore.get().isEmpty() == false || additionalConfig != null ? fileCollection.getAsFileTree() : null;
@@ -178,7 +176,6 @@ public class CopyRestTestsTask extends DefaultTask {
     }
 
     private Optional<SourceSet> getSourceSet() {
-        Project project = getProject();
         return project.getExtensions().findByType(JavaPluginExtension.class) == null
             ? Optional.empty()
             : Optional.ofNullable(GradleUtils.getJavaSourceSets(project).findByName(getSourceSetName()));

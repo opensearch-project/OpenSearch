@@ -8,15 +8,20 @@
 
 package org.opensearch.index.translog;
 
+import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.common.lease.Releasable;
+
+import java.io.Closeable;
 import java.io.IOException;
 import java.util.stream.Stream;
 
 /**
  * The interface that orchestrates Translog operations and manages the {@link Translog} and interfaces with the Engine
  *
- * @opensearch.internal
+ * @opensearch.api
  */
-public interface TranslogManager {
+@PublicApi(since = "1.0.0")
+public interface TranslogManager extends Closeable {
 
     /**
      * Rolls the translog generation and cleans unneeded.
@@ -132,5 +137,52 @@ public interface TranslogManager {
      */
     void onDelete();
 
+    /**
+     * Drains ongoing syncs to the underlying store. It returns a releasable which can be closed to resume the syncs back.
+     */
+    Releasable drainSync();
+
     Translog.TranslogGeneration getTranslogGeneration();
+
+    /**
+     * Retrieves last synced global checkpoint.
+     */
+    long getLastSyncedGlobalCheckpoint();
+
+    /**
+     * Retrieves the max seq no.
+     */
+    long getMaxSeqNo();
+
+    /**
+     * Trims unreferenced translog generations by asking {@link TranslogDeletionPolicy} for the minimum required
+     * generation.
+     */
+    void trimUnreferencedReaders() throws IOException;
+
+    /**
+     *
+     * @param localCheckpointOfLastCommit local checkpoint reference of last commit to translog
+     * @param flushThreshold threshold to flush to translog
+     * @return if the translog should be flushed
+     */
+    boolean shouldPeriodicallyFlush(long localCheckpointOfLastCommit, long flushThreshold);
+
+    /**
+     * Retrieves the underlying translog tragic exception
+     * @return the tragic exception
+     */
+    Exception getTragicExceptionIfClosed();
+
+    /**
+     * Retrieves the translog deletion policy
+     * @return TranslogDeletionPolicy
+     */
+    TranslogDeletionPolicy getDeletionPolicy();
+
+    /**
+     * Retrieves the translog unique identifier
+     * @return the uuid of the translog
+     */
+    String getTranslogUUID();
 }

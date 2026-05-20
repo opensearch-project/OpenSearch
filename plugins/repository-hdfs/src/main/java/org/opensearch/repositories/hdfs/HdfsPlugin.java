@@ -43,12 +43,11 @@ import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.RepositoryPlugin;
 import org.opensearch.repositories.Repository;
+import org.opensearch.secure_sm.AccessController;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.security.AccessController;
-import java.security.PrivilegedAction;
 import java.util.Collections;
 import java.util.Map;
 
@@ -57,8 +56,8 @@ public final class HdfsPlugin extends Plugin implements RepositoryPlugin {
     // initialize some problematic classes with elevated privileges
     static {
         SpecialPermission.check();
-        AccessController.doPrivileged((PrivilegedAction<Void>) HdfsPlugin::evilHadoopInit);
-        AccessController.doPrivileged((PrivilegedAction<Void>) HdfsPlugin::eagerInit);
+        AccessController.doPrivileged(HdfsPlugin::evilHadoopInit);
+        AccessController.doPrivileged(HdfsPlugin::eagerInit);
     }
 
     @SuppressForbidden(reason = "Needs a security hack for hadoop on windows, until HADOOP-XXXX is fixed")

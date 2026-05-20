@@ -161,9 +161,6 @@ setup:
 
 ---
 "field collapsing, inner_hits, and fields":
-  - skip:
-      version: " - 7.9.99"
-      reason: the fields option was added in 7.10
   - do:
       search:
         rest_total_hits_as_int: true
@@ -247,20 +244,6 @@ setup:
         scroll: 1s
         body:
           collapse: { field: numeric_group }
-
----
-"field collapsing and search_after":
-
-  - do:
-      catch:      /cannot use \`collapse\` in conjunction with \`search_after\`/
-      search:
-        allow_partial_search_results: false
-        rest_total_hits_as_int: true
-        index: test
-        body:
-          collapse: { field: numeric_group }
-          search_after: [6]
-          sort: [{ sort: desc }]
 
 ---
 "field collapsing and rescore":
@@ -424,9 +407,7 @@ setup:
 
 ---
 "field collapsing on a field alias":
-  - skip:
-      version: " - 7.5.1"
-      reason: the bug fix was introduced in 7.5.2
+
   - do:
       indices.create:
         index:  alias-test
@@ -514,3 +495,435 @@ setup:
   - match: { hits.hits.2.inner_hits.sub_hits.hits.hits.1._id: "4" }
   - gte: { hits.hits.2.inner_hits.sub_hits.hits.hits.1._seq_no: 0 }
   - gte: { hits.hits.2.inner_hits.sub_hits.hits.hits.1._primary_term: 1 }
+
+---
+"Test field collapsing with sort":
+  - skip:
+      version: " - 3.2.99"
+      reason: Fixed in 3.3.0
+  - do:
+      indices.create:
+        index:  test_1
+        body:
+          mappings:
+            properties:
+              sort_field: { type: integer }
+              collapse_field: { type: integer }
+              marker: {type: keyword}
+
+  - do:
+      index:
+        index:  test_1
+        refresh: true
+        id:     1
+        body:   { sort_field: 1, collapse_field: 1, marker: "doc1" }
+  - do:
+      index:
+        index:  test_1
+        refresh: true
+        id:     2
+        body:   { sort_field: 1, collapse_field: 2, marker: "doc2" }
+  - do:
+      index:
+        index:  test_1
+        refresh: true
+        id:     3
+        body:   { sort_field: 1, collapse_field: 2, marker: "doc3" }
+
+  - do:
+      search:
+        index: test_1
+        size: 2
+        body:
+          collapse: { field: collapse_field }
+          sort: [{ sort_field: desc }]
+  - match: { hits.total.value: 3 }
+  - length: { hits.hits: 2 }
+  - match: { hits.hits.0._id: '1' }
+  - match: { hits.hits.0._source.marker: 'doc1' }
+  - match: { hits.hits.1._id: '2' }
+  - match: { hits.hits.1._source.marker: 'doc2' }
+
+---
+"Test field collapsing with sort when concurrent segment search enabled":
+  - skip:
+      version: " - 3.2.99"
+      reason: Fixed in 3.3.0
+  - do:
+      indices.create:
+        index:  test_1
+        body:
+          mappings:
+            properties:
+              sort_field: { type: integer }
+              collapse_field: { type: integer }
+              marker: {type: keyword}
+
+  - do:
+      index:
+        index:  test_1
+        refresh: true
+        id:     1
+        body:   { sort_field: 1, collapse_field: 1, marker: "doc1" }
+  - do:
+      index:
+        index:  test_1
+        refresh: true
+        id:     2
+        body:   { sort_field: 1, collapse_field: 2, marker: "doc2" }
+  - do:
+      index:
+        index:  test_1
+        refresh: true
+        id:     3
+        body:   { sort_field: 1, collapse_field: 2, marker: "doc3" }
+  - do:
+      indices.put_settings:
+        index: test_1
+        body:
+          index.search.concurrent_segment_search.mode: 'all'
+
+  - do:
+      search:
+        index: test_1
+        size: 2
+        body:
+          collapse: { field: collapse_field }
+          sort: [{ sort_field: desc }]
+  - match: { hits.total.value: 3 }
+  - length: { hits.hits: 2 }
+  - match: { hits.hits.0._id: '1' }
+  - match: { hits.hits.0._source.marker: 'doc1' }
+  - match: { hits.hits.1._id: '2' }
+  - match: { hits.hits.1._source.marker: 'doc2' }
+
+
+---
+"field collapsing with search_after - basic functionality":
+  - skip:
+      version: " - 3.2.99"
+      reason: Introduced in 3.3.0
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          collapse: { field: numeric_group }
+          sort: [{ numeric_group: asc }]
+          size: 10
+
+  - match: {hits.total: 6 }
+  - length: {hits.hits: 3 }
+  - match: {hits.hits.0.fields.numeric_group: [1] }
+  - match: {hits.hits.1.fields.numeric_group: [3] }
+  - match: {hits.hits.2.fields.numeric_group: [25] }
+
+  - do:
+      catch: /collapse field and sort field must be the same when use `collapse` in conjunction with `search_after`/
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          collapse: { field: numeric_group }
+          sort: [{ sort: desc }]
+          search_after: [10]
+  - do:
+      catch: /collapse field and sort field must be the same when use `collapse` in conjunction with `search_after`/
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          collapse: { field: numeric_group }
+          sort: [{ numeric_group: desc }, { sort: asc }]
+          search_after: [25, 10]
+
+  # Test asc, first page
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          collapse: { field: numeric_group }
+          sort: [{ numeric_group: asc }]
+          search_after: [1]
+          size: 10
+
+  - match: {hits.total: 6 }
+  - length: {hits.hits: 2 }
+  - match: {hits.hits.0.fields.numeric_group: [3] }
+  - match: {hits.hits.1.fields.numeric_group: [25] }
+
+  # Test asc, second page
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          collapse: { field: numeric_group }
+          sort: [{ numeric_group: asc }]
+          search_after: [3]
+          size: 2
+
+  - match: {hits.total: 6 }
+  - length: {hits.hits: 1 }
+  - match: {hits.hits.0.fields.numeric_group: [25] }
+
+  # Test asc, no result
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          collapse: { field: numeric_group }
+          sort: [{ numeric_group: asc }]
+          search_after: [999]
+          size: 10
+
+  - match: {hits.total: 6 }
+  - length: {hits.hits: 0 }
+
+  # Test desc, first page
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          collapse: { field: numeric_group }
+          sort: [{ numeric_group: desc }]
+          size: 1
+
+  - match: {hits.total: 6 }
+  - length: {hits.hits: 1 }
+  - match: {hits.hits.0.fields.numeric_group: [25] }
+  - set: { hits.hits.0.sort.0: last_sort_value }
+
+  # Test desc, second page
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          collapse: { field: numeric_group }
+          sort: [{ numeric_group: desc }]
+          search_after: [$last_sort_value]
+          size: 1
+
+  - match: {hits.total: 6 }
+  - length: {hits.hits: 1 }
+  - match: {hits.hits.0.fields.numeric_group: [3] }
+  - set: { hits.hits.0.sort.0: last_sort_value }
+
+  # Test desc, third page
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          collapse: { field: numeric_group }
+          sort: [{ numeric_group: desc }]
+          search_after: [$last_sort_value]
+          size: 1
+
+  - match: {hits.total: 6 }
+  - length: {hits.hits: 1 }
+  - match: {hits.hits.0.fields.numeric_group: [1] }
+  - set: { hits.hits.0.sort.0: last_sort_value }
+
+  # Test desc, no result
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          collapse: { field: numeric_group }
+          sort: [{ numeric_group: desc }]
+          search_after: [$last_sort_value]
+          size: 1
+
+  - match: {hits.total: 6 }
+  - length: {hits.hits: 0 }
+
+  # test on keyword field
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          collapse: { field: tag }
+          sort: [{ tag: asc }]
+          size: 1
+
+  - match: {hits.total: 6 }
+  - length: {hits.hits: 1 }
+  - match: {hits.hits.0.fields.tag: ["A"] }
+
+  # Search after "A"
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          collapse: { field: tag }
+          sort: [{ tag: asc }]
+          search_after: ["A"]
+          size: 1
+
+---
+"field collapsing with search_after - concurrent segment search enabled":
+  - skip:
+      version: " - 3.2.99"
+      reason: Introduced in 3.3.0
+  - do:
+      indices.put_settings:
+        index: test
+        body:
+          index.search.concurrent_segment_search.mode: 'all'
+
+  # Test asc, first page
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          collapse: { field: numeric_group }
+          sort: [{ numeric_group: asc }]
+          search_after: [1]
+          size: 10
+
+  - match: {hits.total: 6 }
+  - length: {hits.hits: 2 }
+  - match: {hits.hits.0.fields.numeric_group: [3] }
+  - match: {hits.hits.1.fields.numeric_group: [25] }
+
+  # Test asc, second page
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          collapse: { field: numeric_group }
+          sort: [{ numeric_group: asc }]
+          search_after: [3]
+          size: 2
+
+  - match: {hits.total: 6 }
+  - length: {hits.hits: 1 }
+  - match: {hits.hits.0.fields.numeric_group: [25] }
+
+  # Test asc, no result
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          collapse: { field: numeric_group }
+          sort: [{ numeric_group: asc }]
+          search_after: [999]
+          size: 10
+
+  - match: {hits.total: 6 }
+  - length: {hits.hits: 0 }
+
+  # Test desc, first page
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          collapse: { field: numeric_group }
+          sort: [{ numeric_group: desc }]
+          size: 1
+
+  - match: {hits.total: 6 }
+  - length: {hits.hits: 1 }
+  - match: {hits.hits.0.fields.numeric_group: [25] }
+  - set: { hits.hits.0.sort.0: last_sort_value }
+
+  # Test desc, second page
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          collapse: { field: numeric_group }
+          sort: [{ numeric_group: desc }]
+          search_after: [$last_sort_value]
+          size: 1
+
+  - match: {hits.total: 6 }
+  - length: {hits.hits: 1 }
+  - match: {hits.hits.0.fields.numeric_group: [3] }
+  - set: { hits.hits.0.sort.0: last_sort_value }
+
+  # Test desc, third page
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          collapse: { field: numeric_group }
+          sort: [{ numeric_group: desc }]
+          search_after: [$last_sort_value]
+          size: 1
+
+  - match: {hits.total: 6 }
+  - length: {hits.hits: 1 }
+  - match: {hits.hits.0.fields.numeric_group: [1] }
+  - set: { hits.hits.0.sort.0: last_sort_value }
+
+  # Test desc, no result
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          collapse: { field: numeric_group }
+          sort: [{ numeric_group: desc }]
+          search_after: [$last_sort_value]
+          size: 1
+
+  - match: {hits.total: 6 }
+  - length: {hits.hits: 0 }
+
+  # test on keyword field
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          collapse: { field: tag }
+          sort: [{ tag: asc }]
+          size: 1
+
+  - match: {hits.total: 6 }
+  - length: {hits.hits: 1 }
+  - match: {hits.hits.0.fields.tag: ["A"] }
+
+  # Search after "A"
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          collapse: { field: tag }
+          sort: [{ tag: asc }]
+          search_after: ["A"]
+          size: 1
+
+  - match: {hits.total: 6 }
+  - length: {hits.hits: 1 }
+  - match: {hits.hits.0.fields.tag: ["B"] }
+
+  # Search after "B"
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          collapse: { field: tag }
+          sort: [{ tag: asc }]
+          search_after: ["B"]
+          size: 1
+
+  - match: {hits.total: 6 }
+  - length: {hits.hits: 0 }

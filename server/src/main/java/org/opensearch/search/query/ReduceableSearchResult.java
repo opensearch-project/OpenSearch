@@ -8,13 +8,16 @@
 
 package org.opensearch.search.query;
 
+import org.opensearch.common.annotation.PublicApi;
+
 import java.io.IOException;
 
 /**
  * The search result callback returned by reduce phase of the collector manager.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "2.0.0")
 public interface ReduceableSearchResult {
     /**
      * Apply the reduce operation to the query search results

@@ -34,6 +34,7 @@ package org.opensearch.search.scroll;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.search.ClearScrollResponse;
 import org.opensearch.action.search.SearchPhaseExecutionException;
@@ -45,7 +46,6 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.Priority;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.core.common.bytes.BytesReference;
@@ -60,15 +60,19 @@ import org.opensearch.search.SearchHit;
 import org.opensearch.search.sort.FieldSortBuilder;
 import org.opensearch.search.sort.SortOrder;
 import org.opensearch.test.InternalTestCluster;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 import org.opensearch.test.hamcrest.OpenSearchAssertions;
 import org.junit.After;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.opensearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -91,8 +95,16 @@ import static org.hamcrest.Matchers.notNullValue;
 
 /**
  * Tests for scrolling.
+ *
+ * <p>{@code @SuppressCodecs("*")} is needed because we cache StoredFieldsReader instances
+ * across scroll batches for sequential access. Different batches may run on different threads
+ * (but never concurrently). Lucene's AssertingStoredFieldsFormat enforces thread affinity
+ * that rejects this valid sequential cross-thread usage.
+ *
+ * @see org.opensearch.search.internal.ScrollContext#getCachedSequentialReader(Object)
  */
-public class SearchScrollIT extends ParameterizedOpenSearchIntegTestCase {
+@LuceneTestCase.SuppressCodecs("*")
+public class SearchScrollIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
     public SearchScrollIT(Settings settings) {
         super(settings);
     }
@@ -103,11 +115,6 @@ public class SearchScrollIT extends ParameterizedOpenSearchIntegTestCase {
             new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), false).build() },
             new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), true).build() }
         );
-    }
-
-    @Override
-    protected Settings featureFlagSettings() {
-        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.CONCURRENT_SEGMENT_SEARCH, "true").build();
     }
 
     @After
@@ -135,6 +142,7 @@ public class SearchScrollIT extends ParameterizedOpenSearchIntegTestCase {
         }
 
         client().admin().indices().prepareRefresh().get();
+        indexRandomForConcurrentSearch("test");
 
         SearchResponse searchResponse = client().prepareSearch()
             .setQuery(matchAllQuery())
@@ -145,7 +153,7 @@ public class SearchScrollIT extends ParameterizedOpenSearchIntegTestCase {
         try {
             long counter = 0;
 
-            assertThat(searchResponse.getHits().getTotalHits().value, equalTo(100L));
+            assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(100L));
             assertThat(searchResponse.getHits().getHits().length, equalTo(35));
             for (SearchHit hit : searchResponse.getHits()) {
                 assertThat(((Number) hit.getSortValues()[0]).longValue(), equalTo(counter++));
@@ -153,7 +161,7 @@ public class SearchScrollIT extends ParameterizedOpenSearchIntegTestCase {
 
             searchResponse = client().prepareSearchScroll(searchResponse.getScrollId()).setScroll(TimeValue.timeValueMinutes(2)).get();
 
-            assertThat(searchResponse.getHits().getTotalHits().value, equalTo(100L));
+            assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(100L));
             assertThat(searchResponse.getHits().getHits().length, equalTo(35));
             for (SearchHit hit : searchResponse.getHits()) {
                 assertThat(((Number) hit.getSortValues()[0]).longValue(), equalTo(counter++));
@@ -161,7 +169,7 @@ public class SearchScrollIT extends ParameterizedOpenSearchIntegTestCase {
 
             searchResponse = client().prepareSearchScroll(searchResponse.getScrollId()).setScroll(TimeValue.timeValueMinutes(2)).get();
 
-            assertThat(searchResponse.getHits().getTotalHits().value, equalTo(100L));
+            assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(100L));
             assertThat(searchResponse.getHits().getHits().length, equalTo(30));
             for (SearchHit hit : searchResponse.getHits()) {
                 assertThat(((Number) hit.getSortValues()[0]).longValue(), equalTo(counter++));
@@ -188,6 +196,7 @@ public class SearchScrollIT extends ParameterizedOpenSearchIntegTestCase {
         }
 
         client().admin().indices().prepareRefresh().get();
+        indexRandomForConcurrentSearch("test");
 
         SearchResponse searchResponse = client().prepareSearch()
             .setSearchType(SearchType.QUERY_THEN_FETCH)
@@ -199,7 +208,7 @@ public class SearchScrollIT extends ParameterizedOpenSearchIntegTestCase {
         try {
             long counter = 0;
 
-            assertThat(searchResponse.getHits().getTotalHits().value, equalTo(100L));
+            assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(100L));
             assertThat(searchResponse.getHits().getHits().length, equalTo(3));
             for (SearchHit hit : searchResponse.getHits()) {
                 assertThat(((Number) hit.getSortValues()[0]).longValue(), equalTo(counter++));
@@ -208,7 +217,7 @@ public class SearchScrollIT extends ParameterizedOpenSearchIntegTestCase {
             for (int i = 0; i < 32; i++) {
                 searchResponse = client().prepareSearchScroll(searchResponse.getScrollId()).setScroll(TimeValue.timeValueMinutes(2)).get();
 
-                assertThat(searchResponse.getHits().getTotalHits().value, equalTo(100L));
+                assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(100L));
                 assertThat(searchResponse.getHits().getHits().length, equalTo(3));
                 for (SearchHit hit : searchResponse.getHits()) {
                     assertThat(((Number) hit.getSortValues()[0]).longValue(), equalTo(counter++));
@@ -218,7 +227,7 @@ public class SearchScrollIT extends ParameterizedOpenSearchIntegTestCase {
             // and now, the last one is one
             searchResponse = client().prepareSearchScroll(searchResponse.getScrollId()).setScroll(TimeValue.timeValueMinutes(2)).get();
 
-            assertThat(searchResponse.getHits().getTotalHits().value, equalTo(100L));
+            assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(100L));
             assertThat(searchResponse.getHits().getHits().length, equalTo(1));
             for (SearchHit hit : searchResponse.getHits()) {
                 assertThat(((Number) hit.getSortValues()[0]).longValue(), equalTo(counter++));
@@ -227,7 +236,7 @@ public class SearchScrollIT extends ParameterizedOpenSearchIntegTestCase {
             // a the last is zero
             searchResponse = client().prepareSearchScroll(searchResponse.getScrollId()).setScroll(TimeValue.timeValueMinutes(2)).get();
 
-            assertThat(searchResponse.getHits().getTotalHits().value, equalTo(100L));
+            assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(100L));
             assertThat(searchResponse.getHits().getHits().length, equalTo(0));
             for (SearchHit hit : searchResponse.getHits()) {
                 assertThat(((Number) hit.getSortValues()[0]).longValue(), equalTo(counter++));
@@ -256,22 +265,23 @@ public class SearchScrollIT extends ParameterizedOpenSearchIntegTestCase {
         }
 
         client().admin().indices().prepareRefresh().get();
+        indexRandomForConcurrentSearch("test");
 
-        assertThat(client().prepareSearch().setSize(0).setQuery(matchAllQuery()).get().getHits().getTotalHits().value, equalTo(500L));
+        assertThat(client().prepareSearch().setSize(0).setQuery(matchAllQuery()).get().getHits().getTotalHits().value(), equalTo(500L));
         assertThat(
-            client().prepareSearch().setSize(0).setQuery(termQuery("message", "test")).get().getHits().getTotalHits().value,
+            client().prepareSearch().setSize(0).setQuery(termQuery("message", "test")).get().getHits().getTotalHits().value(),
             equalTo(500L)
         );
         assertThat(
-            client().prepareSearch().setSize(0).setQuery(termQuery("message", "test")).get().getHits().getTotalHits().value,
+            client().prepareSearch().setSize(0).setQuery(termQuery("message", "test")).get().getHits().getTotalHits().value(),
             equalTo(500L)
         );
         assertThat(
-            client().prepareSearch().setSize(0).setQuery(termQuery("message", "update")).get().getHits().getTotalHits().value,
+            client().prepareSearch().setSize(0).setQuery(termQuery("message", "update")).get().getHits().getTotalHits().value(),
             equalTo(0L)
         );
         assertThat(
-            client().prepareSearch().setSize(0).setQuery(termQuery("message", "update")).get().getHits().getTotalHits().value,
+            client().prepareSearch().setSize(0).setQuery(termQuery("message", "update")).get().getHits().getTotalHits().value(),
             equalTo(0L)
         );
 
@@ -292,21 +302,21 @@ public class SearchScrollIT extends ParameterizedOpenSearchIntegTestCase {
             } while (searchResponse.getHits().getHits().length > 0);
 
             client().admin().indices().prepareRefresh().get();
-            assertThat(client().prepareSearch().setSize(0).setQuery(matchAllQuery()).get().getHits().getTotalHits().value, equalTo(500L));
+            assertThat(client().prepareSearch().setSize(0).setQuery(matchAllQuery()).get().getHits().getTotalHits().value(), equalTo(500L));
             assertThat(
-                client().prepareSearch().setSize(0).setQuery(termQuery("message", "test")).get().getHits().getTotalHits().value,
+                client().prepareSearch().setSize(0).setQuery(termQuery("message", "test")).get().getHits().getTotalHits().value(),
                 equalTo(0L)
             );
             assertThat(
-                client().prepareSearch().setSize(0).setQuery(termQuery("message", "test")).get().getHits().getTotalHits().value,
+                client().prepareSearch().setSize(0).setQuery(termQuery("message", "test")).get().getHits().getTotalHits().value(),
                 equalTo(0L)
             );
             assertThat(
-                client().prepareSearch().setSize(0).setQuery(termQuery("message", "update")).get().getHits().getTotalHits().value,
+                client().prepareSearch().setSize(0).setQuery(termQuery("message", "update")).get().getHits().getTotalHits().value(),
                 equalTo(500L)
             );
             assertThat(
-                client().prepareSearch().setSize(0).setQuery(termQuery("message", "update")).get().getHits().getTotalHits().value,
+                client().prepareSearch().setSize(0).setQuery(termQuery("message", "update")).get().getHits().getTotalHits().value(),
                 equalTo(500L)
             );
         } finally {
@@ -328,6 +338,7 @@ public class SearchScrollIT extends ParameterizedOpenSearchIntegTestCase {
         }
 
         client().admin().indices().prepareRefresh().get();
+        indexRandomForConcurrentSearch("test");
 
         SearchResponse searchResponse1 = client().prepareSearch()
             .setQuery(matchAllQuery())
@@ -348,13 +359,13 @@ public class SearchScrollIT extends ParameterizedOpenSearchIntegTestCase {
         long counter1 = 0;
         long counter2 = 0;
 
-        assertThat(searchResponse1.getHits().getTotalHits().value, equalTo(100L));
+        assertThat(searchResponse1.getHits().getTotalHits().value(), equalTo(100L));
         assertThat(searchResponse1.getHits().getHits().length, equalTo(35));
         for (SearchHit hit : searchResponse1.getHits()) {
             assertThat(((Number) hit.getSortValues()[0]).longValue(), equalTo(counter1++));
         }
 
-        assertThat(searchResponse2.getHits().getTotalHits().value, equalTo(100L));
+        assertThat(searchResponse2.getHits().getTotalHits().value(), equalTo(100L));
         assertThat(searchResponse2.getHits().getHits().length, equalTo(35));
         for (SearchHit hit : searchResponse2.getHits()) {
             assertThat(((Number) hit.getSortValues()[0]).longValue(), equalTo(counter2++));
@@ -364,13 +375,13 @@ public class SearchScrollIT extends ParameterizedOpenSearchIntegTestCase {
 
         searchResponse2 = client().prepareSearchScroll(searchResponse2.getScrollId()).setScroll(TimeValue.timeValueMinutes(2)).get();
 
-        assertThat(searchResponse1.getHits().getTotalHits().value, equalTo(100L));
+        assertThat(searchResponse1.getHits().getTotalHits().value(), equalTo(100L));
         assertThat(searchResponse1.getHits().getHits().length, equalTo(35));
         for (SearchHit hit : searchResponse1.getHits()) {
             assertThat(((Number) hit.getSortValues()[0]).longValue(), equalTo(counter1++));
         }
 
-        assertThat(searchResponse2.getHits().getTotalHits().value, equalTo(100L));
+        assertThat(searchResponse2.getHits().getTotalHits().value(), equalTo(100L));
         assertThat(searchResponse2.getHits().getHits().length, equalTo(35));
         for (SearchHit hit : searchResponse2.getHits()) {
             assertThat(((Number) hit.getSortValues()[0]).longValue(), equalTo(counter2++));
@@ -448,6 +459,7 @@ public class SearchScrollIT extends ParameterizedOpenSearchIntegTestCase {
         }
 
         client().admin().indices().prepareRefresh().get();
+        indexRandomForConcurrentSearch("test");
 
         SearchResponse searchResponse1 = client().prepareSearch()
             .setQuery(matchAllQuery())
@@ -468,13 +480,13 @@ public class SearchScrollIT extends ParameterizedOpenSearchIntegTestCase {
         long counter1 = 0;
         long counter2 = 0;
 
-        assertThat(searchResponse1.getHits().getTotalHits().value, equalTo(100L));
+        assertThat(searchResponse1.getHits().getTotalHits().value(), equalTo(100L));
         assertThat(searchResponse1.getHits().getHits().length, equalTo(35));
         for (SearchHit hit : searchResponse1.getHits()) {
             assertThat(((Number) hit.getSortValues()[0]).longValue(), equalTo(counter1++));
         }
 
-        assertThat(searchResponse2.getHits().getTotalHits().value, equalTo(100L));
+        assertThat(searchResponse2.getHits().getTotalHits().value(), equalTo(100L));
         assertThat(searchResponse2.getHits().getHits().length, equalTo(35));
         for (SearchHit hit : searchResponse2.getHits()) {
             assertThat(((Number) hit.getSortValues()[0]).longValue(), equalTo(counter2++));
@@ -484,13 +496,13 @@ public class SearchScrollIT extends ParameterizedOpenSearchIntegTestCase {
 
         searchResponse2 = client().prepareSearchScroll(searchResponse2.getScrollId()).setScroll(TimeValue.timeValueMinutes(2)).get();
 
-        assertThat(searchResponse1.getHits().getTotalHits().value, equalTo(100L));
+        assertThat(searchResponse1.getHits().getTotalHits().value(), equalTo(100L));
         assertThat(searchResponse1.getHits().getHits().length, equalTo(35));
         for (SearchHit hit : searchResponse1.getHits()) {
             assertThat(((Number) hit.getSortValues()[0]).longValue(), equalTo(counter1++));
         }
 
-        assertThat(searchResponse2.getHits().getTotalHits().value, equalTo(100L));
+        assertThat(searchResponse2.getHits().getTotalHits().value(), equalTo(100L));
         assertThat(searchResponse2.getHits().getHits().length, equalTo(35));
         for (SearchHit hit : searchResponse2.getHits()) {
             assertThat(((Number) hit.getSortValues()[0]).longValue(), equalTo(counter2++));
@@ -526,6 +538,7 @@ public class SearchScrollIT extends ParameterizedOpenSearchIntegTestCase {
             .prepareUpdateSettings("index")
             .setSettings(Settings.builder().put(IndexSettings.MAX_RESULT_WINDOW_SETTING.getKey(), Integer.MAX_VALUE))
             .get();
+        indexRandomForConcurrentSearch("index");
 
         for (SearchType searchType : SearchType.values()) {
             SearchRequestBuilder builder = client().prepareSearch("index")
@@ -567,6 +580,7 @@ public class SearchScrollIT extends ParameterizedOpenSearchIntegTestCase {
         );
         client().prepareIndex("test").setId("1").setSource("some_field", "test").get();
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         SearchResponse response = client().prepareSearch("test")
             .addSort(new FieldSortBuilder("no_field").order(SortOrder.ASC).missing("_last"))
@@ -592,12 +606,13 @@ public class SearchScrollIT extends ParameterizedOpenSearchIntegTestCase {
         assertThat(response.getHits().getHits().length, equalTo(0));
     }
 
-    public void testCloseAndReopenOrDeleteWithActiveScroll() {
+    public void testCloseAndReopenOrDeleteWithActiveScroll() throws InterruptedException {
         createIndex("test");
         for (int i = 0; i < 100; i++) {
             client().prepareIndex("test").setId(Integer.toString(i)).setSource("field", i).get();
         }
         refresh();
+        indexRandomForConcurrentSearch("test");
         SearchResponse searchResponse = client().prepareSearch()
             .setQuery(matchAllQuery())
             .setSize(35)
@@ -605,7 +620,7 @@ public class SearchScrollIT extends ParameterizedOpenSearchIntegTestCase {
             .addSort("field", SortOrder.ASC)
             .get();
         long counter = 0;
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(100L));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(100L));
         assertThat(searchResponse.getHits().getHits().length, equalTo(35));
         for (SearchHit hit : searchResponse.getHits()) {
             assertThat(((Number) hit.getSortValues()[0]).longValue(), equalTo(counter++));
@@ -683,7 +698,7 @@ public class SearchScrollIT extends ParameterizedOpenSearchIntegTestCase {
         assertThat(exc.getMessage(), containsString("was (1m > 30s)"));
     }
 
-    public void testInvalidScrollKeepAlive() throws IOException {
+    public void testInvalidScrollKeepAlive() throws IOException, InterruptedException {
         createIndex("test");
         for (int i = 0; i < 2; i++) {
             client().prepareIndex("test")
@@ -692,6 +707,7 @@ public class SearchScrollIT extends ParameterizedOpenSearchIntegTestCase {
                 .get();
         }
         refresh();
+        indexRandomForConcurrentSearch("test");
         assertAcked(
             client().admin()
                 .cluster()
@@ -717,7 +733,7 @@ public class SearchScrollIT extends ParameterizedOpenSearchIntegTestCase {
             .setScroll(TimeValue.timeValueMinutes(5))
             .get();
         assertNotNull(searchResponse.getScrollId());
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(2L));
+        assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(2L));
         assertThat(searchResponse.getHits().getHits().length, equalTo(1));
 
         exc = expectThrows(
@@ -733,7 +749,7 @@ public class SearchScrollIT extends ParameterizedOpenSearchIntegTestCase {
      * Ensures that we always create and retain search contexts on every target shards for a scroll request
      * regardless whether that query can be written to match_no_docs on some target shards or not.
      */
-    public void testScrollRewrittenToMatchNoDocs() {
+    public void testScrollRewrittenToMatchNoDocs() throws InterruptedException {
         final int numShards = randomIntBetween(3, 5);
         assertAcked(
             client().admin()
@@ -746,6 +762,7 @@ public class SearchScrollIT extends ParameterizedOpenSearchIntegTestCase {
         client().prepareIndex("test").setId("2").setSource("created_date", "2020-01-02").get();
         client().prepareIndex("test").setId("3").setSource("created_date", "2020-01-03").get();
         client().admin().indices().prepareRefresh("test").get();
+        indexRandomForConcurrentSearch("test");
         SearchResponse resp = null;
         try {
             int totalHits = 0;
@@ -793,6 +810,7 @@ public class SearchScrollIT extends ParameterizedOpenSearchIntegTestCase {
             index("prod", "_doc", "prod-" + i, Collections.emptyMap());
         }
         client().admin().indices().prepareRefresh().get();
+        indexRandomForConcurrentSearch("demo", "prod");
         SearchResponse respFromDemoIndex = client().prepareSearch("demo")
             .setSize(randomIntBetween(1, 10))
             .setQuery(new MatchAllQueryBuilder())
@@ -815,6 +833,74 @@ public class SearchScrollIT extends ParameterizedOpenSearchIntegTestCase {
             assertThat(shardSearchFailure.getCause().getMessage(), containsString("No search context found for id [1]"));
         }
         client().prepareSearchScroll(respFromProdIndex.getScrollId()).get();
+    }
+
+    /**
+     * Tests that scroll queries with StoredFieldsReader caching return correct results
+     * across multiple batches. Verifies document order, content integrity, no duplicates,
+     * and no missing documents when using the sequential reader optimization.
+     */
+    public void testScrollWithSequentialReaderCacheReturnsCorrectResults() throws Exception {
+        int numDocs = randomIntBetween(100, 300);
+        int scrollSize = randomIntBetween(10, 35);
+        client().admin()
+            .indices()
+            .prepareCreate("test")
+            .setSettings(Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0))
+            .get();
+        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().get();
+        for (int i = 0; i < numDocs; i++) {
+            client().prepareIndex("test")
+                .setId(Integer.toString(i))
+                .setSource(jsonBuilder().startObject().field("field", i).field("text", "document number " + i).endObject())
+                .get();
+        }
+        client().admin().indices().prepareRefresh().get();
+        indexRandomForConcurrentSearch("test");
+        Set<Integer> retrievedIds = new HashSet<>();
+        List<Integer> retrievedOrder = new ArrayList<>();
+        SearchResponse searchResponse = client().prepareSearch("test")
+            .setQuery(matchAllQuery())
+            .setSize(scrollSize)
+            .setScroll(TimeValue.timeValueMinutes(2))
+            .addSort("field", SortOrder.ASC)
+            .get();
+        try {
+            assertThat(searchResponse.getHits().getTotalHits().value(), equalTo((long) numDocs));
+            int expectedValue = 0;
+            int batchCount = 0;
+            do {
+                batchCount++;
+                for (SearchHit hit : searchResponse.getHits().getHits()) {
+                    int docId = Integer.parseInt(hit.getId());
+                    // Verify no duplicates
+                    assertTrue("Duplicate document id: " + docId, retrievedIds.add(docId));
+                    retrievedOrder.add(docId);
+                    // Verify sort order
+                    assertThat(
+                        "Document out of order at position " + retrievedOrder.size(),
+                        ((Number) hit.getSortValues()[0]).intValue(),
+                        equalTo(expectedValue)
+                    );
+                    // Verify stored field content matches document id
+                    Map<String, Object> source = hit.getSourceAsMap();
+                    assertThat("Field value mismatch for doc " + docId, source.get("field"), equalTo(docId));
+                    assertThat("Text field mismatch for doc " + docId, source.get("text"), equalTo("document number " + docId));
+                    expectedValue++;
+                }
+                searchResponse = client().prepareSearchScroll(searchResponse.getScrollId()).setScroll(TimeValue.timeValueMinutes(2)).get();
+                assertNoFailures(searchResponse);
+            } while (searchResponse.getHits().getHits().length > 0);
+            // Verify all documents retrieved
+            assertThat("Not all documents retrieved", retrievedIds.size(), equalTo(numDocs));
+            assertThat("Multiple batches should have been used", batchCount, greaterThan(1));
+            // Verify complete sequence
+            for (int i = 0; i < numDocs; i++) {
+                assertTrue("Missing document: " + i, retrievedIds.contains(i));
+            }
+        } finally {
+            clearScroll(searchResponse.getScrollId());
+        }
     }
 
     private void assertToXContentResponse(ClearScrollResponse response, boolean succeed, int numFreed) throws IOException {

@@ -43,7 +43,6 @@ import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.Strings;
 import org.opensearch.index.IndexNotFoundException;
-import org.opensearch.index.mapper.MapperService;
 import org.opensearch.indices.SystemIndices;
 
 import java.util.ArrayList;
@@ -64,8 +63,6 @@ public final class AutoCreateIndex {
         Property.NodeScope,
         Setting.Property.Dynamic
     );
-
-    private final boolean dynamicMappingDisabled;
     private final IndexNameExpressionResolver resolver;
     private final SystemIndices systemIndices;
     private volatile AutoCreate autoCreate;
@@ -77,7 +74,6 @@ public final class AutoCreateIndex {
         SystemIndices systemIndices
     ) {
         this.resolver = resolver;
-        dynamicMappingDisabled = !MapperService.INDEX_MAPPER_DYNAMIC_SETTING.get(settings);
         this.systemIndices = systemIndices;
         this.autoCreate = AUTO_CREATE_INDEX_SETTING.get(settings);
         clusterSettings.addSettingsUpdateConsumer(AUTO_CREATE_INDEX_SETTING, this::setAutoCreate);
@@ -108,9 +104,6 @@ public final class AutoCreateIndex {
         final AutoCreate autoCreate = this.autoCreate;
         if (autoCreate.autoCreateIndex == false) {
             throw new IndexNotFoundException("[" + AUTO_CREATE_INDEX_SETTING.getKey() + "] is [false]", index);
-        }
-        if (dynamicMappingDisabled) {
-            throw new IndexNotFoundException("[" + MapperService.INDEX_MAPPER_DYNAMIC_SETTING.getKey() + "] is [false]", index);
         }
         // matches not set, default value of "true"
         if (autoCreate.expressions.isEmpty()) {

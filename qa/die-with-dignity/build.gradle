@@ -16,8 +16,8 @@ apply plugin: 'opensearch.java-rest-test'
 apply plugin: 'opensearch.opensearchplugin'
 
 opensearchplugin {
-  description 'Die with dignity plugin'
-  classname 'org.opensearch.DieWithDignityPlugin'
+  description = 'Die with dignity plugin'
+  classname = 'org.opensearch.DieWithDignityPlugin'
 }
 
 // let the javaRestTest see the classpath of main

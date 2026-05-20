@@ -38,7 +38,7 @@ import org.opensearch.common.regex.Regex;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.index.query.QueryShardException;
-import org.opensearch.search.SearchModule;
+import org.opensearch.search.SearchService;
 
 import java.util.Collection;
 import java.util.HashMap;
@@ -143,7 +143,10 @@ public final class QueryParserHelper {
                 fieldName = fieldName + fieldSuffix;
             }
 
-            MappedFieldType fieldType = context.getMapperService().fieldType(fieldName);
+            MappedFieldType fieldType = context.fieldMapper(fieldName);
+            if (fieldType == null) {
+                fieldType = context.resolveDerivedFieldType(fieldName);
+            }
             if (fieldType == null) {
                 continue;
             }
@@ -177,7 +180,7 @@ public final class QueryParserHelper {
     }
 
     static void checkForTooManyFields(int numberOfFields, QueryShardContext context, @Nullable String inputPattern) {
-        Integer limit = SearchModule.INDICES_MAX_CLAUSE_COUNT_SETTING.get(context.getIndexSettings().getSettings());
+        int limit = SearchService.INDICES_MAX_CLAUSE_COUNT_SETTING.get(context.getIndexSettings().getSettings());
         if (numberOfFields > limit) {
             StringBuilder errorMsg = new StringBuilder("field expansion ");
             if (inputPattern != null) {

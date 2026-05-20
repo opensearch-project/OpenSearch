@@ -48,7 +48,7 @@ for (Version bwcVersion : BuildParams.bwcVersions.indexCompatible) {
   }
 
   tasks.register("${baseName}#integTest", StandaloneRestIntegTestTask) {
-    useCluster testClusters."${baseName}"
+    useCluster project, testClusters."${baseName}"
     nonInputProperties.systemProperty('tests.rest.cluster', "${-> testClusters."${baseName}".allHttpSocketURI.join(",")}")
     nonInputProperties.systemProperty('tests.clustername', "${-> testClusters."${baseName}".getName()}")
   }

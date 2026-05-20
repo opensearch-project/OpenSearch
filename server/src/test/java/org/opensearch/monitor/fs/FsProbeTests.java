@@ -35,8 +35,6 @@ package org.opensearch.monitor.fs;
 import org.apache.lucene.util.Constants;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.core.common.breaker.CircuitBreaker;
-import org.opensearch.core.common.breaker.NoopCircuitBreaker;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.env.NodeEnvironment;
@@ -58,6 +56,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
+import static org.opensearch.monitor.fs.FsProbe.adjustForHugeFilesystems;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.emptyOrNullString;
 import static org.hamcrest.Matchers.greaterThan;
@@ -125,15 +124,11 @@ public class FsProbeTests extends OpenSearchTestCase {
     }
 
     public void testFsCacheInfo() throws IOException {
-        Settings settings = Settings.builder().put("node.roles", "search").build();
+        Settings settings = Settings.builder().put("node.roles", "warm").build();
         try (NodeEnvironment env = newNodeEnvironment(settings)) {
             ByteSizeValue gbByteSizeValue = new ByteSizeValue(1, ByteSizeUnit.GB);
             env.fileCacheNodePath().fileCacheReservedSize = gbByteSizeValue;
-            FileCache fileCache = FileCacheFactory.createConcurrentLRUFileCache(
-                gbByteSizeValue.getBytes(),
-                16,
-                new NoopCircuitBreaker(CircuitBreaker.REQUEST)
-            );
+            FileCache fileCache = FileCacheFactory.createConcurrentLRUFileCache(gbByteSizeValue.getBytes(), 16);
             FsProbe probe = new FsProbe(env, fileCache);
             FsInfo stats = probe.stats(null);
             assertNotNull(stats);
@@ -157,6 +152,42 @@ public class FsProbeTests extends OpenSearchTestCase {
 
                 if (path.fileCacheReserved > -1L) {
                     assertTrue(path.free - path.available >= path.fileCacheReserved);
+                }
+            }
+        }
+    }
+
+    public void testFsInfoWhenFileCacheOccupied() throws IOException {
+        Settings settings = Settings.builder().putList("node.roles", "warm", "data").build();
+        try (NodeEnvironment env = newNodeEnvironment(settings)) {
+            // Use the total space as reserved space to simulate the situation where the cache space is occupied
+            final long totalSpace = adjustForHugeFilesystems(env.fileCacheNodePath().fileStore.getTotalSpace());
+            ByteSizeValue gbByteSizeValue = new ByteSizeValue(totalSpace, ByteSizeUnit.BYTES);
+            env.fileCacheNodePath().fileCacheReservedSize = gbByteSizeValue;
+            FileCache fileCache = FileCacheFactory.createConcurrentLRUFileCache(gbByteSizeValue.getBytes(), 16);
+
+            FsProbe probe = new FsProbe(env, fileCache);
+            FsInfo stats = probe.stats(null);
+            assertNotNull(stats);
+            assertTrue(stats.getTimestamp() > 0L);
+            FsInfo.Path total = stats.getTotal();
+            assertNotNull(total);
+            assertTrue(total.total > 0L);
+            assertTrue(total.free > 0L);
+            assertTrue(total.fileCacheReserved > 0L);
+
+            for (FsInfo.Path path : stats) {
+                assertNotNull(path);
+                assertFalse(path.getPath().isEmpty());
+                assertFalse(path.getMount().isEmpty());
+                assertFalse(path.getType().isEmpty());
+                assertTrue(path.total > 0L);
+                assertTrue(path.free > 0L);
+
+                if (path.fileCacheReserved > 0L) {
+                    assertEquals(0L, path.available);
+                } else {
+                    assertTrue(path.available > 0L);
                 }
             }
         }

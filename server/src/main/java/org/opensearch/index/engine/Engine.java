@@ -57,11 +57,11 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.IOContext;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.action.index.IndexRequest;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.SetOnce;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
@@ -79,12 +79,16 @@ import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.VersionType;
+import org.opensearch.index.mapper.DocumentMapperForType;
 import org.opensearch.index.mapper.IdFieldMapper;
 import org.opensearch.index.mapper.Mapping;
 import org.opensearch.index.mapper.ParseContext.Document;
 import org.opensearch.index.mapper.ParsedDocument;
 import org.opensearch.index.mapper.SeqNoFieldMapper;
+import org.opensearch.index.mapper.SourceToParse;
+import org.opensearch.index.mapper.Uid;
 import org.opensearch.index.merge.MergeStats;
+import org.opensearch.index.merge.MergedSegmentTransferTracker;
 import org.opensearch.index.seqno.SeqNoStats;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.shard.DocsStats;
@@ -93,6 +97,7 @@ import org.opensearch.index.translog.DefaultTranslogDeletionPolicy;
 import org.opensearch.index.translog.Translog;
 import org.opensearch.index.translog.TranslogDeletionPolicy;
 import org.opensearch.index.translog.TranslogManager;
+import org.opensearch.indices.pollingingest.PollingIngestStats;
 import org.opensearch.search.suggest.completion.CompletionStats;
 
 import java.io.Closeable;
@@ -126,8 +131,9 @@ import static org.opensearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 /**
  * Base OpenSearch Engine class
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public abstract class Engine implements LifecycleAware, Closeable {
 
     public static final String SYNC_COMMIT_ID = "sync_id";  // TODO: remove sync_id in 3.0
@@ -146,7 +152,7 @@ public abstract class Engine implements LifecycleAware, Closeable {
     protected final Store store;
     protected final AtomicBoolean isClosed = new AtomicBoolean(false);
     private final CounterMetric totalUnreferencedFileCleanUpsPerformed = new CounterMetric();
-    private final CountDownLatch closedLatch = new CountDownLatch(1);
+    protected final CountDownLatch closedLatch = new CountDownLatch(1);
     protected final EventListener eventListener;
     protected final ReentrantLock failEngineLock = new ReentrantLock();
     protected final ReentrantReadWriteLock rwl = new ReentrantReadWriteLock();
@@ -211,13 +217,17 @@ public abstract class Engine implements LifecycleAware, Closeable {
         return new MergeStats();
     }
 
+    public MergedSegmentTransferTracker getMergedSegmentTransferTracker() {
+        return engineConfig.getMergedSegmentTransferTracker();
+    }
+
     /** returns the history uuid for the engine */
     public abstract String getHistoryUUID();
 
     /**
      * Reads the current stored history ID from commit data.
      */
-    String loadHistoryUUID(Map<String, String> commitData) {
+    protected String loadHistoryUUID(Map<String, String> commitData) {
         final String uuid = commitData.get(HISTORY_UUID_KEY);
         if (uuid == null) {
             throw new IllegalStateException("commit doesn't contain history uuid");
@@ -265,7 +275,7 @@ public abstract class Engine implements LifecycleAware, Closeable {
                 logger.trace(() -> new ParameterizedMessage("failed to get size for [{}]", info.info.name), e);
             }
         }
-        return new DocsStats(numDocs, numDeletedDocs, sizeInBytes);
+        return new DocsStats.Builder().count(numDocs).deleted(numDeletedDocs).totalSizeInBytes(sizeInBytes).build();
     }
 
     /**
@@ -299,7 +309,7 @@ public abstract class Engine implements LifecycleAware, Closeable {
      * Get max sequence number from segments that are referenced by given SegmentInfos
      */
     public long getMaxSeqNoFromSegmentInfos(SegmentInfos segmentInfos) throws IOException {
-        try (DirectoryReader innerReader = StandardDirectoryReader.open(store.directory(), segmentInfos, null, null)) {
+        try (DirectoryReader innerReader = StandardDirectoryReader.open(store.directory(), segmentInfos, null, null, null)) {
             final IndexSearcher searcher = new IndexSearcher(innerReader);
             return getMaxSeqNoFromSearcher(searcher);
         }
@@ -325,7 +335,8 @@ public abstract class Engine implements LifecycleAware, Closeable {
         VersionsAndSeqNoResolver.DocIdAndVersion docIdAndVersion = VersionsAndSeqNoResolver.loadDocIdAndVersion(
             searcher.getIndexReader(),
             uidTerm,
-            true
+            true,
+            null
         );
         assert docIdAndVersion != null;
         return docIdAndVersion.seqNo;
@@ -334,10 +345,12 @@ public abstract class Engine implements LifecycleAware, Closeable {
     /**
      * A throttling class that can be activated, causing the
      * {@code acquireThrottle} method to block on a lock when throttling
-     * is enabled
+     * is enabled.
+     * This class has been deprecated. See IndexingThrottler.java
      *
      * @opensearch.internal
      */
+    @Deprecated
     protected static final class IndexThrottle {
         private final CounterMetric throttleTimeMillisMetric = new CounterMetric();
         private volatile long startOfThrottleNS;
@@ -464,8 +477,9 @@ public abstract class Engine implements LifecycleAware, Closeable {
      * Holds result meta data (e.g. translog location, updated version)
      * for an executed write {@link Operation}
      *
-     * @opensearch.internal
+     * @opensearch.api
      **/
+    @PublicApi(since = "1.0.0")
     public abstract static class Result {
         private final Operation.TYPE operationType;
         private final Result.Type resultType;
@@ -558,7 +572,7 @@ public abstract class Engine implements LifecycleAware, Closeable {
             return operationType;
         }
 
-        void setTranslogLocation(Translog.Location translogLocation) {
+        public void setTranslogLocation(Translog.Location translogLocation) {
             if (freeze.get() == null) {
                 this.translogLocation = translogLocation;
             } else {
@@ -566,7 +580,7 @@ public abstract class Engine implements LifecycleAware, Closeable {
             }
         }
 
-        void setTook(long took) {
+        public void setTook(long took) {
             if (freeze.get() == null) {
                 this.took = took;
             } else {
@@ -574,15 +588,16 @@ public abstract class Engine implements LifecycleAware, Closeable {
             }
         }
 
-        void freeze() {
+        public void freeze() {
             freeze.set(true);
         }
 
         /**
          * Type of the result
          *
-         * @opensearch.internal
+         * @opensearch.api
          */
+        @PublicApi(since = "1.0.0")
         public enum Type {
             SUCCESS,
             FAILURE,
@@ -593,8 +608,9 @@ public abstract class Engine implements LifecycleAware, Closeable {
     /**
      * Index result
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static class IndexResult extends Result {
 
         private final boolean created;
@@ -630,8 +646,9 @@ public abstract class Engine implements LifecycleAware, Closeable {
     /**
      * The delete result
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static class DeleteResult extends Result {
 
         private final boolean found;
@@ -667,15 +684,16 @@ public abstract class Engine implements LifecycleAware, Closeable {
     /**
      * A noop result
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static class NoOpResult extends Result {
 
-        NoOpResult(long term, long seqNo) {
+        public NoOpResult(long term, long seqNo) {
             super(Operation.TYPE.NO_OP, 0, term, seqNo);
         }
 
-        NoOpResult(long term, long seqNo, Exception failure) {
+        public NoOpResult(long term, long seqNo, Exception failure) {
             super(Operation.TYPE.NO_OP, failure, 0, term, seqNo);
         }
 
@@ -689,7 +707,7 @@ public abstract class Engine implements LifecycleAware, Closeable {
         final Engine.Searcher searcher = searcherFactory.apply("get", scope);
         final DocIdAndVersion docIdAndVersion;
         try {
-            docIdAndVersion = VersionsAndSeqNoResolver.loadDocIdAndVersion(searcher.getIndexReader(), get.uid(), true);
+            docIdAndVersion = VersionsAndSeqNoResolver.loadDocIdAndVersion(searcher.getIndexReader(), get.uid(), true, null);
         } catch (Exception e) {
             Releasables.closeWhileHandlingException(searcher);
             // TODO: A better exception goes here
@@ -830,8 +848,9 @@ public abstract class Engine implements LifecycleAware, Closeable {
     /**
      * Scope of the searcher
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public enum SearcherScope {
         EXTERNAL,
         INTERNAL
@@ -939,6 +958,13 @@ public abstract class Engine implements LifecycleAware, Closeable {
         return stats;
     }
 
+    /**
+     * @return Stats for pull-based ingestion.
+     */
+    public PollingIngestStats pollingIngestStats() {
+        return null;
+    }
+
     protected TranslogDeletionPolicy getTranslogDeletionPolicy(EngineConfig engineConfig) {
         TranslogDeletionPolicy customTranslogDeletionPolicy = null;
         if (engineConfig.getCustomTranslogDeletionPolicyFactory() != null) {
@@ -973,9 +999,7 @@ public abstract class Engine implements LifecycleAware, Closeable {
         boolean useCompoundFile = segmentCommitInfo.info.getUseCompoundFile();
         if (useCompoundFile) {
             try {
-                directory = engineConfig.getCodec()
-                    .compoundFormat()
-                    .getCompoundReader(segmentReader.directory(), segmentCommitInfo.info, IOContext.READ);
+                directory = engineConfig.getCodec().compoundFormat().getCompoundReader(segmentReader.directory(), segmentCommitInfo.info);
             } catch (IOException e) {
                 logger.warn(
                     () -> new ParameterizedMessage(
@@ -1035,10 +1059,10 @@ public abstract class Engine implements LifecycleAware, Closeable {
                 final Directory finalDirectory = directory;
                 logger.warn(() -> new ParameterizedMessage("Error when trying to query fileLength [{}] [{}]", finalDirectory, file), e);
             }
-            if (length == 0L) {
+            if (length == 0L || extension == null) {
                 continue;
             }
-            map.put(extension, length);
+            map.merge(extension, length, Long::sum);
         }
 
         if (useCompoundFile) {
@@ -1313,6 +1337,7 @@ public abstract class Engine implements LifecycleAware, Closeable {
                     // clean all unreferenced files on best effort basis created during failed merge and reset the
                     // shard state back to last Lucene Commit.
                     if (shouldCleanupUnreferencedFiles() && isMergeFailureDueToIOException(failure, reason)) {
+                        logger.info("Cleaning up unreferenced files as merge failed due to: {}", reason);
                         cleanUpUnreferencedFiles();
                     }
 
@@ -1339,15 +1364,14 @@ public abstract class Engine implements LifecycleAware, Closeable {
      * commit.
      */
     private void cleanUpUnreferencedFiles() {
-        try (
-            IndexWriter writer = new IndexWriter(
-                store.directory(),
-                new IndexWriterConfig(Lucene.STANDARD_ANALYZER).setSoftDeletesField(Lucene.SOFT_DELETES_FIELD)
-                    .setCommitOnClose(false)
-                    .setMergePolicy(NoMergePolicy.INSTANCE)
-                    .setOpenMode(IndexWriterConfig.OpenMode.APPEND)
-            )
-        ) {
+        IndexWriterConfig iwc = new IndexWriterConfig(Lucene.STANDARD_ANALYZER).setSoftDeletesField(Lucene.SOFT_DELETES_FIELD)
+            .setCommitOnClose(false)
+            .setMergePolicy(NoMergePolicy.INSTANCE)
+            .setOpenMode(IndexWriterConfig.OpenMode.APPEND);
+        if (store.shouldSetParentField()) {
+            iwc.setParentField(Lucene.PARENT_FIELD);
+        }
+        try (IndexWriter writer = new IndexWriter(store.directory(), iwc)) {
             // do nothing except increasing metric count and close this will kick off IndexFileDeleter which will
             // remove all unreferenced files
             totalUnreferencedFileCleanUpsPerformed.inc();
@@ -1374,8 +1398,9 @@ public abstract class Engine implements LifecycleAware, Closeable {
     /**
      * Event listener for the engine
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public interface EventListener {
         /**
          * Called when a fatal exception occurred
@@ -1386,8 +1411,9 @@ public abstract class Engine implements LifecycleAware, Closeable {
     /**
      * Supplier for the searcher
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public abstract static class SearcherSupplier implements Releasable {
         private final Function<Searcher, Searcher> wrapper;
         private final AtomicBoolean released = new AtomicBoolean(false);
@@ -1421,8 +1447,9 @@ public abstract class Engine implements LifecycleAware, Closeable {
     /**
      * The engine searcher
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static final class Searcher extends IndexSearcher implements Releasable {
         private final String source;
         private final Closeable onClose;
@@ -1451,8 +1478,8 @@ public abstract class Engine implements LifecycleAware, Closeable {
         }
 
         public DirectoryReader getDirectoryReader() {
-            if (getIndexReader() instanceof DirectoryReader) {
-                return (DirectoryReader) getIndexReader();
+            if (getIndexReader() instanceof DirectoryReader directoryReader) {
+                return directoryReader;
             }
             throw new IllegalStateException("Can't use " + getIndexReader().getClass() + " as a directory reader");
         }
@@ -1480,8 +1507,9 @@ public abstract class Engine implements LifecycleAware, Closeable {
         /**
          * type of operation (index, delete), subclasses use static types
          *
-         * @opensearch.internal
+         * @opensearch.api
          */
+        @PublicApi(since = "1.0.0")
         public enum TYPE {
             INDEX,
             DELETE,
@@ -1519,8 +1547,9 @@ public abstract class Engine implements LifecycleAware, Closeable {
         /**
          * Origin of the operation
          *
-         * @opensearch.internal
+         * @opensearch.api
          */
+        @PublicApi(since = "1.0.0")
         public enum Origin {
             PRIMARY,
             REPLICA,
@@ -1532,7 +1561,7 @@ public abstract class Engine implements LifecycleAware, Closeable {
                 return this == PEER_RECOVERY || this == LOCAL_TRANSLOG_RECOVERY;
             }
 
-            boolean isFromTranslog() {
+            public boolean isFromTranslog() {
                 return this == LOCAL_TRANSLOG_RECOVERY || this == LOCAL_RESET;
             }
         }
@@ -1576,10 +1605,90 @@ public abstract class Engine implements LifecycleAware, Closeable {
     }
 
     /**
+     * Prepares an index operation by parsing the source document and creating an Engine.Index operation.
+     *
+     * @param docMapper the document mapper instance
+     * @param source the source to parse
+     * @param seqNo the sequence number
+     * @param primaryTerm the primary term
+     * @param version the version
+     * @param versionType the version type
+     * @param origin the operation origin
+     * @param autoGeneratedIdTimestamp the timestamp for auto-generated IDs
+     * @param isRetry whether this is a retry
+     * @param ifSeqNo the ifSeqNo
+     * @param ifPrimaryTerm the ifPrimaryTerm
+     * @return the prepared index operation
+     */
+    public Engine.Index prepareIndex(
+        DocumentMapperForType docMapper,
+        SourceToParse source,
+        long seqNo,
+        long primaryTerm,
+        long version,
+        VersionType versionType,
+        Engine.Operation.Origin origin,
+        long autoGeneratedIdTimestamp,
+        boolean isRetry,
+        long ifSeqNo,
+        long ifPrimaryTerm
+    ) {
+        long startTime = System.nanoTime();
+        ParsedDocument doc = docMapper.getDocumentMapper().parse(source);
+        if (docMapper.getMapping() != null) {
+            doc.addDynamicMappingsUpdate(docMapper.getMapping());
+        }
+        Term uid = new Term(IdFieldMapper.NAME, Uid.encodeId(doc.id()));
+        return new Engine.Index(
+            uid,
+            doc,
+            seqNo,
+            primaryTerm,
+            version,
+            versionType,
+            origin,
+            startTime,
+            autoGeneratedIdTimestamp,
+            isRetry,
+            ifSeqNo,
+            ifPrimaryTerm
+        );
+    }
+
+    /**
+     * Prepares a delete operation by creating an Engine.Delete operation.
+     *
+     * @param id the document id
+     * @param seqNo the sequence number
+     * @param primaryTerm the primary term
+     * @param version the version
+     * @param versionType the version type
+     * @param origin the operation origin
+     * @param ifSeqNo the ifSeqNo
+     * @param ifPrimaryTerm the ifPrimaryTerm
+     * @return the prepared delete operation
+     */
+    public Engine.Delete prepareDelete(
+        String id,
+        long seqNo,
+        long primaryTerm,
+        long version,
+        VersionType versionType,
+        Engine.Operation.Origin origin,
+        long ifSeqNo,
+        long ifPrimaryTerm
+    ) {
+        long startTime = System.nanoTime();
+        final Term uid = new Term(IdFieldMapper.NAME, Uid.encodeId(id));
+        return new Engine.Delete(id, uid, seqNo, primaryTerm, version, versionType, origin, startTime, ifSeqNo, ifPrimaryTerm);
+    }
+
+    /**
      * Index operation
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static class Index extends Operation {
 
         private final ParsedDocument doc;
@@ -1696,8 +1805,9 @@ public abstract class Engine implements LifecycleAware, Closeable {
     /**
      * Delete operation
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static class Delete extends Operation {
 
         private final String id;
@@ -1784,8 +1894,9 @@ public abstract class Engine implements LifecycleAware, Closeable {
     /**
      * noop operation
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static class NoOp extends Operation {
 
         private final String reason;
@@ -1834,8 +1945,9 @@ public abstract class Engine implements LifecycleAware, Closeable {
     /**
      * Get operation
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static class Get {
         private final boolean realtime;
         private final Term uid;
@@ -1910,8 +2022,9 @@ public abstract class Engine implements LifecycleAware, Closeable {
     /**
      * The Get result
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static class GetResult implements Releasable {
         private final boolean exists;
         private final long version;
@@ -2004,7 +2117,7 @@ public abstract class Engine implements LifecycleAware, Closeable {
         awaitPendingClose();
     }
 
-    private void awaitPendingClose() {
+    protected void awaitPendingClose() {
         try {
             closedLatch.await();
         } catch (InterruptedException e) {
@@ -2033,8 +2146,9 @@ public abstract class Engine implements LifecycleAware, Closeable {
      *
      * @see EngineConfig#getWarmer()
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public interface Warmer {
         /**
          * Called once a new top-level reader is opened.

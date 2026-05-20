@@ -37,6 +37,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.SuppressForbidden;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.bytes.ReleasableBytesReference;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.io.Channels;
@@ -49,6 +50,7 @@ import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.Assertions;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.common.io.stream.BufferedChecksumStreamInput;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.seqno.SequenceNumbers;
@@ -73,8 +75,9 @@ import java.util.function.LongSupplier;
 /**
  * Writer that writes operations to the translog
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class TranslogWriter extends BaseTranslogReader implements Closeable {
 
     private final ShardId shardId;
@@ -117,6 +120,8 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
 
     private final Boolean remoteTranslogEnabled;
 
+    private final TranslogOperationHelper translogOperationHelper;
+
     private TranslogWriter(
         final ShardId shardId,
         final Checkpoint initialCheckpoint,
@@ -132,7 +137,8 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         final LongConsumer persistedSequenceNumberConsumer,
         final BigArrays bigArrays,
         TranslogCheckedContainer translogCheckedContainer,
-        Boolean remoteTranslogEnabled
+        Boolean remoteTranslogEnabled,
+        TranslogOperationHelper translogOperationHelper
     ) throws IOException {
         super(initialCheckpoint.generation, channel, path, header);
         assert initialCheckpoint.offset == channel.position() : "initial checkpoint offset ["
@@ -159,6 +165,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         this.tragedy = tragedy;
         this.translogCheckedContainer = translogCheckedContainer;
         this.remoteTranslogEnabled = remoteTranslogEnabled;
+        this.translogOperationHelper = translogOperationHelper;
     }
 
     public static TranslogWriter create(
@@ -177,6 +184,44 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         final LongConsumer persistedSequenceNumberConsumer,
         final BigArrays bigArrays,
         Boolean remoteTranslogEnabled
+    ) throws IOException {
+        return create(
+            shardId,
+            translogUUID,
+            fileGeneration,
+            file,
+            channelFactory,
+            bufferSize,
+            initialMinTranslogGen,
+            initialGlobalCheckpoint,
+            globalCheckpointSupplier,
+            minTranslogGenerationSupplier,
+            primaryTerm,
+            tragedy,
+            persistedSequenceNumberConsumer,
+            bigArrays,
+            remoteTranslogEnabled,
+            TranslogOperationHelper.DEFAULT
+        );
+    }
+
+    public static TranslogWriter create(
+        ShardId shardId,
+        String translogUUID,
+        long fileGeneration,
+        Path file,
+        ChannelFactory channelFactory,
+        ByteSizeValue bufferSize,
+        final long initialMinTranslogGen,
+        long initialGlobalCheckpoint,
+        final LongSupplier globalCheckpointSupplier,
+        final LongSupplier minTranslogGenerationSupplier,
+        final long primaryTerm,
+        TragicExceptionHolder tragedy,
+        final LongConsumer persistedSequenceNumberConsumer,
+        final BigArrays bigArrays,
+        Boolean remoteTranslogEnabled,
+        TranslogOperationHelper translogOperationHelper
     ) throws IOException {
         final Path checkpointFile = file.getParent().resolve(Translog.CHECKPOINT_FILE_NAME);
 
@@ -228,7 +273,8 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
                 persistedSequenceNumberConsumer,
                 bigArrays,
                 translogCheckedContainer,
-                remoteTranslogEnabled
+                remoteTranslogEnabled,
+                translogOperationHelper
             );
         } catch (Exception exception) {
             // if we fail to bake the file-generation into the checkpoint we stick with the file and once we recover and that
@@ -304,18 +350,13 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
                 );
                 // TODO: We haven't had timestamp for Index operations in Lucene yet, we need to loosen this check without timestamp.
                 final boolean sameOp;
-                if (newOp instanceof Translog.Index && prvOp instanceof Translog.Index) {
-                    final Translog.Index o1 = (Translog.Index) prvOp;
-                    final Translog.Index o2 = (Translog.Index) newOp;
-                    sameOp = Objects.equals(o1.id(), o2.id())
-                        && Objects.equals(o1.source(), o2.source())
-                        && Objects.equals(o1.routing(), o2.routing())
-                        && o1.primaryTerm() == o2.primaryTerm()
-                        && o1.seqNo() == o2.seqNo()
-                        && o1.version() == o2.version();
-                } else if (newOp instanceof Translog.Delete && prvOp instanceof Translog.Delete) {
-                    final Translog.Delete o1 = (Translog.Delete) newOp;
-                    final Translog.Delete o2 = (Translog.Delete) prvOp;
+                if (newOp instanceof Translog.Index newIndex && prvOp instanceof Translog.Index prvIndex) {
+                    final Translog.Index o1 = prvIndex;
+                    final Translog.Index o2 = newIndex;
+                    sameOp = translogOperationHelper.hasSameIndexOperation(o1, o2);
+                } else if (newOp instanceof Translog.Delete newDelete && prvOp instanceof Translog.Delete prvDelete) {
+                    final Translog.Delete o1 = newDelete;
+                    final Translog.Delete o2 = prvDelete;
                     sameOp = Objects.equals(o1.id(), o2.id())
                         && o1.primaryTerm() == o2.primaryTerm()
                         && o1.seqNo() == o2.seqNo()
@@ -471,7 +512,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
     }
 
     @Override
-    public TranslogSnapshot newSnapshot() {
+    TranslogSnapshot newSnapshot() {
         // make sure to acquire the sync lock first, to prevent dead locks with threads calling
         // syncUpTo() , where the sync lock is acquired first, following by the synchronize(this)
         // After the sync lock we acquire the write lock to avoid deadlocks with threads writing where

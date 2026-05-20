@@ -48,6 +48,7 @@ import org.opensearch.indices.replication.common.ReplicationLuceneIndex;
 import org.opensearch.transport.Transports;
 
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
@@ -94,7 +95,11 @@ public class MultiFileWriter extends AbstractRefCounted implements Releasable {
 
     /** Get a temporary name for the provided file name. */
     String getTempNameForFile(String origFile) {
-        return tempFilePrefix + origFile;
+        Path filePath = Path.of(origFile);
+        Path name = filePath.getFileName();
+        String prefixedName = tempFilePrefix + name;
+        Path parent = filePath.getParent();
+        return parent == null ? prefixedName : parent.resolve(prefixedName).toString();
     }
 
     public Map<String, String> getTempFileNames() {
@@ -161,7 +166,7 @@ public class MultiFileWriter extends AbstractRefCounted implements Releasable {
                 + "] in "
                 + Arrays.toString(store.directory().listAll());
             // With Segment Replication, we will fsync after a full commit has been received.
-            if (store.indexSettings().isSegRepEnabled() == false) {
+            if (store.indexSettings().isSegRepEnabledOrRemoteNode() == false) {
                 store.directory().sync(Collections.singleton(temporaryFileName));
             }
             IndexOutput remove = removeOpenIndexOutputs(name);

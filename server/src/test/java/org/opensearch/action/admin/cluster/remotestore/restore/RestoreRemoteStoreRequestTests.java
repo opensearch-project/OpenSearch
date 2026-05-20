@@ -41,7 +41,7 @@ public class RestoreRemoteStoreRequestTests extends AbstractWireSerializingTestC
         instance.restoreAllShards(randomBoolean());
 
         if (randomBoolean()) {
-            instance.masterNodeTimeout(randomTimeValue());
+            instance.clusterManagerNodeTimeout(randomTimeValue());
         }
 
         return instance;
@@ -75,7 +75,7 @@ public class RestoreRemoteStoreRequestTests extends AbstractWireSerializingTestC
         Map<String, Object> map = parser.mapOrdered();
 
         RestoreRemoteStoreRequest processed = new RestoreRemoteStoreRequest();
-        processed.masterNodeTimeout(original.masterNodeTimeout());
+        processed.clusterManagerNodeTimeout(original.clusterManagerNodeTimeout());
         processed.waitForCompletion(original.waitForCompletion());
         processed.restoreAllShards(original.restoreAllShards());
         processed.source(map);

@@ -41,6 +41,7 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.logging.MockAppender;
+import org.opensearch.common.logging.SlowLogLevel;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.BigArrays;
@@ -60,6 +61,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
@@ -210,7 +212,10 @@ public class SearchSlowLogTests extends OpenSearchSingleNodeTestCase {
     public void testMultipleSlowLoggersUseSingleLog4jLogger() {
         LoggerContext context = (LoggerContext) LogManager.getContext(false);
 
-        SearchContext ctx1 = searchContextWithSourceAndTask(createIndex("index-1"));
+        IndexService index1 = createIndex("index-1");
+        IndexService index2 = createIndex("index-2");
+
+        SearchContext ctx1 = searchContextWithSourceAndTask(index1);
         IndexSettings settings1 = new IndexSettings(
             createIndexMetadata(SlowLogLevel.WARN, "index-1", UUIDs.randomBase64UUID()),
             Settings.EMPTY
@@ -218,7 +223,7 @@ public class SearchSlowLogTests extends OpenSearchSingleNodeTestCase {
         SearchSlowLog log1 = new SearchSlowLog(settings1);
         int numberOfLoggersBefore = context.getLoggers().size();
 
-        SearchContext ctx2 = searchContextWithSourceAndTask(createIndex("index-2"));
+        SearchContext ctx2 = searchContextWithSourceAndTask(index2);
         IndexSettings settings2 = new IndexSettings(
             createIndexMetadata(SlowLogLevel.TRACE, "index-2", UUIDs.randomBase64UUID()),
             Settings.EMPTY
@@ -289,7 +294,7 @@ public class SearchSlowLogTests extends OpenSearchSingleNodeTestCase {
         assertThat(p.getFormattedMessage(), startsWith("[foo][0]"));
         // Makes sure that output doesn't contain any new lines
         assertThat(p.getFormattedMessage(), not(containsString("\n")));
-        assertThat(p.getFormattedMessage(), endsWith("id[my_id], "));
+        assertThat(p.getFormattedMessage(), endsWith("request_id[sample_request_id]"));
     }
 
     public void testLevelSetting() {
@@ -337,7 +342,7 @@ public class SearchSlowLogTests extends OpenSearchSingleNodeTestCase {
             assertNotNull(ex.getCause());
             assertThat(ex.getCause(), instanceOf(IllegalArgumentException.class));
             final IllegalArgumentException cause = (IllegalArgumentException) ex.getCause();
-            assertThat(cause, hasToString(containsString("No enum constant org.opensearch.index.SlowLogLevel.NOT A LEVEL")));
+            assertThat(cause, hasToString(containsString("No enum constant org.opensearch.common.logging.SlowLogLevel.NOT A LEVEL")));
         }
         assertEquals(SlowLogLevel.TRACE, log.getLevel());
 
@@ -606,7 +611,9 @@ public class SearchSlowLogTests extends OpenSearchSingleNodeTestCase {
         SearchContext ctx = createSearchContext(index);
         SearchSourceBuilder source = SearchSourceBuilder.searchSource().query(QueryBuilders.matchAllQuery());
         ctx.request().source(source);
-        ctx.setTask(new SearchShardTask(0, "n/a", "n/a", "test", null, Collections.singletonMap(Task.X_OPAQUE_ID, "my_id")));
+        ctx.setTask(
+            new SearchShardTask(0, "n/a", "n/a", "test", null, Map.of(Task.X_OPAQUE_ID, "my_id", Task.X_REQUEST_ID, "sample_request_id"))
+        );
         return ctx;
     }
 }

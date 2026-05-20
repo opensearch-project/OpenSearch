@@ -63,7 +63,7 @@ import java.util.function.Function;
 /**
  * A container for settings used to create an S3 client.
  */
-final class S3ClientSettings {
+public final class S3ClientSettings {
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(S3ClientSettings.class);
 
@@ -177,7 +177,7 @@ final class S3ClientSettings {
     static final Setting.AffixSetting<TimeValue> REQUEST_TIMEOUT_SETTING = Setting.affixKeySetting(
         PREFIX,
         "request_timeout",
-        key -> Setting.timeSetting(key, TimeValue.timeValueMinutes(2), Property.NodeScope)
+        key -> Setting.timeSetting(key, TimeValue.timeValueMinutes(5), Property.NodeScope)
     );
 
     /** The connection timeout for connecting to s3. */
@@ -198,14 +198,20 @@ final class S3ClientSettings {
     static final Setting.AffixSetting<Integer> MAX_CONNECTIONS_SETTING = Setting.affixKeySetting(
         PREFIX,
         "max_connections",
-        key -> Setting.intSetting(key, 100, Property.NodeScope)
+        key -> Setting.intSetting(key, 500, Property.NodeScope)
+    );
+
+    static final Setting.AffixSetting<Integer> MAX_SYNC_CONNECTIONS_SETTING = Setting.affixKeySetting(
+        PREFIX,
+        "max_sync_connections",
+        key -> Setting.intSetting(key, 500, Property.NodeScope)
     );
 
     /** Connection acquisition timeout for new connections to S3. */
     static final Setting.AffixSetting<TimeValue> CONNECTION_ACQUISITION_TIMEOUT = Setting.affixKeySetting(
         PREFIX,
         "connection_acquisition_timeout",
-        key -> Setting.timeSetting(key, TimeValue.timeValueMinutes(2), Property.NodeScope)
+        key -> Setting.timeSetting(key, TimeValue.timeValueMinutes(15), Property.NodeScope)
     );
 
     /** The maximum pending connections to S3. */
@@ -257,6 +263,13 @@ final class S3ClientSettings {
         key -> new Setting<>(key, "", Function.identity(), Property.NodeScope)
     );
 
+    /** An override for the s3 region to use for signing requests. */
+    static final Setting.AffixSetting<Boolean> LEGACY_MD5_CHECKSUM_CALCULATION = Setting.affixKeySetting(
+        PREFIX,
+        "legacy_md5_checksum_calculation",
+        key -> Setting.boolSetting(key, false, Property.NodeScope)
+    );
+
     /** Credentials to authenticate with s3. */
     final AwsCredentials credentials;
 
@@ -268,6 +281,9 @@ final class S3ClientSettings {
 
     /** The protocol to use to talk to s3. Defaults to https. */
     final Protocol protocol;
+
+    /** Whether to use the legacy MD5 checksum calculation when uploading files to S3. */
+    final boolean legacyMd5ChecksumCalculation;
 
     /** An optional proxy settings that requests to s3 should be made through. */
     final ProxySettings proxySettings;
@@ -284,10 +300,13 @@ final class S3ClientSettings {
     /** The connection TTL for the s3 client */
     final int connectionTTLMillis;
 
-    /** The max number of connections for the s3 client */
+    /** The max number of connections for the s3 async client */
     final int maxConnections;
 
-    /** The connnection acquisition timeout for the s3 async client */
+    /** The max number of connections for the s3 sync client */
+    final int maxSyncConnections;
+
+    /** The connnection acquisition timeout for the s3 sync and async client */
     final int connectionAcquisitionTimeoutMillis;
 
     /** The number of retries to use for the s3 client. */
@@ -318,6 +337,7 @@ final class S3ClientSettings {
         int connectionTimeoutMillis,
         int connectionTTLMillis,
         int maxConnections,
+        int maxSyncConnections,
         int connectionAcquisitionTimeoutMillis,
         int maxRetries,
         boolean throttleRetries,
@@ -325,7 +345,8 @@ final class S3ClientSettings {
         boolean disableChunkedEncoding,
         String region,
         String signerOverride,
-        ProxySettings proxySettings
+        ProxySettings proxySettings,
+        boolean legacyMd5ChecksumCalculation
     ) {
         this.credentials = credentials;
         this.irsaCredentials = irsaCredentials;
@@ -336,6 +357,7 @@ final class S3ClientSettings {
         this.connectionTimeoutMillis = connectionTimeoutMillis;
         this.connectionTTLMillis = connectionTTLMillis;
         this.maxConnections = maxConnections;
+        this.maxSyncConnections = maxSyncConnections;
         this.connectionAcquisitionTimeoutMillis = connectionAcquisitionTimeoutMillis;
         this.maxRetries = maxRetries;
         this.throttleRetries = throttleRetries;
@@ -344,6 +366,7 @@ final class S3ClientSettings {
         this.region = region;
         this.signerOverride = signerOverride;
         this.proxySettings = proxySettings;
+        this.legacyMd5ChecksumCalculation = legacyMd5ChecksumCalculation;
     }
 
     /**
@@ -386,6 +409,9 @@ final class S3ClientSettings {
             ).millis()
         );
         final int newMaxConnections = Math.toIntExact(getRepoSettingOrDefault(MAX_CONNECTIONS_SETTING, normalizedSettings, maxConnections));
+        final int newMaxSyncConnections = Math.toIntExact(
+            getRepoSettingOrDefault(MAX_SYNC_CONNECTIONS_SETTING, normalizedSettings, maxConnections)
+        );
         final int newMaxRetries = getRepoSettingOrDefault(MAX_RETRIES_SETTING, normalizedSettings, maxRetries);
         final boolean newThrottleRetries = getRepoSettingOrDefault(USE_THROTTLE_RETRIES_SETTING, normalizedSettings, throttleRetries);
         final boolean newPathStyleAccess = getRepoSettingOrDefault(USE_PATH_STYLE_ACCESS, normalizedSettings, pathStyleAccess);
@@ -402,6 +428,11 @@ final class S3ClientSettings {
         }
         final String newRegion = getRepoSettingOrDefault(REGION, normalizedSettings, region);
         final String newSignerOverride = getRepoSettingOrDefault(SIGNER_OVERRIDE, normalizedSettings, signerOverride);
+        final boolean md5ChecksumCalculation = getRepoSettingOrDefault(
+            LEGACY_MD5_CHECKSUM_CALCULATION,
+            normalizedSettings,
+            legacyMd5ChecksumCalculation
+        );
         if (Objects.equals(endpoint, newEndpoint)
             && protocol == newProtocol
             && Objects.equals(proxySettings.getHostName(), newProxyHost)
@@ -418,7 +449,8 @@ final class S3ClientSettings {
             && newPathStyleAccess == pathStyleAccess
             && newDisableChunkedEncoding == disableChunkedEncoding
             && Objects.equals(region, newRegion)
-            && Objects.equals(signerOverride, newSignerOverride)) {
+            && Objects.equals(signerOverride, newSignerOverride)
+            && Objects.equals(md5ChecksumCalculation, this.legacyMd5ChecksumCalculation)) {
             return this;
         }
 
@@ -433,6 +465,7 @@ final class S3ClientSettings {
             newConnectionTimeoutMillis,
             newConnectionTTLMillis,
             newMaxConnections,
+            newMaxSyncConnections,
             newConnectionAcquisitionTimeoutMillis,
             newMaxRetries,
             newThrottleRetries,
@@ -440,7 +473,8 @@ final class S3ClientSettings {
             newDisableChunkedEncoding,
             newRegion,
             newSignerOverride,
-            proxySettings.recreateWithNewHostAndPort(newProxyHost, newProxyPort)
+            proxySettings.recreateWithNewHostAndPort(newProxyHost, newProxyPort),
+            md5ChecksumCalculation
         );
     }
 
@@ -563,6 +597,7 @@ final class S3ClientSettings {
             Math.toIntExact(getConfigValue(settings, clientName, CONNECTION_TIMEOUT_SETTING).millis()),
             Math.toIntExact(getConfigValue(settings, clientName, CONNECTION_TTL_SETTING).millis()),
             Math.toIntExact(getConfigValue(settings, clientName, MAX_CONNECTIONS_SETTING)),
+            Math.toIntExact(getConfigValue(settings, clientName, MAX_SYNC_CONNECTIONS_SETTING)),
             Math.toIntExact(getConfigValue(settings, clientName, CONNECTION_ACQUISITION_TIMEOUT).millis()),
             getConfigValue(settings, clientName, MAX_RETRIES_SETTING),
             getConfigValue(settings, clientName, USE_THROTTLE_RETRIES_SETTING),
@@ -570,7 +605,8 @@ final class S3ClientSettings {
             getConfigValue(settings, clientName, DISABLE_CHUNKED_ENCODING),
             getConfigValue(settings, clientName, REGION),
             getConfigValue(settings, clientName, SIGNER_OVERRIDE),
-            validateAndCreateProxySettings(settings, clientName, awsProtocol)
+            validateAndCreateProxySettings(settings, clientName, awsProtocol),
+            getConfigValue(settings, clientName, LEGACY_MD5_CHECKSUM_CALCULATION)
         );
     }
 

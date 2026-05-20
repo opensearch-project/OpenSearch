@@ -32,14 +32,12 @@
 
 package org.opensearch.search;
 
-import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.IndexSearcher;
 import org.opensearch.common.NamedRegistry;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.geo.GeoShapeType;
 import org.opensearch.common.geo.ShapesAvailability;
-import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.xcontent.ParseFieldRegistry;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
@@ -49,6 +47,7 @@ import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.query.BoolQueryBuilder;
 import org.opensearch.index.query.BoostingQueryBuilder;
+import org.opensearch.index.query.CombinedFieldsQueryBuilder;
 import org.opensearch.index.query.CommonTermsQueryBuilder;
 import org.opensearch.index.query.ConstantScoreQueryBuilder;
 import org.opensearch.index.query.DisMaxQueryBuilder;
@@ -88,6 +87,7 @@ import org.opensearch.index.query.SpanNotQueryBuilder;
 import org.opensearch.index.query.SpanOrQueryBuilder;
 import org.opensearch.index.query.SpanTermQueryBuilder;
 import org.opensearch.index.query.SpanWithinQueryBuilder;
+import org.opensearch.index.query.TemplateQueryBuilder;
 import org.opensearch.index.query.TermQueryBuilder;
 import org.opensearch.index.query.TermsQueryBuilder;
 import org.opensearch.index.query.TermsSetQueryBuilder;
@@ -241,6 +241,7 @@ import org.opensearch.search.aggregations.pipeline.SimpleModel;
 import org.opensearch.search.aggregations.pipeline.StatsBucketPipelineAggregationBuilder;
 import org.opensearch.search.aggregations.pipeline.SumBucketPipelineAggregationBuilder;
 import org.opensearch.search.aggregations.support.ValuesSourceRegistry;
+import org.opensearch.search.deciders.ConcurrentSearchRequestDecider;
 import org.opensearch.search.fetch.FetchPhase;
 import org.opensearch.search.fetch.FetchSubPhase;
 import org.opensearch.search.fetch.subphase.ExplainPhase;
@@ -257,6 +258,7 @@ import org.opensearch.search.fetch.subphase.highlight.HighlightPhase;
 import org.opensearch.search.fetch.subphase.highlight.Highlighter;
 import org.opensearch.search.fetch.subphase.highlight.PlainHighlighter;
 import org.opensearch.search.fetch.subphase.highlight.UnifiedHighlighter;
+import org.opensearch.search.query.QueryCollectorContextSpecRegistry;
 import org.opensearch.search.query.QueryPhase;
 import org.opensearch.search.query.QueryPhaseSearcher;
 import org.opensearch.search.query.QueryPhaseSearcherWrapper;
@@ -266,6 +268,7 @@ import org.opensearch.search.sort.FieldSortBuilder;
 import org.opensearch.search.sort.GeoDistanceSortBuilder;
 import org.opensearch.search.sort.ScoreSortBuilder;
 import org.opensearch.search.sort.ScriptSortBuilder;
+import org.opensearch.search.sort.ShardDocSortBuilder;
 import org.opensearch.search.sort.SortBuilder;
 import org.opensearch.search.sort.SortValue;
 import org.opensearch.search.suggest.Suggest;
@@ -284,6 +287,7 @@ import org.opensearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -303,13 +307,6 @@ import static org.opensearch.threadpool.ThreadPool.Names.INDEX_SEARCHER;
  * @opensearch.internal
  */
 public class SearchModule {
-    public static final Setting<Integer> INDICES_MAX_CLAUSE_COUNT_SETTING = Setting.intSetting(
-        "indices.query.bool.max_clause_count",
-        1024,
-        1,
-        Integer.MAX_VALUE,
-        Setting.Property.NodeScope
-    );
 
     private final Map<String, Highlighter> highlighters;
     private final ParseFieldRegistry<MovAvgModel.AbstractModelParser> movingAverageModelParserRegistry = new ParseFieldRegistry<>(
@@ -325,11 +322,15 @@ public class SearchModule {
     private final QueryPhaseSearcher queryPhaseSearcher;
     private final SearchPlugin.ExecutorServiceProvider indexSearcherExecutorProvider;
 
+    private final Collection<ConcurrentSearchRequestDecider.Factory> concurrentSearchDeciderFactories;
+
+    private final List<SearchPlugin.ProfileMetricsProvider> pluginProfilerProviders;
+
     /**
      * Constructs a new SearchModule object
      * <p>
      * NOTE: This constructor should not be called in production unless an accurate {@link Settings} object is provided.
-     *       When constructed, a static flag is set in Lucene {@link BooleanQuery#setMaxClauseCount} according to the settings.
+     *       When constructed, a static flag is set in Lucene {@link IndexSearcher#setMaxClauseCount} according to the settings.
      * @param settings Current settings
      * @param plugins List of included {@link SearchPlugin} objects.
      */
@@ -353,6 +354,25 @@ public class SearchModule {
         queryPhaseSearcher = registerQueryPhaseSearcher(plugins);
         indexSearcherExecutorProvider = registerIndexSearcherExecutorProvider(plugins);
         namedWriteables.addAll(SortValue.namedWriteables());
+        concurrentSearchDeciderFactories = registerConcurrentSearchDeciderFactories(plugins);
+        registerQueryCollectorContextSpec(plugins);
+        pluginProfilerProviders = registerProfilerProviders(plugins);
+    }
+
+    private Collection<ConcurrentSearchRequestDecider.Factory> registerConcurrentSearchDeciderFactories(List<SearchPlugin> plugins) {
+        List<ConcurrentSearchRequestDecider.Factory> concurrentSearchDeciderFactories = new ArrayList<>();
+        for (SearchPlugin plugin : plugins) {
+            final Optional<ConcurrentSearchRequestDecider.Factory> deciderFactory = plugin.getConcurrentSearchRequestDeciderFactory();
+            deciderFactory.ifPresent(concurrentSearchDeciderFactories::add);
+        }
+        return concurrentSearchDeciderFactories;
+    }
+
+    /**
+     * Returns the concurrent search decider factories that the plugins have registered
+     */
+    public Collection<ConcurrentSearchRequestDecider.Factory> getConcurrentSearchRequestDeciderFactories() {
+        return concurrentSearchDeciderFactories;
     }
 
     public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
@@ -1095,7 +1115,6 @@ public class SearchModule {
         registerQuery(new QuerySpec<>(MatchAllQueryBuilder.NAME, MatchAllQueryBuilder::new, MatchAllQueryBuilder::fromXContent));
         registerQuery(new QuerySpec<>(QueryStringQueryBuilder.NAME, QueryStringQueryBuilder::new, QueryStringQueryBuilder::fromXContent));
         registerQuery(new QuerySpec<>(BoostingQueryBuilder.NAME, BoostingQueryBuilder::new, BoostingQueryBuilder::fromXContent));
-        BooleanQuery.setMaxClauseCount(INDICES_MAX_CLAUSE_COUNT_SETTING.get(settings));
         registerQuery(new QuerySpec<>(BoolQueryBuilder.NAME, BoolQueryBuilder::new, BoolQueryBuilder::fromXContent));
         registerQuery(new QuerySpec<>(TermQueryBuilder.NAME, TermQueryBuilder::new, TermQueryBuilder::fromXContent));
         registerQuery(new QuerySpec<>(TermsQueryBuilder.NAME, TermsQueryBuilder::new, TermsQueryBuilder::fromXContent));
@@ -1104,6 +1123,9 @@ public class SearchModule {
         registerQuery(new QuerySpec<>(RangeQueryBuilder.NAME, RangeQueryBuilder::new, RangeQueryBuilder::fromXContent));
         registerQuery(new QuerySpec<>(PrefixQueryBuilder.NAME, PrefixQueryBuilder::new, PrefixQueryBuilder::fromXContent));
         registerQuery(new QuerySpec<>(WildcardQueryBuilder.NAME, WildcardQueryBuilder::new, WildcardQueryBuilder::fromXContent));
+        registerQuery(
+            new QuerySpec<>(CombinedFieldsQueryBuilder.NAME, CombinedFieldsQueryBuilder::new, CombinedFieldsQueryBuilder::fromXContent)
+        );
         registerQuery(
             new QuerySpec<>(ConstantScoreQueryBuilder.NAME, ConstantScoreQueryBuilder::new, ConstantScoreQueryBuilder::fromXContent)
         );
@@ -1161,7 +1183,7 @@ public class SearchModule {
         registerQuery(
             new QuerySpec<>(MatchBoolPrefixQueryBuilder.NAME, MatchBoolPrefixQueryBuilder::new, MatchBoolPrefixQueryBuilder::fromXContent)
         );
-
+        registerQuery(new QuerySpec<>(TemplateQueryBuilder.NAME, TemplateQueryBuilder::new, TemplateQueryBuilder::fromXContent));
         if (ShapesAvailability.JTS_AVAILABLE && ShapesAvailability.SPATIAL4J_AVAILABLE) {
             registerQuery(new QuerySpec<>(GeoShapeQueryBuilder.NAME, GeoShapeQueryBuilder::new, GeoShapeQueryBuilder::fromXContent));
         }
@@ -1181,6 +1203,7 @@ public class SearchModule {
         );
         registerSort(new SortSpec<>(ScoreSortBuilder.NAME, ScoreSortBuilder::new, ScoreSortBuilder::fromXContent));
         registerFromPlugin(plugins, SearchPlugin::getSorts, this::registerSort);
+        registerSort(new SortSpec<>(ShardDocSortBuilder.NAME, ShardDocSortBuilder::new, ShardDocSortBuilder::fromXContent));
     }
 
     private void registerIntervalsSourceProviders() {
@@ -1279,10 +1302,18 @@ public class SearchModule {
             }
         }
 
-        if (provider == null && FeatureFlags.isEnabled(FeatureFlags.CONCURRENT_SEGMENT_SEARCH)) {
+        if (provider == null) {
             provider = (ThreadPool threadPool) -> threadPool.executor(INDEX_SEARCHER);
         }
         return provider;
+    }
+
+    private void registerQueryCollectorContextSpec(List<SearchPlugin> plugins) {
+        registerFromPlugin(plugins, SearchPlugin::getCollectorContextSpecFactories, QueryCollectorContextSpecRegistry::registerFactory);
+    }
+
+    private List<SearchPlugin.ProfileMetricsProvider> registerProfilerProviders(List<SearchPlugin> plugins) {
+        return plugins.stream().map(SearchPlugin::getQueryProfileMetricsProvider).filter(Optional::isPresent).map(Optional::get).toList();
     }
 
     public FetchPhase getFetchPhase() {
@@ -1295,5 +1326,9 @@ public class SearchModule {
 
     public @Nullable ExecutorService getIndexSearcherExecutor(ThreadPool pool) {
         return (indexSearcherExecutorProvider != null) ? indexSearcherExecutorProvider.getExecutor(pool) : null;
+    }
+
+    public List<SearchPlugin.ProfileMetricsProvider> getPluginProfileMetricsProviders() {
+        return pluginProfilerProviders;
     }
 }

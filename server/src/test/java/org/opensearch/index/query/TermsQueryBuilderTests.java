@@ -32,17 +32,28 @@
 
 package org.opensearch.index.query;
 
+import org.apache.lucene.analysis.standard.StandardAnalyzer;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.FieldExistsQuery;
+import org.apache.lucene.search.IndexOrDocValuesQuery;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.PointInSetQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermInSetQuery;
+import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.get.GetRequest;
 import org.opensearch.action.get.GetResponse;
+import org.opensearch.common.document.DocumentField;
 import org.opensearch.common.io.stream.BytesStreamOutput;
+import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.common.ParsingException;
 import org.opensearch.core.common.bytes.BytesArray;
@@ -55,15 +66,21 @@ import org.hamcrest.CoreMatchers;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import org.roaringbitmap.RoaringBitmap;
+
+import static org.opensearch.index.query.BoolQueryBuilderTests.getIndexSearcher;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.instanceOf;
@@ -116,10 +133,9 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
     }
 
     private TermsLookup randomTermsLookup() {
-        // Randomly choose between a typeless terms lookup and one with an explicit type to make sure we are
         TermsLookup lookup = new TermsLookup(randomAlphaOfLength(10), randomAlphaOfLength(10), termsPath);
-        // testing both cases.
         lookup.routing(randomBoolean() ? randomAlphaOfLength(10) : null);
+        lookup.store(randomBoolean());
         return lookup;
     }
 
@@ -135,6 +151,10 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
                 either(instanceOf(TermInSetQuery.class)).or(instanceOf(PointInSetQuery.class))
                     .or(instanceOf(ConstantScoreQuery.class))
                     .or(instanceOf(MatchNoDocsQuery.class))
+                    .or(instanceOf(IndexOrDocValuesQuery.class))
+                    .or(instanceOf(MatchAllDocsQuery.class))
+                    .or(instanceOf(FieldExistsQuery.class))
+                    .or(instanceOf(TermQuery.class))
             );
             if (query instanceof ConstantScoreQuery) {
                 assertThat(((ConstantScoreQuery) query).getQuery(), instanceOf(BooleanQuery.class));
@@ -174,6 +194,23 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
     public void testUnknownField() throws IOException {
         maybeIncludeType = false;   // deprecation warnings will fail the parent test, so we disable types
         super.testUnknownField();
+    }
+
+    @Override
+    public void testToQuery() throws IOException {
+        TermsQueryBuilder queryBuilder = new TermsQueryBuilder(TEXT_FIELD_NAME, new TermsLookup("some_index", "some_id", "some_path"));
+        QueryShardContext context = createShardContext();
+
+        UnsupportedOperationException e = expectThrows(UnsupportedOperationException.class, () -> queryBuilder.toQuery(context));
+        assertEquals("query must be rewritten first", e.getMessage());
+    }
+
+    @Override
+    public void testCacheability() throws IOException {
+        TermsQueryBuilder queryBuilder = new TermsQueryBuilder(TEXT_FIELD_NAME, new TermsLookup("some_index", "some_id", "some_path"));
+        QueryShardContext context = createShardContext();
+        UnsupportedOperationException e = expectThrows(UnsupportedOperationException.class, () -> queryBuilder.toQuery(context));
+        assertEquals("query must be rewritten first", e.getMessage());
     }
 
     public void testEmptyFieldName() {
@@ -237,7 +274,17 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
         } catch (IOException ex) {
             throw new OpenSearchException("boom", ex);
         }
-        return new GetResponse(new GetResult(getRequest.index(), getRequest.id(), 0, 1, 0, true, new BytesArray(json), null, null));
+        Map<String, DocumentField> documentField = new HashMap<>();
+        List<Object> nonNullTerms = new ArrayList<>();
+        for (Object obj : randomTerms) {
+            if (obj != null) {
+                nonNullTerms.add(obj);
+            }
+        }
+        documentField.put(termsPath, new DocumentField(termsPath, nonNullTerms));
+        return new GetResponse(
+            new GetResult(getRequest.index(), getRequest.id(), 0, 1, 0, true, new BytesArray(json), documentField, null)
+        );
     }
 
     public void testNumeric() throws IOException {
@@ -380,4 +427,155 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
         }
     }
 
+    public void testFromJsonWithValueType() throws IOException {
+        String json = "{\n"
+            + "    \"terms\": {\n"
+            + "        \"student_id\": [\"OjAAAAEAAAAAAAEAEAAAAG8A3gA=\"],\n"
+            + "        \"boost\" : 1.0,\n"
+            + "        \"value_type\": \"bitmap\"\n"
+            + "    }\n"
+            + "}";
+
+        TermsQueryBuilder parsed = (TermsQueryBuilder) parseQuery(json);
+        checkGeneratedJson(json, parsed);
+        assertEquals(json, 1, parsed.values().size());
+    }
+
+    public void testFromJsonWithValueTypeFail() {
+        String json = "{\n"
+            + "    \"terms\": {\n"
+            + "        \"student_id\": [\"OjAAAAEAAAAAAAEAEAAAAG8A3gA=\", \"2\"],\n"
+            + "        \"boost\" : 1.0,\n"
+            + "        \"value_type\": \"bitmap\"\n"
+            + "    }\n"
+            + "}";
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> parseQuery(json));
+        assertEquals(
+            "Invalid value for bitmap type: Expected a single-element array with a base64 encoded serialized bitmap.",
+            e.getMessage()
+        );
+    }
+
+    public void testTermsLookupBitmap() throws IOException {
+        RoaringBitmap bitmap = new RoaringBitmap();
+        bitmap.add(111);
+        bitmap.add(333);
+        byte[] array = new byte[bitmap.serializedSizeInBytes()];
+        bitmap.serialize(ByteBuffer.wrap(array));
+        randomTerms = List.of(new BytesArray(array)); // this will be fetched back by terms lookup
+
+        TermsQueryBuilder query = new TermsQueryBuilder(INT_FIELD_NAME, randomTermsLookup().store(true)).valueType(
+            TermsQueryBuilder.ValueType.BITMAP
+        );
+        QueryShardContext context = createShardContext();
+        QueryBuilder rewritten = rewriteQuery(query, new QueryShardContext(context));
+        Query luceneQuery = rewritten.toQuery(context);
+        assertTrue(luceneQuery instanceof IndexOrDocValuesQuery);
+    }
+
+    public void testGetComplementWholeNumber() throws Exception {
+        List<Object> values = List.of("200", "500", "304", "501");
+        TermsQueryBuilder queryBuilder = new TermsQueryBuilder(INT_FIELD_NAME, values);
+        assertNull(queryBuilder.getComplement(null));
+
+        Directory dir = newDirectory();
+        IndexWriter w = new IndexWriter(dir, newIndexWriterConfig(new StandardAnalyzer()));
+        DirectoryReader reader = DirectoryReader.open(w);
+        IndexSearcher searcher = getIndexSearcher(reader);
+
+        // Test multiple values
+        List<QueryBuilder> complement = queryBuilder.getComplement(createShardContext(searcher));
+        List<QueryBuilder> expectedComplement = List.of(
+            new RangeQueryBuilder(INT_FIELD_NAME).to(200).includeLower(true).includeUpper(false),
+            new RangeQueryBuilder(INT_FIELD_NAME).from(200).to(304).includeLower(false).includeUpper(false),
+            new RangeQueryBuilder(INT_FIELD_NAME).from(304).to(500).includeLower(false).includeUpper(false),
+            // We don't expect a RangeQuery for 500 < value < 501, since nothing could match it on an int field
+            new RangeQueryBuilder(INT_FIELD_NAME).from(501).includeLower(false).includeUpper(true)
+        );
+        assertEquals(complement, expectedComplement);
+
+        // Test one value
+        String singleValue = "201";
+        queryBuilder = new TermsQueryBuilder(INT_FIELD_NAME, singleValue);
+        expectedComplement = List.of(
+            new RangeQueryBuilder(INT_FIELD_NAME).to(201).includeLower(true).includeUpper(false),
+            new RangeQueryBuilder(INT_FIELD_NAME).from(201).includeLower(false).includeUpper(true)
+        );
+        complement = queryBuilder.getComplement(createShardContext(searcher));
+        assertEquals(complement, expectedComplement);
+
+        // Test multiple consecutive values
+        queryBuilder = new TermsQueryBuilder(INT_FIELD_NAME, List.of("1", "2", "3"));
+        complement = queryBuilder.getComplement(createShardContext(searcher));
+        expectedComplement = List.of(
+            new RangeQueryBuilder(INT_FIELD_NAME).to(1).includeLower(true).includeUpper(false),
+            new RangeQueryBuilder(INT_FIELD_NAME).from(3).includeLower(false).includeUpper(true)
+        );
+        assertEquals(complement, expectedComplement);
+
+        // If zero values, we should get null
+        queryBuilder = new TermsQueryBuilder(INT_FIELD_NAME, List.of());
+        complement = queryBuilder.getComplement(createShardContext(searcher));
+        assertNull(complement);
+        IOUtils.close(w, reader, dir);
+    }
+
+    public void testGetComplementDouble() throws Exception {
+        List<Object> values = List.of("200.0", "500.0", "304.12", "501.0");
+        TermsQueryBuilder queryBuilder = new TermsQueryBuilder(DOUBLE_FIELD_NAME, values);
+        assertNull(queryBuilder.getComplement(null));
+
+        Directory dir = newDirectory();
+        IndexWriter w = new IndexWriter(dir, newIndexWriterConfig(new StandardAnalyzer()));
+        DirectoryReader reader = DirectoryReader.open(w);
+        IndexSearcher searcher = getIndexSearcher(reader);
+
+        List<QueryBuilder> complement = queryBuilder.getComplement(createShardContext(searcher));
+        List<QueryBuilder> expectedComplement = List.of(
+            new RangeQueryBuilder(DOUBLE_FIELD_NAME).to(200.0).includeLower(true).includeUpper(false),
+            new RangeQueryBuilder(DOUBLE_FIELD_NAME).from(200.0).to(304.12).includeLower(false).includeUpper(false),
+            new RangeQueryBuilder(DOUBLE_FIELD_NAME).from(304.12).to(500.0).includeLower(false).includeUpper(false),
+            new RangeQueryBuilder(DOUBLE_FIELD_NAME).from(500.0).to(501.0).includeLower(false).includeUpper(false),
+            new RangeQueryBuilder(DOUBLE_FIELD_NAME).from(501.0).includeLower(false).includeUpper(true)
+        );
+        assertEquals(complement, expectedComplement);
+        IOUtils.close(w, reader, dir);
+    }
+
+    public void testGetComplementNonNumericField() throws Exception {
+        Directory dir = newDirectory();
+        IndexWriter w = new IndexWriter(dir, newIndexWriterConfig(new StandardAnalyzer()));
+        DirectoryReader reader = DirectoryReader.open(w);
+        IndexSearcher searcher = getIndexSearcher(reader);
+
+        TermsQueryBuilder queryBuilder = new TermsQueryBuilder(TEXT_FIELD_NAME, "some_text");
+        assertNull(queryBuilder.getComplement(createShardContext(searcher)));
+        IOUtils.close(w, reader, dir);
+    }
+
+    public void testGetComplementBitmap() throws Exception {
+        // Complement should return null if using bitmap value type.
+        Directory dir = newDirectory();
+        IndexWriter w = new IndexWriter(dir, newIndexWriterConfig(new StandardAnalyzer()));
+        DirectoryReader reader = DirectoryReader.open(w);
+        IndexSearcher searcher = getIndexSearcher(reader);
+
+        TermsQueryBuilder queryBuilder = new TermsQueryBuilder(INT_FIELD_NAME, randomTermsLookup().store(true)).valueType(
+            TermsQueryBuilder.ValueType.BITMAP
+        );
+        assertNull(queryBuilder.getComplement(createShardContext(searcher)));
+        IOUtils.close(w, reader, dir);
+    }
+
+    public void testGetComplementValuesLookup() throws Exception {
+        Directory dir = newDirectory();
+        IndexWriter w = new IndexWriter(dir, newIndexWriterConfig(new StandardAnalyzer()));
+        DirectoryReader reader = DirectoryReader.open(w);
+        IndexSearcher searcher = getIndexSearcher(reader);
+
+        TermsQueryBuilder queryBuilder = new TermsQueryBuilder(INT_FIELD_NAME, randomTermsLookup().store(true));
+        assertNull(queryBuilder.getComplement(createShardContext(searcher)));
+        IOUtils.close(w, reader, dir);
+    }
 }

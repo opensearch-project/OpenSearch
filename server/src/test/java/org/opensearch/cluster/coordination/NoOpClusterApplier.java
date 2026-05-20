@@ -43,6 +43,11 @@ public class NoOpClusterApplier implements ClusterApplier {
     }
 
     @Override
+    public void setPreCommitState(ClusterState clusterState) {
+
+    }
+
+    @Override
     public void onNewClusterState(String source, Supplier<ClusterState> clusterStateSupplier, ClusterApplyListener listener) {
         listener.onSuccess(source);
     }

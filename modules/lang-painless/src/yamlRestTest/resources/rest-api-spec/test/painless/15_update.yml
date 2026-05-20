@@ -123,3 +123,39 @@
   - match: { error.root_cause.0.type: "illegal_argument_exception" }
   - match: { error.type: "illegal_argument_exception" }
   - match: { error.reason: "Iterable object is self-referencing itself" }
+
+# update script supports java.lang.String.sha1() and java.lang.String.sha256() methods
+# related issue: https://github.com/opensearch-project/OpenSearch/issues/16423
+---
+"Update script supports sha1() and sha256() method for strings":
+  - skip:
+      version: " - 2.18.99"
+      reason: "introduced in 2.19.0"
+  - do:
+      index:
+        index:  test_1
+        id:     1
+        body:
+          foo:    bar
+
+  - do:
+      update:
+        index:  test_1
+        id:     1
+        body:
+          script:
+            lang:   painless
+            source: "ctx._source.foo_sha1 = ctx._source.foo.sha1();ctx._source.foo_sha256 = ctx._source.foo.sha256();"
+
+  - match: { _index:   test_1 }
+  - match: { _id:      "1"    }
+  - match: { _version: 2      }
+
+  - do:
+      get:
+        index:  test_1
+        id:     1
+
+  - match: { _source.foo:        bar }
+  - match: { _source.foo_sha1:      "62cdb7020ff920e5aa642c3d4066950dd1f01f4d"   }
+  - match: { _source.foo_sha256:      "fcde2b2edba56bf408601fb721fe9b5c338d10ee429ea04fae5511b68fbf8fb9"   }

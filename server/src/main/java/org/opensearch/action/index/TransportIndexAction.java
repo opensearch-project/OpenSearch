@@ -35,6 +35,7 @@ package org.opensearch.action.index;
 import org.opensearch.action.bulk.TransportBulkAction;
 import org.opensearch.action.bulk.TransportSingleItemBulkWriteAction;
 import org.opensearch.action.support.ActionFilters;
+import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.transport.TransportService;
 
@@ -56,7 +57,12 @@ import org.opensearch.transport.TransportService;
 public class TransportIndexAction extends TransportSingleItemBulkWriteAction<IndexRequest, IndexResponse> {
 
     @Inject
-    public TransportIndexAction(ActionFilters actionFilters, TransportService transportService, TransportBulkAction bulkAction) {
-        super(IndexAction.NAME, transportService, actionFilters, IndexRequest::new, bulkAction);
+    public TransportIndexAction(
+        ActionFilters actionFilters,
+        TransportService transportService,
+        TransportBulkAction bulkAction,
+        IndexNameExpressionResolver indexNameExpressionResolver
+    ) {
+        super(IndexAction.NAME, transportService, actionFilters, IndexRequest::new, bulkAction, indexNameExpressionResolver);
     }
 }

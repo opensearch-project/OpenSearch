@@ -38,7 +38,6 @@ import com.azure.storage.blob.BlobServiceClient;
 import com.azure.storage.blob.models.BlobStorageException;
 import org.opensearch.action.ActionRunnable;
 import org.opensearch.action.support.PlainActionFuture;
-import org.opensearch.action.support.master.AcknowledgedResponse;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.settings.MockSecureSettings;
 import org.opensearch.common.settings.SecureSettings;
@@ -47,6 +46,8 @@ import org.opensearch.core.common.Strings;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.repositories.AbstractThirdPartyRepositoryTestCase;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
+import org.opensearch.secure_sm.AccessController;
+import org.opensearch.test.OpenSearchIntegTestCase;
 import org.junit.AfterClass;
 
 import java.net.HttpURLConnection;
@@ -56,7 +57,6 @@ import java.util.function.Supplier;
 import reactor.core.scheduler.Schedulers;
 
 import static org.hamcrest.Matchers.blankOrNullString;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
 public class AzureStorageCleanupThirdPartyTests extends AbstractThirdPartyRepositoryTestCase {
@@ -103,17 +103,11 @@ public class AzureStorageCleanupThirdPartyTests extends AbstractThirdPartyReposi
 
     @Override
     protected void createRepository(String repoName) {
-        AcknowledgedResponse putRepositoryResponse = client().admin()
-            .cluster()
-            .preparePutRepository(repoName)
-            .setType("azure")
-            .setSettings(
-                Settings.builder()
-                    .put("container", System.getProperty("test.azure.container"))
-                    .put("base_path", System.getProperty("test.azure.base"))
-            )
-            .get();
-        assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
+        Settings.Builder settings = Settings.builder()
+            .put("container", System.getProperty("test.azure.container"))
+            .put("base_path", System.getProperty("test.azure.base"));
+
+        OpenSearchIntegTestCase.putRepository(client().admin().cluster(), repoName, "azure", settings);
         if (Strings.hasText(System.getProperty("test.azure.sas_token"))) {
             ensureSasTokenPermissions();
         }
@@ -128,7 +122,7 @@ public class AzureStorageCleanupThirdPartyTests extends AbstractThirdPartyReposi
             final Tuple<BlobServiceClient, Supplier<Context>> client = blobStore.getService().client(account);
             final BlobContainerClient blobContainer = client.v1().getBlobContainerClient(blobStore.toString());
             try {
-                SocketAccess.doPrivilegedException(() -> blobContainer.existsWithResponse(null, client.v2().get()));
+                AccessController.doPrivilegedChecked(() -> blobContainer.existsWithResponse(null, client.v2().get()));
                 future.onFailure(
                     new RuntimeException(
                         "The SAS token used in this test allowed for checking container existence. This test only supports tokens "

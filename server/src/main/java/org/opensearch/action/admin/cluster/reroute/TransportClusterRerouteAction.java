@@ -53,7 +53,6 @@ import org.opensearch.cluster.routing.allocation.RoutingExplanations;
 import org.opensearch.cluster.routing.allocation.command.AbstractAllocateAllocationCommand;
 import org.opensearch.cluster.routing.allocation.command.AllocateStalePrimaryAllocationCommand;
 import org.opensearch.cluster.routing.allocation.command.AllocationCommand;
-import org.opensearch.cluster.service.ClusterManagerTaskKeys;
 import org.opensearch.cluster.service.ClusterManagerTaskThrottler;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.Priority;
@@ -69,6 +68,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
+import static org.opensearch.cluster.service.ClusterManagerTask.CLUSTER_REROUTE_API;
 
 /**
  * Transport action for rerouting cluster allocation commands
@@ -102,7 +103,7 @@ public class TransportClusterRerouteAction extends TransportClusterManagerNodeAc
         );
         this.allocationService = allocationService;
         // Task is onboarded for throttling, it will get retried from associated TransportClusterManagerNodeAction.
-        clusterRerouteTaskKey = clusterService.registerClusterManagerTask(ClusterManagerTaskKeys.CLUSTER_REROUTE_API_KEY, true);
+        clusterRerouteTaskKey = clusterService.registerClusterManagerTask(CLUSTER_REROUTE_API, true);
     }
 
     @Override

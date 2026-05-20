@@ -39,12 +39,15 @@ import org.gradle.api.Task;
 import org.gradle.api.UnknownTaskException;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.Dependency;
+import org.gradle.api.artifacts.component.ComponentIdentifier;
+import org.gradle.api.file.FileCollection;
 import org.gradle.api.plugins.JavaBasePlugin;
 import org.gradle.api.plugins.JavaPluginExtension;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.services.BuildService;
 import org.gradle.api.services.BuildServiceRegistration;
 import org.gradle.api.services.BuildServiceRegistry;
+import org.gradle.api.specs.Spec;
 import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.SourceSetContainer;
 import org.gradle.api.tasks.TaskContainer;
@@ -59,7 +62,9 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 public abstract class GradleUtils {
 
@@ -168,7 +173,7 @@ public abstract class GradleUtils {
         Configuration runtimeClasspathConfiguration = project.getConfigurations().getByName(runtimeClasspathName);
         project.getPluginManager().withPlugin("idea", p -> {
             IdeaModel idea = project.getExtensions().getByType(IdeaModel.class);
-            idea.getModule().setTestSourceDirs(testSourceSet.getJava().getSrcDirs());
+            idea.getModule().getTestSources().setFrom(testSourceSet.getJava().getSrcDirs());
             idea.getModule().getScopes().put(testSourceSet.getName(), new HashMap<String, Collection<Configuration>>() {
                 {
                     put("plus", Arrays.asList(runtimeClasspathConfiguration));
@@ -244,5 +249,22 @@ public abstract class GradleUtils {
     public static String getProjectPathFromTask(String taskPath) {
         int lastDelimiterIndex = taskPath.lastIndexOf(":");
         return lastDelimiterIndex == 0 ? ":" : taskPath.substring(0, lastDelimiterIndex);
+    }
+
+    public static FileCollection getFirstLevelModuleDependencyFiles(
+        Project project,
+        Configuration cfg,
+        Spec<? super ComponentIdentifier> spec
+    ) {
+        final FileCollection files = cfg.getIncoming().artifactView(viewConfiguration -> {
+            final Set<ComponentIdentifier> directDependencies = cfg.getResolvedConfiguration()
+                .getFirstLevelModuleDependencies()
+                .stream()
+                .flatMap(dep -> dep.getModuleArtifacts().stream().map(artifact -> artifact.getId().getComponentIdentifier()))
+                .collect(Collectors.toSet());
+            viewConfiguration.setLenient(true);
+            viewConfiguration.componentFilter(ci -> spec.isSatisfiedBy(ci) && directDependencies.contains(ci));
+        }).getFiles();
+        return project.files(files);
     }
 }

@@ -13,7 +13,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.index.CorruptIndexException;
-import org.apache.lucene.store.ChecksumIndexInput;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 
@@ -28,18 +27,25 @@ import java.io.IOException;
 public class VersionedCodecStreamWrapper<T> {
     private static final Logger logger = LogManager.getLogger(VersionedCodecStreamWrapper.class);
 
-    // TODO This can be updated to hold a streamReadWriteHandlerFactory and get relevant handler based on the stream versions
-    private final IndexIOStreamHandler<T> indexIOStreamHandler;
+    private final IndexIOStreamHandlerFactory<T> indexIOStreamHandlerFactory;
+    private final int minVersion;
     private final int currentVersion;
     private final String codec;
 
     /**
-     * @param indexIOStreamHandler handler to read/write stream from T
+     * @param indexIOStreamHandlerFactory factory for providing handler to read/write stream from T
+     * @param minVersion earliest supported version of the stream
      * @param currentVersion latest supported version of the stream
      * @param codec: stream codec
      */
-    public VersionedCodecStreamWrapper(IndexIOStreamHandler<T> indexIOStreamHandler, int currentVersion, String codec) {
-        this.indexIOStreamHandler = indexIOStreamHandler;
+    public VersionedCodecStreamWrapper(
+        IndexIOStreamHandlerFactory<T> indexIOStreamHandlerFactory,
+        int minVersion,
+        int currentVersion,
+        String codec
+    ) {
+        this.indexIOStreamHandlerFactory = indexIOStreamHandlerFactory;
+        this.minVersion = minVersion;
         this.currentVersion = currentVersion;
         this.codec = codec;
     }
@@ -87,16 +93,7 @@ public class VersionedCodecStreamWrapper<T> {
      */
     private int checkHeader(IndexInput indexInput) throws IOException {
         // TODO Once versioning strategy is decided we'll add support for min/max supported versions
-        return CodecUtil.checkHeader(indexInput, this.codec, this.currentVersion, this.currentVersion);
-    }
-
-    /**
-     * Reads footer from file input stream containing checksum.
-     * The {@link IndexInput#getFilePointer()} should be at the footer start position.
-     * @param indexInput file input stream
-     */
-    private void checkFooter(ChecksumIndexInput indexInput) throws IOException {
-        CodecUtil.checkFooter(indexInput);
+        return CodecUtil.checkHeader(indexInput, this.codec, minVersion, this.currentVersion);
     }
 
     /**
@@ -120,8 +117,6 @@ public class VersionedCodecStreamWrapper<T> {
      * @param version stream content version
      */
     private IndexIOStreamHandler<T> getHandlerForVersion(int version) {
-        // TODO implement factory and pick relevant handler based on version.
-        // It should also take into account min and max supported versions
-        return this.indexIOStreamHandler;
+        return this.indexIOStreamHandlerFactory.getHandler(version);
     }
 }

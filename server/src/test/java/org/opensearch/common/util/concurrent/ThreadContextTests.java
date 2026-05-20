@@ -44,6 +44,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
+import org.mockito.Mockito;
+
 import static org.opensearch.tasks.TaskResourceTrackingService.TASK_ID;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
@@ -204,7 +206,7 @@ public class ThreadContextTests extends OpenSearchTestCase {
         }
 
         assertNull(threadContext.getTransient(ThreadContext.ACTION_ORIGIN_TRANSIENT_NAME));
-        try (ThreadContext.StoredContext storedContext = threadContext.stashWithOrigin(origin)) {
+        try (ThreadContext.StoredContext storedContext = ThreadContextAccess.doPrivileged(() -> threadContext.stashWithOrigin(origin))) {
             assertEquals(origin, threadContext.getTransient(ThreadContext.ACTION_ORIGIN_TRANSIENT_NAME));
             assertNull(threadContext.getTransient("foo"));
             assertNull(threadContext.getTransient("bar"));
@@ -229,7 +231,7 @@ public class ThreadContextTests extends OpenSearchTestCase {
         HashMap<String, String> toMerge = new HashMap<>();
         toMerge.put("foo", "baz");
         toMerge.put("simon", "says");
-        try (ThreadContext.StoredContext ctx = threadContext.stashAndMergeHeaders(toMerge)) {
+        try (ThreadContext.StoredContext ctx = ThreadContextAccess.doPrivileged(() -> threadContext.stashAndMergeHeaders(toMerge))) {
             assertEquals("bar", threadContext.getHeader("foo"));
             assertEquals("says", threadContext.getHeader("simon"));
             assertNull(threadContext.getTransient("ctx.foo"));
@@ -342,11 +344,11 @@ public class ThreadContextTests extends OpenSearchTestCase {
         }
 
         final String value = HeaderWarning.formatWarning("qux");
-        threadContext.addResponseHeader("baz", value, s -> HeaderWarning.extractWarningValueFromWarningHeader(s, false));
+        threadContext.updateResponseHeader("baz", value, s -> HeaderWarning.extractWarningValueFromWarningHeader(s, false));
         // pretend that another thread created the same response at a different time
         if (randomBoolean()) {
             final String duplicateValue = HeaderWarning.formatWarning("qux");
-            threadContext.addResponseHeader("baz", duplicateValue, s -> HeaderWarning.extractWarningValueFromWarningHeader(s, false));
+            threadContext.updateResponseHeader("baz", duplicateValue, s -> HeaderWarning.extractWarningValueFromWarningHeader(s, false));
         }
 
         threadContext.addResponseHeader("Warning", "One is the loneliest number");
@@ -491,7 +493,13 @@ public class ThreadContextTests extends OpenSearchTestCase {
         ThreadContext threadContext = new ThreadContext(build);
         HashMap<String, String> toMerge = new HashMap<>();
         toMerge.put("default", "2");
-        try (ThreadContext.StoredContext ctx = threadContext.stashAndMergeHeaders(toMerge)) {
+        ThreadContext finalThreadContext1 = threadContext;
+        HashMap<String, String> finalToMerge1 = toMerge;
+        try (
+            ThreadContext.StoredContext ctx = ThreadContextAccess.doPrivileged(
+                () -> finalThreadContext1.stashAndMergeHeaders(finalToMerge1)
+            )
+        ) {
             assertEquals("2", threadContext.getHeader("default"));
         }
 
@@ -500,7 +508,13 @@ public class ThreadContextTests extends OpenSearchTestCase {
         threadContext.putHeader("default", "4");
         toMerge = new HashMap<>();
         toMerge.put("default", "2");
-        try (ThreadContext.StoredContext ctx = threadContext.stashAndMergeHeaders(toMerge)) {
+        ThreadContext finalThreadContext2 = threadContext;
+        HashMap<String, String> finalToMerge2 = toMerge;
+        try (
+            ThreadContext.StoredContext ctx = ThreadContextAccess.doPrivileged(
+                () -> finalThreadContext2.stashAndMergeHeaders(finalToMerge2)
+            )
+        ) {
             assertEquals("4", threadContext.getHeader("default"));
         }
     }
@@ -563,7 +577,7 @@ public class ThreadContextTests extends OpenSearchTestCase {
             threadContext.putHeader("foo", "bar");
             boolean systemContext = randomBoolean();
             if (systemContext) {
-                threadContext.markAsSystemContext();
+                ThreadContextAccess.doPrivilegedVoid(threadContext::markAsSystemContext);
             }
             threadContext.putTransient("foo", "bar_transient");
             withContext = threadContext.preserveContext(new AbstractRunnable() {
@@ -734,10 +748,75 @@ public class ThreadContextTests extends OpenSearchTestCase {
         assertFalse(threadContext.isSystemContext());
         try (ThreadContext.StoredContext context = threadContext.stashContext()) {
             assertFalse(threadContext.isSystemContext());
-            threadContext.markAsSystemContext();
+            ThreadContextAccess.doPrivilegedVoid(threadContext::markAsSystemContext);
             assertTrue(threadContext.isSystemContext());
         }
         assertFalse(threadContext.isSystemContext());
+    }
+
+    public void testSystemContextWithPropagator() {
+        Settings build = Settings.builder().put("request.headers.default", "1").build();
+        Map<String, Object> transientHeaderMap = Collections.singletonMap("test_transient_propagation_key", "test");
+        Map<String, Object> transientHeaderTransformedMap = Collections.singletonMap("test_transient_propagation_key", "test");
+        Map<String, Object> headerMap = Collections.singletonMap("test_transient_propagation_key", "test");
+        Map<String, String> headerTransformedMap = Collections.singletonMap("test_transient_propagation_key", "test");
+        ThreadContext threadContext = new ThreadContext(build);
+        ThreadContextStatePropagator mockPropagator = Mockito.mock(ThreadContextStatePropagator.class);
+        Mockito.when(mockPropagator.transients(transientHeaderMap, true)).thenReturn(Collections.emptyMap());
+        Mockito.when(mockPropagator.transients(transientHeaderMap, false)).thenReturn(transientHeaderTransformedMap);
+
+        Mockito.when(mockPropagator.headers(headerMap, true)).thenReturn(headerTransformedMap);
+        Mockito.when(mockPropagator.headers(headerMap, false)).thenReturn(headerTransformedMap);
+        threadContext.registerThreadContextStatePropagator(mockPropagator);
+        threadContext.putHeader("foo", "bar");
+        threadContext.putTransient("test_transient_propagation_key", 1);
+        assertEquals(Integer.valueOf(1), threadContext.getTransient("test_transient_propagation_key"));
+        assertEquals("bar", threadContext.getHeader("foo"));
+        try (ThreadContext.StoredContext ctx = threadContext.stashContext()) {
+            ThreadContextAccess.doPrivilegedVoid(threadContext::markAsSystemContext);
+            assertNull(threadContext.getHeader("foo"));
+            assertNull(threadContext.getTransient("test_transient_propagation_key"));
+            assertEquals("1", threadContext.getHeader("default"));
+        }
+
+        assertEquals("bar", threadContext.getHeader("foo"));
+        assertEquals(Integer.valueOf(1), threadContext.getTransient("test_transient_propagation_key"));
+        assertEquals("1", threadContext.getHeader("default"));
+    }
+
+    public void testSerializeSystemContext() throws IOException {
+        Settings build = Settings.builder().put("request.headers.default", "1").build();
+        Map<String, Object> transientHeaderMap = Collections.singletonMap("test_transient_propagation_key", "test");
+        Map<String, Object> transientHeaderTransformedMap = Collections.singletonMap("test_transient_propagation_key", "test");
+        Map<String, Object> headerMap = Collections.singletonMap("test_transient_propagation_key", "test");
+        Map<String, String> headerTransformedMap = Collections.singletonMap("test_transient_propagation_key", "test");
+        ThreadContext threadContext = new ThreadContext(build);
+        ThreadContextStatePropagator mockPropagator = Mockito.mock(ThreadContextStatePropagator.class);
+        Mockito.when(mockPropagator.transients(transientHeaderMap, true)).thenReturn(Collections.emptyMap());
+        Mockito.when(mockPropagator.transients(transientHeaderMap, false)).thenReturn(transientHeaderTransformedMap);
+
+        Mockito.when(mockPropagator.headers(headerMap, true)).thenReturn(headerTransformedMap);
+        Mockito.when(mockPropagator.headers(headerMap, false)).thenReturn(headerTransformedMap);
+        threadContext.registerThreadContextStatePropagator(mockPropagator);
+        threadContext.putHeader("foo", "bar");
+        threadContext.putTransient("test_transient_propagation_key", "test");
+        BytesStreamOutput out = new BytesStreamOutput();
+        BytesStreamOutput outFromSystemContext = new BytesStreamOutput();
+        threadContext.writeTo(out);
+        try (ThreadContext.StoredContext ctx = threadContext.stashContext()) {
+            assertEquals("test", threadContext.getTransient("test_transient_propagation_key"));
+            ThreadContextAccess.doPrivilegedVoid(threadContext::markAsSystemContext);
+            threadContext.writeTo(outFromSystemContext);
+            assertNull(threadContext.getHeader("foo"));
+            assertNull(threadContext.getTransient("test_transient_propagation_key"));
+            threadContext.readHeaders(outFromSystemContext.bytes().streamInput());
+            assertNull(threadContext.getHeader("test_transient_propagation_key"));
+        }
+        assertEquals("test", threadContext.getTransient("test_transient_propagation_key"));
+        threadContext.readHeaders(out.bytes().streamInput());
+        assertEquals("bar", threadContext.getHeader("foo"));
+        assertEquals("test", threadContext.getHeader("test_transient_propagation_key"));
+        assertEquals("1", threadContext.getHeader("default"));
     }
 
     public void testPutHeaders() {
@@ -771,5 +850,47 @@ public class ThreadContextTests extends OpenSearchTestCase {
                 r.run();
             }
         };
+    }
+
+    // We are simulating behavior that happens in Netty4HttpRequestHeaderVerifier
+    // It take a snapshot of state and stores in CONTEXT_TO_RESTORE and
+    // later tries to restore the same in SecurityFilter. Any transients added in between are lost
+    public void testPropagatedTransientsAreRestored() {
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+        final String PROPAGATED_KEY = "test_propagated_transient";
+        final Object PROPAGATED_VALUE = new Object();
+
+        // Register a propagator that declares PROPAGATED_KEY as a transient to carry across stashes.
+        threadContext.registerThreadContextStatePropagator(new ThreadContextStatePropagator() {
+            @Override
+            @SuppressWarnings("removal")
+            public Map<String, Object> transients(Map<String, Object> source) {
+                if (source.containsKey(PROPAGATED_KEY)) {
+                    return Collections.singletonMap(PROPAGATED_KEY, source.get(PROPAGATED_KEY));
+                }
+                return Collections.emptyMap();
+            }
+
+            @Override
+            @SuppressWarnings("removal")
+            public Map<String, String> headers(Map<String, Object> source) {
+                return Collections.emptyMap();
+            }
+        });
+
+        ThreadContext.StoredContext storedContext = null;
+        try (ThreadContext.StoredContext sc = threadContext.newStoredContext(false, true)) {
+            // now we add something to original thread
+            // Simulate the tracing infrastructure writing CURRENT_SPAN into the stashed context.
+            storedContext = sc;
+            threadContext.putTransient(PROPAGATED_KEY, PROPAGATED_VALUE);
+        } catch (Exception e) {
+            // unlikey to get exception, if we got one, test should fail
+            throw e;
+        }
+        // storedContext would have closed. Now we restore and after that, our original thread should have it
+        storedContext.restore();
+        // we should be able to find the key now
+        assertEquals(threadContext.getTransient(PROPAGATED_KEY), PROPAGATED_VALUE);
     }
 }

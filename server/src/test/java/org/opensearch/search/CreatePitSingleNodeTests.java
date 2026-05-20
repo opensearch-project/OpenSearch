@@ -8,6 +8,7 @@
 
 package org.opensearch.search;
 
+import org.opensearch.Version;
 import org.opensearch.action.search.CreatePitAction;
 import org.opensearch.action.search.CreatePitController;
 import org.opensearch.action.search.CreatePitRequest;
@@ -17,6 +18,7 @@ import org.opensearch.action.search.DeletePitInfo;
 import org.opensearch.action.search.DeletePitRequest;
 import org.opensearch.action.search.DeletePitResponse;
 import org.opensearch.action.search.PitTestsUtil;
+import org.opensearch.action.search.SearchContextId;
 import org.opensearch.action.search.SearchPhaseExecutionException;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.common.Priority;
@@ -33,6 +35,7 @@ import org.opensearch.test.OpenSearchSingleNodeTestCase;
 import org.hamcrest.Matchers;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
@@ -76,7 +79,7 @@ public class CreatePitSingleNodeTests extends OpenSearchSingleNodeTestCase {
         request.setIndices(new String[] { "index" });
         ActionFuture<CreatePitResponse> execute = client().execute(CreatePitAction.INSTANCE, request);
         CreatePitResponse pitResponse = execute.get();
-        PitTestsUtil.assertUsingGetAllPits(client(), pitResponse.getId(), pitResponse.getCreationTime());
+        PitTestsUtil.assertUsingGetAllPits(client(), pitResponse.getId(), pitResponse.getCreationTime(), TimeValue.timeValueDays(1));
         assertSegments(false, client(), pitResponse.getId());
         client().prepareIndex("index").setId("2").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
         SearchResponse searchResponse = client().prepareSearch("index")
@@ -106,7 +109,7 @@ public class CreatePitSingleNodeTests extends OpenSearchSingleNodeTestCase {
 
         ActionFuture<CreatePitResponse> execute = client().execute(CreatePitAction.INSTANCE, request);
         CreatePitResponse response = execute.get();
-        PitTestsUtil.assertUsingGetAllPits(client(), response.getId(), response.getCreationTime());
+        PitTestsUtil.assertUsingGetAllPits(client(), response.getId(), response.getCreationTime(), TimeValue.timeValueDays(1));
         assertSegments(false, client(), response.getId());
         assertEquals(4, response.getSuccessfulShards());
         assertEquals(4, service.getActiveContexts());
@@ -127,7 +130,7 @@ public class CreatePitSingleNodeTests extends OpenSearchSingleNodeTestCase {
         request.setIndices(new String[] { "index" });
         ActionFuture<CreatePitResponse> execute = client().execute(CreatePitAction.INSTANCE, request);
         CreatePitResponse pitResponse = execute.get();
-        PitTestsUtil.assertUsingGetAllPits(client(), pitResponse.getId(), pitResponse.getCreationTime());
+        PitTestsUtil.assertUsingGetAllPits(client(), pitResponse.getId(), pitResponse.getCreationTime(), TimeValue.timeValueDays(1));
         assertSegments(false, client(), pitResponse.getId());
         client().prepareIndex("index").setId("2").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
         SearchResponse searchResponse = client().prepareSearch("index")
@@ -210,7 +213,8 @@ public class CreatePitSingleNodeTests extends OpenSearchSingleNodeTestCase {
 
     public void testInvalidPitId() {
         createIndex("idx");
-        String id = "c2Nhbjs2OzM0NDg1ODpzRlBLc0FXNlNyNm5JWUc1";
+        String encodedContext = SearchContextId.encode(Collections.emptyList(), Collections.emptyMap(), Version.CURRENT);
+        String id = encodedContext.substring(0, encodedContext.length() - 1);
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
             () -> client().prepareSearch()
@@ -229,7 +233,7 @@ public class CreatePitSingleNodeTests extends OpenSearchSingleNodeTestCase {
         request.setIndices(new String[] { "index" });
         ActionFuture<CreatePitResponse> execute = client().execute(CreatePitAction.INSTANCE, request);
         CreatePitResponse pitResponse = execute.get();
-        PitTestsUtil.assertUsingGetAllPits(client(), pitResponse.getId(), pitResponse.getCreationTime());
+        PitTestsUtil.assertUsingGetAllPits(client(), pitResponse.getId(), pitResponse.getCreationTime(), TimeValue.timeValueDays(1));
         assertSegments(false, client(), pitResponse.getId());
         SearchService service = getInstanceFromNode(SearchService.class);
         assertEquals(2, service.getActiveContexts());
@@ -412,7 +416,7 @@ public class CreatePitSingleNodeTests extends OpenSearchSingleNodeTestCase {
         request.setIndices(new String[] { "test" });
         ActionFuture<CreatePitResponse> execute = client().execute(CreatePitAction.INSTANCE, request);
         CreatePitResponse pitResponse = execute.get();
-        PitTestsUtil.assertUsingGetAllPits(client(), pitResponse.getId(), pitResponse.getCreationTime());
+        PitTestsUtil.assertUsingGetAllPits(client(), pitResponse.getId(), pitResponse.getCreationTime(), TimeValue.timeValueMinutes(2));
         SearchService service = getInstanceFromNode(SearchService.class);
 
         assertThat(
@@ -422,7 +426,8 @@ public class CreatePitSingleNodeTests extends OpenSearchSingleNodeTestCase {
                 .setQuery(matchAllQuery())
                 .get()
                 .getHits()
-                .getTotalHits().value,
+                .getTotalHits()
+                .value(),
             Matchers.equalTo(50L)
         );
 
@@ -433,7 +438,8 @@ public class CreatePitSingleNodeTests extends OpenSearchSingleNodeTestCase {
                 .setQuery(termQuery("message", "test"))
                 .get()
                 .getHits()
-                .getTotalHits().value,
+                .getTotalHits()
+                .value(),
             Matchers.equalTo(50L)
         );
         assertThat(
@@ -443,7 +449,8 @@ public class CreatePitSingleNodeTests extends OpenSearchSingleNodeTestCase {
                 .setQuery(termQuery("message", "test"))
                 .get()
                 .getHits()
-                .getTotalHits().value,
+                .getTotalHits()
+                .value(),
             Matchers.equalTo(50L)
         );
         assertThat(
@@ -453,7 +460,8 @@ public class CreatePitSingleNodeTests extends OpenSearchSingleNodeTestCase {
                 .setQuery(termQuery("message", "update"))
                 .get()
                 .getHits()
-                .getTotalHits().value,
+                .getTotalHits()
+                .value(),
             Matchers.equalTo(0L)
         );
         assertThat(
@@ -463,7 +471,8 @@ public class CreatePitSingleNodeTests extends OpenSearchSingleNodeTestCase {
                 .setQuery(termQuery("message", "update"))
                 .get()
                 .getHits()
-                .getTotalHits().value,
+                .getTotalHits()
+                .value(),
             Matchers.equalTo(0L)
         );
 
@@ -486,7 +495,7 @@ public class CreatePitSingleNodeTests extends OpenSearchSingleNodeTestCase {
 
             client().admin().indices().prepareRefresh().get();
             assertThat(
-                client().prepareSearch().setSize(0).setQuery(matchAllQuery()).get().getHits().getTotalHits().value,
+                client().prepareSearch().setSize(0).setQuery(matchAllQuery()).get().getHits().getTotalHits().value(),
                 Matchers.equalTo(50L)
             );
             /*
@@ -494,19 +503,19 @@ public class CreatePitSingleNodeTests extends OpenSearchSingleNodeTestCase {
              */
 
             assertThat(
-                client().prepareSearch().setSize(0).setQuery(termQuery("message", "test")).get().getHits().getTotalHits().value,
+                client().prepareSearch().setSize(0).setQuery(termQuery("message", "test")).get().getHits().getTotalHits().value(),
                 Matchers.equalTo(0L)
             );
             assertThat(
-                client().prepareSearch().setSize(0).setQuery(termQuery("message", "test")).get().getHits().getTotalHits().value,
+                client().prepareSearch().setSize(0).setQuery(termQuery("message", "test")).get().getHits().getTotalHits().value(),
                 Matchers.equalTo(0L)
             );
             assertThat(
-                client().prepareSearch().setSize(0).setQuery(termQuery("message", "update")).get().getHits().getTotalHits().value,
+                client().prepareSearch().setSize(0).setQuery(termQuery("message", "update")).get().getHits().getTotalHits().value(),
                 Matchers.equalTo(50L)
             );
             assertThat(
-                client().prepareSearch().setSize(0).setQuery(termQuery("message", "update")).get().getHits().getTotalHits().value,
+                client().prepareSearch().setSize(0).setQuery(termQuery("message", "update")).get().getHits().getTotalHits().value(),
                 Matchers.equalTo(50L)
             );
             /*
@@ -519,7 +528,8 @@ public class CreatePitSingleNodeTests extends OpenSearchSingleNodeTestCase {
                     .setQuery(termQuery("message", "test"))
                     .get()
                     .getHits()
-                    .getTotalHits().value,
+                    .getTotalHits()
+                    .value(),
                 Matchers.equalTo(50L)
             );
             assertThat(
@@ -529,7 +539,8 @@ public class CreatePitSingleNodeTests extends OpenSearchSingleNodeTestCase {
                     .setQuery(termQuery("message", "test"))
                     .get()
                     .getHits()
-                    .getTotalHits().value,
+                    .getTotalHits()
+                    .value(),
                 Matchers.equalTo(50L)
             );
             assertThat(
@@ -539,7 +550,8 @@ public class CreatePitSingleNodeTests extends OpenSearchSingleNodeTestCase {
                     .setQuery(termQuery("message", "update"))
                     .get()
                     .getHits()
-                    .getTotalHits().value,
+                    .getTotalHits()
+                    .value(),
                 Matchers.equalTo(0L)
             );
             assertThat(
@@ -549,7 +561,8 @@ public class CreatePitSingleNodeTests extends OpenSearchSingleNodeTestCase {
                     .setQuery(termQuery("message", "update"))
                     .get()
                     .getHits()
-                    .getTotalHits().value,
+                    .getTotalHits()
+                    .value(),
                 Matchers.equalTo(0L)
             );
             validatePitStats("test", 1, 0, 0);
@@ -570,7 +583,7 @@ public class CreatePitSingleNodeTests extends OpenSearchSingleNodeTestCase {
         request.setIndices(new String[] { "index" });
         ActionFuture<CreatePitResponse> execute = client().execute(CreatePitAction.INSTANCE, request);
         CreatePitResponse pitResponse = execute.get();
-        PitTestsUtil.assertUsingGetAllPits(client(), pitResponse.getId(), pitResponse.getCreationTime());
+        PitTestsUtil.assertUsingGetAllPits(client(), pitResponse.getId(), pitResponse.getCreationTime(), TimeValue.timeValueDays(1));
         assertSegments(false, client(), pitResponse.getId());
         Thread[] threads = new Thread[5];
         CountDownLatch latch = new CountDownLatch(threads.length);

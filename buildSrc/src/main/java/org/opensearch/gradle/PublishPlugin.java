@@ -33,7 +33,6 @@
 package org.opensearch.gradle;
 
 import com.github.jengelman.gradle.plugins.shadow.ShadowBasePlugin;
-import com.github.jengelman.gradle.plugins.shadow.ShadowExtension;
 import groovy.util.Node;
 import groovy.util.NodeList;
 
@@ -77,7 +76,7 @@ public class PublishPlugin implements Plugin<Project> {
     }
 
     private static String getArchivesBaseName(Project project) {
-        return project.getExtensions().getByType(BasePluginExtension.class).getArchivesBaseName();
+        return project.getExtensions().getByType(BasePluginExtension.class).getArchivesName().get();
     }
 
     /**Configuration generation of maven poms. */
@@ -103,8 +102,7 @@ public class PublishPlugin implements Plugin<Project> {
 
         project.getPluginManager().withPlugin("com.github.johnrengelman.shadow", plugin -> {
             MavenPublication publication = publishing.getPublications().maybeCreate("shadow", MavenPublication.class);
-            ShadowExtension shadow = project.getExtensions().getByType(ShadowExtension.class);
-            shadow.component(publication);
+            publication.from(project.getComponents().getByName("shadow"));
             // Workaround for https://github.com/johnrengelman/shadow/issues/334
             // Here we manually add any project dependencies in the "shadow" configuration to our generated POM
             publication.getPom().withXml(xml -> {
@@ -121,7 +119,7 @@ public class PublishPlugin implements Plugin<Project> {
                         Node dependencyNode = dependenciesNode.appendNode("dependency");
                         dependencyNode.appendNode("groupId", dependency.getGroup());
                         ProjectDependency projectDependency = (ProjectDependency) dependency;
-                        String artifactId = getArchivesBaseName(projectDependency.getDependencyProject());
+                        String artifactId = getArchivesBaseName(project.project(projectDependency.getPath()));
                         dependencyNode.appendNode("artifactId", artifactId);
                         dependencyNode.appendNode("version", dependency.getVersion());
                         dependencyNode.appendNode("scope", "compile");

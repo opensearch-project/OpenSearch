@@ -35,6 +35,7 @@ package org.opensearch.cluster.coordination;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.opensearch.cluster.ClusterManagerMetrics;
 import org.opensearch.cluster.coordination.Coordinator.Mode;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
@@ -85,13 +86,18 @@ public class FollowersChecker {
     private static final Logger logger = LogManager.getLogger(FollowersChecker.class);
 
     public static final String FOLLOWER_CHECK_ACTION_NAME = "internal:coordination/fault_detection/follower_check";
+    public static final String NODE_LEFT_REASON_LAGGING = "lagging";
+    public static final String NODE_LEFT_REASON_DISCONNECTED = "disconnected";
+    public static final String NODE_LEFT_REASON_HEALTHCHECK_FAIL = "health check failed";
+    public static final String NODE_LEFT_REASON_FOLLOWER_CHECK_RETRY_FAIL = "followers check retry count exceeded";
 
     // the time between checks sent to each node
     public static final Setting<TimeValue> FOLLOWER_CHECK_INTERVAL_SETTING = Setting.timeSetting(
         "cluster.fault_detection.follower_check.interval",
         TimeValue.timeValueMillis(1000),
         TimeValue.timeValueMillis(100),
-        Setting.Property.NodeScope
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
     );
 
     // the timeout for each check sent to each node
@@ -99,7 +105,7 @@ public class FollowersChecker {
         "cluster.fault_detection.follower_check.timeout",
         TimeValue.timeValueMillis(10000),
         TimeValue.timeValueMillis(1),
-        TimeValue.timeValueMillis(60000),
+        TimeValue.timeValueMillis(150000),
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
@@ -114,7 +120,7 @@ public class FollowersChecker {
 
     private final Settings settings;
 
-    private final TimeValue followerCheckInterval;
+    private TimeValue followerCheckInterval;
     private TimeValue followerCheckTimeout;
     private final int followerCheckRetryCount;
     private final BiConsumer<DiscoveryNode, String> onNodeFailure;
@@ -127,6 +133,7 @@ public class FollowersChecker {
     private final TransportService transportService;
     private final NodeHealthService nodeHealthService;
     private volatile FastResponseState fastResponseState;
+    private ClusterManagerMetrics clusterManagerMetrics;
 
     public FollowersChecker(
         Settings settings,
@@ -134,7 +141,8 @@ public class FollowersChecker {
         TransportService transportService,
         Consumer<FollowerCheckRequest> handleRequestAndUpdateState,
         BiConsumer<DiscoveryNode, String> onNodeFailure,
-        NodeHealthService nodeHealthService
+        NodeHealthService nodeHealthService,
+        ClusterManagerMetrics clusterManagerMetrics
     ) {
         this.settings = settings;
         this.transportService = transportService;
@@ -145,6 +153,7 @@ public class FollowersChecker {
         followerCheckInterval = FOLLOWER_CHECK_INTERVAL_SETTING.get(settings);
         followerCheckTimeout = FOLLOWER_CHECK_TIMEOUT_SETTING.get(settings);
         followerCheckRetryCount = FOLLOWER_CHECK_RETRY_COUNT_SETTING.get(settings);
+        clusterSettings.addSettingsUpdateConsumer(FOLLOWER_CHECK_INTERVAL_SETTING, this::setFollowerCheckInterval);
         clusterSettings.addSettingsUpdateConsumer(FOLLOWER_CHECK_TIMEOUT_SETTING, this::setFollowerCheckTimeout);
         updateFastResponseState(0, Mode.CANDIDATE);
         transportService.registerRequestHandler(
@@ -161,6 +170,11 @@ public class FollowersChecker {
                 handleDisconnectedNode(node);
             }
         });
+        this.clusterManagerMetrics = clusterManagerMetrics;
+    }
+
+    private void setFollowerCheckInterval(TimeValue followerCheckInterval) {
+        this.followerCheckInterval = followerCheckInterval;
     }
 
     private void setFollowerCheckTimeout(TimeValue followerCheckTimeout) {
@@ -388,13 +402,13 @@ public class FollowersChecker {
                         final String reason;
                         if (exp instanceof ConnectTransportException || exp.getCause() instanceof ConnectTransportException) {
                             logger.info(() -> new ParameterizedMessage("{} disconnected", FollowerChecker.this), exp);
-                            reason = "disconnected";
+                            reason = NODE_LEFT_REASON_DISCONNECTED;
                         } else if (exp.getCause() instanceof NodeHealthCheckFailureException) {
                             logger.info(() -> new ParameterizedMessage("{} health check failed", FollowerChecker.this), exp);
-                            reason = "health check failed";
+                            reason = NODE_LEFT_REASON_HEALTHCHECK_FAIL;
                         } else if (failureCountSinceLastSuccess >= followerCheckRetryCount) {
                             logger.info(() -> new ParameterizedMessage("{} failed too many times", FollowerChecker.this), exp);
-                            reason = "followers check retry count exceeded";
+                            reason = NODE_LEFT_REASON_FOLLOWER_CHECK_RETRY_FAIL;
                         } else {
                             logger.info(() -> new ParameterizedMessage("{} failed, retrying", FollowerChecker.this), exp);
                             scheduleNextWakeUp();
@@ -413,6 +427,7 @@ public class FollowersChecker {
         }
 
         void failNode(String reason) {
+            clusterManagerMetrics.incrementCounter(clusterManagerMetrics.followerChecksFailureCounter, 1.0);
             transportService.getThreadPool().generic().execute(new Runnable() {
                 @Override
                 public void run() {

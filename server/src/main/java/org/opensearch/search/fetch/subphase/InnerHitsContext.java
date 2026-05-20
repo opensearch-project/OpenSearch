@@ -44,11 +44,13 @@ import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Bits;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.lucene.search.TopDocsAndMaxScore;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.internal.SubSearchContext;
 import org.opensearch.search.lookup.SourceLookup;
+import org.opensearch.search.profile.Profilers;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -59,8 +61,9 @@ import java.util.Objects;
 /**
  * Context used for inner hits retrieval
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public final class InnerHitsContext {
     private final Map<String, InnerHitSubContext> innerHits;
 
@@ -91,7 +94,10 @@ public final class InnerHitsContext {
     /**
      * A {@link SubSearchContext} that associates {@link TopDocs} to each {@link SearchHit}
      * in the parent search context
+     *
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public abstract static class InnerHitSubContext extends SubSearchContext {
 
         private final String name;
@@ -160,6 +166,11 @@ public final class InnerHitsContext {
 
         public void setRootLookup(SourceLookup rootLookup) {
             this.rootLookup = rootLookup;
+        }
+
+        @Override
+        public Profilers getProfilers() {
+            return context.getProfilers();
         }
     }
 

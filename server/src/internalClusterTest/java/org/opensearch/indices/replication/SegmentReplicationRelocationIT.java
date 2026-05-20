@@ -219,6 +219,7 @@ public class SegmentReplicationRelocationIT extends SegmentReplicationBaseIT {
      * This test verifies primary recovery behavior with continuous ingestion
      *
      */
+    @TestLogging(reason = "Enable trace logs from replication and recovery package", value = "org.opensearch.indices.recovery:TRACE,org.opensearch.indices.replication:TRACE")
     public void testRelocateWhileContinuouslyIndexingAndWaitingForRefresh() throws Exception {
         final String primary = internalCluster().startNode();
         createIndex(1);
@@ -418,7 +419,7 @@ public class SegmentReplicationRelocationIT extends SegmentReplicationBaseIT {
             client().prepareIndex(INDEX_NAME).setId(Integer.toString(i)).setSource("field", "value" + i).execute().actionGet();
         }
         refresh(INDEX_NAME);
-        assertEquals(client().prepareSearch(INDEX_NAME).setSize(0).execute().actionGet().getHits().getTotalHits().value, 20L);
+        assertEquals(client().prepareSearch(INDEX_NAME).setSize(0).execute().actionGet().getHits().getTotalHits().value(), 20L);
 
         logger.info("--> start empty node to add replica shard");
         final String replica = internalCluster().startNode();
@@ -459,7 +460,7 @@ public class SegmentReplicationRelocationIT extends SegmentReplicationBaseIT {
         }
         refresh(INDEX_NAME);
         logger.info("--> verifying count");
-        assertEquals(client().prepareSearch(INDEX_NAME).setSize(0).execute().actionGet().getHits().getTotalHits().value, 20L);
+        assertEquals(client().prepareSearch(INDEX_NAME).setSize(0).execute().actionGet().getHits().getTotalHits().value(), 20L);
 
         logger.info("--> start empty node to add replica shard");
         final String replica = internalCluster().startNode();

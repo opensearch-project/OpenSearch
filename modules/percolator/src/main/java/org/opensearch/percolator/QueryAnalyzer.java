@@ -31,10 +31,7 @@
 
 package org.opensearch.percolator;
 
-import org.apache.lucene.document.BinaryRange;
-import org.apache.lucene.index.PrefixCodedTerms;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.queries.BlendedTermQuery;
 import org.apache.lucene.queries.spans.SpanOrQuery;
 import org.apache.lucene.queries.spans.SpanTermQuery;
 import org.apache.lucene.search.BooleanClause.Occur;
@@ -51,12 +48,17 @@ import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefIterator;
 import org.apache.lucene.util.NumericUtils;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.opensearch.Version;
 import org.opensearch.common.lucene.search.function.FunctionScoreQuery;
 import org.opensearch.index.query.DateRangeIncludingNowQuery;
+import org.opensearch.lucene.queries.BlendedTermQuery;
+import org.opensearch.search.approximate.ApproximateScoreQuery;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -120,8 +122,8 @@ final class QueryAnalyzer {
     );
 
     private static boolean isVerified(Query query) {
-        if (query instanceof FunctionScoreQuery) {
-            return ((FunctionScoreQuery) query).getMinScore() == null;
+        if (query instanceof FunctionScoreQuery functionScoreQuery) {
+            return functionScoreQuery.getMinScore() == null;
         }
         for (Class<?> cls : verifiedQueries) {
             if (cls.isAssignableFrom(query.getClass())) {
@@ -179,7 +181,8 @@ final class QueryAnalyzer {
 
         @Override
         public QueryVisitor getSubVisitor(Occur occur, Query parent) {
-            if (parent instanceof DateRangeIncludingNowQuery) {
+            if (parent instanceof ApproximateScoreQuery approximateScoreQuery
+                && approximateScoreQuery.getOriginalQuery() instanceof DateRangeIncludingNowQuery) {
                 terms.add(Result.UNKNOWN);
                 return QueryVisitor.EMPTY_VISITOR;
             }
@@ -194,10 +197,9 @@ final class QueryAnalyzer {
                 return QueryVisitor.EMPTY_VISITOR;
             }
             int minimumShouldMatch = 0;
-            if (parent instanceof BooleanQuery) {
-                BooleanQuery bq = (BooleanQuery) parent;
+            if (parent instanceof BooleanQuery bq) {
                 if (bq.getMinimumNumberShouldMatch() == 0
-                    && bq.clauses().stream().anyMatch(c -> c.getOccur() == Occur.MUST || c.getOccur() == Occur.FILTER)) {
+                    && bq.clauses().stream().anyMatch(c -> c.occur() == Occur.MUST || c.occur() == Occur.FILTER)) {
                     return QueryVisitor.EMPTY_VISITOR;
                 }
                 minimumShouldMatch = bq.getMinimumNumberShouldMatch();
@@ -210,14 +212,11 @@ final class QueryAnalyzer {
 
         @Override
         public void visitLeaf(Query query) {
-            if (query instanceof MatchAllDocsQuery) {
-                terms.add(new Result(true, true));
-            } else if (query instanceof MatchNoDocsQuery) {
-                terms.add(Result.MATCH_NONE);
-            } else if (query instanceof PointRangeQuery) {
-                terms.add(pointRangeQuery((PointRangeQuery) query));
-            } else {
-                terms.add(Result.UNKNOWN);
+            switch (query) {
+                case MatchAllDocsQuery ignored -> terms.add(new Result(true, true));
+                case MatchNoDocsQuery ignored -> terms.add(Result.MATCH_NONE);
+                case PointRangeQuery pointRangeQuery -> terms.add(pointRangeQuery(pointRangeQuery));
+                case null, default -> terms.add(Result.UNKNOWN);
             }
         }
 
@@ -232,15 +231,18 @@ final class QueryAnalyzer {
 
         @Override
         public void consumeTermsMatching(Query query, String field, Supplier<ByteRunAutomaton> automaton) {
-            if (query instanceof TermInSetQuery) {
-                TermInSetQuery q = (TermInSetQuery) query;
-                PrefixCodedTerms.TermIterator ti = q.getTermData().iterator();
-                BytesRef term;
-                Set<QueryExtraction> qe = new HashSet<>();
-                while ((term = ti.next()) != null) {
-                    qe.add(new QueryExtraction(new Term(field, term)));
+            if (query instanceof TermInSetQuery q) {
+                try {
+                    BytesRefIterator ti = q.getBytesRefIterator();
+                    BytesRef term;
+                    Set<QueryExtraction> qe = new HashSet<>();
+                    while ((term = ti.next()) != null) {
+                        qe.add(new QueryExtraction(new Term(field, term)));
+                    }
+                    this.terms.add(new Result(true, qe, 1));
+                } catch (final IOException ex) {
+                    throw new UncheckedIOException(ex);
                 }
-                this.terms.add(new Result(true, qe, 1));
             } else {
                 super.consumeTermsMatching(query, field, automaton);
             }
@@ -510,19 +512,25 @@ final class QueryAnalyzer {
     }
 
     private static int minTermLength(Set<QueryExtraction> extractions) {
-        // In case there are only range extractions, then we return Integer.MIN_VALUE,
-        // so that selectBestExtraction(...) we are likely to prefer the extractions that contains at least a single extraction
-        if (extractions.stream().filter(queryExtraction -> queryExtraction.term != null).count() == 0
-            && extractions.stream().filter(queryExtraction -> queryExtraction.range != null).count() > 0) {
+        boolean hasTerm = false;
+        boolean hasRange = false;
+        int min = Integer.MAX_VALUE;
+
+        for (QueryExtraction qt : extractions) {
+            if (qt.term != null) {
+                hasTerm = true;
+                min = Math.min(min, qt.bytes().length);
+            }
+            if (qt.range != null) {
+                hasRange = true;
+            }
+        }
+
+        // If there are no terms but there are ranges, return Integer.MIN_VALUE
+        if (!hasTerm && hasRange) {
             return Integer.MIN_VALUE;
         }
 
-        int min = Integer.MAX_VALUE;
-        for (QueryExtraction qt : extractions) {
-            if (qt.term != null) {
-                min = Math.min(min, qt.bytes().length);
-            }
-        }
         return min;
     }
 

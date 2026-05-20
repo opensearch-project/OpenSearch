@@ -33,9 +33,9 @@
 package org.opensearch.action.admin.indices.validate.query;
 
 import org.opensearch.action.support.broadcast.BroadcastOperationRequestBuilder;
-import org.opensearch.client.OpenSearchClient;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.index.query.QueryBuilder;
+import org.opensearch.transport.client.OpenSearchClient;
 
 /**
  * Transport Request Builder to Validate a Query

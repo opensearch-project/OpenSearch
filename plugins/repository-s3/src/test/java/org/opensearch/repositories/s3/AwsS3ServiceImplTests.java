@@ -35,6 +35,7 @@ package org.opensearch.repositories.s3;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration;
+import software.amazon.awssdk.core.retry.RetryMode;
 import software.amazon.awssdk.core.retry.backoff.BackoffStrategy;
 import software.amazon.awssdk.http.apache.ProxyConfiguration;
 
@@ -42,6 +43,7 @@ import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.settings.MockSecureSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.repositories.s3.utils.Protocol;
+import org.opensearch.secure_sm.AccessController;
 import org.junit.Before;
 
 import java.io.Closeable;
@@ -239,7 +241,7 @@ public class AwsS3ServiceImplTests extends AbstractS3RepositoryTestCase {
     }
 
     public void testAWSDefaultConfiguration() {
-        SocketAccess.doPrivilegedVoid(
+        AccessController.doPrivileged(
             () -> launchAWSConfigurationTest(Settings.EMPTY, Protocol.HTTPS, null, -1, null, null, 3, true, 50_000)
         );
     }
@@ -255,7 +257,7 @@ public class AwsS3ServiceImplTests extends AbstractS3RepositoryTestCase {
             .put("s3.client.default.proxy.port", PORT)
             .put("s3.client.default.read_timeout", "10s")
             .build();
-        SocketAccess.doPrivilegedVoid(
+        AccessController.doPrivileged(
             () -> launchAWSConfigurationTest(
                 settings,
                 Protocol.HTTP,
@@ -289,7 +291,7 @@ public class AwsS3ServiceImplTests extends AbstractS3RepositoryTestCase {
             .put("s3.client.default.proxy.port", PORT)
             .put("s3.client.default.read_timeout", "10s")
             .build();
-        SocketAccess.doPrivilegedVoid(
+        AccessController.doPrivileged(
             () -> launchAWSConfigurationTest(
                 settings,
                 Protocol.HTTP,
@@ -326,14 +328,14 @@ public class AwsS3ServiceImplTests extends AbstractS3RepositoryTestCase {
 
     public void testRepositoryMaxRetries() {
         final Settings settings = settingsBuilder.put("s3.client.default.max_retries", 5).build();
-        SocketAccess.doPrivilegedVoid(() -> launchAWSConfigurationTest(settings, Protocol.HTTPS, HOST, PORT, "", "", 5, true, 50000));
+        AccessController.doPrivileged(() -> launchAWSConfigurationTest(settings, Protocol.HTTPS, HOST, PORT, "", "", 5, true, 50000));
     }
 
     public void testRepositoryThrottleRetries() {
         final boolean throttling = randomBoolean();
 
         final Settings settings = settingsBuilder.put("s3.client.default.use_throttle_retries", throttling).build();
-        SocketAccess.doPrivilegedVoid(() -> launchAWSConfigurationTest(settings, Protocol.HTTPS, HOST, PORT, "", "", 3, throttling, 50000));
+        AccessController.doPrivileged(() -> launchAWSConfigurationTest(settings, Protocol.HTTPS, HOST, PORT, "", "", 3, throttling, 50000));
     }
 
     private void launchAWSConfigurationTest(
@@ -357,14 +359,14 @@ public class AwsS3ServiceImplTests extends AbstractS3RepositoryTestCase {
             assertThat(proxyConfiguration.password(), is(expectedProxyPassword));
         }
 
-        final ClientOverrideConfiguration clientOverrideConfiguration = S3Service.buildOverrideConfiguration(clientSettings);
+        final ClientOverrideConfiguration clientOverrideConfiguration = S3Service.buildOverrideConfiguration(clientSettings, null);
 
         assertTrue(clientOverrideConfiguration.retryPolicy().isPresent());
         assertThat(clientOverrideConfiguration.retryPolicy().get().numRetries(), is(expectedMaxRetries));
         if (expectedUseThrottleRetries) {
             assertThat(
                 clientOverrideConfiguration.retryPolicy().get().throttlingBackoffStrategy(),
-                is(BackoffStrategy.defaultThrottlingStrategy())
+                is(BackoffStrategy.defaultThrottlingStrategy(RetryMode.STANDARD))
             );
         } else {
             assertThat(clientOverrideConfiguration.retryPolicy().get().throttlingBackoffStrategy(), is(BackoffStrategy.none()));

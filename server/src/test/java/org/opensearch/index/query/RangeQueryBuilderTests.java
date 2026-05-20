@@ -34,12 +34,12 @@ package org.opensearch.index.query;
 
 import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.document.LongPoint;
+import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.ConstantScoreQuery;
-import org.apache.lucene.search.DocValuesFieldExistsQuery;
+import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
-import org.apache.lucene.search.NormsFieldExistsQuery;
 import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
@@ -53,6 +53,9 @@ import org.opensearch.index.mapper.FieldNamesFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.MappedFieldType.Relation;
 import org.opensearch.index.mapper.MapperService;
+import org.opensearch.search.approximate.ApproximatePointRangeQuery;
+import org.opensearch.search.approximate.ApproximateQuery;
+import org.opensearch.search.approximate.ApproximateScoreQuery;
 import org.opensearch.test.AbstractQueryTestCase;
 import org.joda.time.DateTime;
 import org.joda.time.chrono.ISOChronology;
@@ -68,6 +71,7 @@ import static org.opensearch.index.query.QueryBuilders.rangeQuery;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.sameInstance;
+import static org.apache.lucene.document.LongPoint.pack;
 
 public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuilder> {
     @Override
@@ -164,9 +168,9 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
         if (queryBuilder.from() == null && queryBuilder.to() == null) {
             final Query expectedQuery;
             if (context.getMapperService().fieldType(queryBuilder.fieldName()).hasDocValues()) {
-                expectedQuery = new ConstantScoreQuery(new DocValuesFieldExistsQuery(expectedFieldName));
+                expectedQuery = new ConstantScoreQuery(new FieldExistsQuery(expectedFieldName));
             } else if (context.getMapperService().fieldType(queryBuilder.fieldName()).getTextSearchInfo().hasNorms()) {
-                expectedQuery = new ConstantScoreQuery(new NormsFieldExistsQuery(expectedFieldName));
+                expectedQuery = new ConstantScoreQuery(new FieldExistsQuery(expectedFieldName));
             } else {
                 expectedQuery = new ConstantScoreQuery(new TermQuery(new Term(FieldNamesFieldMapper.NAME, expectedFieldName)));
             }
@@ -183,15 +187,17 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
                 assertThat(termRangeQuery.includesLower(), equalTo(queryBuilder.includeLower()));
                 assertThat(termRangeQuery.includesUpper(), equalTo(queryBuilder.includeUpper()));
             } else if (expectedFieldName.equals(DATE_FIELD_NAME)) {
-                assertThat(query, instanceOf(IndexOrDocValuesQuery.class));
-                query = ((IndexOrDocValuesQuery) query).getIndexQuery();
-                assertThat(query, instanceOf(PointRangeQuery.class));
+                assertThat(query, instanceOf(ApproximateScoreQuery.class));
+                Query approximationQuery = ((ApproximateScoreQuery) query).getApproximationQuery();
+                assertThat(approximationQuery, instanceOf(ApproximateQuery.class));
+                Query originalQuery = ((ApproximateScoreQuery) query).getOriginalQuery();
+                assertThat(originalQuery, instanceOf(IndexOrDocValuesQuery.class));
                 MapperService mapperService = context.getMapperService();
                 MappedFieldType mappedFieldType = mapperService.fieldType(expectedFieldName);
                 final Long fromInMillis;
                 final Long toInMillis;
                 // we have to normalize the incoming value into milliseconds since it could be literally anything
-                if (mappedFieldType instanceof DateFieldMapper.DateFieldType) {
+                if (mappedFieldType != null && mappedFieldType.unwrap() instanceof DateFieldMapper.DateFieldType) {
                     fromInMillis = queryBuilder.from() == null
                         ? null
                         : ((DateFieldMapper.DateFieldType) mappedFieldType).parseToLong(
@@ -234,10 +240,29 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
                         maxLong--;
                     }
                 }
-                assertEquals(LongPoint.newRangeQuery(DATE_FIELD_NAME, minLong, maxLong), query);
+                assertEquals(
+                    new ApproximateScoreQuery(
+                        new IndexOrDocValuesQuery(
+                            LongPoint.newRangeQuery(DATE_FIELD_NAME, minLong, maxLong),
+                            SortedNumericDocValuesField.newSlowRangeQuery(DATE_FIELD_NAME, minLong, maxLong)
+                        ),
+                        new ApproximatePointRangeQuery(
+                            DATE_FIELD_NAME,
+                            pack(new long[] { minLong }).bytes,
+                            pack(new long[] { maxLong }).bytes,
+                            new long[] { minLong }.length,
+                            ApproximatePointRangeQuery.LONG_FORMAT
+                        )
+                    ),
+                    query
+                );
             } else if (expectedFieldName.equals(INT_FIELD_NAME)) {
-                assertThat(query, instanceOf(IndexOrDocValuesQuery.class));
-                query = ((IndexOrDocValuesQuery) query).getIndexQuery();
+                assertThat(query, instanceOf(ApproximateScoreQuery.class));
+                Query approximationQuery = ((ApproximateScoreQuery) query).getApproximationQuery();
+                assertThat(approximationQuery, instanceOf(ApproximateQuery.class));
+                Query originalQuery = ((ApproximateScoreQuery) query).getOriginalQuery();
+                assertThat(originalQuery, instanceOf(IndexOrDocValuesQuery.class));
+                query = ((IndexOrDocValuesQuery) originalQuery).getIndexQuery();
                 assertThat(query, instanceOf(PointRangeQuery.class));
                 Integer min = (Integer) queryBuilder.from();
                 Integer max = (Integer) queryBuilder.to();
@@ -278,6 +303,9 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
 
     public void testToQueryNumericField() throws IOException {
         Query parsedQuery = rangeQuery(INT_FIELD_NAME).from(23).to(54).includeLower(true).includeUpper(false).toQuery(createShardContext());
+        if (parsedQuery instanceof ApproximateScoreQuery) {
+            parsedQuery = ((ApproximateScoreQuery) parsedQuery).getOriginalQuery();
+        }
         // since age is automatically registered in data, we encode it as numeric
         assertThat(parsedQuery, instanceOf(IndexOrDocValuesQuery.class));
         parsedQuery = ((IndexOrDocValuesQuery) parsedQuery).getIndexQuery();
@@ -299,15 +327,26 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
             + "    }\n"
             + "}";
         Query parsedQuery = parseQuery(query).toQuery(createShardContext());
-        assertThat(parsedQuery, instanceOf(IndexOrDocValuesQuery.class));
-        parsedQuery = ((IndexOrDocValuesQuery) parsedQuery).getIndexQuery();
-        assertThat(parsedQuery, instanceOf(PointRangeQuery.class));
-
+        assertThat(parsedQuery, instanceOf(ApproximateScoreQuery.class));
+        Query approximationQuery = ((ApproximateScoreQuery) parsedQuery).getApproximationQuery();
+        assertThat(approximationQuery, instanceOf(ApproximateQuery.class));
+        Query originalQuery = ((ApproximateScoreQuery) parsedQuery).getOriginalQuery();
+        assertThat(originalQuery, instanceOf(IndexOrDocValuesQuery.class));
+        long lower = DateTime.parse("2012-01-01T00:00:00.000+00").getMillis();
+        long upper = DateTime.parse("2030-01-01T00:00:00.000+00").getMillis() - 1;
         assertEquals(
-            LongPoint.newRangeQuery(
-                DATE_FIELD_NAME,
-                DateTime.parse("2012-01-01T00:00:00.000+00").getMillis(),
-                DateTime.parse("2030-01-01T00:00:00.000+00").getMillis() - 1
+            new ApproximateScoreQuery(
+                new IndexOrDocValuesQuery(
+                    LongPoint.newRangeQuery(DATE_FIELD_NAME, lower, upper),
+                    SortedNumericDocValuesField.newSlowRangeQuery(DATE_FIELD_NAME, lower, upper)
+                ),
+                new ApproximatePointRangeQuery(
+                    DATE_FIELD_NAME,
+                    pack(new long[] { lower }).bytes,
+                    pack(new long[] { upper }).bytes,
+                    new long[] { lower }.length,
+                    ApproximatePointRangeQuery.LONG_FORMAT
+                )
             ),
             parsedQuery
         );
@@ -339,15 +378,26 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
             + "    }\n"
             + "}\n";
         Query parsedQuery = parseQuery(query).toQuery(createShardContext());
-        assertThat(parsedQuery, instanceOf(IndexOrDocValuesQuery.class));
-        parsedQuery = ((IndexOrDocValuesQuery) parsedQuery).getIndexQuery();
-        assertThat(parsedQuery, instanceOf(PointRangeQuery.class));
+        assertThat(parsedQuery, instanceOf(ApproximateScoreQuery.class));
+
+        long lower = DateTime.parse("2014-11-01T00:00:00.000+00").getMillis();
+        long upper = DateTime.parse("2014-12-08T23:59:59.999+00").getMillis();
         assertEquals(
-            LongPoint.newRangeQuery(
-                DATE_FIELD_NAME,
-                DateTime.parse("2014-11-01T00:00:00.000+00").getMillis(),
-                DateTime.parse("2014-12-08T23:59:59.999+00").getMillis()
-            ),
+            new ApproximateScoreQuery(
+                new IndexOrDocValuesQuery(
+                    LongPoint.newRangeQuery(DATE_FIELD_NAME, lower, upper),
+                    SortedNumericDocValuesField.newSlowRangeQuery(DATE_FIELD_NAME, lower, upper)
+                ),
+                new ApproximatePointRangeQuery(
+                    DATE_FIELD_NAME,
+                    pack(new long[] { lower }).bytes,
+                    pack(new long[] { upper }).bytes,
+                    new long[] { lower }.length,
+                    ApproximatePointRangeQuery.LONG_FORMAT
+                )
+            )
+
+            ,
             parsedQuery
         );
 
@@ -362,15 +412,25 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
             + "    }\n"
             + "}";
         parsedQuery = parseQuery(query).toQuery(createShardContext());
-        assertThat(parsedQuery, instanceOf(IndexOrDocValuesQuery.class));
-        parsedQuery = ((IndexOrDocValuesQuery) parsedQuery).getIndexQuery();
-        assertThat(parsedQuery, instanceOf(PointRangeQuery.class));
+        assertThat(parsedQuery, instanceOf(ApproximateScoreQuery.class));
+        lower = DateTime.parse("2014-11-30T23:59:59.999+00").getMillis() + 1;
+        upper = DateTime.parse("2014-12-08T00:00:00.000+00").getMillis() - 1;
         assertEquals(
-            LongPoint.newRangeQuery(
-                DATE_FIELD_NAME,
-                DateTime.parse("2014-11-30T23:59:59.999+00").getMillis() + 1,
-                DateTime.parse("2014-12-08T00:00:00.000+00").getMillis() - 1
-            ),
+            new ApproximateScoreQuery(
+                new IndexOrDocValuesQuery(
+                    LongPoint.newRangeQuery(DATE_FIELD_NAME, lower, upper),
+                    SortedNumericDocValuesField.newSlowRangeQuery(DATE_FIELD_NAME, lower, upper)
+                ),
+                new ApproximatePointRangeQuery(
+                    DATE_FIELD_NAME,
+                    pack(new long[] { lower }).bytes,
+                    pack(new long[] { upper }).bytes,
+                    new long[] { lower }.length,
+                    ApproximatePointRangeQuery.LONG_FORMAT
+                )
+            )
+
+            ,
             parsedQuery
         );
     }
@@ -387,14 +447,22 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
             + "        }\n"
             + "    }\n"
             + "}";
+
+        // TODO what else can we assert
         QueryShardContext context = createShardContext();
         Query parsedQuery = parseQuery(query).toQuery(context);
-        assertThat(parsedQuery, instanceOf(DateRangeIncludingNowQuery.class));
-        parsedQuery = ((DateRangeIncludingNowQuery) parsedQuery).getQuery();
-        assertThat(parsedQuery, instanceOf(IndexOrDocValuesQuery.class));
-        parsedQuery = ((IndexOrDocValuesQuery) parsedQuery).getIndexQuery();
-        assertThat(parsedQuery, instanceOf(PointRangeQuery.class));
-        // TODO what else can we assert
+
+        assertThat(parsedQuery, instanceOf(ApproximateScoreQuery.class));
+
+        // Get the exact query from ApproximateScoreQuery (which should be DateRangeIncludingNowQuery)
+        ApproximateScoreQuery approximateScoreQuery = (ApproximateScoreQuery) parsedQuery;
+        Query exactQuery = approximateScoreQuery.getOriginalQuery();
+
+        // The exact query should be DateRangeIncludingNowQuery
+        assertThat(exactQuery, instanceOf(DateRangeIncludingNowQuery.class));
+
+        ApproximateQuery approximationQuery = approximateScoreQuery.getApproximationQuery();
+        assertThat(approximationQuery, instanceOf(ApproximatePointRangeQuery.class));
 
         query = "{\n"
             + "    \"range\" : {\n"
@@ -430,6 +498,113 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
 
         assertEquals(json, "2015-01-01 00:00:00", parsed.from());
         assertEquals(json, "now", parsed.to());
+    }
+
+    public void testInvalidUpperBound() throws IOException {
+        {
+            final String json = "{\n"
+                + "  \"range\" : {\n"
+                + "    \"timestamp\" : {\n"
+                + "      \"from\" : \"2015-01-01 00:00:00\",\n"
+                + "      \"lt\" : \"2015-01-01 00:00:00\",\n"
+                + "      \"to\" : \"now\",\n"
+                + "      \"include_lower\" : true,\n"
+                + "      \"include_upper\" : true,\n"
+                + "      \"time_zone\" : \"+01:00\",\n"
+                + "      \"boost\" : 1.0\n"
+                + "    }\n"
+                + "  }\n"
+                + "}";
+
+            ParsingException pe = expectThrows(ParsingException.class, () -> parseQuery(json));
+            assertEquals("invalid upper bound for [range] query", pe.getMessage());
+        }
+        {
+            final String json = "{\n"
+                + "  \"range\" : {\n"
+                + "    \"timestamp\" : {\n"
+                + "      \"gt\" : 5,\n"
+                + "      \"lte\" : 4,\n"
+                + "      \"lt\" : 12\n"
+                + "    }\n"
+                + "  }\n"
+                + "}";
+
+            ParsingException pe = expectThrows(ParsingException.class, () -> parseQuery(json));
+            assertEquals("invalid upper bound for [range] query", pe.getMessage());
+        }
+        {
+            final String json = "{\n"
+                + "  \"range\" : {\n"
+                + "    \"timestamp\" : {\n"
+                + "      \"gt\" : 5,\n"
+                + "      \"lt\" : 12,\n"
+                + "      \"to\" : 12\n"
+                + "    }\n"
+                + "  }\n"
+                + "}";
+
+            ParsingException pe = expectThrows(ParsingException.class, () -> parseQuery(json));
+            assertEquals("invalid upper bound for [range] query", pe.getMessage());
+        }
+        {
+            final String json = "{\n"
+                + "  \"range\" : {\n"
+                + "    \"timestamp\" : {\n"
+                + "      \"lt\" : 12,\n"
+                + "      \"include_upper\" : true\n"
+                + "    }\n"
+                + "  }\n"
+                + "}";
+
+            ParsingException pe = expectThrows(ParsingException.class, () -> parseQuery(json));
+            assertEquals("invalid upper bound for [range] query", pe.getMessage());
+        }
+    }
+
+    public void testInvalidLowerBound() {
+        {
+            final String json = "{\n"
+                + "  \"range\" : {\n"
+                + "    \"timestamp\" : {\n"
+                + "      \"gt\" : 5,\n"
+                + "      \"gte\" : 4,\n"
+                + "      \"lt\" : 12\n"
+                + "    }\n"
+                + "  }\n"
+                + "}";
+
+            ParsingException pe = expectThrows(ParsingException.class, () -> parseQuery(json));
+            assertEquals("invalid lower bound for [range] query", pe.getMessage());
+        }
+        {
+            final String json = "{\n"
+                + "  \"range\" : {\n"
+                + "    \"timestamp\" : {\n"
+                + "      \"gt\" : 5,\n"
+                + "      \"from\" : 4,\n"
+                + "      \"lt\" : 12\n"
+                + "    }\n"
+                + "  }\n"
+                + "}";
+
+            ParsingException pe = expectThrows(ParsingException.class, () -> parseQuery(json));
+            assertEquals("invalid lower bound for [range] query", pe.getMessage());
+        }
+        {
+            final String json2 = "{\n"
+                + "  \"range\" : {\n"
+                + "    \"timestamp\" : {\n"
+                + "      \"gt\" : 5,\n"
+                + "      \"include_lower\" : true,\n"
+                + "      \"lt\" : 12\n"
+                + "    }\n"
+                + "  }\n"
+                + "}";
+
+            ParsingException pe = expectThrows(ParsingException.class, () -> parseQuery(json2));
+            assertEquals("invalid lower bound for [range] query", pe.getMessage());
+        }
     }
 
     public void testNamedQueryParsing() throws IOException {
@@ -470,7 +645,7 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
         Query luceneQuery = rewrittenRange.toQuery(queryShardContext);
         final Query expectedQuery;
         if (queryShardContext.fieldMapper(query.fieldName()).hasDocValues()) {
-            expectedQuery = new ConstantScoreQuery(new DocValuesFieldExistsQuery(query.fieldName()));
+            expectedQuery = new ConstantScoreQuery(new FieldExistsQuery(query.fieldName()));
         } else {
             expectedQuery = new ConstantScoreQuery(new TermQuery(new Term(FieldNamesFieldMapper.NAME, query.fieldName())));
         }

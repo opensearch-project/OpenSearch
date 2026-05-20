@@ -34,10 +34,10 @@ package org.opensearch.action;
 
 import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.index.IndexResponse;
-import org.opensearch.client.Client;
-import org.opensearch.client.Requests;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.transport.client.Client;
+import org.opensearch.transport.client.Requests;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
@@ -68,6 +68,33 @@ public class ListenerActionIT extends OpenSearchIntegTestCase {
                 failure.set(e);
                 latch.countDown();
             }
+        });
+
+        latch.await();
+
+        assertFalse(threadName.get().contains("listener"));
+    }
+
+    public void testIndexWithCompletableFuture() throws Throwable {
+        final CountDownLatch latch = new CountDownLatch(1);
+        final AtomicReference<Throwable> failure = new AtomicReference<>();
+        final AtomicReference<String> threadName = new AtomicReference<>();
+        Client client = client();
+
+        IndexRequest request = new IndexRequest("test").id("1");
+        if (randomBoolean()) {
+            // set the source, without it, we will have a verification failure
+            request.source(Requests.INDEX_CONTENT_TYPE, "field1", "value1");
+        }
+
+        client.indexAsync(request).thenAccept(indexResponse -> {
+            threadName.set(Thread.currentThread().getName());
+            latch.countDown();
+        }).exceptionally(error -> {
+            threadName.set(Thread.currentThread().getName());
+            failure.set(error);
+            latch.countDown();
+            return null;
         });
 
         latch.await();

@@ -32,6 +32,7 @@
 
 package org.opensearch.action.get;
 
+import org.opensearch.action.get.MultiGetRequest.Item;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.common.ParsingException;
@@ -141,6 +142,13 @@ public class MultiGetRequestTests extends OpenSearchTestCase {
         }
     }
 
+    public void testToString() {
+        MultiGetRequest req = createTestInstance();
+        for (Item items : req.getItems()) {
+            assertThat(req.toString(), containsString(items.toString()));
+        }
+    }
+
     private MultiGetRequest createTestInstance() {
         int numItems = randomIntBetween(0, 128);
         MultiGetRequest request = new MultiGetRequest();
@@ -161,7 +169,7 @@ public class MultiGetRequestTests extends OpenSearchTestCase {
                         generateRandomStringArray(5, 4, false)
                     );
                 } else {
-                    fetchSourceContext = new FetchSourceContext(false);
+                    fetchSourceContext = FetchSourceContext.DO_NOT_FETCH_SOURCE;
                 }
                 item.fetchSourceContext(fetchSourceContext);
             }

@@ -153,4 +153,8 @@ public final class DateHistogramAggregatorFactory extends ValuesSourceAggregator
     protected boolean supportsConcurrentSegmentSearch() {
         return true;
     }
+
+    public Rounding.DateTimeUnit getRounding() {
+        return this.rounding.unit();
+    }
 }

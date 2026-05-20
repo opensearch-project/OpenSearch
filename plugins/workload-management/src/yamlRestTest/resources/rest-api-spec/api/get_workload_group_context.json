@@ -1,0 +1,25 @@
+{
+  "get_workload_group_context": {
+    "stability": "experimental",
+    "url": {
+      "paths": [
+        {
+          "path": "/_wlm/workload_group",
+          "methods": ["GET"],
+          "parts": {}
+        },
+        {
+          "path": "/_wlm/workload_group/{name}",
+          "methods": ["GET"],
+          "parts": {
+            "name": {
+              "type": "string",
+              "description": "WorkloadGroup name"
+            }
+          }
+        }
+      ]
+    },
+    "params":{}
+  }
+}

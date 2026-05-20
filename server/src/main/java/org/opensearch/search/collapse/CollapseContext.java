@@ -31,6 +31,7 @@
 
 package org.opensearch.search.collapse;
 
+import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.grouping.CollapsingTopDocsCollector;
 import org.opensearch.common.annotation.PublicApi;
@@ -75,13 +76,42 @@ public class CollapseContext {
         return innerHits;
     }
 
+    /**
+     * Creates a CollapsingTopDocsCollector for field collapsing without search_after support.
+     *
+     * @param sort The sort order for collapsed groups
+     * @param topN Maximum number of collapsed groups to collect
+     * @return CollapsingTopDocsCollector instance based on field type
+     * @throws IllegalStateException if field type is not keyword or numeric
+     */
     public CollapsingTopDocsCollector<?> createTopDocs(Sort sort, int topN) {
-        if (fieldType instanceof KeywordFieldMapper.KeywordFieldType) {
+        if (fieldType != null && fieldType.unwrap() instanceof KeywordFieldMapper.KeywordFieldType) {
             return CollapsingTopDocsCollector.createKeyword(fieldName, fieldType, sort, topN);
-        } else if (fieldType instanceof NumberFieldMapper.NumberFieldType) {
+        } else if (fieldType != null && fieldType.unwrap() instanceof NumberFieldMapper.NumberFieldType) {
             return CollapsingTopDocsCollector.createNumeric(fieldName, fieldType, sort, topN);
         } else {
             throw new IllegalStateException("unknown type for collapse field " + fieldName + ", only keywords and numbers are accepted");
+        }
+    }
+
+    /**
+     * Creates a CollapsingTopDocsCollector for field collapsing with search_after support.
+     *
+     * @param sort The sort order for collapsed groups (must match collapse field for search_after)
+     * @param topN Maximum number of collapsed groups to collect
+     * @param searchAfter The last sort value from previous page for pagination
+     * @return CollapsingTopDocsCollector instance based on field type
+     * @throws IllegalStateException if field type is not keyword or numeric
+     */
+    public CollapsingTopDocsCollector<?> createTopDocs(Sort sort, int topN, FieldDoc searchAfter) {
+        if (fieldType != null && fieldType.unwrap() instanceof KeywordFieldMapper.KeywordFieldType) {
+            return CollapsingTopDocsCollector.createKeyword(fieldName, fieldType, sort, topN, searchAfter);
+        } else if (fieldType != null && fieldType.unwrap() instanceof NumberFieldMapper.NumberFieldType) {
+            return CollapsingTopDocsCollector.createNumeric(fieldName, fieldType, sort, topN, searchAfter);
+        } else {
+            throw new IllegalStateException(
+                "unsupported type for collapse field " + fieldName + ", only keywords and numbers are accepted"
+            );
         }
     }
 }

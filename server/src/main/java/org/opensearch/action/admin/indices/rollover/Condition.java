@@ -106,10 +106,61 @@ public abstract class Condition<T> implements NamedWriteable, ToXContentFragment
         public final long indexCreated;
         public final ByteSizeValue indexSize;
 
+        /**
+         * Private constructor that takes a builder.
+         * This is the sole entry point for creating a new Stats object.
+         * @param builder The builder instance containing all the values.
+         */
+        private Stats(Builder builder) {
+            this.numDocs = builder.numDocs;
+            this.indexCreated = builder.indexCreated;
+            this.indexSize = builder.indexSize;
+        }
+
+        /**
+         * This constructor will be deprecated starting in version 3.4.0.
+         * Use {@link Builder} instead.
+         */
+        @Deprecated
         public Stats(long numDocs, long indexCreated, ByteSizeValue indexSize) {
             this.numDocs = numDocs;
             this.indexCreated = indexCreated;
             this.indexSize = indexSize;
+        }
+
+        /**
+         * Builder for the {@link Stats} class.
+         * Provides a fluent API for constructing a Stats object.
+         */
+        public static class Builder {
+            private long numDocs = 0;
+            private long indexCreated = 0;
+            private ByteSizeValue indexSize = null;
+
+            public Builder() {}
+
+            public Builder numDocs(long numDocs) {
+                this.numDocs = numDocs;
+                return this;
+            }
+
+            public Builder indexCreated(long indexCreated) {
+                this.indexCreated = indexCreated;
+                return this;
+            }
+
+            public Builder indexSize(ByteSizeValue size) {
+                this.indexSize = size;
+                return this;
+            }
+
+            /**
+             * Creates a {@link Stats} object from the builder's current state.
+             * @return A new Stats instance.
+             */
+            public Stats build() {
+                return new Stats(this);
+            }
         }
     }
 

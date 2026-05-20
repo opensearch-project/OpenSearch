@@ -47,7 +47,7 @@ public class RemoteShardsMoveShardsTests extends RemoteShardsBalancerBaseTestCas
 
     /**
      * Test move operations for index level allocation settings.
-     * Supported for local indices, not supported for remote indices.
+     * Supported for local indices and remote indices.
      */
     public void testIndexLevelExclusions() throws InterruptedException {
         int localOnlyNodes = 7;
@@ -102,8 +102,9 @@ public class RemoteShardsMoveShardsTests extends RemoteShardsBalancerBaseTestCas
         // No shard of updated local index should be on excluded local capable node
         assertTrue(routingTable.allShards(localIndex).stream().noneMatch(shard -> shard.currentNodeId().equals(excludedLocalOnlyNode)));
 
-        // Since remote index shards are untouched, at least one shard should
-        // continue to stay on the excluded remote capable node
-        assertTrue(routingTable.allShards(remoteIndex).stream().anyMatch(shard -> shard.currentNodeId().equals(excludedRemoteCapableNode)));
+        // No shard of updated remote index should be on excluded remote capable node
+        assertTrue(
+            routingTable.allShards(remoteIndex).stream().noneMatch(shard -> shard.currentNodeId().equals(excludedRemoteCapableNode))
+        );
     }
 }

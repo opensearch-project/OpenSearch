@@ -165,6 +165,32 @@ public class RoutingNodeTests extends OpenSearchTestCase {
         assertThat(routingNode.numberOfOwningShards(), equalTo(2));
     }
 
+    public void testNumberOfOwningPrimaryShards() {
+        final ShardRouting test1Shard0 = TestShardRouting.newShardRouting("test1", 0, "node-1", true, ShardRoutingState.STARTED);
+        final ShardRouting test2Shard0 = TestShardRouting.newShardRouting(
+            "test2",
+            0,
+            "node-1",
+            "node-2",
+            false,
+            ShardRoutingState.RELOCATING
+        );
+        final ShardRouting test3Shard0 = TestShardRouting.newShardRouting(
+            "test3",
+            0,
+            "node-1",
+            "node-2",
+            true,
+            ShardRoutingState.RELOCATING
+        );
+        final ShardRouting test3Shard1 = TestShardRouting.newShardRouting("test3", 1, "node-1", true, ShardRoutingState.STARTED);
+        routingNode.add(test1Shard0);
+        routingNode.add(test2Shard0);
+        routingNode.add(test3Shard0);
+        routingNode.add(test3Shard1);
+        assertThat(routingNode.numberOfOwningPrimaryShards(), equalTo(2));
+    }
+
     public void testNumberOfOwningShardsForIndex() {
         final ShardRouting test1Shard0 = TestShardRouting.newShardRouting("test1", 0, "node-1", false, ShardRoutingState.STARTED);
         final ShardRouting test2Shard0 = TestShardRouting.newShardRouting(
@@ -181,6 +207,35 @@ public class RoutingNodeTests extends OpenSearchTestCase {
         assertThat(routingNode.numberOfOwningShardsForIndex(new Index("test1", IndexMetadata.INDEX_UUID_NA_VALUE)), equalTo(1));
         assertThat(routingNode.numberOfOwningShardsForIndex(new Index("test2", IndexMetadata.INDEX_UUID_NA_VALUE)), equalTo(0));
         assertThat(routingNode.numberOfOwningShardsForIndex(new Index("test3", IndexMetadata.INDEX_UUID_NA_VALUE)), equalTo(0));
+    }
+
+    public void testNumberOfOwningPrimaryShardsForIndex() {
+        final ShardRouting test1Shard0 = TestShardRouting.newShardRouting("test1", 0, "node-1", true, ShardRoutingState.STARTED);
+        final ShardRouting test2Shard0 = TestShardRouting.newShardRouting(
+            "test2",
+            0,
+            "node-1",
+            "node-2",
+            false,
+            ShardRoutingState.RELOCATING
+        );
+        final ShardRouting test3Shard0 = TestShardRouting.newShardRouting(
+            "test3",
+            0,
+            "node-1",
+            "node-2",
+            true,
+            ShardRoutingState.RELOCATING
+        );
+        final ShardRouting test3Shard1 = TestShardRouting.newShardRouting("test3", 1, "node-1", true, ShardRoutingState.STARTED);
+        routingNode.add(test1Shard0);
+        routingNode.add(test2Shard0);
+        routingNode.add(test3Shard0);
+        routingNode.add(test3Shard1);
+        assertThat(routingNode.numberOfOwningPrimaryShardsForIndex(new Index("test", IndexMetadata.INDEX_UUID_NA_VALUE)), equalTo(0));
+        assertThat(routingNode.numberOfOwningPrimaryShardsForIndex(new Index("test1", IndexMetadata.INDEX_UUID_NA_VALUE)), equalTo(1));
+        assertThat(routingNode.numberOfOwningPrimaryShardsForIndex(new Index("test2", IndexMetadata.INDEX_UUID_NA_VALUE)), equalTo(0));
+        assertThat(routingNode.numberOfOwningPrimaryShardsForIndex(new Index("test3", IndexMetadata.INDEX_UUID_NA_VALUE)), equalTo(1));
     }
 
 }

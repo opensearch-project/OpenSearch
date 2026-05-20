@@ -32,6 +32,7 @@
 
 package org.opensearch.script.mustache;
 
+import org.opensearch.Version;
 import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.CompositeIndicesRequest;
@@ -67,6 +68,7 @@ public class SearchTemplateRequest extends ActionRequest implements IndicesReque
     private ScriptType scriptType;
     private String script;
     private Map<String, Object> scriptParams;
+    private String searchPipeline;
 
     public SearchTemplateRequest() {}
 
@@ -81,6 +83,10 @@ public class SearchTemplateRequest extends ActionRequest implements IndicesReque
         if (in.readBoolean()) {
             scriptParams = in.readMap();
         }
+        if (in.getVersion().onOrAfter(Version.V_3_2_0)) {
+            searchPipeline = in.readOptionalString();
+        }
+
     }
 
     public SearchTemplateRequest(SearchRequest searchRequest) {
@@ -106,12 +112,13 @@ public class SearchTemplateRequest extends ActionRequest implements IndicesReque
             && Objects.equals(request, request1.request)
             && scriptType == request1.scriptType
             && Objects.equals(script, request1.script)
-            && Objects.equals(scriptParams, request1.scriptParams);
+            && Objects.equals(scriptParams, request1.scriptParams)
+            && Objects.equals(searchPipeline, request1.searchPipeline);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(request, simulate, explain, profile, scriptType, script, scriptParams);
+        return Objects.hash(request, simulate, explain, profile, scriptType, script, scriptParams, searchPipeline);
     }
 
     public boolean isSimulate() {
@@ -162,6 +169,14 @@ public class SearchTemplateRequest extends ActionRequest implements IndicesReque
         this.scriptParams = scriptParams;
     }
 
+    public String getSearchPipeline() {
+        return searchPipeline;
+    }
+
+    public void setSearchPipeline(String searchPipeline) {
+        this.searchPipeline = searchPipeline;
+    }
+
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
@@ -193,6 +208,7 @@ public class SearchTemplateRequest extends ActionRequest implements IndicesReque
     private static ParseField PARAMS_FIELD = new ParseField("params");
     private static ParseField EXPLAIN_FIELD = new ParseField("explain");
     private static ParseField PROFILE_FIELD = new ParseField("profile");
+    private static ParseField SEARCH_PIPELINE_FIELD = new ParseField("search_pipeline");
 
     private static final ObjectParser<SearchTemplateRequest, Void> PARSER;
     static {
@@ -217,6 +233,14 @@ public class SearchTemplateRequest extends ActionRequest implements IndicesReque
                 request.setScript(parser.text());
             }
         }, SOURCE_FIELD, ObjectParser.ValueType.OBJECT_OR_STRING);
+        PARSER.declareField((parser, request, context) -> {
+            if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
+                request.setSearchPipeline(null);
+            } else {
+                request.setSearchPipeline(parser.text());
+            }
+        }, SEARCH_PIPELINE_FIELD, ObjectParser.ValueType.STRING_OR_NULL);
+
     }
 
     public static SearchTemplateRequest fromXContent(XContentParser parser) throws IOException {
@@ -238,6 +262,7 @@ public class SearchTemplateRequest extends ActionRequest implements IndicesReque
         return builder.field(PARAMS_FIELD.getPreferredName(), scriptParams)
             .field(EXPLAIN_FIELD.getPreferredName(), explain)
             .field(PROFILE_FIELD.getPreferredName(), profile)
+            .field(SEARCH_PIPELINE_FIELD.getPreferredName(), searchPipeline)
             .endObject();
     }
 
@@ -255,20 +280,32 @@ public class SearchTemplateRequest extends ActionRequest implements IndicesReque
         if (hasParams) {
             out.writeMap(scriptParams);
         }
+        if (out.getVersion().onOrAfter(Version.V_3_2_0)) {
+            out.writeOptionalString(searchPipeline);
+        }
     }
 
     @Override
     public String[] indices() {
+        if (request == null) {
+            return new String[0];
+        }
         return request.indices();
     }
 
     @Override
     public IndicesOptions indicesOptions() {
+        if (request == null) {
+            return SearchRequest.DEFAULT_INDICES_OPTIONS;
+        }
         return request.indicesOptions();
     }
 
     @Override
     public IndicesRequest indices(String... indices) {
+        if (request == null) {
+            return new SearchRequest(new String[0]).indices(indices);
+        }
         return request.indices(indices);
     }
 }

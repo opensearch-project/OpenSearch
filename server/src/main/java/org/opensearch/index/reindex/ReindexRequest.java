@@ -397,12 +397,12 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
         if (value == null) {
             return null;
         }
-        if (value instanceof List) {
+        if (value instanceof List<?>) {
             @SuppressWarnings("unchecked")
-            List<String> list = (List<String>) value;
-            return list.toArray(new String[0]);
-        } else if (value instanceof String) {
-            return Strings.splitStringByCommaToArray((String) value);
+            List<String> stringList = (List<String>) value;
+            return stringList.toArray(new String[0]);
+        } else if (value instanceof String stringValue) {
+            return Strings.splitStringByCommaToArray(stringValue);
         } else {
             throw new IllegalArgumentException("Expected [" + name + "] to be a list or a string but was [" + value + ']');
         }
@@ -467,8 +467,8 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
         if (value == null) {
             return null;
         }
-        if (value instanceof String) {
-            return (String) value;
+        if (value instanceof String stringValue) {
+            return stringValue;
         }
         throw new IllegalArgumentException("Expected [" + name + "] to be a string but was [" + value + "]");
     }
@@ -478,10 +478,9 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
         if (value == null) {
             return emptyMap();
         }
-        if (false == value instanceof Map) {
+        if (!(value instanceof Map<?, ?> map)) {
             throw new IllegalArgumentException("Expected [" + name + "] to be an object containing strings but was [" + value + "]");
         }
-        Map<?, ?> map = (Map<?, ?>) value;
         for (Map.Entry<?, ?> entry : map.entrySet()) {
             if (false == entry.getKey() instanceof String || false == entry.getValue() instanceof String) {
                 throw new IllegalArgumentException("Expected [" + name + "] to be an object containing strings but has [" + entry + "]");

@@ -47,6 +47,12 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
@@ -351,6 +357,67 @@ public class DiscoveryNodeFiltersTests extends OpenSearchTestCase {
             buildOrUpdateFromSettings(filters, AND, "xxx.", Settings.builder().put("xxx.name", "name2").build());
         } catch (AssertionError error) {
             assertEquals("operation type should match with node filter parameter", error.getMessage());
+        }
+    }
+
+    public void testConcurrentModification() {
+        AtomicReference<DiscoveryNodeFilters> filters = new AtomicReference<>();
+        AtomicBoolean keepRunning = new AtomicBoolean(true);
+        int count = 200; // I can pretty reliably reproduce failures with 200 iterations, but not 150
+        try (ExecutorService executor = Executors.newFixedThreadPool(2)) {
+            // Thread 1: repeatedly update the filters
+            Future<?> t1 = executor.submit(() -> {
+                try {
+                    for (int i = 0; i < count && keepRunning.get(); i++) {
+                        Settings.Builder settingsBuilder = Settings.builder().put("xxx._id", "id" + i);
+                        if (i % 2 == 0) {
+                            settingsBuilder.put("xxx._name", "");
+                        } else {
+                            settingsBuilder.put("xxx._name", "name" + i);
+                        }
+                        DiscoveryNodeFilters newFilters = buildOrUpdateFromSettings(filters.get(), OR, "xxx.", settingsBuilder.build());
+                        filters.set(newFilters);
+                        try {
+                            Thread.sleep(1);
+                        } catch (InterruptedException e) {
+                            throw new RuntimeException(e);
+                        }
+                    }
+                } finally {
+                    keepRunning.set(false);
+                }
+            });
+
+            // Thread 2: repeatedly read and match nodes against the filters
+            Future<?> t2 = executor.submit(() -> {
+                try {
+                    for (int i = 0; i < count && keepRunning.get(); i++) {
+                        DiscoveryNodeFilters currentFilters = filters.get();
+                        if (currentFilters != null) {
+                            DiscoveryNode node = new DiscoveryNode(
+                                "name" + i,
+                                "id" + i,
+                                buildNewFakeTransportAddress(),
+                                emptyMap(),
+                                emptySet(),
+                                Version.CURRENT
+                            );
+                            currentFilters.match(node);
+                        }
+                        try {
+                            Thread.sleep(1);
+                        } catch (InterruptedException e) {
+                            throw new RuntimeException(e);
+                        }
+                    }
+                } finally {
+                    keepRunning.set(false);
+                }
+            });
+            t2.get();
+            t1.get();
+        } catch (ExecutionException | InterruptedException e) {
+            throw new RuntimeException(e);
         }
     }
 

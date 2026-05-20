@@ -32,18 +32,21 @@
 
 package org.opensearch.index.mapper;
 
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.search.Query;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.Explicit;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.collect.CopyOnWriteHashMap;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.support.XContentMapValues;
 import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.index.compositeindex.datacube.startree.StarTreeIndexSettings;
 import org.opensearch.index.mapper.MapperService.MergeReason;
 
 import java.io.IOException;
@@ -60,8 +63,9 @@ import java.util.Map;
 /**
  * Field mapper for object field types
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class ObjectMapper extends Mapper implements Cloneable {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(ObjectMapper.class);
 
@@ -77,24 +81,29 @@ public class ObjectMapper extends Mapper implements Cloneable {
         public static final boolean ENABLED = true;
         public static final Nested NESTED = Nested.NO;
         public static final Dynamic DYNAMIC = null; // not set, inherited from root
+        public static final Explicit<Boolean> DISABLE_OBJECTS = new Explicit<>(false, false);
     }
 
     /**
      * Dynamic field mapping specification
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public enum Dynamic {
         TRUE,
         FALSE,
-        STRICT
+        STRICT,
+        STRICT_ALLOW_TEMPLATES,
+        FALSE_ALLOW_TEMPLATES
     }
 
     /**
      * Nested objects
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static class Nested {
 
         public static final Nested NO = new Nested(false, new Explicit<>(false, false), new Explicit<>(false, false));
@@ -164,6 +173,19 @@ public class ObjectMapper extends Mapper implements Cloneable {
         public void setIncludeInRoot(boolean value) {
             includeInRoot = new Explicit<>(value, true);
         }
+
+        public static boolean isParent(ObjectMapper parentObjectMapper, ObjectMapper childObjectMapper, MapperService mapperService) {
+            if (parentObjectMapper == null || childObjectMapper == null) {
+                return false;
+            }
+
+            ObjectMapper parent = childObjectMapper.getParentObjectMapper(mapperService);
+            while (parent != null && parent != parentObjectMapper) {
+                childObjectMapper = parent;
+                parent = childObjectMapper.getParentObjectMapper(mapperService);
+            }
+            return parentObjectMapper == parent;
+        }
     }
 
     /**
@@ -172,6 +194,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
      * @opensearch.internal
      */
     @SuppressWarnings("rawtypes")
+    @PublicApi(since = "1.0.0")
     public static class Builder<T extends Builder> extends Mapper.Builder<T> {
 
         protected Explicit<Boolean> enabled = new Explicit<>(true, false);
@@ -179,6 +202,8 @@ public class ObjectMapper extends Mapper implements Cloneable {
         protected Nested nested = Defaults.NESTED;
 
         protected Dynamic dynamic = Defaults.DYNAMIC;
+
+        protected Explicit<Boolean> disableObjects = Defaults.DISABLE_OBJECTS;
 
         protected final List<Mapper.Builder> mappersBuilders = new ArrayList<>();
 
@@ -199,6 +224,11 @@ public class ObjectMapper extends Mapper implements Cloneable {
 
         public T nested(Nested nested) {
             this.nested = nested;
+            return builder;
+        }
+
+        public T disableObjects(boolean disableObjects) {
+            this.disableObjects = new Explicit<>(disableObjects, true);
             return builder;
         }
 
@@ -228,13 +258,31 @@ public class ObjectMapper extends Mapper implements Cloneable {
                 enabled,
                 nested,
                 dynamic,
+                disableObjects,
                 mappers,
                 context.indexSettings()
             );
 
+            // Validate flat field compatibility during build
+            if (Boolean.TRUE.equals(disableObjects.value())) {
+                for (Mapper childMapper : mappers.values()) {
+                    if (childMapper instanceof ObjectMapper) {
+                        throw new MapperParsingException(
+                            "Field mapping conflict: Cannot add nested object field ["
+                                + childMapper.name()
+                                + "] when disable_objects is enabled for ["
+                                + name
+                                + "]. With disable_objects=true, all fields must use flat field notation (e.g., 'field.name' as a single field) "
+                                + "rather than nested object structures."
+                        );
+                    }
+                }
+            }
+
             return objectMapper;
         }
 
+        @Deprecated
         protected ObjectMapper createMapper(
             String name,
             String fullPath,
@@ -244,7 +292,20 @@ public class ObjectMapper extends Mapper implements Cloneable {
             Map<String, Mapper> mappers,
             @Nullable Settings settings
         ) {
-            return new ObjectMapper(name, fullPath, enabled, nested, dynamic, mappers, settings);
+            return createMapper(name, fullPath, enabled, nested, dynamic, Defaults.DISABLE_OBJECTS, mappers, settings);
+        }
+
+        protected ObjectMapper createMapper(
+            String name,
+            String fullPath,
+            Explicit<Boolean> enabled,
+            Nested nested,
+            Dynamic dynamic,
+            Explicit<Boolean> disableObjects,
+            Map<String, Mapper> mappers,
+            @Nullable Settings settings
+        ) {
+            return new ObjectMapper(name, fullPath, enabled, nested, dynamic, disableObjects, mappers, settings);
         }
     }
 
@@ -258,13 +319,24 @@ public class ObjectMapper extends Mapper implements Cloneable {
         public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             ObjectMapper.Builder builder = new Builder(name);
             parseNested(name, node, builder, parserContext);
+            Object compositeField = null;
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();
                 String fieldName = entry.getKey();
                 Object fieldNode = entry.getValue();
-                if (parseObjectOrDocumentTypeProperties(fieldName, fieldNode, parserContext, builder)) {
+                if (fieldName.equals("composite")) {
+                    compositeField = fieldNode;
                     iterator.remove();
+                } else {
+                    if (parseObjectOrDocumentTypeProperties(fieldName, fieldNode, parserContext, builder)) {
+                        iterator.remove();
+                    }
                 }
+            }
+            // Important : Composite field is made up of 2 or more source fields of the index, so this must be called
+            // after parsing all other properties
+            if (compositeField != null) {
+                parseCompositeField(builder, (Map<String, Object>) compositeField, parserContext);
             }
             return builder;
         }
@@ -279,6 +351,10 @@ public class ObjectMapper extends Mapper implements Cloneable {
                 String value = fieldNode.toString();
                 if (value.equalsIgnoreCase("strict")) {
                     builder.dynamic(Dynamic.STRICT);
+                } else if (value.equalsIgnoreCase("strict_allow_templates")) {
+                    builder.dynamic(Dynamic.STRICT_ALLOW_TEMPLATES);
+                } else if (value.equalsIgnoreCase("false_allow_templates")) {
+                    builder.dynamic(Dynamic.FALSE_ALLOW_TEMPLATES);
                 } else {
                     boolean dynamic = XContentMapValues.nodeBooleanValue(fieldNode, fieldName + ".dynamic");
                     builder.dynamic(dynamic ? Dynamic.TRUE : Dynamic.FALSE);
@@ -286,6 +362,28 @@ public class ObjectMapper extends Mapper implements Cloneable {
                 return true;
             } else if (fieldName.equals("enabled")) {
                 builder.enabled(XContentMapValues.nodeBooleanValue(fieldNode, fieldName + ".enabled"));
+                return true;
+            } else if (fieldName.equals("disable_objects")) {
+                try {
+                    builder.disableObjects(XContentMapValues.nodeBooleanValue(fieldNode, fieldName + ".disable_objects"));
+                } catch (IllegalArgumentException e) {
+                    throw new IllegalArgumentException(
+                        "Configuration error: Parameter [disable_objects] must be a boolean value (true or false), but got ["
+                            + fieldNode
+                            + "]. "
+                            + e.getMessage(),
+                        e
+                    );
+                }
+                return true;
+            } else if (fieldName.equals("derived")) {
+                if (fieldNode instanceof Collection && ((Collection) fieldNode).isEmpty()) {
+                    // nothing to do here, empty (to support "derived: []" case)
+                } else if (fieldNode instanceof Map) {
+                    parseDerived(builder, (Map<String, Object>) fieldNode, parserContext);
+                } else {
+                    throw new OpenSearchParseException("derived must be a map type");
+                }
                 return true;
             } else if (fieldName.equals("properties")) {
                 if (fieldNode instanceof Collection && ((Collection) fieldNode).isEmpty()) {
@@ -345,6 +443,156 @@ public class ObjectMapper extends Mapper implements Cloneable {
             }
         }
 
+        protected static void parseDerived(ObjectMapper.Builder objBuilder, Map<String, Object> derivedNode, ParserContext parserContext) {
+            Iterator<Map.Entry<String, Object>> iterator = derivedNode.entrySet().iterator();
+            while (iterator.hasNext()) {
+                Map.Entry<String, Object> entry = iterator.next();
+                String fieldName = entry.getKey();
+                // Should accept empty arrays, as a work around for when the
+                // user can't provide an empty Map. (PHP for example)
+                boolean isEmptyList = entry.getValue() instanceof List && ((List<?>) entry.getValue()).isEmpty();
+
+                if (entry.getValue() instanceof Map) {
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> node = (Map<String, Object>) entry.getValue();
+
+                    // Derived fields are a bit unique in that the 'type' attribute does not map to the TypeParser
+                    // like it would for traditional fields in properties.
+                    // So in this case, the DerivedFieldMapper's TypeParser will explicitly be used
+                    Mapper.TypeParser typeParser = parserContext.typeParser(DerivedFieldMapper.CONTENT_TYPE);
+                    String[] fieldNameParts = fieldName.split("\\.");
+                    // field name is just ".", which is invalid
+                    if (fieldNameParts.length < 1) {
+                        throw new MapperParsingException("Invalid field name " + fieldName);
+                    }
+                    String realFieldName = fieldNameParts[fieldNameParts.length - 1];
+                    Mapper.Builder<?> fieldBuilder = typeParser.parse(realFieldName, node, parserContext);
+                    for (int i = fieldNameParts.length - 2; i >= 0; --i) {
+                        ObjectMapper.Builder<?> intermediate = new ObjectMapper.Builder<>(fieldNameParts[i]);
+                        intermediate.add(fieldBuilder);
+                        fieldBuilder = intermediate;
+                    }
+                    objBuilder.add(fieldBuilder);
+                    node.remove("type");
+                    DocumentMapperParser.checkNoRemainingFields(fieldName, node, parserContext.indexVersionCreated());
+                    iterator.remove();
+                } else if (isEmptyList) {
+                    iterator.remove();
+                } else {
+                    throw new MapperParsingException(
+                        "Expected map for property [derived_fields] on field [" + fieldName + "] but got a " + fieldName.getClass()
+                    );
+                }
+            }
+
+            DocumentMapperParser.checkNoRemainingFields(
+                derivedNode,
+                parserContext.indexVersionCreated(),
+                "DocType mapping definition has unsupported parameters: "
+            );
+        }
+
+        /**
+         * Contains logic to parse 'composite' section of mappings. This should be called only after
+         * parsing normal properties as this checks if the given fields are also source fields of the index.
+         */
+        protected static void parseCompositeField(
+            ObjectMapper.Builder objBuilder,
+            Map<String, Object> compositeNode,
+            ParserContext parserContext
+        ) {
+            if (StarTreeIndexSettings.IS_COMPOSITE_INDEX_SETTING.get(parserContext.getSettings()) == false) {
+                throw new IllegalArgumentException(
+                    String.format(
+                        Locale.ROOT,
+                        "Set '%s' as true as part of index settings to use star tree index",
+                        StarTreeIndexSettings.IS_COMPOSITE_INDEX_SETTING.getKey()
+                    )
+                );
+            }
+            if (IndexMetadata.INDEX_APPEND_ONLY_ENABLED_SETTING.get(parserContext.getSettings()) == false) {
+                throw new IllegalArgumentException(
+                    String.format(
+                        Locale.ROOT,
+                        "Set '%s' as true as part of index settings to use star tree index",
+                        IndexMetadata.INDEX_APPEND_ONLY_ENABLED_SETTING.getKey()
+                    )
+                );
+            }
+            Iterator<Map.Entry<String, Object>> iterator = compositeNode.entrySet().iterator();
+            if (compositeNode.size() > StarTreeIndexSettings.STAR_TREE_MAX_FIELDS_SETTING.get(parserContext.getSettings())) {
+                throw new IllegalArgumentException(
+                    String.format(
+                        Locale.ROOT,
+                        "Composite fields cannot have more than [%s] fields",
+                        StarTreeIndexSettings.STAR_TREE_MAX_FIELDS_SETTING.get(parserContext.getSettings())
+                    )
+                );
+            }
+            while (iterator.hasNext()) {
+                Map.Entry<String, Object> entry = iterator.next();
+                String fieldName = entry.getKey();
+                // Should accept empty arrays, as a work around for when the
+                // user can't provide an empty Map. (PHP for example)
+                boolean isEmptyList = entry.getValue() instanceof List && ((List<?>) entry.getValue()).isEmpty();
+                if (entry.getValue() instanceof Map) {
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> propNode = (Map<String, Object>) entry.getValue();
+                    String type;
+                    Object typeNode = propNode.get("type");
+                    if (typeNode != null) {
+                        type = typeNode.toString();
+                    } else {
+                        // lets see if we can derive this...
+                        throw new MapperParsingException("No type specified for field [" + fieldName + "]");
+                    }
+                    Mapper.TypeParser typeParser = getSupportedCompositeTypeParser(type, parserContext);
+                    if (typeParser == null) {
+                        throw new MapperParsingException("No handler for type [" + type + "] declared on field [" + fieldName + "]");
+                    }
+                    String[] fieldNameParts = fieldName.split("\\.");
+                    // field name is just ".", which is invalid
+                    if (fieldNameParts.length < 1) {
+                        throw new MapperParsingException("Invalid field name " + fieldName);
+                    }
+                    String realFieldName = fieldNameParts[fieldNameParts.length - 1];
+                    Mapper.Builder<?> fieldBuilder = typeParser.parse(realFieldName, propNode, parserContext, objBuilder);
+                    for (int i = fieldNameParts.length - 2; i >= 0; --i) {
+                        ObjectMapper.Builder<?> intermediate = new ObjectMapper.Builder<>(fieldNameParts[i]);
+                        intermediate.add(fieldBuilder);
+                        fieldBuilder = intermediate;
+                    }
+                    objBuilder.add(fieldBuilder);
+                    propNode.remove("type");
+                    DocumentMapperParser.checkNoRemainingFields(fieldName, propNode, parserContext.indexVersionCreated());
+                    iterator.remove();
+                } else if (isEmptyList) {
+                    iterator.remove();
+                } else {
+                    throw new MapperParsingException(
+                        "Expected map for property [fields] on field [" + fieldName + "] but got a " + fieldName.getClass()
+                    );
+                }
+            }
+
+            DocumentMapperParser.checkNoRemainingFields(
+                compositeNode,
+                parserContext.indexVersionCreated(),
+                "DocType mapping definition has unsupported parameters: "
+            );
+        }
+
+        private static Mapper.TypeParser getSupportedCompositeTypeParser(String type, ParserContext parserContext) {
+            switch (type) {
+                case StarTreeMapper.CONTENT_TYPE:
+                    return parserContext.typeParser(type);
+                default:
+                    throw new IllegalArgumentException(
+                        String.format(Locale.ROOT, "Type [%s] isn't supported in composite field context.", type)
+                    );
+            }
+        }
+
         protected static void parseProperties(ObjectMapper.Builder objBuilder, Map<String, Object> propsNode, ParserContext parserContext) {
             Iterator<Map.Entry<String, Object>> iterator = propsNode.entrySet().iterator();
             while (iterator.hasNext()) {
@@ -380,19 +628,29 @@ public class ObjectMapper extends Mapper implements Cloneable {
                     if (typeParser == null) {
                         throw new MapperParsingException("No handler for type [" + type + "] declared on field [" + fieldName + "]");
                     }
-                    String[] fieldNameParts = fieldName.split("\\.");
-                    // field name is just ".", which is invalid
-                    if (fieldNameParts.length < 1) {
-                        throw new MapperParsingException("Invalid field name " + fieldName);
+
+                    // When disable_objects is enabled, treat dotted field names as literal field names
+                    // and don't create intermediate object mappers
+                    if (Boolean.TRUE.equals(objBuilder.disableObjects.value())) {
+                        // Use the full field name as-is without splitting
+                        Mapper.Builder<?> fieldBuilder = typeParser.parse(fieldName, propNode, parserContext);
+                        objBuilder.add(fieldBuilder);
+                    } else {
+                        // Standard behavior: split dotted names and create intermediate object mappers
+                        String[] fieldNameParts = fieldName.split("\\.");
+                        // field name is just ".", which is invalid
+                        if (fieldNameParts.length < 1) {
+                            throw new MapperParsingException("Invalid field name " + fieldName);
+                        }
+                        String realFieldName = fieldNameParts[fieldNameParts.length - 1];
+                        Mapper.Builder<?> fieldBuilder = typeParser.parse(realFieldName, propNode, parserContext);
+                        for (int i = fieldNameParts.length - 2; i >= 0; --i) {
+                            ObjectMapper.Builder<?> intermediate = new ObjectMapper.Builder<>(fieldNameParts[i]);
+                            intermediate.add(fieldBuilder);
+                            fieldBuilder = intermediate;
+                        }
+                        objBuilder.add(fieldBuilder);
                     }
-                    String realFieldName = fieldNameParts[fieldNameParts.length - 1];
-                    Mapper.Builder<?> fieldBuilder = typeParser.parse(realFieldName, propNode, parserContext);
-                    for (int i = fieldNameParts.length - 2; i >= 0; --i) {
-                        ObjectMapper.Builder<?> intermediate = new ObjectMapper.Builder<>(fieldNameParts[i]);
-                        intermediate.add(fieldBuilder);
-                        fieldBuilder = intermediate;
-                    }
-                    objBuilder.add(fieldBuilder);
                     propNode.remove("type");
                     DocumentMapperParser.checkNoRemainingFields(fieldName, propNode, parserContext.indexVersionCreated());
                     iterator.remove();
@@ -427,6 +685,8 @@ public class ObjectMapper extends Mapper implements Cloneable {
 
     private volatile Dynamic dynamic;
 
+    private Explicit<Boolean> disableObjects;
+
     private volatile CopyOnWriteHashMap<String, Mapper> mappers;
 
     ObjectMapper(
@@ -435,6 +695,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
         Explicit<Boolean> enabled,
         Nested nested,
         Dynamic dynamic,
+        Explicit<Boolean> disableObjects,
         Map<String, Mapper> mappers,
         Settings settings
     ) {
@@ -447,6 +708,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
         this.enabled = enabled;
         this.nested = nested;
         this.dynamic = dynamic;
+        this.disableObjects = disableObjects;
         if (mappers == null) {
             this.mappers = new CopyOnWriteHashMap<>();
         } else {
@@ -530,6 +792,14 @@ public class ObjectMapper extends Mapper implements Cloneable {
         return dynamic;
     }
 
+    public boolean disableObjects() {
+        return disableObjects.value();
+    }
+
+    public Explicit<Boolean> disableObjectsExplicit() {
+        return disableObjects;
+    }
+
     /**
      * Returns the parent {@link ObjectMapper} instance of the specified object mapper or <code>null</code> if there
      * isn't any.
@@ -566,16 +836,18 @@ public class ObjectMapper extends Mapper implements Cloneable {
 
     @Override
     public void validate(MappingLookup mappers) {
+        // Validate flat field compatibility when disable_objects is enabled
+        validateFlatFieldCompatibility();
+
         for (Mapper mapper : this.mappers.values()) {
             mapper.validate(mappers);
         }
     }
 
     public ObjectMapper merge(Mapper mergeWith, MergeReason reason) {
-        if (!(mergeWith instanceof ObjectMapper)) {
+        if (!(mergeWith instanceof ObjectMapper mergeWithObject)) {
             throw new IllegalArgumentException("can't merge a non object mapping [" + mergeWith.name() + "] with an object mapping");
         }
-        ObjectMapper mergeWithObject = (ObjectMapper) mergeWith;
         ObjectMapper merged = clone();
         merged.doMerge(mergeWithObject, reason);
         return merged;
@@ -592,8 +864,17 @@ public class ObjectMapper extends Mapper implements Cloneable {
             if (mergeWith.enabled.explicit()) {
                 this.enabled = mergeWith.enabled;
             }
-        } else if (isEnabled() != mergeWith.isEnabled()) {
-            throw new MapperException("the [enabled] parameter can't be updated for the object mapping [" + name() + "]");
+            if (mergeWith.disableObjectsExplicit().explicit()) {
+                this.disableObjects = mergeWith.disableObjectsExplicit();
+            }
+        } else {
+            if (isEnabled() != mergeWith.isEnabled()) {
+                throw new MapperException("the [enabled] parameter can't be updated for the object mapping [" + name() + "]");
+            }
+            // Validate disable_objects immutability (except for MAPPING_RECOVERY)
+            if (reason != MergeReason.MAPPING_RECOVERY) {
+                validateDisableObjectsImmutability(mergeWith, reason);
+            }
         }
 
         for (Mapper mergeWithMapper : mergeWith) {
@@ -601,9 +882,12 @@ public class ObjectMapper extends Mapper implements Cloneable {
 
             Mapper merged;
             if (mergeIntoMapper == null) {
+                // Validate that we're not adding nested objects when disable_objects is enabled
+                if (reason != MergeReason.INDEX_TEMPLATE && reason != MergeReason.MAPPING_RECOVERY) {
+                    validateNestedObjectRejection(mergeWithMapper);
+                }
                 merged = mergeWithMapper;
-            } else if (mergeIntoMapper instanceof ObjectMapper) {
-                ObjectMapper objectMapper = (ObjectMapper) mergeIntoMapper;
+            } else if (mergeIntoMapper instanceof ObjectMapper objectMapper) {
                 merged = objectMapper.merge(mergeWithMapper, reason);
             } else {
                 assert mergeIntoMapper instanceof FieldMapper || mergeIntoMapper instanceof FieldAliasMapper;
@@ -622,6 +906,74 @@ public class ObjectMapper extends Mapper implements Cloneable {
                 }
             }
             putMapper(merged);
+        }
+    }
+
+    /**
+     * Validates that disable_objects parameter is not being modified after index creation.
+     * Provides descriptive error message including the field name and attempted change.
+     *
+     * @param mergeWith The ObjectMapper being merged
+     * @param reason The reason for the merge
+     * @throws MapperException if disable_objects is being changed
+     */
+    private void validateDisableObjectsImmutability(ObjectMapper mergeWith, MergeReason reason) {
+        if (this.disableObjectsExplicit().explicit() && mergeWith.disableObjectsExplicit().explicit()) {
+            if (this.disableObjects() != mergeWith.disableObjects()) {
+                throw new MapperException(
+                    "Cannot update parameter [disable_objects] from ["
+                        + this.disableObjects()
+                        + "] to ["
+                        + mergeWith.disableObjects()
+                        + "] for object mapping ["
+                        + name()
+                        + "]. The disable_objects setting is immutable after index creation."
+                );
+            }
+        }
+    }
+
+    /**
+     * Validates that nested objects are not being added when disable_objects is enabled.
+     * Provides clear indication of flat vs nested conflict with field name.
+     *
+     * @param newMapper The new mapper being added
+     * @throws MapperException if attempting to add nested object when disable_objects=true
+     */
+    private void validateNestedObjectRejection(Mapper newMapper) {
+        if (this.disableObjects() && newMapper instanceof ObjectMapper) {
+            throw new MapperException(
+                "Field mapping conflict: Cannot add nested object field ["
+                    + newMapper.name()
+                    + "] when disable_objects is enabled for ["
+                    + name()
+                    + "]. With disable_objects=true, all fields must use flat field notation (e.g., 'field.name' as a single field) "
+                    + "rather than nested object structures."
+            );
+        }
+    }
+
+    /**
+     * Validates that no nested object definitions exist when disable_objects is enabled.
+     * This is called during index creation to ensure compatibility.
+     * Provides clear indication of flat vs nested conflict with field name.
+     *
+     * @throws MapperParsingException if nested objects are found when disable_objects=true
+     */
+    private void validateFlatFieldCompatibility() {
+        if (this.disableObjects()) {
+            for (Mapper childMapper : this.mappers.values()) {
+                if (childMapper instanceof ObjectMapper) {
+                    throw new MapperParsingException(
+                        "Field mapping conflict: Cannot add nested object field ["
+                            + childMapper.name()
+                            + "] when disable_objects is enabled for ["
+                            + name()
+                            + "]. With disable_objects=true, all fields must use flat field notation (e.g., 'field.name' as a single field) "
+                            + "rather than nested object structures."
+                    );
+                }
+            }
         }
     }
 
@@ -651,6 +1003,9 @@ public class ObjectMapper extends Mapper implements Cloneable {
         if (isEnabled() != Defaults.ENABLED) {
             builder.field("enabled", enabled.value());
         }
+        if (disableObjectsExplicit().explicit()) {
+            builder.field("disable_objects", disableObjects.value());
+        }
 
         if (custom != null) {
             custom.toXContent(builder, params);
@@ -659,7 +1014,21 @@ public class ObjectMapper extends Mapper implements Cloneable {
         doXContent(builder, params);
 
         // sort the mappers so we get consistent serialization format
-        Mapper[] sortedMappers = mappers.values().stream().toArray(size -> new Mapper[size]);
+        Mapper[] derivedSortedMappers = mappers.values()
+            .stream()
+            .filter(m -> m instanceof DerivedFieldMapper)
+            .toArray(size -> new Mapper[size]);
+        Arrays.sort(derivedSortedMappers, new Comparator<Mapper>() {
+            @Override
+            public int compare(Mapper o1, Mapper o2) {
+                return o1.name().compareTo(o2.name());
+            }
+        });
+
+        Mapper[] sortedMappers = mappers.values()
+            .stream()
+            .filter(m -> !(m instanceof DerivedFieldMapper || m instanceof ContextAwareGroupingFieldMapper))
+            .toArray(size -> new Mapper[size]);
         Arrays.sort(sortedMappers, new Comparator<Mapper>() {
             @Override
             public int compare(Mapper o1, Mapper o2) {
@@ -668,6 +1037,17 @@ public class ObjectMapper extends Mapper implements Cloneable {
         });
 
         int count = 0;
+        for (Mapper mapper : derivedSortedMappers) {
+            if (count++ == 0) {
+                builder.startObject("derived");
+            }
+            mapper.toXContent(builder, params);
+        }
+        if (count > 0) {
+            builder.endObject();
+        }
+
+        count = 0;
         for (Mapper mapper : sortedMappers) {
             if (!(mapper instanceof MetadataFieldMapper)) {
                 if (count++ == 0) {
@@ -676,8 +1056,14 @@ public class ObjectMapper extends Mapper implements Cloneable {
                 mapper.toXContent(builder, params);
             }
         }
+
         if (count > 0) {
             builder.endObject();
+        }
+
+        final Mapper contextAwareGroupingMapper = mappers.get(ContextAwareGroupingFieldMapper.CONTENT_TYPE);
+        if (contextAwareGroupingMapper != null) {
+            contextAwareGroupingMapper.toXContent(builder, params);
         }
         builder.endObject();
     }
@@ -686,4 +1072,22 @@ public class ObjectMapper extends Mapper implements Cloneable {
 
     }
 
+    @Override
+    public void canDeriveSource() {
+        if (!this.enabled.value() || this.nested.isNested()) {
+            throw new UnsupportedOperationException("Derived source is not supported for " + name() + " field as it is disabled/nested");
+        }
+        for (final Mapper mapper : this.mappers.values()) {
+            mapper.canDeriveSource();
+        }
+    }
+
+    @Override
+    public void deriveSource(XContentBuilder builder, LeafReader leafReader, int docId) throws IOException {
+        builder.startObject(simpleName());
+        for (final Mapper mapper : this.mappers.values()) {
+            mapper.deriveSource(builder, leafReader, docId);
+        }
+        builder.endObject();
+    }
 }

@@ -43,7 +43,6 @@ import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.search.SearchPhaseExecutionException;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -58,9 +57,9 @@ import org.opensearch.plugins.AnalysisPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.SearchHits;
-import org.opensearch.search.SearchModule;
+import org.opensearch.search.SearchService;
 import org.opensearch.search.builder.SearchSourceBuilder;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
@@ -80,6 +79,9 @@ import static org.opensearch.index.query.QueryBuilders.queryStringQuery;
 import static org.opensearch.index.query.QueryBuilders.simpleQueryStringQuery;
 import static org.opensearch.index.query.QueryBuilders.termQuery;
 import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING;
+import static org.opensearch.search.SearchService.INDICES_MAX_CLAUSE_COUNT_SETTING;
+import static org.opensearch.search.SearchService.SEARCH_MAX_QUERY_STRING_LENGTH;
+import static org.opensearch.search.SearchService.SEARCH_MAX_QUERY_STRING_LENGTH_MONITOR_ONLY;
 import static org.opensearch.test.StreamsUtils.copyToStringFromClasspath;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertFailures;
@@ -95,12 +97,12 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  * Tests for the {@code simple_query_string} query
  */
-public class SimpleQueryStringIT extends ParameterizedOpenSearchIntegTestCase {
+public class SimpleQueryStringIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
 
     private static int CLUSTER_MAX_CLAUSE_COUNT;
 
-    public SimpleQueryStringIT(Settings dynamicSettings) {
-        super(dynamicSettings);
+    public SimpleQueryStringIT(Settings staticSettings) {
+        super(staticSettings);
     }
 
     @ParametersFactory
@@ -111,21 +113,19 @@ public class SimpleQueryStringIT extends ParameterizedOpenSearchIntegTestCase {
         );
     }
 
-    @Override
-    protected Settings featureFlagSettings() {
-        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.CONCURRENT_SEGMENT_SEARCH, "true").build();
-    }
-
     @BeforeClass
     public static void createRandomClusterSetting() {
-        CLUSTER_MAX_CLAUSE_COUNT = randomIntBetween(60, 100);
+        // Lower bound can't be small(such as 60), simpleQueryStringQuery("foo Bar 19 127.0.0.1") in testDocWithAllTypes
+        // will create many clauses of BooleanClause, In that way, it will throw too_many_nested_clauses exception.
+        // So we need to set a higher bound(such as 80) to avoid failures.
+        CLUSTER_MAX_CLAUSE_COUNT = randomIntBetween(80, 100);
     }
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal))
-            .put(SearchModule.INDICES_MAX_CLAUSE_COUNT_SETTING.getKey(), CLUSTER_MAX_CLAUSE_COUNT)
+            .put(SearchService.INDICES_MAX_CLAUSE_COUNT_SETTING.getKey(), CLUSTER_MAX_CLAUSE_COUNT)
             .build();
     }
 
@@ -437,6 +437,7 @@ public class SimpleQueryStringIT extends ParameterizedOpenSearchIntegTestCase {
         client().prepareIndex("test").setId("2").setSource("foo", 234, "bar", "bcd").get();
 
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         SearchResponse searchResponse = client().prepareSearch().setQuery(simpleQueryStringQuery("test").field("_index")).get();
         assertHitCount(searchResponse, 2L);
@@ -722,8 +723,119 @@ public class SimpleQueryStringIT extends ParameterizedOpenSearchIntegTestCase {
         assertHits(response.getHits(), "1");
     }
 
+    public void testDynamicClauseCountUpdate() throws Exception {
+        client().prepareIndex("testdynamic").setId("1").setSource("field", "foo bar baz").get();
+        assertAcked(
+            client().admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setTransientSettings(Settings.builder().put(INDICES_MAX_CLAUSE_COUNT_SETTING.getKey(), CLUSTER_MAX_CLAUSE_COUNT - 1))
+        );
+        refresh();
+        StringBuilder sb = new StringBuilder("foo");
+
+        // create clause_count + 1 clauses to hit error
+        for (int i = 0; i <= CLUSTER_MAX_CLAUSE_COUNT; i++) {
+            sb.append(" OR foo" + i);
+        }
+
+        QueryStringQueryBuilder qb = queryStringQuery(sb.toString()).field("field");
+
+        SearchPhaseExecutionException e = expectThrows(SearchPhaseExecutionException.class, () -> {
+            client().prepareSearch("testdynamic").setQuery(qb).get();
+        });
+
+        assertThat(e.getDetailedMessage(), containsString("maxClauseCount is set to " + (CLUSTER_MAX_CLAUSE_COUNT - 1)));
+
+        // increase clause count by 2
+        assertAcked(
+            client().admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setTransientSettings(Settings.builder().put(INDICES_MAX_CLAUSE_COUNT_SETTING.getKey(), CLUSTER_MAX_CLAUSE_COUNT + 2))
+        );
+
+        SearchResponse response = client().prepareSearch("testdynamic").setQuery(qb).get();
+        assertHitCount(response, 1);
+        assertHits(response.getHits(), "1");
+
+        assertAcked(
+            client().admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setTransientSettings(Settings.builder().putNull(INDICES_MAX_CLAUSE_COUNT_SETTING.getKey()))
+        );
+    }
+
+    public void testMaxQueryStringLength() throws Exception {
+        try {
+            String indexBody = copyToStringFromClasspath("/org/opensearch/search/query/all-query-index.json");
+            assertAcked(prepareCreate("test").setSource(indexBody, MediaTypeRegistry.JSON));
+            ensureGreen("test");
+
+            assertAcked(
+                client().admin()
+                    .cluster()
+                    .prepareUpdateSettings()
+                    .setTransientSettings(Settings.builder().put(SEARCH_MAX_QUERY_STRING_LENGTH.getKey(), 10))
+            );
+
+            SearchPhaseExecutionException e = expectThrows(SearchPhaseExecutionException.class, () -> {
+                client().prepareSearch("test").setQuery(queryStringQuery("foo OR foo OR foo OR foo")).get();
+            });
+
+            assertThat(e.getDetailedMessage(), containsString("Query string length exceeds max allowed length 10"));
+        } finally {
+            assertAcked(
+                client().admin()
+                    .cluster()
+                    .prepareUpdateSettings()
+                    .setTransientSettings(Settings.builder().putNull(SEARCH_MAX_QUERY_STRING_LENGTH.getKey()))
+            );
+        }
+    }
+
+    public void testMaxQueryStringLengthMonitorMode() throws Exception {
+        try {
+            String indexBody = copyToStringFromClasspath("/org/opensearch/search/query/all-query-index.json");
+            assertAcked(prepareCreate("test").setSource(indexBody, MediaTypeRegistry.JSON));
+            ensureGreen("test");
+
+            assertAcked(
+                client().admin()
+                    .cluster()
+                    .prepareUpdateSettings()
+                    .setTransientSettings(Settings.builder().put(SEARCH_MAX_QUERY_STRING_LENGTH.getKey(), 10))
+            );
+            assertAcked(
+                client().admin()
+                    .cluster()
+                    .prepareUpdateSettings()
+                    .setTransientSettings(Settings.builder().put(SEARCH_MAX_QUERY_STRING_LENGTH_MONITOR_ONLY.getKey(), true))
+            );
+
+            // query run with the default value of search.query.max_query_string_length which is true
+            SearchResponse response = client().prepareSearch("test").setQuery(queryStringQuery("foo OR foo OR foo OR foo")).get();
+
+            assertNoFailures(response);
+        } finally {
+            assertAcked(
+                client().admin()
+                    .cluster()
+                    .prepareUpdateSettings()
+                    .setTransientSettings(Settings.builder().putNull(SEARCH_MAX_QUERY_STRING_LENGTH.getKey()))
+            );
+            assertAcked(
+                client().admin()
+                    .cluster()
+                    .prepareUpdateSettings()
+                    .setTransientSettings(Settings.builder().putNull(SEARCH_MAX_QUERY_STRING_LENGTH_MONITOR_ONLY.getKey()))
+            );
+        }
+    }
+
     private void assertHits(SearchHits hits, String... ids) {
-        assertThat(hits.getTotalHits().value, equalTo((long) ids.length));
+        assertThat(hits.getTotalHits().value(), equalTo((long) ids.length));
         Set<String> hitIds = new HashSet<>();
         for (SearchHit hit : hits.getHits()) {
             hitIds.add(hit.getId());

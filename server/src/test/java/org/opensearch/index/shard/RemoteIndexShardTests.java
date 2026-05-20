@@ -11,6 +11,10 @@ package org.opensearch.index.shard;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.util.Version;
+import org.opensearch.action.StepListener;
+import org.opensearch.cluster.ClusterChangedEvent;
+import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.SnapshotsInProgress;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.settings.Settings;
@@ -19,6 +23,7 @@ import org.opensearch.index.engine.DocIdSeqNoAndSource;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.InternalEngine;
 import org.opensearch.index.engine.NRTReplicationEngineFactory;
+import org.opensearch.index.snapshots.IndexShardSnapshotStatus;
 import org.opensearch.index.store.Store;
 import org.opensearch.index.store.StoreFileMetadata;
 import org.opensearch.indices.replication.CheckpointInfoResponse;
@@ -31,6 +36,11 @@ import org.opensearch.indices.replication.SegmentReplicationTargetService;
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.indices.replication.common.ReplicationFailedException;
 import org.opensearch.indices.replication.common.ReplicationType;
+import org.opensearch.repositories.RepositoriesService;
+import org.opensearch.repositories.blobstore.BlobStoreRepository;
+import org.opensearch.snapshots.Snapshot;
+import org.opensearch.snapshots.SnapshotId;
+import org.opensearch.snapshots.SnapshotShardsService;
 import org.opensearch.test.CorruptionUtils;
 import org.opensearch.test.junit.annotations.TestLogging;
 import org.hamcrest.MatcherAssert;
@@ -40,6 +50,7 @@ import java.io.IOException;
 import java.nio.channels.FileChannel;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
@@ -54,6 +65,8 @@ import static org.opensearch.index.shard.RemoteStoreRefreshListener.EXCLUDE_FILE
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -143,7 +156,7 @@ public class RemoteIndexShardTests extends SegmentReplicationIndexShardTests {
             oldPrimary.close("demoted", false, false);
             oldPrimary.store().close();
 
-            assertEquals(InternalEngine.class, nextPrimary.getEngine().getClass());
+            assertEquals(InternalEngine.class, getEngine(nextPrimary).getClass());
             assertDocCounts(nextPrimary, totalDocs, totalDocs);
 
             // refresh and push segments to our other replica.
@@ -180,7 +193,7 @@ public class RemoteIndexShardTests extends SegmentReplicationIndexShardTests {
         CountDownLatch latch = new CountDownLatch(1);
         shards.promoteReplicaToPrimary(replicaShard, (shard, listener) -> {
             try {
-                assertAtMostOneLuceneDocumentPerSequenceNumber(replicaShard.getEngine());
+                assertAtMostOneLuceneDocumentPerSequenceNumber(getEngine(replicaShard));
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
@@ -371,7 +384,6 @@ public class RemoteIndexShardTests extends SegmentReplicationIndexShardTests {
      * prevent FileAlreadyExistsException. It does so by only copying files in first round of segment replication without
      * committing locally so that in next round of segment replication those files are not considered for download again
      */
-    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/10885")
     public void testSegRepSucceedsOnPreviousCopiedFiles() throws Exception {
         try (ReplicationGroup shards = createGroup(1, getIndexSettings(), new NRTReplicationEngineFactory())) {
             shards.startAll();
@@ -388,6 +400,7 @@ public class RemoteIndexShardTests extends SegmentReplicationIndexShardTests {
             );
             CountDownLatch latch = new CountDownLatch(1);
 
+            logger.info("--> Starting first round of replication");
             // Start first round of segment replication. This should fail with simulated error but with replica having
             // files in its local store but not in active reader.
             final SegmentReplicationTarget target = targetService.startReplication(
@@ -427,6 +440,7 @@ public class RemoteIndexShardTests extends SegmentReplicationIndexShardTests {
             // Start next round of segment replication and not throwing exception resulting in commit on replica
             when(sourceFactory.get(any())).thenReturn(getRemoteStoreReplicationSource(replica, () -> {}));
             CountDownLatch waitForSecondRound = new CountDownLatch(1);
+            logger.info("--> Starting second round of replication");
             final SegmentReplicationTarget newTarget = targetService.startReplication(
                 replica,
                 primary.getLatestReplicationCheckpoint(),
@@ -463,7 +477,6 @@ public class RemoteIndexShardTests extends SegmentReplicationIndexShardTests {
      * blocking update of reader. Once this is done, it corrupts one segment file and ensure that file is deleted in next
      * round of segment replication by ensuring doc count.
      */
-    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/10885")
     public void testNoFailuresOnFileReads() throws Exception {
         try (ReplicationGroup shards = createGroup(1, getIndexSettings(), new NRTReplicationEngineFactory())) {
             shards.startAll();
@@ -540,6 +553,108 @@ public class RemoteIndexShardTests extends SegmentReplicationIndexShardTests {
         }
     }
 
+    public void testShallowCopySnapshotForClosedIndexSuccessful() throws Exception {
+        try (ReplicationGroup shards = createGroup(0, settings)) {
+            final IndexShard primaryShard = shards.getPrimary();
+            shards.startAll();
+            shards.indexDocs(10);
+            shards.refresh("test");
+            shards.flush();
+            shards.assertAllEqual(10);
+
+            RepositoriesService repositoriesService = createRepositoriesService();
+            BlobStoreRepository repository = (BlobStoreRepository) repositoriesService.repository("random");
+
+            doAnswer(invocation -> {
+                IndexShardSnapshotStatus snapshotStatus = invocation.getArgument(5);
+                long commitGeneration = invocation.getArgument(7);
+                long startTime = invocation.getArgument(8);
+                final Map<String, Long> indexFilesToFileLengthMap = invocation.getArgument(9);
+                ActionListener<String> listener = invocation.getArgument(10);
+                if (indexFilesToFileLengthMap != null) {
+                    List<String> fileNames = new ArrayList<>(indexFilesToFileLengthMap.keySet());
+                    long indexTotalFileSize = indexFilesToFileLengthMap.values().stream().mapToLong(Long::longValue).sum();
+                    int indexTotalNumberOfFiles = fileNames.size();
+                    snapshotStatus.moveToStarted(startTime, 0, indexTotalNumberOfFiles, 0, indexTotalFileSize);
+                    // Not performing actual snapshot, just modifying the state
+                    snapshotStatus.moveToFinalize(commitGeneration);
+                    snapshotStatus.moveToDone(System.currentTimeMillis(), snapshotStatus.generation());
+                    listener.onResponse(snapshotStatus.generation());
+                    return null;
+                }
+                listener.onResponse(snapshotStatus.generation());
+                return null;
+            }).when(repository)
+                .snapshotRemoteStoreIndexShard(any(), any(), any(), any(), any(), any(), anyLong(), anyLong(), anyLong(), any(), any());
+
+            final SnapshotShardsService shardsService = getSnapshotShardsService(
+                primaryShard,
+                shards.getIndexMetadata(),
+                true,
+                repositoriesService
+            );
+            final Snapshot snapshot1 = new Snapshot(
+                randomAlphaOfLength(10),
+                new SnapshotId(randomAlphaOfLength(5), randomAlphaOfLength(5))
+            );
+
+            // Initialize the shallow copy snapshot
+            final ClusterState initState = addSnapshotIndex(
+                clusterService.state(),
+                snapshot1,
+                primaryShard,
+                SnapshotsInProgress.State.INIT,
+                true
+            );
+            shardsService.clusterChanged(new ClusterChangedEvent("test", initState, clusterService.state()));
+
+            // start the snapshot
+            shardsService.clusterChanged(
+                new ClusterChangedEvent(
+                    "test",
+                    addSnapshotIndex(clusterService.state(), snapshot1, primaryShard, SnapshotsInProgress.State.STARTED, true),
+                    initState
+                )
+            );
+
+            // Check the snapshot got completed successfully
+            assertBusy(() -> {
+                final IndexShardSnapshotStatus.Copy copy = shardsService.currentSnapshotShards(snapshot1)
+                    .get(primaryShard.shardId)
+                    .asCopy();
+                final IndexShardSnapshotStatus.Stage stage = copy.getStage();
+                assertEquals(IndexShardSnapshotStatus.Stage.DONE, stage);
+            });
+        }
+    }
+
+    @Override
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/pull/18255")
+    public void testMergedSegmentReplication() throws Exception {
+        // TODO: wait for remote store to support merged segment warmer
+        super.testMergedSegmentReplication();
+    }
+
+    @Override
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/pull/19436")
+    public void testMergedSegmentReplicationWithException() throws Exception {
+        // TODO: wait for remote store to support merged segment warmer
+        super.testMergedSegmentReplicationWithException();
+    }
+
+    @Override
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/pull/18255")
+    public void testMergedSegmentReplicationWithZeroReplica() throws Exception {
+        // TODO: wait for remote store to support merged segment warmer
+        super.testMergedSegmentReplicationWithZeroReplica();
+    }
+
+    @Override
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/pull/18720")
+    public void testCleanupRedundantPendingMergeSegment() throws Exception {
+        super.testCleanupRedundantPendingMergeSegment();
+    }
+
     private RemoteStoreReplicationSource getRemoteStoreReplicationSource(IndexShard shard, Runnable postGetFilesRunnable) {
         return new RemoteStoreReplicationSource(shard) {
             @Override
@@ -560,8 +675,19 @@ public class RemoteIndexShardTests extends SegmentReplicationIndexShardTests {
                 BiConsumer<String, Long> fileProgressTracker,
                 ActionListener<GetSegmentFilesResponse> listener
             ) {
-                super.getSegmentFiles(replicationId, checkpoint, filesToFetch, indexShard, (fileName, bytesRecovered) -> {}, listener);
-                postGetFilesRunnable.run();
+                StepListener<GetSegmentFilesResponse> waitForCopyFilesListener = new StepListener();
+                super.getSegmentFiles(
+                    replicationId,
+                    checkpoint,
+                    filesToFetch,
+                    indexShard,
+                    (fileName, bytesRecovered) -> {},
+                    waitForCopyFilesListener
+                );
+                waitForCopyFilesListener.whenComplete(response -> {
+                    postGetFilesRunnable.run();
+                    listener.onResponse(response);
+                }, listener::onFailure);
             }
 
             @Override

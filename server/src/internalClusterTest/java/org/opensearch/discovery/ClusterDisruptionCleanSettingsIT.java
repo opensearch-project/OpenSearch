@@ -87,6 +87,6 @@ public class ClusterDisruptionCleanSettingsIT extends OpenSearchIntegTestCase {
 
         IndicesStoreIntegrationIT.relocateAndBlockCompletion(logger, "test", 0, node_1, node_2);
         // now search for the documents and see if we get a reply
-        assertThat(client().prepareSearch().setSize(0).get().getHits().getTotalHits().value, equalTo(100L));
+        assertThat(client().prepareSearch().setSize(0).get().getHits().getTotalHits().value(), equalTo(100L));
     }
 }

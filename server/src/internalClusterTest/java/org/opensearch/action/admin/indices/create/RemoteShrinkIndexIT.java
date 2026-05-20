@@ -23,7 +23,6 @@ import org.opensearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.opensearch.action.admin.indices.stats.ShardStats;
 import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.support.ActiveShardCount;
-import org.opensearch.client.Client;
 import org.opensearch.cluster.ClusterInfoService;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.InternalClusterInfoService;
@@ -48,7 +47,10 @@ import org.opensearch.index.shard.IndexShard;
 import org.opensearch.indices.IndicesService;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.remotestore.RemoteStoreBaseIntegTestCase;
+import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.VersionUtils;
+import org.opensearch.transport.client.Client;
+import org.junit.Before;
 
 import java.util.Arrays;
 import java.util.Map;
@@ -61,10 +63,16 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
+@OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class RemoteShrinkIndexIT extends RemoteStoreBaseIntegTestCase {
     @Override
     protected boolean forbidPrivateIndexSettings() {
         return false;
+    }
+
+    @Before
+    public void setup() {
+        asyncUploadMockFsRepo = false;
     }
 
     public Settings indexSettings() {
@@ -84,6 +92,7 @@ public class RemoteShrinkIndexIT extends RemoteStoreBaseIntegTestCase {
         int[] shardSplits = randomFrom(possibleShardSplits);
         assertEquals(shardSplits[0], (shardSplits[0] / shardSplits[1]) * shardSplits[1]);
         assertEquals(shardSplits[1], (shardSplits[1] / shardSplits[2]) * shardSplits[2]);
+
         internalCluster().ensureAtLeastNumDataNodes(2);
         prepareCreate("source").setSettings(Settings.builder().put(indexSettings()).put("number_of_shards", shardSplits[0])).get();
         for (int i = 0; i < 20; i++) {

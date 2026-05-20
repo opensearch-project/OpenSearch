@@ -15,9 +15,9 @@ import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.query.ReduceableSearchResult;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * Common {@link CollectorManager} used by both concurrent and non-concurrent aggregation path and also for global and non-global
@@ -42,7 +42,7 @@ public abstract class AggregationCollectorManager implements CollectorManager<Co
 
     @Override
     public Collector newCollector() throws IOException {
-        final Collector collector = createCollector(aggProvider.apply(context));
+        final Collector collector = createCollector(context, aggProvider);
         // For Aggregations we should not have a NO_OP_Collector
         assert collector != BucketCollector.NO_OP_COLLECTOR;
         return collector;
@@ -56,17 +56,9 @@ public abstract class AggregationCollectorManager implements CollectorManager<Co
 
     @Override
     public ReduceableSearchResult reduce(Collection<Collector> collectors) throws IOException {
-        final List<Aggregator> aggregators = context.bucketCollectorProcessor().toAggregators(collectors);
-        final List<InternalAggregation> internals = new ArrayList<>(aggregators.size());
+        final List<InternalAggregation> internals = context.bucketCollectorProcessor().toInternalAggregations(collectors);
+        assert internals.stream().noneMatch(Objects::isNull);
         context.aggregations().resetBucketMultiConsumer();
-        for (Aggregator aggregator : aggregators) {
-            try {
-                // post collection is called in ContextIndexSearcher after search on leaves are completed
-                internals.add(aggregator.buildTopLevel());
-            } catch (IOException e) {
-                throw new AggregationExecutionException("Failed to build aggregation [" + aggregator.name() + "]", e);
-            }
-        }
 
         final InternalAggregations internalAggregations = InternalAggregations.from(internals);
         return buildAggregationResult(internalAggregations);
@@ -76,9 +68,12 @@ public abstract class AggregationCollectorManager implements CollectorManager<Co
         return new AggregationReduceableSearchResult(internalAggregations);
     }
 
-    static Collector createCollector(List<Aggregator> collectors) throws IOException {
-        Collector collector = MultiBucketCollector.wrap(collectors);
-        ((BucketCollector) collector).preCollection();
+    private static Collector createCollector(
+        SearchContext searchContext,
+        CheckedFunction<SearchContext, List<Aggregator>, IOException> aggProvider
+    ) throws IOException {
+        BucketCollector collector = MultiBucketCollector.wrap(aggProvider.apply(searchContext));
+        collector.preCollection();
         return collector;
     }
 }

@@ -32,6 +32,7 @@
 package org.opensearch.search.fetch.subphase.highlight;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 
 import org.apache.lucene.analysis.Analyzer;
@@ -41,6 +42,7 @@ import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.tests.analysis.MockAnalyzer;
 import org.apache.lucene.tests.analysis.MockTokenizer;
+import org.apache.lucene.tests.util.TimeUnits;
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.search.SearchRequestBuilder;
 import org.opensearch.action.search.SearchResponse;
@@ -49,7 +51,6 @@ import org.opensearch.common.geo.GeoPoint;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.Settings.Builder;
 import org.opensearch.common.time.DateFormatter;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -75,7 +76,7 @@ import org.opensearch.search.sort.SortBuilders;
 import org.opensearch.search.sort.SortOrder;
 import org.opensearch.test.InternalSettingsPlugin;
 import org.opensearch.test.MockKeywordPlugin;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
 
@@ -91,7 +92,6 @@ import java.util.Map;
 
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
-import static org.opensearch.client.Requests.searchRequest;
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.opensearch.index.query.QueryBuilders.boolQuery;
 import static org.opensearch.index.query.QueryBuilders.boostingQuery;
@@ -99,6 +99,7 @@ import static org.opensearch.index.query.QueryBuilders.commonTermsQuery;
 import static org.opensearch.index.query.QueryBuilders.constantScoreQuery;
 import static org.opensearch.index.query.QueryBuilders.existsQuery;
 import static org.opensearch.index.query.QueryBuilders.fuzzyQuery;
+import static org.opensearch.index.query.QueryBuilders.matchPhrasePrefixQuery;
 import static org.opensearch.index.query.QueryBuilders.matchPhraseQuery;
 import static org.opensearch.index.query.QueryBuilders.matchQuery;
 import static org.opensearch.index.query.QueryBuilders.multiMatchQuery;
@@ -120,6 +121,7 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertNoFailures
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertNotHighlighted;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertSearchResponse;
 import static org.opensearch.test.hamcrest.RegexMatcher.matches;
+import static org.opensearch.transport.client.Requests.searchRequest;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -128,13 +130,15 @@ import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
 
-public class HighlighterSearchIT extends ParameterizedOpenSearchIntegTestCase {
+// Higher timeout to accommodate large number of tests in this class. See https://github.com/opensearch-project/OpenSearch/issues/12119
+@TimeoutSuite(millis = 35 * TimeUnits.MINUTE)
+public class HighlighterSearchIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
 
     // TODO as we move analyzers out of the core we need to move some of these into HighlighterWithAnalyzersTests
     private static final String[] ALL_TYPES = new String[] { "plain", "fvh", "unified" };
 
-    public HighlighterSearchIT(Settings dynamicSettings) {
-        super(dynamicSettings);
+    public HighlighterSearchIT(Settings staticSettings) {
+        super(staticSettings);
     }
 
     @ParametersFactory
@@ -143,11 +147,6 @@ public class HighlighterSearchIT extends ParameterizedOpenSearchIntegTestCase {
             new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), false).build() },
             new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), true).build() }
         );
-    }
-
-    @Override
-    protected Settings featureFlagSettings() {
-        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.CONCURRENT_SEGMENT_SEARCH, "true").build();
     }
 
     @Override
@@ -1065,15 +1064,69 @@ public class HighlighterSearchIT extends ParameterizedOpenSearchIntegTestCase {
         assertThat(defaultPhraseLimit.getTook().getMillis(), lessThan(largePhraseLimit.getTook().getMillis()));
     }
 
-    public void testMatchedFieldsFvhRequireFieldMatch() throws Exception {
-        checkMatchedFieldsCase(true);
+    public void testMatchedFieldsWithUnified() throws Exception {
+        Settings.Builder settings = Settings.builder();
+        settings.put(indexSettings());
+        settings.put("index.analysis.analyzer.mock_english.tokenizer", "standard");
+        settings.put("index.analysis.analyzer.mock_english.filter", "mock_snowball");
+        assertAcked(
+            prepareCreate("test").setSettings(settings)
+                .setMapping(
+                    XContentFactory.jsonBuilder()
+                        .startObject()
+                        .startObject("properties")
+                        .startObject("foo")
+                        .field("type", "text")
+                        .field("store", true)
+                        .field("analyzer", "mock_english")
+                        .startObject("fields")
+                        .startObject("plain")
+                        .field("type", "text")
+                        .field("analyzer", "standard")
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                )
+        );
+        ensureGreen();
+
+        index("test", "type1", "1", "foo", "running with scissors");
+        refresh();
+        Field fooField = new Field("foo").numOfFragments(1).order("score").fragmentSize(25).highlighterType("unified");
+        SearchRequestBuilder req = client().prepareSearch("test").highlighter(new HighlightBuilder().field(fooField));
+
+        // First check highlighting without any matched fields set
+        SearchResponse resp = req.setQuery(queryStringQuery("running scissors").field("foo")).get();
+        assertHighlight(resp, 0, "foo", 0, equalTo("<em>running</em> with <em>scissors</em>"));
+
+        // And that matching a subfield doesn't automatically highlight it
+        resp = req.setQuery(queryStringQuery("foo.plain:running scissors").field("foo")).get();
+        assertHighlight(resp, 0, "foo", 0, equalTo("running with <em>scissors</em>"));
+
+        // Add the subfield to the list of matched fields but don't match it. Everything should still work
+        // like before we added it.
+        fooField = new Field("foo").numOfFragments(1).order("score").fragmentSize(25).highlighterType("unified");
+        fooField.matchedFields("foo.plain");
+        req = client().prepareSearch("test").highlighter(new HighlightBuilder().field(fooField));
+        resp = req.setQuery(queryStringQuery("running scissors").field("foo")).get();
+        assertHighlight(resp, 0, "foo", 0, equalTo("<em>running</em> with <em>scissors</em>"));
+
+        // Now make half the matches come from the stored field and half from just a matched field.
+        resp = req.setQuery(queryStringQuery("foo.plain:running scissors").field("foo")).get();
+        assertHighlight(resp, 0, "foo", 0, equalTo("<em>running</em> with <em>scissors</em>"));
     }
 
-    public void testMatchedFieldsFvhNoRequireFieldMatch() throws Exception {
-        checkMatchedFieldsCase(false);
+    public void testFvhMatchedFieldsRequireFieldMatch() throws Exception {
+        checkFvhMatchedFieldsCase(true);
     }
 
-    private void checkMatchedFieldsCase(boolean requireFieldMatch) throws Exception {
+    public void testFvhMatchedFieldsFvhNoRequireFieldMatch() throws Exception {
+        checkFvhMatchedFieldsCase(false);
+    }
+
+    private void checkFvhMatchedFieldsCase(boolean requireFieldMatch) throws Exception {
         Settings.Builder settings = Settings.builder();
         settings.put(indexSettings());
         settings.put("index.analysis.analyzer.mock_english.tokenizer", "standard");
@@ -3202,7 +3255,7 @@ public class HighlighterSearchIT extends ParameterizedOpenSearchIntegTestCase {
             )
             .get();
         assertNoFailures(search);
-        assertThat(search.getHits().getTotalHits().value, equalTo(1L));
+        assertThat(search.getHits().getTotalHits().value(), equalTo(1L));
         assertThat(search.getHits().getAt(0).getHighlightFields().get("text").fragments().length, equalTo(1));
     }
 
@@ -3246,7 +3299,7 @@ public class HighlighterSearchIT extends ParameterizedOpenSearchIntegTestCase {
             .setSource(new SearchSourceBuilder().query(query).highlighter(new HighlightBuilder().highlighterType("plain").field("jd")))
             .get();
         assertNoFailures(search);
-        assertThat(search.getHits().getTotalHits().value, equalTo(1L));
+        assertThat(search.getHits().getTotalHits().value(), equalTo(1L));
     }
 
     public void testKeywordFieldHighlighting() throws IOException, InterruptedException {
@@ -3270,7 +3323,7 @@ public class HighlighterSearchIT extends ParameterizedOpenSearchIntegTestCase {
             )
             .get();
         assertNoFailures(search);
-        assertThat(search.getHits().getTotalHits().value, equalTo(1L));
+        assertThat(search.getHits().getTotalHits().value(), equalTo(1L));
         assertThat(
             search.getHits().getAt(0).getHighlightFields().get("keyword_field").getFragments()[0].string(),
             equalTo("<em>some text</em>")
@@ -3434,7 +3487,7 @@ public class HighlighterSearchIT extends ParameterizedOpenSearchIntegTestCase {
                 .get();
 
             assertSearchResponse(r1);
-            assertThat(r1.getHits().getTotalHits().value, equalTo(1L));
+            assertThat(r1.getHits().getTotalHits().value(), equalTo(1L));
             assertHighlight(r1, 0, "field", 0, 1, equalTo("<x>hello</x> world"));
         }
     }
@@ -3466,7 +3519,7 @@ public class HighlighterSearchIT extends ParameterizedOpenSearchIntegTestCase {
                 jsonBuilder().startObject()
                     .startArray("foo")
                     .startObject()
-                    .field("text", "brown")
+                    .field("text", "brown cat")
                     .endObject()
                     .startObject()
                     .field("text", "cow")
@@ -3487,7 +3540,7 @@ public class HighlighterSearchIT extends ParameterizedOpenSearchIntegTestCase {
             assertHitCount(searchResponse, 1);
             HighlightField field = searchResponse.getHits().getAt(0).getHighlightFields().get("foo.text");
             assertThat(field.getFragments().length, equalTo(2));
-            assertThat(field.getFragments()[0].string(), equalTo("<em>brown</em>"));
+            assertThat(field.getFragments()[0].string(), equalTo("<em>brown</em> cat"));
             assertThat(field.getFragments()[1].string(), equalTo("<em>cow</em>"));
 
             searchResponse = client().prepareSearch()
@@ -3497,16 +3550,25 @@ public class HighlighterSearchIT extends ParameterizedOpenSearchIntegTestCase {
             assertHitCount(searchResponse, 1);
             field = searchResponse.getHits().getAt(0).getHighlightFields().get("foo.text");
             assertThat(field.getFragments().length, equalTo(1));
-            assertThat(field.getFragments()[0].string(), equalTo("<em>brown</em>"));
+            assertThat(field.getFragments()[0].string(), equalTo("<em>brown</em> cat"));
 
             searchResponse = client().prepareSearch()
-                .setQuery(nestedQuery("foo", prefixQuery("foo.text", "bro"), ScoreMode.None))
-                .highlighter(new HighlightBuilder().field(new Field("foo.text").highlighterType("plain")))
+                .setQuery(nestedQuery("foo", matchPhraseQuery("foo.text", "brown cat"), ScoreMode.None))
+                .highlighter(new HighlightBuilder().field(new Field("foo.text").highlighterType(type)))
                 .get();
             assertHitCount(searchResponse, 1);
             field = searchResponse.getHits().getAt(0).getHighlightFields().get("foo.text");
             assertThat(field.getFragments().length, equalTo(1));
-            assertThat(field.getFragments()[0].string(), equalTo("<em>brown</em>"));
+            assertThat(field.getFragments()[0].string(), equalTo("<em>brown</em> <em>cat</em>"));
+
+            searchResponse = client().prepareSearch()
+                .setQuery(nestedQuery("foo", matchPhrasePrefixQuery("foo.text", "bro"), ScoreMode.None))
+                .highlighter(new HighlightBuilder().field(new Field("foo.text").highlighterType(type)))
+                .get();
+            assertHitCount(searchResponse, 1);
+            field = searchResponse.getHits().getAt(0).getHighlightFields().get("foo.text");
+            assertThat(field.getFragments().length, equalTo(1));
+            assertThat(field.getFragments()[0].string(), equalTo("<em>brown</em> cat"));
         }
 
         // For unified and fvh highlighters we just check that the nested query is correctly extracted

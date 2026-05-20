@@ -39,7 +39,6 @@ import org.opensearch.action.search.SearchResponse;
 import org.opensearch.common.lucene.search.function.CombineFunction;
 import org.opensearch.common.lucene.search.function.FunctionScoreQuery;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.fielddata.ScriptDocValues;
 import org.opensearch.index.query.MatchAllQueryBuilder;
 import org.opensearch.index.query.functionscore.FunctionScoreQueryBuilder.FilterFunctionBuilder;
@@ -50,7 +49,7 @@ import org.opensearch.script.ScriptType;
 import org.opensearch.search.SearchHit;
 import org.opensearch.search.aggregations.bucket.terms.Terms;
 import org.opensearch.test.OpenSearchTestCase;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -63,7 +62,6 @@ import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.function.Function;
 
-import static org.opensearch.client.Requests.searchRequest;
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.opensearch.index.query.QueryBuilders.functionScoreQuery;
 import static org.opensearch.index.query.QueryBuilders.termQuery;
@@ -73,18 +71,19 @@ import static org.opensearch.search.aggregations.AggregationBuilders.terms;
 import static org.opensearch.search.builder.SearchSourceBuilder.searchSource;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertSearchResponse;
+import static org.opensearch.transport.client.Requests.searchRequest;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
-public class FunctionScoreIT extends ParameterizedOpenSearchIntegTestCase {
+public class FunctionScoreIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
 
     static final String TYPE = "type";
     static final String INDEX = "index";
 
-    public FunctionScoreIT(Settings dynamicSettings) {
-        super(dynamicSettings);
+    public FunctionScoreIT(Settings staticSettings) {
+        super(staticSettings);
     }
 
     @ParametersFactory
@@ -93,11 +92,6 @@ public class FunctionScoreIT extends ParameterizedOpenSearchIntegTestCase {
             new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), false).build() },
             new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), true).build() }
         );
-    }
-
-    @Override
-    protected Settings featureFlagSettings() {
-        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.CONCURRENT_SEGMENT_SEARCH, "true").build();
     }
 
     @Override
@@ -126,10 +120,11 @@ public class FunctionScoreIT extends ParameterizedOpenSearchIntegTestCase {
         }
     }
 
-    public void testScriptScoresNested() throws IOException {
+    public void testScriptScoresNested() throws IOException, InterruptedException {
         createIndex(INDEX);
         index(INDEX, TYPE, "1", jsonBuilder().startObject().field("dummy_field", 1).endObject());
         refresh();
+        indexRandomForConcurrentSearch(INDEX);
 
         Script scriptOne = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "1", Collections.emptyMap());
         Script scriptTwo = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "get score value", Collections.emptyMap());
@@ -148,10 +143,11 @@ public class FunctionScoreIT extends ParameterizedOpenSearchIntegTestCase {
         assertThat(response.getHits().getAt(0).getScore(), equalTo(1.0f));
     }
 
-    public void testScriptScoresWithAgg() throws IOException {
+    public void testScriptScoresWithAgg() throws IOException, InterruptedException {
         createIndex(INDEX);
         index(INDEX, TYPE, "1", jsonBuilder().startObject().field("dummy_field", 1).endObject());
         refresh();
+        indexRandomForConcurrentSearch(INDEX);
 
         Script script = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "get score value", Collections.emptyMap());
 
@@ -166,10 +162,11 @@ public class FunctionScoreIT extends ParameterizedOpenSearchIntegTestCase {
         assertThat(((Terms) response.getAggregations().asMap().get("score_agg")).getBuckets().get(0).getDocCount(), is(1L));
     }
 
-    public void testScriptScoresWithAggWithExplain() throws IOException {
+    public void testScriptScoresWithAggWithExplain() throws IOException, InterruptedException {
         createIndex(INDEX);
         index(INDEX, TYPE, "1", jsonBuilder().startObject().field("dummy_field", 1).endObject());
         refresh();
+        indexRandomForConcurrentSearch(INDEX);
 
         Script script = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "get score value", Collections.emptyMap());
 
@@ -195,7 +192,7 @@ public class FunctionScoreIT extends ParameterizedOpenSearchIntegTestCase {
         assertThat(((Terms) response.getAggregations().asMap().get("score_agg")).getBuckets().get(0).getDocCount(), is(1L));
     }
 
-    public void testMinScoreFunctionScoreBasic() throws IOException {
+    public void testMinScoreFunctionScoreBasic() throws IOException, InterruptedException {
         float score = randomValueOtherThanMany((f) -> Float.compare(f, 0) < 0, OpenSearchTestCase::randomFloat);
         float minScore = randomValueOtherThanMany((f) -> Float.compare(f, 0) < 0, OpenSearchTestCase::randomFloat);
         index(
@@ -207,6 +204,7 @@ public class FunctionScoreIT extends ParameterizedOpenSearchIntegTestCase {
                 .endObject()
         );
         refresh();
+        indexRandomForConcurrentSearch(INDEX);
         ensureYellow();
 
         Script script = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['random_score']", Collections.emptyMap());
@@ -214,9 +212,9 @@ public class FunctionScoreIT extends ParameterizedOpenSearchIntegTestCase {
             searchRequest().source(searchSource().query(functionScoreQuery(scriptFunction(script)).setMinScore(minScore)))
         ).actionGet();
         if (score < minScore) {
-            assertThat(searchResponse.getHits().getTotalHits().value, is(0L));
+            assertThat(searchResponse.getHits().getTotalHits().value(), is(0L));
         } else {
-            assertThat(searchResponse.getHits().getTotalHits().value, is(1L));
+            assertThat(searchResponse.getHits().getTotalHits().value(), is(1L));
         }
 
         searchResponse = client().search(
@@ -232,9 +230,9 @@ public class FunctionScoreIT extends ParameterizedOpenSearchIntegTestCase {
             )
         ).actionGet();
         if (score < minScore) {
-            assertThat(searchResponse.getHits().getTotalHits().value, is(0L));
+            assertThat(searchResponse.getHits().getTotalHits().value(), is(0L));
         } else {
-            assertThat(searchResponse.getHits().getTotalHits().value, is(1L));
+            assertThat(searchResponse.getHits().getTotalHits().value(), is(1L));
         }
     }
 
@@ -278,9 +276,9 @@ public class FunctionScoreIT extends ParameterizedOpenSearchIntegTestCase {
 
     protected void assertMinScoreSearchResponses(int numDocs, SearchResponse searchResponse, int numMatchingDocs) {
         assertSearchResponse(searchResponse);
-        assertThat((int) searchResponse.getHits().getTotalHits().value, is(numMatchingDocs));
+        assertThat((int) searchResponse.getHits().getTotalHits().value(), is(numMatchingDocs));
         int pos = 0;
-        for (int hitId = numDocs - 1; (numDocs - hitId) < searchResponse.getHits().getTotalHits().value; hitId--) {
+        for (int hitId = numDocs - 1; (numDocs - hitId) < searchResponse.getHits().getTotalHits().value(); hitId--) {
             assertThat(searchResponse.getHits().getAt(pos).getId(), equalTo(Integer.toString(hitId)));
             pos++;
         }
@@ -291,11 +289,12 @@ public class FunctionScoreIT extends ParameterizedOpenSearchIntegTestCase {
         assertAcked(prepareCreate("test"));
         index("test", "testtype", "1", jsonBuilder().startObject().field("text", "test text").endObject());
         refresh();
+        indexRandomForConcurrentSearch("test");
 
         SearchResponse termQuery = client().search(searchRequest().source(searchSource().explain(true).query(termQuery("text", "text"))))
             .get();
         assertSearchResponse(termQuery);
-        assertThat(termQuery.getHits().getTotalHits().value, equalTo(1L));
+        assertThat(termQuery.getHits().getTotalHits().value(), equalTo(1L));
         float termQueryScore = termQuery.getHits().getAt(0).getScore();
 
         for (CombineFunction combineFunction : CombineFunction.values()) {
@@ -310,7 +309,7 @@ public class FunctionScoreIT extends ParameterizedOpenSearchIntegTestCase {
             )
         ).get();
         assertSearchResponse(response);
-        assertThat(response.getHits().getTotalHits().value, equalTo(1L));
+        assertThat(response.getHits().getTotalHits().value(), equalTo(1L));
         assertThat(response.getHits().getAt(0).getScore(), equalTo(expectedScore));
 
         response = client().search(
@@ -320,6 +319,6 @@ public class FunctionScoreIT extends ParameterizedOpenSearchIntegTestCase {
         ).get();
 
         assertSearchResponse(response);
-        assertThat(response.getHits().getTotalHits().value, equalTo(0L));
+        assertThat(response.getHits().getTotalHits().value(), equalTo(0L));
     }
 }

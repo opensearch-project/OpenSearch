@@ -30,8 +30,8 @@
 apply plugin: 'opensearch.yaml-rest-test'
 
 opensearchplugin {
-  description 'The Phonetic Analysis plugin integrates phonetic token filter analysis with opensearch.'
-  classname 'org.opensearch.plugin.analysis.AnalysisPhoneticPlugin'
+  description = 'The Phonetic Analysis plugin integrates phonetic token filter analysis with opensearch.'
+  classname = 'org.opensearch.plugin.analysis.AnalysisPhoneticPlugin'
 }
 
 dependencies {

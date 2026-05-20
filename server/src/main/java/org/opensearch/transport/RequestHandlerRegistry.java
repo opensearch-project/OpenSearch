@@ -32,6 +32,7 @@
 
 package org.opensearch.transport;
 
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.util.concurrent.ThreadContext;
@@ -47,8 +48,9 @@ import java.io.IOException;
 /**
  * Registry for OpenSearch RequestHandlers
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public final class RequestHandlerRegistry<Request extends TransportRequest> {
 
     private final String action;
@@ -91,15 +93,15 @@ public final class RequestHandlerRegistry<Request extends TransportRequest> {
 
         Releasable unregisterTask = () -> taskManager.unregister(task);
         try {
-            if (channel instanceof BaseTcpTransportChannel && task instanceof CancellableTask) {
-                if (request instanceof ShardSearchRequest) {
+            if (channel instanceof BaseTcpTransportChannel baseTcpTransportChannel && task instanceof CancellableTask cancellableTask) {
+                if (request instanceof ShardSearchRequest shardSearchRequest) {
                     // on receiving request, update the inbound network time to reflect time spent in transit over the network
-                    ((ShardSearchRequest) request).setInboundNetworkTime(
-                        Math.max(0, System.currentTimeMillis() - ((ShardSearchRequest) request).getInboundNetworkTime())
+                    shardSearchRequest.setInboundNetworkTime(
+                        Math.max(0, System.currentTimeMillis() - shardSearchRequest.getInboundNetworkTime())
                     );
                 }
-                final TcpChannel tcpChannel = ((BaseTcpTransportChannel) channel).getChannel();
-                final Releasable stopTracking = taskManager.startTrackingCancellableChannelTask(tcpChannel, (CancellableTask) task);
+                final TcpChannel tcpChannel = baseTcpTransportChannel.getChannel();
+                final Releasable stopTracking = taskManager.startTrackingCancellableChannelTask(tcpChannel, cancellableTask);
                 unregisterTask = Releasables.wrap(unregisterTask, stopTracking);
             }
             final TaskTransportChannel taskTransportChannel = new TaskTransportChannel(channel, unregisterTask);

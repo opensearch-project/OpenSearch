@@ -46,7 +46,6 @@ import org.opensearch.core.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.lang.management.GarbageCollectorMXBean;
 import java.lang.management.ManagementFactory;
-import java.lang.management.ManagementPermission;
 import java.lang.management.MemoryMXBean;
 import java.lang.management.MemoryPoolMXBean;
 import java.lang.management.PlatformManagedObject;
@@ -217,11 +216,6 @@ public class JvmInfo implements ReportingService.Info {
     }
 
     public static JvmInfo jvmInfo() {
-        SecurityManager sm = System.getSecurityManager();
-        if (sm != null) {
-            sm.checkPermission(new ManagementPermission("monitor"));
-            sm.checkPropertyAccess("*");
-        }
         return INSTANCE;
     }
 

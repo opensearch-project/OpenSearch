@@ -32,16 +32,18 @@
 
 package org.opensearch.search.aggregations.metrics;
 
+import org.opensearch.index.compositeindex.datacube.MetricStat;
 import org.opensearch.index.query.QueryShardContext;
 import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.aggregations.AggregatorFactories;
 import org.opensearch.search.aggregations.AggregatorFactory;
 import org.opensearch.search.aggregations.CardinalityUpperBound;
 import org.opensearch.search.aggregations.support.CoreValuesSourceType;
-import org.opensearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.opensearch.search.aggregations.support.ValuesSourceConfig;
 import org.opensearch.search.aggregations.support.ValuesSourceRegistry;
 import org.opensearch.search.internal.SearchContext;
+import org.opensearch.search.streaming.StreamingCostEstimable;
+import org.opensearch.search.streaming.StreamingCostMetrics;
 
 import java.io.IOException;
 import java.util.List;
@@ -52,7 +54,7 @@ import java.util.Map;
  *
  * @opensearch.internal
  */
-class MaxAggregatorFactory extends ValuesSourceAggregatorFactory {
+class MaxAggregatorFactory extends MetricAggregatorFactory implements StreamingCostEstimable {
 
     static void registerAggregators(ValuesSourceRegistry.Builder builder) {
         builder.register(
@@ -75,6 +77,11 @@ class MaxAggregatorFactory extends ValuesSourceAggregatorFactory {
     }
 
     @Override
+    public MetricStat getMetricStat() {
+        return MetricStat.MAX;
+    }
+
+    @Override
     protected Aggregator createUnmapped(SearchContext searchContext, Aggregator parent, Map<String, Object> metadata) throws IOException {
         return new MaxAggregator(name, config, searchContext, parent, metadata);
     }
@@ -94,5 +101,15 @@ class MaxAggregatorFactory extends ValuesSourceAggregatorFactory {
     @Override
     protected boolean supportsConcurrentSegmentSearch() {
         return true;
+    }
+
+    @Override
+    protected boolean supportsIntraSegmentSearch() {
+        return true;
+    }
+
+    @Override
+    public StreamingCostMetrics estimateStreamingCost(SearchContext searchContext) {
+        return StreamingCostMetrics.neutral();
     }
 }

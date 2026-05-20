@@ -28,89 +28,102 @@ import static org.junit.Assert.assertTrue;
  */
 public class RemoteStoreStatsTestHelper {
     static RemoteSegmentTransferTracker.Stats createStatsForNewPrimary(ShardId shardId) {
-        return new RemoteSegmentTransferTracker.Stats(
-            shardId,
-            101,
-            102,
-            100,
-            0,
-            10,
-            2,
-            10,
-            5,
-            5,
-            0,
-            0,
-            0,
-            5,
-            5,
-            5,
-            0,
-            0,
-            0,
-            10,
-            createZeroDirectoryFileTransferStats()
-        );
+        return new RemoteSegmentTransferTracker.Stats.Builder().shardId(shardId)
+            .localRefreshClockTimeMs(101)
+            .remoteRefreshClockTimeMs(102)
+            .refreshTimeLagMs(100)
+            .localRefreshNumber(0)
+            .remoteRefreshNumber(10)
+            .uploadBytesStarted(2)
+            .uploadBytesSucceeded(10)
+            .uploadBytesFailed(5)
+            .totalUploadsStarted(5)
+            .totalUploadsSucceeded(0)
+            .totalUploadsFailed(0)
+            .rejectionCount(0)
+            .consecutiveFailuresCount(5)
+            .lastSuccessfulRemoteRefreshBytes(5)
+            .uploadBytesMovingAverage(5)
+            .uploadBytesPerSecMovingAverage(0)
+            .uploadTimeMovingAverage(0)
+            .bytesLag(0)
+            .totalUploadTimeInMs(10)
+            .directoryFileTransferTrackerStats(createZeroDirectoryFileTransferStats())
+            .build();
     }
 
     static RemoteSegmentTransferTracker.Stats createStatsForNewReplica(ShardId shardId) {
-        return new RemoteSegmentTransferTracker.Stats(
-            shardId,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
-            createSampleDirectoryFileTransferStats()
-        );
+        return new RemoteSegmentTransferTracker.Stats.Builder().shardId(shardId)
+            .localRefreshClockTimeMs(0)
+            .remoteRefreshClockTimeMs(0)
+            .refreshTimeLagMs(0)
+            .localRefreshNumber(0)
+            .remoteRefreshNumber(0)
+            .uploadBytesStarted(0)
+            .uploadBytesSucceeded(0)
+            .uploadBytesFailed(0)
+            .totalUploadsStarted(0)
+            .totalUploadsSucceeded(0)
+            .totalUploadsFailed(0)
+            .rejectionCount(0)
+            .consecutiveFailuresCount(0)
+            .lastSuccessfulRemoteRefreshBytes(0)
+            .uploadBytesMovingAverage(0)
+            .uploadBytesPerSecMovingAverage(0)
+            .uploadTimeMovingAverage(0)
+            .bytesLag(0)
+            .totalUploadTimeInMs(0)
+            .directoryFileTransferTrackerStats(createZeroDirectoryFileTransferStats())
+            .build();
     }
 
     static RemoteSegmentTransferTracker.Stats createStatsForRemoteStoreRestoredPrimary(ShardId shardId) {
-        return new RemoteSegmentTransferTracker.Stats(
-            shardId,
-            50,
-            50,
-            0,
-            50,
-            11,
-            11,
-            10,
-            10,
-            0,
-            10,
-            10,
-            0,
-            10,
-            10,
-            0,
-            0,
-            0,
-            100,
-            10,
-            createSampleDirectoryFileTransferStats()
-        );
+        return new RemoteSegmentTransferTracker.Stats.Builder().shardId(shardId)
+            .localRefreshClockTimeMs(50)
+            .remoteRefreshClockTimeMs(50)
+            .refreshTimeLagMs(0)
+            .localRefreshNumber(50)
+            .remoteRefreshNumber(11)
+            .uploadBytesStarted(11)
+            .uploadBytesSucceeded(10)
+            .uploadBytesFailed(10)
+            .totalUploadsStarted(0)
+            .totalUploadsSucceeded(10)
+            .totalUploadsFailed(10)
+            .rejectionCount(0)
+            .consecutiveFailuresCount(10)
+            .lastSuccessfulRemoteRefreshBytes(10)
+            .uploadBytesMovingAverage(0)
+            .uploadBytesPerSecMovingAverage(0)
+            .uploadTimeMovingAverage(0)
+            .bytesLag(100)
+            .totalUploadTimeInMs(10)
+            .directoryFileTransferTrackerStats(createZeroDirectoryFileTransferStats())
+            .build();
     }
 
     static DirectoryFileTransferTracker.Stats createSampleDirectoryFileTransferStats() {
-        return new DirectoryFileTransferTracker.Stats(10, 0, 10, 12345, 5, 5, 5, 10);
+        return new DirectoryFileTransferTracker.Stats.Builder().transferredBytesStarted(10)
+            .transferredBytesFailed(0)
+            .transferredBytesSucceeded(10)
+            .lastTransferTimestampMs(12345)
+            .totalTransferTimeInMs(5)
+            .transferredBytesMovingAverage(5)
+            .lastSuccessfulTransferInBytes(5)
+            .transferredBytesPerSecMovingAverage(10)
+            .build();
     }
 
     static DirectoryFileTransferTracker.Stats createZeroDirectoryFileTransferStats() {
-        return new DirectoryFileTransferTracker.Stats(0, 0, 0, 0, 0, 0, 0, 0);
+        return new DirectoryFileTransferTracker.Stats.Builder().transferredBytesStarted(0)
+            .transferredBytesFailed(0)
+            .transferredBytesSucceeded(0)
+            .lastTransferTimestampMs(0)
+            .totalTransferTimeInMs(0)
+            .transferredBytesMovingAverage(0)
+            .lastSuccessfulTransferInBytes(0)
+            .transferredBytesPerSecMovingAverage(0)
+            .build();
     }
 
     static ShardRouting createShardRouting(ShardId shardId, boolean isPrimary) {
@@ -118,11 +131,49 @@ public class RemoteStoreStatsTestHelper {
     }
 
     static RemoteTranslogTransferTracker.Stats createTranslogStats(ShardId shardId) {
-        return new RemoteTranslogTransferTracker.Stats(shardId, 1L, 2L, 3L, 4L, 5L, 6L, 7L, 8L, 9D, 10D, 11D, 1L, 2L, 3L, 4L, 9D, 10D, 11D);
+        return new RemoteTranslogTransferTracker.Stats.Builder().shardId(shardId)
+            .lastSuccessfulUploadTimestamp(1L)
+            .totalUploadsStarted(2L)
+            .totalUploadsSucceeded(3L)
+            .totalUploadsFailed(4L)
+            .uploadBytesStarted(5L)
+            .uploadBytesSucceeded(6L)
+            .uploadBytesFailed(7L)
+            .totalUploadTimeInMillis(8L)
+            .uploadBytesMovingAverage(9D)
+            .uploadBytesPerSecMovingAverage(10D)
+            .uploadTimeMovingAverage(11D)
+            .lastSuccessfulDownloadTimestamp(1L)
+            .totalDownloadsSucceeded(2L)
+            .downloadBytesSucceeded(3L)
+            .totalDownloadTimeInMillis(4L)
+            .downloadBytesMovingAverage(9D)
+            .downloadBytesPerSecMovingAverage(10D)
+            .downloadTimeMovingAverage(11D)
+            .build();
     }
 
     static RemoteTranslogTransferTracker.Stats createEmptyTranslogStats(ShardId shardId) {
-        return new RemoteTranslogTransferTracker.Stats(shardId, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0D, 0D, 0D, 0L, 0L, 0L, 0L, 0D, 0D, 0D);
+        return new RemoteTranslogTransferTracker.Stats.Builder().shardId(shardId)
+            .lastSuccessfulUploadTimestamp(0L)
+            .totalUploadsStarted(0L)
+            .totalUploadsSucceeded(0L)
+            .totalUploadsFailed(0L)
+            .uploadBytesStarted(0L)
+            .uploadBytesSucceeded(0L)
+            .uploadBytesFailed(0L)
+            .totalUploadTimeInMillis(0L)
+            .uploadBytesMovingAverage(0D)
+            .uploadBytesPerSecMovingAverage(0D)
+            .uploadTimeMovingAverage(0D)
+            .lastSuccessfulDownloadTimestamp(0L)
+            .totalDownloadsSucceeded(0L)
+            .downloadBytesSucceeded(0L)
+            .totalDownloadTimeInMillis(0L)
+            .downloadBytesMovingAverage(0D)
+            .downloadBytesPerSecMovingAverage(0D)
+            .downloadTimeMovingAverage(0D)
+            .build();
     }
 
     static void compareStatsResponse(

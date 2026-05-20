@@ -31,8 +31,8 @@
 
 package org.opensearch.rest.action.cat;
 
-import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.Table;
+import org.opensearch.common.breaker.ResponseLimitSettings;
 import org.opensearch.common.io.Streams;
 import org.opensearch.common.io.UTF8StreamWriter;
 import org.opensearch.core.common.io.stream.BytesStream;
@@ -40,6 +40,7 @@ import org.opensearch.core.rest.RestStatus;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.BytesRestResponse;
 import org.opensearch.rest.RestRequest;
+import org.opensearch.transport.client.node.NodeClient;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -98,4 +99,12 @@ public abstract class AbstractCatAction extends BaseRestHandler {
         return RESPONSE_PARAMS;
     }
 
+    /**
+     * Method to check if limits defined in {@link ResponseLimitSettings} are applicable to an action.
+     *
+     * @return True / False status
+     */
+    protected boolean isRequestLimitCheckSupported() {
+        return false;
+    }
 }

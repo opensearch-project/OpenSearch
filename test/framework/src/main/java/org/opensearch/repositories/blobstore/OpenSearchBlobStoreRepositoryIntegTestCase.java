@@ -40,7 +40,6 @@ import org.opensearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequ
 import org.opensearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.support.PlainActionFuture;
-import org.opensearch.client.Client;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobMetadata;
@@ -59,6 +58,7 @@ import org.opensearch.snapshots.SnapshotMissingException;
 import org.opensearch.snapshots.SnapshotRestoreException;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.client.Client;
 import org.hamcrest.CoreMatchers;
 
 import java.io.IOException;
@@ -110,9 +110,7 @@ public abstract class OpenSearchBlobStoreRepositoryIntegTestCase extends OpenSea
         final boolean verify = randomBoolean();
 
         logger.debug("-->  creating repository [name: {}, verify: {}, settings: {}]", name, verify, settings);
-        assertAcked(
-            client().admin().cluster().preparePutRepository(name).setType(repositoryType()).setVerify(verify).setSettings(settings)
-        );
+        OpenSearchIntegTestCase.putRepository(client().admin().cluster(), name, repositoryType(), verify, Settings.builder().put(settings));
 
         internalCluster().getDataOrClusterManagerNodeInstances(RepositoriesService.class).forEach(repositories -> {
             assertThat(repositories.repository(name), notNullValue());
@@ -349,7 +347,7 @@ public abstract class OpenSearchBlobStoreRepositoryIntegTestCase extends OpenSea
                     logger.info("--> add random documents to {}", index);
                     addRandomDocuments(index, randomIntBetween(10, 1000));
                 } else {
-                    int docCount = (int) client().prepareSearch(index).setSize(0).get().getHits().getTotalHits().value;
+                    int docCount = (int) client().prepareSearch(index).setSize(0).get().getHits().getTotalHits().value();
                     int deleteCount = randomIntBetween(1, docCount);
                     logger.info("--> delete {} random documents from {}", deleteCount, index);
                     for (int i = 0; i < deleteCount; i++) {
@@ -417,7 +415,7 @@ public abstract class OpenSearchBlobStoreRepositoryIntegTestCase extends OpenSea
                 addRandomDocuments(indexName, docCount);
             }
             // Check number of documents in this iteration
-            docCounts[i] = (int) client().prepareSearch(indexName).setSize(0).get().getHits().getTotalHits().value;
+            docCounts[i] = (int) client().prepareSearch(indexName).setSize(0).get().getHits().getTotalHits().value();
             logger.info("-->  create snapshot {}:{} with {} documents", repoName, snapshotName + "-" + i, docCounts[i]);
             assertSuccessfulSnapshot(
                 client().admin()
@@ -457,7 +455,7 @@ public abstract class OpenSearchBlobStoreRepositoryIntegTestCase extends OpenSea
     }
 
     public void testIndicesDeletedFromRepository() throws Exception {
-        final String repoName = createRepository("test-repo");
+        final String repoName = createRepository("test-repo-" + randomAlphaOfLength(8));
         Client client = client();
         createIndex("test-idx-1", "test-idx-2", "test-idx-3");
         ensureGreen();
@@ -565,6 +563,6 @@ public abstract class OpenSearchBlobStoreRepositoryIntegTestCase extends OpenSea
     }
 
     protected static String randomName() {
-        return randomAlphaOfLength(randomIntBetween(1, 10)).toLowerCase(Locale.ROOT);
+        return randomAlphaOfLength(randomIntBetween(5, 10)).toLowerCase(Locale.ROOT);
     }
 }

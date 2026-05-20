@@ -64,7 +64,7 @@ import java.util.Set;
  * <p>
  * This task is necessary because the built-in task {@link org.gradle.api.tasks.bundling.Tar} does not preserve symbolic links.
  */
-public class SymbolicLinkPreservingTar extends Tar {
+public abstract class SymbolicLinkPreservingTar extends Tar {
     private long lastModifiedTimestamp = 0;
 
     public void setLastModifiedTimestamp(long lastModifiedTimestamp) {
@@ -184,7 +184,7 @@ public class SymbolicLinkPreservingTar extends Tar {
                 visitedSymbolicLinks.add(details.getFile());
                 final TarArchiveEntry entry = new TarArchiveEntry(details.getRelativePath().getPathString(), TarConstants.LF_SYMLINK);
                 entry.setModTime(getModTime(details));
-                entry.setMode(UnixStat.LINK_FLAG | details.getMode());
+                entry.setMode(UnixStat.LINK_FLAG | details.getPermissions().toUnixNumeric());
                 try {
                     entry.setLinkName(Files.readSymbolicLink(details.getFile().toPath()).toString());
                     tar.putArchiveEntry(entry);
@@ -197,7 +197,7 @@ public class SymbolicLinkPreservingTar extends Tar {
             private void visitDirectory(final FileCopyDetailsInternal details) {
                 final TarArchiveEntry entry = new TarArchiveEntry(details.getRelativePath().getPathString() + "/");
                 entry.setModTime(getModTime(details));
-                entry.setMode(UnixStat.DIR_FLAG | details.getMode());
+                entry.setMode(UnixStat.DIR_FLAG | details.getPermissions().toUnixNumeric());
                 try {
                     tar.putArchiveEntry(entry);
                     tar.closeArchiveEntry();
@@ -209,7 +209,7 @@ public class SymbolicLinkPreservingTar extends Tar {
             private void visitFile(final FileCopyDetailsInternal details) {
                 final TarArchiveEntry entry = new TarArchiveEntry(details.getRelativePath().getPathString());
                 entry.setModTime(getModTime(details));
-                entry.setMode(UnixStat.FILE_FLAG | details.getMode());
+                entry.setMode(UnixStat.FILE_FLAG | details.getPermissions().toUnixNumeric());
                 entry.setSize(details.getSize());
                 try {
                     tar.putArchiveEntry(entry);
@@ -231,5 +231,4 @@ public class SymbolicLinkPreservingTar extends Tar {
         }
 
     }
-
 }

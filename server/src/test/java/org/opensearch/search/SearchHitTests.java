@@ -56,11 +56,13 @@ import org.opensearch.search.fetch.subphase.highlight.HighlightFieldTests;
 import org.opensearch.test.AbstractWireSerializingTestCase;
 import org.opensearch.test.RandomObjects;
 import org.opensearch.test.VersionUtils;
+import org.junit.Assert;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Predicate;
@@ -76,6 +78,25 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class SearchHitTests extends AbstractWireSerializingTestCase<SearchHit> {
+
+    private Map<String, Float> getSampleMatchedQueries() {
+        Map<String, Float> matchedQueries = new LinkedHashMap<>();
+        matchedQueries.put("query1", 1.0f);
+        matchedQueries.put("query2", 0.5f);
+        return matchedQueries;
+    }
+
+    public static SearchHit createTestItemWithMatchedQueriesScores(boolean withOptionalInnerHits, boolean withShardTarget) {
+        var searchHit = createTestItem(randomFrom(XContentType.values()), withOptionalInnerHits, withShardTarget);
+        int size = randomIntBetween(1, 5); // Ensure at least one matched query
+        Map<String, Float> matchedQueries = new LinkedHashMap<>(size);
+        for (int i = 0; i < size; i++) {
+            matchedQueries.put(randomAlphaOfLength(5), randomFloat());
+        }
+        searchHit.matchedQueriesWithScores(matchedQueries);
+        return searchHit;
+    }
+
     public static SearchHit createTestItem(boolean withOptionalInnerHits, boolean withShardTarget) {
         return createTestItem(randomFrom(XContentType.values()), withOptionalInnerHits, withShardTarget);
     }
@@ -129,11 +150,11 @@ public class SearchHitTests extends AbstractWireSerializingTestCase<SearchHit> {
         }
         if (randomBoolean()) {
             int size = randomIntBetween(0, 5);
-            String[] matchedQueries = new String[size];
+            Map<String, Float> matchedQueries = new LinkedHashMap<>(size);
             for (int i = 0; i < size; i++) {
-                matchedQueries[i] = randomAlphaOfLength(5);
+                matchedQueries.put(randomAlphaOfLength(5), Float.NaN);
             }
-            hit.matchedQueries(matchedQueries);
+            hit.matchedQueriesWithScores(matchedQueries);
         }
         if (randomBoolean()) {
             hit.explanation(createExplanation(randomIntBetween(0, 5)));
@@ -219,6 +240,21 @@ public class SearchHitTests extends AbstractWireSerializingTestCase<SearchHit> {
         assertToXContentEquivalent(originalBytes, toXContent(parsed, xContentType, true), xContentType);
     }
 
+    public void testSerializationDeserializationWithMatchedQueriesScores() throws IOException {
+        SearchHit searchHit = createTestItemWithMatchedQueriesScores(true, true);
+        SearchHit deserializedSearchHit = copyWriteable(searchHit, getNamedWriteableRegistry(), SearchHit::new, Version.V_3_0_0);
+        assertEquals(searchHit, deserializedSearchHit);
+        assertEquals(searchHit.getMatchedQueriesAndScores(), deserializedSearchHit.getMatchedQueriesAndScores());
+    }
+
+    public void testSerializationDeserializationWithMatchedQueriesList() throws IOException {
+        SearchHit searchHit = createTestItem(true, true);
+        SearchHit deserializedSearchHit = copyWriteable(searchHit, getNamedWriteableRegistry(), SearchHit::new, Version.V_2_12_0);
+        assertEquals(searchHit, deserializedSearchHit);
+        assertEquals(searchHit.getMatchedQueriesAndScores(), deserializedSearchHit.getMatchedQueriesAndScores());
+        Assert.assertArrayEquals(searchHit.getMatchedQueries(), deserializedSearchHit.getMatchedQueries());
+    }
+
     /**
      * When e.g. with "stored_fields": "_none_", only "_index" and "_score" are returned.
      */
@@ -242,6 +278,125 @@ public class SearchHitTests extends AbstractWireSerializingTestCase<SearchHit> {
         XContentBuilder builder = JsonXContent.contentBuilder();
         searchHit.toXContent(builder, ToXContent.EMPTY_PARAMS);
         assertEquals("{\"_id\":\"id1\",\"_score\":1.5}", builder.toString());
+    }
+
+    public void testSerializeShardTargetWithNewVersion() throws Exception {
+        String clusterAlias = randomBoolean() ? null : "cluster_alias";
+        SearchShardTarget target = new SearchShardTarget(
+            "_node_id",
+            new ShardId(new Index("_index", "_na_"), 0),
+            clusterAlias,
+            OriginalIndices.NONE
+        );
+
+        Map<String, SearchHits> innerHits = new HashMap<>();
+        SearchHit innerHit1 = new SearchHit(0, "_id", null, null);
+        innerHit1.shard(target);
+        SearchHit innerInnerHit2 = new SearchHit(0, "_id", null, null);
+        innerInnerHit2.shard(target);
+        innerHits.put("1", new SearchHits(new SearchHit[] { innerInnerHit2 }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1f));
+        innerHit1.setInnerHits(innerHits);
+        SearchHit innerHit2 = new SearchHit(0, "_id", null, null);
+        innerHit2.shard(target);
+        SearchHit innerHit3 = new SearchHit(0, "_id", null, null);
+        innerHit3.shard(target);
+
+        innerHits = new HashMap<>();
+        SearchHit hit1 = new SearchHit(0, "_id", null, null);
+        innerHits.put("1", new SearchHits(new SearchHit[] { innerHit1, innerHit2 }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1f));
+        innerHits.put("2", new SearchHits(new SearchHit[] { innerHit3 }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1f));
+        hit1.shard(target);
+        hit1.setInnerHits(innerHits);
+
+        SearchHit hit2 = new SearchHit(0, "_id", null, null);
+        hit2.shard(target);
+
+        SearchHits hits = new SearchHits(new SearchHit[] { hit1, hit2 }, new TotalHits(2, TotalHits.Relation.EQUAL_TO), 1f);
+
+        SearchHits results = copyWriteable(hits, getNamedWriteableRegistry(), SearchHits::new, Version.V_3_0_0);
+        SearchShardTarget deserializedTarget = results.getAt(0).getShard();
+        assertThat(deserializedTarget, equalTo(target));
+        assertThat(results.getAt(0).getInnerHits().get("1").getAt(0).getShard(), notNullValue());
+        assertThat(results.getAt(0).getInnerHits().get("1").getAt(0).getInnerHits().get("1").getAt(0).getShard(), notNullValue());
+        assertThat(results.getAt(0).getInnerHits().get("1").getAt(1).getShard(), notNullValue());
+        assertThat(results.getAt(0).getInnerHits().get("2").getAt(0).getShard(), notNullValue());
+        for (SearchHit hit : results) {
+            assertEquals(clusterAlias, hit.getClusterAlias());
+            if (hit.getInnerHits() != null) {
+                for (SearchHits innerhits : hit.getInnerHits().values()) {
+                    for (SearchHit innerHit : innerhits) {
+                        assertEquals(clusterAlias, innerHit.getClusterAlias());
+                    }
+                }
+            }
+        }
+        assertThat(results.getAt(1).getShard(), equalTo(target));
+    }
+
+    public void testSerializeShardTargetWithNewVersionAndMatchedQueries() throws Exception {
+        String clusterAlias = randomBoolean() ? null : "cluster_alias";
+        SearchShardTarget target = new SearchShardTarget(
+            "_node_id",
+            new ShardId(new Index("_index", "_na_"), 0),
+            clusterAlias,
+            OriginalIndices.NONE
+        );
+
+        Map<String, SearchHits> innerHits = new HashMap<>();
+        SearchHit innerHit1 = new SearchHit(0, "_id", null, null);
+        innerHit1.shard(target);
+        innerHit1.matchedQueriesWithScores(getSampleMatchedQueries());
+        SearchHit innerInnerHit2 = new SearchHit(0, "_id", null, null);
+        innerInnerHit2.shard(target);
+        innerHits.put("1", new SearchHits(new SearchHit[] { innerInnerHit2 }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1f));
+        innerHit1.setInnerHits(innerHits);
+        SearchHit innerHit2 = new SearchHit(0, "_id", null, null);
+        innerHit2.shard(target);
+        innerHit2.matchedQueriesWithScores(getSampleMatchedQueries());
+        SearchHit innerHit3 = new SearchHit(0, "_id", null, null);
+        innerHit3.shard(target);
+        innerHit3.matchedQueriesWithScores(getSampleMatchedQueries());
+
+        innerHits = new HashMap<>();
+        SearchHit hit1 = new SearchHit(0, "_id", null, null);
+        innerHits.put("1", new SearchHits(new SearchHit[] { innerHit1, innerHit2 }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1f));
+        innerHits.put("2", new SearchHits(new SearchHit[] { innerHit3 }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1f));
+        hit1.shard(target);
+        hit1.setInnerHits(innerHits);
+
+        SearchHit hit2 = new SearchHit(0, "_id", null, null);
+        hit2.shard(target);
+
+        SearchHits hits = new SearchHits(new SearchHit[] { hit1, hit2 }, new TotalHits(2, TotalHits.Relation.EQUAL_TO), 1f);
+
+        SearchHits results = copyWriteable(hits, getNamedWriteableRegistry(), SearchHits::new, Version.V_3_0_0);
+        SearchShardTarget deserializedTarget = results.getAt(0).getShard();
+        assertThat(deserializedTarget, equalTo(target));
+        assertThat(results.getAt(0).getInnerHits().get("1").getAt(0).getShard(), notNullValue());
+        assertThat(results.getAt(0).getInnerHits().get("1").getAt(0).getInnerHits().get("1").getAt(0).getShard(), notNullValue());
+        assertThat(results.getAt(0).getInnerHits().get("1").getAt(1).getShard(), notNullValue());
+        assertThat(results.getAt(0).getInnerHits().get("2").getAt(0).getShard(), notNullValue());
+        String[] expectedMatchedQueries = new String[] { "query1", "query2" };
+        String[] actualMatchedQueries = results.getAt(0).getInnerHits().get("1").getAt(0).getMatchedQueries();
+        assertArrayEquals(expectedMatchedQueries, actualMatchedQueries);
+
+        Map<String, Float> expectedMatchedQueriesAndScores = new LinkedHashMap<>();
+        expectedMatchedQueriesAndScores.put("query1", 1.0f);
+        expectedMatchedQueriesAndScores.put("query2", 0.5f);
+
+        Map<String, Float> actualMatchedQueriesAndScores = results.getAt(0).getInnerHits().get("1").getAt(0).getMatchedQueriesAndScores();
+        assertEquals(expectedMatchedQueriesAndScores, actualMatchedQueriesAndScores);
+        for (SearchHit hit : results) {
+            assertEquals(clusterAlias, hit.getClusterAlias());
+            if (hit.getInnerHits() != null) {
+                for (SearchHits innerhits : hit.getInnerHits().values()) {
+                    for (SearchHit innerHit : innerhits) {
+                        assertEquals(clusterAlias, innerHit.getClusterAlias());
+                    }
+                }
+            }
+        }
+        assertThat(results.getAt(1).getShard(), equalTo(target));
     }
 
     public void testSerializeShardTarget() throws Exception {

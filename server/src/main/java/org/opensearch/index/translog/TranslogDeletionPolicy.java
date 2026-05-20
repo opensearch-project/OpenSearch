@@ -33,6 +33,7 @@
 package org.opensearch.index.translog;
 
 import org.apache.lucene.util.Counter;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.core.Assertions;
 import org.opensearch.index.seqno.SequenceNumbers;
@@ -47,8 +48,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
 /**
  * Defines a translog deletion policy
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public abstract class TranslogDeletionPolicy {
 
     private final Map<Object, RuntimeException> openTranslogRef;

@@ -20,7 +20,9 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.cluster.node.DiscoveryNodes;
+import org.opensearch.cluster.routing.RoutingNode;
 import org.opensearch.cluster.routing.RoutingNodes;
+import org.opensearch.cluster.routing.RoutingPool;
 import org.opensearch.cluster.routing.RoutingTable;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.UnassignedInfo;
@@ -28,10 +30,12 @@ import org.opensearch.cluster.routing.allocation.allocator.BalancedShardsAllocat
 import org.opensearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.opensearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.opensearch.cluster.routing.allocation.decider.AllocationDeciders;
+import org.opensearch.cluster.routing.allocation.decider.Decision;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.IndexModule;
+import org.opensearch.node.NodeResourceUsageStats;
 import org.opensearch.test.gateway.TestGatewayAllocator;
 
 import java.util.ArrayList;
@@ -52,12 +56,12 @@ public abstract class RemoteShardsBalancerBaseTestCase extends OpenSearchAllocat
         DiscoveryNodeRole.CLUSTER_MANAGER_ROLE,
         DiscoveryNodeRole.DATA_ROLE
     );
-    protected static final Set<DiscoveryNodeRole> SEARCH_DATA_ROLES = Set.of(
+    protected static final Set<DiscoveryNodeRole> WARM_DATA_ROLES = Set.of(
         DiscoveryNodeRole.CLUSTER_MANAGER_ROLE,
         DiscoveryNodeRole.DATA_ROLE,
-        DiscoveryNodeRole.SEARCH_ROLE
+        DiscoveryNodeRole.WARM_ROLE
     );
-    protected static final Set<DiscoveryNodeRole> SEARCH_ONLY_ROLE = Set.of(DiscoveryNodeRole.SEARCH_ROLE);
+    protected static final Set<DiscoveryNodeRole> WARM_ONLY_ROLE = Set.of(DiscoveryNodeRole.WARM_ROLE);
 
     protected static final int PRIMARIES = 5;
     protected static final int REPLICAS = 1;
@@ -99,10 +103,17 @@ public abstract class RemoteShardsBalancerBaseTestCase extends OpenSearchAllocat
     }
 
     public ClusterState createInitialCluster(int localOnlyNodes, int remoteNodes, int localIndices, int remoteIndices) {
-        return createInitialCluster(localOnlyNodes, remoteNodes, false, localIndices, remoteIndices);
+        return createInitialCluster(localOnlyNodes, remoteNodes, false, localIndices, remoteIndices, false);
     }
 
-    public ClusterState createInitialCluster(int localOnlyNodes, int remoteNodes, boolean remoteOnly, int localIndices, int remoteIndices) {
+    public ClusterState createInitialCluster(
+        int localOnlyNodes,
+        int remoteNodes,
+        boolean remoteRoleOnly,
+        int localIndices,
+        int remoteIndices,
+        boolean remoteIndexIsWarm
+    ) {
         Metadata.Builder mb = Metadata.builder();
         for (int i = 0; i < localIndices; i++) {
             mb.put(
@@ -114,15 +125,27 @@ public abstract class RemoteShardsBalancerBaseTestCase extends OpenSearchAllocat
         }
 
         for (int i = 0; i < remoteIndices; i++) {
-            mb.put(
-                IndexMetadata.builder(getIndexName(i, true))
-                    .settings(
-                        settings(Version.CURRENT).put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "0")
-                            .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.REMOTE_SNAPSHOT.getSettingsKey())
-                    )
-                    .numberOfShards(PRIMARIES)
-                    .numberOfReplicas(REPLICAS)
-            );
+            if (remoteIndexIsWarm == false) {
+                mb.put(
+                    IndexMetadata.builder(getIndexName(i, true))
+                        .settings(
+                            settings(Version.CURRENT).put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "0")
+                                .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.REMOTE_SNAPSHOT.getSettingsKey())
+                        )
+                        .numberOfShards(PRIMARIES)
+                        .numberOfReplicas(REPLICAS)
+                );
+            } else {
+                mb.put(
+                    IndexMetadata.builder(getIndexName(i, true))
+                        .settings(
+                            settings(Version.CURRENT).put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "0")
+                                .put(IndexModule.IS_WARM_INDEX_SETTING.getKey(), true)
+                        )
+                        .numberOfShards(PRIMARIES)
+                        .numberOfReplicas(REPLICAS)
+                );
+            }
         }
         Metadata metadata = mb.build();
 
@@ -140,15 +163,15 @@ public abstract class RemoteShardsBalancerBaseTestCase extends OpenSearchAllocat
             String name = getNodeId(i, false);
             nb.add(newNode(name, name, MANAGER_DATA_ROLES));
         }
-        if (remoteOnly) {
+        if (remoteRoleOnly) {
             for (int i = 0; i < remoteNodes; i++) {
                 String name = getNodeId(i, true);
-                nb.add(newNode(name, name, SEARCH_ONLY_ROLE));
+                nb.add(newNode(name, name, WARM_ONLY_ROLE));
             }
         } else {
             for (int i = 0; i < remoteNodes; i++) {
                 String name = getNodeId(i, true);
-                nb.add(newNode(name, name, SEARCH_DATA_ROLES));
+                nb.add(newNode(name, name, WARM_DATA_ROLES));
             }
         }
         DiscoveryNodes nodes = nb.build();
@@ -171,14 +194,6 @@ public abstract class RemoteShardsBalancerBaseTestCase extends OpenSearchAllocat
         return ClusterState.builder(state).metadata(metadata).routingTable(routingTable).build();
     }
 
-    private AllocationDeciders remoteAllocationDeciders(Settings settings, ClusterSettings clusterSettings) {
-        List<AllocationDecider> deciders = new ArrayList<>(
-            ClusterModule.createAllocationDeciders(settings, clusterSettings, Collections.emptyList())
-        );
-        Collections.shuffle(deciders, random());
-        return new AllocationDeciders(deciders);
-    }
-
     public AllocationService createRemoteCapableAllocationService() {
         Settings settings = Settings.Builder.EMPTY_SETTINGS;
         return new OpenSearchAllocationTestCase.MockAllocationService(
@@ -191,7 +206,7 @@ public abstract class RemoteShardsBalancerBaseTestCase extends OpenSearchAllocat
     }
 
     public AllocationService createRemoteCapableAllocationService(String excludeNodes) {
-        Settings settings = Settings.builder().put("cluster.routing.allocation.exclude.node_id", excludeNodes).build();
+        Settings settings = Settings.builder().put("cluster.routing.allocation.exclude._id", excludeNodes).build();
         return new MockAllocationService(
             randomAllocationDeciders(settings, EMPTY_CLUSTER_SETTINGS, random()),
             new TestGatewayAllocator(),
@@ -199,6 +214,41 @@ public abstract class RemoteShardsBalancerBaseTestCase extends OpenSearchAllocat
             EmptyClusterInfoService.INSTANCE,
             SNAPSHOT_INFO_SERVICE_WITH_NO_SHARD_SIZES
         );
+    }
+
+    public AllocationService createRejectRemoteAllocationService(boolean throttle) {
+        Settings settings = Settings.Builder.EMPTY_SETTINGS;
+        return new OpenSearchAllocationTestCase.MockAllocationService(
+            createRejectRemoteAllocationDeciders(throttle),
+            new TestGatewayAllocator(),
+            createShardAllocator(settings),
+            EmptyClusterInfoService.INSTANCE,
+            SNAPSHOT_INFO_SERVICE_WITH_NO_SHARD_SIZES
+        );
+    }
+
+    public AllocationDeciders createRejectRemoteAllocationDeciders(boolean throttle) {
+        Settings settings = Settings.Builder.EMPTY_SETTINGS;
+        List<AllocationDecider> deciders = new ArrayList<>(
+            ClusterModule.createAllocationDeciders(settings, EMPTY_CLUSTER_SETTINGS, Collections.emptyList())
+        );
+        deciders.add(new AllocationDecider() {
+            @Override
+            public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+                if (RoutingPool.REMOTE_CAPABLE.equals(RoutingPool.getShardPool(shardRouting, allocation))) {
+                    return throttle ? Decision.THROTTLE : Decision.NO;
+                } else {
+                    return Decision.ALWAYS;
+                }
+            }
+
+            @Override
+            public Decision canAllocateAnyShardToNode(RoutingNode node, RoutingAllocation allocation) {
+                return throttle ? Decision.THROTTLE : Decision.YES;
+            }
+        });
+        Collections.shuffle(deciders, random());
+        return new AllocationDeciders(deciders);
     }
 
     public AllocationDeciders createAllocationDeciders() {
@@ -237,9 +287,10 @@ public abstract class RemoteShardsBalancerBaseTestCase extends OpenSearchAllocat
         public DevNullClusterInfo(
             final Map<String, DiskUsage> leastAvailableSpaceUsage,
             final Map<String, DiskUsage> mostAvailableSpaceUsage,
+            final Map<String, NodeResourceUsageStats> nodeResourceUsages,
             final Map<String, Long> shardSizes
         ) {
-            super(leastAvailableSpaceUsage, mostAvailableSpaceUsage, shardSizes, null, Map.of(), Map.of());
+            super(leastAvailableSpaceUsage, mostAvailableSpaceUsage, shardSizes, null, Map.of(), Map.of(), nodeResourceUsages);
         }
 
         @Override

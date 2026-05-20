@@ -32,6 +32,7 @@
 
 package org.opensearch.painless;
 
+import org.opensearch.secure_sm.AccessController;
 import org.objectweb.asm.ClassWriter;
 import org.objectweb.asm.FieldVisitor;
 import org.objectweb.asm.Handle;
@@ -45,8 +46,6 @@ import java.lang.invoke.LambdaConversionException;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
-import java.security.AccessController;
-import java.security.PrivilegedAction;
 
 import static java.lang.invoke.MethodHandles.Lookup;
 import static org.opensearch.painless.WriterConstants.CLASS_VERSION;
@@ -506,9 +505,7 @@ public final class LambdaBootstrap {
         byte[] classBytes = cw.toByteArray();
         // DEBUG:
         // new ClassReader(classBytes).accept(new TraceClassVisitor(new PrintWriter(System.out)), ClassReader.SKIP_DEBUG);
-        return AccessController.doPrivileged(
-            (PrivilegedAction<Class<?>>) () -> loader.defineLambda(lambdaClassType.getClassName(), classBytes)
-        );
+        return AccessController.doPrivileged(() -> loader.defineLambda(lambdaClassType.getClassName(), classBytes));
     }
 
     /**

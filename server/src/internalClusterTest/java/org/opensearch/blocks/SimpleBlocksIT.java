@@ -41,12 +41,13 @@ import org.opensearch.action.admin.indices.settings.put.UpdateSettingsRequestBui
 import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.index.IndexResponse;
 import org.opensearch.action.support.ActiveShardCount;
-import org.opensearch.action.support.master.AcknowledgedResponse;
+import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.block.ClusterBlockException;
 import org.opensearch.cluster.block.ClusterBlockLevel;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IndexMetadata.APIBlock;
+import org.opensearch.cluster.metadata.ProcessClusterEventTimeoutException;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.IndexNotFoundException;
@@ -491,10 +492,20 @@ public class SimpleBlocksIT extends OpenSearchIntegTestCase {
                     } catch (InterruptedException e) {
                         throw new AssertionError(e);
                     }
-                    try {
-                        assertAcked(client().admin().indices().prepareDelete(indexToDelete));
-                    } catch (final Exception e) {
-                        exceptionConsumer.accept(e);
+                    int pendingRetries = 3;
+                    boolean success = false;
+                    while (success == false && pendingRetries-- > 0) {
+                        try {
+                            assertAcked(client().admin().indices().prepareDelete(indexToDelete));
+                            success = true;
+                        } catch (final Exception e) {
+                            Throwable cause = ExceptionsHelper.unwrapCause(e);
+                            if (cause instanceof ProcessClusterEventTimeoutException && pendingRetries > 0) {
+                                // ignore error & retry
+                                continue;
+                            }
+                            exceptionConsumer.accept(e);
+                        }
                     }
                 }));
             }

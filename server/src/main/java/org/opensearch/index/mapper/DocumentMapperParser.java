@@ -34,6 +34,7 @@ package org.opensearch.index.mapper;
 
 import org.opensearch.Version;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.time.DateFormatter;
@@ -56,8 +57,9 @@ import static java.util.Collections.unmodifiableMap;
 /**
  * Parser for a document mapper
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class DocumentMapperParser {
 
     final MapperService mapperService;
@@ -131,7 +133,7 @@ public class DocumentMapperParser {
     }
 
     @SuppressWarnings({ "unchecked" })
-    private DocumentMapper parse(String type, Map<String, Object> mapping) throws MapperParsingException {
+    public DocumentMapper parse(String type, Map<String, Object> mapping) throws MapperParsingException {
         if (type == null) {
             throw new MapperParsingException("Failed to derive type");
         }
@@ -170,7 +172,11 @@ public class DocumentMapperParser {
 
         checkNoRemainingFields(mapping, parserContext.indexVersionCreated(), "Root mapping definition has unsupported parameters: ");
 
-        return docBuilder.build(mapperService);
+        final DocumentMapper documentMapper = docBuilder.build(mapperService);
+        if (mapperService.getIndexSettings().isDerivedSourceEnabled()) {
+            documentMapper.root().canDeriveSource();
+        }
+        return documentMapper;
     }
 
     public static void checkNoRemainingFields(String fieldName, Map<?, ?> fieldNodeMap, Version indexVersionCreated) {

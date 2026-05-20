@@ -31,8 +31,8 @@ apply plugin: 'opensearch.yaml-rest-test'
 apply plugin: 'opensearch.internal-cluster-test'
 
 opensearchplugin {
-  description 'Adds "built in" analyzers to OpenSearch.'
-  classname 'org.opensearch.analysis.common.CommonAnalysisModulePlugin'
+  description = 'Adds "built in" analyzers to OpenSearch.'
+  classname = 'org.opensearch.analysis.common.CommonAnalysisModulePlugin'
   extendedPlugins = ['lang-painless']
 }
 

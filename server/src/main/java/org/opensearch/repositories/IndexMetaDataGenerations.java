@@ -34,6 +34,7 @@ package org.opensearch.repositories;
 
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.snapshots.SnapshotId;
 
 import java.util.Collection;
@@ -50,8 +51,9 @@ import java.util.stream.Collectors;
  * {@link IndexMetadata} should be computed and then used to check if it already exists in the repository via
  * {@link #getIndexMetaBlobId(String)}.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public final class IndexMetaDataGenerations {
 
     public static final IndexMetaDataGenerations EMPTY = new IndexMetaDataGenerations(Collections.emptyMap(), Collections.emptyMap());
@@ -94,7 +96,7 @@ public final class IndexMetaDataGenerations {
     /**
      * Get the blob id by {@link SnapshotId} and {@link IndexId}. If none is found, we fall back to the value
      * of {@link SnapshotId#getUUID()} to allow for extended backwards compatibility use-cases with
-     * {@link org.opensearch.LegacyESVersion} versions which used the snapshot UUID as the index metadata blob id.
+     * versions which used the snapshot UUID as the index metadata blob id.
      *
      * @param snapshotId Snapshot Id
      * @param indexId    Index Id
@@ -165,10 +167,9 @@ public final class IndexMetaDataGenerations {
         if (this == that) {
             return true;
         }
-        if (that instanceof IndexMetaDataGenerations == false) {
+        if (!(that instanceof IndexMetaDataGenerations other)) {
             return false;
         }
-        final IndexMetaDataGenerations other = (IndexMetaDataGenerations) that;
         return lookup.equals(other.lookup) && identifiers.equals(other.identifiers);
     }
 

@@ -41,11 +41,15 @@ import org.opensearch.action.bulk.BackoffPolicy;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.HandledTransportAction;
 import org.opensearch.action.support.RetryableAction;
+import org.opensearch.action.support.clustermanager.term.GetTermVersionAction;
+import org.opensearch.action.support.clustermanager.term.GetTermVersionRequest;
+import org.opensearch.action.support.clustermanager.term.GetTermVersionResponse;
 import org.opensearch.cluster.ClusterManagerNodeChangePredicate;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateObserver;
 import org.opensearch.cluster.NotClusterManagerException;
 import org.opensearch.cluster.block.ClusterBlockException;
+import org.opensearch.cluster.coordination.ClusterStateTermVersion;
 import org.opensearch.cluster.coordination.FailedToCommitClusterStateException;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.ProcessClusterEventTimeoutException;
@@ -60,16 +64,25 @@ import org.opensearch.core.action.ActionResponse;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.discovery.ClusterManagerNotDiscoveredException;
+import org.opensearch.gateway.remote.ClusterMetadataManifest;
+import org.opensearch.gateway.remote.RemoteClusterStateService;
 import org.opensearch.node.NodeClosedException;
+import org.opensearch.ratelimitting.admissioncontrol.enums.AdmissionControlActionType;
 import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.ConnectTransportException;
 import org.opensearch.transport.RemoteTransportException;
 import org.opensearch.transport.TransportException;
+import org.opensearch.transport.TransportResponseHandler;
 import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.Optional;
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import java.util.function.Predicate;
+
+import static org.opensearch.Version.V_2_13_0;
 
 /**
  * A base class for operations that needs to be performed on the cluster-manager node.
@@ -86,6 +99,8 @@ public abstract class TransportClusterManagerNodeAction<Request extends ClusterM
     protected final ClusterService clusterService;
     protected final IndexNameExpressionResolver indexNameExpressionResolver;
 
+    protected RemoteClusterStateService remoteClusterStateService;
+
     private final String executor;
 
     protected TransportClusterManagerNodeAction(
@@ -97,7 +112,7 @@ public abstract class TransportClusterManagerNodeAction<Request extends ClusterM
         Writeable.Reader<Request> request,
         IndexNameExpressionResolver indexNameExpressionResolver
     ) {
-        this(actionName, true, transportService, clusterService, threadPool, actionFilters, request, indexNameExpressionResolver);
+        this(actionName, true, null, transportService, clusterService, threadPool, actionFilters, request, indexNameExpressionResolver);
     }
 
     protected TransportClusterManagerNodeAction(
@@ -110,7 +125,31 @@ public abstract class TransportClusterManagerNodeAction<Request extends ClusterM
         Writeable.Reader<Request> request,
         IndexNameExpressionResolver indexNameExpressionResolver
     ) {
-        super(actionName, canTripCircuitBreaker, transportService, actionFilters, request);
+        this(
+            actionName,
+            canTripCircuitBreaker,
+            null,
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            request,
+            indexNameExpressionResolver
+        );
+    }
+
+    protected TransportClusterManagerNodeAction(
+        String actionName,
+        boolean canTripCircuitBreaker,
+        AdmissionControlActionType admissionControlActionType,
+        TransportService transportService,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ActionFilters actionFilters,
+        Writeable.Reader<Request> request,
+        IndexNameExpressionResolver indexNameExpressionResolver
+    ) {
+        super(actionName, canTripCircuitBreaker, admissionControlActionType, transportService, actionFilters, request);
         this.transportService = transportService;
         this.clusterService = clusterService;
         this.threadPool = threadPool;
@@ -122,35 +161,16 @@ public abstract class TransportClusterManagerNodeAction<Request extends ClusterM
 
     protected abstract Response read(StreamInput in) throws IOException;
 
-    /**
-     * @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #clusterManagerOperation(ClusterManagerNodeRequest, ClusterState, ActionListener)}
-     */
-    @Deprecated
-    protected void masterOperation(Request request, ClusterState state, ActionListener<Response> listener) throws Exception {
-        throw new UnsupportedOperationException("Must be overridden");
-    }
-
     // TODO: Add abstract keyword after removing the deprecated masterOperation()
-    protected void clusterManagerOperation(Request request, ClusterState state, ActionListener<Response> listener) throws Exception {
-        masterOperation(request, state, listener);
-    }
-
-    /**
-     * Override this operation if access to the task parameter is needed
-     * @deprecated As of 2.2, because supporting inclusive language, replaced by {@link #clusterManagerOperation(Task, ClusterManagerNodeRequest, ClusterState, ActionListener)}
-     */
-    @Deprecated
-    protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<Response> listener) throws Exception {
-        clusterManagerOperation(request, state, listener);
-    }
+    protected abstract void clusterManagerOperation(Request request, ClusterState state, ActionListener<Response> listener)
+        throws Exception;
 
     /**
      * Override this operation if access to the task parameter is needed
      */
-    // TODO: Change the implementation to call 'clusterManagerOperation(request...)' after removing the deprecated masterOperation()
     protected void clusterManagerOperation(Task task, Request request, ClusterState state, ActionListener<Response> listener)
         throws Exception {
-        masterOperation(task, request, state, listener);
+        clusterManagerOperation(request, state, listener);
     }
 
     protected boolean localExecute(Request request) {
@@ -226,7 +246,7 @@ public abstract class TransportClusterManagerNodeAction<Request extends ClusterM
          */
         @Override
         public Exception getTimeoutException(Exception e) {
-            return new ProcessClusterEventTimeoutException(request.masterNodeTimeout, actionName);
+            return new ProcessClusterEventTimeoutException(request.clusterManagerNodeTimeout, actionName);
         }
 
         protected void doStart(ClusterState clusterState) {
@@ -234,41 +254,14 @@ public abstract class TransportClusterManagerNodeAction<Request extends ClusterM
                 final DiscoveryNodes nodes = clusterState.nodes();
                 if (nodes.isLocalNodeElectedClusterManager() || localExecute(request)) {
                     // check for block, if blocked, retry, else, execute locally
-                    final ClusterBlockException blockException = checkBlock(request, clusterState);
-                    if (blockException != null) {
-                        if (!blockException.retryable()) {
-                            listener.onFailure(blockException);
-                        } else {
-                            logger.debug("can't execute due to a cluster block, retrying", blockException);
-                            retry(clusterState, blockException, newState -> {
-                                try {
-                                    ClusterBlockException newException = checkBlock(request, newState);
-                                    return (newException == null || !newException.retryable());
-                                } catch (Exception e) {
-                                    // accept state as block will be rechecked by doStart() and listener.onFailure() then called
-                                    logger.trace("exception occurred during cluster block checking, accepting state", e);
-                                    return true;
-                                }
-                            });
-                        }
-                    } else {
-                        ActionListener<Response> delegate = ActionListener.delegateResponse(listener, (delegatedListener, t) -> {
-                            if (t instanceof FailedToCommitClusterStateException || t instanceof NotClusterManagerException) {
-                                logger.debug(
-                                    () -> new ParameterizedMessage(
-                                        "master could not publish cluster state or "
-                                            + "stepped down before publishing action [{}], scheduling a retry",
-                                        actionName
-                                    ),
-                                    t
-                                );
-                                retryOnMasterChange(clusterState, t);
-                            } else {
-                                delegatedListener.onFailure(t);
-                            }
-                        });
+                    if (!checkForBlock(request, clusterState)) {
                         threadPool.executor(executor)
-                            .execute(ActionRunnable.wrap(delegate, l -> clusterManagerOperation(task, request, clusterState, l)));
+                            .execute(
+                                ActionRunnable.wrap(
+                                    getDelegateForLocalExecute(clusterState),
+                                    l -> clusterManagerOperation(task, request, clusterState, l)
+                                )
+                            );
                     }
                 } else {
                     if (nodes.getClusterManagerNode() == null) {
@@ -276,32 +269,15 @@ public abstract class TransportClusterManagerNodeAction<Request extends ClusterM
                         retryOnMasterChange(clusterState, null);
                     } else {
                         DiscoveryNode clusterManagerNode = nodes.getClusterManagerNode();
-                        final String actionName = getClusterManagerActionName(clusterManagerNode);
-                        transportService.sendRequest(
-                            clusterManagerNode,
-                            actionName,
-                            request,
-                            new ActionListenerResponseHandler<Response>(listener, TransportClusterManagerNodeAction.this::read) {
-                                @Override
-                                public void handleException(final TransportException exp) {
-                                    Throwable cause = exp.unwrapCause();
-                                    if (cause instanceof ConnectTransportException
-                                        || (exp instanceof RemoteTransportException && cause instanceof NodeClosedException)) {
-                                        // we want to retry here a bit to see if a new cluster-manager is elected
-                                        logger.debug(
-                                            "connection exception while trying to forward request with action name [{}] to "
-                                                + "master node [{}], scheduling a retry. Error: [{}]",
-                                            actionName,
-                                            nodes.getClusterManagerNode(),
-                                            exp.getDetailedMessage()
-                                        );
-                                        retryOnMasterChange(clusterState, cause);
-                                    } else {
-                                        listener.onFailure(exp);
-                                    }
-                                }
-                            }
-                        );
+                        if (clusterManagerNode.getVersion().onOrAfter(V_2_13_0) && localExecuteSupportedByAction()) {
+                            BiConsumer<DiscoveryNode, ClusterState> executeOnLocalOrClusterManager = clusterStateLatestChecker(
+                                this::executeOnLocalNode,
+                                this::executeOnClusterManager
+                            );
+                            executeOnLocalOrClusterManager.accept(clusterManagerNode, clusterState);
+                        } else {
+                            executeOnClusterManager(clusterManagerNode, clusterState);
+                        }
                     }
                 }
             } catch (Exception e) {
@@ -310,10 +286,20 @@ public abstract class TransportClusterManagerNodeAction<Request extends ClusterM
         }
 
         private void retryOnMasterChange(ClusterState state, Throwable failure) {
-            retry(state, failure, ClusterManagerNodeChangePredicate.build(state));
+            retryOnMasterChange(state.version(), state.nodes().getClusterManagerNode(), failure);
         }
 
-        private void retry(ClusterState state, final Throwable failure, final Predicate<ClusterState> statePredicate) {
+        private void retryOnMasterChange(long stateVersion, DiscoveryNode clusterManagerNode, Throwable failure) {
+            final String ephemeralNodeId = clusterManagerNode != null ? clusterManagerNode.getEphemeralId() : null;
+            retry(stateVersion, clusterManagerNode, failure, ClusterManagerNodeChangePredicate.build(stateVersion, ephemeralNodeId));
+        }
+
+        private void retry(
+            final long stateVersion,
+            final DiscoveryNode clusterManagerNode,
+            final Throwable failure,
+            final Predicate<ClusterState> statePredicate
+        ) {
             if (observer == null) {
                 final long remainingTimeoutMS = request.clusterManagerNodeTimeout().millis() - (threadPool.relativeTimeInMillis()
                     - startTime);
@@ -322,9 +308,11 @@ public abstract class TransportClusterManagerNodeAction<Request extends ClusterM
                     listener.onFailure(new ClusterManagerNotDiscoveredException(failure));
                     return;
                 }
+                final String persistentNodeId = clusterManagerNode != null ? clusterManagerNode.getId() : null;
                 this.observer = new ClusterStateObserver(
-                    state,
-                    clusterService,
+                    persistentNodeId,
+                    stateVersion,
+                    clusterService.getClusterApplierService(),
                     TimeValue.timeValueMillis(remainingTimeoutMS),
                     logger,
                     threadPool.getThreadContext()
@@ -351,6 +339,207 @@ public abstract class TransportClusterManagerNodeAction<Request extends ClusterM
                 }
             }, statePredicate);
         }
+
+        private ActionListener<Response> getDelegateForLocalExecute(ClusterState clusterState) {
+            // Extract version and cluster manager node before creating closure to avoid retaining full ClusterState
+            final long stateVersion = clusterState.version();
+            final DiscoveryNode clusterManagerNode = clusterState.nodes().getClusterManagerNode();
+
+            return ActionListener.delegateResponse(listener, (delegatedListener, t) -> {
+                if (t instanceof FailedToCommitClusterStateException || t instanceof NotClusterManagerException) {
+                    logger.debug(
+                        () -> new ParameterizedMessage(
+                            "cluster-manager could not publish cluster state or "
+                                + "stepped down before publishing action [{}], scheduling a retry",
+                            actionName
+                        ),
+                        t
+                    );
+
+                    retryOnMasterChange(stateVersion, clusterManagerNode, t);
+                } else {
+                    delegatedListener.onFailure(t);
+                }
+            });
+        }
+
+        protected BiConsumer<DiscoveryNode, ClusterState> clusterStateLatestChecker(
+            Consumer<ClusterState> onLatestLocalState,
+            BiConsumer<DiscoveryNode, ClusterState> onStaleLocalState
+        ) {
+            return (clusterManagerNode, clusterState) -> {
+                transportService.sendRequest(
+                    clusterManagerNode,
+                    GetTermVersionAction.NAME,
+                    new GetTermVersionRequest(),
+                    new TransportResponseHandler<GetTermVersionResponse>() {
+                        @Override
+                        public void handleResponse(GetTermVersionResponse response) {
+                            boolean isLatestClusterStatePresentOnLocalNode = response.matches(clusterState);
+                            logger.trace(
+                                "Received GetTermVersionResponse response : ClusterStateTermVersion {}, latest-on-local {}",
+                                response.getClusterStateTermVersion(),
+                                isLatestClusterStatePresentOnLocalNode
+                            );
+
+                            ClusterState stateFromNode = getStateFromLocalNode(response);
+                            if (stateFromNode != null) {
+                                onLatestLocalState.accept(stateFromNode);
+                            } else {
+                                // fallback to clusterManager
+                                onStaleLocalState.accept(clusterManagerNode, clusterState);
+                            }
+                        }
+
+                        @Override
+                        public void handleException(TransportException exp) {
+                            handleTransportException(clusterManagerNode, clusterState, exp);
+                        }
+
+                        @Override
+                        public String executor() {
+                            return ThreadPool.Names.SAME;
+                        }
+
+                        @Override
+                        public GetTermVersionResponse read(StreamInput in) throws IOException {
+                            return new GetTermVersionResponse(in);
+                        }
+
+                    }
+                );
+            };
+        }
+
+        private ClusterState getStateFromLocalNode(GetTermVersionResponse termVersionResponse) {
+            ClusterStateTermVersion termVersion = termVersionResponse.getClusterStateTermVersion();
+            ClusterState appliedState = clusterService.state();
+            if (termVersion.equals(new ClusterStateTermVersion(appliedState))) {
+                logger.trace("Using the applied State from local, ClusterStateTermVersion {}", termVersion);
+                return appliedState;
+            }
+
+            ClusterState preCommitState = clusterService.preCommitState();
+            if (preCommitState != null && termVersion.equals(new ClusterStateTermVersion(preCommitState))) {
+                logger.trace("Using the published state from local, ClusterStateTermVersion {}", termVersion);
+                return preCommitState;
+            }
+
+            if (remoteClusterStateService != null && termVersionResponse.isStatePresentInRemote()) {
+                try {
+                    logger.info(
+                        () -> new ParameterizedMessage(
+                            "Term version checker downloading full cluster state for term {}, version {}",
+                            termVersion.getTerm(),
+                            termVersion.getVersion()
+                        )
+                    );
+                    ClusterStateTermVersion clusterStateTermVersion = termVersionResponse.getClusterStateTermVersion();
+                    Optional<ClusterMetadataManifest> clusterMetadataManifest = remoteClusterStateService
+                        .getClusterMetadataManifestByTermVersion(
+                            clusterStateTermVersion.getClusterName().value(),
+                            clusterStateTermVersion.getClusterUUID(),
+                            clusterStateTermVersion.getTerm(),
+                            clusterStateTermVersion.getVersion()
+                        );
+                    if (clusterMetadataManifest.isEmpty()) {
+                        logger.trace("could not find manifest in remote-store for ClusterStateTermVersion {}", termVersion);
+                        return null;
+                    }
+                    ClusterState clusterStateFromRemote = remoteClusterStateService.getClusterStateForManifest(
+                        appliedState.getClusterName().value(),
+                        clusterMetadataManifest.get(),
+                        appliedState.nodes().getLocalNode().getId(),
+                        true
+                    );
+
+                    if (clusterStateFromRemote != null) {
+                        logger.trace("Using the remote cluster-state fetched from local node, ClusterStateTermVersion {}", termVersion);
+                        return clusterStateFromRemote;
+                    }
+                } catch (Exception e) {
+                    logger.error("Error while fetching from remote cluster state", e);
+                }
+            }
+            return null;
+        }
+
+        private boolean checkForBlock(Request request, ClusterState localClusterState) {
+            final ClusterBlockException blockException = checkBlock(request, localClusterState);
+            if (blockException != null) {
+                if (!blockException.retryable()) {
+                    listener.onFailure(blockException);
+                } else {
+                    logger.debug("can't execute due to a cluster block, retrying", blockException);
+                    final long blockStateVersion = localClusterState.version();
+                    final DiscoveryNode blockClusterManagerNode = localClusterState.nodes().getClusterManagerNode();
+                    retry(blockStateVersion, blockClusterManagerNode, blockException, newState -> {
+                        try {
+                            ClusterBlockException newException = checkBlock(request, newState);
+                            return (newException == null || !newException.retryable());
+                        } catch (Exception e) {
+                            // accept state as block will be rechecked by doStart() and listener.onFailure() then called
+                            logger.trace("exception occurred during cluster block checking, accepting state", e);
+                            return true;
+                        }
+                    });
+                }
+                return true;
+            } else {
+                return false;
+            }
+        }
+
+        private void executeOnLocalNode(ClusterState localClusterState) {
+            try {
+                // check for block, if blocked, retry, else, execute locally
+                if (!checkForBlock(request, localClusterState)) {
+                    Runnable runTask = ActionRunnable.wrap(
+                        getDelegateForLocalExecute(localClusterState),
+                        l -> clusterManagerOperation(task, request, localClusterState, l)
+                    );
+                    threadPool.executor(executor).execute(runTask);
+                }
+            } catch (Exception e) {
+                listener.onFailure(e);
+            }
+        }
+
+        private void executeOnClusterManager(DiscoveryNode clusterManagerNode, ClusterState clusterState) {
+            final String actionName = getClusterManagerActionName(clusterManagerNode);
+
+            transportService.sendRequest(
+                clusterManagerNode,
+                actionName,
+                request,
+                new ActionListenerResponseHandler<Response>(listener, TransportClusterManagerNodeAction.this::read) {
+                    @Override
+                    public void handleException(final TransportException exp) {
+                        handleTransportException(clusterManagerNode, clusterState, exp);
+                    }
+                }
+            );
+        }
+
+        private void handleTransportException(DiscoveryNode clusterManagerNode, ClusterState clusterState, final TransportException exp) {
+            Throwable cause = exp.unwrapCause();
+            if (cause instanceof ConnectTransportException
+                || (exp instanceof RemoteTransportException && cause instanceof NodeClosedException)) {
+                // we want to retry here a bit to see if a new cluster-manager is elected
+
+                logger.debug(
+                    "connection exception while trying to forward request with action name [{}] to "
+                        + "master node [{}], scheduling a retry. Error: [{}]",
+                    actionName,
+                    clusterManagerNode,
+                    exp.getDetailedMessage()
+                );
+
+                retryOnMasterChange(clusterState, cause);
+            } else {
+                listener.onFailure(exp);
+            }
+        }
     }
 
     /**
@@ -362,14 +551,13 @@ public abstract class TransportClusterManagerNodeAction<Request extends ClusterM
     }
 
     /**
-     * Allows to conditionally return a different cluster-manager node action name in the case an action gets renamed.
-     * This mainly for backwards compatibility should be used rarely
+     * Override to true if the transport action can be executed locally and need NOT be executed always on cluster-manager (Read actions).
+     * The action is executed locally if this method returns true AND
+     * the ClusterState on local node is in-sync with ClusterManager.
      *
-     * @deprecated As of 2.1, because supporting inclusive language, replaced by {@link #getClusterManagerActionName(DiscoveryNode)}
+     * @return - boolean if the action can be run locally
      */
-    @Deprecated
-    protected String getMasterActionName(DiscoveryNode node) {
-        return getClusterManagerActionName(node);
+    protected boolean localExecuteSupportedByAction() {
+        return false;
     }
-
 }

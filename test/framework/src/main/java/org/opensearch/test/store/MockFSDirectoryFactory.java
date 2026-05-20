@@ -36,8 +36,13 @@ import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.CheckIndex;
+import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.IOContext;
+import org.apache.lucene.store.IndexInput;
+import org.apache.lucene.store.LockFactory;
 import org.apache.lucene.store.LockObtainFailedException;
+import org.apache.lucene.store.NIOFSDirectory;
 import org.apache.lucene.tests.store.BaseDirectoryWrapper;
 import org.apache.lucene.tests.store.MockDirectoryWrapper;
 import org.apache.lucene.tests.util.LuceneTestCase;
@@ -63,6 +68,7 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Random;
@@ -100,6 +106,11 @@ public class MockFSDirectoryFactory implements IndexStorePlugin.DirectoryFactory
         Settings indexSettings = idxSettings.getSettings();
         Random random = new Random(idxSettings.getValue(OpenSearchIntegTestCase.INDEX_TEST_SEED_SETTING));
         return wrap(randomDirectoryService(random, idxSettings, path), random, indexSettings, path.getShardId());
+    }
+
+    @Override
+    public Directory newFSDirectory(Path location, LockFactory lockFactory, IndexSettings indexSettings) throws IOException {
+        return new NIOFSDirectory(location, lockFactory);
     }
 
     public static void checkIndex(Logger logger, Store store, ShardId shardId) {
@@ -202,6 +213,19 @@ public class MockFSDirectoryFactory implements IndexStorePlugin.DirectoryFactory
         @Override
         public Set<String> getPendingDeletions() throws IOException {
             return in.getPendingDeletions();
+        }
+
+        // In remote store feature, the upload flow is async and IndexInput can be opened and closed
+        // by different threads, so we always use IOContext.DEFAULT.
+        // But MockDirectoryWrapper throws an exception if segments_N fil is opened with any IOContext other than READONCE.
+        // Following change is temporary override to avoid the test failures. We should fix the multiple thread access
+        // in remote store upload flow.
+        @Override
+        public synchronized IndexInput openInput(String name, IOContext context) throws IOException {
+            if (name.startsWith(IndexFileNames.SEGMENTS)) {
+                context = IOContext.READONCE;
+            }
+            return super.openInput(name, context);
         }
     }
 

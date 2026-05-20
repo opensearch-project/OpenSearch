@@ -39,7 +39,6 @@ import org.opensearch.action.index.IndexRequestBuilder;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.Fuzziness;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.util.set.Sets;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -54,7 +53,7 @@ import org.opensearch.search.SearchHits;
 import org.opensearch.search.sort.SortBuilders;
 import org.opensearch.search.sort.SortOrder;
 import org.opensearch.test.MockKeywordPlugin;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -92,10 +91,10 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThan;
 
-public class MultiMatchQueryIT extends ParameterizedOpenSearchIntegTestCase {
+public class MultiMatchQueryIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
 
-    public MultiMatchQueryIT(Settings dynamicSettings) {
-        super(dynamicSettings);
+    public MultiMatchQueryIT(Settings staticSettings) {
+        super(staticSettings);
     }
 
     @ParametersFactory
@@ -104,11 +103,6 @@ public class MultiMatchQueryIT extends ParameterizedOpenSearchIntegTestCase {
             new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), false).build() },
             new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), true).build() }
         );
-    }
-
-    @Override
-    protected Settings featureFlagSettings() {
-        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.CONCURRENT_SEGMENT_SEARCH, "true").build();
     }
 
     @Override
@@ -391,7 +385,7 @@ public class MultiMatchQueryIT extends ParameterizedOpenSearchIntegTestCase {
                 )
             )
             .get();
-        assertThat(searchResponse.getHits().getTotalHits().value, greaterThan(1L));
+        assertThat(searchResponse.getHits().getTotalHits().value(), greaterThan(1L));
 
         searchResponse = client().prepareSearch("test")
             .setQuery(
@@ -470,8 +464,8 @@ public class MultiMatchQueryIT extends ParameterizedOpenSearchIntegTestCase {
                 .get();
             assertThat(
                 "field: " + field + " query: " + builder.toString(),
-                multiMatchResp.getHits().getTotalHits().value,
-                equalTo(matchResp.getHits().getTotalHits().value)
+                multiMatchResp.getHits().getTotalHits().value(),
+                equalTo(matchResp.getHits().getTotalHits().value())
             );
             SearchHits hits = multiMatchResp.getHits();
             if (field.startsWith("missing")) {
@@ -486,7 +480,7 @@ public class MultiMatchQueryIT extends ParameterizedOpenSearchIntegTestCase {
     }
 
     public void testCutoffFreq() throws ExecutionException, InterruptedException {
-        final long numDocs = client().prepareSearch("test").setSize(0).setQuery(matchAllQuery()).get().getHits().getTotalHits().value;
+        final long numDocs = client().prepareSearch("test").setSize(0).setQuery(matchAllQuery()).get().getHits().getTotalHits().value();
         MatchQuery.Type type = MatchQuery.Type.BOOLEAN;
         Float cutoffFrequency = randomBoolean() ? Math.min(1, numDocs * 1.f / between(10, 20)) : 1.f / between(10, 20);
         SearchResponse searchResponse = client().prepareSearch("test")
@@ -521,7 +515,7 @@ public class MultiMatchQueryIT extends ParameterizedOpenSearchIntegTestCase {
             .get();
         assertFirstHit(searchResponse, anyOf(hasId("theone"), hasId("theother")));
         assertThat(searchResponse.getHits().getHits()[0].getScore(), greaterThan(searchResponse.getHits().getHits()[1].getScore()));
-        long size = searchResponse.getHits().getTotalHits().value;
+        long size = searchResponse.getHits().getTotalHits().value();
 
         searchResponse = client().prepareSearch("test")
             .setQuery(
@@ -532,7 +526,7 @@ public class MultiMatchQueryIT extends ParameterizedOpenSearchIntegTestCase {
             )
             .get();
         assertFirstHit(searchResponse, anyOf(hasId("theone"), hasId("theother")));
-        assertThat("common terms expected to be a way smaller result set", size, lessThan(searchResponse.getHits().getTotalHits().value));
+        assertThat("common terms expected to be a way smaller result set", size, lessThan(searchResponse.getHits().getTotalHits().value()));
 
         cutoffFrequency = randomBoolean() ? Math.min(1, numDocs * 1.f / between(10, 20)) : 1.f / between(10, 20);
         searchResponse = client().prepareSearch("test")
@@ -586,7 +580,13 @@ public class MultiMatchQueryIT extends ParameterizedOpenSearchIntegTestCase {
 
     public void testEquivalence() {
 
-        final int numDocs = (int) client().prepareSearch("test").setSize(0).setQuery(matchAllQuery()).get().getHits().getTotalHits().value;
+        final int numDocs = (int) client().prepareSearch("test")
+            .setSize(0)
+            .setQuery(matchAllQuery())
+            .get()
+            .getHits()
+            .getTotalHits()
+            .value();
         int numIters = scaledRandomIntBetween(5, 10);
         for (int i = 0; i < numIters; i++) {
             {
@@ -880,7 +880,7 @@ public class MultiMatchQueryIT extends ParameterizedOpenSearchIntegTestCase {
             )
             .get();
         assertFirstHit(searchResponse, anyOf(hasId("theother"), hasId("theone")));
-        long numResults = searchResponse.getHits().getTotalHits().value;
+        long numResults = searchResponse.getHits().getTotalHits().value();
 
         searchResponse = client().prepareSearch("test")
             .setQuery(
@@ -891,7 +891,7 @@ public class MultiMatchQueryIT extends ParameterizedOpenSearchIntegTestCase {
                 )
             )
             .get();
-        assertThat(numResults, lessThan(searchResponse.getHits().getTotalHits().value));
+        assertThat(numResults, lessThan(searchResponse.getHits().getTotalHits().value()));
         assertFirstHit(searchResponse, hasId("theone"));
 
         // test group based on analyzer -- all fields are grouped into a cross field search
@@ -1059,7 +1059,7 @@ public class MultiMatchQueryIT extends ParameterizedOpenSearchIntegTestCase {
         assertNoFailures(right);
         SearchHits leftHits = left.getHits();
         SearchHits rightHits = right.getHits();
-        assertThat(leftHits.getTotalHits().value, equalTo(rightHits.getTotalHits().value));
+        assertThat(leftHits.getTotalHits().value(), equalTo(rightHits.getTotalHits().value()));
         assertThat(leftHits.getHits().length, equalTo(rightHits.getHits().length));
         SearchHit[] hits = leftHits.getHits();
         SearchHit[] rHits = rightHits.getHits();

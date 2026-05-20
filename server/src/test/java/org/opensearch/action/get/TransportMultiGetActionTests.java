@@ -36,12 +36,12 @@ import org.opensearch.Version;
 import org.opensearch.action.IndicesRequest;
 import org.opensearch.action.RoutingMissingException;
 import org.opensearch.action.support.ActionFilters;
-import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.Metadata;
+import org.opensearch.cluster.metadata.ResolvedIndices;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.routing.OperationRouting;
 import org.opensearch.cluster.routing.Preference;
@@ -68,6 +68,7 @@ import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.Transport;
 import org.opensearch.transport.TransportService;
+import org.opensearch.transport.client.node.NodeClient;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
@@ -317,7 +318,22 @@ public class TransportMultiGetActionTests extends OpenSearchTestCase {
 
         // should fail since document replication enabled
         assertFalse(TransportGetAction.shouldForcePrimaryRouting(metadata, true, null, "index1"));
+    }
 
+    public void testResolveIndices() {
+        MultiGetRequest multiGetRequest = new MultiGetRequest();
+        multiGetRequest.add("index1", "1");
+        multiGetRequest.add("index2", "2");
+
+        transportAction = new TransportMultiGetAction(
+            transportService,
+            clusterService,
+            shardAction,
+            new ActionFilters(emptySet()),
+            new Resolver()
+        );
+
+        assertEquals(ResolvedIndices.of("index1", "index2"), transportAction.resolveIndices(multiGetRequest));
     }
 
     private static Task createTask() {

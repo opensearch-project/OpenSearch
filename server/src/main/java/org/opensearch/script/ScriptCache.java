@@ -130,10 +130,10 @@ public class ScriptCache {
             }));
         } catch (ExecutionException executionException) {
             Throwable cause = executionException.getCause();
-            if (cause instanceof ScriptException) {
-                throw (ScriptException) cause;
-            } else if (cause instanceof Exception) {
-                throw new GeneralScriptException("Failed to compile " + type + " script [" + id + "] using lang [" + lang + "]", cause);
+            if (cause instanceof ScriptException scriptException) {
+                throw scriptException;
+            } else if (cause instanceof Exception exception) {
+                throw new GeneralScriptException("Failed to compile " + type + " script [" + id + "] using lang [" + lang + "]", exception);
             } else {
                 rethrow(cause);
                 throw new AssertionError(cause);

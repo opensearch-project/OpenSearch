@@ -29,6 +29,7 @@
 
 package org.opensearch.common.inject.binder;
 
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.inject.Scope;
 
 import java.lang.annotation.Annotation;
@@ -38,8 +39,9 @@ import java.lang.annotation.Annotation;
  *
  * @author crazybob@google.com (Bob Lee)
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public interface ScopedBindingBuilder {
 
     /**

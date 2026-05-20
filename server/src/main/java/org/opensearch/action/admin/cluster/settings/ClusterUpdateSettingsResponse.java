@@ -32,7 +32,7 @@
 
 package org.opensearch.action.admin.cluster.settings;
 
-import org.opensearch.action.support.master.AcknowledgedResponse;
+import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.ParseField;

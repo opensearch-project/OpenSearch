@@ -51,10 +51,15 @@ import static org.opensearch.search.aggregations.bucket.terms.TermsAggregationBu
  *           },{
  *             "field": "host"
  *           }],
- *           "order": {"max-cpu": "desc"}
+ *           "order": [{
+ *             "max-cpu": "desc"
+ *           },{
+ *             "max-memory": "desc"
+ *           }]
  *         },
  *         "aggs": {
- *           "max-cpu": { "max": { "field": "cpu" } }
+ *           "max-cpu": { "max": { "field": "cpu" } },
+ *           "max-memory": { "max": { "field": "memory" } }
  *         }
  *       }
  *     }
@@ -80,6 +85,9 @@ import static org.opensearch.search.aggregations.bucket.terms.TermsAggregationBu
  *           "doc_count": 2,
  *           "max-cpu": {
  *             "value": 90.0
+ *           },
+ *           "max-memory": {
+ *             "value": 80.0
  *           }
  *         },
  *         {
@@ -91,6 +99,9 @@ import static org.opensearch.search.aggregations.bucket.terms.TermsAggregationBu
  *           "doc_count": 2,
  *           "max-cpu": {
  *             "value": 70.0
+ *           },
+ *           "max-memory": {
+ *             "value": 90.0
  *           }
  *         }
  *       ]

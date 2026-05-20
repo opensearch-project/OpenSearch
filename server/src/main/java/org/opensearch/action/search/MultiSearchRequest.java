@@ -222,7 +222,7 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
             }
 
             SearchRequest searchRequest = new SearchRequest();
-            if (indices != null) {
+            if (indices != null && indices.length > 0) {
                 searchRequest.indices(indices);
             }
             if (indicesOptions != null) {
@@ -309,6 +309,10 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
                 XContentParser parser = xContent.createParser(registry, LoggingDeprecationHandler.INSTANCE, stream)
             ) {
                 consumer.accept(searchRequest, parser);
+            }
+
+            if (searchRequest.source() != null && searchRequest.source().pipeline() != null) {
+                searchRequest.pipeline(searchRequest.source().pipeline());
             }
             // move pointers
             from = nextMarker + 1;
@@ -397,5 +401,17 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
                 return true;
             }
         };
+    }
+
+    @Override
+    public String toString() {
+        return "MultiSearchRequest{"
+            + "maxConcurrentSearchRequests="
+            + maxConcurrentSearchRequests
+            + ", requests="
+            + requests
+            + ", indicesOptions="
+            + indicesOptions
+            + '}';
     }
 }

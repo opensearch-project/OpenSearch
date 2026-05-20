@@ -31,7 +31,6 @@
 
 package org.opensearch.test;
 
-import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.unit.TimeValue;
@@ -59,13 +58,6 @@ public final class InternalSettingsPlugin extends Plugin {
         Property.IndexScope,
         Property.NodeScope
     );
-    public static final Setting<Long> INDEX_CREATION_DATE_SETTING = Setting.longSetting(
-        IndexMetadata.SETTING_CREATION_DATE,
-        -1,
-        -1,
-        Property.IndexScope,
-        Property.NodeScope
-    );
     public static final Setting<TimeValue> TRANSLOG_RETENTION_CHECK_INTERVAL_SETTING = Setting.timeSetting(
         "index.translog.retention.check_interval",
         new TimeValue(10, TimeUnit.MINUTES),
@@ -78,7 +70,6 @@ public final class InternalSettingsPlugin extends Plugin {
     public List<Setting<?>> getSettings() {
         return Arrays.asList(
             MERGE_ENABLED,
-            INDEX_CREATION_DATE_SETTING,
             PROVIDED_NAME_SETTING,
             TRANSLOG_RETENTION_CHECK_INTERVAL_SETTING,
             RemoteConnectionStrategy.REMOTE_MAX_PENDING_CONNECTION_LISTENERS,

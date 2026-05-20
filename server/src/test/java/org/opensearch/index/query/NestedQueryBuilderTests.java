@@ -34,18 +34,24 @@ package org.opensearch.index.query;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.ScoreMode;
 import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
 import org.opensearch.action.admin.indices.mapping.put.PutMappingRequest;
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.query.functionscore.FunctionScoreQueryBuilder;
 import org.opensearch.index.search.OpenSearchToParentBlockJoinQuery;
+import org.opensearch.search.approximate.ApproximateMatchAllQuery;
+import org.opensearch.search.approximate.ApproximateScoreQuery;
 import org.opensearch.search.fetch.subphase.InnerHitsContext;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.search.sort.FieldSortBuilder;
@@ -55,9 +61,12 @@ import org.opensearch.test.VersionUtils;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import static org.opensearch.index.IndexSettingsTests.newIndexMeta;
 import static org.opensearch.index.query.InnerHitBuilderTests.randomNestedInnerHits;
@@ -306,6 +315,47 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
         assertThat(innerHitBuilders.get(leafInnerHits.getName()), Matchers.notNullValue());
     }
 
+    public void testParentFilterFromInlineLeafInnerHitsNestedQuery() throws Exception {
+        QueryShardContext queryShardContext = createShardContext();
+        SearchContext searchContext = mock(SearchContext.class);
+        when(searchContext.getQueryShardContext()).thenReturn(queryShardContext);
+
+        MapperService mapperService = mock(MapperService.class);
+        IndexSettings settings = new IndexSettings(newIndexMeta("index", Settings.EMPTY), Settings.EMPTY);
+        when(mapperService.getIndexSettings()).thenReturn(settings);
+        when(searchContext.mapperService()).thenReturn(mapperService);
+
+        InnerHitBuilder leafInnerHits = randomNestedInnerHits();
+        // Set null for values not related with this test case
+        leafInnerHits.setScriptFields(null);
+        leafInnerHits.setHighlightBuilder(null);
+        leafInnerHits.setSorts(null);
+
+        QueryBuilder innerQueryBuilder = spy(new MatchAllQueryBuilder());
+        when(innerQueryBuilder.toQuery(queryShardContext)).thenAnswer(invoke -> {
+            QueryShardContext context = invoke.getArgument(0);
+            if (context.getParentFilter() == null) {
+                throw new Exception("Expect parent filter to be non-null");
+            }
+            if (context.isInnerHitQuery() == false) {
+                throw new Exception("Expect it to be inner hit query");
+            }
+            return invoke.callRealMethod();
+        });
+        NestedQueryBuilder query = new NestedQueryBuilder("nested1", innerQueryBuilder, ScoreMode.None);
+        query.innerHit(leafInnerHits);
+        final Map<String, InnerHitContextBuilder> innerHitBuilders = new HashMap<>();
+        final InnerHitsContext innerHitsContext = new InnerHitsContext();
+        query.extractInnerHitBuilders(innerHitBuilders);
+        assertThat(innerHitBuilders.size(), Matchers.equalTo(1));
+        assertTrue(innerHitBuilders.containsKey(leafInnerHits.getName()));
+        assertNull(queryShardContext.getParentFilter());
+        assertFalse(queryShardContext.isInnerHitQuery());
+        innerHitBuilders.get(leafInnerHits.getName()).build(searchContext, innerHitsContext);
+        assertNull(queryShardContext.getParentFilter());
+        verify(innerQueryBuilder).toQuery(queryShardContext);
+    }
+
     public void testInlineLeafInnerHitsNestedQueryViaBoolQuery() {
         InnerHitBuilder leafInnerHits = randomNestedInnerHits();
         NestedQueryBuilder nestedQueryBuilder = new NestedQueryBuilder("path", new MatchAllQueryBuilder(), ScoreMode.None).innerHit(
@@ -430,5 +480,109 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
         nqb.rewrite(queryShardContext).toQuery(queryShardContext);
         assertNull(queryShardContext.getParentFilter());
         verify(innerQueryBuilder).toQuery(queryShardContext);
+    }
+
+    public void testNestedDepthProhibited() throws Exception {
+        assertThrows(IllegalArgumentException.class, () -> doWithDepth(0, context -> fail("won't call")));
+    }
+
+    public void testNestedDepthAllowed() throws Exception {
+        ThrowingConsumer<QueryShardContext> check = (context) -> {
+            NestedQueryBuilder queryBuilder = new NestedQueryBuilder("nested1", new MatchAllQueryBuilder(), ScoreMode.None);
+            OpenSearchToParentBlockJoinQuery blockJoinQuery = (OpenSearchToParentBlockJoinQuery) queryBuilder.toQuery(context);
+            Optional<BooleanClause> childLeg = ((BooleanQuery) blockJoinQuery.getChildQuery()).clauses()
+                .stream()
+                .filter(c -> c.occur() == BooleanClause.Occur.MUST)
+                .findFirst();
+            assertTrue(childLeg.isPresent());
+            assertThat(childLeg.get().query(), instanceOf(ApproximateScoreQuery.class));
+            ApproximateScoreQuery approxQuery = (ApproximateScoreQuery) childLeg.get().query();
+            assertThat(approxQuery.getOriginalQuery(), instanceOf(MatchAllDocsQuery.class));
+            assertThat(approxQuery.getApproximationQuery(), instanceOf(ApproximateMatchAllQuery.class));
+        };
+        check.accept(createShardContext());
+        doWithDepth(randomIntBetween(1, 20), check);
+    }
+
+    public void testNestedDepthOnceOnly() throws Exception {
+        doWithDepth(1, this::checkOnceNested);
+    }
+
+    public void testNestedDepthDefault() throws Exception {
+        assertEquals(20, createShardContext().getIndexSettings().getMaxNestedQueryDepth());
+    }
+
+    private void checkOnceNested(QueryShardContext ctx) throws Exception {
+        {
+            NestedQueryBuilder depth2 = new NestedQueryBuilder(
+                "nested1",
+                new NestedQueryBuilder("nested1", new MatchAllQueryBuilder(), ScoreMode.None),
+                ScoreMode.None
+            );
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> depth2.toQuery(ctx));
+            assertEquals(
+                "The depth of Nested Query is [2] has exceeded the allowed maximum of [1]. This maximum can be set by changing the [index.query.max_nested_depth] index level setting.",
+                e.getMessage()
+            );
+        }
+        {
+            QueryBuilder mustBjqMustBjq = new BoolQueryBuilder().must(
+                new NestedQueryBuilder("nested1", new MatchAllQueryBuilder(), ScoreMode.None)
+            ).must(new NestedQueryBuilder("nested1", new MatchAllQueryBuilder(), ScoreMode.None));
+            BooleanQuery bool = (BooleanQuery) mustBjqMustBjq.toQuery(ctx);
+            assertEquals(
+                "Can parse joins one by one without breaching depth limit",
+                2,
+                bool.clauses().stream().filter(c -> c.query() instanceof OpenSearchToParentBlockJoinQuery).count()
+            );
+        }
+    }
+
+    public void testUpdateMaxDepthSettings() throws Exception {
+        doWithDepth(2, (ctx) -> {
+            assertEquals(ctx.getIndexSettings().getMaxNestedQueryDepth(), 2);
+            NestedQueryBuilder depth2 = new NestedQueryBuilder(
+                "nested1",
+                new NestedQueryBuilder("nested1", new MatchAllQueryBuilder(), ScoreMode.None),
+                ScoreMode.None
+            );
+            Query depth2Query = depth2.toQuery(ctx);
+            assertTrue(depth2Query instanceof OpenSearchToParentBlockJoinQuery);
+        });
+    }
+
+    void doWithDepth(int depth, ThrowingConsumer<QueryShardContext> test) throws Exception {
+        QueryShardContext context = createShardContext();
+        int defLimit = context.getIndexSettings().getMaxNestedQueryDepth();
+        assertTrue(defLimit > 0);
+        Settings updateSettings = Settings.builder()
+            .put(context.getIndexSettings().getSettings())
+            .put("index.query.max_nested_depth", depth)
+            .build();
+        context.getIndexSettings().updateIndexMetadata(IndexMetadata.builder("index").settings(updateSettings).build());
+        try {
+            test.accept(context);
+        } finally {
+            context.getIndexSettings()
+                .updateIndexMetadata(
+                    IndexMetadata.builder("index")
+                        .settings(
+                            Settings.builder()
+                                .put(context.getIndexSettings().getSettings())
+                                .put("index.query.max_nested_depth", defLimit)
+                                .build()
+                        )
+                        .build()
+                );
+        }
+    }
+
+    public void testVisit() {
+        NestedQueryBuilder builder = new NestedQueryBuilder("path", new MatchAllQueryBuilder(), ScoreMode.None);
+
+        List<QueryBuilder> visitedQueries = new ArrayList<>();
+        builder.visit(createTestVisitor(visitedQueries));
+
+        assertEquals(2, visitedQueries.size());
     }
 }

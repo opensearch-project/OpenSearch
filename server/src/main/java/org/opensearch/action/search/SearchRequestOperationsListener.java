@@ -10,6 +10,7 @@ package org.opensearch.action.search;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.opensearch.common.annotation.InternalApi;
 
 import java.util.List;
 
@@ -18,13 +19,51 @@ import java.util.List;
  *
  * @opensearch.internal
  */
-public interface SearchRequestOperationsListener {
+@InternalApi
+public abstract class SearchRequestOperationsListener {
+    private volatile boolean enabled;
+    public static final SearchRequestOperationsListener NOOP = new SearchRequestOperationsListener(false) {
+        @Override
+        protected void onPhaseStart(SearchPhaseContext context) {}
 
-    void onPhaseStart(SearchPhaseContext context);
+        @Override
+        protected void onPhaseEnd(SearchPhaseContext context, SearchRequestContext searchRequestContext) {}
 
-    void onPhaseEnd(SearchPhaseContext context);
+        @Override
+        protected void onPhaseFailure(SearchPhaseContext context, Throwable cause) {}
+    };
 
-    void onPhaseFailure(SearchPhaseContext context);
+    protected SearchRequestOperationsListener() {
+        this.enabled = true;
+    }
+
+    protected SearchRequestOperationsListener(final boolean enabled) {
+        this.enabled = enabled;
+    }
+
+    protected void onPhaseStart(SearchPhaseContext context) {};
+
+    protected void onPhaseEnd(SearchPhaseContext context, SearchRequestContext searchRequestContext) {};
+
+    protected void onPhaseFailure(SearchPhaseContext context, Throwable cause) {};
+
+    protected void onRequestStart(SearchRequestContext searchRequestContext) {}
+
+    protected void onRequestEnd(SearchPhaseContext context, SearchRequestContext searchRequestContext) {}
+
+    protected void onRequestFailure(SearchPhaseContext context, SearchRequestContext searchRequestContext) {}
+
+    protected boolean isEnabled(SearchRequest searchRequest) {
+        return isEnabled();
+    }
+
+    protected boolean isEnabled() {
+        return enabled;
+    }
+
+    protected void setEnabled(final boolean enabled) {
+        this.enabled = enabled;
+    }
 
     /**
      * Holder of Composite Listeners
@@ -32,17 +71,17 @@ public interface SearchRequestOperationsListener {
      * @opensearch.internal
      */
 
-    final class CompositeListener implements SearchRequestOperationsListener {
+    static final class CompositeListener extends SearchRequestOperationsListener {
         private final List<SearchRequestOperationsListener> listeners;
         private final Logger logger;
 
-        public CompositeListener(List<SearchRequestOperationsListener> listeners, Logger logger) {
+        CompositeListener(List<SearchRequestOperationsListener> listeners, Logger logger) {
             this.listeners = listeners;
             this.logger = logger;
         }
 
         @Override
-        public void onPhaseStart(SearchPhaseContext context) {
+        protected void onPhaseStart(SearchPhaseContext context) {
             for (SearchRequestOperationsListener listener : listeners) {
                 try {
                     listener.onPhaseStart(context);
@@ -53,10 +92,10 @@ public interface SearchRequestOperationsListener {
         }
 
         @Override
-        public void onPhaseEnd(SearchPhaseContext context) {
+        protected void onPhaseEnd(SearchPhaseContext context, SearchRequestContext searchRequestContext) {
             for (SearchRequestOperationsListener listener : listeners) {
                 try {
-                    listener.onPhaseEnd(context);
+                    listener.onPhaseEnd(context, searchRequestContext);
                 } catch (Exception e) {
                     logger.warn(() -> new ParameterizedMessage("onPhaseEnd listener [{}] failed", listener), e);
                 }
@@ -64,14 +103,51 @@ public interface SearchRequestOperationsListener {
         }
 
         @Override
-        public void onPhaseFailure(SearchPhaseContext context) {
+        protected void onPhaseFailure(SearchPhaseContext context, Throwable cause) {
             for (SearchRequestOperationsListener listener : listeners) {
                 try {
-                    listener.onPhaseFailure(context);
+                    listener.onPhaseFailure(context, cause);
                 } catch (Exception e) {
                     logger.warn(() -> new ParameterizedMessage("onPhaseFailure listener [{}] failed", listener), e);
                 }
             }
+        }
+
+        @Override
+        protected void onRequestStart(SearchRequestContext searchRequestContext) {
+            for (SearchRequestOperationsListener listener : listeners) {
+                try {
+                    listener.onRequestStart(searchRequestContext);
+                } catch (Exception e) {
+                    logger.warn(() -> new ParameterizedMessage("onRequestStart listener [{}] failed", listener), e);
+                }
+            }
+        }
+
+        @Override
+        public void onRequestEnd(SearchPhaseContext context, SearchRequestContext searchRequestContext) {
+            for (SearchRequestOperationsListener listener : listeners) {
+                try {
+                    listener.onRequestEnd(context, searchRequestContext);
+                } catch (Exception e) {
+                    logger.warn(() -> new ParameterizedMessage("onRequestEnd listener [{}] failed", listener), e);
+                }
+            }
+        }
+
+        @Override
+        public void onRequestFailure(SearchPhaseContext context, SearchRequestContext searchRequestContext) {
+            for (SearchRequestOperationsListener listener : listeners) {
+                try {
+                    listener.onRequestFailure(context, searchRequestContext);
+                } catch (Exception e) {
+                    logger.warn(() -> new ParameterizedMessage("onRequestFailure listener [{}] failed", listener), e);
+                }
+            }
+        }
+
+        public List<SearchRequestOperationsListener> getListeners() {
+            return listeners;
         }
     }
 }

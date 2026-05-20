@@ -1,0 +1,195 @@
+# Integration tests for phone analysis components
+#
+---
+"Index phone number content":
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index:
+              analysis:
+                analyzer:
+                  phone-ch:
+                    type: "phone"
+                    "phone-region": "CH"
+                  phone-search-ch:
+                    type: "phone-search"
+                    "phone-region": "CH"
+          mappings:
+            properties:
+              phone:
+                type: text
+                analyzer: "phone"
+                search_analyzer: "phone-search"
+              phone-ch:
+                type: text
+                analyzer: "phone-ch"
+                search_analyzer: "phone-search-ch"
+
+  - do:
+      index:
+        index:  test
+        id:     1
+        body:   { "phone": "+41 58 316 10 10", "phone-ch": "058 316 10 10" }
+  - do:
+      index:
+        index:  test
+        id:     2
+        body:   { "phone": "+41 58 316 99 99", "phone-ch": "058 316 99 99" }
+  - do:
+      index:
+        index:  test
+        id:     3
+        # number not used in the examples below, just present to make sure that it's never matched
+        body:   { "phone": "+41 12 345 67 89", "phone-ch": "012 345 67 89" }
+  - do:
+      index:
+        index:  test
+        id:     4
+        # germany has a different phone number length, but for this test we ignore it and pretend they're the same
+        body:   { "phone": "+49 58 316 10 10", "phone-ch": "+49 58 316 10 10" }
+  - do:
+      index:
+        index:  test
+        id:     5
+        body:   { "phone": "+1-888-280-4331", "phone-ch": "+1-888-280-4331" }
+  - do:
+      index:
+        index:  test
+        id:     6
+        body:   { "phone": "tel:+441344840400", "phone-ch": "tel:+441344840400" }
+  - do:
+      indices.refresh: {}
+
+  # international format in document & search will always work
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          query:
+            match:
+              "phone": "+41583161010"
+  - match: { hits.total: 1 }
+
+  # correct national format & international format in search will always work
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          query:
+            match:
+              "phone-ch": "+41583161010"
+  - match: { hits.total: 1 }
+
+  # national format without country specified won't work
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          query:
+            match:
+              "phone": "0583161010"
+  - match: { hits.total: 0 }
+
+  # correct national format with country specified in document & search will always work
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          query:
+            match:
+              "phone-ch": "0583161010"
+  - match: { hits.total: 1 }
+
+  # search-as-you-type style query
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          query:
+            match:
+              "phone": "+4158316"
+  - match: { hits.total: 2 }
+
+  # search-as-you-type style query
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          query:
+            match:
+              "phone-ch": "058316"
+  - match: { hits.total: 2 }
+
+  # international format in document & search will always work
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          query:
+            match:
+              "phone": "+1 888 280 4331"
+  - match: { hits.total: 1 }
+
+  # international format in document & search will always work
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          query:
+            match:
+              "phone-ch": "+1 888 280 4331"
+  - match: { hits.total: 1 }
+
+  # national format in search won't work if no country is specified
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          query:
+            match:
+              "phone": "888 280 4331"
+  - match: { hits.total: 0 }
+
+  # document & search have a tel: prefix
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          query:
+            match:
+              "phone": "tel:+441344840400"
+  - match: { hits.total: 1 }
+
+  # only document has a tel: prefix
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          query:
+            match:
+              "phone": "+441344840400"
+  - match: { hits.total: 1 }
+
+  # only search has a tel: prefix
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          query:
+            match:
+              "phone": "tel:+1 888 280 4331"
+  - match: { hits.total: 1 }

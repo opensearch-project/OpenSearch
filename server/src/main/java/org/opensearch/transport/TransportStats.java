@@ -32,6 +32,7 @@
 
 package org.opensearch.transport;
 
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
@@ -44,8 +45,9 @@ import java.io.IOException;
 /**
  * Stats for transport activity
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class TransportStats implements Writeable, ToXContentFragment {
 
     private final long serverOpen;
@@ -55,6 +57,25 @@ public class TransportStats implements Writeable, ToXContentFragment {
     private final long txCount;
     private final long txSize;
 
+    /**
+     * Private constructor that takes a builder.
+     * This is the sole entry point for creating a new TransportStats object.
+     * @param builder The builder instance containing all the values.
+     */
+    private TransportStats(Builder builder) {
+        this.serverOpen = builder.serverOpen;
+        this.totalOutboundConnections = builder.totalOutboundConnections;
+        this.rxCount = builder.rxCount;
+        this.rxSize = builder.rxSize;
+        this.txCount = builder.txCount;
+        this.txSize = builder.txSize;
+    }
+
+    /**
+     * This constructor will be deprecated starting in version 3.4.0.
+     * Use {@link Builder} instead.
+     */
+    @Deprecated
     public TransportStats(long serverOpen, long totalOutboundConnections, long rxCount, long rxSize, long txCount, long txSize) {
         this.serverOpen = serverOpen;
         this.totalOutboundConnections = totalOutboundConnections;
@@ -121,6 +142,59 @@ public class TransportStats implements Writeable, ToXContentFragment {
 
     public ByteSizeValue getTxSize() {
         return txSize();
+    }
+
+    /**
+     * Builder for the {@link TransportStats} class.
+     * Provides a fluent API for constructing a TransportStats object.
+     */
+    public static class Builder {
+        private long serverOpen = 0;
+        private long totalOutboundConnections = 0;
+        private long rxCount = 0;
+        private long rxSize = 0;
+        private long txCount = 0;
+        private long txSize = 0;
+
+        public Builder() {}
+
+        public Builder serverOpen(long serverOpen) {
+            this.serverOpen = serverOpen;
+            return this;
+        }
+
+        public Builder totalOutboundConnections(long connections) {
+            this.totalOutboundConnections = connections;
+            return this;
+        }
+
+        public Builder rxCount(long count) {
+            this.rxCount = count;
+            return this;
+        }
+
+        public Builder rxSize(long size) {
+            this.rxSize = size;
+            return this;
+        }
+
+        public Builder txCount(long count) {
+            this.txCount = count;
+            return this;
+        }
+
+        public Builder txSize(long size) {
+            this.txSize = size;
+            return this;
+        }
+
+        /**
+         * Creates a {@link TransportStats} object from the builder's current state.
+         * @return A new TransportStats instance.
+         */
+        public TransportStats build() {
+            return new TransportStats(this);
+        }
     }
 
     @Override

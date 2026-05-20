@@ -34,6 +34,7 @@ package org.opensearch.action.search;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.action.OriginalIndices;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.annotation.InternalApi;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.util.concurrent.AtomicArray;
 import org.opensearch.search.SearchPhaseResult;
@@ -50,6 +51,7 @@ import java.util.concurrent.Executor;
  *
  * @opensearch.internal
  */
+@InternalApi
 public interface SearchPhaseContext extends Executor {
     // TODO maybe we can make this concrete later - for now we just implement this in the base class for all initial phases
 
@@ -148,4 +150,9 @@ public interface SearchPhaseContext extends Executor {
      * Registers a {@link Releasable} that will be closed when the search request finishes or fails.
      */
     void addReleasable(Releasable releasable);
+
+    /**
+     * Set the resource usage info for this phase
+     */
+    void setPhaseResourceUsages();
 }

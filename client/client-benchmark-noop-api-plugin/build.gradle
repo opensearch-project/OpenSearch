@@ -33,9 +33,9 @@ group = 'org.opensearch.plugin'
 apply plugin: 'opensearch.opensearchplugin'
 
 opensearchplugin {
-  name 'client-benchmark-noop-api'
-  description 'Stubbed out OpenSearch actions that can be used for client-side benchmarking'
-  classname 'org.opensearch.plugin.noop.NoopPlugin'
+  name = 'client-benchmark-noop-api'
+  description = 'Stubbed out OpenSearch actions that can be used for client-side benchmarking'
+  classname = 'org.opensearch.plugin.noop.NoopPlugin'
 }
 
 // Not published so no need to assemble

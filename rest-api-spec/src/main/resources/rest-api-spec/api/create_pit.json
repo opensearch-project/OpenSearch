@@ -2,7 +2,7 @@
 {
   "create_pit":{
     "documentation":{
-      "url":"https://opensearch.org/docs/latest/opensearch/rest-api/point_in_time/",
+      "url":"https://opensearch.org/docs/latest/search-plugins/searching-data/point-in-time-api",
       "description":"Creates point in time context."
     },
     "stability":"stable",

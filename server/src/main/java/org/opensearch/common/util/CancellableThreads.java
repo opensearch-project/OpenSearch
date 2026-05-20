@@ -35,6 +35,7 @@ import org.apache.lucene.util.ThreadInterruptedException;
 import org.opensearch.OpenSearchException;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.SetOnce;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 
 import java.io.IOException;
@@ -48,13 +49,14 @@ import java.util.Set;
  * <p>
  * Cancellation policy: This class does not support external interruption via <code>Thread#interrupt()</code>. Always use #cancel() instead.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class CancellableThreads {
     private final Set<Thread> threads = new HashSet<>();
     // needs to be volatile as it is also read outside of synchronized blocks.
-    private volatile boolean cancelled = false;
     private final SetOnce<OnCancel> onCancel = new SetOnce<>();
+    private volatile boolean cancelled = false;
     private String reason;
 
     public synchronized boolean isCancelled() {
@@ -183,8 +185,9 @@ public class CancellableThreads {
     /**
      * Interruptible interface
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public interface Interruptible extends IOInterruptible {
         void run() throws InterruptedException;
     }
@@ -192,8 +195,9 @@ public class CancellableThreads {
     /**
      * IO Interruptible
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public interface IOInterruptible {
         void run() throws IOException, InterruptedException;
     }
@@ -224,9 +228,10 @@ public class CancellableThreads {
     /**
      * Called when a thread is cancelled
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
     @FunctionalInterface
+    @PublicApi(since = "1.0.0")
     public interface OnCancel {
         /**
          * Called when some running operations are cancelled or {@link #checkForCancel()} is explicitly called.

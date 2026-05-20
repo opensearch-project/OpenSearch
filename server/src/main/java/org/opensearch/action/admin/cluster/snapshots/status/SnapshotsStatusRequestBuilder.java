@@ -33,9 +33,9 @@
 package org.opensearch.action.admin.cluster.snapshots.status;
 
 import org.opensearch.action.support.clustermanager.ClusterManagerNodeOperationRequestBuilder;
-import org.opensearch.client.OpenSearchClient;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.util.ArrayUtils;
+import org.opensearch.transport.client.OpenSearchClient;
 
 /**
  * Snapshots status request builder
@@ -96,10 +96,32 @@ public class SnapshotsStatusRequestBuilder extends ClusterManagerNodeOperationRe
     }
 
     /**
-     * Set to <code>true</code> to ignore unavailable snapshots, instead of throwing an exception.
-     * Defaults to <code>false</code>, which means unavailable snapshots cause an exception to be thrown.
+     * Sets list of indices to return
      *
-     * @param ignoreUnavailable whether to ignore unavailable snapshots.
+     * @param indices list of indices
+     * @return this builder
+     */
+    public SnapshotsStatusRequestBuilder setIndices(String... indices) {
+        request.indices(indices);
+        return this;
+    }
+
+    /**
+     * Adds additional indices to the list of indices to return
+     *
+     * @param indices additional indices
+     * @return this builder
+     */
+    public SnapshotsStatusRequestBuilder addIndices(String... indices) {
+        request.indices(ArrayUtils.concat(request.indices(), indices));
+        return this;
+    }
+
+    /**
+     * Set to <code>true</code> to ignore unavailable snapshots and indices, instead of throwing an exception.
+     * Defaults to <code>false</code>, which means unavailable snapshots and indices cause an exception to be thrown.
+     *
+     * @param ignoreUnavailable whether to ignore unavailable snapshots and indices.
      * @return this builder
      */
     public SnapshotsStatusRequestBuilder setIgnoreUnavailable(boolean ignoreUnavailable) {

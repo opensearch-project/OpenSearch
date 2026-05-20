@@ -40,15 +40,16 @@ import org.apache.lucene.store.LockObtainFailedException;
 import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
 import org.opensearch.action.admin.indices.rollover.Condition;
-import org.opensearch.cli.EnvironmentAwareCommand;
 import org.opensearch.cli.Terminal;
 import org.opensearch.cli.UserException;
 import org.opensearch.cluster.ClusterModule;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.Diff;
+import org.opensearch.cluster.metadata.ComponentTemplateMetadata;
 import org.opensearch.cluster.metadata.DataStreamMetadata;
 import org.opensearch.cluster.metadata.Metadata;
+import org.opensearch.common.cli.EnvironmentAwareCommand;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
@@ -94,9 +95,10 @@ public abstract class OpenSearchNodeCommand extends EnvironmentAwareCommand {
         public <T, C> T parseNamedObject(Class<T> categoryClass, String name, XContentParser parser, C context) throws IOException {
             // Currently, two unknown top-level objects are present
             if (Metadata.Custom.class.isAssignableFrom(categoryClass)) {
-                if (DataStreamMetadata.TYPE.equals(name)) {
+                if (DataStreamMetadata.TYPE.equals(name) || ComponentTemplateMetadata.TYPE.equals(name)) {
                     // DataStreamMetadata is used inside Metadata class for validation purposes and building the indicesLookup,
-                    // therefor even es node commands need to be able to parse it.
+                    // ComponentTemplateMetadata is used inside Metadata class for building the systemTemplatesLookup,
+                    // therefor even OpenSearch node commands need to be able to parse it.
                     return super.parseNamedObject(categoryClass, name, parser, context);
                     // TODO: Try to parse other named objects (e.g. stored scripts, ingest pipelines) that are part of core es as well?
                     // Note that supporting PersistentTasksCustomMetadata is trickier, because PersistentTaskParams is a named object too.

@@ -34,8 +34,8 @@ package org.opensearch.action.admin.cluster.node.stats;
 
 import org.opensearch.action.admin.indices.stats.CommonStatsFlags;
 import org.opensearch.action.support.nodes.NodesOperationRequestBuilder;
-import org.opensearch.client.OpenSearchClient;
 import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.transport.client.OpenSearchClient;
 
 /**
  * Transport builder for obtaining OpenSearch Node Stats

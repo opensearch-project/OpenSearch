@@ -33,6 +33,7 @@ package org.opensearch.cluster.coordination;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.Version;
+import org.opensearch.cluster.ClusterManagerMetrics;
 import org.opensearch.cluster.ClusterName;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.OpenSearchAllocationTestCase;
@@ -48,8 +49,8 @@ import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.service.ClusterManagerService;
+import org.opensearch.cluster.service.ClusterManagerServiceTests;
 import org.opensearch.cluster.service.FakeThreadPoolClusterManagerService;
-import org.opensearch.cluster.service.MasterServiceTests;
 import org.opensearch.common.Randomness;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
@@ -61,6 +62,7 @@ import org.opensearch.monitor.NodeHealthService;
 import org.opensearch.monitor.StatusInfo;
 import org.opensearch.node.Node;
 import org.opensearch.node.remotestore.RemoteStoreNodeService;
+import org.opensearch.telemetry.metrics.noop.NoopMetricsRegistry;
 import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.test.ClusterServiceUtils;
 import org.opensearch.test.OpenSearchTestCase;
@@ -179,7 +181,8 @@ public class NodeJoinTests extends OpenSearchTestCase {
         ClusterManagerService clusterManagerService = new ClusterManagerService(
             Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), "test_node").build(),
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-            threadPool
+            threadPool,
+            new ClusterManagerMetrics(NoopMetricsRegistry.INSTANCE)
         );
         AtomicReference<ClusterState> clusterStateRef = new AtomicReference<>(initialState);
         clusterManagerService.setClusterStatePublisher((event, publishListener, ackListener) -> {
@@ -270,7 +273,9 @@ public class NodeJoinTests extends OpenSearchTestCase {
             ElectionStrategy.DEFAULT_INSTANCE,
             nodeHealthService,
             persistedStateRegistry,
-            Mockito.mock(RemoteStoreNodeService.class)
+            Mockito.mock(RemoteStoreNodeService.class),
+            new ClusterManagerMetrics(NoopMetricsRegistry.INSTANCE),
+            null
         );
         transportService.start();
         transportService.acceptIncomingRequests();
@@ -544,9 +549,11 @@ public class NodeJoinTests extends OpenSearchTestCase {
             )
         );
 
-        assertTrue(MasterServiceTests.discoveryState(clusterManagerService).getVotingConfigExclusions().stream().anyMatch(exclusion -> {
-            return "knownNodeName".equals(exclusion.getNodeName()) && "newNodeId".equals(exclusion.getNodeId());
-        }));
+        assertTrue(
+            ClusterManagerServiceTests.discoveryState(clusterManagerService).getVotingConfigExclusions().stream().anyMatch(exclusion -> {
+                return "knownNodeName".equals(exclusion.getNodeName()) && "newNodeId".equals(exclusion.getNodeId());
+            })
+        );
     }
 
     private ClusterState buildStateWithVotingConfigExclusion(
@@ -772,7 +779,7 @@ public class NodeJoinTests extends OpenSearchTestCase {
             throw new RuntimeException(e);
         }
 
-        assertTrue(MasterServiceTests.discoveryState(clusterManagerService).nodes().isLocalNodeElectedMaster());
+        assertTrue(ClusterManagerServiceTests.discoveryState(clusterManagerService).nodes().isLocalNodeElectedClusterManager());
         for (DiscoveryNode successfulNode : successfulNodes) {
             assertTrue(successfulNode + " joined cluster", clusterStateHasNode(successfulNode));
             assertFalse(successfulNode + " voted for cluster-manager", coordinator.missingJoinVoteFrom(successfulNode));
@@ -856,11 +863,11 @@ public class NodeJoinTests extends OpenSearchTestCase {
     }
 
     private boolean isLocalNodeElectedMaster() {
-        return MasterServiceTests.discoveryState(clusterManagerService).nodes().isLocalNodeElectedMaster();
+        return ClusterManagerServiceTests.discoveryState(clusterManagerService).nodes().isLocalNodeElectedClusterManager();
     }
 
     private boolean clusterStateHasNode(DiscoveryNode node) {
-        return node.equals(MasterServiceTests.discoveryState(clusterManagerService).nodes().get(node.getId()));
+        return node.equals(ClusterManagerServiceTests.discoveryState(clusterManagerService).nodes().get(node.getId()));
     }
 
     private static ClusterState initialStateWithDecommissionedAttribute(

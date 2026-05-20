@@ -32,8 +32,10 @@
 
 package org.opensearch.action.bulk;
 
+import org.opensearch.action.DocWriteRequest;
 import org.opensearch.action.DocWriteRequest.OpType;
 import org.opensearch.action.delete.DeleteResponse;
+import org.opensearch.action.index.IndexRequest;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.action.update.UpdateRequest;
 import org.opensearch.common.action.ActionFuture;
@@ -87,11 +89,13 @@ public class RetryTests extends OpenSearchTestCase {
 
     private BulkRequest createBulkRequest() {
         BulkRequest request = new BulkRequest();
+        request.pipeline("test_pipeline");
         request.add(new UpdateRequest("shop", "1"));
         request.add(new UpdateRequest("shop", "2"));
         request.add(new UpdateRequest("shop", "3"));
         request.add(new UpdateRequest("shop", "4"));
         request.add(new UpdateRequest("shop", "5"));
+        request.add(new IndexRequest("shop").id("6"));
         return request;
     }
 
@@ -113,6 +117,18 @@ public class RetryTests extends OpenSearchTestCase {
 
         assertTrue(response.hasFailures());
         assertThat(response.getItems().length, equalTo(bulkRequest.numberOfActions()));
+
+        int index = 0;
+        for (BulkItemResponse itemResponse : response) {
+            if (itemResponse.isFailed() && itemResponse.getFailure().getSource() == BulkItemResponse.Failure.FailureSource.PIPELINE) {
+                DocWriteRequest<?> docWriteRequest = bulkRequest.requests.get(index);
+                if (docWriteRequest instanceof IndexRequest indexRequest) {
+                    assertFalse(indexRequest.isPipelineResolved());
+                    assertThat(indexRequest.getPipeline(), equalTo("test_pipeline"));
+                }
+            }
+            index++;
+        }
     }
 
     public void testRetryWithListenerBacksOff() throws Exception {
@@ -229,7 +245,11 @@ public class RetryTests extends OpenSearchTestCase {
             int itemToFail = randomInt(request.requests().size() - 1);
             for (int idx = 0; idx < request.requests().size(); idx++) {
                 if (shouldFail && (randomBoolean() || idx == itemToFail)) {
-                    itemResponses[idx] = failedResponse();
+                    if (request.requests().get(idx) instanceof IndexRequest) {
+                        itemResponses[idx] = failedResponseWithSource();
+                    } else {
+                        itemResponses[idx] = failedResponse();
+                    }
                 } else {
                     itemResponses[idx] = successfulResponse();
                 }
@@ -246,6 +266,19 @@ public class RetryTests extends OpenSearchTestCase {
                 1,
                 OpType.INDEX,
                 new BulkItemResponse.Failure("test", "1", new OpenSearchRejectedExecutionException("pool full"))
+            );
+        }
+
+        private BulkItemResponse failedResponseWithSource() {
+            return new BulkItemResponse(
+                1,
+                OpType.INDEX,
+                new BulkItemResponse.Failure(
+                    "test",
+                    "1",
+                    new OpenSearchRejectedExecutionException("throttling"),
+                    BulkItemResponse.Failure.FailureSource.PIPELINE
+                )
             );
         }
     }

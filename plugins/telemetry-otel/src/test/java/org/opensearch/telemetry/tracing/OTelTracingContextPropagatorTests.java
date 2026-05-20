@@ -11,8 +11,8 @@ package org.opensearch.telemetry.tracing;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 import io.opentelemetry.api.OpenTelemetry;
@@ -57,7 +57,7 @@ public class OTelTracingContextPropagatorTests extends OpenSearchTestCase {
     }
 
     public void testExtractTracerContextFromHttpHeader() {
-        Map<String, List<String>> requestHeaders = new HashMap<>();
+        Map<String, Collection<String>> requestHeaders = new HashMap<>();
         requestHeaders.put("traceparent", Arrays.asList("00-" + TRACE_ID + "-" + SPAN_ID + "-00"));
         OpenTelemetry mockOpenTelemetry = mock(OpenTelemetry.class);
         when(mockOpenTelemetry.getPropagators()).thenReturn(ContextPropagators.create(W3CTraceContextPropagator.getInstance()));

@@ -39,8 +39,8 @@ import org.opensearch.action.admin.cluster.node.info.NodeInfo;
 import org.opensearch.action.search.SearchAction;
 import org.opensearch.action.support.ActionFilter;
 import org.opensearch.action.support.ActionFilterChain;
+import org.opensearch.action.support.ActionRequestMetadata;
 import org.opensearch.action.support.WriteRequest.RefreshPolicy;
-import org.opensearch.client.Client;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.SetOnce;
@@ -66,6 +66,7 @@ import org.opensearch.tasks.Task;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.Netty4ModulePlugin;
+import org.opensearch.transport.client.Client;
 import org.opensearch.watcher.ResourceWatcherService;
 import org.junit.Before;
 
@@ -233,6 +234,7 @@ public class ReindexFromRemoteWithAuthTests extends OpenSearchSingleNodeTestCase
             Task task,
             String action,
             Request request,
+            ActionRequestMetadata<Request, Response> actionRequestMetadata,
             ActionListener<Response> listener,
             ActionFilterChain<Request, Response> chain
         ) {

@@ -14,11 +14,13 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.shard.IndexShard;
+import org.opensearch.test.ClusterServiceUtils;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.regex.Matcher;
@@ -44,7 +46,7 @@ public class RemoteStorePressureServiceTests extends OpenSearchTestCase {
     public void setUp() throws Exception {
         super.setUp();
         threadPool = new TestThreadPool("remote_refresh_segment_pressure_settings_test");
-        clusterService = new ClusterService(
+        clusterService = ClusterServiceUtils.createClusterService(
             Settings.EMPTY,
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
             threadPool
@@ -100,6 +102,7 @@ public class RemoteStorePressureServiceTests extends OpenSearchTestCase {
         while (currentTimeMsUsingSystemNanos() - localRefreshTimeMs <= 20 * avg) {
             Thread.sleep((long) (4 * avg));
         }
+        pressureTracker.updateLatestLocalFileNameLengthMap(List.of("test"), k -> 1L);
         Exception e = assertThrows(OpenSearchRejectedExecutionException.class, () -> pressureService.validateSegmentsUploadLag(shardId));
         String regex = "^rejected execution on primary shard:\\[index]\\[0] due to remote segments lagging behind "
             + "local segments.time_lag:[0-9]{2,3} ms dynamic_time_lag_threshold:95\\.0 ms$";

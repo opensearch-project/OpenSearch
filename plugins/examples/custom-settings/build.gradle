@@ -31,11 +31,11 @@ apply plugin: 'opensearch.opensearchplugin'
 apply plugin: 'opensearch.yaml-rest-test'
 
 opensearchplugin {
-  name 'custom-settings'
-  description 'An example plugin showing how to register custom settings'
-  classname 'org.opensearch.example.customsettings.ExampleCustomSettingsPlugin'
-  licenseFile rootProject.file('licenses/APACHE-LICENSE-2.0.txt')
-  noticeFile rootProject.file('NOTICE.txt')
+  name = 'custom-settings'
+  description = 'An example plugin showing how to register custom settings'
+  classname = 'org.opensearch.example.customsettings.ExampleCustomSettingsPlugin'
+  licenseFile = rootProject.file('licenses/APACHE-LICENSE-2.0.txt')
+  noticeFile = rootProject.file('NOTICE.txt')
 }
 
 testClusters.all {

@@ -38,7 +38,6 @@ import org.opensearch.OpenSearchException;
 import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.IndexModule;
@@ -50,7 +49,7 @@ import org.opensearch.script.ScriptType;
 import org.opensearch.search.sort.SortOrder;
 import org.opensearch.test.InternalSettingsPlugin;
 import org.opensearch.test.OpenSearchIntegTestCase;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -71,7 +70,7 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertNoFailures
 import static org.hamcrest.Matchers.equalTo;
 
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.SUITE)
-public class ScriptQuerySearchIT extends ParameterizedOpenSearchIntegTestCase {
+public class ScriptQuerySearchIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
     public ScriptQuerySearchIT(Settings settings) {
         super(settings);
     }
@@ -85,11 +84,6 @@ public class ScriptQuerySearchIT extends ParameterizedOpenSearchIntegTestCase {
     }
 
     @Override
-    protected Settings featureFlagSettings() {
-        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.CONCURRENT_SEGMENT_SEARCH, "true").build();
-    }
-
-    @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Arrays.asList(CustomScriptPlugin.class, InternalSettingsPlugin.class);
     }
@@ -100,18 +94,18 @@ public class ScriptQuerySearchIT extends ParameterizedOpenSearchIntegTestCase {
         protected Map<String, Function<Map<String, Object>, Object>> pluginScripts() {
             Map<String, Function<Map<String, Object>, Object>> scripts = new HashMap<>();
 
-            scripts.put("doc['num1'].value", vars -> {
+            scripts.put("doc['num1'].value()", vars -> {
                 Map<?, ?> doc = (Map) vars.get("doc");
                 return doc.get("num1");
             });
 
-            scripts.put("doc['num1'].value > 1", vars -> {
+            scripts.put("doc['num1'].value() > 1", vars -> {
                 Map<?, ?> doc = (Map) vars.get("doc");
                 ScriptDocValues.Doubles num1 = (ScriptDocValues.Doubles) doc.get("num1");
                 return num1.getValue() > 1;
             });
 
-            scripts.put("doc['num1'].value > param1", vars -> {
+            scripts.put("doc['num1'].value() > param1", vars -> {
                 Integer param1 = (Integer) vars.get("param1");
 
                 Map<?, ?> doc = (Map) vars.get("doc");
@@ -161,6 +155,7 @@ public class ScriptQuerySearchIT extends ParameterizedOpenSearchIntegTestCase {
             .get();
         flush();
         refresh();
+        indexRandomForConcurrentSearch("my-index");
 
         SearchResponse response = client().prepareSearch()
             .setQuery(
@@ -172,7 +167,7 @@ public class ScriptQuerySearchIT extends ParameterizedOpenSearchIntegTestCase {
             )
             .get();
 
-        assertThat(response.getHits().getTotalHits().value, equalTo(1L));
+        assertThat(response.getHits().getTotalHits().value(), equalTo(1L));
         assertThat(response.getHits().getAt(0).getId(), equalTo("2"));
         assertThat(response.getHits().getAt(0).getFields().get("sbinaryData").getValues().get(0), equalTo(16));
 
@@ -213,15 +208,18 @@ public class ScriptQuerySearchIT extends ParameterizedOpenSearchIntegTestCase {
             .setSource(jsonBuilder().startObject().field("test", "value beck").field("num1", 3.0f).endObject())
             .get();
         refresh();
+        indexRandomForConcurrentSearch("test");
 
-        logger.info("running doc['num1'].value > 1");
+        logger.info("running doc['num1'].value() > 1");
         SearchResponse response = client().prepareSearch()
-            .setQuery(scriptQuery(new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['num1'].value > 1", Collections.emptyMap())))
+            .setQuery(
+                scriptQuery(new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['num1'].value() > 1", Collections.emptyMap()))
+            )
             .addSort("num1", SortOrder.ASC)
-            .addScriptField("sNum1", new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['num1'].value", Collections.emptyMap()))
+            .addScriptField("sNum1", new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['num1'].value()", Collections.emptyMap()))
             .get();
 
-        assertThat(response.getHits().getTotalHits().value, equalTo(2L));
+        assertThat(response.getHits().getTotalHits().value(), equalTo(2L));
         assertThat(response.getHits().getAt(0).getId(), equalTo("2"));
         assertThat(response.getHits().getAt(0).getFields().get("sNum1").getValues().get(0), equalTo(2.0));
         assertThat(response.getHits().getAt(1).getId(), equalTo("3"));
@@ -230,14 +228,14 @@ public class ScriptQuerySearchIT extends ParameterizedOpenSearchIntegTestCase {
         Map<String, Object> params = new HashMap<>();
         params.put("param1", 2);
 
-        logger.info("running doc['num1'].value > param1");
+        logger.info("running doc['num1'].value() > param1");
         response = client().prepareSearch()
-            .setQuery(scriptQuery(new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['num1'].value > param1", params)))
+            .setQuery(scriptQuery(new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['num1'].value() > param1", params)))
             .addSort("num1", SortOrder.ASC)
-            .addScriptField("sNum1", new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['num1'].value", Collections.emptyMap()))
+            .addScriptField("sNum1", new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['num1'].value()", Collections.emptyMap()))
             .get();
 
-        assertThat(response.getHits().getTotalHits().value, equalTo(1L));
+        assertThat(response.getHits().getTotalHits().value(), equalTo(1L));
         assertThat(response.getHits().getAt(0).getId(), equalTo("3"));
         assertThat(response.getHits().getAt(0).getFields().get("sNum1").getValues().get(0), equalTo(3.0));
 
@@ -245,12 +243,12 @@ public class ScriptQuerySearchIT extends ParameterizedOpenSearchIntegTestCase {
         params.put("param1", -1);
         logger.info("running doc['num1'].value > param1");
         response = client().prepareSearch()
-            .setQuery(scriptQuery(new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['num1'].value > param1", params)))
+            .setQuery(scriptQuery(new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['num1'].value() > param1", params)))
             .addSort("num1", SortOrder.ASC)
-            .addScriptField("sNum1", new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['num1'].value", Collections.emptyMap()))
+            .addScriptField("sNum1", new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['num1'].value()", Collections.emptyMap()))
             .get();
 
-        assertThat(response.getHits().getTotalHits().value, equalTo(3L));
+        assertThat(response.getHits().getTotalHits().value(), equalTo(3L));
         assertThat(response.getHits().getAt(0).getId(), equalTo("1"));
         assertThat(response.getHits().getAt(0).getFields().get("sNum1").getValues().get(0), equalTo(1.0));
         assertThat(response.getHits().getAt(1).getId(), equalTo("2"));
@@ -259,7 +257,7 @@ public class ScriptQuerySearchIT extends ParameterizedOpenSearchIntegTestCase {
         assertThat(response.getHits().getAt(2).getFields().get("sNum1").getValues().get(0), equalTo(3.0));
     }
 
-    public void testDisallowExpensiveQueries() {
+    public void testDisallowExpensiveQueries() throws InterruptedException {
         try {
             assertAcked(prepareCreate("test-index").setMapping("num1", "type=double"));
             int docCount = 10;
@@ -267,9 +265,10 @@ public class ScriptQuerySearchIT extends ParameterizedOpenSearchIntegTestCase {
                 client().prepareIndex("test-index").setId("" + i).setSource("num1", i).get();
             }
             refresh();
+            indexRandomForConcurrentSearch("test-index");
 
             // Execute with search.allow_expensive_queries = null => default value = false => success
-            Script script = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['num1'].value > 1", Collections.emptyMap());
+            Script script = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['num1'].value() > 1", Collections.emptyMap());
             SearchResponse resp = client().prepareSearch("test-index").setQuery(scriptQuery(script)).get();
             assertNoFailures(resp);
 

@@ -11,6 +11,7 @@ package org.opensearch.index.translog;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.store.AlreadyClosedException;
+import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.util.concurrent.ReleasableLock;
 import org.opensearch.common.util.io.IOUtils;
@@ -20,7 +21,6 @@ import org.opensearch.index.seqno.LocalCheckpointTracker;
 import org.opensearch.index.translog.listener.TranslogEventListener;
 import org.opensearch.index.translog.transfer.TranslogUploadFailedException;
 
-import java.io.Closeable;
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BooleanSupplier;
@@ -30,12 +30,12 @@ import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 /**
- * The {@link TranslogManager} implementation capable of orchestrating all read/write {@link Translog} operations while
- * interfacing with the {@link org.opensearch.index.engine.InternalEngine}
+ * The {@link TranslogManager} implementation capable of orchestrating all read/write {@link Translog} operations for
+ * the {@link org.opensearch.index.engine.InternalEngine}
  *
  * @opensearch.internal
  */
-public class InternalTranslogManager implements TranslogManager, Closeable {
+public class InternalTranslogManager implements TranslogManager {
 
     private final ReleasableLock readLock;
     private final LifecycleAware engineLifeCycleAware;
@@ -58,7 +58,8 @@ public class InternalTranslogManager implements TranslogManager, Closeable {
         TranslogEventListener translogEventListener,
         LifecycleAware engineLifeCycleAware,
         TranslogFactory translogFactory,
-        BooleanSupplier primaryModeSupplier
+        BooleanSupplier startedPrimarySupplier,
+        TranslogOperationHelper translogOperationHelper
     ) throws IOException {
         this.shardId = shardId;
         this.readLock = readLock;
@@ -71,7 +72,7 @@ public class InternalTranslogManager implements TranslogManager, Closeable {
             if (tracker != null) {
                 tracker.markSeqNoAsPersisted(seqNo);
             }
-        }, translogUUID, translogFactory, primaryModeSupplier);
+        }, translogUUID, translogFactory, startedPrimarySupplier, translogOperationHelper);
         assert translog.getGeneration() != null;
         this.translog = translog;
         assert pendingTranslogRecovery.get() == false : "translog recovery can't be pending before we set it";
@@ -301,8 +302,14 @@ public class InternalTranslogManager implements TranslogManager, Closeable {
         translog.setMinSeqNoToKeep(seqNo);
     }
 
+    @Override
     public void onDelete() {
         translog.onDelete();
+    }
+
+    @Override
+    public Releasable drainSync() {
+        return translog.drainSync();
     }
 
     @Override
@@ -362,7 +369,8 @@ public class InternalTranslogManager implements TranslogManager, Closeable {
         LongConsumer persistedSequenceNumberConsumer,
         String translogUUID,
         TranslogFactory translogFactory,
-        BooleanSupplier primaryModeSupplier
+        BooleanSupplier startedPrimarySupplier,
+        TranslogOperationHelper translogOperationHelper
     ) throws IOException {
         return translogFactory.newTranslog(
             translogConfig,
@@ -371,7 +379,8 @@ public class InternalTranslogManager implements TranslogManager, Closeable {
             globalCheckpointSupplier,
             primaryTermSupplier,
             persistedSequenceNumberConsumer,
-            primaryModeSupplier
+            startedPrimarySupplier,
+            translogOperationHelper
         );
     }
 
@@ -430,6 +439,12 @@ public class InternalTranslogManager implements TranslogManager, Closeable {
      * @return if the translog should be flushed
      */
     public boolean shouldPeriodicallyFlush(long localCheckpointOfLastCommit, long flushThreshold) {
+        /*
+         * This can trigger flush depending upon translog's implementation
+         */
+        if (translog.shouldFlush()) {
+            return true;
+        }
         // This is the minimum seqNo that is referred in translog and considered for calculating translog size
         long minTranslogRefSeqNo = translog.getMinUnreferencedSeqNoInSegments(localCheckpointOfLastCommit + 1);
         final long minReferencedTranslogGeneration = translog.getMinGenerationForSeqNo(minTranslogRefSeqNo).translogFileGeneration;

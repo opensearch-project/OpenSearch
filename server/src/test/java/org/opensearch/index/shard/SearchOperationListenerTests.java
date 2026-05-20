@@ -56,6 +56,9 @@ public class SearchOperationListenerTests extends OpenSearchTestCase {
         AtomicInteger preQuery = new AtomicInteger();
         AtomicInteger failedQuery = new AtomicInteger();
         AtomicInteger onQuery = new AtomicInteger();
+        AtomicInteger preSlice = new AtomicInteger();
+        AtomicInteger failedSlice = new AtomicInteger();
+        AtomicInteger onSlice = new AtomicInteger();
         AtomicInteger onFetch = new AtomicInteger();
         AtomicInteger preFetch = new AtomicInteger();
         AtomicInteger failedFetch = new AtomicInteger();
@@ -64,6 +67,7 @@ public class SearchOperationListenerTests extends OpenSearchTestCase {
         AtomicInteger newScrollContext = new AtomicInteger();
         AtomicInteger freeScrollContext = new AtomicInteger();
         AtomicInteger validateSearchContext = new AtomicInteger();
+        AtomicInteger searchIdleReactivateCount = new AtomicInteger();
         AtomicInteger timeInNanos = new AtomicInteger(randomIntBetween(0, 10));
         SearchOperationListener listener = new SearchOperationListener() {
             @Override
@@ -83,6 +87,24 @@ public class SearchOperationListenerTests extends OpenSearchTestCase {
                 assertEquals(timeInNanos.get(), tookInNanos);
                 assertNotNull(searchContext);
                 onQuery.incrementAndGet();
+            }
+
+            @Override
+            public void onPreSliceExecution(SearchContext searchContext) {
+                assertNotNull(searchContext);
+                preSlice.incrementAndGet();
+            }
+
+            @Override
+            public void onFailedSliceExecution(SearchContext searchContext) {
+                assertNotNull(searchContext);
+                failedSlice.incrementAndGet();
+            }
+
+            @Override
+            public void onSliceExecution(SearchContext searchContext) {
+                assertNotNull(searchContext);
+                onSlice.incrementAndGet();
             }
 
             @Override
@@ -133,6 +155,11 @@ public class SearchOperationListenerTests extends OpenSearchTestCase {
                 assertNotNull(readerContext);
                 validateSearchContext.incrementAndGet();
             }
+
+            @Override
+            public void onSearchIdleReactivation() {
+                searchIdleReactivateCount.incrementAndGet();
+            }
         };
 
         SearchOperationListener throwingListener = (SearchOperationListener) Proxy.newProxyInstance(
@@ -161,131 +188,239 @@ public class SearchOperationListenerTests extends OpenSearchTestCase {
         compositeListener.onQueryPhase(ctx, timeInNanos.get());
         assertEquals(0, preFetch.get());
         assertEquals(0, preQuery.get());
+        assertEquals(0, preSlice.get());
         assertEquals(0, failedFetch.get());
         assertEquals(0, failedQuery.get());
+        assertEquals(0, failedSlice.get());
         assertEquals(2, onQuery.get());
         assertEquals(0, onFetch.get());
+        assertEquals(0, onSlice.get());
         assertEquals(0, newContext.get());
         assertEquals(0, newScrollContext.get());
         assertEquals(0, freeContext.get());
         assertEquals(0, freeScrollContext.get());
+        assertEquals(0, searchIdleReactivateCount.get());
+        assertEquals(0, validateSearchContext.get());
+
+        compositeListener.onSliceExecution(ctx);
+        assertEquals(0, preFetch.get());
+        assertEquals(0, preQuery.get());
+        assertEquals(0, preSlice.get());
+        assertEquals(0, failedFetch.get());
+        assertEquals(0, failedQuery.get());
+        assertEquals(0, failedSlice.get());
+        assertEquals(2, onQuery.get());
+        assertEquals(0, onFetch.get());
+        assertEquals(2, onSlice.get());
+        assertEquals(0, newContext.get());
+        assertEquals(0, newScrollContext.get());
+        assertEquals(0, freeContext.get());
+        assertEquals(0, freeScrollContext.get());
+        assertEquals(0, searchIdleReactivateCount.get());
         assertEquals(0, validateSearchContext.get());
 
         compositeListener.onFetchPhase(ctx, timeInNanos.get());
         assertEquals(0, preFetch.get());
         assertEquals(0, preQuery.get());
+        assertEquals(0, preSlice.get());
         assertEquals(0, failedFetch.get());
         assertEquals(0, failedQuery.get());
+        assertEquals(0, failedSlice.get());
         assertEquals(2, onQuery.get());
         assertEquals(2, onFetch.get());
+        assertEquals(2, onSlice.get());
         assertEquals(0, newContext.get());
         assertEquals(0, newScrollContext.get());
         assertEquals(0, freeContext.get());
         assertEquals(0, freeScrollContext.get());
+        assertEquals(0, searchIdleReactivateCount.get());
         assertEquals(0, validateSearchContext.get());
 
         compositeListener.onPreQueryPhase(ctx);
         assertEquals(0, preFetch.get());
         assertEquals(2, preQuery.get());
+        assertEquals(0, preSlice.get());
         assertEquals(0, failedFetch.get());
         assertEquals(0, failedQuery.get());
+        assertEquals(0, failedSlice.get());
         assertEquals(2, onQuery.get());
         assertEquals(2, onFetch.get());
+        assertEquals(2, onSlice.get());
         assertEquals(0, newContext.get());
         assertEquals(0, newScrollContext.get());
         assertEquals(0, freeContext.get());
         assertEquals(0, freeScrollContext.get());
+        assertEquals(0, searchIdleReactivateCount.get());
+        assertEquals(0, validateSearchContext.get());
+
+        compositeListener.onPreSliceExecution(ctx);
+        assertEquals(0, preFetch.get());
+        assertEquals(2, preQuery.get());
+        assertEquals(2, preSlice.get());
+        assertEquals(0, failedFetch.get());
+        assertEquals(0, failedQuery.get());
+        assertEquals(0, failedSlice.get());
+        assertEquals(2, onQuery.get());
+        assertEquals(2, onFetch.get());
+        assertEquals(2, onSlice.get());
+        assertEquals(0, newContext.get());
+        assertEquals(0, newScrollContext.get());
+        assertEquals(0, freeContext.get());
+        assertEquals(0, freeScrollContext.get());
+        assertEquals(0, searchIdleReactivateCount.get());
         assertEquals(0, validateSearchContext.get());
 
         compositeListener.onPreFetchPhase(ctx);
         assertEquals(2, preFetch.get());
         assertEquals(2, preQuery.get());
+        assertEquals(2, preSlice.get());
         assertEquals(0, failedFetch.get());
         assertEquals(0, failedQuery.get());
+        assertEquals(0, failedSlice.get());
         assertEquals(2, onQuery.get());
         assertEquals(2, onFetch.get());
+        assertEquals(2, onSlice.get());
         assertEquals(0, newContext.get());
         assertEquals(0, newScrollContext.get());
         assertEquals(0, freeContext.get());
         assertEquals(0, freeScrollContext.get());
+        assertEquals(0, searchIdleReactivateCount.get());
         assertEquals(0, validateSearchContext.get());
 
         compositeListener.onFailedFetchPhase(ctx);
         assertEquals(2, preFetch.get());
         assertEquals(2, preQuery.get());
+        assertEquals(2, preSlice.get());
         assertEquals(2, failedFetch.get());
         assertEquals(0, failedQuery.get());
+        assertEquals(0, failedSlice.get());
         assertEquals(2, onQuery.get());
         assertEquals(2, onFetch.get());
+        assertEquals(2, onSlice.get());
         assertEquals(0, newContext.get());
         assertEquals(0, newScrollContext.get());
         assertEquals(0, freeContext.get());
         assertEquals(0, freeScrollContext.get());
+        assertEquals(0, searchIdleReactivateCount.get());
         assertEquals(0, validateSearchContext.get());
 
         compositeListener.onFailedQueryPhase(ctx);
         assertEquals(2, preFetch.get());
         assertEquals(2, preQuery.get());
+        assertEquals(2, preSlice.get());
         assertEquals(2, failedFetch.get());
         assertEquals(2, failedQuery.get());
+        assertEquals(0, failedSlice.get());
         assertEquals(2, onQuery.get());
         assertEquals(2, onFetch.get());
+        assertEquals(2, onSlice.get());
         assertEquals(0, newContext.get());
         assertEquals(0, newScrollContext.get());
         assertEquals(0, freeContext.get());
         assertEquals(0, freeScrollContext.get());
+        assertEquals(0, searchIdleReactivateCount.get());
+        assertEquals(0, validateSearchContext.get());
+
+        compositeListener.onFailedSliceExecution(ctx);
+        assertEquals(2, preFetch.get());
+        assertEquals(2, preQuery.get());
+        assertEquals(2, preSlice.get());
+        assertEquals(2, failedFetch.get());
+        assertEquals(2, failedQuery.get());
+        assertEquals(2, failedSlice.get());
+        assertEquals(2, onQuery.get());
+        assertEquals(2, onFetch.get());
+        assertEquals(2, onSlice.get());
+        assertEquals(0, newContext.get());
+        assertEquals(0, newScrollContext.get());
+        assertEquals(0, freeContext.get());
+        assertEquals(0, freeScrollContext.get());
+        assertEquals(0, searchIdleReactivateCount.get());
         assertEquals(0, validateSearchContext.get());
 
         compositeListener.onNewReaderContext(mock(ReaderContext.class));
         assertEquals(2, preFetch.get());
         assertEquals(2, preQuery.get());
+        assertEquals(2, preSlice.get());
         assertEquals(2, failedFetch.get());
         assertEquals(2, failedQuery.get());
+        assertEquals(2, failedSlice.get());
         assertEquals(2, onQuery.get());
         assertEquals(2, onFetch.get());
+        assertEquals(2, onSlice.get());
         assertEquals(2, newContext.get());
         assertEquals(0, newScrollContext.get());
         assertEquals(0, freeContext.get());
         assertEquals(0, freeScrollContext.get());
+        assertEquals(0, searchIdleReactivateCount.get());
         assertEquals(0, validateSearchContext.get());
 
         compositeListener.onNewScrollContext(mock(ReaderContext.class));
         assertEquals(2, preFetch.get());
         assertEquals(2, preQuery.get());
+        assertEquals(2, preSlice.get());
         assertEquals(2, failedFetch.get());
         assertEquals(2, failedQuery.get());
+        assertEquals(2, failedSlice.get());
         assertEquals(2, onQuery.get());
         assertEquals(2, onFetch.get());
+        assertEquals(2, onSlice.get());
         assertEquals(2, newContext.get());
         assertEquals(2, newScrollContext.get());
         assertEquals(0, freeContext.get());
         assertEquals(0, freeScrollContext.get());
+        assertEquals(0, searchIdleReactivateCount.get());
         assertEquals(0, validateSearchContext.get());
 
         compositeListener.onFreeReaderContext(mock(ReaderContext.class));
         assertEquals(2, preFetch.get());
         assertEquals(2, preQuery.get());
+        assertEquals(2, preSlice.get());
         assertEquals(2, failedFetch.get());
         assertEquals(2, failedQuery.get());
+        assertEquals(2, failedSlice.get());
         assertEquals(2, onQuery.get());
         assertEquals(2, onFetch.get());
+        assertEquals(2, onSlice.get());
         assertEquals(2, newContext.get());
         assertEquals(2, newScrollContext.get());
         assertEquals(2, freeContext.get());
         assertEquals(0, freeScrollContext.get());
+        assertEquals(0, searchIdleReactivateCount.get());
         assertEquals(0, validateSearchContext.get());
 
         compositeListener.onFreeScrollContext(mock(ReaderContext.class));
         assertEquals(2, preFetch.get());
         assertEquals(2, preQuery.get());
+        assertEquals(2, preSlice.get());
         assertEquals(2, failedFetch.get());
         assertEquals(2, failedQuery.get());
+        assertEquals(2, failedSlice.get());
         assertEquals(2, onQuery.get());
         assertEquals(2, onFetch.get());
+        assertEquals(2, onSlice.get());
         assertEquals(2, newContext.get());
         assertEquals(2, newScrollContext.get());
         assertEquals(2, freeContext.get());
         assertEquals(2, freeScrollContext.get());
+        assertEquals(0, searchIdleReactivateCount.get());
+        assertEquals(0, validateSearchContext.get());
+
+        compositeListener.onSearchIdleReactivation();
+        assertEquals(2, preFetch.get());
+        assertEquals(2, preQuery.get());
+        assertEquals(2, preSlice.get());
+        assertEquals(2, failedFetch.get());
+        assertEquals(2, failedQuery.get());
+        assertEquals(2, failedSlice.get());
+        assertEquals(2, onQuery.get());
+        assertEquals(2, onFetch.get());
+        assertEquals(2, onSlice.get());
+        assertEquals(2, newContext.get());
+        assertEquals(2, newScrollContext.get());
+        assertEquals(2, freeContext.get());
+        assertEquals(2, freeScrollContext.get());
+        assertEquals(2, searchIdleReactivateCount.get());
         assertEquals(0, validateSearchContext.get());
 
         if (throwingListeners == 0) {
@@ -311,6 +446,7 @@ public class SearchOperationListenerTests extends OpenSearchTestCase {
         assertEquals(2, newScrollContext.get());
         assertEquals(2, freeContext.get());
         assertEquals(2, freeScrollContext.get());
+        assertEquals(2, searchIdleReactivateCount.get());
         assertEquals(2, validateSearchContext.get());
     }
 }

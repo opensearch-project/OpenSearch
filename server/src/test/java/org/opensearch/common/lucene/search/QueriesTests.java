@@ -35,7 +35,7 @@ package org.opensearch.common.lucene.search;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.DocValuesFieldExistsQuery;
+import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.TermQuery;
 import org.opensearch.Version;
@@ -50,7 +50,7 @@ public class QueriesTests extends OpenSearchTestCase {
             // This is a custom query that extends AutomatonQuery and want to make sure the equals method works
             assertEquals(Queries.newNonNestedFilter(), Queries.newNonNestedFilter());
             assertEquals(Queries.newNonNestedFilter().hashCode(), Queries.newNonNestedFilter().hashCode());
-            assertEquals(Queries.newNonNestedFilter(), new DocValuesFieldExistsQuery(SeqNoFieldMapper.PRIMARY_TERM_NAME));
+            assertEquals(Queries.newNonNestedFilter(), new FieldExistsQuery(SeqNoFieldMapper.PRIMARY_TERM_NAME));
         }
     }
 

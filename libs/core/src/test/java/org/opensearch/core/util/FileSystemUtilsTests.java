@@ -40,6 +40,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.ByteBuffer;
@@ -132,21 +133,21 @@ public class FileSystemUtilsTests extends OpenSearchTestCase {
     }
 
     public void testOpenFileURLStream() throws IOException {
-        URL urlWithWrongProtocol = new URL("http://www.google.com");
+        URL urlWithWrongProtocol = URI.create("http://www.google.com").toURL();
         try (InputStream is = FileSystemUtils.openFileURLStream(urlWithWrongProtocol)) {
             fail("Should throw IllegalArgumentException due to invalid protocol");
         } catch (IllegalArgumentException e) {
             assertEquals("Invalid protocol [http], must be [file] or [jar]", e.getMessage());
         }
 
-        URL urlWithHost = new URL("file", "localhost", txtFile.toString());
+        URL urlWithHost = URI.create("file://localhost/" + txtFile.toString()).toURL();
         try (InputStream is = FileSystemUtils.openFileURLStream(urlWithHost)) {
             fail("Should throw IllegalArgumentException due to host");
         } catch (IllegalArgumentException e) {
             assertEquals("URL cannot have host. Found: [localhost]", e.getMessage());
         }
 
-        URL urlWithPort = new URL("file", "", 80, txtFile.toString());
+        URL urlWithPort = URI.create("file://:80/" + txtFile.toString()).toURL();
         try (InputStream is = FileSystemUtils.openFileURLStream(urlWithPort)) {
             fail("Should throw IllegalArgumentException due to port");
         } catch (IllegalArgumentException e) {

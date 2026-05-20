@@ -10,6 +10,7 @@ package org.opensearch.search.query;
 
 import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.Query;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.search.aggregations.AggregationProcessor;
 import org.opensearch.search.aggregations.DefaultAggregationProcessor;
 import org.opensearch.search.internal.ContextIndexSearcher;
@@ -22,8 +23,9 @@ import java.util.LinkedList;
  * The extension point which allows to plug in custom search implementation to be
  * used at {@link QueryPhase}.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "2.0.0")
 public interface QueryPhaseSearcher {
     /**
      * Perform search using {@link CollectorManager}

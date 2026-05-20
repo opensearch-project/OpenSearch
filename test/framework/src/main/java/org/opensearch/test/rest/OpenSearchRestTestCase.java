@@ -79,6 +79,7 @@ import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.seqno.ReplicationTracker;
 import org.opensearch.snapshots.SnapshotState;
+import org.opensearch.test.KeyStoreUtils;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.rest.yaml.ObjectPath;
 import org.hamcrest.Matchers;
@@ -708,38 +709,18 @@ public abstract class OpenSearchRestTestCase extends OpenSearchTestCase {
         requestOptions.setWarningsHandler(warnings -> {
             if (warnings.isEmpty()) {
                 return false;
-            } else if (warnings.size() > 1) {
-                return true;
-            } else {
-                return warnings.get(0).startsWith("this request accesses system indices:") == false;
             }
+            boolean allSystemIndexWarnings = true;
+            for (String warning : warnings) {
+                if (!warning.startsWith("this request accesses system indices:")) {
+                    allSystemIndexWarnings = false;
+                    break;
+                }
+            }
+            return !allSystemIndexWarnings;
         });
         refreshRequest.setOptions(requestOptions);
         client().performRequest(refreshRequest);
-    }
-
-    private static void deleteAllSLMPolicies() throws IOException {
-        Map<String, Object> policies;
-
-        try {
-            Response response = adminClient().performRequest(new Request("GET", "/_slm/policy"));
-            policies = entityAsMap(response);
-        } catch (ResponseException e) {
-            if (RestStatus.METHOD_NOT_ALLOWED.getStatus() == e.getResponse().getStatusLine().getStatusCode()
-                || RestStatus.BAD_REQUEST.getStatus() == e.getResponse().getStatusLine().getStatusCode()) {
-                // If bad request returned, SLM is not enabled.
-                return;
-            }
-            throw e;
-        }
-
-        if (policies == null || policies.isEmpty()) {
-            return;
-        }
-
-        for (String policyName : policies.keySet()) {
-            adminClient().performRequest(new Request("DELETE", "/_slm/policy/" + policyName));
-        }
     }
 
     /**
@@ -837,8 +818,7 @@ public abstract class OpenSearchRestTestCase extends OpenSearchTestCase {
                 throw new IllegalStateException(TRUSTSTORE_PATH + " is set but points to a non-existing file");
             }
             try {
-                final String keyStoreType = keystorePath.endsWith(".p12") ? "PKCS12" : "jks";
-                KeyStore keyStore = KeyStore.getInstance(keyStoreType);
+                KeyStore keyStore = KeyStore.getInstance(KeyStoreUtils.inferStoreType(keystorePath));
                 try (InputStream is = Files.newInputStream(path)) {
                     keyStore.load(is, keystorePass.toCharArray());
                 }

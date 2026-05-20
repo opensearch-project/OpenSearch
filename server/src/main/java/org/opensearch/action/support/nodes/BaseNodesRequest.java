@@ -63,8 +63,12 @@ public abstract class BaseNodesRequest<Request extends BaseNodesRequest<Request>
     /**
      * once {@link #nodesIds} are resolved this will contain the concrete nodes that are part of this request. If set, {@link #nodesIds}
      * will be ignored and this will be used.
-     * */
+     * <p>
+     * Note: concreteNodes when accessed by transport actions will be null.
+     * See {@link TransportNodesAction.AsyncAction#AsyncAction}
+     **/
     private DiscoveryNode[] concreteNodes;
+
     private final TimeValue DEFAULT_TIMEOUT_SECS = TimeValue.timeValueSeconds(30);
 
     private TimeValue timeout;

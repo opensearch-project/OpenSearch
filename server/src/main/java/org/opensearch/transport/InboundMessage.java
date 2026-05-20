@@ -32,6 +32,7 @@
 
 package org.opensearch.transport;
 
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.bytes.ReleasableBytesReference;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
@@ -42,40 +43,54 @@ import java.io.IOException;
 
 /**
  * Inbound data as a message
- *
- * @opensearch.internal
  */
-public class InboundMessage implements Releasable {
+@PublicApi(since = "1.0.0")
+public class InboundMessage implements Releasable, ProtocolInboundMessage {
 
-    private final Header header;
-    private final ReleasableBytesReference content;
-    private final Exception exception;
-    private final boolean isPing;
+    static final InboundMessage PING = new InboundMessage(null, null, null, true, null);
+
+    protected final Header header;
+    protected final ReleasableBytesReference content;
+    protected final Exception exception;
+    protected final boolean isPing;
     private Releasable breakerRelease;
     private StreamInput streamInput;
 
     public InboundMessage(Header header, ReleasableBytesReference content, Releasable breakerRelease) {
-        this.header = header;
-        this.content = content;
-        this.breakerRelease = breakerRelease;
-        this.exception = null;
-        this.isPing = false;
+        this(header, content, null, false, breakerRelease);
     }
 
     public InboundMessage(Header header, Exception exception) {
-        this.header = header;
-        this.content = null;
-        this.breakerRelease = null;
-        this.exception = exception;
-        this.isPing = false;
+        this(header, null, exception, false, null);
     }
 
     public InboundMessage(Header header, boolean isPing) {
+        this(header, null, null, isPing, null);
+    }
+
+    private InboundMessage(
+        Header header,
+        ReleasableBytesReference content,
+        Exception exception,
+        boolean isPing,
+        Releasable breakerRelease
+    ) {
         this.header = header;
-        this.content = null;
-        this.breakerRelease = null;
-        this.exception = null;
+        this.content = content;
+        this.exception = exception;
         this.isPing = isPing;
+        this.breakerRelease = breakerRelease;
+    }
+
+    TransportProtocol getTransportProtocol() {
+        if (isPing) {
+            return TransportProtocol.NATIVE;
+        }
+        return header.getTransportProtocol();
+    }
+
+    public String getProtocol() {
+        return header.getTransportProtocol().toString();
     }
 
     public Header getHeader() {

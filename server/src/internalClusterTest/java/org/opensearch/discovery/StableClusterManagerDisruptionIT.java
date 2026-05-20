@@ -203,7 +203,7 @@ public class StableClusterManagerDisruptionIT extends OpenSearchIntegTestCase {
             3,
             Settings.builder()
                 .put(LeaderChecker.LEADER_CHECK_TIMEOUT_SETTING.getKey(), "1s")
-                .put(Coordinator.PUBLISH_TIMEOUT_SETTING.getKey(), "1s")
+                .put(Coordinator.PUBLISH_TIMEOUT_SETTING.getKey(), "2s")
                 .build()
         );
         ensureStableCluster(3);

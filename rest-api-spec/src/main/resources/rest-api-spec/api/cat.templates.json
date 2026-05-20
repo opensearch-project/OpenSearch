@@ -1,7 +1,7 @@
 {
   "cat.templates":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/cat-templates.html",
+      "url":"https://opensearch.org/docs/latest/api-reference/cat/cat-templates/",
       "description":"Returns information about existing templates."
     },
     "stability":"stable",

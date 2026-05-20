@@ -53,9 +53,9 @@ class ExpressionAggregationScript implements AggregationScript.LeafFactory {
     final SimpleBindings bindings;
     final DoubleValuesSource source;
     final boolean needsScore;
-    final ReplaceableConstDoubleValueSource specialValue; // _value
+    final PerThreadReplaceableConstDoubleValueSource specialValue; // _value
 
-    ExpressionAggregationScript(Expression e, SimpleBindings b, boolean n, ReplaceableConstDoubleValueSource v) {
+    ExpressionAggregationScript(Expression e, SimpleBindings b, boolean n, PerThreadReplaceableConstDoubleValueSource v) {
         exprScript = e;
         bindings = b;
         source = exprScript.getDoubleValuesSource(bindings);
@@ -106,8 +106,8 @@ class ExpressionAggregationScript implements AggregationScript.LeafFactory {
             public void setNextAggregationValue(Object value) {
                 // _value isn't used in script if specialValue == null
                 if (specialValue != null) {
-                    if (value instanceof Number) {
-                        specialValue.setValue(((Number) value).doubleValue());
+                    if (value instanceof Number number) {
+                        specialValue.setValue(number.doubleValue());
                     } else {
                         throw new GeneralScriptException("Cannot use expression with text variable using " + exprScript);
                     }

@@ -79,7 +79,8 @@ public class TransportGetRepositoriesAction extends TransportClusterManagerNodeR
             threadPool,
             actionFilters,
             GetRepositoriesRequest::new,
-            indexNameExpressionResolver
+            indexNameExpressionResolver,
+            true
         );
     }
 

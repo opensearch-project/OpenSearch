@@ -39,16 +39,14 @@ public final class OTelAttributesConverter {
     }
 
     private static void addSpanAttribute(String key, Object value, AttributesBuilder attributesBuilder) {
-        if (value instanceof Boolean) {
-            attributesBuilder.put(key, (Boolean) value);
-        } else if (value instanceof Long) {
-            attributesBuilder.put(key, (Long) value);
-        } else if (value instanceof Double) {
-            attributesBuilder.put(key, (Double) value);
-        } else if (value instanceof String) {
-            attributesBuilder.put(key, (String) value);
-        } else {
-            throw new IllegalArgumentException(String.format(Locale.ROOT, "Span attribute value %s type not supported", value));
+        switch (value) {
+            case Boolean b -> attributesBuilder.put(key, b);
+            case Long l -> attributesBuilder.put(key, l);
+            case Double v -> attributesBuilder.put(key, v);
+            case String s -> attributesBuilder.put(key, s);
+            case null, default -> throw new IllegalArgumentException(
+                String.format(Locale.ROOT, "Span attribute value %s type not supported", value)
+            );
         }
     }
 

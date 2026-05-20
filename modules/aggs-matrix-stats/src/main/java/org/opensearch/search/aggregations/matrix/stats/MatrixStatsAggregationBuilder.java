@@ -31,6 +31,7 @@
 
 package org.opensearch.search.aggregations.matrix.stats;
 
+import org.opensearch.Version;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.ToXContent;
@@ -45,6 +46,7 @@ import org.opensearch.search.aggregations.support.ValuesSourceConfig;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.Objects;
 
 public class MatrixStatsAggregationBuilder extends ArrayValuesSourceAggregationBuilder.LeafOnly<MatrixStatsAggregationBuilder> {
     public static final String NAME = "matrix_stats";
@@ -74,11 +76,18 @@ public class MatrixStatsAggregationBuilder extends ArrayValuesSourceAggregationB
      */
     public MatrixStatsAggregationBuilder(StreamInput in) throws IOException {
         super(in);
+        if (in.getVersion().onOrAfter(Version.V_3_1_0)) {
+            this.multiValueMode = in.readEnum(MultiValueMode.class);
+        } else {
+            this.multiValueMode = MultiValueMode.AVG;
+        }
     }
 
     @Override
-    protected void innerWriteTo(StreamOutput out) {
-        // Do nothing, no extra state to write to stream
+    protected void innerWriteTo(StreamOutput out) throws IOException {
+        if (out.getVersion().onOrAfter(Version.V_3_1_0)) {
+            out.writeEnum(multiValueMode);
+        }
     }
 
     public MatrixStatsAggregationBuilder multiValueMode(MultiValueMode multiValueMode) {
@@ -109,5 +118,19 @@ public class MatrixStatsAggregationBuilder extends ArrayValuesSourceAggregationB
     @Override
     public String getType() {
         return NAME;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (obj == null || getClass() != obj.getClass()) return false;
+        if (super.equals(obj) == false) return false;
+        MatrixStatsAggregationBuilder other = (MatrixStatsAggregationBuilder) obj;
+        return multiValueMode == other.multiValueMode;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), multiValueMode);
     }
 }

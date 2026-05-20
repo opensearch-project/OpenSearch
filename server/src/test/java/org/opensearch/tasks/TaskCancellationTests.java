@@ -9,7 +9,7 @@
 package org.opensearch.tasks;
 
 import org.opensearch.action.search.SearchShardTask;
-import org.opensearch.search.backpressure.trackers.TaskResourceUsageTracker;
+import org.opensearch.search.backpressure.trackers.TaskResourceUsageTrackers.TaskResourceUsageTracker;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.ArrayList;
@@ -69,7 +69,7 @@ public class TaskCancellationTests extends OpenSearchTestCase {
             }
 
             @Override
-            public Stats stats(List<? extends Task> activeTasks) {
+            public TaskResourceUsageTracker.Stats stats(List<? extends Task> activeTasks) {
                 return null;
             }
         };

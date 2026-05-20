@@ -32,6 +32,7 @@
 
 package org.opensearch.core.common.bytes;
 
+import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.core.common.io.stream.StreamInput;
 
@@ -84,6 +85,11 @@ public final class BytesArray extends AbstractBytesReference {
     }
 
     @Override
+    public int getInt(int index) {
+        return (int) BitUtil.VH_BE_INT.get(bytes, offset + index);
+    }
+
+    @Override
     public int length() {
         return length;
     }
@@ -99,8 +105,7 @@ public final class BytesArray extends AbstractBytesReference {
         if (this == other) {
             return true;
         }
-        if (other instanceof BytesArray) {
-            final BytesArray that = (BytesArray) other;
+        if (other instanceof BytesArray that) {
             return Arrays.equals(bytes, offset, offset + length, that.bytes, that.offset, that.offset + that.length);
         }
         return super.equals(other);

@@ -33,10 +33,13 @@
 package org.opensearch.gradle.precommit;
 
 import org.opensearch.gradle.LoggedExec;
+import org.gradle.api.Project;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.tasks.CacheableTask;
 import org.gradle.api.tasks.CompileClasspath;
 import org.gradle.api.tasks.TaskAction;
+
+import javax.inject.Inject;
 
 import java.io.File;
 
@@ -47,16 +50,20 @@ import java.io.File;
 public class JarHellTask extends PrecommitTask {
 
     private FileCollection classpath;
+    private final Project project;
 
-    public JarHellTask() {
+    @Inject
+    public JarHellTask(Project project) {
+        super(project);
         setDescription("Runs CheckJarHell on the configured classpath");
+        this.project = project;
     }
 
     @TaskAction
     public void runJarHellCheck() {
-        LoggedExec.javaexec(getProject(), spec -> {
+        LoggedExec.javaexec(project, spec -> {
             spec.environment("CLASSPATH", getClasspath().getAsPath());
-            spec.getMainClass().set("org.opensearch.bootstrap.JarHell");
+            spec.getMainClass().set("org.opensearch.common.bootstrap.JarHell");
         });
     }
 

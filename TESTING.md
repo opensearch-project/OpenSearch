@@ -17,6 +17,8 @@ OpenSearch uses [jUnit](https://junit.org/junit5/) for testing, it also uses ran
   - [Miscellaneous](#miscellaneous)
 - [Running verification tasks](#running-verification-tasks)
 - [Testing the REST layer](#testing-the-rest-layer)
+  - [Running REST Tests Against An External Cluster](#running-rest-tests-against-an-external-cluster)
+  - [Debugging REST Tests](#debugging-rest-tests)
 - [Testing packaging](#testing-packaging)
   - [Testing packaging on Windows](#testing-packaging-on-windows)
   - [Testing VMs are disposable](#testing-vms-are-disposable)
@@ -33,8 +35,11 @@ OpenSearch uses [jUnit](https://junit.org/junit5/) for testing, it also uses ran
   - [Bad practices](#bad-practices)
     - [Use randomized-testing for coverage](#use-randomized-testing-for-coverage)
     - [Abuse randomization in multi-threaded tests](#abuse-randomization-in-multi-threaded-tests)
+    - [Use `Thread.sleep`](#use-threadsleep)
+    - [Expect a specific segment topology](#expect-a-specific-segment-topology)
+    - [Leave environment in an unstable state after test](#leave-environment-in-an-unstable-state-after-test)
 - [Test coverage analysis](#test-coverage-analysis)
-- [Building with extra plugins](#building-with-extra-plugins)
+- [Testing with plugins](#testing-with-plugins)
 - [Environment misc](#environment-misc)
 
 # Requirements
@@ -75,33 +80,39 @@ To run OpenSearch in debug mode,
 
 This will instruct all JVMs (including any that run cli tools such as creating the keyring or adding users) to suspend and initiate a debug connection on port incrementing from `5005`. As such, the IDE needs to be instructed to listen for connections on this port. Since we might run multiple JVMs as part of configuring and starting the cluster, it's recommended to configure the IDE to initiate multiple listening attempts. In case of IntelliJ, this option is called "Auto restart" and needs to be checked. In case of Eclipse, "Connection limit" setting needs to be configured with a greater value (ie 10 or more).
 
+Alternately, you can configure your OpenSearch JVM to listen as a debug server on port `5005`, and attach a debugger IDE once opensearch JVM is up and running. Use `./gradlew run --debug-server-jvm` for this debugging setup.
+
 ### Other useful arguments
 
 -   In order to start a node with a different max heap space add: `-Dtests.heap.size=4G`
 -   In order to disable assertions add: `-Dtests.asserts=false`
 -   In order to use a custom data directory: `--data-dir=/tmp/foo`
 -   In order to preserve data in between executions: `--preserve-data`
--   In order to remotely attach a debugger to the process: `--debug-jvm`
+-   In order to start opensearch as a debug server and remotely attach a debugger client (like an IDE debugger): `--debug-server-jvm`
+-   In order to start and attach opensearch process to an existing debug server: `--debug-jvm`
 -   In order to set a different keystore password: `--keystore-password yourpassword`
 -   In order to set an OpenSearch setting, provide a setting with the following prefix: `-Dtests.opensearch.`
+-   In order to enable stack trace of the MockSpanData during testing, add: `-Dtests.telemetry.span.stack_traces=true` (Storing stack traces alongside span data can be useful for comprehensive debugging and performance optimization during testing, as it provides insights into the exact code paths and execution sequences, facilitating efficient issue identification and resolution. Note: Enabling this might lead to OOM issues while running ITs)
 
 ## Test case filtering
 
--   `tests.class` is a class-filtering shell-like glob pattern
--   `tests.method` is a method-filtering glob pattern.
+To be able to run a single test you need to specify the module where you're running the tests from.
+
+Example: `./gradlew server:test --tests "*.ReplicaShardBatchAllocatorTests.testNoAsyncFetchData"`
 
 Run a single test case (variants)
 
-    ./gradlew test -Dtests.class=org.opensearch.package.ClassName
-    ./gradlew test "-Dtests.class=*.ClassName"
+    ./gradlew module:test --tests org.opensearch.package.ClassName
+    ./gradlew module:test --tests org.opensearch.package.ClassName.testName
+    ./gradlew module:test --tests "*.ClassName"
 
 Run all tests in a package and its sub-packages
 
-    ./gradlew test "-Dtests.class=org.opensearch.package.*"
+    ./gradlew module:test --tests "org.opensearch.package.*"
 
 Run any test methods that contain *esi* (e.g.: .r*esi*ze.)
 
-    ./gradlew test "-Dtests.method=*esi*"
+    ./gradlew module:test --tests "*esi*"
 
 Run all tests that are waiting for a bugfix (disabled by default)
 
@@ -266,7 +277,18 @@ yamlRestTest’s and javaRestTest’s are easy to identify, since they are found
 
 If in doubt about which command to use, simply run &lt;gradle path&gt;:check
 
-Note that the REST tests, like all the integration tests, can be run against an external cluster by specifying the `tests.cluster` property, which if present needs to contain a comma separated list of nodes to connect to (e.g. localhost:9300).
+## Running REST Tests Against An External Cluster
+
+Note that the REST tests, like all the integration tests, can be run against an external cluster by specifying the following properties `tests.cluster`, `tests.rest.cluster`, `tests.clustername`. Use a comma separated list of node properties for the multi-node cluster.
+
+For example :
+
+    ./gradlew :rest-api-spec:yamlRestTest \
+      -Dtests.cluster=localhost:9200 -Dtests.rest.cluster=localhost:9200 -Dtests.clustername=opensearch
+
+## Debugging REST Tests
+
+You can launch a local OpenSearch cluster in debug mode following [Launching and debugging from an IDE](#launching-and-debugging-from-an-ide), and run your REST tests against that following [Running REST Tests Against An External Cluster](#running-rest-tests-against-an-external-cluster).
 
 # Testing packaging
 
@@ -412,8 +434,8 @@ Say you need to make a change to `main` and have a BWC layer in `5.x`. You will 
 You may want to run BWC tests for a secure OpenSearch cluster. In order to do this, you will need to follow a few additional steps:
 
 1. Clone the OpenSearch Security repository from https://github.com/opensearch-project/security.
-2. Get both the old version of the Security plugin (the version you wish to come from) and the new version of the Security plugin (the version you wish to go to). This can be done either by fetching the maven artifact with a command like `wget https://repo1.maven.org/maven2/org/opensearch/plugin/opensearch-security/<TARGET_VERSION>.0/opensearch-security-<TARGET_VERSION>.0.zip` or by running `./gradlew assemble` from the base of the Security repository. 
-3. Move both of the Security artifacts into new directories at the path `/security/bwc-test/src/test/resources/<TARGET_VERSION>.0`. You should end up with two different directories in `/security/bwc-test/src/test/resources/`, one named the old version and one the new version. 
+2. Get both the old version of the Security plugin (the version you wish to come from) and the new version of the Security plugin (the version you wish to go to). This can be done either by fetching the maven artifact with a command like `wget https://repo1.maven.org/maven2/org/opensearch/plugin/opensearch-security/<TARGET_VERSION>.0/opensearch-security-<TARGET_VERSION>.0.zip` or by running `./gradlew assemble` from the base of the Security repository.
+3. Move both of the Security artifacts into new directories at the path `/security/bwc-test/src/test/resources/<TARGET_VERSION>.0`. You should end up with two different directories in `/security/bwc-test/src/test/resources/`, one named the old version and one the new version.
 4. Run the following command from the base of the Security repository:
 
 ```
@@ -428,7 +450,7 @@ You may want to run BWC tests for a secure OpenSearch cluster. In order to do th
 
 `-Dtests.security.manager=false` handles access issues when attempting to read the certificates from the file system.
 `-Dtests.opensearch.http.protocol=https` tells the wait for cluster startup task to do the right thing.
-`-PcustomDistributionUrl=...` uses a custom build of the distribution of OpenSearch. This is unnecessary when running against standard/unmodified OpenSearch core distributions. 
+`-PcustomDistributionUrl=...` uses a custom build of the distribution of OpenSearch. This is unnecessary when running against standard/unmodified OpenSearch core distributions.
 
 ### Skip fetching latest
 
@@ -454,7 +476,7 @@ Unit tests are the preferred way to test some functionality: most of the time th
 
 The reason why `OpenSearchSingleNodeTestCase` exists is that all our components used to be very hard to set up in isolation, which had led us to having a number of integration tests but close to no unit tests. `OpenSearchSingleNodeTestCase` is a workaround for this issue which provides an easy way to spin up a node and get access to components that are hard to instantiate like `IndicesService`. Whenever practical, you should prefer unit tests.
 
-Finally, if the the functionality under test needs to be run in a cluster, there are two test classes to consider:
+Finally, if the functionality under test needs to be run in a cluster, there are two test classes to consider:
   * `OpenSearchRestTestCase` will connect to an external cluster. This is a good option if the tests cases don't rely on a specific configuration of the test cluster. A test cluster is set up as part of the Gradle task running integration tests, and test cases using this class can connect to it. The configuration of the cluster is provided in the Gradle files.
   * `OpenSearchIntegTestCase` will create a local cluster as part of each test case. The configuration of the cluster is controlled by the test class. This is a good option if different tests cases depend on different cluster configurations, as it would be impractical (and limit parallelization) to keep re-configuring (and re-starting) the external cluster for each test case. A good example of when this class might come in handy is for testing security features, where different cluster configurations are needed to fully test each one.
 
@@ -476,27 +498,71 @@ However, it should not be used for coverage. For instance if you are testing a p
 
 Multi-threaded tests are often not reproducible due to the fact that there is no guarantee on the order in which operations occur across threads. Adding randomization to the mix usually makes things worse and should be done with care.
 
+### Use `Thread.sleep`
+
+`Thread.sleep()` is almost always a bad idea because it is very difficult to know that you've waited long enough. Using primitives like `waitUntil` or `assertBusy`, which use Thread.sleep internally, is okay to wait for a specific condition. However, it is almost always better to instrument your code with concurrency primitives like a `CountDownLatch` that will allow you to deterministically wait for a specific condition, without waiting longer than necessary that will happen with a polling approach used by `assertBusy`.
+
+Example:
+- [PrimaryShardAllocatorIT](https://github.com/opensearch-project/OpenSearch/blob/7ffcd6500e0bd5956cef5c289ee66d9f99d533fc/server/src/internalClusterTest/java/org/opensearch/gateway/ReplicaShardAllocatorIT.java#L208-L235): This test is using two latches: one to wait for a recovery to start and one to block that recovery so that it can deterministically test things that happen during a recovery.
+
+### Expect a specific segment topology
+
+By design, OpenSearch integration tests will vary how the merge policy works because in almost all scenarios you should not depend on a specific segment topology (in the real world your code will see a huge diversity of indexing workloads with OpenSearch merging things in the background all the time!). If you do in fact need to care about the segment topology (e.g. for testing statistics that might vary slightly depending on number of segments), then you must take care to ensure that segment topology is deterministic by doing things like disabling background refreshes, force merging after indexing data, etc.
+
+Example:
+- [SegmentReplicationResizeRequestIT](https://github.com/opensearch-project/OpenSearch/blob/f715ee1a485e550802accc1c2e3d8101208d4f0b/server/src/internalClusterTest/java/org/opensearch/indices/replication/SegmentReplicationResizeRequestIT.java#L102-L109): This test disables refreshes to prevent interfering with the segment replication behavior under test.
+
+### Leave environment in an unstable state after test
+
+The default test case will ensure that no open file handles or running threads are left after tear down. You must ensure that all resources are cleaned up at the end of each test case, or else the cleanup may end up racing with the tear down logic in the base test class in a way that is very difficult to reproduce.
+
+Example:
+- [AwarenessAttributeDecommissionIT](https://github.com/opensearch-project/OpenSearch/blob/main/server/src/internalClusterTest/java/org/opensearch/cluster/coordination/AwarenessAttributeDecommissionIT.java#L951): Recommissions any decommissioned nodes at the end of the test to ensure the after-test checks succeed.
+
 # Test coverage analysis
 
-The code coverage report can be generated through Gradle with [JaCoCo plugin](https://docs.gradle.org/current/userguide/jacoco_plugin.html).
+The code coverage report can be generated through Gradle with [JaCoCo plugin](https://docs.gradle.org/current/userguide/jacoco_plugin.html). Following are some of the ways to generate the code coverage reports locally.
 
 For unit test:
 
-    ./gradlew codeCoverageReportForUnitTest
+    ./gradlew test
+    ./gradlew jacocoTestReport
+
+For unit test inside a specific module:
+
+    ./gradlew :server:test
+    ./gradlew :server:jacocoTestReport
+
+For specific unit test inside a specific module:
+
+    ./gradlew :server:test --tests "org.opensearch.search.approximate.ApproximatePointRangeQueryTests.testNycTaxiDataDistribution"
+    ./gradlew :server:jacocoTestReport -Dtests.coverage.report.html=true
 
 For integration test:
 
-    ./gradlew codeCoverageReportForIntegrationTest
+    ./gradlew internalClusterTest
+    ./gradlew jacocoTestReport
 
-For the combined tests (unit and integration):
+For integration test inside a specific module:
 
-    ./gradlew codeCoverageReport
+    ./gradlew :server:internalClusterTest
+    ./gradlew :server:jacocoTestReport
+
+For specific integration test inside a specific module:
+
+    ./gradlew :server:internalClusterTest --tests "org.opensearch.action.admin.ClientTimeoutIT.testNodesInfoTimeout"
+    ./gradlew :server:jacocoTestReport
+
+For modules with javaRestTest:
+
+    ./gradlew :qa:die-with-dignity:javaRestTest
+    ./gradlew :qa:die-with-dignity:jacocoTestReport -Dtests.coverage.report.html=true
 
 To generate coverage report for the combined tests after `check` task:
 
     ./gradlew check -Dtests.coverage=true
 
-The code coverage report will be generated in `build/codeCoverageReport`, `build/codeCoverageReportForUnitTest` or `build/codeCoverageReportForIntegrationTest` correspondingly.
+The code coverage report will be generated in `$buildDir/build/reports/jacoco/test/html/`.
 
 The report will be in XML format only by default, but you can add the following parameter for HTML and CSV format.
 
@@ -506,17 +572,23 @@ The report will be in XML format only by default, but you can add the following 
 
 For example, to generate code coverage report in HTML format and not in XML format:
 
-    ./gradlew codeCoverageReport -Dtests.coverage.report.html=true -Dtests.coverage.report.xml=false
+    ./gradlew internalClusterTest -Dtests.coverage.report.html=true -Dtests.coverage.report.xml=false
 
 Apart from using Gradle, it is also possible to gain insight in code coverage using IntelliJ’s built-in coverage analysis tool that can measure coverage upon executing specific tests. Eclipse may also be able to do the same using the EclEmma plugin.
 
 Please read your IDE documentation for how to attach a debugger to a JVM process.
 
-# Building with extra plugins
+# Testing with plugins
 
-Additional plugins may be built alongside OpenSearch, where their dependency on OpenSearch will be substituted with the local OpenSearch build. To add your plugin, create a directory called `opensearch-extra` as a sibling of OpenSearch. Checkout your plugin underneath `opensearch-extra` and the build will automatically pick it up. You can verify the plugin is included as part of the build by checking the projects of the build.
+To test a plugin with a custom build of OpenSearch, build OpenSearch and use the `customDistributionUrl` setting supported by each plugin to override the OpenSearch distribution.
 
-    ./gradlew projects
+For example, in your OpenSearch repository assemble a custom distribution.
+
+    ./gradlew :distribution:archives:linux-tar:assemble
+
+Then in your plugin repository, substitute in your OpenSearch build
+
+    ./gradlew run -PcustomDistributionUrl="<OPENSEARCH-REPO-PATH>/distribution/archives/linux-tar/build/distributions/opensearch-min-3.0.0-SNAPSHOT-linux-x64.tar.gz"
 
 # Environment misc
 

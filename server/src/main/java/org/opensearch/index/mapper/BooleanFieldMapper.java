@@ -37,8 +37,11 @@ import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.search.BoostQuery;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.TermRangeQuery;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.common.Booleans;
 import org.opensearch.common.Nullable;
@@ -55,8 +58,10 @@ import java.io.IOException;
 import java.time.ZoneId;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Supplier;
 
 /**
@@ -175,6 +180,10 @@ public class BooleanFieldMapper extends ParametrizedFieldMapper {
             this(name, searchable, false, true, false, Collections.emptyMap());
         }
 
+        public BooleanFieldType(String name, boolean searchable, boolean hasDocValues) {
+            this(name, searchable, false, hasDocValues, false, Collections.emptyMap());
+        }
+
         @Override
         public String typeName() {
             return CONTENT_TYPE;
@@ -189,11 +198,11 @@ public class BooleanFieldMapper extends ParametrizedFieldMapper {
             return new SourceValueFetcher(name(), context, nullValue) {
                 @Override
                 protected Boolean parseSourceValue(Object value) {
-                    if (value instanceof Boolean) {
-                        return (Boolean) value;
+                    if (value instanceof Boolean boolValue) {
+                        return boolValue;
                     } else {
                         String textValue = value.toString();
-                        return Booleans.parseBoolean(textValue.toCharArray(), 0, textValue.length(), false);
+                        return Booleans.parseBooleanStrict(textValue, false);
                     }
                 }
             };
@@ -204,12 +213,12 @@ public class BooleanFieldMapper extends ParametrizedFieldMapper {
             if (value == null) {
                 return Values.FALSE;
             }
-            if (value instanceof Boolean) {
-                return ((Boolean) value) ? Values.TRUE : Values.FALSE;
+            if (value instanceof Boolean boolValue) {
+                return boolValue ? Values.TRUE : Values.FALSE;
             }
             String sValue;
-            if (value instanceof BytesRef) {
-                sValue = ((BytesRef) value).utf8ToString();
+            if (value instanceof BytesRef bytesRef) {
+                sValue = bytesRef.utf8ToString();
             } else {
                 sValue = value.toString();
             }
@@ -258,15 +267,80 @@ public class BooleanFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
+        public Query termQuery(Object value, QueryShardContext context) {
+            failIfNotIndexedAndNoDocValues();
+            if (!isSearchable()) {
+                return SortedNumericDocValuesField.newSlowExactQuery(name(), Values.TRUE.bytesEquals(indexedValueForSearch(value)) ? 1 : 0);
+            }
+            Query query = new TermQuery(new Term(name(), indexedValueForSearch(value)));
+            if (boost() != 1f) {
+                query = new BoostQuery(query, boost());
+            }
+            return query;
+        }
+
+        @Override
+        public Query termsQuery(List<?> values, QueryShardContext context) {
+            failIfNotIndexedAndNoDocValues();
+            int distinct = 0;
+            Set<?> distinctValues = new HashSet<>(values);
+            for (Object value : distinctValues) {
+                if (Values.TRUE.equals(indexedValueForSearch(value))) {
+                    distinct |= 2;
+                } else if (Values.FALSE.equals(indexedValueForSearch(value))) {
+                    distinct |= 1;
+                }
+                if (distinct == 3) {
+                    return this.existsQuery(context);
+                }
+            }
+            switch (distinct) {
+                case 1:
+                    return termQuery("false", context);
+                case 2:
+                    return termQuery("true", context);
+            }
+
+            return new MatchNoDocsQuery("Values did not contain True or False");
+        }
+
+        @Override
         public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, QueryShardContext context) {
-            failIfNotIndexed();
-            return new TermRangeQuery(
-                name(),
-                lowerTerm == null ? null : indexedValueForSearch(lowerTerm),
-                upperTerm == null ? null : indexedValueForSearch(upperTerm),
-                includeLower,
-                includeUpper
-            );
+            failIfNotIndexedAndNoDocValues();
+            if (lowerTerm == null) {
+                lowerTerm = false;
+                includeLower = true;
+
+            }
+            if (upperTerm == null) {
+                upperTerm = true;
+                includeUpper = true;
+
+            }
+
+            lowerTerm = indexedValueForSearch(lowerTerm);
+            upperTerm = indexedValueForSearch(upperTerm);
+
+            if (lowerTerm == upperTerm) {
+                if (!includeLower || !includeUpper) {
+                    return new MatchNoDocsQuery();
+                }
+                return termQuery(lowerTerm.equals(Values.TRUE), context);
+            }
+
+            if (lowerTerm.equals(Values.TRUE)) {
+                return new MatchNoDocsQuery();
+            }
+            if (!includeLower && !includeUpper) {
+                return new MatchNoDocsQuery();
+            } else if (!includeLower) {
+                return termQuery(true, context);
+            } else if (!includeUpper) {
+                return termQuery(false, context);
+            } else {
+                return this.existsQuery(context);
+            }
+
         }
     }
 
@@ -300,18 +374,7 @@ public class BooleanFieldMapper extends ParametrizedFieldMapper {
             return;
         }
 
-        Boolean value = context.parseExternalValue(Boolean.class);
-        if (value == null) {
-            XContentParser.Token token = context.parser().currentToken();
-            if (token == XContentParser.Token.VALUE_NULL) {
-                if (nullValue != null) {
-                    value = nullValue;
-                }
-            } else {
-                value = context.parser().booleanValue();
-            }
-        }
-
+        Boolean value = parseBooleanValue(context);
         if (value == null) {
             return;
         }
@@ -329,6 +392,30 @@ public class BooleanFieldMapper extends ParametrizedFieldMapper {
     }
 
     @Override
+    protected void parseCreateFieldForPluggableFormat(ParseContext context) throws IOException {
+        Boolean value = parseBooleanValue(context);
+        if (value == null) {
+            return;
+        }
+        context.documentInput().addField(fieldType(), value);
+    }
+
+    private Boolean parseBooleanValue(ParseContext context) throws IOException {
+        Boolean value = context.parseExternalValue(Boolean.class);
+        if (value == null) {
+            XContentParser.Token token = context.parser().currentToken();
+            if (token == XContentParser.Token.VALUE_NULL) {
+                if (nullValue != null) {
+                    value = nullValue;
+                }
+            } else {
+                value = context.parser().booleanValue();
+            }
+        }
+        return value;
+    }
+
+    @Override
     public ParametrizedFieldMapper.Builder getMergeBuilder() {
         return new Builder(simpleName()).init(this);
     }
@@ -338,4 +425,34 @@ public class BooleanFieldMapper extends ParametrizedFieldMapper {
         return CONTENT_TYPE;
     }
 
+    @Override
+    protected void canDeriveSourceInternal() {
+        checkStoredAndDocValuesForDerivedSource();
+    }
+
+    /**
+     * 1. If it has doc values, build source using doc values
+     * 2. If doc_values is disabled in field mapping, then build source using stored field
+     *
+     * <p>
+     * Considerations:
+     *    1. Result will be in boolean type and not in the provided string value type at time of ingestion,
+     *       i.e. [false, "false", ""] will become boolean false
+     *    2. When using doc values, for multi value field, result will be in sorted order, i.e. at start there will
+     *       be 0 or more false and at end there will be 0 or more true
+     *    2. When using stored field, for multi value field order would be preserved
+     */
+    @Override
+    protected DerivedFieldGenerator derivedFieldGenerator() {
+        return new DerivedFieldGenerator(mappedFieldType, new SortedNumericDocValuesFetcher(mappedFieldType, simpleName()) {
+            @Override
+            public Object convert(Object value) {
+                Long val = (Long) value;
+                if (val == null) {
+                    return null;
+                }
+                return val == 1;
+            }
+        }, new StoredFieldFetcher(mappedFieldType, simpleName()));
+    }
 }

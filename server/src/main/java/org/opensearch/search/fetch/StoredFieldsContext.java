@@ -32,6 +32,7 @@
 
 package org.opensearch.search.fetch;
 
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.ParsingException;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -51,8 +52,9 @@ import java.util.Objects;
 /**
  * Context used to fetch the {@code stored_fields}.
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class StoredFieldsContext implements Writeable {
     public static final String _NONE_ = "_none_";
 

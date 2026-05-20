@@ -112,3 +112,33 @@
             properties:
               "":
                 type:     keyword
+
+---
+"Create index with setting index.number_of_routing_shards to null":
+  - skip:
+      version: " - 2.17.99"
+      reason: "fixed in 2.18.0"
+  - do:
+      indices.create:
+        index: test_index
+        body:
+          settings:
+            number_of_routing_shards: null
+  - do:
+      cluster.state:
+        metric: [ metadata ]
+        index: test_index
+  - match : { metadata.indices.test_index.routing_num_shards: 1024 }
+
+  - do:
+      indices.create:
+        index: test_index1
+        body:
+          settings:
+            number_of_routing_shards: null
+            number_of_shards: 3
+  - do:
+      cluster.state:
+        metric: [ metadata ]
+        index: test_index1
+  - match : { metadata.indices.test_index1.routing_num_shards: 768 }

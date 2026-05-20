@@ -13,9 +13,9 @@ import org.opensearch.test.telemetry.tracing.MockSpanData;
 import org.opensearch.test.telemetry.tracing.TracingValidator;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
-import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -41,13 +41,10 @@ public class NumberOfTraceIDsEqualToRequests implements TracingValidator {
      */
     @Override
     public List<MockSpanData> validate(List<MockSpanData> spans, int requests) {
-        Set<String> totalTraceIDs = spans.stream()
-            .filter(span -> isMatchingSpan(span))
-            .map(MockSpanData::getTraceID)
-            .collect(Collectors.toSet());
+        final Collection<MockSpanData> totalTraceIDs = spans.stream().filter(span -> isMatchingSpan(span)).collect(Collectors.toList());
         List<MockSpanData> problematicSpans = new ArrayList<>();
-        if (totalTraceIDs.size() != requests) {
-            problematicSpans.addAll(spans);
+        if (totalTraceIDs.stream().map(MockSpanData::getTraceID).distinct().count() != requests) {
+            problematicSpans.addAll(totalTraceIDs);
         }
         return problematicSpans;
     }

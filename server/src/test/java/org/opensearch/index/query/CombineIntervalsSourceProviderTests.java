@@ -32,13 +32,17 @@
 
 package org.opensearch.index.query;
 
+import org.apache.lucene.queries.intervals.Intervals;
+import org.apache.lucene.queries.intervals.IntervalsSource;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.index.query.IntervalsSourceProvider.Combine;
 import org.opensearch.search.SearchModule;
 import org.opensearch.test.AbstractSerializingTestCase;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.opensearch.index.query.IntervalsSourceProvider.Combine;
@@ -103,5 +107,29 @@ public class CombineIntervalsSourceProviderTests extends AbstractSerializingTest
         Combine combine = (Combine) IntervalsSourceProvider.fromXContent(parser);
         assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());
         return combine;
+    }
+
+    public void testCanCombineSourcesFail() {
+        List<IntervalsSource> sources = new ArrayList<>();
+
+        for (int i = 0; i < 11; i++) {
+            IntervalsSource source1 = Intervals.maxgaps(0, Intervals.ordered(Intervals.term("term_" + 2 * i)));
+            IntervalsSource source2 = Intervals.maxgaps(0, Intervals.ordered(Intervals.term("term_" + (2 * i + 1))));
+            sources.add(Intervals.or(source1, source2));
+        }
+
+        assertFalse(IntervalBuilder.canCombineSources(sources));
+    }
+
+    public void testCanCombineSourcesSuccess() {
+        List<IntervalsSource> sources = new ArrayList<>();
+
+        for (int i = 0; i < 10; i++) {
+            IntervalsSource source1 = Intervals.maxgaps(0, Intervals.ordered(Intervals.term("term_" + 2 * i)));
+            IntervalsSource source2 = Intervals.maxgaps(0, Intervals.ordered(Intervals.term("term_" + (2 * i + 1))));
+            sources.add(Intervals.or(source1, source2));
+        }
+
+        assertTrue(IntervalBuilder.canCombineSources(sources));
     }
 }

@@ -42,11 +42,12 @@ import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.StringHelper;
 import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
-import org.opensearch.cli.KeyStoreAwareCommand;
 import org.opensearch.cli.Terminal;
 import org.opensearch.cli.UserException;
 import org.opensearch.common.PidFile;
 import org.opensearch.common.SuppressForbidden;
+import org.opensearch.common.bootstrap.JarHell;
+import org.opensearch.common.cli.EnvironmentAwareCommand;
 import org.opensearch.common.inject.CreationException;
 import org.opensearch.common.logging.LogConfigurator;
 import org.opensearch.common.logging.Loggers;
@@ -195,6 +196,15 @@ final class Bootstrap {
             BootstrapSettings.CTRLHANDLER_SETTING.get(settings)
         );
 
+        var cryptoStandard = System.getenv("OPENSEARCH_CRYPTO_STANDARD");
+        var fipsMode = System.getenv("OPENSEARCH_FIPS_MODE");
+
+        if ("FIPS-140-3".equals(cryptoStandard) || "true".equalsIgnoreCase(fipsMode)) {
+            LogManager.getLogger(Bootstrap.class).info("running in FIPS-140-3 mode");
+            SecurityProviderManager.removeNonCompliantFipsProviders();
+            FipsTrustStoreValidator.validate();
+        }
+
         // initialize probes before the security manager is installed
         initializeProbes();
 
@@ -262,7 +272,7 @@ final class Bootstrap {
         SecureString password;
         try {
             if (keystore != null && keystore.hasPassword()) {
-                password = readPassphrase(System.in, KeyStoreAwareCommand.MAX_PASSPHRASE_LENGTH);
+                password = readPassphrase(System.in, EnvironmentAwareCommand.MAX_PASSPHRASE_LENGTH);
             } else {
                 password = new SecureString(new char[0]);
             }

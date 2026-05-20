@@ -45,6 +45,7 @@ import org.opensearch.painless.spi.AllowlistInstanceBinding;
 import org.opensearch.painless.spi.AllowlistMethod;
 import org.opensearch.painless.spi.annotation.InjectConstantAnnotation;
 import org.opensearch.painless.spi.annotation.NoImportAnnotation;
+import org.opensearch.secure_sm.AccessController;
 import org.objectweb.asm.ClassWriter;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.commons.GeneratorAdapter;
@@ -57,18 +58,18 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.net.MalformedURLException;
-import java.net.URL;
-import java.security.AccessController;
+import java.net.URI;
 import java.security.CodeSource;
-import java.security.PrivilegedAction;
 import java.security.SecureClassLoader;
 import java.security.cert.Certificate;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.regex.Pattern;
 
 import static org.opensearch.painless.WriterConstants.DEF_TO_B_BYTE_IMPLICIT;
@@ -120,7 +121,7 @@ public final class PainlessLookupBuilder {
 
     static {
         try {
-            CODESOURCE = new CodeSource(new URL("file:" + BootstrapInfo.UNTRUSTED_CODEBASE), (Certificate[]) null);
+            CODESOURCE = new CodeSource(URI.create("file:" + BootstrapInfo.UNTRUSTED_CODEBASE).toURL(), (Certificate[]) null);
         } catch (MalformedURLException mue) {
             throw new RuntimeException(mue);
         }
@@ -1926,20 +1927,23 @@ public final class PainlessLookupBuilder {
             classesToPainlessClasses.put(painlessClassBuilderEntry.getKey(), painlessClassBuilderEntry.getValue().build());
         }
 
-        if (javaClassNamesToClasses.values().containsAll(canonicalClassNamesToClasses.values()) == false) {
+        Set<Class<?>> javaClasses = new HashSet<>(javaClassNamesToClasses.values());
+        Set<Class<?>> canonicalClasses = new HashSet<>(canonicalClassNamesToClasses.values());
+        Set<Class<?>> painlessClasses = classesToPainlessClasses.keySet();
+
+        if (javaClasses.containsAll(canonicalClasses) == false) {
             throw new IllegalArgumentException(
                 "the values of java class names to classes " + "must be a superset of the values of canonical class names to classes"
             );
         }
 
-        if (javaClassNamesToClasses.values().containsAll(classesToPainlessClasses.keySet()) == false) {
+        if (javaClasses.containsAll(painlessClasses) == false) {
             throw new IllegalArgumentException(
                 "the values of java class names to classes " + "must be a superset of the keys of classes to painless classes"
             );
         }
 
-        if (canonicalClassNamesToClasses.values().containsAll(classesToPainlessClasses.keySet()) == false
-            || classesToPainlessClasses.keySet().containsAll(canonicalClassNamesToClasses.values()) == false) {
+        if (canonicalClasses.equals(painlessClasses) == false) {
             throw new IllegalArgumentException(
                 "the values of canonical class names to classes " + "must have the same classes as the keys of classes to painless classes"
             );
@@ -2189,12 +2193,9 @@ public final class PainlessLookupBuilder {
             bridgeClassWriter.visitEnd();
 
             try {
-                BridgeLoader bridgeLoader = AccessController.doPrivileged(new PrivilegedAction<BridgeLoader>() {
-                    @Override
-                    public BridgeLoader run() {
-                        return new BridgeLoader(javaMethod.getDeclaringClass().getClassLoader());
-                    }
-                });
+                BridgeLoader bridgeLoader = AccessController.doPrivileged(
+                    () -> new BridgeLoader(javaMethod.getDeclaringClass().getClassLoader())
+                );
 
                 Class<?> bridgeClass = bridgeLoader.defineBridge(bridgeClassName.replace('/', '.'), bridgeClassWriter.toByteArray());
                 Method bridgeMethod = bridgeClass.getMethod(

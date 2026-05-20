@@ -36,9 +36,4 @@ package org.opensearch.index.query;
  *
  * @opensearch.internal
  */
-public interface MultiTermQueryBuilder extends QueryBuilder {
-    /**
-     * Get the field name for this query.
-     */
-    String fieldName();
-}
+public interface MultiTermQueryBuilder extends QueryBuilder, WithFieldName {}

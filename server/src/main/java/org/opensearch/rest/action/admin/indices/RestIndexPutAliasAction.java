@@ -33,13 +33,13 @@ package org.opensearch.rest.action.admin.indices;
 
 import org.opensearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.opensearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
-import org.opensearch.client.node.NodeClient;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.action.RestToXContentListener;
+import org.opensearch.transport.client.node.NodeClient;
 
 import java.io.IOException;
 import java.util.List;
@@ -92,6 +92,7 @@ public class RestIndexPutAliasAction extends BaseRestHandler {
         String indexRouting = null;
         String searchRouting = null;
         Boolean writeIndex = null;
+        Boolean isHidden = null;
 
         if (request.hasContent()) {
             try (XContentParser parser = request.contentParser()) {
@@ -120,10 +121,16 @@ public class RestIndexPutAliasAction extends BaseRestHandler {
                                     searchRouting = parser.textOrNull();
                                 } else if ("is_write_index".equals(currentFieldName)) {
                                     writeIndex = parser.booleanValue();
+                                } else if ("is_hidden".equals(currentFieldName)) {
+                                    isHidden = parser.booleanValue();
+                                } else {
+                                    throw new IllegalArgumentException("unknown field [" + currentFieldName + "]");
                                 }
                     } else if (token == XContentParser.Token.START_OBJECT) {
                         if ("filter".equals(currentFieldName)) {
                             filter = parser.mapOrdered();
+                        } else {
+                            throw new IllegalArgumentException("unknown field [" + currentFieldName + "]");
                         }
                     }
                 }
@@ -152,6 +159,9 @@ public class RestIndexPutAliasAction extends BaseRestHandler {
         }
         if (writeIndex != null) {
             aliasAction.writeIndex(writeIndex);
+        }
+        if (isHidden != null) {
+            aliasAction.isHidden(isHidden);
         }
         indicesAliasesRequest.addAliasAction(aliasAction);
         return channel -> client.admin().indices().aliases(indicesAliasesRequest, new RestToXContentListener<>(channel));

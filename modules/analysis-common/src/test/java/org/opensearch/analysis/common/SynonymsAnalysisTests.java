@@ -41,11 +41,14 @@ import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.env.Environment;
+import org.opensearch.env.TestEnvironment;
 import org.opensearch.index.IndexSettings;
+import org.opensearch.index.analysis.AnalysisRegistry;
 import org.opensearch.index.analysis.IndexAnalyzers;
 import org.opensearch.index.analysis.PreConfiguredTokenFilter;
 import org.opensearch.index.analysis.TokenFilterFactory;
 import org.opensearch.index.analysis.TokenizerFactory;
+import org.opensearch.indices.analysis.AnalysisModule;
 import org.opensearch.test.IndexSettingsModule;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.VersionUtils;
@@ -63,6 +66,7 @@ import java.util.Set;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.startsWith;
+import static org.apache.lucene.tests.analysis.BaseTokenStreamTestCase.assertTokenStreamContents;
 
 public class SynonymsAnalysisTests extends OpenSearchTestCase {
     private IndexAnalyzers indexAnalyzers;
@@ -116,7 +120,7 @@ public class SynonymsAnalysisTests extends OpenSearchTestCase {
             fail("fail! due to synonym word deleted by analyzer");
         } catch (Exception e) {
             assertThat(e, instanceOf(IllegalArgumentException.class));
-            assertThat(e.getMessage(), startsWith("Failed to build synonyms"));
+            assertThat(e.getMessage(), startsWith("Failed to build analyzers: [synonymAnalyzerWithStopSynonymBeforeSynonym]"));
         }
     }
 
@@ -137,7 +141,7 @@ public class SynonymsAnalysisTests extends OpenSearchTestCase {
             fail("fail! due to synonym word deleted by analyzer");
         } catch (Exception e) {
             assertThat(e, instanceOf(IllegalArgumentException.class));
-            assertThat(e.getMessage(), startsWith("Failed to build synonyms"));
+            assertThat(e.getMessage(), startsWith("Failed to build analyzers: [synonymAnalyzerExpandWithStopBeforeSynonym]"));
         }
     }
 
@@ -255,15 +259,17 @@ public class SynonymsAnalysisTests extends OpenSearchTestCase {
             .put("hyphenation_patterns_path", "foo")
             .build();
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
-
+        Environment environment = TestEnvironment.newEnvironment(settings);
+        AnalysisModule analysisModule = new AnalysisModule(environment, Collections.singletonList(new CommonAnalysisModulePlugin()));
+        AnalysisRegistry analysisRegistry = analysisModule.getAnalysisRegistry();
         String[] bypassingFactories = new String[] { "dictionary_decompounder" };
 
         CommonAnalysisModulePlugin plugin = new CommonAnalysisModulePlugin();
         for (String factory : bypassingFactories) {
-            TokenFilterFactory tff = plugin.getTokenFilters().get(factory).get(idxSettings, null, factory, settings);
-            TokenizerFactory tok = new KeywordTokenizerFactory(idxSettings, null, "keyword", settings);
-            SynonymTokenFilterFactory stff = new SynonymTokenFilterFactory(idxSettings, null, "synonym", settings);
-            Analyzer analyzer = stff.buildSynonymAnalyzer(tok, Collections.emptyList(), Collections.singletonList(tff), null);
+            TokenFilterFactory tff = plugin.getTokenFilters(analysisModule).get(factory).get(idxSettings, environment, factory, settings);
+            TokenizerFactory tok = new KeywordTokenizerFactory(idxSettings, environment, "keyword", settings);
+            SynonymTokenFilterFactory stff = new SynonymTokenFilterFactory(idxSettings, environment, "synonym", settings, analysisRegistry);
+            Analyzer analyzer = stff.buildSynonymAnalyzer(tok, Collections.emptyList(), Collections.singletonList(tff), null, null);
 
             try (TokenStream ts = analyzer.tokenStream("field", "text")) {
                 assertThat(ts, instanceOf(KeywordTokenizer.class));
@@ -319,7 +325,11 @@ public class SynonymsAnalysisTests extends OpenSearchTestCase {
             .putList("common_words", "a", "b")
             .put("output_unigrams", "true")
             .build();
+
+        Environment environment = TestEnvironment.newEnvironment(settings);
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
+        AnalysisModule analysisModule = new AnalysisModule(environment, Collections.singletonList(new CommonAnalysisModulePlugin()));
+        AnalysisRegistry analysisRegistry = analysisModule.getAnalysisRegistry();
         CommonAnalysisModulePlugin plugin = new CommonAnalysisModulePlugin();
 
         String[] disallowedFactories = new String[] {
@@ -333,14 +343,14 @@ public class SynonymsAnalysisTests extends OpenSearchTestCase {
             "fingerprint" };
 
         for (String factory : disallowedFactories) {
-            TokenFilterFactory tff = plugin.getTokenFilters().get(factory).get(idxSettings, null, factory, settings);
-            TokenizerFactory tok = new KeywordTokenizerFactory(idxSettings, null, "keyword", settings);
-            SynonymTokenFilterFactory stff = new SynonymTokenFilterFactory(idxSettings, null, "synonym", settings);
+            TokenFilterFactory tff = plugin.getTokenFilters(analysisModule).get(factory).get(idxSettings, environment, factory, settings);
+            TokenizerFactory tok = new KeywordTokenizerFactory(idxSettings, environment, "keyword", settings);
+            SynonymTokenFilterFactory stff = new SynonymTokenFilterFactory(idxSettings, environment, "synonym", settings, analysisRegistry);
 
             IllegalArgumentException e = expectThrows(
                 IllegalArgumentException.class,
                 "Expected IllegalArgumentException for factory " + factory,
-                () -> stff.buildSynonymAnalyzer(tok, Collections.emptyList(), Collections.singletonList(tff), null)
+                () -> stff.buildSynonymAnalyzer(tok, Collections.emptyList(), Collections.singletonList(tff), null, null)
             );
 
             assertEquals(factory, "Token filter [" + factory + "] cannot be used to parse synonyms", e.getMessage());
@@ -362,4 +372,162 @@ public class SynonymsAnalysisTests extends OpenSearchTestCase {
         MatcherAssert.assertThat(target, equalTo(sb.toString().trim()));
     }
 
+    /**
+     * Tests the integration of word delimiter and synonym graph filters with synonym_analyzer based on issue #16263.
+     * This test verifies the correct handling of:
+     * 1. Hyphenated words with word delimiter (e.g., "note-book" → ["notebook", "note", "book"])
+     * 2. Multi-word synonyms (e.g., "mobile phone" → ["smartphone"])
+     * 3. Single word synonyms (e.g., "laptop" → ["notebook"])
+     *
+     * @see <a href="https://github.com/opensearch-project/OpenSearch/issues/16263">Issue #16263</a>
+     */
+    public void testSynonymAnalyzerWithWordDelimiter() throws IOException {
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put("path.home", createTempDir().toString())
+            .put("index.analysis.filter.custom_word_delimiter.type", "word_delimiter_graph")
+            .put("index.analysis.filter.custom_word_delimiter.generate_word_parts", true)
+            .put("index.analysis.filter.custom_word_delimiter.catenate_all", true)
+            .put("index.analysis.filter.custom_word_delimiter.split_on_numerics", false)
+            .put("index.analysis.filter.custom_word_delimiter.split_on_case_change", false)
+            .put("index.analysis.filter.custom_pattern_replace_filter.type", "pattern_replace")
+            .put("index.analysis.filter.custom_pattern_replace_filter.pattern", "(-)")
+            .put("index.analysis.filter.custom_pattern_replace_filter.replacement", " ")
+            .put("index.analysis.filter.custom_pattern_replace_filter.all", true)
+            .put("index.analysis.filter.custom_synonym_graph_filter.type", "synonym_graph")
+            .putList(
+                "index.analysis.filter.custom_synonym_graph_filter.synonyms",
+                "laptop => notebook",
+                "smartphone, mobile phone, cell phone => smartphone",
+                "tv, television => television"
+            )
+            .put("index.analysis.filter.custom_synonym_graph_filter.synonym_analyzer", "standard")
+            .put("index.analysis.analyzer.text_en_index.type", "custom")
+            .put("index.analysis.analyzer.text_en_index.tokenizer", "whitespace")
+            .putList(
+                "index.analysis.analyzer.text_en_index.filter",
+                "lowercase",
+                "custom_word_delimiter",
+                "custom_synonym_graph_filter",
+                "custom_pattern_replace_filter",
+                "flatten_graph"
+            )
+            .build();
+        Environment environment = TestEnvironment.newEnvironment(settings);
+        IndexSettings indexSettings = IndexSettingsModule.newIndexSettings("test", settings);
+        AnalysisModule module = new AnalysisModule(environment, Collections.singletonList(new CommonAnalysisModulePlugin()));
+        IndexAnalyzers analyzers = module.getAnalysisRegistry().build(indexSettings);
+        try (TokenStream ts = analyzers.get("text_en_index").tokenStream("", "note-book")) {
+            assertTokenStreamContents(
+                ts,
+                new String[] { "notebook", "note", "book" },
+                new int[] { 0, 0, 5 },
+                new int[] { 9, 4, 9 },
+                new String[] { "word", "word", "word" },
+                new int[] { 1, 0, 1 },
+                new int[] { 2, 1, 1 }
+            );
+        }
+        try (TokenStream ts = analyzers.get("text_en_index").tokenStream("", "mobile phone")) {
+            assertTokenStreamContents(
+                ts,
+                new String[] { "smartphone" },
+                new int[] { 0 },
+                new int[] { 12 },
+                new String[] { "SYNONYM" },
+                new int[] { 1 },
+                new int[] { 1 }
+            );
+        }
+        try (TokenStream ts = analyzers.get("text_en_index").tokenStream("", "laptop")) {
+            assertTokenStreamContents(ts, new String[] { "notebook" }, new int[] { 0 }, new int[] { 6 });
+        }
+    }
+
+    /**
+     * Test the core dependency resolution issue from GitHub #18037:
+     * synonym_graph with custom synonym_analyzer should work even when
+     * the main analyzer contains word_delimiter_graph that would normally
+     * cause "cannot be used to parse synonyms" error.
+     *
+     * This test intentionally declares the dependent analyzer before the
+     * synonym analyzer to ensure the system resolves dependencies
+     * automatically without requiring a manual "order" setting.
+     */
+    public void testSynonymAnalyzerDependencyResolution() throws IOException {
+        Settings settings = Settings.builder()
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+
+            // Declare dependent analyzer FIRST intentionally
+            .put("index.analysis.analyzer.main_analyzer.type", "custom")
+            .put("index.analysis.analyzer.main_analyzer.tokenizer", "standard")
+            .putList("index.analysis.analyzer.main_analyzer.filter", "lowercase", "test_word_delimiter", "test_synonyms")
+
+            // Problematic filter for synonym parsing
+            .put("index.analysis.filter.test_word_delimiter.type", "word_delimiter_graph")
+            .put("index.analysis.filter.test_word_delimiter.generate_word_parts", true)
+
+            // Synonym filter referencing another analyzer
+            .put("index.analysis.filter.test_synonyms.type", "synonym_graph")
+            .putList("index.analysis.filter.test_synonyms.synonyms", "laptop,notebook")
+            .put("index.analysis.filter.test_synonyms.synonym_analyzer", "simple_synonym_analyzer")
+
+            // Define the synonym analyzer AFTER the main analyzer
+            .put("index.analysis.analyzer.simple_synonym_analyzer.type", "custom")
+            .put("index.analysis.analyzer.simple_synonym_analyzer.tokenizer", "standard")
+            .build();
+
+        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("test_index", settings);
+
+        // Should succeed with the fix (would fail before due to registration order)
+        IndexAnalyzers analyzers = new AnalysisModule(
+            TestEnvironment.newEnvironment(settings),
+            Collections.singletonList(new CommonAnalysisModulePlugin())
+        ).getAnalysisRegistry().build(idxSettings);
+
+        assertNotNull("main_analyzer should be created", analyzers.get("main_analyzer"));
+        assertNotNull("simple_synonym_analyzer should be created", analyzers.get("simple_synonym_analyzer"));
+    }
+
+    /**
+     * Verifies that circular synonym_analyzer dependencies are detected
+     * and rejected during analyzer construction.
+     */
+    public void testCircularSynonymAnalyzerDependency() throws IOException {
+        Settings settings = Settings.builder()
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+
+            // Analyzer A depends on B
+            .put("index.analysis.analyzer.analyzer_a.type", "custom")
+            .put("index.analysis.analyzer.analyzer_a.tokenizer", "standard")
+            .putList("index.analysis.analyzer.analyzer_a.filter", "syn_filter_a")
+
+            .put("index.analysis.filter.syn_filter_a.type", "synonym_graph")
+            .putList("index.analysis.filter.syn_filter_a.synonyms", "foo,bar")
+            .put("index.analysis.filter.syn_filter_a.synonym_analyzer", "analyzer_b")
+
+            // Analyzer B depends on A
+            .put("index.analysis.analyzer.analyzer_b.type", "custom")
+            .put("index.analysis.analyzer.analyzer_b.tokenizer", "standard")
+            .putList("index.analysis.analyzer.analyzer_b.filter", "syn_filter_b")
+
+            .put("index.analysis.filter.syn_filter_b.type", "synonym_graph")
+            .putList("index.analysis.filter.syn_filter_b.synonyms", "baz,qux")
+            .put("index.analysis.filter.syn_filter_b.synonym_analyzer", "analyzer_a")
+
+            .build();
+
+        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("test_index", settings);
+
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new AnalysisModule(TestEnvironment.newEnvironment(settings), Collections.singletonList(new CommonAnalysisModulePlugin()))
+                .getAnalysisRegistry()
+                .build(idxSettings)
+        );
+
+        assertThat(e.getMessage(), startsWith("Circular analyzer dependency"));
+    }
 }

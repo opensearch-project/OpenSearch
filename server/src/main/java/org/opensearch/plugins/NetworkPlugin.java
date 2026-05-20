@@ -31,6 +31,7 @@
 
 package org.opensearch.plugins;
 
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.network.NetworkService;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
@@ -43,6 +44,7 @@ import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.http.HttpServerTransport;
 import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.AuxTransport;
 import org.opensearch.transport.Transport;
 import org.opensearch.transport.TransportInterceptor;
 
@@ -57,6 +59,21 @@ import java.util.function.Supplier;
  * @opensearch.api
  */
 public interface NetworkPlugin {
+    /**
+     * Auxiliary transports are optional and run in parallel to the default HttpServerTransport.
+     * Returns a map of AuxTransport suppliers.
+     */
+    @ExperimentalApi
+    default Map<String, Supplier<AuxTransport>> getAuxTransports(
+        Settings settings,
+        ThreadPool threadPool,
+        CircuitBreakerService circuitBreakerService,
+        NetworkService networkService,
+        ClusterSettings clusterSettings,
+        Tracer tracer
+    ) {
+        return Collections.emptyMap();
+    }
 
     /**
      * Returns a list of {@link TransportInterceptor} instances that are used to intercept incoming and outgoing
@@ -103,6 +120,60 @@ public interface NetworkPlugin {
         NetworkService networkService,
         HttpServerTransport.Dispatcher dispatcher,
         ClusterSettings clusterSettings,
+        Tracer tracer
+    ) {
+        return Collections.emptyMap();
+    }
+
+    /**
+     * Returns a map of secure {@link AuxTransport} suppliers.
+     * See {@link org.opensearch.transport.AuxTransport#AUX_TRANSPORT_TYPES_SETTING} to configure a specific implementation.
+     */
+    @ExperimentalApi
+    default Map<String, Supplier<AuxTransport>> getSecureAuxTransports(
+        Settings settings,
+        ThreadPool threadPool,
+        CircuitBreakerService circuitBreakerService,
+        NetworkService networkService,
+        ClusterSettings clusterSettings,
+        SecureAuxTransportSettingsProvider secureAuxTransportSettingsProvider,
+        Tracer tracer
+    ) {
+        return Collections.emptyMap();
+    }
+
+    /**
+     * Returns a map of secure {@link Transport} suppliers.
+     * See {@link org.opensearch.common.network.NetworkModule#TRANSPORT_TYPE_KEY} to configure a specific implementation.
+     */
+    default Map<String, Supplier<Transport>> getSecureTransports(
+        Settings settings,
+        ThreadPool threadPool,
+        PageCacheRecycler pageCacheRecycler,
+        CircuitBreakerService circuitBreakerService,
+        NamedWriteableRegistry namedWriteableRegistry,
+        NetworkService networkService,
+        SecureTransportSettingsProvider secureTransportSettingsProvider,
+        Tracer tracer
+    ) {
+        return Collections.emptyMap();
+    }
+
+    /**
+     * Returns a map of secure {@link HttpServerTransport} suppliers.
+     * See {@link org.opensearch.common.network.NetworkModule#HTTP_TYPE_SETTING} to configure a specific implementation.
+     */
+    default Map<String, Supplier<HttpServerTransport>> getSecureHttpTransports(
+        Settings settings,
+        ThreadPool threadPool,
+        BigArrays bigArrays,
+        PageCacheRecycler pageCacheRecycler,
+        CircuitBreakerService circuitBreakerService,
+        NamedXContentRegistry xContentRegistry,
+        NetworkService networkService,
+        HttpServerTransport.Dispatcher dispatcher,
+        ClusterSettings clusterSettings,
+        SecureHttpTransportSettingsProvider secureHttpTransportSettingsProvider,
         Tracer tracer
     ) {
         return Collections.emptyMap();

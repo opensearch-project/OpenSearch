@@ -20,6 +20,7 @@ import software.amazon.awssdk.services.kms.KmsClient;
 import org.opensearch.cluster.metadata.CryptoMetadata;
 import org.opensearch.common.settings.MockSecureSettings;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.secure_sm.AccessController;
 
 public class KmsServiceTests extends AbstractAwsTestCase {
     private final CryptoMetadata cryptoMetadata = new CryptoMetadata("kp1", "kp2", Settings.EMPTY);
@@ -31,18 +32,18 @@ public class KmsServiceTests extends AbstractAwsTestCase {
                 KmsClientSettings.getClientSettings(Settings.EMPTY)
             );
 
-            assertNull(proxyConfiguration.scheme());
+            assertEquals("http", proxyConfiguration.scheme());
             assertNull(proxyConfiguration.host());
             assertEquals(proxyConfiguration.port(), 0);
             assertNull(proxyConfiguration.username());
             assertNull(proxyConfiguration.password());
 
             // retry policy
-            RetryPolicy retryPolicyConfiguration = SocketAccess.doPrivileged(kmsService::buildRetryPolicy);
+            RetryPolicy retryPolicyConfiguration = AccessController.doPrivileged(kmsService::buildRetryPolicy);
 
             assertEquals(retryPolicyConfiguration.numRetries().intValue(), 10);
 
-            ClientOverrideConfiguration clientOverrideConfiguration = SocketAccess.doPrivileged(kmsService::buildOverrideConfiguration);
+            ClientOverrideConfiguration clientOverrideConfiguration = AccessController.doPrivileged(kmsService::buildOverrideConfiguration);
             assertTrue(clientOverrideConfiguration.retryPolicy().isPresent());
             assertEquals(clientOverrideConfiguration.retryPolicy().get().numRetries().intValue(), 10);
         }
@@ -63,7 +64,7 @@ public class KmsServiceTests extends AbstractAwsTestCase {
 
         try (KmsService kmsService = new KmsService()) {
             // proxy configuration
-            final ProxyConfiguration proxyConfiguration = SocketAccess.doPrivileged(
+            final ProxyConfiguration proxyConfiguration = AccessController.doPrivileged(
                 () -> kmsService.buildProxyConfiguration(KmsClientSettings.getClientSettings(settings))
             );
 
@@ -73,10 +74,10 @@ public class KmsServiceTests extends AbstractAwsTestCase {
             assertEquals(proxyConfiguration.password(), "aws_proxy_password");
 
             // retry policy
-            RetryPolicy retryPolicyConfiguration = SocketAccess.doPrivileged(kmsService::buildRetryPolicy);
+            RetryPolicy retryPolicyConfiguration = AccessController.doPrivileged(kmsService::buildRetryPolicy);
             assertEquals(retryPolicyConfiguration.numRetries().intValue(), 10);
 
-            ClientOverrideConfiguration clientOverrideConfiguration = SocketAccess.doPrivileged(kmsService::buildOverrideConfiguration);
+            ClientOverrideConfiguration clientOverrideConfiguration = AccessController.doPrivileged(kmsService::buildOverrideConfiguration);
             assertTrue(clientOverrideConfiguration.retryPolicy().isPresent());
             assertEquals(clientOverrideConfiguration.retryPolicy().get().numRetries().intValue(), 10);
         }
@@ -131,14 +132,11 @@ public class KmsServiceTests extends AbstractAwsTestCase {
                         assertTrue(credentials instanceof AwsBasicCredentials);
                     }
 
-                    assertEquals(
-                        mockKmsClientTest.proxyConfiguration.toString(),
-                        "ProxyConfiguration(endpoint=https://proxy-host-1:881, username=proxy_username_1, preemptiveBasicAuthenticationEnabled=false)"
-                    );
                     assertEquals(mockKmsClientTest.proxyConfiguration.host(), "proxy-host-1");
                     assertEquals(mockKmsClientTest.proxyConfiguration.port(), 881);
                     assertEquals(mockKmsClientTest.proxyConfiguration.username(), "proxy_username_1");
                     assertEquals(mockKmsClientTest.proxyConfiguration.password(), "proxy_password_1");
+                    assertFalse(mockKmsClientTest.proxyConfiguration.preemptiveBasicAuthenticationEnabled());
                 }
                 // reload secure settings2
                 plugin.reload(settings2);
@@ -155,14 +153,11 @@ public class KmsServiceTests extends AbstractAwsTestCase {
                         assertTrue(credentials instanceof AwsBasicCredentials);
                     }
 
-                    assertEquals(
-                        mockKmsClientTest.proxyConfiguration.toString(),
-                        "ProxyConfiguration(endpoint=https://proxy-host-1:881, username=proxy_username_1, preemptiveBasicAuthenticationEnabled=false)"
-                    );
                     assertEquals(mockKmsClientTest.proxyConfiguration.host(), "proxy-host-1");
                     assertEquals(mockKmsClientTest.proxyConfiguration.port(), 881);
                     assertEquals(mockKmsClientTest.proxyConfiguration.username(), "proxy_username_1");
                     assertEquals(mockKmsClientTest.proxyConfiguration.password(), "proxy_password_1");
+                    assertFalse(mockKmsClientTest.proxyConfiguration.preemptiveBasicAuthenticationEnabled());
                 }
             }
             try (AmazonKmsClientReference clientReference = plugin.kmsService.client(cryptoMetadata)) {
@@ -179,14 +174,11 @@ public class KmsServiceTests extends AbstractAwsTestCase {
                     assertTrue(credentials instanceof AwsBasicCredentials);
                 }
 
-                assertEquals(
-                    mockKmsClientTest.proxyConfiguration.toString(),
-                    "ProxyConfiguration(endpoint=https://proxy-host-2:882, username=proxy_username_2, preemptiveBasicAuthenticationEnabled=false)"
-                );
                 assertEquals(mockKmsClientTest.proxyConfiguration.host(), "proxy-host-2");
                 assertEquals(mockKmsClientTest.proxyConfiguration.port(), 882);
                 assertEquals(mockKmsClientTest.proxyConfiguration.username(), "proxy_username_2");
                 assertEquals(mockKmsClientTest.proxyConfiguration.password(), "proxy_password_2");
+                assertFalse(mockKmsClientTest.proxyConfiguration.preemptiveBasicAuthenticationEnabled());
             }
         }
     }

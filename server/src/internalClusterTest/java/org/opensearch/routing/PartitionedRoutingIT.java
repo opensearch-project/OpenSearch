@@ -187,7 +187,7 @@ public class PartitionedRoutingIT extends OpenSearchIntegTestCase {
                     + "] shards for routing ["
                     + routing
                     + "] and got hits ["
-                    + response.getHits().getTotalHits().value
+                    + response.getHits().getTotalHits().value()
                     + "]"
             );
 
@@ -195,7 +195,7 @@ public class PartitionedRoutingIT extends OpenSearchIntegTestCase {
                 response.getTotalShards() + " was not in " + expectedShards + " for " + index,
                 expectedShards.contains(response.getTotalShards())
             );
-            assertEquals(expectedDocuments, response.getHits().getTotalHits().value);
+            assertEquals(expectedDocuments, response.getHits().getTotalHits().value());
 
             Set<String> found = new HashSet<>();
             response.getHits().forEach(h -> found.add(h.getId()));
@@ -217,7 +217,7 @@ public class PartitionedRoutingIT extends OpenSearchIntegTestCase {
                 .actionGet();
 
             assertEquals(expectedShards, response.getTotalShards());
-            assertEquals(expectedDocuments, response.getHits().getTotalHits().value);
+            assertEquals(expectedDocuments, response.getHits().getTotalHits().value());
 
             Set<String> found = new HashSet<>();
             response.getHits().forEach(h -> found.add(h.getId()));

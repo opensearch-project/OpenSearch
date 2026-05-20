@@ -43,8 +43,8 @@ import java.io.IOException;
  */
 public class StrictDynamicMappingException extends MapperParsingException {
 
-    public StrictDynamicMappingException(String path, String fieldName) {
-        super("mapping set to strict, dynamic introduction of [" + fieldName + "] within [" + path + "] is not allowed");
+    public StrictDynamicMappingException(String dynamic, String path, String fieldName) {
+        super("mapping set to " + dynamic + ", dynamic introduction of [" + fieldName + "] within [" + path + "] is not allowed");
     }
 
     public StrictDynamicMappingException(StreamInput in) throws IOException {

@@ -33,6 +33,7 @@
 package org.opensearch.search;
 
 import org.apache.lucene.util.BytesRef;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
@@ -50,8 +51,9 @@ import java.util.Objects;
 /**
  * Values to sort during search
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class SearchSortValues implements ToXContentFragment, Writeable {
 
     private static final Object[] EMPTY_ARRAY = new Object[0];
@@ -75,12 +77,12 @@ public class SearchSortValues implements ToXContentFragment, Writeable {
         this.formattedSortValues = Arrays.copyOf(rawSortValues, rawSortValues.length);
         for (int i = 0; i < rawSortValues.length; ++i) {
             Object sortValue = rawSortValues[i];
-            if (sortValue instanceof BytesRef) {
-                this.formattedSortValues[i] = sortValueFormats[i].format((BytesRef) sortValue);
-            } else if ((sortValue instanceof Long) && (sortValueFormats[i] == DocValueFormat.UNSIGNED_LONG_SHIFTED)) {
-                this.formattedSortValues[i] = sortValueFormats[i].format((Long) sortValue);
-            } else if ((sortValue instanceof Long) && (sortValueFormats[i] == DocValueFormat.UNSIGNED_LONG)) {
-                this.formattedSortValues[i] = sortValueFormats[i].format((Long) sortValue);
+            if (sortValue instanceof BytesRef bytesRef) {
+                this.formattedSortValues[i] = sortValueFormats[i].format(bytesRef);
+            } else if ((sortValue instanceof Long longValue) && (sortValueFormats[i] == DocValueFormat.UNSIGNED_LONG_SHIFTED)) {
+                this.formattedSortValues[i] = sortValueFormats[i].format(longValue);
+            } else if ((sortValue instanceof Long longValue) && (sortValueFormats[i] == DocValueFormat.UNSIGNED_LONG)) {
+                this.formattedSortValues[i] = sortValueFormats[i].format(longValue);
             } else {
                 this.formattedSortValues[i] = sortValue;
             }

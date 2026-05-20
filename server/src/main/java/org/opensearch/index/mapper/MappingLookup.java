@@ -34,6 +34,7 @@ package org.opensearch.index.mapper;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.opensearch.cluster.metadata.DataStream;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.analysis.FieldNameAnalyzer;
 
@@ -49,8 +50,9 @@ import java.util.stream.Stream;
 /**
  * Looks up a mapping for a field
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public final class MappingLookup implements Iterable<Mapper> {
 
     /** Full field name to mapper */
@@ -68,7 +70,12 @@ public final class MappingLookup implements Iterable<Mapper> {
         analyzers.put(key, value);
     }
 
-    public static MappingLookup fromMapping(Mapping mapping, Analyzer defaultIndex) {
+    /**
+     * Builds a lookup from a mapping, resolving dynamic_property patterns for {@link MappedFieldType} when needed.
+     * Fields resolved only via dynamic_property patterns are not added to the serialized mapping; see
+     * {@link DynamicProperty} for implications on hooks tied to mapping updates.
+     */
+    public static MappingLookup fromMapping(Mapping mapping, Analyzer defaultIndex, DocumentMapperParser documentMapperParser) {
         List<ObjectMapper> newObjectMappers = new ArrayList<>();
         List<FieldMapper> newFieldMappers = new ArrayList<>();
         List<FieldAliasMapper> newFieldAliasMappers = new ArrayList<>();
@@ -78,7 +85,22 @@ public final class MappingLookup implements Iterable<Mapper> {
             }
         }
         collect(mapping.root, newObjectMappers, newFieldMappers, newFieldAliasMappers);
-        return new MappingLookup(newFieldMappers, newObjectMappers, newFieldAliasMappers, mapping.metadataMappers.length, defaultIndex);
+        DynamicPropertyFieldTypeResolver dynamicResolver = null;
+        if (documentMapperParser != null && mapping.root().dynamicProperties().length > 0) {
+            dynamicResolver = new DynamicPropertyFieldTypeResolver(mapping.root(), documentMapperParser);
+        }
+        return new MappingLookup(
+            newFieldMappers,
+            newObjectMappers,
+            newFieldAliasMappers,
+            mapping.metadataMappers.length,
+            defaultIndex,
+            dynamicResolver
+        );
+    }
+
+    public static MappingLookup fromMapping(Mapping mapping, Analyzer defaultIndex) {
+        return fromMapping(mapping, defaultIndex, null);
     }
 
     private static void collect(
@@ -110,6 +132,17 @@ public final class MappingLookup implements Iterable<Mapper> {
         Collection<FieldAliasMapper> aliasMappers,
         int metadataFieldCount,
         Analyzer defaultIndex
+    ) {
+        this(mappers, objectMappers, aliasMappers, metadataFieldCount, defaultIndex, null);
+    }
+
+    MappingLookup(
+        Collection<FieldMapper> mappers,
+        Collection<ObjectMapper> objectMappers,
+        Collection<FieldAliasMapper> aliasMappers,
+        int metadataFieldCount,
+        Analyzer defaultIndex,
+        DynamicPropertyFieldTypeResolver dynamicPropertyFieldTypes
     ) {
         Map<String, Mapper> fieldMappers = new HashMap<>();
         Map<String, Analyzer> indexAnalyzers = new HashMap<>();
@@ -147,7 +180,7 @@ public final class MappingLookup implements Iterable<Mapper> {
             }
         }
 
-        this.fieldTypeLookup = new FieldTypeLookup(mappers, aliasMappers);
+        this.fieldTypeLookup = new FieldTypeLookup(mappers, aliasMappers, dynamicPropertyFieldTypes);
 
         this.fieldMappers = Collections.unmodifiableMap(fieldMappers);
         this.indexAnalyzer = new FieldNameAnalyzer(indexAnalyzers);
@@ -164,7 +197,7 @@ public final class MappingLookup implements Iterable<Mapper> {
         return fieldMappers.get(field);
     }
 
-    public FieldTypeLookup fieldTypes() {
+    FieldTypeLookup fieldTypes() {
         return fieldTypeLookup;
     }
 
@@ -268,7 +301,8 @@ public final class MappingLookup implements Iterable<Mapper> {
      */
     public boolean containsTimeStampField() {
         MappedFieldType timeSeriesFieldType = this.fieldTypeLookup.get(DataStream.TIMESERIES_FIELDNAME);
-        return timeSeriesFieldType != null && timeSeriesFieldType instanceof DateFieldMapper.DateFieldType; // has to be Date field type
+        return timeSeriesFieldType != null && timeSeriesFieldType.unwrap() instanceof DateFieldMapper.DateFieldType; // has to be Date field
+                                                                                                                     // type
     }
 
     private static String parentObject(String field) {

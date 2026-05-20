@@ -1,7 +1,7 @@
 {
   "snapshot.get":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/modules-snapshots.html",
+      "url":"https://opensearch.org/docs/latest/api-reference/snapshots/get-snapshot/",
       "description":"Returns information about a snapshot."
     },
     "stability":"stable",

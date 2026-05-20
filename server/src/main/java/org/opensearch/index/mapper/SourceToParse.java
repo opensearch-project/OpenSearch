@@ -33,17 +33,20 @@
 package org.opensearch.index.mapper;
 
 import org.opensearch.common.Nullable;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.MediaType;
+import org.opensearch.index.mapper.extrasource.ExtraFieldValues;
 
 import java.util.Objects;
 
 /**
  * Stores the document source
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class SourceToParse {
 
     private final BytesReference source;
@@ -56,7 +59,20 @@ public class SourceToParse {
 
     private final MediaType mediaType;
 
+    private final ExtraFieldValues extraFieldValues;
+
     public SourceToParse(String index, String id, BytesReference source, MediaType mediaType, @Nullable String routing) {
+        this(index, id, source, mediaType, routing, ExtraFieldValues.EMPTY);
+    }
+
+    public SourceToParse(
+        String index,
+        String id,
+        BytesReference source,
+        MediaType mediaType,
+        @Nullable String routing,
+        ExtraFieldValues extraFieldValues
+    ) {
         this.index = Objects.requireNonNull(index);
         this.id = Objects.requireNonNull(id);
         // we always convert back to byte array, since we store it and Field only supports bytes..
@@ -64,6 +80,7 @@ public class SourceToParse {
         this.source = new BytesArray(Objects.requireNonNull(source).toBytesRef());
         this.mediaType = Objects.requireNonNull(mediaType);
         this.routing = routing;
+        this.extraFieldValues = extraFieldValues == null ? ExtraFieldValues.EMPTY : extraFieldValues;
     }
 
     public SourceToParse(String index, String id, BytesReference source, MediaType mediaType) {
@@ -88,6 +105,10 @@ public class SourceToParse {
 
     public MediaType getMediaType() {
         return this.mediaType;
+    }
+
+    public ExtraFieldValues extraFieldValues() {
+        return this.extraFieldValues;
     }
 
     /**

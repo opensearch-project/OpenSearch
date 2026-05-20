@@ -54,11 +54,6 @@ public abstract class AbstractBytesReference implements BytesReference {
     private static final int MAX_UTF16_LENGTH = Integer.MAX_VALUE >> 1;
 
     @Override
-    public int getInt(int index) {
-        return (get(index) & 0xFF) << 24 | (get(index + 1) & 0xFF) << 16 | (get(index + 2) & 0xFF) << 8 | get(index + 3) & 0xFF;
-    }
-
-    @Override
     public int indexOf(byte marker, int from) {
         final int to = length();
         for (int i = from; i < to; i++) {
@@ -117,8 +112,7 @@ public abstract class AbstractBytesReference implements BytesReference {
         if (this == other) {
             return true;
         }
-        if (other instanceof BytesReference) {
-            final BytesReference otherRef = (BytesReference) other;
+        if (other instanceof BytesReference otherRef) {
             if (length() != otherRef.length()) {
                 return false;
             }

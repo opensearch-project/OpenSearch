@@ -39,6 +39,7 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.common.Priority;
 import org.opensearch.common.lifecycle.Lifecycle;
 import org.opensearch.common.lifecycle.LifecycleListener;
 import org.opensearch.core.action.ActionListener;
@@ -118,6 +119,29 @@ public class FilterRepository implements Repository {
     }
 
     @Override
+    public void finalizeSnapshot(
+        ShardGenerations shardGenerations,
+        long repositoryStateId,
+        Metadata clusterMetadata,
+        SnapshotInfo snapshotInfo,
+        Version repositoryMetaVersion,
+        Function<ClusterState, ClusterState> stateTransformer,
+        Priority repositoryUpdatePriority,
+        ActionListener<RepositoryData> listener
+    ) {
+        in.finalizeSnapshot(
+            shardGenerations,
+            repositoryStateId,
+            clusterMetadata,
+            snapshotInfo,
+            repositoryMetaVersion,
+            stateTransformer,
+            repositoryUpdatePriority,
+            listener
+        );
+    }
+
+    @Override
     public void deleteSnapshots(
         Collection<SnapshotId> snapshotIds,
         long repositoryStateId,
@@ -143,8 +167,18 @@ public class FilterRepository implements Repository {
     }
 
     @Override
+    public long getLowPriorityRemoteUploadThrottleTimeInNanos() {
+        return in.getRemoteUploadThrottleTimeInNanos();
+    }
+
+    @Override
     public long getRemoteDownloadThrottleTimeInNanos() {
         return in.getRemoteDownloadThrottleTimeInNanos();
+    }
+
+    @Override
+    public long getLowPriorityRemoteDownloadThrottleTimeInNanos() {
+        return in.getLowPriorityRemoteDownloadThrottleTimeInNanos();
     }
 
     @Override
@@ -183,7 +217,8 @@ public class FilterRepository implements Repository {
         IndexShardSnapshotStatus snapshotStatus,
         Version repositoryMetaVersion,
         Map<String, Object> userMetadata,
-        ActionListener<String> listener
+        ActionListener<String> listener,
+        IndexMetadata indexMetadata
     ) {
         in.snapshotShard(
             store,
@@ -195,7 +230,8 @@ public class FilterRepository implements Repository {
             snapshotStatus,
             repositoryMetaVersion,
             userMetadata,
-            listener
+            listener,
+            indexMetadata
         );
     }
 

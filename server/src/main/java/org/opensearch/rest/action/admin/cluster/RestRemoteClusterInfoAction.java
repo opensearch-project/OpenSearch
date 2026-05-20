@@ -34,10 +34,10 @@ package org.opensearch.rest.action.admin.cluster;
 
 import org.opensearch.action.admin.cluster.remote.RemoteInfoAction;
 import org.opensearch.action.admin.cluster.remote.RemoteInfoRequest;
-import org.opensearch.client.node.NodeClient;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.action.RestToXContentListener;
+import org.opensearch.transport.client.node.NodeClient;
 
 import java.util.List;
 
@@ -53,7 +53,7 @@ public final class RestRemoteClusterInfoAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return singletonList(new Route(GET, "_remote/info"));
+        return singletonList(new Route(GET, "/_remote/info"));
     }
 
     @Override

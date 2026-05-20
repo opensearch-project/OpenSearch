@@ -46,6 +46,7 @@ import org.opensearch.node.Node;
 import org.opensearch.plugins.DiscoveryPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.ReloadablePlugin;
+import org.opensearch.secure_sm.AccessController;
 import org.opensearch.transport.TransportService;
 
 import java.io.BufferedReader;
@@ -157,7 +158,7 @@ public class Ec2DiscoveryPlugin extends Plugin implements DiscoveryPlugin, Reloa
             // Same as curl http://169.254.169.254/latest/meta-data/placement/availability-zone/.
             // TODO: use EC2MetadataUtils::getAvailabilityZone that was added in AWS SDK v2 instead of rolling our own
             logger.debug("obtaining ec2 [placement/availability-zone] from ec2 meta-data url {}", url);
-            urlConnection = SocketAccess.doPrivilegedIOException(url::openConnection);
+            urlConnection = AccessController.doPrivilegedChecked(() -> url.openConnection());
             urlConnection.setConnectTimeout(2000);
         } catch (final IOException e) {
             // should not happen, we know the url is not malformed, and openConnection does not actually hit network
@@ -165,7 +166,7 @@ public class Ec2DiscoveryPlugin extends Plugin implements DiscoveryPlugin, Reloa
         }
 
         try (
-            InputStream in = SocketAccess.doPrivilegedIOException(urlConnection::getInputStream);
+            InputStream in = AccessController.doPrivilegedChecked(urlConnection::getInputStream);
             BufferedReader urlReader = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8))
         ) {
 

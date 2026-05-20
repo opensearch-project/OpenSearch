@@ -45,8 +45,11 @@ import org.opensearch.common.blobstore.BlobStoreException;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.repositories.s3.async.AsyncExecutorContainer;
 import org.opensearch.repositories.s3.async.AsyncTransferManager;
+import org.opensearch.repositories.s3.async.SizeBasedBlockingQ;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.util.Base64;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Locale;
@@ -56,10 +59,17 @@ import static org.opensearch.repositories.s3.S3Repository.BUCKET_SETTING;
 import static org.opensearch.repositories.s3.S3Repository.BUFFER_SIZE_SETTING;
 import static org.opensearch.repositories.s3.S3Repository.BULK_DELETE_SIZE;
 import static org.opensearch.repositories.s3.S3Repository.CANNED_ACL_SETTING;
-import static org.opensearch.repositories.s3.S3Repository.SERVER_SIDE_ENCRYPTION_SETTING;
+import static org.opensearch.repositories.s3.S3Repository.EXPECTED_BUCKET_OWNER_SETTING;
+import static org.opensearch.repositories.s3.S3Repository.PERMIT_BACKED_TRANSFER_ENABLED;
+import static org.opensearch.repositories.s3.S3Repository.REDIRECT_LARGE_S3_UPLOAD;
+import static org.opensearch.repositories.s3.S3Repository.SERVER_SIDE_ENCRYPTION_BUCKET_KEY_SETTING;
+import static org.opensearch.repositories.s3.S3Repository.SERVER_SIDE_ENCRYPTION_ENCRYPTION_CONTEXT_SETTING;
+import static org.opensearch.repositories.s3.S3Repository.SERVER_SIDE_ENCRYPTION_KMS_KEY_SETTING;
+import static org.opensearch.repositories.s3.S3Repository.SERVER_SIDE_ENCRYPTION_TYPE_SETTING;
 import static org.opensearch.repositories.s3.S3Repository.STORAGE_CLASS_SETTING;
+import static org.opensearch.repositories.s3.S3Repository.UPLOAD_RETRY_ENABLED;
 
-class S3BlobStore implements BlobStore {
+public class S3BlobStore implements BlobStore {
 
     private static final Logger logger = LogManager.getLogger(S3BlobStore.class);
 
@@ -71,7 +81,17 @@ class S3BlobStore implements BlobStore {
 
     private volatile ByteSizeValue bufferSize;
 
-    private volatile boolean serverSideEncryption;
+    private volatile boolean redirectLargeUploads;
+
+    private volatile boolean uploadRetryEnabled;
+
+    private volatile boolean permitBackedTransferEnabled;
+
+    private volatile String serverSideEncryptionType;
+    private volatile String serverSideEncryptionKmsKey;
+    private volatile boolean serverSideEncryptionBucketKey;
+    private volatile String serverSideEncryptionEncryptionContext;
+    private volatile String expectedBucketOwner;
 
     private volatile ObjectCannedACL cannedACL;
 
@@ -88,13 +108,15 @@ class S3BlobStore implements BlobStore {
     private final AsyncExecutorContainer priorityExecutorBuilder;
     private final AsyncExecutorContainer normalExecutorBuilder;
     private final boolean multipartUploadEnabled;
+    private final SizeBasedBlockingQ normalPrioritySizeBasedBlockingQ;
+    private final SizeBasedBlockingQ lowPrioritySizeBasedBlockingQ;
+    private final GenericStatsMetricPublisher genericStatsMetricPublisher;
 
     S3BlobStore(
         S3Service service,
         S3AsyncService s3AsyncService,
         boolean multipartUploadEnabled,
         String bucket,
-        boolean serverSideEncryption,
         ByteSizeValue bufferSize,
         String cannedACL,
         String storageClass,
@@ -103,13 +125,20 @@ class S3BlobStore implements BlobStore {
         AsyncTransferManager asyncTransferManager,
         AsyncExecutorContainer urgentExecutorBuilder,
         AsyncExecutorContainer priorityExecutorBuilder,
-        AsyncExecutorContainer normalExecutorBuilder
+        AsyncExecutorContainer normalExecutorBuilder,
+        SizeBasedBlockingQ normalPrioritySizeBasedBlockingQ,
+        SizeBasedBlockingQ lowPrioritySizeBasedBlockingQ,
+        GenericStatsMetricPublisher genericStatsMetricPublisher,
+        String serverSideEncryptionType,
+        String serverSideEncryptionKmsKey,
+        boolean serverSideEncryptionBucketKey,
+        String serverSideEncryptionEncryptionContext,
+        String expectedBucketOwner
     ) {
         this.service = service;
         this.s3AsyncService = s3AsyncService;
         this.multipartUploadEnabled = multipartUploadEnabled;
         this.bucket = bucket;
-        this.serverSideEncryption = serverSideEncryption;
         this.bufferSize = bufferSize;
         this.cannedACL = initCannedACL(cannedACL);
         this.storageClass = initStorageClass(storageClass);
@@ -119,17 +148,36 @@ class S3BlobStore implements BlobStore {
         this.normalExecutorBuilder = normalExecutorBuilder;
         this.priorityExecutorBuilder = priorityExecutorBuilder;
         this.urgentExecutorBuilder = urgentExecutorBuilder;
+        // Settings to initialize blobstore with.
+        this.redirectLargeUploads = REDIRECT_LARGE_S3_UPLOAD.get(repositoryMetadata.settings());
+        this.uploadRetryEnabled = UPLOAD_RETRY_ENABLED.get(repositoryMetadata.settings());
+        this.normalPrioritySizeBasedBlockingQ = normalPrioritySizeBasedBlockingQ;
+        this.lowPrioritySizeBasedBlockingQ = lowPrioritySizeBasedBlockingQ;
+        this.genericStatsMetricPublisher = genericStatsMetricPublisher;
+        this.permitBackedTransferEnabled = PERMIT_BACKED_TRANSFER_ENABLED.get(repositoryMetadata.settings());
+        this.serverSideEncryptionType = serverSideEncryptionType;
+        this.serverSideEncryptionKmsKey = serverSideEncryptionKmsKey;
+        this.serverSideEncryptionBucketKey = serverSideEncryptionBucketKey;
+        this.serverSideEncryptionEncryptionContext = serverSideEncryptionEncryptionContext;
+        this.expectedBucketOwner = expectedBucketOwner;
     }
 
     @Override
     public void reload(RepositoryMetadata repositoryMetadata) {
         this.repositoryMetadata = repositoryMetadata;
         this.bucket = BUCKET_SETTING.get(repositoryMetadata.settings());
-        this.serverSideEncryption = SERVER_SIDE_ENCRYPTION_SETTING.get(repositoryMetadata.settings());
         this.bufferSize = BUFFER_SIZE_SETTING.get(repositoryMetadata.settings());
         this.cannedACL = initCannedACL(CANNED_ACL_SETTING.get(repositoryMetadata.settings()));
         this.storageClass = initStorageClass(STORAGE_CLASS_SETTING.get(repositoryMetadata.settings()));
         this.bulkDeletesSize = BULK_DELETE_SIZE.get(repositoryMetadata.settings());
+        this.redirectLargeUploads = REDIRECT_LARGE_S3_UPLOAD.get(repositoryMetadata.settings());
+        this.uploadRetryEnabled = UPLOAD_RETRY_ENABLED.get(repositoryMetadata.settings());
+        this.permitBackedTransferEnabled = PERMIT_BACKED_TRANSFER_ENABLED.get(repositoryMetadata.settings());
+        this.serverSideEncryptionType = SERVER_SIDE_ENCRYPTION_TYPE_SETTING.get(repositoryMetadata.settings());
+        this.serverSideEncryptionKmsKey = SERVER_SIDE_ENCRYPTION_KMS_KEY_SETTING.get(repositoryMetadata.settings());
+        this.serverSideEncryptionBucketKey = SERVER_SIDE_ENCRYPTION_BUCKET_KEY_SETTING.get(repositoryMetadata.settings());
+        this.serverSideEncryptionEncryptionContext = SERVER_SIDE_ENCRYPTION_ENCRYPTION_CONTEXT_SETTING.get(repositoryMetadata.settings());
+        this.expectedBucketOwner = EXPECTED_BUCKET_OWNER_SETTING.get(repositoryMetadata.settings());
     }
 
     @Override
@@ -149,12 +197,49 @@ class S3BlobStore implements BlobStore {
         return service.settings(repositoryMetadata).maxRetries;
     }
 
+    public boolean isRedirectLargeUploads() {
+        return redirectLargeUploads;
+    }
+
+    public boolean isUploadRetryEnabled() {
+        return uploadRetryEnabled;
+    }
+
+    public boolean isPermitBackedTransferEnabled() {
+        return permitBackedTransferEnabled;
+    }
+
     public String bucket() {
         return bucket;
     }
 
-    public boolean serverSideEncryption() {
-        return serverSideEncryption;
+    public String serverSideEncryptionType() {
+        return serverSideEncryptionType;
+    }
+
+    public String serverSideEncryptionKmsKey() {
+        return serverSideEncryptionKmsKey;
+    }
+
+    public boolean serverSideEncryptionBucketKey() {
+        return serverSideEncryptionBucketKey;
+    }
+
+    /**
+     * Returns the SSE encryption context base64 UTF8 encoded, as required by S3 SDK. If the encryption context is empty return
+     * null as the S3 client ignores null header values
+     */
+    public String serverSideEncryptionEncryptionContext() {
+        return serverSideEncryptionEncryptionContext == null || serverSideEncryptionEncryptionContext.isEmpty()
+            ? null
+            : Base64.getEncoder().encodeToString(serverSideEncryptionEncryptionContext.getBytes(StandardCharsets.UTF_8));
+    }
+
+    /**
+     * Returns the expected bucket owner if set, else null as the S3 client ignores null header values
+     */
+    public String expectedBucketOwner() {
+        return expectedBucketOwner == null || expectedBucketOwner.isEmpty() ? null : expectedBucketOwner;
     }
 
     public long bufferSizeInBytes() {
@@ -163,6 +248,14 @@ class S3BlobStore implements BlobStore {
 
     public int getBulkDeletesSize() {
         return bulkDeletesSize;
+    }
+
+    public SizeBasedBlockingQ getNormalPrioritySizeBasedBlockingQ() {
+        return normalPrioritySizeBasedBlockingQ;
+    }
+
+    public SizeBasedBlockingQ getLowPrioritySizeBasedBlockingQ() {
+        return lowPrioritySizeBasedBlockingQ;
     }
 
     @Override
@@ -182,7 +275,9 @@ class S3BlobStore implements BlobStore {
 
     @Override
     public Map<String, Long> stats() {
-        return statsMetricPublisher.getStats().toMap();
+        Map<String, Long> stats = statsMetricPublisher.getStats().toMap();
+        stats.putAll(genericStatsMetricPublisher.stats());
+        return stats;
     }
 
     @Override
@@ -192,7 +287,13 @@ class S3BlobStore implements BlobStore {
         }
         Map<Metric, Map<String, Long>> extendedStats = new HashMap<>();
         statsMetricPublisher.getExtendedStats().forEach((k, v) -> extendedStats.put(k, v.toMap()));
+        extendedStats.put(Metric.GENERIC_STATS, genericStatsMetricPublisher.stats());
         return extendedStats;
+    }
+
+    @Override
+    public boolean isBlobMetadataEnabled() {
+        return true;
     }
 
     public ObjectCannedACL getCannedACL() {

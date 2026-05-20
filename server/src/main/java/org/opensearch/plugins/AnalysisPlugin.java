@@ -47,6 +47,7 @@ import org.opensearch.index.analysis.PreConfiguredTokenFilter;
 import org.opensearch.index.analysis.PreConfiguredTokenizer;
 import org.opensearch.index.analysis.TokenFilterFactory;
 import org.opensearch.index.analysis.TokenizerFactory;
+import org.opensearch.indices.analysis.AnalysisModule;
 import org.opensearch.indices.analysis.AnalysisModule.AnalysisProvider;
 
 import java.io.IOException;
@@ -82,6 +83,14 @@ public interface AnalysisPlugin {
      */
     default Map<String, AnalysisProvider<CharFilterFactory>> getCharFilters() {
         return emptyMap();
+    }
+
+    /**
+     * Override to add additional {@link TokenFilter}s that need access to the AnalysisModule.
+     * The default implementation for plugins that don't need AnalysisModule calls the existing getTokenFilters() method.
+     */
+    default Map<String, AnalysisProvider<TokenFilterFactory>> getTokenFilters(AnalysisModule analysisModule) {
+        return getTokenFilters();
     }
 
     /**

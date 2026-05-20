@@ -1,0 +1,1 @@
+source = clickbench | where URL != '' | stats avg(length(URL)) as l, count() as c by CounterID | where c > 100000 | sort - l | head 25

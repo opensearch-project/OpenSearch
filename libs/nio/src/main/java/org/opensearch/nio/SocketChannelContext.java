@@ -142,12 +142,10 @@ public abstract class SocketChannelContext extends ChannelContext<SocketChannel>
             return true;
         } else if (connectContext.isCompletedExceptionally()) {
             Exception exception = connectException;
-            if (exception == null) {
-                throw new AssertionError("Should have received connection exception");
-            } else if (exception instanceof IOException) {
-                throw (IOException) exception;
-            } else {
-                throw (RuntimeException) exception;
+            switch (exception) {
+                case null -> throw new AssertionError("Should have received connection exception");
+                case IOException ioException -> throw ioException;
+                default -> throw (RuntimeException) exception;
             }
         }
 
@@ -388,6 +386,7 @@ public abstract class SocketChannelContext extends ChannelContext<SocketChannel>
         }
     }
 
+    @SuppressWarnings("removal")
     private static void connect(SocketChannel socketChannel, InetSocketAddress remoteAddress) throws IOException {
         try {
             AccessController.doPrivileged((PrivilegedExceptionAction<Boolean>) () -> socketChannel.connect(remoteAddress));

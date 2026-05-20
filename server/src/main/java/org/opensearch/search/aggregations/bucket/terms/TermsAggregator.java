@@ -33,6 +33,7 @@
 package org.opensearch.search.aggregations.bucket.terms;
 
 import org.opensearch.OpenSearchException;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
@@ -67,8 +68,9 @@ public abstract class TermsAggregator extends DeferableBucketAggregator {
     /**
      * Bucket count thresholds
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
+    @PublicApi(since = "1.0.0")
     public static class BucketCountThresholds implements Writeable, ToXContentFragment {
         private long minDocCount;
         private long shardMinDocCount;
@@ -254,14 +256,13 @@ public abstract class TermsAggregator extends DeferableBucketAggregator {
             this.collectMode = collectMode;
         }
         // Don't defer any child agg if we are dependent on it for pruning results
-        if (order instanceof Aggregation) {
-            AggregationPath path = ((Aggregation) order).path();
+        if (order instanceof Aggregation aggregation) {
+            AggregationPath path = aggregation.path();
             aggsUsedForSorting.add(path.resolveTopmostAggregator(this));
-        } else if (order instanceof CompoundOrder) {
-            CompoundOrder compoundOrder = (CompoundOrder) order;
+        } else if (order instanceof CompoundOrder compoundOrder) {
             for (BucketOrder orderElement : compoundOrder.orderElements()) {
-                if (orderElement instanceof Aggregation) {
-                    AggregationPath path = ((Aggregation) orderElement).path();
+                if (orderElement instanceof Aggregation aggregation) {
+                    AggregationPath path = aggregation.path();
                     aggsUsedForSorting.add(path.resolveTopmostAggregator(this));
                 }
             }
@@ -289,6 +290,7 @@ public abstract class TermsAggregator extends DeferableBucketAggregator {
 
     @Override
     protected boolean shouldDefer(Aggregator aggregator) {
-        return collectMode == SubAggCollectionMode.BREADTH_FIRST && !aggsUsedForSorting.contains(aggregator);
+        return context.getQueryShardContext().getStarTreeQueryContext() == null
+            && (collectMode == SubAggCollectionMode.BREADTH_FIRST && !aggsUsedForSorting.contains(aggregator));
     }
 }

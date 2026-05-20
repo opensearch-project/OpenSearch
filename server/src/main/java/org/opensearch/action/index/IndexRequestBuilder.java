@@ -35,13 +35,13 @@ package org.opensearch.action.index;
 import org.opensearch.action.DocWriteRequest;
 import org.opensearch.action.support.WriteRequestBuilder;
 import org.opensearch.action.support.replication.ReplicationRequestBuilder;
-import org.opensearch.client.OpenSearchClient;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.MediaType;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.VersionType;
+import org.opensearch.transport.client.OpenSearchClient;
 
 import java.util.Map;
 

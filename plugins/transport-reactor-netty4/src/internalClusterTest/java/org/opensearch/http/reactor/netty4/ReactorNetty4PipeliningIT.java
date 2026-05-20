@@ -14,6 +14,7 @@
 package org.opensearch.http.reactor.netty4;
 
 import org.opensearch.OpenSearchReactorNetty4IntegTestCase;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.transport.TransportAddress;
 import org.opensearch.http.HttpServerTransport;
 import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
@@ -43,7 +44,7 @@ public class ReactorNetty4PipeliningIT extends OpenSearchReactorNetty4IntegTestC
         TransportAddress[] boundAddresses = httpServerTransport.boundAddress().boundAddresses();
         TransportAddress transportAddress = randomFrom(boundAddresses);
 
-        try (ReactorHttpClient client = ReactorHttpClient.create()) {
+        try (ReactorHttpClient client = ReactorHttpClient.create(Settings.EMPTY)) {
             Collection<FullHttpResponse> responses = client.get(transportAddress.address(), true, requests);
             try {
                 assertThat(responses, hasSize(5));

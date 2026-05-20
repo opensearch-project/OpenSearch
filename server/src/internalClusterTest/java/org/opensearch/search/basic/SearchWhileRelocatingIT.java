@@ -40,10 +40,9 @@ import org.opensearch.action.search.SearchPhaseExecutionException;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.common.Priority;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.search.SearchHits;
 import org.opensearch.test.OpenSearchIntegTestCase;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -60,10 +59,10 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.formatShardStatu
 import static org.hamcrest.Matchers.equalTo;
 
 @OpenSearchIntegTestCase.ClusterScope(minNumDataNodes = 2)
-public class SearchWhileRelocatingIT extends ParameterizedOpenSearchIntegTestCase {
+public class SearchWhileRelocatingIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
 
-    public SearchWhileRelocatingIT(Settings dynamicSettings) {
-        super(dynamicSettings);
+    public SearchWhileRelocatingIT(Settings staticSettings) {
+        super(staticSettings);
     }
 
     @ParametersFactory
@@ -72,11 +71,6 @@ public class SearchWhileRelocatingIT extends ParameterizedOpenSearchIntegTestCas
             new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), false).build() },
             new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), true).build() }
         );
-    }
-
-    @Override
-    protected Settings featureFlagSettings() {
-        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.CONCURRENT_SEGMENT_SEARCH, "true").build();
     }
 
     public void testSearchAndRelocateConcurrentlyRandomReplicas() throws Exception {
@@ -124,14 +118,14 @@ public class SearchWhileRelocatingIT extends ParameterizedOpenSearchIntegTestCas
                         try {
                             while (!stop.get()) {
                                 SearchResponse sr = client().prepareSearch().setSize(numDocs).get();
-                                if (sr.getHits().getTotalHits().value != numDocs) {
+                                if (sr.getHits().getTotalHits().value() != numDocs) {
                                     // if we did not search all shards but had no failures that is potentially fine
                                     // if only the hit-count is wrong. this can happen if the cluster-state is behind when the
                                     // request comes in. It's a small window but a known limitation.
                                     if (sr.getTotalShards() != sr.getSuccessfulShards() && sr.getFailedShards() == 0) {
                                         nonCriticalExceptions.add(
                                             "Count is "
-                                                + sr.getHits().getTotalHits().value
+                                                + sr.getHits().getTotalHits().value()
                                                 + " but "
                                                 + numDocs
                                                 + " was expected. "
@@ -145,7 +139,7 @@ public class SearchWhileRelocatingIT extends ParameterizedOpenSearchIntegTestCas
                                 final SearchHits sh = sr.getHits();
                                 assertThat(
                                     "Expected hits to be the same size the actual hits array",
-                                    sh.getTotalHits().value,
+                                    sh.getTotalHits().value(),
                                     equalTo((long) (sh.getHits().length))
                                 );
                                 // this is the more critical but that we hit the actual hit array has a different size than the

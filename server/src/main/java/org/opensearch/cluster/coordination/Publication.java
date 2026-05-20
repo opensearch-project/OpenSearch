@@ -85,7 +85,7 @@ public abstract class Publication {
     }
 
     public void start(Set<DiscoveryNode> faultyNodes) {
-        logger.trace("publishing {} to {}", publishRequest, publicationTargets);
+        logger.debug("publishing version {} to {}", publishRequest.getAcceptedState().getVersion(), publicationTargets);
 
         for (final DiscoveryNode faultyNode : faultyNodes) {
             onFaultyNode(faultyNode);

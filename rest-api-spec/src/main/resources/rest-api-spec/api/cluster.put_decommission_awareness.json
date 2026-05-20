@@ -1,7 +1,7 @@
 {
   "cluster.put_decommission_awareness": {
     "documentation": {
-      "url": "https://opensearch.org/docs/latest/opensearch/rest-api/decommission/",
+      "url": "https://opensearch.org/docs/latest/api-reference/cluster-api/cluster-decommission/",
       "description": "Decommissions an awareness attribute"
     },
     "stability": "experimental",

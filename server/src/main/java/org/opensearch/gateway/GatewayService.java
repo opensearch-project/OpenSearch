@@ -68,50 +68,22 @@ import java.util.function.Function;
 public class GatewayService extends AbstractLifecycleComponent implements ClusterStateListener {
     private static final Logger logger = LogManager.getLogger(GatewayService.class);
 
-    public static final Setting<Integer> EXPECTED_NODES_SETTING = Setting.intSetting(
-        "gateway.expected_nodes",
-        -1,
-        -1,
-        Property.NodeScope,
-        Property.Deprecated
-    );
     public static final Setting<Integer> EXPECTED_DATA_NODES_SETTING = Setting.intSetting(
         "gateway.expected_data_nodes",
         -1,
         -1,
         Property.NodeScope
     );
-    public static final Setting<Integer> EXPECTED_MASTER_NODES_SETTING = Setting.intSetting(
-        "gateway.expected_master_nodes",
-        -1,
-        -1,
-        Property.NodeScope,
-        Property.Deprecated
-    );
     public static final Setting<TimeValue> RECOVER_AFTER_TIME_SETTING = Setting.positiveTimeSetting(
         "gateway.recover_after_time",
         TimeValue.timeValueMillis(0),
         Property.NodeScope
-    );
-    public static final Setting<Integer> RECOVER_AFTER_NODES_SETTING = Setting.intSetting(
-        "gateway.recover_after_nodes",
-        -1,
-        -1,
-        Property.NodeScope,
-        Property.Deprecated
     );
     public static final Setting<Integer> RECOVER_AFTER_DATA_NODES_SETTING = Setting.intSetting(
         "gateway.recover_after_data_nodes",
         -1,
         -1,
         Property.NodeScope
-    );
-    public static final Setting<Integer> RECOVER_AFTER_MASTER_NODES_SETTING = Setting.intSetting(
-        "gateway.recover_after_master_nodes",
-        0,
-        0,
-        Property.NodeScope,
-        Property.Deprecated
     );
 
     public static final ClusterBlock STATE_NOT_RECOVERED_BLOCK = new ClusterBlock(
@@ -133,12 +105,8 @@ public class GatewayService extends AbstractLifecycleComponent implements Cluste
     private final ClusterService clusterService;
 
     private final TimeValue recoverAfterTime;
-    private final int recoverAfterNodes;
-    private final int expectedNodes;
     private final int recoverAfterDataNodes;
     private final int expectedDataNodes;
-    private final int recoverAfterClusterManagerNodes;
-    private final int expectedClusterManagerNodes;
 
     private final Runnable recoveryRunnable;
 
@@ -158,25 +126,16 @@ public class GatewayService extends AbstractLifecycleComponent implements Cluste
         this.clusterService = clusterService;
         this.threadPool = threadPool;
         // allow to control a delay of when indices will get created
-        this.expectedNodes = EXPECTED_NODES_SETTING.get(settings);
         this.expectedDataNodes = EXPECTED_DATA_NODES_SETTING.get(settings);
-        this.expectedClusterManagerNodes = EXPECTED_MASTER_NODES_SETTING.get(settings);
 
         if (RECOVER_AFTER_TIME_SETTING.exists(settings)) {
             recoverAfterTime = RECOVER_AFTER_TIME_SETTING.get(settings);
-        } else if (expectedNodes >= 0 || expectedDataNodes >= 0 || expectedClusterManagerNodes >= 0) {
+        } else if (expectedDataNodes >= 0) {
             recoverAfterTime = DEFAULT_RECOVER_AFTER_TIME_IF_EXPECTED_NODES_IS_SET;
         } else {
             recoverAfterTime = null;
         }
-        this.recoverAfterNodes = RECOVER_AFTER_NODES_SETTING.get(settings);
         this.recoverAfterDataNodes = RECOVER_AFTER_DATA_NODES_SETTING.get(settings);
-        // default the recover after cluster-manager nodes to the minimum cluster-manager nodes in the discovery
-        if (RECOVER_AFTER_MASTER_NODES_SETTING.exists(settings)) {
-            recoverAfterClusterManagerNodes = RECOVER_AFTER_MASTER_NODES_SETTING.get(settings);
-        } else {
-            recoverAfterClusterManagerNodes = -1;
-        }
 
         if (discovery instanceof Coordinator) {
             recoveryRunnable = () -> clusterService.submitStateUpdateTask("local-gateway-elected-state", new RecoverStateUpdateTask());
@@ -222,28 +181,16 @@ public class GatewayService extends AbstractLifecycleComponent implements Cluste
         final DiscoveryNodes nodes = state.nodes();
         if (state.nodes().getClusterManagerNodeId() == null) {
             logger.debug("not recovering from gateway, no cluster-manager elected yet");
-        } else if (recoverAfterNodes != -1 && (nodes.getClusterManagerAndDataNodes().size()) < recoverAfterNodes) {
-            logger.debug(
-                "not recovering from gateway, nodes_size (data+master) [{}] < recover_after_nodes [{}]",
-                nodes.getClusterManagerAndDataNodes().size(),
-                recoverAfterNodes
-            );
         } else if (recoverAfterDataNodes != -1 && nodes.getDataNodes().size() < recoverAfterDataNodes) {
             logger.debug(
                 "not recovering from gateway, nodes_size (data) [{}] < recover_after_data_nodes [{}]",
                 nodes.getDataNodes().size(),
                 recoverAfterDataNodes
             );
-        } else if (recoverAfterClusterManagerNodes != -1 && nodes.getClusterManagerNodes().size() < recoverAfterClusterManagerNodes) {
-            logger.debug(
-                "not recovering from gateway, nodes_size (master) [{}] < recover_after_master_nodes [{}]",
-                nodes.getClusterManagerNodes().size(),
-                recoverAfterClusterManagerNodes
-            );
         } else {
             boolean enforceRecoverAfterTime;
             String reason;
-            if (expectedNodes == -1 && expectedClusterManagerNodes == -1 && expectedDataNodes == -1) {
+            if (expectedDataNodes == -1) {
                 // no expected is set, honor the setting if they are there
                 enforceRecoverAfterTime = true;
                 reason = "recover_after_time was set to [" + recoverAfterTime + "]";
@@ -251,25 +198,9 @@ public class GatewayService extends AbstractLifecycleComponent implements Cluste
                 // one of the expected is set, see if all of them meet the need, and ignore the timeout in this case
                 enforceRecoverAfterTime = false;
                 reason = "";
-                if (expectedNodes != -1 && (nodes.getClusterManagerAndDataNodes().size() < expectedNodes)) { // does not meet the
-                                                                                                             // expected...
-                    enforceRecoverAfterTime = true;
-                    reason = "expecting ["
-                        + expectedNodes
-                        + "] nodes, but only have ["
-                        + nodes.getClusterManagerAndDataNodes().size()
-                        + "]";
-                } else if (expectedDataNodes != -1 && (nodes.getDataNodes().size() < expectedDataNodes)) { // does not meet the expected...
+                if (nodes.getDataNodes().size() < expectedDataNodes) { // does not meet the expected...
                     enforceRecoverAfterTime = true;
                     reason = "expecting [" + expectedDataNodes + "] data nodes, but only have [" + nodes.getDataNodes().size() + "]";
-                } else if (expectedClusterManagerNodes != -1 && (nodes.getClusterManagerNodes().size() < expectedClusterManagerNodes)) {
-                    // does not meet the expected...
-                    enforceRecoverAfterTime = true;
-                    reason = "expecting ["
-                        + expectedClusterManagerNodes
-                        + "] cluster-manager nodes, but only have ["
-                        + nodes.getClusterManagerNodes().size()
-                        + "]";
                 }
             }
             performStateRecovery(enforceRecoverAfterTime, reason);

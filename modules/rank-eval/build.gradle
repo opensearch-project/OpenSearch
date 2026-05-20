@@ -31,8 +31,8 @@ apply plugin: 'opensearch.yaml-rest-test'
 apply plugin: 'opensearch.internal-cluster-test'
 
 opensearchplugin {
-  description 'The Rank Eval module adds APIs to evaluate ranking quality.'
-  classname 'org.opensearch.index.rankeval.RankEvalModulePlugin'
+  description = 'The Rank Eval module adds APIs to evaluate ranking quality.'
+  classname = 'org.opensearch.index.rankeval.RankEvalModulePlugin'
   hasClientJar = true
 }
 

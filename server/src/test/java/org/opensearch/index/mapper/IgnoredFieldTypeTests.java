@@ -48,7 +48,7 @@ public class IgnoredFieldTypeTests extends FieldTypeTestCase {
     public void testPrefixQuery() {
         MappedFieldType ft = IgnoredFieldMapper.IgnoredFieldType.INSTANCE;
 
-        Query expected = new PrefixQuery(new Term("_ignored", new BytesRef("foo*")), MultiTermQuery.CONSTANT_SCORE_REWRITE);
+        Query expected = new PrefixQuery(new Term("_ignored", new BytesRef("foo*")), MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE);
         assertEquals(expected, ft.prefixQuery("foo*", null, MOCK_QSC));
 
         OpenSearchException ee = expectThrows(OpenSearchException.class, () -> ft.prefixQuery("foo*", null, MOCK_QSC_DISALLOW_EXPENSIVE));
@@ -68,7 +68,7 @@ public class IgnoredFieldTypeTests extends FieldTypeTestCase {
             0,
             RegexpQuery.DEFAULT_PROVIDER,
             Operations.DEFAULT_DETERMINIZE_WORK_LIMIT,
-            MultiTermQuery.CONSTANT_SCORE_REWRITE
+            MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE
         );
         assertEquals(expected, ft.regexpQuery("foo?", 0, 0, 10, null, MOCK_QSC));
 

@@ -38,7 +38,6 @@ import org.opensearch.OpenSearchException;
 import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.index.fielddata.ScriptDocValues;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.RangeQueryBuilder;
@@ -46,7 +45,7 @@ import org.opensearch.plugins.Plugin;
 import org.opensearch.script.MockScriptPlugin;
 import org.opensearch.script.Script;
 import org.opensearch.script.ScriptType;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -56,6 +55,7 @@ import java.util.Map;
 import java.util.function.Function;
 
 import static org.opensearch.index.query.QueryBuilders.boolQuery;
+import static org.opensearch.index.query.QueryBuilders.idsQuery;
 import static org.opensearch.index.query.QueryBuilders.matchQuery;
 import static org.opensearch.index.query.QueryBuilders.scriptScoreQuery;
 import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING;
@@ -67,10 +67,10 @@ import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertSecondHit;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertThirdHit;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.hasScore;
 
-public class ScriptScoreQueryIT extends ParameterizedOpenSearchIntegTestCase {
+public class ScriptScoreQueryIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
 
-    public ScriptScoreQueryIT(Settings dynamicSettings) {
-        super(dynamicSettings);
+    public ScriptScoreQueryIT(Settings staticSettings) {
+        super(staticSettings);
     }
 
     @ParametersFactory
@@ -79,11 +79,6 @@ public class ScriptScoreQueryIT extends ParameterizedOpenSearchIntegTestCase {
             new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), false).build() },
             new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), true).build() }
         );
-    }
-
-    @Override
-    protected Settings featureFlagSettings() {
-        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.CONCURRENT_SEGMENT_SEARCH, "true").build();
     }
 
     @Override
@@ -222,5 +217,25 @@ public class ScriptScoreQueryIT extends ParameterizedOpenSearchIntegTestCase {
             updateSettingsRequest.persistentSettings(Settings.builder().put("search.allow_expensive_queries", (String) null));
             assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
         }
+    }
+
+    // test case added for issue https://github.com/opensearch-project/OpenSearch/issues/18446
+    public void testScriptScoreNotExistingQuery() throws Exception {
+        assertAcked(prepareCreate("test-index").setMapping("field2", "type=double"));
+        client().prepareIndex("test-index").setId("1").setSource("field2", 1).get();
+        refresh();
+        indexRandomForConcurrentSearch("test-index");
+
+        Map<String, Object> params = new HashMap<>();
+        params.put("param1", 0.1);
+        Script script = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['field2'].value * param1", params);
+        QueryBuilder idsQuery = idsQuery().addIds("2");
+        QueryBuilder scriptScoreQuery = scriptScoreQuery(idsQuery, script);
+        // Issue 18446 arises because of null Scorer returned from ScorerSupplier.
+        // However, Lucene prefers bulkScorer() instead of scorer() which doesn't trigger NPE as stated in issue 18446.
+        // As a result, we have to set profile to true to force the usage of scorer() instead of bulkScorer(),
+        // to make sure we test the intended code path
+        SearchResponse resp = client().prepareSearch("test-index").setQuery(scriptScoreQuery).setProfile(true).get();
+        assertNoFailures(resp);
     }
 }

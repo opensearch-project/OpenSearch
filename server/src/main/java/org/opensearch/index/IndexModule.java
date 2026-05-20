@@ -38,16 +38,19 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.search.similarities.BM25Similarity;
 import org.apache.lucene.search.similarities.Similarity;
-import org.apache.lucene.store.MMapDirectory;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.LockFactory;
 import org.apache.lucene.util.Constants;
 import org.opensearch.Version;
-import org.opensearch.client.Client;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.CheckedFunction;
+import org.opensearch.common.CheckedTriFunction;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.TriFunction;
+import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.common.annotation.InternalApi;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.logging.DeprecationLogger;
 import org.opensearch.common.settings.Setting;
@@ -58,27 +61,43 @@ import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.index.Index;
+import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.indices.breaker.CircuitBreakerService;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.NodeEnvironment;
+import org.opensearch.env.ShardLock;
 import org.opensearch.index.analysis.AnalysisRegistry;
 import org.opensearch.index.analysis.IndexAnalyzers;
 import org.opensearch.index.cache.query.DisabledQueryCache;
 import org.opensearch.index.cache.query.IndexQueryCache;
 import org.opensearch.index.cache.query.QueryCache;
+import org.opensearch.index.compositeindex.CompositeIndexSettings;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.EngineConfigFactory;
 import org.opensearch.index.engine.EngineFactory;
+import org.opensearch.index.engine.dataformat.DataFormatRegistry;
+import org.opensearch.index.engine.exec.DataFormatAwareEngineFactory;
+import org.opensearch.index.engine.exec.EngineBackedIndexerFactory;
+import org.opensearch.index.engine.exec.IndexerFactory;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.shard.IndexEventListener;
+import org.opensearch.index.shard.IndexShard;
 import org.opensearch.index.shard.IndexingOperationListener;
 import org.opensearch.index.shard.SearchOperationListener;
+import org.opensearch.index.shard.ShardPath;
 import org.opensearch.index.similarity.SimilarityService;
+import org.opensearch.index.store.DataFormatAwareStoreDirectoryFactory;
+import org.opensearch.index.store.DefaultCompositeDirectoryFactory;
 import org.opensearch.index.store.FsDirectoryFactory;
+import org.opensearch.index.store.Store;
 import org.opensearch.index.store.remote.directory.RemoteSnapshotDirectoryFactory;
 import org.opensearch.index.store.remote.filecache.FileCache;
+import org.opensearch.index.store.remote.filecache.NodeCacheOrchestrator;
 import org.opensearch.index.translog.TranslogFactory;
+import org.opensearch.indices.ClusterMergeSchedulerConfig;
+import org.opensearch.indices.IndicesBitsetFilterCache;
 import org.opensearch.indices.IndicesQueryCache;
+import org.opensearch.indices.RemoteStoreSettings;
 import org.opensearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.opensearch.indices.mapper.MapperRegistry;
 import org.opensearch.indices.recovery.RecoverySettings;
@@ -87,15 +106,18 @@ import org.opensearch.plugins.IndexStorePlugin;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.script.ScriptService;
 import org.opensearch.search.aggregations.support.ValuesSourceRegistry;
+import org.opensearch.storage.directory.TieredDataFormatAwareStoreDirectoryFactory;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.client.Client;
 
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -129,6 +151,8 @@ public final class IndexModule {
     public static final Setting<Boolean> NODE_STORE_ALLOW_MMAP = Setting.boolSetting("node.store.allow_mmap", true, Property.NodeScope);
 
     private static final FsDirectoryFactory DEFAULT_DIRECTORY_FACTORY = new FsDirectoryFactory();
+    private static final IndexStorePlugin.CompositeDirectoryFactory DEFAULT_COMPOSITE_DIRECTORY_FACTORY =
+        new DefaultCompositeDirectoryFactory();
 
     private static final IndexStorePlugin.RecoveryStateFactory DEFAULT_RECOVERY_STATE_FACTORY = RecoveryState::new;
 
@@ -139,6 +163,38 @@ public final class IndexModule {
         Property.IndexScope,
         Property.NodeScope
     );
+
+    public static final Setting<String> INDEX_COMPOSITE_STORE_TYPE_SETTING = new Setting<>(
+        "index.composite_store.type",
+        "default",
+        Function.identity(),
+        Property.IndexScope,
+        Property.NodeScope
+    );
+
+    /**
+     * Index setting that selects a custom StoreFactory provided by plugins. If empty, the default store is used
+     */
+    public static final Setting<String> INDEX_STORE_FACTORY_SETTING = new Setting<>(
+        "index.store.factory",
+        "",
+        Function.identity(),
+        Property.IndexScope,
+        Property.NodeScope
+    );
+
+    /**
+     * Index setting which used to determine how the data is cached locally fully or partially.
+     */
+    public static final Setting<DataLocalityType> INDEX_STORE_LOCALITY_SETTING = new Setting<>(
+        "index.store.data_locality",
+        DataLocalityType.FULL.name(),
+        DataLocalityType::getValueOf,
+        Property.IndexScope,
+        Property.NodeScope
+    );
+
+    public static final Setting<Boolean> IS_WARM_INDEX_SETTING = Setting.boolSetting("index.warm", false, Property.IndexScope);
 
     public static final Setting<String> INDEX_RECOVERY_TYPE_SETTING = new Setting<>(
         "index.recovery.type",
@@ -159,54 +215,17 @@ public final class IndexModule {
         Property.NodeScope
     );
 
-    /** Which lucene file extensions to load with the mmap directory when using hybridfs store. This settings is ignored if {@link #INDEX_STORE_HYBRID_NIO_EXTENSIONS} is set.
-     *  This is an expert setting.
-     *  @see <a href="https://lucene.apache.org/core/9_5_0/core/org/apache/lucene/codecs/lucene95/package-summary.html#file-names">Lucene File Extensions</a>.
-     *
-     * @deprecated This setting will be removed in OpenSearch 3.x. Use {@link #INDEX_STORE_HYBRID_NIO_EXTENSIONS} instead.
-     */
-    @Deprecated
-    public static final Setting<List<String>> INDEX_STORE_HYBRID_MMAP_EXTENSIONS = Setting.listSetting(
-        "index.store.hybrid.mmap.extensions",
-        List.of("nvd", "dvd", "tim", "tip", "dim", "kdd", "kdi", "cfs", "doc"),
+    public static final Setting<String> INDEX_TIERING_STATE = new Setting<>(
+        "index.tiering.state",
+        TieringState.HOT.name(),
         Function.identity(),
-        new Setting.Validator<List<String>>() {
-
-            @Override
-            public void validate(final List<String> value) {}
-
-            @Override
-            public void validate(final List<String> value, final Map<Setting<?>, Object> settings) {
-                if (value.equals(INDEX_STORE_HYBRID_MMAP_EXTENSIONS.getDefault(Settings.EMPTY)) == false) {
-                    final List<String> nioExtensions = (List<String>) settings.get(INDEX_STORE_HYBRID_NIO_EXTENSIONS);
-                    final List<String> defaultNioExtensions = INDEX_STORE_HYBRID_NIO_EXTENSIONS.getDefault(Settings.EMPTY);
-                    if (nioExtensions.equals(defaultNioExtensions) == false) {
-                        throw new IllegalArgumentException(
-                            "Settings "
-                                + INDEX_STORE_HYBRID_NIO_EXTENSIONS.getKey()
-                                + " & "
-                                + INDEX_STORE_HYBRID_MMAP_EXTENSIONS.getKey()
-                                + " cannot both be set. Use "
-                                + INDEX_STORE_HYBRID_NIO_EXTENSIONS.getKey()
-                                + " only."
-                        );
-                    }
-                }
-            }
-
-            @Override
-            public Iterator<Setting<?>> settings() {
-                return List.<Setting<?>>of(INDEX_STORE_HYBRID_NIO_EXTENSIONS).iterator();
-            }
-        },
         Property.IndexScope,
-        Property.NodeScope,
-        Property.Deprecated
+        Property.PrivateIndex
     );
 
-    /** Which lucene file extensions to load with nio. All others will default to mmap. Takes precedence over {@link #INDEX_STORE_HYBRID_MMAP_EXTENSIONS}.
+    /** Which lucene file extensions to load with nio. All others will default to mmap.
      *  This is an expert setting.
-     *  @see <a href="https://lucene.apache.org/core/9_5_0/core/org/apache/lucene/codecs/lucene95/package-summary.html#file-names">Lucene File Extensions</a>.
+     *  @see <a href="https://lucene.apache.org/core/9_9_0/core/org/apache/lucene/codecs/lucene99/package-summary.html#file-names">Lucene File Extensions</a>.
      */
     public static final Setting<List<String>> INDEX_STORE_HYBRID_NIO_EXTENSIONS = Setting.listSetting(
         "index.store.hybrid.nio.extensions",
@@ -229,35 +248,6 @@ public final class IndexModule {
             "vem"
         ),
         Function.identity(),
-        new Setting.Validator<List<String>>() {
-
-            @Override
-            public void validate(final List<String> value) {}
-
-            @Override
-            public void validate(final List<String> value, final Map<Setting<?>, Object> settings) {
-                if (value.equals(INDEX_STORE_HYBRID_NIO_EXTENSIONS.getDefault(Settings.EMPTY)) == false) {
-                    final List<String> mmapExtensions = (List<String>) settings.get(INDEX_STORE_HYBRID_MMAP_EXTENSIONS);
-                    final List<String> defaultMmapExtensions = INDEX_STORE_HYBRID_MMAP_EXTENSIONS.getDefault(Settings.EMPTY);
-                    if (mmapExtensions.equals(defaultMmapExtensions) == false) {
-                        throw new IllegalArgumentException(
-                            "Settings "
-                                + INDEX_STORE_HYBRID_NIO_EXTENSIONS.getKey()
-                                + " & "
-                                + INDEX_STORE_HYBRID_MMAP_EXTENSIONS.getKey()
-                                + " cannot both be set. Use "
-                                + INDEX_STORE_HYBRID_NIO_EXTENSIONS.getKey()
-                                + " only."
-                        );
-                    }
-                }
-            }
-
-            @Override
-            public Iterator<Setting<?>> settings() {
-                return List.<Setting<?>>of(INDEX_STORE_HYBRID_MMAP_EXTENSIONS).iterator();
-            }
-        },
         Property.IndexScope,
         Property.NodeScope
     );
@@ -282,13 +272,15 @@ public final class IndexModule {
 
     private final IndexSettings indexSettings;
     private final AnalysisRegistry analysisRegistry;
-    private final EngineFactory engineFactory;
+    private final IndexerFactory indexerFactory;
     private final EngineConfigFactory engineConfigFactory;
-    private SetOnce<Function<IndexService, CheckedFunction<DirectoryReader, DirectoryReader, IOException>>> indexReaderWrapper =
+    private final SetOnce<Function<IndexService, CheckedFunction<DirectoryReader, DirectoryReader, IOException>>> indexReaderWrapper =
         new SetOnce<>();
     private final Set<IndexEventListener> indexEventListeners = new HashSet<>();
     private final Map<String, TriFunction<Settings, Version, ScriptService, Similarity>> similarities = new HashMap<>();
     private final Map<String, IndexStorePlugin.DirectoryFactory> directoryFactories;
+    private final Map<String, IndexStorePlugin.CompositeDirectoryFactory> compositeDirectoryFactories;
+    private final Map<String, DataFormatAwareStoreDirectoryFactory> dataFormatAwareStoreDirectoryFactories;
     private final SetOnce<BiFunction<IndexSettings, IndicesQueryCache, QueryCache>> forceQueryCacheProvider = new SetOnce<>();
     private final List<SearchOperationListener> searchOperationListeners = new ArrayList<>();
     private final List<IndexingOperationListener> indexOperationListeners = new ArrayList<>();
@@ -296,6 +288,9 @@ public final class IndexModule {
     private final AtomicBoolean frozen = new AtomicBoolean(false);
     private final BooleanSupplier allowExpensiveQueries;
     private final Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories;
+    private final Map<String, IndexStorePlugin.StoreFactory> storeFactories;
+    private final NodeCacheOrchestrator nodeCacheOrchestrator;
+    private final CompositeIndexSettings compositeIndexSettings;
 
     /**
      * Construct the index module for the index with the specified index settings. The index module contains extension points for plugins
@@ -303,9 +298,43 @@ public final class IndexModule {
      *
      * @param indexSettings      the index settings
      * @param analysisRegistry   the analysis registry
-     * @param engineFactory      the engine factory
+     * @param indexerFactory      the engine factory
      * @param directoryFactories the available store types
      */
+    @InternalApi
+    public IndexModule(
+        final IndexSettings indexSettings,
+        final AnalysisRegistry analysisRegistry,
+        final IndexerFactory indexerFactory,
+        final EngineConfigFactory engineConfigFactory,
+        final Map<String, IndexStorePlugin.DirectoryFactory> directoryFactories,
+        final Map<String, IndexStorePlugin.CompositeDirectoryFactory> compositeDirectoryFactories,
+        final BooleanSupplier allowExpensiveQueries,
+        final IndexNameExpressionResolver expressionResolver,
+        final Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories,
+        final Map<String, IndexStorePlugin.StoreFactory> storeFactories,
+        final NodeCacheOrchestrator nodeCacheOrchestrator,
+        final CompositeIndexSettings compositeIndexSettings,
+        final Map<String, DataFormatAwareStoreDirectoryFactory> dataFormatAwareStoreDirectoryFactories
+    ) {
+        this.indexSettings = indexSettings;
+        this.analysisRegistry = analysisRegistry;
+        this.indexerFactory = Objects.requireNonNull(indexerFactory);
+        this.engineConfigFactory = Objects.requireNonNull(engineConfigFactory);
+        this.searchOperationListeners.add(new SearchSlowLog(indexSettings));
+        this.indexOperationListeners.add(new IndexingSlowLog(indexSettings));
+        this.directoryFactories = Collections.unmodifiableMap(directoryFactories);
+        this.compositeDirectoryFactories = Collections.unmodifiableMap(compositeDirectoryFactories);
+        this.dataFormatAwareStoreDirectoryFactories = Collections.unmodifiableMap(dataFormatAwareStoreDirectoryFactories);
+        this.allowExpensiveQueries = allowExpensiveQueries;
+        this.expressionResolver = expressionResolver;
+        this.recoveryStateFactories = recoveryStateFactories;
+        this.storeFactories = storeFactories;
+        this.nodeCacheOrchestrator = nodeCacheOrchestrator;
+        this.compositeIndexSettings = compositeIndexSettings;
+    }
+
+    @InternalApi
     public IndexModule(
         final IndexSettings indexSettings,
         final AnalysisRegistry analysisRegistry,
@@ -316,16 +345,21 @@ public final class IndexModule {
         final IndexNameExpressionResolver expressionResolver,
         final Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories
     ) {
-        this.indexSettings = indexSettings;
-        this.analysisRegistry = analysisRegistry;
-        this.engineFactory = Objects.requireNonNull(engineFactory);
-        this.engineConfigFactory = Objects.requireNonNull(engineConfigFactory);
-        this.searchOperationListeners.add(new SearchSlowLog(indexSettings));
-        this.indexOperationListeners.add(new IndexingSlowLog(indexSettings));
-        this.directoryFactories = Collections.unmodifiableMap(directoryFactories);
-        this.allowExpensiveQueries = allowExpensiveQueries;
-        this.expressionResolver = expressionResolver;
-        this.recoveryStateFactories = recoveryStateFactories;
+        this(
+            indexSettings,
+            analysisRegistry,
+            new EngineBackedIndexerFactory(engineFactory),
+            engineConfigFactory,
+            directoryFactories,
+            Collections.emptyMap(),
+            allowExpensiveQueries,
+            expressionResolver,
+            recoveryStateFactories,
+            Collections.emptyMap(),
+            null,
+            null,
+            Collections.emptyMap()
+        );
     }
 
     /**
@@ -369,8 +403,8 @@ public final class IndexModule {
      *
      * @return the engine factory
      */
-    EngineFactory getEngineFactory() {
-        return engineFactory;
+    IndexerFactory getIndexerFactory() {
+        return indexerFactory;
     }
 
     /**
@@ -576,14 +610,60 @@ public final class IndexModule {
         }
     }
 
+    /**
+     * Indicates the locality of the data - whether it will be cached fully or partially
+     */
+    public enum DataLocalityType {
+        /**
+         * Indicates that all the data will be cached locally
+         */
+        FULL,
+        /**
+         * Indicates that only a subset of the data will be cached locally
+         */
+        PARTIAL;
+
+        private static final Map<String, DataLocalityType> LOCALITY_TYPES;
+
+        static {
+            final Map<String, DataLocalityType> localityTypes = new HashMap<>(values().length);
+            for (final DataLocalityType dataLocalityType : values()) {
+                localityTypes.put(dataLocalityType.name(), dataLocalityType);
+            }
+            LOCALITY_TYPES = Collections.unmodifiableMap(localityTypes);
+        }
+
+        public static DataLocalityType getValueOf(final String localityType) {
+            Objects.requireNonNull(localityType, "No locality type given.");
+            final String localityTypeName = localityType.trim().toUpperCase(Locale.ROOT);
+            final DataLocalityType type = LOCALITY_TYPES.get(localityTypeName);
+            if (type != null) {
+                return type;
+            }
+            throw new IllegalArgumentException("Unknown locality type constant [" + localityType + "].");
+        }
+    }
+
     public static Type defaultStoreType(final boolean allowMmap) {
-        if (allowMmap && Constants.JRE_IS_64BIT && MMapDirectory.UNMAP_SUPPORTED) {
+        if (allowMmap && Constants.JRE_IS_64BIT) {
             return Type.HYBRIDFS;
         } else {
             return Type.NIOFS;
         }
     }
 
+    /**
+     * Represents the tiering state of the index.
+     */
+    @ExperimentalApi
+    public enum TieringState {
+        HOT,
+        HOT_TO_WARM,
+        WARM,
+        WARM_TO_HOT;
+    }
+
+    @Deprecated(forRemoval = true)
     public IndexService newIndexService(
         IndexService.IndexCreationContext indexCreationContext,
         NodeEnvironment environment,
@@ -604,14 +684,358 @@ public final class IndexModule {
         IndexStorePlugin.DirectoryFactory remoteDirectoryFactory,
         BiFunction<IndexSettings, ShardRouting, TranslogFactory> translogFactorySupplier,
         Supplier<TimeValue> clusterDefaultRefreshIntervalSupplier,
-        Supplier<TimeValue> clusterRemoteTranslogBufferIntervalSupplier,
-        RecoverySettings recoverySettings
+        Supplier<Boolean> fixedRefreshIntervalSchedulingEnabled,
+        Supplier<Boolean> shardLevelRefreshEnabled,
+        RecoverySettings recoverySettings,
+        RemoteStoreSettings remoteStoreSettings,
+        Supplier<Integer> clusterDefaultMaxMergeAtOnceSupplier
+    ) throws IOException {
+        return newIndexService(
+            indexCreationContext,
+            environment,
+            xContentRegistry,
+            shardStoreDeleter,
+            circuitBreakerService,
+            bigArrays,
+            threadPool,
+            scriptService,
+            clusterService,
+            client,
+            indicesQueryCache,
+            mapperRegistry,
+            indicesFieldDataCache,
+            namedWriteableRegistry,
+            idFieldDataEnabled,
+            valuesSourceRegistry,
+            remoteDirectoryFactory,
+            translogFactorySupplier,
+            clusterDefaultRefreshIntervalSupplier,
+            fixedRefreshIntervalSchedulingEnabled,
+            shardLevelRefreshEnabled,
+            recoverySettings,
+            remoteStoreSettings,
+            s -> {},
+            s -> null,
+            clusterDefaultMaxMergeAtOnceSupplier
+        );
+    }
+
+    @Deprecated(forRemoval = true)
+    public IndexService newIndexService(
+        IndexService.IndexCreationContext indexCreationContext,
+        NodeEnvironment environment,
+        NamedXContentRegistry xContentRegistry,
+        IndexService.ShardStoreDeleter shardStoreDeleter,
+        CircuitBreakerService circuitBreakerService,
+        BigArrays bigArrays,
+        ThreadPool threadPool,
+        ScriptService scriptService,
+        ClusterService clusterService,
+        Client client,
+        IndicesQueryCache indicesQueryCache,
+        MapperRegistry mapperRegistry,
+        IndicesFieldDataCache indicesFieldDataCache,
+        NamedWriteableRegistry namedWriteableRegistry,
+        BooleanSupplier idFieldDataEnabled,
+        ValuesSourceRegistry valuesSourceRegistry,
+        IndexStorePlugin.DirectoryFactory remoteDirectoryFactory,
+        BiFunction<IndexSettings, ShardRouting, TranslogFactory> translogFactorySupplier,
+        Supplier<TimeValue> clusterDefaultRefreshIntervalSupplier,
+        Supplier<Boolean> fixedRefreshIntervalSchedulingEnabled,
+        Supplier<Boolean> shardLevelRefreshEnabled,
+        RecoverySettings recoverySettings,
+        RemoteStoreSettings remoteStoreSettings,
+        Consumer<IndexShard> replicator,
+        Function<ShardId, ReplicationStats> segmentReplicationStatsProvider,
+        Supplier<Integer> clusterDefaultMaxMergeAtOnceSupplier
+    ) throws IOException {
+        return newIndexService(
+            indexCreationContext,
+            environment,
+            xContentRegistry,
+            shardStoreDeleter,
+            circuitBreakerService,
+            bigArrays,
+            threadPool,
+            scriptService,
+            clusterService,
+            client,
+            indicesQueryCache,
+            mapperRegistry,
+            indicesFieldDataCache,
+            namedWriteableRegistry,
+            idFieldDataEnabled,
+            valuesSourceRegistry,
+            remoteDirectoryFactory,
+            translogFactorySupplier,
+            clusterDefaultRefreshIntervalSupplier,
+            fixedRefreshIntervalSchedulingEnabled,
+            shardLevelRefreshEnabled,
+            recoverySettings,
+            remoteStoreSettings,
+            replicator,
+            segmentReplicationStatsProvider,
+            clusterDefaultMaxMergeAtOnceSupplier,
+            null
+        );
+    }
+
+    /**
+     * @deprecated Use the overload that accepts a {@code compositeEngineFactorySupplier} parameter.
+     */
+    @Deprecated(forRemoval = true)
+    public IndexService newIndexService(
+        IndexService.IndexCreationContext indexCreationContext,
+        NodeEnvironment environment,
+        NamedXContentRegistry xContentRegistry,
+        IndexService.ShardStoreDeleter shardStoreDeleter,
+        CircuitBreakerService circuitBreakerService,
+        BigArrays bigArrays,
+        ThreadPool threadPool,
+        ScriptService scriptService,
+        ClusterService clusterService,
+        Client client,
+        IndicesQueryCache indicesQueryCache,
+        MapperRegistry mapperRegistry,
+        IndicesFieldDataCache indicesFieldDataCache,
+        NamedWriteableRegistry namedWriteableRegistry,
+        BooleanSupplier idFieldDataEnabled,
+        ValuesSourceRegistry valuesSourceRegistry,
+        IndexStorePlugin.DirectoryFactory remoteDirectoryFactory,
+        BiFunction<IndexSettings, ShardRouting, TranslogFactory> translogFactorySupplier,
+        Supplier<TimeValue> clusterDefaultRefreshIntervalSupplier,
+        Supplier<Boolean> fixedRefreshIntervalSchedulingEnabled,
+        Supplier<Boolean> shardLevelRefreshEnabled,
+        RecoverySettings recoverySettings,
+        RemoteStoreSettings remoteStoreSettings,
+        Consumer<IndexShard> replicator,
+        Function<ShardId, ReplicationStats> segmentReplicationStatsProvider,
+        Supplier<Integer> clusterDefaultMaxMergeAtOnceSupplier,
+        ClusterMergeSchedulerConfig clusterMergeSchedulerConfig
+    ) throws IOException {
+        return newIndexService(
+            indexCreationContext,
+            environment,
+            xContentRegistry,
+            shardStoreDeleter,
+            circuitBreakerService,
+            bigArrays,
+            threadPool,
+            scriptService,
+            clusterService,
+            client,
+            indicesQueryCache,
+            mapperRegistry,
+            indicesFieldDataCache,
+            null,
+            namedWriteableRegistry,
+            idFieldDataEnabled,
+            valuesSourceRegistry,
+            remoteDirectoryFactory,
+            translogFactorySupplier,
+            clusterDefaultRefreshIntervalSupplier,
+            fixedRefreshIntervalSchedulingEnabled,
+            shardLevelRefreshEnabled,
+            recoverySettings,
+            remoteStoreSettings,
+            replicator,
+            segmentReplicationStatsProvider,
+            clusterDefaultMaxMergeAtOnceSupplier,
+            clusterMergeSchedulerConfig,
+            (DataFormatRegistry) null
+        );
+    }
+
+    /**
+     * @deprecated Use the overload that accepts {@code indicesBitsetFilterCache} and {@code dataFormatRegistry} parameters.
+     */
+    @Deprecated(forRemoval = true)
+    public IndexService newIndexService(
+        IndexService.IndexCreationContext indexCreationContext,
+        NodeEnvironment environment,
+        NamedXContentRegistry xContentRegistry,
+        IndexService.ShardStoreDeleter shardStoreDeleter,
+        CircuitBreakerService circuitBreakerService,
+        BigArrays bigArrays,
+        ThreadPool threadPool,
+        ScriptService scriptService,
+        ClusterService clusterService,
+        Client client,
+        IndicesQueryCache indicesQueryCache,
+        MapperRegistry mapperRegistry,
+        IndicesFieldDataCache indicesFieldDataCache,
+        NamedWriteableRegistry namedWriteableRegistry,
+        BooleanSupplier idFieldDataEnabled,
+        ValuesSourceRegistry valuesSourceRegistry,
+        IndexStorePlugin.DirectoryFactory remoteDirectoryFactory,
+        BiFunction<IndexSettings, ShardRouting, TranslogFactory> translogFactorySupplier,
+        Supplier<TimeValue> clusterDefaultRefreshIntervalSupplier,
+        Supplier<Boolean> fixedRefreshIntervalSchedulingEnabled,
+        Supplier<Boolean> shardLevelRefreshEnabled,
+        RecoverySettings recoverySettings,
+        RemoteStoreSettings remoteStoreSettings,
+        Consumer<IndexShard> replicator,
+        Function<ShardId, ReplicationStats> segmentReplicationStatsProvider,
+        Supplier<Integer> clusterDefaultMaxMergeAtOnceSupplier,
+        ClusterMergeSchedulerConfig clusterMergeSchedulerConfig,
+        CheckedTriFunction<
+            ShardPath,
+            MapperService,
+            IndexSettings,
+            DataFormatAwareEngineFactory,
+            IOException> dataFormatAwareEngineFactorySupplier
+    ) throws IOException {
+        return newIndexService(
+            indexCreationContext,
+            environment,
+            xContentRegistry,
+            shardStoreDeleter,
+            circuitBreakerService,
+            bigArrays,
+            threadPool,
+            scriptService,
+            clusterService,
+            client,
+            indicesQueryCache,
+            mapperRegistry,
+            indicesFieldDataCache,
+            null,
+            namedWriteableRegistry,
+            idFieldDataEnabled,
+            valuesSourceRegistry,
+            remoteDirectoryFactory,
+            translogFactorySupplier,
+            clusterDefaultRefreshIntervalSupplier,
+            fixedRefreshIntervalSchedulingEnabled,
+            shardLevelRefreshEnabled,
+            recoverySettings,
+            remoteStoreSettings,
+            replicator,
+            segmentReplicationStatsProvider,
+            clusterDefaultMaxMergeAtOnceSupplier,
+            clusterMergeSchedulerConfig,
+            (DataFormatRegistry) null
+        );
+    }
+
+    /**
+     * @deprecated Use the overload that accepts a {@code dataFormatRegistry} parameter.
+     */
+    @Deprecated(forRemoval = true)
+    public IndexService newIndexService(
+        IndexService.IndexCreationContext indexCreationContext,
+        NodeEnvironment environment,
+        NamedXContentRegistry xContentRegistry,
+        IndexService.ShardStoreDeleter shardStoreDeleter,
+        CircuitBreakerService circuitBreakerService,
+        BigArrays bigArrays,
+        ThreadPool threadPool,
+        ScriptService scriptService,
+        ClusterService clusterService,
+        Client client,
+        IndicesQueryCache indicesQueryCache,
+        MapperRegistry mapperRegistry,
+        IndicesFieldDataCache indicesFieldDataCache,
+        IndicesBitsetFilterCache indicesBitsetFilterCache,
+        NamedWriteableRegistry namedWriteableRegistry,
+        BooleanSupplier idFieldDataEnabled,
+        ValuesSourceRegistry valuesSourceRegistry,
+        IndexStorePlugin.DirectoryFactory remoteDirectoryFactory,
+        BiFunction<IndexSettings, ShardRouting, TranslogFactory> translogFactorySupplier,
+        Supplier<TimeValue> clusterDefaultRefreshIntervalSupplier,
+        Supplier<Boolean> fixedRefreshIntervalSchedulingEnabled,
+        Supplier<Boolean> shardLevelRefreshEnabled,
+        RecoverySettings recoverySettings,
+        RemoteStoreSettings remoteStoreSettings,
+        Consumer<IndexShard> replicator,
+        Function<ShardId, ReplicationStats> segmentReplicationStatsProvider,
+        Supplier<Integer> clusterDefaultMaxMergeAtOnceSupplier,
+        ClusterMergeSchedulerConfig clusterMergeSchedulerConfig,
+        CheckedTriFunction<
+            ShardPath,
+            MapperService,
+            IndexSettings,
+            DataFormatAwareEngineFactory,
+            IOException> dataFormatAwareEngineFactorySupplier
+    ) throws IOException {
+
+        return newIndexService(
+            indexCreationContext,
+            environment,
+            xContentRegistry,
+            shardStoreDeleter,
+            circuitBreakerService,
+            bigArrays,
+            threadPool,
+            scriptService,
+            clusterService,
+            client,
+            indicesQueryCache,
+            mapperRegistry,
+            indicesFieldDataCache,
+            indicesBitsetFilterCache,
+            namedWriteableRegistry,
+            idFieldDataEnabled,
+            valuesSourceRegistry,
+            remoteDirectoryFactory,
+            translogFactorySupplier,
+            clusterDefaultRefreshIntervalSupplier,
+            fixedRefreshIntervalSchedulingEnabled,
+            shardLevelRefreshEnabled,
+            recoverySettings,
+            remoteStoreSettings,
+            replicator,
+            segmentReplicationStatsProvider,
+            clusterDefaultMaxMergeAtOnceSupplier,
+            clusterMergeSchedulerConfig,
+            (DataFormatRegistry) null
+        );
+    }
+
+    public IndexService newIndexService(
+        IndexService.IndexCreationContext indexCreationContext,
+        NodeEnvironment environment,
+        NamedXContentRegistry xContentRegistry,
+        IndexService.ShardStoreDeleter shardStoreDeleter,
+        CircuitBreakerService circuitBreakerService,
+        BigArrays bigArrays,
+        ThreadPool threadPool,
+        ScriptService scriptService,
+        ClusterService clusterService,
+        Client client,
+        IndicesQueryCache indicesQueryCache,
+        MapperRegistry mapperRegistry,
+        IndicesFieldDataCache indicesFieldDataCache,
+        IndicesBitsetFilterCache indicesBitsetFilterCache,
+        NamedWriteableRegistry namedWriteableRegistry,
+        BooleanSupplier idFieldDataEnabled,
+        ValuesSourceRegistry valuesSourceRegistry,
+        IndexStorePlugin.DirectoryFactory remoteDirectoryFactory,
+        BiFunction<IndexSettings, ShardRouting, TranslogFactory> translogFactorySupplier,
+        Supplier<TimeValue> clusterDefaultRefreshIntervalSupplier,
+        Supplier<Boolean> fixedRefreshIntervalSchedulingEnabled,
+        Supplier<Boolean> shardLevelRefreshEnabled,
+        RecoverySettings recoverySettings,
+        RemoteStoreSettings remoteStoreSettings,
+        Consumer<IndexShard> replicator,
+        Function<ShardId, ReplicationStats> segmentReplicationStatsProvider,
+        Supplier<Integer> clusterDefaultMaxMergeAtOnceSupplier,
+        ClusterMergeSchedulerConfig clusterMergeSchedulerConfig,
+        DataFormatRegistry dataFormatRegistry
     ) throws IOException {
         final IndexEventListener eventListener = freeze();
         Function<IndexService, CheckedFunction<DirectoryReader, DirectoryReader, IOException>> readerWrapperFactory = indexReaderWrapper
             .get() == null ? (shard) -> null : indexReaderWrapper.get();
         eventListener.beforeIndexCreated(indexSettings.getIndex(), indexSettings.getSettings());
         final IndexStorePlugin.DirectoryFactory directoryFactory = getDirectoryFactory(indexSettings, directoryFactories);
+        final IndexStorePlugin.CompositeDirectoryFactory compositeDirectoryFactory = getCompositeDirectoryFactory(
+            indexSettings,
+            compositeDirectoryFactories
+        );
+        final DataFormatAwareStoreDirectoryFactory dataFormatAwareStoreDirectoryFactory = getDataFormatAwareStoreDirectoryFactory(
+            indexSettings,
+            dataFormatAwareStoreDirectoryFactories
+        );
         final IndexStorePlugin.RecoveryStateFactory recoveryStateFactory = getRecoveryStateFactory(indexSettings, recoveryStateFactories);
         QueryCache queryCache = null;
         IndexAnalyzers indexAnalyzers = null;
@@ -638,7 +1062,7 @@ public final class IndexModule {
                 new SimilarityService(indexSettings, scriptService, similarities),
                 shardStoreDeleter,
                 indexAnalyzers,
-                engineFactory,
+                indexerFactory,
                 engineConfigFactory,
                 circuitBreakerService,
                 bigArrays,
@@ -648,11 +1072,14 @@ public final class IndexModule {
                 client,
                 queryCache,
                 directoryFactory,
+                compositeDirectoryFactory,
                 remoteDirectoryFactory,
+                resolveStoreFactory(indexSettings, storeFactories),
                 eventListener,
                 readerWrapperFactory,
                 mapperRegistry,
                 indicesFieldDataCache,
+                indicesBitsetFilterCache,
                 searchOperationListeners,
                 indexOperationListeners,
                 namedWriteableRegistry,
@@ -663,8 +1090,18 @@ public final class IndexModule {
                 recoveryStateFactory,
                 translogFactorySupplier,
                 clusterDefaultRefreshIntervalSupplier,
-                clusterRemoteTranslogBufferIntervalSupplier,
-                recoverySettings
+                fixedRefreshIntervalSchedulingEnabled,
+                shardLevelRefreshEnabled.get(),
+                recoverySettings,
+                remoteStoreSettings,
+                compositeIndexSettings,
+                replicator,
+                segmentReplicationStatsProvider,
+                clusterDefaultMaxMergeAtOnceSupplier,
+                clusterMergeSchedulerConfig,
+                dataFormatRegistry,
+                dataFormatAwareStoreDirectoryFactory,
+                nodeCacheOrchestrator
             );
             success = true;
             return indexService;
@@ -703,7 +1140,53 @@ public final class IndexModule {
                 throw new IllegalArgumentException("Unknown store type [" + storeType + "]");
             }
         }
+
+        return new IndexStorePlugin.DirectoryFactory() {
+            @Override
+            public Directory newDirectory(IndexSettings indexSettings, ShardPath shardPath) throws IOException {
+                return new BucketedCompositeDirectory(factory.newDirectory(indexSettings, shardPath));
+            }
+
+            @Override
+            public Directory newFSDirectory(Path location, LockFactory lockFactory, IndexSettings indexSettings) throws IOException {
+                return factory.newFSDirectory(location, lockFactory, indexSettings);
+            }
+        };
+    }
+
+    private static IndexStorePlugin.CompositeDirectoryFactory getCompositeDirectoryFactory(
+        final IndexSettings indexSettings,
+        final Map<String, IndexStorePlugin.CompositeDirectoryFactory> compositeDirectoryFactories
+    ) {
+        final String compositeStoreType = indexSettings.getValue(INDEX_COMPOSITE_STORE_TYPE_SETTING);
+        final IndexStorePlugin.CompositeDirectoryFactory factory;
+        if (compositeStoreType.isEmpty() || compositeDirectoryFactories.isEmpty()) {
+            factory = DEFAULT_COMPOSITE_DIRECTORY_FACTORY;
+        } else {
+            factory = compositeDirectoryFactories.get(compositeStoreType);
+            if (factory == null) {
+                throw new IllegalArgumentException("Unknown composite store type [" + compositeStoreType + "]");
+            }
+        }
         return factory;
+    }
+
+    private static DataFormatAwareStoreDirectoryFactory getDataFormatAwareStoreDirectoryFactory(
+        final IndexSettings indexSettings,
+        final Map<String, DataFormatAwareStoreDirectoryFactory> dataFormatAwareStoreDirectoryFactories
+    ) {
+        if (dataFormatAwareStoreDirectoryFactories.isEmpty()) {
+            return null;
+        }
+        if (indexSettings.isWarmIndex() && indexSettings.isPluggableDataFormatEnabled()) {
+            DataFormatAwareStoreDirectoryFactory tiered = dataFormatAwareStoreDirectoryFactories.get(
+                TieredDataFormatAwareStoreDirectoryFactory.FACTORY_KEY
+            );
+            if (tiered != null) {
+                return tiered;
+            }
+        }
+        return dataFormatAwareStoreDirectoryFactories.get("default");
     }
 
     private static IndexStorePlugin.RecoveryStateFactory getRecoveryStateFactory(
@@ -721,6 +1204,47 @@ public final class IndexModule {
             throw new IllegalArgumentException("Unknown recovery type [" + recoveryType + "]");
         }
 
+        return factory;
+    }
+
+    private static IndexStorePlugin.StoreFactory resolveStoreFactory(
+        final IndexSettings indexSettings,
+        final Map<String, IndexStorePlugin.StoreFactory> storeFactories
+    ) {
+        final String key = indexSettings.getValue(INDEX_STORE_FACTORY_SETTING);
+        if (key == null || key.isEmpty()) {
+            return new IndexStorePlugin.StoreFactory() {
+
+                @Override
+                public Store newStore(
+                    ShardId shardId,
+                    IndexSettings indexSettings,
+                    Directory directory,
+                    ShardLock shardLock,
+                    Store.OnClose onClose,
+                    ShardPath shardPath
+                ) throws IOException {
+                    return new Store(shardId, indexSettings, directory, shardLock, onClose, shardPath);
+                }
+
+                @Override
+                public Store newStore(
+                    ShardId shardId,
+                    IndexSettings indexSettings,
+                    Directory directory,
+                    ShardLock shardLock,
+                    Store.OnClose onClose,
+                    ShardPath shardPath,
+                    IndexStorePlugin.DirectoryFactory directoryFactory
+                ) throws IOException {
+                    return new Store(shardId, indexSettings, directory, shardLock, onClose, shardPath, directoryFactory);
+                }
+            };
+        }
+        final IndexStorePlugin.StoreFactory factory = storeFactories.get(key);
+        if (factory == null) {
+            throw new IllegalArgumentException("Unknown store factory [" + key + "]");
+        }
         return factory;
     }
 

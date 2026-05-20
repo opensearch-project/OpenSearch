@@ -38,7 +38,7 @@ import org.opensearch.ResourceNotFoundException;
 import org.opensearch.action.admin.cluster.storedscripts.DeleteStoredScriptRequest;
 import org.opensearch.action.admin.cluster.storedscripts.GetStoredScriptRequest;
 import org.opensearch.action.admin.cluster.storedscripts.PutStoredScriptRequest;
-import org.opensearch.action.support.master.AcknowledgedResponse;
+import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
 import org.opensearch.cluster.AckedClusterStateUpdateTask;
 import org.opensearch.cluster.ClusterChangedEvent;
 import org.opensearch.cluster.ClusterState;
@@ -812,7 +812,7 @@ public class ScriptService implements Closeable, ClusterStateApplier {
                 ScriptCache cache = entry.getValue().get();
                 contextStats.add(cache.stats(entry.getKey()));
             }
-            return new ScriptStats(contextStats);
+            return ScriptStats.aggregate(contextStats);
         }
 
         ScriptCacheStats cacheStats() {

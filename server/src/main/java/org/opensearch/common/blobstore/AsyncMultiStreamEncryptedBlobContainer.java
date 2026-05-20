@@ -171,4 +171,14 @@ public class AsyncMultiStreamEncryptedBlobContainer<T, U> extends EncryptedBlobC
             return new InputStreamContainer(decryptedStream, adjustedLength, adjustedPos);
         }
     }
+
+    @Override
+    public void deleteAsync(ActionListener<DeleteResult> completionListener) {
+        blobContainer.deleteAsync(completionListener);
+    }
+
+    @Override
+    public void deleteBlobsAsyncIgnoringIfNotExists(List<String> blobNames, ActionListener<Void> completionListener) {
+        blobContainer.deleteBlobsAsyncIgnoringIfNotExists(blobNames, completionListener);
+    }
 }

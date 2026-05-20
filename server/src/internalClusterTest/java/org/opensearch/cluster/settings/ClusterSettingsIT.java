@@ -37,18 +37,27 @@ import org.apache.logging.log4j.LogManager;
 import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsRequestBuilder;
 import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
 import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
+import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.routing.allocation.decider.EnableAllocationDecider;
+import org.opensearch.common.settings.AbstractScopedSettings;
+import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsException;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.unit.ByteSizeUnit;
+import org.opensearch.indices.IndicesQueryCache;
 import org.opensearch.indices.recovery.RecoverySettings;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.junit.After;
 
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import static org.opensearch.cluster.routing.allocation.DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL_SETTING;
 import static org.opensearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_PRIMARIES_RECOVERIES_SETTING;
@@ -70,6 +79,14 @@ public class ClusterSettingsIT extends OpenSearchIntegTestCase {
                 .setPersistentSettings(Settings.builder().putNull("*"))
                 .setTransientSettings(Settings.builder().putNull("*"))
         );
+    }
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal) {
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal))
+            .put(IndicesQueryCache.INDICES_QUERIES_CACHE_ALL_SEGMENTS_SETTING.getKey(), false)
+            .build();
     }
 
     public void testClusterNonExistingSettingsUpdate() {
@@ -380,6 +397,114 @@ public class ClusterSettingsIT extends OpenSearchIntegTestCase {
         }
     }
 
+    public void testThreadPoolSettings() {
+        // wrong threadpool
+        try {
+            client().admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setTransientSettings(Settings.builder().put("cluster.thread_pool.wrong.max", "-1").build())
+                .get();
+            fail("bogus value");
+        } catch (IllegalArgumentException ex) {
+            assertTrue(ex.getCause().getMessage().contains("illegal thread_pool name : "));
+        }
+
+        // Scaling threadpool - negative value
+        try {
+            client().admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setTransientSettings(Settings.builder().put("cluster.thread_pool.snapshot.max", "-1").build())
+                .get();
+            fail("bogus value");
+        } catch (IllegalArgumentException ex) {
+            assertEquals(ex.getCause().getMessage(), "illegal value for [cluster.thread_pool.snapshot], has to be positive value");
+        }
+
+        // Scaling threadpool - Other than max and core
+        try {
+            client().admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setTransientSettings(Settings.builder().put("cluster.thread_pool.snapshot.wrong", "-1").build())
+                .get();
+            fail("bogus value");
+        } catch (IllegalArgumentException ex) {
+            assertEquals(ex.getCause().getMessage(), "illegal thread_pool config : [wrong] should only have [core, max]");
+        }
+
+        // Scaling threadpool - core > max
+        try {
+            client().admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setTransientSettings(
+                    Settings.builder().put("cluster.thread_pool.snapshot.core", "2").put("cluster.thread_pool.snapshot.max", "1").build()
+                )
+                .get();
+            fail("bogus value");
+        } catch (IllegalArgumentException ex) {
+            assertEquals(ex.getCause().getMessage(), "core threadpool size cannot be greater than max");
+        }
+
+        // Scaling threadpool - Max value lesser than default value of 4
+        try {
+            client().admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setTransientSettings(Settings.builder().put("cluster.thread_pool.generic.max", "1").build())
+                .get();
+            fail("bogus value");
+        } catch (IllegalArgumentException ex) {
+            assertEquals(ex.getCause().getMessage(), "core threadpool size cannot be greater than max");
+        }
+
+        // Scaling threadpool - happy case - transient overrides persistent
+        ClusterUpdateSettingsResponse clusterUpdateSettingsResponse = client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setTransientSettings(
+                Settings.builder().put("cluster.thread_pool.snapshot.core", "2").put("cluster.thread_pool.snapshot.max", "2").build()
+            )
+            .setPersistentSettings(Settings.builder().put("cluster.thread_pool.snapshot.max", "1").build())
+            .get();
+        assertTrue(clusterUpdateSettingsResponse.isAcknowledged());
+
+        // Fixed threadpool - Other than size
+        try {
+            client().admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setTransientSettings(Settings.builder().put("cluster.thread_pool.get.wrong", "-1").build())
+                .get();
+            fail("bogus value");
+        } catch (IllegalArgumentException ex) {
+            assertEquals(ex.getCause().getMessage(), "illegal thread_pool config : [wrong] should only have [size]");
+        }
+
+        // Fixed threadpool - 0 value
+        try {
+            client().admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setTransientSettings(Settings.builder().put("cluster.thread_pool.get.size", "0").build())
+                .get();
+            fail("bogus value");
+        } catch (IllegalArgumentException ex) {
+            assertEquals(ex.getCause().getMessage(), "illegal value for [cluster.thread_pool.get], has to be positive value");
+        }
+
+        // Fixed threadpool - happy case
+        clusterUpdateSettingsResponse = client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setTransientSettings(Settings.builder().put("cluster.thread_pool.get.size", "1").build())
+            .setPersistentSettings(Settings.builder().put("cluster.thread_pool.get.size", "1").build())
+            .get();
+        assertTrue(clusterUpdateSettingsResponse.isAcknowledged());
+    }
+
     public void testLoggerLevelUpdate() {
         assertAcked(prepareCreate("test"));
 
@@ -441,6 +566,40 @@ public class ClusterSettingsIT extends OpenSearchIntegTestCase {
             client().admin().cluster().prepareUpdateSettings().setTransientSettings(updatedSettings).execute().actionGet();
             ClusterStateResponse updatedState = client().admin().cluster().prepareState().execute().actionGet();
             assertEquals(updatedValue, updatedState.getState().getMetadata().transientSettings().get(key));
+        }
+    }
+
+    public void testWithMultipleIndexCreationAndVerifySettingRegisteredOnce() {
+        for (int i = 0; i < 3; i++) {
+            String indexName = "test" + i;
+            assertAcked(prepareCreate(indexName).setSettings(Settings.builder().put(IndexMetadata.SETTING_BLOCKS_METADATA, true)));
+            assertBlocked(client().admin().indices().prepareGetSettings(indexName), IndexMetadata.INDEX_METADATA_BLOCK);
+            disableIndexBlock(indexName, IndexMetadata.SETTING_BLOCKS_METADATA);
+        }
+        Map<String, Boolean> settingToVerify = new HashMap<>();
+        settingToVerify.put("indices.fielddata.cache.size", false);
+        settingToVerify.put("indices.queries.cache.skip_cache_factor", false);
+        ClusterSettings clusterSettings = clusterService().getClusterSettings();
+        List<AbstractScopedSettings.SettingUpdater<?>> settingUpgraders = clusterSettings.getSettingUpdaters();
+        for (AbstractScopedSettings.SettingUpdater<?> settingUpgrader : settingUpgraders) {
+            String input = settingUpgrader.toString();
+            // Trying to fetch key value as there is no other way
+            Pattern p = Pattern.compile("\"key\"\\s*:\\s*\"([^\"]+)\"");
+            Matcher m = p.matcher(input);
+            String key = "";
+            if (m.find()) {
+                key = m.group(1);
+            }
+            if (settingToVerify.containsKey(key) && !settingToVerify.get(key)) {
+                settingToVerify.put(key, true);
+            } else if (settingToVerify.containsKey(key) && settingToVerify.get(key)) {
+                fail("Setting registered multiple times");
+            }
+        }
+        for (Map.Entry<String, Boolean> entry : settingToVerify.entrySet()) {
+            if (!entry.getValue()) {
+                fail("Was not able to read this setting: " + entry.getKey());
+            }
         }
     }
 

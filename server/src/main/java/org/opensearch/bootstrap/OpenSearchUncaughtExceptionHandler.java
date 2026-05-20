@@ -36,10 +36,9 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.cli.Terminal;
 import org.opensearch.common.SuppressForbidden;
+import org.opensearch.secure_sm.AccessController;
 
 import java.io.IOError;
-import java.security.AccessController;
-import java.security.PrivilegedAction;
 
 /**
  * UncaughtException Handler used during bootstrapping
@@ -102,7 +101,7 @@ class OpenSearchUncaughtExceptionHandler implements Thread.UncaughtExceptionHand
         AccessController.doPrivileged(new PrivilegedHaltAction(status));
     }
 
-    static class PrivilegedHaltAction implements PrivilegedAction<Void> {
+    static class PrivilegedHaltAction implements Runnable {
 
         private final int status;
 
@@ -112,12 +111,9 @@ class OpenSearchUncaughtExceptionHandler implements Thread.UncaughtExceptionHand
 
         @SuppressForbidden(reason = "halt")
         @Override
-        public Void run() {
+        public void run() {
             // we halt to prevent shutdown hooks from running
             Runtime.getRuntime().halt(status);
-            return null;
         }
-
     }
-
 }

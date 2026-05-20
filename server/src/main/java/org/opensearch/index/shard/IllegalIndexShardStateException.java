@@ -33,6 +33,7 @@
 package org.opensearch.index.shard;
 
 import org.opensearch.OpenSearchException;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.index.shard.ShardId;
@@ -43,8 +44,9 @@ import java.io.IOException;
 /**
  * Exception thrown when an index shard is in an illegal state
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public class IllegalIndexShardStateException extends OpenSearchException {
 
     private final IndexShardState currentState;

@@ -36,7 +36,6 @@ import org.opensearch.Version;
 import org.opensearch.action.PrimaryMissingActionException;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.broadcast.node.TransportBroadcastByNodeAction;
-import org.opensearch.client.node.NodeClient;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.block.ClusterBlockException;
 import org.opensearch.cluster.block.ClusterBlockLevel;
@@ -57,6 +56,7 @@ import org.opensearch.indices.IndicesService;
 import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
+import org.opensearch.transport.client.node.NodeClient;
 
 import java.io.IOException;
 import java.util.HashMap;

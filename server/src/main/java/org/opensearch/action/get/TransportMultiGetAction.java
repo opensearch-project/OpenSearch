@@ -35,10 +35,12 @@ package org.opensearch.action.get;
 import org.opensearch.action.RoutingMissingException;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.HandledTransportAction;
+import org.opensearch.action.support.TransportIndicesResolvingAction;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.block.ClusterBlockLevel;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.metadata.Metadata;
+import org.opensearch.cluster.metadata.ResolvedIndices;
 import org.opensearch.cluster.routing.Preference;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
@@ -51,13 +53,16 @@ import org.opensearch.transport.TransportService;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 
 /**
  * Perform the multi get action.
  *
  * @opensearch.internal
  */
-public class TransportMultiGetAction extends HandledTransportAction<MultiGetRequest, MultiGetResponse> {
+public class TransportMultiGetAction extends HandledTransportAction<MultiGetRequest, MultiGetResponse>
+    implements
+        TransportIndicesResolvingAction<MultiGetRequest> {
 
     private final ClusterService clusterService;
     private final TransportShardMultiGetAction shardAction;
@@ -173,5 +178,10 @@ public class TransportMultiGetAction extends HandledTransportAction<MultiGetRequ
 
     private static MultiGetItemResponse newItemFailure(String index, String id, Exception exception) {
         return new MultiGetItemResponse(null, new MultiGetResponse.Failure(index, id, exception));
+    }
+
+    @Override
+    public ResolvedIndices resolveIndices(MultiGetRequest request) {
+        return ResolvedIndices.of(request.items.stream().map(MultiGetRequest.Item::index).collect(Collectors.toSet()));
     }
 }

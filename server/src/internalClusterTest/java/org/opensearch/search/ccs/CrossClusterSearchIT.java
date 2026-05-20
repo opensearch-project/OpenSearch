@@ -35,7 +35,6 @@ package org.opensearch.search.ccs;
 import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.support.PlainActionFuture;
-import org.opensearch.client.Client;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.IndexModule;
@@ -45,6 +44,7 @@ import org.opensearch.plugins.Plugin;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.search.internal.SearchContext;
 import org.opensearch.test.AbstractMultiClustersTestCase;
+import org.opensearch.transport.client.Client;
 import org.junit.Before;
 
 import java.util.ArrayList;

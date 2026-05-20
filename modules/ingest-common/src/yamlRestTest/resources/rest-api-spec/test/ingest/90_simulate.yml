@@ -1113,3 +1113,48 @@ teardown:
   - match: { status: 400 }
   - match: { error.root_cause.0.type: "illegal_argument_exception" }
   - match: { error.root_cause.0.reason: "Failed to parse parameter [_if_primary_term], only int or long is accepted" }
+
+---
+"Test simulate with pipeline with ignore failure and cyclic field assignments in script":
+  - do:
+      ingest.simulate:
+        verbose: true
+        body: >
+          {
+            "pipeline": {
+              "description": "_description",
+              "processors": [
+                {
+                  "script" : {
+                    "ignore_failure" : true,
+                    "lang": "painless",
+                    "source": "ctx.foo['foo']=ctx.foo;ctx.tag='recursive'"
+                  }
+                },
+                {
+                  "script" : {
+                    "lang": "painless",
+                    "source" : "ctx.target_field = Processors.uppercase(ctx.foo.foo)"
+                  }
+                }
+              ]
+            },
+            "docs": [
+              {
+                "_source": {
+                  "foo": {
+                    "foo": "bar"
+                  }
+                }
+              }
+            ]
+          }
+  - length: { docs: 1 }
+  - length: { docs.0.processor_results: 2 }
+  - match: { docs.0.processor_results.0.status: "error_ignored" }
+  - match: { docs.0.processor_results.0.ignored_error.error.type: "illegal_argument_exception" }
+  - match: { docs.0.processor_results.0.doc._source.tag: null }
+  - match: { docs.0.processor_results.1.doc._source.target_field: "BAR" }
+  - match: { docs.0.processor_results.1.doc._source.foo.foo: "bar" }
+  - match: { docs.0.processor_results.1.status: "success" }
+  - match: { docs.0.processor_results.1.processor_type: "script" }

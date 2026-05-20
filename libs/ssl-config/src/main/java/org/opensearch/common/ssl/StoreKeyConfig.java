@@ -59,7 +59,7 @@ public class StoreKeyConfig implements SslKeyConfig {
      * @param path          The path to the keystore file
      * @param storePassword The password for the keystore
      * @param type          The {@link KeyStore#getType() type} of the keystore (typically "PKCS12" or "jks").
-     *                      See {@link KeyStoreUtil#inferKeyStoreType(Path)}.
+     *                      See {@link KeyStoreUtil#inferStoreType(String)}.
      * @param keyPassword   The password for the key(s) within the keystore
      *                      (see {@link javax.net.ssl.KeyManagerFactory#init(KeyStore, char[])}).
      * @param algorithm     The algorithm to use for the Key Manager (see {@link KeyManagerFactory#getAlgorithm()}).

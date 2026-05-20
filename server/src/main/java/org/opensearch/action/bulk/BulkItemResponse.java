@@ -197,6 +197,39 @@ public class BulkItemResponse implements Writeable, StatusToXContentObject {
         private final long seqNo;
         private final long term;
         private final boolean aborted;
+        private final FailureSource source;
+
+        /**
+         * The source of the failure, denotes which step has failure during the bulk processing.
+         */
+        @PublicApi(since = "3.0.0")
+        public enum FailureSource {
+            UNKNOWN((byte) 0),
+            // Pipeline execution failure
+            PIPELINE((byte) 1),
+            VALIDATION((byte) 2),
+            WRITE_PROCESSING((byte) 3);
+
+            private final byte sourceType;
+
+            FailureSource(byte sourceType) {
+                this.sourceType = sourceType;
+            }
+
+            public byte getSourceType() {
+                return sourceType;
+            }
+
+            public static FailureSource fromSourceType(byte sourceType) {
+                return switch (sourceType) {
+                    case 0 -> UNKNOWN;
+                    case 1 -> PIPELINE;
+                    case 2 -> VALIDATION;
+                    case 3 -> WRITE_PROCESSING;
+                    default -> throw new IllegalArgumentException("Unknown failure source: [" + sourceType + "]");
+                };
+            }
+        }
 
         public static final ConstructingObjectParser<Failure, Void> PARSER = new ConstructingObjectParser<>(
             "bulk_failures",
@@ -224,7 +257,21 @@ public class BulkItemResponse implements Writeable, StatusToXContentObject {
                 ExceptionsHelper.status(cause),
                 SequenceNumbers.UNASSIGNED_SEQ_NO,
                 SequenceNumbers.UNASSIGNED_PRIMARY_TERM,
-                false
+                false,
+                FailureSource.UNKNOWN
+            );
+        }
+
+        public Failure(String index, String id, Exception cause, FailureSource source) {
+            this(
+                index,
+                id,
+                cause,
+                ExceptionsHelper.status(cause),
+                SequenceNumbers.UNASSIGNED_SEQ_NO,
+                SequenceNumbers.UNASSIGNED_PRIMARY_TERM,
+                false,
+                source
             );
         }
 
@@ -236,20 +283,39 @@ public class BulkItemResponse implements Writeable, StatusToXContentObject {
                 ExceptionsHelper.status(cause),
                 SequenceNumbers.UNASSIGNED_SEQ_NO,
                 SequenceNumbers.UNASSIGNED_PRIMARY_TERM,
-                aborted
+                aborted,
+                FailureSource.UNKNOWN
             );
         }
 
         public Failure(String index, String id, Exception cause, RestStatus status) {
-            this(index, id, cause, status, SequenceNumbers.UNASSIGNED_SEQ_NO, SequenceNumbers.UNASSIGNED_PRIMARY_TERM, false);
+            this(
+                index,
+                id,
+                cause,
+                status,
+                SequenceNumbers.UNASSIGNED_SEQ_NO,
+                SequenceNumbers.UNASSIGNED_PRIMARY_TERM,
+                false,
+                FailureSource.UNKNOWN
+            );
         }
 
         /** For write failures after operation was assigned a sequence number. */
         public Failure(String index, String id, Exception cause, long seqNo, long term) {
-            this(index, id, cause, ExceptionsHelper.status(cause), seqNo, term, false);
+            this(index, id, cause, ExceptionsHelper.status(cause), seqNo, term, false, FailureSource.UNKNOWN);
         }
 
-        private Failure(String index, String id, Exception cause, RestStatus status, long seqNo, long term, boolean aborted) {
+        private Failure(
+            String index,
+            String id,
+            Exception cause,
+            RestStatus status,
+            long seqNo,
+            long term,
+            boolean aborted,
+            FailureSource source
+        ) {
             this.index = index;
             this.id = id;
             this.cause = cause;
@@ -257,6 +323,7 @@ public class BulkItemResponse implements Writeable, StatusToXContentObject {
             this.seqNo = seqNo;
             this.term = term;
             this.aborted = aborted;
+            this.source = source;
         }
 
         /**
@@ -275,6 +342,11 @@ public class BulkItemResponse implements Writeable, StatusToXContentObject {
             seqNo = in.readZLong();
             term = in.readVLong();
             aborted = in.readBoolean();
+            if (in.getVersion().onOrAfter(Version.V_3_0_0)) {
+                source = FailureSource.fromSourceType(in.readByte());
+            } else {
+                source = FailureSource.UNKNOWN;
+            }
         }
 
         @Override
@@ -288,6 +360,9 @@ public class BulkItemResponse implements Writeable, StatusToXContentObject {
             out.writeZLong(seqNo);
             out.writeVLong(term);
             out.writeBoolean(aborted);
+            if (out.getVersion().onOrAfter(Version.V_3_0_0)) {
+                out.writeByte(source.getSourceType());
+            }
         }
 
         /**
@@ -346,10 +421,13 @@ public class BulkItemResponse implements Writeable, StatusToXContentObject {
         /**
          * Whether this failure is the result of an <em>abort</em>.
          * If {@code true}, the request to which this failure relates should never be retried, regardless of the {@link #getCause() cause}.
-         * @see BulkItemRequest#abort(String, Exception)
          */
         public boolean isAborted() {
             return aborted;
+        }
+
+        public FailureSource getSource() {
+            return source;
         }
 
         @Override
@@ -551,14 +629,11 @@ public class BulkItemResponse implements Writeable, StatusToXContentObject {
     }
 
     private void writeResponseType(StreamOutput out) throws IOException {
-        if (response instanceof IndexResponse) {
-            out.writeByte((byte) 0);
-        } else if (response instanceof DeleteResponse) {
-            out.writeByte((byte) 1);
-        } else if (response instanceof UpdateResponse) {
-            out.writeByte((byte) 3); // make 3 instead of 2, because 2 is already in use for 'no responses'
-        } else {
-            throw new IllegalStateException("Unexpected response type found [" + response.getClass() + "]");
+        switch (response) {
+            case IndexResponse ignored -> out.writeByte((byte) 0);
+            case DeleteResponse ignored -> out.writeByte((byte) 1);
+            case UpdateResponse ignored -> out.writeByte((byte) 3); // make 3 instead of 2, because 2 is already in use for 'no responses'
+            default -> throw new IllegalStateException("Unexpected response type found [" + response.getClass() + "]");
         }
     }
 }

@@ -83,7 +83,7 @@ public class HighlightFieldTests extends OpenSearchTestCase {
         XContentType xcontentType = randomFrom(XContentType.values());
         XContentBuilder builder = MediaTypeRegistry.contentBuilder(xcontentType);
         if (randomBoolean()) {
-            builder.prettyPrint();
+            builder = builder.prettyPrint();
         }
         builder.startObject(); // we need to wrap xContent output in proper object to create a parser for it
         builder = highlightField.toXContent(builder, ToXContent.EMPTY_PARAMS);
@@ -103,20 +103,27 @@ public class HighlightFieldTests extends OpenSearchTestCase {
 
     public void testToXContent() throws IOException {
         HighlightField field = new HighlightField("foo", new Text[] { new Text("bar"), new Text("baz") });
-        XContentBuilder builder = JsonXContent.contentBuilder();
-        builder.prettyPrint();
+        XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
         builder.startObject();
         field.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
-        assertEquals("{\n" + "  \"foo\" : [\n" + "    \"bar\",\n" + "    \"baz\"\n" + "  ]\n" + "}", builder.toString());
+        assertEquals("""
+            {
+              "foo" : [
+                "bar",
+                "baz"
+              ]
+            }""", builder.toString());
 
         field = new HighlightField("foo", null);
-        builder = JsonXContent.contentBuilder();
-        builder.prettyPrint();
+        builder = JsonXContent.contentBuilder().prettyPrint();
         builder.startObject();
         field.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.endObject();
-        assertEquals("{\n" + "  \"foo\" : null\n" + "}", builder.toString());
+        assertEquals("""
+            {
+              "foo" : null
+            }""", builder.toString());
     }
 
     /**

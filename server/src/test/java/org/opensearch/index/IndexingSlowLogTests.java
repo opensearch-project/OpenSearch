@@ -32,8 +32,6 @@
 
 package org.opensearch.index;
 
-import com.fasterxml.jackson.core.JsonParseException;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.LoggerContext;
@@ -44,6 +42,7 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.logging.MockAppender;
+import org.opensearch.common.logging.SlowLogLevel;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.xcontent.json.JsonXContent;
@@ -59,6 +58,7 @@ import org.opensearch.index.mapper.ParsedDocument;
 import org.opensearch.index.mapper.SeqNoFieldMapper;
 import org.opensearch.index.mapper.Uid;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.tools.jackson.core.JsonParseException;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
@@ -412,7 +412,7 @@ public class IndexingSlowLogTests extends OpenSearchTestCase {
             assertNotNull(ex.getCause());
             assertThat(ex.getCause(), instanceOf(IllegalArgumentException.class));
             final IllegalArgumentException cause = (IllegalArgumentException) ex.getCause();
-            assertThat(cause, hasToString(containsString("No enum constant org.opensearch.index.SlowLogLevel.NOT A LEVEL")));
+            assertThat(cause, hasToString(containsString("No enum constant org.opensearch.common.logging.SlowLogLevel.NOT A LEVEL")));
         }
         assertEquals(SlowLogLevel.TRACE, log.getLevel());
 

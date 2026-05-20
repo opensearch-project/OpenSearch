@@ -32,7 +32,6 @@
 
 package org.opensearch.lucene.search.uhighlight;
 
-import org.apache.lucene.search.uhighlight.BoundedBreakIteratorScanner;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.text.BreakIterator;

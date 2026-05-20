@@ -1,4 +1,5 @@
 * text eol=lf
+*.jar binary
 *.bat binary
 *.zip binary
 *.exe binary
@@ -9,4 +10,5 @@
 *.bcfks binary
 *.crt binary
 *.p12 binary
+*.ttf binary
 *.txt text=auto

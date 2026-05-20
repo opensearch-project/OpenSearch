@@ -34,7 +34,7 @@ package org.opensearch.common.util.concurrent;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.action.support.ContextPreservingActionListener;
-import org.opensearch.client.OriginSettingClient;
+import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.collect.MapBuilder;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.settings.Setting;
@@ -46,6 +46,7 @@ import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.http.HttpTransportSettings;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskThreadContextStatePropagator;
+import org.opensearch.transport.client.OriginSettingClient;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -97,8 +98,9 @@ import static org.opensearch.http.HttpTransportSettings.SETTING_HTTP_MAX_WARNING
  *     // previous context is restored on StoredContext#close()
  * </pre>
  *
- * @opensearch.internal
+ * @opensearch.api
  */
+@PublicApi(since = "1.0.0")
 public final class ThreadContext implements Writeable {
 
     public static final String PREFIX = "request.headers";
@@ -109,6 +111,7 @@ public final class ThreadContext implements Writeable {
      */
     public static final String ACTION_ORIGIN_TRANSIENT_NAME = "action.origin";
 
+    // thread context permissions
     private static final Logger logger = LogManager.getLogger(ThreadContext.class);
     private static final ThreadContextStruct DEFAULT_CONTEXT = new ThreadContextStruct();
     private final Map<String, String> defaultHeader;
@@ -151,15 +154,17 @@ public final class ThreadContext implements Writeable {
 
         ThreadContextStruct threadContextStruct = DEFAULT_CONTEXT.putPersistent(context.persistentHeaders);
 
-        if (context.requestHeaders.containsKey(Task.X_OPAQUE_ID)) {
-            threadContextStruct = threadContextStruct.putHeaders(
-                MapBuilder.<String, String>newMapBuilder()
-                    .put(Task.X_OPAQUE_ID, context.requestHeaders.get(Task.X_OPAQUE_ID))
-                    .immutableMap()
-            );
+        MapBuilder<String, String> builder = MapBuilder.newMapBuilder();
+        for (String requestHeader : Task.REQUEST_HEADERS) {
+            if (context.requestHeaders.containsKey(requestHeader)) {
+                builder.put(requestHeader, context.requestHeaders.get(requestHeader));
+            }
+        }
+        if (builder.isEmpty() == false) {
+            threadContextStruct = threadContextStruct.putHeaders(builder.immutableMap());
         }
 
-        final Map<String, Object> transientHeaders = propagateTransients(context.transientHeaders);
+        final Map<String, Object> transientHeaders = propagateTransients(context.transientHeaders, context.isSystemContext);
         if (!transientHeaders.isEmpty()) {
             threadContextStruct = threadContextStruct.putTransient(transientHeaders);
         }
@@ -180,7 +185,7 @@ public final class ThreadContext implements Writeable {
     public Writeable captureAsWriteable() {
         final ThreadContextStruct context = threadLocal.get();
         return out -> {
-            final Map<String, String> propagatedHeaders = propagateHeaders(context.transientHeaders);
+            final Map<String, String> propagatedHeaders = propagateHeaders(context.transientHeaders, context.isSystemContext);
             context.writeTo(out, defaultHeader, propagatedHeaders);
         };
     }
@@ -203,7 +208,15 @@ public final class ThreadContext implements Writeable {
      * For example, a user might not have permission to GET from the tasks index
      * but the tasks API will perform a get on their behalf using this method
      * if it can't find the task in memory.
+     *
+     * Usage of stashWithOrigin is guarded by a ThreadContextPermission. In order to use
+     * stashWithOrigin, the codebase needs to explicitly be granted permission in the JSM policy file.
+     *
+     * Add an entry in the grant portion of the policy file like this:
+     *
+     * permission org.opensearch.secure_sm.ThreadContextPermission "stashWithOrigin";
      */
+    @SuppressWarnings("removal")
     public StoredContext stashWithOrigin(String origin) {
         final ThreadContext.StoredContext storedContext = stashContext();
         putTransient(ACTION_ORIGIN_TRANSIENT_NAME, origin);
@@ -214,7 +227,15 @@ public final class ThreadContext implements Writeable {
      * Removes the current context and resets a new context that contains a merge of the current headers and the given headers.
      * The removed context can be restored when closing the returned {@link StoredContext}. The merge strategy is that headers
      * that are already existing are preserved unless they are defaults.
+     *
+     * Usage of stashAndMergeHeaders is guarded by a ThreadContextPermission. In order to use
+     * stashAndMergeHeaders, the codebase needs to explicitly be granted permission in the JSM policy file.
+     *
+     * Add an entry in the grant portion of the policy file like this:
+     *
+     * permission org.opensearch.secure_sm.ThreadContextPermission "stashAndMergeHeaders";
      */
+    @SuppressWarnings("removal")
     public StoredContext stashAndMergeHeaders(Map<String, String> headers) {
         final ThreadContextStruct context = threadLocal.get();
         Map<String, String> newHeader = new HashMap<>(headers);
@@ -231,6 +252,14 @@ public final class ThreadContext implements Writeable {
         return newStoredContext(preserveResponseHeaders, Collections.emptyList());
     }
 
+    public StoredContext newStoredContext(boolean preserveResponseHeaders, boolean preserveTransients) {
+        return newStoredContext(preserveResponseHeaders, preserveTransients, Collections.emptyList());
+    }
+
+    public StoredContext newStoredContext(boolean preserveResponseHeaders, Collection<String> transientHeadersToClear) {
+        return newStoredContext(preserveResponseHeaders, false, transientHeadersToClear);
+    }
+
     /**
      * Just like {@link #stashContext()} but no default context is set. Instead, the {@code transientHeadersToClear} argument can be used
      * to clear specific transient headers in the new context. All headers (with the possible exception of {@code responseHeaders}) are
@@ -238,12 +267,16 @@ public final class ThreadContext implements Writeable {
      *
      * @param preserveResponseHeaders if set to <code>true</code> the response headers of the restore thread will be preserved.
      */
-    public StoredContext newStoredContext(boolean preserveResponseHeaders, Collection<String> transientHeadersToClear) {
+    public StoredContext newStoredContext(
+        boolean preserveResponseHeaders,
+        boolean preserveTransients,
+        Collection<String> transientHeadersToClear
+    ) {
         final ThreadContextStruct originalContext = threadLocal.get();
         final Map<String, Object> newTransientHeaders = new HashMap<>(originalContext.transientHeaders);
 
         boolean transientHeadersModified = false;
-        final Map<String, Object> transientHeaders = propagateTransients(originalContext.transientHeaders);
+        final Map<String, Object> transientHeaders = propagateTransients(originalContext.transientHeaders, originalContext.isSystemContext);
         if (!transientHeaders.isEmpty()) {
             newTransientHeaders.putAll(transientHeaders);
             transientHeadersModified = true;
@@ -272,10 +305,24 @@ public final class ThreadContext implements Writeable {
         final ThreadContextStruct newContext = threadLocal.get();
 
         return () -> {
+            // Re-apply propagator-declared transients from the current context back into the
+            // snapshot being restored. This ensures that transients written after the snapshot
+            // was taken using newStoredContext (e.g. CURRENT_SPAN set by the tracing infrastructure) are not silently
+            // dropped when the security plugin (or any other caller) calls storedContext.restore().
+            // Without this, restore() would blindly overwrite the threadLocal with the original
+            // snapshot, losing any propagated transients that were set after newStoredContext() was called.
+            ThreadContextStruct current = threadLocal.get();
+            ThreadContextStruct restoredContext = originalContext;
+            if (preserveTransients) {
+                final Map<String, Object> propagated = propagateTransients(current.transientHeaders, current.isSystemContext);
+                if (!propagated.isEmpty()) {
+                    restoredContext = originalContext.putTransientIfAbsent(propagated);
+                }
+            }
             if (preserveResponseHeaders && threadLocal.get() != newContext) {
-                threadLocal.set(originalContext.putResponseHeaders(threadLocal.get().responseHeaders));
+                threadLocal.set(restoredContext.putResponseHeaders(threadLocal.get().responseHeaders));
             } else {
-                threadLocal.set(originalContext);
+                threadLocal.set(restoredContext);
             }
         };
     }
@@ -320,7 +367,7 @@ public final class ThreadContext implements Writeable {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         final ThreadContextStruct context = threadLocal.get();
-        final Map<String, String> propagatedHeaders = propagateHeaders(context.transientHeaders);
+        final Map<String, String> propagatedHeaders = propagateHeaders(context.transientHeaders, context.isSystemContext);
         context.writeTo(out, defaultHeader, propagatedHeaders);
     }
 
@@ -482,6 +529,16 @@ public final class ThreadContext implements Writeable {
     }
 
     /**
+     * Update the {@code value} for the specified {@code key}
+     *
+     * @param key         the header name
+     * @param value       the header value
+     */
+    public void updateResponseHeader(final String key, final String value) {
+        updateResponseHeader(key, value, v -> v);
+    }
+
+    /**
      * Add the {@code value} for the specified {@code key} with the specified {@code uniqueValue} used for de-duplication. Any duplicate
      * {@code value} after applying {@code uniqueValue} is ignored.
      *
@@ -490,7 +547,28 @@ public final class ThreadContext implements Writeable {
      * @param uniqueValue the function that produces de-duplication values
      */
     public void addResponseHeader(final String key, final String value, final Function<String, String> uniqueValue) {
-        threadLocal.set(threadLocal.get().putResponse(key, value, uniqueValue, maxWarningHeaderCount, maxWarningHeaderSize));
+        threadLocal.set(threadLocal.get().putResponse(key, value, uniqueValue, maxWarningHeaderCount, maxWarningHeaderSize, false));
+    }
+
+    /**
+     * Update the {@code value} for the specified {@code key} with the specified {@code uniqueValue} used for de-duplication. Any duplicate
+     * {@code value} after applying {@code uniqueValue} is ignored.
+     *
+     * @param key         the header name
+     * @param value       the header value
+     * @param uniqueValue the function that produces de-duplication values
+     */
+    public void updateResponseHeader(final String key, final String value, final Function<String, String> uniqueValue) {
+        threadLocal.set(threadLocal.get().putResponse(key, value, uniqueValue, maxWarningHeaderCount, maxWarningHeaderSize, true));
+    }
+
+    /**
+     * Remove the {@code value} for the specified {@code key}.
+     *
+     * @param key         the header name
+     */
+    public void removeResponseHeader(final String key) {
+        threadLocal.get().responseHeaders.remove(key);
     }
 
     /**
@@ -530,9 +608,17 @@ public final class ThreadContext implements Writeable {
     /**
      * Marks this thread context as an internal system context. This signals that actions in this context are issued
      * by the system itself rather than by a user action.
+     *
+     * Usage of markAsSystemContext is guarded by a ThreadContextPermission. In order to use
+     * markAsSystemContext, the codebase needs to explicitly be granted permission in the JSM policy file.
+     *
+     * Add an entry in the grant portion of the policy file like this:
+     *
+     * permission org.opensearch.secure_sm.ThreadContextPermission "markAsSystemContext";
      */
+    @SuppressWarnings("removal")
     public void markAsSystemContext() {
-        threadLocal.set(threadLocal.get().setSystemContext());
+        threadLocal.set(threadLocal.get().setSystemContext(propagators));
     }
 
     /**
@@ -545,9 +631,10 @@ public final class ThreadContext implements Writeable {
     /**
      * A stored context
      *
-     * @opensearch.internal
+     * @opensearch.api
      */
     @FunctionalInterface
+    @PublicApi(since = "1.0.0")
     public interface StoredContext extends AutoCloseable {
         @Override
         void close();
@@ -570,15 +657,15 @@ public final class ThreadContext implements Writeable {
         }
     }
 
-    private Map<String, Object> propagateTransients(Map<String, Object> source) {
+    private Map<String, Object> propagateTransients(Map<String, Object> source, boolean isSystemContext) {
         final Map<String, Object> transients = new HashMap<>();
-        propagators.forEach(p -> transients.putAll(p.transients(source)));
+        propagators.forEach(p -> transients.putAll(p.transients(source, isSystemContext)));
         return transients;
     }
 
-    private Map<String, String> propagateHeaders(Map<String, Object> source) {
+    private Map<String, String> propagateHeaders(Map<String, Object> source, boolean isSystemContext) {
         final Map<String, String> headers = new HashMap<>();
-        propagators.forEach(p -> headers.putAll(p.headers(source)));
+        propagators.forEach(p -> headers.putAll(p.headers(source, isSystemContext)));
         return headers;
     }
 
@@ -600,11 +687,13 @@ public final class ThreadContext implements Writeable {
         // saving current warning headers' size not to recalculate the size with every new warning header
         private final long warningHeadersSize;
 
-        private ThreadContextStruct setSystemContext() {
+        private ThreadContextStruct setSystemContext(final List<ThreadContextStatePropagator> propagators) {
             if (isSystemContext) {
                 return this;
             }
-            return new ThreadContextStruct(requestHeaders, responseHeaders, transientHeaders, persistentHeaders, true);
+            final Map<String, Object> transients = new HashMap<>();
+            propagators.forEach(p -> transients.putAll(p.transients(transientHeaders, true)));
+            return new ThreadContextStruct(requestHeaders, responseHeaders, transients, persistentHeaders, true);
         }
 
         private ThreadContextStruct(
@@ -712,7 +801,8 @@ public final class ThreadContext implements Writeable {
             final String value,
             final Function<String, String> uniqueValue,
             final int maxWarningHeaderCount,
-            final long maxWarningHeaderSize
+            final long maxWarningHeaderSize,
+            final boolean replaceExistingKey
         ) {
             assert value != null;
             long newWarningHeaderSize = warningHeadersSize;
@@ -754,8 +844,13 @@ public final class ThreadContext implements Writeable {
                 if (existingValues.contains(uniqueValue.apply(value))) {
                     return this;
                 }
-                // preserve insertion order
-                final Set<String> newValues = Stream.concat(existingValues.stream(), Stream.of(value)).collect(LINKED_HASH_SET_COLLECTOR);
+                Set<String> newValues;
+                if (replaceExistingKey) {
+                    newValues = Stream.of(value).collect(LINKED_HASH_SET_COLLECTOR);
+                } else {
+                    // preserve insertion order
+                    newValues = Stream.concat(existingValues.stream(), Stream.of(value)).collect(LINKED_HASH_SET_COLLECTOR);
+                }
                 newResponseHeaders = new HashMap<>(responseHeaders);
                 newResponseHeaders.put(key, Collections.unmodifiableSet(newValues));
             } else {
@@ -791,6 +886,14 @@ public final class ThreadContext implements Writeable {
             Map<String, Object> newTransient = new HashMap<>(this.transientHeaders);
             for (Map.Entry<String, Object> entry : values.entrySet()) {
                 putSingleHeader(entry.getKey(), entry.getValue(), newTransient);
+            }
+            return new ThreadContextStruct(requestHeaders, responseHeaders, newTransient, persistentHeaders, isSystemContext);
+        }
+
+        private ThreadContextStruct putTransientIfAbsent(Map<String, Object> values) {
+            Map<String, Object> newTransient = new HashMap<>(this.transientHeaders);
+            for (Map.Entry<String, Object> entry : values.entrySet()) {
+                newTransient.putIfAbsent(entry.getKey(), entry.getValue());
             }
             return new ThreadContextStruct(requestHeaders, responseHeaders, newTransient, persistentHeaders, isSystemContext);
         }

@@ -1,7 +1,13 @@
+registries:
+  gradle-maven:
+    type: maven-repository
+    url: https://repo1.maven.org/maven2
 updates:
   - directory: /
     open-pull-requests-limit: 1
     package-ecosystem: gradle
+    registries:
+      - gradle-maven
     schedule:
       interval: weekly
     labels:
@@ -439,14 +445,6 @@ updates:
     labels:
       - "dependabot"
       - "dependencies"
-  - directory: /distribution/tools/upgrade-cli/
-    open-pull-requests-limit: 1
-    package-ecosystem: gradle
-    schedule:
-      interval: weekly
-    labels:
-      - "dependabot"
-      - "dependencies"
   - directory: /doc-tools/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
@@ -711,9 +709,23 @@ updates:
     labels:
       - "dependabot"
       - "dependencies"
+  - directory: /modules/crypto/
+    open-pull-requests-limit: 1
+    package-ecosystem: gradle
+    schedule:
+      interval: weekly
+    labels:
+      - "dependabot"
+      - "dependencies"
   - directory: /plugins/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
+    ignore:
+      # For all packages, ignore all major versions to minimize breaking issues
+      - dependency-name: "com.google.cloud:google-cloud-storage"
+        update-types: [ "version-update:semver-major" ]
+      - dependency-name: "com.google.api-client:google-api-client"
+        update-types: [ "version-update:semver-major" ]
     schedule:
       interval: weekly
     labels:
@@ -1376,14 +1388,6 @@ updates:
       - "dependabot"
       - "dependencies"
   - directory: /test/fixtures/minio-fixture/
-    open-pull-requests-limit: 1
-    package-ecosystem: gradle
-    schedule:
-      interval: weekly
-    labels:
-      - "dependabot"
-      - "dependencies"
-  - directory: /test/fixtures/old-elasticsearch/
     open-pull-requests-limit: 1
     package-ecosystem: gradle
     schedule:

@@ -39,7 +39,6 @@ import org.opensearch.action.search.SearchRequestBuilder;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.index.query.RangeQueryBuilder;
@@ -56,7 +55,7 @@ import org.opensearch.search.aggregations.bucket.range.RangeAggregationBuilder;
 import org.opensearch.search.aggregations.bucket.terms.Terms;
 import org.opensearch.search.aggregations.bucket.terms.TermsAggregatorFactory;
 import org.opensearch.search.aggregations.metrics.Sum;
-import org.opensearch.test.ParameterizedOpenSearchIntegTestCase;
+import org.opensearch.test.ParameterizedStaticSettingsOpenSearchIntegTestCase;
 import org.junit.After;
 import org.junit.Before;
 
@@ -73,7 +72,10 @@ import java.util.Set;
 import java.util.function.Function;
 
 import static org.opensearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING;
+import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_MODE;
+import static org.opensearch.search.SearchService.CONCURRENT_SEGMENT_SEARCH_MODE_ALL;
+import static org.opensearch.search.SearchService.CONCURRENT_SEGMENT_SEARCH_MODE_AUTO;
+import static org.opensearch.search.SearchService.CONCURRENT_SEGMENT_SEARCH_MODE_NONE;
 import static org.opensearch.search.aggregations.AggregationBuilders.extendedStats;
 import static org.opensearch.search.aggregations.AggregationBuilders.filter;
 import static org.opensearch.search.aggregations.AggregationBuilders.histogram;
@@ -94,23 +96,22 @@ import static org.hamcrest.core.IsNull.notNullValue;
  * Additional tests that aim at testing more complex aggregation trees on larger random datasets, so that things like
  * the growth of dynamic arrays is tested.
  */
-public class EquivalenceIT extends ParameterizedOpenSearchIntegTestCase {
+public class EquivalenceIT extends ParameterizedStaticSettingsOpenSearchIntegTestCase {
 
-    public EquivalenceIT(Settings dynamicSettings) {
-        super(dynamicSettings);
+    public EquivalenceIT(Settings staticSettings) {
+        super(staticSettings);
     }
 
     @ParametersFactory
     public static Collection<Object[]> parameters() {
         return Arrays.asList(
-            new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), false).build() },
-            new Object[] { Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING.getKey(), true).build() }
+            new Object[] {
+                Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_MODE.getKey(), CONCURRENT_SEGMENT_SEARCH_MODE_ALL).build() },
+            new Object[] {
+                Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_MODE.getKey(), CONCURRENT_SEGMENT_SEARCH_MODE_AUTO).build() },
+            new Object[] {
+                Settings.builder().put(CLUSTER_CONCURRENT_SEGMENT_SEARCH_MODE.getKey(), CONCURRENT_SEGMENT_SEARCH_MODE_NONE).build() }
         );
-    }
-
-    @Override
-    protected Settings featureFlagSettings() {
-        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.CONCURRENT_SEGMENT_SEARCH, "true").build();
     }
 
     @Override
@@ -345,7 +346,7 @@ public class EquivalenceIT extends ParameterizedOpenSearchIntegTestCase {
             )
             .get();
         assertAllSuccessful(resp);
-        assertEquals(numDocs, resp.getHits().getTotalHits().value);
+        assertEquals(numDocs, resp.getHits().getTotalHits().value());
 
         final Terms longTerms = resp.getAggregations().get("long");
         final Terms doubleTerms = resp.getAggregations().get("double");
@@ -463,7 +464,7 @@ public class EquivalenceIT extends ParameterizedOpenSearchIntegTestCase {
             )
             .get();
         assertAllSuccessful(response);
-        assertEquals(numDocs, response.getHits().getTotalHits().value);
+        assertEquals(numDocs, response.getHits().getTotalHits().value());
     }
 
     // https://github.com/elastic/elasticsearch/issues/6435

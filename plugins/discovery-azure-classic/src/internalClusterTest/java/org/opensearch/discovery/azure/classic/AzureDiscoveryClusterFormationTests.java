@@ -49,6 +49,7 @@ import org.opensearch.env.Environment;
 import org.opensearch.node.Node;
 import org.opensearch.plugin.discovery.azure.classic.AzureDiscoveryPlugin;
 import org.opensearch.plugins.Plugin;
+import org.opensearch.secure_sm.AccessController;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.transport.TransportSettings;
 import org.junit.AfterClass;
@@ -74,9 +75,7 @@ import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.security.AccessController;
 import java.security.KeyStore;
-import java.security.PrivilegedAction;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -283,9 +282,9 @@ public class AzureDiscoveryClusterFormationTests extends OpenSearchIntegTestCase
             assertNotNull("can't find keystore file", stream);
             ks.load(stream, passphrase);
         }
-        KeyManagerFactory kmf = KeyManagerFactory.getInstance("SunX509");
+        KeyManagerFactory kmf = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
         kmf.init(ks, passphrase);
-        TrustManagerFactory tmf = TrustManagerFactory.getInstance("SunX509");
+        TrustManagerFactory tmf = TrustManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
         tmf.init(ks);
         SSLContext ssl = SSLContext.getInstance(getProtocol());
         ssl.init(kmf.getKeyManagers(), tmf.getTrustManagers(), null);
@@ -300,9 +299,7 @@ public class AzureDiscoveryClusterFormationTests extends OpenSearchIntegTestCase
         if (Runtime.version().compareTo(Version.parse("12")) < 0) {
             return "TLSv1.2";
         } else {
-            Version full = AccessController.doPrivileged(
-                (PrivilegedAction<Version>) () -> Version.parse(System.getProperty("java.version"))
-            );
+            Version full = AccessController.doPrivileged(() -> Version.parse(System.getProperty("java.version")));
             if (full.compareTo(Version.parse("12.0.1")) < 0) {
                 return "TLSv1.2";
             }

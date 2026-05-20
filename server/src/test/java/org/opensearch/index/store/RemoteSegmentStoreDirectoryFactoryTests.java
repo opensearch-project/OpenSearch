@@ -57,7 +57,7 @@ public class RemoteSegmentStoreDirectoryFactoryTests extends OpenSearchTestCase 
         repositoriesService = mock(RepositoriesService.class);
         threadPool = mock(ThreadPool.class);
         when(repositoriesServiceSupplier.get()).thenReturn(repositoriesService);
-        remoteSegmentStoreDirectoryFactory = new RemoteSegmentStoreDirectoryFactory(repositoriesServiceSupplier, threadPool);
+        remoteSegmentStoreDirectoryFactory = new RemoteSegmentStoreDirectoryFactory(repositoriesServiceSupplier, threadPool, "");
     }
 
     public void testNewDirectory() throws IOException {
@@ -71,6 +71,7 @@ public class RemoteSegmentStoreDirectoryFactoryTests extends OpenSearchTestCase 
         BlobStoreRepository repository = mock(BlobStoreRepository.class);
         BlobStore blobStore = mock(BlobStore.class);
         BlobContainer blobContainer = mock(BlobContainer.class);
+        when(repository.blobStore(false)).thenReturn(blobStore);
         when(repository.blobStore()).thenReturn(blobStore);
         when(repository.basePath()).thenReturn(new BlobPath().add("base_path"));
         when(blobStore.blobContainer(any())).thenReturn(blobContainer);
@@ -117,7 +118,7 @@ public class RemoteSegmentStoreDirectoryFactoryTests extends OpenSearchTestCase 
 
         when(repositoriesService.repository("remote_store_repository")).thenThrow(new RepositoryMissingException("Missing"));
 
-        assertThrows(IllegalArgumentException.class, () -> remoteSegmentStoreDirectoryFactory.newDirectory(indexSettings, shardPath));
+        assertThrows(RepositoryMissingException.class, () -> remoteSegmentStoreDirectoryFactory.newDirectory(indexSettings, shardPath));
     }
 
 }

@@ -14,9 +14,9 @@ import org.opensearch.action.admin.cluster.state.ClusterStateResponse;
 import org.opensearch.action.admin.indices.segments.IndicesSegmentResponse;
 import org.opensearch.action.admin.indices.segments.PitSegmentsAction;
 import org.opensearch.action.admin.indices.segments.PitSegmentsRequest;
-import org.opensearch.client.Client;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.action.ActionFuture;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.AtomicArray;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.query.IdsQueryBuilder;
@@ -27,6 +27,7 @@ import org.opensearch.search.SearchPhaseResult;
 import org.opensearch.search.SearchShardTarget;
 import org.opensearch.search.internal.AliasFilter;
 import org.opensearch.search.internal.ShardSearchContextId;
+import org.opensearch.transport.client.Client;
 import org.junit.Assert;
 
 import java.util.ArrayList;
@@ -97,7 +98,8 @@ public class PitTestsUtil {
         return SearchContextId.encode(array.asList(), aliasFilters, version);
     }
 
-    public static void assertUsingGetAllPits(Client client, String id, long creationTime) throws ExecutionException, InterruptedException {
+    public static void assertUsingGetAllPits(Client client, String id, long creationTime, TimeValue keepAlive) throws ExecutionException,
+        InterruptedException {
         final ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
         clusterStateRequest.local(false);
         clusterStateRequest.clear().nodes(true).routingTable(true).indices("*");
@@ -113,6 +115,7 @@ public class PitTestsUtil {
         GetAllPitNodesResponse getPitResponse = execute1.get();
         assertTrue(getPitResponse.getPitInfos().get(0).getPitId().contains(id));
         Assert.assertEquals(getPitResponse.getPitInfos().get(0).getCreationTime(), creationTime);
+        Assert.assertEquals(getPitResponse.getPitInfos().get(0).getKeepAlive(), keepAlive.getMillis());
     }
 
     public static void assertGetAllPitsEmpty(Client client) throws ExecutionException, InterruptedException {

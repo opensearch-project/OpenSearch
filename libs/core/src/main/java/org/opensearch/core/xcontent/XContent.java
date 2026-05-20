@@ -63,6 +63,13 @@ public interface XContent {
     }
 
     /**
+     * Creates a new generator using the provided output stream.
+     */
+    default XContentGenerator createGenerator(OutputStream os, boolean prettyPrint) throws IOException {
+        return createGenerator(os, Collections.emptySet(), Collections.emptySet(), prettyPrint);
+    }
+
+    /**
      * Creates a new generator using the provided output stream and some inclusive and/or exclusive filters. When both exclusive and
      * inclusive filters are provided, the underlying generator will first use exclusion filters to remove fields and then will check the
      * remaining fields against the inclusive filters.
@@ -71,7 +78,21 @@ public interface XContent {
      * @param includes the inclusive filters: only fields and objects that match the inclusive filters will be written to the output.
      * @param excludes the exclusive filters: only fields and objects that don't match the exclusive filters will be written to the output.
      */
-    XContentGenerator createGenerator(OutputStream os, Set<String> includes, Set<String> excludes) throws IOException;
+    default XContentGenerator createGenerator(OutputStream os, Set<String> includes, Set<String> excludes) throws IOException {
+        return createGenerator(os, includes, excludes, false);
+    }
+
+    /**
+     * Creates a new generator using the provided output stream and some inclusive and/or exclusive filters. When both exclusive and
+     * inclusive filters are provided, the underlying generator will first use exclusion filters to remove fields and then will check the
+     * remaining fields against the inclusive filters.
+     *
+     * @param os       the output stream
+     * @param includes the inclusive filters: only fields and objects that match the inclusive filters will be written to the output.
+     * @param excludes the exclusive filters: only fields and objects that don't match the exclusive filters will be written to the output.
+     * @param prettyPrint use pretty printer
+     */
+    XContentGenerator createGenerator(OutputStream os, Set<String> includes, Set<String> excludes, boolean prettyPrint) throws IOException;
 
     /**
      * Creates a parser over the provided string content.

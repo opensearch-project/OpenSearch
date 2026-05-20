@@ -11,7 +11,9 @@ package org.opensearch.index.search.comparators;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.sandbox.document.BigIntegerPoint;
 import org.apache.lucene.search.LeafFieldComparator;
+import org.apache.lucene.search.Pruning;
 import org.apache.lucene.search.comparators.NumericComparator;
+import org.apache.lucene.util.NumericUtils;
 import org.opensearch.common.Numbers;
 
 import java.io.IOException;
@@ -23,8 +25,8 @@ public class UnsignedLongComparator extends NumericComparator<BigInteger> {
     protected BigInteger topValue;
     protected BigInteger bottom;
 
-    public UnsignedLongComparator(int numHits, String field, BigInteger missingValue, boolean reverse, boolean enableSkipping) {
-        super(field, missingValue != null ? missingValue : Numbers.MIN_UNSIGNED_LONG_VALUE, reverse, enableSkipping, BigIntegerPoint.BYTES);
+    public UnsignedLongComparator(int numHits, String field, BigInteger missingValue, boolean reverse, Pruning pruning) {
+        super(field, missingValue != null ? missingValue : Numbers.MIN_UNSIGNED_LONG_VALUE, reverse, pruning, BigIntegerPoint.BYTES);
         values = new BigInteger[numHits];
     }
 
@@ -47,6 +49,20 @@ public class UnsignedLongComparator extends NumericComparator<BigInteger> {
     @Override
     public LeafFieldComparator getLeafComparator(LeafReaderContext context) throws IOException {
         return new UnsignedLongLeafComparator(context);
+    }
+
+    @Override
+    protected long missingValueAsComparableLong() {
+        // Apache Lucene will not use unsigned comparison for long values, so we have to convert to double
+        // first (with possible lost of precision) and than to sortable long.
+        return NumericUtils.doubleToSortableLong(missingValue.doubleValue());
+    }
+
+    @Override
+    protected long sortableBytesToLong(byte[] bytes) {
+        // Apache Lucene will not use unsigned comparison for long values, so we have to convert to double
+        // first (with possible lost of precision) and than to sortable long.
+        return NumericUtils.doubleToSortableLong(NumericUtils.sortableBytesToBigInt(bytes, 0, BigIntegerPoint.BYTES).doubleValue());
     }
 
     /** Leaf comparator for {@link UnsignedLongComparator} that provides skipping functionality */
@@ -87,23 +103,17 @@ public class UnsignedLongComparator extends NumericComparator<BigInteger> {
         }
 
         @Override
-        protected void encodeBottom(byte[] packedValue) {
-            BigIntegerPoint.encodeDimension(bottom, packedValue, 0);
+        protected long bottomAsComparableLong() {
+            // Apache Lucene will not use unsigned comparison for long values, so we have to convert to double
+            // first (with possible lost of precision) and than to sortable long.
+            return NumericUtils.doubleToSortableLong(bottom.doubleValue());
         }
 
         @Override
-        protected void encodeTop(byte[] packedValue) {
-            BigIntegerPoint.encodeDimension(topValue, packedValue, 0);
-        }
-
-        @Override
-        protected int compareMissingValueWithBottomValue() {
-            return missingValue.compareTo(bottom);
-        }
-
-        @Override
-        protected int compareMissingValueWithTopValue() {
-            return missingValue.compareTo(topValue);
+        protected long topAsComparableLong() {
+            // Apache Lucene will not use unsigned comparison for long values, so we have to convert to double
+            // first (with possible lost of precision) and than to sortable long.
+            return NumericUtils.doubleToSortableLong(topValue.doubleValue());
         }
     }
 }

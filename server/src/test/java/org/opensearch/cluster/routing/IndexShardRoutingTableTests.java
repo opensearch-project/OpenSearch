@@ -32,13 +32,17 @@
 
 package org.opensearch.cluster.routing;
 
+import org.opensearch.common.io.stream.BytesStreamOutput;
+import org.opensearch.core.common.io.stream.BufferedChecksumStreamOutput;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.test.OpenSearchTestCase;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.UUID;
 
 public class IndexShardRoutingTableTests extends OpenSearchTestCase {
     public void testEqualsAttributesKey() {
@@ -68,5 +72,74 @@ public class IndexShardRoutingTableTests extends OpenSearchTestCase {
         assertNotEquals(table1, null);
         assertNotEquals(table1, s);
         assertNotEquals(table1, table3);
+
+        ShardRouting primary = TestShardRouting.newShardRouting(shardId, "node-1", true, ShardRoutingState.STARTED);
+        ShardRouting replica = TestShardRouting.newShardRouting(shardId, "node-2", false, ShardRoutingState.STARTED);
+        IndexShardRoutingTable table4 = new IndexShardRoutingTable(shardId, Arrays.asList(primary, replica));
+        IndexShardRoutingTable table5 = new IndexShardRoutingTable(shardId, Arrays.asList(replica, primary));
+        assertEquals(table4, table5);
+    }
+
+    public void testWriteVerifiableTo() throws IOException {
+        Index index = new Index("a", "b");
+        ShardId shardId = new ShardId(index, 1);
+        ShardRouting shard1 = TestShardRouting.newShardRouting(shardId, "node-1", true, ShardRoutingState.STARTED);
+        ShardRouting shard2 = TestShardRouting.newShardRouting(shardId, "node-2", false, ShardRoutingState.STARTED);
+        ShardRouting shard3 = TestShardRouting.newShardRouting(shardId, null, false, ShardRoutingState.UNASSIGNED);
+
+        IndexShardRoutingTable table1 = new IndexShardRoutingTable(shardId, Arrays.asList(shard1, shard2, shard3));
+        BytesStreamOutput out = new BytesStreamOutput();
+        BufferedChecksumStreamOutput checksumOut = new BufferedChecksumStreamOutput(out);
+        IndexShardRoutingTable.Builder.writeVerifiableTo(table1, checksumOut);
+
+        IndexShardRoutingTable table2 = new IndexShardRoutingTable(shardId, Arrays.asList(shard3, shard1, shard2));
+        BytesStreamOutput out2 = new BytesStreamOutput();
+        BufferedChecksumStreamOutput checksumOut2 = new BufferedChecksumStreamOutput(out2);
+        IndexShardRoutingTable.Builder.writeVerifiableTo(table2, checksumOut2);
+        assertEquals(checksumOut.getChecksum(), checksumOut2.getChecksum());
+    }
+
+    public void testShardsMatchingPredicate() {
+        ShardId shardId = new ShardId(new Index("a", UUID.randomUUID().toString()), 0);
+        ShardRouting primary = TestShardRouting.newShardRouting(shardId, "node-1", true, ShardRoutingState.STARTED);
+        ShardRouting replica = TestShardRouting.newShardRouting(shardId, "node-2", false, ShardRoutingState.STARTED);
+        ShardRouting unassignedReplica = ShardRouting.newUnassigned(
+            shardId,
+            false,
+            RecoverySource.PeerRecoverySource.INSTANCE,
+            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null)
+        );
+        ShardRouting relocatingReplica1 = TestShardRouting.newShardRouting(
+            shardId,
+            "node-3",
+            "node-4",
+            false,
+            ShardRoutingState.RELOCATING
+        );
+        ShardRouting relocatingReplica2 = TestShardRouting.newShardRouting(
+            shardId,
+            "node-4",
+            "node-5",
+            false,
+            ShardRoutingState.RELOCATING
+        );
+
+        IndexShardRoutingTable table = new IndexShardRoutingTable(
+            shardId,
+            Arrays.asList(primary, replica, unassignedReplica, relocatingReplica1, relocatingReplica2)
+        );
+        assertEquals(List.of(primary), table.shardsMatchingPredicate(ShardRouting::primary));
+        assertEquals(
+            List.of(replica, unassignedReplica, relocatingReplica1, relocatingReplica2),
+            table.shardsMatchingPredicate(shardRouting -> !shardRouting.primary())
+        );
+        assertEquals(
+            List.of(unassignedReplica),
+            table.shardsMatchingPredicate(shardRouting -> !shardRouting.primary() && shardRouting.unassigned())
+        );
+        assertEquals(
+            Arrays.asList(relocatingReplica1, relocatingReplica2),
+            table.shardsMatchingPredicate(shardRouting -> !shardRouting.primary() && shardRouting.relocating())
+        );
     }
 }
