@@ -39,19 +39,31 @@ public final class FoyerBlockCache implements BlockCache {
     /**
      * Create the native Foyer cache and acquire its handle.
      *
-     * @param diskBytes             maximum disk capacity in bytes; must be {@code > 0}
-     * @param diskDir               directory where Foyer stores cache data; must not be null or blank
-     * @param blockSizeBytes        Foyer disk block size in bytes; must be {@code > 0}
-     * @param ioEngine              I/O engine: {@code "auto"}, {@code "io_uring"}, or {@code "psync"}
-     * @param sweepIntervalSecs     background key_index sweep interval in seconds;
-     *                              {@code 0} uses the Rust-side default (30 s).
-     *                              Maps to {@code block_cache.foyer.key_index_sweep_interval_seconds}.
+     * @param diskBytes              maximum disk capacity in bytes; must be {@code > 0}
+     * @param diskDir                directory where Foyer stores cache data; must not be null or blank
+     * @param blockSizeBytes         Foyer disk block size in bytes; must be {@code > 0}
+     * @param ioEngine               I/O engine: {@code "auto"}, {@code "io_uring"}, or {@code "psync"}
+     * @param sweepIntervalSecs      background key_index sweep interval in seconds;
+     *                               {@code 0} = disabled (no background sweep task is spawned).
+     *                               Maps to {@code block_cache.foyer.key_index_sweep_interval_seconds}.
+     * @param sweepThresholdRatio    minimum {@code used_bytes / disk_bytes} ratio to run the sweep;
+     *                               {@code 0.0} = disabled (always sweep).
+     *                               Maps to {@code block_cache.foyer.key_index_sweep_threshold}.
      * @throws IllegalArgumentException if {@code diskBytes <= 0}, {@code blockSizeBytes <= 0},
-     *                                  {@code sweepIntervalSecs < 0}, or {@code diskDir} is blank
+     *                                  {@code sweepIntervalSecs < 0},
+     *                                  {@code sweepThresholdRatio} outside {@code [0.0, 1.0]},
+     *                                  or {@code diskDir} is blank
      * @throws NullPointerException     if {@code diskDir} or {@code ioEngine} is null
      * @throws IllegalStateException    if the native call fails to return a valid handle
      */
-    public FoyerBlockCache(long diskBytes, String diskDir, long blockSizeBytes, String ioEngine, long sweepIntervalSecs) {
+    public FoyerBlockCache(
+        long diskBytes,
+        String diskDir,
+        long blockSizeBytes,
+        String ioEngine,
+        long sweepIntervalSecs,
+        double sweepThresholdRatio
+    ) {
         if (diskBytes <= 0) {
             throw new IllegalArgumentException("diskBytes must be > 0, got: " + diskBytes);
         }
@@ -66,8 +78,11 @@ public final class FoyerBlockCache implements BlockCache {
         if (sweepIntervalSecs < 0) {
             throw new IllegalArgumentException("sweepIntervalSecs must be >= 0, got: " + sweepIntervalSecs);
         }
+        if (sweepThresholdRatio < 0.0 || sweepThresholdRatio > 1.0) {
+            throw new IllegalArgumentException("sweepThresholdRatio must be in [0.0, 1.0], got: " + sweepThresholdRatio);
+        }
         this.diskBytes = diskBytes;
-        this.cachePtr = FoyerBridge.createCache(diskBytes, diskDir, blockSizeBytes, ioEngine, sweepIntervalSecs);
+        this.cachePtr = FoyerBridge.createCache(diskBytes, diskDir, blockSizeBytes, ioEngine, sweepIntervalSecs, sweepThresholdRatio);
     }
 
     @Override

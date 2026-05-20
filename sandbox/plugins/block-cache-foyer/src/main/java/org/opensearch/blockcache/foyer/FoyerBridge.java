@@ -48,19 +48,20 @@ public final class FoyerBridge {
 
         // i64 foyer_create_cache(u64 disk_bytes, *const u8 dir_ptr, u64 dir_len,
         // u64 block_size_bytes, *const u8 io_engine_ptr, u64 io_engine_len,
-        // u64 sweep_interval_secs)
+        // u64 sweep_interval_secs, f64 sweep_threshold_ratio)
         // Returns Box<Arc<dyn BlockCache>> fat pointer.
         FOYER_CREATE_CACHE = linker.downcallHandle(
             lib.find("foyer_create_cache").orElseThrow(),
             FunctionDescriptor.of(
-                ValueLayout.JAVA_LONG,  // return: opaque i64 fat pointer
-                ValueLayout.JAVA_LONG,  // disk_bytes: u64
-                ValueLayout.ADDRESS,    // dir_ptr: *const u8
-                ValueLayout.JAVA_LONG,  // dir_len: u64
-                ValueLayout.JAVA_LONG,  // block_size_bytes: u64
-                ValueLayout.ADDRESS,    // io_engine_ptr: *const u8
-                ValueLayout.JAVA_LONG,  // io_engine_len: u64
-                ValueLayout.JAVA_LONG   // sweep_interval_secs: u64 (0 = default 30s)
+                ValueLayout.JAVA_LONG,   // return: opaque i64 fat pointer
+                ValueLayout.JAVA_LONG,   // disk_bytes: u64
+                ValueLayout.ADDRESS,     // dir_ptr: *const u8
+                ValueLayout.JAVA_LONG,   // dir_len: u64
+                ValueLayout.JAVA_LONG,   // block_size_bytes: u64
+                ValueLayout.ADDRESS,     // io_engine_ptr: *const u8
+                ValueLayout.JAVA_LONG,   // io_engine_len: u64
+                ValueLayout.JAVA_LONG,   // sweep_interval_secs: u64 (0 = disabled)
+                ValueLayout.JAVA_DOUBLE  // sweep_threshold_ratio: f64 (0.0 = disabled)
             )
         );
 
@@ -103,17 +104,28 @@ public final class FoyerBridge {
      * <p>Returns a {@code Box<Arc<dyn BlockCache>>} fat pointer that can be passed
      * directly as {@code cache_box_ptr} to {@code ts_create_tiered_object_store}.
      *
-     * @param diskBytes            maximum disk space the cache may use, in bytes
-     * @param diskDir              path to the directory where Foyer stores cache data
-     * @param blockSizeBytes       Foyer disk block size in bytes
-     * @param ioEngine             I/O engine: {@code "auto"}, {@code "io_uring"}, or {@code "psync"}
-     * @param sweepIntervalSecs    background key_index sweep interval in seconds;
-     *                             {@code 0} uses the Rust-side default (30 s).
-     *                             Maps to {@code block_cache.foyer.key_index_sweep_interval_seconds}.
+     * @param diskBytes              maximum disk space the cache may use, in bytes
+     * @param diskDir                path to the directory where Foyer stores cache data
+     * @param blockSizeBytes         Foyer disk block size in bytes
+     * @param ioEngine               I/O engine: {@code "auto"}, {@code "io_uring"}, or {@code "psync"}
+     * @param sweepIntervalSecs      background key_index sweep interval in seconds;
+     *                               {@code 0} = disabled (no background sweep task is spawned).
+     *                               Maps to {@code block_cache.foyer.key_index_sweep_interval_seconds}.
+     * @param sweepThresholdRatio    minimum {@code used_bytes / disk_bytes} ratio required to run
+     *                               the sweep. When the ratio is below this value the sweep tick is
+     *                               skipped (no-op). {@code 0.0} = disabled (always sweep).
+     *                               Maps to {@code block_cache.foyer.key_index_sweep_threshold}.
      * @return an opaque fat pointer representing the cache instance; always positive on success
      * @throws RuntimeException if the native call fails or the directory is invalid
      */
-    public static long createCache(long diskBytes, String diskDir, long blockSizeBytes, String ioEngine, long sweepIntervalSecs) {
+    public static long createCache(
+        long diskBytes,
+        String diskDir,
+        long blockSizeBytes,
+        String ioEngine,
+        long sweepIntervalSecs,
+        double sweepThresholdRatio
+    ) {
         try (var call = new NativeCall()) {
             var dir = call.str(diskDir);
             var engine = call.str(ioEngine);
@@ -125,17 +137,20 @@ public final class FoyerBridge {
                 blockSizeBytes,
                 engine.segment(),
                 engine.len(),
-                sweepIntervalSecs
+                sweepIntervalSecs,
+                sweepThresholdRatio
             );
             if (ptr <= 0) {
                 throw new IllegalStateException("foyer_create_cache returned an invalid handle");
             }
             logger.info(
-                "Foyer block cache created: diskBytes={}, blockSizeBytes={}, ioEngine={}, sweepIntervalSecs={}, dir={}",
+                "Foyer block cache created: diskBytes={}, blockSizeBytes={}, ioEngine={}, "
+                    + "sweepIntervalSecs={}, sweepThresholdRatio={}, dir={}",
                 diskBytes,
                 blockSizeBytes,
                 ioEngine,
-                sweepIntervalSecs == 0 ? "default(30s)" : sweepIntervalSecs + "s",
+                sweepIntervalSecs == 0 ? "disabled" : sweepIntervalSecs + "s",
+                sweepThresholdRatio == 0.0 ? "disabled" : sweepThresholdRatio,
                 diskDir
             );
             return ptr;

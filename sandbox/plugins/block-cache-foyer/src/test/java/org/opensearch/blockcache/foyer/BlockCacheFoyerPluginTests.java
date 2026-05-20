@@ -145,11 +145,12 @@ public class BlockCacheFoyerPluginTests extends OpenSearchTestCase {
         BlockCacheFoyerPlugin plugin = new BlockCacheFoyerPlugin(Settings.EMPTY);
         List<Setting<?>> settings = plugin.getSettings();
         // DATA_TO_CACHE_RATIO_SETTING removed — ratio now read from cluster.filecache.remote_data_ratio
-        assertEquals(4, settings.size());
+        assertEquals(5, settings.size());
         assertTrue(settings.contains(FoyerBlockCacheSettings.CACHE_SIZE_SETTING));
         assertTrue(settings.contains(FoyerBlockCacheSettings.BLOCK_SIZE_SETTING));
         assertTrue(settings.contains(FoyerBlockCacheSettings.IO_ENGINE_SETTING));
         assertTrue(settings.contains(FoyerBlockCacheSettings.KEY_INDEX_SWEEP_INTERVAL_SETTING));
+        assertTrue(settings.contains(FoyerBlockCacheSettings.KEY_INDEX_SWEEP_THRESHOLD_SETTING));
     }
 
     public void testGetSettingsNoNulls() {

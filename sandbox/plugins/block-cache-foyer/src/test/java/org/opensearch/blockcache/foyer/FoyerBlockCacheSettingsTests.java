@@ -156,4 +156,45 @@ public class FoyerBlockCacheSettingsTests extends OpenSearchTestCase {
         );
     }
 
+    // ── KEY_INDEX_SWEEP_THRESHOLD_SETTING ─────────────────────────────────────
+
+    public void testSweepThresholdDefaultIs0dot70() {
+        assertEquals(0.70, FoyerBlockCacheSettings.KEY_INDEX_SWEEP_THRESHOLD_SETTING.get(Settings.EMPTY), 0.001);
+    }
+
+    public void testSweepThresholdZeroCanBeSetExplicitly() {
+        // 0.0 = always sweep (no threshold guard)
+        Settings s = Settings.builder().put("block_cache.foyer.key_index_sweep_threshold", 0.0).build();
+        assertEquals(0.0, FoyerBlockCacheSettings.KEY_INDEX_SWEEP_THRESHOLD_SETTING.get(s), 0.0);
+    }
+
+    public void testSweepThresholdAccepts0dot5() {
+        Settings s = Settings.builder().put("block_cache.foyer.key_index_sweep_threshold", 0.5).build();
+        assertEquals(0.5, FoyerBlockCacheSettings.KEY_INDEX_SWEEP_THRESHOLD_SETTING.get(s), 0.001);
+    }
+
+    public void testSweepThresholdAccepts1dot0() {
+        // 1.0 = only sweep when cache is 100% full; valid boundary
+        Settings s = Settings.builder().put("block_cache.foyer.key_index_sweep_threshold", 1.0).build();
+        assertEquals(1.0, FoyerBlockCacheSettings.KEY_INDEX_SWEEP_THRESHOLD_SETTING.get(s), 0.0);
+    }
+
+    public void testSweepThresholdRejectsNegative() {
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> FoyerBlockCacheSettings.KEY_INDEX_SWEEP_THRESHOLD_SETTING.get(
+                Settings.builder().put("block_cache.foyer.key_index_sweep_threshold", -0.01).build()
+            )
+        );
+    }
+
+    public void testSweepThresholdRejectsAboveOne() {
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> FoyerBlockCacheSettings.KEY_INDEX_SWEEP_THRESHOLD_SETTING.get(
+                Settings.builder().put("block_cache.foyer.key_index_sweep_threshold", 1.01).build()
+            )
+        );
+    }
+
 }

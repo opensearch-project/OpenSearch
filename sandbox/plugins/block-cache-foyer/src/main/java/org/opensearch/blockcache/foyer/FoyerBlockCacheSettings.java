@@ -119,14 +119,41 @@ public final class FoyerBlockCacheSettings {
 
     /**
      * How often (seconds) the background sweeper prunes stale key_index entries left
-     * by Foyer's disk reclaimer. {@code 0} uses the Rust-side default (30 s).
+     * by Foyer's disk reclaimer. {@code 0} = disabled (no background sweep task is spawned).
      * Range: [0, 3600]. Configure via {@code block_cache.foyer.key_index_sweep_interval_seconds}.
      */
     public static final Setting<Long> KEY_INDEX_SWEEP_INTERVAL_SETTING = Setting.longSetting(
         "block_cache.foyer.key_index_sweep_interval_seconds",
-        0L,    // 0 = use Rust-side default (30s)
+        0L,    // 0 = disabled (no sweep task spawned)
         0L,    // min: 0
         3600L, // max: 1 hour
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * Minimum {@code used_bytes / disk_bytes} ratio required to run the key_index sweep.
+     *
+     * <p>On each interval tick the sweep loop checks whether the current usage ratio is
+     * strictly below this threshold. If so, the sweep is skipped (no-op) — no DashMap
+     * locks are acquired and no shard is iterated. This avoids wasting CPU cycles when
+     * the cache is lightly loaded and Foyer's disk reclaimer is unlikely to have evicted
+     * anything.
+     *
+     * <p>Default: {@code 0.70} — skip the sweep when the cache is less than 70% full.
+     * Set to {@code 0.0} to disable the threshold guard and always sweep.
+     *
+     * <p>Range: {@code [0.0, 1.0]}.
+     *
+     * <p>Configure in {@code opensearch.yml}:
+     * <pre>{@code
+     * block_cache.foyer.key_index_sweep_threshold: 0.75
+     * }</pre>
+     */
+    public static final Setting<Double> KEY_INDEX_SWEEP_THRESHOLD_SETTING = Setting.doubleSetting(
+        "block_cache.foyer.key_index_sweep_threshold",
+        0.70, // default: skip sweep when cache < 70% full
+        0.0,  // min: 0.0 (explicit 0 = always sweep)
+        1.0,  // max: 1.0
         Setting.Property.NodeScope
     );
 

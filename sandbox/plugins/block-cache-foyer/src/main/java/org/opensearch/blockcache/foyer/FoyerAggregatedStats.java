@@ -84,10 +84,13 @@ public final class FoyerAggregatedStats {
             raw[offset + Field.EVICTION_BYTES.ordinal()],
             raw[offset + Field.REMOVED_COUNT.ordinal()],
             raw[offset + Field.REMOVED_BYTES.ordinal()],
-            0L,                                                 // memoryBytesUsed — disk-only cache
+            0L,                                                             // memoryBytesUsed — disk-only cache
             raw[offset + Field.USED_BYTES.ordinal()],
             capacityBytes,
-            raw[offset + Field.ACTIVE_IN_BYTES.ordinal()]       // bytes of in-flight reads at snapshot time
+            // Clamp to 0: activeInBytes is a point-in-time gauge and must never be negative.
+            // Other counters are cumulative and intentionally left unclamped — a negative there
+            // signals a real bug and should stay visible.
+            Math.max(0L, raw[offset + Field.ACTIVE_IN_BYTES.ordinal()])
         );
     }
 

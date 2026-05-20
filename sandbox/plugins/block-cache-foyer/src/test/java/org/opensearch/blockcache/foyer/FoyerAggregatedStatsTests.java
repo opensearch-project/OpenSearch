@@ -231,6 +231,54 @@ public class FoyerAggregatedStatsTests extends OpenSearchTestCase {
         assertEquals(20, FoyerAggregatedStats.STATS_BUFFER_SIZE);
     }
 
+    // ── activeInBytes defensive clamping ──────────────────────────────────────
+
+    /**
+     * A negative raw activeInBytes value (which could occur due to a bug in the native
+     * Foyer library or an FFM buffer misread) must be clamped to 0, not propagated.
+     * Cumulative counters (hits, misses, etc.) are NOT clamped — a negative there
+     * indicates a real accounting bug and should remain visible.
+     */
+    public void testNegativeActiveInBytesClampsToZero() {
+        long[] raw = buf(
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            -1L,   // section 0: activeInBytes = -1
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            -999L   // section 1: activeInBytes = -999
+        );
+        assertEquals(0L, FoyerAggregatedStats.snapshot(raw, 0L).overallStats().activeInBytes());
+        assertEquals(0L, FoyerAggregatedStats.snapshot(raw, 0L).blockLevelStats().activeInBytes());
+    }
+
+    /** A zero activeInBytes must pass through unchanged (not over-clamped). */
+    public void testZeroActiveInBytesPassesThrough() {
+        long[] raw = buf(0, 0, 0, 0, 0, 0, 0, 0, 0, 0L, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0L);
+        assertEquals(0L, FoyerAggregatedStats.snapshot(raw, 0L).overallStats().activeInBytes());
+    }
+
+    /** A positive activeInBytes must pass through unchanged. */
+    public void testPositiveActiveInBytesPassesThrough() {
+        long[] raw = buf(0, 0, 0, 0, 0, 0, 0, 0, 0, 4096L, 0, 0, 0, 0, 0, 0, 0, 0, 0, 8192L);
+        assertEquals(4096L, FoyerAggregatedStats.snapshot(raw, 0L).overallStats().activeInBytes());
+        assertEquals(8192L, FoyerAggregatedStats.snapshot(raw, 0L).blockLevelStats().activeInBytes());
+    }
+
     // ── All-zeros ─────────────────────────────────────────────────────────────
 
     public void testAllZeroBuffer() {
