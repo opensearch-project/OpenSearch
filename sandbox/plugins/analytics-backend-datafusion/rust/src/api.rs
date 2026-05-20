@@ -1003,6 +1003,130 @@ pub unsafe fn sender_close(sender_ptr: i64) {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use arrow_array::{BinaryViewArray, Int64Array, StringViewArray};
+    use arrow_schema::{Field, Schema};
+
+    #[test]
+    fn stringview_gc_compacts_sliced_buffers() {
+        let total_rows = 100_000usize;
+        let slice_rows = 100usize;
+
+        let strings: Vec<String> = (0..total_rows)
+            .map(|i| format!("long_string_value_{:06}_padding", i))
+            .collect();
+        let string_view_array = StringViewArray::from_iter_values(strings.iter().map(|s| s.as_str()));
+        let int_array = Int64Array::from_iter_values(0..total_rows as i64);
+
+        let schema = Arc::new(Schema::new(vec![
+            Field::new("str_col", DataType::Utf8View, false),
+            Field::new("int_col", DataType::Int64, false),
+        ]));
+        let batch = RecordBatch::try_new(
+            schema,
+            vec![Arc::new(string_view_array), Arc::new(int_array)],
+        )
+        .unwrap();
+
+        let sliced = batch.slice(0, slice_rows);
+
+        let before_size = sliced.column(0).get_array_memory_size();
+
+        let compacted = compact_string_view_columns(sliced);
+
+        let after_size = compacted.column(0).get_array_memory_size();
+
+        assert!(
+            before_size > after_size * 100,
+            "Expected >100x reduction on StringView column, got before={} after={} ratio={}",
+            before_size,
+            after_size,
+            before_size / after_size
+        );
+    }
+
+    #[test]
+    fn stringview_gc_inline_strings_no_change() {
+        let strings: Vec<&str> = (0..100).map(|_| "short").collect();
+        let string_view_array = StringViewArray::from_iter_values(strings.into_iter());
+
+        let schema = Arc::new(Schema::new(vec![
+            Field::new("str_col", DataType::Utf8View, false),
+        ]));
+        let batch =
+            RecordBatch::try_new(schema, vec![Arc::new(string_view_array.clone())]).unwrap();
+
+        let compacted = compact_string_view_columns(batch.clone());
+        let before_size = batch.columns()[0].get_array_memory_size();
+        let after_size = compacted.columns()[0].get_array_memory_size();
+        assert_eq!(before_size, after_size);
+    }
+
+    #[test]
+    fn stringview_gc_empty_array() {
+        let string_view_array = StringViewArray::from_iter_values(std::iter::empty::<&str>());
+        let schema = Arc::new(Schema::new(vec![
+            Field::new("str_col", DataType::Utf8View, false),
+        ]));
+        let batch = RecordBatch::try_new(schema, vec![Arc::new(string_view_array)]).unwrap();
+        let compacted = compact_string_view_columns(batch);
+        assert_eq!(compacted.num_rows(), 0);
+    }
+
+    #[test]
+    fn binaryview_gc_compacts_sliced_buffers() {
+        let total_rows = 10_000usize;
+        let slice_rows = 10usize;
+
+        let values: Vec<Vec<u8>> = (0..total_rows)
+            .map(|i| format!("binary_payload_{:08}_extra_bytes", i).into_bytes())
+            .collect();
+        let binary_view_array =
+            BinaryViewArray::from_iter_values(values.iter().map(|v| v.as_slice()));
+        let int_array = Int64Array::from_iter_values(0..total_rows as i64);
+
+        let schema = Arc::new(Schema::new(vec![
+            Field::new("bin_col", DataType::BinaryView, false),
+            Field::new("int_col", DataType::Int64, false),
+        ]));
+        let batch = RecordBatch::try_new(
+            schema,
+            vec![Arc::new(binary_view_array), Arc::new(int_array)],
+        )
+        .unwrap();
+
+        let sliced = batch.slice(0, slice_rows);
+        let before_size = sliced.columns()[0].get_array_memory_size();
+
+        let compacted = compact_string_view_columns(sliced);
+        let after_size = compacted.columns()[0].get_array_memory_size();
+
+        assert!(
+            before_size > after_size * 100,
+            "Expected large reduction for BinaryView, got before={} after={} ratio={}",
+            before_size,
+            after_size,
+            before_size / after_size
+        );
+    }
+
+    #[test]
+    fn no_view_columns_passthrough() {
+        let int_array = Int64Array::from_iter_values(0..1000);
+        let schema = Arc::new(Schema::new(vec![
+            Field::new("int_col", DataType::Int64, false),
+        ]));
+        let batch = RecordBatch::try_new(schema, vec![Arc::new(int_array)]).unwrap();
+        let compacted = compact_string_view_columns(batch.clone());
+        assert_eq!(
+            batch.columns()[0].get_array_memory_size(),
+            compacted.columns()[0].get_array_memory_size()
+        );
+    }
+}
+
 /// Imports a batch of Arrow C Data structures into a [`Vec<RecordBatch>`] and
 /// registers them as an in-memory table on the given session under `input_id`.
 ///
