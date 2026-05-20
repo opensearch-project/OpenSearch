@@ -69,6 +69,14 @@ public class TaskResourceTrackingService implements RunnableTaskExecutionListene
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
+    // Kill-switch for emitting the Base64 binary TASK_RESOURCE_USAGE response header. When false,
+    // data nodes always emit the legacy JSON header. The consumer always falls back to JSON regardless.
+    public static final Setting<Boolean> BINARY_RESOURCE_USAGE_HEADER_ENABLED = Setting.boolSetting(
+        "task_resource_tracking.binary_header.enabled",
+        true,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
     public static final String TASK_ID = "TASK_ID";
     public static final String TASK_RESOURCE_USAGE = "TASK_RESOURCE_USAGE";
 
@@ -83,6 +91,7 @@ public class TaskResourceTrackingService implements RunnableTaskExecutionListene
     private final ThreadPool threadPool;
     private final ClusterService clusterService;
     private volatile boolean taskResourceTrackingEnabled;
+    private volatile boolean binaryResourceUsageHeaderEnabled;
 
     @Inject
     public TaskResourceTrackingService(
@@ -92,9 +101,11 @@ public class TaskResourceTrackingService implements RunnableTaskExecutionListene
         ClusterService clusterService
     ) {
         this.taskResourceTrackingEnabled = TASK_RESOURCE_TRACKING_ENABLED.get(settings);
+        this.binaryResourceUsageHeaderEnabled = BINARY_RESOURCE_USAGE_HEADER_ENABLED.get(settings);
         this.threadPool = threadPool;
         this.clusterService = clusterService;
         clusterSettings.addSettingsUpdateConsumer(TASK_RESOURCE_TRACKING_ENABLED, this::setTaskResourceTrackingEnabled);
+        clusterSettings.addSettingsUpdateConsumer(BINARY_RESOURCE_USAGE_HEADER_ENABLED, this::setBinaryResourceUsageHeaderEnabled);
     }
 
     // Without ClusterService, writeTaskResourceUsage cannot verify the coordinator's version
@@ -109,6 +120,14 @@ public class TaskResourceTrackingService implements RunnableTaskExecutionListene
 
     public boolean isTaskResourceTrackingEnabled() {
         return taskResourceTrackingEnabled;
+    }
+
+    public void setBinaryResourceUsageHeaderEnabled(boolean binaryResourceUsageHeaderEnabled) {
+        this.binaryResourceUsageHeaderEnabled = binaryResourceUsageHeaderEnabled;
+    }
+
+    public boolean isBinaryResourceUsageHeaderEnabled() {
+        return binaryResourceUsageHeaderEnabled;
     }
 
     public boolean isTaskResourceTrackingSupported() {
@@ -354,10 +373,13 @@ public class TaskResourceTrackingService implements RunnableTaskExecutionListene
     }
 
     // Returns true only with positive confirmation that the coordinator can parse the binary header.
-    // Any unknown — no ClusterService, empty parent task, coordinator missing from cluster state — falls
-    // back to JSON, since the cost of an unwarranted JSON emission is small and bounded, while the cost
-    // of an unwarranted binary emission to an old coordinator is a hung search.
+    // Any unknown — kill-switch off, no ClusterService, empty parent task, coordinator missing from
+    // cluster state — falls back to JSON, since the cost of an unwarranted JSON emission is small and
+    // bounded, while the cost of an unwarranted binary emission to an old coordinator is a hung search.
     private boolean canCoordinatorReadBinaryHeader(SearchShardTask task) {
+        if (binaryResourceUsageHeaderEnabled == false) {
+            return false;
+        }
         if (clusterService == null) {
             return false;
         }

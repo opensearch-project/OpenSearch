@@ -402,6 +402,38 @@ public class TaskResourceTrackingServiceTests extends OpenSearchTestCase {
         assertTrue("expected JSON when ClusterService is null, got: " + headerValue, headerValue.startsWith("{"));
     }
 
+    public void testProducerEmitsJsonHeaderWhenBinaryHeaderKillSwitchIsOff() {
+        // Operator-controlled kill switch: when disabled, the producer must emit JSON even
+        // when the coordinator is on the current version and would otherwise accept binary.
+        addCoordinatorNodeWithVersion(NEW_COORDINATOR_ID, Version.CURRENT);
+        taskResourceTrackingService.setBinaryResourceUsageHeaderEnabled(false);
+
+        SearchShardTask task = searchShardTaskWithParent(NEW_COORDINATOR_ID);
+        taskResourceTrackingService.writeTaskResourceUsage(task, LOCAL_NODE_ID);
+
+        String headerValue = threadPool.getThreadContext().getResponseHeaders().get(TASK_RESOURCE_USAGE).get(0);
+        assertTrue("expected JSON when kill switch is off, got: " + headerValue, headerValue.startsWith("{"));
+    }
+
+    public void testConsumerStillReadsBinaryWhenKillSwitchIsOff() throws Exception {
+        // The kill switch only gates the producer. The consumer must still decode binary so that
+        // a coordinator can read headers from data nodes that haven't yet picked up the flip.
+        taskResourceTrackingService.setBinaryResourceUsageHeaderEnabled(false);
+        TaskResourceInfo expected = new TaskResourceInfo(
+            "indices:data/read/search[phase/query]",
+            5L,
+            6L,
+            "data_node",
+            new TaskResourceUsage(11L, 22L)
+        );
+        String binary = TaskResourceTrackingService.serializeToBase64(expected);
+        threadPool.getThreadContext().addResponseHeader(TASK_RESOURCE_USAGE, binary);
+
+        TaskResourceInfo result = taskResourceTrackingService.getTaskResourceUsageFromThreadContext();
+        assertNotNull(result);
+        assertEquals(expected, result);
+    }
+
     public void testConsumerPrefersBinaryOverJsonFallback() throws Exception {
         TaskResourceInfo expected = new TaskResourceInfo(
             "indices:data/read/search[phase/query]",
