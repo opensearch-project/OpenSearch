@@ -84,9 +84,7 @@ public class TransportHotToWarmTierAction extends TransportTierAction {
         throws Exception {
         if (isAlreadyWarm(request.getIndex(), state)) {
             listener.onFailure(
-                new IllegalArgumentException(
-                    "Index [" + request.getIndex() + "] is already on warm tier. Hot-to-warm tiering is not needed."
-                )
+                new IllegalArgumentException("Cannot migrate index [" + request.getIndex() + "] to WARM tier: already migrated.")
             );
             return;
         }
@@ -208,7 +206,7 @@ public class TransportHotToWarmTierAction extends TransportTierAction {
             public void onFailure(Exception e) {
                 if (attempt < MAX_PREPARE_RETRIES) {
                     logger.warn(
-                        "Pre-tiering sync attempt [{}/{}] failed for index [{}], retrying",
+                        "Pre-tiering sync attempt [{}/{}] failed for index [{}], retrying: {}",
                         attempt,
                         MAX_PREPARE_RETRIES,
                         request.getIndex(),
@@ -262,7 +260,7 @@ public class TransportHotToWarmTierAction extends TransportTierAction {
                 @Override
                 public void onFailure(String source, Exception e) {
                     logger.warn(
-                        "Failed to remove read-only block for index [{}] after tiering failure. "
+                        "Failed to remove read-only block for index [{}] after tiering failure: {}. "
                             + "Block can be removed manually via index settings.",
                         indexName,
                         e
@@ -297,6 +295,6 @@ public class TransportHotToWarmTierAction extends TransportTierAction {
         if (indexMetadata == null) {
             return false;
         }
-        return indexMetadata.getSettings().getAsBoolean(IndexModule.IS_WARM_INDEX_SETTING.getKey(), false);
+        return IndexModule.TieringState.WARM.toString().equals(indexMetadata.getSettings().get(IndexModule.INDEX_TIERING_STATE.getKey()));
     }
 }

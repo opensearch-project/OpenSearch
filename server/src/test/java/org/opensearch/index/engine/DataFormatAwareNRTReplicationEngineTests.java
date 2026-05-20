@@ -31,7 +31,6 @@ import org.opensearch.index.engine.dataformat.stub.InMemoryCommitter;
 import org.opensearch.index.engine.dataformat.stub.MockDataFormat;
 import org.opensearch.index.engine.dataformat.stub.MockDataFormatPlugin;
 import org.opensearch.index.engine.dataformat.stub.MockSearchBackEndPlugin;
-import org.opensearch.index.engine.exec.CommitFileManager;
 import org.opensearch.index.engine.exec.FileDeleter;
 import org.opensearch.index.engine.exec.Segment;
 import org.opensearch.index.engine.exec.commit.CommitterFactory;
@@ -226,7 +225,7 @@ public class DataFormatAwareNRTReplicationEngineTests extends OpenSearchTestCase
         if (historyUUID != null) {
             userData.put(Engine.HISTORY_UUID_KEY, historyUUID);
         }
-        return (DataformatAwareCatalogSnapshot) CatalogSnapshotManager.createInitialSnapshot(
+        DataformatAwareCatalogSnapshot snapshot = (DataformatAwareCatalogSnapshot) CatalogSnapshotManager.createInitialSnapshot(
             id,
             gen,
             gen,
@@ -234,6 +233,9 @@ public class DataFormatAwareNRTReplicationEngineTests extends OpenSearchTestCase
             gen,
             userData
         );
+        // Simulate the primary having committed this snapshot (sets lastCommitGeneration).
+        snapshot.setLastCommitInfo("segments_" + gen, gen, 0L);
+        return snapshot;
     }
 
     // ---------- Tests ----------
@@ -338,30 +340,12 @@ public class DataFormatAwareNRTReplicationEngineTests extends OpenSearchTestCase
         java.nio.file.Files.createDirectories(parquetDir);
         ShardPath shardPath = new ShardPath(false, root, root, shardId);
 
-<<<<<<< HEAD
         bootstrapStoreWithMetadata(store, UUID.randomUUID().toString());
         Map<String, FileDeleter> deleters = DataFormatAwareNRTReplicationEngine.buildReplicaFileDeleters(
             shardPath,
             registry,
             new InMemoryCommitter(store)
         );
-=======
-        CommitFileManager committer = new CommitFileManager() {
-            @Override
-            public void deleteCommit(CatalogSnapshot snapshot) {}
-
-            @Override
-            public boolean isCommitManagedFile(String fileName) {
-                return fileName.startsWith("segments_") || fileName.equals("write.lock");
-            }
-
-            @Override
-            public byte[] serializeToCommitFormat(CatalogSnapshot snapshot) {
-                throw new UnsupportedOperationException("not used by this test");
-            }
-        };
-        Map<String, FileDeleter> deleters = DataFormatAwareNRTReplicationEngine.buildReplicaFileDeleters(shardPath, registry, committer);
->>>>>>> 9eea7f3b2dc (Add DataFormatAwareReadOnlyEngine for read-only primaries)
 
         assertTrue("parquet deleter must be present", deleters.containsKey("parquet"));
         assertTrue("lucene deleter must be present", deleters.containsKey("lucene"));

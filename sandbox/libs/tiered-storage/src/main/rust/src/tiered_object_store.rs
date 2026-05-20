@@ -404,7 +404,7 @@ impl ObjectStore for TieredObjectStore {
 
 
         if let Some((rp, store)) = self.resolve_remote(path_str) {
-            native_bridge_common::log_info!(
+            native_bridge_common::log_debug!(
                 "TieredObjectStore: get_opts REMOTE path='{}'",
                 path_str
             );
@@ -433,7 +433,7 @@ impl ObjectStore for TieredObjectStore {
 
         if miss_ranges.is_empty() {
             // Full cache hit — all ranges served from SSD.
-            native_bridge_common::log_info!(
+            native_bridge_common::log_debug!(
                 "TieredObjectStore: get_ranges FULL CACHE HIT path='{}' n={} total_bytes={}",
                 path_str, ranges.len(),
                 ranges.iter().map(|r| r.end - r.start).sum::<u64>()
@@ -442,12 +442,12 @@ impl ObjectStore for TieredObjectStore {
         }
 
         if self.cache.is_some() {
-            native_bridge_common::log_info!(
+            native_bridge_common::log_debug!(
                 "TieredObjectStore: get_ranges CACHE MISS path='{}' misses={}/{}",
                 path_str, miss_ranges.len(), ranges.len()
             );
         } else {
-            native_bridge_common::log_info!(
+            native_bridge_common::log_debug!(
                 "TieredObjectStore: get_ranges NO CACHE path='{}' fetching={}/{}",
                 path_str, miss_ranges.len(), ranges.len()
             );

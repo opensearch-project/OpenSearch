@@ -533,8 +533,9 @@ public abstract class TieringService implements ClusterStateListener {
 
             // 2. Handle replica updates using auto_expand_replicas
             int currentReplicas = Integer.parseInt(indexMetadata.getSettings().get(INDEX_NUMBER_OF_REPLICAS_SETTING.getKey()));
-            int maxReplicas = Math.max(1, currentReplicas);
-            indexSettingsBuilder.put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-" + maxReplicas);
+            if (currentReplicas != 1) {
+                indexSettingsBuilder.put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-" + 1);
+            }
 
             // 3. Create tiering custom data
             Map<String, String> tieringCustomData = new HashMap<>();
@@ -564,8 +565,7 @@ public abstract class TieringService implements ClusterStateListener {
             // Build settings
             Settings.Builder indexSettingsBuilder = Settings.builder()
                 .put(indexMetadata.getSettings())
-                .put(INDEX_TIERING_STATE.getKey(), getTargetTieringState())
-                .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "false");
+                .put(INDEX_TIERING_STATE.getKey(), getTargetTieringState());
 
             // Update index metadata
             IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(indexMetadata).settings(indexSettingsBuilder);
