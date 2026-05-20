@@ -375,6 +375,12 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
      */
     private static final Set<ScalarFunction> MAP_RETURNING_PROJECT_OPS = Set.of(ScalarFunction.JSON_EXTRACT_ALL);
 
+    /**
+     * CAST and SAFE_CAST effectively can return anything, so they get registered as everything
+     */
+    private static final Set<ScalarFunction> POLYMORPHIC_RETURN_PROJECT_OPS =
+        Set.of(ScalarFunction.CAST, ScalarFunction.SAFE_CAST);
+
     private static final Set<AggregateFunction> AGG_FUNCTIONS = Set.of(
         AggregateFunction.SUM,
         AggregateFunction.SUM0,
@@ -497,15 +503,11 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                 for (ScalarFunction op : MAP_RETURNING_PROJECT_OPS) {
                     caps.add(new ProjectCapability.Scalar(op, Set.of(FieldType.MAP), formats, true));
                 }
-                // CAST and SAFE_CAST are type-conversion functions that must support casting TO
-                // array and map types (e.g., CAST(... AS ARRAY<VARCHAR>)), not just from them.
-                // The planner keys capability lookups on the call's return type, so without these
-                // registrations, queries like `mvfind(array(...), ...)` that trigger implicit
-                // CAST-to-ARRAY fail with "No backend supports scalar function [CAST]".
-                caps.add(new ProjectCapability.Scalar(ScalarFunction.CAST, Set.of(FieldType.ARRAY), formats, true));
-                caps.add(new ProjectCapability.Scalar(ScalarFunction.CAST, Set.of(FieldType.MAP), formats, true));
-                caps.add(new ProjectCapability.Scalar(ScalarFunction.SAFE_CAST, Set.of(FieldType.ARRAY), formats, true));
-                caps.add(new ProjectCapability.Scalar(ScalarFunction.SAFE_CAST, Set.of(FieldType.MAP), formats, true));
+                for (ScalarFunction op : POLYMORPHIC_RETURN_PROJECT_OPS) {
+                    for (FieldType ft : FieldType.values()) {
+                        caps.add(new ProjectCapability.Scalar(op, Set.of(ft), formats, true));
+                    }
+                }
                 return Set.copyOf(caps);
             }
 
