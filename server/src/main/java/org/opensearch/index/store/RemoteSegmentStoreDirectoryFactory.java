@@ -12,6 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.LockFactory;
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.common.Nullable;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.settings.Settings;
@@ -67,7 +68,7 @@ public class RemoteSegmentStoreDirectoryFactory implements IndexStorePlugin.Dire
         Supplier<RepositoriesService> repositoriesService,
         ThreadPool threadPool,
         String segmentsPathFixedPrefix,
-        DataFormatRegistry dataFormatRegistry
+        @Nullable DataFormatRegistry dataFormatRegistry
     ) {
         this.repositoriesService = repositoriesService;
         this.segmentsPathFixedPrefix = segmentsPathFixedPrefix;

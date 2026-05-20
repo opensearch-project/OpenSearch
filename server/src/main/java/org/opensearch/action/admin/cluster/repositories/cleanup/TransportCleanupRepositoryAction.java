@@ -116,7 +116,7 @@ public final class TransportCleanupRepositoryAction extends TransportClusterMana
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
         RemoteStoreSettings remoteStoreSettings,
-        DataFormatRegistry dataFormatRegistry
+        @Nullable DataFormatRegistry dataFormatRegistry
     ) {
         super(
             CleanupRepositoryAction.NAME,

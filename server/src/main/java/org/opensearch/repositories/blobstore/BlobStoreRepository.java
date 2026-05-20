@@ -1711,7 +1711,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 ThreadPool.Names.REMOTE_PURGE,
                 remoteStoreShardShallowCopySnapshot.getRemoteStorePathStrategy(),
                 false,
-                null  // V1 shallow-copy callsite — IndexMetadata not available here; falls back to plain RemoteDirectory
+                null  // V1 shallow-copy is a Lucene-only mode — DFA indices use V2 snapshots only. If a DFA index were ever associated with
+                      // a V1 snapshot, per-format files (e.g., parquet/) would leak on cleanup; tracked as a known limitation.
             );
         }
     }

@@ -1332,6 +1332,12 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
      * Backward-compatible 6-arg overload preserved for the 2.3.0 {@code @PublicApi} contract.
      * Delegates to the 7-arg variant with a {@code null} {@link IndexMetadata} — equivalent to
      * the prior behaviour for callers that don't need data-format-aware routing.
+     *
+     * @deprecated Use the 7-arg variant that accepts {@link IndexMetadata} so that DFA-enabled
+     *             indices route to {@link org.opensearch.index.store.remote.DataFormatAwareRemoteDirectory}
+     *             during cleanup. This overload remains for backward compatibility but does not
+     *             enumerate per-format files (e.g., {@code parquet/}) and may leak them on cleanup
+     *             of DFA indices.
      */
     @Deprecated
     public static void remoteDirectoryCleanup(
