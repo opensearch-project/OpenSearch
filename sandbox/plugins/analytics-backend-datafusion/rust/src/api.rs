@@ -1171,22 +1171,20 @@ mod tests {
         let strings: Vec<String> = (0..1000)
             .map(|i| format!("long_string_value_{:06}_padding", i))
             .collect();
-        let string_view_array =
-            StringViewArray::from_iter_values(strings.iter().map(|s| s.as_str()));
+        let string_view_array: Arc<dyn Array> =
+            Arc::new(StringViewArray::from_iter_values(strings.iter().map(|s| s.as_str())));
 
         let schema = Arc::new(Schema::new(vec![
             Field::new("str_col", DataType::Utf8View, false),
         ]));
         let batch =
-            RecordBatch::try_new(schema, vec![Arc::new(string_view_array)]).unwrap();
+            RecordBatch::try_new(schema, vec![Arc::clone(&string_view_array)]).unwrap();
 
-        let before_size = batch.column(0).get_array_memory_size();
         let compacted = compact_string_view_columns(batch);
-        let after_size = compacted.column(0).get_array_memory_size();
 
-        assert_eq!(
-            before_size, after_size,
-            "Non-sliced batch should pass through unchanged (no copy needed)"
+        assert!(
+            Arc::ptr_eq(&string_view_array, compacted.column(0)),
+            "Non-sliced batch must return the original column Arc (no copy)"
         );
     }
 
