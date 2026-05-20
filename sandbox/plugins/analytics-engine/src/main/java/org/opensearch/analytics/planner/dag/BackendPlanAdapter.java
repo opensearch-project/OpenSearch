@@ -15,9 +15,12 @@ import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rel.type.RelDataTypeField;
 import org.apache.calcite.rex.RexBuilder;
 import org.apache.calcite.rex.RexCall;
+import org.apache.calcite.rex.RexFieldCollation;
 import org.apache.calcite.rex.RexInputRef;
 import org.apache.calcite.rex.RexNode;
+import org.apache.calcite.rex.RexOver;
 import org.apache.calcite.rex.RexShuttle;
+import org.apache.calcite.rex.RexWindow;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.analytics.planner.CapabilityRegistry;
@@ -202,6 +205,52 @@ public class BackendPlanAdapter {
             RexNode adapted = adaptRex(operand, adapters, fieldStorage, cluster);
             adaptedOperands.add(adapted);
             if (adapted != operand) operandsChanged = true;
+        }
+
+        // Window functions: adapter recursion has to descend into PARTITION BY / ORDER BY
+        // expressions too — they live on RexOver.window, not in getOperands(), and isthmus's
+        // WindowFunctionConverter walks them when emitting substrait. Without this,
+        // calls like SPAN that need a backend-specific rewrite (SPAN(field, n, NULL) →
+        // FLOOR(field/n)*n) survive into substrait emission carrying their NULL-typed
+        // operand and trip TypeConverter.
+        if (call instanceof RexOver over) {
+            RexWindow window = over.getWindow();
+            List<RexNode> adaptedPartitionKeys = new ArrayList<>(window.partitionKeys.size());
+            boolean windowChanged = false;
+            for (RexNode key : window.partitionKeys) {
+                RexNode adapted = adaptRex(key, adapters, fieldStorage, cluster);
+                adaptedPartitionKeys.add(adapted);
+                if (adapted != key) windowChanged = true;
+            }
+            List<RexFieldCollation> adaptedOrderKeys = new ArrayList<>(window.orderKeys.size());
+            for (RexFieldCollation order : window.orderKeys) {
+                RexNode adapted = adaptRex(order.left, adapters, fieldStorage, cluster);
+                if (adapted != order.left) {
+                    adaptedOrderKeys.add(new RexFieldCollation(adapted, order.right));
+                    windowChanged = true;
+                } else {
+                    adaptedOrderKeys.add(order);
+                }
+            }
+            if (operandsChanged || windowChanged) {
+                RexBuilder rexBuilder = cluster.getRexBuilder();
+                return rexBuilder.makeOver(
+                    over.getType(),
+                    over.getAggOperator(),
+                    adaptedOperands,
+                    adaptedPartitionKeys,
+                    com.google.common.collect.ImmutableList.copyOf(adaptedOrderKeys),
+                    window.getLowerBound(),
+                    window.getUpperBound(),
+                    window.getExclude(),
+                    window.isRows(),
+                    true,
+                    false,
+                    over.isDistinct(),
+                    over.ignoreNulls()
+                );
+            }
+            return over;
         }
 
         RexCall current = operandsChanged ? call.clone(call.getType(), adaptedOperands) : call;
