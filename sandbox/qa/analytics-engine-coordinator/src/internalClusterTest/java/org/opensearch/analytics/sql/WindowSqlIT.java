@@ -24,7 +24,7 @@ import org.opensearch.action.admin.indices.create.CreateIndexResponse;
 import org.opensearch.analytics.AnalyticsPlugin;
 import org.opensearch.analytics.exec.DefaultPlanExecutor;
 import org.opensearch.arrow.flight.transport.FlightStreamPlugin;
-import org.opensearch.arrow.plugin.ArrowBasePlugin;
+import org.opensearch.arrow.allocator.ArrowBasePlugin;
 import org.opensearch.be.datafusion.DataFusionPlugin;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.service.ClusterService;
@@ -184,7 +184,7 @@ public class WindowSqlIT extends OpenSearchIntegTestCase {
 
         for (int i = 0; i < TOTAL_DOCS; i++) {
             int val = (i % 3) + 1;
-            client().prepareIndex(INDEX).setId(String.valueOf(i)).setSource("val", val).get();
+            client().prepareIndex(INDEX).setSource("val", val).get();
         }
         client().admin().indices().prepareRefresh(INDEX).get();
         client().admin().indices().prepareFlush(INDEX).get();

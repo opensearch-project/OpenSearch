@@ -295,7 +295,9 @@ final class CompositeTestHelper {
         boolean closeCalled = false;
 
         @Override
-        public void commit(Map<String, String> commitData) {}
+        public CommitResult commit(CommitInput commitData) {
+            return null;
+        }
 
         @Override
         public void close() {
@@ -328,6 +330,11 @@ final class CompositeTestHelper {
         @Override
         public boolean isCommitManagedFile(String fileName) {
             return false;
+        }
+
+        @Override
+        public byte[] serializeToCommitFormat(CatalogSnapshot snapshot) {
+            throw new UnsupportedOperationException("stub");
         }
     }
 }

@@ -94,7 +94,9 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         ScalarFunction.MINUS,
         ScalarFunction.TIMES,
         ScalarFunction.DIVIDE,
-        ScalarFunction.MOD
+        ScalarFunction.MOD,
+        ScalarFunction.EARLIEST,
+        ScalarFunction.LATEST
     );
 
     // Project-side scalar functions DataFusion can evaluate natively. Each entry corresponds to a
@@ -216,6 +218,8 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         ScalarFunction.CURRENT_TIME,
         ScalarFunction.CURTIME,
         ScalarFunction.SYSDATE,
+        ScalarFunction.EARLIEST,
+        ScalarFunction.LATEST,
         ScalarFunction.CONVERT_TZ,
         ScalarFunction.UNIX_TIMESTAMP,
         ScalarFunction.STRFTIME,
@@ -228,11 +232,9 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         // see a real time/date type and Isthmus serializes accordingly.
         ScalarFunction.TIME,
         ScalarFunction.DATE,
+        ScalarFunction.TIMESTAMP,
         // PPL `datetime(expr)` — parse/cast into a TIMESTAMP. Routes to DF's
-        // builtin `to_timestamp` via DatetimeAdapter. The single-arg
-        // `timestamp(expr)` form shares these semantics but its ScalarFunction
-        // slot is already bound to TimestampFunctionAdapter for VARCHAR literal
-        // folding, so it stays on the legacy engine.
+        // builtin `to_timestamp` via DatetimeAdapter.
         ScalarFunction.DATETIME,
         // PPL extract / make* / format / from_unixtime are implemented as Rust UDFs
         // to preserve MySQL semantics that DataFusion builtins don't match: EXTRACT
@@ -371,6 +373,9 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
      */
     private static final Set<ScalarFunction> MAP_RETURNING_PROJECT_OPS = Set.of(ScalarFunction.JSON_EXTRACT_ALL);
 
+    // PPL state-expanding aggregates (TAKE/FIRST/LAST/LIST/VALUES) route through
+    // DataFusionFragmentConvertor's LOCAL_*_OP stubs and the substrait extensions in
+    // opensearch_aggregate_functions.yaml.
     private static final Set<AggregateFunction> AGG_FUNCTIONS = Set.of(
         AggregateFunction.SUM,
         AggregateFunction.SUM0,
@@ -378,7 +383,12 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         AggregateFunction.MAX,
         AggregateFunction.COUNT,
         AggregateFunction.AVG,
-        AggregateFunction.APPROX_COUNT_DISTINCT
+        AggregateFunction.APPROX_COUNT_DISTINCT,
+        AggregateFunction.TAKE,
+        AggregateFunction.FIRST,
+        AggregateFunction.LAST,
+        AggregateFunction.LIST,
+        AggregateFunction.VALUES
     );
 
     private final DataFusionPlugin plugin;
@@ -420,6 +430,13 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
 
             @Override
             public Set<WindowCapability> windowCapabilities() {
+                // SUM/AVG/COUNT/MIN/MAX cover PPL eventstats; ROW_NUMBER covers PPL dedup
+                // (ROW_NUMBER OVER PARTITION BY … <= N) and the helper sequence column
+                // PPL streamstats … by … emits as __row_number_for_streamstats__.
+                // isthmus's RexExpressionConverter.visitOver serializes the RexOver inline as a
+                // Substrait WindowFunctionInvocation; DataFusion's substrait consumer splits it
+                // into a dedicated LogicalPlan::Window. No adapter or Rust UDF is needed —
+                // row_number is a Substrait-stdlib window function and a DataFusion built-in.
                 return Set.of(
                     new WindowCapability(
                         Set.of(
@@ -428,11 +445,6 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                             WindowFunction.COUNT,
                             WindowFunction.MIN,
                             WindowFunction.MAX,
-                            // ROW_NUMBER backs PPL `dedup` lowering (ROW_NUMBER OVER PARTITION BY ... <= N).
-                            // isthmus's RexExpressionConverter.visitOver serializes the RexOver inline as a
-                            // Substrait WindowFunctionInvocation; DataFusion's substrait consumer splits it
-                            // into a dedicated LogicalPlan::Window. No adapter or Rust UDF is needed —
-                            // row_number is a Substrait-stdlib window function and a DataFusion built-in.
                             WindowFunction.ROW_NUMBER
                         ),
                         Set.copyOf(plugin.getSupportedFormats())
@@ -559,6 +571,7 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                     Map.entry(ScalarFunction.DAY_OF_YEAR, dayOfYear),
                     Map.entry(ScalarFunction.DIVIDE, new StdOperatorRewriteAdapter("DIVIDE", SqlStdOperatorTable.DIVIDE)),
                     Map.entry(ScalarFunction.E, new EConstantAdapter()),
+                    Map.entry(ScalarFunction.EARLIEST, new EarliestLatestAdapter.EarliestAdapter()),
                     // Math functions whose substrait yaml impls are fp64-only — wrap integer/float
                     // operands in CAST(DOUBLE) before substrait conversion so isthmus can bind. See
                     // NumericToDoubleAdapter javadoc for the type-widening rules. Without these the
@@ -577,6 +590,7 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                     Map.entry(ScalarFunction.JSON_EXTRACT_ALL, new JsonFunctionAdapters.JsonExtractAllAdapter()),
                     Map.entry(ScalarFunction.JSON_KEYS, new JsonFunctionAdapters.JsonKeysAdapter()),
                     Map.entry(ScalarFunction.JSON_SET, new JsonFunctionAdapters.JsonSetAdapter()),
+                    Map.entry(ScalarFunction.LATEST, new EarliestLatestAdapter.LatestAdapter()),
                     Map.entry(ScalarFunction.LIKE, new LikeAdapter()),
                     Map.entry(ScalarFunction.LN, new NumericToDoubleAdapter(SqlStdOperatorTable.LN)),
                     Map.entry(ScalarFunction.LOCATE, new PositionAdapter()),

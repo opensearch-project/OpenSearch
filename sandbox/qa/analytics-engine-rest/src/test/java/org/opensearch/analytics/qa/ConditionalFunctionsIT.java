@@ -15,8 +15,6 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-import org.junit.Ignore;
-
 /**
  * End-to-end coverage for PPL
  * <a href="https://docs.opensearch.org/latest/sql-and-ppl/ppl/functions/condition/">conditional
@@ -30,6 +28,11 @@ import org.junit.Ignore;
  *       DataFusion's substrait consumer handles each natively.</li>
  *   <li><b>Predicate-shape in project</b> — {@code x IS NULL} / {@code x IS NOT NULL} /
  *       {@code ispresent(x)} (PPL aliases the last to IS_NOT_NULL).</li>
+ *   <li><b>Datafusion-side adapter</b> — scalar {@code where earliest(literal, ts)} /
+ *       {@code where latest(literal, ts)} are rewritten by {@code EarliestLatestAdapter}
+ *       into a {@code now()}-symbolic comparison (or a TIMESTAMP literal for absolute
+ *       inputs). DataFusion's {@code SimplifyExpressions} then folds {@code now()}
+ *       against the engine's {@code query_execution_start_time}.</li>
  * </ul>
  *
  * <p>Fixture columns from the {@code calcs} dataset (per row keyed by {@code key}):
@@ -41,6 +44,8 @@ import org.junit.Ignore;
  *       {@code OFFICE SUPPLIES}, or {@code TECHNOLOGY}.</li>
  *   <li>{@code str2}: nullable VARCHAR — null on key03, key06, key12, key16. Non-null value
  *       {@code "one"} on key00.</li>
+ *   <li>{@code datetime0}: non-null TIMESTAMP — spans
+ *       {@code 2004-07-04T22:49:28Z} (key08) to {@code 2004-08-02T07:59:23Z} (key02).</li>
  * </ul>
  */
 public class ConditionalFunctionsIT extends AnalyticsRestTestCase {
@@ -275,6 +280,103 @@ public class ConditionalFunctionsIT extends AnalyticsRestTestCase {
         assertFirstRowBoolean(oneRow("key00") + "| eval v = regexp_match(str2, '^z') | fields v", false);
     }
 
+    // ── earliest / latest ───────────────────────────────────────────────────
+    //
+    // Pipeline:
+    //   PPL parser → Calcite RexCall (operator name "EARLIEST" / "LATEST")
+    //     → BackendPlanAdapter resolves ScalarFunction.EARLIEST / LATEST →
+    //       EarliestLatestAdapter rewrites the call to
+    //         ts >=|<= [TIMESTAMP_LITERAL | DATETIME_PLUS(now(), INTERVAL) | date_trunc(unit, now())]
+    //     → Substrait emit (now(), INTERVAL_DAY/MONTH, date_trunc resolve via
+    //       the sandbox extension catalog) → DataFusion SimplifyExpressions
+    //       folds now() against query_execution_start_time → native timestamp
+    //       comparison.
+
+    /**
+     * {@code where earliest(absolute_literal, ts)} keeps rows with {@code ts >=}
+     * the literal. 11 of 17 calcs rows have {@code datetime0 >= 2004-07-15}.
+     */
+    public void testEarliestAbsoluteLiteralCount() throws IOException {
+        assertFirstRowLong(
+            "source = " + DATASET.indexName + " | where earliest('2004-07-15 00:00:00', `datetime0`) | stats count() as cnt",
+            11L
+        );
+    }
+
+    /**
+     * {@code where latest(absolute_literal, ts)} keeps rows with {@code ts <=}
+     * the literal. 6 rows have {@code datetime0 <= 2004-07-15}.
+     */
+    public void testLatestAbsoluteLiteralCount() throws IOException {
+        assertFirstRowLong(
+            "source = " + DATASET.indexName + " | where latest('2004-07-15 00:00:00', `datetime0`) | stats count() as cnt",
+            6L
+        );
+    }
+
+    /**
+     * Per-row predicate selectivity for {@code earliest(literal, ts)}: a key
+     * just above the threshold survives (1 row), a key just below is filtered
+     * out (0 rows).
+     */
+    public void testEarliestAbsoluteLiteralSelectsSpecificRows() throws IOException {
+        assertFirstRowLong(
+            oneRow("key01") + "| where earliest('2004-07-26 00:00:00', `datetime0`) | stats count() as cnt",
+            1L
+        );
+        assertFirstRowLong(
+            oneRow("key00") + "| where earliest('2004-07-26 00:00:00', `datetime0`) | stats count() as cnt",
+            0L
+        );
+    }
+
+    /**
+     * {@code earliest('-100y', ts)} — relative offset 100 years back. All calcs
+     * rows are in 2004, so a 100-year lookback keeps all 17. Exercises the
+     * pure-offset path: {@code DATETIME_PLUS(now(), INTERVAL_MONTH(-1200))}
+     * which DataFusion folds at engine plan time.
+     */
+    public void testEarliestRelativeOffsetKeepsAllRows() throws IOException {
+        assertFirstRowLong(
+            "source = " + DATASET.indexName + " | where earliest('-100y', `datetime0`) | stats count() as cnt",
+            17L
+        );
+    }
+
+    /**
+     * {@code latest('+100y', ts)} — symmetric: 100 years forward keeps every
+     * row that's in the past relative to "now".
+     */
+    public void testLatestRelativeOffsetKeepsAllRows() throws IOException {
+        assertFirstRowLong(
+            "source = " + DATASET.indexName + " | where latest('+100y', `datetime0`) | stats count() as cnt",
+            17L
+        );
+    }
+
+    /**
+     * {@code latest('-1y', ts)} — 1-year-ago threshold. All calcs rows are in
+     * 2004 so they're older than 1 year; the predicate keeps all 17.
+     */
+    public void testLatestRelativeOneYearKeepsAllPastRows() throws IOException {
+        assertFirstRowLong(
+            "source = " + DATASET.indexName + " | where latest('-1y', `datetime0`) | stats count() as cnt",
+            17L
+        );
+    }
+
+    /**
+     * {@code latest('now', ts)} — the literal "now" lowers to a bare
+     * {@code now()} on the RHS; the predicate becomes {@code ts <= now()}. All
+     * calcs rows are in 2004 so they all qualify.
+     */
+    public void testLatestNowKeepsAllPastRows() throws IOException {
+        assertFirstRowLong(
+            "source = " + DATASET.indexName + " | where latest('now', `datetime0`) | stats count() as cnt",
+            17L
+        );
+    }
+
     // ── helpers ─────────────────────────────────────────────────────────────
 
     private void assertFirstRowString(String ppl, String expected) throws IOException {
@@ -288,6 +390,12 @@ public class ConditionalFunctionsIT extends AnalyticsRestTestCase {
         assertNotNull("Expected non-null boolean result for query [" + ppl + "]", cell);
         assertTrue("Expected boolean result for query [" + ppl + "] but got: " + cell, cell instanceof Boolean);
         assertEquals("Value mismatch for query: " + ppl, expected, cell);
+    }
+
+    private void assertFirstRowLong(String ppl, long expected) throws IOException {
+        Object cell = firstRowFirstCell(ppl);
+        assertTrue("Expected numeric result for query [" + ppl + "] but got: " + cell, cell instanceof Number);
+        assertEquals("Value mismatch for query: " + ppl, expected, ((Number) cell).longValue());
     }
 
     private Object firstRowFirstCell(String ppl) throws IOException {

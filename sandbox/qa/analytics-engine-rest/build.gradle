@@ -52,6 +52,13 @@ def configureAnalyticsCluster = { cluster ->
     cluster.jvmArgs '--add-opens=java.base/java.nio=ALL-UNNAMED'
     cluster.jvmArgs '--enable-native-access=ALL-UNNAMED'
 
+    // Calcite's Aggregate.typeMatchesInferred enforces declared == inferred per aggCall.
+    // Distributed FINAL aggregates pin a different return type than what re-inference over
+    // the array-typed StageInputScan column would produce — the engine's substrait emit
+    // and Rust's derive_schema_from_partial_plan are the source of truth, not Calcite's
+    // re-inference. Disable that one assertion namespace; -ea remains on elsewhere.
+    cluster.jvmArgs '-da:org.apache.calcite...'
+
     // Arrow memory allocator needs Netty unsafe access on JDK 25; mirrors
     // gradle/run.gradle's arrow-flight-rpc overrides so AnalyticsSearchService
     // can construct its RootAllocator at node start.

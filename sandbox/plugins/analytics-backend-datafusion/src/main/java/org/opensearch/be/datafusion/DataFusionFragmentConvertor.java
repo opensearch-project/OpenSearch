@@ -20,15 +20,23 @@ import org.apache.calcite.rel.RelDistributions;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.RelReferentialConstraint;
 import org.apache.calcite.rel.RelRoot;
+import org.apache.calcite.rel.core.AggregateCall;
 import org.apache.calcite.rel.core.TableScan;
 import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rel.type.RelDataTypeFactory;
 import org.apache.calcite.rel.type.RelDataTypeField;
+import org.apache.calcite.rex.RexLiteral;
+import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.schema.ColumnStrategy;
+import org.apache.calcite.sql.SqlAggFunction;
+import org.apache.calcite.sql.SqlFunctionCategory;
 import org.apache.calcite.sql.SqlKind;
 import org.apache.calcite.sql.fun.SqlLibraryOperators;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
+import org.apache.calcite.sql.type.OperandTypes;
+import org.apache.calcite.sql.type.ReturnTypes;
 import org.apache.calcite.util.ImmutableBitSet;
+import org.apache.calcite.util.Optionality;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.analytics.planner.rel.OpenSearchStageInputScan;
@@ -40,9 +48,13 @@ import org.opensearch.be.datafusion.planner.adapter.TimeConversionFunctionAdapte
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
+import java.util.function.Function;
 
 import io.substrait.expression.AggregateFunctionInvocation;
 import io.substrait.expression.Expression;
+import io.substrait.expression.FunctionArg;
+import io.substrait.expression.ImmutableAggregateFunctionInvocation;
 import io.substrait.extension.SimpleExtension;
 import io.substrait.isthmus.ConverterProvider;
 import io.substrait.isthmus.SubstraitRelVisitor;
@@ -61,6 +73,7 @@ import io.substrait.relation.NamedScan;
 import io.substrait.relation.Project;
 import io.substrait.relation.Rel;
 import io.substrait.relation.Sort;
+import io.substrait.type.Type;
 
 /**
  * Converts Calcite RelNode fragments to Substrait protobuf bytes
@@ -163,6 +176,9 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         FunctionMappings.s(DateTimeAdapters.LOCAL_DATE_OP, "to_date"),
         // PPL datetime(expr) → DF builtin to_timestamp (DatetimeAdapter renames only).
         FunctionMappings.s(DateTimeAdapters.LOCAL_TO_TIMESTAMP_OP, "to_timestamp"),
+        // date_trunc(granularity, ts) → DF builtin date_trunc. Used by
+        // EarliestFunctionAdapter to express PPL's `@<unit>` snap chunks symbolically.
+        FunctionMappings.s(DateTimeAdapters.LOCAL_DATE_TRUNC_OP, "date_trunc"),
         // PPL datetime + format functions → Rust UDFs registered in rust/src/udf/mod.rs.
         FunctionMappings.s(RustUdfDateTimeAdapters.LOCAL_EXTRACT_OP, "extract"),
         FunctionMappings.s(RustUdfDateTimeAdapters.LOCAL_FROM_UNIXTIME_OP, "from_unixtime"),
@@ -245,48 +261,138 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
     );
 
     /**
+     * Locally-declared aggregate operator stubs for PPL's state-expanding aggregates.
+     * {@link PplAggregateCallRewriter#rewrite(RelNode)} swaps PPL aggregations onto these stubs
+     * so isthmus's {@link io.substrait.isthmus.expression.AggregateFunctionConverter}
+     * resolves them by operator identity through {@link #ADDITIONAL_AGGREGATE_SIGS} →
+     * substrait extension name (in {@code opensearch_aggregate_functions.yaml}), which
+     * DataFusion's substrait consumer binds to its target UDAF.
+     *
+     * <ul>
+     *   <li>{@code TAKE(value, n)} → {@code take} (custom Rust UDAF, {@code rust/src/udaf/take.rs})</li>
+     *   <li>{@code FIRST(value)} → {@code first_value} (DataFusion native)</li>
+     *   <li>{@code LAST(value)} → {@code last_value} (DataFusion native)</li>
+     *   <li>{@code LIST(value)} → {@code array_agg} (DataFusion native)</li>
+     *   <li>{@code VALUES(value)} → {@code array_agg} with {@code isDistinct=true}</li>
+     * </ul>
+     *
+     * <p>VARIADIC operand types because PARTIAL and FINAL aggregate forms differ in
+     * arity (2-arg take(field,N) vs 1-arg take(state)).
+     */
+    static final SqlAggFunction LOCAL_TAKE_OP = new SqlAggFunction(
+        "take",
+        null,
+        SqlKind.OTHER_FUNCTION,
+        ReturnTypes.TO_ARRAY,
+        null,
+        OperandTypes.VARIADIC,
+        SqlFunctionCategory.USER_DEFINED_FUNCTION,
+        false,
+        false,
+        Optionality.FORBIDDEN
+    ) {
+    };
+
+    static final SqlAggFunction LOCAL_FIRST_OP = new SqlAggFunction(
+        "first_value",
+        null,
+        SqlKind.OTHER_FUNCTION,
+        ReturnTypes.ARG0,
+        null,
+        OperandTypes.ANY,
+        SqlFunctionCategory.USER_DEFINED_FUNCTION,
+        false,
+        false,
+        Optionality.FORBIDDEN
+    ) {
+    };
+
+    static final SqlAggFunction LOCAL_LAST_OP = new SqlAggFunction(
+        "last_value",
+        null,
+        SqlKind.OTHER_FUNCTION,
+        ReturnTypes.ARG0,
+        null,
+        OperandTypes.ANY,
+        SqlFunctionCategory.USER_DEFINED_FUNCTION,
+        false,
+        false,
+        Optionality.FORBIDDEN
+    ) {
+    };
+
+    /** Used by both LIST (isDistinct from the call) and VALUES (forces isDistinct=true). */
+    static final SqlAggFunction LOCAL_ARRAY_AGG_OP = new SqlAggFunction(
+        "array_agg",
+        null,
+        SqlKind.OTHER_FUNCTION,
+        ReturnTypes.TO_ARRAY,
+        null,
+        OperandTypes.ANY,
+        SqlFunctionCategory.USER_DEFINED_FUNCTION,
+        false,
+        false,
+        Optionality.FORBIDDEN
+    ) {
+    };
+
+    /** FINAL-side merge for LIST — custom Rust UDAF that un-nests per-shard list states. */
+    static final SqlAggFunction LOCAL_LIST_MERGE_OP = new SqlAggFunction(
+        "list_merge",
+        null,
+        SqlKind.OTHER_FUNCTION,
+        ReturnTypes.ARG0,
+        null,
+        OperandTypes.ANY,
+        SqlFunctionCategory.USER_DEFINED_FUNCTION,
+        false,
+        false,
+        Optionality.FORBIDDEN
+    ) {
+    };
+
+    /** FINAL-side merge for VALUES — re-deduplicates after concatenation. */
+    static final SqlAggFunction LOCAL_LIST_MERGE_DISTINCT_OP = new SqlAggFunction(
+        "list_merge_distinct",
+        null,
+        SqlKind.OTHER_FUNCTION,
+        ReturnTypes.ARG0,
+        null,
+        OperandTypes.ANY,
+        SqlFunctionCategory.USER_DEFINED_FUNCTION,
+        false,
+        false,
+        Optionality.FORBIDDEN
+    ) {
+    };
+
+    /**
      * Maps aggregate operators to their Substrait extension names so isthmus serializes
      * them through our {@code SimpleExtension} catalog instead of the default Substrait
      * names.
      *
      * <p>{@link SqlStdOperatorTable#APPROX_COUNT_DISTINCT} → {@code approx_distinct}
      * (declared in {@code opensearch_aggregate_functions.yaml}) routes to DataFusion's
-     * native HyperLogLog {@code APPROX_DISTINCT} aggregate. Wiring this through isthmus'
-     * {@code ADDITIONAL_AGGREGATE_SIGS} alone is not enough because isthmus's default
-     * aggregate catalog already binds {@code APPROX_COUNT_DISTINCT} to substrait's
-     * standard {@code approx_count_distinct} URN; when signatures merge, the default
-     * binding overwrites ours in the matcher map. {@link OpenSearchAggregateFunctionConverter}
-     * fixes that by filtering the stock sig out of the default list so our entry is the
-     * only one that resolves to this operator.
+     * native HyperLogLog {@code APPROX_DISTINCT} aggregate. Isthmus's default catalog
+     * also binds the same operator to substrait's {@code approx_count_distinct} URN;
+     * the converter override in {@link #createVisitor(RelNode)} filters that default
+     * sig out so our entry is the only one that resolves.
+     *
+     * <p>The {@code LOCAL_*_OP} entries route PPL's state-expanding aggregates
+     * (TAKE, FIRST, LAST, LIST, VALUES) to their DataFusion target UDAFs. The custom
+     * stubs are not bound by isthmus's default catalog, so no signature filtering is
+     * needed for them. VALUES shares {@code LOCAL_ARRAY_AGG_OP} with LIST — distinguished
+     * at {@link PplAggregateCallRewriter#rewrite(RelNode)} time by setting {@code isDistinct=true}.
      */
     private static final List<FunctionMappings.Sig> ADDITIONAL_AGGREGATE_SIGS = List.of(
-        FunctionMappings.s(SqlStdOperatorTable.APPROX_COUNT_DISTINCT, "approx_distinct")
+        FunctionMappings.s(SqlStdOperatorTable.APPROX_COUNT_DISTINCT, "approx_distinct"),
+        FunctionMappings.s(LOCAL_TAKE_OP, "take"),
+        FunctionMappings.s(LOCAL_FIRST_OP, "first_value"),
+        FunctionMappings.s(LOCAL_LAST_OP, "last_value"),
+        FunctionMappings.s(LOCAL_ARRAY_AGG_OP, "array_agg"),
+        FunctionMappings.s(LOCAL_LIST_MERGE_OP, "list_merge"),
+        FunctionMappings.s(LOCAL_LIST_MERGE_DISTINCT_OP, "list_merge_distinct")
     );
-
-    /**
-     * Subclassed {@link AggregateFunctionConverter} that removes isthmus's default binding
-     * for {@link SqlStdOperatorTable#APPROX_COUNT_DISTINCT} from the signature merge.
-     * Without this, the default {@code approx_count_distinct} URN binding would shadow
-     * our entry in {@link #ADDITIONAL_AGGREGATE_SIGS} and the YAML-declared
-     * {@code approx_distinct} extension would never be reached.
-     */
-    private static final class OpenSearchAggregateFunctionConverter extends AggregateFunctionConverter {
-        OpenSearchAggregateFunctionConverter(
-            List<SimpleExtension.AggregateFunctionVariant> functions,
-            List<FunctionMappings.Sig> additionalSignatures,
-            RelDataTypeFactory typeFactory,
-            TypeConverter typeConverter
-        ) {
-            super(functions, additionalSignatures, typeFactory, typeConverter);
-        }
-
-        @Override
-        protected ImmutableList<FunctionMappings.Sig> getSigs() {
-            return super.getSigs().stream()
-                .filter(sig -> sig.operator != SqlStdOperatorTable.APPROX_COUNT_DISTINCT)
-                .collect(ImmutableList.toImmutableList());
-        }
-    }
 
     private final SimpleExtension.ExtensionCollection extensions;
 
@@ -348,6 +454,10 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         // DataFusion emits PPL's space-separator timestamp format instead of Arrow's ISO-T.
         // See issue #5420.
         preprocessed = DatetimeOutputCastRewriter.rewrite(preprocessed);
+        // Rewrite PPL's state-expanding aggregates (TAKE/FIRST/LAST/LIST/VALUES) onto
+        // LOCAL_*_OP stubs so isthmus's AggregateFunctionConverter binds them by
+        // operator identity through ADDITIONAL_AGGREGATE_SIGS.
+        preprocessed = PplAggregateCallRewriter.rewrite(preprocessed);
         RelRoot root = RelRoot.of(preprocessed, SqlKind.SELECT);
         SubstraitRelVisitor visitor = createVisitor(preprocessed);
         Rel substraitRel;
@@ -391,6 +501,7 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         RelNode preprocessed = UntypedNullPreprocessor.rewrite(operator);
         // Same rationale as convertToSubstrait — issue #5420.
         preprocessed = DatetimeOutputCastRewriter.rewrite(preprocessed);
+        preprocessed = PplAggregateCallRewriter.rewrite(preprocessed);
         SubstraitRelVisitor visitor = createVisitor(preprocessed);
         return visitor.apply(preprocessed);
     }
@@ -437,6 +548,13 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
             return Filter.builder().from(filter).input(newInput).build();
         }
         if (wrapper instanceof Project project) {
+            // Lifted-window shape: OpenSearchProject.liftNestedRexOver emits Project(Project(input))
+            // where the lower Project computes a window column the outer references. A flat swap
+            // here would drop the lower Project and break the outer's input refs.
+            if (project.getInput() instanceof Project lower && containsWindowFunction(lower)) {
+                Rel rewiredLower = replaceInput(lower, newInput);
+                return Project.builder().from(project).input(rewiredLower).build();
+            }
             return Project.builder().from(project).input(newInput).build();
         }
         if (wrapper instanceof Fetch fetch) {
@@ -448,6 +566,15 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         throw new UnsupportedOperationException(
             "Cannot attach-on-top a Substrait Rel of type " + wrapper.getClass().getSimpleName() + " — no single-input rewire defined"
         );
+    }
+
+    private static boolean containsWindowFunction(Project project) {
+        for (Expression expr : project.getExpressions()) {
+            if (expr instanceof Expression.WindowFunctionInvocation) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -514,12 +641,61 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
             typeFactory,
             typeConverter
         );
-        AggregateFunctionConverter aggConverter = new OpenSearchAggregateFunctionConverter(
+        // Filter isthmus's default APPROX_COUNT_DISTINCT binding out of getSigs() so our
+        // ADDITIONAL_AGGREGATE_SIGS entry routes to the YAML-declared `approx_distinct`
+        // extension instead of being shadowed by the stock `approx_count_distinct` URN.
+        //
+        // The convert() override inlines literal-Project columns referenced by aggregate
+        // measure args into the emitted AggregateFunctionInvocation as Substrait literals.
+        // Calcite's RelBuilder.aggregate auto-projects literal aggregate-args as separate
+        // columns and AggregateCall.argList only carries column indices, so without this
+        // step our Rust UDAFs (e.g. TAKE's N) only see a column reference at construction
+        // and DataFusion's two-stage execution dispatches the Final accumulator through
+        // merge_batch — which receives only state columns, not the constant column — so
+        // the limit can never be resolved on the coordinator. Inlining at the binding
+        // layer means the Substrait literal travels with the aggregate and the Final
+        // accumulator resolves the limit synchronously in accumulator().
+        AggregateFunctionConverter aggConverter = new AggregateFunctionConverter(
             extensions.aggregateFunctions(),
             ADDITIONAL_AGGREGATE_SIGS,
             typeFactory,
             typeConverter
-        );
+        ) {
+            @Override
+            protected ImmutableList<FunctionMappings.Sig> getSigs() {
+                return super.getSigs().stream()
+                    .filter(sig -> sig.operator != SqlStdOperatorTable.APPROX_COUNT_DISTINCT)
+                    .collect(ImmutableList.toImmutableList());
+            }
+
+            @Override
+            public Optional<AggregateFunctionInvocation> convert(
+                RelNode input,
+                Type.Struct inputType,
+                AggregateCall call,
+                Function<RexNode, Expression> rexConverter
+            ) {
+                Optional<AggregateFunctionInvocation> bound = super.convert(input, inputType, call, rexConverter);
+                if (bound.isEmpty() || !(input instanceof org.apache.calcite.rel.core.Project project)) {
+                    return bound;
+                }
+                AggregateFunctionInvocation fn = bound.get();
+                List<RexNode> projects = project.getProjects();
+                List<FunctionArg> args = fn.arguments();
+                List<FunctionArg> rewritten = null;
+                for (int i = 0; i < args.size(); i++) {
+                    FunctionArg arg = args.get(i);
+                    if (!(arg instanceof io.substrait.expression.FieldReference fr)) continue;
+                    Integer offset = simpleStructOffset(fr);
+                    if (offset == null || offset < 0 || offset >= projects.size()) continue;
+                    if (!(projects.get(offset) instanceof RexLiteral rexLit)) continue;
+                    if (rewritten == null) rewritten = new ArrayList<>(args);
+                    rewritten.set(i, rexConverter.apply(rexLit));
+                }
+                if (rewritten == null) return bound;
+                return Optional.of(ImmutableAggregateFunctionInvocation.builder().from(fn).arguments(rewritten).build());
+            }
+        };
         WindowFunctionConverter windowConverter = new WindowFunctionConverter(extensions.windowFunctions(), typeFactory);
         ConverterProvider converterProvider = new ConverterProvider(
             typeFactory,
@@ -530,6 +706,21 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
             typeConverter
         );
         return new SubstraitRelVisitor(converterProvider);
+    }
+
+    /**
+     * Column offset for a simple input-rooted single-segment {@code StructField}, else null.
+     * Used to identify {@code FunctionArg}s that name a single column of the aggregate's
+     * input — these are the only references that can be inlined safely against the input
+     * Project's projection list.
+     */
+    private static Integer simpleStructOffset(io.substrait.expression.FieldReference fr) {
+        if (fr.isOuterReference() || fr.isLambdaParameterReference()) return null;
+        if (!fr.inputExpression().isEmpty()) return null;
+        if (fr.segments().size() != 1) return null;
+        io.substrait.expression.FieldReference.ReferenceSegment seg = fr.segments().get(0);
+        if (!(seg instanceof io.substrait.expression.FieldReference.StructField sf)) return null;
+        return sf.offset();
     }
 
     // ── Plan serde helpers ──────────────────────────────────────────────────────

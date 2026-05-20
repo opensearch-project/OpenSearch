@@ -17,7 +17,7 @@ import org.opensearch.action.admin.indices.create.CreateIndexResponse;
 import org.opensearch.analytics.AnalyticsPlugin;
 import org.opensearch.analytics.backend.jni.NativeHandle;
 import org.opensearch.analytics.exec.action.FragmentExecutionAction;
-import org.opensearch.arrow.plugin.ArrowBasePlugin;
+import org.opensearch.arrow.allocator.ArrowBasePlugin;
 import org.opensearch.arrow.flight.transport.FlightStreamPlugin;
 import org.opensearch.be.datafusion.DataFusionPlugin;
 import org.opensearch.be.datafusion.DataFusionService;
@@ -144,7 +144,7 @@ public class SearchCancellationIT extends OpenSearchIntegTestCase {
         ensureGreen(INDEX);
 
         for (int i = 0; i < TOTAL_DOCS; i++) {
-            client().prepareIndex(INDEX).setId(String.valueOf(i)).setSource("value", VALUE).get();
+            client().prepareIndex(INDEX).setSource("value", VALUE).get();
         }
         client().admin().indices().prepareRefresh(INDEX).get();
         client().admin().indices().prepareFlush(INDEX).get();
