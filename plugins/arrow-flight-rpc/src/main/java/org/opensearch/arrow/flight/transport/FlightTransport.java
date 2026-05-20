@@ -23,7 +23,6 @@ import org.opensearch.arrow.allocator.ArrowNativeAllocator;
 import org.opensearch.arrow.flight.bootstrap.ServerConfig;
 import org.opensearch.arrow.flight.bootstrap.tls.SslContextProvider;
 import org.opensearch.arrow.flight.stats.FlightStatsCollector;
-import org.opensearch.arrow.spi.NativeAllocatorListener;
 import org.opensearch.arrow.spi.NativeAllocatorPoolConfig;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.network.NetworkAddress;
@@ -97,10 +96,8 @@ class FlightTransport extends TcpTransport {
     private final AtomicInteger nextExecutorIndex = new AtomicInteger(0);
 
     private final ThreadPool threadPool;
-    private BufferAllocator flightAllocator;
     private BufferAllocator serverAllocator;
     private BufferAllocator clientAllocator;
-    private volatile NativeAllocatorListener poolListener;
 
     private final NamedWriteableRegistry namedWriteableRegistry;
     private final FlightStatsCollector statsCollector;
@@ -150,31 +147,23 @@ class FlightTransport extends TcpTransport {
     protected void doStart() {
         boolean success = false;
         try {
-            // Use the unified native allocator's flight pool so flight allocations are tracked
-            // and capped by the framework alongside ingest, query, and datafusion. Hard-fail if
-            // the framework plugin is missing — silently falling back to a separate root would
-            // break the same-root invariant for cross-plugin Arrow handoff.
+            // Use the unified native allocator's flight pool directly as the parent for
+            // server/client child allocators. Allocations are tracked and capped by the
+            // framework alongside ingest, query, and datafusion. Hard-fail if the framework
+            // plugin is missing — silently falling back to a separate root would break the
+            // same-root invariant for cross-plugin Arrow handoff.
+            //
+            // Server/client are children of the pool with Long.MAX_VALUE limits so dynamic
+            // resizes of parquet.native.pool.flight.max take effect immediately via Arrow's
+            // parent-cap check at allocateBytes — no listener needed.
             BufferAllocator flightPool = nativeAllocator.getPoolAllocator(NativeAllocatorPoolConfig.POOL_FLIGHT);
-            flightAllocator = flightPool.newChildAllocator("flight", 0, flightPool.getLimit());
-            serverAllocator = flightAllocator.newChildAllocator("server", 0, flightAllocator.getLimit());
-            clientAllocator = flightAllocator.newChildAllocator("client", 0, flightAllocator.getLimit());
-            // Subscribe to FLIGHT pool resize events so a dynamic update to
-            // parquet.native.pool.flight.max propagates into the captured child
-            // allocators. Without this, the children retain their construction-time
-            // limit — Arrow's parent-cap check still bounds shrinks, but bumps don't
-            // reach in-flight children. Only the top-level child's limit is updated;
-            // server/client allocators inherit headroom from their parent.
-            poolListener = (poolName, newLimit) -> {
-                if (NativeAllocatorPoolConfig.POOL_FLIGHT.equals(poolName)) {
-                    flightAllocator.setLimit(newLimit);
-                }
-            };
-            nativeAllocator.addListener(poolListener);
+            serverAllocator = flightPool.newChildAllocator("server", 0, Long.MAX_VALUE);
+            clientAllocator = flightPool.newChildAllocator("client", 0, Long.MAX_VALUE);
             if (statsCollector != null) {
-                statsCollector.setBufferAllocator(flightAllocator);
+                statsCollector.setBufferAllocator(flightPool);
                 statsCollector.setThreadPool(threadPool);
             }
-            flightProducer = new ArrowFlightProducer(this, flightAllocator, SERVER_HEADER_KEY, statsCollector);
+            flightProducer = new ArrowFlightProducer(this, flightPool, SERVER_HEADER_KEY, statsCollector);
             bindServer();
             success = true;
             if (statsCollector != null) {
@@ -281,10 +270,7 @@ class FlightTransport extends TcpTransport {
     @Override
     protected void stopInternal() {
         try {
-            if (poolListener != null) {
-                nativeAllocator.removeListener(poolListener);
-                poolListener = null;
-            }
+
             if (flightServer != null) {
                 flightServer.shutdown();
                 flightServer.awaitTermination();
@@ -293,7 +279,6 @@ class FlightTransport extends TcpTransport {
             }
             serverAllocator.close();
             clientAllocator.close();
-            flightAllocator.close();
             gracefullyShutdownELG(bossEventLoopGroup, "os-grpc-boss-ELG");
             gracefullyShutdownELG(workerEventLoopGroup, "os-grpc-worker-ELG");
 

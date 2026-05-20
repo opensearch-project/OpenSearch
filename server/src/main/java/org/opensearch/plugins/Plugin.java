@@ -39,6 +39,7 @@ import org.opensearch.cluster.metadata.IndexTemplateMetadata;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.inject.Module;
 import org.opensearch.common.lifecycle.LifecycleComponent;
@@ -258,7 +259,10 @@ public abstract class Plugin implements Closeable {
      * coordinator can deserialize per-node payloads received over transport.
      *
      * <p>Default: empty.
+     *
+     * @opensearch.experimental
      */
+    @ExperimentalApi
     public List<PluginNodeStats> nodeStats() {
         return Collections.emptyList();
     }

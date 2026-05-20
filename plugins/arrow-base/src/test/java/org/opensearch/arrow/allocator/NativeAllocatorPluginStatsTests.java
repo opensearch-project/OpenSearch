@@ -22,9 +22,7 @@ import java.util.List;
 public class NativeAllocatorPluginStatsTests extends OpenSearchTestCase {
 
     public void testWriteableNameIsStable() {
-        NativeAllocatorPluginStats stats = new NativeAllocatorPluginStats(
-            new NativeAllocatorPoolStats(0L, 0L, 0L, List.of())
-        );
+        NativeAllocatorPluginStats stats = new NativeAllocatorPluginStats(new NativeAllocatorPoolStats(0L, 0L, 0L, List.of()));
         assertEquals("native_allocator", stats.getWriteableName());
     }
 
@@ -33,9 +31,7 @@ public class NativeAllocatorPluginStatsTests extends OpenSearchTestCase {
             new NativeAllocatorPoolStats.PoolStats("flight", 100L, 200L, 1000L, 1),
             new NativeAllocatorPoolStats.PoolStats("query", 300L, 400L, 2000L, 2)
         );
-        NativeAllocatorPluginStats original = new NativeAllocatorPluginStats(
-            new NativeAllocatorPoolStats(400L, 600L, 8000L, pools)
-        );
+        NativeAllocatorPluginStats original = new NativeAllocatorPluginStats(new NativeAllocatorPoolStats(400L, 600L, 8000L, pools));
 
         BytesStreamOutput out = new BytesStreamOutput();
         original.writeTo(out);
@@ -50,12 +46,7 @@ public class NativeAllocatorPluginStatsTests extends OpenSearchTestCase {
 
     public void testToXContentEmitsInnerFieldsOnly() throws Exception {
         NativeAllocatorPluginStats stats = new NativeAllocatorPluginStats(
-            new NativeAllocatorPoolStats(
-                100L,
-                200L,
-                1000L,
-                List.of(new NativeAllocatorPoolStats.PoolStats("flight", 50L, 75L, 500L, 1))
-            )
+            new NativeAllocatorPoolStats(100L, 200L, 1000L, List.of(new NativeAllocatorPoolStats.PoolStats("flight", 50L, 75L, 500L, 1)))
         );
 
         XContentBuilder builder = JsonXContent.contentBuilder();

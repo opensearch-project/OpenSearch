@@ -150,10 +150,12 @@ public final class NativeBridge {
         // Arc<DiskManager> API). Bind only if the symbol is present so the same
         // Java JAR is forward-compatible with a future native library that ships it.
         SET_SPILL_LIMIT = lib.find("df_set_spill_limit")
-            .map(addr -> linker.downcallHandle(
-                addr,
-                FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG)
-            ))
+            .map(
+                addr -> linker.downcallHandle(
+                    addr,
+                    FunctionDescriptor.of(ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG)
+                )
+            )
             .orElse(null);
 
         CREATE_READER = linker.downcallHandle(

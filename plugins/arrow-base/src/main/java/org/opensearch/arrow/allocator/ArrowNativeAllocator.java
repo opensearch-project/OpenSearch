@@ -10,11 +10,7 @@ package org.opensearch.arrow.allocator;
 
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.memory.RootAllocator;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.opensearch.arrow.spi.NativeAllocator;
-import org.opensearch.arrow.spi.NativeAllocatorListener;
-import org.opensearch.arrow.spi.NativeAllocatorPoolConfig;
 import org.opensearch.arrow.spi.NativeAllocatorPoolStats;
 
 import java.util.ArrayList;
@@ -24,7 +20,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
@@ -49,13 +44,10 @@ import java.util.concurrent.TimeUnit;
  */
 public class ArrowNativeAllocator implements NativeAllocator {
 
-    private static final Logger logger = LogManager.getLogger(ArrowNativeAllocator.class);
-
     private final RootAllocator root;
     private final ConcurrentMap<String, ArrowPoolHandle> pools = new ConcurrentHashMap<>();
     private final ConcurrentMap<String, Long> poolMins = new ConcurrentHashMap<>();
     private final ConcurrentMap<String, Long> poolMaxes = new ConcurrentHashMap<>();
-    private final CopyOnWriteArrayList<NativeAllocatorListener> listeners = new CopyOnWriteArrayList<>();
     private final ScheduledExecutorService rebalancer;
     private volatile ScheduledFuture<?> rebalanceTask;
     /**
@@ -140,37 +132,7 @@ public class ArrowNativeAllocator implements NativeAllocator {
             throw new IllegalStateException("Pool '" + poolName + "' does not exist");
         }
         poolMaxes.put(poolName, newLimit);
-        long previous = handle.allocator.getLimit();
         handle.allocator.setLimit(newLimit);
-        if (newLimit != previous) {
-            fireListeners(poolName, newLimit);
-        }
-    }
-
-    @Override
-    public void addListener(NativeAllocatorListener listener) {
-        listeners.addIfAbsent(listener);
-    }
-
-    @Override
-    public void removeListener(NativeAllocatorListener listener) {
-        listeners.remove(listener);
-    }
-
-    /**
-     * Notifies all registered listeners of a pool limit change. Each listener
-     * is invoked synchronously on the caller thread; exceptions thrown by one
-     * listener are logged and isolated so they do not block the others or the
-     * caller.
-     */
-    private void fireListeners(String poolName, long newLimit) {
-        for (NativeAllocatorListener listener : listeners) {
-            try {
-                listener.onPoolLimitChanged(poolName, newLimit);
-            } catch (Exception e) {
-                logger.warn("NativeAllocatorListener threw on pool [{}] limit update", poolName, e);
-            }
-        }
     }
 
     /**
@@ -183,8 +145,10 @@ public class ArrowNativeAllocator implements NativeAllocator {
      * <p>Live propagation rules:
      * <ul>
      *   <li>If {@code newMin} exceeds the pool's current limit, the limit is raised to
-     *       {@code newMin} (capped at the configured pool max), and listeners fire so
-     *       downstream consumers (e.g. the DataFusion Rust runtime) see the new ceiling.
+     *       {@code newMin} (capped at the configured pool max). Children of the pool
+     *       allocator inherit the change automatically via Arrow's parent-cap check at
+     *       allocation time, so dynamic resizes reach in-flight workloads without an
+     *       explicit notification SPI.
      *   <li>If {@code newMin} is below the current limit, the limit is left alone —
      *       the rebalancer is the only path that shrinks live limits, so a min change
      *       on its own never reduces capacity in flight.
@@ -204,7 +168,6 @@ public class ArrowNativeAllocator implements NativeAllocator {
         long target = Math.min(newMin, max);
         if (target > current) {
             handle.allocator.setLimit(target);
-            fireListeners(poolName, target);
         }
     }
 
@@ -292,11 +255,7 @@ public class ArrowNativeAllocator implements NativeAllocator {
             // Never exceed root
             effectiveLimit = Math.min(effectiveLimit, rootLimit);
 
-            long previous = alloc.getLimit();
             alloc.setLimit(effectiveLimit);
-            if (effectiveLimit != previous) {
-                fireListeners(name, effectiveLimit);
-            }
         }
     }
 

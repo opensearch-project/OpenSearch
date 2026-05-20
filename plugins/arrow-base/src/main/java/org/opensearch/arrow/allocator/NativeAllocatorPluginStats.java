@@ -70,11 +70,7 @@ public class NativeAllocatorPluginStats implements PluginNodeStats {
             "allocated",
             new org.opensearch.core.common.unit.ByteSizeValue(poolStats.getRootAllocatedBytes())
         );
-        builder.humanReadableField(
-            "peak_bytes",
-            "peak",
-            new org.opensearch.core.common.unit.ByteSizeValue(poolStats.getRootPeakBytes())
-        );
+        builder.humanReadableField("peak_bytes", "peak", new org.opensearch.core.common.unit.ByteSizeValue(poolStats.getRootPeakBytes()));
         builder.humanReadableField(
             "limit_bytes",
             "limit",

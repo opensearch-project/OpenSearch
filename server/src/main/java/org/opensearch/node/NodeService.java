@@ -70,6 +70,7 @@ import org.opensearch.transport.TransportService;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -248,7 +249,8 @@ public class NodeService implements Closeable {
         boolean repositoriesStats,
         boolean admissionControl,
         boolean cacheService,
-        boolean remoteStoreNodeStats
+        boolean remoteStoreNodeStats,
+        boolean pluginStats
     ) {
         // for indices stats we want to include previous allocated shards stats as well (it will
         // only be applied to the sensible ones to use, like refresh/merge/flush/indexing stats)
@@ -283,7 +285,7 @@ public class NodeService implements Closeable {
             admissionControl ? this.admissionControlService.stats() : null,
             cacheService ? this.cacheService.stats(indices) : null,
             remoteStoreNodeStats ? new RemoteStoreNodeStats() : null,
-            collectPluginStats()
+            pluginStats ? collectPluginStats() : Collections.emptyMap()
         );
     }
 

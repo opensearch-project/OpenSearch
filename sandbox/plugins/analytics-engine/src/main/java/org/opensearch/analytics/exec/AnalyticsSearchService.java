@@ -24,7 +24,6 @@ import org.opensearch.analytics.spi.FragmentInstructionHandler;
 import org.opensearch.analytics.spi.FragmentInstructionHandlerFactory;
 import org.opensearch.analytics.spi.InstructionNode;
 import org.opensearch.arrow.allocator.ArrowNativeAllocator;
-import org.opensearch.arrow.spi.NativeAllocatorListener;
 import org.opensearch.arrow.spi.NativeAllocatorPoolConfig;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
@@ -65,12 +64,8 @@ public class AnalyticsSearchService implements AutoCloseable {
     private TaskResourceTrackingService taskResourceTrackingService;
     private final BufferAllocator allocator;
     private final ArrowNativeAllocator nativeAllocator;
-    private final NativeAllocatorListener poolListener;
 
-    public AnalyticsSearchService(
-        Map<String, AnalyticsSearchBackendPlugin> backends,
-        ArrowNativeAllocator nativeAllocator
-    ) {
+    public AnalyticsSearchService(Map<String, AnalyticsSearchBackendPlugin> backends, ArrowNativeAllocator nativeAllocator) {
         this(backends, List.of(), nativeAllocator, null);
     }
 
@@ -95,26 +90,16 @@ public class AnalyticsSearchService implements AutoCloseable {
         // analytics-engine allocations are tracked and capped by the framework. Hard-fail if
         // the framework is missing — silently falling back to a separate root would break
         // Arrow's same-root invariant for cross-plugin handoff.
+        //
+        // Child uses Long.MAX_VALUE so dynamic resizes of parquet.native.pool.query.max take
+        // effect immediately via Arrow's parent-cap check at allocateBytes — no listener needed.
         BufferAllocator queryPool = nativeAllocator.getPoolAllocator(NativeAllocatorPoolConfig.POOL_QUERY);
-        this.allocator = queryPool.newChildAllocator("analytics-search-service", 0, queryPool.getLimit());
+        this.allocator = queryPool.newChildAllocator("analytics-search-service", 0, Long.MAX_VALUE);
         this.namedWriteableRegistry = namedWriteableRegistry;
-
-        // Subscribe to QUERY pool resize events so a dynamic update to
-        // parquet.native.pool.query.max propagates into this service-level child
-        // allocator. Without this, the child's limit is captured at construction
-        // and runtime grows are silently ignored — Arrow's parent-cap check still
-        // bounds shrinks, but bumps don't reach in-flight children.
-        this.poolListener = (poolName, newLimit) -> {
-            if (NativeAllocatorPoolConfig.POOL_QUERY.equals(poolName)) {
-                allocator.setLimit(newLimit);
-            }
-        };
-        nativeAllocator.addListener(poolListener);
     }
 
     @Override
     public void close() {
-        nativeAllocator.removeListener(poolListener);
         allocator.close();
     }
 

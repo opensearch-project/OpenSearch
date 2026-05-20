@@ -32,8 +32,8 @@ import org.opensearch.analytics.planner.dag.DAGBuilder;
 import org.opensearch.analytics.planner.dag.FragmentConversionDriver;
 import org.opensearch.analytics.planner.dag.PlanForker;
 import org.opensearch.analytics.planner.dag.QueryDAG;
+import org.opensearch.arrow.allocator.AllocationRejection;
 import org.opensearch.arrow.allocator.ArrowNativeAllocator;
-import org.opensearch.arrow.spi.NativeAllocatorListener;
 import org.opensearch.arrow.spi.NativeAllocatorPoolConfig;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
@@ -79,13 +79,12 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
     private final NodeClient client;
     private final ArrowNativeAllocator nativeAllocator;
     // Pre-existing leak: DefaultPlanExecutor is Guice-instantiated and not closed by the
-    // framework, so coordinatorAllocator + the registered NativeAllocatorListener leak on
-    // node shutdown. ArrowNativeAllocator.close() will warn about the outstanding child.
-    // Fix would require either (a) making DefaultPlanExecutor LifecycleComponent so Node
-    // closes it, or (b) wrapping in a Guice-bound singleton that AnalyticsPlugin owns and
-    // closes from its own close() method. Out of scope for the SPI-removal migration.
+    // framework, so coordinatorAllocator leaks on node shutdown. ArrowNativeAllocator.close()
+    // will warn about the outstanding child. Fix would require either (a) making
+    // DefaultPlanExecutor LifecycleComponent so Node closes it, or (b) wrapping in a Guice-bound
+    // singleton that AnalyticsPlugin owns and closes from its own close() method. Out of scope
+    // for the SPI-removal migration.
     private final BufferAllocator coordinatorAllocator;
-    private final NativeAllocatorListener poolListener;
     private volatile long perQueryBufferLimit;
 
     @Inject
@@ -115,22 +114,14 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
         // parquet.native.pool.query.max alongside the data-node-side per-fragment allocators in
         // AnalyticsSearchService. Before this, coordinator allocations were root-siblings outside
         // any pool and invisible to _nodes/stats.native_allocator.pools.query.allocated.
+        //
+        // Child uses Long.MAX_VALUE so dynamic resizes of parquet.native.pool.query.max take
+        // effect immediately via Arrow's parent-cap check at allocateBytes — no listener needed.
         BufferAllocator queryPool = nativeAllocator.getPoolAllocator(NativeAllocatorPoolConfig.POOL_QUERY);
-        this.coordinatorAllocator = queryPool.newChildAllocator("coordinator", 0, queryPool.getLimit());
+        this.coordinatorAllocator = queryPool.newChildAllocator("coordinator", 0, Long.MAX_VALUE);
         this.perQueryBufferLimit = AnalyticsPlugin.COORDINATOR_BUFFER_LIMIT.get(clusterService.getSettings());
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(AnalyticsPlugin.COORDINATOR_BUFFER_LIMIT, v -> perQueryBufferLimit = v);
-
-        // Subscribe to QUERY pool resize events so a dynamic update to
-        // parquet.native.pool.query.max propagates into this captured child allocator,
-        // matching the listener pattern used by AnalyticsSearchService and FlightTransport.
-        // Without this, runtime grows are silently ignored once a query is in flight.
-        this.poolListener = (poolName, newLimit) -> {
-            if (NativeAllocatorPoolConfig.POOL_QUERY.equals(poolName)) {
-                coordinatorAllocator.setLimit(newLimit);
-            }
-        };
-        nativeAllocator.addListener(poolListener);
     }
 
     @Override
@@ -192,7 +183,14 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
             queryAllocator = coordinatorAllocator;
             ownsAllocator = false;
         } else {
-            queryAllocator = coordinatorAllocator.newChildAllocator("query-" + dag.queryId(), 0, perQueryBufferLimit);
+            // Per-request allocation: a failure here means the QUERY pool is exhausted, not
+            // a framework misconfiguration. Translate Arrow's OutOfMemoryException into
+            // OpenSearchRejectedExecutionException so the REST layer maps it to HTTP 429
+            // and the client sees a proper backpressure signal rather than a generic 500.
+            queryAllocator = AllocationRejection.wrap(
+                "query-" + dag.queryId(),
+                () -> coordinatorAllocator.newChildAllocator("query-" + dag.queryId(), 0, perQueryBufferLimit)
+            );
             ownsAllocator = true;
         }
         logger.debug("[query-{}] Arrow allocator created, limit={}B", dag.queryId(), perQueryBufferLimit);

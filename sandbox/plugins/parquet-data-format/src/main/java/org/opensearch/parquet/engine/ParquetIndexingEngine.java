@@ -11,6 +11,7 @@ package org.opensearch.parquet.engine;
 import org.apache.arrow.vector.types.pojo.Schema;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.opensearch.arrow.allocator.ArrowNativeAllocator;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.dataformat.IndexingExecutionEngine;
@@ -104,7 +105,7 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
         Supplier<Long> mappingVersionSupplier,
         IndexSettings indexSettings,
         ThreadPool threadPool,
-        org.opensearch.arrow.allocator.ArrowNativeAllocator nativeAllocator
+        ArrowNativeAllocator nativeAllocator
     ) {
         this(
             settings,
@@ -141,7 +142,7 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
         IndexSettings indexSettings,
         ThreadPool threadPool,
         FormatChecksumStrategy checksumStrategy,
-        org.opensearch.arrow.allocator.ArrowNativeAllocator nativeAllocator
+        ArrowNativeAllocator nativeAllocator
     ) {
         this(
             settings,
@@ -182,7 +183,7 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
         ThreadPool threadPool,
         FormatChecksumStrategy checksumStrategy,
         IntSupplier divisorSupplier,
-        org.opensearch.arrow.allocator.ArrowNativeAllocator nativeAllocator
+        ArrowNativeAllocator nativeAllocator
     ) {
         this.dataFormat = dataFormat;
         this.shardPath = shardPath;

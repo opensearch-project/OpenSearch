@@ -56,18 +56,16 @@ import org.opensearch.common.cache.stats.DefaultCacheStatsHolder;
 import org.opensearch.common.cache.stats.DefaultCacheStatsHolderTests;
 import org.opensearch.common.cache.stats.ImmutableCacheStatsHolder;
 import org.opensearch.common.io.stream.BytesStreamOutput;
-import org.opensearch.core.common.io.stream.NamedWriteableAwareStreamInput;
-import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
-import org.opensearch.core.common.io.stream.StreamOutput;
-import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.plugins.PluginNodeStats;
 import org.opensearch.common.metrics.OperationStats;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.core.common.bytes.BytesReference;
+import org.opensearch.core.common.io.stream.NamedWriteableAwareStreamInput;
+import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.indices.breaker.AllCircuitBreakerStats;
@@ -102,6 +100,8 @@ import org.opensearch.node.NodeResourceUsageStats;
 import org.opensearch.node.NodesResourceUsageStats;
 import org.opensearch.node.ResponseCollectorService;
 import org.opensearch.node.remotestore.RemoteStoreNodeStats;
+import org.opensearch.plugins.Plugin;
+import org.opensearch.plugins.PluginNodeStats;
 import org.opensearch.ratelimitting.admissioncontrol.controllers.AdmissionController;
 import org.opensearch.ratelimitting.admissioncontrol.controllers.CpuBasedAdmissionController;
 import org.opensearch.ratelimitting.admissioncontrol.enums.AdmissionControlActionType;
@@ -1589,11 +1589,75 @@ public class NodeStatsTests extends OpenSearchTestCase {
         return new NodeStats(
             node,
             0L,
-            null, null, null, null, null, null, null, null, null,
-            null, null, null, null, null, null, null, null, null,
-            null, null, null, null, null, null, null, null, null,
-            null, pluginStats
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            pluginStats
         );
+    }
+
+    /**
+     * When the parent stream has no NamedWriteableRegistry attached (a defensive path —
+     * production callers always attach one), the deserializer must drop all plugin-stats
+     * entries cleanly rather than fail. This exercises the {@code registry == null} branch
+     * in {@link NodeStats#readPluginStats(StreamInput)}.
+     */
+    public void testPluginStatsDropsAllEntriesWhenReceiverHasNoRegistry() throws IOException {
+        Map<String, PluginNodeStats> stats = new HashMap<>();
+        stats.put("test_plugin_a", new TestPluginStats("test_plugin_a", 1L));
+        stats.put("test_plugin_b", new TestPluginStats("test_plugin_b", 2L));
+        DiscoveryNode node = new DiscoveryNode("node1", buildNewFakeTransportAddress(), emptyMap(), emptySet(), Version.CURRENT);
+        NodeStats original = newNodeStatsWithPluginStats(node, stats);
+
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.setVersion(Version.CURRENT);
+            original.writeTo(out);
+            // No NamedWriteableAwareStreamInput wrapper — the raw StreamInput has no registry.
+            try (StreamInput rawIn = out.bytes().streamInput()) {
+                rawIn.setVersion(Version.CURRENT);
+                NodeStats roundtripped = new NodeStats(rawIn);
+                assertTrue(
+                    "all plugin-stats entries must be dropped when receiver has no registry attached",
+                    roundtripped.getPluginStats().isEmpty()
+                );
+            }
+        }
+    }
+
+    /**
+     * The {@link Plugin#nodeStats()} default returns an empty list — plugins that don't
+     * override it must not contribute any stats. Anonymous subclass exercises the default
+     * impl directly.
+     */
+    public void testPluginNodeStatsDefaultReturnsEmpty() {
+        Plugin plugin = new Plugin() {
+        };
+        assertTrue("Plugin#nodeStats() default must return empty list", plugin.nodeStats().isEmpty());
     }
 
     /** Minimal PluginNodeStats implementation for the tests above. */

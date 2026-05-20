@@ -11,8 +11,6 @@ package org.opensearch.arrow.allocator;
 import org.opensearch.arrow.spi.NativeAllocatorPoolConfig;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.service.ClusterService;
-import org.opensearch.common.inject.AbstractModule;
-import org.opensearch.common.inject.Module;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
@@ -32,7 +30,6 @@ import org.opensearch.transport.client.Client;
 import org.opensearch.watcher.ResourceWatcherService;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.function.Supplier;
@@ -55,11 +52,13 @@ public class ArrowBasePlugin extends Plugin implements ExtensiblePlugin {
     /**
      * Maximum bytes for the root Arrow allocator.
      *
-     * <p>When unset, the default is derived from the admission-control budget
-     * {@link ResourceTrackerSettings#NODE_NATIVE_MEMORY_LIMIT_SETTING} reduced by
-     * {@link ResourceTrackerSettings#NODE_NATIVE_MEMORY_BUFFER_PERCENT_SETTING} —
-     * the same budget AC throttles on. If AC is unconfigured (limit = 0), the
-     * default is {@link Long#MAX_VALUE}, preserving pre-AC behaviour.
+     * <p>When unset, the default is 20% of
+     * {@link ResourceTrackerSettings#NODE_NATIVE_MEMORY_LIMIT_SETTING}; see
+     * {@link #deriveRootLimitDefault}. The Arrow framework gets a small fraction of the
+     * native budget because the dominant consumer of native memory in analytics workloads
+     * is the DataFusion Rust runtime (~75% of {@code node.native_memory.limit}), not Arrow.
+     * If AC is unconfigured (limit = 0), the default is {@link Long#MAX_VALUE}, preserving
+     * pre-AC behaviour.
      */
     public static final Setting<Long> ROOT_LIMIT_SETTING = new Setting<>(
         NativeAllocatorPoolConfig.SETTING_ROOT_LIMIT,
@@ -67,9 +66,7 @@ public class ArrowBasePlugin extends Plugin implements ExtensiblePlugin {
         s -> {
             long v = Long.parseLong(s);
             if (v < 0) {
-                throw new IllegalArgumentException(
-                    "Setting [" + NativeAllocatorPoolConfig.SETTING_ROOT_LIMIT + "] must be >= 0, got " + v
-                );
+                throw new IllegalArgumentException("Setting [" + NativeAllocatorPoolConfig.SETTING_ROOT_LIMIT + "] must be >= 0, got " + v);
             }
             return v;
         },
@@ -78,17 +75,22 @@ public class ArrowBasePlugin extends Plugin implements ExtensiblePlugin {
     );
 
     /**
-     * Computes the default for {@link #ROOT_LIMIT_SETTING} from the AC native-memory budget.
-     * Returns the bytes-as-string representation expected by the Setting parser.
+     * Computes the default for {@link #ROOT_LIMIT_SETTING} as 20% of
+     * {@link ResourceTrackerSettings#NODE_NATIVE_MEMORY_LIMIT_SETTING}. The Arrow framework's
+     * hard cap covers only Arrow allocations — DataFusion's Rust runtime is a sibling of
+     * Arrow root and gets the larger share of the native budget (see
+     * {@code DataFusionPlugin#deriveMemoryPoolLimitDefault}).
+     *
+     * <p>Returns the bytes-as-string representation expected by the {@link Setting} parser.
+     * If the AC limit is unset (== 0), the default is {@link Long#MAX_VALUE} — unbounded —
+     * preserving pre-AC behaviour.
      */
     static String deriveRootLimitDefault(Settings settings) {
-        ByteSizeValue acLimit = ResourceTrackerSettings.NODE_NATIVE_MEMORY_LIMIT_SETTING.get(settings);
-        if (acLimit.getBytes() <= 0) {
+        ByteSizeValue nativeLimit = ResourceTrackerSettings.NODE_NATIVE_MEMORY_LIMIT_SETTING.get(settings);
+        if (nativeLimit.getBytes() <= 0) {
             return Long.toString(Long.MAX_VALUE);
         }
-        int bufferPercent = ResourceTrackerSettings.NODE_NATIVE_MEMORY_BUFFER_PERCENT_SETTING.get(settings);
-        long usable = acLimit.getBytes() - (acLimit.getBytes() * bufferPercent / 100L);
-        return Long.toString(Math.max(0L, usable));
+        return Long.toString(nativeLimit.getBytes() * 20 / 100);
     }
 
     /** Minimum guaranteed bytes for the Flight pool. */
@@ -100,11 +102,22 @@ public class ArrowBasePlugin extends Plugin implements ExtensiblePlugin {
         Setting.Property.Dynamic
     );
 
-    /** Maximum bytes the Flight pool can burst to. */
-    public static final Setting<Long> FLIGHT_MAX_SETTING = Setting.longSetting(
+    /**
+     * Maximum bytes the Flight pool can burst to. Default is 5% of
+     * {@link ResourceTrackerSettings#NODE_NATIVE_MEMORY_LIMIT_SETTING}; see
+     * {@link #derivePoolMaxDefault}. Falls back to {@link Long#MAX_VALUE} when AC is
+     * unconfigured. Matches the partitioning model documented in PR #21732.
+     */
+    public static final Setting<Long> FLIGHT_MAX_SETTING = new Setting<>(
         NativeAllocatorPoolConfig.SETTING_FLIGHT_MAX,
-        Long.MAX_VALUE,
-        0L,
+        s -> derivePoolMaxDefault(s, 5),
+        s -> {
+            long v = Long.parseLong(s);
+            if (v < 0) {
+                throw new IllegalArgumentException("Setting [" + NativeAllocatorPoolConfig.SETTING_FLIGHT_MAX + "] must be >= 0, got " + v);
+            }
+            return v;
+        },
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
@@ -118,11 +131,23 @@ public class ArrowBasePlugin extends Plugin implements ExtensiblePlugin {
         Setting.Property.Dynamic
     );
 
-    /** Maximum bytes the ingest pool can burst to. */
-    public static final Setting<Long> INGEST_MAX_SETTING = Setting.longSetting(
+    /**
+     * Maximum bytes the ingest pool can burst to. Default is 8% of
+     * {@link ResourceTrackerSettings#NODE_NATIVE_MEMORY_LIMIT_SETTING}; see
+     * {@link #derivePoolMaxDefault}. Falls back to {@link Long#MAX_VALUE} when AC is
+     * unconfigured. Ingest gets a larger fraction than Flight/Query because parquet VSR
+     * allocators dominate write-path memory usage — see partitioning model in PR #21732.
+     */
+    public static final Setting<Long> INGEST_MAX_SETTING = new Setting<>(
         NativeAllocatorPoolConfig.SETTING_INGEST_MAX,
-        Long.MAX_VALUE,
-        0L,
+        s -> derivePoolMaxDefault(s, 8),
+        s -> {
+            long v = Long.parseLong(s);
+            if (v < 0) {
+                throw new IllegalArgumentException("Setting [" + NativeAllocatorPoolConfig.SETTING_INGEST_MAX + "] must be >= 0, got " + v);
+            }
+            return v;
+        },
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
@@ -141,9 +166,12 @@ public class ArrowBasePlugin extends Plugin implements ExtensiblePlugin {
     );
 
     /**
-     * Maximum bytes the query pool can allocate. Enforced by Arrow's child-allocator
-     * limit — analytics-engine's per-query allocators are children of this pool, so the
-     * sum of in-flight per-query allocations is capped here.
+     * Maximum bytes the query pool can allocate. Default is 5% of
+     * {@link ResourceTrackerSettings#NODE_NATIVE_MEMORY_LIMIT_SETTING}; see
+     * {@link #derivePoolMaxDefault}. Falls back to {@link Long#MAX_VALUE} when AC is
+     * unconfigured. Enforced by Arrow's child-allocator limit — analytics-engine's
+     * per-query allocators are children of this pool, so the sum of in-flight per-query
+     * allocations is capped here.
      *
      * <p>Note: each individual analytics query is also bounded by
      * {@code analytics.exec.QueryContext} per-query limit (currently the constant
@@ -151,13 +179,49 @@ public class ArrowBasePlugin extends Plugin implements ExtensiblePlugin {
      * below {@code 256 MB × concurrent-queries} can starve queries even when each
      * individual query is within its per-query limit.
      */
-    public static final Setting<Long> QUERY_MAX_SETTING = Setting.longSetting(
+    public static final Setting<Long> QUERY_MAX_SETTING = new Setting<>(
         NativeAllocatorPoolConfig.SETTING_QUERY_MAX,
-        Long.MAX_VALUE,
-        0L,
+        s -> derivePoolMaxDefault(s, 5),
+        s -> {
+            long v = Long.parseLong(s);
+            if (v < 0) {
+                throw new IllegalArgumentException("Setting [" + NativeAllocatorPoolConfig.SETTING_QUERY_MAX + "] must be >= 0, got " + v);
+            }
+            return v;
+        },
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
+
+    /**
+     * Computes the default for a pool max as a percentage of
+     * {@link ResourceTrackerSettings#NODE_NATIVE_MEMORY_LIMIT_SETTING} (the operator's
+     * declared off-heap budget), falling back to {@link Long#MAX_VALUE} when AC is
+     * unconfigured. Returns the bytes-as-string representation expected by the
+     * {@link Setting} parser.
+     *
+     * <p>Pools are anchored to {@code node.native_memory.limit} rather than to
+     * {@link #ROOT_LIMIT_SETTING} so the diagrammed partitioning (PR #21732) holds:
+     * sum of pool maxes (5+8+5 = 18% of native_memory.limit) fits within the framework
+     * root cap (20% of native_memory.limit) by default. Operator overrides of
+     * {@code root.limit} that drop it below {@code sum(pool.max)} are caught by the
+     * grouped validator.
+     *
+     * <p>The fraction is taken straight from {@code node.native_memory.limit}, not from
+     * {@code limit - buffer_percent}. {@code buffer_percent} is an admission-control
+     * throttle margin, not a framework budget reduction.
+     *
+     * @param settings node settings
+     * @param percent  fraction of {@code node.native_memory.limit} the pool max defaults to
+     */
+    static String derivePoolMaxDefault(Settings settings, int percent) {
+        ByteSizeValue nativeLimit = ResourceTrackerSettings.NODE_NATIVE_MEMORY_LIMIT_SETTING.get(settings);
+        if (nativeLimit.getBytes() <= 0) {
+            return Long.toString(Long.MAX_VALUE);
+        }
+        long pool = Math.max(0L, nativeLimit.getBytes() * percent / 100);
+        return Long.toString(pool);
+    }
 
     /** Interval in seconds between pool rebalance cycles. 0 disables rebalancing. */
     public static final Setting<Long> REBALANCE_INTERVAL_SETTING = Setting.longSetting(
@@ -185,35 +249,42 @@ public class ArrowBasePlugin extends Plugin implements ExtensiblePlugin {
         Supplier<RepositoriesService> repositoriesServiceSupplier
     ) {
         Settings settings = environment.settings();
+        ClusterSettings cs = clusterService.getClusterSettings();
+        ArrowNativeAllocator built = buildAllocator(settings, cs);
+        this.allocator = built;
+        return List.of(built);
+    }
 
+    /**
+     * Constructs the allocator and wires its pools and dynamic-update consumers from
+     * a pure {@code (Settings, ClusterSettings)} pair. Package-private so unit tests
+     * can exercise the full wiring without a heavyweight {@link ClusterService}
+     * fixture — mirrors the shape of {@link #registerSettingsUpdateConsumers} which
+     * is already test-friendly for the same reason.
+     */
+    static ArrowNativeAllocator buildAllocator(Settings settings, ClusterSettings cs) {
         long rootLimit = ROOT_LIMIT_SETTING.get(settings);
-        allocator = new ArrowNativeAllocator(rootLimit);
+        ArrowNativeAllocator allocator = new ArrowNativeAllocator(rootLimit);
         allocator.setRebalanceInterval(REBALANCE_INTERVAL_SETTING.get(settings));
 
         // Single source of truth for cross-setting invariants — same logic runs on
         // dynamic updates via the grouped consumer below.
         validateUpdate(settings);
 
-        allocator.getOrCreatePool(NativeAllocatorPoolConfig.POOL_FLIGHT, FLIGHT_MIN_SETTING.get(settings), FLIGHT_MAX_SETTING.get(settings));
-        allocator.getOrCreatePool(NativeAllocatorPoolConfig.POOL_INGEST, INGEST_MIN_SETTING.get(settings), INGEST_MAX_SETTING.get(settings));
+        allocator.getOrCreatePool(
+            NativeAllocatorPoolConfig.POOL_FLIGHT,
+            FLIGHT_MIN_SETTING.get(settings),
+            FLIGHT_MAX_SETTING.get(settings)
+        );
+        allocator.getOrCreatePool(
+            NativeAllocatorPoolConfig.POOL_INGEST,
+            INGEST_MIN_SETTING.get(settings),
+            INGEST_MAX_SETTING.get(settings)
+        );
         allocator.getOrCreatePool(NativeAllocatorPoolConfig.POOL_QUERY, QUERY_MIN_SETTING.get(settings), QUERY_MAX_SETTING.get(settings));
 
-        ClusterSettings cs = clusterService.getClusterSettings();
         registerSettingsUpdateConsumers(cs, allocator);
-
-        List<Object> components = new ArrayList<>();
-        components.add(allocator);
-        return components;
-    }
-
-    @Override
-    public Collection<Module> createGuiceModules() {
-        return List.of(new AbstractModule() {
-            @Override
-            protected void configure() {
-                bind(ArrowNativeAllocator.class).toInstance(allocator);
-            }
-        });
+        return allocator;
     }
 
     /**

@@ -36,7 +36,9 @@ public interface NativeAllocator extends Closeable {
     PoolHandle getOrCreatePool(String poolName, long limit);
 
     /**
-     * Updates the limit of an existing pool.
+     * Updates the limit of an existing pool. Children of the pool allocator
+     * inherit the change automatically via Arrow's parent-cap check at
+     * allocation time — no notification SPI is needed.
      *
      * @param poolName logical pool name
      * @param newLimit new maximum bytes for the pool
@@ -54,24 +56,6 @@ public interface NativeAllocator extends Closeable {
      * Collects a point-in-time stats snapshot across all pools.
      */
     NativeAllocatorPoolStats stats();
-
-    /**
-     * Registers a listener that is invoked after a pool's limit changes.
-     *
-     * <p>Listener invocation is synchronous on the caller thread. See
-     * {@link NativeAllocatorListener} for threading constraints.
-     *
-     * @param listener the listener to register
-     */
-    void addListener(NativeAllocatorListener listener);
-
-    /**
-     * Unregisters a previously registered listener. No-op if the listener
-     * was not registered.
-     *
-     * @param listener the listener to remove
-     */
-    void removeListener(NativeAllocatorListener listener);
 
     /**
      * Opaque handle to a memory pool. Plugins downcast to the concrete type

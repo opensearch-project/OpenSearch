@@ -9,6 +9,7 @@
 package org.opensearch.be.datafusion;
 
 import org.opensearch.common.settings.Setting;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.util.List;
@@ -121,5 +122,51 @@ public class DataFusionPluginSettingsTests extends OpenSearchTestCase {
         } catch (Exception e) {
             throw new AssertionError(e);
         }
+    }
+
+    public void testDeriveMemoryPoolLimitDefaultUnsetReturnsLongMaxValue() {
+        // AC explicitly unconfigured — the default must be Long.MAX_VALUE (unbounded),
+        // preserving pre-AC behaviour. The default for node.native_memory.limit is now
+        // ram - heap, so to test the "unset" branch we must explicitly set it to 0.
+        Settings s = Settings.builder().put("node.native_memory.limit", "0b").build();
+        assertEquals(Long.toString(Long.MAX_VALUE), DataFusionPlugin.deriveMemoryPoolLimitDefault(s));
+    }
+
+    public void testDeriveMemoryPoolLimitDefaultUsesNativeMemoryLimit() {
+        // 10 GiB native memory limit — default takes 75% straight from limit, not
+        // from limit - buffer_percent (which is AC's throttle margin, not a framework
+        // budget reduction). 75% of 10 GiB.
+        Settings s = Settings.builder().put("node.native_memory.limit", "10gb").build();
+        long expected = (10L * 1024 * 1024 * 1024) * 75 / 100;
+        assertEquals(Long.toString(expected), DataFusionPlugin.deriveMemoryPoolLimitDefault(s));
+    }
+
+    public void testDeriveMemoryPoolLimitDefaultIgnoresBufferPercent() {
+        // node.native_memory.buffer_percent is AC's throttle margin. The framework default
+        // takes its fraction off node.native_memory.limit directly so the buffer can sit
+        // between AC's throttle threshold and the framework's hard cap.
+        // 1000 bytes limit, 20% buffer => pool max still 75% of 1000 = 750.
+        Settings s = Settings.builder().put("node.native_memory.limit", "1000b").put("node.native_memory.buffer_percent", 20).build();
+        assertEquals("750", DataFusionPlugin.deriveMemoryPoolLimitDefault(s));
+    }
+
+    public void testMemoryPoolLimitSettingExposesDerivedDefault() {
+        Settings s = Settings.builder().put("node.native_memory.limit", "10gb").build();
+        long expected = (10L * 1024 * 1024 * 1024) * 75 / 100;
+        assertEquals(Long.valueOf(expected), DataFusionPlugin.DATAFUSION_MEMORY_POOL_LIMIT.get(s));
+    }
+
+    public void testMemoryPoolLimitSettingExplicitOverridesDerived() {
+        Settings s = Settings.builder().put("node.native_memory.limit", "10gb").put("datafusion.memory_pool_limit_bytes", 1024L).build();
+        assertEquals(Long.valueOf(1024L), DataFusionPlugin.DATAFUSION_MEMORY_POOL_LIMIT.get(s));
+    }
+
+    public void testMemoryPoolLimitRejectsNegative() {
+        Settings s = Settings.builder().put("datafusion.memory_pool_limit_bytes", -1L).build();
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> DataFusionPlugin.DATAFUSION_MEMORY_POOL_LIMIT.get(s)
+        );
+        assertTrue(e.getMessage().contains("must be >= 0"));
     }
 }

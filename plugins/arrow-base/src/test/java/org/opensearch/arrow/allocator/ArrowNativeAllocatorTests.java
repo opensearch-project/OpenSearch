@@ -10,13 +10,8 @@ package org.opensearch.arrow.allocator;
 
 import org.apache.arrow.memory.BufferAllocator;
 import org.opensearch.arrow.spi.NativeAllocator;
-import org.opensearch.arrow.spi.NativeAllocatorListener;
 import org.opensearch.arrow.spi.NativeAllocatorPoolStats;
 import org.opensearch.test.OpenSearchTestCase;
-
-import java.util.ArrayList;
-import java.util.List;
-import java.util.concurrent.atomic.AtomicInteger;
 
 public class ArrowNativeAllocatorTests extends OpenSearchTestCase {
 
@@ -205,73 +200,6 @@ public class ArrowNativeAllocatorTests extends OpenSearchTestCase {
 
         // Recreate for tearDown
         allocator = new ArrowNativeAllocator(1024L * 1024 * 1024);
-    }
-
-    public void testListenerFiresOnSetPoolLimit() {
-        allocator.getOrCreatePool("listener-pool", 10 * 1024 * 1024);
-        List<long[]> events = new ArrayList<>();
-        NativeAllocatorListener listener = (name, limit) -> events.add(new long[] { limit });
-        allocator.addListener(listener);
-
-        allocator.setPoolLimit("listener-pool", 50 * 1024 * 1024);
-        assertEquals(1, events.size());
-        assertEquals(50L * 1024 * 1024, events.get(0)[0]);
-    }
-
-    public void testRemovedListenerNotFired() {
-        allocator.getOrCreatePool("remove-pool", 10 * 1024 * 1024);
-        AtomicInteger callCount = new AtomicInteger();
-        NativeAllocatorListener listener = (name, limit) -> callCount.incrementAndGet();
-        allocator.addListener(listener);
-        allocator.removeListener(listener);
-
-        allocator.setPoolLimit("remove-pool", 20 * 1024 * 1024);
-        assertEquals(0, callCount.get());
-    }
-
-    public void testListenerExceptionDoesNotBlockOthers() {
-        allocator.getOrCreatePool("isolation-pool", 10 * 1024 * 1024);
-        AtomicInteger goodCalls = new AtomicInteger();
-        allocator.addListener((name, limit) -> { throw new RuntimeException("boom"); });
-        allocator.addListener((name, limit) -> goodCalls.incrementAndGet());
-
-        // Setter should complete despite the throwing listener.
-        allocator.setPoolLimit("isolation-pool", 30 * 1024 * 1024);
-        assertEquals(1, goodCalls.get());
-        assertEquals(30L * 1024 * 1024, allocator.getPoolAllocator("isolation-pool").getLimit());
-    }
-
-    public void testAddListenerIsIdempotent() {
-        allocator.getOrCreatePool("dedup-pool", 10 * 1024 * 1024);
-        AtomicInteger calls = new AtomicInteger();
-        NativeAllocatorListener listener = (name, limit) -> calls.incrementAndGet();
-        allocator.addListener(listener);
-        allocator.addListener(listener);  // re-adding the same instance is a no-op
-
-        allocator.setPoolLimit("dedup-pool", 20 * 1024 * 1024);
-        assertEquals(1, calls.get());
-    }
-
-    public void testListenerFiresFromRebalanceWhenLimitChanges() {
-        allocator.setRootLimit(100 * 1024 * 1024);
-        allocator.getOrCreatePool("active", 10 * 1024 * 1024, 100 * 1024 * 1024);
-        allocator.getOrCreatePool("idle", 10 * 1024 * 1024, 100 * 1024 * 1024);
-
-        BufferAllocator activeAlloc = allocator.getPoolAllocator("active");
-        BufferAllocator child = activeAlloc.newChildAllocator("worker", 0, 100 * 1024 * 1024);
-        var buf = child.buffer(5 * 1024 * 1024);
-
-        AtomicInteger events = new AtomicInteger();
-        allocator.addListener((name, limit) -> events.incrementAndGet());
-
-        try {
-            allocator.rebalance();
-            // Expect at least one event from the active pool growing past its min.
-            assertTrue("listener should fire when rebalance changes a pool limit", events.get() >= 1);
-        } finally {
-            buf.close();
-            child.close();
-        }
     }
 
     public void testSetPoolMinRaisesLiveLimitWhenRebalancerOff() {
