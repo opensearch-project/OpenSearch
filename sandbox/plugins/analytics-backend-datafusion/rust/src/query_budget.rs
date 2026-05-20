@@ -527,7 +527,7 @@ mod tests {
 
         let budget = acquire_budget_test(&pool, &schema, 8, 8192).unwrap();
         assert!(budget.target_partitions < 8);
-        assert!(budget.target_partitions >= MIN_TARGET_PARTITIONS);
+        assert!(budget.target_partitions >= DEFAULT_MIN_TARGET_PARTITIONS);
         assert!(budget.phantom_bytes <= 2_000_000);
     }
 
@@ -537,7 +537,7 @@ mod tests {
         let pool = test_pool(1_000_000); // 1MB — forces batch reduction
 
         let budget = acquire_budget_test(&pool, &schema, 4, 8192).unwrap();
-        assert_eq!(budget.target_partitions, MIN_TARGET_PARTITIONS);
+        assert_eq!(budget.target_partitions, DEFAULT_MIN_TARGET_PARTITIONS);
         assert!(budget.batch_size < 8192);
         assert!(budget.batch_size >= MIN_BATCH_SIZE);
     }
