@@ -25,6 +25,8 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.unit.ByteSizeValue;
+import org.opensearch.core.transport.TransportResponse;
+import org.opensearch.indices.replication.SegmentReplicationSourceService;
 import org.opensearch.node.Node;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.remotestore.RemoteStoreBaseIntegTestCase;
@@ -38,6 +40,8 @@ import org.opensearch.storage.action.tiering.status.model.GetTieringStatusRespon
 import org.opensearch.storage.action.tiering.status.model.ListTieringStatusRequest;
 import org.opensearch.storage.action.tiering.status.model.ListTieringStatusResponse;
 import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.test.transport.MockTransportService;
+import org.opensearch.transport.TransportService;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -75,8 +79,10 @@ public class TieringStatusIT extends RemoteStoreBaseIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Stream.concat(super.nodePlugins().stream(), Stream.of(MockInternalClusterInfoService.TestPlugin.class))
-            .collect(Collectors.toList());
+        return Stream.concat(
+            super.nodePlugins().stream(),
+            Stream.of(MockInternalClusterInfoService.TestPlugin.class, MockTransportService.TestPlugin.class)
+        ).collect(Collectors.toList());
     }
 
     @Override
@@ -97,6 +103,26 @@ public class TieringStatusIT extends RemoteStoreBaseIntegTestCase {
         internalCluster().startClusterManagerOnlyNode();
         internalCluster().startDataOnlyNodes(numberOfReplicas + 1);
         internalCluster().startWarmOnlyNodes(2);
+        interceptCheckpointUpdates();
+    }
+
+    protected void interceptCheckpointUpdates() {
+        for (String nodeName : internalCluster().getNodeNames()) {
+            MockTransportService mockTransportService = (MockTransportService) internalCluster().getInstance(
+                TransportService.class,
+                nodeName
+            );
+            mockTransportService.addRequestHandlingBehavior(
+                SegmentReplicationSourceService.Actions.UPDATE_VISIBLE_CHECKPOINT,
+                (handler, request, channel, task) -> {
+                    try {
+                        handler.messageReceived(request, channel, task);
+                    } catch (AssertionError e) {
+                        channel.sendResponse(TransportResponse.Empty.INSTANCE);
+                    }
+                }
+            );
+        }
     }
 
     protected void createTestIndex(String indexName, int numberOfShards, int numberOfReplicas) {

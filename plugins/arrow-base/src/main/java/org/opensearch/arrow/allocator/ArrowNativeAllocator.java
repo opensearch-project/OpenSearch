@@ -179,6 +179,14 @@ public class ArrowNativeAllocator implements NativeAllocator {
             }
         });
         pools.clear();
+        // Close any remaining child allocators (e.g., ad-hoc children created via ArrowAllocatorService)
+        for (BufferAllocator child : new ArrayList<>(root.getChildAllocators())) {
+            try {
+                child.close();
+            } catch (Exception e) {
+                // best-effort — log but don't block shutdown
+            }
+        }
         root.close();
         INSTANCE = null;
     }
