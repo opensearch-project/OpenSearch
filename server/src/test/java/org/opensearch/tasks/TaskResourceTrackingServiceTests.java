@@ -8,9 +8,15 @@
 
 package org.opensearch.tasks;
 
+import org.opensearch.Version;
 import org.opensearch.action.admin.cluster.node.tasks.TransportTasksActionTests;
 import org.opensearch.action.search.SearchShardTask;
 import org.opensearch.action.search.SearchTask;
+import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.node.DiscoveryNodeRole;
+import org.opensearch.cluster.node.DiscoveryNodes;
+import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.ThreadContext;
@@ -20,12 +26,14 @@ import org.opensearch.core.tasks.resourcetracker.ResourceUsageMetric;
 import org.opensearch.core.tasks.resourcetracker.TaskResourceInfo;
 import org.opensearch.core.tasks.resourcetracker.TaskResourceUsage;
 import org.opensearch.core.tasks.resourcetracker.ThreadResourceInfo;
+import org.opensearch.test.ClusterServiceUtils;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -40,22 +48,69 @@ import static org.opensearch.tasks.TaskResourceTrackingService.TASK_RESOURCE_USA
 
 public class TaskResourceTrackingServiceTests extends OpenSearchTestCase {
 
+    private static final String LOCAL_NODE_ID = "local_node";
+    private static final String OLD_COORDINATOR_ID = "old_coord_node";
+    private static final String NEW_COORDINATOR_ID = "new_coord_node";
+
     private ThreadPool threadPool;
+    private ClusterService clusterService;
     private TaskResourceTrackingService taskResourceTrackingService;
 
     @Before
     public void setup() {
         threadPool = new TestThreadPool(TransportTasksActionTests.class.getSimpleName(), new AtomicReference<>());
+        DiscoveryNode localNode = new DiscoveryNode(
+            LOCAL_NODE_ID,
+            buildNewFakeTransportAddress(),
+            Collections.emptyMap(),
+            DiscoveryNodeRole.BUILT_IN_ROLES,
+            Version.CURRENT
+        );
+        clusterService = ClusterServiceUtils.createClusterService(threadPool, localNode);
         taskResourceTrackingService = new TaskResourceTrackingService(
             Settings.EMPTY,
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-            threadPool
+            threadPool,
+            clusterService
         );
     }
 
     @After
     public void terminateThreadPool() {
+        clusterService.close();
         terminate(threadPool);
+    }
+
+    private void addCoordinatorNodeWithVersion(String nodeId, Version version) {
+        DiscoveryNode coordinator = new DiscoveryNode(
+            nodeId,
+            buildNewFakeTransportAddress(),
+            Collections.emptyMap(),
+            DiscoveryNodeRole.BUILT_IN_ROLES,
+            version
+        );
+        ClusterState current = clusterService.state();
+        DiscoveryNodes updated = DiscoveryNodes.builder(current.nodes()).add(coordinator).build();
+        ClusterState newState = ClusterState.builder(current).nodes(updated).build();
+        ClusterServiceUtils.setState(clusterService, newState);
+    }
+
+    private SearchShardTask searchShardTaskWithParent(String coordinatorNodeId) {
+        TaskId parent = new TaskId(coordinatorNodeId, randomLong());
+        SearchShardTask task = new SearchShardTask(randomLong(), "test", "test", "task", parent, new HashMap<>());
+        taskResourceTrackingService.setTaskResourceTrackingEnabled(true);
+        taskResourceTrackingService.startTracking(task);
+        task.startThreadResourceTracking(
+            Thread.currentThread().threadId(),
+            ResourceStatsType.WORKER_STATS,
+            new ResourceUsageMetric(CPU, 100),
+            new ResourceUsageMetric(MEMORY, 100)
+        );
+        return task;
+    }
+
+    private static String legacyJsonOf(TaskResourceInfo info) {
+        return info.toString();
     }
 
     public void testThreadContextUpdateOnTrackingStart() {
@@ -164,13 +219,14 @@ public class TaskResourceTrackingServiceTests extends OpenSearchTestCase {
         assertTrue(headers.containsKey(TASK_RESOURCE_USAGE));
     }
 
-    public void testGetTaskResourceUsageFromThreadContext() {
-        // Legacy JSON format is no longer supported — should return null gracefully
-        String taskResourceUsageJson =
-            "{\"action\":\"testAction\",\"taskId\":1,\"parentTaskId\":2,\"nodeId\":\"nodeId\",\"taskResourceUsage\":{\"cpu_time_in_nanos\":1000,\"memory_in_bytes\":2000}}";
-        threadPool.getThreadContext().addResponseHeader(TASK_RESOURCE_USAGE, taskResourceUsageJson);
+    public void testGetTaskResourceUsageFromThreadContext() throws Exception {
+        TaskResourceInfo expected = new TaskResourceInfo("testAction", 1L, 2L, "nodeId", new TaskResourceUsage(1000L, 2000L));
+        String binary = TaskResourceTrackingService.serializeToBase64(expected);
+        threadPool.getThreadContext().addResponseHeader(TASK_RESOURCE_USAGE, binary);
+
         TaskResourceInfo result = taskResourceTrackingService.getTaskResourceUsageFromThreadContext();
-        assertNull("Legacy JSON header should return null since binary format is now required", result);
+        assertNotNull(result);
+        assertEquals(expected, result);
     }
 
     private void verifyThreadContextFixedHeaders(String key, String value) {
@@ -210,16 +266,6 @@ public class TaskResourceTrackingServiceTests extends OpenSearchTestCase {
         assertEquals(original, result);
     }
 
-    public void testJsonFallbackReturnsNullGracefully() {
-        // Simulate a header from an older node that uses JSON format — should fail gracefully
-        String jsonHeader =
-            "{\"action\":\"testAction\",\"taskId\":1,\"parentTaskId\":2,\"nodeId\":\"nodeId\",\"taskResourceUsage\":{\"cpu_time_in_nanos\":1000,\"memory_in_bytes\":2000}}";
-        threadPool.getThreadContext().addResponseHeader(TASK_RESOURCE_USAGE, jsonHeader);
-
-        TaskResourceInfo result = taskResourceTrackingService.getTaskResourceUsageFromThreadContext();
-        assertNull("Legacy JSON header should return null gracefully without binary prefix", result);
-    }
-
     public void testCorruptedHeaderReturnsNullGracefully() {
         threadPool.getThreadContext().addResponseHeader(TASK_RESOURCE_USAGE, "not-valid-base64!!!");
 
@@ -234,7 +280,9 @@ public class TaskResourceTrackingServiceTests extends OpenSearchTestCase {
         assertNull(result);
     }
 
-    public void testWriteTaskResourceUsageUsesBinaryFormat() {
+    public void testWriteTaskResourceUsageRoundTrips() {
+        // EMPTY_TASK_ID means we can't resolve a coordinator, so the producer falls back to JSON;
+        // the consumer's JSON path must still round-trip cleanly.
         SearchShardTask task = new SearchShardTask(1, "test", "test", "task", TaskId.EMPTY_TASK_ID, new HashMap<>());
         taskResourceTrackingService.setTaskResourceTrackingEnabled(true);
         taskResourceTrackingService.startTracking(task);
@@ -245,15 +293,129 @@ public class TaskResourceTrackingServiceTests extends OpenSearchTestCase {
             new ResourceUsageMetric(MEMORY, 100)
         );
         taskResourceTrackingService.writeTaskResourceUsage(task, "node_1");
-        Map<String, List<String>> headers = threadPool.getThreadContext().getResponseHeaders();
-        String headerValue = headers.get(TASK_RESOURCE_USAGE).get(0);
-        // Binary Base64 headers should not start with '{' (JSON)
-        assertFalse("Header should not be JSON format", headerValue.startsWith("{"));
 
-        // Verify it can be deserialized back
         TaskResourceInfo result = taskResourceTrackingService.getTaskResourceUsageFromThreadContext();
         assertNotNull(result);
         assertEquals("node_1", result.getNodeId());
+    }
+
+    // Rolling-upgrade BC: one test per (data node, coordinator) quadrant. The TASK_RESOURCE_USAGE
+    // response header is one-way (data node -> coordinator), so the matrix is exhaustive.
+    // Quadrant 4 (old data -> old coord) is the pre-PR baseline; it's exercised by prior releases'
+    // tests and not reachable from this branch, so it has no test here.
+
+    public void testBwc_NewDataNode_NewCoordinator() {
+        addCoordinatorNodeWithVersion(NEW_COORDINATOR_ID, Version.CURRENT);
+
+        SearchShardTask task = searchShardTaskWithParent(NEW_COORDINATOR_ID);
+        taskResourceTrackingService.writeTaskResourceUsage(task, LOCAL_NODE_ID);
+
+        String headerValue = threadPool.getThreadContext().getResponseHeaders().get(TASK_RESOURCE_USAGE).get(0);
+        assertFalse("expected binary header, got: " + headerValue, headerValue.startsWith("{"));
+
+        TaskResourceInfo result = taskResourceTrackingService.getTaskResourceUsageFromThreadContext();
+        assertNotNull(result);
+        assertEquals(LOCAL_NODE_ID, result.getNodeId());
+    }
+
+    public void testBwc_NewDataNode_OldCoordinator() {
+        // If the data node emits binary here, the old coordinator's IOException-only catch lets
+        // XContentParseException escape, the shard response is silently dropped, and the search hangs.
+        addCoordinatorNodeWithVersion(OLD_COORDINATOR_ID, Version.CURRENT.minimumCompatibilityVersion());
+
+        SearchShardTask task = searchShardTaskWithParent(OLD_COORDINATOR_ID);
+        taskResourceTrackingService.writeTaskResourceUsage(task, LOCAL_NODE_ID);
+
+        String headerValue = threadPool.getThreadContext().getResponseHeaders().get(TASK_RESOURCE_USAGE).get(0);
+        assertTrue("expected JSON header for old coordinator, got: " + headerValue, headerValue.startsWith("{"));
+    }
+
+    public void testBwc_OldDataNode_NewCoordinator() {
+        TaskResourceInfo fromOldNode = new TaskResourceInfo(
+            "indices:data/read/search[phase/query]",
+            42L,
+            7L,
+            "old_data_node",
+            new TaskResourceUsage(1500L, 2500L)
+        );
+        threadPool.getThreadContext().addResponseHeader(TASK_RESOURCE_USAGE, legacyJsonOf(fromOldNode));
+
+        TaskResourceInfo result = taskResourceTrackingService.getTaskResourceUsageFromThreadContext();
+        assertNotNull(result);
+        assertEquals(fromOldNode, result);
+    }
+
+    public void testProducerEmitsJsonHeaderWhenCoordinatorMissingFromClusterState() {
+        // Coordinator's version is unknown (left the cluster, or state lag) — emit JSON for safety
+        // rather than risk a hang if the coordinator turns out to be old.
+        SearchShardTask task = searchShardTaskWithParent("ghost_coordinator");
+        taskResourceTrackingService.writeTaskResourceUsage(task, LOCAL_NODE_ID);
+
+        String headerValue = threadPool.getThreadContext().getResponseHeaders().get(TASK_RESOURCE_USAGE).get(0);
+        assertTrue("expected JSON when coordinator is unknown, got: " + headerValue, headerValue.startsWith("{"));
+    }
+
+    public void testProducerEmitsJsonHeaderWhenNoParentTask() {
+        // No parent task means there's no coordinator to verify against — emit JSON for safety.
+        SearchShardTask task = new SearchShardTask(randomLong(), "test", "test", "task", TaskId.EMPTY_TASK_ID, new HashMap<>());
+        taskResourceTrackingService.setTaskResourceTrackingEnabled(true);
+        taskResourceTrackingService.startTracking(task);
+        task.startThreadResourceTracking(
+            Thread.currentThread().threadId(),
+            ResourceStatsType.WORKER_STATS,
+            new ResourceUsageMetric(CPU, 100),
+            new ResourceUsageMetric(MEMORY, 100)
+        );
+        taskResourceTrackingService.writeTaskResourceUsage(task, LOCAL_NODE_ID);
+
+        String headerValue = threadPool.getThreadContext().getResponseHeaders().get(TASK_RESOURCE_USAGE).get(0);
+        assertTrue("expected JSON when no parent task, got: " + headerValue, headerValue.startsWith("{"));
+    }
+
+    public void testProducerEmitsJsonHeaderWhenClusterServiceIsNull() {
+        // 3-arg constructor: no ClusterService, so the coordinator's version cannot be verified.
+        // Producer must default to JSON to remain rolling-upgrade safe.
+        TaskResourceTrackingService noClusterService = new TaskResourceTrackingService(
+            Settings.EMPTY,
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+            threadPool
+        );
+        SearchShardTask task = new SearchShardTask(
+            randomLong(),
+            "test",
+            "test",
+            "task",
+            new TaskId(NEW_COORDINATOR_ID, randomLong()),
+            new HashMap<>()
+        );
+        noClusterService.setTaskResourceTrackingEnabled(true);
+        noClusterService.startTracking(task);
+        task.startThreadResourceTracking(
+            Thread.currentThread().threadId(),
+            ResourceStatsType.WORKER_STATS,
+            new ResourceUsageMetric(CPU, 100),
+            new ResourceUsageMetric(MEMORY, 100)
+        );
+        noClusterService.writeTaskResourceUsage(task, LOCAL_NODE_ID);
+
+        String headerValue = threadPool.getThreadContext().getResponseHeaders().get(TASK_RESOURCE_USAGE).get(0);
+        assertTrue("expected JSON when ClusterService is null, got: " + headerValue, headerValue.startsWith("{"));
+    }
+
+    public void testConsumerPrefersBinaryOverJsonFallback() throws Exception {
+        TaskResourceInfo expected = new TaskResourceInfo(
+            "indices:data/read/search[phase/query]",
+            99L,
+            33L,
+            "node_x",
+            new TaskResourceUsage(7777L, 8888L)
+        );
+        String binary = TaskResourceTrackingService.serializeToBase64(expected);
+        threadPool.getThreadContext().addResponseHeader(TASK_RESOURCE_USAGE, binary);
+
+        TaskResourceInfo result = taskResourceTrackingService.getTaskResourceUsageFromThreadContext();
+        assertNotNull(result);
+        assertEquals(expected, result);
     }
 
 }
