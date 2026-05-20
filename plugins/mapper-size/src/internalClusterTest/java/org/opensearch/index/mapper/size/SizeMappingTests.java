@@ -40,12 +40,11 @@ import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.index.IndexService;
-import org.opensearch.index.engine.dataformat.DocumentInput;
 import org.opensearch.index.engine.dataformat.stub.MockCommitterEnginePlugin;
 import org.opensearch.index.engine.dataformat.stub.MockDataFormatPlugin;
 import org.opensearch.index.mapper.DocumentMapper;
-import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.MapperService;
+import org.opensearch.index.mapper.MapperServiceTestCase.CapturingDocumentInput;
 import org.opensearch.index.mapper.ParsedDocument;
 import org.opensearch.index.mapper.SourceToParse;
 import org.opensearch.plugin.mapper.MapperSizePlugin;
@@ -53,10 +52,7 @@ import org.opensearch.plugins.Plugin;
 import org.opensearch.test.InternalSettingsPlugin;
 import org.opensearch.test.OpenSearchSingleNodeTestCase;
 
-import java.util.ArrayList;
 import java.util.Collection;
-import java.util.List;
-import java.util.Map;
 
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
@@ -143,7 +139,7 @@ public class SizeMappingTests extends OpenSearchSingleNodeTestCase {
         DocumentMapper docMapper = service.mapperService()
             .merge("type", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
 
-        TestDocumentInput docInput = new TestDocumentInput();
+        CapturingDocumentInput docInput = new CapturingDocumentInput();
         docMapper.parse(
             new SourceToParse(
                 "test",
@@ -157,29 +153,5 @@ public class SizeMappingTests extends OpenSearchSingleNodeTestCase {
         // SizeFieldMapper.postParse adds the source length via documentInput when pluggable format is enabled
         boolean found = docInput.getCapturedFields().stream().anyMatch(e -> e.getKey().name().equals("_size"));
         assertTrue("Expected _size field captured via postParse pluggable format path", found);
-    }
-
-    private static class TestDocumentInput implements DocumentInput<Object> {
-        private final List<Map.Entry<MappedFieldType, Object>> capturedFields = new ArrayList<>();
-
-        @Override
-        public Object getFinalInput() {
-            return null;
-        }
-
-        @Override
-        public void addField(MappedFieldType fieldType, Object value) {
-            capturedFields.add(Map.entry(fieldType, value));
-        }
-
-        @Override
-        public void setRowId(String rowIdFieldName, long rowId) {}
-
-        @Override
-        public void close() {}
-
-        public List<Map.Entry<MappedFieldType, Object>> getCapturedFields() {
-            return capturedFields;
-        }
     }
 }

@@ -56,12 +56,16 @@ public class RowProducingSink implements ExchangeSink, ExchangeSource {
     private final long maxRows;
     private long totalRows;
 
-    /** Creates a sink with the default row limit. */
+    /**
+     * Creates a sink with the default row limit.
+     */
     public RowProducingSink() {
         this(DEFAULT_MAX_ROWS);
     }
 
-    /** Creates a sink with a custom row limit. Use {@code Long.MAX_VALUE} to disable. */
+    /**
+     * Creates a sink with a custom row limit. Use {@code Long.MAX_VALUE} to disable.
+     */
     public RowProducingSink(long maxRows) {
         this.maxRows = maxRows;
     }
@@ -87,6 +91,13 @@ public class RowProducingSink implements ExchangeSink, ExchangeSource {
         batches.add(batch);
     }
 
+    /**
+     * Releases any batches still buffered in the sink. Idempotent and tolerant
+     * of batches the consumer already closed via {@code readResult()} drain —
+     * Arrow's per-vector close throws when buffers were already released, so
+     * each batch close is guarded individually rather than letting the first
+     * stale entry skip the rest.
+     */
     @Override
     public synchronized void close() {
         for (VectorSchemaRoot batch : batches) {

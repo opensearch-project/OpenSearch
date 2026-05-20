@@ -35,8 +35,10 @@ use datafusion::datasource::MemTable;
 use datafusion::execution::memory_pool::MemoryPool;
 use datafusion::execution::runtime_env::RuntimeEnv;
 use datafusion::execution::{SendableRecordBatchStream, SessionStateBuilder};
+use datafusion::physical_plan::displayable;
 use datafusion::physical_plan::streaming::PartitionStream;
 use datafusion::prelude::{SessionConfig, SessionContext};
+use native_bridge_common::log_debug;
 use datafusion_substrait::logical_plan::consumer::from_substrait_plan;
 use prost::Message;
 use substrait::proto::Plan;
@@ -72,6 +74,7 @@ impl LocalSession {
             .build();
         let ctx = SessionContext::new_with_state(state);
         crate::udf::register_all(&ctx);
+        crate::udaf::register_all(&ctx);
         Self { ctx, prepared_plan: None }
     }
 
@@ -173,8 +176,10 @@ impl LocalSession {
             ))
         })?;
         let logical_plan = from_substrait_plan(&self.ctx.state(), &plan).await?;
+        log_debug!("DataFusion logical plan (reduce):\n{}", logical_plan.display_indent());
         let dataframe = self.ctx.execute_logical_plan(logical_plan).await?;
         let physical_plan = dataframe.create_physical_plan().await?;
+        log_debug!("DataFusion physical plan (reduce):\n{}", displayable(physical_plan.as_ref()).indent(true));
         let stripped = crate::agg_mode::apply_aggregate_mode(
             physical_plan,
             crate::agg_mode::Mode::Final,
@@ -402,5 +407,59 @@ mod tests {
             .await
             .expect("prepare_final_plan succeeds");
         assert!(session.prepared_plan.is_some());
+    }
+
+    /// Coordinator-side task cancellation wiring: once Java calls
+    /// `execute_local_plan(session, plan, context_id)` the context is
+    /// registered in [`query_tracker::QUERY_REGISTRY`], and a
+    /// [`cancel_query(context_id)`] cascade resolves the racing execute
+    /// future through the [`cancellation::cancellable`] branch.
+    ///
+    /// Mirrors the `execute_query` cancel path for the coordinator entry so
+    /// a parent `AnalyticsQueryTask.cancel()` interrupts the reduce even
+    /// before the first batch is produced.
+    #[tokio::test]
+    async fn cancel_query_fires_token_registered_from_reduce_path() {
+        use crate::cancellation;
+        use crate::query_tracker::{self, QueryTrackingContext};
+        use datafusion::execution::memory_pool::GreedyMemoryPool;
+        use std::sync::Arc;
+        use std::time::Duration;
+
+        let ctx_id = 98_765;
+        let pool: Arc<dyn datafusion::execution::memory_pool::MemoryPool> =
+            Arc::new(GreedyMemoryPool::new(10_000));
+        let _tracking = QueryTrackingContext::new(ctx_id, pool);
+
+        // A future that would block indefinitely — `cancel_query` is the
+        // only way out. Mirrors a coord reduce stalled on an input partition
+        // that never receives batches.
+        let blocked = async {
+            tokio::time::sleep(Duration::from_secs(60)).await;
+            Ok::<(), String>(())
+        };
+
+        let token = query_tracker::get_cancellation_token(ctx_id);
+        assert!(
+            token.is_some(),
+            "QueryTrackingContext::new must register a cancellation token"
+        );
+
+        let runner = tokio::spawn(async move {
+            cancellation::cancellable(token.as_ref(), ctx_id, blocked).await
+        });
+
+        // Brief yield so the runner parks on the sleep before we cancel.
+        tokio::time::sleep(Duration::from_millis(20)).await;
+        query_tracker::cancel_query(ctx_id);
+
+        let result = runner.await.expect("spawn");
+        assert!(result.is_err(), "cancel_query must surface as an error");
+        let msg = result.err().unwrap();
+        assert!(
+            msg.contains(&ctx_id.to_string()) && msg.to_lowercase().contains("cancelled"),
+            "error must name the cancelled context: got [{}]",
+            msg
+        );
     }
 }

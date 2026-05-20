@@ -24,6 +24,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.MMapDirectory;
 import org.opensearch.be.lucene.LuceneDataFormat;
 import org.opensearch.be.lucene.LuceneFieldFactoryRegistry;
+import org.opensearch.be.lucene.LuceneReader;
 import org.opensearch.be.lucene.merge.LuceneMerger;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.engine.dataformat.DataFormat;
@@ -32,6 +33,7 @@ import org.opensearch.index.engine.dataformat.Merger;
 import org.opensearch.index.engine.dataformat.RefreshInput;
 import org.opensearch.index.engine.dataformat.RefreshResult;
 import org.opensearch.index.engine.dataformat.Writer;
+import org.opensearch.index.engine.dataformat.WriterConfig;
 import org.opensearch.index.engine.exec.Segment;
 import org.opensearch.index.engine.exec.WriterFileSet;
 import org.opensearch.index.engine.exec.commit.IndexStoreProvider;
@@ -53,7 +55,7 @@ import java.util.Set;
  * Lucene-specific {@link IndexingExecutionEngine} that manages per-writer Lucene segments
  * and incorporates them into the shared {@link LuceneCommitter} writer during refresh.
  *
- * Write path: Each call to {@link #createWriter(long)} creates a {@link LuceneWriter} with its own
+ * Write path: Each call to {@link #createWriter(WriterConfig)} creates a {@link LuceneWriter} with its own
  * {@link IndexWriter} in an isolated temp directory. Documents are indexed into this
  * per-writer segment. On flush, the writer force-merges to exactly 1 segment.
  *
@@ -76,6 +78,8 @@ public class LuceneIndexingExecutionEngine implements IndexingExecutionEngine<Lu
 
     private final LuceneDataFormat dataFormat;
     private final MergeIndexWriter sharedWriter;
+    private final MapperService mapperService;
+    private final Map<Long, LuceneReader> readers;
     private final Store store;
     private final Path baseDirectory;
     private final Analyzer analyzer;
@@ -100,7 +104,9 @@ public class LuceneIndexingExecutionEngine implements IndexingExecutionEngine<Lu
             throw new IllegalArgumentException("LuceneCommitter must not be null");
         }
         this.dataFormat = dataFormat;
+        this.mapperService = mapperService;
         this.sharedWriter = luceneCommitter.getIndexWriter();
+        this.readers = luceneCommitter.readers();
         this.store = store;
         this.baseDirectory = store.shardPath().resolve(LuceneDataFormat.LUCENE_FORMAT_NAME);
         this.analyzer = sharedWriter.getAnalyzer();
@@ -142,24 +148,33 @@ public class LuceneIndexingExecutionEngine implements IndexingExecutionEngine<Lu
      */
     @Override
     public FormatStore getStore(DataFormat dataFormat) {
-        return new LuceneFormatStore(store, sharedWriter);
+        return new LuceneFormatStore(store, sharedWriter, readers);
     }
 
     /**
      * Creates a new {@link LuceneWriter} for the given generation in an isolated temp directory
      * under the shard's Lucene base directory.
      *
-     * @param writerGeneration the generation number for the new writer
+     * @param config the writer configuration
      * @return a new writer
      * @throws RuntimeException wrapping an {@link IOException} if writer creation fails
      */
     @Override
-    public Writer<LuceneDocumentInput> createWriter(long writerGeneration) {
+    public Writer<LuceneDocumentInput> createWriter(WriterConfig config) {
         assert sharedWriter.isOpen() : "Cannot create writer — shared IndexWriter is closed";
         try {
-            return new LuceneWriter(writerGeneration, dataFormat, baseDirectory, analyzer, codec, sharedWriter.getConfig().getIndexSort());
+            long mappingVersion = mapperService.getIndexSettings().getIndexMetadata().getMappingVersion();
+            return new LuceneWriter(
+                config.writerGeneration(),
+                mappingVersion,
+                dataFormat,
+                baseDirectory,
+                analyzer,
+                codec,
+                sharedWriter.getConfig().getIndexSort()
+            );
         } catch (IOException e) {
-            throw new RuntimeException("Failed to create LuceneWriter for generation " + writerGeneration, e);
+            throw new RuntimeException("Failed to create LuceneWriter for generation " + config.writerGeneration(), e);
         }
     }
 
@@ -317,6 +332,6 @@ public class LuceneIndexingExecutionEngine implements IndexingExecutionEngine<Lu
      * @param store  the shard store
      * @param writer the shared index writer
      */
-    public static record LuceneFormatStore(Store store, IndexWriter writer) implements FormatStore {
+    public static record LuceneFormatStore(Store store, IndexWriter writer, Map<Long, LuceneReader> readers) implements FormatStore {
     }
 }

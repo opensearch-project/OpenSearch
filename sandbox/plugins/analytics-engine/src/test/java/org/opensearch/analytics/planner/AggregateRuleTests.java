@@ -41,8 +41,8 @@ public class AggregateRuleTests extends BasePlannerRulesTests {
     /** Every agg call must have an annotation with non-empty viableBackends. */
     public void testPerCallAnnotation() {
         OpenSearchAggregate agg = runAggregate(1, sumCall());
-        for (AggregateCall call : agg.getAggCallList()) {
-            AggregateCallAnnotation annotation = AggregateCallAnnotation.find(call);
+        for (int i = 0; i < agg.getAggCallList().size(); i++) {
+            AggregateCallAnnotation annotation = agg.getCallAnnotations().get(i);
             assertNotNull("Every AggregateCall must have an annotation", annotation);
             assertFalse("Annotation viableBackends must not be empty", annotation.getViableBackends().isEmpty());
             assertTrue(annotation.getViableBackends().contains(MockDataFusionBackend.NAME));
@@ -69,7 +69,7 @@ public class AggregateRuleTests extends BasePlannerRulesTests {
             List.of(OpenSearchAggregate.class, OpenSearchExchangeReducer.class, OpenSearchAggregate.class, OpenSearchTableScan.class),
             Set.of(MockDataFusionBackend.NAME)
         );
-        OpenSearchAggregate finalAgg = (OpenSearchAggregate) result;
+        OpenSearchAggregate finalAgg = (OpenSearchAggregate) unwrapRootReducer(result);
         assertEquals(AggregateMode.FINAL, finalAgg.getMode());
         OpenSearchAggregate partialAgg = (OpenSearchAggregate) finalAgg.getInputs().get(0).getInputs().get(0);
         assertEquals(AggregateMode.PARTIAL, partialAgg.getMode());
@@ -117,10 +117,10 @@ public class AggregateRuleTests extends BasePlannerRulesTests {
             List.of(OpenSearchAggregate.class, OpenSearchTableScan.class),
             Set.of(MockDataFusionBackend.NAME)
         );
-        OpenSearchAggregate agg = (OpenSearchAggregate) result;
+        OpenSearchAggregate agg = (OpenSearchAggregate) unwrapRootReducer(result);
         assertFalse(agg.getViableBackends().contains(MockLuceneBackend.NAME));
         // Per-call annotation includes both — Lucene is viable for SUM on this field
-        assertCallAnnotation(agg.getAggCallList().get(0), MockDataFusionBackend.NAME, MockLuceneBackend.NAME);
+        assertCallAnnotation(agg, 0, MockDataFusionBackend.NAME, MockLuceneBackend.NAME);
     }
 
     /**
@@ -147,9 +147,9 @@ public class AggregateRuleTests extends BasePlannerRulesTests {
             List.of(OpenSearchAggregate.class, OpenSearchTableScan.class),
             Set.of(MockDataFusionBackend.NAME, MockLuceneBackend.NAME)
         );
-        OpenSearchAggregate agg = (OpenSearchAggregate) result;
+        OpenSearchAggregate agg = (OpenSearchAggregate) unwrapRootReducer(result);
         assertTrue(agg.getViableBackends().contains(MockLuceneBackend.NAME));
-        assertCallAnnotation(agg.getAggCallList().get(0), MockDataFusionBackend.NAME, MockLuceneBackend.NAME);
+        assertCallAnnotation(agg, 0, MockDataFusionBackend.NAME, MockLuceneBackend.NAME);
     }
 
     // ---- Composed pipeline shapes ----
@@ -191,23 +191,15 @@ public class AggregateRuleTests extends BasePlannerRulesTests {
             List.of(OpenSearchAggregate.class, OpenSearchTableScan.class),
             Set.of(MockDataFusionBackend.NAME)
         );
-        OpenSearchAggregate agg = (OpenSearchAggregate) result;
+        OpenSearchAggregate agg = (OpenSearchAggregate) unwrapRootReducer(result);
         assertFalse(
             "Lucene not viable at operator level — can handle SUM but not COUNT",
             agg.getViableBackends().contains(MockLuceneBackend.NAME)
         );
-        assertCallAnnotation(agg.getAggCallList().get(0), MockDataFusionBackend.NAME, MockLuceneBackend.NAME);
-        assertCallAnnotation(agg.getAggCallList().get(1), MockDataFusionBackend.NAME);
-        assertEquals(
-            "SUM viable for both backends",
-            2,
-            AggregateCallAnnotation.find(agg.getAggCallList().get(0)).getViableBackends().size()
-        );
-        assertEquals(
-            "COUNT viable for DF only (Lucene not declared)",
-            1,
-            AggregateCallAnnotation.find(agg.getAggCallList().get(1)).getViableBackends().size()
-        );
+        assertCallAnnotation(agg, 0, MockDataFusionBackend.NAME, MockLuceneBackend.NAME);
+        assertCallAnnotation(agg, 1, MockDataFusionBackend.NAME);
+        assertEquals("SUM viable for both backends", 2, agg.getCallAnnotations().get(0).getViableBackends().size());
+        assertEquals("COUNT viable for DF only (Lucene not declared)", 1, agg.getCallAnnotations().get(1).getViableBackends().size());
     }
 
     // ---- Delegation ----
@@ -307,8 +299,8 @@ public class AggregateRuleTests extends BasePlannerRulesTests {
         return buildContext("parquet", shardCount, intFields());
     }
 
-    private void assertCallAnnotation(AggregateCall call, String... expectedBackends) {
-        AggregateCallAnnotation annotation = AggregateCallAnnotation.find(call);
+    private void assertCallAnnotation(OpenSearchAggregate agg, int callIndex, String... expectedBackends) {
+        AggregateCallAnnotation annotation = agg.getCallAnnotations().get(callIndex);
         assertNotNull("AggregateCall must have annotation", annotation);
         for (String backend : expectedBackends)
             assertTrue("Annotation must contain backend " + backend, annotation.getViableBackends().contains(backend));
@@ -317,7 +309,12 @@ public class AggregateRuleTests extends BasePlannerRulesTests {
     private OpenSearchAggregate runAggregate(int shardCount, AggregateCall aggCall) {
         RelNode result = runPlanner(makeAggregate(aggCall), defaultContext(shardCount));
         logger.info("Plan:\n{}", RelOptUtil.toString(result));
-        assertTrue("Expected OpenSearchAggregate", result instanceof OpenSearchAggregate);
-        return (OpenSearchAggregate) result;
+        // The planner now emits a top-level ExchangeReducer to materialize the coord-side
+        // EXECUTION(SINGLETON) requirement. Peel it off for aggregate-centric assertions.
+        if (result instanceof org.opensearch.analytics.planner.rel.OpenSearchExchangeReducer er) {
+            result = er.getInput();
+        }
+        assertTrue("Expected OpenSearchAggregate, got " + result.getClass().getSimpleName(), result instanceof OpenSearchAggregate);
+        return (OpenSearchAggregate) unwrapRootReducer(result);
     }
 }

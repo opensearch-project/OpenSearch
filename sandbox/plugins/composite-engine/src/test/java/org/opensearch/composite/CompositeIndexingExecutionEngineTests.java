@@ -18,14 +18,18 @@ import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.DataFormatPlugin;
 import org.opensearch.index.engine.dataformat.DataFormatRegistry;
 import org.opensearch.index.engine.dataformat.RefreshInput;
+import org.opensearch.index.engine.dataformat.WriterConfig;
 import org.opensearch.index.engine.exec.commit.Committer;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doReturn;
@@ -159,7 +163,7 @@ public class CompositeIndexingExecutionEngineTests extends OpenSearchTestCase {
 
     public void testCreateWriterReturnsCompositeWriter() throws IOException {
         CompositeIndexingExecutionEngine engine = CompositeTestHelper.createStubEngine("lucene");
-        CompositeWriter writer = (CompositeWriter) engine.createWriter(42L);
+        CompositeWriter writer = (CompositeWriter) engine.createWriter(new WriterConfig(42L));
         assertNotNull(writer);
         assertEquals(42L, writer.getWriterGeneration());
         writer.close();
@@ -240,9 +244,18 @@ public class CompositeIndexingExecutionEngineTests extends OpenSearchTestCase {
         Map<String, String> lastCommitData = null;
 
         @Override
-        public void commit(Map<String, String> commitData) {
+        public CommitResult commit(CommitInput commitData) {
             commitCalled = true;
-            lastCommitData = commitData;
+            lastCommitData = StreamSupport.stream(commitData.userData().spliterator(), false)
+                .collect(
+                    Collectors.toMap(
+                        Map.Entry::getKey,
+                        Map.Entry::getValue,
+                        (existing, replacement) -> replacement, // Merge function for duplicate keys
+                        HashMap::new
+                    )
+                );
+            return null;
         }
 
         @Override
@@ -276,6 +289,11 @@ public class CompositeIndexingExecutionEngineTests extends OpenSearchTestCase {
         @Override
         public boolean isCommitManagedFile(String fileName) {
             return false;
+        }
+
+        @Override
+        public byte[] serializeToCommitFormat(CatalogSnapshot snapshot) {
+            throw new UnsupportedOperationException("stub");
         }
     }
 

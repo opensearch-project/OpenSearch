@@ -112,7 +112,7 @@ public class BackendPlanAdapterTests extends BasePlannerRulesTests {
         PlanForker.forkAll(dag, context.getCapabilityRegistry());
         BackendPlanAdapter.adaptAll(dag, context.getCapabilityRegistry());
 
-        StagePlan plan = dag.rootStage().getPlanAlternatives().getFirst();
+        StagePlan plan = findStagePlanByFragmentType(dag, OpenSearchFilter.class);
         OpenSearchFilter adaptedFilter = (OpenSearchFilter) plan.resolvedFragment();
         assertTrue("Annotations must survive adaptation", containsAnnotation(adaptedFilter.getCondition()));
         return findCallByName(adaptedFilter.getCondition(), "SIN");
@@ -182,7 +182,7 @@ public class BackendPlanAdapterTests extends BasePlannerRulesTests {
         PlanForker.forkAll(dag, context.getCapabilityRegistry());
         BackendPlanAdapter.adaptAll(dag, context.getCapabilityRegistry());
 
-        StagePlan plan = dag.rootStage().getPlanAlternatives().getFirst();
+        StagePlan plan = findStagePlanByFragmentType(dag, org.opensearch.analytics.planner.rel.OpenSearchProject.class);
         // Find SIN call in the project expressions
         RexCall sinCall = null;
         if (plan.resolvedFragment() instanceof org.opensearch.analytics.planner.rel.OpenSearchProject adaptedProject) {
@@ -225,7 +225,7 @@ public class BackendPlanAdapterTests extends BasePlannerRulesTests {
         PlanForker.forkAll(dag, context.getCapabilityRegistry());
         BackendPlanAdapter.adaptAll(dag, context.getCapabilityRegistry());
 
-        StagePlan plan = dag.rootStage().getPlanAlternatives().getFirst();
+        StagePlan plan = findStagePlanByFragmentType(dag, OpenSearchFilter.class);
         OpenSearchFilter adaptedFilter = (OpenSearchFilter) plan.resolvedFragment();
         assertTrue("Annotations must survive mixed adaptation", containsAnnotation(adaptedFilter.getCondition()));
         RexCall sinCall = findCallByName(adaptedFilter.getCondition(), "SIN");
@@ -252,7 +252,7 @@ public class BackendPlanAdapterTests extends BasePlannerRulesTests {
         PlanForker.forkAll(dag, context.getCapabilityRegistry());
         BackendPlanAdapter.adaptAll(dag, context.getCapabilityRegistry());
 
-        StagePlan plan = dag.rootStage().getPlanAlternatives().getFirst();
+        StagePlan plan = findStagePlanByFragmentType(dag, OpenSearchFilter.class);
         OpenSearchFilter adaptedFilter = (OpenSearchFilter) plan.resolvedFragment();
         assertTrue("Annotations must survive when no adapters registered", containsAnnotation(adaptedFilter.getCondition()));
         RexCall sinCall = findCallByName(adaptedFilter.getCondition(), "SIN");
@@ -293,7 +293,7 @@ public class BackendPlanAdapterTests extends BasePlannerRulesTests {
         PlanForker.forkAll(dag, context.getCapabilityRegistry());
         BackendPlanAdapter.adaptAll(dag, context.getCapabilityRegistry());
 
-        StagePlan plan = dag.rootStage().getPlanAlternatives().getFirst();
+        StagePlan plan = findStagePlanByFragmentType(dag, OpenSearchFilter.class);
         OpenSearchFilter adaptedFilter = (OpenSearchFilter) plan.resolvedFragment();
 
         // ABS should have CAST on its direct RexInputRef operand
@@ -319,6 +319,31 @@ public class BackendPlanAdapterTests extends BasePlannerRulesTests {
                 RexCall found = findCallByName(operand, name);
                 if (found != null) return found;
             }
+        }
+        return null;
+    }
+
+    /**
+     * Walks the DAG depth-first and returns the first {@link StagePlan} whose resolved
+     * fragment is an instance of {@code expected}. Used to find a specific operator
+     * within multi-stage plans (e.g. the data-node Filter stage when the root is a
+     * coord-stage ER) without coupling tests to a particular DAG depth.
+     */
+    private static StagePlan findStagePlanByFragmentType(QueryDAG dag, Class<?> expected) {
+        StagePlan found = findStagePlanInTree(dag.rootStage(), expected);
+        if (found == null) {
+            throw new AssertionError("No stage plan in DAG produces a " + expected.getSimpleName() + " fragment");
+        }
+        return found;
+    }
+
+    private static StagePlan findStagePlanInTree(org.opensearch.analytics.planner.dag.Stage stage, Class<?> expected) {
+        for (StagePlan plan : stage.getPlanAlternatives()) {
+            if (expected.isInstance(plan.resolvedFragment())) return plan;
+        }
+        for (org.opensearch.analytics.planner.dag.Stage child : stage.getChildStages()) {
+            StagePlan found = findStagePlanInTree(child, expected);
+            if (found != null) return found;
         }
         return null;
     }

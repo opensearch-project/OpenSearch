@@ -46,4 +46,11 @@ public interface DocumentInput<T> extends AutoCloseable {
      * @param rowId the row ID value
      */
     void setRowId(String rowIdFieldName, long rowId);
+
+    /**
+     * Given a field name, returns the number of values associated with that field in the document.
+     * @param fieldName name of the field to lookup
+     * @return count of field values
+     */
+    long getFieldCount(String fieldName);
 }

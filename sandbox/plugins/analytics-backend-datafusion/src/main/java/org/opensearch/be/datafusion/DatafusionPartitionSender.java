@@ -43,6 +43,7 @@ public final class DatafusionPartitionSender extends NativeHandle {
     public void close() {
         lifecycle.writeLock().lock();
         try {
+            assert lifecycle.isWriteLockedByCurrentThread() : "close must hold the write lock across super.close()";
             super.close();
         } finally {
             lifecycle.writeLock().unlock();

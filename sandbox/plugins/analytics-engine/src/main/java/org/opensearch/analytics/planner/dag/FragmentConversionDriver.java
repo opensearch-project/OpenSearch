@@ -18,6 +18,7 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.analytics.planner.CapabilityRegistry;
 import org.opensearch.analytics.planner.RelNodeUtils;
 import org.opensearch.analytics.planner.rel.AggregateMode;
+import org.opensearch.analytics.planner.rel.AnnotatedPredicate;
 import org.opensearch.analytics.planner.rel.OpenSearchAggregate;
 import org.opensearch.analytics.planner.rel.OpenSearchExchangeReducer;
 import org.opensearch.analytics.planner.rel.OpenSearchFilter;
@@ -28,6 +29,7 @@ import org.opensearch.analytics.planner.rel.OperatorAnnotation;
 import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
 import org.opensearch.analytics.spi.DelegatedExpression;
 import org.opensearch.analytics.spi.DelegatedPredicateSerializer;
+import org.opensearch.analytics.spi.DelegationPossibleFunction;
 import org.opensearch.analytics.spi.FieldStorageInfo;
 import org.opensearch.analytics.spi.FilterTreeShape;
 import org.opensearch.analytics.spi.FragmentConvertor;
@@ -48,12 +50,12 @@ import java.util.function.Function;
  * <p>Dispatch logic for PR2 (pure shard-scan path):
  * <ul>
  *   <li>Leaf = {@link OpenSearchTableScan}, top = {@link OpenSearchAggregate}(PARTIAL):
- *       {@code convertShardScanFragment} on everything below partial agg,
+ *       {@code convertFragment} on everything below partial agg,
  *       then {@code attachPartialAggOnTop}</li>
  *   <li>Leaf = {@link OpenSearchTableScan}, top = anything else:
- *       {@code convertShardScanFragment} on the full fragment</li>
+ *       {@code convertFragment} on the full fragment</li>
  *   <li>Leaf = {@link OpenSearchStageInputScan} (reduce stage):
- *       {@code convertFinalAggFragment} on the final agg (ExchangeReducer stripped),
+ *       {@code convertFragment} on the final agg (ExchangeReducer stripped),
  *       then {@code attachFragmentOnTop} for any operators above it</li>
  * </ul>
  *
@@ -141,6 +143,41 @@ public class FragmentConversionDriver {
     /**
      * Lazily accumulates serialized delegated query bytes during fragment conversion.
      * Only allocates the map when the first delegated annotation is encountered.
+     *
+     * <p>TODO: combine same-backend AnnotatedPredicate siblings into one serialized
+     * predicate per (operator, accepting backend) pair before {@link #resolverFor}
+     * runs. Today every AnnotatedPredicate is serialized in isolation, so a query
+     * like {@code match(message, 'a') AND match(message, 'b') AND match(message, 'c')}
+     * produces three separate {@link DelegatedExpression}s, three Lucene Weights, and
+     * three FFM collectDocs round-trips per RG. Lucene can intersect skip-lists
+     * across terms natively if we hand it a BooleanQuery, so a pre-strip pass
+     * should walk the AND/OR/NOT tree, group adjacent same-backend predicates that
+     * share an accepting backend, and ask the accepting backend to <em>combine</em>
+     * them into one serialized Lucene BooleanQuery (one DelegatedExpression, one
+     * Weight, one collectDocs per RG). Same shape applies to performance-delegation
+     * candidates grouped by their (operator, peer) backend pair. Needs a new
+     * {@code combine(List<RexCall>) -> byte[]} method on DelegatedPredicateSerializer
+     * (current contract serializes one expression at a time). DF-side same-backend
+     * grouping already happens naturally in Substrait — only the peer-bound side
+     * needs this work. See requirements.md:34-37 +
+     * features/shard-cost-function/analysis/filter-delegation-deep-dive/09-revamp-notes.md.
+     *
+     * <p>An attempt at this as a post-marking HEP rule
+     * ({@code CombineDelegatedPredicatesRule}, reverted) hit two design blockers:
+     * (1) Substrait wire representation for a fused {@code original = AND(call1,
+     * call2, ...)} leaf — the resolver below requires a {@code SqlFunction} operator,
+     * but AND is a connective; (2) Receiving-backend (Lucene) needs a way to turn the
+     * combined payload back into a single BooleanQuery / Weight without polluting
+     * {@code ScalarFunction} with AND. Resolve those before retrying.
+     *
+     * <p>Note: combining also subsumes the "multi-leaf performance consultation"
+     * follow-up — if N adjacent dual-viable leaves fuse into one
+     * {@code delegation_possible(AND(...), id)} marker, the Rust SingleCollector
+     * evaluator only needs to consult one peer per RG (the fused query) instead of
+     * iterating multiple delegation leaves. The Rust-side
+     * {@code performance_provider_locks} loop becomes trivially single-key. No
+     * separate multi-leaf change required once combining lands.
+     * Needs revisiting.
      */
     static final class IntraOperatorDelegationBytes {
         private final CapabilityRegistry registry;
@@ -161,6 +198,56 @@ public class FragmentConversionDriver {
             return annotation -> {
                 String annotationBackend = annotation.getViableBackends().getFirst();
                 if (annotationBackend.equals(operatorBackend)) {
+                    // Performance-delegation candidate: dual-viable predicate kept on the operator's backend,
+                    // but a peer can be opportunistically consulted at runtime. Wrap with delegation_possible
+                    // so the original predicate is preserved AND the peer can be reached via annotationId.
+                    if (annotation instanceof AnnotatedPredicate ap && !ap.getPerformanceDelegationBackends().isEmpty()) {
+                        // TODO: pick the best peer instead of the first when more than two backends are viable.
+                        String peerBackend = ap.getPerformanceDelegationBackends().getFirst();
+                        RexNode original = ap.unwrap();
+                        if (!(original instanceof RexCall originalCall)) {
+                            throw new IllegalStateException("Performance-delegation candidate must wrap a RexCall: " + original);
+                        }
+                        // Performance-delegated predicates are typically SqlBinaryOperators (=, <, >, etc.),
+                        // not SqlFunctions like MATCH_PHRASE. fromSqlOperatorWithFallback handles both.
+                        ScalarFunction function = ScalarFunction.fromSqlOperatorWithFallback(originalCall.getOperator());
+                        DelegatedPredicateSerializer serializer = registry.getBackend(peerBackend)
+                            .getCapabilityProvider()
+                            .delegatedPredicateSerializers()
+                            .get(function);
+                        if (serializer == null) {
+                            // Delegated backend declared filter capability for this op but doesn't
+                            // ship a serializer for it (e.g. Lucene declares LESS_THAN_OR_EQUAL but
+                            // only EqualsSerializer is wired today). Without a serializer we can't
+                            // emit a delegation_possible(...) marker, so fall back to native: just
+                            // unwrap as a regular predicate evaluated by the operator's own backend.
+                            // Same end result as a single-viable predicate — no perf delegation for
+                            // this leaf, correctness preserved. CapabilityRegistry startup validation
+                            // will eventually catch the capability/serializer mismatch at boot and reject
+                            // the plugin instead of silently degrading at query time.
+                            LOGGER.debug(
+                                "Performance-delegation skipped: no serializer for [{}] on delegated backend [{}]; falling back to native on operator [{}]",
+                                function,
+                                peerBackend,
+                                operatorBackend
+                            );
+                            return annotation.unwrap();
+                        }
+                        byte[] serialized = serializer.serialize(originalCall, fieldStorage);
+                        LOGGER.debug(
+                            "Performance-delegated annotation [id={}]: {} kept on operator [{}], wrapped for peer [{}], serialized {} bytes",
+                            ap.getAnnotationId(),
+                            function,
+                            operatorBackend,
+                            peerBackend,
+                            serialized.length
+                        );
+                        if (delegatedExpressions == null) {
+                            delegatedExpressions = new ArrayList<>();
+                        }
+                        delegatedExpressions.add(new DelegatedExpression(ap.getAnnotationId(), peerBackend, serialized));
+                        return DelegationPossibleFunction.makeCall(rexBuilder, originalCall, ap.getAnnotationId());
+                    }
                     LOGGER.debug("Native annotation [id={}]: backend [{}] matches operator", annotation.getAnnotationId(), operatorBackend);
                     return annotation.unwrap();
                 }
@@ -210,25 +297,31 @@ public class FragmentConversionDriver {
     static byte[] convert(RelNode resolvedFragment, FragmentConvertor convertor, IntraOperatorDelegationBytes delegationBytes) {
         RelNode leaf = findLeaf(resolvedFragment);
 
-        if (leaf instanceof OpenSearchTableScan scan) {
-            String tableName = scan.getTable().getQualifiedName().getLast();
-
+        if (leaf instanceof OpenSearchTableScan) {
             // Partial agg at top: convert everything below it, then attach partial agg on top.
             // strippedInputs passed to stripAnnotations for schema validity (LogicalAggregate needs its inputs).
             if (resolvedFragment instanceof OpenSearchAggregate agg && agg.getMode() == AggregateMode.PARTIAL) {
                 List<RelNode> strippedInputs = agg.getInputs().stream().map(input -> strip(input, delegationBytes)).toList();
-                byte[] innerBytes = convertor.convertShardScanFragment(tableName, strippedInputs.getFirst());
+                byte[] innerBytes = convertor.convertFragment(strippedInputs.getFirst());
                 Function<OperatorAnnotation, RexNode> resolver = delegationBytes.resolverFor(agg, agg.getCluster().getRexBuilder());
                 RelNode strippedAgg = agg.stripAnnotations(strippedInputs, resolver);
                 return convertor.attachPartialAggOnTop(strippedAgg, innerBytes);
             }
 
             RelNode stripped = strip(resolvedFragment, delegationBytes);
-            return convertor.convertShardScanFragment(tableName, stripped);
+            return convertor.convertFragment(stripped);
         }
 
         if (leaf instanceof OpenSearchStageInputScan) {
             return convertReduceFragment(resolvedFragment, convertor, delegationBytes);
+        }
+
+        if (leaf instanceof org.opensearch.analytics.planner.rel.OpenSearchValues) {
+            // Coord-only literal source — convert the whole fragment via the same isthmus
+            // path as reduce fragments. isthmus emits ReadRel.VirtualTable for the Values
+            // leaf; DataFusion executes it locally without any input partitions.
+            RelNode stripped = strip(resolvedFragment, delegationBytes);
+            return convertor.convertFragment(stripped);
         }
 
         throw new IllegalStateException(
@@ -241,18 +334,17 @@ public class FragmentConversionDriver {
      * (with StageInputScan as leaf for schema), then attaches any operators above it
      * (Sort, Project, etc.) via attachFragmentOnTop.
      *
-     * The node immediately above ExchangeReducer is the final agg — it goes to
-     * convertFinalAggFragment together with StageInputScan. Only operators strictly
-     * above the final agg use attachFragmentOnTop.
+     * <p>Single-input ancestors of a single gathered subtree (Sort/Project/Aggregate over
+     * a partial agg) reach convertFragment as soon as we see a node whose inputs
+     * are all ExchangeReducers, and attach via attachFragmentOnTop on the way back up.
      *
-     * TODO: for joins, the coordinator fragment has a join node directly above two
-     * StageInputScan leaves (no ExchangeReducer between them). convertReduceNode
-     * currently only recognizes the ExchangeReducer boundary — add join handling
-     * when shuffle joins are implemented (check if all inputs are StageInputScan
-     * and dispatch to a dedicated convertJoinFragment method).
+     * <p>Multi-input nodes (Join, Union, Intersect, Minus) are converted as a single
+     * subtree via convertFragment: isthmus handles all of them natively, and
+     * rewriting OpenSearchStageInputScan leaves to plain TableScans (inside the convertor)
+     * lets the whole gathered subtree serialize in one pass. No post-conversion
+     * substrait-level stitching is needed.
      */
     private static byte[] convertReduceFragment(RelNode node, FragmentConvertor convertor, IntraOperatorDelegationBytes delegationBytes) {
-        // Find the ExchangeReducer and collect operators above it
         return convertReduceNode(node, convertor, false, delegationBytes);
     }
 
@@ -263,9 +355,8 @@ public class FragmentConversionDriver {
         IntraOperatorDelegationBytes delegationBytes
     ) {
         if (node instanceof OpenSearchExchangeReducer) {
-            // Strip ExchangeReducer — StageInputScan below it is the schema source
-            // This should never be reached directly; handled by the parent (final agg)
-            return convertor.convertFinalAggFragment(strip(node.getInputs().getFirst(), delegationBytes));
+            // Strip ExchangeReducer — StageInputScan below it is the schema source.
+            return convertor.convertFragment(strip(node.getInputs().getFirst(), delegationBytes));
         }
         if (node instanceof OpenSearchRelNode openSearchNode) {
             List<RelNode> strippedInputs = node.getInputs().stream().map(input -> strip(input, delegationBytes)).toList();
@@ -282,18 +373,27 @@ public class FragmentConversionDriver {
                 // respective input partitions.
                 boolean allChildrenAreExchangeReducer = !node.getInputs().isEmpty()
                     && node.getInputs().stream().allMatch(input -> input instanceof OpenSearchExchangeReducer);
-                if (allChildrenAreExchangeReducer) {
+                if (allChildrenAreExchangeReducer && node.getInputs().size() == 1) {
                     List<RelNode> finalAggInputs = new ArrayList<>(node.getInputs().size());
                     for (RelNode input : node.getInputs()) {
                         // Skip the ER, keep StageInputScan below it as the leaf for schema inference.
                         finalAggInputs.add(strip(input.getInputs().getFirst(), delegationBytes));
                     }
                     RelNode finalAggFragment = openSearchNode.stripAnnotations(finalAggInputs, resolver);
-                    return convertor.convertFinalAggFragment(finalAggFragment);
+                    return convertor.convertFragment(finalAggFragment);
                 }
             }
 
-            // Operator above the final-fragment boundary — convert child first, then attach.
+            // Multi-input node (Join, Union, Intersect, Minus): isthmus handles all of them
+            // natively. The whole subtree — multi-input node + its branches + ERs +
+            // StageInputScans — serializes in one convertFragment pass. The convertor's
+            // StageInputScan → plain TableScan rewrite makes the leaves isthmus-friendly without
+            // any post-conversion substrait-level stitching.
+            if (node.getInputs().size() >= 2) {
+                return convertor.convertFragment(strip(node, delegationBytes));
+            }
+
+            // Single-input operator above the final-fragment boundary — convert child first, then attach.
             byte[] innerBytes = convertReduceNode(node.getInputs().getFirst(), convertor, false, delegationBytes);
             return convertor.attachFragmentOnTop(strippedNode, innerBytes);
         }

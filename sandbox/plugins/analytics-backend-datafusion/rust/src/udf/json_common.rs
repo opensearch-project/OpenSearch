@@ -10,8 +10,11 @@
 //! strings and typed segment vectors), a segment-based mutation walker used by
 //! the write UDFs, and a malformed-to-`None` JSON parser.
 
-use datafusion::arrow::array::{ArrayRef, StringArray};
+use datafusion::arrow::array::{Array, ArrayRef, LargeStringArray, StringArray, StringViewArray};
+use datafusion::arrow::datatypes::DataType;
+use datafusion::common::ScalarValue;
 use datafusion::error::{DataFusionError, Result};
+use datafusion::logical_expr::ColumnarValue;
 use serde_json::Value;
 
 /// Convert a PPL-style path (`a.b{0}.c{}`) to a JSONPath expression
@@ -166,22 +169,59 @@ where
 
 /// Standard arity guard.
 pub(crate) fn check_arity(udf: &str, observed: usize, expected: usize) -> Result<()> {
-    (observed == expected)
-        .then_some(())
-        .ok_or_else(|| plan_err_msg(format!("{udf} expects {expected} arguments, got {observed}")))
-}
-
-fn plan_err_msg(msg: String) -> DataFusionError {
-    DataFusionError::Plan(msg)
-}
-
-/// Downcast an `ArrayRef` to `StringArray`. `coerce_types` with `CoerceMode::Utf8`
-/// canonicalizes every string input to `Utf8` before this point, so a failure
-/// indicates a planner bug rather than bad user input.
-pub(crate) fn as_utf8_array(arr: &ArrayRef) -> Result<&StringArray> {
-    arr.as_any().downcast_ref::<StringArray>().ok_or_else(|| {
-        DataFusionError::Internal(format!("expected Utf8, got {:?}", arr.data_type()))
+    (observed == expected).then_some(()).ok_or_else(|| {
+        DataFusionError::Plan(format!("{udf} expects {expected} arguments, got {observed}"))
     })
+}
+
+/// View over an Arrow string array of any logical width (`Utf8`, `LargeUtf8`,
+/// `Utf8View`). Dispatch happens once in [`Self::from_array`]; per-row access
+/// via [`Self::cell`] is a small enum match.
+pub(crate) enum StringArrayView<'a> {
+    Utf8(&'a StringArray),
+    LargeUtf8(&'a LargeStringArray),
+    Utf8View(&'a StringViewArray),
+}
+
+impl<'a> StringArrayView<'a> {
+    pub(crate) fn from_array(arr: &'a ArrayRef) -> Result<Self> {
+        match arr.data_type() {
+            DataType::Utf8 => Ok(Self::Utf8(
+                arr.as_any().downcast_ref::<StringArray>().expect("Utf8 downcast"),
+            )),
+            DataType::LargeUtf8 => Ok(Self::LargeUtf8(
+                arr.as_any().downcast_ref::<LargeStringArray>().expect("LargeUtf8 downcast"),
+            )),
+            DataType::Utf8View => Ok(Self::Utf8View(
+                arr.as_any().downcast_ref::<StringViewArray>().expect("Utf8View downcast"),
+            )),
+            other => Err(DataFusionError::Internal(format!(
+                "expected string array (Utf8/LargeUtf8/Utf8View), got {other:?}"
+            ))),
+        }
+    }
+
+    /// Returns `Some(value)` for non-null rows, `None` for nulls.
+    #[inline]
+    pub(crate) fn cell(&self, i: usize) -> Option<&str> {
+        match self {
+            Self::Utf8(a) => (!a.is_null(i)).then(|| a.value(i)),
+            Self::LargeUtf8(a) => (!a.is_null(i)).then(|| a.value(i)),
+            Self::Utf8View(a) => (!a.is_null(i)).then(|| a.value(i)),
+        }
+    }
+}
+
+/// Extract `&str` from a string-typed `ColumnarValue::Scalar`. Returns `None`
+/// for non-scalars, non-string scalars, and `NULL` scalars. Shared by every
+/// json-family UDF's all-scalar fast path.
+pub(crate) fn scalar_utf8(v: &ColumnarValue) -> Option<&str> {
+    match v {
+        ColumnarValue::Scalar(
+            ScalarValue::Utf8(s) | ScalarValue::LargeUtf8(s) | ScalarValue::Utf8View(s),
+        ) => s.as_deref(),
+        _ => None,
+    }
 }
 
 #[cfg(test)]

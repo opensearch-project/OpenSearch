@@ -28,6 +28,7 @@ import org.opensearch.index.engine.dataformat.RefreshInput;
 import org.opensearch.index.engine.dataformat.RefreshResult;
 import org.opensearch.index.engine.dataformat.WriteResult;
 import org.opensearch.index.engine.dataformat.Writer;
+import org.opensearch.index.engine.dataformat.WriterConfig;
 import org.opensearch.index.engine.exec.commit.Committer;
 import org.opensearch.index.engine.exec.commit.IndexStoreProvider;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
@@ -157,9 +158,12 @@ final class CompositeTestHelper {
             this.dataFormat = dataFormat;
         }
 
+        StubWriter lastCreatedWriter;
+
         @Override
-        public Writer<DocumentInput<?>> createWriter(long writerGeneration) {
-            return new StubWriter(dataFormat);
+        public Writer<DocumentInput<?>> createWriter(WriterConfig config) {
+            lastCreatedWriter = new StubWriter(dataFormat);
+            return lastCreatedWriter;
         }
 
         @Override
@@ -208,6 +212,8 @@ final class CompositeTestHelper {
 
         private final DataFormat format;
         private WriteResult resultToReturn = new WriteResult.Success(1, 1, 1);
+        private boolean schemaMutable = true;
+        private long mappingVersion = 0;
 
         StubWriter(DataFormat format) {
             this.format = format;
@@ -215,6 +221,10 @@ final class CompositeTestHelper {
 
         void setResultToReturn(WriteResult result) {
             this.resultToReturn = result;
+        }
+
+        void setSchemaMutable(boolean mutable) {
+            this.schemaMutable = mutable;
         }
 
         @Override
@@ -237,6 +247,21 @@ final class CompositeTestHelper {
         public long generation() {
             return 0;
         }
+
+        @Override
+        public boolean isSchemaMutable() {
+            return schemaMutable;
+        }
+
+        @Override
+        public long mappingVersion() {
+            return mappingVersion;
+        }
+
+        @Override
+        public void updateMappingVersion(long newVersion) {
+            this.mappingVersion = newVersion;
+        }
     }
 
     /**
@@ -255,6 +280,11 @@ final class CompositeTestHelper {
         public void setRowId(String rowIdFieldName, long rowId) {}
 
         @Override
+        public long getFieldCount(String fieldName) {
+            return 0;
+        }
+
+        @Override
         public void close() {}
     }
 
@@ -265,7 +295,9 @@ final class CompositeTestHelper {
         boolean closeCalled = false;
 
         @Override
-        public void commit(Map<String, String> commitData) {}
+        public CommitResult commit(CommitInput commitData) {
+            return null;
+        }
 
         @Override
         public void close() {
@@ -298,6 +330,11 @@ final class CompositeTestHelper {
         @Override
         public boolean isCommitManagedFile(String fileName) {
             return false;
+        }
+
+        @Override
+        public byte[] serializeToCommitFormat(CatalogSnapshot snapshot) {
+            throw new UnsupportedOperationException("stub");
         }
     }
 }

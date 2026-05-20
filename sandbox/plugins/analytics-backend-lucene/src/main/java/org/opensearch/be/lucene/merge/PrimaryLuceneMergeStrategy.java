@@ -32,7 +32,7 @@ import java.util.List;
 public class PrimaryLuceneMergeStrategy implements LuceneMergeStrategy {
 
     @Override
-    public MergePolicy.OneMerge createOneMerge(List<SegmentCommitInfo> segments, RowIdMapping rowIdMapping) {
+    public MergePolicy.OneMerge createOneMerge(List<SegmentCommitInfo> segments, RowIdMapping rowIdMapping, long outputWriterGeneration) {
         throw new UnsupportedOperationException("Primary Lucene merge strategy is not yet implemented");
     }
 

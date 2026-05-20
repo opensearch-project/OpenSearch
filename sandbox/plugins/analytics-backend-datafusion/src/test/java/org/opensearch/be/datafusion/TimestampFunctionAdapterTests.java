@@ -59,4 +59,9 @@ public class TimestampFunctionAdapterTests extends OpenSearchTestCase {
         TimestampString ts = transformer.parseTimestamp("2024-01-01 10:30:00");
         assertEquals("2024-01-01 10:30:00", ts.toString());
     }
+
+    public void testSpaceSeparatorWithMilliseconds() {
+        TimestampString ts = transformer.parseTimestamp("2024-01-01 10:30:00.123");
+        assertEquals("2024-01-01 10:30:00.123", ts.toString());
+    }
 }

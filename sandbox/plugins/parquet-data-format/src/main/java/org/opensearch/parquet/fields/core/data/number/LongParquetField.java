@@ -20,8 +20,16 @@ import org.opensearch.parquet.vsr.ManagedVSR;
  */
 public class LongParquetField extends ParquetField {
 
+    private final boolean nullable;
+
     /** Creates a new LongParquetField. */
-    public LongParquetField() {}
+    public LongParquetField() {
+        this(true);
+    }
+
+    public LongParquetField(boolean nullable) {
+        this.nullable = nullable;
+    }
 
     @Override
     protected void addToGroup(MappedFieldType mappedFieldType, ManagedVSR managedVSR, Object parseValue) {
@@ -35,6 +43,6 @@ public class LongParquetField extends ParquetField {
 
     @Override
     public FieldType getFieldType() {
-        return FieldType.nullable(getArrowType());
+        return nullable ? FieldType.nullable(getArrowType()) : FieldType.notNullable(getArrowType());
     }
 }

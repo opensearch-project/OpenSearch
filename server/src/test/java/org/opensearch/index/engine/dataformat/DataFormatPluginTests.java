@@ -21,6 +21,7 @@ import org.opensearch.index.engine.dataformat.stub.MockIndexingExecutionEngine;
 import org.opensearch.index.engine.dataformat.stub.MockReader;
 import org.opensearch.index.engine.dataformat.stub.MockReaderManager;
 import org.opensearch.index.engine.exec.CatalogSnapshotDeletionPolicy;
+import org.opensearch.index.engine.exec.CommitFileManager;
 import org.opensearch.index.engine.exec.Segment;
 import org.opensearch.index.engine.exec.WriterFileSet;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
@@ -94,7 +95,7 @@ public class DataFormatPluginTests extends OpenSearchTestCase {
         assertEquals(format, engine.getDataFormat());
 
         // 2. Create a writer and write documents
-        Writer<MockDocumentInput> writer = engine.createWriter(1L);
+        Writer<MockDocumentInput> writer = engine.createWriter(new WriterConfig(1L));
 
         MockDocumentInput doc1 = engine.newDocumentInput();
         doc1.setRowId("_row_id", 0);
@@ -120,7 +121,7 @@ public class DataFormatPluginTests extends OpenSearchTestCase {
         writer.close();
 
         // 4. Write a second batch with a new writer generation
-        Writer<MockDocumentInput> writer2 = engine.createWriter(2L);
+        Writer<MockDocumentInput> writer2 = engine.createWriter(new WriterConfig(2L));
         MockDocumentInput doc3 = engine.newDocumentInput();
         doc3.setRowId("_row_id", 2);
         doc3.addField(mock(MappedFieldType.class), "Bob");
@@ -241,8 +242,8 @@ public class DataFormatPluginTests extends OpenSearchTestCase {
         assertTrue(empty.existingSegments().isEmpty());
 
         Path dir = createTempDir();
-        WriterFileSet fs1 = new WriterFileSet(dir.toString(), 1L, Set.of(), 10);
-        WriterFileSet fs2 = new WriterFileSet(dir.toString(), 2L, Set.of(), 20);
+        WriterFileSet fs1 = new WriterFileSet(dir.toString(), 1L, Set.of(), 10, 0L);
+        WriterFileSet fs2 = new WriterFileSet(dir.toString(), 2L, Set.of(), 20, 0L);
         Segment seg = new Segment(0L, Map.of());
 
         RefreshInput input = RefreshInput.builder()
@@ -264,7 +265,7 @@ public class DataFormatPluginTests extends OpenSearchTestCase {
         MockIndexingExecutionEngine indexEngine = new MockIndexingExecutionEngine(format);
 
         // Batch 1
-        Writer<MockDocumentInput> w1 = indexEngine.createWriter(1L);
+        Writer<MockDocumentInput> w1 = indexEngine.createWriter(new WriterConfig(1L));
         MockDocumentInput d1 = indexEngine.newDocumentInput();
         d1.addField(mock(MappedFieldType.class), "Alice");
         d1.setRowId("_row_id", 0);
@@ -283,8 +284,13 @@ public class DataFormatPluginTests extends OpenSearchTestCase {
             Map.of(),
             List.of(),
             null,
-            null
+            mock(CommitFileManager.class)
         );
+
+        // Simulate the engine's commit of the initial snapshot so commitNewSnapshot can proceed
+        try (GatedCloseable<CatalogSnapshot> ref = manager.acquireSnapshot()) {
+            ((DataformatAwareCatalogSnapshot) ref.get()).setLastCommitInfo("segments_1", 1L, 0L);
+        }
 
         MockReaderManager readerManager = new MockReaderManager(format.name());
         try (GatedCloseable<CatalogSnapshot> ref = manager.acquireSnapshot()) {
@@ -299,7 +305,7 @@ public class DataFormatPluginTests extends OpenSearchTestCase {
         assertEquals(1L, snapshot1.getGeneration());
 
         // New refresh arrives — commit replaces snapshot
-        Writer<MockDocumentInput> w2 = indexEngine.createWriter(2L);
+        Writer<MockDocumentInput> w2 = indexEngine.createWriter(new WriterConfig(2L));
         MockDocumentInput d2 = indexEngine.newDocumentInput();
         d2.addField(mock(MappedFieldType.class), "Bob");
         d2.setRowId("_row_id", 1);
@@ -383,7 +389,7 @@ public class DataFormatPluginTests extends OpenSearchTestCase {
             Map.of(),
             List.of(),
             null,
-            null
+            mock(CommitFileManager.class)
         );
 
         try (GatedCloseable<CatalogSnapshot> ref = manager.acquireSnapshot()) {
@@ -412,7 +418,7 @@ public class DataFormatPluginTests extends OpenSearchTestCase {
         MockDataFormat format = new MockDataFormat();
         MockIndexingExecutionEngine indexEngine = new MockIndexingExecutionEngine(format);
 
-        Writer<MockDocumentInput> w = indexEngine.createWriter(1L);
+        Writer<MockDocumentInput> w = indexEngine.createWriter(new WriterConfig(1L));
         MockDocumentInput d = indexEngine.newDocumentInput();
         d.addField(mock(MappedFieldType.class), "x");
         d.setRowId("_row_id", 0);
@@ -454,5 +460,21 @@ public class DataFormatPluginTests extends OpenSearchTestCase {
         rm.onFilesDeleted(List.of("a.parquet"));
         assertEquals(1, rm.deletedFiles.size());
         assertTrue(rm.deletedFiles.contains("a.parquet"));
+    }
+
+    public void testGetDeleteExecutionEngineDefaultReturnsNull() {
+        DataFormatPlugin plugin = new DataFormatPlugin() {
+            @Override
+            public DataFormat getDataFormat() {
+                return new MockDataFormat("test", 1L, Set.of());
+            }
+
+            @Override
+            public IndexingExecutionEngine<?, ?> indexingEngine(IndexingEngineConfig settings) {
+                return null;
+            }
+        };
+
+        assertNull(plugin.getDeleteExecutionEngine(mock(org.opensearch.index.engine.exec.commit.Committer.class)));
     }
 }
