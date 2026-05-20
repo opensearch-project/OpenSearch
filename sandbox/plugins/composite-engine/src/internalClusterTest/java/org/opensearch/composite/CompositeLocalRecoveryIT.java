@@ -29,6 +29,7 @@ import java.io.IOException;
  */
 @AwaitsFix(bugUrl = "Flaky test - fix before enabling")
 @OpenSearchIntegTestCase.ClusterScope(scope = OpenSearchIntegTestCase.Scope.TEST, numDataNodes = 1)
+@AwaitsFix(bugUrl = "flaky test - enable after fix")
 public class CompositeLocalRecoveryIT extends AbstractCompositeEngineIT {
 
     private static final String INDEX_NAME = "test-local-recovery";
