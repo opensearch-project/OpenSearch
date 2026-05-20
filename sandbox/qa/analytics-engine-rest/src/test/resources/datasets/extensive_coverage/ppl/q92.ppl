@@ -1,1 +1,1 @@
-search source=data category=A | fields category, value | head 5
+search source=test_data category=A | fields category, value | head 5

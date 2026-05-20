@@ -1,1 +1,1 @@
-source=data | stats distinct_count_approx(category) as approx_count
+source=test_data | stats distinct_count_approx(category) as approx_count

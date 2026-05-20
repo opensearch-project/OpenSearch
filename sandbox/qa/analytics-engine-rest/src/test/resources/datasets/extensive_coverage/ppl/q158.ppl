@@ -1,1 +1,1 @@
-source=data | eval yw = yearweek(timestamp) | fields timestamp, yw | head 3
+source=test_data | eval yw = yearweek(timestamp) | fields timestamp, yw | head 3

@@ -1,1 +1,1 @@
-source=data | eval wday = weekday(timestamp) | fields timestamp, wday | head 3
+source=test_data | eval wday = weekday(timestamp) | fields timestamp, wday | head 3

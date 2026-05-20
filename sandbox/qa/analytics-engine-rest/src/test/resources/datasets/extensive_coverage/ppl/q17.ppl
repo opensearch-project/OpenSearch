@@ -1,1 +1,1 @@
-source=data | eval hash_val = md5(id) | fields id, hash_val | head 3
+source=test_data | eval hash_val = md5(id) | fields id, hash_val | head 3

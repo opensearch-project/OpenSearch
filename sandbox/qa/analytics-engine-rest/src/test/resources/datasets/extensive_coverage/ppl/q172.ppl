@@ -1,1 +1,1 @@
-source=data | eval atan2_val = atan2(1, 1) | fields id, atan2_val | head 1
+source=test_data | eval atan2_val = atan2(1, 1) | fields id, atan2_val | head 1

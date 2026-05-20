@@ -1,1 +1,1 @@
-source=data | eval added = date_add(timestamp, interval 1 day) | fields timestamp, added | head 3
+source=test_data | eval added = date_add(timestamp, interval 1 day) | fields timestamp, added | head 3

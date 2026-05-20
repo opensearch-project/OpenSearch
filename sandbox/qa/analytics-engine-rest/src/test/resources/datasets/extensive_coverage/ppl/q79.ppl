@@ -1,1 +1,1 @@
-source=data | bin value span=50 | stats count() by value
+source=test_data | bin value span=50 | stats count() by value

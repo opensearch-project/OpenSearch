@@ -1,1 +1,1 @@
-source=data | stats sum(value) as total_value by category | addtotals
+source=test_data | stats sum(value) as total_value by category | addtotals

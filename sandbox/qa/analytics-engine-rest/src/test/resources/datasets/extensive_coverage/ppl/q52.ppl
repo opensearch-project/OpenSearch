@@ -1,1 +1,1 @@
-source=data | stats percentile(value, 50) as median, percentile(value, 90) as p90 by category
+source=test_data | stats percentile(value, 50) as median, percentile(value, 90) as p90 by category

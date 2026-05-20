@@ -1,1 +1,1 @@
-source=data | where multi_match(['text', 'status'], 'test') | fields text, status | head 3
+source=test_data | where multi_match(['text', 'status'], 'test') | fields text, status | head 3

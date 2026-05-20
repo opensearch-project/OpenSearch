@@ -1,1 +1,1 @@
-source=data | stats values(category) as unique_cats
+source=test_data | stats values(category) as unique_cats

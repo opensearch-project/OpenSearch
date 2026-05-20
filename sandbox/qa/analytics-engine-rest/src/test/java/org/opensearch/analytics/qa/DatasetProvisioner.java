@@ -77,7 +77,7 @@ public final class DatasetProvisioner {
         if (numberOfShards > 0) {
             indexBody = overrideNumberOfShards(indexBody, numberOfShards);
         }
-        Request createIndex = new Request("PUT", "/" + dataset.indexName);
+        Request createIndex = new Request("PUT", "/" + indexName);
         createIndex.setJsonEntity(indexBody);
         client.performRequest(createIndex);
 
@@ -141,7 +141,8 @@ public final class DatasetProvisioner {
         try (InputStream is = DatasetProvisioner.class.getClassLoader().getResourceAsStream(path)) {
             assertNotNull("Resource not found: " + path, is);
             try (BufferedReader reader = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8))) {
-                return reader.lines().collect(Collectors.joining("\n"));
+                String content = reader.lines().collect(Collectors.joining("\n"));
+                return content.isEmpty() ? content : content + "\n";
             }
         }
     }

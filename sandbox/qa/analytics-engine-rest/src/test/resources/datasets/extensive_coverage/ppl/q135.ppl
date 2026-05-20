@@ -1,1 +1,1 @@
-source=data | eval mon = month_of_year(timestamp) | fields timestamp, mon | head 3
+source=test_data | eval mon = month_of_year(timestamp) | fields timestamp, mon | head 3

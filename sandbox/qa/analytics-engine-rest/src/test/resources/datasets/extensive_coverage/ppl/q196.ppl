@@ -1,1 +1,1 @@
-source=data | stats median(value) as median_value
+source=test_data | stats median(value) as median_value

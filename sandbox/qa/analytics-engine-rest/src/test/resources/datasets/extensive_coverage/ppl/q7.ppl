@@ -1,1 +1,1 @@
-source=data | stats count() as cnt by category | fields category, cnt
+source=test_data | stats count() as cnt by category | fields category, cnt

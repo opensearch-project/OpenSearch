@@ -19,6 +19,6 @@ public final class RexCommandTestHelper {
     
     public static final Dataset DATASET = new Dataset(
         "rex_command",
-        "rex_logs"
+        "rex_command"
     );
 }

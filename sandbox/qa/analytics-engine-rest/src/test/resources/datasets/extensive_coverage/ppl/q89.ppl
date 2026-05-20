@@ -1,1 +1,1 @@
-source=data | patterns text | fields text, patterns_field | head 5
+source=test_data | patterns text | fields text, patterns_field | head 5

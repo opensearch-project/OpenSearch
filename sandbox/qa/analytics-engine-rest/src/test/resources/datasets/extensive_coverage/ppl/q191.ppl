@@ -1,1 +1,1 @@
-source=data | where simple_query_string(['text'], 'test OR sample') | fields text | head 3
+source=test_data | where simple_query_string(['text'], 'test OR sample') | fields text | head 3

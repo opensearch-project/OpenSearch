@@ -1,1 +1,1 @@
-source=data | stats list(category) as categories
+source=test_data | stats list(category) as categories

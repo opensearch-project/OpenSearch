@@ -1,1 +1,1 @@
-source=data | eval zipped = mvzip(split(tags, ','), array('a', 'b', 'c')) | fields tags, zipped | head 3
+source=test_data | eval zipped = mvzip(split(tags, ','), array('a', 'b', 'c')) | fields tags, zipped | head 3

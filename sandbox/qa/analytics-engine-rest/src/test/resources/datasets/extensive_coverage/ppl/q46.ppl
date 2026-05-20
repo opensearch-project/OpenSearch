@@ -1,1 +1,1 @@
-source=data | eval coalesced = coalesce(status, "unknown") | fields status, coalesced | head 3
+source=test_data | eval coalesced = coalesce(status, "unknown") | fields status, coalesced | head 3

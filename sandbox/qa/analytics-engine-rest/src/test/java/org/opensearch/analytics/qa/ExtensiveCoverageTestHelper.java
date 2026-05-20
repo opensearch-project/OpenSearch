@@ -12,14 +12,14 @@ package org.opensearch.analytics.qa;
  * Helper for Extensive function coverage testing dataset configuration (multi-index).
  */
 public final class ExtensiveCoverageTestHelper {
-    
+
     private ExtensiveCoverageTestHelper() {
         // utility class
     }
-    
+
     public static final Dataset DATASET = new Dataset(
         "extensive_coverage",
-        "data",
+        "test_data",
         "lookup"
     );
 }
