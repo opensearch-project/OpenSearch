@@ -13,43 +13,27 @@ import org.apache.calcite.rel.core.AggregateCall;
 import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rel.type.RelDataTypeFactory;
 import org.apache.calcite.rel.type.RelDataTypeField;
+import org.apache.calcite.rex.RexInputRef;
+import org.apache.calcite.rex.RexLiteral;
+import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.sql.SqlAggFunction;
-import org.opensearch.analytics.planner.ArrowCalciteTypes;
 import org.opensearch.analytics.planner.rel.AggregateMode;
 import org.opensearch.analytics.planner.rel.OpenSearchAggregate;
+import org.opensearch.analytics.planner.rel.OpenSearchProject;
 import org.opensearch.analytics.planner.rel.OpenSearchStageInputScan;
 import org.opensearch.analytics.spi.AggregateFunction;
 import org.opensearch.analytics.spi.AggregateFunction.IntermediateField;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 /**
- * Post-Volcano distributed-aggregate decomposition. Sole owner of all
- * {@link AggregateCall#create} construction for the FINAL side of a partial/final
- * aggregate pair.
- *
- * <p>Runs after {@code OpenSearchAggregateSplitRule} has structurally split a SINGLE
- * aggregate into {@code FINAL(ExchangeReducer(StageInputScan))}. Given the FINAL
- * aggregate, classifies each aggregate call via {@link AggregateFunction#intermediateFields}
- * and rewrites accordingly.
- *
- * <p>Three classification outcomes per aggregate:
- * <ul>
- *   <li><b>Pass-through</b> (no intermediate fields): arg list rebased to partial's
- *       output column position, function identity preserved, return type re-inferred.</li>
- *   <li><b>Function-swap</b> (one intermediate field, {@code reducer != self}): arg
- *       rebased, function swapped to the declared reducer, exchange column type from
- *       the intermediate field (Arrow-derived). COUNT→SUM is the canonical case.</li>
- *   <li><b>Engine-native merge</b> (one intermediate field, {@code reducer == self}):
- *       function identity preserved, arg rebased, exchange column type from the
- *       intermediate field, return type kept explicit (Calcite cannot infer
- *       {@code approx_count_distinct(Binary)} through its standard signature registry).</li>
- * </ul>
- *
- * <p>Relies on the split rule's structural guarantee that FINAL's input is an
- * ExchangeReducer with a single StageInputScan child. Direct structural access —
- * no recursive tree walks.
+ * Post-Volcano distributed-aggregate decomposition for FINAL aggregate calls. Classifies
+ * each call via {@link AggregateFunction#intermediateFields} into pass-through,
+ * function-swap (e.g. COUNT→SUM), or engine-native merge (reducer == self), and rebuilds
+ * its argList, function, and return type accordingly. Sole owner of
+ * {@link AggregateCall#create} on the FINAL side.
  *
  * @opensearch.internal
  */
@@ -57,11 +41,6 @@ final class DistributedAggregateRewriter {
 
     private DistributedAggregateRewriter() {}
 
-    /**
-     * Apply the rewrite to a FINAL-mode {@link OpenSearchAggregate}. Returns the input
-     * unchanged if the structure doesn't match the split rule's expected shape
-     * ({@code FINAL → ExchangeReducer → StageInputScan}) — no-op safety.
-     */
     static RelNode rewrite(OpenSearchAggregate finalAgg) {
         RelNode exchange = finalAgg.getInput();
         if (exchange.getInputs().isEmpty()) return finalAgg;
@@ -71,7 +50,6 @@ final class DistributedAggregateRewriter {
         int groupCount = finalAgg.getGroupSet().cardinality();
         boolean hasEmptyGroup = finalAgg.getGroupSet().isEmpty();
 
-        // Phase 1: classify each aggCall and record any exchange-column type override.
         RelDataType originalExchangeType = stageInput.getRowType();
         List<RelDataType> exchangeTypes = new ArrayList<>(originalExchangeType.getFieldCount());
         List<String> exchangeNames = new ArrayList<>(originalExchangeType.getFieldCount());
@@ -89,7 +67,8 @@ final class DistributedAggregateRewriter {
                 field = null;
             } else if (fields.size() == 1) {
                 field = fields.get(0);
-                exchangeTypes.set(groupCount + i, ArrowCalciteTypes.toCalcite(field.arrowType(), tf));
+                RelDataType partialOutputType = originalExchangeType.getFieldList().get(groupCount + i).getType();
+                exchangeTypes.set(groupCount + i, field.typeResolver().resolve(List.of(partialOutputType), tf));
             } else {
                 throw new IllegalStateException(
                     "Multi-field decomposition for ["
@@ -100,7 +79,6 @@ final class DistributedAggregateRewriter {
             perCallField.add(field);
         }
 
-        // Phase 2: rebuild StageInputScan with overrides (if any), keeping the ExchangeReducer intact.
         RelDataType overriddenExchangeType = tf.createStructType(exchangeTypes, exchangeNames);
         RelNode newFinalInput;
         if (overriddenExchangeType.equals(originalExchangeType)) {
@@ -116,14 +94,56 @@ final class DistributedAggregateRewriter {
             newFinalInput = exchange.copy(exchange.getTraitSet(), List.of(newStageInput));
         }
 
-        // Phase 3: build the rewritten aggCalls — single AggregateCall.create site.
+        // Re-create captured literal aggregate-args (e.g. TAKE's N) as constant Project
+        // columns. SubstraitPlanRewriter.visit(Aggregate) inlines them into the substrait.
+        Map<Integer, List<RexLiteral>> extraLiterals = finalAgg.getFinalExtraLiteralArgs();
+        Map<Integer, List<Integer>> extraLiteralColIdxByCallIdx;
+        if (extraLiterals.isEmpty()) {
+            extraLiteralColIdxByCallIdx = Map.of();
+        } else {
+            int origColCount = newFinalInput.getRowType().getFieldCount();
+            List<RexNode> projectExprs = new ArrayList<>(origColCount);
+            List<String> projectNames = new ArrayList<>(origColCount);
+            for (int idx = 0; idx < origColCount; idx++) {
+                RelDataType fieldType = newFinalInput.getRowType().getFieldList().get(idx).getType();
+                projectExprs.add(new RexInputRef(idx, fieldType));
+                projectNames.add(newFinalInput.getRowType().getFieldList().get(idx).getName());
+            }
+            java.util.LinkedHashMap<Integer, List<Integer>> idxMap = new java.util.LinkedHashMap<>();
+            for (Map.Entry<Integer, List<RexLiteral>> entry : extraLiterals.entrySet()) {
+                List<Integer> colIdxs = new ArrayList<>(entry.getValue().size());
+                for (int litI = 0; litI < entry.getValue().size(); litI++) {
+                    RexLiteral lit = entry.getValue().get(litI);
+                    int colIdx = projectExprs.size();
+                    projectExprs.add(lit);
+                    projectNames.add("$lit_call" + entry.getKey() + "_" + litI);
+                    colIdxs.add(colIdx);
+                }
+                idxMap.put(entry.getKey(), List.copyOf(colIdxs));
+            }
+            RelDataTypeFactory.Builder rowTypeBuilder = tf.builder();
+            for (int idx = 0; idx < projectExprs.size(); idx++) {
+                rowTypeBuilder.add(projectNames.get(idx), projectExprs.get(idx).getType());
+            }
+            newFinalInput = new OpenSearchProject(
+                newFinalInput.getCluster(),
+                newFinalInput.getTraitSet(),
+                newFinalInput,
+                projectExprs,
+                rowTypeBuilder.build(),
+                finalAgg.getViableBackends()
+            );
+            extraLiteralColIdxByCallIdx = idxMap;
+        }
+
         List<AggregateCall> rebuiltCalls = new ArrayList<>(finalAgg.getAggCallList().size());
         for (int i = 0; i < finalAgg.getAggCallList().size(); i++) {
             AggregateCall call = finalAgg.getAggCallList().get(i);
             IntermediateField field = perCallField.get(i);
-            int finalArgIdx = groupCount + i;
-            String name = overriddenExchangeType.getFieldList().get(finalArgIdx).getName();
-            rebuiltCalls.add(buildFinalCall(call, field, finalArgIdx, name, newFinalInput, hasEmptyGroup));
+            int stateColIdx = groupCount + i;
+            String name = overriddenExchangeType.getFieldList().get(stateColIdx).getName();
+            List<Integer> extraColIdxs = extraLiteralColIdxByCallIdx.getOrDefault(i, List.of());
+            rebuiltCalls.add(buildFinalCall(call, field, stateColIdx, extraColIdxs, name, newFinalInput, hasEmptyGroup));
         }
 
         return new OpenSearchAggregate(
@@ -134,21 +154,18 @@ final class DistributedAggregateRewriter {
             finalAgg.getGroupSets(),
             rebuiltCalls,
             AggregateMode.FINAL,
-            finalAgg.getViableBackends()
+            finalAgg.getViableBackends(),
+            finalAgg.getCallAnnotations(),
+            // Cleared so a later copy doesn't re-inject the literal Project.
+            Map.of()
         );
     }
 
-    // ── Aggregate-call construction (single site) ──
-
-    /**
-     * Computes {@code (aggFunc, explicitType)} based on the aggregate's classification,
-     * then calls {@link AggregateCall#create} once. When {@code explicitType == null},
-     * Calcite infers the return type against {@code newFinalInput}.
-     */
     private static AggregateCall buildFinalCall(
         AggregateCall call,
         IntermediateField field,
         int finalArgIdx,
+        List<Integer> extraColIdxs,
         String name,
         RelNode newFinalInput,
         boolean hasEmptyGroup
@@ -156,19 +173,28 @@ final class DistributedAggregateRewriter {
         SqlAggFunction aggFunc;
         RelDataType explicitType;
         if (field == null) {
-            // Pass-through: keep function, Calcite infers type.
             aggFunc = call.getAggregation();
             explicitType = null;
         } else if (field.reducer() == AggregateFunction.fromSqlAggFunction(call.getAggregation())) {
-            // Engine-native merge: keep function, preserve declared type (Calcite cannot infer
-            // approx_count_distinct(Binary) through its standard signature registry).
+            // Engine-native merge: keep function identity, pin return type. STATE_EXPANDING
+            // pins to the StageInputScan column (PARTIAL's output shape); APPROXIMATE keeps
+            // the user-facing return type (e.g. HLL FINAL → BIGINT).
             aggFunc = call.getAggregation();
-            explicitType = call.getType();
+            AggregateFunction enumFn = AggregateFunction.fromSqlAggFunction(call.getAggregation());
+            if (enumFn.getType() == AggregateFunction.Type.STATE_EXPANDING) {
+                explicitType = newFinalInput.getRowType().getFieldList().get(finalArgIdx).getType();
+            } else {
+                explicitType = call.getType();
+            }
         } else {
-            // Function-swap: reducer replaces the function, Calcite infers type.
             aggFunc = field.reducer().toSqlAggFunction();
             explicitType = null;
         }
+
+        // State column followed by any forwarded literal-arg columns.
+        List<Integer> argList = new ArrayList<>(1 + extraColIdxs.size());
+        argList.add(finalArgIdx);
+        argList.addAll(extraColIdxs);
 
         return AggregateCall.create(
             aggFunc,
@@ -176,7 +202,7 @@ final class DistributedAggregateRewriter {
             call.isApproximate(),
             call.ignoreNulls(),
             call.rexList,
-            List.of(finalArgIdx),
+            List.copyOf(argList),
             call.filterArg,
             call.distinctKeys,
             call.collation,
