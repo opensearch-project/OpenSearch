@@ -232,11 +232,9 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         // see a real time/date type and Isthmus serializes accordingly.
         ScalarFunction.TIME,
         ScalarFunction.DATE,
+        ScalarFunction.TIMESTAMP,
         // PPL `datetime(expr)` — parse/cast into a TIMESTAMP. Routes to DF's
-        // builtin `to_timestamp` via DatetimeAdapter. The single-arg
-        // `timestamp(expr)` form shares these semantics but its ScalarFunction
-        // slot is already bound to TimestampFunctionAdapter for VARCHAR literal
-        // folding, so it stays on the legacy engine.
+        // builtin `to_timestamp` via DatetimeAdapter.
         ScalarFunction.DATETIME,
         // PPL extract / make* / format / from_unixtime are implemented as Rust UDFs
         // to preserve MySQL semantics that DataFusion builtins don't match: EXTRACT
@@ -375,6 +373,9 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
      */
     private static final Set<ScalarFunction> MAP_RETURNING_PROJECT_OPS = Set.of(ScalarFunction.JSON_EXTRACT_ALL);
 
+    // PPL state-expanding aggregates (TAKE/FIRST/LAST/LIST/VALUES) route through
+    // DataFusionFragmentConvertor's LOCAL_*_OP stubs and the substrait extensions in
+    // opensearch_aggregate_functions.yaml.
     private static final Set<AggregateFunction> AGG_FUNCTIONS = Set.of(
         AggregateFunction.SUM,
         AggregateFunction.SUM0,
@@ -382,7 +383,12 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         AggregateFunction.MAX,
         AggregateFunction.COUNT,
         AggregateFunction.AVG,
-        AggregateFunction.APPROX_COUNT_DISTINCT
+        AggregateFunction.APPROX_COUNT_DISTINCT,
+        AggregateFunction.TAKE,
+        AggregateFunction.FIRST,
+        AggregateFunction.LAST,
+        AggregateFunction.LIST,
+        AggregateFunction.VALUES
     );
 
     private final DataFusionPlugin plugin;

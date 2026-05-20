@@ -61,6 +61,13 @@ import java.util.function.Supplier;
  */
 public class ParquetDataFormatPlugin extends Plugin implements DataFormatPlugin {
 
+    /**
+     * Current parquet writer format version, long-encoded (plugin-defined namespace; the
+     * encoding happens to reuse {@code major * 1_000_000 + minor * 1_000 + patch} but is
+     * NOT a Lucene version — do not compare to Lucene-encoded versions).
+     */
+    public static final long PARQUET_FORMAT_VERSION = 1_000_000L; // 1.0.0
+
     /** Thread pool name for background native Parquet writes during VSR rotation. */
     public static final String PARQUET_THREAD_POOL_NAME = "parquet_native_write";
     private static final StoreStrategy storeStrategy = new ParquetStoreStrategy();

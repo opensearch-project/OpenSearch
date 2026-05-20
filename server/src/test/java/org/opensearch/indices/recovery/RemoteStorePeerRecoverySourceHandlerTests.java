@@ -8,7 +8,6 @@
 
 package org.opensearch.indices.recovery;
 
-import org.apache.lucene.index.IndexCommit;
 import org.opensearch.Version;
 import org.opensearch.action.support.PlainActionFuture;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -26,6 +25,7 @@ import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.Engine;
 import org.opensearch.index.engine.NRTReplicationEngineFactory;
 import org.opensearch.index.engine.SegmentsStats;
+import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.replication.OpenSearchIndexLevelReplicationTestCase;
 import org.opensearch.index.seqno.ReplicationTracker;
@@ -131,6 +131,7 @@ public class RemoteStorePeerRecoverySourceHandlerTests extends OpenSearchIndexLe
         when(shard.getReplicationGroup()).thenReturn(replicationGroup);
         when(replicationGroup.getRoutingTable()).thenReturn(routingTable);
         when(shard.acquireSafeIndexCommit()).thenReturn(mock(GatedCloseable.class));
+        when(shard.acquireSafeCatalogSnapshot()).thenReturn(mock(GatedCloseable.class));
         doAnswer(invocation -> {
             ((ActionListener<Releasable>) invocation.getArguments()[0]).onResponse(() -> {});
             return null;
@@ -164,7 +165,7 @@ public class RemoteStorePeerRecoverySourceHandlerTests extends OpenSearchIndexLe
 
             @Override
             void phase1(
-                IndexCommit snapshot,
+                CatalogSnapshot snapshot,
                 long startingSeqNo,
                 IntSupplier translogOps,
                 ActionListener<SendFileResult> listener,

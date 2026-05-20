@@ -87,7 +87,7 @@ public class DataFormatAwareRemoteDirectoryTests extends OpenSearchTestCase {
         baseBlobPath = new BlobPath().add("segments").add("data");
 
         when(mockBlobStore.blobContainer(baseBlobPath)).thenReturn(baseBlobContainer);
-        when(mockBlobStore.blobContainer(baseBlobPath.add("parquet"))).thenReturn(parquetBlobContainer);
+        when(mockBlobStore.blobContainer(baseBlobPath.parent().add("parquet"))).thenReturn(parquetBlobContainer);
 
         // Identity rate limiters (no-op)
         UnaryOperator<OffsetRangeInputStream> uploadRateLimiter = UnaryOperator.identity();
