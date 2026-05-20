@@ -330,7 +330,14 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         ScalarFunction.SPAN_BUCKET,
         ScalarFunction.WIDTH_BUCKET,
         ScalarFunction.MINSPAN_BUCKET,
-        ScalarFunction.RANGE_BUCKET
+        ScalarFunction.RANGE_BUCKET,
+        // PPL `TIMESTAMPDIFF(unit, t1, t2)` / `TIMESTAMPADD(unit, n, t)` — lowering target for
+        // timechart's `per_*` aggregations (per_second / per_minute / per_hour / per_day),
+        // which expand to {@code DIVIDE(agg * scale, TIMESTAMPDIFF('MILLISECOND', @timestamp,
+        // TIMESTAMPADD('MINUTE', 1, @timestamp)))}. Both PPL UDFs are unknown to isthmus's
+        // default catalog, so adapters rewrite to DF-native interval arithmetic.
+        ScalarFunction.TIMESTAMPDIFF,
+        ScalarFunction.TIMESTAMPADD
     );
 
     /**
@@ -635,6 +642,14 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                     Map.entry(ScalarFunction.TIME, new DateTimeAdapters.TimeAdapter()),
                     Map.entry(ScalarFunction.TIME_FORMAT, new RustUdfDateTimeAdapters.TimeFormatAdapter()),
                     Map.entry(ScalarFunction.TIMESTAMP, new TimestampFunctionAdapter()),
+                    // PPL `TIMESTAMPDIFF(out_unit, t, TIMESTAMPADD(in_unit, n, t))` — peephole
+                    // constant-folds to a numeric literal when both unit strings are fixed-length
+                    // (MICROSECOND through WEEK). This is the exact shape PPL timechart's per_*
+                    // aggregations produce; folding eliminates both PPL UDF references in one
+                    // step, sidestepping isthmus's lack of substrait bindings for either UDF.
+                    // Variable-length units (MONTH / QUARTER / YEAR) and standalone TIMESTAMPADD
+                    // fall through unchanged — fully-general interval-aware support is a follow-up.
+                    Map.entry(ScalarFunction.TIMESTAMPDIFF, new TimestampDiffAdapter()),
                     Map.entry(ScalarFunction.TONUMBER, new ToNumberFunctionAdapter()),
                     Map.entry(ScalarFunction.TOSTRING, new ToStringFunctionAdapter()),
                     Map.entry(ScalarFunction.NUM, new NumericConversionFunctionAdapter(NumericConversionFunctionAdapter.NUM)),
