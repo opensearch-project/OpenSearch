@@ -148,6 +148,7 @@ pub async fn execute_indexed_query(
     ctx.register_udf(create_index_filter_udf());
     ctx.register_udf(crate::indexed_table::substrait_to_tree::create_delegation_possible_udf());
     crate::udf::register_all(&ctx);
+    crate::udaf::register_all(&ctx);
 
     // Register default ListingTable so substrait consumer can resolve the table
     let listing_options = datafusion::datasource::listing::ListingOptions::new(
