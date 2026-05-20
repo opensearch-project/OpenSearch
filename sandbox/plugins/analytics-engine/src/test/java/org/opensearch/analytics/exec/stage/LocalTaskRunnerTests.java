@@ -10,9 +10,12 @@ package org.opensearch.analytics.exec.stage;
 
 import org.opensearch.analytics.exec.stage.coordinator.LocalStageTask;
 import org.opensearch.analytics.exec.stage.coordinator.LocalTaskRunner;
+import org.opensearch.common.util.concurrent.AbstractRunnable;
 import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.test.OpenSearchTestCase;
 
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -72,6 +75,29 @@ public class LocalTaskRunnerTests extends OpenSearchTestCase {
 
         submitted.get().run();
         assertTrue("onCompleted fires once the executor runs the body", completed.get());
+    }
+
+    public void testRejectionSignalsFailedGracefully() {
+        // A bounded pool rejects when its queue is full. OpenSearchThreadPoolExecutor invokes
+        // onRejection on an AbstractRunnable rather than rethrowing — the runner must route that
+        // to the listener so the query fails gracefully instead of hanging with no callback.
+        OpenSearchRejectedExecutionException rejected = new OpenSearchRejectedExecutionException("queue full");
+        AtomicBoolean ran = new AtomicBoolean();
+        AtomicBoolean completed = new AtomicBoolean();
+        AtomicReference<Exception> failure = new AtomicReference<>();
+
+        Executor rejectingExecutor = r -> ((AbstractRunnable) r).onRejection(rejected);
+        LocalTaskRunner dispatcher = new LocalTaskRunner(rejectingExecutor);
+        LocalStageTask task = new LocalStageTask(new StageTaskId(0, 0), listener -> {
+            ran.set(true);
+            listener.onResponse(null);
+        });
+
+        dispatcher.run(task, handle(completed, failure));
+
+        assertFalse("body must not run when the task is rejected", ran.get());
+        assertFalse("onCompleted must not fire when rejected", completed.get());
+        assertSame("rejection is routed to listener.onFailure", rejected, failure.get());
     }
 
     private static ActionListener<Void> handle(AtomicBoolean completed, AtomicReference<Exception> failure) {
