@@ -117,10 +117,16 @@ public class FlightStatsCollector extends AbstractLifecycleComponent {
 
         long directMemoryBytes = 0;
         try {
-            java.lang.management.MemoryMXBean memoryBean = java.lang.management.ManagementFactory.getMemoryMXBean();
-            directMemoryBytes = memoryBean.getNonHeapMemoryUsage().getUsed();
+            for (java.lang.management.BufferPoolMXBean pool : java.lang.management.ManagementFactory.getPlatformMXBeans(
+                java.lang.management.BufferPoolMXBean.class
+            )) {
+                if ("direct".equals(pool.getName())) {
+                    directMemoryBytes = pool.getMemoryUsed();
+                    break;
+                }
+            }
         } catch (Exception e) {
-            directMemoryBytes = Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory();
+            directMemoryBytes = 0;
         }
 
         int clientThreadsActive = 0;
