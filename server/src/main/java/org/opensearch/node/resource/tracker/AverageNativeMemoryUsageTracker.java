@@ -96,7 +96,7 @@ public class AverageNativeMemoryUsageTracker extends AbstractAverageUsageTracker
 
         long rssAnon = rssAnonSupplier.getAsLong();
         if (rssAnon < 0L) {
-            LOGGER.debug("Native memory poll skipped: RssAnon unavailable from /proc/self/status");
+            LOGGER.warn("Native memory poll skipped: RssAnon unavailable from /proc/self/status");
             return 0L;
         }
 

@@ -51,7 +51,7 @@ public class NativeMemoryAdmissionControlIT extends OpenSearchIntegTestCase {
         Settings nodeSettings = Settings.builder()
             .put(NATIVE_MEMORY_BASED_ADMISSION_CONTROLLER_TRANSPORT_LAYER_MODE.getKey(), AdmissionControlMode.ENFORCED.getMode())
             .put(SEARCH_NATIVE_MEMORY_USAGE_LIMIT.getKey(), 85)
-            .put(ResourceTrackerSettings.GLOBAL_NATIVE_MEMORY_USAGE_AC_WINDOW_DURATION_SETTING.getKey(), TimeValue.timeValueMillis(500))
+            .put(ResourceTrackerSettings.GLOBAL_NATIVE_MEMORY_USAGE_AC_WINDOW_DURATION_SETTING.getKey(), TimeValue.timeValueSeconds(5))
             .build();
 
         String node = internalCluster().startNode(nodeSettings);
@@ -79,7 +79,7 @@ public class NativeMemoryAdmissionControlIT extends OpenSearchIntegTestCase {
             .put(ADMISSION_CONTROL_TRANSPORT_LAYER_MODE.getKey(), AdmissionControlMode.MONITOR.getMode())
             .put(NATIVE_MEMORY_BASED_ADMISSION_CONTROLLER_TRANSPORT_LAYER_MODE.getKey(), AdmissionControlMode.MONITOR.getMode())
             .put(SEARCH_NATIVE_MEMORY_USAGE_LIMIT.getKey(), 80)
-            .put(ResourceTrackerSettings.GLOBAL_NATIVE_MEMORY_USAGE_AC_WINDOW_DURATION_SETTING.getKey(), TimeValue.timeValueMillis(500))
+            .put(ResourceTrackerSettings.GLOBAL_NATIVE_MEMORY_USAGE_AC_WINDOW_DURATION_SETTING.getKey(), TimeValue.timeValueSeconds(5))
             .build();
 
         String node = internalCluster().startNode(nodeSettings);
@@ -105,7 +105,7 @@ public class NativeMemoryAdmissionControlIT extends OpenSearchIntegTestCase {
             .put(ResourceTrackerSettings.NODE_NATIVE_MEMORY_LIMIT_SETTING.getKey(), "4gb")
             .put(NATIVE_MEMORY_BASED_ADMISSION_CONTROLLER_TRANSPORT_LAYER_MODE.getKey(), AdmissionControlMode.MONITOR.getMode())
             .put(SEARCH_NATIVE_MEMORY_USAGE_LIMIT.getKey(), 80)
-            .put(ResourceTrackerSettings.GLOBAL_NATIVE_MEMORY_USAGE_AC_WINDOW_DURATION_SETTING.getKey(), TimeValue.timeValueMillis(500))
+            .put(ResourceTrackerSettings.GLOBAL_NATIVE_MEMORY_USAGE_AC_WINDOW_DURATION_SETTING.getKey(), TimeValue.timeValueSeconds(5))
             .build();
 
         String node = internalCluster().startNode(nodeSettings);
@@ -135,7 +135,7 @@ public class NativeMemoryAdmissionControlIT extends OpenSearchIntegTestCase {
             .put(NATIVE_MEMORY_BASED_ADMISSION_CONTROLLER_TRANSPORT_LAYER_MODE.getKey(), AdmissionControlMode.ENFORCED.getMode())
             .put(SEARCH_NATIVE_MEMORY_USAGE_LIMIT.getKey(), 85)
             .put(INDEXING_NATIVE_MEMORY_USAGE_LIMIT.getKey(), 85)
-            .put(ResourceTrackerSettings.GLOBAL_NATIVE_MEMORY_USAGE_AC_WINDOW_DURATION_SETTING.getKey(), TimeValue.timeValueMillis(500))
+            .put(ResourceTrackerSettings.GLOBAL_NATIVE_MEMORY_USAGE_AC_WINDOW_DURATION_SETTING.getKey(), TimeValue.timeValueSeconds(5))
             .build();
 
         String node = internalCluster().startNode(nodeSettings);
@@ -165,7 +165,7 @@ public class NativeMemoryAdmissionControlIT extends OpenSearchIntegTestCase {
     public void testDynamicLimitUpdate() {
         Settings nodeSettings = Settings.builder()
             .put(ResourceTrackerSettings.NODE_NATIVE_MEMORY_LIMIT_SETTING.getKey(), "4gb")
-            .put(ResourceTrackerSettings.GLOBAL_NATIVE_MEMORY_USAGE_AC_WINDOW_DURATION_SETTING.getKey(), TimeValue.timeValueMillis(500))
+            .put(ResourceTrackerSettings.GLOBAL_NATIVE_MEMORY_USAGE_AC_WINDOW_DURATION_SETTING.getKey(), TimeValue.timeValueSeconds(5))
             .build();
 
         String node = internalCluster().startNode(nodeSettings);
