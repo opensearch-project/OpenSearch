@@ -64,24 +64,28 @@ public class AnalyticsBackendNativeMemoryStatsXContentTests extends OpenSearchTe
             );
             assertEquals("Expected exactly one top-level key on iteration " + i, 1, root.size());
 
-            // Assert the native_memory object contains exactly the two expected fields
+            // Assert the native_memory object contains total_estimated_bytes and analytics_backend
             @SuppressWarnings("unchecked")
             Map<String, Object> nativeMemory = (Map<String, Object>) root.get("native_memory");
             assertNotNull("native_memory value should not be null on iteration " + i, nativeMemory);
             assertEquals("Expected exactly 2 fields in native_memory on iteration " + i, 2, nativeMemory.size());
-            assertTrue("Expected 'allocated_bytes' field on iteration " + i, nativeMemory.containsKey("allocated_bytes"));
-            assertTrue("Expected 'resident_bytes' field on iteration " + i, nativeMemory.containsKey("resident_bytes"));
+            assertTrue("Expected 'total_estimated_bytes' field on iteration " + i, nativeMemory.containsKey("total_estimated_bytes"));
+            assertTrue("Expected 'analytics_backend' field on iteration " + i, nativeMemory.containsKey("analytics_backend"));
+
+            @SuppressWarnings("unchecked")
+            Map<String, Object> analyticsBackend = (Map<String, Object>) nativeMemory.get("analytics_backend");
+            assertNotNull("analytics_backend should not be null on iteration " + i, analyticsBackend);
 
             // Assert correct values (JSON numbers are parsed as Long or Integer depending on size)
             assertEquals(
                 "allocated_bytes mismatch on iteration " + i + " for value: " + allocatedBytes,
                 allocatedBytes,
-                ((Number) nativeMemory.get("allocated_bytes")).longValue()
+                ((Number) analyticsBackend.get("allocated_bytes")).longValue()
             );
             assertEquals(
                 "resident_bytes mismatch on iteration " + i + " for value: " + residentBytes,
                 residentBytes,
-                ((Number) nativeMemory.get("resident_bytes")).longValue()
+                ((Number) analyticsBackend.get("resident_bytes")).longValue()
             );
         }
     }
@@ -103,8 +107,10 @@ public class AnalyticsBackendNativeMemoryStatsXContentTests extends OpenSearchTe
         @SuppressWarnings("unchecked")
         Map<String, Object> nativeMemory = (Map<String, Object>) root.get("native_memory");
         assertNotNull("native_memory should be present", nativeMemory);
-        assertEquals(-1L, ((Number) nativeMemory.get("allocated_bytes")).longValue());
-        assertEquals(-1L, ((Number) nativeMemory.get("resident_bytes")).longValue());
+        @SuppressWarnings("unchecked")
+        Map<String, Object> analyticsBackend = (Map<String, Object>) nativeMemory.get("analytics_backend");
+        assertEquals(-1L, ((Number) analyticsBackend.get("allocated_bytes")).longValue());
+        assertEquals(-1L, ((Number) analyticsBackend.get("resident_bytes")).longValue());
     }
 
     /**
@@ -123,7 +129,9 @@ public class AnalyticsBackendNativeMemoryStatsXContentTests extends OpenSearchTe
         @SuppressWarnings("unchecked")
         Map<String, Object> nativeMemory = (Map<String, Object>) root.get("native_memory");
         assertNotNull("native_memory should be present", nativeMemory);
-        assertEquals(0L, ((Number) nativeMemory.get("allocated_bytes")).longValue());
-        assertEquals(0L, ((Number) nativeMemory.get("resident_bytes")).longValue());
+        @SuppressWarnings("unchecked")
+        Map<String, Object> analyticsBackend = (Map<String, Object>) nativeMemory.get("analytics_backend");
+        assertEquals(0L, ((Number) analyticsBackend.get("allocated_bytes")).longValue());
+        assertEquals(0L, ((Number) analyticsBackend.get("resident_bytes")).longValue());
     }
 }

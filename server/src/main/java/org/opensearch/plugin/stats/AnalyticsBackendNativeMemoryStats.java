@@ -76,8 +76,11 @@ public class AnalyticsBackendNativeMemoryStats implements Writeable, ToXContentF
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject("native_memory");
+        builder.field("total_estimated_bytes", -1);
+        builder.startObject("analytics_backend");
         builder.field("allocated_bytes", allocatedBytes);
         builder.field("resident_bytes", residentBytes);
+        builder.endObject();
         builder.endObject();
         return builder;
     }

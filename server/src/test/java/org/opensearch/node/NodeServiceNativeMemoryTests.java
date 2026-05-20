@@ -292,14 +292,16 @@ public class NodeServiceNativeMemoryTests extends OpenSearchTestCase {
         // Verify "native_memory" object is present
         assertTrue("Response should contain 'native_memory' key", root.containsKey("native_memory"));
 
+        @SuppressWarnings("unchecked")
         Map<String, Object> nativeMemory = (Map<String, Object>) root.get("native_memory");
         assertNotNull("native_memory object should not be null", nativeMemory);
 
-        // Verify "allocated_bytes" and "resident_bytes" fields are present with correct values
-        assertTrue("native_memory should contain 'allocated_bytes'", nativeMemory.containsKey("allocated_bytes"));
-        assertTrue("native_memory should contain 'resident_bytes'", nativeMemory.containsKey("resident_bytes"));
-        assertEquals(123456789L, ((Number) nativeMemory.get("allocated_bytes")).longValue());
-        assertEquals(987654321L, ((Number) nativeMemory.get("resident_bytes")).longValue());
+        // Verify nested "analytics_backend" with correct values
+        assertTrue("native_memory should contain 'analytics_backend'", nativeMemory.containsKey("analytics_backend"));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> analyticsBackend = (Map<String, Object>) nativeMemory.get("analytics_backend");
+        assertEquals(123456789L, ((Number) analyticsBackend.get("allocated_bytes")).longValue());
+        assertEquals(987654321L, ((Number) analyticsBackend.get("resident_bytes")).longValue());
     }
 
     /**
