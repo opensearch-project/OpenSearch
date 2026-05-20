@@ -508,7 +508,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
                 nodesResourceUsageStats = nodeStats.getResourceUsageStats();
                 Map<String, NodeResourceUsageStats> nodeResourceUsageStatsMap = nodesResourceUsageStats.getNodeIdToResourceUsageStatsMap();
                 if (nodeResourceUsageStatsMap != null && nodeResourceUsageStatsMap.containsKey(nodeId)) {
-                    newNodeResourceUsageStats.put(nodeId, nodesResourceUsageStats.getNodeIdToResourceUsageStatsMap().get(nodeId));
+                    newNodeResourceUsageStats.put(nodeId, nodeResourceUsageStatsMap.get(nodeId));
                 } else {
                     logger.debug("No resource usage stats available for node: {}", nodeStats.getNode().getName());
                 }
