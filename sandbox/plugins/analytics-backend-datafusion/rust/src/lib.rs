@@ -29,6 +29,7 @@ pub mod memory;
 pub mod memory_guard;
 pub mod native_error;
 pub mod partition_stream;
+pub mod patterns;
 pub mod phantom_corrector;
 pub mod query_budget;
 pub mod query_executor;
