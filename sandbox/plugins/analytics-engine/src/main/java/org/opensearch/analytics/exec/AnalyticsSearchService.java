@@ -9,6 +9,8 @@
 package org.opensearch.analytics.exec;
 
 import org.apache.arrow.memory.BufferAllocator;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.analytics.backend.AnalyticsOperationListener;
 import org.opensearch.analytics.backend.EngineResultStream;
 import org.opensearch.analytics.backend.SearchExecEngine;
@@ -55,6 +57,8 @@ import java.util.Map;
  * @opensearch.internal
  */
 public class AnalyticsSearchService implements AutoCloseable {
+
+    private static final Logger LOGGER = LogManager.getLogger(AnalyticsSearchService.class);
 
     private final Map<String, AnalyticsSearchBackendPlugin> backends;
     private final AnalyticsOperationListener listener;
@@ -163,6 +167,13 @@ public class AnalyticsSearchService implements AutoCloseable {
             stream = engine.execute(ctx);
             return new FragmentResources(gatedReader, engine, stream, trackerCleanup);
         } catch (Exception e) {
+            LOGGER.error(
+                "startFragment failed [queryId={}, stageId={}, shardId={}]",
+                resolved.queryId,
+                resolved.stageId,
+                resolved.shardIdStr,
+                e
+            );
             try {
                 new FragmentResources(gatedReader, engine, stream, trackerCleanup).close();
             } catch (Exception suppressed) {

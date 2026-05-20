@@ -81,7 +81,7 @@ public class AnalyticsSearchTransportService {
     ) {
         transportService.registerRequestHandler(
             FragmentExecutionAction.NAME,
-            ThreadPool.Names.SAME,
+            ThreadPool.Names.SEARCH,
             false,
             true,
             AdmissionControlActionType.SEARCH,
