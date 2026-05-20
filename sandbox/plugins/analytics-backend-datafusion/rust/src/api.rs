@@ -678,6 +678,7 @@ pub unsafe fn sql_to_substrait(
             .build();
         let ctx = datafusion::prelude::SessionContext::new_with_state(state);
         crate::udf::register_all(&ctx);
+        crate::udaf::register_all(&ctx);
 
         let listing_options = ListingOptions::new(Arc::new(ParquetFormat::new()))
             .with_file_extension(".parquet")
@@ -729,6 +730,7 @@ fn derive_schema_from_partial_plan(
         .build();
     let ctx = SessionContext::new_with_state(state);
     crate::udf::register_all(&ctx);
+    crate::udaf::register_all(&ctx);
 
     let extensions = Extensions::default();
     let session_state = ctx.state();

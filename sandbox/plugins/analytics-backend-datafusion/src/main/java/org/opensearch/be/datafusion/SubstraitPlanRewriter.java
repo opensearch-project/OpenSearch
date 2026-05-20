@@ -72,6 +72,7 @@ class SubstraitPlanRewriter {
                     .build()
             );
         }
+
     }
 
     /**
