@@ -164,6 +164,8 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         // documented space-separator timestamp output is preserved on the AE path.
         FunctionMappings.s(SqlLibraryOperators.TO_CHAR, "to_char"),
         FunctionMappings.s(SqlLibraryOperators.DATE_TRUNC, "date_trunc"),
+        // PPL span(field, N<us|ms>) with N > 1 → DataFusion `date_bin`. See SpanAdapter.
+        FunctionMappings.s(SpanAdapter.LOCAL_DATE_BIN_OP, "date_bin"),
         FunctionMappings.s(ConvertTzAdapter.LOCAL_CONVERT_TZ_OP, "convert_tz"),
         FunctionMappings.s(UnixTimestampAdapter.LOCAL_TO_UNIXTIME_OP, "to_unixtime"),
         // Niladic ops from DateTimeAdapters — each maps 1:1 to a DF builtin.
