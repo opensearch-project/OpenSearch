@@ -378,8 +378,7 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
     /**
      * CAST and SAFE_CAST effectively can return anything, so they get registered as everything
      */
-    private static final Set<ScalarFunction> POLYMORPHIC_RETURN_PROJECT_OPS =
-        Set.of(ScalarFunction.CAST, ScalarFunction.SAFE_CAST);
+    private static final Set<ScalarFunction> POLYMORPHIC_RETURN_PROJECT_OPS = Set.of(ScalarFunction.CAST, ScalarFunction.SAFE_CAST);
 
     private static final Set<AggregateFunction> AGG_FUNCTIONS = Set.of(
         AggregateFunction.SUM,

@@ -14,7 +14,6 @@ import org.opensearch.analytics.spi.ProjectCapability;
 import org.opensearch.analytics.spi.ScalarFunction;
 import org.opensearch.test.OpenSearchTestCase;
 
-import java.util.HashSet;
 import java.util.Set;
 
 /**
