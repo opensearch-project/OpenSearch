@@ -232,11 +232,9 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         // see a real time/date type and Isthmus serializes accordingly.
         ScalarFunction.TIME,
         ScalarFunction.DATE,
+        ScalarFunction.TIMESTAMP,
         // PPL `datetime(expr)` — parse/cast into a TIMESTAMP. Routes to DF's
-        // builtin `to_timestamp` via DatetimeAdapter. The single-arg
-        // `timestamp(expr)` form shares these semantics but its ScalarFunction
-        // slot is already bound to TimestampFunctionAdapter for VARCHAR literal
-        // folding, so it stays on the legacy engine.
+        // builtin `to_timestamp` via DatetimeAdapter.
         ScalarFunction.DATETIME,
         // PPL extract / make* / format / from_unixtime are implemented as Rust UDFs
         // to preserve MySQL semantics that DataFusion builtins don't match: EXTRACT

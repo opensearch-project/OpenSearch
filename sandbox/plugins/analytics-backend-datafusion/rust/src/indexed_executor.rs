@@ -450,6 +450,7 @@ pub async unsafe fn execute_indexed_with_context(
     let (segments, schema) = build_segments(&state, Arc::clone(&store), object_metas.as_ref(), writer_generations.as_ref())
         .await
         .map_err(DataFusionError::Execution)?;
+    let schema = crate::schema_coerce::coerce_inferred_schema(schema);
     for (i, seg) in segments.iter().enumerate() {
     }
 
