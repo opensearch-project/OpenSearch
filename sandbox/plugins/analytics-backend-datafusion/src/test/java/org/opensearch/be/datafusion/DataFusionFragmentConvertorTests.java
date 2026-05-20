@@ -641,4 +641,61 @@ public class DataFusionFragmentConvertorTests extends OpenSearchTestCase {
         assertTrue("must find sum in extension declarations", foundSum);
     }
 
+    /**
+     * Regression: a lifted-window Project wrapper, shaped {@code Project_outer(Project_lower(input))}
+     * with the outer's RexInputRefs pointing into the lower's appended window column, used
+     * to lose its lower layer when re-wired. The next attach-on-top then crashed deserialising
+     * with "Field reference offset (N) must be less than number of fields in struct (N)".
+     */
+    public void testAttachFragmentOnTop_PreservesLiftedWindowProjectLayer() throws Exception {
+        DataFusionFragmentConvertor convertor = newConvertor();
+
+        RelDataType inputRowType = rowType("a");
+        RelNode innerStageScan = new OpenSearchStageInputScan(cluster, cluster.traitSet(), 0, inputRowType, List.of("datafusion"));
+        byte[] innerBytes = convertor.convertFragment(innerStageScan);
+
+        RelNode placeholderInput = buildTableScan("__placeholder__", "a");
+
+        RelDataType bigintType = typeFactory.createTypeWithNullability(typeFactory.createSqlType(SqlTypeName.BIGINT), true);
+        RexNode rowNumberOver = rexBuilder.makeOver(
+            bigintType,
+            (org.apache.calcite.sql.SqlAggFunction) SqlStdOperatorTable.ROW_NUMBER,
+            List.of(),
+            List.of(),
+            com.google.common.collect.ImmutableList.<org.apache.calcite.rex.RexFieldCollation>of(),
+            org.apache.calcite.rex.RexWindowBounds.UNBOUNDED_PRECEDING,
+            org.apache.calcite.rex.RexWindowBounds.CURRENT_ROW,
+            true,
+            true,
+            false,
+            false,
+            false
+        );
+        RelNode lowerProject = org.apache.calcite.rel.logical.LogicalProject.create(
+            placeholderInput,
+            List.of(),
+            List.of(rexBuilder.makeInputRef(placeholderInput, 0), rowNumberOver),
+            List.of("a", "rn"),
+            java.util.Set.of()
+        );
+
+        RelNode outerProject = org.apache.calcite.rel.logical.LogicalProject.create(
+            lowerProject,
+            List.of(),
+            List.of(rexBuilder.makeInputRef(lowerProject, 0), rexBuilder.makeInputRef(lowerProject, 1)),
+            List.of("a", "rn"),
+            java.util.Set.of()
+        );
+
+        byte[] combined = convertor.attachFragmentOnTop(outerProject, innerBytes);
+
+        Plan plan = decodeSubstrait(combined);
+        Rel root = rootRel(plan);
+        assertTrue("root must be a ProjectRel (outer lift)", root.hasProject());
+        Rel innerOfOuter = root.getProject().getInput();
+        assertTrue("outer's input must remain the lower lift Project", innerOfOuter.hasProject());
+        Rel innerOfLower = innerOfOuter.getProject().getInput();
+        assertTrue("lower's input must be the rewired stage-scan", innerOfLower.hasRead());
+    }
+
 }
