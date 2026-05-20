@@ -16,10 +16,6 @@ import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateListener;
 import org.opensearch.cluster.MockInternalClusterInfoService;
 import org.opensearch.cluster.metadata.IndexMetadata;
-import org.opensearch.core.transport.TransportResponse;
-import org.opensearch.indices.replication.SegmentReplicationSourceService;
-import org.opensearch.test.transport.MockTransportService;
-import org.opensearch.transport.TransportService;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.cluster.routing.IndexRoutingTable;
@@ -29,6 +25,8 @@ import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.unit.ByteSizeValue;
+import org.opensearch.core.transport.TransportResponse;
+import org.opensearch.indices.replication.SegmentReplicationSourceService;
 import org.opensearch.node.Node;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.remotestore.RemoteStoreBaseIntegTestCase;
@@ -42,6 +40,8 @@ import org.opensearch.storage.action.tiering.status.model.GetTieringStatusRespon
 import org.opensearch.storage.action.tiering.status.model.ListTieringStatusRequest;
 import org.opensearch.storage.action.tiering.status.model.ListTieringStatusResponse;
 import org.opensearch.test.OpenSearchIntegTestCase;
+import org.opensearch.test.transport.MockTransportService;
+import org.opensearch.transport.TransportService;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -79,8 +79,10 @@ public class TieringStatusIT extends RemoteStoreBaseIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Stream.concat(super.nodePlugins().stream(), Stream.of(MockInternalClusterInfoService.TestPlugin.class, MockTransportService.TestPlugin.class))
-            .collect(Collectors.toList());
+        return Stream.concat(
+            super.nodePlugins().stream(),
+            Stream.of(MockInternalClusterInfoService.TestPlugin.class, MockTransportService.TestPlugin.class)
+        ).collect(Collectors.toList());
     }
 
     @Override
