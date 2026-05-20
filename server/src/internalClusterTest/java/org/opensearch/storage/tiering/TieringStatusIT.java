@@ -10,13 +10,16 @@ package org.opensearch.storage.tiering;
 
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
 
-import org.apache.lucene.tests.util.LuceneTestCase.AwaitsFix;
 import org.opensearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.ClusterStateListener;
 import org.opensearch.cluster.MockInternalClusterInfoService;
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.core.transport.TransportResponse;
+import org.opensearch.indices.replication.SegmentReplicationSourceService;
+import org.opensearch.test.transport.MockTransportService;
+import org.opensearch.transport.TransportService;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodeRole;
 import org.opensearch.cluster.routing.IndexRoutingTable;
@@ -76,7 +79,7 @@ public class TieringStatusIT extends RemoteStoreBaseIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Stream.concat(super.nodePlugins().stream(), Stream.of(MockInternalClusterInfoService.TestPlugin.class))
+        return Stream.concat(super.nodePlugins().stream(), Stream.of(MockInternalClusterInfoService.TestPlugin.class, MockTransportService.TestPlugin.class))
             .collect(Collectors.toList());
     }
 
@@ -98,6 +101,26 @@ public class TieringStatusIT extends RemoteStoreBaseIntegTestCase {
         internalCluster().startClusterManagerOnlyNode();
         internalCluster().startDataOnlyNodes(numberOfReplicas + 1);
         internalCluster().startWarmOnlyNodes(2);
+        interceptCheckpointUpdates();
+    }
+
+    protected void interceptCheckpointUpdates() {
+        for (String nodeName : internalCluster().getNodeNames()) {
+            MockTransportService mockTransportService = (MockTransportService) internalCluster().getInstance(
+                TransportService.class,
+                nodeName
+            );
+            mockTransportService.addRequestHandlingBehavior(
+                SegmentReplicationSourceService.Actions.UPDATE_VISIBLE_CHECKPOINT,
+                (handler, request, channel, task) -> {
+                    try {
+                        handler.messageReceived(request, channel, task);
+                    } catch (AssertionError e) {
+                        channel.sendResponse(TransportResponse.Empty.INSTANCE);
+                    }
+                }
+            );
+        }
     }
 
     protected void createTestIndex(String indexName, int numberOfShards, int numberOfReplicas) {
@@ -145,7 +168,6 @@ public class TieringStatusIT extends RemoteStoreBaseIntegTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/21755")
     public void testTieringStatus() throws Exception {
         setupCluster(1);
 
