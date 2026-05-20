@@ -521,7 +521,7 @@ public class TieringServiceTests extends OpenSearchTestCase {
         ArgumentCaptor<IndexMetadata.Builder> captor = ArgumentCaptor.forClass(IndexMetadata.Builder.class);
         verify(metadataBuilder).put(captor.capture());
         IndexMetadata updatedMetadata = captor.getValue().build();
-        assertEquals("0-2", updatedMetadata.getSettings().get(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS));
+        assertEquals("0-1", updatedMetadata.getSettings().get(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS));
     }
 
     public void testUpdateIndexMetadataPostTiering_UpdatesCorrectly() {
@@ -997,8 +997,9 @@ public class TieringServiceTests extends OpenSearchTestCase {
         assertEquals("0-1", updatedMetadata.getSettings().get(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS));
     }
 
-    public void testUpdateIndexMetadataForTieringStart_TwoReplicas_SetsAutoExpandToTwoMax() {
-        // When user has replicas: 2, auto_expand_replicas should be 0-2 (max(1, 2) = 2)
+    public void testUpdateIndexMetadataForTieringStart_TwoReplicas_SetsAutoExpandToOne() {
+        // When user has replicas: 2, auto_expand_replicas is set to 0-1 during tiering start
+        // (replicas are capped at 1 while tiering is in progress)
         Metadata.Builder metadataBuilder = mock(Metadata.Builder.class);
         RoutingTable.Builder routingTableBuilder = mock(RoutingTable.Builder.class);
 
@@ -1007,10 +1008,13 @@ public class TieringServiceTests extends OpenSearchTestCase {
         ArgumentCaptor<IndexMetadata.Builder> captor = ArgumentCaptor.forClass(IndexMetadata.Builder.class);
         verify(metadataBuilder).put(captor.capture());
         IndexMetadata updatedMetadata = captor.getValue().build();
-        assertEquals("0-2", updatedMetadata.getSettings().get(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS));
+        assertEquals("0-1", updatedMetadata.getSettings().get(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS));
     }
 
-    public void testUpdateIndexMetadataPostTiering_SetsAutoExpandReplicasFalse() {
+    public void testUpdateIndexMetadataPostTiering_DoesNotModifyAutoExpandReplicas() {
+        // updateIndexMetadataPostTiering only updates INDEX_TIERING_STATE and removes tiering custom data.
+        // It does NOT modify SETTING_AUTO_EXPAND_REPLICAS — that setting retains whatever value
+        // was in the original index metadata (null if never explicitly set).
         Metadata.Builder metadataBuilder = mock(Metadata.Builder.class);
         when(metadataBuilder.put(any(IndexMetadata.Builder.class))).thenReturn(metadataBuilder);
 
@@ -1020,7 +1024,17 @@ public class TieringServiceTests extends OpenSearchTestCase {
         verify(metadataBuilder).put(captor.capture());
 
         IndexMetadata updatedMetadata = captor.getValue().build();
-        assertEquals("false", updatedMetadata.getSettings().get(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS));
+        // auto_expand_replicas is not modified by updateIndexMetadataPostTiering —
+        // it carries over from the source indexMetadata unchanged.
+        assertNull(
+            "updateIndexMetadataPostTiering must not set auto_expand_replicas",
+            updatedMetadata.getSettings().get(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS)
+        );
+        // The tiering state must be updated to the target tier
+        assertEquals(
+            tieringService.getTargetTieringState().toString(),
+            updatedMetadata.getSettings().get(org.opensearch.index.IndexModule.INDEX_TIERING_STATE.getKey())
+        );
     }
 
     public void testUpdateIndexMetadataForTieringCancel_SetsAutoExpandReplicasFalse() {

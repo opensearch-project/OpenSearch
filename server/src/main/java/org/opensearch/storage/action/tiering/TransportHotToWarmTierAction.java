@@ -24,11 +24,14 @@ import org.opensearch.common.Priority;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.index.Index;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.storage.tiering.HotToWarmTieringService;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
+
+import static org.opensearch.storage.common.tiering.TieringUtils.resolveRequestIndex;
 
 /**
  * Transport Tiering action to move indices from hot to warm.
@@ -45,6 +48,7 @@ public class TransportHotToWarmTierAction extends TransportTierAction {
     private static final int MAX_PREPARE_RETRIES = 3;
 
     private final TransportPrepareTieringAction prepareTieringAction;
+    private final HotToWarmTieringService hotToWarmTieringService;
 
     /**
      * Constructs a TransportHotToWarmTierAction.
@@ -77,6 +81,7 @@ public class TransportHotToWarmTierAction extends TransportTierAction {
             hotToWarmTieringService
         );
         this.prepareTieringAction = prepareTieringAction;
+        this.hotToWarmTieringService = hotToWarmTieringService;
     }
 
     @Override
@@ -89,6 +94,18 @@ public class TransportHotToWarmTierAction extends TransportTierAction {
             return;
         }
         if (isDfaIndex(request.getIndex(), state)) {
+            // Validate FIRST — before any state-mutating or expensive operations.
+            // If validation fails (e.g. warm nodes full, too many concurrent requests),
+            // reject immediately without adding a read-only block or running prepare.
+            // Note: validation also runs inside TieringService.tier() for double-safety.
+            try {
+                Index index = resolveRequestIndex(indexNameExpressionResolver, request.getIndex(), state);
+                hotToWarmTieringService.preflightValidate(state, index);
+            } catch (Exception e) {
+                logger.info("Preflight validation failed for DFA index [{}]: {}", request.getIndex(), e.getMessage());
+                listener.onFailure(e);
+                return;
+            }
             logger.info("Index [{}] is a DFA index, adding read-only block and performing pre-tiering sync", request.getIndex());
             addReadOnlyBlockAndPrepare(request, state, listener);
         } else {
@@ -295,6 +312,6 @@ public class TransportHotToWarmTierAction extends TransportTierAction {
         if (indexMetadata == null) {
             return false;
         }
-        return IndexModule.TieringState.WARM.toString().equals(indexMetadata.getSettings().get(IndexModule.INDEX_TIERING_STATE.getKey()));
+        return indexMetadata.getSettings().getAsBoolean(IndexModule.IS_WARM_INDEX_SETTING.getKey(), false);
     }
 }

@@ -608,6 +608,31 @@ public abstract class TieringService implements ClusterStateListener {
     }
 
     /**
+     * Runs tiering validation synchronously before any cluster state mutation.
+     *
+     * <p>Used by the DFA (pluggable dataformat) tiering path to validate BEFORE adding the
+     * read-only block or running pre-tiering sync. This prevents expensive and side-effecting
+     * operations (flush, remote store sync) from running when validation would reject the request.
+     *
+     * <p>Note: validation also runs inside the cluster state task (in {@link #tier}) for
+     * double-safety against TOCTOU races. This preflight call is an additional early gate.
+     *
+     * @param state current cluster state at the time of the request
+     * @param index index to be tiered
+     * @throws RuntimeException if validation fails — same exceptions as thrown by {@link #validateTieringRequest}
+     */
+    public void preflightValidate(final ClusterState state, final Index index) {
+        validateTieringRequest(
+            state,
+            clusterInfoService,
+            tieringIndices,
+            maxConcurrentTieringRequests,
+            jvmActiveUsageThresholdPercent,
+            index
+        );
+    }
+
+    /**
      * Performs common validations for tiering cancel request.
      *
      * @param index index for tiering cancel request
