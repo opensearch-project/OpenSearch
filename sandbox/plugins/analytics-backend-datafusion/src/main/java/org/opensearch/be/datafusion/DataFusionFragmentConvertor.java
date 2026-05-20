@@ -22,11 +22,15 @@ import org.apache.calcite.rel.RelReferentialConstraint;
 import org.apache.calcite.rel.RelRoot;
 import org.apache.calcite.rel.core.AggregateCall;
 import org.apache.calcite.rel.core.TableScan;
+import org.apache.calcite.rel.logical.LogicalFilter;
+import org.apache.calcite.rel.logical.LogicalProject;
 import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rel.type.RelDataTypeFactory;
 import org.apache.calcite.rel.type.RelDataTypeField;
+import org.apache.calcite.rex.RexInputRef;
 import org.apache.calcite.rex.RexLiteral;
 import org.apache.calcite.rex.RexNode;
+import org.apache.calcite.rex.RexShuttle;
 import org.apache.calcite.schema.ColumnStrategy;
 import org.apache.calcite.sql.SqlAggFunction;
 import org.apache.calcite.sql.SqlFunctionCategory;
@@ -621,6 +625,49 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
             newMeasures.add(Aggregate.Measure.builder().from(m).function(rephased).build());
         }
         return Aggregate.builder().from(agg).measures(newMeasures).build();
+    }
+
+    /**
+     * Eliminates intermediate project nodes that introduce derived fields referenced by
+     * a filter above them. Inlines the project's expressions into the filter condition
+     * and moves the project above the filter.
+     *
+     * <p>This works around a Substrait/DataFusion limitation: Substrait does not carry
+     * intermediate field names, so DataFusion's Substrait consumer derives them from
+     * expression strings. DataFusion's optimizer then pushes filters past projections
+     * using those synthetic names, which fail schema resolution against the raw table.
+     */
+    private static RelNode eliminateIntermediateRelNodes(RelNode node) {
+        // Recurse into children first (bottom-up)
+        List<RelNode> newInputs = new ArrayList<>(node.getInputs().size());
+        boolean childrenChanged = false;
+        for (RelNode input : node.getInputs()) {
+            RelNode rewritten = eliminateIntermediateRelNodes(input);
+            newInputs.add(rewritten);
+            if (rewritten != input) {
+                childrenChanged = true;
+            }
+        }
+        RelNode current = childrenChanged ? node.copy(node.getTraitSet(), newInputs) : node;
+
+        // Check if this is a Filter whose input is a Project
+        if (current instanceof org.apache.calcite.rel.core.Filter filter
+            && filter.getInput() instanceof org.apache.calcite.rel.core.Project project) {
+            List<RexNode> projectExprs = project.getProjects();
+            // Inline: replace each RexInputRef in the filter condition with the
+            // corresponding project expression
+            RexNode inlinedCondition = filter.getCondition().accept(new RexShuttle() {
+                @Override
+                public RexNode visitInputRef(RexInputRef inputRef) {
+                    return projectExprs.get(inputRef.getIndex());
+                }
+            });
+            // Rebuild: Project(Filter(Project.input)) with the inlined condition
+            RelNode projectInput = project.getInput();
+            RelNode newFilter = LogicalFilter.create(projectInput, inlinedCondition);
+            return LogicalProject.create(newFilter, List.of(), projectExprs, project.getRowType());
+        }
+        return current;
     }
 
     /**
