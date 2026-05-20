@@ -302,6 +302,8 @@ public class DefaultStreamPoller implements StreamPoller {
 
     /**
      * Process records and write to the blocking queue. In case of error, return the shard pointer of the failed message.
+     * Messages must be written to the blocking queue in the same order in which they were received from the consumer to
+     * ensure ordering guarantees.
      */
     private IngestionShardPointer processRecords(
         List<IngestionShardConsumer.ReadResult<? extends IngestionShardPointer, ? extends Message>> results

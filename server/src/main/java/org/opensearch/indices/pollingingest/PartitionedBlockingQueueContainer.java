@@ -187,6 +187,9 @@ public class PartitionedBlockingQueueContainer {
     /**
      * Returns the list of lowest/first shard pointer per partition that is in-flight or already processed.
      * If the processor thread is yet to process the very first message, the first queued pointer for the partition is considered.
+     * The fallback to first queued partition ensures that the correct pointer is considered before the very first message is processed
+     * by the processor thread. Note that this fallback works because messages are written to the blocking queue sequentially
+     * in the same order in which they are received from the consumer.
      */
     public List<IngestionShardPointer> getCurrentShardPointers() {
         return partitionToMessageProcessorMap.entrySet().stream().map(entry -> {
