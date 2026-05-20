@@ -78,6 +78,9 @@ public class IndexingMemoryControllerTests extends IndexShardTestCase {
         // How many bytes this shard is currently moving to disk
         final Map<IndexShard, Long> writingBytes = new HashMap<>();
 
+        // Native memory used by each shard
+        final Map<IndexShard, Long> nativeMemoryUsed = new HashMap<>();
+
         // Shards that are currently throttled
         final Set<IndexShard> throttled = new HashSet<>();
 
@@ -118,6 +121,11 @@ public class IndexingMemoryControllerTests extends IndexShardTestCase {
         }
 
         @Override
+        protected long getNativeBytesUsed(IndexShard shard) {
+            return nativeMemoryUsed.getOrDefault(shard, 0L);
+        }
+
+        @Override
         protected void checkIdle(IndexShard shard, long inactiveTimeNS) {}
 
         @Override
@@ -125,6 +133,7 @@ public class IndexingMemoryControllerTests extends IndexShardTestCase {
             long bytes = indexBufferRAMBytesUsed.put(shard, 0L);
             writingBytes.put(shard, writingBytes.get(shard) + bytes);
             indexBufferRAMBytesUsed.put(shard, 0L);
+            nativeMemoryUsed.put(shard, 0L);
         }
 
         @Override
@@ -496,5 +505,153 @@ public class IndexingMemoryControllerTests extends IndexShardTestCase {
         });
         assertThat(shard.refreshStats().getTotal(), equalTo(refreshStats.getTotal() + 1));
         closeShards(shard);
+    }
+
+    // --- Dual-budget (heap + native) tests ---
+
+    public void testNativeUnderBudgetDoesNotTriggerRefresh() throws IOException {
+        // Native budget set high (1gb), native usage is under budget — should NOT trigger
+        MockController controller = new MockController(
+            Settings.builder()
+                .put("indices.memory.index_buffer_size", "100kb")
+                .put("indices.memory.native_index_buffer_size", "1gb")
+                .build()
+        );
+        IndexShard shard = newShard(true);
+        controller.indexBufferRAMBytesUsed.put(shard, 50L); // under 100kb heap budget
+        controller.writingBytes.put(shard, 0L);
+        controller.nativeMemoryUsed.put(shard, 10_000_000L); // 10MB native — under 1gb budget
+
+        controller.forceCheck();
+
+        assertEquals(50L, (long) controller.indexBufferRAMBytesUsed.get(shard)); // not refreshed
+        closeShards(shard);
+    }
+
+    public void testNativeBudgetTriggersRefreshWhenExceeded() throws IOException {
+        // Native budget = 1MB, heap budget = 100kb
+        MockController controller = new MockController(
+            Settings.builder()
+                .put("indices.memory.index_buffer_size", "100kb")
+                .put("indices.memory.native_index_buffer_size", "1mb")
+                .build()
+        );
+        IndexShard shard = newShard(true);
+        controller.indexBufferRAMBytesUsed.put(shard, 50L); // well under heap budget
+        controller.writingBytes.put(shard, 0L);
+        controller.nativeMemoryUsed.put(shard, 2_000_000L); // 2MB > 1MB native budget
+
+        controller.forceCheck();
+
+        // Refresh triggered because native exceeded budget
+        assertEquals(0L, (long) controller.indexBufferRAMBytesUsed.get(shard));
+        assertEquals(0L, (long) controller.nativeMemoryUsed.get(shard));
+        closeShards(shard);
+    }
+
+    public void testHeapBudgetStillTriggersRefreshIndependently() throws IOException {
+        // Native budget = 10MB (high), heap budget = 100kb
+        MockController controller = new MockController(
+            Settings.builder()
+                .put("indices.memory.index_buffer_size", "100kb")
+                .put("indices.memory.native_index_buffer_size", "10mb")
+                .build()
+        );
+        IndexShard shard = newShard(true);
+        controller.indexBufferRAMBytesUsed.put(shard, 200_000L); // 200kb > 100kb heap budget
+        controller.writingBytes.put(shard, 0L);
+        controller.nativeMemoryUsed.put(shard, 500_000L); // 500kb < 10MB native budget
+
+        controller.forceCheck();
+
+        // Refresh triggered because heap exceeded budget (native is fine)
+        assertEquals(0L, (long) controller.indexBufferRAMBytesUsed.get(shard));
+        closeShards(shard);
+    }
+
+    public void testRefreshTargetsSortedByNativeWhenOnlyNativeExceeds() throws IOException {
+        // Two shards: shard A has high native, shard B has high heap but low native
+        MockController controller = new MockController(
+            Settings.builder()
+                .put("indices.memory.index_buffer_size", "10mb") // high heap budget
+                .put("indices.memory.native_index_buffer_size", "1mb")
+                .build()
+        );
+        IndexShard shardA = newShard(true);
+        IndexShard shardB = newShard(true);
+
+        // Shard A: low heap, high native
+        controller.indexBufferRAMBytesUsed.put(shardA, 100L);
+        controller.writingBytes.put(shardA, 0L);
+        controller.nativeMemoryUsed.put(shardA, 900_000L); // 900KB
+
+        // Shard B: higher heap, low native
+        controller.indexBufferRAMBytesUsed.put(shardB, 500_000L);
+        controller.writingBytes.put(shardB, 0L);
+        controller.nativeMemoryUsed.put(shardB, 200_000L); // 200KB
+
+        // Total native = 1.1MB > 1MB budget. Total heap = 500KB < 10MB budget.
+        controller.forceCheck();
+
+        // Shard A should be refreshed first (higher native), shard B may or may not be refreshed
+        // depending on whether refreshing A alone brings native under budget
+        assertEquals(0L, (long) controller.nativeMemoryUsed.get(shardA)); // A was refreshed
+        closeShards(shardA, shardB);
+    }
+
+    public void testThrottleActivatedOnNativePressure() throws IOException {
+        MockController controller = new MockController(
+            Settings.builder().put("indices.memory.index_buffer_size", "10mb").put("indices.memory.native_index_buffer_size", "1mb").build()
+        );
+        IndexShard shard = newShard(true);
+        controller.indexBufferRAMBytesUsed.put(shard, 100L);
+        controller.writingBytes.put(shard, 0L);
+        controller.nativeMemoryUsed.put(shard, 2_000_000L); // 2MB > 1.5 × 1MB = 1.5MB throttle threshold
+
+        controller.forceCheck();
+
+        assertTrue(controller.throttled.contains(shard));
+        closeShards(shard);
+    }
+
+    public void testNoThrottleWhenNativeUnderBudget() throws IOException {
+        MockController controller = new MockController(
+            Settings.builder().put("indices.memory.index_buffer_size", "10mb").put("indices.memory.native_index_buffer_size", "1gb").build()
+        );
+        IndexShard shard = newShard(true);
+        controller.indexBufferRAMBytesUsed.put(shard, 100L);
+        controller.writingBytes.put(shard, 0L);
+        controller.nativeMemoryUsed.put(shard, 100_000_000L); // 100MB native — under 1gb budget
+
+        controller.forceCheck();
+
+        assertFalse(controller.throttled.contains(shard));
+        closeShards(shard);
+    }
+
+    public void testBothBudgetsExceededSortsByTotal() throws IOException {
+        MockController controller = new MockController(
+            Settings.builder().put("indices.memory.index_buffer_size", "1kb").put("indices.memory.native_index_buffer_size", "1kb").build()
+        );
+        IndexShard shardA = newShard(true);
+        IndexShard shardB = newShard(true);
+
+        // Shard A: moderate heap + high native = high total
+        controller.indexBufferRAMBytesUsed.put(shardA, 5000L);
+        controller.writingBytes.put(shardA, 0L);
+        controller.nativeMemoryUsed.put(shardA, 8000L);
+
+        // Shard B: high heap + low native = lower total
+        controller.indexBufferRAMBytesUsed.put(shardB, 7000L);
+        controller.writingBytes.put(shardB, 0L);
+        controller.nativeMemoryUsed.put(shardB, 2000L);
+
+        // Both budgets exceeded. Shard A total=13000, Shard B total=9000
+        // Shard A should be refreshed first
+        controller.forceCheck();
+
+        assertEquals(0L, (long) controller.indexBufferRAMBytesUsed.get(shardA));
+        assertEquals(0L, (long) controller.nativeMemoryUsed.get(shardA));
+        closeShards(shardA, shardB);
     }
 }

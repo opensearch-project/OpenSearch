@@ -56,6 +56,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.ConcurrentHashMap;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -174,7 +175,18 @@ public class LuceneIndexingExecutionEngineTests extends OpenSearchTestCase {
         MappedFieldType textField = new org.opensearch.index.mapper.TextFieldMapper.TextFieldType("content");
 
         long generation = 1L;
-        try (LuceneWriter luceneWriter = new LuceneWriter(generation, 0L, luceneDataFormat, tempBase, null, Codec.getDefault(), null)) {
+        try (
+            LuceneWriter luceneWriter = new LuceneWriter(
+                generation,
+                0L,
+                luceneDataFormat,
+                tempBase,
+                null,
+                Codec.getDefault(),
+                null,
+                ConcurrentHashMap.newKeySet()
+            )
+        ) {
             for (int i = 0; i < numDocs; i++) {
                 LuceneDocumentInput input = new LuceneDocumentInput();
                 input.addField(textField, "doc_" + i);

@@ -31,6 +31,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSortField;
+import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.MMapDirectory;
@@ -58,6 +59,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.Executor;
 
 /**
@@ -99,6 +101,7 @@ public class LuceneWriter implements Writer<LuceneDocumentInput> {
     private final Path tempDirectory;
     private final Directory directory;
     private final IndexWriter indexWriter;
+    private final Set<LuceneWriter> registry;
     private long mappingVersion;
     private volatile long docCount;
     private volatile boolean flushed;
@@ -123,12 +126,14 @@ public class LuceneWriter implements Writer<LuceneDocumentInput> {
         Path baseDirectory,
         Analyzer analyzer,
         Codec codec,
-        Sort indexSort
+        Sort indexSort,
+        Set<LuceneWriter> registry
     ) throws IOException {
         this.writerGeneration = writerGeneration;
         this.mappingVersion = mappingVersion;
         this.dataFormat = dataFormat;
         this.docCount = 0;
+        this.registry = registry;
 
         // Create an isolated temp directory for this writer's segment
         this.tempDirectory = baseDirectory.resolve("lucene_gen_" + writerGeneration);
@@ -157,6 +162,7 @@ public class LuceneWriter implements Writer<LuceneDocumentInput> {
         }
         iwc.setCodec(new LuceneWriterCodec(codec, writerGeneration));
         this.indexWriter = new IndexWriter(directory, iwc);
+        registry.add(this);
     }
 
     /**
@@ -414,6 +420,9 @@ public class LuceneWriter implements Writer<LuceneDocumentInput> {
             commitDurationMs,
             totalFlushDurationMs
         );
+
+        // Since flush is once only, remove from registry
+        registry.remove(this);
 
         return FileInfos.builder().putWriterFileSet(dataFormat, wfsBuilder.build()).build();
     }
@@ -705,6 +714,18 @@ public class LuceneWriter implements Writer<LuceneDocumentInput> {
         }
     }
 
+    /** Returns heap bytes used by this writer's IndexWriter RAM buffer. Returns 0 after flush. */
+    public long getHeapBytesUsed() {
+        if (indexWriter.isOpen()) {
+            try {
+                return indexWriter.ramBytesUsed();
+            } catch (AlreadyClosedException e) {
+                return 0;
+            }
+        }
+        return 0;
+    }
+
     /**
      * Closes this writer, rolling back the IndexWriter if still open, closing the directory,
      * and deleting the temp directory. Safe to call multiple times.
@@ -713,6 +734,7 @@ public class LuceneWriter implements Writer<LuceneDocumentInput> {
      */
     @Override
     public void close() throws IOException {
+        registry.remove(this);
         // Close the IndexWriter and Directory if they haven't been closed by flush()
         try {
             if (indexWriter.isOpen()) {

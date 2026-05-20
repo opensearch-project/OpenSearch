@@ -70,6 +70,15 @@ public interface IndexingExecutionEngine<T extends DataFormat, P extends Documen
     T getDataFormat();
 
     /**
+     * Returns the amount of JVM heap memory used by this engine's indexing buffers.
+     *
+     * @return heap memory usage in bytes
+     */
+    default long getHeapBytesUsed() {
+        return 0;
+    }
+
+    /**
      * Returns the amount of native (off-heap) memory used by this engine.
      *
      * @return native memory usage in bytes

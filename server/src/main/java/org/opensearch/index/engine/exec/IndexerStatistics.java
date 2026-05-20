@@ -115,4 +115,23 @@ public interface IndexerStatistics {
     default List<Segment> segments(boolean verbose) {
         return List.of();
     }
+
+    /**
+     * Returns the amount of RAM currently used by the indexing buffer.
+     * For backward compatibility, defaults to {@link #getHeapBytesUsed()}.
+     *
+     * @return RAM usage in bytes
+     */
+    default long getIndexBufferRAMBytesUsed() {
+        return getHeapBytesUsed();
+    }
+
+    /**
+     * Returns JVM heap bytes used by indexing buffers that would be freed by a refresh.
+     *
+     * @return heap usage in bytes
+     */
+    default long getHeapBytesUsed() {
+        return 0;
+    }
 }
