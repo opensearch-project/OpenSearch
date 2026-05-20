@@ -350,6 +350,7 @@ public class ClusterStatsNodesTests extends OpenSearchTestCase {
             null,
             null,
             null,
+            null,
             null
         );
         if (defaultBehavior) {
