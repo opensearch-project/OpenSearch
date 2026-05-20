@@ -71,6 +71,13 @@ public final class AllocationRejection {
      * Runs {@code body} and translates any Arrow {@link OutOfMemoryException}
      * into {@link OpenSearchRejectedExecutionException}. Use this overload for
      * void allocation sites.
+     *
+     * @param context short label included in the rejection message (typically the
+     *                pool or operation name; e.g. "query-pool", "ingest-vsr")
+     * @param body    the allocation site to invoke
+     * @throws OpenSearchRejectedExecutionException if {@code body} throws
+     *         {@link OutOfMemoryException}; the original Arrow exception is
+     *         attached as the cause
      */
     public static void wrap(String context, Runnable body) {
         try {
