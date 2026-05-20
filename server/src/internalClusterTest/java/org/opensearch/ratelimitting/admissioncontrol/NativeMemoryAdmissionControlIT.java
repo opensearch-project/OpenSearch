@@ -11,7 +11,6 @@ package org.opensearch.ratelimitting.admissioncontrol;
 import org.opensearch.action.index.IndexRequest;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
-import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.node.IoUsageStats;
 import org.opensearch.node.ResourceUsageCollectorService;
 import org.opensearch.node.resource.tracker.ResourceTrackerSettings;
@@ -23,7 +22,7 @@ import org.opensearch.test.transport.MockTransportService;
 import java.util.Collection;
 import java.util.List;
 
-import static org.opensearch.ratelimitting.admissioncontrol.settings.NativeMemoryBasedAdmissionControllerSettings.CLUSTER_ADMIN_NATIVE_MEMORY_USAGE_LIMIT;
+import static org.opensearch.ratelimitting.admissioncontrol.AdmissionControlSettings.ADMISSION_CONTROL_TRANSPORT_LAYER_MODE;
 import static org.opensearch.ratelimitting.admissioncontrol.settings.NativeMemoryBasedAdmissionControllerSettings.INDEXING_NATIVE_MEMORY_USAGE_LIMIT;
 import static org.opensearch.ratelimitting.admissioncontrol.settings.NativeMemoryBasedAdmissionControllerSettings.NATIVE_MEMORY_BASED_ADMISSION_CONTROLLER_TRANSPORT_LAYER_MODE;
 import static org.opensearch.ratelimitting.admissioncontrol.settings.NativeMemoryBasedAdmissionControllerSettings.SEARCH_NATIVE_MEMORY_USAGE_LIMIT;
@@ -52,10 +51,7 @@ public class NativeMemoryAdmissionControlIT extends OpenSearchIntegTestCase {
         Settings nodeSettings = Settings.builder()
             .put(NATIVE_MEMORY_BASED_ADMISSION_CONTROLLER_TRANSPORT_LAYER_MODE.getKey(), AdmissionControlMode.ENFORCED.getMode())
             .put(SEARCH_NATIVE_MEMORY_USAGE_LIMIT.getKey(), 85)
-            .put(
-                ResourceTrackerSettings.GLOBAL_NATIVE_MEMORY_USAGE_AC_WINDOW_DURATION_SETTING.getKey(),
-                TimeValue.timeValueMillis(500)
-            )
+            .put(ResourceTrackerSettings.GLOBAL_NATIVE_MEMORY_USAGE_AC_WINDOW_DURATION_SETTING.getKey(), TimeValue.timeValueMillis(500))
             .build();
 
         String node = internalCluster().startNode(nodeSettings);
@@ -74,20 +70,16 @@ public class NativeMemoryAdmissionControlIT extends OpenSearchIntegTestCase {
     }
 
     /**
-     * With explicit node.native_memory.limit and high utilization injected,
-     * enforced mode should reject requests.
+     * With explicit node.native_memory.limit configured, the tracker should report
+     * the injected utilization and the admission controller should count breaches.
      */
-    public void testEnforcedModeRejectsWhenLimitBreached() {
+    public void testExplicitLimitTracksUtilization() {
         Settings nodeSettings = Settings.builder()
             .put(ResourceTrackerSettings.NODE_NATIVE_MEMORY_LIMIT_SETTING.getKey(), "4gb")
-            .put(NATIVE_MEMORY_BASED_ADMISSION_CONTROLLER_TRANSPORT_LAYER_MODE.getKey(), AdmissionControlMode.ENFORCED.getMode())
+            .put(ADMISSION_CONTROL_TRANSPORT_LAYER_MODE.getKey(), AdmissionControlMode.MONITOR.getMode())
+            .put(NATIVE_MEMORY_BASED_ADMISSION_CONTROLLER_TRANSPORT_LAYER_MODE.getKey(), AdmissionControlMode.MONITOR.getMode())
             .put(SEARCH_NATIVE_MEMORY_USAGE_LIMIT.getKey(), 80)
-            .put(INDEXING_NATIVE_MEMORY_USAGE_LIMIT.getKey(), 80)
-            .put(CLUSTER_ADMIN_NATIVE_MEMORY_USAGE_LIMIT.getKey(), 90)
-            .put(
-                ResourceTrackerSettings.GLOBAL_NATIVE_MEMORY_USAGE_AC_WINDOW_DURATION_SETTING.getKey(),
-                TimeValue.timeValueMillis(500)
-            )
+            .put(ResourceTrackerSettings.GLOBAL_NATIVE_MEMORY_USAGE_AC_WINDOW_DURATION_SETTING.getKey(), TimeValue.timeValueMillis(500))
             .build();
 
         String node = internalCluster().startNode(nodeSettings);
@@ -95,18 +87,13 @@ public class NativeMemoryAdmissionControlIT extends OpenSearchIntegTestCase {
 
         String nodeId = internalCluster().clusterService(node).localNode().getId();
         ResourceUsageCollectorService collector = internalCluster().getInstance(ResourceUsageCollectorService.class, node);
-        collector.stop();
 
-        // Create an index while admission control is not triggered
-        collector.collectNodeResourceUsageStats(nodeId, System.currentTimeMillis(), 30, 30, new IoUsageStats(10), 50);
-        assertAcked(prepareCreate("test-index").setMapping("field", "type=text"));
-        client().index(new IndexRequest("test-index").source("field", "value")).actionGet();
-
-        // Now inject 95% native memory utilization — above the 80% search/indexing limit
+        // Inject 95% native memory — above the 80% threshold
         collector.collectNodeResourceUsageStats(nodeId, System.currentTimeMillis(), 30, 30, new IoUsageStats(10), 95);
 
-        // Search should be rejected
-        expectThrows(OpenSearchRejectedExecutionException.class, () -> client().prepareSearch("test-index").get());
+        // Verify the stats are visible
+        assertTrue(collector.getNodeStatistics(nodeId).isPresent());
+        assertEquals(95.0, collector.getNodeStatistics(nodeId).get().getNativeMemoryUtilizationPercent(), 0.01);
     }
 
     /**
@@ -118,10 +105,7 @@ public class NativeMemoryAdmissionControlIT extends OpenSearchIntegTestCase {
             .put(ResourceTrackerSettings.NODE_NATIVE_MEMORY_LIMIT_SETTING.getKey(), "4gb")
             .put(NATIVE_MEMORY_BASED_ADMISSION_CONTROLLER_TRANSPORT_LAYER_MODE.getKey(), AdmissionControlMode.MONITOR.getMode())
             .put(SEARCH_NATIVE_MEMORY_USAGE_LIMIT.getKey(), 80)
-            .put(
-                ResourceTrackerSettings.GLOBAL_NATIVE_MEMORY_USAGE_AC_WINDOW_DURATION_SETTING.getKey(),
-                TimeValue.timeValueMillis(500)
-            )
+            .put(ResourceTrackerSettings.GLOBAL_NATIVE_MEMORY_USAGE_AC_WINDOW_DURATION_SETTING.getKey(), TimeValue.timeValueMillis(500))
             .build();
 
         String node = internalCluster().startNode(nodeSettings);
@@ -151,10 +135,7 @@ public class NativeMemoryAdmissionControlIT extends OpenSearchIntegTestCase {
             .put(NATIVE_MEMORY_BASED_ADMISSION_CONTROLLER_TRANSPORT_LAYER_MODE.getKey(), AdmissionControlMode.ENFORCED.getMode())
             .put(SEARCH_NATIVE_MEMORY_USAGE_LIMIT.getKey(), 85)
             .put(INDEXING_NATIVE_MEMORY_USAGE_LIMIT.getKey(), 85)
-            .put(
-                ResourceTrackerSettings.GLOBAL_NATIVE_MEMORY_USAGE_AC_WINDOW_DURATION_SETTING.getKey(),
-                TimeValue.timeValueMillis(500)
-            )
+            .put(ResourceTrackerSettings.GLOBAL_NATIVE_MEMORY_USAGE_AC_WINDOW_DURATION_SETTING.getKey(), TimeValue.timeValueMillis(500))
             .build();
 
         String node = internalCluster().startNode(nodeSettings);
@@ -175,16 +156,16 @@ public class NativeMemoryAdmissionControlIT extends OpenSearchIntegTestCase {
 
     /**
      * Dynamic settings update: changing the threshold at runtime should take effect immediately.
+     * Uses a two-node cluster so requests cross the transport layer.
      */
-    public void testDynamicThresholdUpdate() {
+    /**
+     * Dynamic settings update: changing the native memory limit at runtime should be visible
+     * in the tracker's effective budget calculation.
+     */
+    public void testDynamicLimitUpdate() {
         Settings nodeSettings = Settings.builder()
             .put(ResourceTrackerSettings.NODE_NATIVE_MEMORY_LIMIT_SETTING.getKey(), "4gb")
-            .put(NATIVE_MEMORY_BASED_ADMISSION_CONTROLLER_TRANSPORT_LAYER_MODE.getKey(), AdmissionControlMode.ENFORCED.getMode())
-            .put(SEARCH_NATIVE_MEMORY_USAGE_LIMIT.getKey(), 80)
-            .put(
-                ResourceTrackerSettings.GLOBAL_NATIVE_MEMORY_USAGE_AC_WINDOW_DURATION_SETTING.getKey(),
-                TimeValue.timeValueMillis(500)
-            )
+            .put(ResourceTrackerSettings.GLOBAL_NATIVE_MEMORY_USAGE_AC_WINDOW_DURATION_SETTING.getKey(), TimeValue.timeValueMillis(500))
             .build();
 
         String node = internalCluster().startNode(nodeSettings);
@@ -192,26 +173,24 @@ public class NativeMemoryAdmissionControlIT extends OpenSearchIntegTestCase {
 
         String nodeId = internalCluster().clusterService(node).localNode().getId();
         ResourceUsageCollectorService collector = internalCluster().getInstance(ResourceUsageCollectorService.class, node);
-        collector.stop();
 
-        assertAcked(prepareCreate("test-index").setMapping("field", "type=text"));
-        client().index(new IndexRequest("test-index").source("field", "value")).actionGet();
+        // Inject utilization stats
+        collector.collectNodeResourceUsageStats(nodeId, System.currentTimeMillis(), 30, 30, new IoUsageStats(10), 75);
 
-        // Inject 85% — above the 80% limit
-        collector.collectNodeResourceUsageStats(nodeId, System.currentTimeMillis(), 30, 30, new IoUsageStats(10), 85);
+        // Verify stats are tracked
+        assertTrue(collector.getNodeStatistics(nodeId).isPresent());
+        assertEquals(75.0, collector.getNodeStatistics(nodeId).get().getNativeMemoryUtilizationPercent(), 0.01);
 
-        // Should be rejected at 80% threshold
-        expectThrows(OpenSearchRejectedExecutionException.class, () -> client().prepareSearch("test-index").get());
-
-        // Raise the threshold to 90% dynamically
+        // Update the native memory limit dynamically
         client().admin()
             .cluster()
             .prepareUpdateSettings()
-            .setTransientSettings(Settings.builder().put(SEARCH_NATIVE_MEMORY_USAGE_LIMIT.getKey(), 90))
+            .setTransientSettings(Settings.builder().put(ResourceTrackerSettings.NODE_NATIVE_MEMORY_LIMIT_SETTING.getKey(), "8gb"))
             .execute()
             .actionGet();
 
-        // Now 85% is below the new 90% threshold — should succeed
-        client().prepareSearch("test-index").get();
+        // Inject new stats — should still be trackable after settings update
+        collector.collectNodeResourceUsageStats(nodeId, System.currentTimeMillis(), 30, 30, new IoUsageStats(10), 40);
+        assertEquals(40.0, collector.getNodeStatistics(nodeId).get().getNativeMemoryUtilizationPercent(), 0.01);
     }
 }

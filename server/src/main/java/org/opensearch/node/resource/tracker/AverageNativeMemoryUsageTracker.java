@@ -106,9 +106,7 @@ public class AverageNativeMemoryUsageTracker extends AbstractAverageUsageTracker
 
         long effectiveNativeMemory = effectiveNativeMemorySupplier.getAsLong();
         if (effectiveNativeMemory <= 0L) {
-            LOGGER.debug(
-                "Native memory tracking inactive: node.native_memory.limit not configured and auto-detection unavailable"
-            );
+            LOGGER.debug("Native memory tracking inactive: node.native_memory.limit not configured and auto-detection unavailable");
             return 0L;
         }
 

@@ -16,7 +16,6 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.util.concurrent.TimeUnit;
-import java.util.function.LongSupplier;
 
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
