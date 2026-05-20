@@ -23,13 +23,13 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
 /**
- * Verifies that the fragment execution streaming handler runs on the search thread pool,
- * not on the transport I/O thread. Running on SAME would block transport threads for the
- * entire duration of query execution, starving heartbeats and other transport actions.
+ * Verifies that the fragment execution handler is registered with SAME executor
+ * (admission control runs on transport thread) but forks execution internally
+ * via {@link AnalyticsSearchService#executeFragmentStreamingAsync}.
  */
 public class AnalyticsSearchTransportServiceTests extends OpenSearchTestCase {
 
-    public void testFragmentHandlerRegisteredOnSearchThreadPool() {
+    public void testFragmentHandlerRegisteredWithSameExecutor() {
         StreamTransportService transportService = mock(StreamTransportService.class);
         AnalyticsSearchService searchService = mock(AnalyticsSearchService.class);
         IndicesService indicesService = mock(IndicesService.class);
@@ -40,7 +40,7 @@ public class AnalyticsSearchTransportServiceTests extends OpenSearchTestCase {
 
         verify(transportService).registerRequestHandler(
             eq(FragmentExecutionAction.NAME),
-            eq(ThreadPool.Names.SEARCH),
+            eq(ThreadPool.Names.SAME),
             anyBoolean(),
             anyBoolean(),
             any(),

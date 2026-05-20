@@ -10,6 +10,7 @@ package org.opensearch.storage.tiering;
 
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
 
+import org.apache.lucene.tests.util.LuceneTestCase.AwaitsFix;
 import org.opensearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.opensearch.action.support.clustermanager.AcknowledgedResponse;
 import org.opensearch.cluster.ClusterState;
@@ -144,6 +145,7 @@ public class TieringStatusIT extends RemoteStoreBaseIntegTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/21755")
     public void testTieringStatus() throws Exception {
         setupCluster(1);
 
