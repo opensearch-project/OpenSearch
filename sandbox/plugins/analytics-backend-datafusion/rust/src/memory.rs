@@ -329,4 +329,69 @@ mod tests {
             allocator.join().unwrap();
         }
     }
+
+    #[test]
+    fn test_try_grow_rejection_increments_tripped_count() {
+        // Pool with 1KB limit — below MIN_POOL_FOR_OVERRIDE (16MB) so
+        // jemalloc override is skipped entirely. Every rejection goes
+        // straight to tripped_count increment.
+        let (pool, handle) = new_pool(1024);
+        assert_eq!(handle.tripped_count(), 0);
+
+        let consumer = MemoryConsumer::new("hash_agg");
+        let mut reservation = consumer.register(&pool);
+
+        // First grow succeeds
+        assert!(reservation.try_grow(512).is_ok());
+        assert_eq!(handle.tripped_count(), 0);
+
+        // Second grow exceeds limit → rejected, tripped increments
+        assert!(reservation.try_grow(1024).is_err());
+        assert_eq!(handle.tripped_count(), 1);
+
+        // Fill to the limit
+        assert!(reservation.try_grow(512).is_ok());
+        assert_eq!(pool.reserved(), 1024);
+
+        // Now even 1 byte exceeds → tripped again
+        assert!(reservation.try_grow(1).is_err());
+        assert_eq!(handle.tripped_count(), 2);
+    }
+
+    #[test]
+    fn test_tripped_count_reflects_in_handle_after_multiple_consumers() {
+        let (pool, handle) = new_pool(2048);
+        assert_eq!(handle.tripped_count(), 0);
+
+        // Consumer A takes 1500 bytes
+        let consumer_a = MemoryConsumer::new("sort_buffer");
+        let mut res_a = consumer_a.register(&pool);
+        assert!(res_a.try_grow(1500).is_ok());
+
+        // Consumer B tries 1000 bytes — only 548 available → rejected
+        let consumer_b = MemoryConsumer::new("hash_agg");
+        let mut res_b = consumer_b.register(&pool);
+        assert!(res_b.try_grow(1000).is_err());
+        assert_eq!(handle.tripped_count(), 1);
+
+        // Consumer A releases, freeing space
+        res_a.shrink(1500);
+
+        // Consumer B retries — now succeeds, no additional trip
+        assert!(res_b.try_grow(1000).is_ok());
+        assert_eq!(handle.tripped_count(), 1);
+    }
+
+    #[test]
+    fn test_tripped_count_zero_when_all_grows_succeed() {
+        let (pool, handle) = new_pool(1_000_000);
+        let consumer = MemoryConsumer::new("scan");
+        let mut reservation = consumer.register(&pool);
+
+        for _ in 0..100 {
+            assert!(reservation.try_grow(1000).is_ok());
+        }
+        assert_eq!(handle.tripped_count(), 0);
+        assert_eq!(pool.reserved(), 100_000);
+    }
 }
