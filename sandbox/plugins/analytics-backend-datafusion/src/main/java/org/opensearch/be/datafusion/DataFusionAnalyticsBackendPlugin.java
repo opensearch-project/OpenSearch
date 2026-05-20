@@ -360,6 +360,13 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         ScalarFunction.ARRAY,
         ScalarFunction.ARRAY_SLICE,
         ScalarFunction.ARRAY_DISTINCT,
+        // ITEM also appears with an ARRAY return type when accessing a MAP value whose value-type
+        // is an array — e.g. PPL `patterns` lowers the flatten of its result struct via
+        // `INTERNAL_ITEM(struct, "sample_logs")` and `INTERNAL_ITEM(struct, "tokens")`, where
+        // `sample_logs` is `ARRAY<VARCHAR>` and `tokens` is a MAP whose values themselves are
+        // arrays. The scalar form of ITEM is already in STANDARD_PROJECT_OPS for VARCHAR/numeric
+        // returns; this entry covers the array-returning shape.
+        ScalarFunction.ITEM,
         // PPL `mvzip` returns ARRAY<VARCHAR>; backed by a custom Rust UDF on the DataFusion
         // session context (`udf::mvzip`), routed via {@link MvzipAdapter}.
         ScalarFunction.MVZIP,
@@ -382,7 +389,16 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
      * auto-extract mode; routes to the {@code json_extract_all} Rust UDF via
      * {@link JsonFunctionAdapters.JsonExtractAllAdapter}.
      */
-    private static final Set<ScalarFunction> MAP_RETURNING_PROJECT_OPS = Set.of(ScalarFunction.JSON_EXTRACT_ALL, ScalarFunction.PARSE);
+    private static final Set<ScalarFunction> MAP_RETURNING_PROJECT_OPS = Set.of(
+        ScalarFunction.JSON_EXTRACT_ALL,
+        ScalarFunction.PARSE,
+        // ITEM also appears with a MAP return type when accessing a struct-of-maps — e.g. PPL
+        // `patterns mode=label show_numbered_token=true` flattens its result struct via
+        // `INTERNAL_ITEM(struct, "tokens")` where `tokens` itself is
+        // `MAP<VARCHAR, ARRAY<VARCHAR>>`. The scalar / array forms of ITEM are already in
+        // STANDARD_PROJECT_OPS / ARRAY_RETURNING_PROJECT_OPS; this entry covers the MAP-returning
+        // shape that the patterns flatten path triggers.
+        ScalarFunction.ITEM);
 
     /**
      * CAST and SAFE_CAST effectively can return anything, so they get registered as everything
