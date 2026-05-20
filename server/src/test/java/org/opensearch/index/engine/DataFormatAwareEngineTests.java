@@ -17,6 +17,7 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.concurrent.GatedCloseable;
 import org.opensearch.common.lucene.Lucene;
 import org.opensearch.common.lucene.uid.Versions;
@@ -1886,6 +1887,7 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
      * can assert the queue is fully drained on failure paths without exposing internals.
      */
     @SuppressWarnings("unchecked")
+    @SuppressForbidden(reason = "test utility needs reflective access to verify internal queue state")
     private static int flushQueueSize(DataFormatAwareEngine engine) throws Exception {
         java.lang.reflect.Field f = DataFormatAwareEngine.class.getDeclaredField("flushQueue");
         f.setAccessible(true);

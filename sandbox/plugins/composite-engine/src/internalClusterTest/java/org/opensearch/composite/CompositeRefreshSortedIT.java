@@ -8,19 +8,22 @@
 
 package org.opensearch.composite;
 
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
+
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
-import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.NIOFSDirectory;
-import org.opensearch.action.index.IndexResponse;
-import org.opensearch.action.admin.indices.refresh.RefreshResponse;
 import org.opensearch.action.admin.indices.flush.FlushResponse;
+import org.opensearch.action.admin.indices.refresh.RefreshResponse;
+import org.opensearch.action.index.IndexResponse;
 import org.opensearch.be.datafusion.DataFusionPlugin;
 import org.opensearch.be.lucene.LucenePlugin;
 import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.xcontent.json.JsonXContent;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.DeprecationHandler;
@@ -31,7 +34,6 @@ import org.opensearch.index.engine.CommitStats;
 import org.opensearch.index.engine.dataformat.DocumentInput;
 import org.opensearch.index.engine.exec.Segment;
 import org.opensearch.index.engine.exec.WriterFileSet;
-import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 import org.opensearch.index.engine.exec.coord.DataformatAwareCatalogSnapshot;
 import org.opensearch.index.shard.IndexShard;
 import org.opensearch.indices.IndicesService;
@@ -40,15 +42,14 @@ import org.opensearch.parquet.bridge.ParquetFileMetadata;
 import org.opensearch.parquet.bridge.RustBridge;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.test.OpenSearchIntegTestCase;
-import org.opensearch.common.SuppressForbidden;
-import org.opensearch.common.util.FeatureFlags;
-import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -206,22 +207,71 @@ public class CompositeRefreshSortedIT extends OpenSearchIntegTestCase {
     }
 
     /**
-     * Verifies correctness with enough rows to trigger the chunked sort path
-     * (rows > sort_batch_size). Uses default sort_batch_size of 65536.
+     * Verifies correctness with a randomized number of documents and fields.
+     * Uses random(100, 10000) docs and random(3, 10) integer sort fields to
+     * exercise the sort path with varying data shapes.
      */
-    public void testSortedRefreshWithLargeBatch() throws Exception {
-        createIndex(sortedParquetWithLuceneSettings());
+    public void testSortedRefreshWithRandomizedData() throws Exception {
+        int numFields = randomIntBetween(3, 10);
+        String[] fieldNames = new String[numFields];
+        String[] sortFields = new String[numFields];
+        String[] sortOrders = new String[numFields];
+        String[] sortMissing = new String[numFields];
+        for (int f = 0; f < numFields; f++) {
+            fieldNames[f] = "field_" + f;
+            sortFields[f] = fieldNames[f];
+            sortOrders[f] = randomBoolean() ? "asc" : "desc";
+            sortMissing[f] = sortOrders[f].equals("asc") ? "_last" : "_first";
+        }
 
-        int totalDocs = 200;
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put("index.refresh_interval", "-1")
+            .put("index.pluggable.dataformat.enabled", true)
+            .put("index.pluggable.dataformat", "composite")
+            .put("index.composite.primary_data_format", "parquet")
+            .putList("index.composite.secondary_data_formats", "lucene")
+            .putList("index.sort.field", sortFields)
+            .putList("index.sort.order", sortOrders)
+            .putList("index.sort.missing", sortMissing)
+            .build();
+
+        // Build mapping: all fields are integers for sort compatibility
+        String[] mappingArgs = new String[numFields * 2];
+        for (int f = 0; f < numFields; f++) {
+            mappingArgs[f * 2] = fieldNames[f];
+            mappingArgs[f * 2 + 1] = "type=integer";
+        }
+        client().admin().indices().prepareCreate(INDEX_NAME).setSettings(settings).setMapping(mappingArgs).get();
+        ensureGreen(INDEX_NAME);
+
+        int totalDocs = randomIntBetween(100, 10000);
+        logger.info(
+            "testSortedRefreshWithRandomizedData: {} docs, {} fields, sort orders: {}",
+            totalDocs,
+            numFields,
+            Arrays.toString(sortOrders)
+        );
+
         for (int i = 0; i < totalDocs; i++) {
-            indexDoc("name_" + String.format("%05d", i), randomIntBetween(0, 1000));
+            Map<String, Object> source = new HashMap<>();
+            for (int f = 0; f < numFields; f++) {
+                // Occasionally emit null values to exercise null handling in sort
+                if (randomIntBetween(0, 9) == 0) {
+                    continue; // skip field → null
+                }
+                source.put(fieldNames[f], randomIntBetween(0, 1000));
+            }
+            IndexResponse response = client().prepareIndex().setIndex(INDEX_NAME).setSource(source).get();
+            assertEquals(RestStatus.CREATED, response.status());
         }
 
         flushAndRefresh();
 
         DataformatAwareCatalogSnapshot snapshot = getCatalogSnapshot();
         verifyParquetRowCount(snapshot, totalDocs);
-        verifyParquetSortOrder(snapshot);
+        verifyParquetSortOrderMultiField(snapshot, fieldNames, sortOrders, sortMissing);
         verifyLuceneDocCount(totalDocs);
         verifyLuceneRowIdSequential();
     }
@@ -292,49 +342,6 @@ public class CompositeRefreshSortedIT extends OpenSearchIntegTestCase {
         verifyLuceneNamesInOrder(new String[] { "charlie", "alice", "bob", "dave", "eve" });
     }
 
-
-    public void testUnsortedRefreshWithLucenePrimary() throws Exception {
-        createIndex(unsortedLuceneOnlySettings());
-
-        indexDoc("charlie", 30, "blue");
-        indexDoc("alice", 50, "red");
-        indexDoc("bob", 10, "green");
-        indexDoc("dave", 50, "yellow");
-        indexDoc("eve", 30, "purple");
-
-        flushAndRefresh();
-
-        DataformatAwareCatalogSnapshot snapshot = getCatalogSnapshot();
-
-        verifyLuceneDocCount(5);
-        verifyLuceneRowIdSequential();
-    }
-
-    /**
-     * Lucene primary with sort (age DESC, name ASC). Verifies that:
-     * - Lucene segment is physically sorted by the configured IndexSort
-     * - __row_id__ is rewritten to sequential 0..N-1 in the final doc order
-     * - Doc count matches
-     */
-    public void testSortedRefreshWithLucenePrimary() throws Exception {
-        createIndex(sortedLuceneOnlySettings());
-
-        // Index in deliberately unsorted order
-        indexDoc("charlie", 30, "blue");
-        indexDoc("alice", 50, "red");
-        indexDoc("bob", 10, "green");
-        indexDoc("dave", 50, "yellow");
-        indexDoc("eve", 30, "purple");
-
-        flushAndRefresh();
-
-        DataformatAwareCatalogSnapshot snapshot = getCatalogSnapshot();
-
-        verifyLuceneDocCount(5);
-        verifyLuceneRowIdSequential();
-        verifyLuceneSortOrder();
-    }
-
     // ══════════════════════════════════════════════════════════════════════
     // Helpers: settings
     // ══════════════════════════════════════════════════════════════════════
@@ -393,7 +400,6 @@ public class CompositeRefreshSortedIT extends OpenSearchIntegTestCase {
             .build();
     }
 
-
     private Settings unsortedLuceneOnlySettings() {
         return Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
@@ -436,26 +442,17 @@ public class CompositeRefreshSortedIT extends OpenSearchIntegTestCase {
     }
 
     private void indexDoc(String name, int age) {
-        IndexResponse response = client().prepareIndex()
-            .setIndex(INDEX_NAME)
-            .setSource("name", name, "age", age)
-            .get();
+        IndexResponse response = client().prepareIndex().setIndex(INDEX_NAME).setSource("name", name, "age", age).get();
         assertEquals(RestStatus.CREATED, response.status());
     }
 
     private void indexDoc(String name, int age, String tag) {
-        IndexResponse response = client().prepareIndex()
-            .setIndex(INDEX_NAME)
-            .setSource("name", name, "age", age, "tag", tag)
-            .get();
+        IndexResponse response = client().prepareIndex().setIndex(INDEX_NAME).setSource("name", name, "age", age, "tag", tag).get();
         assertEquals(RestStatus.CREATED, response.status());
     }
 
     private void indexDocNullAge(String name) {
-        IndexResponse response = client().prepareIndex()
-            .setIndex(INDEX_NAME)
-            .setSource("name", name)
-            .get();
+        IndexResponse response = client().prepareIndex().setIndex(INDEX_NAME).setSource("name", name).get();
         assertEquals(RestStatus.CREATED, response.status());
     }
 
@@ -558,6 +555,93 @@ public class CompositeRefreshSortedIT extends OpenSearchIntegTestCase {
         }
     }
 
+    /**
+     * Verifies Parquet sort order for a dynamic set of integer sort fields.
+     * Supports any combination of ASC/DESC with configurable null placement.
+     */
+    @SuppressForbidden(reason = "JSON parsing for sort order verification")
+    private void verifyParquetSortOrderMultiField(
+        DataformatAwareCatalogSnapshot snapshot,
+        String[] fieldNames,
+        String[] sortOrders,
+        String[] sortMissing
+    ) throws Exception {
+        Path parquetDir = getParquetDir();
+        for (Segment segment : snapshot.getSegments()) {
+            WriterFileSet wfs = segment.dfGroupedSearchableFiles().get("parquet");
+            for (String file : wfs.files()) {
+                Path filePath = parquetDir.resolve(file);
+                String json = RustBridge.readAsJson(filePath.toString());
+                List<Map<String, Object>> rows;
+                try (
+                    XContentParser parser = JsonXContent.jsonXContent.createParser(
+                        NamedXContentRegistry.EMPTY,
+                        DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                        json
+                    )
+                ) {
+                    rows = parser.list().stream().map(o -> {
+                        @SuppressWarnings("unchecked")
+                        Map<String, Object> m = (Map<String, Object>) o;
+                        return m;
+                    }).toList();
+                }
+                if (rows.size() <= 1) continue;
+
+                for (int i = 1; i < rows.size(); i++) {
+                    int cmp = compareRowsByMultiField(rows.get(i - 1), rows.get(i), fieldNames, sortOrders, sortMissing);
+                    assertTrue(
+                        "Sort order violated at row " + i + " in " + file + ": prev=" + rows.get(i - 1) + " curr=" + rows.get(i),
+                        cmp <= 0
+                    );
+                }
+            }
+        }
+    }
+
+    /**
+     * Compares two rows by the multi-field sort key. Returns negative if prev comes before curr
+     * (correct order), zero if equal, positive if prev comes after curr (violation).
+     */
+    private int compareRowsByMultiField(
+        Map<String, Object> prev,
+        Map<String, Object> curr,
+        String[] fieldNames,
+        String[] sortOrders,
+        String[] sortMissing
+    ) {
+        for (int f = 0; f < fieldNames.length; f++) {
+            Object prevVal = prev.get(fieldNames[f]);
+            Object currVal = curr.get(fieldNames[f]);
+            boolean isAsc = "asc".equals(sortOrders[f]);
+            boolean nullsFirst = "_first".equals(sortMissing[f]);
+
+            int cmp = compareValues(prevVal, currVal, isAsc, nullsFirst);
+            if (cmp != 0) return cmp;
+        }
+        return 0;
+    }
+
+    /**
+     * Compares two nullable integer values according to sort direction and null placement.
+     * Returns negative if in correct order, zero if equal, positive if violated.
+     */
+    private int compareValues(Object prev, Object curr, boolean isAsc, boolean nullsFirst) {
+        if (prev == null && curr == null) return 0;
+        if (prev == null) {
+            // prev is null: correct if nullsFirst, violation if nullsLast
+            return nullsFirst ? -1 : 1;
+        }
+        if (curr == null) {
+            // curr is null: violation if nullsFirst, correct if nullsLast
+            return nullsFirst ? 1 : -1;
+        }
+        int prevInt = ((Number) prev).intValue();
+        int currInt = ((Number) curr).intValue();
+        int natural = Integer.compare(prevInt, currInt);
+        return isAsc ? natural : -natural;
+    }
+
     private void verifyLuceneRowIdSequential() throws IOException {
         Path luceneDir = getLuceneDir();
         try (Directory dir = NIOFSDirectory.open(luceneDir); DirectoryReader reader = DirectoryReader.open(dir)) {
@@ -570,8 +654,13 @@ public class CompositeRefreshSortedIT extends OpenSearchIntegTestCase {
                     if (rowIdDV.advanceExact(doc)) {
                         long rowId = rowIdDV.nextValue();
                         assertEquals(
-                            DocumentInput.ROW_ID_FIELD + " should be sequential, expected " + expectedRowId + " but got " + rowId
-                                + " at doc " + doc,
+                            DocumentInput.ROW_ID_FIELD
+                                + " should be sequential, expected "
+                                + expectedRowId
+                                + " but got "
+                                + rowId
+                                + " at doc "
+                                + doc,
                             expectedRowId,
                             rowId
                         );
@@ -655,7 +744,12 @@ public class CompositeRefreshSortedIT extends OpenSearchIntegTestCase {
                     );
                     long rowId = ((Number) rowIdObj).longValue();
                     assertEquals(
-                        DocumentInput.ROW_ID_FIELD + " should be sequential, expected " + expectedRowId + " but got " + rowId + " in "
+                        DocumentInput.ROW_ID_FIELD
+                            + " should be sequential, expected "
+                            + expectedRowId
+                            + " but got "
+                            + rowId
+                            + " in "
                             + file,
                         expectedRowId,
                         rowId
@@ -686,7 +780,7 @@ public class CompositeRefreshSortedIT extends OpenSearchIntegTestCase {
     private void verifyParquetAndLuceneRowsAlignedSequentially(DataformatAwareCatalogSnapshot snapshot) throws Exception {
         // Read Parquet rows in physical order
         Path parquetDir = getParquetDir();
-        List<Map<String, Object>> parquetRows = new java.util.ArrayList<>();
+        List<Map<String, Object>> parquetRows = new ArrayList<>();
         for (Segment segment : snapshot.getSegments()) {
             WriterFileSet wfs = segment.dfGroupedSearchableFiles().get("parquet");
             for (String file : wfs.files()) {

@@ -23,7 +23,6 @@ import org.apache.lucene.misc.store.HardlinkCopyDirectoryWrapper;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.MMapDirectory;
-import org.jspecify.annotations.Nullable;
 import org.opensearch.be.lucene.LuceneDataFormat;
 import org.opensearch.be.lucene.LuceneFieldFactoryRegistry;
 import org.opensearch.be.lucene.LuceneReader;
@@ -83,7 +82,7 @@ public class LuceneIndexingExecutionEngine implements IndexingExecutionEngine<Lu
     private final MergeIndexWriter sharedWriter;
     private final MapperService mapperService;
     private final Map<Long, LuceneReader> readers;
-    private final Sort indexSort;
+    private final Sort userProvidedSort;
     private final Store store;
     private final Path baseDirectory;
     private final Analyzer analyzer;
@@ -111,7 +110,7 @@ public class LuceneIndexingExecutionEngine implements IndexingExecutionEngine<Lu
         this.mapperService = mapperService;
         this.sharedWriter = luceneCommitter.getIndexWriter();
         this.readers = luceneCommitter.readers();
-        this.indexSort = luceneCommitter.getIndexSort();
+        this.userProvidedSort = luceneCommitter.getUserProvidedSort();
         this.store = store;
         this.baseDirectory = store.shardPath().resolve(LuceneDataFormat.LUCENE_FORMAT_NAME);
         this.analyzer = sharedWriter.getAnalyzer();
@@ -187,7 +186,8 @@ public class LuceneIndexingExecutionEngine implements IndexingExecutionEngine<Lu
         // When Lucene is secondary, then clear child writer's sort configuration and restamp
         // it at the flush end. In all other cases, propagate same sort configuration as it is.
         Sort sortConfig = sharedWriter.getConfig().getIndexSort();
-        if ( this.indexSort != null && sortConfig != null
+        if (this.userProvidedSort != null
+            && sortConfig != null
             && sortConfig.getSort().length == 1
             && DocumentInput.ROW_ID_FIELD.equals(sortConfig.getSort()[0].getField())) {
             sortConfig = null;

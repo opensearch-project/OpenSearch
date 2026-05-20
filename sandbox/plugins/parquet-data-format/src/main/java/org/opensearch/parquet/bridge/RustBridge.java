@@ -237,7 +237,8 @@ public class RustBridge {
     /**
      * Result of finalizing a writer: metadata + optional row ID mapping.
      */
-    record WriterFinalizeResult(ParquetFileMetadata metadata, RowIdMapping rowIdMapping) {}
+    record WriterFinalizeResult(ParquetFileMetadata metadata, RowIdMapping rowIdMapping) {
+    }
 
     static WriterFinalizeResult finalizeWriter(String file) throws IOException {
         try (var call = new NativeCall()) {

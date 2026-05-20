@@ -120,10 +120,7 @@ public class ParquetWriter implements Writer<ParquetDocumentInput> {
             metadata.numRows(),
             ParquetDataFormatPlugin.PARQUET_FORMAT_VERSION
         );
-        return FileInfos.builder()
-            .putWriterFileSet(dataFormat, monoFileSet)
-            .rowIdMapping(vsrManager.getRowIdMapping())
-            .build();
+        return FileInfos.builder().putWriterFileSet(dataFormat, monoFileSet).rowIdMapping(vsrManager.getRowIdMapping()).build();
     }
 
     @Override

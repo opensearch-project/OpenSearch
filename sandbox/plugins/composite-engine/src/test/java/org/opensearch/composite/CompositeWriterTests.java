@@ -9,8 +9,8 @@
 package org.opensearch.composite;
 
 import org.opensearch.index.engine.dataformat.FileInfos;
-import org.opensearch.index.engine.dataformat.WriterConfig;
 import org.opensearch.index.engine.dataformat.FlushInput;
+import org.opensearch.index.engine.dataformat.WriterConfig;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;

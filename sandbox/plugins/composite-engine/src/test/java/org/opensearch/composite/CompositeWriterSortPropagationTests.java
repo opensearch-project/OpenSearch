@@ -8,20 +8,18 @@
 
 package org.opensearch.composite;
 
-import org.opensearch.index.engine.dataformat.PackedRowIdMapping;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.DocumentInput;
 import org.opensearch.index.engine.dataformat.FileInfos;
 import org.opensearch.index.engine.dataformat.FlushInput;
+import org.opensearch.index.engine.dataformat.PackedRowIdMapping;
 import org.opensearch.index.engine.dataformat.RowIdMapping;
 import org.opensearch.index.engine.dataformat.WriteResult;
 import org.opensearch.index.engine.dataformat.Writer;
 import org.opensearch.index.engine.dataformat.WriterConfig;
-import org.opensearch.index.engine.exec.WriterFileSet;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
-import java.nio.file.Path;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -48,7 +46,10 @@ public class CompositeWriterSortPropagationTests extends OpenSearchTestCase {
         RecordingWriter secondaryWriter = new RecordingWriter(secondaryFormat, null);
 
         CompositeIndexingExecutionEngine engine = CompositeTestHelper.createStubEngineWithWriters(
-            primaryFormat, primaryWriter, secondaryFormat, secondaryWriter
+            primaryFormat,
+            primaryWriter,
+            secondaryFormat,
+            secondaryWriter
         );
 
         CompositeWriter compositeWriter = new CompositeWriter(engine, new WriterConfig(0));
@@ -83,7 +84,10 @@ public class CompositeWriterSortPropagationTests extends OpenSearchTestCase {
         RecordingWriter secondaryWriter = new RecordingWriter(secondaryFormat, null);
 
         CompositeIndexingExecutionEngine engine = CompositeTestHelper.createStubEngineWithWriters(
-            primaryFormat, primaryWriter, secondaryFormat, secondaryWriter
+            primaryFormat,
+            primaryWriter,
+            secondaryFormat,
+            secondaryWriter
         );
 
         CompositeWriter compositeWriter = new CompositeWriter(engine, new WriterConfig(0));
@@ -107,7 +111,10 @@ public class CompositeWriterSortPropagationTests extends OpenSearchTestCase {
         RecordingWriter secondaryWriter = new RecordingWriter(secondaryFormat, null);
 
         CompositeIndexingExecutionEngine engine = CompositeTestHelper.createStubEngineWithWriters(
-            primaryFormat, primaryWriter, secondaryFormat, secondaryWriter
+            primaryFormat,
+            primaryWriter,
+            secondaryFormat,
+            secondaryWriter
         );
 
         CompositeWriter compositeWriter = new CompositeWriter(engine, new WriterConfig(0));
@@ -173,13 +180,19 @@ public class CompositeWriterSortPropagationTests extends OpenSearchTestCase {
         public void close() {}
 
         @Override
-        public long generation() { return 0; }
+        public long generation() {
+            return 0;
+        }
 
         @Override
-        public boolean isSchemaMutable() { return true; }
+        public boolean isSchemaMutable() {
+            return true;
+        }
 
         @Override
-        public long mappingVersion() { return 0; }
+        public long mappingVersion() {
+            return 0;
+        }
 
         @Override
         public void updateMappingVersion(long newVersion) {}

@@ -23,8 +23,7 @@ public class LuceneWriterDocValuesFormatTests extends OpenSearchTestCase {
 
     public void testSequentialRowIdDocValuesProducesCorrectValues() {
         int maxDoc = randomIntBetween(5, 100);
-        LuceneWriterDocValuesFormat.SequentialRowIdDocValues docValues =
-            new LuceneWriterDocValuesFormat.SequentialRowIdDocValues(maxDoc);
+        LuceneWriterDocValuesFormat.SequentialRowIdDocValues docValues = new LuceneWriterDocValuesFormat.SequentialRowIdDocValues(maxDoc);
 
         // Test advanceExact
         for (int i = 0; i < maxDoc; i++) {
@@ -37,8 +36,7 @@ public class LuceneWriterDocValuesFormatTests extends OpenSearchTestCase {
 
     public void testSequentialRowIdDocValuesNextDoc() {
         int maxDoc = randomIntBetween(5, 50);
-        LuceneWriterDocValuesFormat.SequentialRowIdDocValues docValues =
-            new LuceneWriterDocValuesFormat.SequentialRowIdDocValues(maxDoc);
+        LuceneWriterDocValuesFormat.SequentialRowIdDocValues docValues = new LuceneWriterDocValuesFormat.SequentialRowIdDocValues(maxDoc);
 
         for (int i = 0; i < maxDoc; i++) {
             int doc = docValues.nextDoc();
@@ -50,8 +48,7 @@ public class LuceneWriterDocValuesFormatTests extends OpenSearchTestCase {
 
     public void testSequentialRowIdDocValuesAdvance() {
         int maxDoc = 20;
-        LuceneWriterDocValuesFormat.SequentialRowIdDocValues docValues =
-            new LuceneWriterDocValuesFormat.SequentialRowIdDocValues(maxDoc);
+        LuceneWriterDocValuesFormat.SequentialRowIdDocValues docValues = new LuceneWriterDocValuesFormat.SequentialRowIdDocValues(maxDoc);
 
         // Advance to middle
         int target = 10;
@@ -64,15 +61,13 @@ public class LuceneWriterDocValuesFormatTests extends OpenSearchTestCase {
 
     public void testSequentialRowIdDocValuesCost() {
         int maxDoc = randomIntBetween(1, 1000);
-        LuceneWriterDocValuesFormat.SequentialRowIdDocValues docValues =
-            new LuceneWriterDocValuesFormat.SequentialRowIdDocValues(maxDoc);
+        LuceneWriterDocValuesFormat.SequentialRowIdDocValues docValues = new LuceneWriterDocValuesFormat.SequentialRowIdDocValues(maxDoc);
         assertEquals(maxDoc, docValues.cost());
     }
 
     public void testSequentialRowIdProducerReturnsSortedNumeric() {
         int maxDoc = 10;
-        LuceneWriterDocValuesFormat.SequentialRowIdProducer producer =
-            new LuceneWriterDocValuesFormat.SequentialRowIdProducer(maxDoc);
+        LuceneWriterDocValuesFormat.SequentialRowIdProducer producer = new LuceneWriterDocValuesFormat.SequentialRowIdProducer(maxDoc);
 
         SortedNumericDocValues values = producer.getSortedNumeric(null);
         assertNotNull(values);

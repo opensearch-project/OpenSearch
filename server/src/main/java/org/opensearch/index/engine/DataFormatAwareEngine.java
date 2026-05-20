@@ -188,7 +188,7 @@ public class DataFormatAwareEngine implements Indexer {
     // Merge
     private final MergeScheduler mergeScheduler;
 
-    //TODO Refactor these flush managing activities into FlushManager.
+    // TODO Refactor these flush managing activities into FlushManager.
 
     // Segments flushed inline by indexing threads (via preIndex) that are pending
     // registration in the catalog. Drained by the next refresh() call.
@@ -1704,7 +1704,10 @@ public class DataFormatAwareEngine implements Indexer {
 
             logger.debug("preIndex: write thread flushed writer gen={} in [{}ms]", writerToFlush.generation(), flushElapsedMs);
         } catch (Exception e) {
-            logger.warn("preIndex: flush failed for writer gen={}, failing engine", writerToFlush.generation(), e);
+            logger.warn(
+                () -> new ParameterizedMessage("preIndex: flush failed for writer gen={}, failing engine", writerToFlush.generation()),
+                e
+            );
             IOUtils.closeWhileHandlingException(writerToFlush);
             failEngine("flush failed during preIndex for writer gen=" + writerToFlush.generation(), e);
         } finally {

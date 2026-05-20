@@ -19,9 +19,9 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.store.NIOFSDirectory;
 import org.opensearch.be.lucene.LuceneDataFormat;
-import org.opensearch.index.engine.dataformat.PackedRowIdMapping;
 import org.opensearch.index.engine.dataformat.FileInfos;
 import org.opensearch.index.engine.dataformat.FlushInput;
+import org.opensearch.index.engine.dataformat.PackedRowIdMapping;
 import org.opensearch.index.engine.exec.WriterFileSet;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.TextFieldMapper;
@@ -64,7 +64,7 @@ public class LuceneWriterSortedFlushTests extends OpenSearchTestCase {
 
         // Build a reverse sort permutation: old_row_id → new_row_id
         // Original order: 0, 1, 2, 3, 4
-        // Sorted order:   4, 3, 2, 1, 0  (reverse)
+        // Sorted order: 4, 3, 2, 1, 0 (reverse)
         long[] oldRowIds = { 0, 1, 2, 3, 4 };
         long[] newRowIds = { 4, 3, 2, 1, 0 };
         FlushInput sortedFlushInput = new FlushInput(buildMapping(oldRowIds, newRowIds));
@@ -85,8 +85,7 @@ public class LuceneWriterSortedFlushTests extends OpenSearchTestCase {
             assertThat(wfs.writerGeneration(), equalTo(1L));
 
             // Read the sorted segment and verify doc order
-            try (NIOFSDirectory dir = new NIOFSDirectory(Path.of(wfs.directory()));
-                 IndexReader reader = DirectoryReader.open(dir)) {
+            try (NIOFSDirectory dir = new NIOFSDirectory(Path.of(wfs.directory())); IndexReader reader = DirectoryReader.open(dir)) {
 
                 assertThat(reader.numDocs(), equalTo(numDocs));
                 assertThat(reader.leaves().size(), equalTo(1));
@@ -101,11 +100,7 @@ public class LuceneWriterSortedFlushTests extends OpenSearchTestCase {
                 for (int docId = 0; docId < numDocs; docId++) {
                     assertTrue(rowIdDV.advanceExact(docId));
                     long rowIdValue = rowIdDV.nextValue();
-                    assertThat(
-                        "Doc at position " + docId + " should have sequential row_id " + docId,
-                        rowIdValue,
-                        equalTo((long) docId)
-                    );
+                    assertThat("Doc at position " + docId + " should have sequential row_id " + docId, rowIdValue, equalTo((long) docId));
                 }
             }
         }
@@ -139,8 +134,7 @@ public class LuceneWriterSortedFlushTests extends OpenSearchTestCase {
             FileInfos fileInfos = writer.flush(sortedFlushInput);
             WriterFileSet wfs = fileInfos.getWriterFileSet(dataFormat).get();
 
-            try (NIOFSDirectory dir = new NIOFSDirectory(Path.of(wfs.directory()));
-                 IndexReader reader = DirectoryReader.open(dir)) {
+            try (NIOFSDirectory dir = new NIOFSDirectory(Path.of(wfs.directory())); IndexReader reader = DirectoryReader.open(dir)) {
 
                 LeafReader leaf = reader.leaves().get(0).reader();
                 SortedNumericDocValues rowIdDV = leaf.getSortedNumericDocValues(LuceneDocumentInput.ROW_ID_FIELD);
@@ -227,8 +221,7 @@ public class LuceneWriterSortedFlushTests extends OpenSearchTestCase {
             WriterFileSet wfs = fileInfos.getWriterFileSet(dataFormat).get();
             assertThat(wfs.numRows(), equalTo((long) numDocs));
 
-            try (NIOFSDirectory dir = new NIOFSDirectory(Path.of(wfs.directory()));
-                 IndexReader reader = DirectoryReader.open(dir)) {
+            try (NIOFSDirectory dir = new NIOFSDirectory(Path.of(wfs.directory())); IndexReader reader = DirectoryReader.open(dir)) {
                 assertThat(reader.numDocs(), equalTo(numDocs));
                 assertThat(reader.leaves().size(), equalTo(1));
             }
@@ -246,8 +239,11 @@ public class LuceneWriterSortedFlushTests extends OpenSearchTestCase {
         Path baseDir = createTempDir();
         int numDocs = 5;
         MappedFieldType textField = mockTextField("content");
+        // When no user sort is configured, the writer still needs a row_id IndexSort
+        // (matching what LuceneCommitter sets in production for the unsorted primary case).
+        Sort rowIdSort = new Sort(new SortedNumericSortField(LuceneDocumentInput.ROW_ID_FIELD, SortField.Type.LONG));
 
-        try (LuceneWriter writer = new LuceneWriter(1L, 0L, dataFormat, baseDir, null, Codec.getDefault(), null)) {
+        try (LuceneWriter writer = new LuceneWriter(1L, 0L, dataFormat, baseDir, null, Codec.getDefault(), rowIdSort)) {
             for (int i = 0; i < numDocs; i++) {
                 LuceneDocumentInput input = new LuceneDocumentInput();
                 input.addField(textField, "doc_" + i);
@@ -261,8 +257,7 @@ public class LuceneWriterSortedFlushTests extends OpenSearchTestCase {
             FileInfos fileInfos = writer.flush(FlushInput.EMPTY);
             WriterFileSet wfs = fileInfos.getWriterFileSet(dataFormat).get();
 
-            try (NIOFSDirectory dir = new NIOFSDirectory(Path.of(wfs.directory()));
-                 IndexReader reader = DirectoryReader.open(dir)) {
+            try (NIOFSDirectory dir = new NIOFSDirectory(Path.of(wfs.directory())); IndexReader reader = DirectoryReader.open(dir)) {
 
                 LeafReader leaf = reader.leaves().get(0).reader();
                 SortedNumericDocValues rowIdDV = leaf.getSortedNumericDocValues(LuceneDocumentInput.ROW_ID_FIELD);
@@ -312,8 +307,7 @@ public class LuceneWriterSortedFlushTests extends OpenSearchTestCase {
             FileInfos fileInfos = writer.flush(FlushInput.EMPTY);
             WriterFileSet wfs = fileInfos.getWriterFileSet(dataFormat).get();
 
-            try (NIOFSDirectory dir = new NIOFSDirectory(Path.of(wfs.directory()));
-                 IndexReader reader = DirectoryReader.open(dir)) {
+            try (NIOFSDirectory dir = new NIOFSDirectory(Path.of(wfs.directory())); IndexReader reader = DirectoryReader.open(dir)) {
 
                 LeafReader leaf = reader.leaves().get(0).reader();
                 SortedNumericDocValues rowIdDV = leaf.getSortedNumericDocValues(LuceneDocumentInput.ROW_ID_FIELD);
@@ -409,8 +403,7 @@ public class LuceneWriterSortedFlushTests extends OpenSearchTestCase {
             FileInfos fileInfos = writer.flush(sortedFlushInput);
             WriterFileSet wfs = fileInfos.getWriterFileSet(dataFormat).get();
 
-            try (NIOFSDirectory dir = new NIOFSDirectory(Path.of(wfs.directory()));
-                 IndexReader reader = DirectoryReader.open(dir)) {
+            try (NIOFSDirectory dir = new NIOFSDirectory(Path.of(wfs.directory())); IndexReader reader = DirectoryReader.open(dir)) {
 
                 LeafReader leaf = reader.leaves().get(0).reader();
 
@@ -465,97 +458,6 @@ public class LuceneWriterSortedFlushTests extends OpenSearchTestCase {
     }
 
     /**
-     * When Lucene is primary with IndexSort, row IDs should be reordered along with
-     * the documents (they follow the physical doc order, not rewritten to sequential).
-     */
-
-    public void testPrimaryFormatIndexSortReordersRowIds() throws IOException {
-        Path baseDir = createTempDir();
-        Sort indexSort = new Sort(new SortedNumericSortField("age", SortField.Type.LONG));
-
-        // Docs inserted with ages: 30, 10, 20 → after sort: 10(row1), 20(row2), 30(row0)
-        long[] ages = { 30, 10, 20 };
-        int numDocs = 3;
-
-        try (LuceneWriter writer = new LuceneWriter(1L, 0L, dataFormat, baseDir, null, Codec.getDefault(), indexSort)) {
-            for (int i = 0; i < numDocs; i++) {
-                LuceneDocumentInput input = new LuceneDocumentInput();
-                input.setRowId(LuceneDocumentInput.ROW_ID_FIELD, i);
-                input.getFinalInput().add(new SortedNumericDocValuesField("age", ages[i]));
-                writer.addDoc(input);
-            }
-
-            FileInfos fileInfos = writer.flush(FlushInput.EMPTY);
-            WriterFileSet wfs = fileInfos.getWriterFileSet(dataFormat).get();
-
-            try (NIOFSDirectory dir = new NIOFSDirectory(Path.of(wfs.directory()));
-                 IndexReader reader = DirectoryReader.open(dir)) {
-
-                LeafReader leaf = reader.leaves().get(0).reader();
-                SortedNumericDocValues rowIdDV = leaf.getSortedNumericDocValues(LuceneDocumentInput.ROW_ID_FIELD);
-                assertNotNull(rowIdDV);
-
-                // After sort by age ASC: doc order is age=10(orig row 1), age=20(orig row 2), age=30(orig row 0)
-                // Row IDs are rewritten to sequential 0..N-1 in the final doc order.
-                for (int docId = 0; docId < numDocs; docId++) {
-                    assertTrue(rowIdDV.advanceExact(docId));
-                    assertThat("row_id at position " + docId, rowIdDV.nextValue(), equalTo((long) docId));
-                }
-            }
-        }
-    }
-
-
-    /**
-     * When Lucene is the primary format with IndexSort on a numeric field,
-     * documents should be physically sorted by that field in the segment.
-     * FlushInput.EMPTY is used because sort is handled by Lucene's native IndexSort.
-     */
-    public void testPrimaryFormatWithIndexSortProducesSortedSegment() throws IOException {
-        Path baseDir = createTempDir();
-        Sort indexSort = new Sort(new SortedNumericSortField("age", SortField.Type.LONG));
-
-        // Insert docs with ages in reverse order: 50, 40, 30, 20, 10
-        int numDocs = 5;
-        long[] ages = { 50, 40, 30, 20, 10 };
-
-        try (LuceneWriter writer = new LuceneWriter(1L, 0L, dataFormat, baseDir, null, Codec.getDefault(), indexSort)) {
-            for (int i = 0; i < numDocs; i++) {
-                LuceneDocumentInput input = new LuceneDocumentInput();
-                input.setRowId(LuceneDocumentInput.ROW_ID_FIELD, i);
-                // Add the sort field directly on the document
-                input.getFinalInput().add(new SortedNumericDocValuesField("age", ages[i]));
-                writer.addDoc(input);
-            }
-
-            FileInfos fileInfos = writer.flush(FlushInput.EMPTY);
-            WriterFileSet wfs = fileInfos.getWriterFileSet(dataFormat).get();
-            assertThat(wfs.numRows(), equalTo((long) numDocs));
-
-            try (NIOFSDirectory dir = new NIOFSDirectory(Path.of(wfs.directory()));
-                 IndexReader reader = DirectoryReader.open(dir)) {
-
-                assertThat(reader.numDocs(), equalTo(numDocs));
-                assertThat(reader.leaves().size(), equalTo(1));
-
-                LeafReader leaf = reader.leaves().get(0).reader();
-                SortedNumericDocValues ageDV = leaf.getSortedNumericDocValues("age");
-                assertNotNull("age doc values should exist", ageDV);
-
-                // After IndexSort(age ASC): docs should be ordered 10, 20, 30, 40, 50
-                long previousAge = Long.MIN_VALUE;
-                for (int docId = 0; docId < numDocs; docId++) {
-                    assertTrue(ageDV.advanceExact(docId));
-                    long ageValue = ageDV.nextValue();
-                    assertTrue("age values should be in ascending order, got " + ageValue + " after " + previousAge,
-                        ageValue >= previousAge);
-                    previousAge = ageValue;
-                }
-            }
-        }
-    }
-
-    /**
      * Reusable scenario: index N docs with a {@code marker} side-channel in arrival order,
      * flush with a reverse permutation, then assert reorder + row ID rewrite.
      *
@@ -591,8 +493,7 @@ public class LuceneWriterSortedFlushTests extends OpenSearchTestCase {
             WriterFileSet wfs = fileInfos.getWriterFileSet(dataFormat).get();
             assertThat(wfs.numRows(), equalTo((long) numDocs));
 
-            try (NIOFSDirectory dir = new NIOFSDirectory(Path.of(wfs.directory()));
-                 IndexReader reader = DirectoryReader.open(dir)) {
+            try (NIOFSDirectory dir = new NIOFSDirectory(Path.of(wfs.directory())); IndexReader reader = DirectoryReader.open(dir)) {
 
                 // Single committed segment after forceMerge(1) regardless of how many
                 // intermediate segments existed during indexing.

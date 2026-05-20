@@ -99,23 +99,6 @@ public class LuceneMergerTests extends OpenSearchTestCase {
     }
 
     /**
-     * Merge with no matching segments returns empty result and logs warning.
-     */
-//    public void testMergeWithNoMatchingSegments() throws IOException {
-//        writeSegment(writer, 1L, 0, 3);
-//        writer.commit();
-//
-//        LuceneMerger merger = new LuceneMerger(writer, new LuceneDataFormat(), dataPath);
-//
-//        Segment segment = Segment.builder(99L).build();
-//        MergeInput input = MergeInput.builder().addSegment(segment).newWriterGeneration(100L).build();
-//
-//        MergeResult result = merger.merge(input);
-//        assertNotNull(result);
-//        assertTrue(result.getMergedWriterFileSet().isEmpty());
-//    }
-
-    /**
      * Merge with RowIdMapping remaps ___row_id doc values AND reorders documents.
      * Verifies that the merged segment has documents sorted by remapped row IDs
      * and that stored fields follow the documents to their new positions.

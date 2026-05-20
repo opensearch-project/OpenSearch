@@ -121,7 +121,8 @@ public class LuceneMerger implements Merger {
 
         if (matchingSegments.isEmpty()) {
             throw new IOException(
-                "No Lucene segments found matching writer generations " + generationsToMerge
+                "No Lucene segments found matching writer generations "
+                    + generationsToMerge
                     + " — segments may have been consumed by a concurrent merge"
             );
         }
