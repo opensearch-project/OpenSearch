@@ -12,6 +12,7 @@ import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.search.backpressure.NativeMemoryUsageService;
 import org.opensearch.search.backpressure.trackers.TaskResourceUsageTrackers.TaskResourceUsageTracker;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskCancellation;
@@ -59,6 +60,28 @@ public class CpuUsageTracker extends TaskResourceUsageTracker {
     public CpuUsageTracker(LongSupplier thresholdSupplier, ResourceUsageBreachEvaluator resourceUsageBreachEvaluator) {
         this.thresholdSupplier = thresholdSupplier;
         this.resourceUsageBreachEvaluator = resourceUsageBreachEvaluator;
+    }
+
+    /**
+     * CPU tracking is supported only when no analytics backend is wired into the node.
+     *
+     * <p>Rationale: when an analytics backend (e.g. DataFusion) installs itself via
+     * {@link NativeMemoryUsageService#setSnapshotSupplier}, search execution moves off the
+     * JVM thread pools that {@code com.sun.management.ThreadMXBean} measures. The JVM CPU
+     * counters that this tracker reads via {@code task.getTotalResourceStats()} undercount
+     * actual CPU spend (native worker pools aren't visible), and the per-task CPU threshold
+     * stops being a meaningful cancellation signal. The native-memory tracker takes over
+     * the resource-protection role for analytics workloads.
+     *
+     * <p>We use the snapshot-supplier flag as the proxy for "an analytics backend is
+     * installed" because that is what backends call from {@code Plugin#createComponents};
+     * server-module code cannot reference the {@code analytics-backend-datafusion} class
+     * directly (sandbox plugin module) and the {@code AnalyticsSearchBackendPlugin} SPI is
+     * not visible to {@code server}, so {@code PluginsService#filterPlugins} on a
+     * cross-module type isn't an option.
+     */
+    public static boolean isCpuTrackingSupported() {
+        return NativeMemoryUsageService.getInstance().hasSnapshotProvider() == false;
     }
 
     @Override

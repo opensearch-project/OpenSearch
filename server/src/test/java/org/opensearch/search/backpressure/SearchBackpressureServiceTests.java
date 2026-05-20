@@ -707,6 +707,56 @@ public class SearchBackpressureServiceTests extends OpenSearchTestCase {
         }
     }
 
+    /**
+     * When no analytics backend is installed, getTrackers() must register the CPU tracker. When a backend
+     * registers a snapshot supplier (the proxy for "analytics backend present"), the CPU tracker must be
+     * skipped at construction so it doesn't show up in stats and doesn't fire on JVM-thread CPU numbers
+     * that are no longer meaningful.
+     */
+    public void testGetTrackersSkipsCpuTrackerWhenAnalyticsBackendInstalled() {
+        try {
+            ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+
+            // Baseline: no backend installed -> CPU tracker present.
+            org.opensearch.search.backpressure.NativeMemoryUsageService.getInstance().resetForTesting();
+            TaskResourceUsageTrackers withoutBackend = SearchBackpressureService.getTrackers(
+                () -> 1L,
+                () -> 1.0,
+                () -> 1.0,
+                100,
+                () -> 1L,
+                () -> 0.0,
+                clusterSettings,
+                SearchTaskSettings.SETTING_HEAP_MOVING_AVERAGE_WINDOW_SIZE
+            );
+            assertTrue(
+                "CPU tracker must be installed when no analytics backend is present",
+                withoutBackend.getTracker(TaskResourceUsageTrackerType.CPU_USAGE_TRACKER).isPresent()
+            );
+
+            // Install a snapshot supplier — same proxy a real backend would set.
+            org.opensearch.search.backpressure.NativeMemoryUsageService.getInstance().setSnapshotSupplier(Collections::emptyMap);
+            TaskResourceUsageTrackers withBackend = SearchBackpressureService.getTrackers(
+                () -> 1L,
+                () -> 1.0,
+                () -> 1.0,
+                100,
+                () -> 1L,
+                () -> 0.0,
+                clusterSettings,
+                SearchTaskSettings.SETTING_HEAP_MOVING_AVERAGE_WINDOW_SIZE
+            );
+            assertFalse(
+                "CPU tracker must NOT be installed when an analytics backend is present",
+                withBackend.getTracker(TaskResourceUsageTrackerType.CPU_USAGE_TRACKER).isPresent()
+            );
+            // ElapsedTime is always installed — sanity check that getTrackers() didn't simply return empty.
+            assertTrue(withBackend.getTracker(TaskResourceUsageTrackerType.ELAPSED_TIME_TRACKER).isPresent());
+        } finally {
+            org.opensearch.search.backpressure.NativeMemoryUsageService.getInstance().resetForTesting();
+        }
+    }
+
     private TaskResourceUsageTracker getMockedTaskResourceUsageTracker(
         TaskResourceUsageTrackerType type,
         TaskResourceUsageTracker.ResourceUsageBreachEvaluator evaluator

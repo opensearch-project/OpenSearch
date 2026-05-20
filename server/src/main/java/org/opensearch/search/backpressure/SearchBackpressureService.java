@@ -60,6 +60,7 @@ import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
+import static org.opensearch.search.backpressure.trackers.CpuUsageTracker.isCpuTrackingSupported;
 import static org.opensearch.search.backpressure.trackers.HeapUsageTracker.isHeapTrackingSupported;
 import static org.opensearch.search.backpressure.trackers.NativeMemoryUsageTracker.isNativeTrackingSupported;
 
@@ -72,7 +73,8 @@ import static org.opensearch.search.backpressure.trackers.NativeMemoryUsageTrack
 public class SearchBackpressureService extends AbstractLifecycleComponent implements TaskCompletionListener {
     private static final Logger logger = LogManager.getLogger(SearchBackpressureService.class);
     // Tracker-apply rules (each tracker decides independently via this map):
-    // - CPU tracker fires when CPU is in duress.
+    // - CPU tracker fires when CPU is in duress AND CPU tracking is supported (no analytics
+    // backend has taken over execution; see CpuUsageTracker.isCpuTrackingSupported).
     // - Heap tracker fires when heap is in duress (and heap tracking is supported).
     // - Elapsed-time tracker always fires.
     // - Native-memory tracker fires when native memory is in duress (and tracking is supported).
@@ -84,7 +86,7 @@ public class SearchBackpressureService extends AbstractLifecycleComponent implem
     // independently contributes cancellation reasons that are merged before execution.
     private static final Map<TaskResourceUsageTrackerType, Function<NodeDuressTrackers, Boolean>> trackerApplyConditions = Map.of(
         TaskResourceUsageTrackerType.CPU_USAGE_TRACKER,
-        (nodeDuressTrackers) -> nodeDuressTrackers.isResourceInDuress(ResourceType.CPU),
+        (nodeDuressTrackers) -> isCpuTrackingSupported() && nodeDuressTrackers.isResourceInDuress(ResourceType.CPU),
         TaskResourceUsageTrackerType.HEAP_USAGE_TRACKER,
         (nodeDuressTrackers) -> isHeapTrackingSupported() && nodeDuressTrackers.isResourceInDuress(ResourceType.MEMORY),
         TaskResourceUsageTrackerType.ELAPSED_TIME_TRACKER,
@@ -426,7 +428,11 @@ public class SearchBackpressureService extends AbstractLifecycleComponent implem
         Setting<Integer> windowSizeSetting
     ) {
         TaskResourceUsageTrackers trackers = new TaskResourceUsageTrackers();
-        trackers.addTracker(new CpuUsageTracker(cpuThresholdSupplier), TaskResourceUsageTrackerType.CPU_USAGE_TRACKER);
+        if (isCpuTrackingSupported()) {
+            trackers.addTracker(new CpuUsageTracker(cpuThresholdSupplier), TaskResourceUsageTrackerType.CPU_USAGE_TRACKER);
+        } else {
+            logger.info("cpu usage tracking disabled — analytics backend installed; native-memory tracker takes over");
+        }
         if (isHeapTrackingSupported()) {
             trackers.addTracker(
                 new HeapUsageTracker(
