@@ -74,6 +74,7 @@ impl LocalSession {
             .build();
         let ctx = SessionContext::new_with_state(state);
         crate::udf::register_all(&ctx);
+        crate::udaf::register_all(&ctx);
         Self { ctx, prepared_plan: None }
     }
 
