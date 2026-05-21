@@ -33,8 +33,6 @@ import org.opensearch.analytics.planner.dag.FragmentConversionDriver;
 import org.opensearch.analytics.planner.dag.PlanForker;
 import org.opensearch.analytics.planner.dag.QueryDAG;
 import org.opensearch.arrow.allocator.AllocationRejection;
-import org.opensearch.arrow.allocator.ArrowNativeAllocator;
-import org.opensearch.arrow.spi.NativeAllocatorPoolConfig;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.unit.TimeValue;
@@ -78,14 +76,9 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
     private final ThreadPool threadPool;
     private final TaskManager taskManager;
     private final NodeClient client;
-    private final ArrowNativeAllocator nativeAllocator;
     private final EngineContext engineContext;
-    // Pre-existing leak: DefaultPlanExecutor is Guice-instantiated and not closed by the
-    // framework, so coordinatorAllocator leaks on node shutdown. ArrowNativeAllocator.close()
-    // will warn about the outstanding child. Fix would require either (a) making
-    // DefaultPlanExecutor LifecycleComponent so Node closes it, or (b) wrapping in a Guice-bound
-    // singleton that AnalyticsPlugin owns and closes from its own close() method. Out of scope
-    // for the SPI-removal migration.
+    // Owned and closed by AnalyticsPlugin via the injected CoordinatorAllocatorHandle so that
+    // shutdown closes this child of POOL_QUERY before arrow-base closes the root allocator.
     private final BufferAllocator coordinatorAllocator;
     private volatile long perQueryBufferLimit;
 
@@ -99,7 +92,7 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
         EngineContext engineContext,
         NodeClient client,
         Scheduler scheduler,
-        ArrowNativeAllocator nativeAllocator
+        CoordinatorAllocatorHandle coordinatorAllocatorHandle
     ) {
         super(AnalyticsQueryAction.NAME, transportService, actionFilters, in -> {
             throw new UnsupportedOperationException("Transport path not implemented yet");
@@ -111,18 +104,14 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
         this.taskManager = transportService.getTaskManager();
         this.client = client;
         this.scheduler = scheduler;
-        this.nativeAllocator = nativeAllocator;
         this.engineContext = engineContext;
-        // Source the coordinator allocator from the framework's QUERY pool so coordinator-side
-        // allocations (held shard responses, intermediate batches during reduce) count against
-        // parquet.native.pool.query.max alongside the data-node-side per-fragment allocators in
-        // AnalyticsSearchService. Before this, coordinator allocations were root-siblings outside
-        // any pool and invisible to _nodes/stats.native_allocator.pools.query.allocated.
-        //
-        // Child uses Long.MAX_VALUE so dynamic resizes of parquet.native.pool.query.max take
-        // effect immediately via Arrow's parent-cap check at allocateBytes — no listener needed.
-        BufferAllocator queryPool = nativeAllocator.getPoolAllocator(NativeAllocatorPoolConfig.POOL_QUERY);
-        this.coordinatorAllocator = queryPool.newChildAllocator("coordinator", 0, Long.MAX_VALUE);
+        // Use the plugin-owned coordinator allocator (a child of POOL_QUERY). The plugin
+        // closes the underlying allocator on Plugin.close() via the handle, so coordinator-
+        // side allocations are released deterministically before arrow-base tears down the
+        // root allocator. Long.MAX_VALUE on the child means dynamic resizes of
+        // parquet.native.pool.query.max take effect immediately via Arrow's parent-cap check
+        // at allocateBytes — no listener needed.
+        this.coordinatorAllocator = coordinatorAllocatorHandle.getAllocator();
         this.perQueryBufferLimit = AnalyticsPlugin.COORDINATOR_BUFFER_LIMIT.get(clusterService.getSettings());
         clusterService.getClusterSettings()
             .addSettingsUpdateConsumer(AnalyticsPlugin.COORDINATOR_BUFFER_LIMIT, v -> perQueryBufferLimit = v);
