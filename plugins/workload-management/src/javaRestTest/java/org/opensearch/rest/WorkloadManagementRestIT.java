@@ -17,6 +17,8 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Locale;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public class WorkloadManagementRestIT extends OpenSearchRestTestCase {
 
@@ -382,6 +384,48 @@ public class WorkloadManagementRestIT extends OpenSearchRestTestCase {
         performOperation("DELETE", "_wlm/workload_group/max_buckets_test", null);
     }
 
+    public void testSearchMaxBucketsEnforcedAtRequestPath() throws Exception {
+        // Cluster default permits the aggregation; WLM cap is smaller and must win.
+        String wgName = "max_buckets_enforced_test";
+        String createJson = String.format(Locale.ROOT, """
+            {
+                "name": "%s",
+                "resiliency_mode": "enforced",
+                "resource_limits": {"cpu": 0.3, "memory": 0.3},
+                "settings": {
+                    "search.max_buckets": "1"
+                }
+            }""", wgName);
+        Response response = performOperation("PUT", "_wlm/workload_group", createJson);
+        assertEquals(200, response.getStatusLine().getStatusCode());
+
+        String wgId = extractWorkloadGroupId(performOperation("GET", "_wlm/workload_group/" + wgName, null));
+
+        performOperation("PUT", "wlm-buckets-enforce-idx", "{\"settings\":{\"number_of_shards\":1,\"number_of_replicas\":0}}");
+        performOperation("POST", "wlm-buckets-enforce-idx/_doc", "{\"k\":\"v1\"}");
+        performOperation("POST", "wlm-buckets-enforce-idx/_doc", "{\"k\":\"v2\"}");
+        performOperation("POST", "wlm-buckets-enforce-idx/_refresh", null);
+
+        String body = "{\"size\":0,\"aggs\":{\"by_k\":{\"terms\":{\"field\":\"k.keyword\"}}}}";
+
+        // Same query without the WLM tag passes — cluster default allows >1 bucket.
+        Request unTagged = new Request("POST", "wlm-buckets-enforce-idx/_search");
+        unTagged.setJsonEntity(body);
+        assertEquals(200, client().performRequest(unTagged).getStatusLine().getStatusCode());
+
+        // With the workload group attached, the WLM cap of 1 is enforced.
+        Request tagged = new Request("POST", "wlm-buckets-enforce-idx/_search");
+        tagged.setJsonEntity(body);
+        tagged.setOptions(tagged.getOptions().toBuilder().addHeader("workloadGroupId", wgId));
+        ResponseException rejected = expectThrows(ResponseException.class, () -> client().performRequest(tagged));
+        String rejectedBody = EntityUtils.toString(rejected.getResponse().getEntity());
+        assertTrue("expected too_many_buckets error, got: " + rejectedBody, rejectedBody.contains("too_many_buckets"));
+        assertTrue("expected limit of 1 in error, got: " + rejectedBody, rejectedBody.contains("\"max_buckets\":1"));
+
+        performOperation("DELETE", "wlm-buckets-enforce-idx", null);
+        performOperation("DELETE", "_wlm/workload_group/" + wgName, null);
+    }
+
     public void testSearchSettingsMergeSemantics() throws Exception {
         // Create with multiple settings
         String createJson = """
@@ -455,6 +499,15 @@ public class WorkloadManagementRestIT extends OpenSearchRestTestCase {
                     "memory" : %s
                 }
             }""", resiliencyMode, cpu, memory);
+    }
+
+    private static final Pattern WORKLOAD_GROUP_ID_PATTERN = Pattern.compile("\"_id\"\\s*:\\s*\"([^\"]+)\"");
+
+    private String extractWorkloadGroupId(Response response) throws Exception {
+        String body = EntityUtils.toString(response.getEntity());
+        Matcher m = WORKLOAD_GROUP_ID_PATTERN.matcher(body);
+        assertTrue("could not find _id in response: " + body, m.find());
+        return m.group(1);
     }
 
     Response performOperation(String method, String uriPath, String json) throws IOException {

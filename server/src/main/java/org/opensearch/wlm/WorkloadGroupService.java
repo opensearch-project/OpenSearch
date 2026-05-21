@@ -17,6 +17,7 @@ import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.WorkloadGroup;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
+import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
 import org.opensearch.monitor.jvm.JvmStats;
 import org.opensearch.monitor.process.ProcessProbe;
@@ -332,6 +333,18 @@ public class WorkloadGroupService extends AbstractLifecycleComponent
      */
     public WorkloadGroup getWorkloadGroupById(String workloadGroupId) {
         return clusterService.state().metadata().workloadGroups().get(workloadGroupId);
+    }
+
+    /**
+     * Resolves the workload group attached to the calling thread context, or null if there is
+     * no workload group ID header set or the referenced group does not exist.
+     */
+    public WorkloadGroup resolveFromThreadContext(ThreadContext threadContext) {
+        String workloadGroupId = threadContext.getHeader(WorkloadGroupTask.WORKLOAD_GROUP_ID_HEADER);
+        if (workloadGroupId == null) {
+            return null;
+        }
+        return getWorkloadGroupById(workloadGroupId);
     }
 
     public Set<WorkloadGroup> getDeletedWorkloadGroups() {

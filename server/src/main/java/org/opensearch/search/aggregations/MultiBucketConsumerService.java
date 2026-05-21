@@ -38,7 +38,6 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.concurrent.ThreadContext;
 import org.opensearch.core.common.breaker.CircuitBreaker;
 import org.opensearch.core.common.breaker.CircuitBreakingException;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -49,7 +48,6 @@ import org.opensearch.search.aggregations.bucket.BucketsAggregator;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.wlm.WorkloadGroupSearchSettings;
 import org.opensearch.wlm.WorkloadGroupService;
-import org.opensearch.wlm.WorkloadGroupTask;
 
 import java.io.IOException;
 import java.util.concurrent.atomic.LongAdder;
@@ -110,18 +108,10 @@ public class MultiBucketConsumerService {
      */
     int resolveMaxBuckets() {
         try {
-            if (threadPool == null || workloadGroupService == null) {
+            if (workloadGroupService == null) {
                 return maxBucket;
             }
-            ThreadContext threadContext = threadPool.getThreadContext();
-            if (threadContext == null) {
-                return maxBucket;
-            }
-            String workloadGroupId = threadContext.getHeader(WorkloadGroupTask.WORKLOAD_GROUP_ID_HEADER);
-            if (workloadGroupId == null) {
-                return maxBucket;
-            }
-            WorkloadGroup workloadGroup = workloadGroupService.getWorkloadGroupById(workloadGroupId);
+            WorkloadGroup workloadGroup = workloadGroupService.resolveFromThreadContext(threadPool.getThreadContext());
             if (workloadGroup == null) {
                 return maxBucket;
             }
