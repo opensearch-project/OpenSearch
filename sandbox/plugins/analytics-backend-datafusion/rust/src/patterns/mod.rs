@@ -34,11 +34,13 @@
 //! is enforced at unit-test time.
 
 pub mod brain;
+pub mod eval;
 pub mod preprocess;
 pub mod tokens;
 pub mod utils;
 
 pub use brain::{BrainLogParser, BrainParseStats, PatternEntry};
+pub use eval::{eval_agg, eval_field, eval_samples, AggCandidate};
 pub use preprocess::{default_delimiters, default_filter_patterns, preprocess};
 pub use tokens::PatternResult;
 pub use utils::{extract_variables, parse_pattern, ParseResult};
