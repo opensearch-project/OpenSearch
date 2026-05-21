@@ -148,6 +148,7 @@ pub async fn execute_indexed_query(
     ctx.register_udf(create_index_filter_udf());
     ctx.register_udf(crate::indexed_table::substrait_to_tree::create_delegation_possible_udf());
     crate::udf::register_all(&ctx);
+    crate::udaf::register_all(&ctx);
 
     // Register default ListingTable so substrait consumer can resolve the table
     let listing_options = datafusion::datasource::listing::ListingOptions::new(
@@ -735,6 +736,12 @@ pub async unsafe fn execute_indexed_with_context(
     log_debug!("DataFusion logical plan:\n{}", logical_plan.display_indent());
     let dataframe = ctx.execute_logical_plan(logical_plan).await?;
     let physical_plan = dataframe.create_physical_plan().await?;
+    // Retag bit-compatible Int↔UInt output mismatches to match the substrait-declared
+    // types. The target is schema_coerce::coerce_inferred_schema(physical_schema) — same
+    // narrowing the partition-stream registration uses, so consumer-side StreamingTable
+    // and producer-side batches agree by construction (see crate::relabel_exec).
+    let target_schema = crate::schema_coerce::coerce_inferred_schema(physical_plan.schema());
+    let physical_plan = crate::relabel_exec::wrap_if_relabel_needed(physical_plan, target_schema)?;
     log_debug!("DataFusion physical plan:\n{}", displayable(physical_plan.as_ref()).indent(true));
     let df_stream = execute_stream(physical_plan, ctx.task_ctx())
         .map_err(|e| DataFusionError::Execution(format!("execute_stream: {}", e)))?;

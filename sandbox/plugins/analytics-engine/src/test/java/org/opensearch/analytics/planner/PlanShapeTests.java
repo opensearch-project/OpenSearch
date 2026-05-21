@@ -60,9 +60,9 @@ public class PlanShapeTests extends PlanShapeTestBase {
                 OpenSearchProject(k=[$1], cnt=[$0], viableBackends=[[mock-parquet]])
                   OpenSearchSort(sort0=[$0], dir0=[ASC], fetch=[2], viableBackends=[[mock-parquet]])
                     OpenSearchProject(cnt=[$1], k=[$0], viableBackends=[[mock-parquet]])
-                      OpenSearchAggregate(group=[{0}], cnt=[COUNT(AGG_CALL_ANNOTATION(id=0, viableBackends=[mock-parquet]))], mode=[FINAL], viableBackends=[[mock-parquet]])
+                      OpenSearchAggregate(group=[{0}], cnt=[COUNT()], mode=[FINAL], viableBackends=[[mock-parquet]])
                         OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
-                          OpenSearchAggregate(group=[{0}], cnt=[COUNT(AGG_CALL_ANNOTATION(id=0, viableBackends=[mock-parquet]))], mode=[PARTIAL], viableBackends=[[mock-parquet]])
+                          OpenSearchAggregate(group=[{0}], cnt=[COUNT()], mode=[PARTIAL], viableBackends=[[mock-parquet]])
                             OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
                 """,
             result
@@ -81,9 +81,9 @@ public class PlanShapeTests extends PlanShapeTestBase {
                 OpenSearchProject(k=[$1], cnt=[$0], viableBackends=[[mock-parquet]])
                   OpenSearchSort(sort0=[$0], dir0=[ASC], fetch=[2], viableBackends=[[mock-parquet]])
                     OpenSearchProject(cnt=[$1], k=[$0], viableBackends=[[mock-parquet]])
-                      OpenSearchAggregate(group=[{0}], cnt=[COUNT(AGG_CALL_ANNOTATION(id=0, viableBackends=[mock-parquet]))], mode=[FINAL], viableBackends=[[mock-parquet]])
+                      OpenSearchAggregate(group=[{0}], cnt=[COUNT()], mode=[FINAL], viableBackends=[[mock-parquet]])
                         OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
-                          OpenSearchAggregate(group=[{0}], cnt=[COUNT(AGG_CALL_ANNOTATION(id=0, viableBackends=[mock-parquet]))], mode=[PARTIAL], viableBackends=[[mock-parquet]])
+                          OpenSearchAggregate(group=[{0}], cnt=[COUNT()], mode=[PARTIAL], viableBackends=[[mock-parquet]])
                             OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
                 """,
             result
@@ -105,9 +105,9 @@ public class PlanShapeTests extends PlanShapeTestBase {
                   OpenSearchProject(k=[$1], cnt=[$0], viableBackends=[[mock-parquet]])
                     OpenSearchSort(sort0=[$0], dir0=[ASC], fetch=[2], viableBackends=[[mock-parquet]])
                       OpenSearchProject(cnt=[$1], k=[$0], viableBackends=[[mock-parquet]])
-                        OpenSearchAggregate(group=[{0}], cnt=[COUNT(AGG_CALL_ANNOTATION(id=0, viableBackends=[mock-parquet]))], mode=[FINAL], viableBackends=[[mock-parquet]])
+                        OpenSearchAggregate(group=[{0}], cnt=[COUNT()], mode=[FINAL], viableBackends=[[mock-parquet]])
                           OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
-                            OpenSearchAggregate(group=[{0}], cnt=[COUNT(AGG_CALL_ANNOTATION(id=0, viableBackends=[mock-parquet]))], mode=[PARTIAL], viableBackends=[[mock-parquet]])
+                            OpenSearchAggregate(group=[{0}], cnt=[COUNT()], mode=[PARTIAL], viableBackends=[[mock-parquet]])
                               OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
                 """,
             result
@@ -155,13 +155,13 @@ public class PlanShapeTests extends PlanShapeTestBase {
         assertPlanShape(
             """
                 OpenSearchJoin(condition=[=($0, $2)], joinType=[inner], viableBackends=[[mock-parquet]])
-                  OpenSearchAggregate(group=[{0}], cnt=[COUNT(AGG_CALL_ANNOTATION(id=0, viableBackends=[mock-parquet]))], mode=[FINAL], viableBackends=[[mock-parquet]])
+                  OpenSearchAggregate(group=[{0}], cnt=[COUNT()], mode=[FINAL], viableBackends=[[mock-parquet]])
                     OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
-                      OpenSearchAggregate(group=[{0}], cnt=[COUNT(AGG_CALL_ANNOTATION(id=0, viableBackends=[mock-parquet]))], mode=[PARTIAL], viableBackends=[[mock-parquet]])
+                      OpenSearchAggregate(group=[{0}], cnt=[COUNT()], mode=[PARTIAL], viableBackends=[[mock-parquet]])
                         OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
-                  OpenSearchAggregate(group=[{0}], cnt=[COUNT(AGG_CALL_ANNOTATION(id=0, viableBackends=[mock-parquet]))], mode=[FINAL], viableBackends=[[mock-parquet]])
+                  OpenSearchAggregate(group=[{0}], cnt=[COUNT()], mode=[FINAL], viableBackends=[[mock-parquet]])
                     OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
-                      OpenSearchAggregate(group=[{0}], cnt=[COUNT(AGG_CALL_ANNOTATION(id=0, viableBackends=[mock-parquet]))], mode=[PARTIAL], viableBackends=[[mock-parquet]])
+                      OpenSearchAggregate(group=[{0}], cnt=[COUNT()], mode=[PARTIAL], viableBackends=[[mock-parquet]])
                         OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
                 """,
             result
@@ -318,13 +318,13 @@ public class PlanShapeTests extends PlanShapeTestBase {
         assertPlanShape(
             """
                 OpenSearchJoin(condition=[=($0, $2)], joinType=[inner], viableBackends=[[mock-parquet]])
-                  OpenSearchAggregate(group=[{0}], s=[SUM(AGG_CALL_ANNOTATION(id=0, viableBackends=[mock-parquet]), $1)], mode=[FINAL], viableBackends=[[mock-parquet]])
+                  OpenSearchAggregate(group=[{0}], s=[SUM($1)], mode=[FINAL], viableBackends=[[mock-parquet]])
                     OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
-                      OpenSearchAggregate(group=[{0}], s=[SUM(AGG_CALL_ANNOTATION(id=0, viableBackends=[mock-parquet]), $1)], mode=[PARTIAL], viableBackends=[[mock-parquet]])
+                      OpenSearchAggregate(group=[{0}], s=[SUM($1)], mode=[PARTIAL], viableBackends=[[mock-parquet]])
                         OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
-                  OpenSearchAggregate(group=[{1}], s=[SUM(AGG_CALL_ANNOTATION(id=1, viableBackends=[mock-parquet]), $0)], mode=[FINAL], viableBackends=[[mock-parquet]])
+                  OpenSearchAggregate(group=[{1}], s=[SUM($0)], mode=[FINAL], viableBackends=[[mock-parquet]])
                     OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
-                      OpenSearchAggregate(group=[{1}], s=[SUM(AGG_CALL_ANNOTATION(id=1, viableBackends=[mock-parquet]), $0)], mode=[PARTIAL], viableBackends=[[mock-parquet]])
+                      OpenSearchAggregate(group=[{1}], s=[SUM($0)], mode=[PARTIAL], viableBackends=[[mock-parquet]])
                         OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
                 """,
             result
@@ -337,16 +337,13 @@ public class PlanShapeTests extends PlanShapeTestBase {
         // root demand is satisfied by the SHARD+SINGLETON output of the Join — no top ER.
         RelNode plan = buildJoinWithDifferentGroupKeys();
         RelNode result = runPlanner(plan, singleShardContext());
-        assertPlanShape(
-            """
-                OpenSearchJoin(condition=[=($0, $2)], joinType=[inner], viableBackends=[[mock-parquet]])
-                  OpenSearchAggregate(group=[{0}], s=[SUM(AGG_CALL_ANNOTATION(id=0, viableBackends=[mock-parquet]), $1)], mode=[SINGLE], viableBackends=[[mock-parquet]])
-                    OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
-                  OpenSearchAggregate(group=[{1}], s=[SUM(AGG_CALL_ANNOTATION(id=1, viableBackends=[mock-parquet]), $0)], mode=[SINGLE], viableBackends=[[mock-parquet]])
-                    OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
-                """,
-            result
-        );
+        assertPlanShape("""
+            OpenSearchJoin(condition=[=($0, $2)], joinType=[inner], viableBackends=[[mock-parquet]])
+              OpenSearchAggregate(group=[{0}], s=[SUM($1)], mode=[SINGLE], viableBackends=[[mock-parquet]])
+                OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
+              OpenSearchAggregate(group=[{1}], s=[SUM($0)], mode=[SINGLE], viableBackends=[[mock-parquet]])
+                OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
+            """, result);
     }
 
     // testJoinMixedShards_* removed — covered by JoinPlanShapeTests
@@ -368,13 +365,13 @@ public class PlanShapeTests extends PlanShapeTestBase {
         assertPlanShape(
             """
                 OpenSearchUnion(all=[true], viableBackends=[[mock-parquet]])
-                  OpenSearchAggregate(group=[{0}], cnt=[COUNT(AGG_CALL_ANNOTATION(id=0, viableBackends=[mock-parquet]))], mode=[FINAL], viableBackends=[[mock-parquet]])
+                  OpenSearchAggregate(group=[{0}], cnt=[COUNT()], mode=[FINAL], viableBackends=[[mock-parquet]])
                     OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
-                      OpenSearchAggregate(group=[{0}], cnt=[COUNT(AGG_CALL_ANNOTATION(id=0, viableBackends=[mock-parquet]))], mode=[PARTIAL], viableBackends=[[mock-parquet]])
+                      OpenSearchAggregate(group=[{0}], cnt=[COUNT()], mode=[PARTIAL], viableBackends=[[mock-parquet]])
                         OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
-                  OpenSearchAggregate(group=[{0}], cnt=[COUNT(AGG_CALL_ANNOTATION(id=0, viableBackends=[mock-parquet]))], mode=[FINAL], viableBackends=[[mock-parquet]])
+                  OpenSearchAggregate(group=[{0}], cnt=[COUNT()], mode=[FINAL], viableBackends=[[mock-parquet]])
                     OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
-                      OpenSearchAggregate(group=[{0}], cnt=[COUNT(AGG_CALL_ANNOTATION(id=0, viableBackends=[mock-parquet]))], mode=[PARTIAL], viableBackends=[[mock-parquet]])
+                      OpenSearchAggregate(group=[{0}], cnt=[COUNT()], mode=[PARTIAL], viableBackends=[[mock-parquet]])
                         OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
                 """,
             result
@@ -387,16 +384,13 @@ public class PlanShapeTests extends PlanShapeTestBase {
         // (locality-agnostic SINGLETON) is satisfied directly — no top ER.
         RelNode union = buildUnionOfTwoStatsArms("test_index");
         RelNode result = runPlanner(union, unionContextSingleIndex("test_index", 1));
-        assertPlanShape(
-            """
-                OpenSearchUnion(all=[true], viableBackends=[[mock-parquet]])
-                  OpenSearchAggregate(group=[{0}], cnt=[COUNT(AGG_CALL_ANNOTATION(id=0, viableBackends=[mock-parquet]))], mode=[SINGLE], viableBackends=[[mock-parquet]])
-                    OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
-                  OpenSearchAggregate(group=[{0}], cnt=[COUNT(AGG_CALL_ANNOTATION(id=0, viableBackends=[mock-parquet]))], mode=[SINGLE], viableBackends=[[mock-parquet]])
-                    OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
-                """,
-            result
-        );
+        assertPlanShape("""
+            OpenSearchUnion(all=[true], viableBackends=[[mock-parquet]])
+              OpenSearchAggregate(group=[{0}], cnt=[COUNT()], mode=[SINGLE], viableBackends=[[mock-parquet]])
+                OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
+              OpenSearchAggregate(group=[{0}], cnt=[COUNT()], mode=[SINGLE], viableBackends=[[mock-parquet]])
+                OpenSearchTableScan(table=[[test_index]], viableBackends=[[mock-parquet]])
+            """, result);
     }
 
     // testUnion_twoArmsDifferentIndices_* removed — covered by UnionPlanShapeTests
@@ -422,7 +416,7 @@ public class PlanShapeTests extends PlanShapeTestBase {
         RelNode result = runPlanner(plan, perIndexContext(Map.of("left_idx", 2, "right_idx", 2)));
         assertPlanShape(
             """
-                OpenSearchAggregate(group=[{0}], cnt=[COUNT(AGG_CALL_ANNOTATION(id=0, viableBackends=[mock-parquet]))], mode=[SINGLE], viableBackends=[[mock-parquet]])
+                OpenSearchAggregate(group=[{0}], cnt=[COUNT()], mode=[SINGLE], viableBackends=[[mock-parquet]])
                   OpenSearchJoin(condition=[=($0, $2)], joinType=[inner], viableBackends=[[mock-parquet]])
                     OpenSearchExchangeReducer(viableBackends=[[mock-parquet]], exchange=[ExchangeInfo[distributionType=SINGLETON, partitionKeyIndices=[]]])
                       OpenSearchTableScan(table=[[left_idx]], viableBackends=[[mock-parquet]])

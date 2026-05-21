@@ -133,6 +133,7 @@ pub async unsafe fn create_session_context(
     // Without this, fragment execution fails with "Unsupported function name" because
     // df_execute_with_context reuses this handle's ctx instead of building a fresh one.
     crate::udf::register_all(&ctx);
+    crate::udaf::register_all(&ctx);
 
     // Register default ListingTable for parquet scans.
     let listing_options = ListingOptions::new(Arc::new(ParquetFormat::default()))
@@ -252,6 +253,8 @@ pub async fn prepare_partial_plan(
     let logical_plan = from_substrait_plan(&handle.ctx.state(), &plan).await?;
     let dataframe = handle.ctx.execute_logical_plan(logical_plan).await?;
     let physical_plan = dataframe.create_physical_plan().await?;
+    let target_schema = crate::schema_coerce::coerce_inferred_schema(physical_plan.schema());
+    let physical_plan = crate::relabel_exec::wrap_if_relabel_needed(physical_plan, target_schema)?;
     let stripped = crate::agg_mode::apply_aggregate_mode(physical_plan, crate::agg_mode::Mode::Partial)?;
     handle.prepared_plan = Some(stripped);
     Ok(())
