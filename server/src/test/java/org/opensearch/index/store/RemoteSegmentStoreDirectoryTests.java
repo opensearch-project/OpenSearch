@@ -608,13 +608,7 @@ public class RemoteSegmentStoreDirectoryTests extends BaseRemoteSegmentStoreDire
             new HashMap<>()
         );
         when(
-            remoteSegmentStoreDirectoryFactory.newDirectory(
-                any(),
-                any(),
-                any(),
-                any(),
-                nullable(org.opensearch.cluster.metadata.IndexMetadata.class)
-            )
+            remoteSegmentStoreDirectoryFactory.newDirectory(any(), any(), any(), any(), nullable(String.class), eq(false), eq(false), any())
         ).thenReturn(remoteSegmentDirectory);
         String repositoryName = "test-repository";
         String indexUUID = "test-idx-uuid";
@@ -638,7 +632,10 @@ public class RemoteSegmentStoreDirectoryTests extends BaseRemoteSegmentStoreDire
             indexUUID,
             shardId,
             pathStrategy,
-            (org.opensearch.cluster.metadata.IndexMetadata) null
+            null,
+            false,
+            false,
+            (org.opensearch.index.IndexSettings) null
         );
         verify(threadPool, times(0)).executor(ThreadPool.Names.REMOTE_PURGE);
         verify(remoteMetadataDirectory).delete();

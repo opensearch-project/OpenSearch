@@ -36,8 +36,10 @@ import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.io.VersionedCodecStreamWrapper;
 import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.lucene.store.ByteArrayIndexInput;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.index.shard.ShardId;
+import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 import org.opensearch.index.engine.exec.coord.LuceneVersionConverter;
 import org.opensearch.index.remote.RemoteStorePathStrategy;
@@ -1361,12 +1363,16 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
         IndexMetadata indexMetadata
     ) {
         try {
+            IndexSettings indexSettings = indexMetadata != null ? new IndexSettings(indexMetadata, Settings.EMPTY) : null;
             RemoteSegmentStoreDirectory remoteSegmentStoreDirectory = (RemoteSegmentStoreDirectory) remoteDirectoryFactory.newDirectory(
                 remoteStoreRepoForIndex,
                 indexUUID,
                 shardId,
                 pathStrategy,
-                indexMetadata
+                null,    // indexFixedPrefix
+                false,   // isServerSideEncryptionEnabled
+                false,   // isWarmIndex
+                indexSettings
             );
             if (forceClean) {
                 remoteSegmentStoreDirectory.delete();
