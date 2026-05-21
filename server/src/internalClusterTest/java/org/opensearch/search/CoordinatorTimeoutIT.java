@@ -62,6 +62,7 @@ public class CoordinatorTimeoutIT extends ParameterizedStaticSettingsOpenSearchI
     public void testTimeoutDuringQueryPhase() throws Exception {
         int dataNumber = internalCluster().numDataNodes();
         createIndex("test", Settings.builder().put("index.number_of_shards", dataNumber).put("index.number_of_replicas", 0).build());
+        ensureGreen("test");
 
         List<ScriptedBlockPlugin> plugins = initBlockFactory();
         indexTestData();
@@ -73,7 +74,7 @@ public class CoordinatorTimeoutIT extends ParameterizedStaticSettingsOpenSearchI
             .execute();
         awaitForBlock(plugins);
         logger.info("begin to sleep for " + coordinatorTimeout.getMillis() + " ms");
-        Thread.sleep(coordinatorTimeout.getMillis() + 100);
+        sleepForAtLeast(coordinatorTimeout.getMillis());
         logger.info("wake up");
         disableBlocks(plugins);
         SearchResponse searchResponse = searchResponseFuture.get();
@@ -86,6 +87,7 @@ public class CoordinatorTimeoutIT extends ParameterizedStaticSettingsOpenSearchI
     public void testMSearchChildRequestTimeout() throws Exception {
         int dataNumber = internalCluster().numDataNodes();
         createIndex("test", Settings.builder().put("index.number_of_shards", dataNumber).put("index.number_of_replicas", 0).build());
+        ensureGreen("test");
 
         List<ScriptedBlockPlugin> plugins = initBlockFactory();
         indexTestData();
@@ -111,7 +113,7 @@ public class CoordinatorTimeoutIT extends ParameterizedStaticSettingsOpenSearchI
             )
             .execute();
         awaitForBlock(plugins);
-        Thread.sleep(coordinatorTimeout.getMillis() + 100);
+        sleepForAtLeast(coordinatorTimeout.getMillis());
         // unblock the search thread
         disableBlocks(plugins);
         // one child request is expected to fail

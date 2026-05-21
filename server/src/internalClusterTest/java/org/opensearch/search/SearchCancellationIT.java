@@ -44,7 +44,6 @@ import org.opensearch.action.search.SearchPhaseExecutionException;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.action.search.SearchScrollAction;
 import org.opensearch.action.search.ShardSearchFailure;
-import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.action.ActionFuture;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
@@ -559,16 +558,5 @@ public class SearchCancellationIT extends ParameterizedStaticSettingsOpenSearchI
         expectedFailedRequests.add(0);
         expectedFailedRequests.add(2);
         ensureMSearchWasCancelled(mSearchResponse, expectedFailedRequests);
-    }
-
-    /**
-     * Sleeps for the specified number of milliseconds plus a 100ms buffer to account for system timer/scheduler inaccuracies.
-     *
-     * @param milliseconds The minimum time to sleep
-     * @throws InterruptedException if interrupted during sleep
-     */
-    @SuppressForbidden(reason = "Waiting longer than timeout")
-    private static void sleepForAtLeast(long milliseconds) throws InterruptedException {
-        Thread.sleep(milliseconds + 100L);
     }
 }

@@ -11,6 +11,7 @@ package org.opensearch.test;
 import org.apache.logging.log4j.LogManager;
 import org.opensearch.action.bulk.BulkRequestBuilder;
 import org.opensearch.action.support.WriteRequest;
+import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.script.MockScriptPlugin;
@@ -136,7 +137,6 @@ public abstract class ParameterizedStaticSettingsOpenSearchIntegTestCase extends
         }
     }
 
-
     protected void awaitForBlock(List<ScriptedBlockPlugin> plugins) throws Exception {
         int numberOfShards = getNumShards("test").numPrimaries;
         assertBusy(() -> {
@@ -153,5 +153,16 @@ public abstract class ParameterizedStaticSettingsOpenSearchIntegTestCase extends
         for (ScriptedBlockPlugin plugin : plugins) {
             plugin.disableBlock();
         }
+    }
+
+    /**
+     * Sleeps for the specified number of milliseconds plus a 100ms buffer to account for system timer/scheduler inaccuracies.
+     *
+     * @param milliseconds The minimum time to sleep
+     * @throws InterruptedException if interrupted during sleep
+     */
+    @SuppressForbidden(reason = "Waiting longer than timeout")
+    protected static void sleepForAtLeast(long milliseconds) throws InterruptedException {
+        Thread.sleep(milliseconds + 100L);
     }
 }

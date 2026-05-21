@@ -359,7 +359,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
             }
             if (source.timeout() != null && coordinatorTimeout != null && source.timeout().compareTo(coordinatorTimeout) < 0) {
                 validationException = addValidationError(
-                    "coordinatorTimeout [" + coordinatorTimeout + "] must be smaller than timeout [" + source.timeout() + "]",
+                    "timeout [" + source.timeout() + "] must be smaller than coordinatorTimeout [" + coordinatorTimeout + "]",
                     validationException
                 );
 
@@ -367,7 +367,10 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         }
 
         if (coordinatorTimeout != null && allowPartialSearchResults == false) {
-            throw new IllegalArgumentException("coordinator_timeout is not supported when allow_partial_search_results is false");
+            validationException = addValidationError(
+                "coordinator_timeout is not supported when allow_partial_search_results is false",
+                validationException
+            );
         }
 
         if (pointInTimeBuilder() != null) {
