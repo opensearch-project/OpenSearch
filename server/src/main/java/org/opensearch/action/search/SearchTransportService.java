@@ -39,6 +39,7 @@ import org.opensearch.action.support.ChannelActionListener;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.StreamInput;
@@ -172,7 +173,7 @@ public class SearchTransportService {
             CREATE_READER_CONTEXT_ACTION_NAME,
             request,
             task,
-            TransportRequestOptions.EMPTY,
+            getTransportRequestOptions(task.getCoordinatorTimeout()),
             new ActionListenerResponseHandler<>(actionListener, TransportCreatePitAction.CreateReaderContextResponse::new)
         );
     }
@@ -188,7 +189,7 @@ public class SearchTransportService {
             QUERY_CAN_MATCH_NAME,
             request,
             task,
-            TransportRequestOptions.EMPTY,
+            getTransportRequestOptions(task.getCoordinatorTimeout()),
             new ActionListenerResponseHandler<>(listener, SearchService.CanMatchResponse::new)
         );
     }
@@ -228,6 +229,7 @@ public class SearchTransportService {
             DFS_ACTION_NAME,
             request,
             task,
+            getTransportRequestOptions(task.getCoordinatorTimeout()),
             new ConnectionCountingHandler<>(listener, DfsSearchResult::new, clientConnections, connection.getNode().getId())
         );
     }
@@ -249,6 +251,7 @@ public class SearchTransportService {
             QUERY_ACTION_NAME,
             request,
             task,
+            getTransportRequestOptions(task.getCoordinatorTimeout()),
             new ConnectionCountingHandler<>(handler, reader, clientConnections, connection.getNode().getId())
         );
     }
@@ -264,6 +267,7 @@ public class SearchTransportService {
             QUERY_ID_ACTION_NAME,
             request,
             task,
+            getTransportRequestOptions(task.getCoordinatorTimeout()),
             new ConnectionCountingHandler<>(listener, QuerySearchResult::new, clientConnections, connection.getNode().getId())
         );
     }
@@ -279,6 +283,7 @@ public class SearchTransportService {
             QUERY_SCROLL_ACTION_NAME,
             request,
             task,
+            getTransportRequestOptions(task.getCoordinatorTimeout()),
             new ConnectionCountingHandler<>(listener, ScrollQuerySearchResult::new, clientConnections, connection.getNode().getId())
         );
     }
@@ -328,6 +333,7 @@ public class SearchTransportService {
             action,
             request,
             task,
+            getTransportRequestOptions(task.getCoordinatorTimeout()),
             new ConnectionCountingHandler<>(listener, FetchSearchResult::new, clientConnections, connection.getNode().getId())
         );
     }
@@ -342,8 +348,17 @@ public class SearchTransportService {
             MultiSearchAction.NAME,
             request,
             task,
+            getTransportRequestOptions(task.getCoordinatorTimeout()),
             new ConnectionCountingHandler<>(listener, MultiSearchResponse::new, clientConnections, connection.getNode().getId())
         );
+    }
+
+    static TransportRequestOptions getTransportRequestOptions(TimeValue coordinatorTimeout) {
+        if (coordinatorTimeout != null) {
+            return TransportRequestOptions.builder().withTimeout(coordinatorTimeout).build();
+        } else {
+            return TransportRequestOptions.EMPTY;
+        }
     }
 
     public RemoteClusterService getRemoteClusterService() {

@@ -53,6 +53,7 @@ public class SearchTask extends WorkloadGroupTask implements SearchBackpressureT
     // generating description in a lazy way since source can be quite big
     private final Supplier<String> descriptionSupplier;
     private SearchProgressListener progressListener = SearchProgressListener.NOOP;
+    private final TimeValue coordinatorTimeout;
 
     public SearchTask(
         long id,
@@ -62,9 +63,10 @@ public class SearchTask extends WorkloadGroupTask implements SearchBackpressureT
         TaskId parentTaskId,
         Map<String, String> headers
     ) {
-        this(id, type, action, descriptionSupplier, parentTaskId, headers, NO_TIMEOUT);
+        this(id, type, action, descriptionSupplier, parentTaskId, headers, NO_TIMEOUT, null);
     }
 
+    @Deprecated
     public SearchTask(
         long id,
         String type,
@@ -76,6 +78,22 @@ public class SearchTask extends WorkloadGroupTask implements SearchBackpressureT
     ) {
         super(id, type, action, null, parentTaskId, headers, cancelAfterTimeInterval);
         this.descriptionSupplier = descriptionSupplier;
+        this.coordinatorTimeout = null;
+    }
+
+    public SearchTask(
+        long id,
+        String type,
+        String action,
+        Supplier<String> descriptionSupplier,
+        TaskId parentTaskId,
+        Map<String, String> headers,
+        TimeValue cancelAfterTimeInterval,
+        TimeValue coordinatorTimeout
+    ) {
+        super(id, type, action, null, parentTaskId, headers, cancelAfterTimeInterval);
+        this.descriptionSupplier = descriptionSupplier;
+        this.coordinatorTimeout = coordinatorTimeout;
     }
 
     @Override
@@ -105,5 +123,9 @@ public class SearchTask extends WorkloadGroupTask implements SearchBackpressureT
     @Override
     public boolean shouldCancelChildrenOnCancellation() {
         return true;
+    }
+
+    public TimeValue getCoordinatorTimeout() {
+        return coordinatorTimeout;
     }
 }

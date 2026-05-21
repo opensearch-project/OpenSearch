@@ -281,6 +281,8 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
                                 searchRequest.setCancelAfterTimeInterval(nodeTimeValue(value, null));
                             } else if ("phase_took".equals(entry.getKey())) {
                                 searchRequest.setPhaseTook(nodeBooleanValue(value));
+                            } else if ("coordinator_timeout".equals(entry.getKey())) {
+                                searchRequest.setCoordinatorTimeout(nodeTimeValue(value));
                             } else {
                                 throw new IllegalArgumentException("key [" + entry.getKey() + "] is not supported in the metadata section");
                             }
@@ -384,6 +386,9 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
         }
         if (request.isPhaseTook() != null) {
             xContentBuilder.field("phase_took", request.isPhaseTook());
+        }
+        if (request.getCoordinatorTimeout() != null) {
+            xContentBuilder.field("coordinator_timeout", request.getCoordinatorTimeout().getStringRep());
         }
         xContentBuilder.endObject();
     }
