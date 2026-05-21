@@ -73,6 +73,33 @@ class SubstraitPlanRewriter {
             );
         }
 
+        // Rewrite expressions inside project expressions (where literals often appear)
+        @Override
+        public Optional<Rel> visit(io.substrait.relation.Project project, EmptyVisitationContext ctx) {
+            Optional<Rel> newInput = project.getInput().accept(this, ctx);
+            java.util.List<Expression> oldExpressions = project.getExpressions();
+            java.util.List<Expression> newExpressions = null;
+            boolean changed = false;
+            for (int i = 0; i < oldExpressions.size(); i++) {
+                Optional<Expression> rewritten = oldExpressions.get(i).accept(expressionVisitor, ctx);
+                if (rewritten.isPresent()) {
+                    if (newExpressions == null) {
+                        newExpressions = new java.util.ArrayList<>(oldExpressions);
+                    }
+                    newExpressions.set(i, rewritten.get());
+                    changed = true;
+                }
+            }
+            if (newInput.isEmpty() && !changed) return Optional.empty();
+            return Optional.of(
+                io.substrait.relation.Project.builder()
+                    .from(project)
+                    .input(newInput.orElse(project.getInput()))
+                    .expressions(newExpressions != null ? newExpressions : oldExpressions)
+                    .build()
+            );
+        }
+
     }
 
     /**
@@ -99,6 +126,17 @@ class SubstraitPlanRewriter {
                 );
             }
             return Optional.empty();
+        }
+
+        // Convert VarCharLiteral to StrLiteral — DataFusion 53.1.0's Substrait consumer
+        // does not support VarChar literals (errors with "Unsupported literal_type: Some(VarChar(...))").
+        // VARCHAR and STRING are semantically identical for literals (both represent UTF-8 strings);
+        // only the type system distinguishes them via length constraints. Rewriting VarCharLiteral →
+        // StrLiteral preserves value and nullability while making the plan consumable by DataFusion.
+        // Affects: AddTotals label parameters, Chart/Trendline string options, CASE string constants.
+        @Override
+        public Optional<Expression> visit(Expression.VarCharLiteral vcl, EmptyVisitationContext ctx) {
+            return Optional.of(ImmutableExpression.StrLiteral.builder().value(vcl.value()).nullable(vcl.nullable()).build());
         }
     }
 
