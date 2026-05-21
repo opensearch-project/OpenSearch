@@ -144,10 +144,7 @@ public class PlannerImpl {
             RelNode withCorrelates = planner.findBestExp();
             // RexSubQuery removal introduces LogicalCorrelate; decorrelate back to a
             // straight join shape that the marking + capability rules already handle.
-            return RelDecorrelator.decorrelateQuery(
-                withCorrelates,
-                RelBuilder.proto(Contexts.empty()).create(input.getCluster(), null)
-            );
+            return RelDecorrelator.decorrelateQuery(withCorrelates, RelBuilder.proto(Contexts.empty()).create(input.getCluster(), null));
         } finally {
             if (listener != null) listener.endPhase("subquery-remove");
         }

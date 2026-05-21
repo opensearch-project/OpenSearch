@@ -9,9 +9,9 @@
 package org.opensearch.analytics.planner;
 
 import org.apache.calcite.plan.RelOptUtil;
+import org.apache.calcite.rel.RelHomogeneousShuttle;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.RelShuttle;
-import org.apache.calcite.rel.RelHomogeneousShuttle;
 import org.apache.calcite.rex.RexShuttle;
 import org.apache.calcite.rex.RexSubQuery;
 import org.opensearch.cluster.ClusterState;
@@ -34,10 +34,7 @@ public class SubQueryPlanShapeTests extends PlanShapeTestBase {
     /** Uncorrelated EXISTS: {@code SELECT * FROM test_index WHERE EXISTS (SELECT 1 FROM test_index)}. */
     public void testUncorrelatedExistsSubqueryIsLowered() {
         ClusterState parserState = SqlPlannerTestFixture.clusterStateWith("test_index", intFields());
-        RelNode parsed = SqlPlannerTestFixture.parseSql(
-            "SELECT * FROM test_index WHERE EXISTS (SELECT 1 FROM test_index)",
-            parserState
-        );
+        RelNode parsed = SqlPlannerTestFixture.parseSql("SELECT * FROM test_index WHERE EXISTS (SELECT 1 FROM test_index)", parserState);
         assertContainsSubQuery("Pre-condition: parsed plan must carry the EXISTS RexSubQuery", parsed);
 
         RelNode result = runPlanner(parsed, singleShardContext());
@@ -54,8 +51,7 @@ public class SubQueryPlanShapeTests extends PlanShapeTestBase {
     public void testCorrelatedExistsSubqueryIsLowered() {
         ClusterState parserState = SqlPlannerTestFixture.clusterStateWith("test_index", intFields());
         RelNode parsed = SqlPlannerTestFixture.parseSql(
-            "SELECT * FROM test_index t WHERE EXISTS"
-                + " (SELECT 1 FROM test_index s WHERE s.status = t.status)",
+            "SELECT * FROM test_index t WHERE EXISTS" + " (SELECT 1 FROM test_index s WHERE s.status = t.status)",
             parserState
         );
         assertContainsSubQuery("Pre-condition: parsed plan must carry the EXISTS RexSubQuery", parsed);
@@ -102,7 +98,7 @@ public class SubQueryPlanShapeTests extends PlanShapeTestBase {
     }
 
     private static boolean findSubQuery(RelNode plan) {
-        boolean[] found = {false};
+        boolean[] found = { false };
         RexShuttle rexFinder = new RexShuttle() {
             @Override
             public org.apache.calcite.rex.RexNode visitSubQuery(RexSubQuery sub) {
