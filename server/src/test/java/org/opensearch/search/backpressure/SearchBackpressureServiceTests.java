@@ -708,16 +708,17 @@ public class SearchBackpressureServiceTests extends OpenSearchTestCase {
     }
 
     /**
-     * When no analytics backend is installed, getTrackers() must register the CPU tracker. When a backend
-     * registers a snapshot supplier (the proxy for "analytics backend present"), the CPU tracker must be
-     * skipped at construction so it doesn't show up in stats and doesn't fire on JVM-thread CPU numbers
-     * that are no longer meaningful.
+     * CPU and native trackers are mutually exclusive at install time:
+     * {@code isNativeTrackingSupported()} → install native, otherwise install CPU.
+     * Exactly one of the two is in {@code TaskResourceUsageTrackers}, never both, never neither.
+     * This invariant holds across Linux/non-Linux: on macOS test hosts the predicate is false
+     * (Linux-only signal) so CPU is always installed regardless of supplier installation.
      */
-    public void testGetTrackersSkipsCpuTrackerWhenAnalyticsBackendInstalled() {
+    public void testGetTrackersInstallsExactlyOneOfCpuOrNative() {
         try {
             ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
 
-            // Baseline: no backend installed -> CPU tracker present.
+            // No backend installed.
             org.opensearch.search.backpressure.NativeMemoryUsageService.getInstance().resetForTesting();
             TaskResourceUsageTrackers withoutBackend = SearchBackpressureService.getTrackers(
                 () -> 1L,
@@ -729,10 +730,15 @@ public class SearchBackpressureServiceTests extends OpenSearchTestCase {
                 clusterSettings,
                 SearchTaskSettings.SETTING_HEAP_MOVING_AVERAGE_WINDOW_SIZE
             );
+            assertCpuXorNative(withoutBackend);
+            // Without the backend's snapshot supplier installed, native cannot be supported on
+            // any platform (the Linux + provider + physMem gate fails on the provider check).
+            // CPU must be the one that's installed.
             assertTrue(
                 "CPU tracker must be installed when no analytics backend is present",
                 withoutBackend.getTracker(TaskResourceUsageTrackerType.CPU_USAGE_TRACKER).isPresent()
             );
+            assertFalse(withoutBackend.getTracker(TaskResourceUsageTrackerType.NATIVE_MEMORY_USAGE_TRACKER).isPresent());
 
             // Install a snapshot supplier — same proxy a real backend would set.
             org.opensearch.search.backpressure.NativeMemoryUsageService.getInstance().setSnapshotSupplier(Collections::emptyMap);
@@ -746,15 +752,18 @@ public class SearchBackpressureServiceTests extends OpenSearchTestCase {
                 clusterSettings,
                 SearchTaskSettings.SETTING_HEAP_MOVING_AVERAGE_WINDOW_SIZE
             );
-            assertFalse(
-                "CPU tracker must NOT be installed when an analytics backend is present",
-                withBackend.getTracker(TaskResourceUsageTrackerType.CPU_USAGE_TRACKER).isPresent()
-            );
-            // ElapsedTime is always installed — sanity check that getTrackers() didn't simply return empty.
+            // Mutual exclusion still holds; which one wins depends on the platform.
+            assertCpuXorNative(withBackend);
             assertTrue(withBackend.getTracker(TaskResourceUsageTrackerType.ELAPSED_TIME_TRACKER).isPresent());
         } finally {
             org.opensearch.search.backpressure.NativeMemoryUsageService.getInstance().resetForTesting();
         }
+    }
+
+    private static void assertCpuXorNative(TaskResourceUsageTrackers trackers) {
+        boolean cpu = trackers.getTracker(TaskResourceUsageTrackerType.CPU_USAGE_TRACKER).isPresent();
+        boolean native_ = trackers.getTracker(TaskResourceUsageTrackerType.NATIVE_MEMORY_USAGE_TRACKER).isPresent();
+        assertTrue("exactly one of CPU/native trackers must be installed (cpu=" + cpu + ", native=" + native_ + ")", cpu ^ native_);
     }
 
     private TaskResourceUsageTracker getMockedTaskResourceUsageTracker(

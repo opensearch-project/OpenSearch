@@ -60,7 +60,6 @@ import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
-import static org.opensearch.search.backpressure.trackers.CpuUsageTracker.isCpuTrackingSupported;
 import static org.opensearch.search.backpressure.trackers.HeapUsageTracker.isHeapTrackingSupported;
 import static org.opensearch.search.backpressure.trackers.NativeMemoryUsageTracker.isNativeTrackingSupported;
 
@@ -73,20 +72,23 @@ import static org.opensearch.search.backpressure.trackers.NativeMemoryUsageTrack
 public class SearchBackpressureService extends AbstractLifecycleComponent implements TaskCompletionListener {
     private static final Logger logger = LogManager.getLogger(SearchBackpressureService.class);
     // Tracker-apply rules (each tracker decides independently via this map):
-    // - CPU tracker fires when CPU is in duress AND CPU tracking is supported (no analytics
-    // backend has taken over execution; see CpuUsageTracker.isCpuTrackingSupported).
+    // - CPU tracker fires when CPU is in duress. CPU and native trackers are mutually
+    // exclusive at install time (see getTrackers): when isNativeTrackingSupported()
+    // we install the native tracker, otherwise we install CPU. The map predicates only
+    // gate on duress; addResourceTrackerBasedCancellations is a no-op for any
+    // tracker that wasn't installed (Optional.ifPresent in TaskResourceUsageTrackers).
     // - Heap tracker fires when heap is in duress (and heap tracking is supported).
     // - Elapsed-time tracker always fires.
     // - Native-memory tracker fires when native memory is in duress (and tracking is supported).
     //
     // When native-memory duress is active, doRun() bypasses the heap-dominance gate so all
     // in-flight tasks become cancellation candidates (off-heap pressure is invisible to heap
-    // metrics). If CPU or heap are ALSO in duress simultaneously, their trackers will fire
-    // too — that is intentional: multiple resource pressures compound, and each tracker
-    // independently contributes cancellation reasons that are merged before execution.
+    // metrics). If heap is ALSO in duress simultaneously, its tracker will fire too —
+    // multiple resource pressures compound, and each tracker independently contributes
+    // cancellation reasons that are merged before execution.
     private static final Map<TaskResourceUsageTrackerType, Function<NodeDuressTrackers, Boolean>> trackerApplyConditions = Map.of(
         TaskResourceUsageTrackerType.CPU_USAGE_TRACKER,
-        (nodeDuressTrackers) -> isCpuTrackingSupported() && nodeDuressTrackers.isResourceInDuress(ResourceType.CPU),
+        (nodeDuressTrackers) -> nodeDuressTrackers.isResourceInDuress(ResourceType.CPU),
         TaskResourceUsageTrackerType.HEAP_USAGE_TRACKER,
         (nodeDuressTrackers) -> isHeapTrackingSupported() && nodeDuressTrackers.isResourceInDuress(ResourceType.MEMORY),
         TaskResourceUsageTrackerType.ELAPSED_TIME_TRACKER,
@@ -428,10 +430,13 @@ public class SearchBackpressureService extends AbstractLifecycleComponent implem
         Setting<Integer> windowSizeSetting
     ) {
         TaskResourceUsageTrackers trackers = new TaskResourceUsageTrackers();
-        if (isCpuTrackingSupported()) {
-            trackers.addTracker(new CpuUsageTracker(cpuThresholdSupplier), TaskResourceUsageTrackerType.CPU_USAGE_TRACKER);
+        if (isNativeTrackingSupported()) {
+            trackers.addTracker(
+                new NativeMemoryUsageTracker(nativeMemoryPercentThresholdSupplier),
+                TaskResourceUsageTrackerType.NATIVE_MEMORY_USAGE_TRACKER
+            );
         } else {
-            logger.info("cpu usage tracking disabled — analytics backend installed; native-memory tracker takes over");
+            trackers.addTracker(new CpuUsageTracker(cpuThresholdSupplier), TaskResourceUsageTrackerType.CPU_USAGE_TRACKER);
         }
         if (isHeapTrackingSupported()) {
             trackers.addTracker(
@@ -451,14 +456,6 @@ public class SearchBackpressureService extends AbstractLifecycleComponent implem
             new ElapsedTimeTracker(ElapsedTimeNanosSupplier, System::nanoTime),
             TaskResourceUsageTrackerType.ELAPSED_TIME_TRACKER
         );
-        if (isNativeTrackingSupported()) {
-            trackers.addTracker(
-                new NativeMemoryUsageTracker(nativeMemoryPercentThresholdSupplier),
-                TaskResourceUsageTrackerType.NATIVE_MEMORY_USAGE_TRACKER
-            );
-        } else {
-            logger.warn("native memory tracking not supported on this platform");
-        }
         return trackers;
     }
 

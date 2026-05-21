@@ -57,13 +57,13 @@ public class AnalyticsQueryTask extends SearchTask {
         this.cancelAfterTimeInterval = cancelAfterTimeInterval;
     }
 
+    public AnalyticsQueryTask(long id, String type, String action, String queryId, TaskId parentTaskId, Map<String, String> headers) {
+        this(id, type, action, queryId, parentTaskId, headers, null);
+    }
+
     @Override
     public boolean shouldCancelChildrenOnCancellation() {
         return true;
-    }
-
-    public AnalyticsQueryTask(long id, String type, String action, String queryId, TaskId parentTaskId, Map<String, String> headers) {
-        this(id, type, action, queryId, parentTaskId, headers, null);
     }
 
     public String getQueryId() {

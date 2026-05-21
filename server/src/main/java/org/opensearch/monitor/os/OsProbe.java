@@ -238,18 +238,6 @@ public class OsProbe {
     }
 
     /**
-     * Reads the contents of {@code /proc/self/status} as a list of lines, one per key.
-     * Package-private so tests can override with a synthetic file layout.
-     *
-     * @return the lines from {@code /proc/self/status}
-     * @throws IOException if an I/O exception occurs reading the file
-     */
-    @SuppressForbidden(reason = "access /proc/self/status")
-    List<String> readProcSelfStatus() throws IOException {
-        return Files.readAllLines(PathUtils.get("/proc/self/status"));
-    }
-
-    /**
      * Reads the {@code RssAnon} field (anonymous resident memory) of the current process from
      * {@code /proc/self/status} and returns it in bytes. Returns {@code -1L} when the host is
      * not Linux, when {@code /proc/self/status} cannot be read, or when the {@code RssAnon:}
@@ -268,6 +256,18 @@ public class OsProbe {
             logger.warn("failed to read /proc/self/status", e);
             return -1L;
         }
+    }
+
+    /**
+     * Reads the contents of {@code /proc/self/status} as a list of lines, one per key.
+     * Package-private so tests can override with a synthetic file layout.
+     *
+     * @return the lines from {@code /proc/self/status}
+     * @throws IOException if an I/O exception occurs reading the file
+     */
+    @SuppressForbidden(reason = "access /proc/self/status")
+    List<String> readProcSelfStatus() throws IOException {
+        return Files.readAllLines(PathUtils.get("/proc/self/status"));
     }
 
     /**
