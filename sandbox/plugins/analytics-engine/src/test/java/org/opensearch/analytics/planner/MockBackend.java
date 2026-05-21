@@ -31,6 +31,8 @@ import org.opensearch.analytics.spi.ScanCapability;
 import org.opensearch.analytics.spi.ShardScanInstructionNode;
 import org.opensearch.analytics.spi.ShardScanWithDelegationInstructionNode;
 import org.opensearch.analytics.spi.WindowCapability;
+import org.opensearch.analytics.spi.WindowFunction;
+import org.opensearch.analytics.spi.WindowFunctionAdapter;
 
 import java.util.List;
 import java.util.Map;
@@ -101,6 +103,11 @@ abstract class MockBackend implements AnalyticsSearchBackendPlugin {
             }
 
             @Override
+            public Map<WindowFunction, WindowFunctionAdapter> windowFunctionAdapters() {
+                return self.windowFunctionAdapters();
+            }
+
+            @Override
             public Map<ScalarFunction, DelegatedPredicateSerializer> delegatedPredicateSerializers() {
                 return self.delegatedPredicateSerializers();
             }
@@ -145,6 +152,10 @@ abstract class MockBackend implements AnalyticsSearchBackendPlugin {
     }
 
     protected Map<ScalarFunction, ScalarFunctionAdapter> scalarFunctionAdapters() {
+        return Map.of();
+    }
+
+    protected Map<WindowFunction, WindowFunctionAdapter> windowFunctionAdapters() {
         return Map.of();
     }
 

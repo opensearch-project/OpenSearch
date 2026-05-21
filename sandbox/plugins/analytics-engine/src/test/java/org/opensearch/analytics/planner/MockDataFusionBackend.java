@@ -138,9 +138,10 @@ public class MockDataFusionBackend extends MockBackend implements SearchBackEndP
 
     @Override
     protected Set<WindowCapability> windowCapabilities() {
-        // Mirrors DataFusionAnalyticsBackendPlugin.windowCapabilities — SUM/AVG/COUNT/MIN/MAX
-        // for PPL eventstats; ROW_NUMBER backs PPL top/rare/dedup and the streamstats … by …
-        // helper sequence column.
+        // Mirrors DataFusionAnalyticsBackendPlugin.windowCapabilities — the *PPL form*
+        // of dc/earliest/latest is advertised; the actual rewrite to FIRST_VALUE /
+        // LAST_VALUE / COUNT(DISTINCT) happens in BackendPlanAdapter before substrait
+        // emission.
         return Set.of(
             new WindowCapability(
                 Set.of(
@@ -149,6 +150,9 @@ public class MockDataFusionBackend extends MockBackend implements SearchBackEndP
                     WindowFunction.COUNT,
                     WindowFunction.MIN,
                     WindowFunction.MAX,
+                    WindowFunction.ARG_MIN,
+                    WindowFunction.ARG_MAX,
+                    WindowFunction.DISTINCT_COUNT_APPROX,
                     WindowFunction.ROW_NUMBER
                 ),
                 Set.of(PARQUET_DATA_FORMAT)
