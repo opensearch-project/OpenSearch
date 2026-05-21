@@ -41,6 +41,7 @@ public class RustBridge {
     private static final MethodHandle ON_SETTINGS_UPDATE;
     private static final MethodHandle REMOVE_SETTINGS;
     private static final MethodHandle MERGE_FILES;
+    private static final MethodHandle MERGE_FILES_WITH_MAPPING;
     private static final MethodHandle FREE_MERGE_RESULT;
     private static final MethodHandle READ_AS_JSON;
 
@@ -164,6 +165,35 @@ public class RustBridge {
                 ValueLayout.ADDRESS     // out_gen_count
             )
         );
+        MERGE_FILES_WITH_MAPPING = lib.find("parquet_merge_files_with_mapping")
+            .map(
+                addr -> linker.downcallHandle(
+                    addr,
+                    FunctionDescriptor.of(
+                        ValueLayout.JAVA_LONG,
+                        ValueLayout.ADDRESS,
+                        ValueLayout.ADDRESS,
+                        ValueLayout.JAVA_LONG,  // input files (ptrs, lens, count)
+                        ValueLayout.ADDRESS,
+                        ValueLayout.JAVA_LONG,  // output file
+                        ValueLayout.ADDRESS,
+                        ValueLayout.JAVA_LONG,  // index_name
+                        ValueLayout.ADDRESS,
+                        ValueLayout.JAVA_LONG,  // mapping array (ptr, len)
+                        ValueLayout.ADDRESS,
+                        ValueLayout.ADDRESS,
+                        ValueLayout.ADDRESS,
+                        ValueLayout.JAVA_LONG,  // gen_keys, gen_offsets, gen_sizes, gen_count
+                        ValueLayout.ADDRESS,    // version_out
+                        ValueLayout.ADDRESS,    // num_rows_out
+                        ValueLayout.ADDRESS,    // created_by_buf
+                        ValueLayout.JAVA_LONG,  // created_by_buf_len
+                        ValueLayout.ADDRESS,    // created_by_len_out
+                        ValueLayout.ADDRESS     // crc32_out
+                    )
+                )
+            )
+            .orElse(null);
         FREE_MERGE_RESULT = linker.downcallHandle(
             lib.find("parquet_free_merge_result").orElseThrow(),
             FunctionDescriptor.ofVoid(
@@ -439,6 +469,123 @@ public class RustBridge {
             return new PackedRowIdMapping(mappingArray, offsetMap, sizeMap);
         } finally {
             NativeCall.invokeVoid(FREE_MERGE_RESULT, mappingAddr, mappingLen, genKeysAddr, genOffsetsAddr, genSizesAddr, genCount);
+        }
+    }
+
+    /**
+     * Merges Parquet files with an external RowIdMapping (secondary mode).
+     * Rows are reordered in the output according to the provided mapping.
+     */
+    public static ParquetFileMetadata mergeParquetFilesWithMapping(
+        List<Path> inputFiles,
+        String outputFile,
+        String indexName,
+        RowIdMapping rowIdMapping
+    ) {
+        if (MERGE_FILES_WITH_MAPPING == null) {
+            throw new UnsupportedOperationException(
+                "parquet_merge_files_with_mapping is not available in the native library. "
+                    + "Rebuild the native library with Lucene-as-primary merge support."
+            );
+        }
+        if (!(rowIdMapping instanceof PackedRowIdMapping packedMapping)) {
+            throw new IllegalArgumentException(
+                "mergeParquetFilesWithMapping requires PackedRowIdMapping but got: " + rowIdMapping.getClass().getName()
+            );
+        }
+
+        String[] paths = inputFiles.stream().map(Path::toString).toArray(String[]::new);
+        int mappingSize = packedMapping.size();
+        Map<Long, Integer> genOffsetsMap = packedMapping.getGenerationOffsets();
+        Map<Long, Integer> genSizesMap = packedMapping.getGenerationSizes();
+        int genCount = genOffsetsMap.size();
+
+        // Serialize mapping to arrays for FFI
+        long[] mappingArray = new long[mappingSize];
+        for (int i = 0; i < mappingSize; i++) {
+            // PackedRowIdMapping stores: mapping[position] = newRowId
+            // We iterate all entries by reconstructing from generations
+            mappingArray[i] = 0;
+        }
+        // Reconstruct the flat mapping array from the PackedRowIdMapping
+        long[] genKeys = new long[genCount];
+        int[] genOffsets = new int[genCount];
+        int[] genSizes = new int[genCount];
+        int idx = 0;
+        for (Map.Entry<Long, Integer> entry : genOffsetsMap.entrySet()) {
+            genKeys[idx] = entry.getKey();
+            genOffsets[idx] = entry.getValue();
+            genSizes[idx] = genSizesMap.get(entry.getKey());
+            // Fill mapping array for this generation
+            int offset = entry.getValue();
+            int size = genSizes[idx];
+            for (int i = 0; i < size; i++) {
+                mappingArray[offset + i] = rowIdMapping.getNewRowId(i, entry.getKey());
+            }
+            idx++;
+        }
+
+        try (var call = new NativeCall()) {
+            var inputs = call.strArray(paths);
+            var out = call.str(outputFile);
+            var idxName = call.str(indexName);
+
+            // Marshal mapping array
+            var mappingSeg = call.buf(mappingSize * 8);
+            for (int i = 0; i < mappingSize; i++) {
+                mappingSeg.setAtIndex(ValueLayout.JAVA_LONG, i, mappingArray[i]);
+            }
+
+            // Marshal generation arrays
+            var genKeysSeg = call.buf(genCount * 8);
+            var genOffsetsSeg = call.buf(genCount * 4);
+            var genSizesSeg = call.buf(genCount * 4);
+            for (int i = 0; i < genCount; i++) {
+                genKeysSeg.setAtIndex(ValueLayout.JAVA_LONG, i, genKeys[i]);
+                genOffsetsSeg.setAtIndex(ValueLayout.JAVA_INT, i, genOffsets[i]);
+                genSizesSeg.setAtIndex(ValueLayout.JAVA_INT, i, genSizes[i]);
+            }
+
+            // Out-pointers for Parquet file metadata
+            var versionOut = call.intOut();
+            var numRowsOut = call.longOut();
+            var crc32Out = call.longOut();
+            var createdByOut = call.outBuffer(1024);
+
+            call.invokeIO(
+                MERGE_FILES_WITH_MAPPING,
+                inputs.ptrs(),
+                inputs.lens(),
+                inputs.count(),
+                out.segment(),
+                out.len(),
+                idxName.segment(),
+                idxName.len(),
+                mappingSeg,
+                (long) mappingSize,
+                genKeysSeg,
+                genOffsetsSeg,
+                genSizesSeg,
+                (long) genCount,
+                versionOut,
+                numRowsOut,
+                createdByOut.data(),
+                (long) createdByOut.capacity(),
+                createdByOut.lenOut(),
+                crc32Out
+            );
+
+            int createdByLen = (int) createdByOut.lenOut().get(ValueLayout.JAVA_LONG, 0);
+            return new ParquetFileMetadata(
+                versionOut.get(ValueLayout.JAVA_INT, 0),
+                numRowsOut.get(ValueLayout.JAVA_LONG, 0),
+                createdByLen >= 0
+                    ? new String(createdByOut.data().asSlice(0, createdByLen).toArray(ValueLayout.JAVA_BYTE), StandardCharsets.UTF_8)
+                    : null,
+                crc32Out.get(ValueLayout.JAVA_LONG, 0)
+            );
+        } catch (IOException e) {
+            throw new UncheckedIOException("Native merge with mapping failed", e);
         }
     }
 
