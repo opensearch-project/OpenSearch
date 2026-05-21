@@ -18,7 +18,7 @@
 //!   [`FoyerStatsCounter::snapshot()`] called from the `foyer_snapshot_stats` FFM
 //!   function in [`crate::foyer::ffm`].
 //!
-//! The snapshot produces a `[i64; 9]` array whose layout is fixed and
+//! The snapshot produces a `[i64; 10]` array whose layout is fixed and
 //! documented on [`FoyerStatsCounter::snapshot`]. Java reads this array via
 //! `FoyerBridge.snapshotStats()` and constructs a `FoyerAggregatedStats` snapshot
 //! (two sections: overall and block-level), which is then projected to a
@@ -48,11 +48,12 @@ use std::sync::Arc;
 /// | `hit_bytes`        | `FoyerCache::get()` hit      | +entry.len() — bytes served from cache               |
 /// | `miss_count`       | `FoyerCache::get()` miss     | +1 per cache miss                                    |
 /// | `miss_bytes`       | `FoyerCache::get()` miss     | +key.range_len() — bytes that must be fetched remotely|
-/// | `eviction_count`   | `KeyIndexListener::on_leave` | +1 per LRU eviction (`Event::Evict`)                 |
-/// | `eviction_bytes`   | `KeyIndexListener::on_leave` | +len per LRU eviction                                |
-/// | `used_bytes`       | `put()` / `on_leave`         | +len on insert, -len on eviction/remove/clear        |
-/// | `removed_count`    | `KeyIndexListener::on_leave` | +1 per explicit removal (`Event::Remove`)            |
-/// | `removed_bytes`    | `KeyIndexListener::on_leave` | +len per explicit removal                            |
+/// | `eviction_count`   | background sweeper           | +1 per capacity-driven eviction                      |
+/// | `eviction_bytes`   | background sweeper           | +len per capacity-driven eviction                    |
+/// | `used_bytes`       | `put()` / sweeper / remove   | +len on insert, -len on eviction/remove/clear        |
+/// | `removed_count`    | `evict_prefix()` / `clear()` | +1 per explicit removal                              |
+/// | `removed_bytes`    | `evict_prefix()` / `clear()` | +len per explicit removal                            |
+/// | `active_in_bytes`  | `FoyerCache::get()`          | net bytes of concurrent in-flight reads (gauge)      |
 #[derive(Default)]
 pub struct FoyerStatsCounter {
     /// Number of `get()` calls that returned a cached value.
@@ -63,20 +64,23 @@ pub struct FoyerStatsCounter {
     /// Number of `get()` calls that returned no value.
     pub miss_count: AtomicI64,
     /// Bytes that had to be fetched from the remote store due to cache misses.
-    /// Derived from `key.range_len()` — the requested range size is known at
-    /// miss time from the cache key, without waiting for the remote fetch.
+    /// Derived from the cache-key range length, which is known at miss time.
     pub miss_bytes: AtomicI64,
-    /// Number of entries removed by LRU pressure.
+    /// Number of entries removed by capacity pressure (LRU eviction).
     pub eviction_count: AtomicI64,
-    /// Total bytes removed by LRU pressure.
+    /// Total bytes removed by capacity pressure.
     pub eviction_bytes: AtomicI64,
     /// Current bytes resident in the cache on disk.
     pub used_bytes: AtomicI64,
-    /// Number of entries explicitly removed (e.g. via `evict_prefix` on shard/index deletion).
-    /// Distinct from LRU evictions (`eviction_count`) — these are application-driven removals.
+    /// Number of entries explicitly invalidated (e.g. on index or shard deletion).
+    /// Distinct from capacity-driven evictions (`eviction_count`).
     pub removed_count: AtomicI64,
-    /// Total bytes explicitly removed.
+    /// Total bytes explicitly invalidated.
     pub removed_bytes: AtomicI64,
+    /// Net bytes of `get()` calls currently in-flight (gauge, not cumulative).
+    /// Incremented by the requested byte range when a `get()` starts and
+    /// decremented when it returns. Non-zero only during concurrent reads
+    pub active_in_bytes: AtomicI64,
 }
 
 impl FoyerStatsCounter {
@@ -87,16 +91,26 @@ impl FoyerStatsCounter {
 
     /// Snapshot all counters atomically (best-effort — each field is read once).
     ///
-    /// Returns `[hit_count, hit_bytes, miss_count, miss_bytes,
-    ///           eviction_count, eviction_bytes, used_bytes,
-    ///           removed_count, removed_bytes]` (9 values).
+    /// Returns a fixed-size array of 10 `i64` values in the order that matches
+    /// `FoyerAggregatedStats.Field` ordinals on the Java side:
     ///
-    /// The field order is fixed and must match `FoyerAggregatedStats.Field` ordinals in Java.
+    /// | Index | Field             |
+    /// |-------|-------------------|
+    /// | 0     | `hit_count`       |
+    /// | 1     | `hit_bytes`       |
+    /// | 2     | `miss_count`      |
+    /// | 3     | `miss_bytes`      |
+    /// | 4     | `eviction_count`  |
+    /// | 5     | `eviction_bytes`  |
+    /// | 6     | `used_bytes`      |
+    /// | 7     | `removed_count`   |
+    /// | 8     | `removed_bytes`   |
+    /// | 9     | `active_in_bytes` |
     ///
     /// Called by the `foyer_snapshot_stats` FFM export at most once per
     /// `_nodes/stats` request. Relaxed ordering is sufficient — stale-by-one
     /// stats are acceptable for monitoring purposes.
-    pub fn snapshot(&self) -> [i64; 9] {
+    pub fn snapshot(&self) -> [i64; 10] {
         [
             self.hit_count.load(Ordering::Relaxed),
             self.hit_bytes.load(Ordering::Relaxed),
@@ -107,6 +121,7 @@ impl FoyerStatsCounter {
             self.used_bytes.load(Ordering::Relaxed),
             self.removed_count.load(Ordering::Relaxed),
             self.removed_bytes.load(Ordering::Relaxed),
+            self.active_in_bytes.load(Ordering::Relaxed),
         ]
     }
 }
@@ -119,14 +134,12 @@ mod tests {
     #[test]
     fn new_returns_all_zeros() {
         let c = FoyerStatsCounter::new();
-        let snap = c.snapshot();
-        assert_eq!(snap, [0i64; 9]);
+        assert_eq!(c.snapshot(), [0i64; 10]);
     }
 
     #[test]
-    fn snapshot_returns_9_values() {
-        let snap = FoyerStatsCounter::new().snapshot();
-        assert_eq!(snap.len(), 9);
+    fn snapshot_returns_10_values() {
+        assert_eq!(FoyerStatsCounter::new().snapshot().len(), 10);
     }
 
     // Verify exact field-to-index mapping: each field maps to a distinct index.
@@ -196,6 +209,19 @@ mod tests {
     }
 
     #[test]
+    fn active_in_bytes_is_index_9() {
+        let c = FoyerStatsCounter::new();
+        c.active_in_bytes.store(777, Ordering::Relaxed);
+        assert_eq!(c.snapshot()[9], 777);
+    }
+
+    #[test]
+    fn active_in_bytes_default_is_zero() {
+        let c = FoyerStatsCounter::new();
+        assert_eq!(c.active_in_bytes.load(Ordering::Relaxed), 0);
+    }
+
+    #[test]
     fn all_fields_independent() {
         let c = FoyerStatsCounter::new();
         c.hit_count.store(1, Ordering::Relaxed);
@@ -207,6 +233,7 @@ mod tests {
         c.used_bytes.store(7, Ordering::Relaxed);
         c.removed_count.store(8, Ordering::Relaxed);
         c.removed_bytes.store(9, Ordering::Relaxed);
-        assert_eq!(c.snapshot(), [1, 2, 3, 4, 5, 6, 7, 8, 9]);
+        c.active_in_bytes.store(10, Ordering::Relaxed);
+        assert_eq!(c.snapshot(), [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
     }
 }

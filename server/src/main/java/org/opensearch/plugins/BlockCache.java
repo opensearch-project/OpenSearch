@@ -91,7 +91,7 @@ public interface BlockCache extends Closeable {
     /**
      * Evict all cache entries whose key starts with the given path prefix.
      *
-     * <p>Used by {@link org.opensearch.index.store.remote.filecache.NodeCacheOrchestratorCleaner}
+     * <p>Used by {@link org.opensearch.index.store.remote.filecache.NodeCacheServiceCleaner}
      * to deterministically remove all cached byte-range entries for a shard or index
      * when it is deleted.
      *
