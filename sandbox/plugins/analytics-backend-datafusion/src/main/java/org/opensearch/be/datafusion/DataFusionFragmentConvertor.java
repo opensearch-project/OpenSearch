@@ -35,6 +35,7 @@ import org.apache.calcite.sql.fun.SqlLibraryOperators;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
 import org.apache.calcite.sql.type.OperandTypes;
 import org.apache.calcite.sql.type.ReturnTypes;
+import org.apache.calcite.sql.type.SqlTypeTransforms;
 import org.apache.calcite.util.ImmutableBitSet;
 import org.apache.calcite.util.Optionality;
 import org.apache.logging.log4j.LogManager;
@@ -294,7 +295,16 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         "take",
         null,
         SqlKind.OTHER_FUNCTION,
-        ReturnTypes.TO_ARRAY,
+        // FORCE_NULLABLE matches PPL's PPLReturnTypes.ARG0_ARRAY (which passes
+        // `nullable=true` to SqlTypeUtil.createArrayType). Without it, the rewriter's
+        // explicit return type (cloned from the original PPL call, nullable) fails
+        // AggregateCall.create's validation against this operator's NOT-NULL-inferring
+        // default TO_ARRAY. The mismatch surfaced from CalcitePPLPatternsIT's SIMPLE
+        // aggregation mode tests where the source field flows through a Parse Project
+        // before TAKE, but the issue is general — any nullable-input TAKE rewritten
+        // here would have hit it as soon as the rewriter went through the explicit-type
+        // path.
+        ReturnTypes.TO_ARRAY.andThen(SqlTypeTransforms.FORCE_NULLABLE),
         null,
         OperandTypes.VARIADIC,
         SqlFunctionCategory.USER_DEFINED_FUNCTION,
@@ -337,7 +347,12 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         "array_agg",
         null,
         SqlKind.OTHER_FUNCTION,
-        ReturnTypes.TO_ARRAY,
+        // FORCE_NULLABLE — see comment on LOCAL_TAKE_OP. Same rationale: PPL declares
+        // LIST/VALUES' return type as nullable ARRAY, but the rewriter substitutes an
+        // explicit ARRAY built via {@code createArrayType(arg0Type, -1)} which inherits
+        // arg0's nullability (PPL fields default to nullable). Need to mirror that
+        // on the operator's inference so AggregateCall.create validation passes.
+        ReturnTypes.TO_ARRAY.andThen(SqlTypeTransforms.FORCE_NULLABLE),
         null,
         OperandTypes.ANY,
         SqlFunctionCategory.USER_DEFINED_FUNCTION,
