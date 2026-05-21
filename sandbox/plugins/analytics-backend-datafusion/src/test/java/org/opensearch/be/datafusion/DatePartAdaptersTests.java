@@ -141,4 +141,55 @@ public class DatePartAdaptersTests extends OpenSearchTestCase {
         assertEquals("hour", ((RexLiteral) adapted.getOperands().get(0)).getValueAs(String.class));
         assertEquals(SqlKind.CAST, ((RexCall) adapted.getOperands().get(1)).getKind());
     }
+
+    /**
+     * Invalid string literals (month 13, second 61, garbage) must throw at plan time so the
+     * legacy "unsupported format" wording reaches the HTTP body. The Arrow CAST kernel error
+     * does not survive Flight RPC serialization on the worker→coordinator hop.
+     */
+    public void testInvalidDateLiteralRejectedAtPlanTime() {
+        assertInvalidLiteralRejected("2025-13-02"); // month out of range
+        assertInvalidLiteralRejected("2025-12-01 15:02:61"); // second out of range
+        assertInvalidLiteralRejected("16:00:61"); // bare time, second out of range
+        assertInvalidLiteralRejected("not-a-date");
+    }
+
+    /** NULL literal passes through — column-value semantics handle null at runtime. */
+    public void testNullVarcharLiteralPassesThrough() {
+        RelDataType nullableVarchar = typeFactory.createTypeWithNullability(typeFactory.createSqlType(SqlTypeName.VARCHAR), true);
+        RexNode nullLit = rexBuilder.makeNullLiteral(nullableVarchar);
+        RexCall original = (RexCall) rexBuilder.makeCall(pplDay(), List.of(nullLit));
+
+        RexCall adapted = (RexCall) DatePartAdapters.day().adapt(original, List.of(), cluster);
+
+        assertSame(SqlLibraryOperators.DATE_PART, adapted.getOperator());
+    }
+
+    /** Non-literal VARCHAR (column ref) is not eagerly validated — only literals are. */
+    public void testVarcharColumnRefNotValidated() {
+        RelDataType varcharType = typeFactory.createSqlType(SqlTypeName.VARCHAR);
+        RexNode columnRef = rexBuilder.makeInputRef(varcharType, 0);
+        RexCall original = (RexCall) rexBuilder.makeCall(pplDay(), List.of(columnRef));
+
+        // Must not throw despite the value being unknown at plan time.
+        RexCall adapted = (RexCall) DatePartAdapters.day().adapt(original, List.of(), cluster);
+
+        assertEquals(SqlKind.CAST, ((RexCall) adapted.getOperands().get(1)).getKind());
+    }
+
+    private void assertInvalidLiteralRejected(String value) {
+        RelDataType varcharType = typeFactory.createSqlType(SqlTypeName.VARCHAR);
+        RexNode literal = rexBuilder.makeLiteral(value, varcharType, true);
+        RexCall original = (RexCall) rexBuilder.makeCall(pplDay(), List.of(literal));
+
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> DatePartAdapters.day().adapt(original, List.of(), cluster)
+        );
+        assertTrue(
+            "message must contain 'unsupported format' for input [" + value + "], got: " + e.getMessage(),
+            e.getMessage().contains("unsupported format")
+        );
+        assertTrue("message must echo the offending input [" + value + "]", e.getMessage().contains(value));
+    }
 }

@@ -85,4 +85,17 @@ public class SecondAdapterTests extends OpenSearchTestCase {
         assertSame(SqlTypeName.TIMESTAMP, cast.getType().getSqlTypeName());
         assertSame(literal, cast.getOperands().get(0));
     }
+
+    public void testInvalidLiteralRejectedAtPlanTime() {
+        RelDataType varcharType = typeFactory.createSqlType(SqlTypeName.VARCHAR);
+        RexNode literal = rexBuilder.makeLiteral("2025-12-01 15:02:61", varcharType, true);
+        RexCall original = (RexCall) rexBuilder.makeCall(pplSecond(), List.of(literal));
+
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new SecondAdapter().adapt(original, List.of(), cluster)
+        );
+        assertTrue(e.getMessage().contains("unsupported format"));
+        assertTrue(e.getMessage().contains("2025-12-01 15:02:61"));
+    }
 }

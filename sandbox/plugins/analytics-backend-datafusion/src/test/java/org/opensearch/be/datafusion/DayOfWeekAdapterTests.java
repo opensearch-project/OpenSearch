@@ -83,4 +83,17 @@ public class DayOfWeekAdapterTests extends OpenSearchTestCase {
         assertSame(SqlTypeName.TIMESTAMP, cast.getType().getSqlTypeName());
         assertSame(literal, cast.getOperands().get(0));
     }
+
+    public void testInvalidLiteralRejectedAtPlanTime() {
+        RelDataType varcharType = typeFactory.createSqlType(SqlTypeName.VARCHAR);
+        RexNode literal = rexBuilder.makeLiteral("2025-13-02", varcharType, true);
+        RexCall original = (RexCall) rexBuilder.makeCall(pplDayOfWeek(), List.of(literal));
+
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new DayOfWeekAdapter().adapt(original, List.of(), cluster)
+        );
+        assertTrue(e.getMessage().contains("unsupported format"));
+        assertTrue(e.getMessage().contains("2025-13-02"));
+    }
 }

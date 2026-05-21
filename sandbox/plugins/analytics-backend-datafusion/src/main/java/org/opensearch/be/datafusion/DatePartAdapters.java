@@ -13,6 +13,7 @@ import org.apache.calcite.rel.type.RelDataType;
 import org.apache.calcite.rel.type.RelDataTypeFactory;
 import org.apache.calcite.rex.RexBuilder;
 import org.apache.calcite.rex.RexCall;
+import org.apache.calcite.rex.RexLiteral;
 import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.sql.fun.SqlLibraryOperators;
 import org.apache.calcite.sql.type.SqlTypeFamily;
@@ -20,8 +21,13 @@ import org.apache.calcite.sql.type.SqlTypeName;
 import org.opensearch.analytics.spi.AbstractNameMappingAdapter;
 import org.opensearch.analytics.spi.FieldStorageInfo;
 
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 /**
  * Date-part extractor adapters — rewrite {@code FN(ts)} to {@code date_part('<unit>', ts)}.
@@ -57,7 +63,12 @@ final class DatePartAdapters extends AbstractNameMappingAdapter {
         RexBuilder rexBuilder = cluster.getRexBuilder();
         List<RexNode> coerced = new ArrayList<>(original.getOperands().size());
         for (RexNode operand : original.getOperands()) {
-            coerced.add(isCharacterOperand(operand) ? castToTimestamp(operand, cluster) : operand);
+            if (isCharacterOperand(operand)) {
+                validateDatetimeLiteral(operand);
+                coerced.add(castToTimestamp(operand, cluster));
+            } else {
+                coerced.add(operand);
+            }
         }
         RelDataType unitType = rexBuilder.getTypeFactory().createSqlType(SqlTypeName.VARCHAR);
         List<RexNode> args = new ArrayList<>(coerced.size() + 1);
@@ -83,9 +94,63 @@ final class DatePartAdapters extends AbstractNameMappingAdapter {
      * Shared coercion helper for sibling adapters ({@link DayOfWeekAdapter}, {@link SecondAdapter})
      * that build {@code date_part('<unit>', operand)} calls directly. Wraps a character-family
      * operand in {@code CAST(_ AS TIMESTAMP)}; non-character operands are returned unchanged.
+     * String {@link RexLiteral} operands are eagerly validated to surface the legacy
+     * {@code "unsupported format"} error at plan time (see {@link #validateDatetimeLiteral}).
      */
     static RexNode coerceCharacterOperandToTimestamp(RexNode operand, RelOptCluster cluster) {
-        return isCharacterOperand(operand) ? castToTimestamp(operand, cluster) : operand;
+        if (!isCharacterOperand(operand)) {
+            return operand;
+        }
+        validateDatetimeLiteral(operand);
+        return castToTimestamp(operand, cluster);
+    }
+
+    /**
+     * Eagerly parses string {@link RexLiteral} operands so an invalid literal surfaces as a
+     * coordinator-side {@link IllegalArgumentException} during planning, before the value reaches
+     * DataFusion's CAST kernel. The native error message ({@code "Arrow error: Parser error: ..."})
+     * is dropped by Flight RPC serialization on the worker→coordinator hop, so without this check
+     * users see {@code "Failed to start streaming fragment on ..."} instead of the legacy
+     * {@code "timestamp:<v> in unsupported format"} wording.
+     *
+     * <p>Non-literal operands (column refs, expressions) and NULL literals pass through — column
+     * value validation is a separate concern (Arrow CAST per-row error handling, tracked
+     * separately).
+     *
+     * <p>Accept-set mirrors legacy {@code DateTimeParser.parse}: try {@link LocalDateTime} (date+time
+     * with optional nanos), {@link LocalDate} (bare date), {@link LocalTime} (bare time), throw on
+     * all-failed. Same try/catch-fall-through shape used by
+     * {@link TimestampFunctionAdapter#parseTimestamp}.
+     */
+    static void validateDatetimeLiteral(RexNode operand) {
+        if (!(operand instanceof RexLiteral literal)) {
+            return;
+        }
+        String value = literal.getValueAs(String.class);
+        if (value == null) {
+            return;
+        }
+        try {
+            LocalDateTime.parse(value.replace(' ', 'T'));
+            return;
+        } catch (DateTimeParseException ignored) {}
+
+        try {
+            LocalDate.parse(value);
+            return;
+        } catch (DateTimeParseException ignored) {}
+
+        try {
+            LocalTime.parse(value);
+            return;
+        } catch (DateTimeParseException ignored) {
+            // SQL plugin's ErrorMessageFactory.unwrapCause walks to the deepest cause for the response
+            // type/details, so attaching DateTimeParseException as cause would surface its stock JDK
+            // message instead of this one. Mirrors legacy DateTimeParser.parse, which throws causeless.
+            throw new IllegalArgumentException(
+                String.format(Locale.ROOT, "timestamp:%s in unsupported format, please use 'yyyy-MM-dd HH:mm:ss[.SSSSSSSSS]'", value)
+            );
+        }
     }
 
     static DatePartAdapters year() {
