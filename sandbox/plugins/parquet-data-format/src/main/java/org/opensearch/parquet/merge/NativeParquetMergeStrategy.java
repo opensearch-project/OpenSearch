@@ -24,7 +24,7 @@ import org.opensearch.parquet.bridge.MergeFilesResult;
 import org.opensearch.parquet.bridge.ParquetFileMetadata;
 import org.opensearch.parquet.bridge.RustBridge;
 import org.opensearch.parquet.engine.ParquetIndexingEngine;
-import org.opensearch.parquet.stats.ParquetShardStats;
+import org.opensearch.parquet.stats.ParquetShardStatsTracker;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -45,14 +45,14 @@ public class NativeParquetMergeStrategy implements ParquetMergeStrategy {
     private final String indexName;
     private final ShardPath shardPath;
     private final TriConsumer<FileMetadata, Long, Long> checksumUpdater;
-    private final ParquetShardStats stats;
+    private final ParquetShardStatsTracker stats;
 
     public NativeParquetMergeStrategy(
         DataFormat dataFormat,
         String indexName,
         ShardPath shardPath,
         TriConsumer<FileMetadata, Long, Long> checksumUpdater,
-        ParquetShardStats stats
+        ParquetShardStatsTracker stats
     ) {
         this.dataFormat = dataFormat;
         this.indexName = indexName;

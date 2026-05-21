@@ -19,6 +19,9 @@ dependencies {
   compileOnly project(':plugins:arrow-base')
   testImplementation project(':plugins:arrow-base')
 
+  // Plugin stats SPI interfaces
+  implementation project(':sandbox:libs:plugin-stats-spi')
+
   // Shared native bridge lib (provides the unified .so and FFM SymbolLookup)
   implementation project(':sandbox:libs:dataformat-native')
 

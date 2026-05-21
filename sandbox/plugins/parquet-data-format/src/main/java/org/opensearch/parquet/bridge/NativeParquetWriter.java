@@ -10,7 +10,7 @@ package org.opensearch.parquet.bridge;
 
 import org.opensearch.common.SetOnce;
 import org.opensearch.index.engine.dataformat.RowIdMapping;
-import org.opensearch.parquet.stats.ParquetShardStats;
+import org.opensearch.parquet.stats.ParquetShardStatsTracker;
 
 import java.io.IOException;
 import java.util.concurrent.TimeUnit;
@@ -37,7 +37,7 @@ public class NativeParquetWriter {
     private final String filePath;
     private final SetOnce<ParquetFileMetadata> metadata = new SetOnce<>();
     private final SetOnce<RowIdMapping> rowIdMapping = new SetOnce<>();
-    private final ParquetShardStats stats;
+    private final ParquetShardStatsTracker stats;
     private volatile boolean initialized = false;
 
     /**
@@ -45,9 +45,9 @@ public class NativeParquetWriter {
      * call {@link #initialize(String, long, ParquetSortConfig, long)} before the first write.
      *
      * @param filePath the path to the Parquet file to write
-     * @param stats shard-level stats collector
+     * @param stats shard-level stats tracker
      */
-    public NativeParquetWriter(String filePath, ParquetShardStats stats) {
+    public NativeParquetWriter(String filePath, ParquetShardStatsTracker stats) {
         this.filePath = filePath;
         this.stats = stats;
     }
@@ -58,7 +58,7 @@ public class NativeParquetWriter {
      * @param filePath the path to the Parquet file to write
      */
     public NativeParquetWriter(String filePath) {
-        this(filePath, new ParquetShardStats());
+        this(filePath, new ParquetShardStatsTracker());
     }
 
     /**

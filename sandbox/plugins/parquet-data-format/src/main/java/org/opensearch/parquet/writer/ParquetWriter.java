@@ -22,7 +22,7 @@ import org.opensearch.parquet.ParquetSettings;
 import org.opensearch.parquet.bridge.ParquetFileMetadata;
 import org.opensearch.parquet.engine.ParquetDataFormat;
 import org.opensearch.parquet.memory.ArrowBufferPool;
-import org.opensearch.parquet.stats.ParquetShardStats;
+import org.opensearch.parquet.stats.ParquetShardStatsTracker;
 import org.opensearch.parquet.vsr.VSRManager;
 import org.opensearch.threadpool.ThreadPool;
 
@@ -50,7 +50,7 @@ public class ParquetWriter implements Writer<ParquetDocumentInput> {
     private final ParquetDataFormat dataFormat;
     private final VSRManager vsrManager;
     private final FormatChecksumStrategy checksumStrategy;
-    private final ParquetShardStats stats;
+    private final ParquetShardStatsTracker stats;
     private long mappingVersion;
 
     /**
@@ -65,7 +65,7 @@ public class ParquetWriter implements Writer<ParquetDocumentInput> {
      * @param indexSettings index settings for writer configuration
      * @param threadPool the thread pool for background native writes
      * @param checksumStrategy strategy to register pre-computed checksums on
-     * @param stats shard-level stats collector
+     * @param stats shard-level stats tracker
      */
     public ParquetWriter(
         String file,
@@ -77,7 +77,7 @@ public class ParquetWriter implements Writer<ParquetDocumentInput> {
         IndexSettings indexSettings,
         ThreadPool threadPool,
         FormatChecksumStrategy checksumStrategy,
-        ParquetShardStats stats
+        ParquetShardStatsTracker stats
     ) {
         this.file = file;
         this.writerGeneration = writerGeneration;
@@ -121,7 +121,7 @@ public class ParquetWriter implements Writer<ParquetDocumentInput> {
             indexSettings,
             threadPool,
             checksumStrategy,
-            new ParquetShardStats()
+            new ParquetShardStatsTracker()
         );
     }
 

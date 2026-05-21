@@ -11,7 +11,7 @@ package org.opensearch.be.lucene.index;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.util.BytesRef;
 import org.opensearch.be.lucene.LuceneDataFormat;
-import org.opensearch.be.lucene.stats.LuceneShardStats;
+import org.opensearch.be.lucene.stats.LuceneShardStatsTracker;
 import org.opensearch.index.engine.dataformat.DeleteInput;
 import org.opensearch.index.engine.dataformat.DeleteResult;
 import org.opensearch.index.engine.dataformat.DeleterImpl;
@@ -38,7 +38,7 @@ public class DeleterImplTests extends OpenSearchTestCase {
     }
 
     private LuceneWriter createWriter(Path baseDir, long generation) throws IOException {
-        return new LuceneWriter(generation, 0L, dataFormat, baseDir, null, Codec.getDefault(), null, new LuceneShardStats());
+        return new LuceneWriter(generation, 0L, dataFormat, baseDir, null, Codec.getDefault(), null, new LuceneShardStatsTracker());
     }
 
     private void addDoc(LuceneWriter writer, String id, int rowId) throws IOException {
@@ -61,7 +61,18 @@ public class DeleterImplTests extends OpenSearchTestCase {
     public void testGenerationMatchesWriter() throws IOException {
         Path baseDir = createTempDir();
         long gen = randomLongBetween(1, 100);
-        try (LuceneWriter writer = new LuceneWriter(gen, 0L, dataFormat, baseDir, null, Codec.getDefault(), null, new LuceneShardStats())) {
+        try (
+            LuceneWriter writer = new LuceneWriter(
+                gen,
+                0L,
+                dataFormat,
+                baseDir,
+                null,
+                Codec.getDefault(),
+                null,
+                new LuceneShardStatsTracker()
+            )
+        ) {
             DeleterImpl<?> deleter = new DeleterImpl<>(writer);
             assertEquals("Deleter generation should match writer generation", gen, deleter.generation());
         }

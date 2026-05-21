@@ -27,7 +27,7 @@ import org.opensearch.parquet.bridge.ParquetSortConfig;
 import org.opensearch.parquet.fields.ArrowFieldRegistry;
 import org.opensearch.parquet.fields.ParquetField;
 import org.opensearch.parquet.memory.ArrowBufferPool;
-import org.opensearch.parquet.stats.ParquetShardStats;
+import org.opensearch.parquet.stats.ParquetShardStatsTracker;
 import org.opensearch.parquet.writer.FieldValuePair;
 import org.opensearch.parquet.writer.ParquetDocumentInput;
 import org.opensearch.threadpool.ThreadPool;
@@ -70,7 +70,7 @@ public class VSRManager implements AutoCloseable {
     private final ThreadPool threadPool;
     private final String vsrRotationThread;
     private final long writerGeneration;
-    private final ParquetShardStats stats;
+    private final ParquetShardStatsTracker stats;
     private volatile Future<?> pendingWrite;
     private NativeParquetWriter writer;
     private final int ROTATION_TIMEOUT = 120;
@@ -87,7 +87,7 @@ public class VSRManager implements AutoCloseable {
         int maxRowsPerVSR,
         ThreadPool threadPool,
         long writerGeneration,
-        ParquetShardStats stats
+        ParquetShardStatsTracker stats
     ) {
         this(fileName, indexSettings, schema, bufferPool, maxRowsPerVSR, threadPool, true, writerGeneration, stats);
     }
@@ -104,7 +104,17 @@ public class VSRManager implements AutoCloseable {
         ThreadPool threadPool,
         long writerGeneration
     ) {
-        this(fileName, indexSettings, schema, bufferPool, maxRowsPerVSR, threadPool, true, writerGeneration, new ParquetShardStats());
+        this(
+            fileName,
+            indexSettings,
+            schema,
+            bufferPool,
+            maxRowsPerVSR,
+            threadPool,
+            true,
+            writerGeneration,
+            new ParquetShardStatsTracker()
+        );
     }
 
     /**
@@ -120,7 +130,17 @@ public class VSRManager implements AutoCloseable {
         boolean runAsync,
         long writerGeneration
     ) {
-        this(fileName, indexSettings, schema, bufferPool, maxRowsPerVSR, threadPool, runAsync, writerGeneration, new ParquetShardStats());
+        this(
+            fileName,
+            indexSettings,
+            schema,
+            bufferPool,
+            maxRowsPerVSR,
+            threadPool,
+            runAsync,
+            writerGeneration,
+            new ParquetShardStatsTracker()
+        );
     }
 
     /**
@@ -135,7 +155,7 @@ public class VSRManager implements AutoCloseable {
      * @param runAsync if true, frozen VSR writes run on the background thread pool;
      *                 if false, they run on the calling thread (for benchmarks/tests)
      * @param writerGeneration the writer generation to store in file metadata
-     * @param stats shard-level stats collector
+     * @param stats shard-level stats tracker
      */
     public VSRManager(
         String fileName,
@@ -146,7 +166,7 @@ public class VSRManager implements AutoCloseable {
         ThreadPool threadPool,
         boolean runAsync,
         long writerGeneration,
-        ParquetShardStats stats
+        ParquetShardStatsTracker stats
     ) {
         this.fileName = fileName;
         this.indexSettings = indexSettings;

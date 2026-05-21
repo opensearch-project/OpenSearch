@@ -40,6 +40,31 @@ testClusters {
     testDistribution = 'archive'
     if (numZones > 1) numberOfZones = numZones
     if (numNodes > 1) numberOfNodes = numNodes
+
+    // Remote store configuration backed by a local filesystem directory.
+    // Enable with:  ./gradlew run -PenableRemoteStore
+    // Optionally override the backing directory with: -PremoteStorePath=/absolute/path
+    // The fs repository type is built in to OpenSearch, so no extra plugin is required.
+    if (findProperty("enableS3")) {
+      plugin(':plugins:repository-s3')
+      if (findProperty("s3Endpoint")) {
+        setting 's3.client.default.endpoint', findProperty("s3Endpoint")
+      }
+      setting 's3.client.default.region', findProperty("s3Region") ?: 'us-east-1'
+      keystore 's3.client.default.access_key', findProperty("s3AccessKey") ?: System.getenv("AWS_ACCESS_KEY_ID") ?: 'test'
+      keystore 's3.client.default.secret_key', findProperty("s3SecretKey") ?: System.getenv("AWS_SECRET_ACCESS_KEY") ?: 'test'
+
+
+      // Remote store configuration
+      setting 'node.attr.remote_store.segment.repository', 'my-s3-repo'
+      setting 'node.attr.remote_store.translog.repository', 'my-s3-repo'
+      setting 'node.attr.remote_store.state.repository', 'my-s3-repo'
+      setting 'cluster.remote_store.state.enabled', 'true'
+      setting 'node.attr.remote_store.repository.my-s3-repo.type', 's3'
+      setting 'node.attr.remote_store.repository.my-s3-repo.settings.bucket', 'kamal-mustang'
+      setting 'node.attr.remote_store.repository.my-s3-repo.settings.base_path', 'remote-store-mgodwan'
+    }
+
     if (findProperty("installedPlugins")) {
       installedPlugins = Eval.me(installedPlugins)
 
@@ -94,7 +119,7 @@ testClusters {
           // Composite engine / DataFusion requires pluggable dataformat feature flag
           systemProperty 'opensearch.experimental.feature.pluggable.dataformat.enabled', 'true'
           // Native lib path for DataFusion FFM bridge
-          def nativeLibDir = new File(project(':sandbox:libs:dataformat-native').projectDir, 'rust/target/release').absolutePath
+          def nativeLibDir = new File(project(':sandbox:libs:dataformat-native').projectDir, 'rust/target/debug').absolutePath
           systemProperty 'java.library.path', nativeLibDir
           jvmArgs '--add-opens=java.base/java.nio=ALL-UNNAMED'
           jvmArgs '--enable-native-access=ALL-UNNAMED'
@@ -109,6 +134,14 @@ tasks.register("run", RunTask) {
   useCluster testClusters.runTask;
   description = 'Runs opensearch in the foreground'
   group = 'Verification'
+
+  // When -PenableRemoteStore is set, create the backing fs directory before starting.
+  if (findProperty("enableRemoteStore")) {
+    def remoteStoreRepoPath = findProperty("remoteStorePath") ?: file("${buildDir}/testclusters/remote-store-repo").absolutePath
+    doFirst {
+      file(remoteStoreRepoPath).mkdirs()
+    }
+  }
 
   impliesSubProjects = true
 }

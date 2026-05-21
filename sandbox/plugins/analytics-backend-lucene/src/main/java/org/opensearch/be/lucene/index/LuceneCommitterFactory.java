@@ -8,7 +8,7 @@
 
 package org.opensearch.be.lucene.index;
 
-import org.opensearch.be.lucene.stats.LuceneShardStats;
+import org.opensearch.be.lucene.stats.LuceneShardStatsTracker;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.engine.exec.commit.Committer;
 import org.opensearch.index.engine.exec.commit.CommitterConfig;
@@ -29,10 +29,10 @@ import java.io.IOException;
 @ExperimentalApi
 public final class LuceneCommitterFactory implements CommitterFactory {
 
-    private final LuceneShardStats stats;
+    private final LuceneShardStatsTracker stats;
 
     /** Creates a new factory instance with the given stats collector. */
-    public LuceneCommitterFactory(LuceneShardStats stats) {
+    public LuceneCommitterFactory(LuceneShardStatsTracker stats) {
         this.stats = stats;
     }
 

@@ -14,388 +14,477 @@ import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.plugin.stats.DataFormatShardStats;
 
 import java.io.IOException;
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.atomic.LongAdder;
 
 /**
- * Shard-level statistics collector for the Parquet data format plugin.
- * Uses LongAdder for high-throughput counters and AtomicLong for gauges.
- * Serves as both the live collector and the serializable snapshot.
+ * Immutable point-in-time snapshot of shard-level Parquet statistics.
+ * Produced by {@link ParquetShardStatsTracker#stats()}.
+ * Supports serialization via {@link Writeable} and REST rendering via {@link ToXContentFragment}.
+ *
+ * @opensearch.experimental
  */
 @ExperimentalApi
-public class ParquetShardStats implements ToXContentFragment, Writeable {
+public class ParquetShardStats implements DataFormatShardStats, ToXContentFragment, Writeable {
 
-    // Indexing counters
-    private final LongAdder docsIndexedTotal = new LongAdder();
-    private final LongAdder docsIndexedFailures = new LongAdder();
-    private final LongAdder indexTimeMillis = new LongAdder();
+    // Indexing
+    private final long docsIndexedTotal;
+    private final long docsIndexedFailures;
+    private final long indexTimeMillis;
 
-    // VSR Pipeline counters + gauge
-    private final LongAdder vsrRotationsTotal = new LongAdder();
-    private final LongAdder vsrRotationWaitMillis = new LongAdder();
-    private final AtomicLong vsrRowsCurrent = new AtomicLong();
+    // VSR Pipeline
+    private final long vsrRotationsTotal;
+    private final long vsrRotationWaitMillis;
+    private final long vsrRowsCurrent;
 
-    // Native Write counters
-    private final LongAdder nativeWriteTotal = new LongAdder();
-    private final LongAdder nativeWriteTimeMillis = new LongAdder();
-    private final LongAdder nativeWriteFailures = new LongAdder();
-    private final LongAdder nativeFinalizeTotal = new LongAdder();
-    private final LongAdder nativeFinalizeTimeMillis = new LongAdder();
-    private final LongAdder nativeFinalizeFailures = new LongAdder();
-    private final LongAdder nativeSyncTotal = new LongAdder();
-    private final LongAdder nativeSyncTimeMillis = new LongAdder();
-    private final LongAdder nativeSyncFailures = new LongAdder();
+    // Native Write
+    private final long nativeWriteTotal;
+    private final long nativeWriteTimeMillis;
+    private final long nativeWriteFailures;
+    private final long nativeFinalizeTotal;
+    private final long nativeFinalizeTimeMillis;
+    private final long nativeFinalizeFailures;
+    private final long nativeSyncTotal;
+    private final long nativeSyncTimeMillis;
+    private final long nativeSyncFailures;
 
-    // Sort counters
-    private final LongAdder sortTotal = new LongAdder();
-    private final LongAdder sortTimeMillis = new LongAdder();
-    private final LongAdder sortInMemoryTotal = new LongAdder();
-    private final LongAdder sortStreamingTotal = new LongAdder();
+    // Sort
+    private final long sortTotal;
+    private final long sortTimeMillis;
+    private final long sortInMemoryTotal;
+    private final long sortStreamingTotal;
 
-    // Merge counters
-    private final LongAdder mergeTotal = new LongAdder();
-    private final LongAdder mergeTimeMillis = new LongAdder();
-    private final LongAdder mergeFailures = new LongAdder();
-    private final LongAdder mergeInputFilesTotal = new LongAdder();
-    private final LongAdder mergeOutputRowsTotal = new LongAdder();
+    // Merge
+    private final long mergeTotal;
+    private final long mergeTimeMillis;
+    private final long mergeFailures;
+    private final long mergeInputFilesTotal;
+    private final long mergeOutputRowsTotal;
 
-    // Rate Limiting counters
-    private final LongAdder rateLimitPauseTimeMillis = new LongAdder();
-    private final LongAdder rateLimitBytesWritten = new LongAdder();
+    // Rate Limiting
+    private final long rateLimitPauseTimeMillis;
+    private final long rateLimitBytesWritten;
 
-    // Memory gauges
-    private final AtomicLong arrowAllocatedBytes = new AtomicLong();
-    private final AtomicLong arrowMaxBytes = new AtomicLong();
-    private final AtomicLong rustWriterMemoryBytes = new AtomicLong();
+    // Memory
+    private final long arrowAllocatedBytes;
+    private final long arrowMaxBytes;
+    private final long rustWriterMemoryBytes;
 
-    // Background Write counters
-    private final LongAdder backgroundWriteTotal = new LongAdder();
-    private final LongAdder backgroundWriteWaitMillis = new LongAdder();
-    private final LongAdder backgroundWriteTimeouts = new LongAdder();
+    // Background Write
+    private final long backgroundWriteTotal;
+    private final long backgroundWriteWaitMillis;
+    private final long backgroundWriteTimeouts;
 
-    public ParquetShardStats() {}
+    /**
+     * Constructs a snapshot with all values.
+     */
+    public ParquetShardStats(
+        long docsIndexedTotal,
+        long docsIndexedFailures,
+        long indexTimeMillis,
+        long vsrRotationsTotal,
+        long vsrRotationWaitMillis,
+        long vsrRowsCurrent,
+        long nativeWriteTotal,
+        long nativeWriteTimeMillis,
+        long nativeWriteFailures,
+        long nativeFinalizeTotal,
+        long nativeFinalizeTimeMillis,
+        long nativeFinalizeFailures,
+        long nativeSyncTotal,
+        long nativeSyncTimeMillis,
+        long nativeSyncFailures,
+        long sortTotal,
+        long sortTimeMillis,
+        long sortInMemoryTotal,
+        long sortStreamingTotal,
+        long mergeTotal,
+        long mergeTimeMillis,
+        long mergeFailures,
+        long mergeInputFilesTotal,
+        long mergeOutputRowsTotal,
+        long rateLimitPauseTimeMillis,
+        long rateLimitBytesWritten,
+        long arrowAllocatedBytes,
+        long arrowMaxBytes,
+        long rustWriterMemoryBytes,
+        long backgroundWriteTotal,
+        long backgroundWriteWaitMillis,
+        long backgroundWriteTimeouts
+    ) {
+        this.docsIndexedTotal = docsIndexedTotal;
+        this.docsIndexedFailures = docsIndexedFailures;
+        this.indexTimeMillis = indexTimeMillis;
+        this.vsrRotationsTotal = vsrRotationsTotal;
+        this.vsrRotationWaitMillis = vsrRotationWaitMillis;
+        this.vsrRowsCurrent = vsrRowsCurrent;
+        this.nativeWriteTotal = nativeWriteTotal;
+        this.nativeWriteTimeMillis = nativeWriteTimeMillis;
+        this.nativeWriteFailures = nativeWriteFailures;
+        this.nativeFinalizeTotal = nativeFinalizeTotal;
+        this.nativeFinalizeTimeMillis = nativeFinalizeTimeMillis;
+        this.nativeFinalizeFailures = nativeFinalizeFailures;
+        this.nativeSyncTotal = nativeSyncTotal;
+        this.nativeSyncTimeMillis = nativeSyncTimeMillis;
+        this.nativeSyncFailures = nativeSyncFailures;
+        this.sortTotal = sortTotal;
+        this.sortTimeMillis = sortTimeMillis;
+        this.sortInMemoryTotal = sortInMemoryTotal;
+        this.sortStreamingTotal = sortStreamingTotal;
+        this.mergeTotal = mergeTotal;
+        this.mergeTimeMillis = mergeTimeMillis;
+        this.mergeFailures = mergeFailures;
+        this.mergeInputFilesTotal = mergeInputFilesTotal;
+        this.mergeOutputRowsTotal = mergeOutputRowsTotal;
+        this.rateLimitPauseTimeMillis = rateLimitPauseTimeMillis;
+        this.rateLimitBytesWritten = rateLimitBytesWritten;
+        this.arrowAllocatedBytes = arrowAllocatedBytes;
+        this.arrowMaxBytes = arrowMaxBytes;
+        this.rustWriterMemoryBytes = rustWriterMemoryBytes;
+        this.backgroundWriteTotal = backgroundWriteTotal;
+        this.backgroundWriteWaitMillis = backgroundWriteWaitMillis;
+        this.backgroundWriteTimeouts = backgroundWriteTimeouts;
+    }
 
     public ParquetShardStats(StreamInput in) throws IOException {
         // Indexing
-        docsIndexedTotal.add(in.readVLong());
-        docsIndexedFailures.add(in.readVLong());
-        indexTimeMillis.add(in.readVLong());
+        this.docsIndexedTotal = in.readVLong();
+        this.docsIndexedFailures = in.readVLong();
+        this.indexTimeMillis = in.readVLong();
 
         // VSR
-        vsrRotationsTotal.add(in.readVLong());
-        vsrRotationWaitMillis.add(in.readVLong());
-        vsrRowsCurrent.set(in.readVLong());
+        this.vsrRotationsTotal = in.readVLong();
+        this.vsrRotationWaitMillis = in.readVLong();
+        this.vsrRowsCurrent = in.readVLong();
 
         // Native Write
-        nativeWriteTotal.add(in.readVLong());
-        nativeWriteTimeMillis.add(in.readVLong());
-        nativeWriteFailures.add(in.readVLong());
-        nativeFinalizeTotal.add(in.readVLong());
-        nativeFinalizeTimeMillis.add(in.readVLong());
-        nativeFinalizeFailures.add(in.readVLong());
-        nativeSyncTotal.add(in.readVLong());
-        nativeSyncTimeMillis.add(in.readVLong());
-        nativeSyncFailures.add(in.readVLong());
+        this.nativeWriteTotal = in.readVLong();
+        this.nativeWriteTimeMillis = in.readVLong();
+        this.nativeWriteFailures = in.readVLong();
+        this.nativeFinalizeTotal = in.readVLong();
+        this.nativeFinalizeTimeMillis = in.readVLong();
+        this.nativeFinalizeFailures = in.readVLong();
+        this.nativeSyncTotal = in.readVLong();
+        this.nativeSyncTimeMillis = in.readVLong();
+        this.nativeSyncFailures = in.readVLong();
 
         // Sort
-        sortTotal.add(in.readVLong());
-        sortTimeMillis.add(in.readVLong());
-        sortInMemoryTotal.add(in.readVLong());
-        sortStreamingTotal.add(in.readVLong());
+        this.sortTotal = in.readVLong();
+        this.sortTimeMillis = in.readVLong();
+        this.sortInMemoryTotal = in.readVLong();
+        this.sortStreamingTotal = in.readVLong();
 
         // Merge
-        mergeTotal.add(in.readVLong());
-        mergeTimeMillis.add(in.readVLong());
-        mergeFailures.add(in.readVLong());
-        mergeInputFilesTotal.add(in.readVLong());
-        mergeOutputRowsTotal.add(in.readVLong());
+        this.mergeTotal = in.readVLong();
+        this.mergeTimeMillis = in.readVLong();
+        this.mergeFailures = in.readVLong();
+        this.mergeInputFilesTotal = in.readVLong();
+        this.mergeOutputRowsTotal = in.readVLong();
 
         // Rate Limiting
-        rateLimitPauseTimeMillis.add(in.readVLong());
-        rateLimitBytesWritten.add(in.readVLong());
+        this.rateLimitPauseTimeMillis = in.readVLong();
+        this.rateLimitBytesWritten = in.readVLong();
 
         // Memory
-        arrowAllocatedBytes.set(in.readVLong());
-        arrowMaxBytes.set(in.readVLong());
-        rustWriterMemoryBytes.set(in.readVLong());
+        this.arrowAllocatedBytes = in.readVLong();
+        this.arrowMaxBytes = in.readVLong();
+        this.rustWriterMemoryBytes = in.readVLong();
 
         // Background Write
-        backgroundWriteTotal.add(in.readVLong());
-        backgroundWriteWaitMillis.add(in.readVLong());
-        backgroundWriteTimeouts.add(in.readVLong());
+        this.backgroundWriteTotal = in.readVLong();
+        this.backgroundWriteWaitMillis = in.readVLong();
+        this.backgroundWriteTimeouts = in.readVLong();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         // Indexing
-        out.writeVLong(docsIndexedTotal.sum());
-        out.writeVLong(docsIndexedFailures.sum());
-        out.writeVLong(indexTimeMillis.sum());
+        out.writeVLong(docsIndexedTotal);
+        out.writeVLong(docsIndexedFailures);
+        out.writeVLong(indexTimeMillis);
 
         // VSR
-        out.writeVLong(vsrRotationsTotal.sum());
-        out.writeVLong(vsrRotationWaitMillis.sum());
-        out.writeVLong(vsrRowsCurrent.get());
+        out.writeVLong(vsrRotationsTotal);
+        out.writeVLong(vsrRotationWaitMillis);
+        out.writeVLong(vsrRowsCurrent);
 
         // Native Write
-        out.writeVLong(nativeWriteTotal.sum());
-        out.writeVLong(nativeWriteTimeMillis.sum());
-        out.writeVLong(nativeWriteFailures.sum());
-        out.writeVLong(nativeFinalizeTotal.sum());
-        out.writeVLong(nativeFinalizeTimeMillis.sum());
-        out.writeVLong(nativeFinalizeFailures.sum());
-        out.writeVLong(nativeSyncTotal.sum());
-        out.writeVLong(nativeSyncTimeMillis.sum());
-        out.writeVLong(nativeSyncFailures.sum());
+        out.writeVLong(nativeWriteTotal);
+        out.writeVLong(nativeWriteTimeMillis);
+        out.writeVLong(nativeWriteFailures);
+        out.writeVLong(nativeFinalizeTotal);
+        out.writeVLong(nativeFinalizeTimeMillis);
+        out.writeVLong(nativeFinalizeFailures);
+        out.writeVLong(nativeSyncTotal);
+        out.writeVLong(nativeSyncTimeMillis);
+        out.writeVLong(nativeSyncFailures);
 
         // Sort
-        out.writeVLong(sortTotal.sum());
-        out.writeVLong(sortTimeMillis.sum());
-        out.writeVLong(sortInMemoryTotal.sum());
-        out.writeVLong(sortStreamingTotal.sum());
+        out.writeVLong(sortTotal);
+        out.writeVLong(sortTimeMillis);
+        out.writeVLong(sortInMemoryTotal);
+        out.writeVLong(sortStreamingTotal);
 
         // Merge
-        out.writeVLong(mergeTotal.sum());
-        out.writeVLong(mergeTimeMillis.sum());
-        out.writeVLong(mergeFailures.sum());
-        out.writeVLong(mergeInputFilesTotal.sum());
-        out.writeVLong(mergeOutputRowsTotal.sum());
+        out.writeVLong(mergeTotal);
+        out.writeVLong(mergeTimeMillis);
+        out.writeVLong(mergeFailures);
+        out.writeVLong(mergeInputFilesTotal);
+        out.writeVLong(mergeOutputRowsTotal);
 
         // Rate Limiting
-        out.writeVLong(rateLimitPauseTimeMillis.sum());
-        out.writeVLong(rateLimitBytesWritten.sum());
+        out.writeVLong(rateLimitPauseTimeMillis);
+        out.writeVLong(rateLimitBytesWritten);
 
         // Memory
-        out.writeVLong(arrowAllocatedBytes.get());
-        out.writeVLong(arrowMaxBytes.get());
-        out.writeVLong(rustWriterMemoryBytes.get());
+        out.writeVLong(arrowAllocatedBytes);
+        out.writeVLong(arrowMaxBytes);
+        out.writeVLong(rustWriterMemoryBytes);
 
         // Background Write
-        out.writeVLong(backgroundWriteTotal.sum());
-        out.writeVLong(backgroundWriteWaitMillis.sum());
-        out.writeVLong(backgroundWriteTimeouts.sum());
+        out.writeVLong(backgroundWriteTotal);
+        out.writeVLong(backgroundWriteWaitMillis);
+        out.writeVLong(backgroundWriteTimeouts);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         // Indexing
         builder.startObject("indexing");
-        builder.field("docs_indexed_total", docsIndexedTotal.sum());
-        builder.field("docs_indexed_failures", docsIndexedFailures.sum());
-        builder.field("index_time_millis", indexTimeMillis.sum());
+        builder.field("docs_indexed_total", docsIndexedTotal);
+        builder.field("docs_indexed_failures", docsIndexedFailures);
+        builder.field("index_time_millis", indexTimeMillis);
         builder.endObject();
 
         // VSR
         builder.startObject("vsr");
-        builder.field("vsr_rotations_total", vsrRotationsTotal.sum());
-        builder.field("vsr_rotation_wait_millis", vsrRotationWaitMillis.sum());
-        builder.field("vsr_rows_current", vsrRowsCurrent.get());
+        builder.field("vsr_rotations_total", vsrRotationsTotal);
+        builder.field("vsr_rotation_wait_millis", vsrRotationWaitMillis);
+        builder.field("vsr_rows_current", vsrRowsCurrent);
         builder.endObject();
 
         // Native Write
         builder.startObject("native_write");
-        builder.field("native_write_total", nativeWriteTotal.sum());
-        builder.field("native_write_time_millis", nativeWriteTimeMillis.sum());
-        builder.field("native_write_failures", nativeWriteFailures.sum());
-        builder.field("native_finalize_total", nativeFinalizeTotal.sum());
-        builder.field("native_finalize_time_millis", nativeFinalizeTimeMillis.sum());
-        builder.field("native_finalize_failures", nativeFinalizeFailures.sum());
-        builder.field("native_sync_total", nativeSyncTotal.sum());
-        builder.field("native_sync_time_millis", nativeSyncTimeMillis.sum());
-        builder.field("native_sync_failures", nativeSyncFailures.sum());
+        builder.field("native_write_total", nativeWriteTotal);
+        builder.field("native_write_time_millis", nativeWriteTimeMillis);
+        builder.field("native_write_failures", nativeWriteFailures);
+        builder.field("native_finalize_total", nativeFinalizeTotal);
+        builder.field("native_finalize_time_millis", nativeFinalizeTimeMillis);
+        builder.field("native_finalize_failures", nativeFinalizeFailures);
+        builder.field("native_sync_total", nativeSyncTotal);
+        builder.field("native_sync_time_millis", nativeSyncTimeMillis);
+        builder.field("native_sync_failures", nativeSyncFailures);
         builder.endObject();
 
         // Sort
         builder.startObject("sort");
-        builder.field("sort_total", sortTotal.sum());
-        builder.field("sort_time_millis", sortTimeMillis.sum());
-        builder.field("sort_in_memory_total", sortInMemoryTotal.sum());
-        builder.field("sort_streaming_total", sortStreamingTotal.sum());
+        builder.field("sort_total", sortTotal);
+        builder.field("sort_time_millis", sortTimeMillis);
+        builder.field("sort_in_memory_total", sortInMemoryTotal);
+        builder.field("sort_streaming_total", sortStreamingTotal);
         builder.endObject();
 
         // Merge
         builder.startObject("merge");
-        builder.field("merge_total", mergeTotal.sum());
-        builder.field("merge_time_millis", mergeTimeMillis.sum());
-        builder.field("merge_failures", mergeFailures.sum());
-        builder.field("merge_input_files_total", mergeInputFilesTotal.sum());
-        builder.field("merge_output_rows_total", mergeOutputRowsTotal.sum());
+        builder.field("merge_total", mergeTotal);
+        builder.field("merge_time_millis", mergeTimeMillis);
+        builder.field("merge_failures", mergeFailures);
+        builder.field("merge_input_files_total", mergeInputFilesTotal);
+        builder.field("merge_output_rows_total", mergeOutputRowsTotal);
         builder.endObject();
 
         // Rate Limiting
         builder.startObject("rate_limit");
-        builder.field("rate_limit_pause_time_millis", rateLimitPauseTimeMillis.sum());
-        builder.field("rate_limit_bytes_written", rateLimitBytesWritten.sum());
+        builder.field("rate_limit_pause_time_millis", rateLimitPauseTimeMillis);
+        builder.field("rate_limit_bytes_written", rateLimitBytesWritten);
         builder.endObject();
 
         // Memory
         builder.startObject("memory");
-        builder.field("arrow_allocated_bytes", arrowAllocatedBytes.get());
-        builder.field("arrow_max_bytes", arrowMaxBytes.get());
-        builder.field("rust_writer_memory_bytes", rustWriterMemoryBytes.get());
+        builder.field("arrow_allocated_bytes", arrowAllocatedBytes);
+        builder.field("arrow_max_bytes", arrowMaxBytes);
+        builder.field("rust_writer_memory_bytes", rustWriterMemoryBytes);
         builder.endObject();
 
         // Background Write
         builder.startObject("background_write");
-        builder.field("background_write_total", backgroundWriteTotal.sum());
-        builder.field("background_write_wait_millis", backgroundWriteWaitMillis.sum());
-        builder.field("background_write_timeouts", backgroundWriteTimeouts.sum());
+        builder.field("background_write_total", backgroundWriteTotal);
+        builder.field("background_write_wait_millis", backgroundWriteWaitMillis);
+        builder.field("background_write_timeouts", backgroundWriteTimeouts);
         builder.endObject();
 
         return builder;
     }
 
     /**
-     * Returns this instance as a snapshot. Since LongAdder.sum() provides a point-in-time
-     * view and the class implements Writeable, it can serialize its own current state.
+     * Returns a new snapshot that is the sum of this snapshot and another.
+     * Used for aggregation across shards.
      */
-    public ParquetShardStats snapshot() {
-        return this;
+    public ParquetShardStats add(ParquetShardStats other) {
+        return new ParquetShardStats(
+            this.docsIndexedTotal + other.docsIndexedTotal,
+            this.docsIndexedFailures + other.docsIndexedFailures,
+            this.indexTimeMillis + other.indexTimeMillis,
+            this.vsrRotationsTotal + other.vsrRotationsTotal,
+            this.vsrRotationWaitMillis + other.vsrRotationWaitMillis,
+            this.vsrRowsCurrent + other.vsrRowsCurrent,
+            this.nativeWriteTotal + other.nativeWriteTotal,
+            this.nativeWriteTimeMillis + other.nativeWriteTimeMillis,
+            this.nativeWriteFailures + other.nativeWriteFailures,
+            this.nativeFinalizeTotal + other.nativeFinalizeTotal,
+            this.nativeFinalizeTimeMillis + other.nativeFinalizeTimeMillis,
+            this.nativeFinalizeFailures + other.nativeFinalizeFailures,
+            this.nativeSyncTotal + other.nativeSyncTotal,
+            this.nativeSyncTimeMillis + other.nativeSyncTimeMillis,
+            this.nativeSyncFailures + other.nativeSyncFailures,
+            this.sortTotal + other.sortTotal,
+            this.sortTimeMillis + other.sortTimeMillis,
+            this.sortInMemoryTotal + other.sortInMemoryTotal,
+            this.sortStreamingTotal + other.sortStreamingTotal,
+            this.mergeTotal + other.mergeTotal,
+            this.mergeTimeMillis + other.mergeTimeMillis,
+            this.mergeFailures + other.mergeFailures,
+            this.mergeInputFilesTotal + other.mergeInputFilesTotal,
+            this.mergeOutputRowsTotal + other.mergeOutputRowsTotal,
+            this.rateLimitPauseTimeMillis + other.rateLimitPauseTimeMillis,
+            this.rateLimitBytesWritten + other.rateLimitBytesWritten,
+            this.arrowAllocatedBytes + other.arrowAllocatedBytes,
+            this.arrowMaxBytes + other.arrowMaxBytes,
+            this.rustWriterMemoryBytes + other.rustWriterMemoryBytes,
+            this.backgroundWriteTotal + other.backgroundWriteTotal,
+            this.backgroundWriteWaitMillis + other.backgroundWriteWaitMillis,
+            this.backgroundWriteTimeouts + other.backgroundWriteTimeouts
+        );
     }
 
-    // --- Indexing methods ---
+    // --- Getters ---
 
-    public void addDocsIndexed(long n) {
-        docsIndexedTotal.add(n);
+    public long getDocsIndexedTotal() {
+        return docsIndexedTotal;
     }
 
-    public void incDocsIndexedFailures() {
-        docsIndexedFailures.increment();
+    public long getDocsIndexedFailures() {
+        return docsIndexedFailures;
     }
 
-    public void addIndexTimeMillis(long ms) {
-        indexTimeMillis.add(ms);
+    public long getIndexTimeMillis() {
+        return indexTimeMillis;
     }
 
-    // --- VSR Pipeline methods ---
-
-    public void incVsrRotations() {
-        vsrRotationsTotal.increment();
+    public long getVsrRotationsTotal() {
+        return vsrRotationsTotal;
     }
 
-    public void addVsrRotationWaitMillis(long ms) {
-        vsrRotationWaitMillis.add(ms);
+    public long getVsrRotationWaitMillis() {
+        return vsrRotationWaitMillis;
     }
 
-    public void setVsrRowsCurrent(long rows) {
-        vsrRowsCurrent.set(rows);
+    public long getVsrRowsCurrent() {
+        return vsrRowsCurrent;
     }
 
-    // --- Native Write methods ---
-
-    public void incNativeWriteTotal() {
-        nativeWriteTotal.increment();
+    public long getNativeWriteTotal() {
+        return nativeWriteTotal;
     }
 
-    public void addNativeWriteTimeMillis(long ms) {
-        nativeWriteTimeMillis.add(ms);
+    public long getNativeWriteTimeMillis() {
+        return nativeWriteTimeMillis;
     }
 
-    public void incNativeWriteFailures() {
-        nativeWriteFailures.increment();
+    public long getNativeWriteFailures() {
+        return nativeWriteFailures;
     }
 
-    public void incNativeFinalizeTotal() {
-        nativeFinalizeTotal.increment();
+    public long getNativeFinalizeTotal() {
+        return nativeFinalizeTotal;
     }
 
-    public void addNativeFinalizeTimeMillis(long ms) {
-        nativeFinalizeTimeMillis.add(ms);
+    public long getNativeFinalizeTimeMillis() {
+        return nativeFinalizeTimeMillis;
     }
 
-    public void incNativeFinalizeFailures() {
-        nativeFinalizeFailures.increment();
+    public long getNativeFinalizeFailures() {
+        return nativeFinalizeFailures;
     }
 
-    public void incNativeSyncTotal() {
-        nativeSyncTotal.increment();
+    public long getNativeSyncTotal() {
+        return nativeSyncTotal;
     }
 
-    public void addNativeSyncTimeMillis(long ms) {
-        nativeSyncTimeMillis.add(ms);
+    public long getNativeSyncTimeMillis() {
+        return nativeSyncTimeMillis;
     }
 
-    public void incNativeSyncFailures() {
-        nativeSyncFailures.increment();
+    public long getNativeSyncFailures() {
+        return nativeSyncFailures;
     }
 
-    // --- Sort methods ---
-
-    public void incSortTotal() {
-        sortTotal.increment();
+    public long getSortTotal() {
+        return sortTotal;
     }
 
-    public void addSortTimeMillis(long ms) {
-        sortTimeMillis.add(ms);
+    public long getSortTimeMillis() {
+        return sortTimeMillis;
     }
 
-    public void incSortInMemoryTotal() {
-        sortInMemoryTotal.increment();
+    public long getSortInMemoryTotal() {
+        return sortInMemoryTotal;
     }
 
-    public void incSortStreamingTotal() {
-        sortStreamingTotal.increment();
+    public long getSortStreamingTotal() {
+        return sortStreamingTotal;
     }
 
-    // --- Merge methods ---
-
-    public void incMergeTotal() {
-        mergeTotal.increment();
+    public long getMergeTotal() {
+        return mergeTotal;
     }
 
-    public void addMergeTimeMillis(long ms) {
-        mergeTimeMillis.add(ms);
+    public long getMergeTimeMillis() {
+        return mergeTimeMillis;
     }
 
-    public void incMergeFailures() {
-        mergeFailures.increment();
+    public long getMergeFailures() {
+        return mergeFailures;
     }
 
-    public void addMergeInputFilesTotal(long n) {
-        mergeInputFilesTotal.add(n);
+    public long getMergeInputFilesTotal() {
+        return mergeInputFilesTotal;
     }
 
-    public void addMergeOutputRowsTotal(long n) {
-        mergeOutputRowsTotal.add(n);
+    public long getMergeOutputRowsTotal() {
+        return mergeOutputRowsTotal;
     }
 
-    // --- Rate Limiting methods ---
-
-    public void addRateLimitPauseTimeMillis(long ms) {
-        rateLimitPauseTimeMillis.add(ms);
+    public long getRateLimitPauseTimeMillis() {
+        return rateLimitPauseTimeMillis;
     }
 
-    public void addRateLimitBytesWritten(long bytes) {
-        rateLimitBytesWritten.add(bytes);
+    public long getRateLimitBytesWritten() {
+        return rateLimitBytesWritten;
     }
 
-    // --- Memory gauge methods ---
-
-    public void setArrowAllocatedBytes(long bytes) {
-        arrowAllocatedBytes.set(bytes);
+    public long getArrowAllocatedBytes() {
+        return arrowAllocatedBytes;
     }
 
-    public void setArrowMaxBytes(long bytes) {
-        arrowMaxBytes.set(bytes);
+    public long getArrowMaxBytes() {
+        return arrowMaxBytes;
     }
 
-    public void setRustWriterMemoryBytes(long bytes) {
-        rustWriterMemoryBytes.set(bytes);
+    public long getRustWriterMemoryBytes() {
+        return rustWriterMemoryBytes;
     }
 
-    // --- Background Write methods ---
-
-    public void incBackgroundWriteTotal() {
-        backgroundWriteTotal.increment();
+    public long getBackgroundWriteTotal() {
+        return backgroundWriteTotal;
     }
 
-    public void addBackgroundWriteWaitMillis(long ms) {
-        backgroundWriteWaitMillis.add(ms);
+    public long getBackgroundWriteWaitMillis() {
+        return backgroundWriteWaitMillis;
     }
 
-    public void incBackgroundWriteTimeouts() {
-        backgroundWriteTimeouts.increment();
+    public long getBackgroundWriteTimeouts() {
+        return backgroundWriteTimeouts;
     }
 }

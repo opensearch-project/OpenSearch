@@ -15,7 +15,7 @@ import org.apache.lucene.index.MergeIndexWriter;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
-import org.opensearch.be.lucene.stats.LuceneShardStats;
+import org.opensearch.be.lucene.stats.LuceneShardStatsTracker;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.engine.dataformat.DataFormat;
@@ -81,9 +81,9 @@ public class LuceneMerger implements Merger {
     private final DataFormat dataFormat;
     private final Path storeDirectory;
     private final LuceneMergeStrategy strategy;
-    private final LuceneShardStats stats;
+    private final LuceneShardStatsTracker stats;
 
-    public LuceneMerger(MergeIndexWriter indexWriter, DataFormat dataFormat, Path storeDirectory, LuceneShardStats stats) {
+    public LuceneMerger(MergeIndexWriter indexWriter, DataFormat dataFormat, Path storeDirectory, LuceneShardStatsTracker stats) {
         if (indexWriter == null) {
             throw new IllegalArgumentException("IndexWriter must not be null");
         }

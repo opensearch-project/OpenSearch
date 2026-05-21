@@ -8,6 +8,7 @@
 
 package org.opensearch.composite;
 
+import org.opensearch.composite.stats.CompositeShardStats;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.DocumentInput;
 import org.opensearch.index.engine.dataformat.FileInfos;
@@ -52,7 +53,7 @@ public class CompositeWriterSortPropagationTests extends OpenSearchTestCase {
             secondaryWriter
         );
 
-        CompositeWriter compositeWriter = new CompositeWriter(engine, new WriterConfig(0));
+        CompositeWriter compositeWriter = new CompositeWriter(engine, new WriterConfig(0), new CompositeShardStats());
         FileInfos result = compositeWriter.flush(FlushInput.EMPTY);
 
         // The secondary writer should have received the sort permutation
@@ -90,7 +91,7 @@ public class CompositeWriterSortPropagationTests extends OpenSearchTestCase {
             secondaryWriter
         );
 
-        CompositeWriter compositeWriter = new CompositeWriter(engine, new WriterConfig(0));
+        CompositeWriter compositeWriter = new CompositeWriter(engine, new WriterConfig(0), new CompositeShardStats());
         compositeWriter.flush(FlushInput.EMPTY);
 
         assertNotNull(secondaryWriter.lastFlushInput);
@@ -117,7 +118,7 @@ public class CompositeWriterSortPropagationTests extends OpenSearchTestCase {
             secondaryWriter
         );
 
-        CompositeWriter compositeWriter = new CompositeWriter(engine, new WriterConfig(0));
+        CompositeWriter compositeWriter = new CompositeWriter(engine, new WriterConfig(0), new CompositeShardStats());
         compositeWriter.flush(FlushInput.EMPTY);
 
         assertSame("Primary should receive the original FlushInput", FlushInput.EMPTY, primaryWriter.lastFlushInput);

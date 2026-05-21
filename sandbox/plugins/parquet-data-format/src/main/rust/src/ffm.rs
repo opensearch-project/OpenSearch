@@ -748,7 +748,7 @@ pub unsafe extern "C" fn parquet_analyze_file(
         let rg = metadata.row_group(0);
         cols.iter().map(|sc| {
             let col_name = if (sc.column_idx as usize) < rg.num_columns() {
-                rg.column(sc.column_idx as usize).column_path().to_string()
+                rg.column(sc.column_idx as usize).column_path().string()
             } else {
                 format!("column_{}", sc.column_idx)
             };
@@ -799,7 +799,7 @@ pub unsafe extern "C" fn parquet_analyze_file(
                 .unwrap_or(-1);
 
             columns.push(serde_json::json!({
-                "name": col.column_path().to_string(),
+                "name": col.column_path().string(),
                 "type": format!("{:?}", col.column_type()),
                 "compression": format!("{:?}", col.compression()),
                 "encodings": col.encodings().map(|e| format!("{:?}", e)).collect::<Vec<_>>(),
@@ -818,7 +818,7 @@ pub unsafe extern "C" fn parquet_analyze_file(
         let rg_sorting = rg.sorting_columns().map(|cols| {
             cols.iter().map(|sc| {
                 let col_name = if (sc.column_idx as usize) < rg.num_columns() {
-                    rg.column(sc.column_idx as usize).column_path().to_string()
+                    rg.column(sc.column_idx as usize).column_path().string()
                 } else {
                     format!("column_{}", sc.column_idx)
                 };

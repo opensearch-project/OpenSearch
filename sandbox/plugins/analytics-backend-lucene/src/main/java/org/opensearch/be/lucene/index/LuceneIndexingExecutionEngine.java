@@ -27,7 +27,7 @@ import org.opensearch.be.lucene.LuceneDataFormat;
 import org.opensearch.be.lucene.LuceneFieldFactoryRegistry;
 import org.opensearch.be.lucene.LuceneReader;
 import org.opensearch.be.lucene.merge.LuceneMerger;
-import org.opensearch.be.lucene.stats.LuceneShardStats;
+import org.opensearch.be.lucene.stats.LuceneShardStatsTracker;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.DocumentInput;
@@ -80,7 +80,7 @@ public class LuceneIndexingExecutionEngine implements IndexingExecutionEngine<Lu
 
     private static final Logger logger = LogManager.getLogger(LuceneIndexingExecutionEngine.class);
 
-    private final LuceneShardStats stats = new LuceneShardStats();
+    private final LuceneShardStatsTracker stats = new LuceneShardStatsTracker();
     private final LuceneDataFormat dataFormat;
     private final MergeIndexWriter sharedWriter;
     private final MapperService mapperService;
@@ -144,7 +144,7 @@ public class LuceneIndexingExecutionEngine implements IndexingExecutionEngine<Lu
     /**
      * Returns the shard-level stats collector.
      */
-    public LuceneShardStats getStats() {
+    public LuceneShardStatsTracker getStats() {
         return stats;
     }
 
