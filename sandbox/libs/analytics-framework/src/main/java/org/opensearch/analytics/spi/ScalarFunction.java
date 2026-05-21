@@ -51,6 +51,14 @@ public enum ScalarFunction {
     /** Calcite's Sarg fold for IN / NOT IN / BETWEEN / range-union. Backends expand it before substrait. */
     SARG_PREDICATE(Category.SCALAR, SqlKind.SEARCH),
 
+    /**
+     * Struct constructor — Calcite's {@code SqlStdOperatorTable.ROW}, used in Project to
+     * assemble named-field structs from scalar inputs. Result type is always a struct, so
+     * capability resolution in {@code OpenSearchProjectRule} falls back to the first
+     * operand's type (no {@code FieldType.STRUCT} exists).
+     */
+    ROW(Category.SCALAR, SqlKind.ROW),
+
     // ── Full-text search ─────────────────────────────────────────────
     MATCH(Category.FULL_TEXT, SqlKind.OTHER_FUNCTION),
     MATCH_PHRASE(Category.FULL_TEXT, SqlKind.OTHER_FUNCTION),

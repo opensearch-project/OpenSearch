@@ -184,7 +184,10 @@ public class MockDataFusionBackend extends MockBackend implements SearchBackEndP
         // Logical connectives (projection-side composition: `case(a and b, …)`)
         ScalarFunction.AND,
         ScalarFunction.OR,
-        ScalarFunction.NOT
+        ScalarFunction.NOT,
+        // Struct constructor — emitted by OpenSearchStatsReduceRule's Project to assemble
+        // STRUCT(count, min, max, avg, sum) from the primitive aggregate output columns.
+        ScalarFunction.ROW
     );
 
     private static final Set<ProjectCapability> PROJECT_CAPS;
