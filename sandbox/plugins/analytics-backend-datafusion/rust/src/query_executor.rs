@@ -149,6 +149,13 @@ pub async fn execute_query(
     let logical_plan = from_substrait_plan(&ctx.state(), &substrait_plan).await?;
     let dataframe = ctx.execute_logical_plan(logical_plan).await?;
     let physical_plan = dataframe.create_physical_plan().await?;
+    // Retag any physical-plan output columns whose type tags differ from what Substrait
+    // declared on bit-compatible Int↔UInt pairs (see crate::relabel_exec). The target is
+    // schema_coerce::coerce_inferred_schema(physical_schema) — the same narrowing the
+    // partition-stream registration uses, so the consumer's StreamingTable and the
+    // batches arriving from this producer agree by construction.
+    let target_schema = crate::schema_coerce::coerce_inferred_schema(physical_plan.schema());
+    let physical_plan = crate::relabel_exec::wrap_if_relabel_needed(physical_plan, target_schema)?;
 
     let df_stream = execute_stream(physical_plan, ctx.task_ctx()).map_err(|e| {
         error!("Failed to create execution stream: {}", e);
@@ -200,6 +207,8 @@ pub async fn execute_with_context(
         log_debug!("DataFusion logical plan:\n{}", logical_plan.display_indent());
         let dataframe = handle.ctx.execute_logical_plan(logical_plan).await?;
         let physical_plan = dataframe.create_physical_plan().await?;
+        let target_schema = crate::schema_coerce::coerce_inferred_schema(physical_plan.schema());
+        let physical_plan = crate::relabel_exec::wrap_if_relabel_needed(physical_plan, target_schema)?;
         log_debug!("DataFusion physical plan:\n{}", displayable(physical_plan.as_ref()).indent(true));
 
         let df_stream = execute_stream(physical_plan, handle.ctx.task_ctx()).map_err(|e| {

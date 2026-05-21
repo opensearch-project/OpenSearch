@@ -35,6 +35,8 @@ use std::num::NonZeroUsize;
 use std::path::PathBuf;
 use std::sync::Arc;
 
+use arrow_schema::DataType;
+
 use arrow_array::ffi::FFI_ArrowArray;
 use arrow_array::RecordBatch;
 use arrow_array::{Array, StructArray};
@@ -72,17 +74,26 @@ pub struct QueryStreamHandle {
     /// The physical plan may reference state (e.g. RuntimeEnv, caches) owned
     /// by the session; dropping it prematurely causes use-after-free.
     _session_ctx: Option<datafusion::prelude::SessionContext>,
+    has_views: bool,
 }
 
 impl QueryStreamHandle {
+    fn schema_has_views(schema: &arrow_schema::SchemaRef) -> bool {
+        schema.fields().iter().any(|f| {
+            matches!(f.data_type(), DataType::Utf8View | DataType::BinaryView)
+        })
+    }
+
     pub fn new(
         stream: RecordBatchStreamAdapter<CrossRtStream>,
         query_context: QueryTrackingContext,
     ) -> Self {
+        let has_views = Self::schema_has_views(&stream.schema());
         Self {
             stream,
             _query_tracking_context: query_context,
             _session_ctx: None,
+            has_views,
         }
     }
 
@@ -91,10 +102,12 @@ impl QueryStreamHandle {
         query_context: QueryTrackingContext,
         ctx: datafusion::prelude::SessionContext,
     ) -> Self {
+        let has_views = Self::schema_has_views(&stream.schema());
         Self {
             stream,
             _query_tracking_context: query_context,
             _session_ctx: Some(ctx),
+            has_views,
         }
     }
 }
@@ -598,6 +611,11 @@ pub async unsafe fn stream_next(stream_ptr: i64) -> Result<i64, DataFusionError>
             // Apply pending phantom correction from the self-correcting budget.
             handle._query_tracking_context.apply_pending_phantom_correction();
 
+            let batch = if handle.has_views {
+                compact_string_view_columns(batch)
+            } else {
+                batch
+            };
             let struct_array: StructArray = batch.into();
             let array_data = struct_array.into_data();
             let ffi_array = FFI_ArrowArray::new(&array_data);
@@ -605,6 +623,61 @@ pub async unsafe fn stream_next(stream_ptr: i64) -> Result<i64, DataFusionError>
         }
         None => Ok(0),
     }
+}
+
+/// Prevents sliced StringView batches from carrying full backing buffers across FFI.
+fn compact_string_view_columns(batch: RecordBatch) -> RecordBatch {
+    let schema = batch.schema();
+    let needs_compaction = batch
+        .columns()
+        .iter()
+        .zip(schema.fields().iter())
+        .any(|(col, field)| match field.data_type() {
+            DataType::Utf8View => {
+                let view: &arrow_array::StringViewArray = col.as_any().downcast_ref()
+                    .expect("column must be StringViewArray when schema declares Utf8View");
+                view_needs_gc(view.data_buffers(), view.total_buffer_bytes_used())
+            }
+            DataType::BinaryView => {
+                let view: &arrow_array::BinaryViewArray = col.as_any().downcast_ref()
+                    .expect("column must be BinaryViewArray when schema declares BinaryView");
+                view_needs_gc(view.data_buffers(), view.total_buffer_bytes_used())
+            }
+            _ => false,
+        });
+    if !needs_compaction {
+        return batch;
+    }
+    let columns: Vec<Arc<dyn Array>> = batch
+        .columns()
+        .iter()
+        .zip(schema.fields().iter())
+        .map(|(col, field)| match field.data_type() {
+            DataType::Utf8View => {
+                let view: &arrow_array::StringViewArray = col.as_any().downcast_ref()
+                    .expect("column must be StringViewArray when schema declares Utf8View");
+                Arc::new(view.gc()) as Arc<dyn Array>
+            }
+            DataType::BinaryView => {
+                let view: &arrow_array::BinaryViewArray = col.as_any().downcast_ref()
+                    .expect("column must be BinaryViewArray when schema declares BinaryView");
+                Arc::new(view.gc()) as Arc<dyn Array>
+            }
+            _ => Arc::clone(col),
+        })
+        .collect();
+    RecordBatch::try_new(schema, columns).expect("gc'd columns must match schema")
+}
+
+// 10KB: below this, the gc() copy cost outweighs the transfer savings.
+const GC_MIN_WASTE_BYTES: usize = 10_240;
+
+#[inline]
+fn view_needs_gc(buffers: &[arrow::buffer::Buffer], bytes_used: usize) -> bool {
+    let bytes_allocated: usize = buffers.iter().map(|b| b.len()).sum();
+    let waste = bytes_allocated.saturating_sub(bytes_used);
+    let is_significantly_bloated = bytes_allocated > 2 * bytes_used;
+    is_significantly_bloated && waste > GC_MIN_WASTE_BYTES
 }
 
 /// Closes a result stream. Safe to call with 0 (no-op).
@@ -703,11 +776,21 @@ pub unsafe fn sql_to_substrait(
 }
 
 /// Lowers a partial-aggregate Substrait plan against a throwaway session and
-/// returns its physical output schema. NamedTable references are resolved
-/// against empty MemTables built from the substrait base_schema — the plan
-/// itself is the source of truth for the producer side, so no view-type or
-/// timestamp-precision rewrites are applied here. The plan is dropped at
+/// returns its physical output schema **narrowed via
+/// [`schema_coerce::coerce_inferred_schema`]** to types Substrait can bind
+/// against. NamedTable references are resolved against empty MemTables built
+/// from the substrait base_schema — the plan itself is the source of truth for
+/// the producer side, so no view-type or timestamp-precision rewrites are
+/// applied here beyond the post-physical coercer. The plan is dropped at
 /// function exit; only the schema is returned.
+///
+/// <p>The coercer flips Arrow-only types (notably `UInt64` from DataFusion's
+/// `row_number()` physical op) back to their Substrait-compatible counterparts
+/// (`Int64` matching isthmus's `ROW_NUMBER OVER` declaration). The producer
+/// side runs the same coercer + wraps its physical plan with
+/// [`crate::relabel_exec::RelabelExec`] (zero-copy bit-tag flip per mismatched
+/// column), so runtime batches arrive with the same type tags the consumer
+/// registers here — no per-batch cast needed at the partition-stream feed.
 fn derive_schema_from_partial_plan(
     substrait_bytes: &[u8],
 ) -> Result<arrow::datatypes::SchemaRef, DataFusionError> {
@@ -785,7 +868,7 @@ fn derive_schema_from_partial_plan(
 
     let logical_plan = futures::executor::block_on(from_substrait_plan(&session_state, &plan))?;
     let physical_plan = futures::executor::block_on(session_state.create_physical_plan(&logical_plan))?;
-    Ok(physical_plan.schema())
+    Ok(crate::schema_coerce::coerce_inferred_schema(physical_plan.schema()))
 }
 
 /// Encodes a Schema as Arrow IPC stream-format bytes (a schema-only message
@@ -938,6 +1021,12 @@ pub unsafe fn register_partition_stream(
     partial_plan_bytes: &[u8],
 ) -> Result<(i64, Vec<u8>), DataFusionError> {
     let session = &mut *(session_ptr as *mut LocalSession);
+    // derive_schema_from_partial_plan applies `schema_coerce::coerce_inferred_schema`
+    // to the physical plan's output schema, matching what isthmus declared on the wire
+    // for the producer (e.g. `Int64` for `ROW_NUMBER OVER`). The producer side runs the
+    // same coercer + wraps its physical plan with `RelabelExec`, so the batches arriving
+    // here through the partition channel are already typed to match this schema — no
+    // per-batch cast at feed time.
     let schema = derive_schema_from_partial_plan(partial_plan_bytes)?;
     let schema_ipc = schema_to_ipc_bytes(schema.as_ref())?;
     let sender = session.register_partition(input_id, schema)?;
@@ -1095,6 +1184,173 @@ pub unsafe fn sender_send(
 pub unsafe fn sender_close(sender_ptr: i64) {
     if sender_ptr != 0 {
         let _ = Box::from_raw(sender_ptr as *mut PartitionStreamSender);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use arrow_array::{BinaryViewArray, Int64Array, StringViewArray};
+    use arrow_schema::{Field, Schema};
+
+    #[test]
+    fn stringview_gc_compacts_sliced_buffers() {
+        let total_rows = 100_000usize;
+        let slice_rows = 100usize;
+
+        let strings: Vec<String> = (0..total_rows)
+            .map(|i| format!("long_string_value_{:06}_padding", i))
+            .collect();
+        let string_view_array = StringViewArray::from_iter_values(strings.iter().map(|s| s.as_str()));
+        let int_array = Int64Array::from_iter_values(0..total_rows as i64);
+
+        let schema = Arc::new(Schema::new(vec![
+            Field::new("str_col", DataType::Utf8View, false),
+            Field::new("int_col", DataType::Int64, false),
+        ]));
+        let batch = RecordBatch::try_new(
+            schema,
+            vec![Arc::new(string_view_array), Arc::new(int_array)],
+        )
+        .unwrap();
+
+        let sliced = batch.slice(0, slice_rows);
+
+        let before_size = sliced.column(0).get_array_memory_size();
+
+        let compacted = compact_string_view_columns(sliced);
+
+        let after_size = compacted.column(0).get_array_memory_size();
+
+        assert!(
+            before_size > after_size * 100,
+            "Expected >100x reduction on StringView column, got before={} after={} ratio={}",
+            before_size,
+            after_size,
+            before_size / after_size
+        );
+    }
+
+    #[test]
+    fn stringview_gc_inline_strings_no_change() {
+        let strings: Vec<&str> = (0..100).map(|_| "short").collect();
+        let string_view_array = StringViewArray::from_iter_values(strings.into_iter());
+
+        let schema = Arc::new(Schema::new(vec![
+            Field::new("str_col", DataType::Utf8View, false),
+        ]));
+        let batch =
+            RecordBatch::try_new(schema, vec![Arc::new(string_view_array.clone())]).unwrap();
+
+        let compacted = compact_string_view_columns(batch.clone());
+        let before_size = batch.columns()[0].get_array_memory_size();
+        let after_size = compacted.columns()[0].get_array_memory_size();
+        assert_eq!(before_size, after_size);
+    }
+
+    #[test]
+    fn stringview_gc_empty_array() {
+        let string_view_array = StringViewArray::from_iter_values(std::iter::empty::<&str>());
+        let schema = Arc::new(Schema::new(vec![
+            Field::new("str_col", DataType::Utf8View, false),
+        ]));
+        let batch = RecordBatch::try_new(schema, vec![Arc::new(string_view_array)]).unwrap();
+        let compacted = compact_string_view_columns(batch);
+        assert_eq!(compacted.num_rows(), 0);
+    }
+
+    #[test]
+    fn binaryview_gc_compacts_sliced_buffers() {
+        let total_rows = 10_000usize;
+        let slice_rows = 10usize;
+
+        let values: Vec<Vec<u8>> = (0..total_rows)
+            .map(|i| format!("binary_payload_{:08}_extra_bytes", i).into_bytes())
+            .collect();
+        let binary_view_array =
+            BinaryViewArray::from_iter_values(values.iter().map(|v| v.as_slice()));
+        let int_array = Int64Array::from_iter_values(0..total_rows as i64);
+
+        let schema = Arc::new(Schema::new(vec![
+            Field::new("bin_col", DataType::BinaryView, false),
+            Field::new("int_col", DataType::Int64, false),
+        ]));
+        let batch = RecordBatch::try_new(
+            schema,
+            vec![Arc::new(binary_view_array), Arc::new(int_array)],
+        )
+        .unwrap();
+
+        let sliced = batch.slice(0, slice_rows);
+        let before_size = sliced.columns()[0].get_array_memory_size();
+
+        let compacted = compact_string_view_columns(sliced);
+        let after_size = compacted.columns()[0].get_array_memory_size();
+
+        assert!(
+            before_size > after_size * 100,
+            "Expected large reduction for BinaryView, got before={} after={} ratio={}",
+            before_size,
+            after_size,
+            before_size / after_size
+        );
+    }
+
+    #[test]
+    fn no_view_columns_passthrough() {
+        let int_array = Int64Array::from_iter_values(0..1000);
+        let schema = Arc::new(Schema::new(vec![
+            Field::new("int_col", DataType::Int64, false),
+        ]));
+        let batch = RecordBatch::try_new(schema, vec![Arc::new(int_array)]).unwrap();
+        let compacted = compact_string_view_columns(batch.clone());
+        assert_eq!(
+            batch.columns()[0].get_array_memory_size(),
+            compacted.columns()[0].get_array_memory_size()
+        );
+    }
+
+    #[test]
+    fn non_sliced_batch_skips_gc() {
+        let strings: Vec<String> = (0..1000)
+            .map(|i| format!("long_string_value_{:06}_padding", i))
+            .collect();
+        let string_view_array: Arc<dyn Array> =
+            Arc::new(StringViewArray::from_iter_values(strings.iter().map(|s| s.as_str())));
+
+        let schema = Arc::new(Schema::new(vec![
+            Field::new("str_col", DataType::Utf8View, false),
+        ]));
+        let batch =
+            RecordBatch::try_new(schema, vec![Arc::clone(&string_view_array)]).unwrap();
+
+        let compacted = compact_string_view_columns(batch);
+
+        assert!(
+            Arc::ptr_eq(&string_view_array, compacted.column(0)),
+            "Non-sliced batch must return the original column Arc (no copy)"
+        );
+    }
+
+    #[test]
+    fn view_needs_gc_detects_bloat() {
+        let strings: Vec<String> = (0..10_000)
+            .map(|i| format!("long_string_value_{:06}_padding", i))
+            .collect();
+        let full_array =
+            StringViewArray::from_iter_values(strings.iter().map(|s| s.as_str()));
+
+        let sliced = full_array.slice(0, 100);
+        let sliced_view: &StringViewArray = sliced.as_any().downcast_ref().unwrap();
+        assert!(
+            view_needs_gc(sliced_view.data_buffers(), sliced_view.total_buffer_bytes_used()),
+            "Sliced array must be detected as needing gc"
+        );
+
+        assert!(
+            !view_needs_gc(full_array.data_buffers(), full_array.total_buffer_bytes_used()),
+            "Non-sliced array must NOT need gc"
+        );
     }
 }
 

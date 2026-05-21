@@ -382,10 +382,9 @@ public class DataFusionPlugin extends Plugin
 
     @Override
     public void setCircuitBreaker(CircuitBreaker circuitBreaker) {
-        this.datafusionBreaker = circuitBreaker; 
+        this.datafusionBreaker = circuitBreaker;
     }
-          
-    
+
     public Supplier<AnalyticsBackendTaskCancellationStats> getAnalyticsBackendTaskCancellationStats() {
         return () -> {
             try {
