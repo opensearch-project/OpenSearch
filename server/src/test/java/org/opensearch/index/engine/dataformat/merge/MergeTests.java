@@ -38,6 +38,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 
@@ -152,7 +153,10 @@ public class MergeTests extends OpenSearchTestCase {
             (mergeResult, oneMerge) -> {},
             SHARD_ID,
             idxSettings,
-            mockThreadPool()
+            mockThreadPool(),
+            () -> {},
+            () -> {},
+            () -> {}
         );
     }
 
@@ -373,7 +377,10 @@ public class MergeTests extends OpenSearchTestCase {
             (mr, om) -> {},
             SHARD_ID,
             idxSettings,
-            mockThreadPool()
+            mockThreadPool(),
+            () -> {},
+            () -> {},
+            () -> {}
         );
         scheduler.enableAutoIOThrottle();
         assertNotNull(scheduler.stats());
@@ -400,7 +407,10 @@ public class MergeTests extends OpenSearchTestCase {
             (mr, om) -> captured.set(mr),
             SHARD_ID,
             mergeSchedulerSettings(),
-            mockThreadPool()
+            mockThreadPool(),
+            () -> {},
+            () -> {},
+            () -> {}
         );
 
         scheduler.triggerMerges();
@@ -419,7 +429,16 @@ public class MergeTests extends OpenSearchTestCase {
         };
         MergeHandler handler = createHandlerWithRealPolicy(snapshotSupplierOf(segments), failingMerger);
 
-        MergeScheduler scheduler = new MergeScheduler(handler, (mr, om) -> {}, SHARD_ID, mergeSchedulerSettings(), mockThreadPool());
+        MergeScheduler scheduler = new MergeScheduler(
+            handler,
+            (mr, om) -> {},
+            SHARD_ID,
+            mergeSchedulerSettings(),
+            mockThreadPool(),
+            () -> {},
+            () -> {},
+            () -> {}
+        );
 
         scheduler.triggerMerges();
         assertTrue(latch.await(5, TimeUnit.SECONDS));
@@ -440,11 +459,158 @@ public class MergeTests extends OpenSearchTestCase {
         MergeScheduler scheduler = new MergeScheduler(handler, (mr, om) -> {
             captured.set(mr);
             latch.countDown();
-        }, SHARD_ID, mergeSchedulerSettings(), mockThreadPool());
+        }, SHARD_ID, mergeSchedulerSettings(), mockThreadPool(), () -> {}, () -> {}, () -> {});
 
         scheduler.forceMerge(1);
         assertTrue(latch.await(5, TimeUnit.SECONDS));
         assertNotNull(captured.get());
+    }
+
+    // ---- MergeScheduler: throttling and failure-cleanup hook coverage ----
+
+    /**
+     * Drives {@link MergeScheduler#maybeActivateThrottle()} past the
+     * {@code inFlight > maxMergeCount} threshold and verifies the
+     * {@code activateThrottling} hook fires exactly once. The throttle
+     * threshold is reached by invoking the private hook directly via
+     * reflection — by design {@code MergeSchedulerConfig} validates that
+     * {@code maxThreadCount <= maxMergeCount}, so {@code executeMerge}
+     * cannot drive the counter past the cap on its own.
+     */
+    public void testMaybeActivateThrottleFiresOnceWhenInFlightExceedsCap() throws Exception {
+        AtomicInteger activateCount = new AtomicInteger();
+        AtomicInteger deactivateCount = new AtomicInteger();
+        MergeScheduler scheduler = new MergeScheduler(
+            createNoopHandler(emptySnapshotSupplier()),
+            (mr, om) -> {},
+            SHARD_ID,
+            mergeSchedulerSettings(),
+            mockThreadPool(),
+            activateCount::incrementAndGet,
+            deactivateCount::incrementAndGet,
+            () -> {}
+        );
+        // mergeSchedulerSettings() configures maxMergeCount = 6. Pump the in-flight
+        // counter up to 7 so the activation branch fires on the seventh increment.
+        for (int i = 0; i < 7; i++) {
+            invokeMaybeActivateThrottle(scheduler);
+        }
+        assertEquals("activateThrottling must fire exactly once when crossing the cap", 1, activateCount.get());
+
+        // Subsequent increments while above the cap must not re-trigger activation.
+        invokeMaybeActivateThrottle(scheduler);
+        assertEquals("activateThrottling must not re-trigger while throttling is on", 1, activateCount.get());
+
+        // Drain back to threshold; deactivation fires when inFlight drops below maxMergeCount (6).
+        for (int i = 0; i < 8; i++) {
+            invokeMaybeDeactivateThrottle(scheduler);
+        }
+        assertEquals("deactivateThrottling must fire exactly once when dropping below the cap", 1, deactivateCount.get());
+
+        // Decrementing further while below the cap must not re-trigger deactivation.
+        invokeMaybeDeactivateThrottle(scheduler);
+        assertEquals("deactivateThrottling must not re-trigger while throttling is off", 1, deactivateCount.get());
+    }
+
+    /**
+     * Verifies that when {@code maybeActivateThrottle} is called but in-flight stays
+     * at or below the cap, the throttle callbacks do not fire. Covers the
+     * {@code inFlight > maxMergeCountSnapshot == false} branch.
+     */
+    public void testMaybeActivateThrottleNoOpWhenWithinCap() throws Exception {
+        AtomicInteger activateCount = new AtomicInteger();
+        AtomicInteger deactivateCount = new AtomicInteger();
+        MergeScheduler scheduler = new MergeScheduler(
+            createNoopHandler(emptySnapshotSupplier()),
+            (mr, om) -> {},
+            SHARD_ID,
+            mergeSchedulerSettings(),
+            mockThreadPool(),
+            activateCount::incrementAndGet,
+            deactivateCount::incrementAndGet,
+            () -> {}
+        );
+        // maxMergeCount = 6 — six increments stay within the cap.
+        for (int i = 0; i < 6; i++) {
+            invokeMaybeActivateThrottle(scheduler);
+        }
+        assertEquals("activateThrottling must not fire below or at the cap", 0, activateCount.get());
+
+        // Drain in matching pairs; deactivate must not fire either since we never crossed.
+        for (int i = 0; i < 6; i++) {
+            invokeMaybeDeactivateThrottle(scheduler);
+        }
+        assertEquals("deactivateThrottling must not fire when no activation occurred", 0, deactivateCount.get());
+    }
+
+    /**
+     * Verifies that an exception thrown by the {@code onMergeFailureCleanup} hook is
+     * logged and swallowed so the rest of the merge-failure path still completes.
+     * Covers the catch branch in {@code MergeScheduler#runFailureCleanup}.
+     */
+    public void testFailureCleanupHookExceptionIsSwallowed() throws Exception {
+        List<Segment> segments = createSegments(15);
+        CountDownLatch mergeStarted = new CountDownLatch(1);
+        CountDownLatch cleanupAttempted = new CountDownLatch(1);
+
+        Merger failingMerger = mergeInput -> {
+            mergeStarted.countDown();
+            throw new IOException("merge boom");
+        };
+        MergeHandler handler = createHandlerWithRealPolicy(snapshotSupplierOf(segments), failingMerger);
+
+        Runnable throwingCleanup = () -> {
+            cleanupAttempted.countDown();
+            throw new RuntimeException("cleanup boom");
+        };
+        MergeScheduler scheduler = new MergeScheduler(
+            handler,
+            (mr, om) -> {},
+            SHARD_ID,
+            mergeSchedulerSettings(),
+            mockThreadPool(),
+            () -> {},
+            () -> {},
+            throwingCleanup
+        );
+
+        scheduler.triggerMerges();
+        assertTrue("merger must run", mergeStarted.await(5, TimeUnit.SECONDS));
+        assertTrue("cleanup hook must run after the merge throws", cleanupAttempted.await(5, TimeUnit.SECONDS));
+        // Allow onMergeFailure to settle so we can re-trigger; the segments must have been
+        // released by onMergeFailure even though the cleanup hook threw — proving the
+        // failure path ran to completion past the swallowed cleanup exception.
+        assertBusy(() -> {
+            handler.findAndRegisterMerges();
+            assertTrue("segments must be re-mergeable after cleanup-hook exception", handler.hasPendingMerges());
+        }, 5, TimeUnit.SECONDS);
+    }
+
+    /**
+     * Verifies that the {@code onMergeFailureCleanup} hook is invoked when a force-merge
+     * fails. Covers the {@code runFailureCleanup} call site inside
+     * {@link MergeScheduler#forceMerge(int)}.
+     */
+    public void testForceMergeFailureInvokesCleanupHook() throws Exception {
+        List<Segment> segments = createSegments(3);
+        CountDownLatch cleanupRan = new CountDownLatch(1);
+
+        Merger failingMerger = mergeInput -> { throw new IOException("force-merge boom"); };
+        MergeHandler handler = createHandlerWithRealPolicy(snapshotSupplierOf(segments), failingMerger);
+
+        MergeScheduler scheduler = new MergeScheduler(
+            handler,
+            (mr, om) -> {},
+            SHARD_ID,
+            mergeSchedulerSettings(),
+            mockThreadPool(),
+            () -> {},
+            () -> {},
+            cleanupRan::countDown
+        );
+
+        scheduler.forceMerge(1);
+        assertTrue("force-merge cleanup hook must run on failure", cleanupRan.await(5, TimeUnit.SECONDS));
     }
 
     @SuppressForbidden(reason = "helper to set private isShutdown field via reflection for testing")
@@ -453,6 +619,28 @@ public class MergeTests extends OpenSearchTestCase {
             Field f = MergeScheduler.class.getDeclaredField("isShutdown");
             f.setAccessible(true);
             ((AtomicBoolean) f.get(scheduler)).set(value);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    @SuppressForbidden(reason = "test invokes private throttle hook directly because MergeSchedulerConfig validation prevents driving inFlight past the cap through the public API")
+    private static void invokeMaybeActivateThrottle(MergeScheduler scheduler) {
+        try {
+            java.lang.reflect.Method m = MergeScheduler.class.getDeclaredMethod("maybeActivateThrottle");
+            m.setAccessible(true);
+            m.invoke(scheduler);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    @SuppressForbidden(reason = "test invokes private throttle hook directly to mirror the activation reflection pattern")
+    private static void invokeMaybeDeactivateThrottle(MergeScheduler scheduler) {
+        try {
+            java.lang.reflect.Method m = MergeScheduler.class.getDeclaredMethod("maybeDeactivateThrottle");
+            m.setAccessible(true);
+            m.invoke(scheduler);
         } catch (Exception e) {
             throw new RuntimeException(e);
         }

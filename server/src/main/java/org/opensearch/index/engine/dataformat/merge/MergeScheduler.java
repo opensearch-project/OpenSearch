@@ -45,7 +45,12 @@ public class MergeScheduler {
     private final BiConsumer<MergeResult, OneMerge> applyMergeChanges;
     private final ThreadPool threadPool;
     private final AtomicInteger activeMerges = new AtomicInteger(0);
+    private final AtomicInteger numMergesInFlight = new AtomicInteger(0);
     private final AtomicBoolean isShutdown = new AtomicBoolean(false);
+    private final AtomicBoolean isThrottling = new AtomicBoolean(false);
+    private final Runnable activateThrottling;
+    private final Runnable deactivateThrottling;
+    private final Runnable onMergeFailureCleanup;
     private volatile int maxConcurrentMerges;
     private volatile int maxMergeCount;
     private final MergeSchedulerConfig mergeSchedulerConfig;
@@ -61,24 +66,45 @@ public class MergeScheduler {
     protected double targetMBPerSec = START_MB_PER_SEC;
 
     /**
-     * Creates a new merge scheduler.
+     * Creates a new merge scheduler. The scheduler invokes {@code activateThrottling}
+     * when pending + active merges exceed the configured
+     * {@link MergeSchedulerConfig#getMaxMergeCount() max merge count}, and
+     * {@code deactivateThrottling} once the total drops back below that cap — mirroring
+     * the throttling trigger used by {@code InternalEngine.EngineMergeScheduler} on the
+     * Lucene path. On this path pending + active is the equivalent of Lucene's
+     * {@code numMergesInFlight} counter, since {@link #executeMerge()} already caps
+     * {@link #activeMerges} at {@code maxConcurrentMerges}.
      *
-     * @param mergeHandler      the handler that selects and executes merges
-     * @param applyMergeChanges callback to apply merge results (e.g., update the catalog)
-     * @param shardId           the shard this scheduler is associated with
-     * @param indexSettings     the index settings providing merge scheduler configuration
-     * @param threadPool        the OpenSearch thread pool for executing merge tasks
+     * @param mergeHandler         the handler that selects and executes merges
+     * @param applyMergeChanges    callback to apply merge results (e.g., update the catalog)
+     * @param shardId              the shard this scheduler is associated with
+     * @param indexSettings        the index settings providing merge scheduler configuration
+     * @param threadPool           the OpenSearch thread pool for executing merge tasks
+     * @param activateThrottling   invoked when merge pressure exceeds the max merge count
+     * @param deactivateThrottling invoked when merge pressure drops back below the cap
+     * @param onMergeFailureCleanup invoked on the merge thread when {@code doMerge} or
+     *                              {@code applyMergeChanges} throws, to release any state
+     *                              the pre-merge-commit hook may have acquired (for example
+     *                              the engine's refresh lock). Run before
+     *                              {@link MergeHandler#onMergeFailure(OneMerge)} so the
+     *                              shutdown / re-trigger paths do not block on a leaked lock.
      */
     public MergeScheduler(
         MergeHandler mergeHandler,
         BiConsumer<MergeResult, OneMerge> applyMergeChanges,
         ShardId shardId,
         IndexSettings indexSettings,
-        ThreadPool threadPool
+        ThreadPool threadPool,
+        Runnable activateThrottling,
+        Runnable deactivateThrottling,
+        Runnable onMergeFailureCleanup
     ) {
         this.mergeHandler = mergeHandler;
         this.applyMergeChanges = applyMergeChanges;
         this.threadPool = threadPool;
+        this.activateThrottling = activateThrottling;
+        this.deactivateThrottling = deactivateThrottling;
+        this.onMergeFailureCleanup = onMergeFailureCleanup;
         logger = Loggers.getLogger(getClass(), shardId);
         this.mergeSchedulerConfig = indexSettings.getMergeSchedulerConfig();
         refreshConfig();
@@ -147,6 +173,7 @@ public class MergeScheduler {
                     mergeHandler.onMergeFinished(oneMerge);
                 } catch (Exception e) {
                     logger.error(new ParameterizedMessage("Force merge failed for: {}", oneMerge), e);
+                    runFailureCleanup();
                     mergeHandler.onMergeFailure(oneMerge);
                 }
             });
@@ -228,6 +255,7 @@ public class MergeScheduler {
                 }
 
                 mergeStatsTracker.beforeMerge(totalNumDocs, totalSizeInBytes);
+                maybeActivateThrottle();
 
                 MergeResult mergeResult = mergeHandler.doMerge(oneMerge);
                 applyMergeChanges.accept(mergeResult, oneMerge);
@@ -238,14 +266,79 @@ public class MergeScheduler {
 
             } catch (Exception e) {
                 logger.error(new ParameterizedMessage("Unexpected error during merge for: {}", oneMerge), e);
+                runFailureCleanup();
                 mergeHandler.onMergeFailure(oneMerge);
             } finally {
                 mergeStatsTracker.afterMerge(tookMS, totalNumDocs, totalSizeInBytes);
 
                 activeMerges.decrementAndGet();
+                maybeDeactivateThrottle();
                 // A completed merge may free up capacity for new merges, so check again.
                 executeMerge();
             }
         });
+    }
+
+    /**
+     * Increments the in-flight counter and activates write throttling when it exceeds the
+     * configured {@link MergeSchedulerConfig#getMaxMergeCount() max merge count}.
+     * <p>
+     * Mirrors {@code InternalEngine.EngineMergeScheduler#beforeMerge} on the Lucene path:
+     * the counter is bumped once per merge claimed for execution, and crossing the
+     * threshold flips the throttle state via {@code activateThrottling}. The {@code max
+     * merge count} is read once into a local snapshot so this method observes a single
+     * stable cap value even if {@link #refreshConfig()} updates the field concurrently.
+     */
+    private synchronized void maybeActivateThrottle() {
+        int maxMergeCountSnapshot = maxMergeCount;
+        int inFlight = numMergesInFlight.incrementAndGet();
+        if (inFlight > maxMergeCountSnapshot) {
+            if (isThrottling.getAndSet(true) == false) {
+                logger.debug("now throttling indexing: numMergesInFlight={}, maxMergeCount={}", inFlight, maxMergeCountSnapshot);
+                activateThrottling.run();
+            }
+        }
+    }
+
+    /**
+     * Decrements the in-flight counter and deactivates write throttling when it drops
+     * back strictly below the configured max merge count.
+     * <p>
+     * Mirrors {@code InternalEngine.EngineMergeScheduler#afterMerge} on the Lucene path.
+     * The asymmetric {@code >} / {@code <} comparison between
+     * {@link #maybeActivateThrottle()} and this method is intentional hysteresis — the
+     * throttle activates strictly above the cap and deactivates strictly below, which
+     * avoids flapping when {@code numMergesInFlight} oscillates around the threshold.
+     */
+    private synchronized void maybeDeactivateThrottle() {
+        int maxMergeCountSnapshot = maxMergeCount;
+        int inFlight = numMergesInFlight.decrementAndGet();
+        if (inFlight < maxMergeCountSnapshot) {
+            if (isThrottling.getAndSet(false)) {
+                logger.debug("stop throttling indexing: numMergesInFlight={}, maxMergeCount={}", inFlight, maxMergeCountSnapshot);
+                deactivateThrottling.run();
+            }
+        }
+    }
+
+    /**
+     * Releases any state that the pre-merge-commit hook may have acquired earlier on the
+     * current merge thread (notably the engine's refresh lock when a Lucene-side warmer
+     * fired between {@code mergeMiddle} and {@code commitMerge}).
+     * <p>
+     * Invoked from the merge-task catch blocks <em>before</em>
+     * {@link MergeHandler#onMergeFailure(OneMerge)} so the failure path cannot leak
+     * resources that block subsequent refreshes or the engine shutdown sequence.
+     * <p>
+     * The cleanup callback is contractually expected to be idempotent and to no-op
+     * when there is nothing to release. Any exception it throws is logged and swallowed
+     * so the rest of the failure path runs to completion.
+     */
+    private void runFailureCleanup() {
+        try {
+            onMergeFailureCleanup.run();
+        } catch (Exception cleanupEx) {
+            logger.warn("merge-failure cleanup threw; continuing failure handling", cleanupEx);
+        }
     }
 }

@@ -29,10 +29,16 @@ import org.opensearch.index.IndexSettings;
 import org.opensearch.index.VersionType;
 import org.opensearch.index.engine.dataformat.DataFormatPlugin;
 import org.opensearch.index.engine.dataformat.DataFormatRegistry;
+import org.opensearch.index.engine.dataformat.IndexingEngineConfig;
+import org.opensearch.index.engine.dataformat.IndexingExecutionEngine;
+import org.opensearch.index.engine.dataformat.MergeInput;
+import org.opensearch.index.engine.dataformat.MergeResult;
+import org.opensearch.index.engine.dataformat.Merger;
 import org.opensearch.index.engine.dataformat.stub.InMemoryCommitter;
 import org.opensearch.index.engine.dataformat.stub.MockDataFormat;
 import org.opensearch.index.engine.dataformat.stub.MockDataFormatPlugin;
 import org.opensearch.index.engine.dataformat.stub.MockDocumentInput;
+import org.opensearch.index.engine.dataformat.stub.MockIndexingExecutionEngine;
 import org.opensearch.index.engine.dataformat.stub.MockSearchBackEndPlugin;
 import org.opensearch.index.engine.exec.IndexReaderProvider;
 import org.opensearch.index.engine.exec.WriterFileSet;
@@ -68,6 +74,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
@@ -1741,6 +1748,314 @@ public class DataFormatAwareEngineTests extends OpenSearchTestCase {
                     "refresh after merge must advance the catalog generation",
                     ref.get().getGeneration(),
                     greaterThan(genBeforeFinalRefresh)
+                );
+            }
+        }
+    }
+
+    /**
+     * Regression test for a refresh-lock leak in the merge failure path.
+     *
+     * <p>The Lucene committer installs a {@code MergedSegmentWarmer} that invokes the
+     * engine's {@code preMergeCommitHook} (which acquires {@code refreshLock}) inside
+     * Lucene's {@code mergeMiddle}, before {@code commitMerge}. Ownership of the lock is
+     * then expected to transfer to {@code DataFormatAwareEngine.applyMergeChanges}, which
+     * releases it in a {@code finally}.
+     *
+     * <p>If the merge fails <em>after</em> the hook runs but <em>before</em>
+     * {@code doMerge} returns successfully (for example, a simulated
+     * {@code commitMerge} failure, disk full, assertion blown), the scheduler catches
+     * the exception and never calls {@code applyMergeChanges} — so nothing releases the
+     * refresh lock. From then on, every {@code refresh()} blocks and no new
+     * {@link CatalogSnapshot} is published. Downstream, the file-cleanup pipeline stalls:
+     * old snapshots are never dropped, {@code LuceneCommitter.deleteCommit} is never
+     * called, and Lucene segment files accumulate on disk until a restart reopens the
+     * writer (whose default deletion policy then prunes stale commits).
+     *
+     * <p>This test reproduces the leak deterministically by replacing the merger with
+     * one that (a) runs the {@code preMergeCommitHook} exactly as the Lucene warmer
+     * does and then (b) throws. It expects a follow-up {@code refresh()} to time out
+     * within a short window because the lock never came back. The test will fail today
+     * and must pass once the ownership-transfer path is fixed (for example, by releasing
+     * the lock on the failure branch, or by always invoking {@code applyMergeChanges}
+     * with a sentinel result that releases it).
+     */
+    public void testMergeFailureMustNotLeakRefreshLock() throws Exception {
+        Path translogPath = createTempDir();
+        String uuid = Translog.createEmptyTranslog(translogPath, SequenceNumbers.NO_OPS_PERFORMED, shardId, primaryTerm.get());
+        bootstrapStoreWithMetadata(store, uuid);
+
+        // Captures the preMergeCommitHook that DataFormatAwareEngine passes to the committer.
+        AtomicReference<Runnable> capturedHook = new AtomicReference<>();
+
+        CommitterFactory capturingCommitterFactory = cfg -> {
+            capturedHook.set(cfg.preMergeCommitHook());
+            return new InMemoryCommitter(store);
+        };
+
+        // Coordinates the test with the (async) merge thread so we observe the lock leak
+        // deterministically rather than racing with the executor.
+        CountDownLatch hookInvoked = new CountDownLatch(1);
+        CountDownLatch mergeFailed = new CountDownLatch(1);
+
+        // Plug in a failing merger that mimics the Lucene committer's MergedSegmentWarmer:
+        // the real warmer runs the hook (acquiring refreshLock) inside mergeMiddle before
+        // commitMerge. We run the hook and then fail, simulating a commitMerge exception.
+        Merger failingMerger = new Merger() {
+            @Override
+            public MergeResult merge(MergeInput mergeInput) {
+                Runnable hook = capturedHook.get();
+                assertNotNull("preMergeCommitHook must be wired by the time merge is invoked", hook);
+                hook.run();
+                hookInvoked.countDown();
+                try {
+                    throw new RuntimeException("simulated commitMerge failure after warmer");
+                } finally {
+                    mergeFailed.countDown();
+                }
+            }
+        };
+
+        MockDataFormatPlugin failingPlugin = new MockDataFormatPlugin(mockDataFormat) {
+            @Override
+            public IndexingExecutionEngine<?, ?> indexingEngine(IndexingEngineConfig settings) {
+                return new MockIndexingExecutionEngine(mockDataFormat) {
+                    @Override
+                    public Merger getMerger() {
+                        return failingMerger;
+                    }
+                };
+            }
+        };
+
+        // Rebuild the registry so DFAE picks up the failing plugin.
+        PluginsService pluginsService = mock(PluginsService.class);
+        when(pluginsService.filterPlugins(DataFormatPlugin.class)).thenReturn(List.of(failingPlugin));
+        when(pluginsService.filterPlugins(SearchBackEndPlugin.class)).thenReturn(
+            List.of(new MockSearchBackEndPlugin(List.of(mockDataFormat.name())))
+        );
+        DataFormatRegistry registry = new DataFormatRegistry(pluginsService);
+
+        IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(
+            "test",
+            Settings.builder()
+                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
+                .put(IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey(), true)
+                .put(IndexSettings.PLUGGABLE_DATAFORMAT_VALUE_SETTING.getKey(), mockDataFormat.name())
+                .build()
+        );
+        TranslogConfig translogConfig = new TranslogConfig(
+            shardId,
+            translogPath,
+            indexSettings,
+            BigArrays.NON_RECYCLING_INSTANCE,
+            "",
+            false
+        );
+        MapperService mapperService = mock(MapperService.class);
+        when(mapperService.getIndexSettings()).thenReturn(indexSettings);
+        EngineConfig config = new EngineConfig.Builder().shardId(shardId)
+            .threadPool(threadPool)
+            .indexSettings(indexSettings)
+            .store(store)
+            .mergePolicy(NoMergePolicy.INSTANCE)
+            .translogConfig(translogConfig)
+            .flushMergesAfter(TimeValue.timeValueMinutes(5))
+            .externalRefreshListener(List.of())
+            .internalRefreshListener(List.of())
+            .globalCheckpointSupplier(() -> SequenceNumbers.NO_OPS_PERFORMED)
+            .retentionLeasesSupplier(() -> RetentionLeases.EMPTY)
+            .primaryTermSupplier(primaryTerm::get)
+            .tombstoneDocSupplier(tombstoneDocSupplier())
+            .dataFormatRegistry(registry)
+            .committerFactory(capturingCommitterFactory)
+            .mapperService(mapperService)
+            .build();
+
+        try (DataFormatAwareEngine engine = new DataFormatAwareEngine(config)) {
+            // Produce two segments so the merge policy has something to combine.
+            engine.index(indexOp(createParsedDocWithInput("1", null)));
+            engine.refresh("seed-1");
+            engine.index(indexOp(createParsedDocWithInput("2", null)));
+            engine.refresh("seed-2");
+
+            try (GatedCloseable<CatalogSnapshot> ref = engine.acquireSnapshot()) {
+                assertThat("two segments before failing merge", ref.get().getSegments().size(), equalTo(2));
+            }
+
+            // Trigger a force merge. Our merger runs the hook (acquires refreshLock) and then
+            // throws; the scheduler catches the throw and does NOT call applyMergeChanges, so
+            // the lock is never released.
+            engine.forceMerge(false, 1, false, false, false, "failing-force-merge");
+
+            // Wait until the merge has actually failed on the FORCE_MERGE executor so we're
+            // not racing — by this point the hook has locked refreshLock and the thread has
+            // thrown, returning control to the scheduler's catch block without ever releasing
+            // the lock.
+            assertTrue("merge hook must run within 10s", hookInvoked.await(10, TimeUnit.SECONDS));
+            assertTrue("merge must fail within 10s", mergeFailed.await(10, TimeUnit.SECONDS));
+
+            // Drive a refresh from a fresh thread. If refreshLock was released, this completes
+            // quickly. If it was leaked by the merge-failure path, this will hang — we bound
+            // the wait and fail with a diagnostic.
+            AtomicReference<Throwable> refreshFailure = new AtomicReference<>();
+            CountDownLatch started = new CountDownLatch(1);
+            CountDownLatch finished = new CountDownLatch(1);
+            Thread refreshThread = new Thread(() -> {
+                started.countDown();
+                try {
+                    engine.index(indexOp(createParsedDocWithInput("3", null)));
+                    engine.refresh("post-failure");
+                } catch (Throwable t) {
+                    refreshFailure.set(t);
+                } finally {
+                    finished.countDown();
+                }
+            }, "post-failure-refresh");
+            refreshThread.setDaemon(true);
+            refreshThread.start();
+            assertTrue("refresh thread failed to start", started.await(5, TimeUnit.SECONDS));
+
+            boolean completed = finished.await(10, TimeUnit.SECONDS);
+            if (completed == false) {
+                // Capture the refresh thread's state for the failure message — this is the
+                // smoking gun: it's BLOCKED or WAITING on refreshLock held by the dead
+                // FORCE_MERGE task.
+                Thread.State state = refreshThread.getState();
+                refreshThread.interrupt();
+                fail(
+                    "refresh() did not complete within 10s after a failing merge — the refresh lock "
+                        + "acquired by the preMergeCommitHook was never released. Refresh thread state="
+                        + state
+                        + ". The merge-failure path must hand ownership back or release the lock defensively."
+                );
+            }
+            Throwable refreshErr = refreshFailure.get();
+            assertNull("refresh after failing merge must not throw, got: " + refreshErr, refreshErr);
+
+            // And the catalog must have advanced — the refresh genuinely landed.
+            try (GatedCloseable<CatalogSnapshot> ref = engine.acquireSnapshot()) {
+                assertThat("refresh after failing merge must advance catalog generation", ref.get().getGeneration(), greaterThan(2L));
+            }
+        }
+    }
+
+    /**
+     * Covers the {@code isHeldByCurrentThread() == false} branch of
+     * {@code DataFormatAwareEngine.releaseRefreshLockIfHeld()}.
+     *
+     * <p>When a merge fails <em>before</em> the {@code preMergeCommitHook} fires —
+     * for example a pre-{@code doMerge} validation failure, or a pure-Parquet merge
+     * where the Lucene-side warmer never participates — the merge thread does not
+     * hold {@code refreshLock} on entry to the cleanup hook. The cleanup must
+     * defensively no-op rather than throw {@code IllegalMonitorStateException}.
+     *
+     * <p>This test installs a merger that throws immediately without invoking the
+     * captured hook, then triggers a force merge and asserts that subsequent
+     * refreshes proceed normally — proving the cleanup hook ran without leaving
+     * the engine in a broken state.
+     */
+    public void testMergeFailureBeforeHookRunsCleanupSafely() throws Exception {
+        Path translogPath = createTempDir();
+        String uuid = Translog.createEmptyTranslog(translogPath, SequenceNumbers.NO_OPS_PERFORMED, shardId, primaryTerm.get());
+        bootstrapStoreWithMetadata(store, uuid);
+
+        // Capture but never invoke the preMergeCommitHook — this models the
+        // "warmer never fires" failure paths (pre-doMerge validation, pure-Parquet merges).
+        AtomicReference<Runnable> capturedHook = new AtomicReference<>();
+        CommitterFactory capturingCommitterFactory = cfg -> {
+            capturedHook.set(cfg.preMergeCommitHook());
+            return new InMemoryCommitter(store);
+        };
+
+        CountDownLatch mergeFailed = new CountDownLatch(1);
+        Merger failingMerger = mergeInput -> {
+            try {
+                throw new RuntimeException("simulated pre-hook merge failure");
+            } finally {
+                mergeFailed.countDown();
+            }
+        };
+
+        MockDataFormatPlugin failingPlugin = new MockDataFormatPlugin(mockDataFormat) {
+            @Override
+            public IndexingExecutionEngine<?, ?> indexingEngine(IndexingEngineConfig settings) {
+                return new MockIndexingExecutionEngine(mockDataFormat) {
+                    @Override
+                    public Merger getMerger() {
+                        return failingMerger;
+                    }
+                };
+            }
+        };
+
+        PluginsService pluginsService = mock(PluginsService.class);
+        when(pluginsService.filterPlugins(DataFormatPlugin.class)).thenReturn(List.of(failingPlugin));
+        when(pluginsService.filterPlugins(SearchBackEndPlugin.class)).thenReturn(
+            List.of(new MockSearchBackEndPlugin(List.of(mockDataFormat.name())))
+        );
+        DataFormatRegistry registry = new DataFormatRegistry(pluginsService);
+
+        IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(
+            "test",
+            Settings.builder()
+                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
+                .put(IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey(), true)
+                .put(IndexSettings.PLUGGABLE_DATAFORMAT_VALUE_SETTING.getKey(), mockDataFormat.name())
+                .build()
+        );
+        TranslogConfig translogConfig = new TranslogConfig(
+            shardId,
+            translogPath,
+            indexSettings,
+            BigArrays.NON_RECYCLING_INSTANCE,
+            "",
+            false
+        );
+        MapperService mapperService = mock(MapperService.class);
+        when(mapperService.getIndexSettings()).thenReturn(indexSettings);
+        EngineConfig config = new EngineConfig.Builder().shardId(shardId)
+            .threadPool(threadPool)
+            .indexSettings(indexSettings)
+            .store(store)
+            .mergePolicy(NoMergePolicy.INSTANCE)
+            .translogConfig(translogConfig)
+            .flushMergesAfter(TimeValue.timeValueMinutes(5))
+            .externalRefreshListener(List.of())
+            .internalRefreshListener(List.of())
+            .globalCheckpointSupplier(() -> SequenceNumbers.NO_OPS_PERFORMED)
+            .retentionLeasesSupplier(() -> RetentionLeases.EMPTY)
+            .primaryTermSupplier(primaryTerm::get)
+            .tombstoneDocSupplier(tombstoneDocSupplier())
+            .dataFormatRegistry(registry)
+            .committerFactory(capturingCommitterFactory)
+            .mapperService(mapperService)
+            .build();
+
+        try (DataFormatAwareEngine engine = new DataFormatAwareEngine(config)) {
+            engine.index(indexOp(createParsedDocWithInput("1", null)));
+            engine.refresh("seed-1");
+            engine.index(indexOp(createParsedDocWithInput("2", null)));
+            engine.refresh("seed-2");
+
+            engine.forceMerge(false, 1, false, false, false, "pre-hook-failing-merge");
+            assertTrue("merge must fail within 10s", mergeFailed.await(10, TimeUnit.SECONDS));
+
+            // The cleanup hook ran on a thread that did not hold refreshLock — it must
+            // have no-op'd. Subsequent refreshes proceed normally.
+            long genBefore;
+            try (GatedCloseable<CatalogSnapshot> ref = engine.acquireSnapshot()) {
+                genBefore = ref.get().getGeneration();
+            }
+            engine.index(indexOp(createParsedDocWithInput("3", null)));
+            engine.refresh("post-pre-hook-failure");
+            try (GatedCloseable<CatalogSnapshot> ref = engine.acquireSnapshot()) {
+                assertThat(
+                    "refresh after pre-hook merge failure must advance the catalog generation",
+                    ref.get().getGeneration(),
+                    greaterThan(genBefore)
                 );
             }
         }
