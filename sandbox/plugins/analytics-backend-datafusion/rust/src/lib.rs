@@ -14,6 +14,7 @@
 pub(crate) mod agg_mode;
 pub mod api;
 pub mod cache;
+pub mod can_match;
 pub mod cancellation;
 pub mod cross_rt_stream;
 pub mod custom_cache_manager;

@@ -698,6 +698,32 @@ pub unsafe extern "C" fn df_cache_manager_contains_by_type(
     })
 }
 
+/// Can-match: checks if any row group in the given file has statistics overlapping
+/// the range [filter_min, filter_max] for the specified column. Returns 1 (can match),
+/// 0 (cannot match), or -1 (unknown/error — conservatively treat as can match).
+#[ffm_safe]
+#[no_mangle]
+pub unsafe extern "C" fn df_can_match(
+    file_path_ptr: *const u8,
+    file_path_len: i64,
+    column_name_ptr: *const u8,
+    column_name_len: i64,
+    filter_min: i64,
+    filter_max: i64,
+) -> i64 {
+    let file_path = str_from_raw(file_path_ptr, file_path_len)
+        .map_err(|e| format!("df_can_match: file_path: {}", e))?;
+    let column_name = str_from_raw(column_name_ptr, column_name_len)
+        .map_err(|e| format!("df_can_match: column_name: {}", e))?;
+
+    let result = crate::can_match::can_match_range(file_path, column_name, filter_min, filter_max);
+    Ok(match result {
+        crate::can_match::CanMatchResult::Yes => 1,
+        crate::can_match::CanMatchResult::No => 0,
+        crate::can_match::CanMatchResult::Unknown => -1,
+    })
+}
+
 #[no_mangle]
 pub unsafe extern "C" fn df_close_session_context(ptr: i64) {
     crate::session_context::close_session_context(ptr);
