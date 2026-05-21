@@ -25,16 +25,19 @@ public class AnalyticsCanMatchRequest extends TransportRequest {
 
     private final ShardId shardId;
     private final byte[] filterBytes;
+    private final String backendId;
 
-    public AnalyticsCanMatchRequest(ShardId shardId, byte[] filterBytes) {
+    public AnalyticsCanMatchRequest(ShardId shardId, byte[] filterBytes, String backendId) {
         this.shardId = shardId;
         this.filterBytes = filterBytes;
+        this.backendId = backendId;
     }
 
     public AnalyticsCanMatchRequest(StreamInput in) throws IOException {
         super(in);
         this.shardId = new ShardId(in);
         this.filterBytes = in.readByteArray();
+        this.backendId = in.readString();
     }
 
     @Override
@@ -42,6 +45,7 @@ public class AnalyticsCanMatchRequest extends TransportRequest {
         super.writeTo(out);
         shardId.writeTo(out);
         out.writeByteArray(filterBytes);
+        out.writeString(backendId);
     }
 
     public ShardId getShardId() {
@@ -50,5 +54,9 @@ public class AnalyticsCanMatchRequest extends TransportRequest {
 
     public byte[] getFilterBytes() {
         return filterBytes;
+    }
+
+    public String getBackendId() {
+        return backendId;
     }
 }

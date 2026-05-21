@@ -12,6 +12,9 @@ import org.opensearch.analytics.backend.EngineResultBatch;
 import org.opensearch.analytics.exec.action.FragmentExecutionAction;
 import org.opensearch.analytics.exec.action.FragmentExecutionArrowResponse;
 import org.opensearch.analytics.exec.action.FragmentExecutionRequest;
+import org.opensearch.analytics.exec.canmatch.AnalyticsCanMatchAction;
+import org.opensearch.analytics.exec.canmatch.AnalyticsCanMatchRequest;
+import org.opensearch.analytics.exec.canmatch.AnalyticsCanMatchResponse;
 import org.opensearch.analytics.exec.task.AnalyticsShardTask;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.service.ClusterService;
@@ -71,6 +74,7 @@ public class AnalyticsSearchTransportService {
         this.transportService = streamTransportService;
         this.clusterService = clusterService;
         registerStreamingFragmentHandler(this.transportService, searchService, indicesService);
+        registerCanMatchHandler(this.transportService, indicesService, searchService);
     }
 
     private static void registerStreamingFragmentHandler(
@@ -114,6 +118,23 @@ public class AnalyticsSearchTransportService {
                     },
                     transportService.getThreadPool().executor(ThreadPool.Names.SEARCH)
                 );
+            }
+        );
+    }
+
+    private static void registerCanMatchHandler(
+        StreamTransportService transportService,
+        IndicesService indicesService,
+        AnalyticsSearchService searchService
+    ) {
+        transportService.registerRequestHandler(
+            AnalyticsCanMatchAction.NAME,
+            ThreadPool.Names.SAME,
+            AnalyticsCanMatchRequest::new,
+            (request, channel, task) -> {
+                IndexShard shard = indicesService.indexServiceSafe(request.getShardId().getIndex()).getShard(request.getShardId().id());
+                AnalyticsCanMatchResponse response = searchService.canMatch(shard, request.getFilterBytes(), request.getBackendId());
+                channel.sendResponse(response);
             }
         );
     }

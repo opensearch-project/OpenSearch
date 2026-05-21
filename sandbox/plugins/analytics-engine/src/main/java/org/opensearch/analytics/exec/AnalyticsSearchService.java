@@ -17,6 +17,7 @@ import org.opensearch.analytics.backend.EngineResultStream;
 import org.opensearch.analytics.backend.SearchExecEngine;
 import org.opensearch.analytics.backend.ShardScanExecutionContext;
 import org.opensearch.analytics.exec.action.FragmentExecutionRequest;
+import org.opensearch.analytics.exec.canmatch.AnalyticsCanMatchResponse;
 import org.opensearch.analytics.exec.task.AnalyticsShardTask;
 import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
 import org.opensearch.analytics.spi.BackendExecutionContext;
@@ -100,6 +101,30 @@ public class AnalyticsSearchService implements AutoCloseable {
 
     public void setTaskResourceTrackingService(TaskResourceTrackingService service) {
         this.taskResourceTrackingService = service;
+    }
+
+    /**
+     * Evaluates can-match for a shard by delegating to the backend's metadata-based filter check.
+     * Returns a conservative YES if the backend is unavailable or an error occurs.
+     */
+    public AnalyticsCanMatchResponse canMatch(IndexShard shard, byte[] filterBytes, String backendId) {
+        if (filterBytes == null || filterBytes.length == 0) {
+            return AnalyticsCanMatchResponse.YES;
+        }
+        AnalyticsSearchBackendPlugin backend = backends.get(backendId);
+        if (backend == null) {
+            return AnalyticsCanMatchResponse.YES;
+        }
+        try {
+            // TODO: build CommonExecutionContext from shard for the backend to access metadata
+            // CommonExecutionContext ctx = buildCanMatchContext(shard);
+            // boolean matches = backend.canMatch(ctx, filterBytes);
+            // return matches ? AnalyticsCanMatchResponse.YES : AnalyticsCanMatchResponse.NO;
+            return AnalyticsCanMatchResponse.YES;
+        } catch (Exception e) {
+            LOGGER.warn("can-match evaluation failed for shard [{}], conservatively returning true", shard.shardId(), e);
+            return AnalyticsCanMatchResponse.YES;
+        }
     }
 
     public FragmentResources executeFragmentStreaming(FragmentExecutionRequest request, IndexShard shard, AnalyticsShardTask task) {
