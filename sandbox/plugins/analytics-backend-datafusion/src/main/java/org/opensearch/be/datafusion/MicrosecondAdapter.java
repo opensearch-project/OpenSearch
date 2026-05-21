@@ -24,10 +24,10 @@ import java.util.List;
 
 /**
  * PPL {@code microsecond(x)} → {@code CAST(MOD(date_part('microsecond', x), 1_000_000) AS <retType>)}:
- * MySQL/PPL {@code MICROSECOND()} returns only the sub-second microseconds (0..999_999), but
+ * PPL {@code MICROSECOND()} returns only the sub-second microseconds (0..999_999), but
  * DataFusion/Postgres {@code date_part('microsecond', x)} returns
  * {@code seconds * 1_000_000 + microseconds} (e.g. 46_123_456 for {@code 01:34:46.123456}).
- * Wrap with {@code MOD(..., 1_000_000)} to drop the seconds component, matching MySQL semantics
+ * Wrap with {@code MOD(..., 1_000_000)} to drop the seconds component, matching PPL semantics
  * and what {@code DateTimeFunctionIT#testMicrosecond} expects.
  *
  * @opensearch.internal

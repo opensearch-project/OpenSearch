@@ -35,7 +35,7 @@ import java.util.List;
  * sub-second microseconds (0..999_999), but DataFusion's {@code date_part('microsecond', x)}
  * returns {@code seconds * 1_000_000 + microseconds} — Postgres semantics. The adapter
  * wraps the {@code date_part} call with {@code MOD(..., 1_000_000)} and casts back to the
- * call's declared return type, restoring MySQL/PPL semantics.
+ * call's declared return type, restoring PPL semantics.
  */
 public class MicrosecondAdapterTests extends OpenSearchTestCase {
 
