@@ -322,7 +322,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             indexFieldData.setListener(new FieldDataCacheListener(this));
             indexFieldData.setShardIdentityResolver(shardId -> {
                 final IndexShard shard = getShardOrNull(shardId.id());
-                return shard == null ? 0 : System.identityHashCode(shard);
+                return shard == null ? IndicesFieldDataCache.Key.NO_SHARD_IDENTITY : System.identityHashCode(shard);
             });
             this.bitsetFilterCache = new BitsetFilterCache(indexSettings, indicesBitsetFilterCache, new BitsetCacheListener(this));
             this.warmer = new IndexWarmer(

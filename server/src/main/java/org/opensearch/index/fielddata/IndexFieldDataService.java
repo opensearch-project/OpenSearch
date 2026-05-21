@@ -42,6 +42,7 @@ import org.opensearch.index.IndexSettings;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.indices.fielddata.cache.IndicesFieldDataCache;
+import org.opensearch.indices.fielddata.cache.IndicesFieldDataCache.Key;
 import org.opensearch.search.lookup.SearchLookup;
 import org.opensearch.threadpool.ThreadPool;
 
@@ -91,7 +92,7 @@ public class IndexFieldDataService extends AbstractIndexComponent implements Clo
         public void onRemoval(ShardId shardId, String fieldName, boolean wasEvicted, long sizeInBytes) {}
     };
     private volatile IndexFieldDataCache.Listener listener = DEFAULT_NOOP_LISTENER;
-    private volatile ToIntFunction<ShardId> shardIdentityResolver = shardId -> 0;
+    private volatile ToIntFunction<ShardId> shardIdentityResolver = shardId -> Key.NO_SHARD_IDENTITY;
 
     public IndexFieldDataService(
         IndexSettings indexSettings,

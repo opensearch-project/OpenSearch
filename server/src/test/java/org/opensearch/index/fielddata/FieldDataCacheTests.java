@@ -239,6 +239,102 @@ public class FieldDataCacheTests extends OpenSearchTestCase {
         nodeCache.close();
     }
 
+    // When listeners throw from onCache/onRemoval, the cache must swallow and log so other
+    // listeners and the load itself proceed normally.
+    public void testListenerExceptionsAreSwallowedDuringCacheAndRemoval() throws Exception {
+        Directory dir = newDirectory();
+        IndexWriterConfig iwc = new IndexWriterConfig(null);
+        iwc.setMergePolicy(NoMergePolicy.INSTANCE);
+        IndexWriter iw = new IndexWriter(dir, iwc);
+        for (int i = 0; i < 2; i++) {
+            Document doc = new Document();
+            doc.add(new SortedSetDocValuesField("field1", new BytesRef("v" + i)));
+            iw.addDocument(doc);
+            iw.commit();
+        }
+        iw.close();
+        DirectoryReader ir = OpenSearchDirectoryReader.wrap(DirectoryReader.open(dir), new ShardId("idx", "_na_", 0));
+
+        IndexFieldDataCache.Listener throwingNode = new IndexFieldDataCache.Listener() {
+            @Override
+            public void onCache(ShardId shardId, String fieldName, Accountable ramUsage) {
+                throw new RuntimeException("boom-cache-node");
+            }
+
+            @Override
+            public void onRemoval(ShardId shardId, String fieldName, boolean wasEvicted, long sizeInBytes) {
+                throw new RuntimeException("boom-removal-node");
+            }
+        };
+        IndexFieldDataCache.Listener throwingPerShard = new IndexFieldDataCache.Listener() {
+            @Override
+            public void onCache(ShardId shardId, String fieldName, Accountable ramUsage) {
+                throw new RuntimeException("boom-cache-shard");
+            }
+
+            @Override
+            public void onRemoval(ShardId shardId, String fieldName, boolean wasEvicted, long sizeInBytes) {
+                throw new RuntimeException("boom-removal-shard");
+            }
+        };
+
+        IndicesFieldDataCache nodeCache = new IndicesFieldDataCache(Settings.EMPTY, throwingNode, null, null);
+        Index index = new Index("idx", "_na_");
+        IndexFieldDataCache fieldCache = nodeCache.buildIndexFieldDataCache(throwingPerShard, index, "field1", shardId -> 1);
+
+        SortedSetOrdinalsIndexFieldData ifd = createSortedDV("field1", fieldCache);
+        // load should succeed despite throwing onCache listeners
+        ifd.loadGlobal(ir);
+        // removal path should also tolerate throwing listeners
+        nodeCache.getCache().invalidateAll();
+
+        ir.close();
+        dir.close();
+        nodeCache.close();
+    }
+
+    // The 3-arg buildIndexFieldDataCache overload uses a default resolver that returns
+    // NO_SHARD_IDENTITY, which means the staleness check always allows per-shard listeners through.
+    public void testThreeArgBuildUsesNoShardIdentitySentinel() throws Exception {
+        Directory dir = newDirectory();
+        IndexWriterConfig iwc = new IndexWriterConfig(null);
+        iwc.setMergePolicy(NoMergePolicy.INSTANCE);
+        IndexWriter iw = new IndexWriter(dir, iwc);
+        for (int i = 0; i < 2; i++) {
+            Document doc = new Document();
+            doc.add(new SortedSetDocValuesField("field1", new BytesRef("v" + i)));
+            iw.addDocument(doc);
+            iw.commit();
+        }
+        iw.close();
+        DirectoryReader ir = OpenSearchDirectoryReader.wrap(DirectoryReader.open(dir), new ShardId("idx", "_na_", 0));
+
+        AtomicInteger perShardOnRemoval = new AtomicInteger();
+        IndexFieldDataCache.Listener perShardListener = new IndexFieldDataCache.Listener() {
+            @Override
+            public void onRemoval(ShardId shardId, String fieldName, boolean wasEvicted, long sizeInBytes) {
+                perShardOnRemoval.incrementAndGet();
+            }
+        };
+
+        IndicesFieldDataCache nodeCache = new IndicesFieldDataCache(Settings.EMPTY, new IndexFieldDataCache.Listener() {
+        }, null, null);
+        Index index = new Index("idx", "_na_");
+        // 3-arg overload — no shardIdentityResolver supplied
+        IndexFieldDataCache fieldCache = nodeCache.buildIndexFieldDataCache(perShardListener, index, "field1");
+
+        SortedSetOrdinalsIndexFieldData ifd = createSortedDV("field1", fieldCache);
+        ifd.loadGlobal(ir);
+        nodeCache.getCache().invalidateAll();
+
+        // Without identity tracking, every removal reaches the per-shard listener.
+        assertEquals(1, perShardOnRemoval.get());
+
+        ir.close();
+        dir.close();
+        nodeCache.close();
+    }
+
     private class DummyAccountingFieldDataCache implements IndexFieldDataCache {
 
         private int cachedGlobally = 0;

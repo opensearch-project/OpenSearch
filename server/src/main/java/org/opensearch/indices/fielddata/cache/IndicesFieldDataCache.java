@@ -145,7 +145,7 @@ public class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCa
     }
 
     public IndexFieldDataCache buildIndexFieldDataCache(IndexFieldDataCache.Listener listener, Index index, String fieldName) {
-        return buildIndexFieldDataCache(listener, index, fieldName, shardId -> 0);
+        return buildIndexFieldDataCache(listener, index, fieldName, shardId -> Key.NO_SHARD_IDENTITY);
     }
 
     /**
@@ -188,8 +188,10 @@ public class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCa
         // Per-shard listeners are skipped if the shard that originally cached this entry has been
         // replaced (e.g. after reallocation). Without this check, the replacement shard would be
         // decremented for memory it never accounted for, pushing stats negative (#20363).
-        final int currentShardIdentity = key.shardId == null ? 0 : indexCache.shardIdentityResolver.applyAsInt(key.shardId);
-        if (key.shardIdentity != 0 && key.shardIdentity != currentShardIdentity) {
+        final int currentShardIdentity = key.shardId == null
+            ? Key.NO_SHARD_IDENTITY
+            : indexCache.shardIdentityResolver.applyAsInt(key.shardId);
+        if (key.shardIdentity != Key.NO_SHARD_IDENTITY && key.shardIdentity != currentShardIdentity) {
             return;
         }
         for (IndexFieldDataCache.Listener listener : indexCache.perShardListeners) {
@@ -333,7 +335,7 @@ public class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCa
             if (cacheHelper == null) {
                 throw new IllegalArgumentException("Reader " + context.reader() + " does not support caching");
             }
-            final int shardIdentity = shardId == null ? 0 : shardIdentityResolver.applyAsInt(shardId);
+            final int shardIdentity = shardId == null ? Key.NO_SHARD_IDENTITY : shardIdentityResolver.applyAsInt(shardId);
             final Key key = new Key(this, cacheHelper.getKey(), shardId, shardIdentity);
             // noinspection unchecked
             final Accountable accountable = nodeLevelCache.getCache().computeIfAbsent(key, k -> {
@@ -358,7 +360,7 @@ public class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCa
             if (cacheHelper == null) {
                 throw new IllegalArgumentException("Reader " + indexReader + " does not support caching");
             }
-            final int shardIdentity = shardId == null ? 0 : shardIdentityResolver.applyAsInt(shardId);
+            final int shardIdentity = shardId == null ? Key.NO_SHARD_IDENTITY : shardIdentityResolver.applyAsInt(shardId);
             final Key key = new Key(this, cacheHelper.getKey(), shardId, shardIdentity);
             // noinspection unchecked
             final Accountable accountable = nodeLevelCache.getCache().computeIfAbsent(key, k -> {
@@ -426,19 +428,30 @@ public class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCa
      */
     @PublicApi(since = "1.0.0")
     public static class Key {
+        /**
+         * Sentinel meaning "no shard identity captured" — either tracking is disabled, the entry
+         * predates identity capture, or the shard was unresolvable at load time. The staleness
+         * check in {@link IndicesFieldDataCache#onRemoval(RemovalNotification)} treats this value
+         * as "always allow per-shard listeners through". Chosen as -1 because
+         * {@link System#identityHashCode(Object)} can return any int including 0, so 0 is not
+         * safe to use as a sentinel.
+         */
+        public static final int NO_SHARD_IDENTITY = -1;
+
         public final IndexFieldCache indexCache;
         public final IndexReader.CacheKey readerKey;
         public final ShardId shardId;
         /**
-         * Identity of the IndexShard that inserted this entry. Used at removal time to skip
-         * stale decrements after shard reallocation (#20363). Not part of equals/hashCode.
+         * Identity of the IndexShard that inserted this entry, or {@link #NO_SHARD_IDENTITY} if
+         * tracking is disabled. Used at removal time to skip stale decrements after shard
+         * reallocation (#20363). Not part of equals/hashCode.
          */
         public final int shardIdentity;
 
         public final List<IndexFieldDataCache.Listener> listeners = new ArrayList<>();
 
         Key(IndexFieldCache indexCache, IndexReader.CacheKey readerKey, @Nullable ShardId shardId) {
-            this(indexCache, readerKey, shardId, 0);
+            this(indexCache, readerKey, shardId, NO_SHARD_IDENTITY);
         }
 
         Key(IndexFieldCache indexCache, IndexReader.CacheKey readerKey, @Nullable ShardId shardId, int shardIdentity) {
