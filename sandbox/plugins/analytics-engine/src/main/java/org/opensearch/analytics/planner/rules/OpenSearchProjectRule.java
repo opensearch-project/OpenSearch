@@ -302,6 +302,10 @@ public class OpenSearchProjectRule extends RelOptRule {
                 public RexNode visitOver(RexOver over) {
                     WindowFunction fn = WindowFunction.fromSqlKind(over.getAggOperator().getKind());
                     if (fn == null) {
+                        // OTHER-kind operators (PPL's INTERNAL_PATTERN, etc.) — fall back to name lookup.
+                        fn = WindowFunction.fromName(over.getAggOperator().getName());
+                    }
+                    if (fn == null) {
                         throw new IllegalStateException("Window function [" + over.getAggOperator().getName() + "] is not supported");
                     }
                     fns.add(fn);

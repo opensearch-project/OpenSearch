@@ -440,6 +440,31 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
      * {@code ARRAY<STRUCT<pattern, pattern_count, tokens, sample_logs>>} shape that
      * matches the Rust UDAF's output Arrow schema.
      */
+    /**
+     * BRAIN window operator stub for PPL's {@code patterns ... method=BRAIN mode=label}.
+     * Routed to the custom Rust window UDF in {@code rust/src/udwf/internal_pattern.rs}.
+     * Returns {@code VARCHAR} per row — the BRAIN-derived wildcard pattern that best
+     * matches that row's source field value.
+     *
+     * <p>The PPL Calcite visitor emits {@code INTERNAL_PATTERN} (the same SqlAggFunction
+     * used for the aggregate form) inside a {@code RexOver}; {@link PplWindowCallRewriter}
+     * substitutes it with this stub at substrait emission time so isthmus binds it by
+     * operator identity through {@link #ADDITIONAL_WINDOW_SIGS}.
+     */
+    static final SqlAggFunction LOCAL_INTERNAL_PATTERN_WINDOW_OP = new SqlAggFunction(
+        "internal_pattern",
+        null,
+        SqlKind.OTHER_FUNCTION,
+        ReturnTypes.VARCHAR_FORCE_NULLABLE,
+        null,
+        OperandTypes.VARIADIC,
+        SqlFunctionCategory.USER_DEFINED_FUNCTION,
+        false,
+        false,
+        Optionality.FORBIDDEN
+    ) {
+    };
+
     static final SqlAggFunction LOCAL_INTERNAL_PATTERN_OP = new SqlAggFunction(
         "internal_pattern",
         null,
@@ -481,6 +506,16 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         FunctionMappings.s(LOCAL_LIST_MERGE_OP, "list_merge"),
         FunctionMappings.s(LOCAL_LIST_MERGE_DISTINCT_OP, "list_merge_distinct"),
         FunctionMappings.s(LOCAL_INTERNAL_PATTERN_OP, "internal_pattern")
+    );
+
+    /**
+     * Window-function variants of {@link #ADDITIONAL_AGGREGATE_SIGS}. Used by the
+     * {@code WindowFunctionConverter} override in {@link #createVisitor} so RexOver
+     * calls against our locally-declared stubs bind to the substrait extension by
+     * operator identity.
+     */
+    private static final List<FunctionMappings.Sig> ADDITIONAL_WINDOW_SIGS = List.of(
+        FunctionMappings.s(LOCAL_INTERNAL_PATTERN_WINDOW_OP, "internal_pattern")
     );
 
     private final SimpleExtension.ExtensionCollection extensions;
@@ -547,6 +582,9 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         // LOCAL_*_OP stubs so isthmus's AggregateFunctionConverter binds them by
         // operator identity through ADDITIONAL_AGGREGATE_SIGS.
         preprocessed = PplAggregateCallRewriter.rewrite(preprocessed);
+        // Rewrite PPL window calls (RexOver) onto LOCAL_*_WINDOW_OP stubs so isthmus'
+        // WindowFunctionConverter resolves them against ADDITIONAL_WINDOW_SIGS.
+        preprocessed = PplWindowCallRewriter.rewrite(preprocessed);
         // Rebuild ITEM calls bottom-up so their return type reflects any operand
         // adapters that ran upstream (e.g. PatternParserAdapter swapping MAP<VARCHAR,
         // ANY> for a concrete STRUCT). Without this pass the wrapping ITEM keeps its
@@ -597,6 +635,9 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         // Same rationale as convertToSubstrait — issue #5420.
         preprocessed = DatetimeOutputCastRewriter.rewrite(preprocessed);
         preprocessed = PplAggregateCallRewriter.rewrite(preprocessed);
+        // Rewrite PPL window calls (RexOver) onto LOCAL_*_WINDOW_OP stubs so isthmus'
+        // WindowFunctionConverter resolves them against ADDITIONAL_WINDOW_SIGS.
+        preprocessed = PplWindowCallRewriter.rewrite(preprocessed);
         // Rebuild ITEM calls bottom-up so their return type reflects any operand
         // adapters that ran upstream (e.g. PatternParserAdapter swapping MAP<VARCHAR,
         // ANY> for a concrete STRUCT). Without this pass the wrapping ITEM keeps its
@@ -797,7 +838,16 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
                 return Optional.of(ImmutableAggregateFunctionInvocation.builder().from(fn).arguments(rewritten).build());
             }
         };
-        WindowFunctionConverter windowConverter = new WindowFunctionConverter(extensions.windowFunctions(), typeFactory);
+        // ADDITIONAL_WINDOW_SIGS binds our locally-declared LOCAL_INTERNAL_PATTERN_WINDOW_OP
+        // to the substrait extension named "internal_pattern" from
+        // {@code opensearch_window_functions.yaml}. PplWindowCallRewriter swaps the
+        // PPL pattern operator onto this stub before isthmus walks the RexOver.
+        WindowFunctionConverter windowConverter = new WindowFunctionConverter(
+            extensions.windowFunctions(),
+            ADDITIONAL_WINDOW_SIGS,
+            typeFactory,
+            typeConverter
+        );
         ConverterProvider converterProvider = new ConverterProvider(
             typeFactory,
             extensions,

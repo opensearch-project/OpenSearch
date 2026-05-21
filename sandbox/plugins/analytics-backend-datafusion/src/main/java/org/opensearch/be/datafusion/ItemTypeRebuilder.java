@@ -94,33 +94,59 @@ final class ItemTypeRebuilder {
          * preserving the original {@code pattern_parser}'s operand list.
          */
         private RexNode tryRewritePatternParserAccess(RexCall call, List<RexNode> operands) {
-            if (!"array_element".equalsIgnoreCase(call.getOperator().getName())) {
+            RexCall innerCall;
+            RexNode keyNode;
+            if (call.getKind() == org.apache.calcite.sql.SqlKind.ITEM
+                && operands.size() == 2
+                && operands.get(0) instanceof RexCall ppDirect
+                && "pattern_parser".equalsIgnoreCase(ppDirect.getOperator().getName())) {
+                // Direct {@code ITEM(pattern_parser(...), 'key')} shape — produced
+                // for the BRAIN label path because ArrayElementAdapter doesn't fire
+                // on a pattern_parser whose container type still reads as
+                // MAP<VARCHAR, ANY> (the v2 PPL declared type) at adapter time.
+                innerCall = ppDirect;
+                keyNode = operands.get(1);
+            } else if ("array_element".equalsIgnoreCase(call.getOperator().getName())
+                && operands.size() == 2
+                && operands.get(0) instanceof RexCall mapExtract
+                && "map_extract".equalsIgnoreCase(mapExtract.getOperator().getName())
+                && mapExtract.getOperands().size() == 2
+                && operands.get(1) instanceof RexLiteral indexLit
+                && indexLit.getValue() instanceof BigDecimal indexBd
+                && indexBd.intValueExact() == 1
+                && mapExtract.getOperands().get(0) instanceof RexCall ppViaArray
+                && "pattern_parser".equalsIgnoreCase(ppViaArray.getOperator().getName())) {
+                // Standard post-ArrayElementAdapter shape:
+                // {@code array_element(map_extract(pattern_parser(...), 'key'), 1)}.
+                innerCall = ppViaArray;
+                keyNode = mapExtract.getOperands().get(1);
+            } else {
                 return null;
             }
-            if (operands.size() != 2 || !(operands.get(0) instanceof RexCall mapExtract)) {
-                return null;
-            }
-            if (!"map_extract".equalsIgnoreCase(mapExtract.getOperator().getName())
-                || mapExtract.getOperands().size() != 2) {
-                return null;
-            }
-            if (!(operands.get(1) instanceof RexLiteral indexLit)) {
-                return null;
-            }
-            Object indexValue = indexLit.getValue();
-            if (!(indexValue instanceof BigDecimal indexBd) || indexBd.intValueExact() != 1) {
-                return null;
-            }
-            if (!(mapExtract.getOperands().get(0) instanceof RexCall innerCall)) {
-                return null;
-            }
-            if (!"pattern_parser".equalsIgnoreCase(innerCall.getOperator().getName())) {
-                return null;
-            }
-            RexNode keyNode = mapExtract.getOperands().get(1);
             String fieldName = extractFieldName(keyNode);
             if (fieldName == null) {
                 return null;
+            }
+            // BRAIN label-mode shape: pattern_parser is called with 3 args
+            // (source_field, window_result, show_numbered_token). The window has
+            // already been rewritten by PplWindowCallRewriter to emit the matched
+            // pattern string per row directly, so we can bypass pattern_parser
+            // entirely for the "pattern" key — the window result IS the pattern.
+            // For "tokens" we route to the 2-arg get_tokens UDF, supplying the
+            // window-matched pattern as the pattern arg and the raw source value
+            // as the field arg so extract_variables can pull labelled values out.
+            List<RexNode> ppArgs = innerCall.getOperands();
+            if (ppArgs.size() == 3) {
+                RexNode source = ppArgs.get(0);
+                RexNode windowResult = ppArgs.get(1);
+                return switch (fieldName) {
+                    case "pattern" -> windowResult;
+                    case "tokens" -> rexBuilder.makeCall(
+                        DataFusionFragmentConvertor.LOCAL_PATTERN_PARSER_GET_TOKENS_OP,
+                        List.of(windowResult, source)
+                    );
+                    default -> null;
+                };
             }
             SqlOperator targetOp = switch (fieldName) {
                 case "pattern" -> DataFusionFragmentConvertor.LOCAL_PATTERN_PARSER_GET_PATTERN_OP;

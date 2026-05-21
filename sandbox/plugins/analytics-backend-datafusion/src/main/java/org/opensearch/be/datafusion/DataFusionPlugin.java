@@ -422,6 +422,7 @@ public class DataFusionPlugin extends Plugin
             SimpleExtension.ExtensionCollection scalarExtensions = SimpleExtension.load(List.of("/opensearch_scalar_functions.yaml"));
             SimpleExtension.ExtensionCollection arrayExtensions = SimpleExtension.load(List.of("/opensearch_array_functions.yaml"));
             SimpleExtension.ExtensionCollection aggregateExtensions = SimpleExtension.load(List.of("/opensearch_aggregate_functions.yaml"));
+            SimpleExtension.ExtensionCollection windowExtensions = SimpleExtension.load(List.of("/opensearch_window_functions.yaml"));
             // Standard substrait's functions_rounding.yaml only declares ceil/floor for fp;
             // this supplemental file adds the i32 overloads (which return i32, preserving
             // PPL's documented "same type as input" contract for ceil(int)/floor(int)). The
@@ -437,6 +438,7 @@ public class DataFusionPlugin extends Plugin
                 .merge(scalarExtensions)
                 .merge(arrayExtensions)
                 .merge(aggregateExtensions)
+                .merge(windowExtensions)
                 .merge(roundingOverloads)
                 .merge(arithmeticOverloads);
         } finally {

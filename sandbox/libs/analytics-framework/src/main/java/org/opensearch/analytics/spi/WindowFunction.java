@@ -29,7 +29,15 @@ public enum WindowFunction {
     COUNT(SqlKind.COUNT),
     MIN(SqlKind.MIN),
     MAX(SqlKind.MAX),
-    ROW_NUMBER(SqlKind.ROW_NUMBER);
+    ROW_NUMBER(SqlKind.ROW_NUMBER),
+    /**
+     * PPL {@code patterns ... method=brain mode=label}. Emits the best-matching
+     * BRAIN-derived wildcard pattern for each row in the partition, broadcast
+     * window-style. Resolves through PPL's {@code BuiltinFunctionName.INTERNAL_PATTERN}
+     * with {@link SqlKind#OTHER}, so backends look it up via {@link #fromName} (the
+     * operator name {@code "pattern"} is the canonical match).
+     */
+    PATTERN(SqlKind.OTHER);
 
     private final SqlKind sqlKind;
 
@@ -43,9 +51,29 @@ public enum WindowFunction {
 
     /** Returns the {@link WindowFunction} for {@code sqlKind}, or {@code null} if unsupported. */
     public static WindowFunction fromSqlKind(SqlKind sqlKind) {
+        if (sqlKind == SqlKind.OTHER || sqlKind == SqlKind.OTHER_FUNCTION) {
+            // Name-based lookup is required for OTHER kinds; the caller (e.g.
+            // {@code OpenSearchProjectRule.collectWindowFunctions}) should fall
+            // through to {@link #fromName} on null here.
+            return null;
+        }
         for (WindowFunction fn : values()) {
             if (fn.sqlKind == sqlKind) return fn;
         }
         return null;
+    }
+
+    /**
+     * Returns the {@link WindowFunction} for a case-insensitive operator name
+     * (e.g. {@code "pattern"} → {@link #PATTERN}), or {@code null} if unsupported.
+     * PPL emits some window operators with {@link SqlKind#OTHER}, so callers
+     * fall back here when {@link #fromSqlKind} returns null.
+     */
+    public static WindowFunction fromName(String name) {
+        try {
+            return valueOf(name.toUpperCase(java.util.Locale.ROOT));
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
     }
 }

@@ -493,7 +493,13 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                             WindowFunction.COUNT,
                             WindowFunction.MIN,
                             WindowFunction.MAX,
-                            WindowFunction.ROW_NUMBER
+                            WindowFunction.ROW_NUMBER,
+                            // PPL `patterns ... method=brain mode=label` — emits a
+                            // per-row best-matching wildcard pattern from the BRAIN
+                            // partition corpus. Routed to the Rust window UDF in
+                            // rust/src/udwf/internal_pattern.rs via
+                            // PplWindowCallRewriter / LOCAL_INTERNAL_PATTERN_WINDOW_OP.
+                            WindowFunction.PATTERN
                         ),
                         Set.copyOf(plugin.getSupportedFormats())
                     )
