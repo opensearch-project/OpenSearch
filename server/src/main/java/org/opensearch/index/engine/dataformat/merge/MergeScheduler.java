@@ -234,7 +234,7 @@ public class MergeScheduler {
                 mergeHandler.onMergeFinished(oneMerge);
 
                 tookMS = TimeValue.nsecToMSec((System.nanoTime() - timeNS));
-                logger.info("Merge {} completed in {}ms", oneMerge, tookMS);
+                logger.info("Merge {} completed in {}ms, result: {}", oneMerge, tookMS, mergeResult.getMergedWriterFileSet());
 
             } catch (Exception e) {
                 logger.error(new ParameterizedMessage("Unexpected error during merge for: {}", oneMerge), e);
