@@ -4861,7 +4861,7 @@ public class IndexShardTests extends IndexShardTestCase {
      * {@code newEngineReference} is still null -- the window between ReadOnlyEngine installation
      * and {@code newEngineReference.set(newEngine)} inside {@code resetEngineToGlobalCheckpoint}.
      * Covers the defensive null-check branches in {@code acquireLastIndexCommit},
-     * {@code acquireSafeIndexCommit}, and {@code getSegmentInfosSnapshot}.
+     * {@code acquireSafeIndexCommit}, and {@code acquireSnapshot}.
      */
     public void testDelegateThrowsAlreadyClosedBeforeNewEngineSet() throws Exception {
         CountDownLatch creatingEngineLatch = new CountDownLatch(1);
@@ -4906,7 +4906,7 @@ public class IndexShardTests extends IndexShardTestCase {
         // The ReadOnlyEngine is now the current engine, but newEngineReference is still null.
         expectThrows(AlreadyClosedException.class, () -> shard.acquireLastIndexCommit(false));
         expectThrows(AlreadyClosedException.class, shard::acquireSafeIndexCommit);
-        expectThrows(AlreadyClosedException.class, shard::getSegmentInfosSnapshot);
+        expectThrows(AlreadyClosedException.class, shard::getCatalogSnapshot);
 
         proceedWithCreationLatch.countDown();
         assertTrue("engine reset should complete", engineResetLatch.await(30, TimeUnit.SECONDS));
