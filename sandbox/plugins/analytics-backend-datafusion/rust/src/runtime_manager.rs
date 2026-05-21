@@ -99,7 +99,7 @@ mod tests {
     use super::*;
 
     fn test_mgr() -> RuntimeManager {
-        RuntimeManager::new(1, 1.0, 1.0)
+        RuntimeManager::new(1, 1.5, 1.5)
     }
 
     #[tokio::test]

@@ -562,9 +562,9 @@ public final class NativeBridge {
         NativeCall.invokeVoid(INIT_RUNTIME_MANAGER, cpuThreads, datanodeMultiplier, coordinatorMultiplier);
     }
 
-    /** Convenience overload with default 1.0x multipliers for both gates. */
+    /** Convenience overload with default 1.5x multipliers for both gates. */
     public static void initTokioRuntimeManager(int cpuThreads) {
-        initTokioRuntimeManager(cpuThreads, 1.0, 1.0);
+        initTokioRuntimeManager(cpuThreads, 1.5, 1.5);
     }
 
     public static void shutdownTokioRuntimeManager() {

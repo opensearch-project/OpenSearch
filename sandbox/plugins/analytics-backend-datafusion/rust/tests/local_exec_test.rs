@@ -52,7 +52,7 @@ static RT_INIT: OnceLock<()> = OnceLock::new();
 
 fn ensure_runtime_manager() {
     RT_INIT.get_or_init(|| {
-        df_init_runtime_manager(1);
+        df_init_runtime_manager(1, 1.5, 1.5);
     });
 }
 
@@ -316,7 +316,7 @@ fn test_execute_sum_substrait() {
             session_ptr,
             substrait_bytes.as_ptr(),
             substrait_bytes.len() as i64,
-            0,
+            0, // context_id — not used in this test
         )
     };
     assert!(stream_ptr > 0, "df_execute_local_plan rc={}", stream_ptr);
