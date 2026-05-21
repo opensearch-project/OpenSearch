@@ -51,6 +51,8 @@ import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.rest.RestController;
 import org.opensearch.rest.RestHandler;
 import org.opensearch.script.ScriptService;
+import org.opensearch.threadpool.ExecutorBuilder;
+import org.opensearch.threadpool.FixedExecutorBuilder;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.client.Client;
 import org.opensearch.watcher.ResourceWatcherService;
@@ -71,6 +73,9 @@ import java.util.function.Supplier;
 public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionPlugin {
 
     private static final Logger logger = LogManager.getLogger(AnalyticsPlugin.class);
+
+    public static final String SCHEDULER_THREAD_POOL_NAME = "analytics_scheduler";
+    private static final int SCHEDULER_QUEUE_SIZE = 200;
 
     public static final Setting<Long> COORDINATOR_BUFFER_LIMIT = Setting.longSetting(
         "analytics.coordinator.buffer_limit",
@@ -169,6 +174,16 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
         List<Setting<?>> all = new ArrayList<>(AnalyticsSettings.ALL_SETTINGS);
         all.add(COORDINATOR_BUFFER_LIMIT);
         return all;
+    }
+
+    @Override
+    public List<ExecutorBuilder<?>> getExecutorBuilders(Settings settings) {
+        int poolSize = schedulerPoolSize();
+        return List.of(new FixedExecutorBuilder(settings, SCHEDULER_THREAD_POOL_NAME, poolSize, SCHEDULER_QUEUE_SIZE, "analytics"));
+    }
+
+    static int schedulerPoolSize() {
+        return Math.max(2, Runtime.getRuntime().availableProcessors() / 2);
     }
 
     @Override

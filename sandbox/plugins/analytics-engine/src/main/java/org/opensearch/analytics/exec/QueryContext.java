@@ -10,9 +10,11 @@ package org.opensearch.analytics.exec;
 
 import org.apache.arrow.memory.BufferAllocator;
 import org.apache.arrow.memory.RootAllocator;
+import org.opensearch.analytics.AnalyticsPlugin;
 import org.opensearch.analytics.backend.AnalyticsOperationListener;
 import org.opensearch.analytics.exec.task.AnalyticsQueryTask;
 import org.opensearch.analytics.planner.dag.QueryDAG;
+import org.opensearch.threadpool.ThreadPool;
 
 import java.util.List;
 import java.util.concurrent.Executor;
@@ -36,7 +38,7 @@ public class QueryContext {
     private static final int DEFAULT_MAX_CONCURRENT_SHARD_REQUESTS = 5;
 
     private final QueryDAG dag;
-    private final Executor searchExecutor;
+    private final ThreadPool threadPool;
     private final AnalyticsQueryTask parentTask;
     private final int maxConcurrentShardRequests;
     private final List<AnalyticsOperationListener> operationListeners;
@@ -62,27 +64,18 @@ public class QueryContext {
 
     public QueryContext(
         QueryDAG dag,
-        Executor searchExecutor,
+        ThreadPool threadPool,
         AnalyticsQueryTask parentTask,
         BufferAllocator allocator,
         boolean ownsAllocator
     ) {
-        this(
-            dag,
-            searchExecutor,
-            parentTask,
-            DEFAULT_MAX_CONCURRENT_SHARD_REQUESTS,
-            List.of(),
-            allocator,
-            ownsAllocator,
-            new SharedState()
-        );
+        this(dag, threadPool, parentTask, DEFAULT_MAX_CONCURRENT_SHARD_REQUESTS, List.of(), allocator, ownsAllocator, new SharedState());
     }
 
     /** Full-parameter constructor. Private; tests use {@link #forTest} factories. */
     private QueryContext(
         QueryDAG dag,
-        Executor searchExecutor,
+        ThreadPool threadPool,
         AnalyticsQueryTask parentTask,
         int maxConcurrentShardRequests,
         List<AnalyticsOperationListener> operationListeners,
@@ -91,7 +84,7 @@ public class QueryContext {
         SharedState sharedState
     ) {
         this.dag = dag;
-        this.searchExecutor = searchExecutor;
+        this.threadPool = threadPool;
         this.parentTask = parentTask;
         this.maxConcurrentShardRequests = maxConcurrentShardRequests;
         this.operationListeners = operationListeners;
@@ -114,7 +107,7 @@ public class QueryContext {
     public QueryContext withDag(QueryDAG newDag) {
         return new QueryContext(
             newDag,
-            searchExecutor,
+            threadPool,
             parentTask,
             maxConcurrentShardRequests,
             operationListeners,
@@ -129,7 +122,11 @@ public class QueryContext {
     }
 
     public Executor searchExecutor() {
-        return searchExecutor;
+        return threadPool != null ? threadPool.executor(ThreadPool.Names.SEARCH) : Runnable::run;
+    }
+
+    public Executor schedulerExecutor() {
+        return threadPool != null ? threadPool.executor(AnalyticsPlugin.SCHEDULER_THREAD_POOL_NAME) : Runnable::run;
     }
 
     public AnalyticsQueryTask parentTask() {
@@ -232,12 +229,12 @@ public class QueryContext {
         return forTest(dag, parentTask, List.of());
     }
 
-    /** Creates a test context with a synchronous executor and the supplied operation listeners. */
+    /** Creates a test context with synchronous executors and the supplied operation listeners. */
     public static QueryContext forTest(QueryDAG dag, AnalyticsQueryTask parentTask, List<AnalyticsOperationListener> operationListeners) {
         BufferAllocator testAllocator = TEST_ROOT.newChildAllocator("test-" + dag.queryId(), 0, Long.MAX_VALUE);
         return new QueryContext(
             dag,
-            Runnable::run,
+            null,
             parentTask,
             DEFAULT_MAX_CONCURRENT_SHARD_REQUESTS,
             operationListeners,
