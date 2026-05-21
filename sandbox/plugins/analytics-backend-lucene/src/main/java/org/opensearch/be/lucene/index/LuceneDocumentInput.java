@@ -12,8 +12,10 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.DocValuesType;
+import org.opensearch.be.lucene.LuceneDataFormat;
 import org.opensearch.be.lucene.LuceneFieldFactory;
 import org.opensearch.be.lucene.LuceneFieldFactoryRegistry;
+import org.opensearch.be.lucene.LucenePlugin;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.DocumentInput;
@@ -21,7 +23,6 @@ import org.opensearch.index.engine.dataformat.FieldTypeCapabilities;
 import org.opensearch.index.mapper.MappedFieldType;
 
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -43,17 +44,15 @@ import java.util.Set;
 @ExperimentalApi
 public class LuceneDocumentInput implements DocumentInput<Document> {
 
+    private static final DataFormat OWNING_FORMAT = new LuceneDataFormat();
+
     private final Document document;
     private final LuceneFieldFactoryRegistry fieldFactoryRegistry;
     private long rowId = -1L;
-    private final DataFormat owningFormat;
+    private final DataFormat owningFormat = LucenePlugin.DATA_FORMAT;
 
     /**
-     * Creates a new LuceneDocumentInput owned by the given data format with the default
-     * field factory registry.
-     *
-     * @param owningFormat the {@link DataFormat} this input belongs to; used to look up
-     *                     per-field ownership in {@link MappedFieldType#getCapabilityMap()}
+     * Creates a new LuceneDocumentInput with the default field factory registry.
      */
     public LuceneDocumentInput() {
         this(new LuceneFieldFactoryRegistry());
@@ -62,11 +61,9 @@ public class LuceneDocumentInput implements DocumentInput<Document> {
     /**
      * Creates a new LuceneDocumentInput with a custom field factory registry.
      *
-     * @param owningFormat the {@link DataFormat} this input belongs to
      * @param fieldFactoryRegistry the registry to use for field creation
      */
     public LuceneDocumentInput(LuceneFieldFactoryRegistry fieldFactoryRegistry) {
-        this.owningFormat = LucenePlugin.DATA_FORMAT;
         this.document = new Document();
         this.fieldFactoryRegistry = fieldFactoryRegistry;
     }
@@ -97,18 +94,6 @@ public class LuceneDocumentInput implements DocumentInput<Document> {
     @Override
     public void addField(MappedFieldType fieldType, Object value) {
         assert value != null : "Field value must not be null";
-        // Check capability map — accept only if this format owns capabilities for this field type
-        Map<DataFormat, Set<FieldTypeCapabilities.Capability>> capMap = fieldType.getCapabilityMap();
-        if (capMap.isEmpty()) {
-            // No capability map set — no format declared support for this field type, skip it
-            return;
-        }
-        Set<FieldTypeCapabilities.Capability> ownedCaps = capMap.get(owningFormat);
-        if (ownedCaps == null || ownedCaps.isEmpty()) {
-            // Another format owns this field — silently skip
-            return;
-        }
-
         LuceneFieldFactory factory = fieldFactory(fieldType);
         if (factory == null) {
             return;

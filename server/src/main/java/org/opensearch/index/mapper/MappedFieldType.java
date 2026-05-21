@@ -52,6 +52,7 @@ import org.apache.lucene.util.BytesRefIterator;
 import org.opensearch.ExceptionsHelper;
 import org.opensearch.OpenSearchParseException;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.geo.ShapeRelation;
 import org.opensearch.common.time.DateMathParser;
@@ -99,9 +100,10 @@ public abstract class MappedFieldType {
 
     /**
      * Capability map assigning each registered {@link DataFormat} to the set of capabilities it owns for this field type.
-     * Set once at mapping creation time, read at indexing time. Volatile for cross-thread visibility.
+     * Set once during mapping build via {@link Mapper.BuilderContext#assignCapabilities}, then immutable.
+     * Safe without volatile: publication through MapperService's volatile mapper reference provides happens-before.
      */
-    private volatile Map<DataFormat, Set<FieldTypeCapabilities.Capability>> capabilityMap = Map.of();
+    private Map<DataFormat, Set<FieldTypeCapabilities.Capability>> capabilityMap = Map.of();
 
     public MappedFieldType(
         String name,
@@ -476,18 +478,45 @@ public abstract class MappedFieldType {
         this.eagerGlobalOrdinals = eagerGlobalOrdinals;
     }
 
+    @ExperimentalApi
     public Map<DataFormat, Set<FieldTypeCapabilities.Capability>> getCapabilityMap() {
         return capabilityMap;
     }
 
+    /**
+     * Sets the capability map. Can only be called once per instance (set-once semantics).
+     * Called by {@link org.opensearch.index.engine.dataformat.FieldCapabilityAssigner} during mapping build.
+     *
+     * @throws IllegalStateException if already set
+     * @opensearch.experimental
+     */
+    @ExperimentalApi
     public void setCapabilityMap(Map<DataFormat, Set<FieldTypeCapabilities.Capability>> capabilityMap) {
-        this.capabilityMap = Map.copyOf(capabilityMap);
+        Map<DataFormat, Set<FieldTypeCapabilities.Capability>> newMap = Map.copyOf(capabilityMap);
+        if (this.capabilityMap != Map.<DataFormat, Set<FieldTypeCapabilities.Capability>>of()
+            && this.capabilityMap.equals(newMap) == false) {
+            throw new IllegalStateException("capabilityMap already set on field [" + name() + "] with different value");
+        }
+        this.capabilityMap = newMap;
     }
 
+    /**
+     * Returns the search capability for this field type. Subclasses override to declare
+     * whether they use point-range (numerics, dates, IPs) or full-text (text, keyword) search.
+     *
+     * @opensearch.experimental
+     */
+    @ExperimentalApi
     protected FieldTypeCapabilities.Capability searchCapability() {
-        return FieldTypeCapabilities.Capability.FULL_TEXT_SEARCH;
+        throw new UnsupportedOperationException("searchCapability is not supported for field: " + name() + " of type: " + typeName());
     }
 
+    /**
+     * Derives the set of capabilities this field type requires based on its mapping parameters.
+     *
+     * @opensearch.experimental
+     */
+    @ExperimentalApi
     public Set<FieldTypeCapabilities.Capability> requestedCapabilities() {
         Set<FieldTypeCapabilities.Capability> caps = new HashSet<>();
         if (isSearchable()) {

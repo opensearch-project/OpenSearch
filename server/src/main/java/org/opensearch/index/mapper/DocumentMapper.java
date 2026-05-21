@@ -128,8 +128,6 @@ public class DocumentMapper implements ToXContentFragment {
 
             // Assign capability maps to all field types during mapper building.
             // Each field type (including metadata) participates in capability-based routing.
-            // Non-metadata fields go through single-format coverage validation; metadata fields
-            // use the existing per-capability priority-winner algorithm with defaults.
             if (dataFormatRegistry != null) {
                 assignCapabilitiesRecursive(rootObjectMapper, builderContext);
                 for (MetadataFieldMapper metadataMapper : metadataMappers.values()) {

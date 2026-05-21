@@ -35,7 +35,13 @@ public class LuceneDataFormat extends DataFormat {
     /** The format name used to register Lucene in the {@link org.opensearch.index.engine.dataformat.DataFormatRegistry}. */
     public static final String LUCENE_FORMAT_NAME = "lucene";
 
+    private static final Set<FieldTypeCapabilities.Capability> POINT_RANGE_AND_STORED = Set.of(
+        FieldTypeCapabilities.Capability.POINT_RANGE,
+        FieldTypeCapabilities.Capability.STORED_FIELDS
+    );
+
     private static final Set<FieldTypeCapabilities> SUPPORTED_FIELDS = Set.of(
+        // Text types — full-text search + stored
         new FieldTypeCapabilities(
             "text",
             Set.of(FieldTypeCapabilities.Capability.FULL_TEXT_SEARCH, FieldTypeCapabilities.Capability.STORED_FIELDS)
@@ -45,6 +51,29 @@ public class LuceneDataFormat extends DataFormat {
             Set.of(FieldTypeCapabilities.Capability.FULL_TEXT_SEARCH, FieldTypeCapabilities.Capability.STORED_FIELDS)
         ),
         new FieldTypeCapabilities("match_only_text", Set.of(FieldTypeCapabilities.Capability.FULL_TEXT_SEARCH)),
+        // Numeric types — point range + stored
+        new FieldTypeCapabilities("long", POINT_RANGE_AND_STORED),
+        new FieldTypeCapabilities("integer", POINT_RANGE_AND_STORED),
+        new FieldTypeCapabilities("short", POINT_RANGE_AND_STORED),
+        new FieldTypeCapabilities("byte", POINT_RANGE_AND_STORED),
+        new FieldTypeCapabilities("double", POINT_RANGE_AND_STORED),
+        new FieldTypeCapabilities("float", POINT_RANGE_AND_STORED),
+        new FieldTypeCapabilities("half_float", POINT_RANGE_AND_STORED),
+        new FieldTypeCapabilities("unsigned_long", POINT_RANGE_AND_STORED),
+        new FieldTypeCapabilities("scaled_float", POINT_RANGE_AND_STORED),
+        new FieldTypeCapabilities("token_count", POINT_RANGE_AND_STORED),
+        // Date types — point range + stored
+        new FieldTypeCapabilities("date", POINT_RANGE_AND_STORED),
+        new FieldTypeCapabilities("date_nanos", POINT_RANGE_AND_STORED),
+        // Other data types — point range + stored
+        new FieldTypeCapabilities("ip", POINT_RANGE_AND_STORED),
+        new FieldTypeCapabilities(
+            "boolean",
+            Set.of(FieldTypeCapabilities.Capability.FULL_TEXT_SEARCH, FieldTypeCapabilities.Capability.STORED_FIELDS)
+        ),
+        // Binary — stored only
+        new FieldTypeCapabilities("binary", Set.of(FieldTypeCapabilities.Capability.STORED_FIELDS)),
+        // Metadata fields
         new FieldTypeCapabilities(SourceFieldMapper.CONTENT_TYPE, Set.of(FieldTypeCapabilities.Capability.STORED_FIELDS)),
         new FieldTypeCapabilities(
             NestedPathFieldMapper.NAME,

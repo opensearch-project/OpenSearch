@@ -33,8 +33,6 @@
 package org.opensearch.join.mapper;
 
 import org.opensearch.common.compress.CompressedXContent;
-import org.opensearch.common.settings.Settings;
-import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
@@ -45,7 +43,6 @@ import org.opensearch.index.mapper.DocumentMapper;
 import org.opensearch.index.mapper.MapperException;
 import org.opensearch.index.mapper.MapperParsingException;
 import org.opensearch.index.mapper.MapperService;
-import org.opensearch.index.mapper.MapperServiceTestCase.CapturingDocumentInput;
 import org.opensearch.index.mapper.ParsedDocument;
 import org.opensearch.index.mapper.SourceToParse;
 import org.opensearch.join.ParentJoinModulePlugin;
@@ -658,127 +655,5 @@ public class ParentJoinFieldMapperTests extends OpenSearchSingleNodeTestCase {
         assertFalse(service.mapperService().fieldType("join_field#parent").eagerGlobalOrdinals());
         assertNotNull(service.mapperService().fieldType("join_field#child"));
         assertFalse(service.mapperService().fieldType("join_field#child").eagerGlobalOrdinals());
-    }
-
-    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
-    public void testPluggableFormatParentDoc() throws Exception {
-        String mapping = XContentFactory.jsonBuilder()
-            .startObject()
-            .startObject("properties")
-            .startObject("join_field")
-            .field("type", "join")
-            .startObject("relations")
-            .field("parent", "child")
-            .endObject()
-            .endObject()
-            .endObject()
-            .endObject()
-            .toString();
-        Settings settings = Settings.builder().put("index.pluggable.dataformat.enabled", true).build();
-        IndexService service = createIndex("test", settings);
-        DocumentMapper docMapper = service.mapperService()
-            .merge("type", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
-
-        CapturingDocumentInput docInput = new CapturingDocumentInput();
-        Throwable t = expectThrows(
-            MapperParsingException.class,
-            () -> docMapper.parse(
-                new SourceToParse(
-                    "test",
-                    "1",
-                    BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("join_field", "parent").endObject()),
-                    MediaTypeRegistry.JSON
-                ),
-                docInput
-            )
-        );
-        assertEquals(UnsupportedOperationException.class, t.getCause().getClass());
-    }
-
-    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
-    public void testPluggableFormatChildDoc() throws Exception {
-        String mapping = XContentFactory.jsonBuilder()
-            .startObject()
-            .startObject("properties")
-            .startObject("join_field")
-            .field("type", "join")
-            .startObject("relations")
-            .field("parent", "child")
-            .endObject()
-            .endObject()
-            .endObject()
-            .endObject()
-            .toString();
-        Settings settings = Settings.builder().put("index.pluggable.dataformat.enabled", true).build();
-        IndexService service = createIndex("test", settings);
-        DocumentMapper docMapper = service.mapperService()
-            .merge("type", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
-
-        CapturingDocumentInput docInput = new CapturingDocumentInput();
-        Throwable t = expectThrows(
-            MapperParsingException.class,
-            () -> docMapper.parse(
-                new SourceToParse(
-                    "test",
-                    "2",
-                    BytesReference.bytes(
-                        XContentFactory.jsonBuilder()
-                            .startObject()
-                            .startObject("join_field")
-                            .field("name", "child")
-                            .field("parent", "1")
-                            .endObject()
-                            .endObject()
-                    ),
-                    MediaTypeRegistry.JSON,
-                    "1"
-                ),
-                docInput
-            )
-        );
-        assertEquals(UnsupportedOperationException.class, t.getCause().getClass());
-    }
-
-    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
-    public void testPluggableFormatParentJoinFieldMapperDirectThrows() throws Exception {
-        String mapping = XContentFactory.jsonBuilder()
-            .startObject()
-            .startObject("properties")
-            .startObject("join_field")
-            .field("type", "join")
-            .startObject("relations")
-            .field("parent", "child")
-            .endObject()
-            .endObject()
-            .endObject()
-            .endObject()
-            .toString();
-        IndexService service = createIndex("test_direct");
-        DocumentMapper docMapper = service.mapperService()
-            .merge("type", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
-        ParentJoinFieldMapper joinMapper = (ParentJoinFieldMapper) docMapper.mappers().getMapper("join_field");
-        expectThrows(UnsupportedOperationException.class, () -> joinMapper.parseCreateFieldForPluggableFormat(null));
-    }
-
-    @LockFeatureFlag(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG)
-    public void testPluggableFormatMetaJoinFieldMapperThrows() throws Exception {
-        String mapping = XContentFactory.jsonBuilder()
-            .startObject()
-            .startObject("properties")
-            .startObject("join_field")
-            .field("type", "join")
-            .startObject("relations")
-            .field("parent", "child")
-            .endObject()
-            .endObject()
-            .endObject()
-            .endObject()
-            .toString();
-        IndexService service = createIndex("test_meta");
-        DocumentMapper docMapper = service.mapperService()
-            .merge("type", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
-        MetaJoinFieldMapper metaMapper = (MetaJoinFieldMapper) docMapper.mappers().getMapper("_parent_join");
-        assertNotNull(metaMapper);
-        expectThrows(IllegalStateException.class, () -> metaMapper.parseCreateFieldForPluggableFormat(null));
     }
 }

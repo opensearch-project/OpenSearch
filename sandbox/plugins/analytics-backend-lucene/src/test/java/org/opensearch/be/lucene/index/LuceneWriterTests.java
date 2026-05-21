@@ -281,7 +281,7 @@ public class LuceneWriterTests extends OpenSearchTestCase {
         );
 
         try (LuceneWriter writer = new LuceneWriter(1L, 0L, dataFormat, baseDir, null, Codec.getDefault(), null)) {
-            LuceneDocumentInput input = new LuceneDocumentInput(dataFormat);
+            LuceneDocumentInput input = new LuceneDocumentInput();
             input.addField(fieldOwnedByOther, 42);
             assertEquals(0, input.getFinalInput().getFields().size());
         }

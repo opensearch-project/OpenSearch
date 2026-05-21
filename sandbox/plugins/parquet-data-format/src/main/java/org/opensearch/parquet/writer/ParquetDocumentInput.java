@@ -45,14 +45,6 @@ public class ParquetDocumentInput implements DocumentInput<List<FieldValuePair>>
         if (fieldType == null) {
             throw new IllegalArgumentException("fieldType must not be null");
         }
-        Map<DataFormat, Set<FieldTypeCapabilities.Capability>> capMap = fieldType.getCapabilityMap();
-        if (capMap.isEmpty()) {
-            return;
-        }
-        Set<FieldTypeCapabilities.Capability> ownedCaps = capMap.get(owningFormat);
-        if (ownedCaps == null || ownedCaps.isEmpty()) {
-            return;
-        }
         collectedFields.add(new FieldValuePair(fieldType, value));
     }
 

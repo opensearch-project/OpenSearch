@@ -8,6 +8,8 @@
 
 package org.opensearch.index.engine.dataformat;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.MapperParsingException;
@@ -31,6 +33,8 @@ import java.util.stream.Collectors;
 @ExperimentalApi
 public class FieldCapabilityAssigner {
 
+    private static final Logger logger = LogManager.getLogger(FieldCapabilityAssigner.class);
+
     private final List<DataFormat> configuredFormats;
 
     public FieldCapabilityAssigner(List<DataFormat> configuredFormats) {
@@ -44,12 +48,7 @@ public class FieldCapabilityAssigner {
     public void assign(MappedFieldType fieldType) {
         Set<FieldTypeCapabilities.Capability> requested = fieldType.requestedCapabilities();
 
-        if (requested.isEmpty()) {
-            fieldType.setCapabilityMap(Map.of());
-            return;
-        }
-
-        if (configuredFormats.isEmpty()) {
+        if (requested.isEmpty() || configuredFormats.isEmpty()) {
             fieldType.setCapabilityMap(Map.of());
             return;
         }
@@ -83,7 +82,7 @@ public class FieldCapabilityAssigner {
                     + configuredFormats.stream().map(DataFormat::name).collect(Collectors.toList())
             );
         }
-
+        logger.debug("{} assigned to :  {}", fieldType, assigned);
         fieldType.setCapabilityMap(Map.copyOf(assigned));
     }
 
