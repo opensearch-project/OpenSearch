@@ -15,6 +15,7 @@ foyer                = "=0.22.3"
 bytes                = { workspace = true }
 dashmap              = { workspace = true }
 tokio                = { workspace = true }
+tokio-util           = { workspace = true }
 log                  = { workspace = true }
 native-bridge-common = { workspace = true }
 

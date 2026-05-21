@@ -44,11 +44,11 @@ import static org.opensearch.index.store.remote.utils.FileTypeUtils.INDICES_FOLD
 import static org.hamcrest.Matchers.equalTo;
 
 /**
- * Tests for {@link NodeCacheOrchestratorCleaner}: verifies that both the
+ * Tests for {@link NodeCacheServiceCleaner}: verifies that both the
  * {@link FileCache} (Lucene LRU) and any registered {@link BlockCache} instances
  * are deterministically evicted when a shard or index is deleted.
  */
-public class NodeCacheOrchestratorCleanerTests extends OpenSearchTestCase {
+public class NodeCacheServiceCleanerTests extends OpenSearchTestCase {
     private static final ShardId SHARD_0 = new ShardId("index", "uuid-0", 0);
     private static final ShardId SHARD_1 = new ShardId("index", "uuid-1", 0);
     private static final Settings SETTINGS = Settings.builder()
@@ -87,14 +87,14 @@ public class NodeCacheOrchestratorCleanerTests extends OpenSearchTestCase {
     private final FileCache fileCache = FileCacheFactory.createConcurrentLRUFileCache(1024 * 1024, 1);
     private final Map<ShardId, Path> files = new HashMap<>();
     private NodeEnvironment env;
-    private NodeCacheOrchestrator orchestrator;
-    private NodeCacheOrchestratorCleaner cleaner;
+    private NodeCacheService orchestrator;
+    private NodeCacheServiceCleaner cleaner;
 
     @Before
     public void setUpFileCache() throws IOException {
         env = newNodeEnvironment(SETTINGS);
-        orchestrator = new NodeCacheOrchestrator(fileCache);
-        cleaner = new NodeCacheOrchestratorCleaner(() -> orchestrator);
+        orchestrator = new NodeCacheService(fileCache);
+        cleaner = new NodeCacheServiceCleaner(() -> orchestrator);
         files.put(SHARD_0, addFile(fileCache, env, SHARD_0));
         files.put(SHARD_1, addFile(fileCache, env, SHARD_1));
 
@@ -311,7 +311,7 @@ public class NodeCacheOrchestratorCleanerTests extends OpenSearchTestCase {
         BlockCache mockCache = new BlockCache() {
             @Override
             public BlockCacheStats stats() {
-                return new BlockCacheStats(0, 0, 0, 0, 0, 0, 0, 0, 0L, 0L, 0L);
+                return new BlockCacheStats(0, 0, 0, 0, 0, 0, 0, 0, 0L, 0L, 0L, 0L);
             }
 
             @Override
@@ -339,7 +339,7 @@ public class NodeCacheOrchestratorCleanerTests extends OpenSearchTestCase {
         BlockCache mockCache = new BlockCache() {
             @Override
             public BlockCacheStats stats() {
-                return new BlockCacheStats(0, 0, 0, 0, 0, 0, 0, 0, 0L, 0L, 0L);
+                return new BlockCacheStats(0, 0, 0, 0, 0, 0, 0, 0, 0L, 0L, 0L, 0L);
             }
 
             @Override
@@ -369,7 +369,7 @@ public class NodeCacheOrchestratorCleanerTests extends OpenSearchTestCase {
         orchestrator.addBlockCache(new BlockCache() {
             @Override
             public BlockCacheStats stats() {
-                return new BlockCacheStats(0, 0, 0, 0, 0, 0, 0, 0, 0L, 0L, 0L);
+                return new BlockCacheStats(0, 0, 0, 0, 0, 0, 0, 0, 0L, 0L, 0L, 0L);
             }
 
             @Override
@@ -383,7 +383,7 @@ public class NodeCacheOrchestratorCleanerTests extends OpenSearchTestCase {
         orchestrator.addBlockCache(new BlockCache() {
             @Override
             public BlockCacheStats stats() {
-                return new BlockCacheStats(0, 0, 0, 0, 0, 0, 0, 0, 0L, 0L, 0L);
+                return new BlockCacheStats(0, 0, 0, 0, 0, 0, 0, 0, 0L, 0L, 0L, 0L);
             }
 
             @Override
@@ -413,7 +413,7 @@ public class NodeCacheOrchestratorCleanerTests extends OpenSearchTestCase {
         orchestrator.addBlockCache(new BlockCache() {
             @Override
             public BlockCacheStats stats() {
-                return new BlockCacheStats(0, 0, 0, 0, 0, 0, 0, 0, 0L, 0L, 0L);
+                return new BlockCacheStats(0, 0, 0, 0, 0, 0, 0, 0, 0L, 0L, 0L, 0L);
             }
 
             @Override
