@@ -8,13 +8,21 @@
 
 package org.opensearch.be.datafusion;
 
+import org.apache.calcite.plan.RelOptCluster;
+import org.apache.calcite.rel.type.RelDataType;
+import org.apache.calcite.rel.type.RelDataTypeFactory;
+import org.apache.calcite.rex.RexBuilder;
+import org.apache.calcite.rex.RexCall;
+import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.sql.SqlFunction;
 import org.apache.calcite.sql.SqlFunctionCategory;
 import org.apache.calcite.sql.SqlKind;
 import org.apache.calcite.sql.SqlOperator;
 import org.apache.calcite.sql.type.OperandTypes;
 import org.apache.calcite.sql.type.ReturnTypes;
+import org.apache.calcite.sql.type.SqlTypeName;
 import org.opensearch.analytics.spi.AbstractNameMappingAdapter;
+import org.opensearch.analytics.spi.FieldStorageInfo;
 
 import java.util.List;
 
@@ -59,5 +67,42 @@ class PatternParserAdapter extends AbstractNameMappingAdapter {
 
     PatternParserAdapter() {
         super(LOCAL_PATTERN_PARSER_OP, List.of(), List.of());
+    }
+
+    /**
+     * The PPL declared return type of {@code PATTERN_PARSER} is
+     * {@code MAP<VARCHAR, ANY>} (see {@code UserDefinedFunctionUtils.patternStruct})
+     * because the legacy v2 path returns a heterogeneous Java map. The embedded
+     * {@code ANY} cannot be serialised to Substrait — isthmus throws
+     * {@code "Unable to convert the type ANY"}. Substitute a concrete struct
+     * matching the Rust UDF's output Arrow schema
+     * ({@code rust/src/udf/pattern_parser.rs}):
+     *
+     * <pre>{@code
+     *   STRUCT<pattern: VARCHAR, tokens: MAP<VARCHAR, ARRAY<VARCHAR>>>
+     * }</pre>
+     *
+     * <p>Downstream {@code flattenParsedPattern} in the PPL Calcite visitor
+     * accesses both fields via {@code ITEM(parsedNode, "pattern" | "tokens")}.
+     * Calcite's {@code ITEM} on a STRUCT with a constant string operand resolves
+     * to named struct-field access, which works identically to the legacy
+     * {@code ITEM(map, key)} lookup against {@code MAP<VARCHAR, ANY>}.
+     */
+    @Override
+    public RexNode adapt(RexCall original, List<FieldStorageInfo> fieldStorage, RelOptCluster cluster) {
+        RexBuilder rexBuilder = cluster.getRexBuilder();
+        RelDataType structType = patternStructType(rexBuilder.getTypeFactory(), original.getType().isNullable());
+        return rexBuilder.makeCall(structType, LOCAL_PATTERN_PARSER_OP, original.getOperands());
+    }
+
+    private static RelDataType patternStructType(RelDataTypeFactory typeFactory, boolean nullable) {
+        RelDataType varchar = typeFactory.createSqlType(SqlTypeName.VARCHAR);
+        RelDataType varcharArray = typeFactory.createArrayType(varchar, -1);
+        RelDataType tokensMap = typeFactory.createMapType(varchar, varcharArray);
+        RelDataType struct = typeFactory.createStructType(
+            List.of(varchar, tokensMap),
+            List.of("pattern", "tokens")
+        );
+        return typeFactory.createTypeWithNullability(struct, nullable);
     }
 }

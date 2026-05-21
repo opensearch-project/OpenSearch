@@ -741,6 +741,10 @@ scalar_functions:
           - { value: string, name: "pattern" }
           - { value: string, name: "field" }
         return: any1
+      - args:
+          - { value: string, name: "pattern" }
+          - { value: "list<string>", name: "sample_logs" }
+        return: any2
   - name: "json_delete"
     description: "Remove PPL-path matches from a JSON document; missing paths are no-ops."
     impls:

@@ -510,6 +510,12 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         // LOCAL_*_OP stubs so isthmus's AggregateFunctionConverter binds them by
         // operator identity through ADDITIONAL_AGGREGATE_SIGS.
         preprocessed = PplAggregateCallRewriter.rewrite(preprocessed);
+        // Rebuild ITEM calls bottom-up so their return type reflects any operand
+        // adapters that ran upstream (e.g. PatternParserAdapter swapping MAP<VARCHAR,
+        // ANY> for a concrete STRUCT). Without this pass the wrapping ITEM keeps its
+        // frozen ANY return type and isthmus rejects with "Unable to convert the type
+        // ANY". See {@link ItemTypeRebuilder}.
+        preprocessed = ItemTypeRebuilder.rewrite(preprocessed);
         RelRoot root = RelRoot.of(preprocessed, SqlKind.SELECT);
         SubstraitRelVisitor visitor = createVisitor(preprocessed);
         Rel substraitRel;
@@ -554,6 +560,12 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         // Same rationale as convertToSubstrait — issue #5420.
         preprocessed = DatetimeOutputCastRewriter.rewrite(preprocessed);
         preprocessed = PplAggregateCallRewriter.rewrite(preprocessed);
+        // Rebuild ITEM calls bottom-up so their return type reflects any operand
+        // adapters that ran upstream (e.g. PatternParserAdapter swapping MAP<VARCHAR,
+        // ANY> for a concrete STRUCT). Without this pass the wrapping ITEM keeps its
+        // frozen ANY return type and isthmus rejects with "Unable to convert the type
+        // ANY". See {@link ItemTypeRebuilder}.
+        preprocessed = ItemTypeRebuilder.rewrite(preprocessed);
         SubstraitRelVisitor visitor = createVisitor(preprocessed);
         return visitor.apply(preprocessed);
     }
