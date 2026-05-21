@@ -86,12 +86,8 @@ public class CatalogSnapshotStatsCache implements ReferenceManager.RefreshListen
             DocsStats newDocsStats = computeDocsStats(snapshot);
             SegmentsStats newSegmentsStats = computeSegmentsStats(snapshot);
 
-            // For segments, we need engine-specific data (indexSort, commit status)
-            // This should be computed by the engine, not the cache
-            // For now, we'll compute basic segments without engine-specific data
+            // Build engine segments with commit data and index sort
             Map<String, String> commitData = lastCommitDataSupplier.get();
-            logger.debug("refreshCachedStats: snapshot ID={}, commit data keys={}", snapshot.getId(), commitData.keySet());
-            boolean isCommitted = snapshot.resolveIsCommitted(commitData);
             List<Segment> newSegments = snapshot.buildEngineSegments(commitData, engineConfig != null ? engineConfig.getIndexSort() : null);
 
             // Atomic replacement - all or nothing for consistency
@@ -99,12 +95,7 @@ public class CatalogSnapshotStatsCache implements ReferenceManager.RefreshListen
             this.cachedSegmentsStats = newSegmentsStats;
             this.cachedSegments = newSegments;
 
-            logger.debug(
-                "Refreshed cached catalog snapshot stats: {} docs, {} segments, committed={}",
-                newDocsStats.getCount(),
-                newSegments.size(),
-                isCommitted
-            );
+            logger.debug("Refreshed cached catalog snapshot stats: {} docs, {} segments", newDocsStats.getCount(), newSegments.size());
 
         } catch (Exception e) {
             logger.warn("Failed to refresh cached catalog snapshot stats", e);

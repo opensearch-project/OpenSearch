@@ -60,6 +60,8 @@ import org.opensearch.monitor.process.ProcessStats;
 import org.opensearch.node.AdaptiveSelectionStats;
 import org.opensearch.node.NodesResourceUsageStats;
 import org.opensearch.node.remotestore.RemoteStoreNodeStats;
+import org.opensearch.plugin.stats.AnalyticsBackendNativeMemoryStats;
+import org.opensearch.plugins.BlockCacheStats;
 import org.opensearch.ratelimitting.admissioncontrol.stats.AdmissionControlStats;
 import org.opensearch.repositories.RepositoriesStats;
 import org.opensearch.script.ScriptCacheStats;
@@ -145,6 +147,14 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
     @Nullable
     private AggregateFileCacheStats fileCacheStats;
 
+    /** Populated only when ?detailed is requested: FileCache-only stats (no block cache contribution). */
+    @Nullable
+    private AggregateFileCacheStats fileCacheOnlyStats;
+
+    /** Populated only when ?detailed is requested: combined rollup across all BlockCache implementations. */
+    @Nullable
+    private BlockCacheStats blockCacheOnlyStats;
+
     @Nullable
     private TaskCancellationStats taskCancellationStats;
 
@@ -165,6 +175,9 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
 
     @Nullable
     private RemoteStoreNodeStats remoteStoreNodeStats;
+
+    @Nullable
+    private AnalyticsBackendNativeMemoryStats nativeMemoryStats;
 
     public NodeStats(StreamInput in) throws IOException {
         super(in);
@@ -212,6 +225,13 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         } else {
             fileCacheStats = null;
         }
+        if (in.getVersion().onOrAfter(Version.V_3_7_0)) {
+            fileCacheOnlyStats = in.readOptionalWriteable(AggregateFileCacheStats::new);
+            blockCacheOnlyStats = in.readOptionalWriteable(BlockCacheStats::new);
+        } else {
+            fileCacheOnlyStats = null;
+            blockCacheOnlyStats = null;
+        }
         if (in.getVersion().onOrAfter(Version.V_2_9_0)) {
             taskCancellationStats = in.readOptionalWriteable(TaskCancellationStats::new);
         } else {
@@ -252,6 +272,11 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         } else {
             remoteStoreNodeStats = null;
         }
+        if (in.getVersion().onOrAfter(Version.V_3_7_0)) {
+            nativeMemoryStats = in.readOptionalWriteable(AnalyticsBackendNativeMemoryStats::new);
+        } else {
+            nativeMemoryStats = null;
+        }
     }
 
     public NodeStats(
@@ -278,13 +303,16 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         @Nullable ClusterManagerThrottlingStats clusterManagerThrottlingStats,
         @Nullable WeightedRoutingStats weightedRoutingStats,
         @Nullable AggregateFileCacheStats fileCacheStats,
+        @Nullable AggregateFileCacheStats fileCacheOnlyStats,
+        @Nullable BlockCacheStats blockCacheOnlyStats,
         @Nullable TaskCancellationStats taskCancellationStats,
         @Nullable SearchPipelineStats searchPipelineStats,
         @Nullable SegmentReplicationRejectionStats segmentReplicationRejectionStats,
         @Nullable RepositoriesStats repositoriesStats,
         @Nullable AdmissionControlStats admissionControlStats,
         @Nullable NodeCacheStats nodeCacheStats,
-        @Nullable RemoteStoreNodeStats remoteStoreNodeStats
+        @Nullable RemoteStoreNodeStats remoteStoreNodeStats,
+        @Nullable AnalyticsBackendNativeMemoryStats nativeMemoryStats
     ) {
         super(node);
         this.timestamp = timestamp;
@@ -309,6 +337,8 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         this.clusterManagerThrottlingStats = clusterManagerThrottlingStats;
         this.weightedRoutingStats = weightedRoutingStats;
         this.fileCacheStats = fileCacheStats;
+        this.fileCacheOnlyStats = fileCacheOnlyStats;
+        this.blockCacheOnlyStats = blockCacheOnlyStats;
         this.taskCancellationStats = taskCancellationStats;
         this.searchPipelineStats = searchPipelineStats;
         this.segmentReplicationRejectionStats = segmentReplicationRejectionStats;
@@ -316,6 +346,7 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         this.admissionControlStats = admissionControlStats;
         this.nodeCacheStats = nodeCacheStats;
         this.remoteStoreNodeStats = remoteStoreNodeStats;
+        this.nativeMemoryStats = nativeMemoryStats;
     }
 
     public long getTimestamp() {
@@ -449,6 +480,16 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
     }
 
     @Nullable
+    public AggregateFileCacheStats getFileCacheOnlyStats() {
+        return fileCacheOnlyStats;
+    }
+
+    @Nullable
+    public BlockCacheStats getBlockCacheOnlyStats() {
+        return blockCacheOnlyStats;
+    }
+
+    @Nullable
     public TaskCancellationStats getTaskCancellationStats() {
         return taskCancellationStats;
     }
@@ -481,6 +522,14 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
     @Nullable
     public RemoteStoreNodeStats getRemoteStoreNodeStats() {
         return remoteStoreNodeStats;
+    }
+
+    /**
+     * Returns the analytics backend native memory stats, or {@code null} if not available.
+     */
+    @Nullable
+    public AnalyticsBackendNativeMemoryStats getAnalyticsBackendNativeMemoryStats() {
+        return nativeMemoryStats;
     }
 
     @Override
@@ -520,6 +569,10 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         if (out.getVersion().onOrAfter(Version.V_2_7_0)) {
             out.writeOptionalWriteable(fileCacheStats);
         }
+        if (out.getVersion().onOrAfter(Version.V_3_7_0)) {
+            out.writeOptionalWriteable(fileCacheOnlyStats);
+            out.writeOptionalWriteable(blockCacheOnlyStats);
+        }
         if (out.getVersion().onOrAfter(Version.V_2_9_0)) {
             out.writeOptionalWriteable(taskCancellationStats);
         }
@@ -543,6 +596,9 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         }
         if (out.getVersion().onOrAfter(Version.V_2_18_0)) {
             out.writeOptionalWriteable(remoteStoreNodeStats);
+        }
+        if (out.getVersion().onOrAfter(Version.V_3_7_0)) {
+            out.writeOptionalWriteable(nativeMemoryStats);
         }
     }
 
@@ -628,6 +684,17 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         if (getFileCacheStats() != null) {
             getFileCacheStats().toXContent(builder, params);
         }
+        if (getFileCacheOnlyStats() != null) {
+            builder.startObject("file_cache");
+            getFileCacheOnlyStats().getOverallFileCacheStats().toXContent(builder, params);
+            getFileCacheOnlyStats().getFullFileCacheStats().toXContent(builder, params);
+            getFileCacheOnlyStats().getBlockFileCacheStats().toXContent(builder, params);
+            getFileCacheOnlyStats().getPinnedFileCacheStats().toXContent(builder, params);
+            builder.endObject();
+        }
+        if (getBlockCacheOnlyStats() != null) {
+            getBlockCacheOnlyStats().toXContent(builder, params);
+        }
         if (getTaskCancellationStats() != null) {
             getTaskCancellationStats().toXContent(builder, params);
         }
@@ -652,6 +719,9 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         }
         if (getRemoteStoreNodeStats() != null) {
             getRemoteStoreNodeStats().toXContent(builder, params);
+        }
+        if (getAnalyticsBackendNativeMemoryStats() != null) {
+            getAnalyticsBackendNativeMemoryStats().toXContent(builder, params);
         }
         return builder;
     }

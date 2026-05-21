@@ -5582,11 +5582,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 }
 
                 @Override
-                public GatedCloseable<SegmentInfos> getSegmentInfosSnapshot() {
-                    if (newEngineReference.get() == null) {
+                public GatedCloseable<CatalogSnapshot> acquireSnapshot() {
+                    final Indexer ref = newEngineReference.get();
+                    if (ref == null) {
                         throw new AlreadyClosedException("engine was closed");
                     }
-                    return applyOnEngine(newEngineReference.get(), Engine::getSegmentInfosSnapshot);
+                    return ref.acquireSnapshot();
                 }
 
                 @Override

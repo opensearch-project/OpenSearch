@@ -73,8 +73,10 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
     private final ClusterService clusterService;
     private final Scheduler scheduler;
     private final Executor searchExecutor;
+    private final ThreadPool threadPool;
     private final TaskManager taskManager;
     private final NodeClient client;
+    private final EngineContext engineContext;
     // TODO: close on shutdown — currently arrow-base's root.close() will warn about this
     // outstanding child. Consider wrapping in a Guice-bound type owned by AnalyticsPlugin.
     private final BufferAllocator coordinatorAllocator;
@@ -98,9 +100,11 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
         this.capabilityRegistry = capabilityRegistry;
         this.clusterService = clusterService;
         this.searchExecutor = threadPool.executor(ThreadPool.Names.SEARCH);
+        this.threadPool = threadPool;
         this.taskManager = transportService.getTaskManager();
         this.client = client;
         this.scheduler = scheduler;
+        this.engineContext = engineContext;
         this.coordinatorAllocator = allocatorService.newChildAllocator("coordinator", Long.MAX_VALUE);
         this.perQueryBufferLimit = AnalyticsPlugin.COORDINATOR_BUFFER_LIMIT.get(clusterService.getSettings());
         clusterService.getClusterSettings()
@@ -113,11 +117,27 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
         // executor so the calling thread — which may be a transport thread — is freed
         // immediately. The scheduler then drives execution asynchronously and fires
         // {@code listener} once the query terminates; nothing on this path blocks.
+        // The listener is wrapped to convert backend-specific exceptions (e.g., native memory
+        // errors arriving as StreamException from gRPC) into proper OpenSearch exception types.
+        ActionListener<Iterable<Object[]>> convertingListener = ActionListener.wrap(
+            listener::onResponse,
+            e -> listener.onFailure(e instanceof Exception ex ? engineContext.convertException(ex) : e)
+        );
         searchExecutor.execute(() -> {
             try {
-                executeInternal(logicalFragment, listener);
+                executeInternal(logicalFragment, convertingListener);
             } catch (Exception e) {
-                listener.onFailure(e);
+                convertingListener.onFailure(e);
+            } catch (AssertionError e) {
+                // Calcite's Litmus.THROW (used by RelOptUtil.eq, RexUtil.isFlat, Project.isValid,
+                // RexChecker) throws AssertionError directly via Java code rather than via the
+                // `assert` keyword, so JVM -da doesn't gate them. If one fires inside this
+                // executor, OpenSearchUncaughtExceptionHandler exits the cluster JVM. Convert to
+                // an IllegalStateException so the query path treats it as a per-query failure
+                // (HTTP 500 with a bucketable message) instead of cluster-fatal.
+                convertingListener.onFailure(
+                    new IllegalStateException("Analytics-engine executor rejected the plan: " + e.getMessage(), e)
+                );
             }
         });
     }
@@ -164,7 +184,7 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
         logger.debug("[query-{}] Arrow allocator created, limit={}B", dag.queryId(), perQueryBufferLimit);
         final QueryContext context;
         try {
-            context = new QueryContext(dag, searchExecutor, queryTask, queryAllocator, ownsAllocator);
+            context = new QueryContext(dag, threadPool, queryTask, queryAllocator, ownsAllocator);
         } catch (Exception e) {
             if (ownsAllocator) queryAllocator.close();
             throw e;

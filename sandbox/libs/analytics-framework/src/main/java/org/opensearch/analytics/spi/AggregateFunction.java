@@ -9,9 +9,12 @@
 package org.opensearch.analytics.spi;
 
 import org.apache.arrow.vector.types.pojo.ArrowType;
+import org.apache.calcite.rel.type.RelDataType;
+import org.apache.calcite.rel.type.RelDataTypeFactory;
 import org.apache.calcite.sql.SqlAggFunction;
 import org.apache.calcite.sql.SqlKind;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
+import org.apache.calcite.sql.type.SqlTypeName;
 
 import java.util.List;
 
@@ -50,10 +53,12 @@ public enum AggregateFunction {
     COLLECT(Type.STATE_EXPANDING, SqlKind.COLLECT),
     LISTAGG(Type.STATE_EXPANDING, SqlKind.LISTAGG),
 
-    // Approximate — probabilistic, fixed-size state. Engine-native merge: null reducer
-    // means the field is reduced by this same function (APPROX_COUNT_DISTINCT merges
-    // partial HLL sketches into a final sketch).
-    APPROX_COUNT_DISTINCT(Type.APPROXIMATE, SqlKind.OTHER, fields(IF("sketch", new ArrowType.Binary(), null)));
+    APPROX_COUNT_DISTINCT(Type.APPROXIMATE, SqlKind.OTHER, fields(IF("sketch", new ArrowType.Binary(), null))),
+    TAKE(Type.STATE_EXPANDING, SqlKind.OTHER, fields(IF("take_state", IntermediateTypeResolver.passThroughArg0(), null))),
+    FIRST(Type.STATE_EXPANDING, SqlKind.OTHER, fields(IF("first_state", IntermediateTypeResolver.passThroughArg0(), null))),
+    LAST(Type.STATE_EXPANDING, SqlKind.OTHER, fields(IF("last_state", IntermediateTypeResolver.passThroughArg0(), null))),
+    LIST(Type.STATE_EXPANDING, SqlKind.OTHER, fields(IF("list_state", IntermediateTypeResolver.passThroughArg0(), null))),
+    VALUES(Type.STATE_EXPANDING, SqlKind.OTHER, fields(IF("values_state", IntermediateTypeResolver.passThroughArg0(), null)));
 
     /** Category of aggregate function. Affects execution strategy (shuffle vs map-reduce). */
     public enum Type {
@@ -63,8 +68,71 @@ public enum AggregateFunction {
         APPROXIMATE
     }
 
-    /** Describes one intermediate field emitted by a partial aggregate. A null reducer means "self" (the owning enum constant). */
-    public record IntermediateField(String name, ArrowType arrowType, AggregateFunction reducer) {
+    /**
+     * Describes one intermediate field emitted by a partial aggregate. A null reducer means
+     * "self" (the owning enum constant).
+     *
+     * <p>The {@code typeResolver} produces the field's Calcite type given the FINAL aggregate
+     * call's input arg types. For fixed-shape states (HLL sketch is always Binary, COUNT
+     * counter is always Int64) the resolver ignores its input and returns a constant; for
+     * input-parameterised states (e.g. {@code take(field, N)}'s buffer is {@code list<field>})
+     * the resolver derives the shape from arg 0. Construct via
+     * {@link IntermediateTypeResolver#fixed(ArrowType)} and
+     * {@link IntermediateTypeResolver#passThroughArg0()}.
+     */
+    public record IntermediateField(String name, IntermediateTypeResolver typeResolver, AggregateFunction reducer) {
+    }
+
+    /**
+     * Computes the intermediate-field type from an aggregate call's arg types. Implementations
+     * must be pure: same input → same output. Two flavours:
+     * <ul>
+     *   <li><b>Fixed</b> ({@link #fixed(ArrowType)}) — returns a constant Arrow type wrapped
+     *       in the corresponding Calcite type. Used for COUNT (Int64) and APPROX_COUNT_DISTINCT
+     *       (Binary).</li>
+     *   <li><b>Input-parameterised</b> (custom impls like {@link #passThroughArg0()}) — derives
+     *       the type from {@code argTypes}. Used for {@code take}/{@code list}/{@code values}
+     *       whose state shape is {@code list<arg0>}.</li>
+     * </ul>
+     */
+    @FunctionalInterface
+    public interface IntermediateTypeResolver {
+        /** Resolve the intermediate field's Calcite type. */
+        RelDataType resolve(List<RelDataType> argTypes, RelDataTypeFactory typeFactory);
+
+        /** Resolver that always returns the same Arrow type, irrespective of arg types. */
+        static IntermediateTypeResolver fixed(ArrowType arrowType) {
+            return (argTypes, typeFactory) -> ArrowToCalciteTypeMapper.toCalcite(arrowType, typeFactory);
+        }
+
+        /**
+         * Pass arg 0's type through unchanged. Used by state-expanding aggregates whose
+         * FINAL re-aggregates over PARTIAL's output column — the column type already
+         * equals the desired exchange shape.
+         */
+        static IntermediateTypeResolver passThroughArg0() {
+            return (argTypes, typeFactory) -> {
+                if (argTypes.isEmpty()) {
+                    throw new IllegalStateException("passThroughArg0 resolver requires at least one arg type");
+                }
+                return argTypes.get(0);
+            };
+        }
+    }
+
+    /**
+     * Internal Arrow → Calcite mapper used by {@link IntermediateTypeResolver#fixed}. Lives
+     * in the SPI module so {@code IntermediateField} stays self-contained — no dependency
+     * on the planner module. Add cases as new fixed-state shapes appear.
+     */
+    private static final class ArrowToCalciteTypeMapper {
+        static RelDataType toCalcite(ArrowType t, RelDataTypeFactory f) {
+            return switch (t) {
+                case ArrowType.Int i when i.getBitWidth() == 64 -> f.createSqlType(SqlTypeName.BIGINT);
+                case ArrowType.Binary b -> f.createSqlType(SqlTypeName.VARBINARY, Integer.MAX_VALUE);
+                default -> throw new IllegalArgumentException("Unsupported fixed Arrow type for IntermediateField: " + t);
+            };
+        }
     }
 
     private final Type type;
@@ -93,7 +161,7 @@ public enum AggregateFunction {
     public List<IntermediateField> intermediateFields() {
         if (intermediateFields == null) return null;
         return intermediateFields.stream()
-            .map(f -> f.reducer() == null ? new IntermediateField(f.name(), f.arrowType(), this) : f)
+            .map(f -> f.reducer() == null ? new IntermediateField(f.name(), f.typeResolver(), this) : f)
             .toList();
     }
 
@@ -163,6 +231,10 @@ public enum AggregateFunction {
     }
 
     private static IntermediateField IF(String name, ArrowType arrowType, AggregateFunction reducer) {
-        return new IntermediateField(name, arrowType, reducer);
+        return new IntermediateField(name, IntermediateTypeResolver.fixed(arrowType), reducer);
+    }
+
+    private static IntermediateField IF(String name, IntermediateTypeResolver typeResolver, AggregateFunction reducer) {
+        return new IntermediateField(name, typeResolver, reducer);
     }
 }

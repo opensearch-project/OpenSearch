@@ -8,6 +8,7 @@
 
 package org.opensearch.analytics.qa;
 
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.opensearch.client.Request;
 import org.opensearch.client.Response;
 
@@ -125,6 +126,297 @@ public class CoordinatorReduceIT extends AnalyticsRestTestCase {
             "dc(value) should be approximately " + totalDocs + " (±10%), got " + actual,
             actual >= totalDocs * 0.9 && actual <= totalDocs * 1.1
         );
+    }
+
+    /** Single-shard {@code take(value, 3)} — bounded array of up to 3 values. */
+    @LuceneTestCase.AwaitsFix(bugUrl = "broken")
+    public void testTakeSingleShard() throws Exception {
+        String index = "coord_reduce_take_single";
+        createSingleShardParquetBackedIndex(index);
+        indexSequentialValueDocsSingleShard(index);
+
+        Map<String, Object> result = executePPL("source = " + index + " | stats take(value, 3) as t");
+
+        @SuppressWarnings("unchecked")
+        List<String> columns = (List<String>) result.get("columns");
+        assertNotNull("columns must not be null", columns);
+        assertTrue("columns must contain 't', got " + columns, columns.contains("t"));
+
+        @SuppressWarnings("unchecked")
+        List<List<Object>> rows = (List<List<Object>>) result.get("rows");
+        assertNotNull("rows must not be null", rows);
+        assertEquals("scalar agg must return exactly 1 row", 1, rows.size());
+
+        Object cell = rows.get(0).get(columns.indexOf("t"));
+        assertNotNull("cell for 't' must not be null — coordinator-reduce returned no value", cell);
+        assertTrue("take() must return a List, got " + cell.getClass(), cell instanceof List);
+
+        @SuppressWarnings("unchecked")
+        List<Object> taken = (List<Object>) cell;
+        assertEquals("take(value, 3) must return exactly 3 elements", 3, taken.size());
+        for (Object v : taken) {
+            assertNotNull("take(value, 3) elements must not be null", v);
+            int iv = ((Number) v).intValue();
+            assertTrue("take(value, 3) element " + iv + " must be in {1.." + DOCS_PER_SHARD + "}", iv >= 1 && iv <= DOCS_PER_SHARD);
+        }
+    }
+
+    /** Cross-shard {@code take(value, 5)} — coordinator unions per-shard arrays and truncates to 5. */
+    @LuceneTestCase.AwaitsFix(bugUrl = "broken")
+    public void testTakeAcrossShards() throws Exception {
+        String index = "coord_reduce_take_multi";
+        createParquetBackedIndex(index);
+        indexVaryingValueDocs(index);
+
+        Map<String, Object> result = executePPL("source = " + index + " | stats take(value, 5) as t");
+
+        @SuppressWarnings("unchecked")
+        List<String> columns = (List<String>) result.get("columns");
+        assertNotNull("columns must not be null", columns);
+        assertTrue("columns must contain 't', got " + columns, columns.contains("t"));
+
+        @SuppressWarnings("unchecked")
+        List<List<Object>> rows = (List<List<Object>>) result.get("rows");
+        assertNotNull("rows must not be null", rows);
+        assertEquals("scalar agg must return exactly 1 row", 1, rows.size());
+
+        Object cell = rows.get(0).get(columns.indexOf("t"));
+        assertNotNull("cell for 't' must not be null — coordinator-reduce returned no value", cell);
+        assertTrue("take() must return a List, got " + cell.getClass(), cell instanceof List);
+
+        @SuppressWarnings("unchecked")
+        List<Object> taken = (List<Object>) cell;
+        assertEquals("take(value, 5) must return exactly 5 elements", 5, taken.size());
+
+        int totalDocs = NUM_SHARDS * DOCS_PER_SHARD;
+        java.util.Set<Integer> seen = new java.util.HashSet<>();
+        for (Object v : taken) {
+            assertNotNull("take(value, 5) elements must not be null", v);
+            int iv = ((Number) v).intValue();
+            assertTrue("take(value, 5) element " + iv + " must be in {1.." + totalDocs + "}", iv >= 1 && iv <= totalDocs);
+            assertTrue("take(value, 5) elements must be distinct, duplicate=" + iv, seen.add(iv));
+        }
+    }
+
+    /** Single-shard {@code first(value)} — arrival order depends on parquet read; assert membership only. */
+    public void testFirstSingleShard() throws Exception {
+        String index = "coord_reduce_first_single";
+        createSingleShardParquetBackedIndex(index);
+        indexSequentialValueDocsSingleShard(index);
+
+        Map<String, Object> result = executePPL("source = " + index + " | stats first(value) as f");
+        List<List<Object>> rows = scalarRows(result, "f");
+
+        @SuppressWarnings("unchecked")
+        List<String> columns = (List<String>) result.get("columns");
+        Object cell = rows.get(0).get(columns.indexOf("f"));
+        int actual = ((Number) cell).intValue();
+        assertTrue("first(value) must be in {1.." + DOCS_PER_SHARD + "}, got " + actual, actual >= 1 && actual <= DOCS_PER_SHARD);
+    }
+
+    /** Cross-shard {@code first(value)} — arrival order non-deterministic; assert membership only. */
+    public void testFirstAcrossShards() throws Exception {
+        String index = "coord_reduce_first_multi";
+        createParquetBackedIndex(index);
+        indexVaryingValueDocs(index);
+
+        Map<String, Object> result = executePPL("source = " + index + " | stats first(value) as f");
+        List<List<Object>> rows = scalarRows(result, "f");
+
+        @SuppressWarnings("unchecked")
+        List<String> columns = (List<String>) result.get("columns");
+        Object cell = rows.get(0).get(columns.indexOf("f"));
+        int actual = ((Number) cell).intValue();
+        int totalDocs = NUM_SHARDS * DOCS_PER_SHARD;
+        assertTrue("first(value) must be in {1.." + totalDocs + "}, got " + actual, actual >= 1 && actual <= totalDocs);
+    }
+
+    /** Single-shard {@code last(value)} — arrival order depends on parquet read; assert membership only. */
+    public void testLastSingleShard() throws Exception {
+        String index = "coord_reduce_last_single";
+        createSingleShardParquetBackedIndex(index);
+        indexSequentialValueDocsSingleShard(index);
+
+        Map<String, Object> result = executePPL("source = " + index + " | stats last(value) as l");
+        List<List<Object>> rows = scalarRows(result, "l");
+
+        @SuppressWarnings("unchecked")
+        List<String> columns = (List<String>) result.get("columns");
+        Object cell = rows.get(0).get(columns.indexOf("l"));
+        int actual = ((Number) cell).intValue();
+        assertTrue("last(value) must be in {1.." + DOCS_PER_SHARD + "}, got " + actual, actual >= 1 && actual <= DOCS_PER_SHARD);
+    }
+
+    /** Cross-shard {@code last(value)} — arrival order non-deterministic; assert membership only. */
+    public void testLastAcrossShards() throws Exception {
+        String index = "coord_reduce_last_multi";
+        createParquetBackedIndex(index);
+        indexVaryingValueDocs(index);
+
+        Map<String, Object> result = executePPL("source = " + index + " | stats last(value) as l");
+        List<List<Object>> rows = scalarRows(result, "l");
+
+        @SuppressWarnings("unchecked")
+        List<String> columns = (List<String>) result.get("columns");
+        Object cell = rows.get(0).get(columns.indexOf("l"));
+        int actual = ((Number) cell).intValue();
+        int totalDocs = NUM_SHARDS * DOCS_PER_SHARD;
+        assertTrue("last(value) must be in {1.." + totalDocs + "}, got " + actual, actual >= 1 && actual <= totalDocs);
+    }
+
+    /** Single-shard {@code list(value)} — preserves duplicates; result must contain every input. */
+    public void testListSingleShard() throws Exception {
+        String index = "coord_reduce_list_single";
+        createSingleShardParquetBackedIndex(index);
+        indexSequentialValueDocsSingleShard(index);
+
+        Map<String, Object> result = executePPL("source = " + index + " | stats list(value) as l");
+
+        @SuppressWarnings("unchecked")
+        List<String> columns = (List<String>) result.get("columns");
+        assertNotNull("columns must not be null", columns);
+        assertTrue("columns must contain 'l', got " + columns, columns.contains("l"));
+
+        @SuppressWarnings("unchecked")
+        List<List<Object>> rows = (List<List<Object>>) result.get("rows");
+        assertNotNull("rows must not be null", rows);
+        assertEquals("scalar agg must return exactly 1 row", 1, rows.size());
+
+        Object cell = rows.get(0).get(columns.indexOf("l"));
+        assertNotNull("cell for 'l' must not be null — coordinator-reduce returned no value", cell);
+        assertTrue("list() must return a List, got " + cell.getClass(), cell instanceof List);
+
+        @SuppressWarnings("unchecked")
+        List<Object> listed = (List<Object>) cell;
+        assertEquals("list(value) must return exactly " + DOCS_PER_SHARD + " elements", DOCS_PER_SHARD, listed.size());
+
+        java.util.Set<Integer> seen = new java.util.HashSet<>();
+        for (Object v : listed) {
+            assertNotNull("list(value) elements must not be null", v);
+            seen.add(((Number) v).intValue());
+        }
+        java.util.Set<Integer> expected = new java.util.HashSet<>();
+        for (int i = 1; i <= DOCS_PER_SHARD; i++) {
+            expected.add(i);
+        }
+        assertEquals("list(value) must contain every integer in {1.." + DOCS_PER_SHARD + "}", expected, seen);
+    }
+
+    /** Cross-shard {@code list(value)} — coordinator concatenates per-shard lists via list_merge UDAF. */
+    @LuceneTestCase.AwaitsFix(bugUrl = "broken")
+    public void testListAcrossShards() throws Exception {
+        String index = "coord_reduce_list_multi";
+        createParquetBackedIndex(index);
+        indexVaryingValueDocs(index);
+
+        Map<String, Object> result = executePPL("source = " + index + " | stats list(value) as l");
+
+        @SuppressWarnings("unchecked")
+        List<String> columns = (List<String>) result.get("columns");
+        assertNotNull("columns must not be null", columns);
+        assertTrue("columns must contain 'l', got " + columns, columns.contains("l"));
+
+        @SuppressWarnings("unchecked")
+        List<List<Object>> rows = (List<List<Object>>) result.get("rows");
+        assertNotNull("rows must not be null", rows);
+        assertEquals("scalar agg must return exactly 1 row", 1, rows.size());
+
+        Object cell = rows.get(0).get(columns.indexOf("l"));
+        assertNotNull("cell for 'l' must not be null — coordinator-reduce returned no value", cell);
+        assertTrue("list() must return a List, got " + cell.getClass(), cell instanceof List);
+
+        int totalDocs = NUM_SHARDS * DOCS_PER_SHARD;
+        @SuppressWarnings("unchecked")
+        List<Object> listed = (List<Object>) cell;
+        assertEquals("list(value) must return exactly " + totalDocs + " elements", totalDocs, listed.size());
+
+        java.util.Set<Integer> seen = new java.util.HashSet<>();
+        for (Object v : listed) {
+            assertNotNull("list(value) elements must not be null", v);
+            seen.add(((Number) v).intValue());
+        }
+        java.util.Set<Integer> expected = new java.util.HashSet<>();
+        for (int i = 1; i <= totalDocs; i++) {
+            expected.add(i);
+        }
+        assertEquals("list(value) must contain every integer in {1.." + totalDocs + "}", expected, seen);
+    }
+
+    /** Single-shard {@code values(value)} — de-duplicates; result must equal the distinct input set. */
+    public void testValuesSingleShard() throws Exception {
+        String index = "coord_reduce_values_single";
+        createSingleShardParquetBackedIndex(index);
+        indexDuplicateValueDocsSingleShard(index);
+
+        Map<String, Object> result = executePPL("source = " + index + " | stats values(value) as v");
+
+        @SuppressWarnings("unchecked")
+        List<String> columns = (List<String>) result.get("columns");
+        assertNotNull("columns must not be null", columns);
+        assertTrue("columns must contain 'v', got " + columns, columns.contains("v"));
+
+        @SuppressWarnings("unchecked")
+        List<List<Object>> rows = (List<List<Object>>) result.get("rows");
+        assertNotNull("rows must not be null", rows);
+        assertEquals("scalar agg must return exactly 1 row", 1, rows.size());
+
+        Object cell = rows.get(0).get(columns.indexOf("v"));
+        assertNotNull("cell for 'v' must not be null — coordinator-reduce returned no value", cell);
+        assertTrue("values() must return a List, got " + cell.getClass(), cell instanceof List);
+
+        @SuppressWarnings("unchecked")
+        List<Object> got = (List<Object>) cell;
+        assertEquals("values(value) must return exactly 5 distinct elements", 5, got.size());
+
+        java.util.Set<Integer> seen = new java.util.HashSet<>();
+        for (Object v : got) {
+            assertNotNull("values(value) elements must not be null", v);
+            seen.add(((Number) v).intValue());
+        }
+        java.util.Set<Integer> expected = new java.util.HashSet<>();
+        for (int i = 1; i <= 5; i++) {
+            expected.add(i);
+        }
+        assertEquals("values(value) must contain exactly {1..5}", expected, seen);
+    }
+
+    /** Cross-shard {@code values(value)} — coordinator concatenates and re-deduplicates via list_merge_distinct UDAF. */
+    @LuceneTestCase.AwaitsFix(bugUrl = "broken")
+    public void testValuesAcrossShards() throws Exception {
+        String index = "coord_reduce_values_multi";
+        createParquetBackedIndex(index);
+        indexDuplicateValueDocs(index);
+
+        Map<String, Object> result = executePPL("source = " + index + " | stats values(value) as v");
+
+        @SuppressWarnings("unchecked")
+        List<String> columns = (List<String>) result.get("columns");
+        assertNotNull("columns must not be null", columns);
+        assertTrue("columns must contain 'v', got " + columns, columns.contains("v"));
+
+        @SuppressWarnings("unchecked")
+        List<List<Object>> rows = (List<List<Object>>) result.get("rows");
+        assertNotNull("rows must not be null", rows);
+        assertEquals("scalar agg must return exactly 1 row", 1, rows.size());
+
+        Object cell = rows.get(0).get(columns.indexOf("v"));
+        assertNotNull("cell for 'v' must not be null — coordinator-reduce returned no value", cell);
+        assertTrue("values() must return a List, got " + cell.getClass(), cell instanceof List);
+
+        @SuppressWarnings("unchecked")
+        List<Object> got = (List<Object>) cell;
+        assertEquals("values(value) must return exactly 10 distinct elements", 10, got.size());
+
+        java.util.Set<Integer> seen = new java.util.HashSet<>();
+        for (Object v : got) {
+            assertNotNull("values(value) elements must not be null", v);
+            seen.add(((Number) v).intValue());
+        }
+        java.util.Set<Integer> expected = new java.util.HashSet<>();
+        for (int i = 1; i <= 10; i++) {
+            expected.add(i);
+        }
+        assertEquals("values(value) must contain exactly {1..10}", expected, seen);
     }
 
     /**
@@ -338,6 +630,58 @@ public class CoordinatorReduceIT extends AnalyticsRestTestCase {
     }
 
     /**
+     * Creates a single-shard parquet-backed composite index with a single integer field
+     * {@code value}. Mirrors {@link #createParquetBackedIndex(String)} but with
+     * {@code number_of_shards=1} so tests can exercise the trivial pass-through merge path
+     * without distributed coordination.
+     */
+    private void createSingleShardParquetBackedIndex(String indexName) throws Exception {
+        try {
+            client().performRequest(new Request("DELETE", "/" + indexName));
+        } catch (Exception ignored) {}
+
+        String body = "{"
+            + "\"settings\": {"
+            + "  \"number_of_shards\": 1,"
+            + "  \"number_of_replicas\": 0,"
+            + "  \"index.pluggable.dataformat.enabled\": true,"
+            + "  \"index.pluggable.dataformat\": \"composite\","
+            + "  \"index.composite.primary_data_format\": \"parquet\","
+            + "  \"index.composite.secondary_data_formats\": \"\""
+            + "},"
+            + "\"mappings\": {"
+            + "  \"properties\": {"
+            + "    \"value\": { \"type\": \"integer\" }"
+            + "  }"
+            + "}"
+            + "}";
+
+        Request createIndex = new Request("PUT", "/" + indexName);
+        createIndex.setJsonEntity(body);
+        Map<String, Object> response = assertOkAndParse(client().performRequest(createIndex), "Create index " + indexName);
+        assertEquals("index creation must be acknowledged", true, response.get("acknowledged"));
+
+        Request health = new Request("GET", "/_cluster/health/" + indexName);
+        health.addParameter("wait_for_status", "green");
+        health.addParameter("timeout", "30s");
+        client().performRequest(health);
+    }
+
+    /**
+     * Indexes {@link #DOCS_PER_SHARD} docs with {@code value = i+1} into a single-shard
+     * index — yielding values {@code 1..DOCS_PER_SHARD} (i.e. {@code 1..10}). Used by the
+     * single-shard {@code take()} test.
+     */
+    private void indexSequentialValueDocsSingleShard(String indexName) throws Exception {
+        StringBuilder bulk = new StringBuilder();
+        for (int i = 0; i < DOCS_PER_SHARD; i++) {
+            bulk.append("{\"index\": {\"_id\": \"s").append(i).append("\"}}\n");
+            bulk.append("{\"value\": ").append(i + 1).append("}\n");
+        }
+        bulkAndRefresh(indexName, bulk.toString());
+    }
+
+    /**
      * Indexes {@link #NUM_SHARDS} × {@link #DOCS_PER_SHARD} docs with {@code value = i+1},
      * giving a distinct value per doc — required for the DC test to have a meaningful
      * cardinality to approximate.
@@ -348,6 +692,36 @@ public class CoordinatorReduceIT extends AnalyticsRestTestCase {
         for (int i = 0; i < total; i++) {
             bulk.append("{\"index\": {\"_id\": \"v").append(i).append("\"}}\n");
             bulk.append("{\"value\": ").append(i + 1).append("}\n");
+        }
+        bulkAndRefresh(indexName, bulk.toString());
+    }
+
+    /**
+     * Indexes 10 docs into a single-shard index where {@code value} cycles through
+     * {@code 1..5} twice — so 10 docs but only 5 distinct values. Used by
+     * {@link #testValuesSingleShard()} to validate that {@code values()} de-duplicates.
+     */
+    private void indexDuplicateValueDocsSingleShard(String indexName) throws Exception {
+        StringBuilder bulk = new StringBuilder();
+        for (int i = 0; i < DOCS_PER_SHARD; i++) {
+            bulk.append("{\"index\": {\"_id\": \"d").append(i).append("\"}}\n");
+            bulk.append("{\"value\": ").append((i % 5) + 1).append("}\n");
+        }
+        bulkAndRefresh(indexName, bulk.toString());
+    }
+
+    /**
+     * Indexes {@link #NUM_SHARDS} × {@link #DOCS_PER_SHARD} docs where {@code value}
+     * cycles through {@code 1..10} twice — so 20 docs but only 10 distinct values. Used
+     * by {@link #testValuesAcrossShards()} to validate that {@code values()}
+     * de-duplicates across the partial/final boundary.
+     */
+    private void indexDuplicateValueDocs(String indexName) throws Exception {
+        StringBuilder bulk = new StringBuilder();
+        int total = NUM_SHARDS * DOCS_PER_SHARD;
+        for (int i = 0; i < total; i++) {
+            bulk.append("{\"index\": {\"_id\": \"d").append(i).append("\"}}\n");
+            bulk.append("{\"value\": ").append((i % 10) + 1).append("}\n");
         }
         bulkAndRefresh(indexName, bulk.toString());
     }

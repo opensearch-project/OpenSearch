@@ -9,7 +9,6 @@
 package org.opensearch.index.engine;
 
 import org.apache.lucene.index.IndexCommit;
-import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.ByteBuffersDataOutput;
 import org.apache.lucene.store.ByteBuffersIndexOutput;
 import org.opensearch.common.annotation.ExperimentalApi;
@@ -424,15 +423,16 @@ public class EngineBackedIndexer implements Indexer {
     }
 
     /**
-     * Returns a snapshot of the catalog of segments in this engine. This snapshot is
-     * guaranteed to be consistent and can be used for recovery purposes.
+     * Returns a snapshot of the catalog of segments in this engine. Delegates to
+     * {@link Engine#acquireSnapshot()} so subclasses (e.g. the read-only wrapper used during
+     * engine reset) can route to a different snapshot source without going through the
+     * {@link Engine#getSegmentInfosSnapshot()} bridge — which is required when the underlying
+     * source is a non-Lucene indexer (e.g. {@link DataFormatAwareEngine}).
      */
     @ExperimentalApi
     @Override
     public GatedCloseable<CatalogSnapshot> acquireSnapshot() {
-        GatedCloseable<SegmentInfos> segmentInfosRef = engine.getSegmentInfosSnapshot();
-        SegmentInfosCatalogSnapshot snapshot = new SegmentInfosCatalogSnapshot(segmentInfosRef.get());
-        return new GatedCloseable<>(snapshot, segmentInfosRef::close);
+        return engine.acquireSnapshot();
     }
 
     @Override

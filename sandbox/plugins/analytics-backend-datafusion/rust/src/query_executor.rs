@@ -48,14 +48,11 @@ pub async fn execute_query(
     plan_bytes: Vec<u8>,
     runtime: &DataFusionRuntime,
     cpu_executor: DedicatedExecutor,
-    // Per-query memory pool, or None when context_id is 0 (tracking disabled).
-    // Not all query flows pass a context_id yet; this fallback allows queries
-    // to execute using the global pool. Can be made required once all flows
-    // wire up context_id correctly.
     query_memory_pool: Option<Arc<dyn datafusion::execution::memory_pool::MemoryPool>>,
     query_config: &crate::datafusion_query_config::DatafusionQueryConfig,
     context_id: i64,
     shard_store: Arc<dyn ObjectStore>,
+    phantom_corrector: Option<Arc<crate::phantom_corrector::PhantomCorrector>>,
 ) -> Result<i64, DataFusionError> {
     // Pre-populate the list-files cache so DataFusion doesn't re-list the directory
     let list_file_cache = Arc::new(DefaultListFilesCache::default());
@@ -113,6 +110,7 @@ pub async fn execute_query(
 
     let ctx = SessionContext::new_with_state(state);
     crate::udf::register_all(&ctx);
+    crate::udaf::register_all(&ctx);
 
     // Register table via ListingTable — all IO goes through object store
     let file_format = ParquetFormat::new();
@@ -151,6 +149,13 @@ pub async fn execute_query(
     let logical_plan = from_substrait_plan(&ctx.state(), &substrait_plan).await?;
     let dataframe = ctx.execute_logical_plan(logical_plan).await?;
     let physical_plan = dataframe.create_physical_plan().await?;
+    // Retag any physical-plan output columns whose type tags differ from what Substrait
+    // declared on bit-compatible Int↔UInt pairs (see crate::relabel_exec). The target is
+    // schema_coerce::coerce_inferred_schema(physical_schema) — the same narrowing the
+    // partition-stream registration uses, so the consumer's StreamingTable and the
+    // batches arriving from this producer agree by construction.
+    let target_schema = crate::schema_coerce::coerce_inferred_schema(physical_plan.schema());
+    let physical_plan = crate::relabel_exec::wrap_if_relabel_needed(physical_plan, target_schema)?;
 
     let df_stream = execute_stream(physical_plan, ctx.task_ctx()).map_err(|e| {
         error!("Failed to create execution stream: {}", e);
@@ -164,6 +169,12 @@ pub async fn execute_query(
     if let Some(h) = abort_handle {
         crate::query_tracker::set_abort_handle(context_id, h);
     }
+
+    // Attach phantom corrector for self-correcting budget (if provided)
+    let cross_rt_stream = match phantom_corrector {
+        Some(corrector) => cross_rt_stream.with_phantom_corrector(corrector),
+        None => cross_rt_stream,
+    };
 
     let wrapped = datafusion::physical_plan::stream::RecordBatchStreamAdapter::new(
         cross_rt_stream.schema(),
@@ -196,6 +207,8 @@ pub async fn execute_with_context(
         log_debug!("DataFusion logical plan:\n{}", logical_plan.display_indent());
         let dataframe = handle.ctx.execute_logical_plan(logical_plan).await?;
         let physical_plan = dataframe.create_physical_plan().await?;
+        let target_schema = crate::schema_coerce::coerce_inferred_schema(physical_plan.schema());
+        let physical_plan = crate::relabel_exec::wrap_if_relabel_needed(physical_plan, target_schema)?;
         log_debug!("DataFusion physical plan:\n{}", displayable(physical_plan.as_ref()).indent(true));
 
         let df_stream = execute_stream(physical_plan, handle.ctx.task_ctx()).map_err(|e| {
