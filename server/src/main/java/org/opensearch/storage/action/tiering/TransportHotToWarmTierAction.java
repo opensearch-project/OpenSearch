@@ -25,7 +25,6 @@ import org.opensearch.common.inject.Inject;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.index.Index;
-import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.storage.tiering.HotToWarmTieringService;
 import org.opensearch.threadpool.ThreadPool;
@@ -87,12 +86,6 @@ public class TransportHotToWarmTierAction extends TransportTierAction {
     @Override
     protected void clusterManagerOperation(IndexTieringRequest request, ClusterState state, ActionListener<AcknowledgedResponse> listener)
         throws Exception {
-        if (isAlreadyWarm(request.getIndex(), state)) {
-            listener.onFailure(
-                new IllegalArgumentException("Cannot migrate index [" + request.getIndex() + "] to WARM tier: already migrated.")
-            );
-            return;
-        }
         if (isDfaIndex(request.getIndex(), state)) {
             // Validate FIRST — before any state-mutating or expensive operations.
             // If validation fails (e.g. warm nodes full, too many concurrent requests),
@@ -301,17 +294,5 @@ public class TransportHotToWarmTierAction extends TransportTierAction {
             return false;
         }
         return indexMetadata.getSettings().getAsBoolean(IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey(), false);
-    }
-
-    /**
-     * Checks if the index is already on the warm tier.
-     * Prevents redundant tiering operations on indices that are already warm.
-     */
-    private boolean isAlreadyWarm(String indexName, ClusterState state) {
-        IndexMetadata indexMetadata = state.metadata().index(indexName);
-        if (indexMetadata == null) {
-            return false;
-        }
-        return indexMetadata.getSettings().getAsBoolean(IndexModule.IS_WARM_INDEX_SETTING.getKey(), false);
     }
 }

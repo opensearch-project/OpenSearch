@@ -52,7 +52,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
-import static org.opensearch.cluster.metadata.IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING;
 import static org.opensearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
 import static org.opensearch.index.IndexModule.INDEX_TIERING_STATE;
 import static org.opensearch.storage.common.tiering.TieringUtils.JVM_USAGE_TIERING_THRESHOLD_PERCENT;
@@ -532,10 +531,7 @@ public abstract class TieringService implements ClusterStateListener {
             Settings.Builder indexSettingsBuilder = Settings.builder().put(indexMetadata.getSettings()).put(getTieringStartSettingsToAdd());
 
             // 2. Handle replica updates using auto_expand_replicas
-            int currentReplicas = Integer.parseInt(indexMetadata.getSettings().get(INDEX_NUMBER_OF_REPLICAS_SETTING.getKey()));
-            if (currentReplicas != 1) {
-                indexSettingsBuilder.put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-" + 1);
-            }
+            indexSettingsBuilder.put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-" + 1);
 
             // 3. Create tiering custom data
             Map<String, String> tieringCustomData = new HashMap<>();
