@@ -95,6 +95,7 @@ public class LuceneCommitter extends SafeBootstrapCommitter {
     private static final Logger logger = LogManager.getLogger(LuceneCommitter.class);
 
     private final Store store;
+    private final Sort userProvidedSort;
     private final MergeIndexWriter indexWriter;
     private final LuceneCommitDeletionPolicy deletionPolicy;
     private final AtomicBoolean isClosed = new AtomicBoolean();
@@ -111,6 +112,7 @@ public class LuceneCommitter extends SafeBootstrapCommitter {
     public LuceneCommitter(CommitterConfig committerConfig) throws IOException {
         super(committerConfig);
         this.store = Objects.requireNonNull(committerConfig.engineConfig().getStore());
+        this.userProvidedSort = committerConfig.engineConfig().getIndexSort();
         this.store.incRef();
         try {
             this.deletionPolicy = new LuceneCommitDeletionPolicy();
@@ -277,6 +279,11 @@ public class LuceneCommitter extends SafeBootstrapCommitter {
         return indexWriter;
     }
 
+    Sort getUserProvidedSort() {
+        ensureOpen();
+        return userProvidedSort;
+    }
+
     /** Returns the version-keyed reader map used by {@link #serializeToCommitFormat}. */
     Map<Long, LuceneReader> readers() {
         ensureOpen();
@@ -322,8 +329,8 @@ public class LuceneCommitter extends SafeBootstrapCommitter {
 
         if (isSecondary) {
             iwc.setIndexSort(new Sort(new SortedNumericSortField(DocumentInput.ROW_ID_FIELD, SortField.Type.LONG)));
-        } else if (engineConfig.getIndexSort() != null) {
-            iwc.setIndexSort(engineConfig.getIndexSort());
+        } else if (userProvidedSort != null) {
+            iwc.setIndexSort(userProvidedSort);
         }
         iwc.setCommitOnClose(false);
         iwc.setOpenMode(IndexWriterConfig.OpenMode.CREATE_OR_APPEND);
