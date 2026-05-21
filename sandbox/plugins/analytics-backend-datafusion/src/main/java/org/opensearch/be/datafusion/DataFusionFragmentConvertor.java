@@ -168,6 +168,10 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         FunctionMappings.s(SqlLibraryOperators.DATE_TRUNC, "date_trunc"),
         // PPL span(field, N<us|ms>) with N > 1 → DataFusion `date_bin`. See SpanAdapter.
         FunctionMappings.s(SpanAdapter.LOCAL_DATE_BIN_OP, "date_bin"),
+        // PPL patterns command's INTERNAL_PATTERN_PARSER scalar UDF → Rust `pattern_parser`.
+        // See PatternParserAdapter for call-shape detail (evalField / evalSamples both route
+        // through this single signature; the Rust UDF dispatches on operand types).
+        FunctionMappings.s(PatternParserAdapter.LOCAL_PATTERN_PARSER_OP, "pattern_parser"),
         FunctionMappings.s(ConvertTzAdapter.LOCAL_CONVERT_TZ_OP, "convert_tz"),
         FunctionMappings.s(ParseAdapter.LOCAL_PARSE_OP, "parse"),
         FunctionMappings.s(SqlStdOperatorTable.ITEM, "item"),

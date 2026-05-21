@@ -398,7 +398,13 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         // `MAP<VARCHAR, ARRAY<VARCHAR>>`. The scalar / array forms of ITEM are already in
         // STANDARD_PROJECT_OPS / ARRAY_RETURNING_PROJECT_OPS; this entry covers the MAP-returning
         // shape that the patterns flatten path triggers.
-        ScalarFunction.ITEM);
+        ScalarFunction.ITEM,
+        // PATTERN_PARSER returns a MAP<VARCHAR, ANY> ("pattern_struct" from
+        // UserDefinedFunctionUtils). The downstream `flattenParsedPattern` step
+        // extracts named fields via `ITEM(parsedNode, "pattern" | "tokens")`,
+        // which reads back through the ITEM entries above. See
+        // `PatternParserAdapter`.
+        ScalarFunction.PATTERN_PARSER);
 
     /**
      * CAST and SAFE_CAST effectively can return anything, so they get registered as everything
@@ -645,6 +651,7 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                     Map.entry(ScalarFunction.JSON_KEYS, new JsonFunctionAdapters.JsonKeysAdapter()),
                     Map.entry(ScalarFunction.JSON_SET, new JsonFunctionAdapters.JsonSetAdapter()),
                     Map.entry(ScalarFunction.LATEST, new EarliestLatestAdapter.LatestAdapter()),
+                    Map.entry(ScalarFunction.PATTERN_PARSER, new PatternParserAdapter()),
                     Map.entry(ScalarFunction.LIKE, new LikeAdapter()),
                     Map.entry(ScalarFunction.LN, new NumericToDoubleAdapter(SqlStdOperatorTable.LN)),
                     Map.entry(ScalarFunction.LOCATE, new PositionAdapter()),
