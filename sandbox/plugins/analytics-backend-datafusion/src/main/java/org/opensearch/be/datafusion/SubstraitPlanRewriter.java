@@ -17,6 +17,7 @@ import io.substrait.expression.Expression;
 import io.substrait.expression.ImmutableExpression;
 import io.substrait.plan.Plan;
 import io.substrait.relation.ExpressionCopyOnWriteVisitor;
+import io.substrait.relation.Project;
 import io.substrait.relation.Rel;
 import io.substrait.relation.RelCopyOnWriteVisitor;
 import io.substrait.util.EmptyVisitationContext;
@@ -75,16 +76,19 @@ class SubstraitPlanRewriter {
 
         // Rewrite expressions inside project expressions (where literals often appear)
         @Override
-        public Optional<Rel> visit(io.substrait.relation.Project project, EmptyVisitationContext ctx) {
+        public Optional<Rel> visit(Project project, EmptyVisitationContext ctx) {
+            /**
+             * TODO: it may be better to have this as a LiteralAdapter that the BackendPlanAdapter applies globally, instead of doing this per rel type.
+             */
             Optional<Rel> newInput = project.getInput().accept(this, ctx);
-            java.util.List<Expression> oldExpressions = project.getExpressions();
-            java.util.List<Expression> newExpressions = null;
+            List<Expression> oldExpressions = project.getExpressions();
+            List<Expression> newExpressions = null;
             boolean changed = false;
             for (int i = 0; i < oldExpressions.size(); i++) {
                 Optional<Expression> rewritten = oldExpressions.get(i).accept(expressionVisitor, ctx);
                 if (rewritten.isPresent()) {
                     if (newExpressions == null) {
-                        newExpressions = new java.util.ArrayList<>(oldExpressions);
+                        newExpressions = new ArrayList<>(oldExpressions);
                     }
                     newExpressions.set(i, rewritten.get());
                     changed = true;
@@ -92,7 +96,7 @@ class SubstraitPlanRewriter {
             }
             if (newInput.isEmpty() && !changed) return Optional.empty();
             return Optional.of(
-                io.substrait.relation.Project.builder()
+                Project.builder()
                     .from(project)
                     .input(newInput.orElse(project.getInput()))
                     .expressions(newExpressions != null ? newExpressions : oldExpressions)
