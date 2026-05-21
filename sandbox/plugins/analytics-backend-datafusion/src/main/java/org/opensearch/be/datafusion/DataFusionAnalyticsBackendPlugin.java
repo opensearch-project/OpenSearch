@@ -417,14 +417,27 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
 
     @Override
     public boolean canMatch(CommonExecutionContext ctx, byte[] filterBytes) {
-        // TODO: extract file paths and predicate details from ctx + filterBytes
-        // For now, delegate to NativeBridge.canMatch for each Parquet file in the shard.
-        // The full implementation would:
-        // 1. Resolve the shard's Parquet file paths from the execution context
-        // 2. Deserialize the filter predicate (column, min, max) from filterBytes
-        // 3. Call NativeBridge.canMatch(filePath, columnName, filterMin, filterMax) per file
-        // 4. Return false only if ALL files return 0 (cannot match)
-        return true; // conservative default until ctx wiring is complete
+        // DataFusion owns the shard-view (file layout). The CustomCacheManager has metadata
+        // cached by file path. The flow:
+        //
+        // 1. Resolve segment file paths from ctx (shard directory + segment listing)
+        // TODO: ctx is currently null from the transport handler. Wire shard path through
+        // CommonExecutionContext so we can list .parquet files.
+        //
+        // 2. Deserialize the CanMatchFilter from filterBytes:
+        // CanMatchFilter filter = CanMatchFilter.fromBytes(filterBytes);
+        // String column = filter.getColumnName();
+        // long min = filter.getMinValue();
+        // long max = filter.getMaxValue();
+        //
+        // 3. For each .parquet file in the shard:
+        // long result = NativeBridge.canMatch(filePath, column, min, max);
+        // if (result == 1 || result == -1) return true; // can match or unknown
+        //
+        // 4. All files returned 0: return false (shard cannot match)
+        //
+        // For now: conservative (always match) until ctx provides file paths.
+        return true;
     }
 
     @Override

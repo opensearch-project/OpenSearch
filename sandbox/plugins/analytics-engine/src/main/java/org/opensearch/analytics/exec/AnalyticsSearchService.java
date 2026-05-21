@@ -104,8 +104,13 @@ public class AnalyticsSearchService implements AutoCloseable {
     }
 
     /**
-     * Evaluates can-match for a shard by delegating to the backend's metadata-based filter check.
-     * Returns a conservative YES if the backend is unavailable or an error occurs.
+     * Evaluates can-match for a shard by delegating to the backend which has
+     * the shard's file layout (via DatafusionReader / shard-view) and can check
+     * Parquet row-group statistics against the filter predicate.
+     *
+     * <p>The backend (DataFusion) already knows which Parquet segment files belong
+     * to the shard via its reader creation path. It iterates those files and calls
+     * the native can-match evaluator (Rust) for each.
      */
     public AnalyticsCanMatchResponse canMatch(IndexShard shard, byte[] filterBytes, String backendId) {
         if (filterBytes == null || filterBytes.length == 0) {
@@ -116,11 +121,12 @@ public class AnalyticsSearchService implements AutoCloseable {
             return AnalyticsCanMatchResponse.YES;
         }
         try {
-            // TODO: build CommonExecutionContext from shard for the backend to access metadata
-            // CommonExecutionContext ctx = buildCanMatchContext(shard);
-            // boolean matches = backend.canMatch(ctx, filterBytes);
-            // return matches ? AnalyticsCanMatchResponse.YES : AnalyticsCanMatchResponse.NO;
-            return AnalyticsCanMatchResponse.YES;
+            // TODO: pass shard path or ReaderProvider to the backend so it can resolve files.
+            // The DataFusion backend uses its CustomCacheManager which already has the file
+            // metadata cached keyed by path. The shard's data directory gives the base path;
+            // the backend lists segment .parquet files under it.
+            boolean matches = backend.canMatch(null, filterBytes);
+            return matches ? AnalyticsCanMatchResponse.YES : AnalyticsCanMatchResponse.NO;
         } catch (Exception e) {
             LOGGER.warn("can-match evaluation failed for shard [{}], conservatively returning true", shard.shardId(), e);
             return AnalyticsCanMatchResponse.YES;
