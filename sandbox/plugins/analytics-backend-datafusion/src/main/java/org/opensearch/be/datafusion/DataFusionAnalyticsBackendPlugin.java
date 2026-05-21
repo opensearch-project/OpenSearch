@@ -616,7 +616,7 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                     Map.entry(ScalarFunction.LOG2, new NumericToDoubleAdapter(SqlLibraryOperators.LOG2)),
                     Map.entry(ScalarFunction.MAKEDATE, new RustUdfDateTimeAdapters.MakedateAdapter()),
                     Map.entry(ScalarFunction.MAKETIME, new RustUdfDateTimeAdapters.MaketimeAdapter()),
-                    Map.entry(ScalarFunction.MICROSECOND, DatePartAdapters.microsecond()),
+                    Map.entry(ScalarFunction.MICROSECOND, new MicrosecondAdapter()),
                     Map.entry(ScalarFunction.MINSPAN_BUCKET, new MinspanBucketAdapter()),
                     Map.entry(ScalarFunction.MINUTE, minute),
                     Map.entry(ScalarFunction.MINUTE_OF_HOUR, minute),
