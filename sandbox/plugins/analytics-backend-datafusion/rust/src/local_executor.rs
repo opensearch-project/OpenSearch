@@ -74,6 +74,7 @@ impl LocalSession {
             .build();
         let ctx = SessionContext::new_with_state(state);
         crate::udf::register_all(&ctx);
+        crate::udaf::register_all(&ctx);
         Self { ctx, prepared_plan: None }
     }
 
@@ -143,11 +144,12 @@ impl LocalSession {
             DataFusionError::Execution(format!("Failed to decode Substrait plan: {}", e))
         })?;
         let logical_plan = from_substrait_plan(&self.ctx.state(), &plan).await?;
-        self.ctx
-            .execute_logical_plan(logical_plan)
-            .await?
-            .execute_stream()
-            .await
+        let dataframe = self.ctx.execute_logical_plan(logical_plan).await?;
+        let physical_plan = dataframe.create_physical_plan().await?;
+        let target_schema = crate::schema_coerce::coerce_inferred_schema(physical_plan.schema());
+        let physical_plan = crate::relabel_exec::wrap_if_relabel_needed(physical_plan, target_schema)?;
+        datafusion::physical_plan::execute_stream(physical_plan, self.ctx.task_ctx())
+            .map_err(|e| DataFusionError::Execution(format!("execute_substrait: {}", e)))
     }
 
     /// Returns the memory pool the session's `RuntimeEnv` was built with.
@@ -178,6 +180,8 @@ impl LocalSession {
         log_debug!("DataFusion logical plan (reduce):\n{}", logical_plan.display_indent());
         let dataframe = self.ctx.execute_logical_plan(logical_plan).await?;
         let physical_plan = dataframe.create_physical_plan().await?;
+        let target_schema = crate::schema_coerce::coerce_inferred_schema(physical_plan.schema());
+        let physical_plan = crate::relabel_exec::wrap_if_relabel_needed(physical_plan, target_schema)?;
         log_debug!("DataFusion physical plan (reduce):\n{}", displayable(physical_plan.as_ref()).indent(true));
         let stripped = crate::agg_mode::apply_aggregate_mode(
             physical_plan,

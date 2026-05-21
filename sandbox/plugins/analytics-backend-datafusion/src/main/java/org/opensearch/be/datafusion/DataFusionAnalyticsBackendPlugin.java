@@ -233,11 +233,9 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         // see a real time/date type and Isthmus serializes accordingly.
         ScalarFunction.TIME,
         ScalarFunction.DATE,
+        ScalarFunction.TIMESTAMP,
         // PPL `datetime(expr)` — parse/cast into a TIMESTAMP. Routes to DF's
-        // builtin `to_timestamp` via DatetimeAdapter. The single-arg
-        // `timestamp(expr)` form shares these semantics but its ScalarFunction
-        // slot is already bound to TimestampFunctionAdapter for VARCHAR literal
-        // folding, so it stays on the legacy engine.
+        // builtin `to_timestamp` via DatetimeAdapter.
         ScalarFunction.DATETIME,
         // PPL extract / make* / format / from_unixtime are implemented as Rust UDFs
         // to preserve MySQL semantics that DataFusion builtins don't match: EXTRACT
@@ -333,7 +331,14 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         ScalarFunction.SPAN_BUCKET,
         ScalarFunction.WIDTH_BUCKET,
         ScalarFunction.MINSPAN_BUCKET,
-        ScalarFunction.RANGE_BUCKET
+        ScalarFunction.RANGE_BUCKET,
+        // PPL `TIMESTAMPDIFF(unit, t1, t2)` / `TIMESTAMPADD(unit, n, t)` — lowering target for
+        // timechart's `per_*` aggregations (per_second / per_minute / per_hour / per_day),
+        // which expand to {@code DIVIDE(agg * scale, TIMESTAMPDIFF('MILLISECOND', @timestamp,
+        // TIMESTAMPADD('MINUTE', 1, @timestamp)))}. Both PPL UDFs are unknown to isthmus's
+        // default catalog, so adapters rewrite to DF-native interval arithmetic.
+        ScalarFunction.TIMESTAMPDIFF,
+        ScalarFunction.TIMESTAMPADD
     );
 
     /**
@@ -376,6 +381,14 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
      */
     private static final Set<ScalarFunction> MAP_RETURNING_PROJECT_OPS = Set.of(ScalarFunction.JSON_EXTRACT_ALL);
 
+    /**
+     * CAST and SAFE_CAST effectively can return anything, so they get registered as everything
+     */
+    private static final Set<ScalarFunction> POLYMORPHIC_RETURN_PROJECT_OPS = Set.of(ScalarFunction.CAST, ScalarFunction.SAFE_CAST);
+
+    // PPL state-expanding aggregates (TAKE/FIRST/LAST/LIST/VALUES) route through
+    // DataFusionFragmentConvertor's LOCAL_*_OP stubs and the substrait extensions in
+    // opensearch_aggregate_functions.yaml.
     private static final Set<AggregateFunction> AGG_FUNCTIONS = Set.of(
         AggregateFunction.SUM,
         AggregateFunction.SUM0,
@@ -383,7 +396,12 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         AggregateFunction.MAX,
         AggregateFunction.COUNT,
         AggregateFunction.AVG,
-        AggregateFunction.APPROX_COUNT_DISTINCT
+        AggregateFunction.APPROX_COUNT_DISTINCT,
+        AggregateFunction.TAKE,
+        AggregateFunction.FIRST,
+        AggregateFunction.LAST,
+        AggregateFunction.LIST,
+        AggregateFunction.VALUES
     );
 
     private final DataFusionPlugin plugin;
@@ -425,6 +443,13 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
 
             @Override
             public Set<WindowCapability> windowCapabilities() {
+                // SUM/AVG/COUNT/MIN/MAX cover PPL eventstats; ROW_NUMBER covers PPL dedup
+                // (ROW_NUMBER OVER PARTITION BY … <= N) and the helper sequence column
+                // PPL streamstats … by … emits as __row_number_for_streamstats__.
+                // isthmus's RexExpressionConverter.visitOver serializes the RexOver inline as a
+                // Substrait WindowFunctionInvocation; DataFusion's substrait consumer splits it
+                // into a dedicated LogicalPlan::Window. No adapter or Rust UDF is needed —
+                // row_number is a Substrait-stdlib window function and a DataFusion built-in.
                 return Set.of(
                     new WindowCapability(
                         Set.of(
@@ -433,11 +458,6 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                             WindowFunction.COUNT,
                             WindowFunction.MIN,
                             WindowFunction.MAX,
-                            // ROW_NUMBER backs PPL `dedup` lowering (ROW_NUMBER OVER PARTITION BY ... <= N).
-                            // isthmus's RexExpressionConverter.visitOver serializes the RexOver inline as a
-                            // Substrait WindowFunctionInvocation; DataFusion's substrait consumer splits it
-                            // into a dedicated LogicalPlan::Window. No adapter or Rust UDF is needed —
-                            // row_number is a Substrait-stdlib window function and a DataFusion built-in.
                             WindowFunction.ROW_NUMBER
                         ),
                         Set.copyOf(plugin.getSupportedFormats())
@@ -497,6 +517,11 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                 }
                 for (ScalarFunction op : MAP_RETURNING_PROJECT_OPS) {
                     caps.add(new ProjectCapability.Scalar(op, Set.of(FieldType.MAP), formats, true));
+                }
+                for (ScalarFunction op : POLYMORPHIC_RETURN_PROJECT_OPS) {
+                    for (FieldType ft : FieldType.values()) {
+                        caps.add(new ProjectCapability.Scalar(op, Set.of(ft), formats, true));
+                    }
                 }
                 return Set.copyOf(caps);
             }
@@ -640,6 +665,14 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                     Map.entry(ScalarFunction.TIME, new DateTimeAdapters.TimeAdapter()),
                     Map.entry(ScalarFunction.TIME_FORMAT, new RustUdfDateTimeAdapters.TimeFormatAdapter()),
                     Map.entry(ScalarFunction.TIMESTAMP, new TimestampFunctionAdapter()),
+                    // PPL `TIMESTAMPDIFF(out_unit, t, TIMESTAMPADD(in_unit, n, t))` — peephole
+                    // constant-folds to a numeric literal when both unit strings are fixed-length
+                    // (MICROSECOND through WEEK). This is the exact shape PPL timechart's per_*
+                    // aggregations produce; folding eliminates both PPL UDF references in one
+                    // step, sidestepping isthmus's lack of substrait bindings for either UDF.
+                    // Variable-length units (MONTH / QUARTER / YEAR) and standalone TIMESTAMPADD
+                    // fall through unchanged — fully-general interval-aware support is a follow-up.
+                    Map.entry(ScalarFunction.TIMESTAMPDIFF, new TimestampDiffAdapter()),
                     Map.entry(ScalarFunction.TONUMBER, new ToNumberFunctionAdapter()),
                     Map.entry(ScalarFunction.TOSTRING, new ToStringFunctionAdapter()),
                     Map.entry(ScalarFunction.NUM, new NumericConversionFunctionAdapter(NumericConversionFunctionAdapter.NUM)),

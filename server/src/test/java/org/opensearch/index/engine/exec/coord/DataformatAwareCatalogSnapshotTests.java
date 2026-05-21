@@ -348,8 +348,8 @@ public class DataformatAwareCatalogSnapshotTests extends OpenSearchTestCase {
 
     public void testGetUploadFileNamesProducesFormatSlashFile() throws Exception {
         // Build a snapshot with known segments and files
-        WriterFileSet parquetWfs = new WriterFileSet("/tmp/pq", 1L, Set.of("_0.pqt", "_1.pqt"), 100);
-        WriterFileSet luceneWfs = new WriterFileSet("/tmp/lc", 1L, Set.of("_0.cfe", "_0.si"), 50);
+        WriterFileSet parquetWfs = new WriterFileSet("/tmp/pq", 1L, Set.of("_0.pqt", "_1.pqt"), 100, 0L);
+        WriterFileSet luceneWfs = new WriterFileSet("/tmp/lc", 1L, Set.of("_0.cfe", "_0.si"), 50, 0L);
         Segment segment = new Segment(1L, Map.of("parquet", parquetWfs, "lucene", luceneWfs));
         DataformatAwareCatalogSnapshot snapshot = new DataformatAwareCatalogSnapshot(1L, 1L, 1L, List.of(segment), 0L, Map.of());
 
@@ -371,8 +371,8 @@ public class DataformatAwareCatalogSnapshotTests extends OpenSearchTestCase {
     }
 
     public void testGetFilesMultipleSegments() throws Exception {
-        WriterFileSet wfs1 = new WriterFileSet("/tmp/pq", 1L, Set.of("_0.pqt"), 10);
-        WriterFileSet wfs2 = new WriterFileSet("/tmp/pq", 2L, Set.of("_1.pqt"), 20);
+        WriterFileSet wfs1 = new WriterFileSet("/tmp/pq", 1L, Set.of("_0.pqt"), 10, 0L);
+        WriterFileSet wfs2 = new WriterFileSet("/tmp/pq", 2L, Set.of("_1.pqt"), 20, 0L);
         Segment seg1 = new Segment(1L, Map.of("parquet", wfs1));
         Segment seg2 = new Segment(2L, Map.of("parquet", wfs2));
         DataformatAwareCatalogSnapshot snapshot = new DataformatAwareCatalogSnapshot(1L, 1L, 1L, List.of(seg1, seg2), 0L, Map.of());
@@ -383,14 +383,10 @@ public class DataformatAwareCatalogSnapshotTests extends OpenSearchTestCase {
         assertTrue(uploadNames.contains("parquet/_1.pqt"));
     }
 
-    public void testSerializeThrowsUnsupportedOperation() {
+    public void testGetFormatVersionForFileReturnsLuceneMajor() {
         DataformatAwareCatalogSnapshot snapshot = new DataformatAwareCatalogSnapshot(1L, 1L, 1L, List.of(), 0L, Map.of());
-        expectThrows(UnsupportedOperationException.class, snapshot::serialize);
-    }
-
-    public void testGetFormatVersionForFileReturnsOpenSearchMajor() {
-        DataformatAwareCatalogSnapshot snapshot = new DataformatAwareCatalogSnapshot(1L, 1L, 1L, List.of(), 0L, Map.of());
-        assertEquals(org.opensearch.Version.CURRENT.major, snapshot.getFormatVersionForFile("any_file.pqt"));
+        // With no segments, getFormatVersionForFile returns 0L (pre-versioning / unknown).
+        assertEquals(0L, snapshot.getFormatVersionForFile("any_file.pqt"));
     }
 
     public void testSetUserDataUpdatesAndReturns() {
@@ -421,7 +417,7 @@ public class DataformatAwareCatalogSnapshotTests extends OpenSearchTestCase {
         for (int i = 0; i < fileCount; i++) {
             files.add(randomAlphaOfLength(6) + "." + randomFrom(extensions));
         }
-        return new WriterFileSet(directory, writerGeneration, files, randomIntBetween(0, 10000));
+        return new WriterFileSet(directory, writerGeneration, files, randomIntBetween(0, 10000), 0L);
     }
 
     private Segment randomSegment() {
@@ -503,7 +499,7 @@ public class DataformatAwareCatalogSnapshotTests extends OpenSearchTestCase {
         for (int i = 0; i < fileCount; i++) {
             files.add(randomAlphaOfLength(6) + "." + randomFrom(extensions));
         }
-        return new WriterFileSet(directory, writerGeneration, files, randomIntBetween(0, 10000));
+        return new WriterFileSet(directory, writerGeneration, files, randomIntBetween(0, 10000), 0L);
     }
 
     private void assertSnapshotFieldsEqual(String context, DataformatAwareCatalogSnapshot expected, DataformatAwareCatalogSnapshot actual) {
@@ -574,4 +570,5 @@ public class DataformatAwareCatalogSnapshotTests extends OpenSearchTestCase {
                 return randomAlphaOfLength(10);
         }
     }
+
 }
