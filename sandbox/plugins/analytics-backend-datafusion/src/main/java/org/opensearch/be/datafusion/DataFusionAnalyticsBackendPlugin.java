@@ -367,6 +367,9 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         // arrays. The scalar form of ITEM is already in STANDARD_PROJECT_OPS for VARCHAR/numeric
         // returns; this entry covers the array-returning shape.
         ScalarFunction.ITEM,
+        // SAFE_CAST also wraps the ITEM result for `sample_logs` (ARRAY<VARCHAR>) in PPL's
+        // `flattenParsedPattern` step — see CalciteRelNodeVisitor.flattenParsedPattern.
+        ScalarFunction.SAFE_CAST,
         // PPL `mvzip` returns ARRAY<VARCHAR>; backed by a custom Rust UDF on the DataFusion
         // session context (`udf::mvzip`), routed via {@link MvzipAdapter}.
         ScalarFunction.MVZIP,
@@ -399,6 +402,9 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         // STANDARD_PROJECT_OPS / ARRAY_RETURNING_PROJECT_OPS; this entry covers the MAP-returning
         // shape that the patterns flatten path triggers.
         ScalarFunction.ITEM,
+        // SAFE_CAST also wraps the ITEM result for `tokens` (MAP<VARCHAR,ARRAY<VARCHAR>>) in
+        // PPL's `flattenParsedPattern` step — same flatten path as the ITEM cases above.
+        ScalarFunction.SAFE_CAST,
         // PATTERN_PARSER returns a MAP<VARCHAR, ANY> ("pattern_struct" from
         // UserDefinedFunctionUtils). The downstream `flattenParsedPattern` step
         // extracts named fields via `ITEM(parsedNode, "pattern" | "tokens")`,
