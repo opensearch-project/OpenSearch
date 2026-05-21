@@ -17,6 +17,7 @@ import org.opensearch.analytics.spi.AggregateFunction;
 import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
 import org.opensearch.analytics.spi.BackendCapabilityProvider;
 import org.opensearch.analytics.spi.BackendExecutionContext;
+import org.opensearch.analytics.spi.CommonExecutionContext;
 import org.opensearch.analytics.spi.DelegationType;
 import org.opensearch.analytics.spi.EngineCapability;
 import org.opensearch.analytics.spi.ExchangeSink;
@@ -412,6 +413,18 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
     @Override
     public String name() {
         return plugin.name();
+    }
+
+    @Override
+    public boolean canMatch(CommonExecutionContext ctx, byte[] filterBytes) {
+        // TODO: extract file paths and predicate details from ctx + filterBytes
+        // For now, delegate to NativeBridge.canMatch for each Parquet file in the shard.
+        // The full implementation would:
+        // 1. Resolve the shard's Parquet file paths from the execution context
+        // 2. Deserialize the filter predicate (column, min, max) from filterBytes
+        // 3. Call NativeBridge.canMatch(filePath, columnName, filterMin, filterMax) per file
+        // 4. Return false only if ALL files return 0 (cannot match)
+        return true; // conservative default until ctx wiring is complete
     }
 
     @Override

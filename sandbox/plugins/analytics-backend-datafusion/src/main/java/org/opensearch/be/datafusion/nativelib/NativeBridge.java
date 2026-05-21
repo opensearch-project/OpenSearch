@@ -89,6 +89,7 @@ public final class NativeBridge {
     private static final MethodHandle PREPARE_PARTIAL_PLAN;
     private static final MethodHandle PREPARE_FINAL_PLAN;
     private static final MethodHandle EXECUTE_LOCAL_PREPARED_PLAN;
+    private static final MethodHandle CAN_MATCH;
 
     static {
         SymbolLookup lib = NativeLibraryLoader.symbolLookup();
@@ -394,6 +395,20 @@ public final class NativeBridge {
 
         CANCEL_QUERY = linker.downcallHandle(lib.find("df_cancel_query").orElseThrow(), FunctionDescriptor.ofVoid(ValueLayout.JAVA_LONG));
 
+        // i64 df_can_match(file_path_ptr, file_path_len, column_name_ptr, column_name_len, filter_min, filter_max)
+        CAN_MATCH = linker.downcallHandle(
+            lib.find("df_can_match").orElseThrow(),
+            FunctionDescriptor.of(
+                ValueLayout.JAVA_LONG,
+                ValueLayout.ADDRESS,
+                ValueLayout.JAVA_LONG,
+                ValueLayout.ADDRESS,
+                ValueLayout.JAVA_LONG,
+                ValueLayout.JAVA_LONG,
+                ValueLayout.JAVA_LONG
+            )
+        );
+
         // Hand the five filter-tree upcall stubs to Rust now. No explicit
         // caller step required — as soon as this class is loaded, callbacks
         // are installed and `df_execute_indexed_query` can dispatch into Java.
@@ -691,6 +706,26 @@ public final class NativeBridge {
     /** Fires the cancellation token for the given context. No-op if already completed. */
     public static void cancelQuery(long contextId) {
         NativeCall.invokeVoid(CANCEL_QUERY, contextId);
+    }
+
+    // ---- Can-match (Parquet row-group stats check) ----
+
+    /**
+     * Checks whether any row group in the given Parquet file has column statistics
+     * that overlap with the filter range [filterMin, filterMax].
+     *
+     * @param filePath   absolute path to the Parquet file
+     * @param columnName physical column name to check statistics for
+     * @param filterMin  minimum value of the filter range (inclusive)
+     * @param filterMax  maximum value of the filter range (inclusive)
+     * @return 1 = can match, 0 = cannot match, -1 = unknown (treat as can match)
+     */
+    public static long canMatch(String filePath, String columnName, long filterMin, long filterMax) {
+        try (var call = new NativeCall()) {
+            var fp = call.str(filePath);
+            var cn = call.str(columnName);
+            return call.invoke(CAN_MATCH, fp.segment(), fp.len(), cn.segment(), cn.len(), filterMin, filterMax);
+        }
     }
 
     // ---- Stats collection ----
