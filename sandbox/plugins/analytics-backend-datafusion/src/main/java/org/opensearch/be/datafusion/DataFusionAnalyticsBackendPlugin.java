@@ -378,13 +378,7 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
      * auto-extract mode; routes to the {@code json_extract_all} Rust UDF via
      * {@link JsonFunctionAdapters.JsonExtractAllAdapter}.
      */
-    private static final Set<ScalarFunction> MAP_RETURNING_PROJECT_OPS = Set.of(
-        ScalarFunction.JSON_EXTRACT_ALL,
-        // PPL parse — Rust UDF returns map<utf8, utf8> of named regex groups. ParseAdapter
-        // validates the regex + method literals at plan time; the UDF compiles the pattern
-        // once per call.
-        ScalarFunction.PARSE
-    );
+    private static final Set<ScalarFunction> MAP_RETURNING_PROJECT_OPS = Set.of(ScalarFunction.JSON_EXTRACT_ALL, ScalarFunction.PARSE);
 
     /**
      * CAST and SAFE_CAST effectively can return anything, so they get registered as everything
