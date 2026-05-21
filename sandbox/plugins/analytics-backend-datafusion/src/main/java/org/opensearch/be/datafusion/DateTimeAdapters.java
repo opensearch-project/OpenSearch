@@ -73,8 +73,6 @@ final class DateTimeAdapters {
         SqlFunctionCategory.TIMEDATE
     );
 
-    // 1-arg timestamp(expr) remains on the legacy engine — the TIMESTAMP enum slot is already
-    // bound to TimestampFunctionAdapter for VARCHAR-literal folding.
     static final SqlOperator LOCAL_TO_TIMESTAMP_OP = new SqlFunction(
         "to_timestamp",
         SqlKind.OTHER_FUNCTION,
