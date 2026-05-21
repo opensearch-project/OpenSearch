@@ -65,7 +65,13 @@ public class DataFormatAwareRemoteStoreRecoveryIT extends RemoteStoreBaseIntegTe
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Stream.concat(
             super.nodePlugins().stream(),
-            Stream.of(ArrowBasePlugin.class, ParquetDataFormatPlugin.class, CompositeDataFormatPlugin.class, LucenePlugin.class, DataFusionPlugin.class)
+            Stream.of(
+                ArrowBasePlugin.class,
+                ParquetDataFormatPlugin.class,
+                CompositeDataFormatPlugin.class,
+                LucenePlugin.class,
+                DataFusionPlugin.class
+            )
         ).collect(Collectors.toList());
     }
 
