@@ -20,7 +20,9 @@ import org.opensearch.analytics.exec.DefaultPlanExecutor;
 import org.opensearch.analytics.exec.QueryPlanExecutor;
 import org.opensearch.analytics.exec.QueryScheduler;
 import org.opensearch.analytics.exec.Scheduler;
+import org.opensearch.analytics.exec.action.AnalyticsAuthAction;
 import org.opensearch.analytics.exec.action.AnalyticsQueryAction;
+import org.opensearch.analytics.exec.action.TransportAnalyticsAuthAction;
 import org.opensearch.analytics.planner.CapabilityRegistry;
 import org.opensearch.analytics.planner.FieldStorageResolver;
 import org.opensearch.analytics.schema.OpenSearchSchemaBuilder;
@@ -135,7 +137,10 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
 
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-        return List.of(new ActionHandler<>(AnalyticsQueryAction.INSTANCE, DefaultPlanExecutor.class));
+        return List.of(
+            new ActionHandler<>(AnalyticsQueryAction.INSTANCE, DefaultPlanExecutor.class),
+            new ActionHandler<>(AnalyticsAuthAction.INSTANCE, TransportAnalyticsAuthAction.class)
+        );
     }
 
     @Override

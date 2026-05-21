@@ -21,6 +21,8 @@ import org.opensearch.action.support.HandledTransportAction;
 import org.opensearch.action.support.TimeoutTaskCancellationUtility;
 import org.opensearch.analytics.AnalyticsPlugin;
 import org.opensearch.analytics.EngineContext;
+import org.opensearch.analytics.exec.action.AnalyticsAuthAction;
+import org.opensearch.analytics.exec.action.AnalyticsAuthRequest;
 import org.opensearch.analytics.exec.action.AnalyticsQueryAction;
 import org.opensearch.analytics.exec.task.AnalyticsQueryTask;
 import org.opensearch.analytics.exec.task.AnalyticsQueryTaskRequest;
@@ -109,10 +111,24 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
 
     @Override
     public void execute(RelNode logicalFragment, Object context, ActionListener<Iterable<Object[]>> listener) {
-        // Fork the entire query lifecycle (planning, scheduling, cleanup) onto the SEARCH
-        // executor so the calling thread — which may be a transport thread — is freed
-        // immediately. The scheduler then drives execution asynchronously and fires
-        // {@code listener} once the query terminates; nothing on this path blocks.
+        // Extract target indices from the logical plan and check authorization before
+        // doing any planning work. Dispatches AnalyticsAuthRequest (which extends SearchRequest)
+        // through the action filter chain so the SecurityFilter evaluates index-level permissions.
+        // Using SearchRequest as the base ensures the legacy security evaluator's IndexResolverReplacer
+        // correctly resolves the target indices.
+        String[] indices = extractIndices(logicalFragment);
+        if (indices.length > 0) {
+            client.execute(
+                AnalyticsAuthAction.INSTANCE,
+                new AnalyticsAuthRequest(indices),
+                ActionListener.wrap(ok -> doExecuteOnSearchPool(logicalFragment, listener), listener::onFailure)
+            );
+        } else {
+            doExecuteOnSearchPool(logicalFragment, listener);
+        }
+    }
+
+    private void doExecuteOnSearchPool(RelNode logicalFragment, ActionListener<Iterable<Object[]>> listener) {
         searchExecutor.execute(() -> {
             try {
                 executeInternal(logicalFragment, listener);
@@ -128,6 +144,23 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
                 listener.onFailure(new IllegalStateException("Analytics-engine executor rejected the plan: " + e.getMessage(), e));
             }
         });
+    }
+
+    /** Extracts index names from LogicalTableScan nodes in the plan. */
+    private static String[] extractIndices(RelNode plan) {
+        java.util.Set<String> indices = new java.util.LinkedHashSet<>();
+        collectIndices(plan, indices);
+        return indices.toArray(String[]::new);
+    }
+
+    private static void collectIndices(RelNode node, java.util.Set<String> indices) {
+        if (node instanceof org.apache.calcite.rel.core.TableScan scan) {
+            List<String> names = scan.getTable().getQualifiedName();
+            indices.add(names.get(names.size() - 1));
+        }
+        for (RelNode input : node.getInputs()) {
+            collectIndices(input, indices);
+        }
     }
 
     /**
