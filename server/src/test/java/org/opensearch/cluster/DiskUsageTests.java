@@ -214,6 +214,8 @@ public class DiskUsageTests extends OpenSearchTestCase {
                 null,
                 null,
                 null,
+                null,
+                null, // pluginStats
                 null
             ),
             new NodeStats(
@@ -248,6 +250,8 @@ public class DiskUsageTests extends OpenSearchTestCase {
                 null,
                 null,
                 null,
+                null,
+                null, // pluginStats
                 null
             ),
             new NodeStats(
@@ -282,6 +286,8 @@ public class DiskUsageTests extends OpenSearchTestCase {
                 null,
                 null,
                 null,
+                null,
+                null, // pluginStats
                 null
             )
         );
@@ -347,6 +353,8 @@ public class DiskUsageTests extends OpenSearchTestCase {
                 null,
                 null,
                 null,
+                null,
+                null, // pluginStats
                 null
             ),
             new NodeStats(
@@ -381,6 +389,8 @@ public class DiskUsageTests extends OpenSearchTestCase {
                 null,
                 null,
                 null,
+                null,
+                null, // pluginStats
                 null
             ),
             new NodeStats(
@@ -415,6 +425,8 @@ public class DiskUsageTests extends OpenSearchTestCase {
                 null,
                 null,
                 null,
+                null,
+                null, // pluginStats
                 null
             )
         );
@@ -477,6 +489,7 @@ public class DiskUsageTests extends OpenSearchTestCase {
 
     private NodeStats makeNodeStatsWithResourceUsage(DiscoveryNode node, NodesResourceUsageStats resourceUsageStats) {
         return new NodeStats(
+
             node,
             0,
             null,
@@ -500,6 +513,8 @@ public class DiskUsageTests extends OpenSearchTestCase {
             null,
             null,
             null,
+            null /* fileCacheOnlyStats */,
+            null /* blockCacheOnlyStats */,
             null,
             null,
             null,
@@ -509,6 +524,7 @@ public class DiskUsageTests extends OpenSearchTestCase {
             null,
             null,
             null
+
         );
     }
 

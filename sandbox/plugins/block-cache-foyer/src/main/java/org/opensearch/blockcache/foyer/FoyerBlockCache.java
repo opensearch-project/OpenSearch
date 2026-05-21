@@ -153,6 +153,14 @@ public final class FoyerBlockCache implements BlockCache {
     }
 
     @Override
+    public boolean clear() {
+        if (closed.get() == false && cachePtr > 0) {
+            return FoyerBridge.clearCache(cachePtr);
+        }
+        return false;
+    }
+
+    @Override
     public void close() {
         if (closed.compareAndSet(false, true)) {
             FoyerBridge.destroyCache(cachePtr);

@@ -149,6 +149,8 @@ public class AnalyticsBackendNativeMemoryStatsVersionGateTests extends OpenSearc
             null, // clusterManagerThrottlingStats
             null, // weightedRoutingStats
             null, // fileCacheStats
+            null, // fileCacheOnlyStats
+            null, // blockCacheOnlyStats
             null, // taskCancellationStats
             null, // searchPipelineStats
             null, // segmentReplicationRejectionStats

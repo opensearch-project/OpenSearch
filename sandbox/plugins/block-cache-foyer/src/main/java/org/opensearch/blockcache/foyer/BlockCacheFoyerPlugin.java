@@ -14,6 +14,7 @@ import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.settings.SettingsException;
 import org.opensearch.common.unit.RatioValue;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
@@ -171,6 +172,20 @@ public class BlockCacheFoyerPlugin extends Plugin implements BlockCacheProvider 
         if (diskCapacityBytes <= 0) {
             logger.info("BlockCacheFoyerPlugin: block_cache.size=0, Foyer block cache disabled");
             return List.of();
+        }
+
+        // block_size must be strictly less than the total disk capacity.
+        final long effectiveBlockSizeBytes;
+        if (blockSizeBytes >= diskCapacityBytes) {
+            throw new SettingsException(
+                "block_cache.foyer.block_size ("
+                    + blockSizeBytes
+                    + " bytes) must be smaller than the Foyer disk budget ("
+                    + diskCapacityBytes
+                    + " bytes). Reduce block_cache.foyer.block_size or increase node.search.cache.size."
+            );
+        } else {
+            effectiveBlockSizeBytes = blockSizeBytes;
         }
 
         try {
