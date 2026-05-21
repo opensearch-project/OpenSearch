@@ -10,6 +10,7 @@ package org.opensearch.plugins;
 
 import org.opensearch.common.annotation.ExperimentalApi;
 
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -28,4 +29,9 @@ public interface BlockCacheRegistry {
      * @return the matching cache, or empty
      */
     Optional<BlockCache> get(String name);
+
+    /**
+     * Returns all registered {@link BlockCache} instances.
+     */
+    List<BlockCache> all();
 }

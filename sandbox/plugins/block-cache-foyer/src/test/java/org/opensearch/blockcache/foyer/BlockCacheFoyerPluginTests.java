@@ -8,12 +8,21 @@
 
 package org.opensearch.blockcache.foyer;
 
+import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.settings.SettingsException;
+import org.opensearch.core.common.unit.ByteSizeUnit;
+import org.opensearch.core.common.unit.ByteSizeValue;
+import org.opensearch.env.Environment;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.List;
+
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 /**
  * Unit tests for {@link BlockCacheFoyerPlugin}.
@@ -162,5 +171,25 @@ public class BlockCacheFoyerPluginTests extends OpenSearchTestCase {
     public void testGetSettingsIsStable() {
         BlockCacheFoyerPlugin plugin = new BlockCacheFoyerPlugin(Settings.EMPTY);
         assertTrue(plugin.getSettings().containsAll(plugin.getSettings()));
+    }
+
+    public void testCreateComponentsThrowsWhenBlockSizeExceedsDiskBudget() {
+        // block_size (2MB) >= disk budget (1MB) should throw SettingsException
+        Settings settings = Settings.builder()
+            .put(FoyerBlockCacheSettings.BLOCK_SIZE_SETTING.getKey(), new ByteSizeValue(2, ByteSizeUnit.MB))
+            .build();
+        BlockCacheFoyerPlugin plugin = new BlockCacheFoyerPlugin(settings);
+        plugin.setReservedCapacityBytes(new ByteSizeValue(1, ByteSizeUnit.MB).getBytes());
+
+        ClusterService clusterService = mock(ClusterService.class);
+        when(clusterService.getSettings()).thenReturn(settings);
+
+        Environment environment = mock(Environment.class);
+        when(environment.dataFiles()).thenReturn(new Path[] { createTempDir() });
+
+        expectThrows(
+            SettingsException.class,
+            () -> plugin.createComponents(null, clusterService, null, null, null, null, environment, null, null, null, null)
+        );
     }
 }

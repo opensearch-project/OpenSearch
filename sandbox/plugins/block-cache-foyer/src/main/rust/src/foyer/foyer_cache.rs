@@ -452,6 +452,11 @@ impl FoyerCache {
         (used as f64 / self.disk_bytes as f64) < self.sweep_threshold_ratio
     }
 
+    /// Clear all entries synchronously. Called from the FFM layer.
+    pub(crate) fn clear_sync(&self) {
+        self._runtime.block_on(self.clear());
+    }
+
     /// Derive the normalized index key from a cache key.
     ///
     /// Extracts everything before the first [`SEPARATOR`] (the path prefix),

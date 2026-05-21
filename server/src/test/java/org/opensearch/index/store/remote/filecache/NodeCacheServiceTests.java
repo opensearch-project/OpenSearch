@@ -497,4 +497,57 @@ public class NodeCacheServiceTests extends OpenSearchTestCase {
         // removedBytes from block cache must be folded into the overall removed_in_bytes field
         assertEquals(removedBytes, stats.getRemoved().getBytes());
     }
+
+    // ── BlockCacheRegistry.all() ──────────────────────────────────────────────
+
+    public void testAllReturnsEmptyWhenNoBlockCaches() {
+        FileCache fc = fileCacheWithStats(0L, 0L, 0L, 0L, 0L, 0L, 0L);
+        NodeCacheService orc = new NodeCacheService(fc, 0L);
+        assertTrue(orc.all().isEmpty());
+    }
+
+    public void testAllReturnsAllRegisteredBlockCaches() {
+        FileCache fc = fileCacheWithStats(0L, 0L, 0L, 0L, 0L, 0L, 0L);
+        NodeCacheService orc = new NodeCacheService(fc, 0L);
+        BlockCache bc1 = mock(BlockCache.class);
+        when(bc1.stats()).thenReturn(new BlockCacheStats(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0));
+        BlockCache bc2 = mock(BlockCache.class);
+        when(bc2.stats()).thenReturn(new BlockCacheStats(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0));
+        orc.addBlockCache(bc1);
+        orc.addBlockCache(bc2);
+        assertEquals(2, orc.all().size());
+        assertTrue(orc.all().contains(bc1));
+        assertTrue(orc.all().contains(bc2));
+    }
+
+    // ── combinedBlockCacheStats() ─────────────────────────────────────────────
+
+    public void testCombinedBlockCacheStatsReturnsNullWhenNoBlockCaches() {
+        FileCache fc = fileCacheWithStats(0L, 0L, 0L, 0L, 0L, 0L, 0L);
+        NodeCacheService orc = new NodeCacheService(fc, 0L);
+        assertNull(orc.combinedBlockCacheStats());
+    }
+
+    public void testCombinedBlockCacheStatsAggregatesAcrossMultipleCaches() {
+        FileCache fc = fileCacheWithStats(0L, 0L, 0L, 0L, 0L, 0L, 0L);
+        NodeCacheService orc = new NodeCacheService(fc, 0L);
+
+        BlockCache bc1 = mock(BlockCache.class);
+        when(bc1.stats()).thenReturn(new BlockCacheStats(10, 5, 100, 50, 2, 200, 1, 10, 0, 1024, 2048, 0));
+        BlockCache bc2 = mock(BlockCache.class);
+        when(bc2.stats()).thenReturn(new BlockCacheStats(20, 3, 200, 30, 1, 100, 0, 0, 0, 512, 1024, 0));
+        orc.addBlockCache(bc1);
+        orc.addBlockCache(bc2);
+
+        BlockCacheStats combined = orc.combinedBlockCacheStats();
+        assertNotNull(combined);
+        assertEquals(30, combined.hits());
+        assertEquals(8, combined.misses());
+        assertEquals(300, combined.hitBytes());
+        assertEquals(80, combined.missBytes());
+        assertEquals(3, combined.evictions());
+        assertEquals(300, combined.evictionBytes());
+        assertEquals(1536, combined.diskBytesUsed());
+        assertEquals(3072, combined.totalBytes());
+    }
 }
