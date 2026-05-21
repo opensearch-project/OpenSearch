@@ -149,6 +149,9 @@ public class DataFormatAwareNRTReplicationEngine implements Indexer {
             // Bootstrap an empty commit if no segments file exists (fresh replica).
             Map<String, String> userData = committer.getLastCommittedData();
 
+            // Initialize history UUID from the bootstrap commit.
+            this.historyUUID = userData.get(Engine.HISTORY_UUID_KEY);
+
             // Restore CatalogSnapshot from commit data.
 
             // Catalog file deleter — DataFormatAwareStoreDirectory routes filenames to the
@@ -265,7 +268,7 @@ public class DataFormatAwareNRTReplicationEngine implements Indexer {
             final long maxSeqNo = Long.parseLong(incoming.getUserData().get(SequenceNumbers.MAX_SEQ_NO));
             final long incomingCommitGeneration = incoming.getLastCommitGeneration();
 
-            // Update historyUUID if the incoming snapshot carries one (replicated from primary).
+            // Update historyUUID if the incoming snapshot carries one (primary may bump it).
             String incomingHistoryUUID = incoming.getUserData().get(Engine.HISTORY_UUID_KEY);
             if (incomingHistoryUUID != null) {
                 this.historyUUID = incomingHistoryUUID;
@@ -315,8 +318,11 @@ public class DataFormatAwareNRTReplicationEngine implements Indexer {
             // Required by DataFormatAwareEngine ctor if this replica is later promoted to primary.
             // Replicas don't track auto-id timestamps; -1 matches a fresh primary's startup value.
             commitData.put(Engine.MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID, Long.toString(-1L));
-            // Preserve HISTORY_UUID so that replicated history UUIDs survive commit round-trips.
-            commitData.put(Engine.HISTORY_UUID_KEY, historyUUID);
+            // Preserve history UUID from the engine's tracked field so that getHistoryUUID()
+            // continues to work after commit. The primary propagates this via replication snapshots.
+            if (historyUUID != null) {
+                commitData.put(Engine.HISTORY_UUID_KEY, historyUUID);
+            }
             // Mirror the commit data onto the snapshot so `lastCommittedSnapshot` reflects the committed userData
             snapshot.setUserData(commitData, true);
             commitData.put(CatalogSnapshot.CATALOG_SNAPSHOT_KEY, snapshot.serializeToString());
@@ -332,9 +338,15 @@ public class DataFormatAwareNRTReplicationEngine implements Indexer {
         translogManager.syncTranslog();
     }
 
+    // Primary supplies historyUUID via the CATALOG_SNAPSHOT_KEY commit data; we track it as a
+    // field so it survives across commits even when incoming replication snapshots omit it.
     @Override
     public String getHistoryUUID() {
-        return historyUUID;
+        final String uuid = historyUUID;
+        if (uuid == null) {
+            throw new IllegalStateException("commit doesn't contain history uuid");
+        }
+        return uuid;
     }
 
     @Override

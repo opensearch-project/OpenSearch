@@ -8,6 +8,7 @@
 
 package org.opensearch.parquet;
 
+import org.opensearch.action.ActionRequest;
 import org.opensearch.arrow.allocator.ArrowNativeAllocator;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.node.DiscoveryNodes;
@@ -19,6 +20,7 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsFilter;
 import org.opensearch.common.util.concurrent.OpenSearchExecutors;
+import org.opensearch.core.action.ActionResponse;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
@@ -34,7 +36,9 @@ import org.opensearch.index.engine.dataformat.IndexingExecutionEngine;
 import org.opensearch.index.engine.dataformat.StoreStrategy;
 import org.opensearch.index.store.PrecomputedChecksumStrategy;
 import org.opensearch.parquet.action.ParquetAnalyzeAction;
+import org.opensearch.parquet.action.ParquetAnalyzeActionType;
 import org.opensearch.parquet.action.ParquetRegistryInitializer;
+import org.opensearch.parquet.action.TransportParquetAnalyzeAction;
 import org.opensearch.parquet.engine.ParquetDataFormat;
 import org.opensearch.parquet.engine.ParquetIndexingEngine;
 import org.opensearch.parquet.fields.ArrowSchemaBuilder;
@@ -197,6 +201,11 @@ public class ParquetDataFormatPlugin extends Plugin implements DataFormatPlugin,
         Supplier<DiscoveryNodes> nodesInCluster
     ) {
         return List.of(new ParquetAnalyzeAction());
+    }
+
+    @Override
+    public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
+        return List.of(new ActionHandler<>(ParquetAnalyzeActionType.INSTANCE, TransportParquetAnalyzeAction.class));
     }
 
     @Override

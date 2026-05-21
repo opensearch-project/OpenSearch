@@ -12,7 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.Term;
 import org.opensearch.be.lucene.LuceneDataFormat;
-import org.opensearch.be.lucene.stats.LuceneShardStats;
+import org.opensearch.be.lucene.stats.LuceneShardStatsTracker;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.DeleteExecutionEngine;
 import org.opensearch.index.engine.dataformat.DeleteInput;
@@ -43,9 +43,9 @@ public class LuceneDeleteExecutionEngine implements DeleteExecutionEngine<DataFo
     private final Map<Long, Deleter> generationToDeleterMap;
     private final DataFormat dataFormat;
     private final LuceneCommitter committer;
-    private final LuceneShardStats stats;
+    private final LuceneShardStatsTracker stats;
 
-    public LuceneDeleteExecutionEngine(DataFormat dataFormat, Committer committer, LuceneShardStats stats) {
+    public LuceneDeleteExecutionEngine(DataFormat dataFormat, Committer committer, LuceneShardStatsTracker stats) {
         this.generationToDeleterMap = new ConcurrentHashMap<>();
         this.dataFormat = dataFormat;
         this.committer = (LuceneCommitter) committer;

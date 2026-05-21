@@ -10,6 +10,7 @@ package org.opensearch.composite;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.opensearch.action.ActionRequest;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.service.ClusterService;
@@ -22,7 +23,12 @@ import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.settings.SettingsFilter;
 import org.opensearch.composite.action.CatalogSnapshotAction;
+import org.opensearch.composite.action.CatalogSnapshotActionType;
 import org.opensearch.composite.action.DataFormatStatsAction;
+import org.opensearch.composite.action.DataFormatStatsActionType;
+import org.opensearch.composite.action.TransportCatalogSnapshotAction;
+import org.opensearch.composite.action.TransportDataFormatStatsAction;
+import org.opensearch.core.action.ActionResponse;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.env.Environment;
@@ -330,6 +336,14 @@ public class CompositeDataFormatPlugin extends Plugin implements DataFormatPlugi
             }
         }
         return Map.copyOf(strategies);
+    }
+
+    @Override
+    public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
+        return List.of(
+            new ActionHandler<>(DataFormatStatsActionType.INSTANCE, TransportDataFormatStatsAction.class),
+            new ActionHandler<>(CatalogSnapshotActionType.INSTANCE, TransportCatalogSnapshotAction.class)
+        );
     }
 
     @Override

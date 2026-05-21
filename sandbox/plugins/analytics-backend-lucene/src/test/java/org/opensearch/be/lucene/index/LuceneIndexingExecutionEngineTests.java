@@ -17,7 +17,7 @@ import org.apache.lucene.store.NIOFSDirectory;
 import org.apache.lucene.tests.analysis.MockAnalyzer;
 import org.opensearch.be.lucene.LuceneDataFormat;
 import org.opensearch.be.lucene.LucenePlugin;
-import org.opensearch.be.lucene.stats.LuceneShardStats;
+import org.opensearch.be.lucene.stats.LuceneShardStatsTracker;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.BigArrays;
@@ -137,7 +137,7 @@ public class LuceneIndexingExecutionEngineTests extends OpenSearchTestCase {
             null
         );
         CommitterConfig settings = new CommitterConfig(engineConfig, () -> {});
-        return new LuceneCommitter(settings, new LuceneShardStats());
+        return new LuceneCommitter(settings, new LuceneShardStatsTracker());
     }
 
     @Override
@@ -184,7 +184,7 @@ public class LuceneIndexingExecutionEngineTests extends OpenSearchTestCase {
                 null,
                 Codec.getDefault(),
                 null,
-                new LuceneShardStats()
+                new LuceneShardStatsTracker()
             )
         ) {
             for (int i = 0; i < numDocs; i++) {

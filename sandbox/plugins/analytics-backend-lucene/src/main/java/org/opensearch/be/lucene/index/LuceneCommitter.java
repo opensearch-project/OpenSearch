@@ -28,7 +28,7 @@ import org.apache.lucene.store.ByteBuffersIndexOutput;
 import org.apache.lucene.util.Version;
 import org.opensearch.be.lucene.LuceneDataFormat;
 import org.opensearch.be.lucene.LuceneReader;
-import org.opensearch.be.lucene.stats.LuceneShardStats;
+import org.opensearch.be.lucene.stats.LuceneShardStatsTracker;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.engine.CommitStats;
 import org.opensearch.index.engine.EngineConfig;
@@ -99,7 +99,7 @@ public class LuceneCommitter extends SafeBootstrapCommitter {
     private final Sort userProvidedSort;
     private final MergeIndexWriter indexWriter;
     private final LuceneCommitDeletionPolicy deletionPolicy;
-    private final LuceneShardStats stats;
+    private final LuceneShardStatsTracker stats;
     private final AtomicBoolean isClosed = new AtomicBoolean();
     // Keyed by catalog snapshot generation — survives snapshot cloning at the upload boundary.
     private final Map<Long, LuceneReader> readers = new ConcurrentHashMap<>();
@@ -112,7 +112,7 @@ public class LuceneCommitter extends SafeBootstrapCommitter {
      * @param stats           the shard-level stats collector
      * @throws IOException if opening the IndexWriter fails
      */
-    public LuceneCommitter(CommitterConfig committerConfig, LuceneShardStats stats) throws IOException {
+    public LuceneCommitter(CommitterConfig committerConfig, LuceneShardStatsTracker stats) throws IOException {
         super(committerConfig);
         this.stats = stats;
         this.store = Objects.requireNonNull(committerConfig.engineConfig().getStore());

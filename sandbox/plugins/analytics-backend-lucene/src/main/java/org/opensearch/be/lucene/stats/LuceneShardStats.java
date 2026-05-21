@@ -14,304 +14,368 @@ import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.plugin.stats.DataFormatShardStats;
 
 import java.io.IOException;
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.atomic.LongAdder;
 
 /**
- * Shard-level statistics collector for the Lucene data format plugin.
- * Uses LongAdder for high-throughput counters and AtomicLong for gauges.
- * Serves as both the live collector and the serializable snapshot.
+ * Immutable point-in-time snapshot of shard-level Lucene statistics.
+ * Produced by {@link LuceneShardStatsTracker#stats()}.
+ * Supports serialization via {@link Writeable} and REST rendering via {@link ToXContentFragment}.
+ *
+ * @opensearch.experimental
  */
 @ExperimentalApi
-public class LuceneShardStats implements ToXContentFragment, Writeable {
+public class LuceneShardStats implements DataFormatShardStats, ToXContentFragment, Writeable {
 
-    // Indexing counters
-    private final LongAdder docsIndexedTotal = new LongAdder();
-    private final LongAdder docsIndexedFailures = new LongAdder();
-    private final LongAdder indexTimeMillis = new LongAdder();
+    // Indexing
+    private final long docsIndexedTotal;
+    private final long docsIndexedFailures;
+    private final long indexTimeMillis;
 
-    // Flush counters
-    private final LongAdder flushTotal = new LongAdder();
-    private final LongAdder flushTimeMillis = new LongAdder();
-    private final LongAdder flushForceMergeTimeMillis = new LongAdder();
+    // Flush
+    private final long flushTotal;
+    private final long flushTimeMillis;
+    private final long flushForceMergeTimeMillis;
 
-    // Refresh counters
-    private final LongAdder refreshTotal = new LongAdder();
-    private final LongAdder refreshTimeMillis = new LongAdder();
-    private final LongAdder refreshAddIndexesTimeMillis = new LongAdder();
-    private final LongAdder refreshSegmentsIncorporatedTotal = new LongAdder();
+    // Refresh
+    private final long refreshTotal;
+    private final long refreshTimeMillis;
+    private final long refreshAddIndexesTimeMillis;
+    private final long refreshSegmentsIncorporatedTotal;
 
-    // Commit counters
-    private final LongAdder commitTotal = new LongAdder();
-    private final LongAdder commitTimeMillis = new LongAdder();
+    // Commit
+    private final long commitTotal;
+    private final long commitTimeMillis;
 
-    // Merge counters
-    private final LongAdder mergeTotal = new LongAdder();
-    private final LongAdder mergeTimeMillis = new LongAdder();
-    private final LongAdder mergeDocsTotal = new LongAdder();
-    private final LongAdder mergeFailures = new LongAdder();
+    // Merge
+    private final long mergeTotal;
+    private final long mergeTimeMillis;
+    private final long mergeDocsTotal;
+    private final long mergeFailures;
 
-    // Delete counters
-    private final LongAdder deleteTotal = new LongAdder();
-    private final LongAdder deleteTimeMillis = new LongAdder();
-    private final LongAdder deleteByGenerationTotal = new LongAdder();
-    private final LongAdder deleteSharedWriterFallbackTotal = new LongAdder();
+    // Delete
+    private final long deleteTotal;
+    private final long deleteTimeMillis;
+    private final long deleteByGenerationTotal;
+    private final long deleteSharedWriterFallbackTotal;
 
-    // Memory gauges
-    private final AtomicLong ramBufferBytesUsed = new AtomicLong();
-    private final AtomicLong activeWriters = new AtomicLong();
-    private final AtomicLong activeReaders = new AtomicLong();
+    // Memory
+    private final long ramBufferBytesUsed;
+    private final long activeWriters;
+    private final long activeReaders;
 
-    public LuceneShardStats() {}
+    /**
+     * Constructs a snapshot with all values.
+     */
+    public LuceneShardStats(
+        long docsIndexedTotal,
+        long docsIndexedFailures,
+        long indexTimeMillis,
+        long flushTotal,
+        long flushTimeMillis,
+        long flushForceMergeTimeMillis,
+        long refreshTotal,
+        long refreshTimeMillis,
+        long refreshAddIndexesTimeMillis,
+        long refreshSegmentsIncorporatedTotal,
+        long commitTotal,
+        long commitTimeMillis,
+        long mergeTotal,
+        long mergeTimeMillis,
+        long mergeDocsTotal,
+        long mergeFailures,
+        long deleteTotal,
+        long deleteTimeMillis,
+        long deleteByGenerationTotal,
+        long deleteSharedWriterFallbackTotal,
+        long ramBufferBytesUsed,
+        long activeWriters,
+        long activeReaders
+    ) {
+        this.docsIndexedTotal = docsIndexedTotal;
+        this.docsIndexedFailures = docsIndexedFailures;
+        this.indexTimeMillis = indexTimeMillis;
+        this.flushTotal = flushTotal;
+        this.flushTimeMillis = flushTimeMillis;
+        this.flushForceMergeTimeMillis = flushForceMergeTimeMillis;
+        this.refreshTotal = refreshTotal;
+        this.refreshTimeMillis = refreshTimeMillis;
+        this.refreshAddIndexesTimeMillis = refreshAddIndexesTimeMillis;
+        this.refreshSegmentsIncorporatedTotal = refreshSegmentsIncorporatedTotal;
+        this.commitTotal = commitTotal;
+        this.commitTimeMillis = commitTimeMillis;
+        this.mergeTotal = mergeTotal;
+        this.mergeTimeMillis = mergeTimeMillis;
+        this.mergeDocsTotal = mergeDocsTotal;
+        this.mergeFailures = mergeFailures;
+        this.deleteTotal = deleteTotal;
+        this.deleteTimeMillis = deleteTimeMillis;
+        this.deleteByGenerationTotal = deleteByGenerationTotal;
+        this.deleteSharedWriterFallbackTotal = deleteSharedWriterFallbackTotal;
+        this.ramBufferBytesUsed = ramBufferBytesUsed;
+        this.activeWriters = activeWriters;
+        this.activeReaders = activeReaders;
+    }
 
     public LuceneShardStats(StreamInput in) throws IOException {
         // Indexing
-        docsIndexedTotal.add(in.readVLong());
-        docsIndexedFailures.add(in.readVLong());
-        indexTimeMillis.add(in.readVLong());
+        this.docsIndexedTotal = in.readVLong();
+        this.docsIndexedFailures = in.readVLong();
+        this.indexTimeMillis = in.readVLong();
 
         // Flush
-        flushTotal.add(in.readVLong());
-        flushTimeMillis.add(in.readVLong());
-        flushForceMergeTimeMillis.add(in.readVLong());
+        this.flushTotal = in.readVLong();
+        this.flushTimeMillis = in.readVLong();
+        this.flushForceMergeTimeMillis = in.readVLong();
 
         // Refresh
-        refreshTotal.add(in.readVLong());
-        refreshTimeMillis.add(in.readVLong());
-        refreshAddIndexesTimeMillis.add(in.readVLong());
-        refreshSegmentsIncorporatedTotal.add(in.readVLong());
+        this.refreshTotal = in.readVLong();
+        this.refreshTimeMillis = in.readVLong();
+        this.refreshAddIndexesTimeMillis = in.readVLong();
+        this.refreshSegmentsIncorporatedTotal = in.readVLong();
 
         // Commit
-        commitTotal.add(in.readVLong());
-        commitTimeMillis.add(in.readVLong());
+        this.commitTotal = in.readVLong();
+        this.commitTimeMillis = in.readVLong();
 
         // Merge
-        mergeTotal.add(in.readVLong());
-        mergeTimeMillis.add(in.readVLong());
-        mergeDocsTotal.add(in.readVLong());
-        mergeFailures.add(in.readVLong());
+        this.mergeTotal = in.readVLong();
+        this.mergeTimeMillis = in.readVLong();
+        this.mergeDocsTotal = in.readVLong();
+        this.mergeFailures = in.readVLong();
 
         // Delete
-        deleteTotal.add(in.readVLong());
-        deleteTimeMillis.add(in.readVLong());
-        deleteByGenerationTotal.add(in.readVLong());
-        deleteSharedWriterFallbackTotal.add(in.readVLong());
+        this.deleteTotal = in.readVLong();
+        this.deleteTimeMillis = in.readVLong();
+        this.deleteByGenerationTotal = in.readVLong();
+        this.deleteSharedWriterFallbackTotal = in.readVLong();
 
         // Memory
-        ramBufferBytesUsed.set(in.readVLong());
-        activeWriters.set(in.readVLong());
-        activeReaders.set(in.readVLong());
+        this.ramBufferBytesUsed = in.readVLong();
+        this.activeWriters = in.readVLong();
+        this.activeReaders = in.readVLong();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         // Indexing
-        out.writeVLong(docsIndexedTotal.sum());
-        out.writeVLong(docsIndexedFailures.sum());
-        out.writeVLong(indexTimeMillis.sum());
+        out.writeVLong(docsIndexedTotal);
+        out.writeVLong(docsIndexedFailures);
+        out.writeVLong(indexTimeMillis);
 
         // Flush
-        out.writeVLong(flushTotal.sum());
-        out.writeVLong(flushTimeMillis.sum());
-        out.writeVLong(flushForceMergeTimeMillis.sum());
+        out.writeVLong(flushTotal);
+        out.writeVLong(flushTimeMillis);
+        out.writeVLong(flushForceMergeTimeMillis);
 
         // Refresh
-        out.writeVLong(refreshTotal.sum());
-        out.writeVLong(refreshTimeMillis.sum());
-        out.writeVLong(refreshAddIndexesTimeMillis.sum());
-        out.writeVLong(refreshSegmentsIncorporatedTotal.sum());
+        out.writeVLong(refreshTotal);
+        out.writeVLong(refreshTimeMillis);
+        out.writeVLong(refreshAddIndexesTimeMillis);
+        out.writeVLong(refreshSegmentsIncorporatedTotal);
 
         // Commit
-        out.writeVLong(commitTotal.sum());
-        out.writeVLong(commitTimeMillis.sum());
+        out.writeVLong(commitTotal);
+        out.writeVLong(commitTimeMillis);
 
         // Merge
-        out.writeVLong(mergeTotal.sum());
-        out.writeVLong(mergeTimeMillis.sum());
-        out.writeVLong(mergeDocsTotal.sum());
-        out.writeVLong(mergeFailures.sum());
+        out.writeVLong(mergeTotal);
+        out.writeVLong(mergeTimeMillis);
+        out.writeVLong(mergeDocsTotal);
+        out.writeVLong(mergeFailures);
 
         // Delete
-        out.writeVLong(deleteTotal.sum());
-        out.writeVLong(deleteTimeMillis.sum());
-        out.writeVLong(deleteByGenerationTotal.sum());
-        out.writeVLong(deleteSharedWriterFallbackTotal.sum());
+        out.writeVLong(deleteTotal);
+        out.writeVLong(deleteTimeMillis);
+        out.writeVLong(deleteByGenerationTotal);
+        out.writeVLong(deleteSharedWriterFallbackTotal);
 
         // Memory
-        out.writeVLong(ramBufferBytesUsed.get());
-        out.writeVLong(activeWriters.get());
-        out.writeVLong(activeReaders.get());
+        out.writeVLong(ramBufferBytesUsed);
+        out.writeVLong(activeWriters);
+        out.writeVLong(activeReaders);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         // Indexing
         builder.startObject("indexing");
-        builder.field("docs_indexed_total", docsIndexedTotal.sum());
-        builder.field("docs_indexed_failures", docsIndexedFailures.sum());
-        builder.field("index_time_millis", indexTimeMillis.sum());
+        builder.field("docs_indexed_total", docsIndexedTotal);
+        builder.field("docs_indexed_failures", docsIndexedFailures);
+        builder.field("index_time_millis", indexTimeMillis);
         builder.endObject();
 
         // Flush
         builder.startObject("flush");
-        builder.field("flush_total", flushTotal.sum());
-        builder.field("flush_time_millis", flushTimeMillis.sum());
-        builder.field("flush_force_merge_time_millis", flushForceMergeTimeMillis.sum());
+        builder.field("flush_total", flushTotal);
+        builder.field("flush_time_millis", flushTimeMillis);
+        builder.field("flush_force_merge_time_millis", flushForceMergeTimeMillis);
         builder.endObject();
 
         // Refresh
         builder.startObject("refresh");
-        builder.field("refresh_total", refreshTotal.sum());
-        builder.field("refresh_time_millis", refreshTimeMillis.sum());
-        builder.field("refresh_add_indexes_time_millis", refreshAddIndexesTimeMillis.sum());
-        builder.field("refresh_segments_incorporated_total", refreshSegmentsIncorporatedTotal.sum());
+        builder.field("refresh_total", refreshTotal);
+        builder.field("refresh_time_millis", refreshTimeMillis);
+        builder.field("refresh_add_indexes_time_millis", refreshAddIndexesTimeMillis);
+        builder.field("refresh_segments_incorporated_total", refreshSegmentsIncorporatedTotal);
         builder.endObject();
 
         // Commit
         builder.startObject("commit");
-        builder.field("commit_total", commitTotal.sum());
-        builder.field("commit_time_millis", commitTimeMillis.sum());
+        builder.field("commit_total", commitTotal);
+        builder.field("commit_time_millis", commitTimeMillis);
         builder.endObject();
 
         // Merge
         builder.startObject("merge");
-        builder.field("merge_total", mergeTotal.sum());
-        builder.field("merge_time_millis", mergeTimeMillis.sum());
-        builder.field("merge_docs_total", mergeDocsTotal.sum());
-        builder.field("merge_failures", mergeFailures.sum());
+        builder.field("merge_total", mergeTotal);
+        builder.field("merge_time_millis", mergeTimeMillis);
+        builder.field("merge_docs_total", mergeDocsTotal);
+        builder.field("merge_failures", mergeFailures);
         builder.endObject();
 
         // Delete
         builder.startObject("delete");
-        builder.field("delete_total", deleteTotal.sum());
-        builder.field("delete_time_millis", deleteTimeMillis.sum());
-        builder.field("delete_by_generation_total", deleteByGenerationTotal.sum());
-        builder.field("delete_shared_writer_fallback_total", deleteSharedWriterFallbackTotal.sum());
+        builder.field("delete_total", deleteTotal);
+        builder.field("delete_time_millis", deleteTimeMillis);
+        builder.field("delete_by_generation_total", deleteByGenerationTotal);
+        builder.field("delete_shared_writer_fallback_total", deleteSharedWriterFallbackTotal);
         builder.endObject();
 
         // Memory
         builder.startObject("memory");
-        builder.field("ram_buffer_bytes_used", ramBufferBytesUsed.get());
-        builder.field("active_writers", activeWriters.get());
-        builder.field("active_readers", activeReaders.get());
+        builder.field("ram_buffer_bytes_used", ramBufferBytesUsed);
+        builder.field("active_writers", activeWriters);
+        builder.field("active_readers", activeReaders);
         builder.endObject();
 
         return builder;
     }
 
     /**
-     * Returns this instance as a snapshot. Since LongAdder.sum() provides a point-in-time
-     * view and the class implements Writeable, it can serialize its own current state.
+     * Returns a new snapshot that is the sum of this snapshot and another.
+     * Used for aggregation across shards.
      */
-    public LuceneShardStats snapshot() {
-        return this;
+    public LuceneShardStats add(LuceneShardStats other) {
+        return new LuceneShardStats(
+            this.docsIndexedTotal + other.docsIndexedTotal,
+            this.docsIndexedFailures + other.docsIndexedFailures,
+            this.indexTimeMillis + other.indexTimeMillis,
+            this.flushTotal + other.flushTotal,
+            this.flushTimeMillis + other.flushTimeMillis,
+            this.flushForceMergeTimeMillis + other.flushForceMergeTimeMillis,
+            this.refreshTotal + other.refreshTotal,
+            this.refreshTimeMillis + other.refreshTimeMillis,
+            this.refreshAddIndexesTimeMillis + other.refreshAddIndexesTimeMillis,
+            this.refreshSegmentsIncorporatedTotal + other.refreshSegmentsIncorporatedTotal,
+            this.commitTotal + other.commitTotal,
+            this.commitTimeMillis + other.commitTimeMillis,
+            this.mergeTotal + other.mergeTotal,
+            this.mergeTimeMillis + other.mergeTimeMillis,
+            this.mergeDocsTotal + other.mergeDocsTotal,
+            this.mergeFailures + other.mergeFailures,
+            this.deleteTotal + other.deleteTotal,
+            this.deleteTimeMillis + other.deleteTimeMillis,
+            this.deleteByGenerationTotal + other.deleteByGenerationTotal,
+            this.deleteSharedWriterFallbackTotal + other.deleteSharedWriterFallbackTotal,
+            this.ramBufferBytesUsed + other.ramBufferBytesUsed,
+            this.activeWriters + other.activeWriters,
+            this.activeReaders + other.activeReaders
+        );
     }
 
-    // --- Indexing methods ---
+    // --- Getters ---
 
-    public void addDocsIndexed(long n) {
-        docsIndexedTotal.add(n);
+    public long getDocsIndexedTotal() {
+        return docsIndexedTotal;
     }
 
-    public void incDocsIndexedFailures() {
-        docsIndexedFailures.increment();
+    public long getDocsIndexedFailures() {
+        return docsIndexedFailures;
     }
 
-    public void addIndexTimeMillis(long ms) {
-        indexTimeMillis.add(ms);
+    public long getIndexTimeMillis() {
+        return indexTimeMillis;
     }
 
-    // --- Flush methods ---
-
-    public void incFlushTotal() {
-        flushTotal.increment();
+    public long getFlushTotal() {
+        return flushTotal;
     }
 
-    public void addFlushTimeMillis(long ms) {
-        flushTimeMillis.add(ms);
+    public long getFlushTimeMillis() {
+        return flushTimeMillis;
     }
 
-    public void addFlushForceMergeTimeMillis(long ms) {
-        flushForceMergeTimeMillis.add(ms);
+    public long getFlushForceMergeTimeMillis() {
+        return flushForceMergeTimeMillis;
     }
 
-    // --- Refresh methods ---
-
-    public void incRefreshTotal() {
-        refreshTotal.increment();
+    public long getRefreshTotal() {
+        return refreshTotal;
     }
 
-    public void addRefreshTimeMillis(long ms) {
-        refreshTimeMillis.add(ms);
+    public long getRefreshTimeMillis() {
+        return refreshTimeMillis;
     }
 
-    public void addRefreshAddIndexesTimeMillis(long ms) {
-        refreshAddIndexesTimeMillis.add(ms);
+    public long getRefreshAddIndexesTimeMillis() {
+        return refreshAddIndexesTimeMillis;
     }
 
-    public void incRefreshSegmentsIncorporatedTotal() {
-        refreshSegmentsIncorporatedTotal.increment();
+    public long getRefreshSegmentsIncorporatedTotal() {
+        return refreshSegmentsIncorporatedTotal;
     }
 
-    // --- Commit methods ---
-
-    public void incCommitTotal() {
-        commitTotal.increment();
+    public long getCommitTotal() {
+        return commitTotal;
     }
 
-    public void addCommitTimeMillis(long ms) {
-        commitTimeMillis.add(ms);
+    public long getCommitTimeMillis() {
+        return commitTimeMillis;
     }
 
-    // --- Merge methods ---
-
-    public void incMergeTotal() {
-        mergeTotal.increment();
+    public long getMergeTotal() {
+        return mergeTotal;
     }
 
-    public void addMergeTimeMillis(long ms) {
-        mergeTimeMillis.add(ms);
+    public long getMergeTimeMillis() {
+        return mergeTimeMillis;
     }
 
-    public void addMergeDocsTotal(long n) {
-        mergeDocsTotal.add(n);
+    public long getMergeDocsTotal() {
+        return mergeDocsTotal;
     }
 
-    public void incMergeFailures() {
-        mergeFailures.increment();
+    public long getMergeFailures() {
+        return mergeFailures;
     }
 
-    // --- Delete methods ---
-
-    public void incDeleteTotal() {
-        deleteTotal.increment();
+    public long getDeleteTotal() {
+        return deleteTotal;
     }
 
-    public void addDeleteTimeMillis(long ms) {
-        deleteTimeMillis.add(ms);
+    public long getDeleteTimeMillis() {
+        return deleteTimeMillis;
     }
 
-    public void incDeleteByGenerationTotal() {
-        deleteByGenerationTotal.increment();
+    public long getDeleteByGenerationTotal() {
+        return deleteByGenerationTotal;
     }
 
-    public void incDeleteSharedWriterFallbackTotal() {
-        deleteSharedWriterFallbackTotal.increment();
+    public long getDeleteSharedWriterFallbackTotal() {
+        return deleteSharedWriterFallbackTotal;
     }
 
-    // --- Memory gauge methods ---
-
-    public void setRamBufferBytesUsed(long bytes) {
-        ramBufferBytesUsed.set(bytes);
+    public long getRamBufferBytesUsed() {
+        return ramBufferBytesUsed;
     }
 
-    public void setActiveWriters(long count) {
-        activeWriters.set(count);
+    public long getActiveWriters() {
+        return activeWriters;
     }
 
-    public void setActiveReaders(long count) {
-        activeReaders.set(count);
+    public long getActiveReaders() {
+        return activeReaders;
     }
 }

@@ -35,7 +35,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.MMapDirectory;
 import org.opensearch.be.lucene.LuceneDataFormat;
-import org.opensearch.be.lucene.stats.LuceneShardStats;
+import org.opensearch.be.lucene.stats.LuceneShardStatsTracker;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.common.util.io.IOUtils;
@@ -95,7 +95,7 @@ public class LuceneWriter implements Writer<LuceneDocumentInput> {
 
     private final long writerGeneration;
     private final LuceneDataFormat dataFormat;
-    private final LuceneShardStats stats;
+    private final LuceneShardStatsTracker stats;
     private final Path tempDirectory;
     private final Directory directory;
     private final IndexWriter indexWriter;
@@ -123,7 +123,7 @@ public class LuceneWriter implements Writer<LuceneDocumentInput> {
         Analyzer analyzer,
         Codec codec,
         Sort indexSort,
-        LuceneShardStats stats
+        LuceneShardStatsTracker stats
     ) throws IOException {
         this.writerGeneration = writerGeneration;
         this.mappingVersion = mappingVersion;

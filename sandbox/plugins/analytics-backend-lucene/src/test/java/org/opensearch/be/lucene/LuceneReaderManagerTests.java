@@ -25,7 +25,7 @@ import org.apache.lucene.store.NIOFSDirectory;
 import org.opensearch.be.lucene.index.LuceneCommitter;
 import org.opensearch.be.lucene.index.LuceneIndexingExecutionEngine;
 import org.opensearch.be.lucene.index.LuceneWriter;
-import org.opensearch.be.lucene.stats.LuceneShardStats;
+import org.opensearch.be.lucene.stats.LuceneShardStatsTracker;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.index.shard.ShardId;
@@ -424,7 +424,7 @@ public class LuceneReaderManagerTests extends OpenSearchTestCase {
             .retentionLeasesSupplier(() -> new RetentionLeases(0, 0, java.util.Collections.emptyList()))
             .build();
         CommitterConfig cs = new CommitterConfig(engineConfig, () -> {});
-        LuceneCommitter committer = new LuceneCommitter(cs, new LuceneShardStats());
+        LuceneCommitter committer = new LuceneCommitter(cs, new LuceneShardStatsTracker());
 
         try {
             LuceneIndexingExecutionEngine engine = new LuceneIndexingExecutionEngine(

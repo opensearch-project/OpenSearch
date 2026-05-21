@@ -32,6 +32,7 @@ import org.opensearch.parquet.memory.ArrowBufferPool;
 import org.opensearch.parquet.merge.NativeParquetMergeStrategy;
 import org.opensearch.parquet.merge.ParquetMergeExecutor;
 import org.opensearch.parquet.stats.ParquetShardStats;
+import org.opensearch.parquet.stats.ParquetShardStatsTracker;
 import org.opensearch.parquet.writer.ParquetDocumentInput;
 import org.opensearch.parquet.writer.ParquetWriter;
 import org.opensearch.threadpool.ThreadPool;
@@ -86,7 +87,7 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
     private final ThreadPool threadPool;
     private final FormatChecksumStrategy checksumStrategy;
     private final Merger parquetMerger;
-    private final ParquetShardStats stats = new ParquetShardStats();
+    private final ParquetShardStatsTracker statsTracker = new ParquetShardStatsTracker();
 
     /**
      * Creates a new ParquetIndexingEngine.
@@ -209,7 +210,7 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
                 indexSettings.getIndex().getName(),
                 shardPath,
                 checksumStrategy::registerChecksum,
-                stats
+                statsTracker
             )
         );
         pushSettingsToRust();
@@ -228,7 +229,14 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
      * Returns the shard-level stats collector for this engine.
      */
     public ParquetShardStats getStats() {
-        return stats;
+        return statsTracker.stats();
+    }
+
+    /**
+     * Returns the mutable stats tracker for this engine.
+     */
+    public ParquetShardStatsTracker getStatsTracker() {
+        return statsTracker;
     }
 
     private void pushSettingsToRust() {
@@ -281,7 +289,7 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
             indexSettings,
             threadPool,
             checksumStrategy,
-            stats
+            statsTracker
         );
     }
 
