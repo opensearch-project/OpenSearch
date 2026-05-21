@@ -228,6 +228,24 @@ public enum ScalarFunction {
     DATE_FORMAT(Category.SCALAR, SqlKind.OTHER_FUNCTION),
     TIME_FORMAT(Category.SCALAR, SqlKind.OTHER_FUNCTION),
     STR_TO_DATE(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    /**
+     * PPL {@code TIMESTAMPDIFF(unit, start, end)} — emits the integer number of {@code unit}s
+     * between two timestamps. Resolves through the SQL plugin's {@code TimestampDiffFunction}
+     * UDF named {@code "TIMESTAMPDIFF"}. Lowering target for PPL `timechart`'s {@code per_*}
+     * aggregations, which expand to {@code DIVIDE(agg * scale, TIMESTAMPDIFF('MILLISECOND',
+     * @timestamp, TIMESTAMPADD(unit, n, @timestamp)))}. The analytics-backend-datafusion adapter
+     * rewrites the call into a DataFusion-native expression because the PPL UDF itself is
+     * unknown to isthmus's default extension catalog.
+     */
+    TIMESTAMPDIFF(Category.SCALAR, SqlKind.OTHER_FUNCTION),
+    /**
+     * PPL {@code TIMESTAMPADD(unit, value, timestamp)} — emits {@code timestamp + value units}.
+     * Resolves through the SQL plugin's {@code TimestampAddFunction} UDF named
+     * {@code "TIMESTAMPADD"}. Lowering target for PPL `timechart`'s {@code per_*}
+     * aggregations (see {@link #TIMESTAMPDIFF}). The analytics-backend-datafusion adapter
+     * rewrites the call into a DataFusion-native interval-add expression.
+     */
+    TIMESTAMPADD(Category.SCALAR, SqlKind.OTHER_FUNCTION),
 
     // ── JSON ────────────────────────────────────────────────────────
     JSON_APPEND(Category.SCALAR, SqlKind.OTHER_FUNCTION),

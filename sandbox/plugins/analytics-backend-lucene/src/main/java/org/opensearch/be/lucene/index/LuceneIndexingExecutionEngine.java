@@ -20,6 +20,7 @@ import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.misc.store.HardlinkCopyDirectoryWrapper;
+import org.apache.lucene.search.Sort;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.MMapDirectory;
 import org.opensearch.be.lucene.LuceneDataFormat;
@@ -28,6 +29,7 @@ import org.opensearch.be.lucene.LuceneReader;
 import org.opensearch.be.lucene.merge.LuceneMerger;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.engine.dataformat.DataFormat;
+import org.opensearch.index.engine.dataformat.DocumentInput;
 import org.opensearch.index.engine.dataformat.IndexingExecutionEngine;
 import org.opensearch.index.engine.dataformat.Merger;
 import org.opensearch.index.engine.dataformat.RefreshInput;
@@ -80,6 +82,7 @@ public class LuceneIndexingExecutionEngine implements IndexingExecutionEngine<Lu
     private final MergeIndexWriter sharedWriter;
     private final MapperService mapperService;
     private final Map<Long, LuceneReader> readers;
+    private final Sort userProvidedSort;
     private final Store store;
     private final Path baseDirectory;
     private final Analyzer analyzer;
@@ -107,6 +110,7 @@ public class LuceneIndexingExecutionEngine implements IndexingExecutionEngine<Lu
         this.mapperService = mapperService;
         this.sharedWriter = luceneCommitter.getIndexWriter();
         this.readers = luceneCommitter.readers();
+        this.userProvidedSort = luceneCommitter.getUserProvidedSort();
         this.store = store;
         this.baseDirectory = store.shardPath().resolve(LuceneDataFormat.LUCENE_FORMAT_NAME);
         this.analyzer = sharedWriter.getAnalyzer();
@@ -171,11 +175,24 @@ public class LuceneIndexingExecutionEngine implements IndexingExecutionEngine<Lu
                 baseDirectory,
                 analyzer,
                 codec,
-                sharedWriter.getConfig().getIndexSort()
+                getChildWriterSortConfiguration()
             );
         } catch (IOException e) {
             throw new RuntimeException("Failed to create LuceneWriter for generation " + config.writerGeneration(), e);
         }
+    }
+
+    private Sort getChildWriterSortConfiguration() {
+        // When Lucene is secondary, then clear child writer's sort configuration and restamp
+        // it at the flush end. In all other cases, propagate same sort configuration as it is.
+        Sort sortConfig = sharedWriter.getConfig().getIndexSort();
+        if (this.userProvidedSort != null
+            && sortConfig != null
+            && sortConfig.getSort().length == 1
+            && DocumentInput.ROW_ID_FIELD.equals(sortConfig.getSort()[0].getField())) {
+            sortConfig = null;
+        }
+        return sortConfig;
     }
 
     /**

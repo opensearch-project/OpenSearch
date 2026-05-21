@@ -9,6 +9,7 @@
 package org.opensearch.parquet.bridge;
 
 import org.opensearch.common.SetOnce;
+import org.opensearch.index.engine.dataformat.RowIdMapping;
 
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -33,6 +34,7 @@ public class NativeParquetWriter {
     private final AtomicBoolean writerFlushed = new AtomicBoolean(false);
     private final String filePath;
     private final SetOnce<ParquetFileMetadata> metadata = new SetOnce<>();
+    private final SetOnce<RowIdMapping> rowIdMapping = new SetOnce<>();
     private volatile boolean initialized = false;
 
     /**
@@ -102,7 +104,13 @@ public class NativeParquetWriter {
     public ParquetFileMetadata flush() throws IOException {
         if (writerFlushed.compareAndSet(false, true)) {
             if (initialized) {
-                metadata.set(RustBridge.finalizeWriter(filePath));
+                RustBridge.WriterFinalizeResult result = RustBridge.finalizeWriter(filePath);
+                if (result != null) {
+                    metadata.set(result.metadata());
+                    if (result.rowIdMapping() != null) {
+                        rowIdMapping.set(result.rowIdMapping());
+                    }
+                }
             }
         }
         return metadata.get();
@@ -128,6 +136,14 @@ public class NativeParquetWriter {
      */
     public ParquetFileMetadata getMetadata() {
         return metadata.get();
+    }
+
+    /**
+     * Returns the row ID mapping produced during sort-on-close as a memory-efficient
+     * packed mapping, or null if no sorting was configured or the file was empty.
+     */
+    public RowIdMapping getRowIdMapping() {
+        return rowIdMapping.get();
     }
 
 }
