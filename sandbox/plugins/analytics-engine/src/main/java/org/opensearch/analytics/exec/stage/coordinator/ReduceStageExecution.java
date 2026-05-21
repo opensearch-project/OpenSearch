@@ -39,7 +39,7 @@ public final class ReduceStageExecution extends AbstractStageExecution implement
         super(stage, config.queryId(), config.operationListeners(), config.parentTask());
         this.backendSink = backendSink;
         this.downstream = downstream;
-        this.runner = new LocalTaskRunner(config.localTaskExecutor());
+        this.runner = new LocalTaskRunner(config.searchExecutor());
     }
 
     @Override
