@@ -745,6 +745,37 @@ scalar_functions:
           - { value: string, name: "pattern" }
           - { value: "list<string>", name: "sample_logs" }
         return: any2
+  - name: "pattern_parser_get_pattern"
+    description: >-
+      Single-field accessor for {@code pattern_parser}. Returns just the
+      numbered-token pattern string (e.g. `"<token1>@<token2>.<token3>"`),
+      bypassing DataFusion's substrait consumer's "Direct reference StructField
+      with child is not supported" limitation on nested struct field access.
+      The Rust UDF re-runs the same parse internally and returns only the
+      pattern column.
+    impls:
+      - args:
+          - { value: string, name: "pattern" }
+          - { value: string, name: "field" }
+        return: string?
+      - args:
+          - { value: string, name: "pattern" }
+          - { value: "list<string>", name: "sample_logs" }
+        return: string?
+  - name: "pattern_parser_get_tokens"
+    description: >-
+      Single-field accessor for {@code pattern_parser}. Returns just the
+      tokens Map<string, list<string>> of extracted variables. See
+      {@code pattern_parser_get_pattern}.
+    impls:
+      - args:
+          - { value: string, name: "pattern" }
+          - { value: string, name: "field" }
+        return: any1
+      - args:
+          - { value: string, name: "pattern" }
+          - { value: "list<string>", name: "sample_logs" }
+        return: any2
   - name: "json_delete"
     description: "Remove PPL-path matches from a JSON document; missing paths are no-ops."
     impls:

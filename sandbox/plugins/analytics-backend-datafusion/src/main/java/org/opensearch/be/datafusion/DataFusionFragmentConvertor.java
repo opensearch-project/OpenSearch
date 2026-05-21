@@ -29,7 +29,9 @@ import org.apache.calcite.rex.RexLiteral;
 import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.schema.ColumnStrategy;
 import org.apache.calcite.sql.SqlAggFunction;
+import org.apache.calcite.sql.SqlFunction;
 import org.apache.calcite.sql.SqlFunctionCategory;
+import org.apache.calcite.sql.SqlOperator;
 import org.apache.calcite.sql.SqlKind;
 import org.apache.calcite.sql.fun.SqlLibraryOperators;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
@@ -151,6 +153,36 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
      *       {@code rex ... offset_field=name}.</li>
      * </ul>
      */
+    /**
+     * Per-field accessors for {@code pattern_parser}'s STRUCT output.
+     * {@link ItemTypeRebuilder} rewrites
+     * {@code array_element(map_extract(pattern_parser(args), 'pattern' | 'tokens'), 1)}
+     * — the chain {@link ArrayElementAdapter} produces for the ITEM-on-MAP shape
+     * PPL emits over PATTERN_PARSER's {@code MAP<VARCHAR, ANY>} declared return type
+     * — into a direct call against one of these operators, sidestepping DataFusion's
+     * substrait consumer's "Direct reference StructField with child is not supported"
+     * limitation on nested struct field access. The Rust UDFs in
+     * {@code rust/src/udf/pattern_parser.rs} return the same scalar value per row
+     * as the corresponding STRUCT field would have.
+     */
+    static final SqlOperator LOCAL_PATTERN_PARSER_GET_PATTERN_OP = new SqlFunction(
+        "pattern_parser_get_pattern",
+        SqlKind.OTHER_FUNCTION,
+        ReturnTypes.VARCHAR_FORCE_NULLABLE,
+        null,
+        OperandTypes.ANY_ANY,
+        SqlFunctionCategory.USER_DEFINED_FUNCTION
+    );
+
+    static final SqlOperator LOCAL_PATTERN_PARSER_GET_TOKENS_OP = new SqlFunction(
+        "pattern_parser_get_tokens",
+        SqlKind.OTHER_FUNCTION,
+        ReturnTypes.ARG0_NULLABLE,
+        null,
+        OperandTypes.ANY_ANY,
+        SqlFunctionCategory.USER_DEFINED_FUNCTION
+    );
+
     private static final List<FunctionMappings.Sig> ADDITIONAL_SCALAR_SIGS = List.of(
         FunctionMappings.s(DelegatedPredicateFunction.FUNCTION, DelegatedPredicateFunction.NAME),
         FunctionMappings.s(DelegationPossibleFunction.FUNCTION, DelegationPossibleFunction.NAME),
@@ -173,6 +205,11 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         // See PatternParserAdapter for call-shape detail (evalField / evalSamples both route
         // through this single signature; the Rust UDF dispatches on operand types).
         FunctionMappings.s(PatternParserAdapter.LOCAL_PATTERN_PARSER_OP, "pattern_parser"),
+        // Per-field accessors for pattern_parser's STRUCT output. See
+        // LOCAL_PATTERN_PARSER_GET_*_OP and ItemTypeRebuilder for the rewrite
+        // that introduces these calls.
+        FunctionMappings.s(LOCAL_PATTERN_PARSER_GET_PATTERN_OP, "pattern_parser_get_pattern"),
+        FunctionMappings.s(LOCAL_PATTERN_PARSER_GET_TOKENS_OP, "pattern_parser_get_tokens"),
         FunctionMappings.s(ConvertTzAdapter.LOCAL_CONVERT_TZ_OP, "convert_tz"),
         FunctionMappings.s(ParseAdapter.LOCAL_PARSE_OP, "parse"),
         FunctionMappings.s(SqlStdOperatorTable.ITEM, "item"),

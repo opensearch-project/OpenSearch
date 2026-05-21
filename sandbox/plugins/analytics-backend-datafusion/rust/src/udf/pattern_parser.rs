@@ -52,6 +52,12 @@ const FIELD_TOKENS: &str = "tokens";
 
 pub fn register_all(ctx: &SessionContext) {
     ctx.register_udf(ScalarUDF::from(PatternParserUdf::new()));
+    ctx.register_udf(ScalarUDF::from(PatternParserGetFieldUdf::new(
+        PatternField::Pattern,
+    )));
+    ctx.register_udf(ScalarUDF::from(PatternParserGetFieldUdf::new(
+        PatternField::Tokens,
+    )));
 }
 
 #[derive(Debug)]
@@ -189,6 +195,112 @@ impl ScalarUDFImpl for PatternParserUdf {
                 other
             ),
         }
+    }
+}
+
+/// Which field of the pattern-parser result to return as a scalar value.
+/// Used by {@link PatternParserGetFieldUdf} to expose two single-field
+/// scalar UDFs ({@code pattern_parser_get_pattern},
+/// {@code pattern_parser_get_tokens}) that bypass DataFusion's substrait
+/// consumer's "Direct reference StructField with child" limitation on
+/// nested struct field access.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+enum PatternField {
+    Pattern,
+    Tokens,
+}
+
+impl PatternField {
+    fn udf_name(&self) -> &'static str {
+        match self {
+            PatternField::Pattern => "pattern_parser_get_pattern",
+            PatternField::Tokens => "pattern_parser_get_tokens",
+        }
+    }
+    fn return_type(&self) -> DataType {
+        match self {
+            PatternField::Pattern => DataType::Utf8,
+            PatternField::Tokens => tokens_map_type(),
+        }
+    }
+}
+
+/// Per-field accessor wrapper. Runs the same `pattern_parser` logic but
+/// returns only one of the two output fields as a scalar value, sidestepping
+/// the need for downstream struct-field access entirely.
+#[derive(Debug)]
+pub struct PatternParserGetFieldUdf {
+    field: PatternField,
+    signature: Signature,
+}
+
+impl PatternParserGetFieldUdf {
+    pub fn new(field: PatternField) -> Self {
+        Self {
+            field,
+            signature: Signature::user_defined(Volatility::Immutable),
+        }
+    }
+}
+
+impl PartialEq for PatternParserGetFieldUdf {
+    fn eq(&self, other: &Self) -> bool {
+        self.field == other.field
+    }
+}
+impl Eq for PatternParserGetFieldUdf {}
+impl std::hash::Hash for PatternParserGetFieldUdf {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.field.udf_name().hash(state);
+    }
+}
+
+impl ScalarUDFImpl for PatternParserGetFieldUdf {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+    fn name(&self) -> &str {
+        self.field.udf_name()
+    }
+    fn signature(&self) -> &Signature {
+        &self.signature
+    }
+    fn return_type(&self, _arg_types: &[DataType]) -> Result<DataType> {
+        Ok(self.field.return_type())
+    }
+    fn coerce_types(&self, arg_types: &[DataType]) -> Result<Vec<DataType>> {
+        // Same operand shape as PatternParserUdf — delegate.
+        PatternParserUdf::new().coerce_types(arg_types)
+    }
+
+    fn invoke_with_args(&self, args: ScalarFunctionArgs) -> Result<ColumnarValue> {
+        // Delegate to the base UDF to compute the per-row PatternResult, then
+        // extract the requested field column from the resulting struct array.
+        let struct_result = PatternParserUdf::new().invoke_with_args(args)?;
+        let struct_array = match struct_result {
+            ColumnarValue::Array(arr) => arr,
+            other => {
+                return plan_err!(
+                    "{} expected ColumnarValue::Array from base pattern_parser, got {:?}",
+                    self.field.udf_name(),
+                    other
+                );
+            }
+        };
+        let s = struct_array
+            .as_any()
+            .downcast_ref::<StructArray>()
+            .ok_or_else(|| {
+                datafusion::error::DataFusionError::Plan(format!(
+                    "{} expected StructArray from base pattern_parser",
+                    self.field.udf_name()
+                ))
+            })?;
+        let column_index = match self.field {
+            PatternField::Pattern => 0,
+            PatternField::Tokens => 1,
+        };
+        Ok(ColumnarValue::Array(Arc::clone(s.column(column_index))))
     }
 }
 
