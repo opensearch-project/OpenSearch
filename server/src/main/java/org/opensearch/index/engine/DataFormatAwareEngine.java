@@ -398,11 +398,12 @@ public class DataFormatAwareEngine implements Indexer {
                 engineConfig.getThreadPool()
             );
 
+            // Initialize cache with current snapshot after engine is fully constructed
+            // Do this before success=true so resources are cleaned up if this fails
+            statsCache.forceRefresh();
+
             success = true;
             logger.trace("created new DataFormatBasedEngine");
-
-            // Initialize cache with current snapshot after engine is fully constructed
-            statsCache.forceRefresh();
         } catch (IOException | TranslogCorruptedException e) {
             throw new EngineCreationFailureException(shardId, "failed to create engine", e);
         } finally {
@@ -955,6 +956,9 @@ public class DataFormatAwareEngine implements Indexer {
                     }
                 }
                 logger.trace("flush completed");
+
+                // Notify stats cache that flush completed to refresh committed state
+                statsCache.onFlushCompleted();
             } catch (AlreadyClosedException e) {
                 failOnTragicEvent(e);
                 throw e;
@@ -1245,7 +1249,17 @@ public class DataFormatAwareEngine implements Indexer {
             }
         } else {
             // Fast path - return precomputed stats from cache (without file sizes)
-            return statsCache.getSegmentsStats();
+            SegmentsStats cachedStats = statsCache.getSegmentsStats();
+            if (cachedStats.getFileSizes() != null && !cachedStats.getFileSizes().isEmpty()) {
+                // Create a copy without file sizes when includeSegmentFileSizes=false
+                SegmentsStats statsWithoutFileSizes = new SegmentsStats();
+                statsWithoutFileSizes.add(cachedStats.getCount());
+                statsWithoutFileSizes.addIndexWriterMemoryInBytes(cachedStats.getIndexWriterMemoryInBytes());
+                statsWithoutFileSizes.addVersionMapMemoryInBytes(cachedStats.getVersionMapMemoryInBytes());
+                statsWithoutFileSizes.updateMaxUnsafeAutoIdTimestamp(cachedStats.getMaxUnsafeAutoIdTimestamp());
+                return statsWithoutFileSizes;
+            }
+            return cachedStats;
         }
     }
 

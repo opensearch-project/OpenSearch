@@ -234,6 +234,9 @@ public class DataFormatAwareNRTReplicationEngine implements Indexer {
             );
             this.translogManager = translogManagerRef;
 
+            // Initialize cache with current snapshot after engine is fully constructed
+            statsCache.forceRefresh();
+
             success = true;
             logger.trace("created new DataFormatAwareNRTReplicationEngine");
         } catch (IOException | TranslogCorruptedException e) {
@@ -506,6 +509,8 @@ public class DataFormatAwareNRTReplicationEngine implements Indexer {
                     catalogSnapshotManager.bumpGeneration();
                 }
                 commitCatalogSnapshot();
+                // Notify stats cache that flush completed to refresh committed state
+                statsCache.onFlushCompleted();
             } catch (IOException e) {
                 maybeFailEngine("flush", e);
                 throw new FlushFailedEngineException(shardId, e);

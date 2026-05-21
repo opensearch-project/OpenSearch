@@ -30,7 +30,7 @@ import java.util.function.Supplier;
  * This optimization moves expensive stats computation from API-call time (frequent) to refresh time (infrequent),
  * significantly improving performance for frequently called stats APIs.
  */
-public class CatalogSnapshotStatsCache implements ReferenceManager.RefreshListener {
+public class CatalogSnapshotStatsCache implements ReferenceManager.RefreshListener, Engine.EventListener {
 
     // Cached stats - volatile for thread safety between refresh and API threads
     private volatile DocsStats cachedDocsStats;
@@ -69,6 +69,15 @@ public class CatalogSnapshotStatsCache implements ReferenceManager.RefreshListen
         // No action needed before refresh
     }
 
+    public void onFlushCompleted() {
+        // Refresh cached stats when flush completes since flush can change committed state
+        try {
+            refreshCachedStats();
+        } catch (Exception e) {
+            logger.warn("Failed to refresh cached stats after flush completion", e);
+        }
+    }
+
     private void refreshCachedStats() {
         try (GatedCloseable<CatalogSnapshot> snapshotRef = snapshotManager.acquireSnapshot()) {
             CatalogSnapshot snapshot = snapshotRef.get();
@@ -80,18 +89,22 @@ public class CatalogSnapshotStatsCache implements ReferenceManager.RefreshListen
             // For segments, we need engine-specific data (indexSort, commit status)
             // This should be computed by the engine, not the cache
             // For now, we'll compute basic segments without engine-specific data
-            boolean isCommitted = snapshot.resolveIsCommitted(lastCommitDataSupplier.get());
-            List<Segment> newSegments = snapshot.buildEngineSegments(
-                lastCommitDataSupplier.get(),
-                engineConfig != null ? engineConfig.getIndexSort() : null
-            );
+            Map<String, String> commitData = lastCommitDataSupplier.get();
+            logger.debug("refreshCachedStats: snapshot ID={}, commit data keys={}", snapshot.getId(), commitData.keySet());
+            boolean isCommitted = snapshot.resolveIsCommitted(commitData);
+            List<Segment> newSegments = snapshot.buildEngineSegments(commitData, engineConfig != null ? engineConfig.getIndexSort() : null);
 
             // Atomic replacement - all or nothing for consistency
             this.cachedDocsStats = newDocsStats;
             this.cachedSegmentsStats = newSegmentsStats;
             this.cachedSegments = newSegments;
 
-            logger.debug("Refreshed cached catalog snapshot stats: {} docs, {} segments", newDocsStats.getCount(), newSegments.size());
+            logger.debug(
+                "Refreshed cached catalog snapshot stats: {} docs, {} segments, committed={}",
+                newDocsStats.getCount(),
+                newSegments.size(),
+                isCommitted
+            );
 
         } catch (Exception e) {
             logger.warn("Failed to refresh cached catalog snapshot stats", e);
