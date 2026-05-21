@@ -250,7 +250,8 @@ public class NodeService implements Closeable {
         boolean admissionControl,
         boolean cacheService,
         boolean remoteStoreNodeStats,
-        boolean pluginStats
+        boolean pluginStats,
+        boolean nativeMemory
     ) {
         // for indices stats we want to include previous allocated shards stats as well (it will
         // only be applied to the sensible ones to use, like refresh/merge/flush/indexing stats)
@@ -285,7 +286,8 @@ public class NodeService implements Closeable {
             admissionControl ? this.admissionControlService.stats() : null,
             cacheService ? this.cacheService.stats(indices) : null,
             remoteStoreNodeStats ? new RemoteStoreNodeStats() : null,
-            pluginStats ? collectPluginStats() : Collections.emptyMap()
+            pluginStats ? collectPluginStats() : Collections.emptyMap(),
+            nativeMemory ? monitorService.memoryReportingService().nativeStats() : null
         );
     }
 

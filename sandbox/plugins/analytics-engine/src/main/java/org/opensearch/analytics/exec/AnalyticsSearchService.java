@@ -9,7 +9,10 @@
 package org.opensearch.analytics.exec;
 
 import org.apache.arrow.memory.BufferAllocator;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.analytics.backend.AnalyticsOperationListener;
+import org.opensearch.analytics.backend.EngineResultBatch;
 import org.opensearch.analytics.backend.EngineResultStream;
 import org.opensearch.analytics.backend.SearchExecEngine;
 import org.opensearch.analytics.backend.ShardScanExecutionContext;
@@ -35,8 +38,10 @@ import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskResourceTrackingService;
 
 import java.io.IOException;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Executor;
 
 /**
  * Data-node service that executes plan fragments against local shards.
@@ -57,6 +62,8 @@ import java.util.Map;
  * @opensearch.internal
  */
 public class AnalyticsSearchService implements AutoCloseable {
+
+    private static final Logger LOGGER = LogManager.getLogger(AnalyticsSearchService.class);
 
     private final Map<String, AnalyticsSearchBackendPlugin> backends;
     private final AnalyticsOperationListener listener;
@@ -120,6 +127,45 @@ public class AnalyticsSearchService implements AutoCloseable {
         }
     }
 
+    /**
+     * Async variant that forks fragment execution onto the given executor and streams
+     * batches back through the channel. The transport thread returns immediately.
+     */
+    public void executeFragmentStreamingAsync(
+        FragmentExecutionRequest request,
+        IndexShard shard,
+        AnalyticsShardTask task,
+        StreamingFragmentResponseHandler responseHandler,
+        Executor executor
+    ) {
+        try {
+            executor.execute(() -> {
+                try (FragmentResources ctx = executeFragmentStreaming(request, shard, task)) {
+                    Iterator<EngineResultBatch> it = ctx.stream().iterator();
+                    while (it.hasNext()) {
+                        responseHandler.onBatch(it.next());
+                    }
+                    responseHandler.onComplete();
+                } catch (Exception e) {
+                    responseHandler.onFailure(e);
+                }
+            });
+        } catch (Exception e) {
+            responseHandler.onFailure(e);
+        }
+    }
+
+    /**
+     * Callback interface for async fragment streaming results.
+     */
+    public interface StreamingFragmentResponseHandler {
+        void onBatch(EngineResultBatch batch) throws Exception;
+
+        void onComplete();
+
+        void onFailure(Exception e);
+    }
+
     private FragmentResources startFragment(FragmentExecutionRequest request, ResolvedFragment resolved, IndexShard shard, Task task)
         throws IOException {
         GatedCloseable<Reader> gatedReader = resolved.readerProvider.acquireReader();
@@ -175,6 +221,15 @@ public class AnalyticsSearchService implements AutoCloseable {
             stream = engine.execute(ctx);
             return new FragmentResources(gatedReader, engine, stream, trackerCleanup);
         } catch (Exception e) {
+            LOGGER.error(
+                () -> new org.apache.logging.log4j.message.ParameterizedMessage(
+                    "startFragment failed [queryId={}, stageId={}, shardId={}]",
+                    resolved.queryId,
+                    resolved.stageId,
+                    resolved.shardIdStr
+                ),
+                e
+            );
             try {
                 new FragmentResources(gatedReader, engine, stream, trackerCleanup).close();
             } catch (Exception suppressed) {

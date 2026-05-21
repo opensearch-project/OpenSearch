@@ -64,6 +64,7 @@ import org.opensearch.monitor.process.ProcessStats;
 import org.opensearch.node.AdaptiveSelectionStats;
 import org.opensearch.node.NodesResourceUsageStats;
 import org.opensearch.node.remotestore.RemoteStoreNodeStats;
+import org.opensearch.plugin.stats.AnalyticsBackendNativeMemoryStats;
 import org.opensearch.plugins.PluginNodeStats;
 import org.opensearch.ratelimitting.admissioncontrol.stats.AdmissionControlStats;
 import org.opensearch.repositories.RepositoriesStats;
@@ -175,6 +176,9 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
 
     private Map<String, PluginNodeStats> pluginStats;
 
+    @Nullable
+    private AnalyticsBackendNativeMemoryStats nativeMemoryStats;
+
     public NodeStats(StreamInput in) throws IOException {
         super(in);
         timestamp = in.readVLong();
@@ -266,6 +270,11 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         } else {
             pluginStats = Collections.emptyMap();
         }
+        if (in.getVersion().onOrAfter(Version.V_3_7_0)) {
+            nativeMemoryStats = in.readOptionalWriteable(AnalyticsBackendNativeMemoryStats::new);
+        } else {
+            nativeMemoryStats = null;
+        }
     }
 
     /**
@@ -339,7 +348,8 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         @Nullable AdmissionControlStats admissionControlStats,
         @Nullable NodeCacheStats nodeCacheStats,
         @Nullable RemoteStoreNodeStats remoteStoreNodeStats,
-        @Nullable Map<String, PluginNodeStats> pluginStats
+        @Nullable Map<String, PluginNodeStats> pluginStats,
+        @Nullable AnalyticsBackendNativeMemoryStats nativeMemoryStats
     ) {
         super(node);
         this.timestamp = timestamp;
@@ -372,6 +382,7 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         this.nodeCacheStats = nodeCacheStats;
         this.remoteStoreNodeStats = remoteStoreNodeStats;
         this.pluginStats = pluginStats == null ? Collections.emptyMap() : pluginStats;
+        this.nativeMemoryStats = nativeMemoryStats;
     }
 
     public long getTimestamp() {
@@ -543,6 +554,14 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         return pluginStats == null ? Collections.emptyMap() : pluginStats;
     }
 
+    /**
+     * Returns the analytics backend native memory stats, or {@code null} if not available.
+     */
+    @Nullable
+    public AnalyticsBackendNativeMemoryStats getAnalyticsBackendNativeMemoryStats() {
+        return nativeMemoryStats;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
@@ -606,6 +625,9 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
         }
         if (out.getVersion().onOrAfter(Version.V_3_7_0)) {
             writePluginStats(out, pluginStats == null ? Collections.emptyMap() : pluginStats);
+        }
+        if (out.getVersion().onOrAfter(Version.V_3_7_0)) {
+            out.writeOptionalWriteable(nativeMemoryStats);
         }
     }
 
@@ -738,6 +760,9 @@ public class NodeStats extends BaseNodeResponse implements ToXContentFragment {
             builder.startObject(e.getKey());
             e.getValue().toXContent(builder, params);
             builder.endObject();
+        }
+        if (getAnalyticsBackendNativeMemoryStats() != null) {
+            getAnalyticsBackendNativeMemoryStats().toXContent(builder, params);
         }
         return builder;
     }

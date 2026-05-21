@@ -77,7 +77,7 @@ public class ResourceTrackerSettings {
 
     public static final Setting<TimeValue> GLOBAL_NATIVE_MEMORY_USAGE_AC_POLLING_INTERVAL_SETTING = Setting.positiveTimeSetting(
         "node.resource.tracker.global_native_memory_usage.polling_interval",
-        TimeValue.timeValueMillis(Defaults.POLLING_INTERVAL_IN_MILLIS),
+        TimeValue.timeValueSeconds(2),
         Setting.Property.NodeScope
     );
 

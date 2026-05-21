@@ -1057,6 +1057,7 @@ public class NodeStatsTests extends OpenSearchTestCase {
             admissionControlStats,
             nodeCacheStats,
             remoteStoreNodeStats,
+            null,
             null
         );
     }
@@ -1617,7 +1618,8 @@ public class NodeStatsTests extends OpenSearchTestCase {
             null,
             null,
             null,
-            pluginStats
+            pluginStats,
+            null
         );
     }
 

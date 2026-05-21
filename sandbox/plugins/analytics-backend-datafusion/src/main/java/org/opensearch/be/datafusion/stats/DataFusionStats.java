@@ -13,7 +13,6 @@ import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
-import org.opensearch.plugin.stats.PluginStats;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -21,7 +20,7 @@ import java.util.Objects;
 /**
  * Top-level stats container for the DataFusion backend.
  *
- * <p>Implements {@link PluginStats} for Mustang Stats Framework compatibility,
+ * <p>Implements {@link Writeable} for transport serialization,
  * {@link Writeable} for transport serialization, and {@link ToXContentFragment}
  * for JSON rendering.
  *
@@ -30,7 +29,7 @@ import java.util.Objects;
  * No inner classes — {@code RuntimeMetrics} and {@code TaskMonitorStats} belong
  * to {@link NativeExecutorsStats}.
  */
-public class DataFusionStats implements PluginStats, Writeable, ToXContentFragment {
+public class DataFusionStats implements Writeable, ToXContentFragment {
 
     private final NativeExecutorsStats nativeExecutorsStats; // nullable
 
