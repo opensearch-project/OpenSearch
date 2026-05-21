@@ -10,7 +10,6 @@ package org.opensearch.analytics.cancellation;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.tests.util.LuceneTestCase;
 import org.opensearch.Version;
 import org.opensearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
 import org.opensearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
@@ -66,7 +65,6 @@ import java.util.concurrent.TimeoutException;
 @com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope(com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope.Scope.TEST)
 @com.carrotsearch.randomizedtesting.annotations.ThreadLeakLingering(linger = 5000)
 @com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters(filters = org.opensearch.analytics.resilience.FlightTransportThreadLeakFilter.class)
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/opensearch-project/OpenSearch/issues/21776")
 public class SearchCancellationIT extends OpenSearchIntegTestCase {
 
     private static final Logger logger = LogManager.getLogger(SearchCancellationIT.class);
@@ -121,6 +119,12 @@ public class SearchCancellationIT extends OpenSearchIntegTestCase {
             .put(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG, true)
             .put(FeatureFlags.STREAM_TRANSPORT, true)
             .put("arrow.memory.debug.allocator", true)
+            // node.processors=4 → searchPoolSize=7. The streaming reduce path needs the
+            // PPL-wait, reduce-drain, and local-shard fragment threads simultaneously on
+            // the coordinator. InternalTestCluster's default randomizes processors in
+            // 1..min(4, available); a 1 picks a 2-thread SEARCH pool and triggers the
+            // deadlock tracked in #21776. Pinning to 4 sidesteps that for this IT.
+            .put(org.opensearch.common.util.concurrent.OpenSearchExecutors.NODE_PROCESSORS_SETTING.getKey(), 4)
             .build();
     }
 
