@@ -75,6 +75,7 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
     private final ClusterService clusterService;
     private final Scheduler scheduler;
     private final Executor searchExecutor;
+    private final ThreadPool threadPool;
     private final TaskManager taskManager;
     private final NodeClient client;
     private final ArrowNativeAllocator nativeAllocator;
@@ -105,6 +106,7 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
         this.capabilityRegistry = capabilityRegistry;
         this.clusterService = clusterService;
         this.searchExecutor = threadPool.executor(ThreadPool.Names.SEARCH);
+        this.threadPool = threadPool;
         this.taskManager = transportService.getTaskManager();
         this.client = client;
         this.scheduler = scheduler;
@@ -196,7 +198,7 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
         logger.debug("[query-{}] Arrow allocator created, limit={}B", dag.queryId(), perQueryBufferLimit);
         final QueryContext context;
         try {
-            context = new QueryContext(dag, searchExecutor, queryTask, queryAllocator, ownsAllocator);
+            context = new QueryContext(dag, threadPool, queryTask, queryAllocator, ownsAllocator);
         } catch (Exception e) {
             if (ownsAllocator) queryAllocator.close();
             throw e;
