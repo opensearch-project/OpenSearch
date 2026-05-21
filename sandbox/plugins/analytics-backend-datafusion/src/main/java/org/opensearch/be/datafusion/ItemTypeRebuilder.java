@@ -73,7 +73,7 @@ final class ItemTypeRebuilder {
 
         @Override
         public RexNode visitCall(RexCall call) {
-            boolean[] changed = {false};
+            boolean[] changed = { false };
             List<RexNode> newOperands = visitList(call.getOperands(), changed);
             List<RexNode> operands = changed[0] ? newOperands : call.getOperands();
             RexNode rewritten = tryRewritePatternParserAccess(call, operands);
@@ -116,13 +116,13 @@ final class ItemTypeRebuilder {
                 && indexBd.intValueExact() == 1
                 && mapExtract.getOperands().get(0) instanceof RexCall ppViaArray
                 && "pattern_parser".equalsIgnoreCase(ppViaArray.getOperator().getName())) {
-                // Standard post-ArrayElementAdapter shape:
-                // {@code array_element(map_extract(pattern_parser(...), 'key'), 1)}.
-                innerCall = ppViaArray;
-                keyNode = mapExtract.getOperands().get(1);
-            } else {
-                return null;
-            }
+                    // Standard post-ArrayElementAdapter shape:
+                    // {@code array_element(map_extract(pattern_parser(...), 'key'), 1)}.
+                    innerCall = ppViaArray;
+                    keyNode = mapExtract.getOperands().get(1);
+                } else {
+                    return null;
+                }
             String fieldName = extractFieldName(keyNode);
             if (fieldName == null) {
                 return null;
@@ -172,8 +172,7 @@ final class ItemTypeRebuilder {
                 return lit.getValueAs(String.class);
             }
             if (keyNode instanceof RexCall cast
-                && (cast.getKind() == org.apache.calcite.sql.SqlKind.CAST
-                    || cast.getKind() == org.apache.calcite.sql.SqlKind.SAFE_CAST)
+                && (cast.getKind() == org.apache.calcite.sql.SqlKind.CAST || cast.getKind() == org.apache.calcite.sql.SqlKind.SAFE_CAST)
                 && cast.getOperands().size() >= 1
                 && cast.getOperands().get(0) instanceof RexLiteral lit) {
                 return lit.getValueAs(String.class);

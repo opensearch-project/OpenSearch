@@ -95,6 +95,24 @@ public class OpenSearchAggregateSplitRule extends RelOptRule {
             if (isPercentileApprox(aggCall)) {
                 return true;
             }
+            // State-expanding aggs (TAKE, FIRST, LAST, LIST, VALUES) crash
+            // Aggregate.<init>'s typeMatchesInferred at FINAL construction time:
+            // the FINAL aggCall list reuses the original argList which points into
+            // input columns (e.g. TAKE($1=content, $2=N_literal)), but the FINAL's
+            // input is the PARTIAL output where those positions hold STATE columns
+            // of different types (count_state BIGINT, take_state ARRAY<VARCHAR>).
+            // The operator's return-type inference applied to the shifted args no
+            // longer agrees with the declared output type — the rule throws before
+            // DistributedAggregateRewriter (which DOES remap correctly) can run.
+            // Skip the split for these; the SINGLE-on-SINGLETON alternative still
+            // executes correctly and is the only viable choice on a single shard
+            // anyway. Distributed parallelism for state-expanding aggs is a
+            // follow-up (requires per-phase operator overloads or constructing the
+            // FINAL with remapped argList + explicit type here).
+            AggregateFunction fn = AggregateFunction.fromSqlAggFunction(aggCall.getAggregation());
+            if (fn != null && fn.getType() == AggregateFunction.Type.STATE_EXPANDING) {
+                return true;
+            }
         }
         int groupCount = aggregate.getGroupSet().cardinality();
         if (aggregate.getGroupSet().equals(ImmutableBitSet.range(groupCount))) {

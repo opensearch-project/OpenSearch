@@ -410,7 +410,8 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         // extracts named fields via `ITEM(parsedNode, "pattern" | "tokens")`,
         // which reads back through the ITEM entries above. See
         // `PatternParserAdapter`.
-        ScalarFunction.PATTERN_PARSER);
+        ScalarFunction.PATTERN_PARSER
+    );
 
     /**
      * CAST and SAFE_CAST effectively can return anything, so they get registered as everything
