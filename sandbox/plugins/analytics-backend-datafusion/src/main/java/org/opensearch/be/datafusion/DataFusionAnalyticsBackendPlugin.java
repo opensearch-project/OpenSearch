@@ -432,7 +432,11 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         AggregateFunction.FIRST,
         AggregateFunction.LAST,
         AggregateFunction.LIST,
-        AggregateFunction.VALUES
+        AggregateFunction.VALUES,
+        // BRAIN aggregate for PPL's `patterns ... method=BRAIN`. Routes through
+        // PplAggregateCallRewriter's LOCAL_INTERNAL_PATTERN_OP to the custom Rust
+        // UDAF in rust/src/udaf/internal_pattern.rs.
+        AggregateFunction.PATTERN
     );
 
     private final DataFusionPlugin plugin;

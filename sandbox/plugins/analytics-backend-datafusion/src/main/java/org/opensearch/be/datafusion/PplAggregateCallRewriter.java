@@ -13,7 +13,9 @@ import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.core.Aggregate;
 import org.apache.calcite.rel.core.AggregateCall;
 import org.apache.calcite.rel.type.RelDataType;
+import org.apache.calcite.rel.type.RelDataTypeFactory;
 import org.apache.calcite.sql.SqlAggFunction;
+import org.apache.calcite.sql.type.SqlTypeName;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -53,7 +55,8 @@ final class PplAggregateCallRewriter {
         DataFusionFragmentConvertor.LOCAL_LAST_OP,
         DataFusionFragmentConvertor.LOCAL_ARRAY_AGG_OP,
         DataFusionFragmentConvertor.LOCAL_LIST_MERGE_OP,
-        DataFusionFragmentConvertor.LOCAL_LIST_MERGE_DISTINCT_OP
+        DataFusionFragmentConvertor.LOCAL_LIST_MERGE_DISTINCT_OP,
+        DataFusionFragmentConvertor.LOCAL_INTERNAL_PATTERN_OP
     );
 
     private PplAggregateCallRewriter() {}
@@ -122,6 +125,16 @@ final class PplAggregateCallRewriter {
                     explicitReturnType = agg.getCluster().getTypeFactory().createArrayType(arg0Type, -1);
                 }
             }
+            case "PATTERN" -> {
+                // BRAIN aggregate. The PPL-declared return type is ARRAY<MAP<VARCHAR, ANY>>;
+                // the embedded ANY can't be serialized to Substrait, so substitute the
+                // concrete struct shape that matches our Rust UDAF's output. Downstream
+                // UNNEST + ITEM projections happen on the SQL plugin side after the
+                // analytics-engine fragment returns, so we only need to keep the type
+                // valid at the substrait boundary.
+                targetOp = DataFusionFragmentConvertor.LOCAL_INTERNAL_PATTERN_OP;
+                explicitReturnType = internalPatternReturnType(agg.getCluster().getTypeFactory());
+            }
             default -> {
                 return call;
             }
@@ -141,5 +154,28 @@ final class PplAggregateCallRewriter {
             explicitReturnType,
             call.getName()
         );
+    }
+
+    /**
+     * Concrete return type for {@code internal_pattern}:
+     * {@code ARRAY<STRUCT<pattern: VARCHAR, pattern_count: BIGINT,
+     *                      tokens: MAP<VARCHAR, ARRAY<VARCHAR>>,
+     *                      sample_logs: ARRAY<VARCHAR>>>}.
+     *
+     * <p>Field names match {@code org.opensearch.sql.common.patterns.PatternUtils}
+     * (on the SQL plugin classpath, not visible from here) so the downstream
+     * {@code ITEM(struct, "pattern_count")} etc. projections in the PPL Calcite
+     * visitor resolve as named struct-field access.
+     */
+    private static RelDataType internalPatternReturnType(RelDataTypeFactory typeFactory) {
+        RelDataType varchar = typeFactory.createSqlType(SqlTypeName.VARCHAR);
+        RelDataType bigint = typeFactory.createSqlType(SqlTypeName.BIGINT);
+        RelDataType varcharArray = typeFactory.createArrayType(varchar, -1);
+        RelDataType tokensMap = typeFactory.createMapType(varchar, varcharArray);
+        RelDataType structType = typeFactory.createStructType(
+            List.of(varchar, bigint, tokensMap, varcharArray),
+            List.of("pattern", "pattern_count", "tokens", "sample_logs")
+        );
+        return typeFactory.createArrayType(structType, -1);
     }
 }

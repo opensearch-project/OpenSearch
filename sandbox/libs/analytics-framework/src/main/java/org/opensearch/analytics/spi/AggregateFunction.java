@@ -58,7 +58,14 @@ public enum AggregateFunction {
     FIRST(Type.STATE_EXPANDING, SqlKind.OTHER, fields(IF("first_state", IntermediateTypeResolver.passThroughArg0(), null))),
     LAST(Type.STATE_EXPANDING, SqlKind.OTHER, fields(IF("last_state", IntermediateTypeResolver.passThroughArg0(), null))),
     LIST(Type.STATE_EXPANDING, SqlKind.OTHER, fields(IF("list_state", IntermediateTypeResolver.passThroughArg0(), null))),
-    VALUES(Type.STATE_EXPANDING, SqlKind.OTHER, fields(IF("values_state", IntermediateTypeResolver.passThroughArg0(), null)));
+    VALUES(Type.STATE_EXPANDING, SqlKind.OTHER, fields(IF("values_state", IntermediateTypeResolver.passThroughArg0(), null))),
+    // BRAIN aggregate from PPL's `patterns` command. The PPL Calcite layer registers the
+    // SqlAggFunction with lower-case operator name "pattern", so we expose the enum as
+    // PATTERN and rely on case-insensitive name lookup in {@link #fromNameOrError}. No
+    // intermediate-field decomposition is registered: the analytics-engine backend rewrites
+    // the call onto its local `internal_pattern` UDAF whose state shape is per-shard
+    // List<Utf8> (the raw collected log lines), not derivable from the call's arg 0 type.
+    PATTERN(Type.STATE_EXPANDING, SqlKind.OTHER);
 
     /** Category of aggregate function. Affects execution strategy (shuffle vs map-reduce). */
     public enum Type {
@@ -179,10 +186,18 @@ public enum AggregateFunction {
         return null;
     }
 
-    /** Maps an aggregate function name to an AggregateFunction. Throws if not recognized. */
+    /**
+     * Maps an aggregate function name to an AggregateFunction. Throws if not recognized.
+     *
+     * <p>Lookup is case-insensitive. PPL operator names are inconsistent: some are
+     * registered upper-case ({@code TAKE}, {@code FIRST}) while others use lower-case
+     * ({@code pattern}). Normalising to upper-case here means call sites can pass the
+     * SqlAggFunction's raw name without worrying about which convention the operator
+     * was registered under.
+     */
     public static AggregateFunction fromNameOrError(String name) {
         try {
-            return valueOf(name);
+            return valueOf(name.toUpperCase(java.util.Locale.ROOT));
         } catch (IllegalArgumentException e) {
             throw new IllegalStateException("Unrecognized aggregate function [" + name + "]", e);
         }

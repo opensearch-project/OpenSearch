@@ -378,6 +378,31 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
     };
 
     /**
+     * BRAIN aggregate stub for PPL's {@code patterns ... method=BRAIN} (aggregation mode).
+     * Routes to the custom Rust UDAF in {@code rust/src/udaf/internal_pattern.rs}.
+     *
+     * <p>Return type is supplied explicitly by
+     * {@link PplAggregateCallRewriter#rewrite(RelNode)} (because the PPL declared type
+     * {@code ARRAY<MAP<VARCHAR, ANY>>} contains an {@code ANY} that isthmus cannot
+     * serialize to Substrait) — the rewriter substitutes a concrete
+     * {@code ARRAY<STRUCT<pattern, pattern_count, tokens, sample_logs>>} shape that
+     * matches the Rust UDAF's output Arrow schema.
+     */
+    static final SqlAggFunction LOCAL_INTERNAL_PATTERN_OP = new SqlAggFunction(
+        "internal_pattern",
+        null,
+        SqlKind.OTHER_FUNCTION,
+        ReturnTypes.ARG0,
+        null,
+        OperandTypes.VARIADIC,
+        SqlFunctionCategory.USER_DEFINED_FUNCTION,
+        false,
+        false,
+        Optionality.FORBIDDEN
+    ) {
+    };
+
+    /**
      * Maps aggregate operators to their Substrait extension names so isthmus serializes
      * them through our {@code SimpleExtension} catalog instead of the default Substrait
      * names.
@@ -402,7 +427,8 @@ public class DataFusionFragmentConvertor implements FragmentConvertor {
         FunctionMappings.s(LOCAL_LAST_OP, "last_value"),
         FunctionMappings.s(LOCAL_ARRAY_AGG_OP, "array_agg"),
         FunctionMappings.s(LOCAL_LIST_MERGE_OP, "list_merge"),
-        FunctionMappings.s(LOCAL_LIST_MERGE_DISTINCT_OP, "list_merge_distinct")
+        FunctionMappings.s(LOCAL_LIST_MERGE_DISTINCT_OP, "list_merge_distinct"),
+        FunctionMappings.s(LOCAL_INTERNAL_PATTERN_OP, "internal_pattern")
     );
 
     private final SimpleExtension.ExtensionCollection extensions;
