@@ -202,8 +202,12 @@ pub fn create_global_runtime(
         spill_limit as u64
     };
 
-    // Register spill directory for per-query disk pressure checks
+    // Register spill directory and align per-query disk cap with global spill limit
     crate::memory_guard::set_spill_dir(spill_dir);
+    crate::memory_guard::set_disk_spill_limits(crate::memory_guard::DiskSpillLimits {
+        hard_cap_bytes: effective_spill_limit,
+        ..crate::memory_guard::get_disk_spill_limits()
+    });
 
     let disk_manager = DiskManagerBuilder::default()
         .with_max_temp_directory_size(effective_spill_limit)
