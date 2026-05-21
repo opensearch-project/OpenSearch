@@ -31,6 +31,7 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Module;
 import org.opensearch.common.inject.TypeLiteral;
 import org.opensearch.common.settings.Setting;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.core.action.ActionResponse;
 import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
@@ -42,6 +43,8 @@ import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.PluginComponentRegistry;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.script.ScriptService;
+import org.opensearch.threadpool.ExecutorBuilder;
+import org.opensearch.threadpool.FixedExecutorBuilder;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.client.Client;
 import org.opensearch.watcher.ResourceWatcherService;
@@ -62,6 +65,9 @@ import java.util.function.Supplier;
 public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionPlugin {
 
     private static final Logger logger = LogManager.getLogger(AnalyticsPlugin.class);
+
+    public static final String SCHEDULER_THREAD_POOL_NAME = "analytics_scheduler";
+    private static final int SCHEDULER_QUEUE_SIZE = 200;
 
     public static final Setting<Long> COORDINATOR_BUFFER_LIMIT = Setting.longSetting(
         "analytics.coordinator.buffer_limit",
@@ -105,7 +111,6 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
             .orElseThrow(() -> new IllegalStateException("ArrowAllocatorService not available; arrow-base plugin must be installed"));
 
         operatorTable = aggregateOperatorTables();
-        DefaultEngineContext ctx = new DefaultEngineContext(clusterService, operatorTable);
         CapabilityRegistry capabilityRegistry = new CapabilityRegistry(backEnds, FieldStorageResolver::new);
 
         Map<String, AnalyticsSearchBackendPlugin> backEndsByName = new LinkedHashMap<>();
@@ -113,6 +118,7 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
             backEndsByName.put(be.name(), be);
         }
         searchService = new AnalyticsSearchService(backEndsByName, allocatorService, namedWriteableRegistry);
+        DefaultEngineContext ctx = new DefaultEngineContext(clusterService, operatorTable, backEndsByName);
 
         return List.of(searchService, ctx, capabilityRegistry);
     }
@@ -144,6 +150,16 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
     }
 
     @Override
+    public List<ExecutorBuilder<?>> getExecutorBuilders(Settings settings) {
+        int poolSize = schedulerPoolSize();
+        return List.of(new FixedExecutorBuilder(settings, SCHEDULER_THREAD_POOL_NAME, poolSize, SCHEDULER_QUEUE_SIZE, "analytics"));
+    }
+
+    static int schedulerPoolSize() {
+        return Math.max(2, Runtime.getRuntime().availableProcessors() / 2);
+    }
+
+    @Override
     public void close() {
         if (searchService != null) {
             searchService.close();
@@ -158,11 +174,24 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
     /**
      * Default implementation of {@link EngineContext}.
      */
-    record DefaultEngineContext(ClusterService clusterService, SqlOperatorTable operatorTable) implements EngineContext {
+    record DefaultEngineContext(ClusterService clusterService, SqlOperatorTable operatorTable, Map<
+        String,
+        AnalyticsSearchBackendPlugin> backends) implements EngineContext {
 
         @Override
         public SchemaPlus getSchema() {
             return OpenSearchSchemaBuilder.buildSchema(clusterService.state());
+        }
+
+        @Override
+        public Exception convertException(Exception e) {
+            for (AnalyticsSearchBackendPlugin backend : backends.values()) {
+                Exception converted = backend.convertException(e);
+                if (converted != e) {
+                    return converted;
+                }
+            }
+            return e;
         }
     }
 

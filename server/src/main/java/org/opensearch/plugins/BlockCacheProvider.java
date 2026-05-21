@@ -27,7 +27,7 @@ import java.util.Optional;
  *   <li><b>Construction phase</b> (inside {@code createComponents}): the plugin
  *       creates its {@link BlockCache} instance using the capacity it requested,
  *       then publishes it via {@link #getBlockCache()}. Core wires the instance
- *       into {@code NodeCacheOrchestrator} after {@code createComponents} returns.</li>
+ *       into {@code NodeCacheService} after {@code createComponents} returns.</li>
  * </ol>
  *
  * <p>Returning {@link Optional#empty()} from {@link #getBlockCache()} is equivalent

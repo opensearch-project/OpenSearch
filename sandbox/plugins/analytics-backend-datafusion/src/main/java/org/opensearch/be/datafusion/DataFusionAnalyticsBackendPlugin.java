@@ -386,6 +386,11 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         ScalarFunction.PARSE
     );
 
+    /**
+     * CAST and SAFE_CAST effectively can return anything, so they get registered as everything
+     */
+    private static final Set<ScalarFunction> POLYMORPHIC_RETURN_PROJECT_OPS = Set.of(ScalarFunction.CAST, ScalarFunction.SAFE_CAST);
+
     // PPL state-expanding aggregates (TAKE/FIRST/LAST/LIST/VALUES) route through
     // DataFusionFragmentConvertor's LOCAL_*_OP stubs and the substrait extensions in
     // opensearch_aggregate_functions.yaml.
@@ -517,6 +522,11 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                 }
                 for (ScalarFunction op : MAP_RETURNING_PROJECT_OPS) {
                     caps.add(new ProjectCapability.Scalar(op, Set.of(FieldType.MAP), formats, true));
+                }
+                for (ScalarFunction op : POLYMORPHIC_RETURN_PROJECT_OPS) {
+                    for (FieldType ft : FieldType.values()) {
+                        caps.add(new ProjectCapability.Scalar(op, Set.of(ft), formats, true));
+                    }
                 }
                 return Set.copyOf(caps);
             }
@@ -776,5 +786,9 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
     @Override
     public void setDelegationThreadTracker(org.opensearch.analytics.spi.DelegationThreadTracker tracker) {
         FilterTreeCallbacks.setThreadTracker(tracker);
+    }
+
+    public Exception convertException(Exception original) {
+        return NativeErrorConverter.convert(original);
     }
 }

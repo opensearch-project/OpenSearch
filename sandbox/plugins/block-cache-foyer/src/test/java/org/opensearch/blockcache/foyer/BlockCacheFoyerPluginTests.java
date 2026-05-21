@@ -8,12 +8,21 @@
 
 package org.opensearch.blockcache.foyer;
 
+import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.common.settings.SettingsException;
+import org.opensearch.core.common.unit.ByteSizeUnit;
+import org.opensearch.core.common.unit.ByteSizeValue;
+import org.opensearch.env.Environment;
 import org.opensearch.test.OpenSearchTestCase;
 
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.List;
+
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 /**
  * Unit tests for {@link BlockCacheFoyerPlugin}.
@@ -103,13 +112,29 @@ public class BlockCacheFoyerPluginTests extends OpenSearchTestCase {
     }
 
     public void testDataToCapacityRatioCustom() {
-        Settings s = Settings.builder().put("block_cache.foyer.data_to_cache_ratio", "10.0").build();
+        // Uses cluster.filecache.remote_data_ratio — the canonical server-side setting
+        Settings s = Settings.builder().put("cluster.filecache.remote_data_ratio", "10.0").build();
         assertEquals(10.0, new BlockCacheFoyerPlugin(Settings.EMPTY).dataToCapacityRatio(s), 0.0);
     }
 
     public void testDataToCapacityRatioMinimumOf1() {
-        Settings s = Settings.builder().put("block_cache.foyer.data_to_cache_ratio", "1.0").build();
+        // Uses cluster.filecache.remote_data_ratio — the canonical server-side setting
+        Settings s = Settings.builder().put("cluster.filecache.remote_data_ratio", "1.0").build();
         assertEquals(1.0, new BlockCacheFoyerPlugin(Settings.EMPTY).dataToCapacityRatio(s), 0.0);
+    }
+
+    public void testDataToCapacityRatioUsesFileCacheRatioSetting() {
+        // Explicitly verify cluster.filecache.remote_data_ratio drives the ratio
+        Settings s = Settings.builder().put("cluster.filecache.remote_data_ratio", "7.0").build();
+        assertEquals(7.0, new BlockCacheFoyerPlugin(Settings.EMPTY).dataToCapacityRatio(s), 0.0);
+    }
+
+    public void testDataToCapacityRatioIgnoresRemovedSetting() {
+        // block_cache.foyer.data_to_cache_ratio is removed — the plugin-owned setting list
+        // no longer contains it, so it must not affect dataToCapacityRatio
+        List<Setting<?>> pluginSettings = new BlockCacheFoyerPlugin(Settings.EMPTY).getSettings();
+        boolean hasOldSetting = pluginSettings.stream().anyMatch(s -> s.getKey().equals("block_cache.foyer.data_to_cache_ratio"));
+        assertFalse("Removed setting must not be registered by the plugin", hasOldSetting);
     }
 
     public void testDataToCapacityRatioAtLeastOne() {
@@ -125,14 +150,16 @@ public class BlockCacheFoyerPluginTests extends OpenSearchTestCase {
 
     // ── getSettings ───────────────────────────────────────────────────────────
 
-    public void testGetSettingsRegistersAllFourSettings() {
+    public void testGetSettingsRegistersAllSettings() {
         BlockCacheFoyerPlugin plugin = new BlockCacheFoyerPlugin(Settings.EMPTY);
         List<Setting<?>> settings = plugin.getSettings();
-        assertEquals(4, settings.size());
+        // DATA_TO_CACHE_RATIO_SETTING removed — ratio now read from cluster.filecache.remote_data_ratio
+        assertEquals(5, settings.size());
         assertTrue(settings.contains(FoyerBlockCacheSettings.CACHE_SIZE_SETTING));
         assertTrue(settings.contains(FoyerBlockCacheSettings.BLOCK_SIZE_SETTING));
         assertTrue(settings.contains(FoyerBlockCacheSettings.IO_ENGINE_SETTING));
-        assertTrue(settings.contains(FoyerBlockCacheSettings.DATA_TO_CACHE_RATIO_SETTING));
+        assertTrue(settings.contains(FoyerBlockCacheSettings.KEY_INDEX_SWEEP_INTERVAL_SETTING));
+        assertTrue(settings.contains(FoyerBlockCacheSettings.KEY_INDEX_SWEEP_THRESHOLD_SETTING));
     }
 
     public void testGetSettingsNoNulls() {
@@ -144,5 +171,25 @@ public class BlockCacheFoyerPluginTests extends OpenSearchTestCase {
     public void testGetSettingsIsStable() {
         BlockCacheFoyerPlugin plugin = new BlockCacheFoyerPlugin(Settings.EMPTY);
         assertTrue(plugin.getSettings().containsAll(plugin.getSettings()));
+    }
+
+    public void testCreateComponentsThrowsWhenBlockSizeExceedsDiskBudget() {
+        // block_size (2MB) >= disk budget (1MB) should throw SettingsException
+        Settings settings = Settings.builder()
+            .put(FoyerBlockCacheSettings.BLOCK_SIZE_SETTING.getKey(), new ByteSizeValue(2, ByteSizeUnit.MB))
+            .build();
+        BlockCacheFoyerPlugin plugin = new BlockCacheFoyerPlugin(settings);
+        plugin.setReservedCapacityBytes(new ByteSizeValue(1, ByteSizeUnit.MB).getBytes());
+
+        ClusterService clusterService = mock(ClusterService.class);
+        when(clusterService.getSettings()).thenReturn(settings);
+
+        Environment environment = mock(Environment.class);
+        when(environment.dataFiles()).thenReturn(new Path[] { createTempDir() });
+
+        expectThrows(
+            SettingsException.class,
+            () -> plugin.createComponents(null, clusterService, null, null, null, null, environment, null, null, null, null)
+        );
     }
 }

@@ -132,6 +132,7 @@ public class NodeServiceNativeMemoryTests extends OpenSearchTestCase {
             false, // clusterManagerThrottling
             false, // weightedRoutingStats
             false, // fileCacheStats
+            false, // fileCacheDetailed
             false, // taskCancellation
             false, // searchPipelineStats
             false, // resourceUsageStats
@@ -177,6 +178,7 @@ public class NodeServiceNativeMemoryTests extends OpenSearchTestCase {
             false, // clusterManagerThrottling
             false, // weightedRoutingStats
             false, // fileCacheStats
+            false, // fileCacheDetailed
             false, // taskCancellation
             false, // searchPipelineStats
             false, // resourceUsageStats
@@ -221,6 +223,7 @@ public class NodeServiceNativeMemoryTests extends OpenSearchTestCase {
             false, // clusterManagerThrottling
             false, // weightedRoutingStats
             false, // fileCacheStats
+            false, // fileCacheDetailed
             false, // taskCancellation
             false, // searchPipelineStats
             false, // resourceUsageStats
@@ -248,6 +251,7 @@ public class NodeServiceNativeMemoryTests extends OpenSearchTestCase {
 
         NodeStats nodeStats = nodeService.stats(
             CommonStatsFlags.NONE,
+            false,
             false,
             false,
             false,
@@ -313,6 +317,7 @@ public class NodeServiceNativeMemoryTests extends OpenSearchTestCase {
 
         NodeStats nodeStats = nodeService.stats(
             CommonStatsFlags.NONE,
+            false,
             false,
             false,
             false,
