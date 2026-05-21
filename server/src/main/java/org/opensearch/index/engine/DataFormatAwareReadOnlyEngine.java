@@ -13,7 +13,6 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.SegmentInfos;
-import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.opensearch.OpenSearchException;
 import org.opensearch.common.Nullable;
@@ -114,10 +113,13 @@ public class DataFormatAwareReadOnlyEngine implements Indexer {
     // Metadata
     @Nullable
     private volatile String historyUUID;
-    private final List<ReferenceManager.RefreshListener> internalRefreshListeners;
+
+    private final DataFormatAwareEngine.DataFormatAwareReader reader;
 
     public DataFormatAwareReadOnlyEngine(EngineConfig engineConfig) {
         this.logger = Loggers.getLogger(DataFormatAwareReadOnlyEngine.class, engineConfig.getShardId());
+        assert engineConfig.isReadOnlyReplica() == false : "DataFormatAwareReadOnlyEngine must only be created for primary shards; shard "
+            + engineConfig.getShardId();
         this.engineConfig = engineConfig;
         this.shardId = engineConfig.getShardId();
         this.store = engineConfig.getStore();
@@ -128,7 +130,9 @@ public class DataFormatAwareReadOnlyEngine implements Indexer {
         Committer constructingCommitter = null;
         boolean success = false;
         try {
-            // Create committer (same as NRT — replica mode)
+            // Create committer: isReplica=true opens the index without acquiring write.lock.
+            // LuceneCommitterFactory detects isWarmIndex + !isReadOnlyReplica and returns
+            // ReadOnlyCommitter, which throws on commit() — this engine never writes commits.
             this.committer = constructingCommitter = engineConfig.getCommitterFactory()
                 .getCommitter(new CommitterConfig(engineConfig, () -> {}, true));
             Map<String, String> userData = committer.getLastCommittedData();
@@ -174,7 +178,6 @@ public class DataFormatAwareReadOnlyEngine implements Indexer {
                 committer
             );
             this.catalogSnapshotManager = catalogSnapshotManagerRef;
-            this.internalRefreshListeners = new ArrayList<>(engineConfig.getInternalRefreshListener());
 
             // Initialize sequence number tracking
             final SequenceNumbers.CommitInfo seqNoInfo = SequenceNumbers.loadSeqNoInfoFromLuceneCommit(userData.entrySet());
@@ -196,6 +199,17 @@ public class DataFormatAwareReadOnlyEngine implements Indexer {
             this.historyUUID = userData.get(Engine.HISTORY_UUID_KEY);
             if (this.historyUUID == null) {
                 this.historyUUID = UUIDs.randomBase64UUID();
+            }
+
+            try (GatedCloseable<CatalogSnapshot> initSnapshot = catalogSnapshotManagerRef.acquireSnapshot()) {
+                Map<DataFormat, Object> readers = new HashMap<>();
+                for (Map.Entry<DataFormat, EngineReaderManager<?>> entry : readerManagersRef.entrySet()) {
+                    Object r = entry.getValue().getReader(initSnapshot.get());
+                    if (r != null) {
+                        readers.put(entry.getKey(), r);
+                    }
+                }
+                this.reader = new DataFormatAwareEngine.DataFormatAwareReader(null, Map.copyOf(readers));
             }
 
             success = true;
@@ -234,6 +248,7 @@ public class DataFormatAwareReadOnlyEngine implements Indexer {
 
     @Override
     public boolean isReplicaIndexer() {
+        // Warm primaries use this engine; warm replicas use DataFormatAwareNRTReplicationEngine (which returns true).
         return false;
     }
 
@@ -253,21 +268,7 @@ public class DataFormatAwareReadOnlyEngine implements Indexer {
     public GatedCloseable<Reader> acquireReader() throws IOException {
         ensureOpen();
         GatedCloseable<CatalogSnapshot> snapshotRef = catalogSnapshotManager.acquireSnapshot();
-        try {
-            CatalogSnapshot catalogSnapshot = snapshotRef.get();
-            Map<DataFormat, Object> readers = new HashMap<>();
-            for (Map.Entry<DataFormat, EngineReaderManager<?>> entry : readerManagers.entrySet()) {
-                Object reader = entry.getValue().getReader(catalogSnapshot);
-                if (reader != null) {
-                    readers.put(entry.getKey(), reader);
-                }
-            }
-            DataFormatAwareEngine.DataFormatAwareReader reader = new DataFormatAwareEngine.DataFormatAwareReader(snapshotRef, readers);
-            return new GatedCloseable<>(reader, reader::close);
-        } catch (Exception e) {
-            snapshotRef.close();
-            throw e;
-        }
+        return new GatedCloseable<>(reader, snapshotRef::close);
     }
 
     // ---- IndexerEngineOperations (Task 3 — write rejection) ----
@@ -319,31 +320,6 @@ public class DataFormatAwareReadOnlyEngine implements Indexer {
     }
 
     // ---- IndexerLifecycleOperations (Tasks 4, 7) ----
-
-    @Override
-    public void finalizeReplication(CatalogSnapshot incoming) throws IOException {
-        try (ReleasableLock lock = writeLock.acquire()) {
-            ensureOpen();
-            final long maxSeqNo = Long.parseLong(incoming.getUserData().get(SequenceNumbers.MAX_SEQ_NO));
-
-            // Notify refresh listeners before applying snapshot (same as NRT)
-            notifyRefreshListenersBefore();
-            boolean success = false;
-            try {
-                catalogSnapshotManager.applyReplicationSnapshot(incoming);
-                success = true;
-            } finally {
-                notifyRefreshListenersAfter(success);
-            }
-
-            final String incomingHistoryUUID = incoming.getUserData().get(Engine.HISTORY_UUID_KEY);
-            if (incomingHistoryUUID != null) {
-                this.historyUUID = incomingHistoryUUID;
-            }
-
-            localCheckpointTracker.fastForwardProcessedSeqNo(maxSeqNo);
-        }
-    }
 
     @Override
     public void refresh(String source) throws EngineException {
@@ -696,18 +672,6 @@ public class DataFormatAwareReadOnlyEngine implements Indexer {
             closedLatch.await();
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-        }
-    }
-
-    private void notifyRefreshListenersBefore() throws IOException {
-        for (ReferenceManager.RefreshListener listener : internalRefreshListeners) {
-            listener.beforeRefresh();
-        }
-    }
-
-    private void notifyRefreshListenersAfter(boolean didRefresh) throws IOException {
-        for (ReferenceManager.RefreshListener listener : internalRefreshListeners) {
-            listener.afterRefresh(didRefresh);
         }
     }
 

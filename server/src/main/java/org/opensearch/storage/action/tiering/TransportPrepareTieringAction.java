@@ -149,6 +149,8 @@ public class TransportPrepareTieringAction extends TransportBroadcastByNodeActio
     private void syncAndFlush(IndexShard indexShard, ShardRouting shardRouting) throws IOException {
         logger.trace("Syncing and flushing shard [{}]", shardRouting.shardId());
         indexShard.sync();
+        // Flush before refresh: committed segments_N must exist before waitForRemoteStoreSync uploads them.
+        // Refreshing first would expose segments not yet committed — the remote store sync would miss them.
         indexShard.flush(new FlushRequest().force(true).waitIfOngoing(true));
         indexShard.refresh("prepare_tiering");
     }

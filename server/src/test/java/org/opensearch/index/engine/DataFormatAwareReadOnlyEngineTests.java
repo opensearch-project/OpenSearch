@@ -394,92 +394,12 @@ public class DataFormatAwareReadOnlyEngineTests extends OpenSearchTestCase {
         }
     }
 
-    // ---------- Replication and Checkpoint Tests ----------
-
-    public void testFinalizeReplicationAdvancesCheckpointAndHistoryUUID() throws IOException {
-        try (DataFormatAwareReadOnlyEngine engine = createReadOnlyEngine()) {
-            String newHistoryUUID = UUID.randomUUID().toString();
-            long maxSeqNo = randomLongBetween(1, 100_000);
-            DataformatAwareCatalogSnapshot incoming = buildReplicationSnapshot(1L, 1L, maxSeqNo, newHistoryUUID);
-
-            engine.finalizeReplication(incoming);
-
-            assertEquals("processed checkpoint must be fast-forwarded", maxSeqNo, engine.getProcessedLocalCheckpoint());
-            assertEquals("historyUUID must reflect the incoming snapshot", newHistoryUUID, engine.getHistoryUUID());
-        }
-    }
-
-    public void testFinalizeReplicationWithoutHistoryUUIDPreservesExisting() throws IOException {
-        try (DataFormatAwareReadOnlyEngine engine = createReadOnlyEngine()) {
-            String originalUUID = engine.getHistoryUUID();
-            assertNotNull("fresh engine must have a historyUUID", originalUUID);
-
-            DataformatAwareCatalogSnapshot noUUID = buildReplicationSnapshot(1L, 1L, 5L, null);
-            engine.finalizeReplication(noUUID);
-
-            assertEquals("historyUUID must be preserved when incoming has none", originalUUID, engine.getHistoryUUID());
-        }
-    }
-
-    public void testFinalizeReplicationUpdatesSnapshotManager() throws IOException {
-        try (DataFormatAwareReadOnlyEngine engine = createReadOnlyEngine()) {
-            long maxSeqNo = randomLongBetween(1, 100_000);
-            DataformatAwareCatalogSnapshot incoming = buildReplicationSnapshot(1L, 1L, maxSeqNo, UUID.randomUUID().toString());
-
-            engine.finalizeReplication(incoming);
-
-            try (
-                org.opensearch.common.concurrent.GatedCloseable<CatalogSnapshot> ref = engine.getCatalogSnapshotManager().acquireSnapshot()
-            ) {
-                assertEquals("latest snapshot ID must match incoming", 1L, ref.get().getId());
-            }
-        }
-    }
-
-    public void testFinalizeReplicationOnClosedEngineThrows() throws IOException {
-        DataFormatAwareReadOnlyEngine engine = createReadOnlyEngine();
-        engine.close();
-        DataformatAwareCatalogSnapshot incoming = buildReplicationSnapshot(1L, 1L, 5L, UUID.randomUUID().toString());
-        expectThrows(AlreadyClosedException.class, () -> engine.finalizeReplication(incoming));
-    }
-
-    public void testCheckpointConsistencyAfterMultipleReplications() throws IOException {
-        try (DataFormatAwareReadOnlyEngine engine = createReadOnlyEngine()) {
-            int numReplications = randomIntBetween(2, 10);
-            long gen = 0;
-            for (int i = 0; i < numReplications; i++) {
-                gen++;
-                long maxSeqNo = randomLongBetween(0, Long.MAX_VALUE / 2);
-                DataformatAwareCatalogSnapshot incoming = buildReplicationSnapshot(gen, gen, maxSeqNo, UUID.randomUUID().toString());
-                engine.finalizeReplication(incoming);
-
-                // Invariant: persisted == processed
-                assertEquals(
-                    "persisted must equal processed after replication",
-                    engine.getProcessedLocalCheckpoint(),
-                    engine.getPersistedLocalCheckpoint()
-                );
-                // Invariant: maxSeqNo >= localCheckpoint
-                long globalCheckpoint = SequenceNumbers.NO_OPS_PERFORMED;
-                assertTrue(
-                    "maxSeqNo must be >= localCheckpoint",
-                    engine.getSeqNoStats(globalCheckpoint).getMaxSeqNo() >= engine.getProcessedLocalCheckpoint()
-                );
-            }
-        }
-    }
+    // ---------- Checkpoint Tests ----------
 
     // ---------- Translog Tests ----------
 
     public void testTranslogSnapshotIsAlwaysEmpty() throws IOException {
         try (DataFormatAwareReadOnlyEngine engine = createReadOnlyEngine()) {
-            assertEquals(0, engine.translogManager().getTranslogStats().getUncommittedOperations());
-            assertEquals(0L, engine.translogManager().getTranslogStats().getUncommittedSizeInBytes());
-
-            // Even after replication, translog remains empty
-            DataformatAwareCatalogSnapshot incoming = buildReplicationSnapshot(1L, 1L, randomLongBetween(1, 100_000), null);
-            engine.finalizeReplication(incoming);
-
             assertEquals(0, engine.translogManager().getTranslogStats().getUncommittedOperations());
             assertEquals(0L, engine.translogManager().getTranslogStats().getUncommittedSizeInBytes());
         }
@@ -489,30 +409,21 @@ public class DataFormatAwareReadOnlyEngineTests extends OpenSearchTestCase {
 
     public void testAcquireSafeCatalogSnapshotPreventsCleanupWhileHeld() throws IOException {
         try (DataFormatAwareReadOnlyEngine engine = createReadOnlyEngine()) {
-            // Acquire a snapshot reference
+            // Acquire a snapshot reference and verify it is non-null
             org.opensearch.common.concurrent.GatedCloseable<CatalogSnapshot> heldRef = engine.acquireSafeCatalogSnapshot();
-            CatalogSnapshot heldSnapshot = heldRef.get();
-            assertNotNull(heldSnapshot);
-            long heldId = heldSnapshot.getId();
+            assertNotNull(heldRef.get());
+            long heldId = heldRef.get().getId();
 
-            // Apply a new replication snapshot (advancing the engine state)
-            DataformatAwareCatalogSnapshot incoming = buildReplicationSnapshot(1L, 1L, 10L, UUID.randomUUID().toString());
-            engine.finalizeReplication(incoming);
-
-            // Held snapshot is still accessible
-            assertEquals("held snapshot ID must remain unchanged", heldId, heldRef.get().getId());
-
-            // Engine's current snapshot is the new one
+            // Snapshot ID is stable (warm primary is static — no new snapshots arrive)
             try (org.opensearch.common.concurrent.GatedCloseable<CatalogSnapshot> currentRef = engine.acquireSafeCatalogSnapshot()) {
-                assertEquals("engine's current snapshot must be the new one", 1L, currentRef.get().getId());
+                assertEquals("snapshot ID must remain stable", heldId, currentRef.get().getId());
             }
 
-            // Release the held reference
             heldRef.close();
 
-            // Engine's current snapshot is still the new one
+            // After release, snapshot is still accessible and stable
             try (org.opensearch.common.concurrent.GatedCloseable<CatalogSnapshot> afterRef = engine.acquireSafeCatalogSnapshot()) {
-                assertEquals("after release, engine snapshot must still be the new one", 1L, afterRef.get().getId());
+                assertEquals("snapshot ID must be stable after ref release", heldId, afterRef.get().getId());
             }
         }
     }

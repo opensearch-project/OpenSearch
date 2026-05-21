@@ -2634,16 +2634,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             if (directory.readLatestMetadataFile() != null) {
                 Collection<String> uploadFiles = directory.getSegmentsUploadedToRemoteStore().keySet();
                 Set<String> localFiles;
-                if (indexSettings.isPluggableDataFormatEnabled()) {
-                    // DFA indices: use CatalogSnapshot to get the file list
-                    try (GatedCloseable<CatalogSnapshot> catalogSnapshotRef = getCatalogSnapshot()) {
-                        localFiles = new HashSet<>(catalogSnapshotRef.get().getFiles(true));
-                    }
-                } else {
-                    // Standard indices: use SegmentInfos to get the file list
-                    try (GatedCloseable<SegmentInfos> segmentInfosGatedCloseable = getSegmentInfosSnapshot()) {
-                        localFiles = new HashSet<>(segmentInfosGatedCloseable.get().files(true));
-                    }
+                try (GatedCloseable<CatalogSnapshot> catalogSnapshotRef = getCatalogSnapshot()) {
+                    localFiles = new HashSet<>(catalogSnapshotRef.get().getFiles(true));
                 }
                 // verifying that all files except EXCLUDE_FILES are uploaded to the remote
                 localFiles.removeAll(RemoteStoreRefreshListener.EXCLUDE_FILES);

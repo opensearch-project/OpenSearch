@@ -18,6 +18,7 @@ import org.opensearch.cluster.routing.RoutingTable;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.ShardRoutingState;
 import org.opensearch.cluster.routing.TestShardRouting;
+import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.action.ActionListener;
@@ -237,5 +238,37 @@ public class TransportPrepareTieringActionTests extends OpenSearchTestCase {
             count++;
         }
         assertEquals("Should have exactly 1 primary shard", 1, count);
+    }
+
+    // ── Wire serde tests ──────────────────────────────────────────────────────
+
+    /**
+     * Verifies that PrepareTieringRequest round-trips correctly over the wire (writeTo → StreamInput).
+     * This ensures the request is not corrupted when sent from cluster-manager to shard nodes.
+     */
+    public void testPrepareTieringRequest_SerializationRoundTrip() throws IOException {
+        PrepareTieringRequest original = new PrepareTieringRequest("my-index");
+
+        BytesStreamOutput out = new BytesStreamOutput();
+        original.writeTo(out);
+
+        PrepareTieringRequest deserialized = new PrepareTieringRequest(out.bytes().streamInput());
+
+        // BroadcastRequest only wire-serializes indices; timeout is a local routing hint not sent over the wire.
+        assertArrayEquals(original.indices(), deserialized.indices());
+    }
+
+    /**
+     * Verifies round-trip with no indices (broadcast to all).
+     */
+    public void testPrepareTieringRequest_SerializationRoundTrip_NoIndices() throws IOException {
+        PrepareTieringRequest original = new PrepareTieringRequest();
+
+        BytesStreamOutput out = new BytesStreamOutput();
+        original.writeTo(out);
+
+        PrepareTieringRequest deserialized = new PrepareTieringRequest(out.bytes().streamInput());
+
+        assertArrayEquals(original.indices(), deserialized.indices());
     }
 }
