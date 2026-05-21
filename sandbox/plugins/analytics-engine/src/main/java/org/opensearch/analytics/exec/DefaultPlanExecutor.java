@@ -79,6 +79,7 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
     private final TaskManager taskManager;
     private final NodeClient client;
     private final ArrowNativeAllocator nativeAllocator;
+    private final EngineContext engineContext;
     // Pre-existing leak: DefaultPlanExecutor is Guice-instantiated and not closed by the
     // framework, so coordinatorAllocator leaks on node shutdown. ArrowNativeAllocator.close()
     // will warn about the outstanding child. Fix would require either (a) making
@@ -111,6 +112,7 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
         this.client = client;
         this.scheduler = scheduler;
         this.nativeAllocator = nativeAllocator;
+        this.engineContext = engineContext;
         // Source the coordinator allocator from the framework's QUERY pool so coordinator-side
         // allocations (held shard responses, intermediate batches during reduce) count against
         // parquet.native.pool.query.max alongside the data-node-side per-fragment allocators in
@@ -132,11 +134,17 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
         // executor so the calling thread — which may be a transport thread — is freed
         // immediately. The scheduler then drives execution asynchronously and fires
         // {@code listener} once the query terminates; nothing on this path blocks.
+        // The listener is wrapped to convert backend-specific exceptions (e.g., native memory
+        // errors arriving as StreamException from gRPC) into proper OpenSearch exception types.
+        ActionListener<Iterable<Object[]>> convertingListener = ActionListener.wrap(
+            listener::onResponse,
+            e -> listener.onFailure(e instanceof Exception ex ? engineContext.convertException(ex) : e)
+        );
         searchExecutor.execute(() -> {
             try {
-                executeInternal(logicalFragment, listener);
+                executeInternal(logicalFragment, convertingListener);
             } catch (Exception e) {
-                listener.onFailure(e);
+                convertingListener.onFailure(e);
             } catch (AssertionError e) {
                 // Calcite's Litmus.THROW (used by RelOptUtil.eq, RexUtil.isFlat, Project.isValid,
                 // RexChecker) throws AssertionError directly via Java code rather than via the
@@ -144,7 +152,9 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
                 // executor, OpenSearchUncaughtExceptionHandler exits the cluster JVM. Convert to
                 // an IllegalStateException so the query path treats it as a per-query failure
                 // (HTTP 500 with a bucketable message) instead of cluster-fatal.
-                listener.onFailure(new IllegalStateException("Analytics-engine executor rejected the plan: " + e.getMessage(), e));
+                convertingListener.onFailure(
+                    new IllegalStateException("Analytics-engine executor rejected the plan: " + e.getMessage(), e)
+                );
             }
         });
     }
