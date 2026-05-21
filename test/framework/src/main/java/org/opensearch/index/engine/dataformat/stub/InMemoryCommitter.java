@@ -10,7 +10,6 @@ package org.opensearch.index.engine.dataformat.stub;
 
 import org.apache.lucene.index.SegmentInfos;
 import org.opensearch.index.engine.CommitStats;
-import org.opensearch.index.engine.SafeCommitInfo;
 import org.opensearch.index.engine.exec.commit.Committer;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshotManager;
@@ -67,11 +66,6 @@ public class InMemoryCommitter implements Committer {
         } catch (IOException e) {
             return null;
         }
-    }
-
-    @Override
-    public SafeCommitInfo getSafeCommitInfo() {
-        return SafeCommitInfo.EMPTY;
     }
 
     @Override

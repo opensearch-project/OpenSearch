@@ -529,7 +529,7 @@ public class DataFormatAwareNRTReplicationEngine implements Indexer {
     @Override
     public GatedCloseable<CatalogSnapshot> acquireSafeCatalogSnapshot() throws EngineException {
         ensureOpen();
-        return catalogSnapshotManager.acquireSnapshot();
+        return acquireLastCommittedSnapshot(false);
     }
 
     @Override
@@ -544,7 +544,7 @@ public class DataFormatAwareNRTReplicationEngine implements Indexer {
     @Override
     public SafeCommitInfo getSafeCommitInfo() {
         ensureOpen();
-        try (GatedCloseable<CatalogSnapshot> snapshot = catalogSnapshotManager.acquireSnapshot()) {
+        try (GatedCloseable<CatalogSnapshot> snapshot = catalogSnapshotManager.acquireCommittedSnapshot(true)) {
             return new SafeCommitInfo(localCheckpointTracker.getProcessedCheckpoint(), (int) snapshot.get().getNumDocs());
         } catch (IOException e) {
             throw new UncheckedIOException(e);
@@ -991,6 +991,13 @@ public class DataFormatAwareNRTReplicationEngine implements Indexer {
             final CatalogSnapshot snapshot = lastSnapshot;
             acquiredSnapshots.add(snapshot);
             return new GatedCloseable<>(snapshot, () -> { acquiredSnapshots.remove(snapshot); });
+        }
+
+        @Override
+        public SafeCommitInfo getSafeCommitInfo() {
+            // Replicas track safe commit info on the engine itself (see DataFormatAwareNRTReplicationEngine#getSafeCommitInfo);
+            // this policy is not used to compute it.
+            return SafeCommitInfo.EMPTY;
         }
 
         /**
