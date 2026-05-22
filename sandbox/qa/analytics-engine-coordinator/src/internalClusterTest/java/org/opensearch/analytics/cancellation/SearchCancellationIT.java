@@ -119,12 +119,6 @@ public class SearchCancellationIT extends OpenSearchIntegTestCase {
             .put(FeatureFlags.PLUGGABLE_DATAFORMAT_EXPERIMENTAL_FLAG, true)
             .put(FeatureFlags.STREAM_TRANSPORT, true)
             .put("arrow.memory.debug.allocator", true)
-            // node.processors=4 → searchPoolSize=7. The streaming reduce path needs the
-            // PPL-wait, reduce-drain, and local-shard fragment threads simultaneously on
-            // the coordinator. InternalTestCluster's default randomizes processors in
-            // 1..min(4, available); a 1 picks a 2-thread SEARCH pool and triggers the
-            // deadlock tracked in #21776. Pinning to 4 sidesteps that for this IT.
-            .put(org.opensearch.common.util.concurrent.OpenSearchExecutors.NODE_PROCESSORS_SETTING.getKey(), 4)
             .build();
     }
 

@@ -8,6 +8,8 @@
 
 package org.opensearch.analytics.exec.stage.coordinator;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.analytics.backend.ExchangeSource;
 import org.opensearch.analytics.exec.QueryContext;
 import org.opensearch.analytics.exec.stage.AbstractStageExecution;
@@ -36,6 +38,8 @@ import java.util.concurrent.Executor;
  * @opensearch.internal
  */
 public final class ReduceStageExecution extends AbstractStageExecution implements SinkProvidingStageExecution {
+
+    private static final Logger logger = LogManager.getLogger(ReduceStageExecution.class);
 
     private final ReducingExchangeSink backendSink;
     private final ExchangeSink downstream;
@@ -96,9 +100,12 @@ public final class ReduceStageExecution extends AbstractStageExecution implement
     protected void onTerminalTransition(State terminal) {
         if (terminal == State.CANCELLED || terminal == State.FAILED) {
             if (backendSink instanceof CancellableExchangeSink cancellable) {
+                logger.warn("[ReduceStageExecution] stage {} terminal={}, firing cancellable.cancel()", getStageId(), terminal);
                 try {
                     cancellable.cancel();
-                } catch (Exception ignore) {}
+                } catch (Exception e) {
+                    logger.warn("[ReduceStageExecution] cancel() threw for stage {}", getStageId(), e);
+                }
             }
         }
         try {
