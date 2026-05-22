@@ -689,12 +689,15 @@ public class StreamstatsCommandIT extends AnalyticsRestTestCase {
     }
 
     /** sql IT: testStreamstatsReset. {@code reset_before} / {@code reset_after} use
-     *  {@code buildStreamWindowJoinPlan} — Correlate + segment-id filter, not RexOver. */
+     *  {@code buildStreamWindowJoinPlan} — Correlate + segment-id filter, not RexOver.
+     *  Ryan's PR #21795 added subquery-remove + decorrelate to PlannerImpl; this test
+     *  is flipped to positive to observe whether streamstats-reset's directly-built
+     *  LogicalCorrelate falls through that path correctly. */
     public void testStreamstatsReset() throws IOException {
-        assertErrorAny(
-            "source=" + DATASET.indexName
-                + " | streamstats reset_before=(int0 > 5) avg(int0) as avg by str0"
+        Map<String, Object> response = executePpl(
+            "source=" + DATASET.indexName + " | sort key | streamstats reset_before=(int0 > 5) avg(int0) as avg by str0 | fields key, str0, int0, avg"
         );
+        assertNotNull(response);
     }
 
     /** sql IT: testStreamstatsResetWithNull. */

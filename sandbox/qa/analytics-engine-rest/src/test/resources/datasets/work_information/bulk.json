@@ -1,0 +1,11 @@
+{"index":{"_id":"1"}}
+{"uid":1000,"name":"Jake","department":"IT","occupation":"Engineer"}
+{"index":{"_id":"2"}}
+{"uid":1002,"name":"John","department":"DATA","occupation":"Scientist"}
+{"index":{"_id":"3"}}
+{"uid":1003,"name":"David","department":"HR","occupation":"Doctor"}
+{"index":{"_id":"4"}}
+{"uid":1005,"name":"Jane","department":"DATA","occupation":"Engineer"}
+{"index":{"_id":"5"}}
+{"uid":1006,"name":"Tom","department":"SALES","occupation":"Artist"}
+
