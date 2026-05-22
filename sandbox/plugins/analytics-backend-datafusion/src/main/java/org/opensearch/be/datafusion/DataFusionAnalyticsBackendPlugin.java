@@ -96,7 +96,12 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         ScalarFunction.DIVIDE,
         ScalarFunction.MOD,
         ScalarFunction.EARLIEST,
-        ScalarFunction.LATEST
+        ScalarFunction.LATEST,
+        // CIDRMATCH(<varbinary col>, <cidr literal>) — CidrMatchFunctionAdapter
+        // rewrites this to a byte-range AND before substrait conversion, so the
+        // call never reaches DataFusion intact. Registering it as filter-capable
+        // lets OpenSearchFilterRule accept the predicate up front.
+        ScalarFunction.CIDRMATCH
     );
 
     // Project-side scalar functions DataFusion can evaluate natively. Each entry corresponds to a
@@ -150,6 +155,11 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
         ScalarFunction.IN,
         ScalarFunction.LIKE,
         ScalarFunction.REGEXP_CONTAINS,
+        // CIDRMATCH inside `eval` — the adapter folds literal-only calls to a
+        // BOOLEAN literal at plan time, so the project never holds a runtime
+        // CIDRMATCH call. Registering it as project-capable lets the planner
+        // accept the eval column.
+        ScalarFunction.CIDRMATCH,
         ScalarFunction.REPLACE,
         ScalarFunction.REGEXP_REPLACE,
         ScalarFunction.TRANSLATE,
@@ -568,6 +578,7 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
                     Map.entry(ScalarFunction.MVZIP, new MvzipAdapter()),
                     Map.entry(ScalarFunction.MVAPPEND, new MvappendAdapter()),
                     Map.entry(ScalarFunction.BINARY, new BinaryFunctionAdapter()),
+                    Map.entry(ScalarFunction.CIDRMATCH, new CidrMatchFunctionAdapter()),
                     Map.entry(ScalarFunction.COALESCE, new CoalesceAdapter()),
                     Map.entry(ScalarFunction.CONCAT, new ConcatFunctionAdapter()),
                     Map.entry(ScalarFunction.CONVERT_TZ, new ConvertTzAdapter()),
