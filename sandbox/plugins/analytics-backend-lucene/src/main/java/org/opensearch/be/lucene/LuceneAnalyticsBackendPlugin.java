@@ -155,6 +155,10 @@ public class LuceneAnalyticsBackendPlugin implements AnalyticsSearchBackendPlugi
         IndexReaderProvider.Reader reader = shardCtx.getReader();
         LuceneReader luceneReader = reader.getReader(plugin.getDataFormat(), LuceneReader.class);
         IndexSearcher searcher = new IndexSearcher(luceneReader.directoryReader());
+        if (plugin.getIndicesQueryCache() != null) {
+            searcher.setQueryCache(plugin.getIndicesQueryCache());
+            searcher.setQueryCachingPolicy(plugin.getQueryCachingPolicy());
+        }
         QueryShardContext queryShardContext = buildMinimalQueryShardContext(shardCtx, searcher);
         BooleanSupplier isCancelled = () -> {
             Task task = shardCtx.getTask();
