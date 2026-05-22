@@ -45,7 +45,6 @@ import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.search.aggregations.bucket.BucketsAggregator;
-import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.wlm.WorkloadGroupSearchSettings;
 import org.opensearch.wlm.WorkloadGroupService;
 
@@ -74,7 +73,6 @@ public class MultiBucketConsumerService {
     );
 
     private final CircuitBreaker breaker;
-    private final ThreadPool threadPool;
     private final WorkloadGroupService workloadGroupService;
 
     private volatile int maxBucket;
@@ -83,11 +81,9 @@ public class MultiBucketConsumerService {
         ClusterService clusterService,
         Settings settings,
         CircuitBreaker breaker,
-        ThreadPool threadPool,
         WorkloadGroupService workloadGroupService
     ) {
         this.breaker = breaker;
-        this.threadPool = threadPool;
         this.workloadGroupService = workloadGroupService;
         this.maxBucket = MAX_BUCKET_SETTING.get(settings);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(MAX_BUCKET_SETTING, this::setMaxBucket);
@@ -111,7 +107,7 @@ public class MultiBucketConsumerService {
             if (workloadGroupService == null) {
                 return maxBucket;
             }
-            WorkloadGroup workloadGroup = workloadGroupService.resolveFromThreadContext(threadPool.getThreadContext());
+            WorkloadGroup workloadGroup = workloadGroupService.resolveFromThreadContext();
             if (workloadGroup == null) {
                 return maxBucket;
             }

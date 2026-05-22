@@ -546,7 +546,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             clusterService,
             settings,
             circuitBreakerService.getBreaker(CircuitBreaker.REQUEST),
-            threadPool,
             workloadGroupService
         );
         this.indexSearcherExecutor = indexSearcherExecutor;

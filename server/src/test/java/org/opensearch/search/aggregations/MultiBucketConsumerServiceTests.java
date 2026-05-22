@@ -56,7 +56,6 @@ public class MultiBucketConsumerServiceTests extends OpenSearchTestCase {
             clusterService,
             Settings.builder().put(MultiBucketConsumerService.MAX_BUCKET_SETTING.getKey(), 100).build(),
             breaker,
-            threadPool,
             workloadGroupService
         );
         // No WORKLOAD_GROUP_ID_HEADER in thread context
@@ -68,11 +67,10 @@ public class MultiBucketConsumerServiceTests extends OpenSearchTestCase {
             clusterService,
             Settings.builder().put(MultiBucketConsumerService.MAX_BUCKET_SETTING.getKey(), 100).build(),
             breaker,
-            threadPool,
             workloadGroupService
         );
         threadPool.getThreadContext().putHeader(WorkloadGroupTask.WORKLOAD_GROUP_ID_HEADER, "missing-id");
-        when(workloadGroupService.resolveFromThreadContext(threadPool.getThreadContext())).thenReturn(null);
+        when(workloadGroupService.resolveFromThreadContext()).thenReturn(null);
         assertEquals(100, svc.resolveMaxBuckets());
     }
 
@@ -81,12 +79,11 @@ public class MultiBucketConsumerServiceTests extends OpenSearchTestCase {
             clusterService,
             Settings.builder().put(MultiBucketConsumerService.MAX_BUCKET_SETTING.getKey(), 100).build(),
             breaker,
-            threadPool,
             workloadGroupService
         );
         WorkloadGroup wg = createWorkloadGroup("wg-id", Settings.builder().put("search.default_search_timeout", "30s").build());
         threadPool.getThreadContext().putHeader(WorkloadGroupTask.WORKLOAD_GROUP_ID_HEADER, "wg-id");
-        when(workloadGroupService.resolveFromThreadContext(threadPool.getThreadContext())).thenReturn(wg);
+        when(workloadGroupService.resolveFromThreadContext()).thenReturn(wg);
         assertEquals(100, svc.resolveMaxBuckets());
     }
 
@@ -95,12 +92,11 @@ public class MultiBucketConsumerServiceTests extends OpenSearchTestCase {
             clusterService,
             Settings.builder().put(MultiBucketConsumerService.MAX_BUCKET_SETTING.getKey(), 100).build(),
             breaker,
-            threadPool,
             workloadGroupService
         );
         WorkloadGroup wg = createWorkloadGroup("wg-id", Settings.builder().put("search.max_buckets", "42").build());
         threadPool.getThreadContext().putHeader(WorkloadGroupTask.WORKLOAD_GROUP_ID_HEADER, "wg-id");
-        when(workloadGroupService.resolveFromThreadContext(threadPool.getThreadContext())).thenReturn(wg);
+        when(workloadGroupService.resolveFromThreadContext()).thenReturn(wg);
         assertEquals(42, svc.resolveMaxBuckets());
     }
 
@@ -109,12 +105,11 @@ public class MultiBucketConsumerServiceTests extends OpenSearchTestCase {
             clusterService,
             Settings.builder().put(MultiBucketConsumerService.MAX_BUCKET_SETTING.getKey(), 100).build(),
             breaker,
-            threadPool,
             workloadGroupService
         );
         WorkloadGroup wg = createWorkloadGroup("wg-id", Settings.builder().put("search.max_buckets", "10000").build());
         threadPool.getThreadContext().putHeader(WorkloadGroupTask.WORKLOAD_GROUP_ID_HEADER, "wg-id");
-        when(workloadGroupService.resolveFromThreadContext(threadPool.getThreadContext())).thenReturn(wg);
+        when(workloadGroupService.resolveFromThreadContext()).thenReturn(wg);
         assertEquals(10000, svc.resolveMaxBuckets());
     }
 
@@ -123,7 +118,6 @@ public class MultiBucketConsumerServiceTests extends OpenSearchTestCase {
             clusterService,
             Settings.builder().put(MultiBucketConsumerService.MAX_BUCKET_SETTING.getKey(), 100).build(),
             breaker,
-            threadPool,
             null
         );
         threadPool.getThreadContext().putHeader(WorkloadGroupTask.WORKLOAD_GROUP_ID_HEADER, "wg-id");
@@ -135,11 +129,10 @@ public class MultiBucketConsumerServiceTests extends OpenSearchTestCase {
             clusterService,
             Settings.builder().put(MultiBucketConsumerService.MAX_BUCKET_SETTING.getKey(), 100).build(),
             breaker,
-            threadPool,
             workloadGroupService
         );
         threadPool.getThreadContext().putHeader(WorkloadGroupTask.WORKLOAD_GROUP_ID_HEADER, "wg-id");
-        when(workloadGroupService.resolveFromThreadContext(threadPool.getThreadContext())).thenThrow(new RuntimeException("boom"));
+        when(workloadGroupService.resolveFromThreadContext()).thenThrow(new RuntimeException("boom"));
         assertEquals(100, svc.resolveMaxBuckets());
     }
 
@@ -150,7 +143,6 @@ public class MultiBucketConsumerServiceTests extends OpenSearchTestCase {
             clusterService,
             Settings.builder().put(MultiBucketConsumerService.MAX_BUCKET_SETTING.getKey(), 100).build(),
             breaker,
-            threadPool,
             workloadGroupService
         );
         WorkloadGroup wg = createWorkloadGroup(
@@ -158,7 +150,7 @@ public class MultiBucketConsumerServiceTests extends OpenSearchTestCase {
             Settings.builder().put("search.max_buckets", "42").put("override_request_values", "false").build()
         );
         threadPool.getThreadContext().putHeader(WorkloadGroupTask.WORKLOAD_GROUP_ID_HEADER, "wg-id");
-        when(workloadGroupService.resolveFromThreadContext(threadPool.getThreadContext())).thenReturn(wg);
+        when(workloadGroupService.resolveFromThreadContext()).thenReturn(wg);
         assertEquals(42, svc.resolveMaxBuckets());
     }
 
@@ -169,7 +161,6 @@ public class MultiBucketConsumerServiceTests extends OpenSearchTestCase {
             clusterService,
             Settings.builder().put(MultiBucketConsumerService.MAX_BUCKET_SETTING.getKey(), 100).build(),
             breaker,
-            threadPool,
             workloadGroupService
         );
         WorkloadGroup wg = createWorkloadGroup(
@@ -177,7 +168,7 @@ public class MultiBucketConsumerServiceTests extends OpenSearchTestCase {
             Settings.builder().put("search.max_buckets", "42").put("override_request_values", "true").build()
         );
         threadPool.getThreadContext().putHeader(WorkloadGroupTask.WORKLOAD_GROUP_ID_HEADER, "wg-id");
-        when(workloadGroupService.resolveFromThreadContext(threadPool.getThreadContext())).thenReturn(wg);
+        when(workloadGroupService.resolveFromThreadContext()).thenReturn(wg);
         assertEquals(42, svc.resolveMaxBuckets());
     }
 
@@ -186,12 +177,11 @@ public class MultiBucketConsumerServiceTests extends OpenSearchTestCase {
             clusterService,
             Settings.builder().put(MultiBucketConsumerService.MAX_BUCKET_SETTING.getKey(), 100).build(),
             breaker,
-            threadPool,
             workloadGroupService
         );
         WorkloadGroup wg = createWorkloadGroup("wg-id", Settings.builder().put("search.max_buckets", "7").build());
         threadPool.getThreadContext().putHeader(WorkloadGroupTask.WORKLOAD_GROUP_ID_HEADER, "wg-id");
-        when(workloadGroupService.resolveFromThreadContext(threadPool.getThreadContext())).thenReturn(wg);
+        when(workloadGroupService.resolveFromThreadContext()).thenReturn(wg);
 
         MultiBucketConsumerService.MultiBucketConsumer consumer = svc.create();
         assertEquals(7, consumer.getLimit());

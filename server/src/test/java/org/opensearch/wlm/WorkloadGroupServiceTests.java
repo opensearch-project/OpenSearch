@@ -445,12 +445,14 @@ public class WorkloadGroupServiceTests extends OpenSearchTestCase {
 
     public void testResolveFromThreadContextReturnsNullWhenHeaderMissing() {
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
-        assertNull(workloadGroupService.resolveFromThreadContext(threadContext));
+        when(mockThreadPool.getThreadContext()).thenReturn(threadContext);
+        assertNull(workloadGroupService.resolveFromThreadContext());
     }
 
     public void testResolveFromThreadContextReturnsGroupWhenPresent() {
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         threadContext.putHeader(WorkloadGroupTask.WORKLOAD_GROUP_ID_HEADER, "wg-1");
+        when(mockThreadPool.getThreadContext()).thenReturn(threadContext);
         WorkloadGroup wg = new WorkloadGroup(
             "wg-1-name",
             "wg-1",
@@ -462,18 +464,19 @@ public class WorkloadGroupServiceTests extends OpenSearchTestCase {
         when(mockClusterService.state()).thenReturn(clusterState);
         when(clusterState.metadata()).thenReturn(metadata);
         when(metadata.workloadGroups()).thenReturn(Map.of("wg-1", wg));
-        assertSame(wg, workloadGroupService.resolveFromThreadContext(threadContext));
+        assertSame(wg, workloadGroupService.resolveFromThreadContext());
     }
 
     public void testResolveFromThreadContextReturnsNullWhenGroupMissing() {
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         threadContext.putHeader(WorkloadGroupTask.WORKLOAD_GROUP_ID_HEADER, "missing-id");
+        when(mockThreadPool.getThreadContext()).thenReturn(threadContext);
         ClusterState clusterState = Mockito.mock(ClusterState.class);
         Metadata metadata = Mockito.mock(Metadata.class);
         when(mockClusterService.state()).thenReturn(clusterState);
         when(clusterState.metadata()).thenReturn(metadata);
         when(metadata.workloadGroups()).thenReturn(Collections.emptyMap());
-        assertNull(workloadGroupService.resolveFromThreadContext(threadContext));
+        assertNull(workloadGroupService.resolveFromThreadContext());
     }
 
     public void testShouldSBPHandle() {
