@@ -63,6 +63,7 @@ final class LuceneFilterDelegationHandle implements FilterDelegationHandle {
     // at first use). Revisit if this surfaces as a real cost — needs revisiting.
     private final Map<Integer, Query> queriesByAnnotationId;
     private final DirectoryReader directoryReader;
+    private final IndexSearcher searcher;
     private final List<LeafReaderContext> leaves;
     private final BooleanSupplier isCancelledSupplier;
     private final Map<Long, String> generationToSegmentName;
@@ -83,6 +84,7 @@ final class LuceneFilterDelegationHandle implements FilterDelegationHandle {
         assert luceneReader != null : "luceneReader must not be null";
         assert catalogSnapshot != null : "catalogSnapshot must not be null";
         this.directoryReader = luceneReader.directoryReader();
+        this.searcher = queryShardContext.searcher();
         this.leaves = directoryReader.leaves();
         this.generationToSegmentName = luceneReader.generationToSegmentName();
         this.queriesByAnnotationId = compileQueries(expressions, queryShardContext, namedWriteableRegistry);
@@ -119,7 +121,6 @@ final class LuceneFilterDelegationHandle implements FilterDelegationHandle {
             return -1;
         }
         try {
-            IndexSearcher searcher = new IndexSearcher(directoryReader);
             Weight weight = searcher.createWeight(searcher.rewrite(query), ScoreMode.COMPLETE_NO_SCORES, 1.0f);
             int providerKey = nextProviderKey.getAndIncrement();
             weightsByProviderKey.put(providerKey, weight);
