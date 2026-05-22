@@ -114,23 +114,26 @@ public class JoinStrategyAdvisorTests extends BasePlannerRulesTests {
     }
 
     /**
-     * Theta (non-equi) joins are rejected at planning time under PR #21639 — the join rule's
-     * {@code matches()} returns false for {@code !info.isEqui()}, leaving raw {@code LogicalJoin}
-     * in the plan, which Volcano's trait converter cannot handle. The expected behavior is that
-     * planning throws; M2 follow-up will re-enable theta joins through a coord-centric fallback
-     * path consistent with the new split-rule architecture (tracked alongside the deferred
-     * OpenSearchHashJoinRule redesign).
-     *
-     * <p>This test was originally an M0 contract that theta joins reach the advisor and route
-     * to {@code COORDINATOR_CENTRIC}. Under PR's design that contract no longer holds, but
-     * pinning the failure mode prevents silent regressions.
+     * Theta (non-equi) joins reach the advisor and route to {@code COORDINATOR_CENTRIC}.
+     * Under M2, the marker rule no longer rejects non-equi predicates; the
+     * {@code OpenSearchJoinSplitRule} doesn't inspect the condition, so the planner produces
+     * the same SINGLETON+SINGLETON shape as for an equi join. The advisor selects
+     * COORDINATOR_CENTRIC because broadcast/hash-shuffle both require an equi predicate;
+     * NestedLoopJoinExec runs at the coordinator at execution time. This restores the M0
+     * contract that PR #21639 had inadvertently broken.
      */
-    public void testThetaJoinFailsAtPlanningTimeUnderPRDesign() {
+    public void testThetaJoinRoutesToCoordinatorCentric() {
         PlannerContext context = buildContext("parquet", /* shardCount */ 10, intFields());
         RelNode join = makeThetaJoin();
-        // Volcano's trait converter throws when it tries to insert a SINGLETON gather above
-        // a raw LogicalJoin — there's no OpenSearchRelNode to read viable backends from.
-        expectThrows(RuntimeException.class, () -> PlannerImpl.createPlan(join, context));
+        RelNode marked = PlannerImpl.createPlan(join, context);
+        QueryDAG dag = DAGBuilder.build(marked, context.getCapabilityRegistry(), mockClusterService());
+
+        JoinStrategyAdvisor advisor = new JoinStrategyAdvisor(/* maxShards */ 2, /* maxRows */ 1_000_000L);
+        assertEquals(
+            "Theta joins must route to COORDINATOR_CENTRIC — broadcast/hash-shuffle require an equi predicate",
+            JoinStrategy.COORDINATOR_CENTRIC,
+            advisor.adviseAndTag(dag, context.getClusterState())
+        );
     }
 
     /**

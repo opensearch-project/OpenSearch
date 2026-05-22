@@ -28,9 +28,10 @@ import java.util.Set;
 
 /**
  * Tests for {@link org.opensearch.analytics.planner.rules.OpenSearchJoinRule}: matches
- * inner equi-joins, produces an {@link OpenSearchJoin} with both inputs SINGLETON-converted
- * (i.e. wrapped in {@link OpenSearchExchangeReducer} by Volcano), and rejects non-inner
- * and pure non-equi joins.
+ * INNER / LEFT / RIGHT / FULL / SEMI / ANTI joins for both equi and non-equi (theta)
+ * predicates, produces an {@link OpenSearchJoin} with both inputs SINGLETON-converted
+ * (i.e. wrapped in {@link OpenSearchExchangeReducer} by Volcano), and rejects join types
+ * the engine doesn't support.
  */
 public class JoinRuleTests extends BasePlannerRulesTests {
 
@@ -141,25 +142,38 @@ public class JoinRuleTests extends BasePlannerRulesTests {
         );
     }
 
-    public void testPureNonEquiJoinDoesNotMatch() {
+    /**
+     * Theta (non-equi) joins flow through the same SINGLETON+SINGLETON path as equi joins.
+     * The downstream {@link org.opensearch.analytics.planner.rules.OpenSearchJoinSplitRule}
+     * doesn't inspect the join condition — it gates only on distribution traits — so the
+     * marker rule produces an {@link OpenSearchJoin} regardless of equi-ness. At execution,
+     * isthmus serializes the non-equi predicate and DataFusion picks NestedLoopJoinExec.
+     */
+    public void testPureNonEquiJoinAlsoMatchesAndProducesOpenSearchJoin() {
         // left.k < right.k — no equi-condition, the rule's analyzeCondition().leftKeys is empty.
         RexNode lt = rexBuilder.makeCall(
             SqlStdOperatorTable.LESS_THAN,
             rexBuilder.makeInputRef(typeFactory.createSqlType(SqlTypeName.INTEGER), 0),
             rexBuilder.makeInputRef(typeFactory.createSqlType(SqlTypeName.INTEGER), 2)
         );
-        // Non-equi inner join — the rule doesn't match, so the LogicalJoin survives through
-        // HEP marking. The downstream Volcano stage may not be able to plan it (no rule to
-        // turn LogicalJoin into something with a coord-side execution path), which surfaces
-        // as a planner failure. We only assert that whatever does come back is NOT an
-        // OpenSearchJoin — i.e. our rule did not (incorrectly) match a pure non-equi join.
-        try {
-            RelNode result = runJoin(JoinRelType.INNER, lt);
-            assertFalse("rule must not match pure non-equi inner joins", containsOpenSearchJoin(result));
-        } catch (RuntimeException expected) {
-            // Volcano can't plan a non-equi join through OpenSearch — that's fine; the
-            // important thing is that our rule didn't pick it up.
+        RelNode result = runJoin(JoinRelType.INNER, lt);
+
+        RelNode unwrapped = RelNodeUtils.unwrapHep(result);
+        if (unwrapped instanceof OpenSearchExchangeReducer wrapper) {
+            unwrapped = RelNodeUtils.unwrapHep(wrapper.getInput());
         }
+        assertTrue(
+            "rule should produce OpenSearchJoin for theta joins too, got " + unwrapped.getClass().getSimpleName(),
+            unwrapped instanceof OpenSearchJoin
+        );
+
+        // Both sides still gather SINGLETON to the coordinator — the cost gate behavior is
+        // unchanged for theta. NestedLoopJoinExec will run there at execution time.
+        OpenSearchJoin osJoin = (OpenSearchJoin) unwrapped;
+        OpenSearchExchangeReducer leftReducer = (OpenSearchExchangeReducer) RelNodeUtils.unwrapHep(osJoin.getLeft());
+        OpenSearchExchangeReducer rightReducer = (OpenSearchExchangeReducer) RelNodeUtils.unwrapHep(osJoin.getRight());
+        assertEquals(RelDistribution.Type.SINGLETON, leftReducer.getExchangeInfo().distributionType());
+        assertEquals(RelDistribution.Type.SINGLETON, rightReducer.getExchangeInfo().distributionType());
     }
 
     private void assertNonInnerJoinDoesNotMatch(JoinRelType joinType) {

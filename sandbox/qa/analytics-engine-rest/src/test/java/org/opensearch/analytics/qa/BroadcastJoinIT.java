@@ -123,15 +123,14 @@ public class BroadcastJoinIT extends AnalyticsRestTestCase {
     }
 
     /**
-     * Theta (non-equi) joins are rejected at planning time under PR #21639 — the join rule
-     * gates on {@code JoinInfo.isEqui()}. This was an M0 contract that theta joins ran via
-     * coordinator-centric DataFusion NestedLoopJoinExec; PR's split-rule architecture does
-     * not yet have a coord-centric fallback path for non-equi predicates. M2 follow-up.
-     *
-     * <p>This test pins the failure mode (HTTP 500) so a future change re-admitting theta
-     * joins doesn't silently regress to a different shape without an explicit test update.
+     * Theta (non-equi) joins route to coordinator-centric execution under M2 — the marker
+     * rule no longer gates on {@code JoinInfo.isEqui()}, the split rule operates on
+     * distribution traits only, and DataFusion picks {@code NestedLoopJoinExec} for the
+     * non-equi predicate at the coordinator. This restores the M0 path that PR #21639 had
+     * inadvertently broken. The test asserts row-multiset parity between MPP off and MPP on
+     * (kill-switch parity), and checks that BROADCAST does NOT fire (theta is ineligible).
      */
-    public void testThetaJoinFailsAtPlanningTimeUnderPRDesign() throws IOException {
+    public void testThetaJoinRoutesToCoordinatorCentric() throws IOException {
         ensureDataProvisioned();
         String ppl = "source = "
             + FACT_INDEX
@@ -139,11 +138,16 @@ public class BroadcastJoinIT extends AnalyticsRestTestCase {
             + DIM_INDEX
             + " | sort F.id, D.id, F.amount | head 200";
 
-        org.opensearch.client.ResponseException ex = expectThrows(
-            org.opensearch.client.ResponseException.class,
-            () -> runWithMpp(ppl, /* mppEnabled */ false)
-        );
-        assertEquals(500, ex.getResponse().getStatusLine().getStatusCode());
+        StrategyDelta baselineDelta = runWithMppAndStrategyDelta(ppl, false);
+        StrategyDelta mppOnDelta = runWithMppAndStrategyDelta(ppl, true);
+
+        // Theta is ineligible for any MPP strategy — both runs hit the coord-centric path,
+        // results must match exactly.
+        assertRowMultisetEquals("Theta join: kill-switch parity", baselineDelta.rows, mppOnDelta.rows);
+
+        // BROADCAST must NOT fire for theta in either run (broadcast requires equi).
+        assertEquals("BROADCAST must not advance for theta with MPP off", 0L, baselineDelta.broadcastDelta);
+        assertEquals("BROADCAST must not advance for theta with MPP on", 0L, mppOnDelta.broadcastDelta);
     }
 
     /**

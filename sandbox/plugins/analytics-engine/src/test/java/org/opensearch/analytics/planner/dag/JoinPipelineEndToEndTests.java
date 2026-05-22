@@ -149,17 +149,33 @@ public class JoinPipelineEndToEndTests extends BasePlannerRulesTests {
     }
 
     /**
-     * Theta (non-equi) joins are rejected at planning time under PR #21639 — the join rule
-     * gates on {@code JoinInfo.isEqui()}. The expected behavior is a planning-time exception;
-     * the test pins that failure mode so a future change that re-admits theta joins (e.g. a
-     * coord-centric fallback rule under M2) doesn't silently regress to a different shape
-     * without an explicit test update.
-     *
-     * <p>This test was originally an M0 contract that theta joins reach the DAG/fragment
-     * adapter via coordinator-centric execution. PR #21639 inverted that contract.
+     * Theta (non-equi) joins route through the same coordinator-centric DAG shape as equi
+     * joins under M2: marker rule produces an {@link OpenSearchJoin}, the split rule demands
+     * SINGLETON on each input regardless of the join condition, and the DAG cuts at the
+     * per-side reducers. NestedLoopJoinExec runs at the coordinator at execution time
+     * (DataFusion picks the operator from the non-equi predicate). This is the M0 path,
+     * restored after PR #21639 had inadvertently rejected non-equi at the marker rule.
      */
-    public void testThetaJoinFailsAtPlanningTimeUnderPRDesign() {
-        expectThrows(RuntimeException.class, () -> buildDagThroughAdapter(/* shards */ 3, makeThetaJoin()));
+    public void testThetaJoinRoutesThroughCoordinatorCentric() {
+        QueryDAG dag = buildDagThroughAdapter(/* shards */ 3, makeThetaJoin());
+
+        // Same root-level shape as the equi case: OpenSearchJoin at the coordinator with
+        // two reducer-wrapped StageInputScan inputs.
+        Stage root = dag.rootStage();
+        assertTrue(
+            "Root stage fragment must be OpenSearchJoin, got " + root.getFragment().getClass().getSimpleName(),
+            root.getFragment() instanceof OpenSearchJoin
+        );
+        assertNull("Root stage must have no shard target (coordinator-side)", root.getTargetResolver());
+        assertEquals("Root must have exactly 2 child stages for a binary join", 2, root.getChildStages().size());
+
+        OpenSearchJoin rootJoin = (OpenSearchJoin) root.getFragment();
+        assertTrue("Root join left input must be ExchangeReducer", rootJoin.getLeft() instanceof OpenSearchExchangeReducer);
+        assertTrue("Root join right input must be ExchangeReducer", rootJoin.getRight() instanceof OpenSearchExchangeReducer);
+        OpenSearchExchangeReducer leftReducer = (OpenSearchExchangeReducer) rootJoin.getLeft();
+        OpenSearchExchangeReducer rightReducer = (OpenSearchExchangeReducer) rootJoin.getRight();
+        assertTrue("Left reducer's input must be StageInputScan placeholder", leftReducer.getInput() instanceof OpenSearchStageInputScan);
+        assertTrue("Right reducer's input must be StageInputScan placeholder", rightReducer.getInput() instanceof OpenSearchStageInputScan);
     }
 
     // ---- Query builders (local to these pipeline tests) ----

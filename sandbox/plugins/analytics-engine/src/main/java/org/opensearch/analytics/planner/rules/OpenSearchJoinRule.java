@@ -33,11 +33,12 @@ import java.util.Set;
  * gathered to the coordinator (enforced by the join's cost gate, which only accepts
  * SINGLETON inputs — Volcano inserts an {@link OpenSearchExchangeReducer} per side).
  *
- * <p>Accepts INNER / LEFT / RIGHT / FULL / SEMI / ANTI equi-joins. Cross joins match
- * via {@link org.apache.calcite.rel.core.JoinInfo#isEqui()}. Pure non-equi predicates
- * are rejected — they currently fail at plan time (Volcano's trait converter has no path
- * for raw {@code LogicalJoin}). M2 follow-up: re-enable theta joins through a coord-centric
- * fallback path consistent with the new split-rule architecture.
+ * <p>Accepts INNER / LEFT / RIGHT / FULL / SEMI / ANTI joins for both equi and non-equi
+ * (theta) predicates. Equi joins reach the data-node engine as {@code HashJoinExec}; theta
+ * joins fall back to {@code NestedLoopJoinExec} on the coordinator (the M0 path). The
+ * downstream {@link org.opensearch.analytics.planner.rules.OpenSearchJoinSplitRule} doesn't
+ * inspect the join condition — it only operates on distribution traits — so the same
+ * SINGLETON+SINGLETON shape works for both kinds.
  *
  * @opensearch.internal
  */
@@ -54,16 +55,12 @@ public class OpenSearchJoinRule extends RelOptRule {
     public boolean matches(RelOptRuleCall call) {
         LogicalJoin join = call.rel(0);
         JoinRelType joinType = join.getJoinType();
-        if (joinType != JoinRelType.INNER
-            && joinType != JoinRelType.LEFT
-            && joinType != JoinRelType.RIGHT
-            && joinType != JoinRelType.FULL
-            && joinType != JoinRelType.SEMI
-            && joinType != JoinRelType.ANTI) {
-            return false;
-        }
-        org.apache.calcite.rel.core.JoinInfo info = join.analyzeCondition();
-        return info.isEqui();
+        return joinType == JoinRelType.INNER
+            || joinType == JoinRelType.LEFT
+            || joinType == JoinRelType.RIGHT
+            || joinType == JoinRelType.FULL
+            || joinType == JoinRelType.SEMI
+            || joinType == JoinRelType.ANTI;
     }
 
     @Override
