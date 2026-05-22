@@ -11,6 +11,7 @@ package org.opensearch.parquet.engine;
 import org.apache.arrow.vector.types.pojo.Schema;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.opensearch.arrow.allocator.ArrowNativeAllocator;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.engine.dataformat.IndexingExecutionEngine;
@@ -43,6 +44,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.function.IntSupplier;
 import java.util.function.Supplier;
 
 import static org.opensearch.parquet.ParquetDataFormatPlugin.PARQUET_DATA_FORMAT;
@@ -102,7 +104,8 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
         Supplier<Schema> schemaSupplier,
         Supplier<Long> mappingVersionSupplier,
         IndexSettings indexSettings,
-        ThreadPool threadPool
+        ThreadPool threadPool,
+        ArrowNativeAllocator nativeAllocator
     ) {
         this(
             settings,
@@ -112,7 +115,9 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
             mappingVersionSupplier,
             indexSettings,
             threadPool,
-            new PrecomputedChecksumStrategy()
+            new PrecomputedChecksumStrategy(),
+            () -> ParquetSettings.MAX_PER_VSR_ALLOCATION_DIVISOR.get(settings),
+            nativeAllocator
         );
     }
 
@@ -136,13 +141,55 @@ public class ParquetIndexingEngine implements IndexingExecutionEngine<ParquetDat
         Supplier<Long> mappingVersionSupplier,
         IndexSettings indexSettings,
         ThreadPool threadPool,
-        FormatChecksumStrategy checksumStrategy
+        FormatChecksumStrategy checksumStrategy,
+        ArrowNativeAllocator nativeAllocator
+    ) {
+        this(
+            settings,
+            dataFormat,
+            shardPath,
+            schemaSupplier,
+            mappingVersionSupplier,
+            indexSettings,
+            threadPool,
+            checksumStrategy,
+            () -> ParquetSettings.MAX_PER_VSR_ALLOCATION_DIVISOR.get(settings),
+            nativeAllocator
+        );
+    }
+
+    /**
+     * Creates a new ParquetIndexingEngine with a live divisor supplier.
+     *
+     * @param settings          the node-level settings
+     * @param dataFormat        the Parquet data format descriptor
+     * @param shardPath         the shard path for file storage
+     * @param schemaSupplier     the supplier for schema resolution
+     * @param mappingVersionSupplier     the supplier for mapping version resolution
+     * @param indexSettings     the index-level settings
+     * @param threadPool        the thread pool for background native writes
+     * @param checksumStrategy  the checksum strategy to use (shared with the directory)
+     * @param divisorSupplier   live source for {@link ParquetSettings#MAX_PER_VSR_ALLOCATION_DIVISOR};
+     *                          read on every {@link org.opensearch.parquet.memory.ArrowBufferPool#createChildAllocator(String)}
+     *                          call so dynamic cluster-settings updates take effect
+     */
+    public ParquetIndexingEngine(
+        Settings settings,
+        ParquetDataFormat dataFormat,
+        ShardPath shardPath,
+        Supplier<Schema> schemaSupplier,
+        Supplier<Long> mappingVersionSupplier,
+        IndexSettings indexSettings,
+        ThreadPool threadPool,
+        FormatChecksumStrategy checksumStrategy,
+        IntSupplier divisorSupplier,
+        ArrowNativeAllocator nativeAllocator
     ) {
         this.dataFormat = dataFormat;
         this.shardPath = shardPath;
         this.schemaSupplier = schemaSupplier;
         this.mappingVersionSupplier = mappingVersionSupplier;
-        this.bufferPool = new ArrowBufferPool();
+        this.bufferPool = new ArrowBufferPool(settings, divisorSupplier, nativeAllocator);
         this.indexSettings = indexSettings;
         this.nodeSettings = settings;
         this.threadPool = threadPool;

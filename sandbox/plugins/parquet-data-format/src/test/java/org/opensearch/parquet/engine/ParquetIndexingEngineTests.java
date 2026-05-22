@@ -13,6 +13,8 @@ import org.apache.arrow.vector.types.pojo.Field;
 import org.apache.arrow.vector.types.pojo.FieldType;
 import org.apache.arrow.vector.types.pojo.Schema;
 import org.opensearch.Version;
+import org.opensearch.arrow.allocator.ArrowNativeAllocator;
+import org.opensearch.arrow.spi.NativeAllocatorPoolConfig;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.index.shard.ShardId;
@@ -57,6 +59,7 @@ import static org.mockito.Mockito.when;
 
 public class ParquetIndexingEngineTests extends OpenSearchTestCase {
 
+    private org.opensearch.arrow.allocator.ArrowNativeAllocator nativeAllocator;
     private MappedFieldType idField;
     private MappedFieldType nameField;
     private MappedFieldType scoreField;
@@ -69,6 +72,8 @@ public class ParquetIndexingEngineTests extends OpenSearchTestCase {
     public void setUp() throws Exception {
         super.setUp();
         RustBridge.initLogger();
+        nativeAllocator = new ArrowNativeAllocator(Long.MAX_VALUE);
+        nativeAllocator.getOrCreatePool(NativeAllocatorPoolConfig.POOL_INGEST, 0L, Long.MAX_VALUE);
         idField = new NumberFieldMapper.NumberFieldType("id", NumberFieldMapper.NumberType.INTEGER);
         nameField = new KeywordFieldMapper.KeywordFieldType("name");
         scoreField = new NumberFieldMapper.NumberFieldType("score", NumberFieldMapper.NumberType.LONG);
@@ -91,6 +96,10 @@ public class ParquetIndexingEngineTests extends OpenSearchTestCase {
     @Override
     public void tearDown() throws Exception {
         terminate(threadPool);
+        if (nativeAllocator != null) {
+            nativeAllocator.close();
+            nativeAllocator = null;
+        }
         super.tearDown();
     }
 
@@ -206,7 +215,8 @@ public class ParquetIndexingEngineTests extends OpenSearchTestCase {
                 () -> ArrowSchemaBuilder.getSchema(mapperService),
                 () -> mapperService.getIndexSettings().getIndexMetadata().getMappingVersion(),
                 indexSettings,
-                threadPool
+                threadPool,
+                nativeAllocator
             );
         } catch (Exception e) {
             throw new RuntimeException(e);

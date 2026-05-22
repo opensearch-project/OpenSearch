@@ -12,6 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.be.datafusion.cache.CacheManager;
 import org.opensearch.be.datafusion.cache.CacheUtils;
+import org.opensearch.be.datafusion.cache.NativeCacheManagerHandle;
 import org.opensearch.be.datafusion.nativelib.NativeBridge;
 import org.opensearch.be.datafusion.stats.DataFusionStats;
 import org.opensearch.common.lifecycle.AbstractLifecycleComponent;
@@ -74,12 +75,24 @@ public class DataFusionService extends AbstractLifecycleComponent {
         );
 
         long cacheManagerPtr = 0L;
+        NativeCacheManagerHandle cacheHandle = null;
         if (clusterSettings != null) {
-            cacheManagerPtr = CacheUtils.createCacheConfig(clusterSettings);
+            cacheHandle = CacheUtils.createCacheConfig(clusterSettings);
+            cacheManagerPtr = cacheHandle.getPointer();
         }
 
-        long ptr = NativeBridge.createGlobalRuntime(memoryPoolLimit, cacheManagerPtr, spillDirectory, spillMemoryLimit);
-        this.runtimeHandle = new NativeRuntimeHandle(ptr);
+        try {
+            long ptr = NativeBridge.createGlobalRuntime(memoryPoolLimit, cacheManagerPtr, spillDirectory, spillMemoryLimit);
+            if (cacheHandle != null) {
+                cacheHandle.markConsumed();
+            }
+            this.runtimeHandle = new NativeRuntimeHandle(ptr);
+        } catch (Exception e) {
+            if (cacheHandle != null) {
+                cacheHandle.close();
+            }
+            throw e;
+        }
 
         if (clusterSettings != null) {
             this.cacheManager = new CacheManager(runtimeHandle);
@@ -148,6 +161,23 @@ public class DataFusionService extends AbstractLifecycleComponent {
      */
     public void setMemoryPoolLimit(long newLimitBytes) {
         NativeBridge.setMemoryPoolLimit(getNativeRuntime().get(), newLimitBytes);
+    }
+
+    /**
+     * Returns true if the loaded native library can update the spill cap at runtime.
+     * When false, {@link #setSpillMemoryLimit(long)} will throw and cluster-state
+     * updates of {@code datafusion.spill_memory_limit_bytes} have no live effect.
+     */
+    public boolean isSpillLimitDynamic() {
+        return NativeBridge.isSpillLimitDynamic();
+    }
+
+    /**
+     * Sets the spill memory limit at runtime. Requires {@link #isSpillLimitDynamic()};
+     * otherwise throws {@link UnsupportedOperationException}.
+     */
+    public void setSpillMemoryLimit(long newLimitBytes) {
+        NativeBridge.setSpillLimit(getNativeRuntime().get(), newLimitBytes);
     }
 
     /**
