@@ -672,20 +672,24 @@ public class StreamstatsCommandIT extends AnalyticsRestTestCase {
         );
     }
 
-    /** sql IT: testStreamstatsGlobalWithNull. */
+    /** sql IT: testStreamstatsGlobalWithNull. PR #21795 + the layered marking fixes
+     *  (LITERAL_AGG lowering, OpenSearchJoinRule relaxation) wire enough of the
+     *  streamstats lowering through that this query now plans and executes. */
     public void testStreamstatsGlobalWithNull() throws IOException {
-        assertErrorAny(
+        Map<String, Object> response = executePpl(
             "source=" + DATASET.indexName
                 + " | streamstats window=2 global=true avg(int0) as avg by str0"
         );
+        assertNotNull(response);
     }
 
     /** sql IT: testStreamstatsGlobalWithNullBucket. */
     public void testStreamstatsGlobalWithNullBucket() throws IOException {
-        assertErrorAny(
+        Map<String, Object> response = executePpl(
             "source=" + DATASET.indexName
                 + " | streamstats bucket_nullable=false window=2 global=true avg(int0) as avg by str0"
         );
+        assertNotNull(response);
     }
 
     /** sql IT: testStreamstatsReset. {@code reset_before} / {@code reset_after} use
@@ -702,19 +706,21 @@ public class StreamstatsCommandIT extends AnalyticsRestTestCase {
 
     /** sql IT: testStreamstatsResetWithNull. */
     public void testStreamstatsResetWithNull() throws IOException {
-        assertErrorAny(
+        Map<String, Object> response = executePpl(
             "source=" + DATASET.indexName
                 + " | streamstats reset_before=(int0 > 5) avg(int0) as avg by str0"
         );
+        assertNotNull(response);
     }
 
     /** sql IT: testStreamstatsResetWithNullBucket. */
     public void testStreamstatsResetWithNullBucket() throws IOException {
-        assertErrorAny(
+        Map<String, Object> response = executePpl(
             "source=" + DATASET.indexName
                 + " | streamstats bucket_nullable=false reset_before=(int0 > 5)"
                 + " avg(int0) as avg by str0"
         );
+        assertNotNull(response);
     }
 
     // ── Unsupported window functions ───────────────────────────────────────────
