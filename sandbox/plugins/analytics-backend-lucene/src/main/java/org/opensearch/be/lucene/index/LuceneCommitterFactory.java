@@ -42,7 +42,7 @@ public final class LuceneCommitterFactory implements CommitterFactory {
         if (committerConfig.isReplica()) {
             // Warm primary
             if (committerConfig.engineConfig().getIndexSettings().isWarmIndex()
-                    && committerConfig.engineConfig().isReadOnlyReplica() == false) {
+                && committerConfig.engineConfig().isReadOnlyReplica() == false) {
                 return new LuceneReadOnlyCommitter(committerConfig);
             }
             // Warm or NRT replica: receives segments from primary, commits them locally.

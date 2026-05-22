@@ -11,6 +11,7 @@ package org.opensearch.composite;
 import com.carrotsearch.randomizedtesting.ThreadFilter;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
+import org.opensearch.arrow.allocator.ArrowBasePlugin;
 import org.opensearch.be.datafusion.DataFusionPlugin;
 import org.opensearch.be.lucene.LucenePlugin;
 import org.opensearch.cluster.metadata.IndexMetadata;
@@ -56,7 +57,13 @@ public abstract class DataFormatAwareReadonlyEngineBaseIT extends RemoteStoreBas
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Stream.concat(
             super.nodePlugins().stream(),
-            Stream.of(ParquetDataFormatPlugin.class, CompositeDataFormatPlugin.class, LucenePlugin.class, DataFusionPlugin.class)
+            Stream.of(
+                ArrowBasePlugin.class,
+                ParquetDataFormatPlugin.class,
+                CompositeDataFormatPlugin.class,
+                LucenePlugin.class,
+                DataFusionPlugin.class
+            )
         ).collect(Collectors.toList());
     }
 

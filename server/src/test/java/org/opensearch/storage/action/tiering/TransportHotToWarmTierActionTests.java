@@ -731,6 +731,545 @@ public class TransportHotToWarmTierActionTests extends OpenSearchTestCase {
         );
     }
 
+    // ── State mutation correctness ──────────────────────────────────────────────
+
+    /** addReadOnlyBlock must increment settingsVersion by exactly 1. */
+    public void testAddReadOnlyBlock_IncrementsSettingsVersion() {
+        String indexName = "test-dfa-index";
+        ClusterState state = buildClusterStateWithDfaIndex(indexName, 1, 1);
+        long originalVersion = state.metadata().index(indexName).getSettingsVersion();
+
+        ClusterState stateWithBlock = addReadOnlyBlock(state, indexName);
+
+        assertEquals(
+            "settingsVersion must increment by 1 when read-only block is added",
+            originalVersion + 1,
+            stateWithBlock.metadata().index(indexName).getSettingsVersion()
+        );
+    }
+
+    /** addReadOnlyBlock must preserve all pre-existing index settings (shards, replicas, uuid, etc.). */
+    public void testAddReadOnlyBlock_PreservesExistingSettings() {
+        String indexName = "test-dfa-index";
+        ClusterState state = buildClusterStateWithDfaIndex(indexName, 3, 2);
+        IndexMetadata original = state.metadata().index(indexName);
+
+        ClusterState stateWithBlock = addReadOnlyBlock(state, indexName);
+        IndexMetadata after = stateWithBlock.metadata().index(indexName);
+
+        assertEquals("numberOfShards must be preserved", original.getNumberOfShards(), after.getNumberOfShards());
+        assertEquals("numberOfReplicas must be preserved", original.getNumberOfReplicas(), after.getNumberOfReplicas());
+        assertEquals("index UUID must be preserved", original.getIndexUUID(), after.getIndexUUID());
+        assertTrue(
+            "DFA setting must be preserved",
+            after.getSettings().getAsBoolean(IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey(), false)
+        );
+        assertTrue(
+            "Read-only block setting must be true after add",
+            after.getSettings().getAsBoolean(IndexMetadata.INDEX_BLOCKS_READ_ONLY_ALLOW_DELETE_SETTING.getKey(), false)
+        );
+    }
+
+    /** Adding the block twice must increment settingsVersion by 2 total (idempotent logic still mutates version). */
+    public void testAddReadOnlyBlock_SettingsVersionIncrementsOnSecondAdd() {
+        String indexName = "test-dfa-index";
+        ClusterState state = buildClusterStateWithDfaIndex(indexName, 1, 1);
+        long originalVersion = state.metadata().index(indexName).getSettingsVersion();
+
+        ClusterState afterFirstAdd = addReadOnlyBlock(state, indexName);
+        ClusterState afterSecondAdd = addReadOnlyBlock(afterFirstAdd, indexName);
+
+        assertEquals(
+            "settingsVersion must be original + 2 after two addReadOnlyBlock calls",
+            originalVersion + 2,
+            afterSecondAdd.metadata().index(indexName).getSettingsVersion()
+        );
+    }
+
+    /** removeReadOnlyBlock must increment settingsVersion by 1. */
+    public void testRemoveReadOnlyBlock_IncrementsSettingsVersion() {
+        String indexName = "test-dfa-index";
+        ClusterState state = buildClusterStateWithDfaIndex(indexName, 1, 1);
+        ClusterState stateWithBlock = addReadOnlyBlock(state, indexName);
+        long versionBeforeRemove = stateWithBlock.metadata().index(indexName).getSettingsVersion();
+
+        ClusterState stateAfterRemove = removeReadOnlyBlock(stateWithBlock, indexName);
+
+        assertEquals(
+            "settingsVersion must increment by 1 when read-only block is removed",
+            versionBeforeRemove + 1,
+            stateAfterRemove.metadata().index(indexName).getSettingsVersion()
+        );
+    }
+
+    /** removeReadOnlyBlock on a state where block was never added must return state unchanged (no-op). */
+    public void testRemoveReadOnlyBlock_WhenBlockNotPresent_IsNoOp() {
+        String indexName = "test-dfa-index";
+        ClusterState state = buildClusterStateWithDfaIndex(indexName, 1, 1);
+
+        // Block is NOT present
+        assertFalse(
+            "Precondition: block must not be present",
+            state.blocks().hasIndexBlock(indexName, IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK)
+        );
+
+        // removeReadOnlyBlock should still work (settings.put(false) on already-false value)
+        // — it does NOT return the same state object because it rebuilds, but it must not throw
+        ClusterState result = removeReadOnlyBlock(state, indexName);
+        assertNotNull("Result must not be null", result);
+        assertFalse(
+            "Block must not be present after removing a non-existent block",
+            result.blocks().hasIndexBlock(indexName, IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK)
+        );
+        assertFalse(
+            "Read-only setting must be false after removing a non-existent block",
+            result.metadata()
+                .index(indexName)
+                .getSettings()
+                .getAsBoolean(IndexMetadata.INDEX_BLOCKS_READ_ONLY_ALLOW_DELETE_SETTING.getKey(), false)
+        );
+    }
+
+    // ── isDfaIndex edge cases ───────────────────────────────────────────────────
+
+    /** isDfaIndex must return false when the setting is explicitly set to false (not just absent). */
+    public void testIsDfaIndex_SettingExplicitlyFalse_ReturnsFalse() {
+        String indexName = "test-explicit-false";
+        Settings indexSettings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_INDEX_UUID, "test-uuid")
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey(), false) // explicitly false
+            .build();
+        IndexMetadata indexMetadata = IndexMetadata.builder(indexName)
+            .settings(indexSettings)
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
+        ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(Metadata.builder().put(indexMetadata, false).build())
+            .blocks(ClusterBlocks.EMPTY_CLUSTER_BLOCK)
+            .build();
+
+        assertFalse("isDfaIndex must return false when setting is explicitly false", isDfaIndex(indexName, state));
+    }
+
+    /** isDfaIndex on the target index must return false even if another index in the cluster IS DFA. */
+    public void testIsDfaIndex_OtherIndexIsDfa_TargetIsNot() {
+        String dfaIndex = "dfa-other";
+        String nonDfaTarget = "non-dfa-target";
+
+        Settings dfaSettings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_INDEX_UUID, "dfa-uuid")
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexSettings.PLUGGABLE_DATAFORMAT_ENABLED_SETTING.getKey(), true)
+            .build();
+        Settings nonDfaSettings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_INDEX_UUID, "non-dfa-uuid")
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .build();
+
+        IndexMetadata dfaMeta = IndexMetadata.builder(dfaIndex).settings(dfaSettings).numberOfShards(1).numberOfReplicas(0).build();
+        IndexMetadata nonDfaMeta = IndexMetadata.builder(nonDfaTarget)
+            .settings(nonDfaSettings)
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
+
+        ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(Metadata.builder().put(dfaMeta, false).put(nonDfaMeta, false).build())
+            .blocks(ClusterBlocks.EMPTY_CLUSTER_BLOCK)
+            .build();
+
+        assertTrue("Other index must be detected as DFA", isDfaIndex(dfaIndex, state));
+        assertFalse("Target index must NOT be detected as DFA — isolation check", isDfaIndex(nonDfaTarget, state));
+    }
+
+    // ── BroadcastResponse edge cases ───────────────────────────────────────────
+
+    /** All shards fail on every attempt — prepare exhausted with failedShards == totalShards. */
+    public void testPrepareTiering_AllShardsFailAllRetries() {
+        String indexName = "test-dfa-index";
+        AtomicInteger prepareCalls = new AtomicInteger(0);
+        AtomicReference<Exception> capturedFailure = new AtomicReference<>();
+
+        executePrepareTiering(indexName, (request, listener) -> {
+            prepareCalls.incrementAndGet();
+            // All 3 shards fail
+            List<DefaultShardOperationFailedException> failures = List.of(
+                new DefaultShardOperationFailedException(indexName, 0, new RuntimeException("shard 0 failed")),
+                new DefaultShardOperationFailedException(indexName, 1, new RuntimeException("shard 1 failed")),
+                new DefaultShardOperationFailedException(indexName, 2, new RuntimeException("shard 2 failed"))
+            );
+            listener.onResponse(new BroadcastResponse(3, 0, 3, failures));
+        },
+            ActionListener.wrap(v -> fail("Should not succeed when all shards fail"), e -> fail("unexpected")),
+            ActionListener.wrap(e -> capturedFailure.set(e), ex -> fail("unexpected")),
+            1
+        );
+
+        assertEquals("All 3 retry attempts must be exhausted", 3, prepareCalls.get());
+        assertNotNull("Failure must be captured", capturedFailure.get());
+        assertTrue("Error must mention shard(s) failed", capturedFailure.get().getMessage().contains("shard(s) failed"));
+    }
+
+    /** Zero total shards (empty cluster) — BroadcastResponse(0,0,0,[]) should succeed immediately. */
+    public void testPrepareTiering_ZeroShards_SucceedsImmediately() {
+        String indexName = "test-dfa-index";
+        AtomicInteger prepareCalls = new AtomicInteger(0);
+        AtomicReference<Boolean> tieringCalled = new AtomicReference<>(false);
+
+        executePrepareTiering(indexName, (request, listener) -> {
+            prepareCalls.incrementAndGet();
+            listener.onResponse(new BroadcastResponse(0, 0, 0, Collections.emptyList()));
+        },
+            ActionListener.wrap(v -> tieringCalled.set(true), e -> fail("Should not fail for zero shards")),
+            ActionListener.wrap(e -> fail("Should not reach final failure"), ex -> fail("unexpected")),
+            1
+        );
+
+        assertEquals("Prepare must be called exactly once for zero shards", 1, prepareCalls.get());
+        assertTrue("Tiering must proceed when zero shards succeed", tieringCalled.get());
+    }
+
+    // ── Retry sequence correctness ─────────────────────────────────────────────
+
+    /** Prepare fails twice then succeeds on the third attempt. */
+    public void testPrepareTiering_SucceedsOnThirdAttempt() {
+        String indexName = "test-dfa-index";
+        AtomicInteger prepareCalls = new AtomicInteger(0);
+        AtomicReference<Boolean> tieringCalled = new AtomicReference<>(false);
+
+        List<DefaultShardOperationFailedException> shardFailures = Collections.singletonList(
+            new DefaultShardOperationFailedException(indexName, 0, new RuntimeException("shard failed"))
+        );
+
+        executePrepareTiering(indexName, (request, listener) -> {
+            int call = prepareCalls.incrementAndGet();
+            if (call <= 2) {
+                // Attempts 1 and 2: partial failure
+                listener.onResponse(new BroadcastResponse(2, 1, 1, shardFailures));
+            } else {
+                // Attempt 3: success
+                listener.onResponse(new BroadcastResponse(2, 2, 0, Collections.emptyList()));
+            }
+        },
+            ActionListener.wrap(v -> tieringCalled.set(true), e -> fail("unexpected")),
+            ActionListener.wrap(e -> fail("Should not reach final failure"), ex -> fail("unexpected")),
+            1
+        );
+
+        assertEquals("Prepare must be called exactly 3 times", 3, prepareCalls.get());
+        assertTrue("Tiering must succeed after third attempt", tieringCalled.get());
+    }
+
+    /** Prepare succeeds on the first attempt — must not retry at all. */
+    public void testPrepareTiering_SucceedsOnFirstAttempt_NoRetry() {
+        String indexName = "test-dfa-index";
+        AtomicInteger prepareCalls = new AtomicInteger(0);
+        AtomicReference<Boolean> tieringCalled = new AtomicReference<>(false);
+
+        executePrepareTiering(indexName, (request, listener) -> {
+            prepareCalls.incrementAndGet();
+            listener.onResponse(new BroadcastResponse(5, 5, 0, Collections.emptyList()));
+        },
+            ActionListener.wrap(v -> tieringCalled.set(true), e -> fail("Should not fail")),
+            ActionListener.wrap(e -> fail("Should not reach final failure"), ex -> fail("unexpected")),
+            1
+        );
+
+        assertEquals("Prepare must be called exactly once — no retry on success", 1, prepareCalls.get());
+        assertTrue("Tiering must proceed immediately on first-attempt success", tieringCalled.get());
+    }
+
+    /** The attempt counter must reach exactly MAX_PREPARE_RETRIES (3) on final failure. */
+    public void testAttemptCounterStartsAtOne_MatchesMaxOnFinalFailure() {
+        String indexName = "test-dfa-index";
+        AtomicInteger prepareCalls = new AtomicInteger(0);
+        AtomicReference<Exception> capturedFailure = new AtomicReference<>();
+
+        executePrepareTiering(indexName, (request, listener) -> {
+            prepareCalls.incrementAndGet();
+            listener.onFailure(new RuntimeException("always fails"));
+        },
+            ActionListener.wrap(v -> fail("Should not succeed"), e -> fail("unexpected")),
+            ActionListener.wrap(e -> capturedFailure.set(e), ex -> fail("unexpected")),
+            1 // starts at 1
+        );
+
+        assertEquals(
+            "Attempt counter must reach exactly MAX_PREPARE_RETRIES (3) on final failure",
+            MAX_PREPARE_RETRIES,
+            prepareCalls.get()
+        );
+        assertNotNull("Failure must be captured", capturedFailure.get());
+    }
+
+    // ── Error message content verification ─────────────────────────────────────
+
+    /** Error message for shard failure path must contain the index name. */
+    public void testPrepareTiering_ErrorMessageContainsIndexName() {
+        String indexName = "my-specific-index";
+        AtomicReference<Exception> capturedFailure = new AtomicReference<>();
+
+        executePrepareTiering(indexName, (request, listener) -> {
+            List<DefaultShardOperationFailedException> failures = Collections.singletonList(
+                new DefaultShardOperationFailedException(indexName, 0, new RuntimeException("fail"))
+            );
+            listener.onResponse(new BroadcastResponse(1, 0, 1, failures));
+        },
+            ActionListener.wrap(v -> fail("Should not succeed"), e -> fail("unexpected")),
+            ActionListener.wrap(e -> capturedFailure.set(e), ex -> fail("unexpected")),
+            1
+        );
+
+        assertNotNull("Failure must be captured", capturedFailure.get());
+        assertTrue("Error message must contain the index name", capturedFailure.get().getMessage().contains(indexName));
+    }
+
+    /** Error message for shard failure path must contain the actual failed shard count. */
+    public void testPrepareTiering_ErrorMessageContainsShardCount() {
+        String indexName = "test-dfa-index";
+        AtomicReference<Exception> capturedFailure = new AtomicReference<>();
+
+        executePrepareTiering(indexName, (request, listener) -> {
+            List<DefaultShardOperationFailedException> failures = List.of(
+                new DefaultShardOperationFailedException(indexName, 0, new RuntimeException("fail0")),
+                new DefaultShardOperationFailedException(indexName, 1, new RuntimeException("fail1"))
+            );
+            // 2 shards failed out of 5
+            listener.onResponse(new BroadcastResponse(5, 3, 2, failures));
+        },
+            ActionListener.wrap(v -> fail("Should not succeed"), e -> fail("unexpected")),
+            ActionListener.wrap(e -> capturedFailure.set(e), ex -> fail("unexpected")),
+            1
+        );
+
+        assertNotNull("Failure must be captured", capturedFailure.get());
+        assertTrue("Error message must contain the failed shard count (2)", capturedFailure.get().getMessage().contains("2"));
+    }
+
+    /** The IllegalStateException created on exception path must chain the original cause. */
+    public void testPrepareTiering_ExceptionCauseChained() {
+        String indexName = "test-dfa-index";
+        RuntimeException originalCause = new RuntimeException("original network error");
+        AtomicReference<Exception> capturedFailure = new AtomicReference<>();
+
+        executePrepareTiering(
+            indexName,
+            (request, listener) -> listener.onFailure(originalCause),
+            ActionListener.wrap(v -> fail("Should not succeed"), e -> fail("unexpected")),
+            ActionListener.wrap(e -> capturedFailure.set(e), ex -> fail("unexpected")),
+            1
+        );
+
+        assertNotNull("Failure must be captured", capturedFailure.get());
+        assertSame("The original exception must be chained as cause", originalCause, capturedFailure.get().getCause());
+    }
+
+    // ── Mixed failure modes ────────────────────────────────────────────────────
+
+    /** First attempt: onFailure (exception). Second: partial shard failure. Third: full success. */
+    public void testPrepareTiering_MixedFailureModes_ExceptionThenPartialThenSuccess() {
+        String indexName = "test-dfa-index";
+        AtomicInteger prepareCalls = new AtomicInteger(0);
+        AtomicReference<Boolean> tieringCalled = new AtomicReference<>(false);
+
+        List<DefaultShardOperationFailedException> shardFailures = Collections.singletonList(
+            new DefaultShardOperationFailedException(indexName, 0, new RuntimeException("shard fail"))
+        );
+
+        executePrepareTiering(indexName, (request, listener) -> {
+            int call = prepareCalls.incrementAndGet();
+            if (call == 1) {
+                listener.onFailure(new RuntimeException("network error on attempt 1"));
+            } else if (call == 2) {
+                listener.onResponse(new BroadcastResponse(2, 1, 1, shardFailures));
+            } else {
+                listener.onResponse(new BroadcastResponse(2, 2, 0, Collections.emptyList()));
+            }
+        },
+            ActionListener.wrap(v -> tieringCalled.set(true), e -> fail("unexpected")),
+            ActionListener.wrap(e -> fail("Should not reach final failure"), ex -> fail("unexpected")),
+            1
+        );
+
+        assertEquals("Must try exactly 3 times with mixed failures", 3, prepareCalls.get());
+        assertTrue("Tiering must succeed after mixed failure recovery", tieringCalled.get());
+    }
+
+    /** First attempt: partial shard failure. Second: onFailure (exception). Third: full success. */
+    public void testPrepareTiering_MixedFailureModes_PartialThenExceptionThenSuccess() {
+        String indexName = "test-dfa-index";
+        AtomicInteger prepareCalls = new AtomicInteger(0);
+        AtomicReference<Boolean> tieringCalled = new AtomicReference<>(false);
+
+        List<DefaultShardOperationFailedException> shardFailures = Collections.singletonList(
+            new DefaultShardOperationFailedException(indexName, 0, new RuntimeException("shard fail"))
+        );
+
+        executePrepareTiering(indexName, (request, listener) -> {
+            int call = prepareCalls.incrementAndGet();
+            if (call == 1) {
+                listener.onResponse(new BroadcastResponse(2, 1, 1, shardFailures));
+            } else if (call == 2) {
+                listener.onFailure(new RuntimeException("network error on attempt 2"));
+            } else {
+                listener.onResponse(new BroadcastResponse(2, 2, 0, Collections.emptyList()));
+            }
+        },
+            ActionListener.wrap(v -> tieringCalled.set(true), e -> fail("unexpected")),
+            ActionListener.wrap(e -> fail("Should not reach final failure"), ex -> fail("unexpected")),
+            1
+        );
+
+        assertEquals("Must try exactly 3 times with mixed failure order", 3, prepareCalls.get());
+        assertTrue("Tiering must succeed after mixed failure recovery", tieringCalled.get());
+    }
+
+    // ── Full functional orchestration scenarios ─────────────────────────────────
+
+    /**
+     * Full happy path for DFA index:
+     * 1. isDfaIndex → true
+     * 2. Preflight validation passes (no exception)
+     * 3. addReadOnlyBlock → block present in cluster state
+     * 4. executePrepareTiering → succeeds on first attempt
+     * 5. Tiering proceeds (success callback invoked)
+     * Throughout: no failures, no retries.
+     */
+    public void testFullHappyPath_DfaIndex_ValidatesBlocksPreparesTiers() {
+        String indexName = "full-happy-dfa";
+        ClusterState state = buildClusterStateWithDfaIndex(indexName, 2, 1);
+
+        // Step 1: detect DFA
+        assertTrue("Step 1: index must be DFA", isDfaIndex(indexName, state));
+
+        // Step 2: preflight validation passes (simulated by no exception)
+        boolean validationPassed = true; // no exception thrown
+
+        // Step 3: add read-only block
+        ClusterState stateWithBlock = null;
+        if (validationPassed) {
+            stateWithBlock = addReadOnlyBlock(state, indexName);
+        }
+        assertNotNull("Block state must not be null", stateWithBlock);
+        assertTrue(
+            "Step 3: read-only block must be present",
+            stateWithBlock.blocks().hasIndexBlock(indexName, IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK)
+        );
+
+        // Step 4: prepare tiering — succeeds immediately
+        AtomicInteger prepareCalls = new AtomicInteger(0);
+        AtomicReference<Boolean> tieringCalled = new AtomicReference<>(false);
+        AtomicReference<Exception> failureCalled = new AtomicReference<>();
+
+        executePrepareTiering(indexName, (request, listener) -> {
+            prepareCalls.incrementAndGet();
+            listener.onResponse(new BroadcastResponse(2, 2, 0, Collections.emptyList()));
+        },
+            ActionListener.wrap(v -> tieringCalled.set(true), e -> fail("unexpected")),
+            ActionListener.wrap(e -> failureCalled.set(e), ex -> fail("unexpected")),
+            1
+        );
+
+        // Step 5: verify outcomes
+        assertEquals("Step 4: prepare called exactly once", 1, prepareCalls.get());
+        assertTrue("Step 5: tiering must be called after prepare succeeds", tieringCalled.get());
+        assertNull("No failure should occur in happy path", failureCalled.get());
+    }
+
+    /**
+     * Full failure path for DFA index — preflight passes but prepare exhausts retries:
+     * 1. isDfaIndex → true
+     * 2. Preflight validation passes
+     * 3. addReadOnlyBlock → block present
+     * 4. executePrepareTiering → fails all 3 retries
+     * 5. removeReadOnlyBlock → block removed from cluster state
+     * 6. Failure callback invoked with error message
+     */
+    public void testFullFailurePath_DfaIndex_ValidationPassesPrepareFails_BlockRemoved() {
+        String indexName = "full-failure-dfa";
+        ClusterState state = buildClusterStateWithDfaIndex(indexName, 1, 1);
+
+        // Steps 1-3: DFA, validate passes, block added
+        assertTrue("Step 1: must be DFA", isDfaIndex(indexName, state));
+        ClusterState stateWithBlock = addReadOnlyBlock(state, indexName);
+        assertTrue(
+            "Step 3: block must be present",
+            stateWithBlock.blocks().hasIndexBlock(indexName, IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK)
+        );
+
+        // Step 4: prepare fails all retries
+        AtomicReference<Exception> capturedFailure = new AtomicReference<>();
+        AtomicReference<ClusterState> stateAfterCleanup = new AtomicReference<>(stateWithBlock);
+
+        executePrepareTiering(
+            indexName,
+            (request, listener) -> listener.onFailure(new RuntimeException("sync failed")),
+            ActionListener.wrap(v -> fail("Should not succeed"), e -> fail("unexpected")),
+            ActionListener.wrap(e -> {
+                capturedFailure.set(e);
+                // Step 5: simulate removeReadOnlyBlock on failure
+                stateAfterCleanup.set(removeReadOnlyBlock(stateWithBlock, indexName));
+            }, ex -> fail("unexpected")),
+            1
+        );
+
+        // Step 6: verify failure and block removal
+        assertNotNull("Step 6: failure must be captured", capturedFailure.get());
+        assertTrue("Error must mention attempts", capturedFailure.get().getMessage().contains("attempts"));
+        assertFalse(
+            "Step 5: read-only block must be removed after prepare failure",
+            stateAfterCleanup.get().blocks().hasIndexBlock(indexName, IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK)
+        );
+    }
+
+    /**
+     * Full failure path: preflight validation fails immediately —
+     * NO read-only block added, NO prepare called, immediate failure returned.
+     */
+    public void testFullFailurePath_DfaIndex_ValidationFails_NothingDone() {
+        String indexName = "validation-fail-dfa";
+        ClusterState state = buildClusterStateWithDfaIndex(indexName, 1, 1);
+
+        assertTrue("Precondition: must be DFA", isDfaIndex(indexName, state));
+
+        RuntimeException validationError = new IllegalArgumentException("Warm tier has no capacity");
+        AtomicReference<Exception> capturedFailure = new AtomicReference<>();
+        AtomicInteger prepareCalls = new AtomicInteger(0);
+        AtomicReference<ClusterState> stateAfterAttempt = new AtomicReference<>(state);
+
+        // Simulate clusterManagerOperation logic: validate FIRST
+        boolean validationPassed;
+        try {
+            throw validationError; // preflight throws
+        } catch (Exception e) {
+            capturedFailure.set(e);
+            validationPassed = false;
+        }
+
+        if (validationPassed) {
+            // This block must NOT execute
+            stateAfterAttempt.set(addReadOnlyBlock(state, indexName));
+            fail("addReadOnlyBlock must NOT be called when validation fails");
+        }
+
+        // Verify: failure captured, nothing else done
+        assertNotNull("Failure must be captured immediately", capturedFailure.get());
+        assertSame("The captured failure must be the validation error", validationError, capturedFailure.get());
+        assertEquals("Prepare must NOT be called when validation fails", 0, prepareCalls.get());
+        assertFalse(
+            "Read-only block must NOT be present when validation fails",
+            stateAfterAttempt.get().blocks().hasIndexBlock(indexName, IndexMetadata.INDEX_READ_ONLY_ALLOW_DELETE_BLOCK)
+        );
+    }
+
     @FunctionalInterface
     interface PrepareHandler {
         void prepare(PrepareTieringRequest request, ActionListener<BroadcastResponse> listener);

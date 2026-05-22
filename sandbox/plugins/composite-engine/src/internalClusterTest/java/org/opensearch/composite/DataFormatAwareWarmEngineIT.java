@@ -41,10 +41,7 @@ public class DataFormatAwareWarmEngineIT extends DataFormatAwareReplicationBaseI
 
     @Override
     protected Settings featureFlagSettings() {
-        return Settings.builder()
-            .put(super.featureFlagSettings())
-            .put(FeatureFlags.WRITABLE_WARM_INDEX_EXPERIMENTAL_FLAG, true)
-            .build();
+        return Settings.builder().put(super.featureFlagSettings()).put(FeatureFlags.WRITABLE_WARM_INDEX_EXPERIMENTAL_FLAG, true).build();
     }
 
     @Override
