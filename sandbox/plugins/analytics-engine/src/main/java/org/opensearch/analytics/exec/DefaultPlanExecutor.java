@@ -15,13 +15,14 @@ import org.apache.calcite.rel.metadata.JaninoRelMetadataProvider;
 import org.apache.calcite.rel.metadata.RelMetadataQueryBase;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.opensearch.action.ActionRequest;
 import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.HandledTransportAction;
 import org.opensearch.action.support.TimeoutTaskCancellationUtility;
 import org.opensearch.analytics.AnalyticsPlugin;
 import org.opensearch.analytics.EngineContext;
 import org.opensearch.analytics.exec.action.AnalyticsQueryAction;
+import org.opensearch.analytics.exec.action.AnalyticsQueryRequest;
+import org.opensearch.analytics.exec.action.AnalyticsQueryResponse;
 import org.opensearch.analytics.exec.profile.ProfiledResult;
 import org.opensearch.analytics.exec.profile.QueryProfile;
 import org.opensearch.analytics.exec.profile.QueryProfileBuilder;
@@ -30,6 +31,7 @@ import org.opensearch.analytics.exec.task.AnalyticsQueryTaskRequest;
 import org.opensearch.analytics.planner.CapabilityRegistry;
 import org.opensearch.analytics.planner.PlannerContext;
 import org.opensearch.analytics.planner.PlannerImpl;
+import org.opensearch.analytics.planner.RelNodeUtils;
 import org.opensearch.analytics.planner.dag.BackendPlanAdapter;
 import org.opensearch.analytics.planner.dag.DAGBuilder;
 import org.opensearch.analytics.planner.dag.FragmentConversionDriver;
@@ -40,7 +42,6 @@ import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.action.ActionListener;
-import org.opensearch.core.action.ActionResponse;
 import org.opensearch.search.SearchService;
 import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskManager;
@@ -67,7 +68,7 @@ import static org.opensearch.action.search.TransportSearchAction.SEARCH_CANCEL_A
  *
  * @opensearch.internal
  */
-public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, ActionResponse>
+public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRequest, AnalyticsQueryResponse>
     implements
         QueryPlanExecutor<RelNode, Iterable<Object[]>> {
 
@@ -98,9 +99,7 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
         Scheduler scheduler,
         CoordinatorAllocatorHandle coordinatorAllocatorHandle
     ) {
-        super(AnalyticsQueryAction.NAME, transportService, actionFilters, in -> {
-            throw new UnsupportedOperationException("Transport path not implemented yet");
-        });
+        super(AnalyticsQueryAction.NAME, transportService, actionFilters, AnalyticsQueryRequest::new);
         this.capabilityRegistry = capabilityRegistry;
         this.clusterService = clusterService;
         this.searchExecutor = threadPool.executor(ThreadPool.Names.SEARCH);
@@ -123,24 +122,17 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
 
     @Override
     public void execute(RelNode logicalFragment, Object context, ActionListener<Iterable<Object[]>> listener) {
-        // Wrap listener to convert backend-specific exceptions (e.g., native memory errors
-        // arriving as StreamException from gRPC) into proper OpenSearch exception types.
-        ActionListener<Iterable<Object[]>> convertingListener = ActionListener.wrap(
-            listener::onResponse,
-            e -> listener.onFailure(e instanceof Exception ex ? engineContext.convertException(ex) : e)
+        // Dispatch through ActionModule so the SecurityFilter evaluates index-level
+        // permissions before any planning work begins. The AnalyticsQueryRequest
+        // implements IndicesRequest.Replaceable, exposing target indices extracted
+        // from the RelNode's TableScan nodes.
+        String[] indices = RelNodeUtils.extractIndices(logicalFragment);
+        AnalyticsQueryRequest request = new AnalyticsQueryRequest(logicalFragment, context, indices);
+        client.execute(
+            AnalyticsQueryAction.INSTANCE,
+            request,
+            ActionListener.wrap(resp -> listener.onResponse(resp.getRows()), listener::onFailure)
         );
-        searchExecutor.execute(() -> {
-            try {
-                // Non-profile path: unwrap rows from ProfiledResult (profile is null)
-                executeInternal(
-                    logicalFragment,
-                    false,
-                    ActionListener.wrap(result -> convertingListener.onResponse(result.rows()), convertingListener::onFailure)
-                );
-            } catch (Exception e) {
-                convertingListener.onFailure(e);
-            }
-        });
     }
 
     @Override
@@ -259,10 +251,33 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
     }
 
     @Override
-    protected void doExecute(Task task, ActionRequest request, ActionListener<ActionResponse> listener) {
-        // Transport path — reserved for future remote query invocation.
-        // Currently, front-ends invoke execute(RelNode, Object, ActionListener) directly.
-        listener.onFailure(new UnsupportedOperationException("Direct invocation only — use execute(RelNode, Object, ActionListener)"));
+    protected void doExecute(Task task, AnalyticsQueryRequest request, ActionListener<AnalyticsQueryResponse> listener) {
+        // Runs after SecurityFilter has authorized the request.
+        // Fork the entire query lifecycle (planning, scheduling, cleanup) onto the SEARCH
+        // executor so the calling thread — which may be a transport thread — is freed
+        // immediately. The listener is wrapped to convert backend-specific exceptions.
+        ActionListener<AnalyticsQueryResponse> convertingListener = ActionListener.wrap(
+            listener::onResponse,
+            e -> listener.onFailure(e instanceof Exception ex ? engineContext.convertException(ex) : e)
+        );
+        searchExecutor.execute(() -> {
+            try {
+                executeInternal(
+                    request.getPlan(),
+                    false,
+                    ActionListener.wrap(
+                        result -> convertingListener.onResponse(new AnalyticsQueryResponse(result.rows())),
+                        convertingListener::onFailure
+                    )
+                );
+            } catch (Exception e) {
+                convertingListener.onFailure(e);
+            } catch (AssertionError e) {
+                convertingListener.onFailure(
+                    new IllegalStateException("Analytics-engine executor rejected the plan: " + e.getMessage(), e)
+                );
+            }
+        });
     }
 
     /**
