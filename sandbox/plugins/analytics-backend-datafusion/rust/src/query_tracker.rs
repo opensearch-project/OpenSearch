@@ -220,16 +220,22 @@ pub fn set_abort_handle(context_id: i64, handle: AbortHandle) {
 
 /// Counts queries currently running past the cancellation threshold, by type.
 /// Returns (shard_current, coordinator_current).
+///
+/// Uses `try_lock` on the per-entry mutex to avoid holding a lock during
+/// DashMap iteration — if contended (cancel_query running concurrently),
+/// the entry is skipped (conservative undercount for that instant).
 pub fn count_cancelled_running(threshold: Duration) -> (i64, i64) {
     let mut shard_count: i64 = 0;
     let mut coordinator_count: i64 = 0;
     for entry in QUERY_REGISTRY.iter() {
         let tracker = entry.value();
-        if let Some(cancelled_at) = *tracker.cancelled_at.lock() {
-            if cancelled_at.elapsed() >= threshold {
-                match tracker.query_type {
-                    QueryType::Shard => shard_count += 1,
-                    QueryType::Coordinator => coordinator_count += 1,
+        if let Some(guard) = tracker.cancelled_at.try_lock() {
+            if let Some(cancelled_at) = *guard {
+                if cancelled_at.elapsed() >= threshold {
+                    match tracker.query_type {
+                        QueryType::Shard => shard_count += 1,
+                        QueryType::Coordinator => coordinator_count += 1,
+                    }
                 }
             }
         }

@@ -65,16 +65,21 @@ pub unsafe extern "C" fn df_native_node_stats(out_ptr: *mut u8, out_cap: i64) ->
     if (out_cap as usize) < 32 {
         return -1;
     }
-    // Scan registry for currently-running cancelled queries past threshold.
+    // Read totals FIRST, then scan registry. This ordering prevents double-counting:
+    // if a query drops between our total read and scan, it increments total (which
+    // we already captured at the lower value) and leaves the registry (so the scan
+    // won't find it). Worst case: transient undercount by 1, self-corrects next read.
+    // The reverse order (scan first, then total) would allow a query to appear in
+    // both the scan result AND the incremented total.
+    let coordinator_total = NATIVE_SEARCH_TASK_TOTAL.load(Ordering::Relaxed);
+    let shard_total = NATIVE_SEARCH_SHARD_TASK_TOTAL.load(Ordering::Relaxed);
     let (shard_current, coordinator_current) =
         query_tracker::count_cancelled_running(query_tracker::cancel_stats_threshold());
-    // total = completed + current. No double-counting race because Drop removes
-    // from registry BEFORE incrementing total — a query is never in both.
     let vals: [i64; 4] = [
         coordinator_current,
-        NATIVE_SEARCH_TASK_TOTAL.load(Ordering::Relaxed) + coordinator_current,
+        coordinator_total + coordinator_current,
         shard_current,
-        NATIVE_SEARCH_SHARD_TASK_TOTAL.load(Ordering::Relaxed) + shard_current,
+        shard_total + shard_current,
     ];
     std::ptr::copy_nonoverlapping(vals.as_ptr() as *const u8, out_ptr, 32);
     0
