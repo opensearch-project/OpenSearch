@@ -66,16 +66,51 @@ public class OpenSearchJoinSplitRule extends RelOptRule {
         OpenSearchJoin join = call.rel(0);
         if (joinAlreadyResolved(join)) return false;
         // Contract: this rule produces COORDINATOR_CENTRIC. Per M2's strategy table, that
-        // strategy is legal only when (a) the join is theta (no MPP alternative exists) or
-        // (b) MPP is killed cluster-wide. Equi joins under mpp.enabled=true must go through
-        // BROADCAST or HASH; coord-centric cannot compete with them on cost.
+        // strategy is legal when (a) the join is theta (no MPP alternative exists),
+        // (b) MPP is killed cluster-wide, or (c) the structural shape disqualifies the MPP
+        // rules — broadcast and hash both require multi-shard SHARD-distributed inputs on
+        // both sides. Inputs like {@code Project(Filter(Scan))} where the underlying scan
+        // is 1-shard, or non-scan inputs like {@code Values} / {@code Aggregate} sub-trees,
+        // can't satisfy that. Without (c), {@code CannotPlanException} fires because no
+        // rule produces a plan for those shapes under mpp.enabled=true. The check unwraps
+        // RelSubsets via {@code best/original} so transient demanded-trait subsets don't
+        // accidentally flip the answer mid-CBO.
         boolean mppEnabled = AnalyticsSettings.MPP_ENABLED.get(context.getSettings());
         JoinInfo info = join.analyzeCondition();
         boolean isEqui = info.isEqui();
-        if (mppEnabled && isEqui) {
+        if (mppEnabled && isEqui && bothInputsCouldBeMppShardScans(join)) {
             return false;
         }
         return true;
+    }
+
+    /** True when both inputs originate from SHARD-distributed scans with shardCount > 1
+     *  (the situation the broadcast/hash rules need to fire — single-shard scans can't
+     *  benefit from broadcast/hash and would fail the broadcast cost gate, which requires
+     *  RANDOM+SHARD on the probe). Unlike the rules' own check that looks at {@code
+     *  rel.getTraitSet()}, this version unwraps RelSubsets via best/original so a transient
+     *  demanded-trait subset doesn't make us think the inputs are non-SHARD. */
+    private static boolean bothInputsCouldBeMppShardScans(OpenSearchJoin join) {
+        OpenSearchDistribution leftDist = originalDistribution(join.getLeft());
+        OpenSearchDistribution rightDist = originalDistribution(join.getRight());
+        return isMultiShard(leftDist) && isMultiShard(rightDist);
+    }
+
+    private static boolean isMultiShard(OpenSearchDistribution dist) {
+        if (dist == null) return false;
+        if (dist.getLocality() != OpenSearchDistribution.Locality.SHARD) return false;
+        Integer shardCount = dist.getShardCount();
+        // shardCount can be null on synthetic subtrees; treat that as "not multi-shard" so
+        // we route through coord-centric rather than risking a CannotPlan.
+        return shardCount != null && shardCount > 1;
+    }
+
+    private static OpenSearchDistribution originalDistribution(RelNode rel) {
+        if (rel instanceof org.apache.calcite.plan.volcano.RelSubset subset) {
+            RelNode best = subset.getBestOrOriginal();
+            if (best != rel) return originalDistribution(best);
+        }
+        return distributionOf(rel);
     }
 
     @Override

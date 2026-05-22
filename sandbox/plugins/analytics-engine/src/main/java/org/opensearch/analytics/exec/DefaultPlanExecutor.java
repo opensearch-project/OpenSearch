@@ -24,7 +24,6 @@ import org.opensearch.analytics.AnalyticsPlugin;
 import org.opensearch.analytics.AnalyticsSettings;
 import org.opensearch.analytics.EngineContext;
 import org.opensearch.analytics.exec.action.AnalyticsQueryAction;
-import org.opensearch.analytics.exec.join.BroadcastDAGRewriter;
 import org.opensearch.analytics.exec.join.BroadcastDispatch;
 import org.opensearch.analytics.exec.join.JoinStrategy;
 import org.opensearch.analytics.exec.join.JoinStrategyAdvisor;
@@ -61,6 +60,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.ToLongFunction;
 
 import static org.opensearch.action.search.TransportSearchAction.SEARCH_CANCEL_AFTER_TIME_INTERVAL_SETTING;
 
@@ -81,13 +81,6 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
         QueryPlanExecutor<RelNode, Iterable<Object[]>> {
 
     private static final Logger logger = LogManager.getLogger(DefaultPlanExecutor.class);
-
-    /**
-     * Default broadcast eligibility threshold — if the smaller side's shard count is at or below
-     * this value, BROADCAST is selected. Picked conservatively so that single-shard indices are
-     * always broadcast-eligible. A future cluster-setting wire-up will make this dynamic.
-     */
-    private static final int DEFAULT_BROADCAST_MAX_SHARDS = 2;
 
     private final CapabilityRegistry capabilityRegistry;
     private final ClusterService clusterService;
@@ -189,9 +182,36 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
         logicalFragment.getCluster().invalidateMetadataQuery();
 
         final long planStartNanos = profile ? System.nanoTime() : 0;
+        // Build a per-query Settings snapshot that overlays the live cluster-state values for
+        // analytics-* settings on top of the node-startup settings. Without this overlay, dynamic
+        // updates via PUT /_cluster/settings (e.g. analytics.mpp.enabled) are invisible to the
+        // planner rules — they'd see the node-bootstrap default forever, defeating both the
+        // operator kill switch and the IT framework's per-test setSetting calls.
+        final org.opensearch.common.settings.Settings perQuerySettings = org.opensearch.common.settings.Settings.builder()
+            .put(clusterService.getSettings())
+            .put(AnalyticsSettings.MPP_ENABLED.getKey(), clusterService.getClusterSettings().get(AnalyticsSettings.MPP_ENABLED))
+            .put(
+                AnalyticsSettings.MPP_SHUFFLE_ENABLED.getKey(),
+                clusterService.getClusterSettings().get(AnalyticsSettings.MPP_SHUFFLE_ENABLED)
+            )
+            .put(
+                AnalyticsSettings.MPP_SHUFFLE_PARTITIONS.getKey(),
+                clusterService.getClusterSettings().get(AnalyticsSettings.MPP_SHUFFLE_PARTITIONS)
+            )
+            .put(
+                AnalyticsSettings.MPP_BROADCAST_PROBE_ESTIMATE.getKey(),
+                clusterService.getClusterSettings().get(AnalyticsSettings.MPP_BROADCAST_PROBE_ESTIMATE)
+            )
+            .build();
+        // Fetch primary-shard doc counts for every index this query touches. The CBO cost
+        // model needs them to discriminate broadcast (small build × N probes) from
+        // coord-centric (gather both sides) — without real counts every scan is Calcite's
+        // default 100 rows and broadcast loses the cost race against SINGLETON gather even
+        // for tiny dimensions. See IndexRowCountFetcher's class javadoc for the full story.
+        ToLongFunction<String> tableRowCounts = IndexRowCountFetcher.fetchFor(logicalFragment, client);
         RelNode plan = PlannerImpl.createPlan(
             logicalFragment,
-            new PlannerContext(capabilityRegistry, clusterService.state(), clusterService.getSettings(), profile)
+            new PlannerContext(capabilityRegistry, clusterService.state(), perQuerySettings, tableRowCounts, profile)
         );
         final String fullPlan = profile ? org.apache.calcite.plan.RelOptUtil.toString(plan) : null;
         QueryDAG dag = DAGBuilder.build(plan, capabilityRegistry, clusterService);
@@ -201,57 +221,44 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
         final long planningTimeMs = profile ? java.util.concurrent.TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - planStartNanos) : 0;
         logger.debug("[DefaultPlanExecutor] QueryDAG:\n{}", dag);
 
-        // Join strategy selection: inspect the DAG for a binary join and tag stage roles.
+        // Join strategy resolution under the CBO-driven model:
+        // - The Volcano CBO already chose between coord-centric, broadcast, and hash-shuffle
+        // by ranking alternatives produced by the three split rules under the cost model
+        // (see OpenSearchJoin{,Hash,Broadcast}JoinSplitRule + OpenSearchBroadcastExchange /
+        // OpenSearchShuffleExchange cost functions). DAGBuilder cut at the chosen exchange
+        // RelNodes and tagged stages BROADCAST_BUILD / BROADCAST_PROBE / SHUFFLE_*.
+        // - The advisor here is read-only: it inspects role tags so we know which dispatch
+        // path to invoke and which counter to increment. No decisions, no mutations.
         //
-        // For COORDINATOR_CENTRIC (no join, or a join that can't be MPP'd) the existing
-        // single-pass dispatch works unchanged.
-        //
-        // For BROADCAST and HASH_SHUFFLE we currently degrade to the same coordinator-centric
-        // dispatch: the build/probe or left/right scan stages reduce to SINGLETON and the join
-        // runs on the coordinator (M0 shape). The phased scheduler, broadcast injection, and
-        // shuffle transport paths are all SPI-complete but not yet wired end-to-end (doc 65 M1
-        // probe-push-down / M2 shuffle-worker dispatch). Falling back — rather than rejecting
-        // the query — preserves correctness: every query that works today keeps working while
-        // the faster MPP paths are landed.
-        //
-        // HASH_SHUFFLE intentionally falls through to coordinator-centric rather than throwing
-        // — large-index equi-joins must keep working on the M0 path until M2 lands. The chosen
-        // strategy is logged below for observability.
-        // Master kill switch — operators can disable MPP (broadcast / hash-shuffle) cluster-wide
-        // and force every join through the coordinator-centric path. Useful as an incident
-        // response control or for A/B comparison. Read first and short-circuit so the advisor's
-        // synchronous IndicesStats fan-out is skipped entirely when MPP is off — otherwise the
-        // kill switch leaves per-query stats load in place even though every join is forced
-        // back to coord-centric, defeating the purpose of the setting.
-        final boolean mppEnabled = clusterService.getClusterSettings().get(AnalyticsSettings.MPP_ENABLED);
-        JoinStrategy joinStrategy;
-        if (mppEnabled) {
-            long broadcastMaxRows = clusterService.getClusterSettings().get(AnalyticsSettings.BROADCAST_MAX_ROWS);
-            JoinStrategyAdvisor advisor = new JoinStrategyAdvisor(DEFAULT_BROADCAST_MAX_SHARDS, broadcastMaxRows, client);
-            joinStrategy = advisor.adviseAndTag(dag, clusterService.state());
-        } else {
-            joinStrategy = JoinStrategy.COORDINATOR_CENTRIC;
-        }
+        // Master kill switch — when analytics.mpp.enabled=false, the broadcast and hash split
+        // rules don't fire at all (gated in their matches()), so the DAG cannot contain any MPP
+        // role tags. We don't need a separate kill check here; the absence of tags drives the
+        // coord-centric fallthrough. The setting is read solely for the legacy log line below.
+        final JoinStrategy joinStrategy = JoinStrategyAdvisor.observe(dag);
+        final Stage broadcastBuild = JoinStrategyAdvisor.findBroadcastBuild(dag);
+        final Stage broadcastProbe = JoinStrategyAdvisor.findBroadcastProbe(dag);
+        final boolean dispatchBroadcast = joinStrategy == JoinStrategy.BROADCAST
+            && broadcastBuild != null
+            && broadcastProbe != null
+            && scheduler instanceof QueryScheduler;
 
-        final boolean dispatchBroadcast = mppEnabled && joinStrategy == JoinStrategy.BROADCAST && scheduler instanceof QueryScheduler;
-        if (mppEnabled && joinStrategy == JoinStrategy.HASH_SHUFFLE) {
-            logger.info("[DefaultPlanExecutor] HASH_SHUFFLE not yet wired end-to-end; falling back to coordinator-centric.");
-        } else if (mppEnabled && joinStrategy == JoinStrategy.BROADCAST && !dispatchBroadcast) {
+        if (joinStrategy == JoinStrategy.HASH_SHUFFLE) {
+            // HASH_SHUFFLE produces a shuffle-shaped DAG but the runtime dispatch (producer/
+            // consumer orchestration, RepartitionExec wrapping, NamedScan registration) is the
+            // bulk of M2 implementation still in flight. Falling through to scheduler.execute
+            // means the shuffle-shape stages run as ordinary single-pass stages — correct
+            // behavior is gated on the runtime work; for now this path silently degrades.
+            logger.info("[DefaultPlanExecutor] HASH_SHUFFLE plan-shape produced; runtime dispatch falls back to single-pass execution.");
+        } else if (joinStrategy == JoinStrategy.BROADCAST && !dispatchBroadcast) {
             logger.info(
-                "[DefaultPlanExecutor] BROADCAST selected but scheduler is {}, not QueryScheduler; falling back to coordinator-centric.",
+                "[DefaultPlanExecutor] BROADCAST plan-shape produced but scheduler is {}, not QueryScheduler; falling back to single-pass execution.",
                 scheduler.getClass().getSimpleName()
             );
         }
 
-        // Record the routed strategy — what we actually run, not just what the advisor picked.
-        // Kill-switch downgrades and HASH_SHUFFLE → coord-centric fallthrough both collapse to
-        // COORDINATOR_CENTRIC here. Tests use the counter delta around a query to assert the
-        // BROADCAST path actually fired (vs. silently degrading to M0).
-        //
-        // Gated on the DAG actually containing a join: scans, aggregations, and other non-join
-        // queries route through the same code path, but counting them as COORDINATOR_CENTRIC
-        // would swamp the metric (in any mixed workload non-joins dominate) and make the
-        // /_analytics/_strategies API misleading for its documented purpose.
+        // Record the routed strategy — what we actually run, not just what CBO picked. A
+        // BROADCAST DAG that fails the dispatchBroadcast gate (non-QueryScheduler) collapses
+        // to COORDINATOR_CENTRIC for counting purposes since the join then runs on the coord.
         if (JoinStrategyAdvisor.containsJoin(dag)) {
             joinStrategyMetrics.recordDispatch(dispatchBroadcast ? JoinStrategy.BROADCAST : JoinStrategy.COORDINATOR_CENTRIC);
         }
@@ -325,14 +332,14 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
             );
         }
 
-        // Route synchronous setup failures (DAG rewrite, fragment conversion, capture-sink
-        // construction, scheduler dispatch wiring) through batchesListener so the per-query
-        // allocator is closed and the AnalyticsQueryTask is unregistered. Without this guard,
-        // a synchronous throw would escape to execute()'s outer catch which calls
-        // listener.onFailure directly — leaving the task registered and the allocator open.
+        // Route synchronous setup failures (capture-sink construction, scheduler dispatch
+        // wiring) through batchesListener so the per-query allocator is closed and the
+        // AnalyticsQueryTask is unregistered. Without this guard, a synchronous throw would
+        // escape to execute()'s outer catch which calls listener.onFailure directly — leaving
+        // the task registered and the allocator open.
         try {
             if (dispatchBroadcast) {
-                dispatchBroadcast(dag, context, batchesListener);
+                dispatchBroadcast(dag, broadcastBuild, broadcastProbe, context, batchesListener);
             } else {
                 // execRef read by profile listener after execution completes
                 execRef.set(scheduler.execute(context, batchesListener));
@@ -345,41 +352,32 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
     }
 
     /**
-     * Runs the M1 broadcast-join path: rewrites the DAG so the join lives on a new probe-side
-     * stage, runs pass 1 (build only) with a backend-supplied capture sink, then pass 2 (probe
-     * + root) with the broadcast instruction appended to the probe plan alternatives.
+     * Runs the broadcast-join path against a CBO-produced DAG. The DAG already has the
+     * broadcast shape — root → probe stage → build stage — because the cost model picked the
+     * broadcast alternative emitted by {@link
+     * org.opensearch.analytics.planner.rules.OpenSearchBroadcastJoinSplitRule} and DAGBuilder
+     * cut at the resulting {@link org.opensearch.analytics.planner.rel.OpenSearchBroadcastExchange}.
+     * No DAG rewrite is needed.
      *
-     * <p>Any failure inside the dispatcher fires {@code terminal.onFailure(...)}; we do not fall
-     * back to coordinator-centric at this point because the rewriter has already mutated the
-     * DAG shape and re-run plan forking / conversion against it. Structural rewrite errors
-     * surface as exceptions from {@link BroadcastDAGRewriter#rewrite} and are caught by
-     * {@link #execute}'s outer {@code try/catch}, which invokes {@code listener.onFailure}.
+     * <p>Pass 1 runs the build stage with a backend-supplied capture sink; pass 2 runs probe +
+     * root after enriching the probe stage's plan alternatives with a {@link
+     * org.opensearch.analytics.spi.BroadcastInjectionInstructionNode} carrying the captured IPC
+     * bytes. Failures surface via {@code terminal.onFailure(...)}.
      */
-    private void dispatchBroadcast(QueryDAG dag, QueryContext context, ActionListener<Iterable<VectorSchemaRoot>> terminal) {
-        QueryDAG rewritten = BroadcastDAGRewriter.rewrite(dag, capabilityRegistry, clusterService);
-        // Backend-side fragment conversion is deliberately NOT done inside the rewriter so that
-        // mock-backed planner tests can drive the rewrite. Run it here against the real backend.
-        FragmentConversionDriver.convertAll(rewritten, capabilityRegistry);
-        Stage rewrittenRoot = rewritten.rootStage();
-        if (rewrittenRoot.getChildStages().size() != 1) {
-            throw new IllegalStateException(
-                "Rewritten broadcast DAG must have exactly one root child (the probe stage); got " + rewrittenRoot.getChildStages().size()
-            );
-        }
-        Stage probe = rewrittenRoot.getChildStages().get(0);
-        if (probe.getChildStages().size() != 1) {
-            throw new IllegalStateException(
-                "Rewritten broadcast DAG's probe stage must have exactly one child (the build stage); got " + probe.getChildStages().size()
-            );
-        }
-        Stage build = probe.getChildStages().get(0);
-
+    private void dispatchBroadcast(
+        QueryDAG dag,
+        Stage build,
+        Stage probe,
+        QueryContext context,
+        ActionListener<Iterable<VectorSchemaRoot>> terminal
+    ) {
+        Stage root = dag.rootStage();
         // Pick a capture sink from the first reduce-capable backend. For a single-backend
         // deployment (DataFusion) this is the only candidate and mirrors DAGBuilder's reduce
         // sink provider lookup.
         List<String> reduceViable = CapabilityResolutionUtils.filterByReduceCapability(
             capabilityRegistry,
-            ((org.opensearch.analytics.planner.rel.OpenSearchRelNode) dag.rootStage().getFragment()).getViableBackends()
+            ((org.opensearch.analytics.planner.rel.OpenSearchRelNode) root.getFragment()).getViableBackends()
         );
         if (reduceViable.isEmpty()) {
             throw new IllegalStateException("No reduce-capable backend for broadcast capture sink");
@@ -387,7 +385,6 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
         final String captureBackendId = reduceViable.get(0);
         QueryScheduler qscheduler = (QueryScheduler) scheduler;
         BroadcastDispatch dispatch = new BroadcastDispatch(qscheduler.getStageExecutionBuilder(), qscheduler);
-        QueryContext rewrittenCtx = context.withDag(rewritten);
 
         // Pass the build's RelDataType so the backend can build a fallback Arrow schema for
         // the IPC header. An all-empty build payload then registers a memtable with the real
@@ -399,14 +396,14 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
         // from blowing up coordinator memory.
         final long broadcastMaxBytes = clusterService.getClusterSettings().get(AnalyticsSettings.BROADCAST_MAX_BYTES).getBytes();
         dispatch.run(
-            rewrittenCtx,
-            rewritten,
+            context,
+            dag,
             build,
             probe,
-            rewrittenRoot,
+            root,
             () -> capabilityRegistry.getBackend(captureBackendId)
                 .getExchangeSinkProvider()
-                .createBroadcastCaptureSink(rewrittenCtx.bufferAllocator(), buildRowType, broadcastMaxBytes),
+                .createBroadcastCaptureSink(context.bufferAllocator(), buildRowType, broadcastMaxBytes),
             terminal
         );
     }

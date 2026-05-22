@@ -81,7 +81,20 @@ public class OpenSearchHashJoinSplitRule extends RelOptRule {
         if (joinAlreadyResolvedAsHash(join)) {
             return false;
         }
-        return true;
+        // Both inputs must be vanilla SHARD-distributed scans. Without this gate the rule fires
+        // on shapes like Join(Scan, Values) — Values has no shard distribution, so the resulting
+        // OpenSearchShuffleExchange wraps a non-scan input, and DAGBuilder.cutShuffle's
+        // ShardTargetResolver can't find a TableScan and bails out.
+        return isShardScan(join.getLeft()) && isShardScan(join.getRight());
+    }
+
+    /** True when {@code rel}'s OpenSearchDistribution is SHARD-localized — i.e. the rel is an
+     *  unwrapped scan (or scan-shaped subtree) without an exchange already on top. Mirrors the
+     *  same check in {@link OpenSearchBroadcastJoinSplitRule}. */
+    private static boolean isShardScan(RelNode rel) {
+        OpenSearchDistribution dist = distributionOf(rel);
+        if (dist == null) return false;
+        return dist.getLocality() == OpenSearchDistribution.Locality.SHARD;
     }
 
     @Override
@@ -115,7 +128,14 @@ public class OpenSearchHashJoinSplitRule extends RelOptRule {
         // independently — it doesn't compare the join's keys to inputs').
         OpenSearchDistribution joinHash = distTraitDef.hash(info.leftKeys, partitionCount);
         RelTraitSet joinTraits = join.getTraitSet().replace(joinHash);
-        RelNode workerJoin = join.copy(joinTraits, join.getCondition(), shuffledLeft, shuffledRight, join.getJoinType(), join.isSemiJoinDone());
+        RelNode workerJoin = join.copy(
+            joinTraits,
+            join.getCondition(),
+            shuffledLeft,
+            shuffledRight,
+            join.getJoinType(),
+            join.isSemiJoinDone()
+        );
 
         // Coord still needs the result; convert WORKER → COORDINATOR registers a final gather
         // ER above. The transformTo target carries WORKER traits; Volcano's enforcement will

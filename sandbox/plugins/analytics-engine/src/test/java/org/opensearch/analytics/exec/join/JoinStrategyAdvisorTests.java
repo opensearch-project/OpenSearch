@@ -16,185 +16,230 @@ import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
 import org.apache.calcite.sql.type.SqlTypeName;
 import org.opensearch.analytics.planner.BasePlannerRulesTests;
+import org.opensearch.analytics.planner.CapabilityRegistry;
+import org.opensearch.analytics.planner.FieldStorageResolver;
+import org.opensearch.analytics.planner.MockDataFusionBackend;
 import org.opensearch.analytics.planner.PlannerContext;
 import org.opensearch.analytics.planner.PlannerImpl;
 import org.opensearch.analytics.planner.dag.DAGBuilder;
 import org.opensearch.analytics.planner.dag.QueryDAG;
 import org.opensearch.analytics.planner.dag.Stage;
+import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
+import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.metadata.MappingMetadata;
+import org.opensearch.cluster.metadata.Metadata;
+import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.node.DiscoveryNodes;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.core.index.Index;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.function.ToLongFunction;
 
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+
+/**
+ * Validates {@link JoinStrategyAdvisor}'s observation-only API against post-CBO DAGs:
+ * <ul>
+ *   <li>{@link JoinStrategyAdvisor#containsJoin} — true iff some stage's fragment contains an
+ *       {@code OpenSearchJoin}; used to gate join-strategy metrics.</li>
+ *   <li>{@link JoinStrategyAdvisor#observe} — reads the strategy CBO + DAGBuilder produced
+ *       (BROADCAST when a stage tagged BROADCAST_BUILD exists; HASH_SHUFFLE when a stage
+ *       carries a HASH_DISTRIBUTED ExchangeInfo; otherwise COORDINATOR_CENTRIC).</li>
+ *   <li>{@link JoinStrategyAdvisor#findBroadcastBuild} / {@link JoinStrategyAdvisor#findBroadcastProbe}
+ *       — locator helpers for {@code DefaultPlanExecutor.dispatchBroadcast}.</li>
+ * </ul>
+ *
+ * <p>The advisor is observation-only: it must NOT make routing decisions, NOT mutate stage
+ * roles, and NOT touch the DAG. The job is just "what did CBO + DAGBuilder pick, so the
+ * dispatcher knows which path to invoke?"
+ */
 public class JoinStrategyAdvisorTests extends BasePlannerRulesTests {
 
-    /** Single-index scan — no join — always COORDINATOR_CENTRIC. */
-    public void testNoJoinReturnsCoordinatorCentric() {
-        PlannerContext context = buildContext("parquet", 1, intFields());
-        RelNode marked = PlannerImpl.createPlan(stubScan(mockTable("test_index", "status", "size")), context);
+    private static final long SMALL = 1_000L;
+    private static final long LARGE = 10_000_000L;
+    private static final int CLUSTER_DATA_NODES = 3;
+
+    public void testNonJoinQueryReturnsCoordinatorCentric() {
+        PlannerContext context = buildMppContext(Map.of("idx", 1), Map.of("idx", SMALL), /* mppEnabled */ true, /* shuffleEnabled */ true);
+        RelNode marked = PlannerImpl.createPlan(stubScan(mockTable("idx", "status", "size")), context);
         QueryDAG dag = DAGBuilder.build(marked, context.getCapabilityRegistry(), mockClusterService());
 
-        JoinStrategyAdvisor advisor = new JoinStrategyAdvisor(100, 1_000_000L);
-        assertEquals(JoinStrategy.COORDINATOR_CENTRIC, advisor.adviseAndTag(dag, context.getClusterState()));
+        assertFalse("scan-only DAG must not be counted as a join", JoinStrategyAdvisor.containsJoin(dag));
+        assertEquals(JoinStrategy.COORDINATOR_CENTRIC, JoinStrategyAdvisor.observe(dag));
+        assertNull(JoinStrategyAdvisor.findBroadcastBuild(dag));
+        assertNull(JoinStrategyAdvisor.findBroadcastProbe(dag));
     }
 
-    /**
-     * Binary equi-join on a single-shard mock without a {@link org.opensearch.transport.client.Client}
-     * → {@code StatisticsCollector} cannot fetch row counts → fail-safe HASH_SHUFFLE. The shard
-     * gate passes (1 ≤ 2) but the row gate refuses because rowCount is unknown.
-     *
-     * <p>This is the unit-test equivalent of an environment where IndicesStats is unavailable
-     * (planner-level tests don't wire a Client). End-to-end tests in {@code qa/} cover the
-     * BROADCAST happy path with real row counts.
-     */
-    public void testEquiJoinSmallShardsRefusesBroadcastWhenRowsUnknown() {
-        // shardCount=2 (vs. broadcastMaxShards threshold below) so PR #21639's split rule still
-        // demands COORDINATOR+SINGLETON inputs (multi-shard, ER per side); the advisor sees its
-        // expected OpenSearchJoin(ER, ER) shape and runs the strategy selector. With shardCount=1
-        // the join would go SHARD-local under PR's design, no ERs, no child stages — advisor
-        // would fall through to COORDINATOR_CENTRIC, which is correct for that case but not what
-        // this test is exercising.
-        PlannerContext context = buildContext("parquet", 2, intFields());
-        RelNode join = makeInnerEquiJoin();
-        RelNode marked = PlannerImpl.createPlan(join, context);
-        QueryDAG dag = DAGBuilder.build(marked, context.getCapabilityRegistry(), mockClusterService());
-
-        JoinStrategyAdvisor advisor = new JoinStrategyAdvisor(/* broadcastMaxShards */ 2, /* broadcastMaxRows */ 1_000_000L);
-        JoinStrategy strategy = advisor.adviseAndTag(dag, context.getClusterState());
-        assertEquals(JoinStrategy.HASH_SHUFFLE, strategy);
-
-        // Role tagging only happens for BROADCAST. With rowCount=0 fail-safe, the advisor
-        // returns HASH_SHUFFLE and does not retag children.
-        Stage root = dag.rootStage();
-        assertEquals(2, root.getChildStages().size());
-    }
-
-    /** Binary equi-join on 10-shard mocks → HASH_SHUFFLE (10 > threshold 2). */
-    public void testEquiJoinLargeShardsPicksHashShuffle() {
-        PlannerContext context = buildContext("parquet", /* shardCount */ 10, intFields());
-        RelNode join = makeInnerEquiJoin();
-        RelNode marked = PlannerImpl.createPlan(join, context);
-        QueryDAG dag = DAGBuilder.build(marked, context.getCapabilityRegistry(), mockClusterService());
-
-        JoinStrategyAdvisor advisor = new JoinStrategyAdvisor(2, 1_000_000L);
-        assertEquals(JoinStrategy.HASH_SHUFFLE, advisor.adviseAndTag(dag, context.getClusterState()));
-    }
-
-    /**
-     * Regression: if either join input is an aggregate / derived subquery,
-     * {@link JoinStrategyAdvisor#adviseAndTag} must fall back to
-     * {@link JoinStrategy#COORDINATOR_CENTRIC} — an earlier version let {@code findSoleScanIndex}
-     * chase through any unary operator, which misclassified {@code Agg → Project → Scan} inputs
-     * as "plain scans" and incorrectly picked HASH_SHUFFLE on large-shard aggregates.
-     */
-    public void testAggregateInputFallsBackToCoordinatorCentric() {
-        PlannerContext context = buildContext("parquet", /* shardCount */ 10, intFields());
-        // left: plain scan of test_index
-        RelNode leftScan = stubScan(mockTable("test_index", "status", "size"));
-        // right: Aggregate GROUP BY column 0 (status) + COUNT(*) over test_index — derived input.
-        // Output shape: [status INTEGER, count BIGINT], so right column 0 is INTEGER (group key).
-        RelNode rightAgg = makeAggregate(stubScan(mockTable("test_index", "status", "size")), countStarCall());
-
-        int leftCols = leftScan.getRowType().getFieldCount();
-        RelDataType intType = typeFactory.createSqlType(SqlTypeName.INTEGER);
-        RexNode condition = rexBuilder.makeCall(
-            SqlStdOperatorTable.EQUALS,
-            rexBuilder.makeInputRef(intType, 0),
-            rexBuilder.makeInputRef(intType, leftCols)
+    public void testJoinWithMppDisabledReportsCoordinatorCentric() {
+        // mpp.enabled=false → broadcast and hash split rules don't fire; only coord-centric
+        // alternative survives. Advisor must report COORDINATOR_CENTRIC.
+        PlannerContext context = buildMppContext(
+            Map.of("a", 3, "b", 3),
+            Map.of("a", LARGE, "b", LARGE),
+            /* mppEnabled */ false,
+            /* shuffleEnabled */ true
         );
-        RelNode join = LogicalJoin.create(leftScan, rightAgg, List.of(), condition, Set.of(), JoinRelType.INNER);
-        RelNode marked = PlannerImpl.createPlan(join, context);
-        QueryDAG dag = DAGBuilder.build(marked, context.getCapabilityRegistry(), mockClusterService());
+        RelNode join = makeInnerEquiJoin("a", "b");
+        QueryDAG dag = buildDag(join, context);
 
-        JoinStrategyAdvisor advisor = new JoinStrategyAdvisor(2, 1_000_000L);
-        assertEquals(
-            "Joins over derived/aggregated inputs must fall back to COORDINATOR_CENTRIC",
-            JoinStrategy.COORDINATOR_CENTRIC,
-            advisor.adviseAndTag(dag, context.getClusterState())
-        );
+        assertTrue(JoinStrategyAdvisor.containsJoin(dag));
+        assertEquals(JoinStrategy.COORDINATOR_CENTRIC, JoinStrategyAdvisor.observe(dag));
+        assertNull(JoinStrategyAdvisor.findBroadcastBuild(dag));
     }
 
-    /**
-     * Theta (non-equi) joins reach the advisor and route to {@code COORDINATOR_CENTRIC}.
-     * Under M2, the marker rule no longer rejects non-equi predicates; the
-     * {@code OpenSearchJoinSplitRule} doesn't inspect the condition, so the planner produces
-     * the same SINGLETON+SINGLETON shape as for an equi join. The advisor selects
-     * COORDINATOR_CENTRIC because broadcast/hash-shuffle both require an equi predicate;
-     * NestedLoopJoinExec runs at the coordinator at execution time. This restores the M0
-     * contract that PR #21639 had inadvertently broken.
-     */
-    public void testThetaJoinRoutesToCoordinatorCentric() {
-        PlannerContext context = buildContext("parquet", /* shardCount */ 10, intFields());
-        RelNode join = makeThetaJoin();
-        RelNode marked = PlannerImpl.createPlan(join, context);
-        QueryDAG dag = DAGBuilder.build(marked, context.getCapabilityRegistry(), mockClusterService());
-
-        JoinStrategyAdvisor advisor = new JoinStrategyAdvisor(/* maxShards */ 2, /* maxRows */ 1_000_000L);
-        assertEquals(
-            "Theta joins must route to COORDINATOR_CENTRIC — broadcast/hash-shuffle require an equi predicate",
-            JoinStrategy.COORDINATOR_CENTRIC,
-            advisor.adviseAndTag(dag, context.getClusterState())
+    public void testSmallByLargeJoinReportsBroadcast() {
+        PlannerContext context = buildMppContext(
+            Map.of("dim", 3, "fact", 3),
+            Map.of("dim", SMALL, "fact", LARGE),
+            /* mppEnabled */ true,
+            /* shuffleEnabled */ true
         );
+        QueryDAG dag = buildDag(makeInnerEquiJoin("dim", "fact"), context);
+
+        assertTrue(JoinStrategyAdvisor.containsJoin(dag));
+        assertEquals(JoinStrategy.BROADCAST, JoinStrategyAdvisor.observe(dag));
+
+        Stage build = JoinStrategyAdvisor.findBroadcastBuild(dag);
+        Stage probe = JoinStrategyAdvisor.findBroadcastProbe(dag);
+        assertNotNull("broadcast DAG must have a BROADCAST_BUILD stage", build);
+        assertNotNull("broadcast DAG must have a BROADCAST_PROBE stage", probe);
+        assertEquals(Stage.StageRole.BROADCAST_BUILD, build.getRole());
+        assertEquals(Stage.StageRole.BROADCAST_PROBE, probe.getRole());
+        assertTrue("probe stage must list the build stage as a child", probe.getChildStages().contains(build));
     }
 
-    /**
-     * Regression: queries like {@code | inner join ... | sort ... | head N} produce a Sort wrapping
-     * the join at the root. The advisor must look through the wrappers — otherwise BROADCAST is
-     * never picked for any user query that has a top-level `| sort` or `| head`.
-     *
-     * <p>Without rows wired in, the test asserts that the advisor reaches the {@code OpenSearchJoin}
-     * (and lands on HASH_SHUFFLE because rowCount=0), rather than short-circuiting to
-     * {@code COORDINATOR_CENTRIC} on the wrong-type root check. The unit test catches the
-     * structural unwrap; the BROADCAST happy path is covered end-to-end in {@code BroadcastJoinIT}.
-     */
-    public void testAdvisorLooksThroughSortWrapper() {
-        // shardCount=2 forces the planner's split rule to insert per-side ERs (multi-shard,
-        // COORDINATOR+SINGLETON demand). With shardCount=1 the join would go SHARD-local
-        // under PR #21639's design — no ERs, advisor correctly falls through to coord-centric.
-        // This test specifically exercises the unwrap-Sort-and-find-Join path, which only
-        // matters when the join has ER inputs.
-        PlannerContext context = buildContext("parquet", /* shardCount */ 2, intFields());
-        RelNode join = makeInnerEquiJoin();
-        RelNode wrapped = makeSort(join, /* fetch */ 50); // Sort + LIMIT 50
-        RelNode marked = PlannerImpl.createPlan(wrapped, context);
-        QueryDAG dag = DAGBuilder.build(marked, context.getCapabilityRegistry(), mockClusterService());
-
-        JoinStrategyAdvisor advisor = new JoinStrategyAdvisor(/* maxShards */ 2, /* maxRows */ 1_000_000L);
-        JoinStrategy strategy = advisor.adviseAndTag(dag, context.getClusterState());
-
-        // Without row counts the selector returns HASH_SHUFFLE (fail-safe). The point of this
-        // test is that we did NOT return COORDINATOR_CENTRIC: the advisor unwrapped the Sort,
-        // found the OpenSearchJoin, and ran the strategy selector against it.
-        assertNotEquals(
-            "Advisor must unwrap top-level Sort and inspect the underlying join, not short-circuit to COORDINATOR_CENTRIC",
-            JoinStrategy.COORDINATOR_CENTRIC,
-            strategy
+    public void testLargeByLargeJoinReportsHashShuffle() {
+        PlannerContext context = buildMppContext(
+            Map.of("a", 3, "b", 3),
+            Map.of("a", LARGE, "b", LARGE),
+            /* mppEnabled */ true,
+            /* shuffleEnabled */ true
         );
-        assertEquals(JoinStrategy.HASH_SHUFFLE, strategy);
+        QueryDAG dag = buildDag(makeInnerEquiJoin("a", "b"), context);
+
+        assertTrue(JoinStrategyAdvisor.containsJoin(dag));
+        assertEquals(JoinStrategy.HASH_SHUFFLE, JoinStrategyAdvisor.observe(dag));
+        assertNull("hash-shuffle DAG must NOT have a BROADCAST_BUILD stage", JoinStrategyAdvisor.findBroadcastBuild(dag));
     }
 
-    private RelNode makeInnerEquiJoin() {
-        RelNode left = stubScan(mockTable("test_index", "status", "size"));
-        RelNode right = stubScan(mockTable("test_index", "status", "size"));
+    public void testThetaJoinReportsCoordinatorCentric() {
+        // Theta condition keeps broadcast/hash rules dormant; coord-centric is the only legal
+        // alternative. Even with mpp.enabled=true, observe() returns COORDINATOR_CENTRIC.
+        PlannerContext context = buildMppContext(
+            Map.of("a", 3, "b", 3),
+            Map.of("a", LARGE, "b", LARGE),
+            /* mppEnabled */ true,
+            /* shuffleEnabled */ true
+        );
+        QueryDAG dag = buildDag(makeThetaJoin("a", "b"), context);
+
+        assertTrue(JoinStrategyAdvisor.containsJoin(dag));
+        assertEquals(JoinStrategy.COORDINATOR_CENTRIC, JoinStrategyAdvisor.observe(dag));
+    }
+
+    // ── helpers ────────────────────────────────────────────────────────────
+
+    private QueryDAG buildDag(RelNode logicalJoin, PlannerContext context) {
+        RelNode optimized = PlannerImpl.createPlan(logicalJoin, context);
+        return DAGBuilder.build(optimized, context.getCapabilityRegistry(), mockClusterService());
+    }
+
+    private RelNode makeInnerEquiJoin(String leftIdx, String rightIdx) {
+        return makeJoin(leftIdx, rightIdx, JoinRelType.INNER, /* equi */ true);
+    }
+
+    private RelNode makeThetaJoin(String leftIdx, String rightIdx) {
+        return makeJoin(leftIdx, rightIdx, JoinRelType.INNER, /* equi */ false);
+    }
+
+    private RelNode makeJoin(String leftIdx, String rightIdx, JoinRelType joinType, boolean equi) {
+        RelNode left = stubScan(mockTable(leftIdx, "status", "size"));
+        RelNode right = stubScan(mockTable(rightIdx, "status", "size"));
         int leftCols = left.getRowType().getFieldCount();
         RelDataType intType = typeFactory.createSqlType(SqlTypeName.INTEGER);
-        RexNode condition = rexBuilder.makeCall(
-            SqlStdOperatorTable.EQUALS,
-            rexBuilder.makeInputRef(intType, 0),
-            rexBuilder.makeInputRef(intType, leftCols)
-        );
-        return LogicalJoin.create(left, right, List.of(), condition, Set.of(), JoinRelType.INNER);
+        RexNode condition = equi
+            ? rexBuilder.makeCall(
+                SqlStdOperatorTable.EQUALS,
+                rexBuilder.makeInputRef(intType, 0),
+                rexBuilder.makeInputRef(intType, leftCols)
+            )
+            : rexBuilder.makeCall(
+                SqlStdOperatorTable.LESS_THAN,
+                rexBuilder.makeInputRef(intType, 0),
+                rexBuilder.makeInputRef(intType, leftCols)
+            );
+        return LogicalJoin.create(left, right, List.of(), condition, Set.of(), joinType);
     }
 
-    private RelNode makeThetaJoin() {
-        RelNode left = stubScan(mockTable("test_index", "status", "size"));
-        RelNode right = stubScan(mockTable("test_index", "status", "size"));
-        int leftCols = left.getRowType().getFieldCount();
-        RelDataType intType = typeFactory.createSqlType(SqlTypeName.INTEGER);
-        RexNode condition = rexBuilder.makeCall(
-            SqlStdOperatorTable.LESS_THAN,
-            rexBuilder.makeInputRef(intType, 0),
-            rexBuilder.makeInputRef(intType, leftCols)
-        );
-        return LogicalJoin.create(left, right, List.of(), condition, Set.of(), JoinRelType.INNER);
+    /** Mirrors {@code JoinStrategyCBOSelectionTests.buildMppContext} — multi-data-node cluster
+     *  + per-index row-count lookup + shuffle-aware backend so the broadcast / hash split rules
+     *  pass their probeNodes / partitionCount gates. */
+    private PlannerContext buildMppContext(
+        Map<String, Integer> shardCounts,
+        Map<String, Long> rowCounts,
+        boolean mppEnabled,
+        boolean shuffleEnabled
+    ) {
+        ClusterState state = mockClusterStateWithDataNodes(shardCounts);
+        Settings settings = Settings.builder()
+            .put("analytics.mpp.enabled", mppEnabled)
+            .put("analytics.mpp.shuffle_enabled", shuffleEnabled)
+            .build();
+        ToLongFunction<String> rowCountLookup = name -> rowCounts.getOrDefault(name, PlannerContext.UNKNOWN_ROW_COUNT);
+        AnalyticsSearchBackendPlugin shuffleAware = new ShuffleAwareDataFusionBackend(CLUSTER_DATA_NODES);
+        CapabilityRegistry registry = new CapabilityRegistry(List.of(shuffleAware, LUCENE), FieldStorageResolver::new);
+        return new PlannerContext(registry, state, settings, rowCountLookup, /* profiling */ false);
+    }
+
+    private static ClusterState mockClusterStateWithDataNodes(Map<String, Integer> shardCounts) {
+        ClusterState state = mock(ClusterState.class);
+        Metadata metadata = mock(Metadata.class);
+        when(state.metadata()).thenReturn(metadata);
+
+        DiscoveryNodes nodes = mock(DiscoveryNodes.class);
+        when(state.nodes()).thenReturn(nodes);
+        Map<String, DiscoveryNode> dataNodes = new HashMap<>();
+        for (int i = 0; i < CLUSTER_DATA_NODES; i++) {
+            dataNodes.put("node-" + i, mock(DiscoveryNode.class));
+        }
+        when(nodes.getDataNodes()).thenReturn(dataNodes);
+
+        for (Map.Entry<String, Integer> entry : shardCounts.entrySet()) {
+            String indexName = entry.getKey();
+            int shardCount = entry.getValue();
+            IndexMetadata indexMetadata = mock(IndexMetadata.class);
+            when(indexMetadata.getIndex()).thenReturn(new Index(indexName, indexName + "-uuid"));
+            when(indexMetadata.getNumberOfShards()).thenReturn(shardCount);
+            MappingMetadata mappingMetadata = mock(MappingMetadata.class);
+            when(mappingMetadata.sourceAsMap()).thenReturn(Map.of("properties", intFields()));
+            when(indexMetadata.mapping()).thenReturn(mappingMetadata);
+            when(indexMetadata.getSettings()).thenReturn(
+                Settings.builder()
+                    .put("index.composite.primary_data_format", "parquet")
+                    .putList("index.composite.secondary_data_formats", "lucene")
+                    .build()
+            );
+            when(metadata.index(indexName)).thenReturn(indexMetadata);
+        }
+        return state;
+    }
+
+    private static class ShuffleAwareDataFusionBackend extends MockDataFusionBackend {
+        private final int parallelism;
+
+        ShuffleAwareDataFusionBackend(int parallelism) {
+            this.parallelism = parallelism;
+        }
+
+        @Override
+        public int defaultShuffleParallelism(ClusterState state) {
+            return parallelism;
+        }
     }
 }

@@ -167,13 +167,7 @@ public class OpenSearchJoinCostGateTests extends BasePlannerRulesTests {
      *  cost-gate case isolate the trait combination under test. */
     private OpenSearchTableScan scanWith(OpenSearchDistribution dist) {
         RelTraitSet traits = RelTraitSet.createEmpty().plus(OpenSearchConvention.INSTANCE).plus(dist);
-        return new OpenSearchTableScan(
-            volcanoCluster,
-            traits,
-            testTable,
-            List.of("mock-parquet"),
-            List.<FieldStorageInfo>of()
-        );
+        return new OpenSearchTableScan(volcanoCluster, traits, testTable, List.of("mock-parquet"), List.<FieldStorageInfo>of());
     }
 
     /** Build an OpenSearchJoin over two inputs at the requested self trait. */

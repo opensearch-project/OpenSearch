@@ -31,11 +31,12 @@ import java.util.concurrent.TimeoutException;
 import java.util.function.Supplier;
 
 /**
- * Two-pass orchestrator for M1 broadcast-join execution.
+ * Two-pass orchestrator for broadcast-join execution.
  *
- * <p>Drives the broadcast-shape {@link QueryDAG} produced by {@link BroadcastDAGRewriter}
- * through two sequential phases against the shared {@link StageExecutionBuilder} and
- * {@link QueryScheduler}:
+ * <p>Drives the broadcast-shape {@link QueryDAG} that {@code DAGBuilder} produced by cutting
+ * at an {@link org.opensearch.analytics.planner.rel.OpenSearchBroadcastExchange} (selected by
+ * Volcano CBO from the broadcast split rule's alternatives). Runs two sequential phases against
+ * the shared {@link StageExecutionBuilder} and {@link QueryScheduler}:
  *
  * <ol>
  *   <li><b>Pass 1 — build-only.</b> Runs the {@link Stage.StageRole#BROADCAST_BUILD} stage in
@@ -72,16 +73,15 @@ public final class BroadcastDispatch {
     }
 
     /**
-     * Drives the rewritten DAG through pass 1 + pass 2.
+     * Drives the broadcast-shape DAG through pass 1 + pass 2.
      *
-     * @param ctx the query context whose DAG is {@code rewrittenDag} (pass 2 will use a derived
+     * @param ctx the query context whose DAG is {@code dag} (pass 2 will use a derived
      *     context whose DAG drops the build stage).
-     * @param rewrittenDag the broadcast-shape DAG from {@link BroadcastDAGRewriter#rewrite}.
-     * @param buildStage the build child of the rewritten probe stage. Role must be
-     *     {@link Stage.StageRole#BROADCAST_BUILD}.
-     * @param probeStage the probe stage in the rewritten DAG. Role must be
-     *     {@link Stage.StageRole#BROADCAST_PROBE}.
-     * @param rootStage the root stage in the rewritten DAG.
+     * @param dag the broadcast-shape DAG cut by {@code DAGBuilder} from a CBO output that
+     *     contains an {@link org.opensearch.analytics.planner.rel.OpenSearchBroadcastExchange}.
+     * @param buildStage the build stage. Role must be {@link Stage.StageRole#BROADCAST_BUILD}.
+     * @param probeStage the probe stage. Role must be {@link Stage.StageRole#BROADCAST_PROBE}.
+     * @param rootStage the root stage of the DAG.
      * @param captureSinkFactory creates the backend-specific IPC capture sink. Typically
      *     {@code () -> new BroadcastCaptureSink(ctx.bufferAllocator())}. The factory returns an
      *     {@link ExchangeSink} that additionally exposes a {@code CompletableFuture&lt;byte[]&gt;}
@@ -92,7 +92,7 @@ public final class BroadcastDispatch {
      */
     public void run(
         QueryContext ctx,
-        QueryDAG rewrittenDag,
+        QueryDAG dag,
         Stage buildStage,
         Stage probeStage,
         Stage rootStage,
@@ -153,7 +153,7 @@ public final class BroadcastDispatch {
                     }
 
                     try {
-                        startPass2(ctx, rewrittenDag, buildStage, probeStage, rootStage, ipcBytes, terminal);
+                        startPass2(ctx, dag, buildStage, probeStage, rootStage, ipcBytes, terminal);
                     } catch (Exception e) {
                         LOGGER.warn("[BroadcastDispatch] pass 2 failed to start", e);
                         terminal.onFailure(e);
@@ -277,7 +277,7 @@ public final class BroadcastDispatch {
      */
     private void startPass2(
         QueryContext ctx,
-        QueryDAG rewrittenDag,
+        QueryDAG dag,
         Stage buildStage,
         Stage probeStage,
         Stage rootStage,
@@ -297,7 +297,7 @@ public final class BroadcastDispatch {
         // the probe stage's reference to the build child (which has already run to completion).
         Stage pass2Probe = copyAsLeaf(probeStage);
         Stage pass2Root = copyWithSingleChild(rootStage, pass2Probe);
-        QueryDAG pass2Dag = new QueryDAG(rewrittenDag.queryId(), pass2Root);
+        QueryDAG pass2Dag = new QueryDAG(dag.queryId(), pass2Root);
         QueryContext pass2Ctx = ctx.withDag(pass2Dag);
 
         LOGGER.debug("[BroadcastDispatch] starting pass 2 (probe {} + root {})", probeStage.getStageId(), rootStage.getStageId());
@@ -323,21 +323,13 @@ public final class BroadcastDispatch {
     }
 
     /**
-     * buildSideIndex = 0 when the root join's left subtree was the build side, else 1. For the
-     * rewritten DAG the root's single child is the probe stage, but the original build/probe
-     * ordering is preserved in the probe stage's {@code OpenSearchJoin}. The advisor already
-     * tagged the child stages before rewriting, so we can recover the original side from the
-     * {@code buildStage} — but for the instruction's purposes, the coord-tag 'left/right' is
-     * relative to the root join's inputs, which the rewriter recomputed. We default to 0 here:
-     * the probe-side handler looks up the memtable by name, not by index, so the value is
-     * primarily informational for logging/telemetry in M1. A future phase that actually gates
-     * build-side row preservation by index will need to thread this through properly.
+     * buildSideIndex = 0 when the join's left subtree was the build side, else 1. The probe
+     * stage's {@code OpenSearchJoin} preserves the original left/right ordering from CBO; the
+     * memtable is looked up by name on the data-node side, not by index, so the value is
+     * primarily informational for logging/telemetry. A future phase that gates build-side row
+     * preservation by index will need to thread this through properly.
      */
     private int deriveBuildSideIndex(Stage rootStage, Stage buildStage) {
-        // TODO (M1.5): thread through the original join's left/right orientation from the
-        // advisor so outer-join row-preservation pinning is exposed to the handler. For M1
-        // broadcast-to-probe the memtable is looked up by name and the join condition is
-        // preserved from the original OpenSearchJoin, so the index value is not load-bearing.
         return 0;
     }
 

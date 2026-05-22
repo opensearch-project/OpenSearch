@@ -10,7 +10,6 @@ package org.opensearch.analytics.planner.rel;
 
 import org.apache.calcite.plan.RelOptCluster;
 import org.apache.calcite.plan.RelOptTable;
-import org.apache.calcite.plan.RelTraitSet;
 import org.apache.calcite.plan.volcano.RelSubset;
 import org.apache.calcite.plan.volcano.VolcanoPlanner;
 import org.apache.calcite.rel.RelNode;
@@ -73,8 +72,7 @@ public class OpenSearchDistributionTraitDefConvertTests extends BasePlannerRules
         RelNode converted = unwrapSubset(traitDef.convert(volcano, scan, hashTrait, false));
 
         assertTrue(
-            "Converting SHARD+RANDOM to HASH must insert OpenSearchShuffleExchange, got "
-                + converted.getClass().getSimpleName(),
+            "Converting SHARD+RANDOM to HASH must insert OpenSearchShuffleExchange, got " + converted.getClass().getSimpleName(),
             converted instanceof OpenSearchShuffleExchange
         );
         OpenSearchShuffleExchange shuffle = (OpenSearchShuffleExchange) converted;
@@ -88,8 +86,7 @@ public class OpenSearchDistributionTraitDefConvertTests extends BasePlannerRules
         RelNode converted = unwrapSubset(traitDef.convert(volcano, scan, broadcastTrait, false));
 
         assertTrue(
-            "Converting SHARD+RANDOM to BROADCAST must insert OpenSearchBroadcastExchange, got "
-                + converted.getClass().getSimpleName(),
+            "Converting SHARD+RANDOM to BROADCAST must insert OpenSearchBroadcastExchange, got " + converted.getClass().getSimpleName(),
             converted instanceof OpenSearchBroadcastExchange
         );
         OpenSearchBroadcastExchange broadcast = (OpenSearchBroadcastExchange) converted;
@@ -120,14 +117,8 @@ public class OpenSearchDistributionTraitDefConvertTests extends BasePlannerRules
         // ShuffleExchange would have no concrete count to size partitions against.
         OpenSearchDistribution hashAny = traitDef.hashAny(List.of(0));
 
-        IllegalStateException ex = expectThrows(
-            IllegalStateException.class,
-            () -> traitDef.convert(volcano, scan, hashAny, false)
-        );
-        assertTrue(
-            "Error message should mention partitionCount; got: " + ex.getMessage(),
-            ex.getMessage().contains("partitionCount")
-        );
+        IllegalStateException ex = expectThrows(IllegalStateException.class, () -> traitDef.convert(volcano, scan, hashAny, false));
+        assertTrue("Error message should mention partitionCount; got: " + ex.getMessage(), ex.getMessage().contains("partitionCount"));
     }
 
     /**

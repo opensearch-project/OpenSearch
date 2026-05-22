@@ -17,22 +17,23 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * End-to-end tests for the M1 BROADCAST join path on a 2-node cluster.
+ * End-to-end tests for the BROADCAST join path on a 2-node cluster.
  *
  * <p>The strategy here is A/B parity: every join query is executed twice on the same data,
- * once with {@code analytics.mpp.enabled=false} (forces the M0 coordinator-centric baseline)
- * and once with {@code analytics.mpp.enabled=true} (the {@link
- * org.opensearch.analytics.exec.join.JoinStrategyAdvisor} may pick BROADCAST when both gates
- * — shards and primary doc count — are satisfied). Row multisets must match across the two
- * runs. The broadcast-fired tests additionally read the BROADCAST counter delta via
+ * once with {@code analytics.mpp.enabled=false} (broadcast and hash-shuffle split rules
+ * disabled, forcing the coordinator-centric baseline) and once with
+ * {@code analytics.mpp.enabled=true} (Volcano CBO picks BROADCAST when its cost model favors
+ * replicating the small side over shuffling both sides). Row multisets must match across the
+ * two runs. The broadcast-fired tests additionally read the BROADCAST counter delta via
  * {@code GET /_analytics/_strategies} to prove the dispatcher actually ran the broadcast path
- * (and didn't silently fall through to M0).
+ * (and didn't silently fall through to coord-centric).
  *
  * <p>Data shape:
  * <ul>
- *   <li>{@code bcast_dim} — 1 shard, ~5 rows. Eligible build side under
- *       {@link #DEFAULT_BROADCAST_MAX_SHARDS}=2 and the default 1M row cap.</li>
- *   <li>{@code bcast_fact} — 5 shards, ~30 rows. Probe side; ineligible build by shard count.</li>
+ *   <li>{@code bcast_dim} — 1 shard, ~5 rows. Tiny build side; the cost model strongly favors
+ *       broadcasting it over hash-shuffling both sides.</li>
+ *   <li>{@code bcast_fact} — 5 shards, ~30 rows. Probe side; would dominate any hash-shuffle
+ *       cost since it has more rows.</li>
  * </ul>
  *
  * <p>Cluster settings are reset to {@code null} (default) between tests so a failure in one
@@ -44,10 +45,6 @@ public class BroadcastJoinIT extends AnalyticsRestTestCase {
     private static final String FACT_INDEX = "bcast_fact";
     private static final int DIM_SHARDS = 1;
     private static final int FACT_SHARDS = 5;
-
-    /** Mirrors {@code DefaultPlanExecutor.DEFAULT_BROADCAST_MAX_SHARDS}. */
-    @SuppressWarnings("unused")
-    private static final int DEFAULT_BROADCAST_MAX_SHARDS = 2;
 
     /** Maps {@code id} → category — used to assert join correctness deterministically. */
     private static final Map<Integer, String> DIM_CATEGORIES = Map.of(

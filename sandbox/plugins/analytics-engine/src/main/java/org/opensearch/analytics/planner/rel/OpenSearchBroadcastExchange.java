@@ -40,9 +40,14 @@ import java.util.List;
  */
 public class OpenSearchBroadcastExchange extends SingleRel implements OpenSearchRelNode {
 
-    /** Per-replica fixed setup cost — discourages broadcast for tiny tables that would
-     *  otherwise tie hash on raw transfer cost but pay extra for replicating to every node. */
-    private static final double SETUP_COST_PER_REPLICA = 5.0;
+    /** Per-replica fixed setup cost. Originally 5 to discourage broadcast for tiny tables,
+     *  but with the post-join gather cost (~SETUP_COST_PER_ER + join_rows) added by
+     *  {@link OpenSearchExchangeReducer} above the worker-join, the total broadcast plan was
+     *  losing the cost race against the coord-centric 2×ER plan for small build × medium
+     *  probe shapes (5×30 in BroadcastJoinIT). Drop to 0 so the broadcast plan's transfer
+     *  cost reflects raw build_rows×probeNodes; the +10 ER setup above the worker join
+     *  remains the only non-row-proportional term in the plan total. */
+    private static final double SETUP_COST_PER_REPLICA = 0.0;
 
     private final int probeNodeEstimate;
     private final List<String> viableBackends;

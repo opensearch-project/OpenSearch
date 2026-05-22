@@ -42,25 +42,6 @@ public final class AnalyticsSettings {
     );
 
     /**
-     * Pre-flight gate: a join is eligible for broadcast only when the chosen build side's
-     * estimated row count (from {@code IndicesStats.primaries.docs.count}, fetched per query
-     * by {@code StatisticsCollector}) is at most this threshold. When stats are missing
-     * (row count is zero or negative — IndicesStats unavailable, or the index is genuinely
-     * empty), broadcast is refused fail-safe.
-     *
-     * <p>Default is conservative — 1M rows on a 100-byte-per-row table is ~100MB of build-side
-     * scan output, which is at the upper end of what fits comfortably in coordinator memory
-     * for a single query. Operators with consistently narrow rows can safely raise this.
-     */
-    public static final Setting<Long> BROADCAST_MAX_ROWS = Setting.longSetting(
-        "analytics.mpp.broadcast_max_rows",
-        1_000_000L,
-        0L,
-        Setting.Property.NodeScope,
-        Setting.Property.Dynamic
-    );
-
-    /**
      * Runtime cap: the build-side IPC payload assembled by the coordinator-side capture sink
      * may not exceed this many bytes. When the build stage's accumulated Arrow IPC exceeds
      * this threshold during pass 1, the broadcast dispatch fails the query — operators can
@@ -79,16 +60,21 @@ public final class AnalyticsSettings {
     );
 
     /**
-     * Hash-shuffle kill switch, layered under {@link #MPP_ENABLED}. When {@code true} (default)
-     * and {@code MPP_ENABLED} is also true, the strategy advisor may pick HASH_SHUFFLE for
-     * equi-joins where neither side fits the broadcast row threshold. When {@code false},
-     * shuffle eligibility is refused and the join falls back to coordinator-centric — useful
-     * as a finer-grained incident-response control that lets BROADCAST keep working while the
-     * shuffle path is disabled.
+     * Hash-shuffle kill switch, layered under {@link #MPP_ENABLED}. When {@code true} and
+     * {@code MPP_ENABLED} is also true, CBO may pick HASH_SHUFFLE for equi-joins between two
+     * SHARD-localized scans. When {@code false}, the hash split rule is dormant and the join
+     * routes through BROADCAST or COORDINATOR_CENTRIC.
+     *
+     * <p>Default OFF until the M2 hash-shuffle runtime (DataFusion {@code ShuffleProducerHandler}
+     * + {@code ShuffleScanHandler} + the FFM {@code register_partition_stream_on_session_context}
+     * entry point) is wired end-to-end. Today the planner can produce a HASH_SHUFFLE plan but
+     * {@code DataFusionFragmentConvertor} rejects {@code OpenSearchShuffleExchange} with
+     * "Unable to handle node," failing the query at runtime. Flip the default to {@code true}
+     * once the producer/consumer handlers ship and integration tests confirm parity.
      */
     public static final Setting<Boolean> MPP_SHUFFLE_ENABLED = Setting.boolSetting(
         "analytics.mpp.shuffle_enabled",
-        true,
+        false,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
@@ -144,7 +130,6 @@ public final class AnalyticsSettings {
     /** All engine-level settings registered by {@code AnalyticsPlugin.getSettings()}. */
     public static final List<Setting<?>> ALL_SETTINGS = List.of(
         MPP_ENABLED,
-        BROADCAST_MAX_ROWS,
         BROADCAST_MAX_BYTES,
         MPP_SHUFFLE_ENABLED,
         MPP_SHUFFLE_PARTITIONS,

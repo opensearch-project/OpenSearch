@@ -226,7 +226,8 @@ public class OpenSearchDistributionTraitDef extends RelTraitDef<OpenSearchDistri
             if (toTrait.getPartitionCount() == null) {
                 throw new IllegalStateException(
                     "HASH_DISTRIBUTED demand has null partitionCount; rule must resolve count "
-                        + "via OpenSearchDistributionTraitDef.hash(keys, partitionCount). toTrait=" + toTrait
+                        + "via OpenSearchDistributionTraitDef.hash(keys, partitionCount). toTrait="
+                        + toTrait
                 );
             }
             result = new OpenSearchShuffleExchange(
@@ -244,7 +245,8 @@ public class OpenSearchDistributionTraitDef extends RelTraitDef<OpenSearchDistri
             if (toTrait.getPartitionCount() == null) {
                 throw new IllegalStateException(
                     "BROADCAST_DISTRIBUTED demand has null probe-node estimate; rule must "
-                        + "resolve via OpenSearchDistributionTraitDef.broadcast(probeNodes). toTrait=" + toTrait
+                        + "resolve via OpenSearchDistributionTraitDef.broadcast(probeNodes). toTrait="
+                        + toTrait
                 );
             }
             result = new OpenSearchBroadcastExchange(

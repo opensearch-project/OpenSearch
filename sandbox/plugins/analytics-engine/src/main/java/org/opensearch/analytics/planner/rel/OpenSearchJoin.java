@@ -113,11 +113,11 @@ public class OpenSearchJoin extends Join implements OpenSearchRelNode {
         org.apache.calcite.rel.RelDistribution.Type selfType = selfDist.getType();
         OpenSearchDistribution.Locality selfLocality = selfDist.getLocality();
         // Three legal join shapes:
-        //   1. SINGLETON: COORDINATOR+SINGLETON (coord-centric) or SHARD+SINGLETON (1-shard
-        //      co-location). Inputs match self exactly.
-        //   2. HASH+WORKER: hash-shuffle. Inputs are both HASH+WORKER with the same N.
-        //   3. RANDOM+SHARD: broadcast. Inputs are one BROADCAST+REPLICATED (build) and one
-        //      SHARD-localized (probe); the join runs alongside the probe scan.
+        // 1. SINGLETON: COORDINATOR+SINGLETON (coord-centric) or SHARD+SINGLETON (1-shard
+        // co-location). Inputs match self exactly.
+        // 2. HASH+WORKER: hash-shuffle. Inputs are both HASH+WORKER with the same N.
+        // 3. RANDOM+SHARD: broadcast. Inputs are one BROADCAST+REPLICATED (build) and one
+        // SHARD-localized (probe); the join runs alongside the probe scan.
         boolean isSingleton = selfType == org.apache.calcite.rel.RelDistribution.Type.SINGLETON;
         boolean isHashWorker = selfType == org.apache.calcite.rel.RelDistribution.Type.HASH_DISTRIBUTED
             && selfLocality == OpenSearchDistribution.Locality.WORKER;

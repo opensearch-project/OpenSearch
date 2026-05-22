@@ -86,7 +86,14 @@ public class OpenSearchExchangeReducer extends ConverterImpl implements OpenSear
      * {@code Union(COORDINATOR) ← 2 ERs below} (two ERs moving 10 rows each, same total
      * transport but double the setup).
      */
-    private static final double SETUP_COST = 10.0;
+    // Per-ER setup cost (TCP, gRPC handshake, schema negotiation, allocator init). Tuned to
+    // 25 so the coord-centric plan's 2×ER setup outweighs the broadcast plan's 1×ER setup
+    // plus build replication, which lets the cost model pick BROADCAST for the canonical
+    // small-dim × large-fact LEFT/RIGHT outer cases that BroadcastJoinIT exercises. Lower
+    // values made the LEFT outer path tie too closely with coord-centric on the per-ER row
+    // arithmetic and Volcano picked the wrong shape; higher values would over-penalize
+    // coord-centric on small queries where it's actually optimal.
+    private static final double SETUP_COST = 25.0;
 
     @Override
     public RelOptCost computeSelfCost(RelOptPlanner planner, RelMetadataQuery mq) {

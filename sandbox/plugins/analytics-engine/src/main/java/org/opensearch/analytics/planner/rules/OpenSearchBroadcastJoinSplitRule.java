@@ -87,12 +87,12 @@ public class OpenSearchBroadcastJoinSplitRule extends RelOptRule {
 
         JoinRelType joinType = join.getJoinType();
         // Decide which sides are eligible as the build:
-        //   INNER, FULL? — both sides eligible (full not handled in M2 spike; left/right could
-        //                   broadcast either side but neither preserves rows, so emit both).
-        //   LEFT          — left rows must be preserved → left is probe → build = right.
-        //   RIGHT         — right rows preserved → build = left.
-        //   SEMI / ANTI   — build = right (M0/M1 contract).
-        //   FULL          — neither side can be duplicated; broadcast doesn't apply.
+        // INNER, FULL? — both sides eligible (full not handled in M2 spike; left/right could
+        // broadcast either side but neither preserves rows, so emit both).
+        // LEFT — left rows must be preserved → left is probe → build = right.
+        // RIGHT — right rows preserved → build = left.
+        // SEMI / ANTI — build = right (M0/M1 contract).
+        // FULL — neither side can be duplicated; broadcast doesn't apply.
         boolean leftAsBuildEligible = joinType == JoinRelType.INNER || joinType == JoinRelType.RIGHT;
         boolean rightAsBuildEligible = joinType == JoinRelType.INNER
             || joinType == JoinRelType.LEFT

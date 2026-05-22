@@ -79,8 +79,14 @@ public class SplitRuleContractTests extends BasePlannerRulesTests {
     public void testThetaJoinFiresCoordRuleRegardlessOfSettings() {
         OpenSearchJoin theta = makeJoin(/* equi */ false);
         // Both mpp settings: theta routes coord-centric.
-        assertTrue("Coord rule must match theta when mpp.disabled", coordRule(/* mppEnabled */ false, /* shuffleEnabled */ true).matches(stubCallFor(theta)));
-        assertTrue("Coord rule must match theta when mpp.enabled", coordRule(/* mppEnabled */ true, /* shuffleEnabled */ true).matches(stubCallFor(theta)));
+        assertTrue(
+            "Coord rule must match theta when mpp.disabled",
+            coordRule(/* mppEnabled */ false, /* shuffleEnabled */ true).matches(stubCallFor(theta))
+        );
+        assertTrue(
+            "Coord rule must match theta when mpp.enabled",
+            coordRule(/* mppEnabled */ true, /* shuffleEnabled */ true).matches(stubCallFor(theta))
+        );
     }
 
     public void testThetaJoinDoesNotFireBroadcastRule() {
@@ -90,16 +96,25 @@ public class SplitRuleContractTests extends BasePlannerRulesTests {
 
     public void testThetaJoinDoesNotFireHashRule() {
         OpenSearchJoin theta = makeJoin(/* equi */ false);
-        assertFalse("Hash rule must not match theta", hashRule(/* mppEnabled */ true, /* shuffleEnabled */ true).matches(stubCallFor(theta)));
+        assertFalse(
+            "Hash rule must not match theta",
+            hashRule(/* mppEnabled */ true, /* shuffleEnabled */ true).matches(stubCallFor(theta))
+        );
     }
 
     // ── equi, mpp.enabled=false ───────────────────────────────────────────
 
     public void testEquiJoinMppDisabledFiresOnlyCoordRule() {
         OpenSearchJoin equi = makeJoin(/* equi */ true);
-        assertTrue("Coord rule must match equi when mpp.disabled", coordRule(/* mppEnabled */ false, /* shuffleEnabled */ true).matches(stubCallFor(equi)));
+        assertTrue(
+            "Coord rule must match equi when mpp.disabled",
+            coordRule(/* mppEnabled */ false, /* shuffleEnabled */ true).matches(stubCallFor(equi))
+        );
         assertFalse("Broadcast rule must not match when mpp.disabled", broadcastRule(/* mppEnabled */ false).matches(stubCallFor(equi)));
-        assertFalse("Hash rule must not match when mpp.disabled", hashRule(/* mppEnabled */ false, /* shuffleEnabled */ true).matches(stubCallFor(equi)));
+        assertFalse(
+            "Hash rule must not match when mpp.disabled",
+            hashRule(/* mppEnabled */ false, /* shuffleEnabled */ true).matches(stubCallFor(equi))
+        );
     }
 
     // ── equi, mpp.enabled=true ────────────────────────────────────────────
@@ -111,7 +126,10 @@ public class SplitRuleContractTests extends BasePlannerRulesTests {
             coordRule(/* mppEnabled */ true, /* shuffleEnabled */ true).matches(stubCallFor(equi))
         );
         assertTrue("Broadcast rule must match equi when mpp.enabled", broadcastRule(/* mppEnabled */ true).matches(stubCallFor(equi)));
-        assertTrue("Hash rule must match equi when mpp.enabled and shuffle.enabled", hashRule(/* mppEnabled */ true, /* shuffleEnabled */ true).matches(stubCallFor(equi)));
+        assertTrue(
+            "Hash rule must match equi when mpp.enabled and shuffle.enabled",
+            hashRule(/* mppEnabled */ true, /* shuffleEnabled */ true).matches(stubCallFor(equi))
+        );
     }
 
     public void testEquiJoinShuffleDisabledFiresBroadcastButNotHash() {
@@ -178,10 +196,7 @@ public class SplitRuleContractTests extends BasePlannerRulesTests {
             .put("analytics.mpp.shuffle_enabled", shuffleEnabled)
             .build();
         return new PlannerContext(
-            new CapabilityRegistry(
-                List.<AnalyticsSearchBackendPlugin>of(DATAFUSION, LUCENE),
-                FieldStorageResolver::new
-            ),
+            new CapabilityRegistry(List.<AnalyticsSearchBackendPlugin>of(DATAFUSION, LUCENE), FieldStorageResolver::new),
             mockClusterState(),
             settings
         );
@@ -214,7 +229,10 @@ public class SplitRuleContractTests extends BasePlannerRulesTests {
         when(mappingMetadata.sourceAsMap()).thenReturn(Map.of("properties", Map.of()));
         when(indexMetadata.mapping()).thenReturn(mappingMetadata);
         when(indexMetadata.getSettings()).thenReturn(
-            Settings.builder().put("index.composite.primary_data_format", "parquet").putList("index.composite.secondary_data_formats", "lucene").build()
+            Settings.builder()
+                .put("index.composite.primary_data_format", "parquet")
+                .putList("index.composite.secondary_data_formats", "lucene")
+                .build()
         );
         when(metadata.index("test_index")).thenReturn(indexMetadata);
 

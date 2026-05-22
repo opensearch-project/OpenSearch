@@ -18,9 +18,7 @@ import org.apache.calcite.sql.type.SqlTypeName;
 import org.opensearch.analytics.planner.rel.OpenSearchBroadcastExchange;
 import org.opensearch.analytics.planner.rel.OpenSearchJoin;
 import org.opensearch.analytics.planner.rel.OpenSearchShuffleExchange;
-import org.opensearch.analytics.planner.rel.OpenSearchTableScan;
 import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
-import org.opensearch.analytics.spi.FieldStorageInfo;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.MappingMetadata;
@@ -108,7 +106,7 @@ public class JoinStrategyCBOSelectionTests extends BasePlannerRulesTests {
         //
         // Quantitative: broadcast cost ≈ small_rows × N; hash cost ≈ small_rows + large_rows.
         // Broadcast wins iff small_rows × (N - 1) < large_rows. With small=1k, large=10M, N=3:
-        //   broadcast ≈ 3k vs hash ≈ 10M+1k → broadcast wins decisively.
+        // broadcast ≈ 3k vs hash ≈ 10M+1k → broadcast wins decisively.
         //
         // The "small × small" case (1k vs 1k) is intentionally NOT tested as a strategy
         // assertion because the choice depends on cost-coefficient tuning rather than
@@ -258,23 +256,31 @@ public class JoinStrategyCBOSelectionTests extends BasePlannerRulesTests {
     }
 
     private static void assertContainsBroadcastExchange(String message, RelNode tree) {
-        assertTrue(message + "\nactual plan:\n" + org.apache.calcite.plan.RelOptUtil.toString(tree),
-            containsNodeOfType(tree, OpenSearchBroadcastExchange.class));
+        assertTrue(
+            message + "\nactual plan:\n" + org.apache.calcite.plan.RelOptUtil.toString(tree),
+            containsNodeOfType(tree, OpenSearchBroadcastExchange.class)
+        );
     }
 
     private static void assertDoesNotContainBroadcastExchange(String message, RelNode tree) {
-        assertFalse(message + "\nactual plan:\n" + org.apache.calcite.plan.RelOptUtil.toString(tree),
-            containsNodeOfType(tree, OpenSearchBroadcastExchange.class));
+        assertFalse(
+            message + "\nactual plan:\n" + org.apache.calcite.plan.RelOptUtil.toString(tree),
+            containsNodeOfType(tree, OpenSearchBroadcastExchange.class)
+        );
     }
 
     private static void assertContainsShuffleExchange(String message, RelNode tree) {
-        assertTrue(message + "\nactual plan:\n" + org.apache.calcite.plan.RelOptUtil.toString(tree),
-            containsNodeOfType(tree, OpenSearchShuffleExchange.class));
+        assertTrue(
+            message + "\nactual plan:\n" + org.apache.calcite.plan.RelOptUtil.toString(tree),
+            containsNodeOfType(tree, OpenSearchShuffleExchange.class)
+        );
     }
 
     private static void assertDoesNotContainShuffleExchange(String message, RelNode tree) {
-        assertFalse(message + "\nactual plan:\n" + org.apache.calcite.plan.RelOptUtil.toString(tree),
-            containsNodeOfType(tree, OpenSearchShuffleExchange.class));
+        assertFalse(
+            message + "\nactual plan:\n" + org.apache.calcite.plan.RelOptUtil.toString(tree),
+            containsNodeOfType(tree, OpenSearchShuffleExchange.class)
+        );
     }
 
     /** Subclass of MockDataFusionBackend that opts into MPP shuffle by overriding
