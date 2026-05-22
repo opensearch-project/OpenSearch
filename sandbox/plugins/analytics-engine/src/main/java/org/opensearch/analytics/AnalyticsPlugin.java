@@ -69,6 +69,17 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
     public static final String SCHEDULER_THREAD_POOL_NAME = "analytics_scheduler";
     private static final int SCHEDULER_QUEUE_SIZE = 200;
 
+    public static final String REDUCE_THREAD_POOL_NAME = "analytics_reduce";
+
+    // The reduce pool exists to isolate coordinator-reduce drains from the SEARCH
+    // pool, preventing deadlock when reduces and local shard fragments compete for
+    // the same threads. Each reduce thread blocks on a synchronous FFM call
+    // (streamNext) with negligible CPU usage — memory is the real constraint,
+    // bounded by the DataFusion pool and phantom reservations. Size is generous
+    // so the thread pool isn't the throughput bottleneck.
+    private static final int REDUCE_POOL_SIZE = Math.max(8, Runtime.getRuntime().availableProcessors() * 4);
+    private static final int REDUCE_QUEUE_SIZE = 200;
+
     public static final Setting<Long> COORDINATOR_BUFFER_LIMIT = Setting.longSetting(
         "analytics.coordinator.buffer_limit",
         256L * 1024 * 1024,
@@ -152,7 +163,10 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
     @Override
     public List<ExecutorBuilder<?>> getExecutorBuilders(Settings settings) {
         int poolSize = schedulerPoolSize();
-        return List.of(new FixedExecutorBuilder(settings, SCHEDULER_THREAD_POOL_NAME, poolSize, SCHEDULER_QUEUE_SIZE, "analytics"));
+        return List.of(
+            new FixedExecutorBuilder(settings, SCHEDULER_THREAD_POOL_NAME, poolSize, SCHEDULER_QUEUE_SIZE, "analytics"),
+            new FixedExecutorBuilder(settings, REDUCE_THREAD_POOL_NAME, REDUCE_POOL_SIZE, REDUCE_QUEUE_SIZE, "analytics_reduce")
+        );
     }
 
     static int schedulerPoolSize() {
