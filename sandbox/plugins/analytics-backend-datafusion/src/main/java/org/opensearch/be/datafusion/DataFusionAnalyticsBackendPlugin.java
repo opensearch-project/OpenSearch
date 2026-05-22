@@ -817,4 +817,18 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
     public Exception convertException(Exception original) {
         return NativeErrorConverter.convert(original);
     }
+
+    /**
+     * DataFusion participates in MPP hash-shuffle: default the partition count to the number of
+     * data nodes in the cluster. The advisor uses this when {@code analytics.mpp.shuffle_partitions}
+     * isn't pinned by the operator. One partition per data node maximizes parallelism without
+     * over-subscribing — additional partitions on the same node would queue on the same
+     * DataFusion threadpool. Returns {@code 1} if the cluster has no data nodes (gates the
+     * shuffle rule out and falls back to coordinator-centric).
+     */
+    @Override
+    public int defaultShuffleParallelism(org.opensearch.cluster.ClusterState state) {
+        int dataNodeCount = state.nodes().getDataNodes().size();
+        return Math.max(dataNodeCount, 1);
+    }
 }

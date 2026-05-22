@@ -8,6 +8,8 @@
 
 package org.opensearch.analytics.spi;
 
+import org.opensearch.cluster.ClusterState;
+
 import java.util.List;
 
 /**
@@ -119,6 +121,30 @@ public interface AnalyticsSearchBackendPlugin {
      * Called after {@link #configureFilterDelegation}. Pass {@code null} to clear.
      */
     default void setDelegationThreadTracker(DelegationThreadTracker tracker) {}
+
+    /**
+     * Returns the default number of hash-shuffle output partitions this backend recommends
+     * for the current cluster topology, or {@code 1} if the backend does not participate in
+     * MPP hash-shuffle. Consulted by the strategy advisor when no explicit partition count is
+     * configured via {@code analytics.mpp.shuffle_partitions}.
+     *
+     * <p>Returning {@code 1} (the default) effectively opts the backend out of HASH_SHUFFLE
+     * because the split rule refuses to fire when partitionCount ≤ 1; joins on this backend
+     * fall through to BROADCAST or COORDINATOR_CENTRIC. Backends that have a streaming engine
+     * capable of consuming hash-partitioned input (DataFusion today; future Velox-style
+     * backends) override this to return a real partition count — typically the number of
+     * data nodes that hold any shard of the joined indices.
+     *
+     * <p>This is the engine-level default; an operator can still pin a specific N via the
+     * cluster setting. The setting takes precedence when set to a positive value.
+     *
+     * @param state cluster state at the time of advisor invocation; backends may inspect the
+     *              routing table to size partition count to the relevant node set.
+     * @return desired partition count (≥ 1); {@code 1} disables shuffle for this backend.
+     */
+    default int defaultShuffleParallelism(ClusterState state) {
+        return 1;
+    }
 
     /**
      * Converts a backend-specific exception into an appropriate OpenSearch exception type.

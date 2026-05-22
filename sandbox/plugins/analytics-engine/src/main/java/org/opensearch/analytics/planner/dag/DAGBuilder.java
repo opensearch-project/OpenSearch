@@ -88,7 +88,7 @@ public class DAGBuilder {
             if (input instanceof OpenSearchExchangeReducer reducer) {
                 newInputs.add(cutAtExchange(reducer, counter, childStages, registry, clusterService));
             } else if (input instanceof OpenSearchShuffleExchange shuffle) {
-                newInputs.add(cutShuffle(shuffle, counter, childStages, clusterService));
+                newInputs.add(cutShuffle(shuffle, counter, childStages, registry, clusterService));
             } else {
                 newInputs.add(sever(input, counter, childStages, registry, clusterService));
             }
@@ -154,35 +154,48 @@ public class DAGBuilder {
 
     /**
      * Cut at a {@link OpenSearchShuffleExchange}. The subtree below the shuffle becomes a child
-     * stage with a SHUFFLE_SCAN role (the coordinator disambiguates left/right later). The parent
-     * fragment's view of the shuffle is preserved — its input is replaced with a
-     * {@link OpenSearchStageInputScan}. Exchange metadata on the child stage carries the shuffle
-     * keys and partition count so the scheduler can dispatch shuffle-producer tasks.
+     * stage; the parent fragment's view of the shuffle is preserved with its input replaced by
+     * an {@link OpenSearchStageInputScan} placeholder. Exchange metadata on the child stage
+     * carries the shuffle keys and partition count so the dispatcher can size partition buffers
+     * and ship per-partition output to the right consumer node.
+     *
+     * <p>The child stage's role stays at the default {@link Stage.StageRole#SHARD_SOURCE} — the
+     * advisor re-tags it as {@link Stage.StageRole#SHUFFLE_SCAN_LEFT} or
+     * {@link Stage.StageRole#SHUFFLE_SCAN_RIGHT} once it knows which side of the parent join
+     * the shuffle feeds. Tagging at cut time would require the cutter to track its position in
+     * the join's input list, which it doesn't know.
      */
     private static RelNode cutShuffle(
         OpenSearchShuffleExchange shuffle,
         int[] counter,
         List<Stage> parentChildStages,
+        CapabilityRegistry registry,
         ClusterService clusterService
     ) {
+        // Recurse into the shuffle's input with full sever() so any nested exchanges below the
+        // shuffle (e.g. a partial-aggregate that itself reduces) are also cut into their own
+        // stages. M2 today only composes shuffle over a shard scan, but the recursion makes the
+        // cutter robust to future plan shapes.
         List<Stage> grandchildren = new ArrayList<>();
-        RelNode childFragment = shuffle.getInput();
+        RelNode childFragment = sever(shuffle.getInput(), counter, grandchildren, registry, clusterService);
 
         int childStageId = counter[0]++;
+        // Leaf shuffle producers run on shard nodes (the input is a shard scan); intermediate
+        // ones run on whatever locality the inner subtree produces. Same logic as cutAtExchange.
+        TargetResolver targetResolver = grandchildren.isEmpty() ? new ShardTargetResolver(childFragment, clusterService) : null;
+        ExchangeSinkProvider childSinkProvider = null;
+        if (!grandchildren.isEmpty()) {
+            List<String> reduceViable = CapabilityResolutionUtils.filterByReduceCapability(registry, shuffle.getViableBackends());
+            childSinkProvider = registry.getBackend(reduceViable.getFirst()).getExchangeSinkProvider();
+        }
         Stage childStage = new Stage(
             childStageId,
             childFragment,
             grandchildren,
-            // M2 follow-up: this branch is currently unreachable because OpenSearchHashJoinRule
-            // is no longer registered in PlannerImpl (incompatible with PR #21639's split-rule
-            // architecture — see PlannerImpl javadoc). The 2-arg ExchangeInfo here is a
-            // placeholder; M2 hash-shuffle redesign will need to add partitionCount back.
-            new ExchangeInfo(org.apache.calcite.rel.RelDistribution.Type.HASH_DISTRIBUTED, shuffle.getHashKeys()),
-            /* sinkProvider */ null,
-            new ShardTargetResolver(childFragment, clusterService)
+            ExchangeInfo.hashDistributed(shuffle.getHashKeys(), shuffle.getPartitionCount()),
+            childSinkProvider,
+            targetResolver
         );
-        // Tag as a shuffle scan — the coordinator picks LEFT / RIGHT before dispatch.
-        childStage.setRole(Stage.StageRole.SHUFFLE_SCAN_LEFT);
         parentChildStages.add(childStage);
 
         OpenSearchStageInputScan stageInput = new OpenSearchStageInputScan(

@@ -117,6 +117,8 @@ public class RuleProfilingListenerTests extends BasePlannerRulesTests {
                 1L,
                 "OpenSearchJoinSplitRule",
                 1L,
+                "OpenSearchHashJoinSplitRule",
+                0L,
                 "ExpandConversionRule",
                 2L
             )

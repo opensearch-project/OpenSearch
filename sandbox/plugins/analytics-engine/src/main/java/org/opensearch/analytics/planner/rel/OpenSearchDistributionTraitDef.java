@@ -25,8 +25,9 @@ import java.util.List;
  * Trait definition for OpenSearch distribution.
  *
  * <p>Called by Volcano via ExpandConversionRule when a distribution trait mismatch
- * is detected. Produces an {@link OpenSearchExchangeReducer} for SINGLETON demands.
- * HASH/RANGE shuffle exchanges are not yet implemented.
+ * is detected. Produces an {@link OpenSearchExchangeReducer} for SINGLETON demands and
+ * an {@link OpenSearchShuffleExchange} for HASH_DISTRIBUTED demands. RANGE exchanges
+ * are not implemented.
  *
  * <p>One instance per query — created by {@link PlannerContext}.
  *
@@ -54,6 +55,7 @@ public class OpenSearchDistributionTraitDef extends RelTraitDef<OpenSearchDistri
             RelDistribution.Type.SINGLETON,
             List.of(),
             null,
+            null,
             null
         );
     }
@@ -62,7 +64,7 @@ public class OpenSearchDistributionTraitDef extends RelTraitDef<OpenSearchDistri
      *  Used as the root demand: a 1-shard SHARD+SINGLETON subtree already satisfies, so no top
      *  ER is inserted; a multi-shard RANDOM subtree still mismatches and triggers ER insertion. */
     public OpenSearchDistribution anySingleton() {
-        return new OpenSearchDistribution(this, null, RelDistribution.Type.SINGLETON, List.of(), null, null);
+        return new OpenSearchDistribution(this, null, RelDistribution.Type.SINGLETON, List.of(), null, null, null);
     }
 
     /** SHARD + SINGLETON — single-shard TableScan output. {@code shardCount=1} is what lets
@@ -75,7 +77,8 @@ public class OpenSearchDistributionTraitDef extends RelTraitDef<OpenSearchDistri
             RelDistribution.Type.SINGLETON,
             List.of(),
             tableId,
-            shardCount
+            shardCount,
+            null
         );
     }
 
@@ -88,19 +91,42 @@ public class OpenSearchDistributionTraitDef extends RelTraitDef<OpenSearchDistri
             RelDistribution.Type.RANDOM_DISTRIBUTED,
             List.of(),
             tableId,
-            shardCount
+            shardCount,
+            null
         );
     }
 
     /** ANY — universal sink; any distribution satisfies it. Used as {@link #getDefault}. */
     public OpenSearchDistribution any() {
-        return new OpenSearchDistribution(this, null, RelDistribution.Type.ANY, List.of(), null, null);
+        return new OpenSearchDistribution(this, null, RelDistribution.Type.ANY, List.of(), null, null, null);
     }
 
-    public OpenSearchDistribution hash(List<Integer> keys) {
-        // HASH is currently only used as a downstream demand (future: shuffle exchanges);
-        // we never stamp HASH on a scan, so locality/tableId/shardCount aren't meaningful.
-        return new OpenSearchDistribution(this, null, RelDistribution.Type.HASH_DISTRIBUTED, keys, null, null);
+    /**
+     * HASH_DISTRIBUTED demand on the given keys, partition count, and WORKER locality.
+     * Used by {@code OpenSearchHashJoinSplitRule} to demand both join inputs deliver a
+     * hash partitioning compatible with the join keys. The trait converter materializes
+     * an {@link OpenSearchShuffleExchange} when the demand isn't already satisfied.
+     */
+    public OpenSearchDistribution hash(List<Integer> keys, int partitionCount) {
+        return new OpenSearchDistribution(
+            this,
+            OpenSearchDistribution.Locality.WORKER,
+            RelDistribution.Type.HASH_DISTRIBUTED,
+            keys,
+            null,
+            null,
+            partitionCount
+        );
+    }
+
+    /**
+     * HASH_DISTRIBUTED demand without a concrete partition count or locality — accepts any
+     * upstream HASH on the same keys. Used in narrow contexts where the partition count is
+     * not yet resolved (e.g. early planner exploration). Production-side rules should always
+     * use {@link #hash(List, int)} with a concrete count.
+     */
+    public OpenSearchDistribution hashAny(List<Integer> keys) {
+        return new OpenSearchDistribution(this, null, RelDistribution.Type.HASH_DISTRIBUTED, keys, null, null, null);
     }
 
     /** Copies a distribution from another trait def — preserves all fields. */
@@ -111,12 +137,13 @@ public class OpenSearchDistributionTraitDef extends RelTraitDef<OpenSearchDistri
             other.getType(),
             other.getKeys(),
             other.getTableId(),
-            other.getShardCount()
+            other.getShardCount(),
+            other.getPartitionCount()
         );
     }
 
     public OpenSearchDistribution fromType(RelDistribution.Type type, List<Integer> keys) {
-        return new OpenSearchDistribution(this, null, type, keys, null, null);
+        return new OpenSearchDistribution(this, null, type, keys, null, null, null);
     }
 
     // ---- RelTraitDef ----
@@ -169,16 +196,23 @@ public class OpenSearchDistributionTraitDef extends RelTraitDef<OpenSearchDistri
             OpenSearchDistribution stamp = toTrait.getLocality() == null ? coordSingleton() : toTrait;
             result = new OpenSearchExchangeReducer(rel.getCluster(), rel.getTraitSet().replace(stamp), rel, reduceViable);
         } else if (toTrait.getType() == RelDistribution.Type.HASH_DISTRIBUTED) {
-            // Partition count of 0 is a marker — the real partition count is set by the coordinator
-            // when it rewrites the DAG for HASH_SHUFFLE dispatch (typically # of data nodes, from
-            // plugins.analytics.shuffle_partitions). Trait conversion doesn't know the cluster
-            // topology, only the key set.
+            // The split rule that issued the demand resolved the concrete partition count
+            // (cluster setting → engine default) and embedded it in toTrait. A null demand
+            // is rejected here — the caller must resolve a concrete count before requesting
+            // a HASH conversion, otherwise the exchange is incoherent with downstream
+            // ShuffleScan handlers that index per-partition buffers.
+            if (toTrait.getPartitionCount() == null) {
+                throw new IllegalStateException(
+                    "HASH_DISTRIBUTED demand has null partitionCount; rule must resolve count "
+                        + "via OpenSearchDistributionTraitDef.hash(keys, partitionCount). toTrait=" + toTrait
+                );
+            }
             result = new OpenSearchShuffleExchange(
                 rel.getCluster(),
                 rel.getTraitSet().replace(toTrait),
                 rel,
                 toTrait.getKeys(),
-                /* partitionCount */ 0,
+                toTrait.getPartitionCount(),
                 viableBackends
             );
         } else {

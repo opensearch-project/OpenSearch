@@ -94,6 +94,11 @@ public class OpenSearchJoin extends Join implements OpenSearchRelNode {
      *   <li>If the join is at {@code SHARD+SINGLETON} (co-location fast path), every input
      *       must also be {@code SHARD+SINGLETON} with the same {@code tableId} and
      *       {@code shardCount=1}. Anything else is infinite cost.</li>
+     *   <li>If the join is at {@code WORKER+HASH(keys, N)} (post-shuffle hash join), every
+     *       input must also be {@code WORKER+HASH(keys, N)} with the same key set and the
+     *       same partition count. {@code OpenSearchHashJoinSplitRule} drives this by
+     *       demanding the appropriate per-side HASH on each input; Volcano materializes
+     *       an {@link OpenSearchShuffleExchange} on any input not already so distributed.</li>
      * </ul>
      */
     @Override
@@ -102,26 +107,48 @@ public class OpenSearchJoin extends Join implements OpenSearchRelNode {
         org.apache.calcite.rel.metadata.RelMetadataQuery mq
     ) {
         OpenSearchDistribution selfDist = distributionOf(this);
-        if (selfDist == null || selfDist.getType() != org.apache.calcite.rel.RelDistribution.Type.SINGLETON) {
+        if (selfDist == null) {
+            return planner.getCostFactory().makeInfiniteCost();
+        }
+        org.apache.calcite.rel.RelDistribution.Type selfType = selfDist.getType();
+        if (selfType != org.apache.calcite.rel.RelDistribution.Type.SINGLETON
+            && selfType != org.apache.calcite.rel.RelDistribution.Type.HASH_DISTRIBUTED) {
             return planner.getCostFactory().makeInfiniteCost();
         }
         for (RelNode input : getInputs()) {
             OpenSearchDistribution inputDist = distributionOf(input);
             if (inputDist == null) continue;
             if (inputDist.getType() == org.apache.calcite.rel.RelDistribution.Type.ANY) continue;
-            if (inputDist.getType() != org.apache.calcite.rel.RelDistribution.Type.SINGLETON) {
+            // Inputs must match the join's distribution type — no mixing SINGLETON inputs
+            // with a HASH-localized join (or vice versa).
+            if (inputDist.getType() != selfType) {
                 return planner.getCostFactory().makeInfiniteCost();
             }
-            // Locality must match the join's own locality.
+            // Locality must match the join's own locality (modulo a null demand on the input
+            // side, which is rare but accepted).
             if (selfDist.getLocality() != inputDist.getLocality()) {
                 return planner.getCostFactory().makeInfiniteCost();
             }
-            // SHARD case additionally requires the input to share the join's tableId and shardCount=1.
-            if (selfDist.getLocality() == OpenSearchDistribution.Locality.SHARD) {
-                if (selfDist.getTableId() == null || !selfDist.getTableId().equals(inputDist.getTableId())) {
-                    return planner.getCostFactory().makeInfiniteCost();
+            if (selfType == org.apache.calcite.rel.RelDistribution.Type.SINGLETON) {
+                // SHARD case additionally requires the input to share the join's tableId and shardCount=1.
+                if (selfDist.getLocality() == OpenSearchDistribution.Locality.SHARD) {
+                    if (selfDist.getTableId() == null || !selfDist.getTableId().equals(inputDist.getTableId())) {
+                        return planner.getCostFactory().makeInfiniteCost();
+                    }
+                    if (!Integer.valueOf(1).equals(inputDist.getShardCount())) {
+                        return planner.getCostFactory().makeInfiniteCost();
+                    }
                 }
-                if (!Integer.valueOf(1).equals(inputDist.getShardCount())) {
+            } else {
+                // HASH+WORKER case: keys identify the hash buckets, partitionCount sizes
+                // them. Both must agree on each input. The join's own keys are a logical
+                // marker (the rule sets them to the left-side keys); per-input keys are
+                // the demand for that side and may differ between left and right
+                // (left.k1=right.k2 → left wants HASH(k1), right wants HASH(k2)). What
+                // matters here is that each input's own demand was satisfied — i.e. the
+                // input is HASH-distributed on some keys with the same partition count.
+                if (!Integer.valueOf(selfDist.getPartitionCount() == null ? -1 : selfDist.getPartitionCount())
+                    .equals(inputDist.getPartitionCount())) {
                     return planner.getCostFactory().makeInfiniteCost();
                 }
             }

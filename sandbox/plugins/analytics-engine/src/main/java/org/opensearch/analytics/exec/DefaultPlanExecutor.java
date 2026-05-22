@@ -152,6 +152,16 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
                 );
             } catch (Exception e) {
                 convertingListener.onFailure(e);
+            } catch (AssertionError e) {
+                // Calcite's Litmus.THROW (used by RelOptUtil.eq, RexUtil.isFlat, Project.isValid,
+                // RexChecker) throws AssertionError directly via Java code rather than via the
+                // `assert` keyword, so JVM -da doesn't gate them. If one fires inside this
+                // executor, OpenSearchUncaughtExceptionHandler exits the cluster JVM. Convert to
+                // an IllegalStateException so the query path treats it as a per-query failure
+                // (HTTP 500 with a bucketable message) instead of cluster-fatal.
+                convertingListener.onFailure(
+                    new IllegalStateException("Analytics-engine executor rejected the plan: " + e.getMessage(), e)
+                );
             }
         });
     }
@@ -179,7 +189,10 @@ public class DefaultPlanExecutor extends HandledTransportAction<ActionRequest, A
         logicalFragment.getCluster().invalidateMetadataQuery();
 
         final long planStartNanos = profile ? System.nanoTime() : 0;
-        RelNode plan = PlannerImpl.createPlan(logicalFragment, new PlannerContext(capabilityRegistry, clusterService.state()));
+        RelNode plan = PlannerImpl.createPlan(
+            logicalFragment,
+            new PlannerContext(capabilityRegistry, clusterService.state(), clusterService.getSettings(), profile)
+        );
         final String fullPlan = profile ? org.apache.calcite.plan.RelOptUtil.toString(plan) : null;
         QueryDAG dag = DAGBuilder.build(plan, capabilityRegistry, clusterService);
         PlanForker.forkAll(dag, capabilityRegistry);

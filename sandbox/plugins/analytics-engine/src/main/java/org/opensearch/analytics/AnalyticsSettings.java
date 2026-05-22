@@ -9,6 +9,7 @@
 package org.opensearch.analytics;
 
 import org.opensearch.common.settings.Setting;
+import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.unit.ByteSizeValue;
 
 import java.util.List;
@@ -32,10 +33,6 @@ public final class AnalyticsSettings {
      * join falls back to the coordinator-centric (M0) path regardless of advisor decision —
      * useful as an incident-response kill switch when an MPP-specific issue is observed in
      * production, or for A/B comparison against the baseline path.
-     *
-     * <p>HASH_SHUFFLE already falls through to coordinator-centric until M2 lands, so today
-     * this setting effectively gates the BROADCAST path; it will gate HASH_SHUFFLE too once
-     * that's wired end-to-end.
      */
     public static final Setting<Boolean> MPP_ENABLED = Setting.boolSetting(
         "analytics.mpp.enabled",
@@ -81,6 +78,61 @@ public final class AnalyticsSettings {
         Setting.Property.Dynamic
     );
 
+    /**
+     * Hash-shuffle kill switch, layered under {@link #MPP_ENABLED}. When {@code true} (default)
+     * and {@code MPP_ENABLED} is also true, the strategy advisor may pick HASH_SHUFFLE for
+     * equi-joins where neither side fits the broadcast row threshold. When {@code false},
+     * shuffle eligibility is refused and the join falls back to coordinator-centric — useful
+     * as a finer-grained incident-response control that lets BROADCAST keep working while the
+     * shuffle path is disabled.
+     */
+    public static final Setting<Boolean> MPP_SHUFFLE_ENABLED = Setting.boolSetting(
+        "analytics.mpp.shuffle_enabled",
+        true,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
+     * Number of hash-shuffle output partitions. When set to a positive value, every
+     * HASH_SHUFFLE query uses this exact partition count regardless of cluster shape. When
+     * unset (or non-positive), the partition count is resolved per-query via
+     * {@code AnalyticsSearchBackendPlugin.defaultShuffleParallelism(ClusterState)} — backends
+     * that participate in MPP shuffle (DataFusion today) return the count of probe-side data
+     * nodes; backends that don't (Lucene today) return 1 and so opt out of the strategy
+     * entirely (the split rule refuses to fire when partitionCount ≤ 1).
+     *
+     * <p>Default {@code -1} means "use engine default." Operators rarely need to override.
+     */
+    public static final Setting<Integer> MPP_SHUFFLE_PARTITIONS = Setting.intSetting(
+        "analytics.mpp.shuffle_partitions",
+        -1,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
+     * Per-partition receive timeout for hash-shuffle consumers. Each consumer task blocks on
+     * its {@code ShuffleBuffer} until both producer sides signal {@code isLast}; if no senders
+     * complete within this timeout, the partition fails and the query terminates. The timeout
+     * is a backstop against stuck producers (cancelled queries cascade through the walker
+     * faster than this); 60s is conservative enough that healthy queries never hit it.
+     */
+    public static final Setting<TimeValue> MPP_SHUFFLE_RECV_TIMEOUT = Setting.timeSetting(
+        "analytics.mpp.shuffle_recv_timeout",
+        TimeValue.timeValueSeconds(60L),
+        TimeValue.timeValueSeconds(1L),
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     /** All engine-level settings registered by {@code AnalyticsPlugin.getSettings()}. */
-    public static final List<Setting<?>> ALL_SETTINGS = List.of(MPP_ENABLED, BROADCAST_MAX_ROWS, BROADCAST_MAX_BYTES);
+    public static final List<Setting<?>> ALL_SETTINGS = List.of(
+        MPP_ENABLED,
+        BROADCAST_MAX_ROWS,
+        BROADCAST_MAX_BYTES,
+        MPP_SHUFFLE_ENABLED,
+        MPP_SHUFFLE_PARTITIONS,
+        MPP_SHUFFLE_RECV_TIMEOUT
+    );
 }
