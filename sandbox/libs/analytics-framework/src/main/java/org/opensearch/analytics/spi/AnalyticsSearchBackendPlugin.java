@@ -96,6 +96,24 @@ public interface AnalyticsSearchBackendPlugin {
      * @param ctx the shared execution context (Reader, MapperService, IndexSettings)
      * @return a handle the driving backend calls into via FFM upcalls
      */
+    /**
+     * Evaluates whether a shard can possibly match the given filter predicate by
+     * checking storage-level metadata (e.g., Parquet row-group min/max statistics).
+     *
+     * <p>Called by the coordinator's can-match pre-filter phase before dispatching
+     * fragments. Backends that store data with rich metadata statistics should override
+     * this to eliminate shards that provably have no matching data.
+     *
+     * <p>Default: returns {@code true} (conservative — never filters out shards).
+     *
+     * @param ctx         the common execution context (Reader, MapperService, IndexSettings)
+     * @param filterBytes serialized filter predicate
+     * @return true if the shard can possibly contain matching data
+     */
+    default boolean canMatch(CommonExecutionContext ctx, byte[] filterBytes) {
+        return true;
+    }
+
     default FilterDelegationHandle getFilterDelegationHandle(List<DelegatedExpression> expressions, CommonExecutionContext ctx) {
         throw new UnsupportedOperationException("getFilterDelegationHandle not implemented for [" + name() + "]");
     }

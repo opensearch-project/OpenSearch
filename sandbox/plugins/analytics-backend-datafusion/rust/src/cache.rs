@@ -49,6 +49,13 @@ impl MutexFileMetadataCache {
         }
     }
 
+    pub fn get_entry(&self, k: &Path) -> Option<CachedFileMetadataEntry> {
+        match self.inner.lock() {
+            Ok(cache) => cache.get(k),
+            Err(_) => None,
+        }
+    }
+
     pub fn get_cache_limit(&self) -> usize {
         if let Ok(cache) = self.inner.lock() {
             cache.cache_limit()

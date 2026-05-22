@@ -17,6 +17,7 @@ import org.opensearch.analytics.spi.AggregateFunction;
 import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin;
 import org.opensearch.analytics.spi.BackendCapabilityProvider;
 import org.opensearch.analytics.spi.BackendExecutionContext;
+import org.opensearch.analytics.spi.CommonExecutionContext;
 import org.opensearch.analytics.spi.DelegationType;
 import org.opensearch.analytics.spi.EngineCapability;
 import org.opensearch.analytics.spi.ExchangeSink;
@@ -412,6 +413,31 @@ public class DataFusionAnalyticsBackendPlugin implements AnalyticsSearchBackendP
     @Override
     public String name() {
         return plugin.name();
+    }
+
+    @Override
+    public boolean canMatch(CommonExecutionContext ctx, byte[] filterBytes) {
+        // DataFusion owns the shard-view (file layout). The CustomCacheManager has metadata
+        // cached by file path. The flow:
+        //
+        // 1. Resolve segment file paths from ctx (shard directory + segment listing)
+        // TODO: ctx is currently null from the transport handler. Wire shard path through
+        // CommonExecutionContext so we can list .parquet files.
+        //
+        // 2. Deserialize the CanMatchFilter from filterBytes:
+        // CanMatchFilter filter = CanMatchFilter.fromBytes(filterBytes);
+        // String column = filter.getColumnName();
+        // long min = filter.getMinValue();
+        // long max = filter.getMaxValue();
+        //
+        // 3. For each .parquet file in the shard:
+        // long result = NativeBridge.canMatch(filePath, column, min, max);
+        // if (result == 1 || result == -1) return true; // can match or unknown
+        //
+        // 4. All files returned 0: return false (shard cannot match)
+        //
+        // For now: conservative (always match) until ctx provides file paths.
+        return true;
     }
 
     @Override

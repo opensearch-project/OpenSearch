@@ -54,9 +54,29 @@ import java.util.function.Supplier;
 public class LucenePlugin extends Plugin implements DataFormatPlugin, SearchBackEndPlugin<LuceneReader>, EnginePlugin {
 
     private static final LuceneDataFormat DATA_FORMAT = new LuceneDataFormat();
+    private volatile org.apache.lucene.search.QueryCache indicesQueryCache;
+    private volatile org.apache.lucene.search.QueryCachingPolicy queryCachingPolicy;
 
     /** Creates a new LucenePlugin. */
     public LucenePlugin() {}
+
+    /**
+     * Wire the node-level query cache for filter delegation. Called during node setup
+     * so that the analytics engine's Lucene delegation path benefits from the same
+     * query caching as the classic search path.
+     */
+    public void setIndicesQueryCache(org.apache.lucene.search.QueryCache cache, org.apache.lucene.search.QueryCachingPolicy policy) {
+        this.indicesQueryCache = cache;
+        this.queryCachingPolicy = policy;
+    }
+
+    public org.apache.lucene.search.QueryCache getIndicesQueryCache() {
+        return indicesQueryCache;
+    }
+
+    public org.apache.lucene.search.QueryCachingPolicy getQueryCachingPolicy() {
+        return queryCachingPolicy;
+    }
 
     // --- DataFormatPlugin ---
 

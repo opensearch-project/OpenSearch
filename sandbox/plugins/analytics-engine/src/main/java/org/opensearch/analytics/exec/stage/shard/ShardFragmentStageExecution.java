@@ -15,6 +15,8 @@ import org.opensearch.analytics.exec.QueryContext;
 import org.opensearch.analytics.exec.StreamingResponseListener;
 import org.opensearch.analytics.exec.action.FragmentExecutionArrowResponse;
 import org.opensearch.analytics.exec.action.FragmentExecutionRequest;
+import org.opensearch.analytics.exec.canmatch.CanMatchFilter;
+import org.opensearch.analytics.exec.canmatch.CanMatchFilterExtractor;
 import org.opensearch.analytics.exec.stage.AbstractStageExecution;
 import org.opensearch.analytics.exec.stage.DataProducer;
 import org.opensearch.analytics.exec.stage.StageTask;
@@ -61,12 +63,33 @@ public class ShardFragmentStageExecution extends AbstractStageExecution implemen
     @Override
     protected List<StageTask> materializeTasks() {
         List<ExecutionTarget> resolved = stage.getTargetResolver().resolve(clusterService.state(), null);
+        // Can-match pre-filter: eliminate shards that provably cannot match
+        resolved = applyCanMatchFilter(resolved);
         // Empty list → base short-circuits to SUCCEEDED (nothing to dispatch).
         List<StageTask> tasks = new ArrayList<>(resolved.size());
         for (int i = 0; i < resolved.size(); i++) {
             tasks.add(new ShardStageTask(new StageTaskId(getStageId(), i), resolved.get(i)));
         }
         return tasks;
+    }
+
+    /**
+     * Applies the can-match pre-filter to eliminate targets that provably cannot
+     * match the query's range predicates based on Parquet row-group statistics.
+     */
+    private List<ExecutionTarget> applyCanMatchFilter(List<ExecutionTarget> targets) {
+        if (targets.isEmpty()) {
+            return targets;
+        }
+        // Extract range predicates from the plan
+        List<CanMatchFilter> filters = CanMatchFilterExtractor.extract(stage.getFragment());
+        if (filters.isEmpty()) {
+            return targets; // no extractable predicates, cannot prune
+        }
+        // TODO: for each target, send can-match request with the filter and
+        // eliminate shards that return canMatch=false. Currently returns all
+        // targets until transport dispatch is wired.
+        return targets;
     }
 
     // TODO: override retargetForRetry for replica failover — needs TargetResolver.alternateReplica
