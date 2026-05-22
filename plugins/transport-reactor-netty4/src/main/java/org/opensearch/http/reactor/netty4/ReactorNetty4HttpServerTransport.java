@@ -634,17 +634,10 @@ public class ReactorNetty4HttpServerTransport extends AbstractHttpServerTranspor
         private final CompletableContext<Void> closeContext = new CompletableContext<>();
         private final Set<HttpChannel> httpChannels = Collections.newSetFromMap(new ConcurrentHashMap<>());
 
-        ChannelGroup(Channel channel, ActionListener<Void> listener) {
+        ChannelGroup(Channel channel) {
             this.channel = channel;
             Netty4Utils.addListener(channel.closeFuture(), closeContext);
-            closeContext.addListener((v, ex) -> {
-                httpChannels.forEach(HttpChannel::close);
-                if (ex == null) {
-                    listener.onResponse(v);
-                } else {
-                    listener.onFailure(ex);
-                }
-            });
+            closeContext.addListener((v, ex) -> { httpChannels.forEach(HttpChannel::close); });
         }
 
         @Override
@@ -724,11 +717,10 @@ public class ReactorNetty4HttpServerTransport extends AbstractHttpServerTranspor
             throw new IllegalStateException("Failed to obtain connection from HttpServerRequest");
         }
 
-        final ChannelGroup channels = channelGroups.computeIfAbsent(
-            connection[0].channel(),
-            key -> new ChannelGroup(key, ActionListener.wrap(() -> channelGroups.remove(key)))
-        );
+        final Channel channel = connection[0].channel();
+        final ChannelGroup channelGroup = channelGroups.computeIfAbsent(channel, key -> new ChannelGroup(key));
+        channelGroup.addCloseListener(ActionListener.wrap(() -> channelGroups.remove(channel)));
 
-        return channels.newHttpChannel(request, response, emitter);
+        return channelGroup.newHttpChannel(request, response, emitter);
     }
 }
