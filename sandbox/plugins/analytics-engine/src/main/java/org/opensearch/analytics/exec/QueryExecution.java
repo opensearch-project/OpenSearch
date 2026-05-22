@@ -110,6 +110,11 @@ public class QueryExecution {
         return state.get();
     }
 
+    /** Returns the execution graph for post-execution inspection (e.g. profiling). */
+    public ExecutionGraph getGraph() {
+        return graph;
+    }
+
     /**
      * Single-fire cleanup — closes terminal sink + per-query context. Each step under
      * {@link #runQuietly} so a failure in one doesn't skip the other. Auto-fired from any
