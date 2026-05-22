@@ -22,6 +22,8 @@ import org.opensearch.analytics.exec.QueryPlanExecutor;
 import org.opensearch.analytics.exec.QueryScheduler;
 import org.opensearch.analytics.exec.Scheduler;
 import org.opensearch.analytics.exec.action.AnalyticsQueryAction;
+import org.opensearch.analytics.exec.stats.AnalyticsQueryNodeStats;
+import org.opensearch.analytics.exec.stats.QueryStatsService;
 import org.opensearch.analytics.planner.CapabilityRegistry;
 import org.opensearch.analytics.planner.FieldStorageResolver;
 import org.opensearch.analytics.schema.OpenSearchSchemaBuilder;
@@ -43,6 +45,7 @@ import org.opensearch.plugins.ActionPlugin;
 import org.opensearch.plugins.ExtensiblePlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.plugins.PluginComponentRegistry;
+import org.opensearch.plugins.PluginNodeStats;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.script.ScriptService;
 import org.opensearch.threadpool.ExecutorBuilder;
@@ -99,6 +102,7 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
     private SqlOperatorTable operatorTable;
     private AnalyticsSearchService searchService;
     private CoordinatorAllocatorHandle coordinatorAllocatorHandle;
+    private final QueryStatsService queryStatsService = new QueryStatsService();
 
     @SuppressWarnings("rawtypes")
     @Override
@@ -151,6 +155,7 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
             b.bind(new TypeLiteral<QueryPlanExecutor<RelNode, Iterable<Object[]>>>() {
             }).to(DefaultPlanExecutor.class);
             b.bind(EngineContext.class).to(DefaultEngineContext.class);
+            b.bind(QueryStatsService.class).toInstance(queryStatsService);
             // Singleton bind on the concrete class so node-injector lookups for
             // QueryScheduler.class don't fall back to a JIT binding (which would
             // re-instantiate AnalyticsSearchTransportService, whose ctor registers
@@ -181,6 +186,18 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
 
     static int schedulerPoolSize() {
         return Math.max(2, Runtime.getRuntime().availableProcessors() / 2);
+    }
+
+    @Override
+    public List<PluginNodeStats> nodeStats() {
+        return List.of(queryStatsService.snapshot());
+    }
+
+    @Override
+    public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
+        return List.of(
+            new NamedWriteableRegistry.Entry(PluginNodeStats.class, AnalyticsQueryNodeStats.NAME, AnalyticsQueryNodeStats::new)
+        );
     }
 
     @Override

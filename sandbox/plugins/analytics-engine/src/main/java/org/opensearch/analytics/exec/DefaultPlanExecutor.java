@@ -26,6 +26,7 @@ import org.opensearch.analytics.exec.action.AnalyticsQueryResponse;
 import org.opensearch.analytics.exec.profile.ProfiledResult;
 import org.opensearch.analytics.exec.profile.QueryProfile;
 import org.opensearch.analytics.exec.profile.QueryProfileBuilder;
+import org.opensearch.analytics.exec.stats.QueryStatsService;
 import org.opensearch.analytics.exec.task.AnalyticsQueryTask;
 import org.opensearch.analytics.exec.task.AnalyticsQueryTaskRequest;
 import org.opensearch.analytics.planner.CapabilityRegistry;
@@ -82,6 +83,7 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
     private final TaskManager taskManager;
     private final NodeClient client;
     private final EngineContext engineContext;
+    private final QueryStatsService queryStatsService;
     // Owned and closed by AnalyticsPlugin via the injected CoordinatorAllocatorHandle so that
     // shutdown closes this child of POOL_QUERY before arrow-base closes the root allocator.
     private final BufferAllocator coordinatorAllocator;
@@ -97,7 +99,8 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
         EngineContext engineContext,
         NodeClient client,
         Scheduler scheduler,
-        CoordinatorAllocatorHandle coordinatorAllocatorHandle
+        CoordinatorAllocatorHandle coordinatorAllocatorHandle,
+        QueryStatsService queryStatsService
     ) {
         super(AnalyticsQueryAction.NAME, transportService, actionFilters, AnalyticsQueryRequest::new);
         this.capabilityRegistry = capabilityRegistry;
@@ -108,6 +111,7 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
         this.client = client;
         this.scheduler = scheduler;
         this.engineContext = engineContext;
+        this.queryStatsService = queryStatsService;
         // Use the plugin-owned coordinator allocator (a child of POOL_QUERY). The plugin
         // closes the underlying allocator on Plugin.close() via the handle, so coordinator-
         // side allocations are released deterministically before arrow-base tears down the
@@ -157,14 +161,14 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
         RelMetadataQueryBase.THREAD_PROVIDERS.set(JaninoRelMetadataProvider.of(logicalFragment.getCluster().getMetadataProvider()));
         logicalFragment.getCluster().invalidateMetadataQuery();
 
-        final long planStartNanos = profile ? System.nanoTime() : 0;
+        final long planStartNanos = System.nanoTime();
         RelNode plan = PlannerImpl.createPlan(logicalFragment, new PlannerContext(capabilityRegistry, clusterService.state()));
         final String fullPlan = profile ? org.apache.calcite.plan.RelOptUtil.toString(plan) : null;
         QueryDAG dag = DAGBuilder.build(plan, capabilityRegistry, clusterService);
         PlanForker.forkAll(dag, capabilityRegistry);
         BackendPlanAdapter.adaptAll(dag, capabilityRegistry);
         FragmentConversionDriver.convertAll(dag, capabilityRegistry);
-        final long planningTimeMs = profile ? java.util.concurrent.TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - planStartNanos) : 0;
+        final long planningTimeMs = java.util.concurrent.TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - planStartNanos);
         logger.debug("[DefaultPlanExecutor] QueryDAG:\n{}", dag);
 
         final AnalyticsQueryTask queryTask = (AnalyticsQueryTask) taskManager.register(
@@ -206,7 +210,7 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
 
         ActionListener<Iterable<Object[]>> rowsListener = profile
             ? buildProfilingRowsListener(execRef, context, fullPlan, planningTimeMs, listener)
-            : ActionListener.wrap(rows -> listener.onResponse(new ProfiledResult(rows, null, null)), listener::onFailure);
+            : buildStatsOnlyRowsListener(execRef, context, planningTimeMs, listener);
 
         ActionListener<Iterable<VectorSchemaRoot>> batchesListener = ActionListener.runAfter(
             ActionListener.wrap(batches -> rowsListener.onResponse(batchesToRows(batches)), rowsListener::onFailure),
@@ -231,8 +235,9 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
     /**
      * Builds a rows listener that snapshots the {@link ExecutionGraph} into a {@link QueryProfile}
      * at terminal, delivering a {@link ProfiledResult} on both success and failure paths.
+     * Also records the profile into the node-level stats service.
      */
-    private static ActionListener<Iterable<Object[]>> buildProfilingRowsListener(
+    private ActionListener<Iterable<Object[]>> buildProfilingRowsListener(
         AtomicReference<QueryExecution> execRef,
         QueryContext context,
         String fullPlan,
@@ -241,12 +246,37 @@ public class DefaultPlanExecutor extends HandledTransportAction<AnalyticsQueryRe
     ) {
         return ActionListener.wrap(rows -> {
             QueryProfile qp = QueryProfileBuilder.snapshot(execRef.get().getGraph(), context, fullPlan, planningTimeMs);
+            queryStatsService.recordQuery(qp, false);
             listener.onResponse(new ProfiledResult(rows, null, qp));
         }, e -> {
             QueryProfile qp = execRef.get() != null && execRef.get().getGraph() != null
                 ? QueryProfileBuilder.snapshot(execRef.get().getGraph(), context, fullPlan, planningTimeMs)
                 : new QueryProfile(context.queryId(), java.util.List.of(), planningTimeMs, 0L, java.util.List.of());
+            queryStatsService.recordQuery(qp, true);
             listener.onResponse(new ProfiledResult(null, e, qp));
+        });
+    }
+
+    /**
+     * Non-profile path: snapshots the graph for stats recording only, does not include
+     * the profile in the response.
+     */
+    private ActionListener<Iterable<Object[]>> buildStatsOnlyRowsListener(
+        AtomicReference<QueryExecution> execRef,
+        QueryContext context,
+        long planningTimeMs,
+        ActionListener<ProfiledResult> listener
+    ) {
+        return ActionListener.wrap(rows -> {
+            QueryProfile qp = QueryProfileBuilder.snapshot(execRef.get().getGraph(), context, null, planningTimeMs);
+            queryStatsService.recordQuery(qp, false);
+            listener.onResponse(new ProfiledResult(rows, null, null));
+        }, e -> {
+            QueryProfile qp = execRef.get() != null && execRef.get().getGraph() != null
+                ? QueryProfileBuilder.snapshot(execRef.get().getGraph(), context, null, planningTimeMs)
+                : new QueryProfile(context.queryId(), java.util.List.of(), planningTimeMs, 0L, java.util.List.of());
+            queryStatsService.recordQuery(qp, true);
+            listener.onFailure(e);
         });
     }
 
