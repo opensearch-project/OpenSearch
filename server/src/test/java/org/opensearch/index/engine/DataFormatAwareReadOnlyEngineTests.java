@@ -386,6 +386,149 @@ public class DataFormatAwareReadOnlyEngineTests extends OpenSearchTestCase {
         }
     }
 
+    public void testAcquireReaderCatalogSnapshotIsNonNull() throws IOException {
+        // Regression test: DataFormatAwareReader.catalogSnapshot() must not NPE.
+        // The permanentSnapshotRef is acquired at construction and stored in the reader —
+        // callers using reader.catalogSnapshot() (e.g. LuceneAnalyticsBackendPlugin) must get a valid snapshot.
+        try (DataFormatAwareReadOnlyEngine engine = createReadOnlyEngine()) {
+            try (
+                org.opensearch.common.concurrent.GatedCloseable<org.opensearch.index.engine.exec.Indexer.Reader> gated = engine
+                    .acquireReader()
+            ) {
+                DataFormatAwareEngine.DataFormatAwareReader reader = (DataFormatAwareEngine.DataFormatAwareReader) gated.get();
+                assertNotNull(
+                    "reader.catalogSnapshot() must return non-null — permanentSnapshotRef must be wired into the reader",
+                    reader.catalogSnapshot()
+                );
+            }
+        }
+    }
+
+    public void testAcquireReaderMultipleTimesReturnsSameReaderObject() throws IOException {
+        // The snapshot never changes for read-only engine — all acquireReader() calls
+        // return the same underlying DataFormatAwareReader instance.
+        try (DataFormatAwareReadOnlyEngine engine = createReadOnlyEngine()) {
+            try (
+                org.opensearch.common.concurrent.GatedCloseable<org.opensearch.index.engine.exec.Indexer.Reader> r1 = engine
+                    .acquireReader();
+                org.opensearch.common.concurrent.GatedCloseable<org.opensearch.index.engine.exec.Indexer.Reader> r2 = engine.acquireReader()
+            ) {
+                assertSame("all acquireReader() calls must return the same reader object", r1.get(), r2.get());
+            }
+        }
+    }
+
+    public void testMultipleSequentialReadQueriesAllGetValidSnapshot() throws IOException {
+        // Sequential read queries: each acquireReader() returns a valid reader with non-null catalogSnapshot.
+        // All return the same reader object and the same snapshot ID.
+        try (DataFormatAwareReadOnlyEngine engine = createReadOnlyEngine()) {
+            int queryCount = randomIntBetween(5, 20);
+            DataFormatAwareEngine.DataFormatAwareReader firstReader = null;
+            long firstSnapshotId = -1;
+
+            for (int i = 0; i < queryCount; i++) {
+                try (
+                    org.opensearch.common.concurrent.GatedCloseable<org.opensearch.index.engine.exec.Indexer.Reader> gated = engine
+                        .acquireReader()
+                ) {
+                    DataFormatAwareEngine.DataFormatAwareReader reader = (DataFormatAwareEngine.DataFormatAwareReader) gated.get();
+
+                    assertNotNull("query " + i + ": reader must be non-null", reader);
+                    assertNotNull("query " + i + ": catalogSnapshot must be non-null", reader.catalogSnapshot());
+
+                    if (firstReader == null) {
+                        firstReader = reader;
+                        firstSnapshotId = reader.catalogSnapshot().getId();
+                    } else {
+                        assertSame("query " + i + ": must be same reader object as query 0", firstReader, reader);
+                        assertEquals(
+                            "query " + i + ": snapshot ID must be stable across all queries",
+                            firstSnapshotId,
+                            reader.catalogSnapshot().getId()
+                        );
+                    }
+                }
+            }
+            // Engine must still be open after all queries
+            engine.ensureOpen();
+        }
+    }
+
+    public void testMultipleConcurrentReadQueriesAllGetValidSnapshot() throws Exception {
+        // Concurrent read queries: N threads each call acquireReader() simultaneously.
+        // All must get a non-null catalogSnapshot and the same reader object.
+        try (DataFormatAwareReadOnlyEngine engine = createReadOnlyEngine()) {
+            int threadCount = randomIntBetween(5, 15);
+            CountDownLatch startLatch = new CountDownLatch(1);
+            CountDownLatch doneLatch = new CountDownLatch(threadCount);
+            List<Exception> exceptions = new ArrayList<>();
+            List<DataFormatAwareEngine.DataFormatAwareReader> readersObserved = new java.util.concurrent.CopyOnWriteArrayList<>();
+
+            ExecutorService executor = Executors.newFixedThreadPool(threadCount);
+            try {
+                for (int i = 0; i < threadCount; i++) {
+                    executor.submit(() -> {
+                        try {
+                            startLatch.await();
+                            try (
+                                org.opensearch.common.concurrent.GatedCloseable<org.opensearch.index.engine.exec.Indexer.Reader> gated =
+                                    engine.acquireReader()
+                            ) {
+                                DataFormatAwareEngine.DataFormatAwareReader reader = (DataFormatAwareEngine.DataFormatAwareReader) gated
+                                    .get();
+                                assertNotNull("concurrent reader must be non-null", reader);
+                                assertNotNull("concurrent catalogSnapshot must be non-null", reader.catalogSnapshot());
+                                readersObserved.add(reader);
+                            }
+                        } catch (Exception e) {
+                            synchronized (exceptions) {
+                                exceptions.add(e);
+                            }
+                        } finally {
+                            doneLatch.countDown();
+                        }
+                    });
+                }
+
+                startLatch.countDown();
+                assertTrue("all threads must complete within timeout", doneLatch.await(30, TimeUnit.SECONDS));
+                assertTrue("no exceptions from concurrent readers, got: " + exceptions, exceptions.isEmpty());
+                assertEquals("must have observed N reader instances", threadCount, readersObserved.size());
+
+                // All threads must have seen the same reader object
+                DataFormatAwareEngine.DataFormatAwareReader expected = readersObserved.get(0);
+                for (DataFormatAwareEngine.DataFormatAwareReader r : readersObserved) {
+                    assertSame("all concurrent queries must get the same reader object", expected, r);
+                }
+            } finally {
+                executor.shutdown();
+                executor.awaitTermination(10, TimeUnit.SECONDS);
+            }
+
+            // Engine must still be open after all concurrent reads
+            engine.ensureOpen();
+        }
+    }
+
+    public void testAcquireReaderCloseIsNoOpSnapshotRemainsValid() throws IOException {
+        // Closing the GatedCloseable returned by acquireReader() must NOT release the permanent snapshot.
+        // After close, the engine can still serve reads — snapshot is still valid.
+        try (DataFormatAwareReadOnlyEngine engine = createReadOnlyEngine()) {
+            // Acquire and immediately close
+            org.opensearch.common.concurrent.GatedCloseable<org.opensearch.index.engine.exec.Indexer.Reader> r1 = engine.acquireReader();
+            r1.close();
+
+            // Engine can still serve a second read — snapshot was NOT released
+            try (
+                org.opensearch.common.concurrent.GatedCloseable<org.opensearch.index.engine.exec.Indexer.Reader> r2 = engine.acquireReader()
+            ) {
+                assertNotNull("engine must still serve reads after prior GatedCloseable.close()", r2.get());
+                DataFormatAwareEngine.DataFormatAwareReader reader = (DataFormatAwareEngine.DataFormatAwareReader) r2.get();
+                assertNotNull("catalogSnapshot must still be valid after prior close()", reader.catalogSnapshot());
+            }
+        }
+    }
+
     public void testAcquireSafeCatalogSnapshotReturnsNonNull() throws IOException {
         try (DataFormatAwareReadOnlyEngine engine = createReadOnlyEngine()) {
             try (org.opensearch.common.concurrent.GatedCloseable<CatalogSnapshot> snapshot = engine.acquireSafeCatalogSnapshot()) {

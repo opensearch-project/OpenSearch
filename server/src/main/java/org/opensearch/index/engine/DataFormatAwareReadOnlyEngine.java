@@ -114,6 +114,9 @@ public class DataFormatAwareReadOnlyEngine implements Indexer {
     @Nullable
     private volatile String historyUUID;
 
+    // The permanent snapshot ref: held for the engine's lifetime, released in closeNoLock.
+    // The snapshot never changes for this engine — build once, reuse across all reads.
+    private final GatedCloseable<CatalogSnapshot> permanentSnapshotRef;
     private final DataFormatAwareEngine.DataFormatAwareReader reader;
 
     public DataFormatAwareReadOnlyEngine(EngineConfig engineConfig) {
@@ -201,17 +204,17 @@ public class DataFormatAwareReadOnlyEngine implements Indexer {
                 this.historyUUID = UUIDs.randomBase64UUID();
             }
 
-            try (GatedCloseable<CatalogSnapshot> initSnapshot = catalogSnapshotManagerRef.acquireSnapshot()) {
-                Map<DataFormat, Object> readers = new HashMap<>();
-                for (Map.Entry<DataFormat, EngineReaderManager<?>> entry : readerManagersRef.entrySet()) {
-                    Object r = entry.getValue().getReader(initSnapshot.get());
-                    if (r != null) {
-                        readers.put(entry.getKey(), r);
-                    }
+            // Acquire permanent snapshot ref — held for engine's lifetime, released in closeNoLock.
+            // The snapshot never changes; all queries share this single ref via the cached reader.
+            this.permanentSnapshotRef = catalogSnapshotManagerRef.acquireSnapshot();
+            Map<DataFormat, Object> readers = new HashMap<>();
+            for (Map.Entry<DataFormat, EngineReaderManager<?>> entry : readerManagersRef.entrySet()) {
+                Object r = entry.getValue().getReader(permanentSnapshotRef.get());
+                if (r != null) {
+                    readers.put(entry.getKey(), r);
                 }
-                this.reader = new DataFormatAwareEngine.DataFormatAwareReader(null, Map.copyOf(readers));
             }
-
+            this.reader = new DataFormatAwareEngine.DataFormatAwareReader(permanentSnapshotRef, readers);
             success = true;
             logger.info("Created DataFormatAwareReadOnlyEngine");
         } catch (IOException e) {
@@ -267,8 +270,9 @@ public class DataFormatAwareReadOnlyEngine implements Indexer {
     @Override
     public GatedCloseable<Reader> acquireReader() throws IOException {
         ensureOpen();
-        GatedCloseable<CatalogSnapshot> snapshotRef = catalogSnapshotManager.acquireSnapshot();
-        return new GatedCloseable<>(reader, snapshotRef::close);
+        // The reader holds a permanent snapshotRef for the engine's lifetime.
+        // Callers must not release it — use a no-op close callback.
+        return new GatedCloseable<>(reader, () -> {});
     }
 
     // ---- IndexerEngineOperations (Task 3 — write rejection) ----
@@ -651,6 +655,8 @@ public class DataFormatAwareReadOnlyEngine implements Indexer {
             assert rwl.isWriteLockedByCurrentThread() || failEngineLock.isHeldByCurrentThread()
                 : "Either the write lock must be held or the engine must be currently failing";
             try {
+                // Release the permanent snapshot ref before closing reader managers and catalog.
+                IOUtils.closeWhileHandlingException(permanentSnapshotRef);
                 List<Closeable> closeables = new ArrayList<>(readerManagers.values());
                 closeables.add(catalogSnapshotManager);
                 IOUtils.close(closeables);
